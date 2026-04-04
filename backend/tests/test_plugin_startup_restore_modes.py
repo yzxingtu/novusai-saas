@@ -9,6 +9,7 @@ import pytest
 
 from app.core.config import settings
 from app.enums.plugin import PluginStatusEnum
+from app.plugins.exceptions import PluginSecurityError
 from app.plugins.startup import restore_enabled_plugins
 
 
@@ -573,3 +574,79 @@ async def test_restore_marks_error_when_heavy_restore_step_fails(
     assert plugin.status == PluginStatusEnum.ERROR.value
     assert plugin.error_count == 1
     assert plugin.error_message == "Startup restore failed"
+
+
+@pytest.mark.asyncio
+async def test_restore_fail_closes_plugin_when_security_scan_blocks(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    plugin = SimpleNamespace(
+        id=6,
+        name="suspicious-plugin",
+        version="1.0.0",
+        status=PluginStatusEnum.ENABLED.value,
+        pricing_type="free",
+        manifest=None,
+        error_count=0,
+        error_message=None,
+        config={},
+    )
+
+    db = AsyncMock()
+    db.flush = AsyncMock()
+    db.execute = AsyncMock(
+        side_effect=[
+            _ScalarsResult([plugin]),
+            _RowsResult([("suspicious-plugin", "blocked by security scan")]),
+        ]
+    )
+
+    class _Loader:
+        def __init__(self):
+            self.plugins_dir = tmp_path / "plugins"
+
+        def load_manifest(self, _plugin_name: str):
+            raise AssertionError("blocked plugin should not continue loading manifest")
+
+    lifecycle_instances: list[object] = []
+
+    class _Lifecycle:
+        def __init__(self, _db):
+            self._set_plugin_permissions_enabled = AsyncMock()
+            lifecycle_instances.append(self)
+
+    registry = MagicMock()
+
+    monkeypatch.setattr("app.plugins.loader.PluginLoader", _Loader)
+    monkeypatch.setattr(
+        "app.plugins.license.get_plugin_runtime_license_status",
+        AsyncMock(return_value={"runtime_allowed": True, "status": "not_required"}),
+    )
+    monkeypatch.setattr(
+        "app.plugins.registry.ExtensionRegistry.get_instance",
+        lambda: registry,
+    )
+    monkeypatch.setattr("app.plugins.lifecycle.PluginLifecycle", _Lifecycle)
+    monkeypatch.setattr(
+        "app.plugins.startup._assert_startup_security_clean",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            PluginSecurityError(message="blocked by security scan")
+        ),
+    )
+
+    result = await restore_enabled_plugins(
+        db,
+        run_heavy=True,
+        mutate_db_status=True,
+    )
+
+    assert result == {"restored": 0, "failed": 1, "total": 1}
+    assert plugin.status == PluginStatusEnum.ERROR.value
+    assert plugin.error_message == "blocked by security scan"
+    assert lifecycle_instances
+    lifecycle_instances[0]._set_plugin_permissions_enabled.assert_awaited_once_with(
+        plugin.name,
+        False,
+    )
+    registry.unregister_all.assert_called_once_with(plugin.name)

@@ -20,18 +20,25 @@ class SkillRepository(TenantRepository[Skill]):
 
     model = Skill
 
+    def _is_skill_tenant_visible(self, skill: Skill) -> bool:
+        return getattr(skill, "tenant_id", None) in {None, self.tenant_id}
+
+    def _is_package_visible(self, package: SkillPackage | None) -> bool:
+        return bool(
+            package
+            and not getattr(package, "is_deleted", False)
+            and getattr(package, "is_active", True)
+            and getattr(package, "tenant_id", None) in {None, self.tenant_id}
+        )
+
     async def get_by_id(self, id: int, include_deleted: bool = False) -> Skill | None:
         """根据 ID 获取技能，允许访问全局 + 已分配技能包下的技能 / Get skill by ID (global + assigned package)."""
         instance = await BaseRepository.get_by_id(self, id, include_deleted)
         if instance and hasattr(instance, "tenant_id"):
-            if instance.tenant_id == self.tenant_id:
-                return instance
-            if instance.tenant_id is None:
-                pkg = await self.db.get(SkillPackage, instance.package_id)
-                if pkg and pkg.tenant_id is None:
-                    return instance
+            if not self._is_skill_tenant_visible(instance):
                 return None
-            if instance.tenant_id != self.tenant_id:
+            pkg = await self.db.get(SkillPackage, instance.package_id)
+            if not self._is_package_visible(pkg):
                 return None
         return instance
 
@@ -51,27 +58,26 @@ class SkillRepository(TenantRepository[Skill]):
         allowed_fields = self.get_allowed_fields(scope)
         all_fields = self.get_allowed_fields(None)
 
-        platform_pkg_stmt = select(SkillPackage.id).where(
-            SkillPackage.is_deleted.is_(False),
-            SkillPackage.tenant_id.is_(None),
+        query = select(self.model).join(
+            SkillPackage,
+            self.model.package_id == SkillPackage.id,
         )
-        platform_pkg_result = await self.db.execute(platform_pkg_stmt)
-        platform_pkg_ids = [row[0] for row in platform_pkg_result.all()]
-
-        query = select(self.model)
 
         if not include_deleted:
             query = query.where(self.model.is_deleted.is_(False))
 
-        if platform_pkg_ids:
-            query = query.where(
-                or_(
-                    self.model.tenant_id == self.tenant_id,
-                    self.model.package_id.in_(platform_pkg_ids),
-                )
-            )
-        else:
-            query = query.where(self.model.tenant_id == self.tenant_id)
+        query = query.where(
+            SkillPackage.is_deleted.is_(False),
+            SkillPackage.is_active.is_(True),
+            or_(
+                self.model.tenant_id == self.tenant_id,
+                self.model.tenant_id.is_(None),
+            ),
+            or_(
+                SkillPackage.tenant_id == self.tenant_id,
+                SkillPackage.tenant_id.is_(None),
+            ),
+        )
 
         if forced_filters:
             query = self._apply_filters(query, forced_filters, all_fields)
@@ -104,13 +110,11 @@ class SkillRepository(TenantRepository[Skill]):
         instances = await BaseRepository.get_by_ids(self, ids, include_deleted)
         visible: list[Skill] = []
         for instance in instances:
-            if instance.tenant_id == self.tenant_id:
-                visible.append(instance)
+            if not self._is_skill_tenant_visible(instance):
                 continue
-            if instance.tenant_id is None:
-                pkg = await self.db.get(SkillPackage, instance.package_id)
-                if pkg and pkg.tenant_id is None:
-                    visible.append(instance)
+            pkg = await self.db.get(SkillPackage, instance.package_id)
+            if self._is_package_visible(pkg):
+                visible.append(instance)
         return visible
 
     async def get_by_package_id(
@@ -126,15 +130,17 @@ class SkillRepository(TenantRepository[Skill]):
         read all skills grouped under that package.
         """
         pkg = await self.db.get(SkillPackage, package_id)
-        if not pkg:
-            return []
-        if pkg.tenant_id not in {None, self.tenant_id}:
+        if not self._is_package_visible(pkg):
             return []
 
         stmt = select(Skill).where(Skill.package_id == package_id)
 
         if not include_deleted:
             stmt = stmt.where(Skill.is_deleted.is_(False))
+
+        stmt = stmt.where(
+            or_(Skill.tenant_id == self.tenant_id, Skill.tenant_id.is_(None))
+        )
 
         stmt = stmt.order_by(Skill.sort_order.asc(), Skill.created_at.desc())
         result = await self.db.execute(stmt)
@@ -176,11 +182,18 @@ class SkillRepository(TenantRepository[Skill]):
         """
         stmt = (
             select(Skill)
+            .join(SkillPackage, Skill.package_id == SkillPackage.id)
             .where(
                 and_(
-                    Skill.tenant_id == self.tenant_id,
+                    or_(Skill.tenant_id == self.tenant_id, Skill.tenant_id.is_(None)),
                     Skill.is_active.is_(True),
                     Skill.is_deleted.is_(False),
+                    SkillPackage.is_active.is_(True),
+                    SkillPackage.is_deleted.is_(False),
+                    or_(
+                        SkillPackage.tenant_id == self.tenant_id,
+                        SkillPackage.tenant_id.is_(None),
+                    ),
                 )
             )
             .order_by(Skill.sort_order, Skill.created_at.desc())
@@ -200,12 +213,19 @@ class SkillRepository(TenantRepository[Skill]):
         """
         stmt = (
             select(Skill)
+            .join(SkillPackage, Skill.package_id == SkillPackage.id)
             .where(
                 and_(
-                    Skill.tenant_id == self.tenant_id,
+                    or_(Skill.tenant_id == self.tenant_id, Skill.tenant_id.is_(None)),
                     Skill.type == skill_type,
                     Skill.is_active.is_(True),
                     Skill.is_deleted.is_(False),
+                    SkillPackage.is_active.is_(True),
+                    SkillPackage.is_deleted.is_(False),
+                    or_(
+                        SkillPackage.tenant_id == self.tenant_id,
+                        SkillPackage.tenant_id.is_(None),
+                    ),
                 )
             )
             .order_by(Skill.sort_order)

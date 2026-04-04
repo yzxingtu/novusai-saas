@@ -1,4 +1,4 @@
-import { createApp, watchEffect } from 'vue';
+import { createApp } from 'vue';
 
 import { registerLoadingDirective } from '@vben/common-ui/es/loading';
 import {
@@ -6,21 +6,20 @@ import {
   ensureLucideIconSubsetRegistered,
 } from '@vben/icons';
 import { preferences } from '@vben/preferences';
-import { initStores } from '@vben/stores';
+import { initStores, useTabbarStore } from '@vben/stores';
 import '@vben/styles';
 import '@vben/styles/antd';
-import { resolveRouteMetaTitle } from '@vben/utils';
-
-import { useTitle } from '@vueuse/core';
 import AntDesignVue from 'ant-design-vue';
 
 import { initComponentAdapter } from '#/adapter/component';
 import { initSetupVbenForm } from '#/adapter/form';
 import { setupVxeTable } from '#/adapter/vxe-table';
 import { $t, $te, setupI18n } from '#/locales';
+import { resolveRuntimeLocale } from '#/locales/runtime-locale';
 
 import App from './app.vue';
 import { registerCustomAccessDirective } from './directives/access';
+import { setupDocumentTitleSync } from './layouts/document-title-sync';
 import { router } from './router';
 import { TokenStorage } from './store/shared/token-storage';
 import { setupAriaHiddenFix, setupConsoleFilter } from './utils/console-filter';
@@ -79,6 +78,8 @@ async function bootstrap(namespace: string) {
   // 安装自定义权限指令（支持超级管理员 '*' 通配符）/ v-access + '*' wildcard
   registerCustomAccessDirective(app);
 
+  const tabbarStore = useTabbarStore();
+
   // 初始化 tippy
   const { initTippy } = await import('@vben/common-ui/es/tippy');
   initTippy(app);
@@ -98,17 +99,14 @@ async function bootstrap(namespace: string) {
   app.use(MotionPlugin);
 
   // 动态更新标题 / document title from route meta
-  watchEffect(() => {
-    if (preferences.app.dynamicTitle) {
-      const routeTitle = resolveRouteMetaTitle(router.currentRoute.value.meta, {
-        hasLocaleKey: $te,
-        locale: preferences.app.locale,
-        translate: $t,
-      });
-      const pageTitle =
-        (routeTitle ? `${routeTitle} - ` : '') + preferences.app.name;
-      useTitle(pageTitle);
-    }
+  setupDocumentTitleSync({
+    appName: () => preferences.app.name,
+    dynamicTitle: () => preferences.app.dynamicTitle,
+    hasLocaleKey: $te,
+    locale: () => resolveRuntimeLocale(),
+    refreshSignal: () => tabbarStore.updateTime ?? 0,
+    router,
+    translate: $t,
   });
 
   app.mount('#app');

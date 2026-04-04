@@ -19,6 +19,7 @@ import {
 } from '#/adapter/form';
 import { getTenantPlanSelectApi } from '#/api/admin/plan';
 import { $t } from '#/locales';
+import { useAccess } from '#/utils';
 
 type TenantInfo = adminApi.TenantInfo;
 
@@ -31,6 +32,10 @@ export function useColumns<T = TenantInfo>(
   _onActionClick: OnActionClickFn<T>,
   onStatusChange?: (newStatus: boolean, row: T) => Promise<boolean | undefined>,
 ): VxeTableGridOptions['columns'] {
+  const { hasAccessByCodes } = useAccess();
+  const canToggleStatus =
+    !!onStatusChange && hasAccessByCodes(['tenant:update']);
+
   return [
     {
       type: 'expand',
@@ -81,11 +86,11 @@ export function useColumns<T = TenantInfo>(
     {
       cellRender: {
         attrs: {
-          beforeChange: onStatusChange,
+          beforeChange: canToggleStatus ? onStatusChange : undefined,
           checkedValue: true,
           unCheckedValue: false,
         },
-        name: onStatusChange ? 'CellSwitch' : 'CellTag',
+        name: canToggleStatus ? 'CellSwitch' : 'CellTag',
         options: [
           { color: 'success', label: $t('admin.common.enabled'), value: true },
           {

@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from app.core.i18n import _
+
 _REGISTER_LOCALE_CALL_PATTERN = re.compile(
     r"registerLocale\(\s*['\"][^'\"]+['\"]\s*,\s*(?P<prefix>['\"][^'\"]+['\"]|[A-Za-z_][A-Za-z0-9_]*)",
 )
@@ -119,8 +121,11 @@ def collect_frontend_i18n_warnings(manifest_or_data: Any) -> list[str]:
         )
         if missing_page_locales:
             warnings.append(
-                "Frontend page title i18n incomplete: "
-                f"pages[{index}].title missing {', '.join(missing_page_locales)}"
+                _(
+                    "plugin.preview.warning.frontend_page_title_i18n_incomplete",
+                    index=index,
+                    locales=", ".join(missing_page_locales),
+                )
             )
 
         menu = _page_menu(page)
@@ -132,8 +137,11 @@ def collect_frontend_i18n_warnings(manifest_or_data: Any) -> list[str]:
         )
         if missing_menu_locales:
             warnings.append(
-                "Frontend menu title i18n incomplete: "
-                f"pages[{index}].menu.title missing {', '.join(missing_menu_locales)}"
+                _(
+                    "plugin.preview.warning.frontend_menu_title_i18n_incomplete",
+                    index=index,
+                    locales=", ".join(missing_menu_locales),
+                )
             )
 
     return warnings

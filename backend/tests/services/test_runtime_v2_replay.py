@@ -8,7 +8,6 @@ import pytest
 from app.ai.engine.conversation import (
     ConversationEngine,
     _StreamRuntimeContext,
-    _should_use_runtime_query_engine,
 )
 from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatChunk, ChatMessage, ChatResponse
@@ -18,7 +17,7 @@ class _AdapterStub:
     def __init__(
         self,
         *,
-        delta: str = "legacy-path",
+        delta: str = "adapter-path",
         stream_error: Exception | None = None,
         chat_error: Exception | None = None,
         chat_content: str = "sync-fallback",
@@ -82,9 +81,9 @@ class _RuntimeQueryEngineStub:
                 }
             ],
             metadata={
-                "shadow_diff": {
+                "diagnostics_diff": {
                     "selected_tool_names": {
-                        "legacy": [],
+                        "previous": [],
                         "runtime_v2": ["data_query"],
                     }
                 }
@@ -210,29 +209,6 @@ def _build_engine(mock_db):
     return ConversationEngine(db=mock_db, gateway=gateway, sandbox=MagicMock())
 
 
-@pytest.mark.parametrize(
-    ("runtime_mode", "tool_names", "expected"),
-    [
-        ("active", [], True),
-        ("pageaware_only", ["invoke_page_operation"], True),
-        ("pageaware_only", ["pageop_read_visible_rows"], True),
-        ("pageaware_only", ["data_query"], False),
-        ("shadow", ["invoke_page_operation"], False),
-    ],
-)
-def test_runtime_v2_rollout_mode_gate(
-    runtime_mode: str,
-    tool_names: list[str],
-    expected: bool,
-) -> None:
-    tools = [
-        ToolDefinition(name=name, description=f"tool:{name}") for name in tool_names
-    ]
-    assert (
-        _should_use_runtime_query_engine(runtime_mode=runtime_mode, tools=tools) is expected
-    )
-
-
 @pytest.mark.asyncio
 async def test_runtime_v2_active_mode_uses_query_engine(mock_db) -> None:
     engine = _build_engine(mock_db)
@@ -253,7 +229,6 @@ async def test_runtime_v2_active_mode_uses_query_engine(mock_db) -> None:
             "app.ai.engine.conversation.AdapterRegistry.create_adapter",
             return_value=adapter,
         ),
-        patch("app.ai.engine.conversation.get_runtime_mode", return_value="active"),
         patch(
             "app.ai.engine.conversation.ConversationQueryEngine",
             new=_RuntimeQueryEngineStub,
@@ -286,16 +261,16 @@ async def test_runtime_v2_active_mode_uses_query_engine(mock_db) -> None:
         "runtime.page_context"
     ]
     assert runtime_turn_record.get("fallback_history")
-    assert runtime_turn_record.get("metadata", {}).get("shadow_diff")
+    assert runtime_turn_record.get("metadata", {}).get("diagnostics_diff")
     assert adapter.stream_calls == []
     runtime_context.api_key.increment_usage.assert_called_once()
     mock_db.flush.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_runtime_v2_shadow_mode_keeps_legacy_stream_path(mock_db) -> None:
+async def test_runtime_v2_stream_path_uses_query_engine_for_page_tools(mock_db) -> None:
     engine = _build_engine(mock_db)
-    adapter = _AdapterStub(delta="shadow-legacy")
+    adapter = _AdapterStub(delta="unused-adapter")
     runtime_context = _build_runtime_context(should_record_call_log=False)
     agent = SimpleNamespace(
         id=2,
@@ -304,17 +279,17 @@ async def test_runtime_v2_shadow_mode_keeps_legacy_stream_path(mock_db) -> None:
         max_tokens=256,
         top_p=1.0,
     )
-    query_engine_ctor = MagicMock()
+    _RuntimeQueryEngineStub.created_count = 0
+    _RuntimeQueryEngineStub.run_stream_count = 0
 
     with (
         patch(
             "app.ai.engine.conversation.AdapterRegistry.create_adapter",
             return_value=adapter,
         ),
-        patch("app.ai.engine.conversation.get_runtime_mode", return_value="shadow"),
         patch(
             "app.ai.engine.conversation.ConversationQueryEngine",
-            new=query_engine_ctor,
+            new=_RuntimeQueryEngineStub,
         ),
     ):
         chunks = [
@@ -334,10 +309,11 @@ async def test_runtime_v2_shadow_mode_keeps_legacy_stream_path(mock_db) -> None:
             )
         ]
 
-    assert query_engine_ctor.call_count == 0
-    assert len(adapter.stream_calls) == 1
-    assert "".join(chunk.delta for chunk in chunks) == "shadow-legacy"
-    assert "runtime_turn_record" not in (chunks[0].metadata or {})
+    assert _RuntimeQueryEngineStub.created_count == 1
+    assert _RuntimeQueryEngineStub.run_stream_count == 1
+    assert "".join(chunk.delta for chunk in chunks) == "runtime-v2-path"
+    assert (chunks[0].metadata or {}).get("runtime_turn_record") is not None
+    assert len(adapter.stream_calls) == 0
     runtime_context.api_key.increment_usage.assert_called_once()
     mock_db.flush.assert_awaited_once()
 
@@ -406,9 +382,9 @@ def test_agent_chat_service_last_run_summary_carries_turn_record_skill_and_proto
 
 
 @pytest.mark.asyncio
-async def test_runtime_v2_stream_failure_before_first_chunk_falls_back_to_legacy_stream(mock_db) -> None:
+async def test_runtime_v2_stream_failure_before_first_chunk_raises_without_fallback(mock_db) -> None:
     engine = _build_engine(mock_db)
-    adapter = _AdapterStub(delta="legacy-fallback-stream")
+    adapter = _AdapterStub(delta="unused-fallback-stream")
     runtime_context = _build_runtime_context(should_record_call_log=False)
     agent = SimpleNamespace(
         id=3,
@@ -425,37 +401,37 @@ async def test_runtime_v2_stream_failure_before_first_chunk_falls_back_to_legacy
             "app.ai.engine.conversation.AdapterRegistry.create_adapter",
             return_value=adapter,
         ),
-        patch("app.ai.engine.conversation.get_runtime_mode", return_value="active"),
         patch(
             "app.ai.engine.conversation.ConversationQueryEngine",
             new=_RuntimeQueryEngineFailBeforeMeaningfulChunkStub,
         ),
     ):
-        chunks = [
-            chunk
-            async for chunk in engine._stream_llm_chunks(
+        with pytest.raises(
+            RuntimeError,
+            match="runtime-v2 stream failed before first meaningful chunk",
+        ):
+            async for _ in engine._stream_llm_chunks(
                 agent=agent,
                 messages=[ChatMessage(role="user", content="hello")],
                 tenant_id=1,
                 conversation_id=68,
                 tools=[ToolDefinition(name="data_query", description="Query data")],
                 runtime_context=runtime_context,
-            )
-        ]
+            ):
+                pass
 
     assert _RuntimeQueryEngineFailBeforeMeaningfulChunkStub.created_count == 1
     assert _RuntimeQueryEngineFailBeforeMeaningfulChunkStub.run_stream_count == 1
-    assert "".join(chunk.delta for chunk in chunks) == "legacy-fallback-stream"
-    assert len(adapter.stream_calls) == 1
+    assert len(adapter.stream_calls) == 0
     assert len(adapter.chat_calls) == 0
 
 
 @pytest.mark.asyncio
-async def test_runtime_v2_stream_failure_then_legacy_failure_falls_back_to_sync_chat(mock_db) -> None:
+async def test_runtime_v2_stream_failure_before_first_chunk_does_not_fallback_to_sync_chat(mock_db) -> None:
     engine = _build_engine(mock_db)
     adapter = _AdapterStub(
         delta="ignored",
-        stream_error=RuntimeError("legacy stream failed"),
+        stream_error=RuntimeError("adapter stream failed"),
         chat_content="sync-once",
     )
     runtime_context = _build_runtime_context(should_record_call_log=False)
@@ -472,27 +448,27 @@ async def test_runtime_v2_stream_failure_then_legacy_failure_falls_back_to_sync_
             "app.ai.engine.conversation.AdapterRegistry.create_adapter",
             return_value=adapter,
         ),
-        patch("app.ai.engine.conversation.get_runtime_mode", return_value="active"),
         patch(
             "app.ai.engine.conversation.ConversationQueryEngine",
             new=_RuntimeQueryEngineFailBeforeMeaningfulChunkStub,
         ),
     ):
-        chunks = [
-            chunk
-            async for chunk in engine._stream_llm_chunks(
+        with pytest.raises(
+            RuntimeError,
+            match="runtime-v2 stream failed before first meaningful chunk",
+        ):
+            async for _ in engine._stream_llm_chunks(
                 agent=agent,
                 messages=[ChatMessage(role="user", content="hello")],
                 tenant_id=1,
                 conversation_id=69,
                 tools=[ToolDefinition(name="data_query", description="Query data")],
                 runtime_context=runtime_context,
-            )
-        ]
+            ):
+                pass
 
-    assert "".join(chunk.delta for chunk in chunks) == "sync-once"
-    assert len(adapter.stream_calls) == 1
-    assert len(adapter.chat_calls) == 1
+    assert len(adapter.stream_calls) == 0
+    assert len(adapter.chat_calls) == 0
 
 
 @pytest.mark.asyncio
@@ -515,7 +491,6 @@ async def test_runtime_v2_stream_success_with_call_log_enabled_records_success_l
             "app.ai.engine.conversation.AdapterRegistry.create_adapter",
             return_value=adapter,
         ),
-        patch("app.ai.engine.conversation.get_runtime_mode", return_value="active"),
         patch(
             "app.ai.engine.conversation.ConversationQueryEngine",
             new=_RuntimeQueryEngineStub,
@@ -546,11 +521,7 @@ async def test_runtime_v2_stream_success_with_call_log_enabled_records_success_l
 @pytest.mark.asyncio
 async def test_runtime_v2_stream_failure_with_call_log_enabled_records_failure_log(mock_db) -> None:
     engine = _build_engine(mock_db)
-    adapter = _AdapterStub(
-        delta="ignored",
-        stream_error=RuntimeError("legacy stream failed"),
-        chat_error=RuntimeError("sync chat failed"),
-    )
+    adapter = _AdapterStub(delta="ignored")
     runtime_context = _build_runtime_context(should_record_call_log=True)
     agent = SimpleNamespace(
         id=6,
@@ -565,13 +536,15 @@ async def test_runtime_v2_stream_failure_with_call_log_enabled_records_failure_l
             "app.ai.engine.conversation.AdapterRegistry.create_adapter",
             return_value=adapter,
         ),
-        patch("app.ai.engine.conversation.get_runtime_mode", return_value="active"),
         patch(
             "app.ai.engine.conversation.ConversationQueryEngine",
             new=_RuntimeQueryEngineFailBeforeMeaningfulChunkStub,
         ),
     ):
-        with pytest.raises(RuntimeError, match="sync chat failed"):
+        with pytest.raises(
+            RuntimeError,
+            match="runtime-v2 stream failed before first meaningful chunk",
+        ):
             async for _ in engine._stream_llm_chunks(
                 agent=agent,
                 messages=[ChatMessage(role="user", content="hello")],
@@ -588,6 +561,8 @@ async def test_runtime_v2_stream_failure_with_call_log_enabled_records_failure_l
     failure_kwargs = engine.gateway.usage_recorder.log_call_failure.await_args.kwargs
     assert failure_kwargs["protocol_path"] == "responses"
     assert failure_kwargs["turn_record"]["termination_reason"] == "error"
+    assert len(adapter.stream_calls) == 0
+    assert len(adapter.chat_calls) == 0
 
 
 @pytest.mark.asyncio
@@ -608,7 +583,6 @@ async def test_runtime_v2_stream_failure_after_chunk_records_flag(mock_db) -> No
             "app.ai.engine.conversation.AdapterRegistry.create_adapter",
             return_value=adapter,
         ),
-        patch("app.ai.engine.conversation.get_runtime_mode", return_value="active"),
         patch(
             "app.ai.engine.conversation.ConversationQueryEngine",
             new=_RuntimeQueryEngineFailAfterMeaningfulChunkStub,

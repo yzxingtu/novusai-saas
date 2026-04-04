@@ -5,10 +5,10 @@ AI 供应商 Service / AI Provider Service
 Handles AI provider business logic.
 """
 
-import re
 from typing import Any
 from urllib.parse import urlparse
 
+from app.ai.text_semantics import slugify_ascii_identifier
 from sqlalchemy.exc import IntegrityError
 
 from app.core.base_service import BaseService
@@ -75,9 +75,7 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
             "Azure OpenAI" -> "azure_openai"
             "Anthropic (Claude)" -> "anthropic_claude"
         """
-        slug = name.lower().strip()
-        slug = re.sub(r"[^a-z0-9]+", "_", slug)
-        return slug.strip("_")[:50]
+        return slugify_ascii_identifier(name, max_length=50)
 
     async def _generate_unique_code(self, name: str) -> str:
         """

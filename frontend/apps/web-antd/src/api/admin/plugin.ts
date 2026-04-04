@@ -43,6 +43,30 @@ export interface PluginDependencyStatus {
   };
 }
 
+export type PluginRecoveryAction =
+  | 'force_cleanup'
+  | 'install_dependencies'
+  | 'refresh_schedules'
+  | 'repair';
+
+export type PluginRecoveryReason =
+  | 'missing_dependencies'
+  | 'missing_from_disk'
+  | 'none'
+  | 'runtime_error'
+  | 'schedule_refresh_failed';
+
+export type PluginRecoverySeverity = 'error' | 'healthy' | 'warning';
+
+export interface PluginRecoveryState {
+  has_scheduled_tasks: boolean;
+  needs_attention: boolean;
+  primary_action: null | PluginRecoveryAction;
+  reason: PluginRecoveryReason;
+  secondary_actions: PluginRecoveryAction[];
+  severity: PluginRecoverySeverity;
+}
+
 /** Plugin info / 插件信息 */
 export interface PluginInfo {
   id: number;
@@ -77,17 +101,69 @@ export interface PluginInfo {
   updated_at: string;
   readme?: null | string;
   dependency_status?: PluginDependencyStatus;
+  recovery_state?: PluginRecoveryState;
+}
+
+export type InstallManifestCountKey =
+  | 'skills'
+  | 'adapters'
+  | 'storage_drivers'
+  | 'hooks'
+  | 'events'
+  | 'webhooks'
+  | 'tasks'
+  | 'notifications'
+  | 'permissions'
+  | 'api_routes'
+  | 'frontend_pages'
+  | 'page_menus'
+  | 'header_widgets'
+  | 'floating_panels'
+  | 'notification_ui'
+  | 'dashboard_widgets'
+  | 'settings_tabs';
+
+export type InstallManifestDetailKey = `${InstallManifestCountKey}_details`;
+
+export type InstallManifestSummary = Partial<
+  Record<InstallManifestCountKey, number>
+> &
+  Partial<Record<InstallManifestDetailKey, string[]>>;
+
+export interface PreviewPythonDependencyState {
+  installed: boolean;
+  installed_version: null | string;
+  message: string;
+  package: string;
+  requirement: string;
+  satisfied: boolean;
+  state: 'missing' | 'ready';
+}
+
+export interface PreviewPluginDependencyState {
+  enabled: boolean;
+  installed: boolean;
+  installed_version: null | string;
+  message: string;
+  plugin: string;
+  source: string;
+  state: 'disabled' | 'missing' | 'ready' | 'unknown' | 'version_mismatch';
+  version: string;
 }
 
 /** Install preview / 安装预览 */
 export interface InstallPreview {
   plugin_info: Record<string, unknown>;
-  install_manifest: Record<string, unknown>;
-  dependencies: Record<string, unknown>;
+  install_manifest: InstallManifestSummary;
+  dependencies: {
+    plugins: PreviewPluginDependencyState[];
+    python: PreviewPythonDependencyState[];
+  };
   conflicts: Array<Record<string, string>>;
   capabilities: Array<{ code: string; description: string }>;
   compatibility: Record<string, unknown>;
   warnings: string[];
+  preview_token: string;
 }
 
 /** Version history / 版本历史 */
@@ -128,6 +204,13 @@ export interface PluginHealthInfo {
   enabled_at: null | string;
 }
 
+export interface PluginScheduleRefreshResult {
+  mode: string;
+  plugin_id: number;
+  plugin_name: string;
+  task_count: number;
+}
+
 // ── List & Detail / 列表 & 详情 ──
 
 /** Get plugin list / 获取插件列表 */
@@ -152,9 +235,10 @@ export function previewPluginInstallApi(file: File) {
 }
 
 /** Install plugin / 安装插件 */
-export function installPluginApi(file: File) {
+export function installPluginApi(file: File, previewToken: string) {
   const formData = new FormData();
   formData.append('file', file);
+  formData.append('preview_token', previewToken);
   return requestClient.post(`${BASE_URL}/upload`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
@@ -269,6 +353,17 @@ export function repairPluginApi(id: number) {
   return requestClient.post(`${BASE_URL}/${id}/repair`, undefined, {
     timeout: 300_000,
   });
+}
+
+/** Refresh plugin schedules / 刷新插件调度 */
+export function refreshPluginSchedulesApi(id: number) {
+  return requestClient.post<PluginScheduleRefreshResult>(
+    `${BASE_URL}/${id}/refresh-schedules`,
+    undefined,
+    {
+      timeout: 120_000,
+    },
+  );
 }
 
 /** Force cleanup plugin / 强制清理插件 */

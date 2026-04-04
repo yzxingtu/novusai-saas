@@ -12,6 +12,7 @@ from typing import Any
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.response import serialize_datetime_for_api
 from app.models.ai.action_log import AIActionLog
 
 
@@ -62,9 +63,7 @@ async def get_skill_stats_by_id(
         "failure_count": failure_count,
         "success_rate": round(success_count / total, 4) if total > 0 else 0,
         "avg_duration_ms": round(float(row.avg_duration_ms or 0), 1),
-        "last_called_at": row.last_called_at.isoformat()
-        if row.last_called_at
-        else None,
+        "last_called_at": serialize_datetime_for_api(row.last_called_at),
     }
 
 
@@ -125,9 +124,7 @@ async def get_all_skills_stats(
                 "failure_count": total - sc,
                 "success_rate": round(sc / total, 4) if total > 0 else 0,
                 "avg_duration_ms": round(float(row.avg_duration_ms or 0), 1),
-                "last_called_at": row.last_called_at.isoformat()
-                if row.last_called_at
-                else None,
+                "last_called_at": serialize_datetime_for_api(row.last_called_at),
             }
         )
 

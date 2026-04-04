@@ -18,9 +18,12 @@ export interface MonitoringCallLogInfo {
   tenant_id: null | number;
   conversation_id?: null | number;
   agent_id?: null | number;
+  agent_avatar?: null | string;
   model_name?: null | string;
+  model_id?: null | number;
   provider_name?: null | string;
   provider_icon?: null | string;
+  provider_id?: null | number;
   tenant_name?: null | string;
   agent_name?: null | string;
   caller_name?: null | string;
@@ -31,6 +34,7 @@ export interface MonitoringCallLogInfo {
   cost: number;
   latency_ms: null | number;
   status: string;
+  trace_id?: null | string;
   error_message?: null | string;
   created_at: string;
   request_data?: null | Record<string, unknown>;
@@ -51,6 +55,53 @@ export interface MonitoringConversationMessage {
   tool_call_id?: null | string;
   tool_calls?: null | unknown[];
   tool_name?: null | string;
+}
+
+export interface MonitoringIntentPlanItem {
+  id?: null | string;
+  intent_id?: null | string;
+  kind?: null | string;
+  label?: null | string;
+  status?: null | string;
+  required_capabilities?: string[];
+  selected_tools?: string[];
+  allowed_tools?: string[];
+  completed_tools?: string[];
+  unfinished_reason?: null | string;
+  [key: string]: unknown;
+}
+
+export interface MonitoringRetryEvent {
+  attempt?: null | number;
+  kind?: null | string;
+  message?: null | string;
+  reason?: null | string;
+  unresolved_intents?: string[];
+  [key: string]: unknown;
+}
+
+export interface MonitoringProviderEvent {
+  kind?: null | string;
+  provider_failure_kind?: null | string;
+  message?: null | string;
+  reason?: null | string;
+  stage?: null | string;
+  status_code?: null | number;
+  [key: string]: unknown;
+}
+
+export interface MonitoringRuntimeDiagnostics {
+  execution_path?: null | string;
+  intent_plan?: MonitoringIntentPlanItem[];
+  budget?: null | Record<string, unknown>;
+  budget_status?: null | string;
+  budget_exit_reason?: null | string;
+  candidate_tool_names?: string[];
+  retry_events?: MonitoringRetryEvent[];
+  partial_exit_reason?: null | string;
+  failure_kind?: null | string;
+  provider_events?: MonitoringProviderEvent[];
+  [key: string]: unknown;
 }
 
 export interface MonitoringCallTraceItem {
@@ -89,6 +140,8 @@ export interface MonitoringConversationInfo {
 
 export interface MonitoringConversationDetail extends MonitoringConversationInfo {
   call_trace: MonitoringCallTraceItem[];
+  context_diagnostics?: MonitoringRuntimeDiagnostics | null;
+  last_run_summary?: MonitoringRuntimeDiagnostics | null;
   message_list: MonitoringConversationMessage[];
   metadata?: null | Record<string, unknown>;
 }

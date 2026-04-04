@@ -9,6 +9,7 @@ Reads health status from Redis and finds fallback on AIGateway call failure.
 
 import contextlib
 import json
+from datetime import datetime, timezone
 
 from redis.exceptions import RedisError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +24,30 @@ logger = LogManager.get_logger("ai.failover")
 # Redis key prefixes (consistent with health check) / Redis 键前缀（与 health check 一致）
 HEALTH_KEY_PREFIX = "ai:provider:{provider_id}:health"
 HEALTH_HISTORY_PREFIX = "ai:provider:{provider_id}:health_history"
+
+
+def _normalize_checked_at(value: object) -> object:
+    """Normalize ISO timestamps in health payloads / 规范化健康负载中的 ISO 时间戳。"""
+    if not isinstance(value, str) or not value:
+        return value
+
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return value
+
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+
+    return parsed.isoformat()
+
+
+def _normalize_health_payload(payload: dict) -> dict:
+    """Normalize checked_at field in a Redis health payload / 规范化 Redis 健康负载中的 checked_at。"""
+    checked_at = payload.get("checked_at")
+    if checked_at is not None:
+        payload["checked_at"] = _normalize_checked_at(checked_at)
+    return payload
 
 
 class FailoverService:
@@ -154,7 +179,7 @@ class FailoverService:
                 data = await redis.get(key)
                 if data:
                     try:
-                        health = json.loads(data)
+                        health = _normalize_health_payload(json.loads(data))
                         results.append(health)
                     except (json.JSONDecodeError, TypeError):
                         pass
@@ -191,7 +216,7 @@ class FailoverService:
             results = []
             for entry in entries:
                 with contextlib.suppress(json.JSONDecodeError, TypeError):
-                    results.append(json.loads(entry))
+                    results.append(_normalize_health_payload(json.loads(entry)))
 
             return results
 

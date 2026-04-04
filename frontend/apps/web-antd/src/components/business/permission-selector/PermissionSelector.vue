@@ -13,7 +13,7 @@ import type { Key } from 'ant-design-vue/es/_util/type';
 
 import type { AntTreeNode, PermissionNode } from './types';
 
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
@@ -67,6 +67,8 @@ const emit = defineEmits<{
 // Internal state / 内部状态
 const expandedKeys = ref<Key[]>([]);
 const checkedKeys = ref<number[]>([]);
+const treeAnimationTimers = ref<ReturnType<typeof setTimeout>[]>([]);
+const BRANCH_SWITCH_TRANSITION_MS = 150;
 
 // Key relations / 节点关系
 const parentKeyMap = computed(() => {
@@ -133,6 +135,15 @@ const isAllSelected = computed(() => {
 // Stats: total and selected count (excluding inherited) / 统计：总数与已选数量
 const totalCount = computed(() => allPermissionIds.value.length);
 const selectedCount = computed(() => checkedKeys.value.length);
+const expandedKeySet = computed(
+  () =>
+    new Set(
+      expandedKeys.value.filter((key): key is number => typeof key === 'number'),
+    ),
+);
+const selectedPermissionKeySet = computed(
+  () => new Set([...checkedKeys.value, ...props.inheritedPermissionIds]),
+);
 
 // Watch props.modelValue changes (deep watch to ensure array updates) / 监听 props.modelValue 变化
 watch(
@@ -175,6 +186,42 @@ function getBranchKeys(targetKey: Key): Key[] {
   return branch.toReversed();
 }
 
+function clearTreeAnimationTimers() {
+  treeAnimationTimers.value.forEach((timer) => clearTimeout(timer));
+  treeAnimationTimers.value = [];
+}
+
+function queueTreeAnimation(callback: () => void, delay: number) {
+  const timer = setTimeout(() => {
+    callback();
+    treeAnimationTimers.value = treeAnimationTimers.value.filter(
+      (currentTimer) => currentTimer !== timer,
+    );
+  }, delay);
+
+  treeAnimationTimers.value = [...treeAnimationTimers.value, timer];
+}
+
+function isNodeExpanded(nodeKey: Key) {
+  return typeof nodeKey === 'number' && expandedKeySet.value.has(nodeKey);
+}
+
+function resolvePermissionIcon(nodeData: AntTreeNode) {
+  if (nodeData.icon) {
+    return nodeData.icon;
+  }
+
+  if (nodeData.type === 'menu') {
+    return 'lucide:layout-grid';
+  }
+
+  if (nodeData.type === 'button' || nodeData.type === 'operation') {
+    return 'lucide:mouse-pointer-click';
+  }
+
+  return 'lucide:plug';
+}
+
 /**
  * Keep only one expanded branch / 仅保留一个展开分支
  */
@@ -182,6 +229,8 @@ const handleExpand: NonNullable<AntTreeProps['onExpand']> = (
   nextExpandedKeys,
   info,
 ) => {
+  clearTreeAnimationTimers();
+
   const nodeKey = info.node.key;
 
   if (typeof nodeKey !== 'number') {
@@ -190,7 +239,23 @@ const handleExpand: NonNullable<AntTreeProps['onExpand']> = (
   }
 
   if (info.expanded) {
-    expandedKeys.value = getBranchKeys(nodeKey);
+    const targetBranchKeys = getBranchKeys(nodeKey);
+    const currentExpandedKeys = expandedKeys.value.filter(
+      (key): key is number => typeof key === 'number',
+    );
+    const sharedKeys = currentExpandedKeys.filter((key) =>
+      targetBranchKeys.includes(key),
+    );
+
+    if (sharedKeys.length === currentExpandedKeys.length) {
+      expandedKeys.value = targetBranchKeys;
+      return;
+    }
+
+    expandedKeys.value = sharedKeys;
+    queueTreeAnimation(() => {
+      expandedKeys.value = targetBranchKeys;
+    }, BRANCH_SWITCH_TRANSITION_MS);
     return;
   }
 
@@ -202,6 +267,10 @@ const handleExpand: NonNullable<AntTreeProps['onExpand']> = (
     (key) => typeof key !== 'number' || !removedKeys.has(key),
   );
 };
+
+onBeforeUnmount(() => {
+  clearTreeAnimationTimers();
+});
 
 /**
  * Handle check change / 处理选中变化
@@ -282,13 +351,14 @@ function getKeysByLevel(nodes: AntTreeNode[], level = 0): Map<number, Key[]> {
  * Expand all nodes (smooth transition) / 展开所有节点
  */
 function expandAll() {
+  clearTreeAnimationTimers();
   const levelMap = getKeysByLevel(treeData.value);
   const levels = [...levelMap.keys()].toSorted((a, b) => a - b);
 
   // Expand layer by layer, 80ms interval / 逐层展开
   let currentKeys: Key[] = [];
   levels.forEach((level, index) => {
-    setTimeout(() => {
+    queueTreeAnimation(() => {
       currentKeys = [...currentKeys, ...(levelMap.get(level) || [])];
       expandedKeys.value = [...currentKeys];
     }, index * 80);
@@ -299,13 +369,14 @@ function expandAll() {
  * Collapse all nodes (smooth transition) / 折叠所有节点
  */
 function collapseAll() {
+  clearTreeAnimationTimers();
   const levelMap = getKeysByLevel(treeData.value);
   const levels = [...levelMap.keys()].toSorted((a, b) => b - a); // Start collapsing from deepest level / 从最深层开始折叠
 
   // Collapse layer by layer, 60ms interval / 逐层折叠
   let currentKeys = [...expandedKeys.value];
   levels.forEach((level, index) => {
-    setTimeout(() => {
+    queueTreeAnimation(() => {
       const keysToRemove = new Set(levelMap.get(level) || []);
       currentKeys = currentKeys.filter((k) => !keysToRemove.has(k));
       expandedKeys.value = [...currentKeys];
@@ -370,7 +441,8 @@ defineExpose({
 
       <Tree
         v-else
-        v-model:expanded-keys="expandedKeys"
+        class="permission-tree"
+        :expanded-keys="expandedKeys"
         :checked-keys="checkedKeys"
         :tree-data="treeData as AntTreeProps['treeData']"
         checkable
@@ -380,23 +452,39 @@ defineExpose({
         @check="handleCheck"
         @expand="handleExpand"
       >
+        <template #switcherIcon="switcherProps">
+          <span
+            class="permission-switcher"
+            :class="{
+              'is-expanded': switcherProps.expanded,
+              'is-leaf': switcherProps.isLeaf,
+            }"
+          >
+            <IconifyIcon
+              v-if="!switcherProps.isLeaf"
+              icon="lucide:chevron-right"
+              class="permission-switcher__icon"
+            />
+          </span>
+        </template>
         <template #title="nodeData">
-          <div class="permission-node flex items-center gap-2 py-0.5">
+          <div
+            class="permission-node"
+            :class="{
+              'is-expanded': isNodeExpanded(nodeData.key),
+              'is-inherited': nodeData.isInherited,
+              'is-selected': selectedPermissionKeySet.has(nodeData.key),
+            }"
+          >
+            <div class="permission-node__main">
             <!-- Permission icon: prefer custom icon, fallback to type-based default / 权限图标 -->
             <IconifyIcon
-              :icon="
-                nodeData.icon
-                  ? nodeData.icon
-                  : nodeData.type === 'menu'
-                    ? 'lucide:layout-grid'
-                    : nodeData.type === 'button'
-                      ? 'lucide:mouse-pointer-click'
-                      : 'lucide:plug'
-              "
-              class="size-4 flex-shrink-0"
+              :icon="resolvePermissionIcon(nodeData)"
+              class="permission-node__type-icon size-4 flex-shrink-0"
               :class="{
                 'text-primary': nodeData.type === 'menu',
-                'text-success': nodeData.type === 'button',
+                'text-success':
+                  nodeData.type === 'button' || nodeData.type === 'operation',
                 'text-warning': nodeData.type === 'api',
                 'opacity-50': nodeData.isInherited,
               }"
@@ -404,6 +492,7 @@ defineExpose({
 
             <!-- Permission name / 权限名称 -->
             <span
+              class="permission-node__title"
               :class="{
                 'text-muted-foreground': nodeData.isInherited,
               }"
@@ -413,7 +502,7 @@ defineExpose({
 
             <!-- Permission code / 权限代码 -->
             <span
-              class="font-mono text-xs"
+              class="permission-node__code font-mono text-xs"
               :class="{
                 'text-muted-foreground/50': nodeData.isInherited,
                 'text-muted-foreground': !nodeData.isInherited,
@@ -421,6 +510,7 @@ defineExpose({
             >
               {{ nodeData.code }}
             </span>
+            </div>
 
             <!-- Inherited badge / 继承标识 -->
             <Tooltip
@@ -433,7 +523,7 @@ defineExpose({
                   : $t('component.permissionSelector.inherited')
               "
             >
-              <Tag color="default" class="!m-0 !ml-auto text-xs">
+              <Tag color="default" class="permission-node__badge !m-0 text-xs">
                 <IconifyIcon icon="lucide:link" class="mr-1 size-3" />
                 {{ $t('component.permissionSelector.inherited') }}
               </Tag>
@@ -447,25 +537,72 @@ defineExpose({
 
 <style lang="scss" scoped>
 .permission-selector {
-  :deep(.ant-tree) {
+  :deep(.permission-tree.ant-tree) {
     background: transparent;
 
     .ant-tree-treenode {
       width: 100%;
-      padding: 2px 0;
-
-      &:hover {
-        background-color: hsl(var(--accent));
-      }
+      align-items: center;
+      padding: 1px 0;
+      transition: transform 0.25s ease;
     }
 
     .ant-tree-node-content-wrapper {
       flex: 1;
       min-width: 0;
+      padding: 0 !important;
+      background: transparent !important;
 
       &:hover {
         background-color: transparent;
       }
+    }
+
+    .ant-tree-indent-unit {
+      width: 16px;
+    }
+
+    .ant-tree-switcher {
+      align-self: center;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      min-width: 18px;
+      height: 18px;
+      margin-inline-end: 6px;
+      color: hsl(var(--muted-foreground));
+      border-radius: 999px;
+      transition:
+        background-color 0.25s ease,
+        color 0.25s ease,
+        transform 0.25s ease;
+    }
+
+    .ant-tree-switcher-noop {
+      visibility: hidden;
+    }
+
+    .ant-tree-checkbox {
+      align-self: center;
+      margin-inline-end: 6px;
+    }
+
+    .ant-tree-checkbox-inner {
+      width: 16px;
+      height: 16px;
+      border-radius: 6px;
+      transition:
+        background-color 0.25s ease,
+        border-color 0.25s ease,
+        box-shadow 0.25s ease;
+    }
+
+    .ant-tree-checkbox-checked .ant-tree-checkbox-inner,
+    .ant-tree-checkbox-indeterminate .ant-tree-checkbox-inner {
+      background-color: hsl(var(--primary));
+      border-color: hsl(var(--primary));
+      box-shadow: 0 0 0 4px hsl(var(--primary) / 12%);
     }
 
     .ant-tree-checkbox-disabled {
@@ -483,10 +620,123 @@ defineExpose({
         }
       }
     }
+
+    .ant-tree-treenode:hover > .ant-tree-switcher {
+      color: hsl(var(--foreground));
+    }
+
+    .ant-tree-treenode:hover .permission-node:not(.is-expanded) {
+      background-color: hsl(var(--accent));
+      border-color: hsl(var(--border) / 0.7);
+    }
   }
 }
 
+.permission-switcher {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  line-height: 1;
+
+  &.is-leaf {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  &.is-expanded {
+    .permission-switcher__icon {
+      transform: translateY(1px) rotate(90deg);
+    }
+  }
+}
+
+.permission-switcher__icon {
+  display: block;
+  font-size: 12px;
+  opacity: 0.78;
+  line-height: 1;
+  transform: translateY(1px);
+  transition: transform 0.25s ease;
+}
+
 .permission-node {
-  min-height: 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 5px 10px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  transition:
+    background-color 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
+
+  &.is-selected {
+    background-color: hsl(var(--accent));
+    border-color: hsl(var(--border));
+  }
+
+  &.is-expanded {
+    background-color: hsl(var(--accent));
+    border-color: hsl(var(--border) / 0.75);
+    box-shadow: inset 0 0 0 1px hsl(var(--primary) / 0.08);
+
+    .permission-node__title,
+    .permission-node__code {
+      color: hsl(var(--primary));
+    }
+
+    .permission-node__type-icon {
+      transform: scale(1.06);
+    }
+  }
+
+  &.is-inherited {
+    background-color: hsl(var(--muted) / 0.55);
+    border-color: hsl(var(--border) / 0.7);
+  }
+}
+
+.permission-node__main {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.permission-node__type-icon {
+  transition:
+    transform 0.25s ease,
+    opacity 0.25s ease;
+}
+
+.permission-node__title {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 500;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 0.25s ease;
+}
+
+.permission-node__code {
+  min-width: 0;
+  max-width: min(48%, 360px);
+  margin-left: auto;
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 0.25s ease;
+}
+
+.permission-node__badge {
+  flex-shrink: 0;
 }
 </style>

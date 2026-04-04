@@ -9,7 +9,7 @@ from datetime import date, datetime, timedelta
 from datetime import timezone as dt_timezone
 from typing import Any
 
-from sqlalchemy import Date, case, cast, func, select
+from sqlalchemy import Date, case, cast, exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.configs.service import PLATFORM_TENANT_ID
@@ -22,6 +22,7 @@ from app.models.tenant.tenant_admin import TenantAdmin
 from app.models.tenant.tenant_user import TenantUser
 from app.repositories.ai.agent_conversation_repository import (
     AdminAgentConversationRepository,
+    AgentConversationRepository,
 )
 from app.schemas.ai.monitoring import (
     MonitoringActorInfo,
@@ -33,8 +34,10 @@ from app.schemas.ai.monitoring import (
     MonitoringUsageSeriesPoint,
     MonitoringUsageSummary,
 )
-from app.schemas.common.query import QuerySpec
+from app.schemas.common.query import FilterOp, QuerySpec
 from app.services.ai.conversation_service import ConversationService
+
+_CONVERSATION_DIAGNOSTICS = ConversationService
 
 
 @dataclass(slots=True, frozen=True)
@@ -78,6 +81,301 @@ class MonitoringService:
             return float(value or 0)
         except (TypeError, ValueError):
             return 0.0
+
+    @staticmethod
+    def _normalize_optional_bool(value: Any) -> bool | None:
+        if isinstance(value, bool):
+            return value
+        if value is None:
+            return None
+        normalized = str(value).strip().lower()
+        if normalized in {"true", "1", "yes", "y", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "n", "off"}:
+            return False
+        return None
+
+    @staticmethod
+    def _normalize_fallback_history(value: Any) -> list[dict[str, Any]]:
+        if not isinstance(value, list):
+            return []
+        normalized: list[dict[str, Any]] = []
+        for item in value:
+            if not isinstance(item, dict):
+                continue
+            from_protocol = _CONVERSATION_DIAGNOSTICS._to_non_empty_str(
+                item.get("from_protocol")
+            )
+            to_protocol = _CONVERSATION_DIAGNOSTICS._to_non_empty_str(
+                item.get("to_protocol")
+            )
+            reason = _CONVERSATION_DIAGNOSTICS._to_non_empty_str(item.get("reason"))
+            if not (from_protocol or to_protocol or reason):
+                continue
+            metadata = item.get("metadata")
+            normalized.append(
+                {
+                    "from_protocol": from_protocol,
+                    "to_protocol": to_protocol,
+                    "reason": reason,
+                    "recovered": bool(item.get("recovered", False)),
+                    "metadata": dict(metadata) if isinstance(metadata, dict) else {},
+                }
+            )
+        return normalized
+
+    @classmethod
+    def _extract_call_trace_diagnostics(cls, request_metadata: Any) -> dict[str, Any]:
+        if not isinstance(request_metadata, dict):
+            return {}
+        diagnostics = (
+            dict(request_metadata.get("turn_diagnostics") or {})
+            if isinstance(request_metadata.get("turn_diagnostics"), dict)
+            else {}
+        )
+        request_payload = (
+            dict(request_metadata.get("request") or {})
+            if isinstance(request_metadata.get("request"), dict)
+            else {}
+        )
+        turn_record = (
+            _CONVERSATION_DIAGNOSTICS._normalize_turn_record_payload(
+                diagnostics.get("turn_record")
+            )
+            or _CONVERSATION_DIAGNOSTICS._normalize_turn_record_payload(
+                request_payload.get("turn_record")
+            )
+            or {}
+        )
+        turn_record_metadata = (
+            dict(turn_record.get("metadata") or {})
+            if isinstance(turn_record.get("metadata"), dict)
+            else {}
+        )
+        turn_record_diagnostics = (
+            _CONVERSATION_DIAGNOSTICS._normalize_json_dict(
+                turn_record_metadata.get("turn_diagnostics")
+            )
+            or {}
+        )
+        routing = (
+            _CONVERSATION_DIAGNOSTICS._normalize_json_dict(diagnostics.get("routing"))
+            or _CONVERSATION_DIAGNOSTICS._normalize_json_dict(turn_record.get("routing"))
+            or _CONVERSATION_DIAGNOSTICS._normalize_json_dict(
+                turn_record_diagnostics.get("routing")
+            )
+            or {}
+        )
+        recovery = (
+            _CONVERSATION_DIAGNOSTICS._normalize_json_dict(diagnostics.get("recovery"))
+            or _CONVERSATION_DIAGNOSTICS._normalize_json_dict(
+                turn_record.get("recovery")
+            )
+            or _CONVERSATION_DIAGNOSTICS._normalize_json_dict(
+                turn_record_diagnostics.get("recovery")
+            )
+            or {}
+        )
+        failures = (
+            _CONVERSATION_DIAGNOSTICS._normalize_json_dict(diagnostics.get("failures"))
+            or _CONVERSATION_DIAGNOSTICS._normalize_json_dict(
+                turn_record.get("failures")
+            )
+            or _CONVERSATION_DIAGNOSTICS._normalize_json_dict(
+                turn_record_diagnostics.get("failures")
+            )
+            or {}
+        )
+        budget = _CONVERSATION_DIAGNOSTICS._normalize_json_dict(
+            diagnostics.get("budget") or turn_record.get("budget")
+        )
+        tool_loop_progress = (
+            dict(turn_record.get("tool_loop_progress") or {})
+            if isinstance(turn_record.get("tool_loop_progress"), dict)
+            else (
+                dict(diagnostics.get("tool_loop_progress") or {})
+                if isinstance(diagnostics.get("tool_loop_progress"), dict)
+                else None
+            )
+        )
+        termination_reason = _CONVERSATION_DIAGNOSTICS._to_non_empty_str(
+            turn_record.get("termination_reason")
+            or diagnostics.get("termination_reason")
+            or diagnostics.get("completion_reason")
+            or turn_record_diagnostics.get("termination_reason")
+        )
+        turn_outcome = _CONVERSATION_DIAGNOSTICS._to_non_empty_str(
+            turn_record.get("turn_outcome")
+            or diagnostics.get("turn_outcome")
+            or turn_record_diagnostics.get("turn_outcome")
+        )
+        if not turn_outcome:
+            if (
+                bool(diagnostics.get("partial"))
+                or bool(diagnostics.get("interrupted"))
+                or termination_reason == "interrupted"
+            ):
+                turn_outcome = "partial"
+            elif termination_reason in {
+                "error",
+                "failed",
+                "tool_error",
+                "tool_round_failed",
+            }:
+                turn_outcome = "failed"
+
+        return {
+            "turn_outcome": turn_outcome,
+            "termination_reason": termination_reason,
+            "protocol_path": _CONVERSATION_DIAGNOSTICS._to_non_empty_str(
+                turn_record.get("protocol_path") or diagnostics.get("protocol_path")
+            ),
+            "selected_tool_names": _CONVERSATION_DIAGNOSTICS._normalize_string_list(
+                turn_record.get("selected_tool_names")
+                or diagnostics.get("selected_tool_names")
+            ),
+            "selected_skill_names": _CONVERSATION_DIAGNOSTICS._normalize_string_list(
+                turn_record.get("selected_skill_names")
+                or diagnostics.get("selected_skill_names")
+            ),
+            "execution_path": _CONVERSATION_DIAGNOSTICS._to_non_empty_str(
+                turn_record.get("execution_path")
+                or diagnostics.get("execution_path")
+                or turn_record_diagnostics.get("execution_path")
+            ),
+            "intent_plan": _CONVERSATION_DIAGNOSTICS._normalize_intent_plan(
+                turn_record.get("intent_plan")
+                or diagnostics.get("intent_plan")
+                or turn_record_diagnostics.get("intent_plan")
+            ),
+            "budget": budget or None,
+            "budget_status": _CONVERSATION_DIAGNOSTICS._to_non_empty_str(
+                (budget or {}).get("status")
+                or turn_record.get("budget_status")
+                or diagnostics.get("budget_status")
+            ),
+            "budget_exit_reason": _CONVERSATION_DIAGNOSTICS._to_non_empty_str(
+                (budget or {}).get("exit_reason")
+                or turn_record.get("budget_exit_reason")
+                or diagnostics.get("budget_exit_reason")
+                or ((tool_loop_progress or {}).get("budget_exit_reason"))
+            ),
+            "candidate_tool_names": _CONVERSATION_DIAGNOSTICS._normalize_string_list(
+                turn_record.get("candidate_tool_names")
+                or routing.get("candidate_tool_names")
+                or diagnostics.get("candidate_tool_names")
+            ),
+            "context_sources": _CONVERSATION_DIAGNOSTICS._normalize_context_sources(
+                turn_record.get("context_sources") or diagnostics.get("context_sources")
+            ),
+            "fallback_history": cls._normalize_fallback_history(
+                turn_record.get("fallback_history")
+                or diagnostics.get("fallback_history")
+            ),
+            "retry_events": _CONVERSATION_DIAGNOSTICS._normalize_retry_events(
+                turn_record.get("retry_events")
+                or recovery.get("retry_events")
+                or diagnostics.get("retry_events")
+            ),
+            "partial_exit_reason": _CONVERSATION_DIAGNOSTICS._to_non_empty_str(
+                turn_record.get("partial_exit_reason")
+                or recovery.get("partial_exit_reason")
+                or diagnostics.get("partial_exit_reason")
+            ),
+            "failure_kind": _CONVERSATION_DIAGNOSTICS._to_non_empty_str(
+                turn_record.get("failure_kind")
+                or failures.get("failure_kind")
+                or diagnostics.get("failure_kind")
+            ),
+            "provider_events": _CONVERSATION_DIAGNOSTICS._normalize_provider_events(
+                turn_record.get("provider_events")
+                or failures.get("provider_events")
+                or diagnostics.get("provider_events")
+            ),
+            "sync_rescue": next(
+                (
+                    parsed
+                    for parsed in (
+                        cls._normalize_optional_bool(
+                            turn_record_metadata.get("sync_rescue")
+                        ),
+                        cls._normalize_optional_bool(turn_record.get("sync_rescue")),
+                        cls._normalize_optional_bool(diagnostics.get("sync_rescue")),
+                    )
+                    if parsed is not None
+                ),
+                None,
+            ),
+            "should_record_call_log": next(
+                (
+                    parsed
+                    for parsed in (
+                        cls._normalize_optional_bool(
+                            turn_record_metadata.get("should_record_call_log")
+                        ),
+                        cls._normalize_optional_bool(
+                            turn_record.get("should_record_call_log")
+                        ),
+                        cls._normalize_optional_bool(
+                            diagnostics.get("should_record_call_log")
+                        ),
+                    )
+                    if parsed is not None
+                ),
+                None,
+            ),
+            "contract_breach_type": _CONVERSATION_DIAGNOSTICS._to_non_empty_str(
+                turn_record_metadata.get("contract_breach_type")
+                or diagnostics.get("contract_breach_type")
+            ),
+            "tool_leak_detected": bool(
+                turn_record_metadata.get("tool_leak_detected")
+                or diagnostics.get("tool_leak_detected")
+            ),
+            "unfinished_intents": _CONVERSATION_DIAGNOSTICS._normalize_string_list(
+                turn_record_metadata.get("unfinished_intents")
+                or turn_record.get("unfinished_intents")
+                or recovery.get("unfinished_intents")
+                or diagnostics.get("unfinished_intents")
+            ),
+            "leaked_tool_names": _CONVERSATION_DIAGNOSTICS._normalize_string_list(
+                turn_record_metadata.get("leaked_tool_names")
+                or diagnostics.get("leaked_tool_names")
+            ),
+            "recovered_via_retry": next(
+                (
+                    parsed
+                    for parsed in (
+                        cls._normalize_optional_bool(
+                            turn_record_metadata.get("recovered_via_retry")
+                        ),
+                        cls._normalize_optional_bool(
+                            turn_record.get("recovered_via_retry")
+                        ),
+                        cls._normalize_optional_bool(
+                            diagnostics.get("recovered_via_retry")
+                        ),
+                    )
+                    if parsed is not None
+                ),
+                None,
+            ),
+            "last_tool_name": _CONVERSATION_DIAGNOSTICS._to_non_empty_str(
+                turn_record.get("last_tool_name") or diagnostics.get("last_tool_name")
+            ),
+            "last_page_key": _CONVERSATION_DIAGNOSTICS._to_non_empty_str(
+                turn_record.get("last_page_key") or diagnostics.get("last_page_key")
+            ),
+            "last_page_op": _CONVERSATION_DIAGNOSTICS._to_non_empty_str(
+                turn_record.get("last_page_op") or diagnostics.get("last_page_op")
+            ),
+            "interrupted_stage": _CONVERSATION_DIAGNOSTICS._to_non_empty_str(
+                turn_record.get("interrupted_stage")
+                or diagnostics.get("interrupted_stage")
+            ),
+            "tool_loop_progress": tool_loop_progress,
+            "turn_record": turn_record or None,
+        }
 
     @staticmethod
     def _date_filters(column, start_date: date | None, end_date: date | None) -> list:
@@ -284,6 +582,89 @@ class MonitoringService:
             )
         ).all()
         return {row.id: row.name for row in rows}
+
+    @staticmethod
+    def _extract_runtime_filter_value(raw: Any) -> int | None:
+        value = MonitoringService._safe_int(raw)
+        return value if value > 0 else None
+
+    @classmethod
+    def _split_conversation_runtime_filters(
+        cls,
+        spec: QuerySpec,
+    ) -> tuple[int | None, int | None, QuerySpec]:
+        provider_id: int | None = None
+        model_id: int | None = None
+        remaining_filters = []
+
+        for rule in spec.filters:
+            if rule.op == FilterOp.eq and rule.field == "provider_id":
+                provider_id = cls._extract_runtime_filter_value(rule.value)
+                continue
+            if rule.op == FilterOp.eq and rule.field == "model_id":
+                model_id = cls._extract_runtime_filter_value(rule.value)
+                continue
+            remaining_filters.append(rule)
+
+        return (
+            provider_id,
+            model_id,
+            QuerySpec(
+                filters=remaining_filters,
+                sort=list(spec.sort),
+                page=spec.page,
+                size=spec.size,
+            ),
+        )
+
+    async def _query_conversations(
+        self,
+        scope: MonitoringScope,
+        spec: QuerySpec,
+    ):
+        provider_id, model_id, normalized_spec = self._split_conversation_runtime_filters(
+            spec
+        )
+
+        if provider_id is None and model_id is None:
+            if scope.is_tenant:
+                service = ConversationService(self.db, int(scope.tenant_id))
+                return await service.query_list(spec=normalized_spec)
+
+            repo = AdminAgentConversationRepository(self.db)
+            return await repo.query_list(normalized_spec)
+
+        repo = (
+            AgentConversationRepository(self.db, int(scope.tenant_id))
+            if scope.is_tenant
+            else AdminAgentConversationRepository(self.db)
+        )
+        allowed_fields = repo.get_allowed_fields(None)
+
+        query = select(AgentConversation).where(*self._scope_conversation_filters(scope))
+        if normalized_spec.filters:
+            query = repo._apply_filters(query, normalized_spec.filters, allowed_fields)
+
+        runtime_filters = [
+            AICallLog.is_deleted.is_(False),
+            AICallLog.conversation_id == AgentConversation.id,
+        ]
+        if scope.is_tenant:
+            runtime_filters.append(AICallLog.billing_tenant_id == scope.tenant_id)
+        if provider_id is not None:
+            runtime_filters.append(AICallLog.provider_id == provider_id)
+        if model_id is not None:
+            runtime_filters.append(AICallLog.model_id == model_id)
+
+        query = query.where(exists(select(AICallLog.id).where(*runtime_filters)))
+        query = repo._apply_data_permission_if_needed(query)
+
+        total = (await self.db.execute(select(func.count()).select_from(query.subquery()))).scalar() or 0
+        query = repo._apply_sort(query, normalized_spec.sort, repo.get_sortable_fields())
+        query = query.offset(normalized_spec.offset).limit(normalized_spec.limit)
+
+        result = await self.db.execute(query)
+        return list(result.scalars().all()), total
 
     async def get_usage_dashboard(
         self,
@@ -609,12 +990,7 @@ class MonitoringService:
         scope: MonitoringScope,
         spec: QuerySpec,
     ) -> tuple[list[MonitoringConversationListItem], int]:
-        if scope.is_tenant:
-            service = ConversationService(self.db, int(scope.tenant_id))
-            items, total = await service.query_list(spec=spec)
-        else:
-            repo = AdminAgentConversationRepository(self.db)
-            items, total = await repo.query_list(spec)
+        items, total = await self._query_conversations(scope, spec)
 
         conversation_ids = {item.id for item in items}
         tenant_ids = {item.tenant_id for item in items if item.tenant_id is not None}
@@ -740,26 +1116,65 @@ class MonitoringService:
             .limit(200)
         )
         trace_rows = (await self.db.execute(trace_stmt)).all()
-        call_trace = [
-            MonitoringCallTraceItem(
-                id=row.id,
-                created_at=row.created_at,
-                status=row.status,
-                request_type=row.request_type,
-                model_name=row.model_name,
-                provider_name=row.provider_name,
-                total_tokens=self._safe_int(row.total_tokens),
-                cost=self._safe_float(row.cost),
-                latency_ms=row.latency_ms,
-                usage_mode=((row.request_metadata or {}).get("response") or {}).get(
-                    "usage_mode"
-                )
-                if isinstance(row.request_metadata, dict)
-                else None,
-                error_message=row.error_message,
+        call_trace: list[MonitoringCallTraceItem] = []
+        for row in trace_rows:
+            request_metadata = (
+                row.request_metadata if isinstance(row.request_metadata, dict) else {}
             )
-            for row in trace_rows
-        ]
+            trace_diagnostics = self._extract_call_trace_diagnostics(request_metadata)
+            call_trace.append(
+                MonitoringCallTraceItem(
+                    id=row.id,
+                    created_at=row.created_at,
+                    status=row.status,
+                    request_type=row.request_type,
+                    model_name=row.model_name,
+                    provider_name=row.provider_name,
+                    total_tokens=self._safe_int(row.total_tokens),
+                    cost=self._safe_float(row.cost),
+                    latency_ms=row.latency_ms,
+                    usage_mode=((request_metadata.get("response") or {}).get("usage_mode"))
+                    if isinstance(request_metadata.get("response"), dict)
+                    else None,
+                    error_message=row.error_message,
+                    turn_outcome=trace_diagnostics.get("turn_outcome"),
+                    termination_reason=trace_diagnostics.get("termination_reason"),
+                    protocol_path=trace_diagnostics.get("protocol_path"),
+                    selected_tool_names=trace_diagnostics.get("selected_tool_names") or [],
+                    selected_skill_names=trace_diagnostics.get("selected_skill_names")
+                    or [],
+                    execution_path=trace_diagnostics.get("execution_path"),
+                    intent_plan=trace_diagnostics.get("intent_plan") or [],
+                    budget=trace_diagnostics.get("budget"),
+                    budget_status=trace_diagnostics.get("budget_status"),
+                    budget_exit_reason=trace_diagnostics.get("budget_exit_reason"),
+                    candidate_tool_names=trace_diagnostics.get("candidate_tool_names")
+                    or [],
+                    context_sources=trace_diagnostics.get("context_sources") or [],
+                    fallback_history=trace_diagnostics.get("fallback_history") or [],
+                    retry_events=trace_diagnostics.get("retry_events") or [],
+                    partial_exit_reason=trace_diagnostics.get("partial_exit_reason"),
+                    failure_kind=trace_diagnostics.get("failure_kind"),
+                    provider_events=trace_diagnostics.get("provider_events") or [],
+                    sync_rescue=trace_diagnostics.get("sync_rescue"),
+                    should_record_call_log=trace_diagnostics.get(
+                        "should_record_call_log"
+                    ),
+                    contract_breach_type=trace_diagnostics.get("contract_breach_type"),
+                    tool_leak_detected=bool(
+                        trace_diagnostics.get("tool_leak_detected")
+                    ),
+                    unfinished_intents=trace_diagnostics.get("unfinished_intents") or [],
+                    leaked_tool_names=trace_diagnostics.get("leaked_tool_names") or [],
+                    recovered_via_retry=trace_diagnostics.get("recovered_via_retry"),
+                    last_tool_name=trace_diagnostics.get("last_tool_name"),
+                    last_page_key=trace_diagnostics.get("last_page_key"),
+                    last_page_op=trace_diagnostics.get("last_page_op"),
+                    interrupted_stage=trace_diagnostics.get("interrupted_stage"),
+                    tool_loop_progress=trace_diagnostics.get("tool_loop_progress"),
+                    turn_record=trace_diagnostics.get("turn_record"),
+                )
+            )
 
         return MonitoringConversationDetail(
             id=conversation.id,
@@ -791,6 +1206,8 @@ class MonitoringService:
             last_call_at=usage.get("last_call_at"),
             created_at=conversation.created_at,
             updated_at=conversation.updated_at,
+            context_diagnostics=detail.get("context_diagnostics"),
+            last_run_summary=detail.get("last_run_summary"),
             metadata=detail.get("metadata"),
             message_list=detail.get("message_list") or [],
             call_trace=call_trace,

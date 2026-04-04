@@ -19,6 +19,7 @@ import {
 } from '#/adapter/form';
 import { checkboxColumn, dragColumn } from '#/adapter/vxe-table';
 import { $t } from '#/locales';
+import { useAccess } from '#/utils';
 
 // ... (keep type definitions and helper functions) / (保留类型定义和辅助函数)
 
@@ -88,6 +89,10 @@ export function useColumns<T = adminApi.TenantPlanInfo>(
   onActionClick: OnActionClickFn<T>,
   onStatusChange?: (newStatus: boolean, row: T) => Promise<boolean | undefined>,
 ): VxeTableGridOptions['columns'] {
+  const { hasAccessByCodes } = useAccess();
+  const canToggleStatus =
+    !!onStatusChange && hasAccessByCodes(['tenant_plan:update']);
+
   return [
     // Checkbox column / 复选框列
     checkboxColumn,
@@ -149,11 +154,11 @@ export function useColumns<T = adminApi.TenantPlanInfo>(
     {
       cellRender: {
         attrs: {
-          beforeChange: onStatusChange,
+          beforeChange: canToggleStatus ? onStatusChange : undefined,
           checkedValue: true,
           unCheckedValue: false,
         },
-        name: onStatusChange ? 'CellSwitch' : 'CellTag',
+        name: canToggleStatus ? 'CellSwitch' : 'CellTag',
         options: [
           { color: 'success', label: $t('admin.common.enabled'), value: true },
           { color: 'error', label: $t('admin.common.disabled'), value: false },

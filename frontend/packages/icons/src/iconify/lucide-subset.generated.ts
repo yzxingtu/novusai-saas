@@ -133,7 +133,6 @@ export const LUCIDE_ICON_NAMES = [
   "git-branch-plus",
   "git-commit",
   "git-compare",
-  "git-merge",
   "globe",
   "globe-2",
   "grid-2x2",
@@ -468,7 +467,6 @@ export const LUCIDE_ICON_IDS = [
   "lucide:git-branch-plus",
   "lucide:git-commit",
   "lucide:git-compare",
-  "lucide:git-merge",
   "lucide:globe",
   "lucide:globe-2",
   "lucide:grid-2x2",
@@ -1150,9 +1148,6 @@ export const LUCIDE_ICON_SUBSET = {
     },
     "git-compare": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><circle cx=\"18\" cy=\"18\" r=\"3\"/><circle cx=\"6\" cy=\"6\" r=\"3\"/><path d=\"M13 6h3a2 2 0 0 1 2 2v7m-7 3H8a2 2 0 0 1-2-2V9\"/></g>"
-    },
-    "git-merge": {
-      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><circle cx=\"18\" cy=\"18\" r=\"3\"/><circle cx=\"6\" cy=\"6\" r=\"3\"/><path d=\"M6 21V9a9 9 0 0 0 9 9\"/></g>"
     },
     "globe": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 2a14.5 14.5 0 0 0 0 20a14.5 14.5 0 0 0 0-20M2 12h20\"/></g>"

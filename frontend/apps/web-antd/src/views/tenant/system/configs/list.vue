@@ -14,6 +14,7 @@ import {
   updateTenantConfigGroupApi,
 } from '#/api/tenant/configs';
 import { ConfigForm } from '#/components';
+import ConfigGroupSidebar from '#/components/business/config-group-sidebar/index.vue';
 import PluginSettingsTabs from '#/components/business/plugin-slots/PluginSettingsTabs.vue';
 import { usePageAIContext } from '#/composables/use-page-ai-registration';
 import { $t as t } from '#/locales';
@@ -65,6 +66,14 @@ function getGroupDesc(g: ConfigGroupListItemMeta): string {
 // Groups sorted by sort_order / 按 sort_order 排序的分组列表
 const sortedGroups = computed(() =>
   groups.value.toSorted((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
+);
+
+const groupNavItems = computed(() =>
+  sortedGroups.value.map((group) => ({
+    ...group,
+    displayDesc: getGroupDesc(group),
+    displayName: getGroupName(group),
+  })),
 );
 
 async function loadGroups() {
@@ -174,58 +183,12 @@ usePageAIContext({
 <template>
   <Page auto-content-height>
     <div class="flex h-full flex-col gap-4 overflow-hidden md:flex-row">
-      <!-- Left: Config group list / 左侧配置分组列表 -->
-      <Card
-        class="w-full flex-shrink-0 overflow-hidden md:w-[260px]"
-        :body-style="{
-          padding: 0,
-          height: 'calc(100% - 57px)',
-          overflow: 'auto',
-        }"
-      >
-        <template #title>
-          <div class="flex items-center gap-2">
-            <IconifyIcon icon="lucide:settings" class="h-4 w-4 text-primary" />
-            <span>{{ t('shared.config.page.title') }}</span>
-          </div>
-        </template>
-        <Spin :spinning="groupLoading" class="h-full">
-          <div class="py-2">
-            <div
-              v-for="g in sortedGroups"
-              :key="g.code"
-              class="group-item mx-2 mb-1 cursor-pointer rounded-lg px-3 py-2.5 transition-colors"
-              :class="[
-                g.code === activeGroup
-                  ? 'bg-primary/10 text-primary'
-                  : 'hover:bg-accent',
-              ]"
-              @click="onSelectGroup(g.code)"
-            >
-              <div class="flex items-center gap-2 font-medium">
-                <IconifyIcon
-                  v-if="g.icon"
-                  :icon="g.icon"
-                  class="h-4 w-4 flex-shrink-0"
-                />
-                <span>{{ getGroupName(g) }}</span>
-              </div>
-              <div
-                v-if="getGroupDesc(g)"
-                class="mt-0.5 text-xs text-muted-foreground"
-                :class="g.icon ? 'ml-6' : ''"
-              >
-                {{ getGroupDesc(g) }}
-              </div>
-            </div>
-            <Empty
-              v-if="!groupLoading && groups.length === 0"
-              :description="t('shared.common.noData')"
-              class="py-8"
-            />
-          </div>
-        </Spin>
-      </Card>
+      <ConfigGroupSidebar
+        :groups="groupNavItems"
+        :active-group="activeGroup"
+        :loading="groupLoading"
+        @select="onSelectGroup"
+      />
 
       <!-- Right: Config form / 右侧配置表单 -->
       <Card
@@ -275,9 +238,3 @@ usePageAIContext({
     </div>
   </Page>
 </template>
-
-<style scoped>
-.group-item.active {
-  font-weight: 500;
-}
-</style>

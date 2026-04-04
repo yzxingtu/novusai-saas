@@ -14,44 +14,45 @@ Extracts shared tool call core logic for execute() and stream_execute():
 from __future__ import annotations
 
 import json
-import re
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
+from app.ai.text_semantics import (
+    is_confirmation_reply,
+    is_rejection_reply,
+    remove_trailing_json_commas,
+    strip_model_function_call_markup,
+)
 from app.ai.tools.sandbox import ToolSandbox
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.types import ChatMessage
+from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
 from app.core.i18n import _
 from app.core.logging import LogManager
 
 logger = LogManager.get_logger("ai.engine.tool_processor")
 
-# User confirmation/rejection — regex patterns (avoid maintaining a growing synonym list).
-_CONFIRMATION_REPLY_RE = re.compile(
-    r"^\s*(确认执行|确认|执行|好的|好[吧的]?|是[吧的]?|可以|行|嗯|没问题|妥了|confirm|yes|ok|sure|yep|yeah|go\s*ahead|proceed)(\s*[!.！。…]*)?\s*$",
-    re.IGNORECASE,
+# Readonly ops safe to dedupe within one assistant turn / 同轮可安全去重的只读页面操作名
+# Excludes view-changing ops (search, paging, refresh): same name+args can advance UI state.
+# 不含会改变表格/检索视图的操作（翻页、搜索、刷新）：同参重复调用应再次执行而非命中缓存。
+_READONLY_PAGE_OPERATION_NAMES = frozenset(
+    {
+        "read_current_view",
+        "read_current_sections",
+        "read_visible_rows",
+        "get_form_state",
+        "get_form_options",
+        "list_available_menus",
+        "capture_screenshot",
+        "get_editor_html",
+        "validate_form",
+    }
 )
-_REJECTION_REPLY_RE = re.compile(
-    r"^\s*(取消|拒绝|不执行|不[要了]?|算了|别|甭|cancel|no|reject|abort|stop|nope)(\s*[!.！。…]*)?\s*$",
-    re.IGNORECASE,
-)
-
-
-# DeepSeek DSML markers (same as conversation.py, for tool arguments cleanup) / 上文为英文说明 / English above
-_MODEL_FC_TOKEN_RE = re.compile(r"</?｜[A-Za-z]+｜[^>]*>")
-_MODEL_FC_BLOCK_RE = re.compile(
-    r"<｜DSML｜function_calls>.*?</｜DSML｜function_calls>",
-    re.DOTALL,
-)
-
 
 def _strip_dsml_from_args(s: str) -> str:
     """Remove leaked DSML markers from tool arguments (DeepSeek etc.)."""
-    if "｜" not in s:
-        return s
-    s = _MODEL_FC_BLOCK_RE.sub("", s)
-    return _MODEL_FC_TOKEN_RE.sub("", s)
+    return strip_model_function_call_markup(s)
 
 
 def _fix_unescaped_control_chars(s: str) -> str:
@@ -74,8 +75,7 @@ def _fix_unescaped_control_chars(s: str) -> str:
                 result.append(ch)
                 escape_next = True
             elif ch == '"':
-                # Look-ahead: if next non-whitespace is a JSON structural char, / 上文为英文说明 / English above
-                # this quote ends the string; otherwise it's an embedded quote
+                # Look-ahead: next non-ws JSON structural char ends string; else embedded quote / 前瞻：下一非空白为 JSON 结构符则闭串，否则为内嵌引号
                 j = i + 1
                 while j < n and chars[j] in " \t\r\n":
                     j += 1
@@ -184,11 +184,11 @@ def _try_repair_json(raw: str) -> dict[str, Any] | None:
     未转义控制字符、Python 风格单引号、截断。
     """
     s = raw.strip()
-    # Phase A: DSML cleanup / 上文为英文说明 / English above
+    # Phase A: DSML cleanup / 阶段 A：去除 DSML
     s = _strip_dsml_from_args(s)
 
-    # Existing: trailing comma, missing brackets / 上文为英文说明 / English above
-    s = re.sub(r",\s*([}\]])", r"\1", s)
+    # Trailing commas and missing brackets / 尾部逗号与补全括号
+    s = remove_trailing_json_commas(s)
     s_before_braces = s
     opens = s.count("{") - s.count("}")
     if opens > 0:
@@ -203,7 +203,7 @@ def _try_repair_json(raw: str) -> dict[str, Any] | None:
     except json.JSONDecodeError:
         pass
 
-    # Phase B: fix unescaped control chars / 上文为英文说明 / English above
+    # Phase B: unescaped control chars in strings / 阶段 B：字符串内未转义控制字符
     s2 = _fix_unescaped_control_chars(s)
     if s2 != s:
         try:
@@ -212,7 +212,7 @@ def _try_repair_json(raw: str) -> dict[str, Any] | None:
         except json.JSONDecodeError:
             s = s2
 
-    # Phase C: Python-style single quotes / 上文为英文说明 / English above
+    # Phase C: Python-style single-quoted dict / 阶段 C：Python 单引号字典
     s3 = _try_convert_single_quotes(s)
     if s3:
         try:
@@ -221,8 +221,7 @@ def _try_repair_json(raw: str) -> dict[str, Any] | None:
         except json.JSONDecodeError:
             pass
 
-    # Phase D: truncation fix — use string BEFORE we added closing braces, / 上文为英文说明 / English above
-    # otherwise a trailing } would be incorrectly placed inside an unclosed string
+    # Phase D: truncation repair — use s before brace padding so } does not close inside string / 阶段 D：截断修复（补括号前字符串，避免 } 误入未闭合串）
     s4 = _try_fix_truncation(s_before_braces)
     if s4 != s:
         try:
@@ -231,12 +230,11 @@ def _try_repair_json(raw: str) -> dict[str, Any] | None:
         except json.JSONDecodeError:
             pass
 
-    # Phase E: brute-force replace all control chars with spaces (last resort — / 上文为英文说明 / English above
-    # loses newline semantics but at least lets the record be created)
+    # Phase E: replace control chars with spaces (last resort; may lose newlines) / 阶段 E：控制符替换为空格（最后手段，可能丢失换行语义）
     s5 = _brute_force_control_chars(s)
     if s5 != s:
-        # also strip trailing commas & fix braces again on the cleaned string / 上文为英文说明 / English above
-        s5 = re.sub(r",\s*([}\]])", r"\1", s5)
+        # Again strip trailing commas and balance braces on cleaned string / 清理后再次去尾部逗号并补括号
+        s5 = remove_trailing_json_commas(s5)
         opens = s5.count("{") - s5.count("}")
         if opens > 0:
             s5 += "}" * opens
@@ -292,10 +290,145 @@ class ToolCallProcessor:
             for name in (approved_pending_consent_tools or set())
             if str(name).strip()
         }
+        # Same-turn dedupe for idempotent readonly tools (665-style repeat calls).
+        self._readonly_success_cache: dict[str, tuple[ToolResult, int]] = {}
 
     # ========================================
     # Core Methods / 核心方法
     # ========================================
+
+    @staticmethod
+    def _live_page_session_id(sandbox: ToolSandbox | None, iv: dict[str, Any]) -> str:
+        """Prefer sandbox session id (updated after navigation); else variables['page_session_id']."""
+        if sandbox is not None:
+            sid = getattr(sandbox, "_page_session_id", None)
+            if isinstance(sid, str) and sid.strip():
+                return sid.strip()
+        raw = iv.get("page_session_id")
+        if isinstance(raw, str) and raw.strip():
+            return raw.strip()
+        return ""
+
+    def _page_identity_cache_segment(self) -> str:
+        """Narrow dedupe to current page so navigation cannot replay stale snapshots."""
+        sb = self.sandbox
+        iv: dict[str, Any] = {}
+        if sb is not None:
+            raw_iv = getattr(sb, "input_variables", None)
+            if isinstance(raw_iv, dict):
+                iv = raw_iv
+        pc = iv.get(PAGE_CONTEXT_KEY)
+        if not isinstance(pc, dict):
+            pc = iv.get("page_context")
+        page_key = ""
+        if isinstance(pc, dict):
+            page_key = str(pc.get("page_key") or "").strip()
+        session_id = self._live_page_session_id(sb, iv)
+        epoch = 0
+        if sb is not None:
+            try:
+                epoch = int(getattr(sb, "_page_readonly_cache_epoch", 0) or 0)
+            except (TypeError, ValueError):
+                epoch = 0
+        return f"|pk={page_key}|sid={session_id}|e={epoch}"
+
+    @staticmethod
+    def _invalidates_same_page_readonly_cache(
+        func_name: str,
+        arguments: dict[str, Any],
+    ) -> bool:
+        """True after successful runs that can change same-page UI state (invalidates read snapshots)."""
+        name = (func_name or "").strip()
+        if name == "get_page_context":
+            return False
+        if name.startswith("pageop_"):
+            op = name.removeprefix("pageop_")
+            return op not in _READONLY_PAGE_OPERATION_NAMES
+        if name == "invoke_page_operation":
+            op = str(arguments.get("operation_name") or "").strip()
+            return op not in _READONLY_PAGE_OPERATION_NAMES
+        return False
+
+    def _bump_page_readonly_cache_epoch_if_needed(
+        self,
+        func_name: str,
+        arguments: dict[str, Any],
+        result: ToolResult,
+    ) -> None:
+        if not result.success or not self._invalidates_same_page_readonly_cache(
+            func_name, arguments
+        ):
+            return
+        sb = self.sandbox
+        if sb is None:
+            return
+        try:
+            cur = int(getattr(sb, "_page_readonly_cache_epoch", 0) or 0)
+        except (TypeError, ValueError):
+            cur = 0
+        setattr(sb, "_page_readonly_cache_epoch", cur + 1)
+
+    def _normalized_readonly_cache_key(
+        self,
+        func_name: str,
+        arguments: dict[str, Any],
+    ) -> str | None:
+        """Return cache key for dedupe, or None if tool should never be deduped."""
+        name = (func_name or "").strip()
+        if not name:
+            return None
+        page_suffix = ""
+        if name in {"get_current_weather", "get_weather_forecast", "get_current_time"}:
+            pass
+        elif name in {"web_search", "fetch_url"}:
+            pass
+        elif name == "get_page_context":
+            page_suffix = self._page_identity_cache_segment()
+        elif name.startswith("pageop_"):
+            op = name.removeprefix("pageop_")
+            if op not in _READONLY_PAGE_OPERATION_NAMES:
+                return None
+            page_suffix = self._page_identity_cache_segment()
+        elif name == "invoke_page_operation":
+            op = str(arguments.get("operation_name") or "").strip()
+            if op not in _READONLY_PAGE_OPERATION_NAMES:
+                return None
+            page_suffix = self._page_identity_cache_segment()
+        else:
+            return None
+        try:
+            payload = json.dumps(arguments, sort_keys=True, ensure_ascii=False)
+        except (TypeError, ValueError):
+            payload = str(arguments)
+        return f"{name}|{payload}{page_suffix}"
+
+    def _try_readonly_cache_hit(
+        self,
+        func_name: str,
+        arguments: dict[str, Any],
+    ) -> tuple[ToolResult, int] | None:
+        key = self._normalized_readonly_cache_key(func_name, arguments)
+        if not key:
+            return None
+        hit = self._readonly_success_cache.get(key)
+        if not hit:
+            return None
+        cached_result, cached_ms = hit
+        if not cached_result.success:
+            return None
+        return cached_result, cached_ms
+
+    def _store_readonly_cache(
+        self,
+        func_name: str,
+        arguments: dict[str, Any],
+        result: ToolResult,
+        duration_ms: int,
+    ) -> None:
+        key = self._normalized_readonly_cache_key(func_name, arguments)
+        if not key or not result.success:
+            return
+        self._readonly_success_cache[key] = (result, duration_ms)
 
     @staticmethod
     def parse_arguments(
@@ -346,6 +479,11 @@ class ToolCallProcessor:
         Returns:
             (result, duration_ms)
         """
+        cached = self._try_readonly_cache_hit(func_name, arguments)
+        if cached is not None:
+            result, _prev_ms = cached
+            return replace(result, tool_call_id=tc_id, duration_ms=0), 0
+
         tc_start = time.perf_counter()
         execution_definitions = self.tools
         if not any(tool.name == func_name for tool in self.tools):
@@ -358,6 +496,8 @@ class ToolCallProcessor:
             conversation_id=conversation_id,
         )
         duration_ms = int((time.perf_counter() - tc_start) * 1000)
+        self._bump_page_readonly_cache_epoch_if_needed(func_name, arguments, result)
+        self._store_readonly_cache(func_name, arguments, result, duration_ms)
         return result, duration_ms
 
     @staticmethod
@@ -601,8 +741,7 @@ class ToolCallProcessor:
                             )
                         except json.JSONDecodeError:
                             arguments = {}
-                        # Only mutation-preview confirmations require confirmed=True. / 上文为英文说明 / English above
-                        # consent_mode=ask should replay the original arguments unchanged.
+                        # Only mutation-preview injects confirmed=True; consent_mode=ask replays args / 仅变更预览注入 confirmed；询问模式原样重放参数
                         if inject_confirmed:
                             arguments["confirmed"] = True
                         return {
@@ -615,14 +754,12 @@ class ToolCallProcessor:
     @staticmethod
     def is_confirmation_text(text: str) -> bool:
         """Check if text is a short confirmation reply / 检查是否为简短确认回复"""
-        t = (text or "").strip()
-        return bool(t and _CONFIRMATION_REPLY_RE.match(t))
+        return is_confirmation_reply(text)
 
     @staticmethod
     def is_rejection_text(text: str) -> bool:
         """Check if text is a short rejection reply / 检查是否为简短拒绝回复"""
-        t = (text or "").strip()
-        return bool(t and _REJECTION_REPLY_RE.match(t))
+        return is_rejection_reply(text)
 
     # ========================================
     # SSE Event Building / SSE 事件构建
@@ -706,7 +843,7 @@ class ToolCallProcessor:
                 parsed.get("preview") or parsed.get("diff") or parsed.get("record")
             ),
         }
-        # File generation confirmation (e.g. plugin codegen) / 上文为英文说明 / English above
+        # File-generation confirmation (e.g. plugin codegen) / 文件生成类确认（如插件 codegen）
         if parsed.get("files"):
             event["files"] = parsed["files"]
             event["message"] = parsed.get("message", "")
@@ -834,6 +971,4 @@ class ToolCallProcessor:
 __all__ = [
     "ToolCallProcessor",
     "SingleToolResult",
-    "_CONFIRMATION_REPLY_RE",
-    "_REJECTION_REPLY_RE",
 ]

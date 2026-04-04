@@ -76,11 +76,12 @@
     },
     "validation": {
       "baseUrlInvalid": "Enter a valid API URL starting with http:// or https://",
-      "baseUrlEndpointNotAllowed": "OpenAI-compatible provider API URL must not include /responses or /chat/completions. Enter the base URL only and choose the API protocol separately"
+      "baseUrlEndpointNotAllowed": "OpenAI-compatible provider API URL must not include /responses or /chat/completions. Enter the base URL only and choose the API protocol separately",
+      "baseUrlLikelyMissingVersion": "This URL does not look like an OpenAI-compatible API root. A common correct format ends with /v1, so verify it manually against the provider docs."
     },
     "help": {
       "baseUrl": "The provider's API base URL, e.g. https://api.openai.com/v1. Do not append /responses or /chat/completions; configure the URL and protocol separately",
-      "wireApi": "Prefer Chat Completions for legacy integrations, simple chat, and full per-request control; prefer Responses for tool use, multi-step agents, GPT-5 / o-series reasoning, and less client-side state handling. For new integrations, Responses is usually the better default to evaluate first.",
+      "wireApi": "Prefer Chat Completions for legacy integrations, simple chat, and full per-request control; prefer Responses for tool use, multi-step agents, GPT-5 / o-series reasoning, and less client-side state handling. For new integrations, Responses is usually the better default to evaluate first. The chosen wire API will not auto-fix the base URL, which must be entered manually as the provider's API root.",
       "responsesToolHistoryCompat": "Enable this only when follow-up turns after tool calls frequently fail with 500/502 under the Responses protocol. It rewrites tool history into a more conservative text context for better gateway compatibility, but may reduce the model's ability to continue calling tools automatically. Disabled by default and generally not recommended.",
       "type": "Currently only OpenAI-compatible format is supported. Most AI services (including Anthropic, Azure) are compatible",
       "isActive": "When disabled, all models under this provider become unavailable and existing API calls will fail"
@@ -121,13 +122,16 @@
     "fallbackModel": "Fallback Model",
     "rpmLimit": "RPM Limit",
     "tpmLimit": "TPM Limit",
+    "reasoningEffort": "Reasoning Effort (GPT-5 / o-series)",
     "test": "Test Connectivity",
     "testing": "Testing connectivity...",
     "testSuccess": "Connectivity test passed, latency: {latency}ms",
     "testFailed": "Connectivity test failed: {error}",
+    "testResultTitle": "Model Test Details",
     "create": "Add Model",
     "section": {
       "basic": "Basic Info",
+      "runtimeOverrides": "Advanced Runtime Parameters",
       "pricing": "Pricing",
       "rateLimit": "Rate Limits",
       "capability": "Capabilities",
@@ -149,6 +153,7 @@
       "searchName": "Search model name",
       "inputName": "Enter model name",
       "inputCode": "Enter model code",
+      "selectReasoningEffort": "Select reasoning effort (optional)",
       "selectType": "Select model type",
       "selectProvider": "Select provider",
       "selectRemoteModel": "Select a remote model to auto-fill",
@@ -170,8 +175,16 @@
       "embedding": "Embedding",
       "image": "Image"
     },
+    "reasoningEffortOptions": {
+      "none": "None",
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "xhigh": "XHigh"
+    },
     "help": {
-      "code": "The model's API call code, e.g. gpt-4, claude-3-opus-20240229. Must match the code accepted by the provider's API",
+      "code": "Enter the upstream model ID actually accepted by the provider API, such as gpt-4 or gpt-5.4. Legacy alias rows are normalized automatically when edited.",
+      "reasoningEffort": "Only applies to GPT-5 / o-series style reasoning models. Models like Claude will neither show nor send this parameter.",
       "type": "Chat models for conversation and text generation; embedding models for knowledge base document vectorization; image models for image generation",
       "contextWindow": "Total token budget for one request (system prompt + history + user input + RAG context + model output). If you want the model to accept more input, increase this first. This is unrelated to the separate page_context.page_data byte budget",
       "maxOutputTokens": "Maximum generated tokens per request. This only limits how much the model can output in one reply and does not increase input context capacity",
@@ -182,6 +195,19 @@
       "tpmLimit": "Maximum tokens per minute. Controls the total token consumption rate",
       "maxImageCount": "Maximum number of images per conversation upload (1-20)",
       "maxImageSizeMb": "Maximum size per image in MB. Images exceeding this will be rejected"
+    },
+    "testDetails": {
+      "provider": "Provider",
+      "wireApi": "Wire API",
+      "upstreamModel": "Effective Upstream Model",
+      "reasoningEffort": "Effective Reasoning Effort",
+      "appliedOverrides": "Applied Overrides",
+      "ignoredOverrides": "Ignored Overrides",
+      "ignoreReasons": "Ignore Reasons",
+      "traceId": "Trace ID",
+      "latency": "Latency",
+      "error": "Error Summary",
+      "responsePreview": "Response Preview"
     },
     "messages": {
       "toggleSuccess": "Model status updated",
@@ -257,15 +283,24 @@
     "tenantName": "Tenant",
     "platformTenant": "Admin Console",
     "callerName": "Caller",
+    "agentName": "Agent",
+    "conversationId": "Conversation ID",
     "modelName": "Model",
     "providerName": "Provider",
+    "traceId": "Trace ID",
     "userId": "User ID",
     "errorMessage": "Error Message",
     "routedModel": "Routed Model",
     "createdAt": "Created At",
     "placeholder": {
       "allStatuses": "All Statuses",
-      "allModels": "All Models"
+      "allModels": "All Models",
+      "searchAgentName": "Search agent name",
+      "searchTrace": "Search trace ID",
+      "searchConversation": "Search conversation ID",
+      "selectProvider": "Select provider",
+      "selectModel": "Select model",
+      "selectAgent": "Select agent"
     },
     "status_options": {
       "success": "Success",
@@ -824,8 +859,11 @@
     "title": "Conversation Management",
     "pageDesc": "Monitor all tenant AI conversations with detail view and cost statistics.",
     "agentName": "Agent",
+    "conversationId": "Conversation ID",
     "tenantId": "Tenant",
     "tenantName": "Tenant",
+    "providerName": "Provider",
+    "modelName": "Model",
     "user": "User",
     "status": "Status",
     "totalCalls": "Total Calls",
@@ -848,6 +886,42 @@
     "messageCount": "Message Count",
     "conversationTitle": "Conversation Title",
     "detailTitle": "Conversation Detail",
+    "runtimeDiagnostics": "Runtime Diagnostics",
+    "diagnosticsEmpty": "No runtime diagnostics recorded",
+    "diagnosticNotes": "Stop-Loss Notes",
+    "executionPath": "Execution Path",
+    "failureKind": "Failure Kind",
+    "budgetStatus": "Budget Status",
+    "budgetExitReason": "Budget Exit Reason",
+    "partialExitReason": "Partial Exit Reason",
+    "intentPlan": "Intent Plan",
+    "candidateTools": "Candidate Tools",
+    "providerEvents": "Provider Events",
+    "retryEvents": "Retry Events",
+    "requiredCapabilities": "Required Capabilities",
+    "allowedTools": "Allowed Tools",
+    "selectedTools": "Selected Tools",
+    "completedTools": "Completed Tools",
+    "unfinishedReason": "Unfinished Reason",
+    "executionPathOptions": {
+      "fast": "Fast",
+      "normal": "Normal",
+      "deep": "Deep"
+    },
+    "failureKindOptions": {
+      "none": "None",
+      "provider_failure": "Provider Failure",
+      "tool_failure": "Tool Failure",
+      "orchestration_failure": "Orchestration Failure",
+      "budget_exit": "Budget Exit",
+      "server_interrupt": "Server Interrupt"
+    },
+    "budgetStatusOptions": {
+      "ok": "OK",
+      "within_budget": "Within Budget",
+      "budget_exit": "Budget Exit",
+      "exceeded": "Exceeded"
+    },
     "actorType": {
       "platform_admin": "Platform admin",
       "tenant_admin": "Tenant admin",
@@ -862,9 +936,14 @@
       "closed": "Closed"
     },
     "placeholder": {
+      "searchTitle": "Search conversation title",
       "agentId": "Agent ID",
       "allStatuses": "All Statuses",
-      "allTenants": "All Tenants"
+      "allTenants": "All Tenants",
+      "searchConversationId": "Search conversation ID",
+      "selectProvider": "Select provider",
+      "selectModel": "Select model",
+      "selectAgent": "Select agent"
     }
   },
   "actionLog": {
@@ -988,8 +1067,17 @@
     "refresh": "Refresh",
     "responseTime": "Response Time",
     "failures": "Consecutive Failures",
+    "wireApi": "Wire API",
+    "baseConnectivity": "Base Connectivity",
+    "toolProbe": "Tool Probe",
+    "toolProbeModel": "Tool Probe Model",
     "lastCheck": "Last Check",
     "noData": "No health check data",
+    "checks": {
+      "pass": "Pass",
+      "fail": "Fail",
+      "skipped": "Skipped"
+    },
     "status": {
       "healthy": "Healthy",
       "degraded": "Degraded",
@@ -1166,6 +1254,7 @@
     "scopeType": "Scope",
     "memoryType": "Memory Type",
     "status": "Status",
+    "id": "ID",
     "summary": "Summary",
     "recordCount": "Source Records",
     "contentKind": "Content Kind"
@@ -1431,6 +1520,22 @@
   "agentAssignment": {
     "title": "AI Feature Assignment",
     "pageDesc": "Assign a driving agent to each AI feature module. Changes take effect immediately across the platform. Only platform-level globally shared agents are allowed (scope Admin+All Tenants or All Tenants), and audience cannot be Admin-only.",
+    "hero": {
+      "description": "Manage the default execution agents for built-in AI capabilities and plugin extensions, with every update applied platform-wide immediately.",
+      "metrics": {
+        "features": "Features",
+        "publishedAgents": "Published Agents",
+        "enabled": "Enabled",
+        "assigned": "Assigned"
+      },
+      "chips": {
+        "scope": "Platform-wide immediate impact",
+        "publishedAgents": "{count} shared candidate agents",
+        "plugins": "{count} plugin capabilities",
+        "pending": "{count} bindings still pending",
+        "ready": "All features are assigned"
+      }
+    },
     "selectAgent": "Select agent",
     "typePlugin": "Plugin",
     "globalDefault": "Global default: {name}",

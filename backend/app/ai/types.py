@@ -196,6 +196,13 @@ class TestModelResult:
     error: str | None = None
     model: str = ""
     provider: str = ""
+    trace_id: str | None = None
+    wire_api: str | None = None
+    effective_upstream_model: str | None = None
+    effective_reasoning_effort: str | None = None
+    applied_overrides: list[str] | None = None
+    ignored_overrides: list[str] | None = None
+    ignore_reasons: dict[str, str] | None = None
 
 
 def messages_to_dicts(messages: list[ChatMessage]) -> list[dict]:

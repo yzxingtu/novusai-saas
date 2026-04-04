@@ -3,6 +3,7 @@
  * 插件安装向导 — 两步流程：上传 → 预览确认（参考旧版 PluginInstallWizard）
  */
 import type { InstallPreview } from '#/api/admin/plugin';
+import type { MarketplacePluginItem } from '#/api/admin/plugin-marketplace';
 
 import { computed, ref } from 'vue';
 
@@ -11,52 +12,85 @@ import { IconifyIcon } from '@vben/icons';
 import { Alert, Button, message, Modal, Tag, Upload } from 'ant-design-vue';
 
 import { installPluginApi, previewPluginInstallApi } from '#/api/admin/plugin';
+import {
+  marketplaceConfirmInstallApi,
+  marketplacePreviewInstallApi,
+} from '#/api/admin/plugin-marketplace';
 import { $t } from '#/locales';
 import { resolvePluginMetadataIcon } from '#/utils/plugin-metadata-icon';
 import { getScopeColor, getScopeText } from '#/utils/scope-helpers';
 
-import { derivePluginType, getTypeColor, getTypeText } from '../data';
+import { getTypeColor, getTypeText } from '../data';
+import {
+  deriveInstallPreviewPluginType,
+  summarizeInstallManifest,
+} from '../plugin-preview';
 
 const emit = defineEmits<{
   installed: [];
 }>();
 
+type InstallSource = 'marketplace' | 'upload';
+type MarketplaceInstallTarget = Pick<
+  MarketplacePluginItem,
+  'display_name' | 'name' | 'slug' | 'version'
+>;
+
 const visible = ref(false);
+const installSource = ref<InstallSource>('upload');
 const step = ref<'preview' | 'upload'>('upload');
 const installing = ref(false);
 const previewLoading = ref(false);
 
+const marketplaceTarget = ref<MarketplaceInstallTarget | null>(null);
 const selectedFile = ref<File | null>(null);
 const previewInfo = ref<InstallPreview | null>(null);
 const expandedItems = ref<Set<string>>(new Set());
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
-// Structure type → icon (label via i18n) / 结构类型 → 图标（label 通过 i18n 获取）
-const structureTypeIcons: Record<string, string> = {
-  skills: 'lucide:sparkles',
-  api_routes: 'lucide:route',
-  hooks: 'lucide:anchor',
-  events: 'lucide:radio',
-  webhooks: 'lucide:webhook',
-  tasks: 'lucide:clock',
-  adapters: 'lucide:cpu',
-  storage_drivers: 'lucide:database',
-  notifications: 'lucide:bell',
-  permissions: 'lucide:shield',
-  frontend_menus: 'lucide:menu',
-};
-
-function open() {
-  visible.value = true;
-  step.value = 'upload';
-  selectedFile.value = null;
+function resetPreviewStep() {
   previewInfo.value = null;
   expandedItems.value.clear();
 }
 
-function close() {
+function resetWizard() {
+  installSource.value = 'upload';
+  step.value = 'upload';
+  previewLoading.value = false;
+  installing.value = false;
+  marketplaceTarget.value = null;
+  selectedFile.value = null;
+  resetPreviewStep();
+}
+
+function open() {
+  resetWizard();
+  visible.value = true;
+}
+
+async function openMarketplace(plugin: MarketplaceInstallTarget) {
+  resetWizard();
+  installSource.value = 'marketplace';
+  marketplaceTarget.value = plugin;
+  visible.value = true;
+  step.value = 'preview';
+  previewLoading.value = true;
+
+  try {
+    previewInfo.value = await marketplacePreviewInstallApi(plugin.slug || plugin.name);
+  } catch {
+    visible.value = false;
+    resetWizard();
+  } finally {
+    previewLoading.value = false;
+  }
+}
+
+function close(force = false) {
+  if (!force && (installing.value || previewLoading.value)) return;
   visible.value = false;
+  resetWizard();
 }
 
 function toggleExpand(type: string) {
@@ -76,14 +110,17 @@ async function handleBeforeUpload(file: File) {
   }
 
   selectedFile.value = file;
+  installSource.value = 'upload';
+  resetPreviewStep();
+  step.value = 'preview';
   previewLoading.value = true;
 
   try {
     const result = await previewPluginInstallApi(file);
     previewInfo.value = result;
-    step.value = 'preview';
   } catch {
     selectedFile.value = null;
+    step.value = 'upload';
   } finally {
     previewLoading.value = false;
   }
@@ -92,18 +129,32 @@ async function handleBeforeUpload(file: File) {
 }
 
 function goBackToUpload() {
-  step.value = 'upload';
+  if (installSource.value === 'marketplace') {
+    close(true);
+    return;
+  }
   selectedFile.value = null;
-  previewInfo.value = null;
-  expandedItems.value.clear();
+  resetPreviewStep();
+  step.value = 'upload';
 }
 
 async function handleInstall() {
-  if (!selectedFile.value) return;
+  const previewToken = previewInfo.value?.preview_token;
+  if (!previewToken) return;
 
   installing.value = true;
   try {
-    await installPluginApi(selectedFile.value);
+    if (installSource.value === 'marketplace') {
+      const target = marketplaceTarget.value;
+      const slug = target?.slug || target?.name;
+      if (!slug) return;
+      await marketplaceConfirmInstallApi(slug, {
+        previewToken,
+      });
+    } else {
+      if (!selectedFile.value) return;
+      await installPluginApi(selectedFile.value, previewToken);
+    }
     message.success($t('admin.plugin.messages.installSuccess'));
     close();
     emit('installed');
@@ -141,45 +192,23 @@ const pluginScope = computed(
 );
 
 const installManifest = computed(
-  () => (previewInfo.value?.install_manifest || {}) as Record<string, number>,
+  () => previewInfo.value?.install_manifest ?? {},
 );
 
-const structureSummary = computed(() => {
-  const manifest = installManifest.value as Record<string, unknown>;
-  const items: Array<{
-    count: number;
-    details: string[];
-    icon: string;
-    label: string;
-    type: string;
-  }> = [];
-  for (const [type, icon] of Object.entries(structureTypeIcons)) {
-    const count = (manifest[type] as number) || 0;
-    if (count > 0) {
-      const detailsKey = `${type}_details`;
-      const details = (manifest[detailsKey] as string[]) || [];
-      items.push({
-        type,
-        count,
-        icon,
-        label: $t(`admin.plugin.structureType.${type}`),
-        details,
-      });
-    }
-  }
-  return items;
-});
+const structureSummary = computed(() => summarizeInstallManifest(installManifest.value));
 
 const pluginType = computed(() =>
-  derivePluginType(
-    (previewInfo.value?.install_manifest as Record<string, unknown>) ?? null,
-  ),
+  deriveInstallPreviewPluginType(previewInfo.value?.install_manifest),
 );
 const capabilities = computed(() => previewInfo.value?.capabilities || []);
 const conflicts = computed(() => previewInfo.value?.conflicts || []);
 const warnings = computed(() => previewInfo.value?.warnings || []);
 const deps = computed(
-  () => (previewInfo.value?.dependencies || {}) as Record<string, string[]>,
+  () =>
+    previewInfo.value?.dependencies || {
+      python: [],
+      plugins: [],
+    },
 );
 
 const resolvedPluginMetadataIcon = computed(() =>
@@ -192,7 +221,17 @@ const resolvedPluginMetadataIcon = computed(() =>
   ),
 );
 
-defineExpose({ open });
+const canConfirmInstall = computed(() => {
+  if (previewLoading.value || conflicts.value.length > 0) {
+    return false;
+  }
+  if (installSource.value === 'marketplace') {
+    return Boolean(marketplaceTarget.value && previewInfo.value?.preview_token);
+  }
+  return Boolean(selectedFile.value && previewInfo.value?.preview_token);
+});
+
+defineExpose({ open, openMarketplace });
 </script>
 
 <template>
@@ -206,8 +245,8 @@ defineExpose({ open });
     :footer="null"
     :destroy-on-close="true"
     :width="step === 'preview' ? 700 : 520"
-    :mask-closable="!installing"
-    :closable="!installing"
+    :mask-closable="!installing && !previewLoading"
+    :closable="!installing && !previewLoading"
   >
     <!-- ===== Step 1: Upload ===== -->
     <div v-if="step === 'upload'" class="py-2">
@@ -248,9 +287,33 @@ defineExpose({ open });
 
     <!-- ===== Step 2: Preview + Confirm ===== -->
     <div
-      v-else-if="step === 'preview' && previewInfo"
+      v-else-if="step === 'preview'"
       class="flex flex-col gap-5 py-3"
     >
+      <div
+        v-if="previewLoading"
+        class="flex flex-col items-center gap-4 py-16 text-center"
+      >
+        <IconifyIcon
+          icon="lucide:loader-2"
+          class="size-8 animate-spin text-primary"
+        />
+        <div class="space-y-1">
+          <p class="text-sm font-semibold text-foreground">
+            {{ $t('admin.plugin.preview.title') }}
+          </p>
+          <p class="text-xs text-muted-foreground">
+            {{
+              marketplaceTarget?.display_name ||
+              marketplaceTarget?.name ||
+              pluginName ||
+              ''
+            }}
+          </p>
+        </div>
+      </div>
+
+      <template v-else-if="previewInfo">
       <!-- 插件基本信息 -->
       <div class="flex items-start gap-4">
         <div
@@ -381,7 +444,8 @@ defineExpose({ open });
           class="!m-0 !rounded-md"
         >
           <IconifyIcon icon="lucide:package" class="mr-0.5 inline size-3" />
-          {{ deps.python.length }} Python deps
+          {{ deps.python.length }}
+          {{ $t('admin.plugin.preview.pythonDeps') }}
         </Tag>
         <Tag
           v-if="deps.plugins && deps.plugins.length > 0"
@@ -389,7 +453,8 @@ defineExpose({ open });
           class="!m-0 !rounded-md"
         >
           <IconifyIcon icon="lucide:plug" class="mr-0.5 inline size-3" />
-          {{ deps.plugins.length }} plugin deps
+          {{ deps.plugins.length }}
+          {{ $t('admin.plugin.preview.pluginDeps') }}
         </Tag>
       </div>
 
@@ -427,7 +492,7 @@ defineExpose({ open });
           type="primary"
           size="large"
           :loading="installing"
-          :disabled="conflicts.length > 0"
+          :disabled="!canConfirmInstall"
           class="!rounded-xl !px-6 !shadow-lg !shadow-primary/20"
           @click="handleInstall"
         >
@@ -435,6 +500,7 @@ defineExpose({ open });
           {{ $t('admin.plugin.preview.confirmInstall') }}
         </Button>
       </div>
+      </template>
     </div>
   </Modal>
 </template>

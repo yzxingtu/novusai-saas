@@ -7,7 +7,7 @@ Defines specific model information provided by AI providers.
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import JSON, Boolean, ForeignKey, Integer, Numeric, String
+from sqlalchemy import JSON, Boolean, ForeignKey, Index, Integer, Numeric, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base_model import BaseModel
@@ -24,6 +24,15 @@ class AIModel(BaseModel):
     """
 
     __tablename__ = "ai_models"
+    __table_args__ = (
+        Index(
+            "uq_ai_models_provider_code_active",
+            "provider_id",
+            "code",
+            unique=True,
+            postgresql_where=text("is_deleted = false"),
+        ),
+    )
 
     __ai_policy__ = {
         "label": "AI 模型",
@@ -137,7 +146,7 @@ class AIModel(BaseModel):
         String(100), index=True, comment=_("enum.ai_model.name")
     )
     code: Mapped[str] = mapped_column(
-        String(100), unique=True, index=True, comment=_("enum.ai_model.code")
+        String(100), index=True, comment=_("enum.ai_model.code")
     )
 
     # 模型类型 / Model kind
@@ -251,6 +260,10 @@ class AIModel(BaseModel):
     @property
     def provider_icon(self) -> str | None:
         return self.provider.icon if self.provider else None
+
+    @property
+    def provider_type(self) -> str | None:
+        return self.provider.type if self.provider else None
 
     @property
     def fallback_model_name(self) -> str | None:

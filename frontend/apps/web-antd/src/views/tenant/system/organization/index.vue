@@ -35,6 +35,7 @@ import {
 } from '#/components/business/org-node-dialog/types';
 import { OrgTreeNode, useOrgTree } from '#/components/business/org-tree';
 import { NODE_TYPE_CONFIG } from '#/components/business/org-tree/types';
+import { PermissionPreview } from '#/components/business/permission-preview';
 import {
   createCreateRecordPageOperation,
   createOpenCurrentPageOperation,
@@ -77,6 +78,7 @@ const nodeDialogParentId = ref<null | number>(null);
 const nodeDialogParentType = ref<null | TenantOrgNodeType>(null);
 const nodeDialogParentName = ref('');
 const nodeDialogNodeId = ref<null | number>(null);
+const nodeDialogCanAssignPermissions = ref(false);
 
 const activeNode = computed(
   () => selectedNodeDetail.value ?? selectedNode.value,
@@ -99,7 +101,6 @@ const leaderScopeLabel = computed(() =>
 const leaderScopeDescription = computed(() =>
   getLeaderScopeDescription(activeNode.value?.dataScope),
 );
-
 function getNodeTypeLabel(type?: string) {
   return type
     ? $t(`tenant.system.organization.nodeType.${type}`)
@@ -116,24 +117,47 @@ function handleCreateRoot() {
   nodeDialogParentType.value = null;
   nodeDialogParentName.value = '';
   nodeDialogNodeId.value = null;
+  nodeDialogCanAssignPermissions.value = true;
   nodeDialogOpen.value = true;
 }
 
-function handleAddChild(node: OrgTreeNodeData, _type: TenantOrgNodeType) {
+async function resolveNodeAssignPermission(nodeId: number): Promise<boolean> {
+  if (selectedNodeDetail.value?.id === nodeId) {
+    return selectedNodeDetail.value.canAssignPermissions ?? false;
+  }
+
+  try {
+    const detail = await getTenantOrganizationNodeDetailApi(nodeId);
+    if (selectedNode.value?.id === nodeId) {
+      selectedNodeDetail.value = detail;
+    }
+    return detail.canAssignPermissions ?? false;
+  } catch {
+    return false;
+  }
+}
+
+async function handleAddChild(node: OrgTreeNodeData, _type: TenantOrgNodeType) {
   nodeDialogMode.value = 'create';
   nodeDialogParentId.value = node.id;
   nodeDialogParentType.value = node.type;
   nodeDialogParentName.value = node.name;
   nodeDialogNodeId.value = null;
+  nodeDialogCanAssignPermissions.value = await resolveNodeAssignPermission(
+    node.id,
+  );
   nodeDialogOpen.value = true;
 }
 
-function handleEditNode(node: OrgTreeNodeData | TenantOrgNodeInfo) {
+async function handleEditNode(node: OrgTreeNodeData | TenantOrgNodeInfo) {
   nodeDialogMode.value = 'edit';
   nodeDialogParentId.value = node.parentId ?? null;
   nodeDialogParentType.value = null;
   nodeDialogParentName.value = '';
   nodeDialogNodeId.value = node.id;
+  nodeDialogCanAssignPermissions.value = await resolveNodeAssignPermission(
+    node.id,
+  );
   nodeDialogOpen.value = true;
 }
 
@@ -151,6 +175,7 @@ async function loadSelectedNodeDetail(nodeId: number) {
       leader: detail.leader,
       leaderId: detail.leaderId,
       memberCount: detail.memberCount,
+      permissionsCount: detail.permissionsCount,
       sortOrder: detail.sortOrder,
       type: detail.type,
     });
@@ -597,6 +622,17 @@ usePageAIOperations({
                       }}</span>
                       <span>{{ activeNode?.memberCount }}</span>
                     </div>
+                    <div class="flex items-center justify-between gap-4">
+                      <span class="text-muted-foreground">{{
+                        $t('shared.orgNode.permissions')
+                      }}</span>
+                      <PermissionPreview
+                        api-prefix="tenant"
+                        source="org-node"
+                        :node-id="activeNode!.id"
+                        :permissions-count="activeNode?.permissionsCount ?? 0"
+                      />
+                    </div>
                   </div>
                 </Card>
 
@@ -701,6 +737,7 @@ usePageAIOperations({
       :parent-name="nodeDialogParentName"
       :node-id="nodeDialogNodeId"
       api-prefix="tenant"
+      :can-assign-permissions="nodeDialogCanAssignPermissions"
       @success="handleNodeSaved"
     />
   </Page>

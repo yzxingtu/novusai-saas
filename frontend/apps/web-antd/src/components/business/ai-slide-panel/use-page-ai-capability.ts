@@ -1,3 +1,9 @@
+/**
+ * Page AI capability composable — wires page context registry, operations, menu
+ * navigation, form live state, and byte-budget compression for the slide panel.
+ * 页面 AI 能力组合式：串联页面上下文注册表、页面操作、菜单导航、表单实时态与侧栏体积压缩。
+ */
+
 import type { ComputedRef, Ref } from 'vue';
 
 import type { AIPageMode } from '@vben/types';
@@ -6,13 +12,22 @@ import type { PageOperation } from './page-operation-registry';
 
 import { computed, ref, watch } from 'vue';
 
+import { useAccessStore } from '@vben/stores';
+
 import { formStateTracker } from '#/composables/use-form-state-tracker';
 import { $t } from '#/locales';
+import { resolveRuntimeLocale } from '#/locales/runtime-locale';
+import { router } from '#/router';
 import {
   canExposePageOperations,
   filterPageOperationsByPolicy,
   shouldDisablePageContext,
 } from '#/utils/ai-page-capabilities';
+import { getEndpointFromPath } from '#/utils/endpoint';
+import {
+  buildMenuNavigationEntries,
+  buildNavigationContext,
+} from '#/utils/menu-navigation';
 import { isDevErrorMode } from '#/utils/request/app-env';
 
 import {
@@ -34,6 +49,8 @@ import {
 } from './page-operation-registry';
 
 type PageContextValue = ReturnType<typeof resolvePageContext>;
+
+// --- Tunables / 可调常量 ---
 
 const FALLBACK_PAGE_CONTEXT_SOURCES = new Set([
   'dom_snapshot',
@@ -73,6 +90,8 @@ interface UsePageAICapabilityOptions {
   pageContextLimitBytes: ComputedRef<number | undefined>;
 }
 
+// --- Small helpers / 小工具 ---
+
 function getPageContextSource(ctx: PageContextValue): null | string {
   const source = ctx?.page_data?.source;
   return typeof source === 'string' ? source : null;
@@ -83,7 +102,33 @@ function isFallbackOnlyPageContext(ctx: PageContextValue): boolean {
   return !!source && FALLBACK_PAGE_CONTEXT_SOURCES.has(source);
 }
 
+function getAccessibleMenusSafe(): ReturnType<
+  typeof useAccessStore
+>['accessMenus'] {
+  try {
+    return useAccessStore().accessMenus;
+  } catch {
+    return [];
+  }
+}
+
+// --- Main composable / 主组合式 ---
+
 export function usePageAICapability(options: UsePageAICapabilityOptions) {
+  const route = computed(
+    () =>
+      (router.currentRoute.value as
+        | undefined
+        | {
+            meta?: Record<string, unknown>;
+            path?: string;
+          }) ?? undefined,
+  );
+  const currentRoutePath = computed(
+    () =>
+      route.value?.path ||
+      (typeof window === 'undefined' ? '' : window.location.pathname),
+  );
   const rawPageContext = computed(() => {
     void pageContextVersion.value;
     return resolvePageContext(options.pageContextKey.value);
@@ -101,15 +146,16 @@ export function usePageAICapability(options: UsePageAICapabilityOptions) {
   const currentPageOperations = computed(() => {
     void pageOperationVersion.value;
     const pageKey = resolvedPageKey.value;
-    if (!pageKey) {
-      return [];
+    if (pageKey) {
+      return filterPageOperationsByPolicy(
+        listPageOperations(pageKey),
+        options.pageAIPolicy.value,
+      );
     }
-    return filterPageOperationsByPolicy(
-      listPageOperations(pageKey),
-      options.pageAIPolicy.value,
-    );
+    return [];
   });
 
+  /** Merge nav + visual + ops, then apply soft byte limit via guardPageDataSize. / 合并导航、视觉、操作列表，再经 guard 做软限压缩。 */
   function buildEnrichedPageAIState(
     ctx: PageContextValue,
     ops: readonly PageOperation[] = [],
@@ -140,10 +186,30 @@ export function usePageAICapability(options: UsePageAICapabilityOptions) {
       visual_state: _visualState,
       ...basePageData
     } = ctx.page_data ?? {};
+    const accessibleMenuEntries = buildMenuNavigationEntries({
+      currentEndpoint: getEndpointFromPath(currentRoutePath.value),
+      menus: getAccessibleMenusSafe(),
+      translate: $t,
+    });
+    const navigationContext = buildNavigationContext({
+      activePath:
+        typeof route.value?.meta?.activePath === 'string'
+          ? route.value.meta.activePath
+          : undefined,
+      currentPageKey: ctx.page_key,
+      currentPath: currentRoutePath.value,
+      entries: accessibleMenuEntries,
+    });
+    const resolvedLocale =
+      typeof basePageData.locale === 'string' && basePageData.locale.trim()
+        ? basePageData.locale.trim()
+        : resolveRuntimeLocale();
 
     const rawPageData: Record<string, unknown> = {
       ...basePageData,
+      ...(resolvedLocale ? { locale: resolvedLocale } : {}),
       ...(liveFormFields ? { form_fields: liveFormFields } : {}),
+      navigation_context: navigationContext,
       visual_state: collectVisualState(
         Array.isArray(options.modalState.value) ? options.modalState.value : [],
       ),
@@ -172,6 +238,10 @@ export function usePageAICapability(options: UsePageAICapabilityOptions) {
 
     let pageData = truncateFormFields(rawPageData);
     pageData = guardPageDataSize(pageData, softLimitBytes);
+    const runtimeLocale = resolveRuntimeLocale();
+    if (runtimeLocale && !pageData.locale) {
+      pageData = { ...pageData, locale: runtimeLocale };
+    }
     const finalBytes = getSerializedPageDataBytes(pageData);
     const finalOperationCount = Array.isArray(pageData.available_operations)
       ? pageData.available_operations.length
@@ -197,6 +267,8 @@ export function usePageAICapability(options: UsePageAICapabilityOptions) {
       diagnostics,
     };
   }
+
+  // --- Derived state for panel UI / 侧栏 UI 派生状态 ---
 
   const enrichedPageAIState = computed(() =>
     buildEnrichedPageAIState(rawPageContext.value, currentPageOperations.value),
@@ -311,6 +383,8 @@ export function usePageAICapability(options: UsePageAICapabilityOptions) {
     ),
   );
 
+  // Copy for template: summary line, title, tooltip / 文案：摘要、标题、tooltip
+
   const pageAISummary = computed(() => {
     if (pageAIFallbackOnly.value) {
       if (currentPageOperations.value.length > 0) {
@@ -348,6 +422,8 @@ export function usePageAICapability(options: UsePageAICapabilityOptions) {
   const pageAIOperationCount = computed(
     () => currentPageOperations.value.length,
   );
+
+  // Panel expand / collapse handlers / 详情展开与「显示全部操作」
 
   function togglePageAIDetails() {
     if (pageAIDetailsExpanded.value) {

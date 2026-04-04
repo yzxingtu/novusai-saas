@@ -9,11 +9,11 @@ import {
   registerPageOperations,
 } from '#/components/business/ai-slide-panel/page-operation-registry';
 
-import { formStateTracker } from '../use-form-state-tracker';
 import {
   clearRemoteOptionsCache,
   createStandardOperations,
 } from '../use-ai-operations';
+import { formStateTracker } from '../use-form-state-tracker';
 
 vi.mock('#/locales', () => ({
   $t: (key: string) => key,
@@ -29,6 +29,12 @@ vi.mock('vue-router', () => ({
   useRouter: () => ({
     push: vi.fn(),
   }),
+}));
+
+vi.mock('#/router', () => ({
+  router: {
+    push: vi.fn(),
+  },
 }));
 
 describe('createStandardOperations', () => {
@@ -90,7 +96,7 @@ describe('createStandardOperations', () => {
       },
     );
 
-    await vi.advanceTimersByTimeAsync(2_000);
+    await vi.advanceTimersByTimeAsync(2000);
     const result = await resultPromise;
 
     expect(result.success).toBe(true);
@@ -138,7 +144,9 @@ describe('createStandardOperations', () => {
           label: '关联模型',
           rules: 'selectRequired',
           componentProps: {
-            api: vi.fn(async () => ({ items: [{ label: 'GPT-5.4', value: 1 }] })),
+            api: vi.fn(async () => ({
+              items: [{ label: 'GPT-5.4', value: 1 }],
+            })),
           },
         },
         {
@@ -146,7 +154,9 @@ describe('createStandardOperations', () => {
           fieldName: 'tenant_ids',
           label: '分配企业',
           componentProps: {
-            api: vi.fn(async () => ({ items: [{ label: '租户 A', value: 1 }] })),
+            api: vi.fn(async () => ({
+              items: [{ label: '租户 A', value: 1 }],
+            })),
             mode: 'multiple',
           },
         },
@@ -156,7 +166,10 @@ describe('createStandardOperations', () => {
     const createRecord = operations.find(
       (operation) => operation.name === 'create_record',
     );
-    const resultPromise = createRecord?.handler?.({
+    if (!createRecord?.handler) {
+      throw new Error('create_record handler missing');
+    }
+    const resultPromise = createRecord.handler({
       model_id: 0,
       name: 'AI agent',
       tenant_ids: [],
@@ -204,7 +217,9 @@ describe('createStandardOperations', () => {
           label: '关联模型',
           rules: 'selectRequired',
           componentProps: {
-            api: vi.fn(async () => ({ items: [{ label: 'GPT-5.4', value: 9 }] })),
+            api: vi.fn(async () => ({
+              items: [{ label: 'GPT-5.4', value: 9 }],
+            })),
           },
         },
       ],
@@ -213,7 +228,10 @@ describe('createStandardOperations', () => {
     const editRecord = operations.find(
       (operation) => operation.name === 'edit_record',
     );
-    const resultPromise = editRecord?.handler?.({
+    if (!editRecord?.handler) {
+      throw new Error('edit_record handler missing');
+    }
+    const resultPromise = editRecord.handler({
       id: 42,
       model_id: 0,
       name: 'updated',
@@ -296,7 +314,7 @@ describe('createStandardOperations', () => {
       },
     );
 
-    await vi.advanceTimersByTimeAsync(2_000);
+    await vi.advanceTimersByTimeAsync(2000);
     const result = await resultPromise;
 
     expect(result.success).toBe(true);
@@ -326,14 +344,18 @@ describe('createStandardOperations', () => {
           label: '关联模型',
           rules: 'selectRequired',
           componentProps: {
-            api: vi.fn(async () => ({ items: [{ label: 'GPT-5.4', value: 1 }] })),
+            api: vi.fn(async () => ({
+              items: [{ label: 'GPT-5.4', value: 1 }],
+            })),
           },
         },
       ],
       pageKey: 'admin.ai.agents',
     });
 
-    const fillForm = operations.find((operation) => operation.name === 'fill_form');
+    const fillForm = operations.find(
+      (operation) => operation.name === 'fill_form',
+    );
     const getFormOptions = operations.find(
       (operation) => operation.name === 'get_form_options',
     );
@@ -359,7 +381,9 @@ describe('createStandardOperations', () => {
           fieldName: 'tenant_ids',
           label: '分配企业',
           componentProps: {
-            api: vi.fn(async () => ({ items: [{ label: '租户 A', value: 1 }] })),
+            api: vi.fn(async () => ({
+              items: [{ label: '租户 A', value: 1 }],
+            })),
             mode: 'multiple',
           },
         },
@@ -367,7 +391,9 @@ describe('createStandardOperations', () => {
       pageKey: 'admin.ai.agents',
     });
 
-    const fillForm = operations.find((operation) => operation.name === 'fill_form');
+    const fillForm = operations.find(
+      (operation) => operation.name === 'fill_form',
+    );
 
     expect(fillForm?.params?.tenant_ids).toMatchObject({
       type: 'array',
@@ -391,7 +417,9 @@ describe('createStandardOperations', () => {
           label: '关联模型',
           rules: 'selectRequired',
           componentProps: {
-            api: vi.fn(async () => ({ items: [{ label: 'GPT-5.4', value: 1 }] })),
+            api: vi.fn(async () => ({
+              items: [{ label: 'GPT-5.4', value: 1 }],
+            })),
           },
         },
       ],
@@ -439,7 +467,10 @@ describe('createStandardOperations', () => {
           rules: 'selectRequired',
           componentProps: {
             api: vi.fn(
-              () => new Promise(() => {}) as Promise<{ items: Array<{ label: string; value: number }> }>,
+              () =>
+                new Promise(() => {}) as Promise<{
+                  items: Array<{ label: string; value: number }>;
+                }>,
             ),
           },
         },
@@ -452,7 +483,7 @@ describe('createStandardOperations', () => {
     );
     const resultPromise = getFormOptions?.handler?.({ field_name: 'model_id' });
 
-    await vi.advanceTimersByTimeAsync(8_100);
+    await vi.advanceTimersByTimeAsync(8100);
     const result = await resultPromise;
 
     expect(result).toMatchObject({

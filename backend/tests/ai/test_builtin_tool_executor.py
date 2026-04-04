@@ -533,6 +533,56 @@ def test_build_capability_reporting_hint_lists_only_current_tools_and_page_ops()
     assert "never claim a listed tool is unavailable" in hint.lower()
 
 
+def test_truncate_tool_calls_after_navigation_keeps_prefix_only() -> None:
+    tool_calls = [
+        {
+            "id": "call_1",
+            "function": {"name": "pageop_list_available_menus", "arguments": "{}"},
+        },
+        {
+            "id": "call_2",
+            "function": {
+                "name": "pageop_navigate_menu",
+                "arguments": '{"target":"智能体管理"}',
+            },
+        },
+        {
+            "id": "call_3",
+            "function": {
+                "name": "invoke_page_operation",
+                "arguments": (
+                    '{"page_key":"admin.ai.conversations","operation_name":"read_current_view"}'
+                ),
+            },
+        },
+    ]
+
+    truncated, changed = BaseEngine._truncate_tool_calls_after_navigation(tool_calls)
+
+    assert changed is True
+    assert [call["id"] for call in truncated] == ["call_1", "call_2"]
+
+
+def test_truncate_tool_calls_after_navigation_leaves_non_navigation_batch_unchanged() -> (
+    None
+):
+    tool_calls = [
+        {
+            "id": "call_1",
+            "function": {"name": "pageop_list_available_menus", "arguments": "{}"},
+        },
+        {
+            "id": "call_2",
+            "function": {"name": "pageop_read_current_view", "arguments": "{}"},
+        },
+    ]
+
+    truncated, changed = BaseEngine._truncate_tool_calls_after_navigation(tool_calls)
+
+    assert changed is False
+    assert truncated == tool_calls
+
+
 def test_extract_readable_page_tolerates_nodes_with_none_attrs() -> None:
     from bs4 import BeautifulSoup
 

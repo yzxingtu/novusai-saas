@@ -23,12 +23,15 @@ import {
 
 import { getTaskLogDetailApi, getTaskLogListApi } from '#/api/admin/task-log';
 import { $t } from '#/locales';
+import { useAccess } from '#/utils';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 
 defineOptions({ name: 'TaskLogListDrawer' });
 
 type TaskLogInfo = adminApi.TaskLogInfo;
 type TaskLogDetailInfo = adminApi.TaskLogDetailInfo;
+const { hasAccessByCodes } = useAccess();
+const canViewTaskLogDetail = hasAccessByCodes(['task_log:detail']);
 
 const [Drawer, drawerApi] = useVbenDrawer({
   onOpenChange(isOpen: boolean) {
@@ -227,8 +230,13 @@ const avgDuration = () => {
           <div
             v-for="log in logs"
             :key="log.id"
-            class="cursor-pointer rounded-lg border border-border px-3 py-2.5 transition-all hover:border-primary/30 hover:bg-accent/30"
-            @click="onSelectLog(log)"
+            class="rounded-lg border border-border px-3 py-2.5 transition-all"
+            :class="
+              canViewTaskLogDetail
+                ? 'cursor-pointer hover:border-primary/30 hover:bg-accent/30'
+                : 'cursor-default'
+            "
+            @click="canViewTaskLogDetail ? onSelectLog(log) : undefined"
           >
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2">
@@ -256,6 +264,7 @@ const avgDuration = () => {
                   </span>
                 </Tooltip>
                 <IconifyIcon
+                  v-if="canViewTaskLogDetail"
                   icon="lucide:chevron-right"
                   class="size-3.5 text-muted-foreground/40"
                 />

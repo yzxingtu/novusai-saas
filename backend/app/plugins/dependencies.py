@@ -15,6 +15,8 @@ from packaging.requirements import Requirement
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
 from packaging.version import InvalidVersion, Version
 
+from app.core.i18n import _
+
 _PLUGIN_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
 _NORMALIZE_PKG_NAME_PATTERN = re.compile(r"[-_.]+")
 
@@ -242,6 +244,7 @@ def build_plugin_dependency_states(
         installed = row is not None
         enabled = bool(row and row.get("status") == "enabled")
         installed_version = row.get("version") if row else None
+        unknown_version = _("plugin.preview.dependency.unknown_version")
         version_ok = plugin_dependency_is_version_satisfied(
             requirement.version,
             installed_version,
@@ -249,24 +252,37 @@ def build_plugin_dependency_states(
 
         if not installed:
             state = "missing"
-            message = f"{requirement.plugin} not installed"
+            message = _(
+                "plugin.preview.dependency.plugin_missing",
+                plugin=requirement.plugin,
+            )
         elif require_enabled and not enabled:
             state = "disabled"
-            message = f"{requirement.plugin} not enabled"
+            message = _(
+                "plugin.preview.dependency.plugin_disabled",
+                plugin=requirement.plugin,
+            )
         elif not version_ok:
             state = "version_mismatch"
-            message = (
-                f"{requirement.plugin} requires {requirement.version}, "
-                f"installed {installed_version or 'unknown'}"
+            message = _(
+                "plugin.preview.dependency.plugin_version_mismatch",
+                plugin=requirement.plugin,
+                required=requirement.version,
+                installed=installed_version or unknown_version,
             )
         else:
             state = "ready"
             if requirement.version == "*":
-                message = f"{requirement.plugin} ready"
+                message = _(
+                    "plugin.preview.dependency.plugin_ready",
+                    plugin=requirement.plugin,
+                )
             else:
-                message = (
-                    f"{requirement.plugin} {installed_version} satisfies "
-                    f"{requirement.version}"
+                message = _(
+                    "plugin.preview.dependency.plugin_ready_versioned",
+                    plugin=requirement.plugin,
+                    installed=installed_version or unknown_version,
+                    required=requirement.version,
                 )
 
         states.append(
@@ -350,18 +366,22 @@ def build_python_dependency_states(
     for requirement in iter_effective_python_requirements(requirements):
         installed_version = get_installed_distribution_version(requirement.name)
         satisfied = is_python_requirement_satisfied(requirement)
+        package_name = normalize_python_package_name(requirement.name)
         states.append(
             {
                 "requirement": str(requirement),
-                "package": normalize_python_package_name(requirement.name),
+                "package": package_name,
                 "installed": installed_version is not None,
                 "installed_version": installed_version,
                 "satisfied": satisfied,
                 "state": "ready" if satisfied else "missing",
                 "message": (
-                    f"{requirement.name} ready"
+                    _("plugin.preview.dependency.python_ready", package=package_name)
                     if satisfied
-                    else f"{requirement.name} missing or version mismatch"
+                    else _(
+                        "plugin.preview.dependency.python_missing_or_mismatch",
+                        package=package_name,
+                    )
                 ),
             }
         )
@@ -422,9 +442,9 @@ def detect_direct_python_dependency_conflicts(
             conflicts.append(
                 PythonDependencyConflict(
                     package=package,
-                    reason=(
-                        "multiple incompatible exact versions declared: "
-                        + ", ".join(sorted(exact_versions))
+                    reason=_(
+                        "plugin.preview.python_conflict.multiple_exact_versions",
+                        versions=", ".join(sorted(exact_versions)),
                     ),
                     requirements=requirements_payload,
                 )
@@ -439,7 +459,10 @@ def detect_direct_python_dependency_conflicts(
                 conflicts.append(
                     PythonDependencyConflict(
                         package=package,
-                        reason=f"invalid exact version '{exact}' in requirement set",
+                        reason=_(
+                            "plugin.preview.python_conflict.invalid_exact_version",
+                            version=exact,
+                        ),
                         requirements=requirements_payload,
                     )
                 )
@@ -453,9 +476,10 @@ def detect_direct_python_dependency_conflicts(
                 conflicts.append(
                     PythonDependencyConflict(
                         package=package,
-                        reason=(
-                            f"exact version {exact} does not satisfy: "
-                            + "; ".join(rejected)
+                        reason=_(
+                            "plugin.preview.python_conflict.exact_version_rejected",
+                            version=exact,
+                            specifiers="; ".join(rejected),
                         ),
                         requirements=requirements_payload,
                     )
@@ -478,9 +502,10 @@ def detect_direct_python_dependency_conflicts(
                     conflicts.append(
                         PythonDependencyConflict(
                             package=package,
-                            reason=(
-                                f"installed version {installed_version} does not satisfy: "
-                                + "; ".join(rejected)
+                            reason=_(
+                                "plugin.preview.python_conflict.installed_version_rejected",
+                                version=installed_version,
+                                specifiers="; ".join(rejected),
                             ),
                             requirements=requirements_payload,
                         )

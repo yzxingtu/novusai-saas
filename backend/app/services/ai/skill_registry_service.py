@@ -4,7 +4,6 @@ Skill registry service / 技能注册表服务
 
 from __future__ import annotations
 
-import re
 import shutil
 import tempfile
 from pathlib import Path
@@ -12,6 +11,7 @@ from pathlib import Path
 import httpx
 from sqlalchemy import select
 
+from app.ai.text_semantics import build_semver_sort_key, slugify_ascii_identifier
 from app.core.github_source_policy import (
     open_github_only_stream,
     validate_github_source_url,
@@ -25,8 +25,6 @@ logger = get_logger(__name__)
 _DEFAULT_GITHUB_URL = "https://raw.githubusercontent.com/novusai/skill-marketplace/main"
 _DEFAULT_CACHE_TTL = 3600
 _CACHE_PREFIX = "skill_registry:"
-_SEMVER_TOKEN_RE = re.compile(r"[0-9]+|[A-Za-z]+")
-
 
 class SkillRegistryService:
     def __init__(self, db) -> None:
@@ -94,30 +92,12 @@ class SkillRegistryService:
     def _cache_key(self, prefix: str, source_url: str | None = None) -> str:
         if not source_url:
             return prefix
-        safe = re.sub(r"[^a-zA-Z0-9]+", "_", source_url.strip().lower()).strip("_")
+        safe = slugify_ascii_identifier(source_url)
         return f"{prefix}:{safe or 'default'}"
 
     @staticmethod
     def _version_key(version: str | None) -> tuple:
-        normalized = str(version or "").strip()
-        if not normalized:
-            return ()
-        if normalized.startswith("v"):
-            normalized = normalized[1:]
-        parts = re.split(r"[.+-]", normalized)
-        key: list[tuple[int, int | str]] = []
-        for part in parts:
-            if not part:
-                continue
-            tokens = _SEMVER_TOKEN_RE.findall(part)
-            if not tokens:
-                continue
-            for token in tokens:
-                if token.isdigit():
-                    key.append((0, int(token)))
-                else:
-                    key.append((1, token.lower()))
-        return tuple(key)
+        return build_semver_sort_key(version)
 
     @classmethod
     def _is_newer_version(

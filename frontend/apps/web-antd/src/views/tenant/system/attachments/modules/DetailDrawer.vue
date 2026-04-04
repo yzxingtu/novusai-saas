@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { AttachmentDetailSection } from '#/components/business/attachment-detail';
 /**
  * 企业端附件详情抽屉
  */
@@ -9,19 +10,13 @@ import { computed, ref, watch } from 'vue';
 import { useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import {
-  Button,
-  Descriptions,
-  DescriptionsItem,
-  message,
-  Spin,
-  Tag,
-} from 'ant-design-vue';
+import { Button, message, Spin } from 'ant-design-vue';
 
 import {
   downloadAttachmentApi,
   getAttachmentDetailApi,
 } from '#/api/tenant/attachment';
+import { AttachmentDetailDescriptions } from '#/components/business/attachment-detail';
 import { FilePreview } from '#/components/business/file-preview';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
@@ -53,6 +48,55 @@ const previewRef = ref<InstanceType<typeof FilePreview> | null>(null);
 
 const title = computed(() => {
   return detail.value?.name || $t('tenant.system.attachment.detail');
+});
+
+const sections = computed<AttachmentDetailSection[]>(() => {
+  if (!detail.value) return [];
+  return [
+    {
+      title: $t('tenant.system.attachment.basicInfo'),
+      fields: [
+        {
+          label: $t('tenant.system.attachment.name'),
+          value: detail.value.name,
+        },
+        {
+          label: $t('tenant.system.attachment.category'),
+          value: getCategoryText(detail.value.category),
+          kind: 'tag',
+          color: getCategoryColor(detail.value.category),
+        },
+        {
+          label: $t('tenant.system.attachment.mimeType'),
+          value: detail.value.mimeType,
+          kind: 'code',
+        },
+        {
+          label: $t('tenant.system.attachment.size'),
+          value: formatFileSize(detail.value.size),
+        },
+        {
+          label: $t('tenant.system.attachment.visibility'),
+          value: getVisibilityText(detail.value.visibility),
+          kind: 'tag',
+          color: getVisibilityColor(detail.value.visibility),
+        },
+      ],
+    },
+    {
+      title: $t('tenant.system.attachment.timeInfo'),
+      fields: [
+        {
+          label: $t('tenant.system.attachment.uploadedAt'),
+          value: formatDate(detail.value.createdAt),
+        },
+        {
+          label: $t('tenant.system.attachment.updatedAt'),
+          value: formatDate(detail.value.updatedAt),
+        },
+      ],
+    },
+  ];
 });
 
 async function loadDetail(id: number) {
@@ -114,52 +158,7 @@ watch(
             {{ $t('tenant.system.attachment.actions.download') }}
           </Button>
         </div>
-
-        <!-- 基本信息 -->
-        <Descriptions
-          :title="$t('tenant.system.attachment.basicInfo')"
-          :column="1"
-          bordered
-          size="small"
-        >
-          <DescriptionsItem :label="$t('tenant.system.attachment.name')">
-            {{ detail.name }}
-          </DescriptionsItem>
-          <DescriptionsItem :label="$t('tenant.system.attachment.category')">
-            <Tag :color="getCategoryColor(detail.category)">
-              {{ getCategoryText(detail.category) }}
-            </Tag>
-          </DescriptionsItem>
-          <DescriptionsItem :label="$t('tenant.system.attachment.mimeType')">
-            <code class="rounded bg-accent px-1 py-0.5 text-xs">
-              {{ detail.mimeType }}
-            </code>
-          </DescriptionsItem>
-          <DescriptionsItem :label="$t('tenant.system.attachment.size')">
-            {{ formatFileSize(detail.size) }}
-          </DescriptionsItem>
-          <DescriptionsItem :label="$t('tenant.system.attachment.visibility')">
-            <Tag :color="getVisibilityColor(detail.visibility)">
-              {{ getVisibilityText(detail.visibility) }}
-            </Tag>
-          </DescriptionsItem>
-        </Descriptions>
-
-        <!-- 时间信息 -->
-        <Descriptions
-          :title="$t('tenant.system.attachment.timeInfo')"
-          :column="1"
-          bordered
-          size="small"
-          class="mt-4"
-        >
-          <DescriptionsItem :label="$t('tenant.system.attachment.uploadedAt')">
-            {{ formatDate(detail.createdAt) }}
-          </DescriptionsItem>
-          <DescriptionsItem :label="$t('tenant.system.attachment.updatedAt')">
-            {{ formatDate(detail.updatedAt) }}
-          </DescriptionsItem>
-        </Descriptions>
+        <AttachmentDetailDescriptions :sections="sections" />
       </template>
     </Spin>
   </Drawer>

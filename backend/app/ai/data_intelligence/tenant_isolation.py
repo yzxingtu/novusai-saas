@@ -17,9 +17,14 @@ Security guarantees / 安全保证：
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 
+from app.ai.data_intelligence.sql_analysis import (
+    SQLTableReference,
+    append_outer_where_conditions,
+    extract_table_references,
+    inject_outer_where_conditions,
+)
 from app.ai.data_intelligence.schema_provider import TableSchema
 from app.core.i18n import _
 from app.core.logging import LogManager
@@ -39,11 +44,6 @@ class TenantIsolationError(Exception):
     pass
 
 
-# ============================================
-# Table Reference Extraction / 表引用提取
-# ============================================
-
-
 @dataclass
 class TableReference:
     """Table reference in SQL / SQL 中的表引用"""
@@ -59,95 +59,8 @@ class TableReference:
         return f"{prefix}.{self.tenant_column}"
 
 
-# Table reference extraction after FROM / JOIN / FROM / JOIN 后的表引用提取
-# Match patterns / 匹配模式:
-#   FROM table_name
-#   FROM table_name AS alias
-#   FROM table_name alias
-#   JOIN table_name ON ...
-#   LEFT JOIN table_name AS alias ON ...
-_TABLE_REF_RE = re.compile(
-    r"""
-    \b(?:FROM|(?:LEFT|RIGHT|INNER|OUTER|CROSS|FULL)?\s*JOIN)\s+
-    (\w+)                         # 表名（组1） / table name (group 1)
-    (?:\s+AS\s+(\w+))?            # AS 别名（组2, 可选）
-    (?:\s+(\w+))?                 # 隐式别名（组3, 可选, 排除关键字） / implicit alias (group 3, optional)
-    """,
-    re.IGNORECASE | re.VERBOSE,
-)
-
-# SQL keywords to exclude (not aliases) / 需要排除的 SQL 关键字（不是别名）
-_SQL_KEYWORDS = {
-    "on",
-    "where",
-    "and",
-    "or",
-    "inner",
-    "outer",
-    "left",
-    "right",
-    "cross",
-    "full",
-    "join",
-    "set",
-    "group",
-    "order",
-    "having",
-    "limit",
-    "offset",
-    "union",
-    "except",
-    "intersect",
-    "natural",
-    "using",
-    "lateral",
-    "select",
-    "from",
-    "as",
-    "not",
-    "in",
-    "between",
-    "like",
-    "ilike",
-    "is",
-    "null",
-    "true",
-    "false",
-    "case",
-    "when",
-    "then",
-    "else",
-    "end",
-}
-
-
-def _extract_table_refs(sql: str) -> list[tuple[str, str | None]]:
-    """
-    提取 SQL 中所有的表引用（表名 + 别名）/ Extract all table references (table name + alias) from SQL.
-
-    Returns:
-        [(table_name, alias_or_none), ...]
-    """
-    refs: list[tuple[str, str | None]] = []
-
-    for match in _TABLE_REF_RE.finditer(sql):
-        table_name = match.group(1)
-        as_alias = match.group(2)  # AS 别名
-        implicit_alias = match.group(3)  # 隐式别名 / implicit alias
-
-        # Determine final alias / 确定最终别名
-        alias = as_alias
-        if not alias and implicit_alias and implicit_alias.lower() not in _SQL_KEYWORDS:
-            # Check if it's a keyword / 检查是否是关键字
-            alias = implicit_alias
-
-        refs.append((table_name, alias))
-
-    return refs
-
-
-# ============================================ / 上文为英文说明 / English above
-# TenantIsolationInjector
+# ============================================
+# TenantIsolationInjector / 租户隔离注入器
 # ============================================
 
 
@@ -207,7 +120,7 @@ class TenantIsolationInjector:
         schema_map: dict[str, TableSchema] = {t.table_name.lower(): t for t in schema}
 
         # Extract table references / 提取表引用
-        table_refs = _extract_table_refs(sql)
+        table_refs = extract_table_references(sql)
         if not table_refs:
             logger.warning(
                 "No table references found in SQL, cannot inject tenant_id: {}",
@@ -217,7 +130,9 @@ class TenantIsolationInjector:
 
         # Build TableReference for each table / 为每个表构建 TableReference
         refs: list[TableReference] = []
-        for table_name, alias in table_refs:
+        for raw_ref in table_refs:
+            table_name = raw_ref.table_name
+            alias = raw_ref.alias
             table_lower = table_name.lower()
             table_schema = schema_map.get(table_lower)
 
@@ -288,39 +203,6 @@ class TenantIsolationInjector:
         return False
 
 
-def _find_at_depth_zero(
-    sql: str,
-    pattern: re.Pattern[str],
-) -> re.Match[str] | None:
-    """
-    Find the first match of *pattern* at parenthesis depth 0 (outermost query, not subquery). / 在括号深度为 0 处查找 *pattern* 的第一个匹配项（最外层查询，非子查询内）。
-    """
-    depth = 0
-    i = 0
-    while i < len(sql):
-        if sql[i] == "(":
-            depth += 1
-            i += 1
-        elif sql[i] == ")":
-            depth -= 1
-            i += 1
-        elif depth == 0:
-            m = pattern.match(sql, i)
-            if m:
-                return m
-            i += 1
-        else:
-            i += 1
-    return None
-
-
-_WHERE_RE = re.compile(r"\bWHERE\b", re.IGNORECASE)
-_INSERT_BEFORE_RE = re.compile(
-    r"\b(GROUP\s+BY|ORDER\s+BY|LIMIT|HAVING|UNION|EXCEPT|INTERSECT)\b",
-    re.IGNORECASE,
-)
-
-
 def _inject_conditions(
     sql: str,
     refs: list[TableReference],
@@ -347,28 +229,7 @@ def _inject_conditions(
     if not conditions:
         return sql
 
-    tenant_clause = " AND ".join(conditions)
-
-    # Search for WHERE at depth 0 only (skip subquery WHEREs) / 上文为英文说明 / English above
-    where_match = _find_at_depth_zero(sql, _WHERE_RE)
-
-    if where_match:
-        where_pos = where_match.end()
-        result = sql[:where_pos] + f" {tenant_clause} AND" + sql[where_pos:]
-    else:
-        # No outermost WHERE — insert before trailing clauses at depth 0 / 上文为英文说明 / English above
-        insert_match = _find_at_depth_zero(sql, _INSERT_BEFORE_RE)
-
-        if insert_match:
-            insert_pos = insert_match.start()
-            result = (
-                sql[:insert_pos].rstrip()
-                + f" WHERE {tenant_clause} "
-                + sql[insert_pos:]
-            )
-        else:
-            stripped = sql.rstrip().rstrip(";")
-            result = f"{stripped} WHERE {tenant_clause}"
+    result = inject_outer_where_conditions(sql, conditions)
 
     logger.info(
         "Injected tenant_id={} for {} table(s)",
@@ -396,25 +257,7 @@ def _inject_extra_conditions(sql: str, conditions: list[str]) -> str:
     if not conditions:
         return sql
 
-    extra_clause = " AND ".join(conditions)
-
-    # Already has WHERE (guaranteed by previous tenant_id injection), append AND / 已有 WHERE 子句，追加 AND
-    where_match = _find_at_depth_zero(sql, _WHERE_RE)
-    if where_match:
-        # Insert before GROUP BY / ORDER BY / LIMIT etc. / 在尾部子句之前插入
-        insert_match = _find_at_depth_zero(sql, _INSERT_BEFORE_RE)
-        if insert_match:
-            insert_pos = insert_match.start()
-            return (
-                sql[:insert_pos].rstrip() + f" AND {extra_clause} " + sql[insert_pos:]
-            )
-        # No trailing clauses, append directly / 无尾部子句，直接追加
-        stripped = sql.rstrip().rstrip(";")
-        return f"{stripped} AND {extra_clause}"
-
-    # No WHERE (should not happen, but fallback) / 无 WHERE（不应发生，但兜底）
-    stripped = sql.rstrip().rstrip(";")
-    return f"{stripped} WHERE {extra_clause}"
+    return append_outer_where_conditions(sql, conditions)
 
 
 __all__ = [

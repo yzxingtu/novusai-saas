@@ -32,7 +32,8 @@ python -m pytest tests/test_plugin_api_dispatcher_security.py tests/test_plugin_
 
 - plugin manifest 可解析（novusdoc / novusdoc-pro / weather-widget）
 - 全部 API route 的 handler 可加载
-- frontend menus / standalone_pages 路径前缀合规（`/admin/plugins/` 或 `/tenant/plugins/`）
+- `extensions.frontend.pages[*].path` 路径前缀合规（`/admin/plugins/` 或 `/tenant/plugins/`）
+- `pages[*].menu` 只承担菜单 metadata，不再额外维护 `frontend.menus` / `standalone_pages`
 - 若 handler 声明 `db` 参数，插件必须声明 `db:own_tables`
 
 结果：`plugin-smoke-check-ok`

@@ -59,8 +59,12 @@ async function loadPermissions() {
       const detail = await admin.getOrganizationNodeDetailApi(props.nodeId);
       permIds = detail.permissionIds || [];
       permissionTree.value = await admin.getPermissionTreeApi();
+    } else if (props.apiPrefix === 'tenant' && props.source === 'org-node') {
+      const detail = await tenant.getTenantOrganizationNodeDetailApi(props.nodeId);
+      permIds = detail.permissionIds || [];
+      permissionTree.value = await tenant.getTenantPermissionTreeApi();
     } else if (props.apiPrefix === 'tenant') {
-      // Tenant API / 企业端 API
+      // Tenant role API / 企业端角色 API
       const detail = await tenant.getTenantRoleDetailApi(props.nodeId);
       // Prefer permissionIds, otherwise extract from permissions / 优先使用 permissionIds
       permIds =
@@ -271,7 +275,13 @@ watch(
         class="h-3.5 w-3.5 text-primary"
       />
       <span>{{ permissionsCount ?? 0 }}</span>
-      <span>{{ $t('admin.system.organization.permissionsUnit') }}</span>
+      <span>{{
+        $t(
+          apiPrefix === 'tenant'
+            ? 'tenant.system.organization.permissionsUnit'
+            : 'admin.system.organization.permissionsUnit',
+        )
+      }}</span>
     </span>
   </Popover>
 </template>

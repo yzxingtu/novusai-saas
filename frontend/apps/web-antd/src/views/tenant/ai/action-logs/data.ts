@@ -212,12 +212,14 @@ export function useColumns<T = ActionLogItem>(
     {
       field: 'agent_name',
       title: $t('tenant.ai.actionLog.agentName'),
+      align: 'left',
       minWidth: 180,
       slots: { default: 'agent_cell' },
     },
     {
       field: 'operator_name',
       title: $t('tenant.ai.actionLog.operatorId'),
+      align: 'left',
       minWidth: 180,
       slots: { default: 'operator_cell' },
     },

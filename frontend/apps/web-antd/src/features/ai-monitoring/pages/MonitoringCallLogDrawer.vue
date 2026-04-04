@@ -9,6 +9,7 @@ import { Drawer, Empty, Spin, Tag } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
+import { toAvatarDisplayUrl } from '#/utils/image';
 
 import { getMonitoringCallLogDetail } from '../api';
 
@@ -60,6 +61,17 @@ function formatTokens(tokens?: null | number) {
 function formatLatency(latency?: null | number) {
   return latency === null || latency === undefined ? '-' : `${latency} ms`;
 }
+
+function isIconAvatar(avatar: null | string | undefined): boolean {
+  return Boolean(avatar && String(avatar).includes(':'));
+}
+
+function getInitialLetter(value: null | string | undefined): string {
+  const text = String(value || '').trim();
+  return text ? text.charAt(0).toUpperCase() : '?';
+}
+
+const detailAgentName = computed(() => detail.value?.agent_name || '-');
 
 function getStatusColor(status?: null | string) {
   switch (status) {
@@ -248,6 +260,31 @@ const detailFields = computed(() => {
 
               <div class="mt-3 flex flex-wrap gap-2">
                 <span
+                  class="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/90 px-2 py-1 text-xs"
+                >
+                  <span
+                    class="flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary/10 text-primary"
+                  >
+                    <img
+                      v-if="detail.agent_avatar && !isIconAvatar(detail.agent_avatar)"
+                      :alt="detailAgentName"
+                      :src="toAvatarDisplayUrl(detail.agent_avatar)"
+                      class="size-full object-cover"
+                    />
+                    <IconifyIcon
+                      v-else-if="isIconAvatar(detail.agent_avatar)"
+                      :icon="String(detail.agent_avatar)"
+                      class="size-4"
+                    />
+                    <span v-else class="text-[11px] font-semibold">
+                      {{ getInitialLetter(detailAgentName) }}
+                    </span>
+                  </span>
+                  <span class="max-w-[180px] truncate text-foreground">
+                    {{ detailAgentName }}
+                  </span>
+                </span>
+                <span
                   class="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs"
                 >
                   <span class="font-mono text-foreground"
@@ -311,6 +348,49 @@ const detailFields = computed(() => {
           >
             <IconifyIcon icon="lucide:list-tree" class="size-4 text-primary" />
             <span>{{ drawerTitle }}</span>
+          </div>
+
+          <div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div
+              class="rounded-xl border border-border/60 bg-background/70 px-3 py-3"
+            >
+              <div class="text-xs text-muted-foreground">
+                {{ $t(`${i18nPrefix}.agentName`) }}
+              </div>
+              <div class="mt-2 flex items-center gap-3">
+                <div
+                  class="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border/60 bg-primary/10 text-primary"
+                >
+                  <img
+                    v-if="
+                      detail.agent_avatar && !isIconAvatar(detail.agent_avatar)
+                    "
+                    :alt="detailAgentName"
+                    :src="toAvatarDisplayUrl(detail.agent_avatar)"
+                    class="size-full object-cover"
+                  />
+                  <IconifyIcon
+                    v-else-if="isIconAvatar(detail.agent_avatar)"
+                    :icon="String(detail.agent_avatar)"
+                    class="size-5"
+                  />
+                  <span v-else class="text-sm font-semibold">
+                    {{ getInitialLetter(detailAgentName) }}
+                  </span>
+                </div>
+                <div class="min-w-0">
+                  <div class="truncate text-sm font-semibold text-foreground">
+                    {{ detailAgentName }}
+                  </div>
+                  <div
+                    v-if="detail.conversation_id"
+                    class="text-xs text-muted-foreground"
+                  >
+                    #{{ detail.conversation_id }}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-2">

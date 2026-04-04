@@ -76,11 +76,12 @@
     },
     "validation": {
       "baseUrlInvalid": "请输入以 http:// 或 https:// 开头的有效 API 地址",
-      "baseUrlEndpointNotAllowed": "OpenAI 兼容供应商的 API 地址不能包含 /responses 或 /chat/completions，请只填写基础地址并单独选择 API 协议"
+      "baseUrlEndpointNotAllowed": "OpenAI 兼容供应商的 API 地址不能包含 /responses 或 /chat/completions，请只填写基础地址并单独选择 API 协议",
+      "baseUrlLikelyMissingVersion": "当前地址看起来不像 OpenAI 兼容 API 根地址。常见正确格式是以 /v1 结尾，请按供应商文档手工确认。"
     },
     "help": {
       "baseUrl": "供应商的 API 基础地址，如 https://api.openai.com/v1。请不要拼接 /responses 或 /chat/completions，地址与协议请分别配置",
-      "wireApi": "已有系统迁移、简单对话和精细控制请求时优先用 Chat Completions；需要工具调用、多轮 Agent、GPT-5 / o-series reasoning 或更少客户端状态处理时优先用 Responses。新接入通常建议优先评估 Responses。",
+      "wireApi": "已有系统迁移、简单对话和精细控制请求时优先用 Chat Completions；需要工具调用、多轮 Agent、GPT-5 / o-series reasoning 或更少客户端状态处理时优先用 Responses。新接入通常建议优先评估 Responses。API 协议不会自动修正 base URL，地址必须手工填写成供应商要求的 API 根地址。",
       "responsesToolHistoryCompat": "仅当 Responses 协议下，工具调用后的后续轮次频繁出现 500/502 时再开启。开启后会把工具历史转换为更保守的文本上下文，兼容性更好，但可能降低模型继续自动调用工具的能力。默认关闭，不建议常规开启。",
       "type": "当前仅支持 OpenAI 兼容格式。大多数 AI 服务（包括 Anthropic、Azure）都兼容此格式",
       "isActive": "禁用后该供应商下的所有模型将不可用，已有的 API 调用会失败"
@@ -121,13 +122,16 @@
     "fallbackModel": "备用模型",
     "rpmLimit": "RPM 限制",
     "tpmLimit": "TPM 限制",
+    "reasoningEffort": "思维强度（GPT-5 / o 系列）",
     "test": "测试连通性",
     "testing": "正在测试连通性...",
     "testSuccess": "连通性测试成功，延迟: {latency}ms",
     "testFailed": "连通性测试失败: {error}",
+    "testResultTitle": "模型测试详情",
     "create": "添加模型",
     "section": {
       "basic": "基本信息",
+      "runtimeOverrides": "高级运行时参数",
       "pricing": "定价信息",
       "rateLimit": "速率限制",
       "capability": "模型能力",
@@ -149,6 +153,7 @@
       "searchName": "搜索模型名称",
       "inputName": "请输入模型名称",
       "inputCode": "请输入模型代码",
+      "selectReasoningEffort": "请选择思维强度（可选）",
       "selectType": "请选择模型类型",
       "selectProvider": "请选择供应商",
       "selectRemoteModel": "选择远程模型自动填充",
@@ -170,8 +175,16 @@
       "embedding": "向量",
       "image": "图像"
     },
+    "reasoningEffortOptions": {
+      "none": "不推理",
+      "low": "低",
+      "medium": "中",
+      "high": "高",
+      "xhigh": "超高"
+    },
     "help": {
-      "code": "模型的 API 调用代码，如 gpt-4、claude-3-opus-20240229。必须与供应商 API 接受的代码一致",
+      "code": "填写上游 API 实际接受的模型 ID，如 gpt-4 或 gpt-5.4。旧的别名记录会在编辑时自动转换为规范化配置。",
+      "reasoningEffort": "仅对 GPT-5 / o 系列等支持 reasoning 的模型生效。像 Claude 这类模型不会显示也不会下发这个参数。",
       "type": "对话模型用于聊天和文本生成；向量模型用于知识库文档嵌入；图像模型用于图片生成",
       "contextWindow": "单次请求可容纳的总 Token 预算（系统提示词 + 历史消息 + 用户输入 + RAG 上下文 + 模型输出）。如果你想调大“输入能吃多少”，优先改这里。它和单独配置的页面上下文 page_data 字节预算不是一回事",
       "maxOutputTokens": "单次请求允许模型生成的最大输出 Token 数，只限制这次回答最多输出多少，不会增加可输入上下文",
@@ -182,6 +195,19 @@
       "tpmLimit": "每分钟最大 Token 数。控制总 Token 消耗速率",
       "maxImageCount": "单次对话可上传的最大图片数量（1-20）",
       "maxImageSizeMb": "单张图片的最大体积（MB），超出将被拒绝"
+    },
+    "testDetails": {
+      "provider": "供应商",
+      "wireApi": "协议",
+      "upstreamModel": "实际上游模型",
+      "reasoningEffort": "实际思维强度",
+      "appliedOverrides": "已应用覆盖",
+      "ignoredOverrides": "已忽略覆盖",
+      "ignoreReasons": "忽略原因",
+      "traceId": "追踪 ID",
+      "latency": "延迟",
+      "error": "错误摘要",
+      "responsePreview": "响应预览"
     },
     "messages": {
       "toggleSuccess": "模型状态已更新",
@@ -257,15 +283,24 @@
     "tenantName": "企业",
     "platformTenant": "管理端",
     "callerName": "调用人",
+    "agentName": "智能体",
+    "conversationId": "对话 ID",
     "modelName": "模型",
     "providerName": "供应商",
+    "traceId": "Trace ID",
     "userId": "用户 ID",
     "errorMessage": "错误信息",
     "routedModel": "路由模型",
     "createdAt": "调用时间",
     "placeholder": {
       "allStatuses": "全部状态",
-      "allModels": "全部模型"
+      "allModels": "全部模型",
+      "searchAgentName": "搜索智能体名称",
+      "searchTrace": "搜索 Trace ID",
+      "searchConversation": "搜索对话 ID",
+      "selectProvider": "选择供应商",
+      "selectModel": "选择模型",
+      "selectAgent": "选择智能体"
     },
     "status_options": {
       "success": "成功",
@@ -825,8 +860,11 @@
     "title": "对话管理",
     "pageDesc": "监控所有企业的 AI 对话记录，查看对话详情和费用统计。",
     "agentName": "智能体",
+    "conversationId": "对话 ID",
     "tenantId": "企业",
     "tenantName": "企业",
+    "providerName": "供应商",
+    "modelName": "模型",
     "user": "用户",
     "status": "状态",
     "totalCalls": "总调用数",
@@ -849,6 +887,42 @@
     "messageCount": "消息数量",
     "conversationTitle": "对话标题",
     "detailTitle": "对话详情",
+    "runtimeDiagnostics": "运行时诊断",
+    "diagnosticsEmpty": "暂无运行时诊断记录",
+    "diagnosticNotes": "停损说明",
+    "executionPath": "执行路径",
+    "failureKind": "失败归因",
+    "budgetStatus": "预算状态",
+    "budgetExitReason": "预算退出原因",
+    "partialExitReason": "部分返回原因",
+    "intentPlan": "意图计划",
+    "candidateTools": "候选工具",
+    "providerEvents": "供应商事件",
+    "retryEvents": "重试事件",
+    "requiredCapabilities": "所需能力",
+    "allowedTools": "允许工具",
+    "selectedTools": "已选工具",
+    "completedTools": "已完成工具",
+    "unfinishedReason": "未完成原因",
+    "executionPathOptions": {
+      "fast": "快速路径",
+      "normal": "标准路径",
+      "deep": "深度路径"
+    },
+    "failureKindOptions": {
+      "none": "无",
+      "provider_failure": "供应商失败",
+      "tool_failure": "工具失败",
+      "orchestration_failure": "编排失败",
+      "budget_exit": "预算退出",
+      "server_interrupt": "服务中断"
+    },
+    "budgetStatusOptions": {
+      "ok": "正常",
+      "within_budget": "预算内",
+      "budget_exit": "预算退出",
+      "exceeded": "已超限"
+    },
     "actorType": {
       "platform_admin": "平台管理员",
       "tenant_admin": "企业管理员",
@@ -863,9 +937,14 @@
       "closed": "已关闭"
     },
     "placeholder": {
+      "searchTitle": "搜索对话标题",
       "agentId": "智能体 ID",
       "allStatuses": "全部状态",
-      "allTenants": "全部企业"
+      "allTenants": "全部企业",
+      "searchConversationId": "搜索对话 ID",
+      "selectProvider": "选择供应商",
+      "selectModel": "选择模型",
+      "selectAgent": "选择智能体"
     }
   },
   "actionLog": {
@@ -989,8 +1068,17 @@
     "refresh": "刷新",
     "responseTime": "响应时间",
     "failures": "连续失败",
+    "wireApi": "协议",
+    "baseConnectivity": "基础连通性",
+    "toolProbe": "工具探针",
+    "toolProbeModel": "工具探针模型",
     "lastCheck": "最后检查",
     "noData": "暂无健康检查数据",
+    "checks": {
+      "pass": "通过",
+      "fail": "失败",
+      "skipped": "未执行"
+    },
     "status": {
       "healthy": "健康",
       "degraded": "异常",
@@ -1167,6 +1255,7 @@
     "scopeType": "作用域",
     "memoryType": "记忆类型",
     "status": "状态",
+    "id": "ID",
     "summary": "摘要",
     "recordCount": "来源记录数",
     "contentKind": "内容类型"
@@ -1432,6 +1521,22 @@
   "agentAssignment": {
     "title": "AI 功能分配",
     "pageDesc": "为各 AI 功能模块指定驱动智能体，修改后即时生效、影响全平台。仅可选择平台级、全局共享智能体（作用域为「管理端+全部企业」或「全部企业」），且受众不能为「仅管理端」。",
+    "hero": {
+      "description": "统一管理平台内置能力与插件扩展的默认执行智能体，所有调整都会即时影响全平台入口。",
+      "metrics": {
+        "features": "功能",
+        "publishedAgents": "已发布智能体",
+        "enabled": "已启用",
+        "assigned": "已绑定"
+      },
+      "chips": {
+        "scope": "平台全局即时生效",
+        "publishedAgents": "{count} 个共享候选智能体",
+        "plugins": "{count} 个插件能力",
+        "pending": "{count} 个待补绑定",
+        "ready": "全部功能已完成绑定"
+      }
+    },
     "selectAgent": "选择智能体",
     "typePlugin": "插件",
     "globalDefault": "全局默认：{name}",

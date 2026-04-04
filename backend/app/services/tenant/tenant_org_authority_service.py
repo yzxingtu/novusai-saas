@@ -36,6 +36,23 @@ class TenantOrgAuthorityService:
     async def can_manage_org_node(self, org_node_id: int) -> bool:
         return org_node_id in await self.get_manageable_org_node_ids()
 
+    async def can_assign_permissions_for_node(self, org_node_id: int | None) -> bool:
+        if self.admin.is_owner:
+            return True
+
+        if org_node_id is None:
+            return False
+
+        org_node = await self.repo.get_by_id(org_node_id)
+        if org_node is None or org_node.is_deleted:
+            return False
+
+        if org_node.leader_id == self.admin.id:
+            return True
+
+        ancestors = await self.repo.get_ancestors(org_node_id)
+        return any(ancestor.leader_id == self.admin.id for ancestor in ancestors)
+
     async def can_create_under_parent(self, parent_id: int | None) -> bool:
         if self.admin.is_owner:
             return True

@@ -8,6 +8,11 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import type { DocItem, Folder } from '../types';
 import { listDocs, listFolders, createDoc, deleteDoc, createFolder, deleteFolder, searchDocs } from '../api/novusdoc';
+import {
+  getNovusdocPermissionCodes,
+  hasNovusdocAccess,
+  resolveRouteAccessCodes,
+} from '../permissions';
 
 const shared = (window as unknown as Record<string, unknown>).NovusPluginShared as {
   $t?: (k: string) => string;
@@ -16,7 +21,10 @@ const shared = (window as unknown as Record<string, unknown>).NovusPluginShared 
   createParameterizedPageOperation?: (options: Record<string, unknown>) => unknown;
   createRefreshPageOperation?: (options: Record<string, unknown>) => unknown;
   createSimplePageOperation?: (options: Record<string, unknown>) => unknown;
-  router?: { push: (to: string) => void };
+  router?: {
+    push: (to: string) => void;
+    currentRoute?: { value?: { meta?: Record<string, unknown> } };
+  };
   registerPageContext?: (key: string, resolver: () => unknown) => () => void;
   registerPageOperations?: (key: string, ops: unknown[]) => () => void;
 } | undefined;
@@ -36,8 +44,38 @@ const searchQuery = ref('');
 const searchActive = ref(false);
 
 const isAdmin = computed(() => location.pathname.includes('/admin/'));
+const permissionScope = computed(() => (isAdmin.value ? 'admin' : 'tenant'));
+const permissionCodes = computed(() =>
+  getNovusdocPermissionCodes(permissionScope.value),
+);
+const routeAccessCodes = computed(() =>
+  resolveRouteAccessCodes(
+    shared?.router?.currentRoute?.value?.meta as
+      | Record<string, unknown>
+      | undefined,
+    [permissionCodes.value.view],
+  ),
+);
+const canView = computed(() => hasNovusdocAccess(routeAccessCodes.value));
+const canCreate = computed(
+  () => canView.value && hasNovusdocAccess(permissionCodes.value.create),
+);
+const canDelete = computed(
+  () => canView.value && hasNovusdocAccess(permissionCodes.value.delete),
+);
+
+function clearListState() {
+  docs.value = [];
+  folders.value = [];
+  total.value = 0;
+  loading.value = false;
+}
 
 async function loadFolders() {
+  if (!canView.value) {
+    folders.value = [];
+    return;
+  }
   try {
     const res = await listFolders();
     folders.value = res.items;
@@ -47,6 +85,10 @@ async function loadFolders() {
 }
 
 async function loadDocs() {
+  if (!canView.value) {
+    clearListState();
+    return;
+  }
   loading.value = true;
   try {
     if (searchActive.value && searchQuery.value.trim()) {
@@ -85,6 +127,10 @@ let cleanupOps: (() => void) | undefined;
 function setupPageAwareness() {
   cleanupContext?.();
   cleanupOps?.();
+
+  if (!canView.value) {
+    return;
+  }
 
   if (shared?.registerPageContext) {
     cleanupContext = shared.registerPageContext(pageKey.value, () => ({
@@ -151,7 +197,8 @@ function setupPageAwareness() {
           return 'Search cleared';
         },
       }),
-      shared?.createPrefilledCreatePageOperation?.({
+      canCreate.value
+        ? shared?.createPrefilledCreatePageOperation?.({
         name: 'create_document',
         label: $t('plugin.novusdoc.doc.newDoc') || 'Create new document',
         description: 'Create a new document and open editor',
@@ -192,7 +239,8 @@ function setupPageAwareness() {
             ? `Create document flow started in folder ${folderId}`
             : 'Create document flow started';
         },
-      }),
+      })
+        : null,
       shared?.createParameterizedPageOperation?.({
         name: 'select_folder',
         label: $t('plugin.novusdoc.op.selectFolder') || 'Select folder',
@@ -216,7 +264,21 @@ function setupPageAwareness() {
 }
 
 onMounted(async () => {
-  await Promise.all([loadFolders(), loadDocs()]);
+  if (canView.value) {
+    await Promise.all([loadFolders(), loadDocs()]);
+  } else {
+    clearListState();
+  }
+  setupPageAwareness();
+});
+
+watch(canView, (allowed) => {
+  if (!allowed) {
+    clearListState();
+    setupPageAwareness();
+    return;
+  }
+  void Promise.all([loadFolders(), loadDocs()]);
   setupPageAwareness();
 });
 
@@ -228,6 +290,7 @@ function selectFolder(fid: number | null) {
 }
 
 function onSearch() {
+  if (!canView.value) return;
   if (searchQuery.value.trim()) {
     searchActive.value = true;
     page.value = 1;
@@ -239,6 +302,7 @@ function onSearch() {
 }
 
 function clearSearch() {
+  if (!canView.value) return;
   searchQuery.value = '';
   searchActive.value = false;
   page.value = 1;
@@ -246,6 +310,7 @@ function clearSearch() {
 }
 
 async function onNewDoc() {
+  if (!canCreate.value) return;
   try {
     const res = await createDoc({
       title: $t('plugin.novusdoc.doc.untitled'),
@@ -276,7 +341,7 @@ const newFolderName = ref('');
 const newFolderSaving = ref(false);
 
 async function confirmNewFolder() {
-  if (!newFolderName.value.trim()) return;
+  if (!canCreate.value || !newFolderName.value.trim()) return;
   newFolderSaving.value = true;
   try {
     await createFolder({ name: newFolderName.value.trim(), parent_id: null });
@@ -295,12 +360,13 @@ const deleteTarget = ref<DocItem | null>(null);
 const deleteLoading = ref(false);
 
 function askDelete(doc: DocItem) {
+  if (!canDelete.value) return;
   deleteTarget.value = doc;
   deleteConfirmVisible.value = true;
 }
 
 async function confirmDeleteDoc() {
-  if (!deleteTarget.value) return;
+  if (!canDelete.value || !deleteTarget.value) return;
   deleteLoading.value = true;
   try {
     await deleteDoc(deleteTarget.value.id);
@@ -316,12 +382,13 @@ const deleteFolderConfirmVisible = ref(false);
 const deleteFolderTarget = ref<Folder | null>(null);
 
 function askDeleteFolder(f: Folder) {
+  if (!canDelete.value) return;
   deleteFolderTarget.value = f;
   deleteFolderConfirmVisible.value = true;
 }
 
 async function confirmDeleteFolder() {
-  if (!deleteFolderTarget.value) return;
+  if (!canDelete.value || !deleteFolderTarget.value) return;
   try {
     await deleteFolder(deleteFolderTarget.value.id);
     deleteFolderConfirmVisible.value = false;
@@ -351,11 +418,21 @@ onUnmounted(() => {
 
 <template>
   <div class="flex h-full bg-background text-foreground">
+    <div
+      v-if="!canView"
+      data-testid="novusdoc-no-permission"
+      class="flex flex-1 items-center justify-center text-sm text-muted-foreground"
+    >
+      {{ $t('common.noPermissions') }}
+    </div>
+    <template v-else>
     <!-- ── Left Sidebar: Folders ── -->
     <aside class="w-56 shrink-0 border-r border-border flex flex-col bg-card">
       <div class="px-4 py-3 flex items-center justify-between border-b border-border">
         <span class="text-sm font-semibold">{{ $t('plugin.novusdoc.folder.title') }}</span>
         <button
+          v-if="canCreate"
+          data-testid="novusdoc-new-folder"
           class="w-6 h-6 flex items-center justify-center rounded hover:bg-accent text-muted-foreground"
           :title="$t('plugin.novusdoc.folder.newFolder')"
           @click="newFolderVisible = true"
@@ -388,6 +465,7 @@ onUnmounted(() => {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2z" /></svg>
           <span class="flex-1 truncate">{{ f.name }}</span>
           <button
+            v-if="canDelete"
             class="opacity-0 group-hover:opacity-100 w-5 h-5 flex items-center justify-center rounded text-muted-foreground hover:text-destructive"
             :title="$t('plugin.novusdoc.folder.delete')"
             @click.stop="askDeleteFolder(f)"
@@ -424,6 +502,8 @@ onUnmounted(() => {
 
         <!-- New document button -->
         <button
+          v-if="canCreate"
+          data-testid="novusdoc-new-doc"
           class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
           @click="onNewDoc"
         >
@@ -480,6 +560,8 @@ onUnmounted(() => {
             <!-- Actions (hover) -->
             <div class="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
               <button
+                v-if="canDelete"
+                data-testid="novusdoc-delete-doc"
                 class="w-7 h-7 flex items-center justify-center rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
                 :title="$t('plugin.novusdoc.doc.deleteDoc')"
                 @click.stop="askDelete(doc)"
@@ -574,5 +656,6 @@ onUnmounted(() => {
         </div>
       </div>
     </teleport>
+    </template>
   </div>
 </template>

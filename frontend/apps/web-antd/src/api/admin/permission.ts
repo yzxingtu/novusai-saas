@@ -11,7 +11,7 @@ import { requestClient } from '#/utils/request';
 // ============================================================
 
 /** Permission type / 权限类型 */
-export type PermissionType = 'api' | 'button' | 'menu';
+export type PermissionType = 'api' | 'button' | 'menu' | 'operation';
 
 /** Permission node (tree, backend raw) / 权限节点（树形，后端原始） */
 export interface PermissionNodeRaw {

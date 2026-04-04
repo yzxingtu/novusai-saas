@@ -1,39 +1,36 @@
 import type { PageOperation } from './page-operation-types';
 
+import { useAccessStore } from '@vben/stores';
+
 import {
   capturePageScreenshot,
   DEFAULT_PAGE_SCREENSHOT_EXCLUDE_SELECTORS,
   resolveScreenshotUploadTarget,
 } from '#/composables/use-page-screenshot';
 import { $t } from '#/locales';
+import { router } from '#/router';
+import { getEndpointFromPath } from '#/utils/endpoint';
+import {
+  buildMenuNavigationEntries,
+  resolveMenuNavigationTarget,
+  searchMenuNavigationEntries,
+  serializeMenuNavigationEntry,
+} from '#/utils/menu-navigation';
+import {
+  buildPageDataPreview,
+  navigateToMenuEntry,
+} from '#/utils/page-navigation';
 
 import { scanDomSemantics } from './dom-semantic-scanner';
 import { resolvePageContext } from './page-context-registry';
 import { normalizePageKey } from './page-key-utils';
 
-function buildPageDataPreview(
-  pageData: Record<string, unknown> | undefined,
-): Record<string, unknown> | undefined {
-  if (!pageData) return undefined;
-
-  const {
-    available_operations: _availableOperations,
-    form_fields: _formFields,
-    visual_state: _visualState,
-    ...rest
-  } = pageData;
-
-  const preview: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(rest)) {
-    if (value === undefined || value === null || value === '') continue;
-    if (typeof value === 'string') {
-      preview[key] = value.length > 240 ? `${value.slice(0, 240)}...` : value;
-      continue;
-    }
-    preview[key] = value;
+function getAccessibleMenusSafe(): ReturnType<typeof useAccessStore>['accessMenus'] {
+  try {
+    return useAccessStore().accessMenus;
+  } catch {
+    return [];
   }
-
-  return Object.keys(preview).length > 0 ? preview : undefined;
 }
 
 export function getDefaultPageOperations(pageKey: string): PageOperation[] {
@@ -89,6 +86,142 @@ export function getDefaultPageOperations(pageKey: string): PageOperation[] {
                 text_blocks: domSnapshot.text_blocks,
               }
             : { page_title: normalizedKey },
+        };
+      },
+    },
+    {
+      name: 'list_available_menus',
+      label: $t('shared.pageOperation.listAvailableMenus'),
+      description:
+        'List accessible menus for the current endpoint so you can decide where to navigate next / 列出当前端点下可访问的菜单，供后续导航决策使用',
+      readonly: true,
+      handler: async () => {
+        const currentRoute = router.currentRoute.value;
+        const entries = buildMenuNavigationEntries({
+          currentEndpoint: getEndpointFromPath(currentRoute.path),
+          menus: getAccessibleMenusSafe(),
+          translate: $t,
+        });
+
+        return {
+          success: true,
+          message: $t('shared.pageOperation.msg.availableMenusListed', {
+            count: entries.length,
+          }),
+          data: {
+            items: entries.map((entry) => serializeMenuNavigationEntry(entry)),
+          },
+        };
+      },
+    },
+    {
+      name: 'navigate_menu',
+      label: $t('shared.pageOperation.navigateMenu'),
+      description:
+        'Navigate to an accessible menu within the current endpoint by natural-language target / 按自然语言目标在当前端点内跳转到可访问菜单',
+      readonly: true,
+      params: {
+        target: {
+          type: 'string',
+          description: 'Target menu title, path, breadcrumb, or page key / 目标菜单标题、路径、面包屑或页面 key',
+          required: true,
+        },
+      },
+      handler: async (params) => {
+        const target = String(params.target ?? '').trim();
+        if (!target) {
+          return {
+            success: false,
+            message: $t('shared.pageOperation.msg.paramRequired', {
+              param: 'target',
+            }),
+            error_type: 'invalid_input',
+          };
+        }
+
+        const currentRoute = router.currentRoute.value;
+        const entries = buildMenuNavigationEntries({
+          currentEndpoint: getEndpointFromPath(currentRoute.path),
+          menus: getAccessibleMenusSafe(),
+          translate: $t,
+        });
+        const resolution = resolveMenuNavigationTarget({
+          currentPageKey: normalizedKey,
+          currentPath: currentRoute.path,
+          entries,
+          target,
+        });
+
+        if (resolution.kind === 'not_found') {
+          const candidates = searchMenuNavigationEntries(entries, target).slice(0, 5);
+          return {
+            success: false,
+            message: $t('shared.pageOperation.msg.menuTargetNotFound', {
+              target,
+            }),
+            error_type: 'not_found',
+            data: candidates.length
+              ? {
+                  candidates: candidates.map((entry) =>
+                    serializeMenuNavigationEntry(entry),
+                  ),
+                }
+              : undefined,
+          };
+        }
+
+        if (resolution.kind === 'ambiguous_match') {
+          return {
+            success: false,
+            message: $t('shared.pageOperation.msg.menuTargetAmbiguous', {
+              target,
+            }),
+            error_type: 'ambiguous_match',
+            data: {
+              candidates: resolution.candidates.map((entry) =>
+                serializeMenuNavigationEntry(entry),
+              ),
+            },
+          };
+        }
+
+        const result = await navigateToMenuEntry(resolution.entry);
+        if (!result.success) {
+          return {
+            success: false,
+            message:
+              result.error_type === 'permission_denied'
+                ? $t('shared.pageOperation.msg.menuPermissionDenied', {
+                    path: resolution.entry.path,
+                  })
+                : $t('shared.pageOperation.msg.menuNavigationBlocked', {
+                    path: resolution.entry.path,
+                  }),
+            error_type: result.error_type,
+          };
+        }
+
+        if (resolution.kind === 'already_on_page') {
+          return {
+            success: true,
+            message: $t('shared.pageOperation.msg.alreadyOnPage', {
+              path: resolution.entry.path,
+            }),
+            data: result.data,
+          };
+        }
+
+        return {
+          success: true,
+          message:
+            result.data?.destination_ready === false
+              ? $t('shared.pageOperation.msg.navigatedToPending', {
+                  path: resolution.entry.path,
+                })
+              : $t('shared.pageOperation.msg.navigatedTo', {
+                  path: resolution.entry.path,
+                }),
+          data: result.data,
         };
       },
     },

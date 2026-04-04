@@ -3,8 +3,7 @@ import type {
   PageOperationResult,
 } from '#/components/business/ai-slide-panel/page-operation-registry';
 
-import { useRouter } from 'vue-router';
-
+import { router } from '#/router';
 import { $t } from '#/locales';
 
 type AnyRecord = Record<string, unknown>;
@@ -468,8 +467,6 @@ export function createPrefilledCreatePageOperation<
 export function createOpenPageOperation(
   options: OpenPageOperationOptions,
 ): PageOperation {
-  const router = useRouter();
-
   return createSimplePageOperation({
     name: options.name ?? 'open_page',
     label: options.label ?? $t('shared.pageOperation.navigateTo'),

@@ -14,9 +14,9 @@ from typing import TYPE_CHECKING
 
 from app.core.base_model import utc_now
 from app.core.logging import get_logger
-from app.core.response import resolve_public_error_message
+from app.core.response import resolve_public_error_message, serialize_datetime_for_api
 from app.enums.plugin import PluginStatusEnum, PluginVersionStatusEnum
-from app.plugins.exceptions import PluginError, PluginNotFoundError, PluginSecurityError
+from app.plugins.exceptions import PluginError, PluginNotFoundError
 from app.plugins.loader import PLUGINS_DIR
 
 if TYPE_CHECKING:
@@ -115,17 +115,13 @@ class VersionManager:
             )
 
         # Pre-upgrade security scan (high risk fail-close) / 升级前安全扫描
-        from app.plugins.security_scan import scan_plugin_directory
+        from app.plugins.security_scan import assert_plugin_security_clean
 
-        scan_result = scan_plugin_directory(new_source)
-        if scan_result.has_warnings:
-            top_warnings = "; ".join(scan_result.warnings[:5])
-            raise PluginSecurityError(
-                message=(
-                    f"Plugin '{plugin_name}' upgrade blocked by security scan: "
-                    f"{top_warnings}"
-                ),
-            )
+        assert_plugin_security_clean(
+            new_source,
+            plugin_name=plugin_name,
+            action="upgrade",
+        )
 
         if new_version == old_version:
             raise PluginError(
@@ -293,11 +289,19 @@ class VersionManager:
         try:
             await lifecycle.run_alembic_downgrade(plugin_name)
         except Exception as exc:
-            logger.warning(
-                "Rollback {}: alembic downgrade failed (continuing with file restore): {}",
+            logger.error(
+                "Rollback {} blocked: alembic downgrade failed: {}",
                 plugin_name,
                 exc,
             )
+            if was_enabled:
+                with contextlib.suppress(Exception):
+                    await lifecycle._enable_impl(plugin_id)
+            raise PluginError(
+                message=(
+                    f"Rollback blocked for '{plugin_name}': alembic downgrade failed"
+                ),
+            ) from exc
 
         # Restore target version / 恢复目标版本
         target_dir = PLUGINS_DIR / plugin_name
@@ -318,6 +322,42 @@ class VersionManager:
             or []
         )
         plugin.installed_packages = restored_py_deps
+
+        from sqlalchemy import select, update
+
+        from app.models.system.plugin_version import PluginVersion
+
+        await self._db.execute(
+            update(PluginVersion)
+            .where(
+                PluginVersion.plugin_id == plugin_id,
+                PluginVersion.status == PluginVersionStatusEnum.ACTIVE.value,
+            )
+            .values(status=PluginVersionStatusEnum.ARCHIVED.value)
+        )
+        version_row = await self._db.execute(
+            select(PluginVersion).where(
+                PluginVersion.plugin_id == plugin_id,
+                PluginVersion.version == target_version,
+                PluginVersion.is_deleted.is_(False),
+            )
+        )
+        target_version_row = version_row.scalar_one_or_none()
+        if target_version_row:
+            target_version_row.status = PluginVersionStatusEnum.ACTIVE.value
+            target_version_row.manifest = restored_manifest.model_dump()
+            target_version_row.rolled_back_at = utc_now()
+        else:
+            self._db.add(
+                PluginVersion(
+                    plugin_id=plugin_id,
+                    version=target_version,
+                    manifest=restored_manifest.model_dump(),
+                    status=PluginVersionStatusEnum.ACTIVE.value,
+                    installed_at=utc_now(),
+                    rolled_back_at=utc_now(),
+                )
+            )
         await self._db.flush()
 
         # Re-enable (call _enable_impl to avoid nested locks) / 重新启用
@@ -347,10 +387,8 @@ class VersionManager:
                 "version": v.version,
                 "status": v.status,
                 "changelog": v.changelog,
-                "installed_at": v.installed_at.isoformat() if v.installed_at else None,
-                "rolled_back_at": v.rolled_back_at.isoformat()
-                if v.rolled_back_at
-                else None,
+                "installed_at": serialize_datetime_for_api(v.installed_at),
+                "rolled_back_at": serialize_datetime_for_api(v.rolled_back_at),
             }
             for v in versions
         ]

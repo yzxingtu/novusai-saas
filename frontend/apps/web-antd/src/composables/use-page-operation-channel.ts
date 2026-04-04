@@ -19,7 +19,10 @@ import { onScopeDispose, watch } from 'vue';
 
 import { $t } from '@vben/locales';
 
-import { normalizePageKey } from '#/components/business/ai-slide-panel';
+import {
+  normalizePageKey,
+  resolveRoutePageKey,
+} from '#/components/business/ai-slide-panel';
 import {
   executePageOperation,
   findPageOperation,
@@ -68,8 +71,21 @@ export interface PageOperationResultEvent {
   trace_id?: string;
 }
 
+export interface PageSessionJoinedEvent {
+  page_key: string;
+  page_session_id: string;
+  trace_id?: string;
+}
+
 /** Currently joined page_session room (per composable instance) / 当前已加入的 page_session room */
 let currentJoinedRoom = '';
+let lastJoinedSessionAck:
+  | {
+      pageKey: string;
+      pageSessionId: string;
+      receivedAt: number;
+    }
+  | null = null;
 /** Retry rejoin after reconnect/hot-reload races / 连接恢复后补发重入，覆盖热更新竞态 */
 const REJOIN_RETRY_DELAYS_MS = [0, 400, 1200] as const;
 const RECENT_INVOKE_RESULT_TTL_MS = 90_000;
@@ -144,6 +160,45 @@ function clearTrackedInvocations(): void {
   recentInvokeResultTimers.clear();
   recentInvokeResults.clear();
   inFlightInvocations.clear();
+}
+
+function rememberPageSessionAck(
+  pageSessionId: string,
+  pageKey: string,
+): void {
+  lastJoinedSessionAck = {
+    pageKey,
+    pageSessionId,
+    receivedAt: Date.now(),
+  };
+}
+
+export function hasJoinedPageSession(
+  pageSessionId: string,
+  pageKey: string,
+): boolean {
+  return (
+    lastJoinedSessionAck?.pageSessionId === pageSessionId &&
+    lastJoinedSessionAck?.pageKey === pageKey
+  );
+}
+
+export async function waitForPageSessionJoin(
+  pageSessionId: string,
+  pageKey: string,
+  timeoutMs = 1500,
+  pollMs = 50,
+): Promise<boolean> {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    if (hasJoinedPageSession(pageSessionId, pageKey)) {
+      return true;
+    }
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, pollMs);
+    });
+  }
+  return hasJoinedPageSession(pageSessionId, pageKey);
 }
 
 /**
@@ -363,7 +418,8 @@ export function usePageOperationChannel(): void {
           ? normalizePageKey(currentPolicy.pageContextKey)
           : '';
         const activePageKey =
-          currentPolicyPageKey || normalizePageKey(window.location.pathname);
+          currentPolicyPageKey ||
+          resolveRoutePageKey(undefined, window.location.pathname);
 
         if (activePageKey && normalizedEventPageKey !== activePageKey) {
           emitResult(
@@ -504,10 +560,24 @@ export function usePageOperationChannel(): void {
     }
   }
 
+  function handlePageSessionJoined(data: unknown): void {
+    const event = data as Partial<PageSessionJoinedEvent>;
+    const pageSessionId = String(event?.page_session_id || '').trim();
+    const pageKey = normalizePageKey(String(event?.page_key || '').trim());
+    if (!pageSessionId || !pageKey) {
+      return;
+    }
+    rememberPageSessionAck(pageSessionId, pageKey);
+  }
+
   // Register invoke event handler / 注册 invoke 事件处理器
   socketIOStore.registerHandler(
     'page_operation_invoke',
     handleInvoke as (data: unknown) => void,
+  );
+  socketIOStore.registerHandler(
+    'page_session_joined',
+    handlePageSessionJoined as (data: unknown) => void,
   );
 
   function leavePageSessionRoom() {
@@ -531,7 +601,9 @@ export function usePageOperationChannel(): void {
     }
 
     // Join new room / 加入新 room
-    const pageKey = normalizePageKey(window.location.pathname);
+    const pageKey =
+      currentPageAIExecutionPolicy.value.pageContextKey ||
+      resolveRoutePageKey(undefined, window.location.pathname);
     socketIOStore.emit('page_session_join', {
       page_session_id: pageSessionId,
       page_key: pageKey,
@@ -578,9 +650,14 @@ export function usePageOperationChannel(): void {
     document.removeEventListener('visibilitychange', handleVisibilityChange);
     leavePageSessionRoom();
     clearTrackedInvocations();
+    lastJoinedSessionAck = null;
     socketIOStore.unregisterHandler(
       'page_operation_invoke',
       handleInvoke as (data: unknown) => void,
+    );
+    socketIOStore.unregisterHandler(
+      'page_session_joined',
+      handlePageSessionJoined as (data: unknown) => void,
     );
   });
 
@@ -595,6 +672,7 @@ export function usePageOperationChannel(): void {
         clearRejoinRetryTimers();
         clearChainConfirmed();
         clearTrackedInvocations();
+        lastJoinedSessionAck = null;
         currentJoinedRoom = '';
       }
     },

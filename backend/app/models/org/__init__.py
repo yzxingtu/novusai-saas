@@ -15,6 +15,7 @@ from app.models.org.tenant_org_node import (
     TenantOrgNode,
     TenantOrgScopePolicy,
     TenantOrgScopeTarget,
+    tenant_org_node_permissions,
 )
 
 __all__ = [
@@ -25,4 +26,5 @@ __all__ = [
     "TenantOrgNode",
     "TenantOrgScopePolicy",
     "TenantOrgScopeTarget",
+    "tenant_org_node_permissions",
 ]

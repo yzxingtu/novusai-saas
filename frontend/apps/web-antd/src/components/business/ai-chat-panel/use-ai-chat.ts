@@ -58,6 +58,7 @@ import { CHAT_ACCEPT_ATTRIBUTE } from '#/constants/upload';
 import { $t } from '#/locales';
 import { useSocketIOStore } from '#/store';
 import { useAIPanelStore } from '#/store/shared/ai-panel';
+import { waitForPageSessionJoin } from '#/composables/use-page-operation-channel';
 import {
   addConsent,
   clearConsents,
@@ -69,6 +70,7 @@ import {
   normalizeSseEventError,
   normalizeSseTransportError,
 } from '#/utils/request';
+import { resolveRoutePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
 
 import {
   extractLeadingAgentMentionDraft,
@@ -101,16 +103,87 @@ export function useAIChat(options: UseAIChatOptions) {
   const { validateChatFile, revokePreviewUrls } = useFileUpload();
   const socketIOStore = useSocketIOStore();
   const aiPanelStore = useAIPanelStore();
+  const PAGE_OPERATION_SOCKET_READY_TIMEOUT_MS = 3000;
+  const PAGE_OPERATION_SOCKET_READY_POLL_MS = 100;
+  const PAGE_OPERATION_SOCKET_SETTLE_MS = 250;
 
   const interactionMode = ref<InteractionMode>('confirm');
 
-  function refreshPageSessionRoom(): void {
+  function refreshPageSessionRoom(pageContext?: null | PageContext): void {
     const pageSessionId = options.pageSessionIdGetter?.();
     if (!pageSessionId || !socketIOStore.isConnected) return;
     socketIOStore.emit('page_session_join', {
       page_session_id: pageSessionId,
-      page_key: normalizePageKey(window.location.pathname),
+      page_key:
+        normalizePageKey(pageContext?.page_key ?? '') ||
+        resolveRoutePageKey(undefined, window.location.pathname),
     });
+  }
+
+  function hasPageOperations(pageContext?: null | PageContext): boolean {
+    const availableOperations = pageContext?.page_data?.available_operations;
+    return Array.isArray(availableOperations) && availableOperations.length > 0;
+  }
+
+  function resolveSocketEndpoint(
+    apiPrefix: string,
+  ): 'admin' | 'tenant' | 'user' {
+    if (apiPrefix.startsWith('/admin')) {
+      return 'admin';
+    }
+    if (apiPrefix.startsWith('/api/user')) {
+      return 'user';
+    }
+    return 'tenant';
+  }
+
+  async function ensurePageOperationChannelReady(
+    apiPrefix: string,
+    pageContext?: null | PageContext,
+  ): Promise<boolean> {
+    if (!hasPageOperations(pageContext) || !options.pageSessionIdGetter) {
+      return true;
+    }
+
+    if (!socketIOStore.isConnected) {
+      socketIOStore.connect?.(resolveSocketEndpoint(apiPrefix));
+
+      const startedAt = Date.now();
+      while (
+        !socketIOStore.isConnected &&
+        Date.now() - startedAt < PAGE_OPERATION_SOCKET_READY_TIMEOUT_MS
+      ) {
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, PAGE_OPERATION_SOCKET_READY_POLL_MS);
+        });
+      }
+    }
+
+    if (!socketIOStore.isConnected) {
+      return false;
+    }
+
+    refreshPageSessionRoom(pageContext);
+    const pageSessionId = options.pageSessionIdGetter?.() || '';
+    const pageKey =
+      normalizePageKey(pageContext?.page_key ?? '') ||
+      resolveRoutePageKey(undefined, window.location.pathname);
+    if (!pageSessionId || !pageKey) {
+      return false;
+    }
+    const joined = await waitForPageSessionJoin(
+      pageSessionId,
+      pageKey,
+      PAGE_OPERATION_SOCKET_READY_TIMEOUT_MS,
+      PAGE_OPERATION_SOCKET_READY_POLL_MS,
+    );
+    if (!joined) {
+      return false;
+    }
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, PAGE_OPERATION_SOCKET_SETTLE_MS);
+    });
+    return true;
   }
 
   // ============ Agents / 智能体 ============
@@ -179,7 +252,9 @@ export function useAIChat(options: UseAIChatOptions) {
   const conversationsLoading = ref(false);
   const activeConversationId = ref<null | number>(null);
   const activeConversationAgentId = ref<null | number>(null);
-  const conversationContextDiagnostics = ref<null | Record<string, unknown>>(null);
+  const conversationContextDiagnostics = ref<null | Record<string, unknown>>(
+    null,
+  );
   const clearingMemory = ref(false);
   const lastRunSummary = ref<null | Record<string, unknown>>(null);
   const memoryState = ref<MemoryState | null>(null);
@@ -274,10 +349,10 @@ export function useAIChat(options: UseAIChatOptions) {
 
     chatMessages.value = mergedMessages;
     conversationContextDiagnostics.value =
-      (res.context_diagnostics as Record<string, unknown> | null | undefined) ??
+      (res.context_diagnostics as null | Record<string, unknown> | undefined) ??
       null;
     lastRunSummary.value =
-      (res.last_run_summary as Record<string, unknown> | null | undefined) ??
+      (res.last_run_summary as null | Record<string, unknown> | undefined) ??
       null;
     lastMemoryUpdated.value = mergedMessages.some((m) => m.memoryUpdated);
     interactionMode.value = res.interaction_mode_effective ?? 'confirm';
@@ -537,18 +612,20 @@ export function useAIChat(options: UseAIChatOptions) {
     return normalized;
   }
 
-  function normalizeTurnRecord(
-    value: unknown,
-  ): null | TurnRecordPayload {
+  function normalizeTurnRecord(value: unknown): null | TurnRecordPayload {
     if (!value || typeof value !== 'object') {
       return null;
     }
     const payload = value as Record<string, unknown>;
     const turnOutcome = normalizeOptionalString(payload.turn_outcome);
-    const terminationReason = normalizeOptionalString(payload.termination_reason);
+    const terminationReason = normalizeOptionalString(
+      payload.termination_reason,
+    );
     const protocolPath = normalizeOptionalString(payload.protocol_path);
     const selectedToolNames = normalizeStringList(payload.selected_tool_names);
-    const selectedSkillNames = normalizeStringList(payload.selected_skill_names);
+    const selectedSkillNames = normalizeStringList(
+      payload.selected_skill_names,
+    );
     const contextSources = normalizeContextSources(payload.context_sources);
     const fallbackHistory = Array.isArray(payload.fallback_history)
       ? payload.fallback_history
@@ -679,7 +756,7 @@ export function useAIChat(options: UseAIChatOptions) {
       let turnSelectedSkillNames: string[] = [];
       let turnSelectedToolNames: string[] = [];
       let turnContextSources: TurnContextSourcePayload[] = [];
-      let turnRecordPayload: TurnRecordPayload | null = null;
+      let turnRecordPayload: null | TurnRecordPayload = null;
       let turnAgentId: null | number = null;
       let turnAgentName: null | string = null;
       let turnAgentAvatar: null | string = null;
@@ -913,7 +990,9 @@ export function useAIChat(options: UseAIChatOptions) {
             turnSelectedToolNames.length === 0 &&
             (turnRecord?.selected_tool_names?.length ?? 0) > 0
           ) {
-            turnSelectedToolNames = [...(turnRecord?.selected_tool_names ?? [])];
+            turnSelectedToolNames = [
+              ...(turnRecord?.selected_tool_names ?? []),
+            ];
           }
           const metadataSelectedSkillNames = normalizeStringList(
             cur.metadata?.selected_skill_names,
@@ -942,7 +1021,10 @@ export function useAIChat(options: UseAIChatOptions) {
           if (cur.metadata?.partial || turnOutcome === 'partial') {
             hasPartial = true;
           }
-          if (cur.metadata?.interrupted || turnTerminationReason === 'interrupted') {
+          if (
+            cur.metadata?.interrupted ||
+            turnTerminationReason === 'interrupted'
+          ) {
             hasInterrupted = true;
           }
           if (hasInterrupted) {
@@ -965,10 +1047,7 @@ export function useAIChat(options: UseAIChatOptions) {
           // Accumulate content from all assistant messages in this turn / 拼接本轮所有 assistant 正文
           // (matches streaming behavior where all deltas are concatenated) / 与流式增量拼接行为一致
           if (cur.content && cur.content.trim()) {
-            // Backward compatibility: older tool rounds persisted "thinking" into
-            // assistant.content instead of metadata.thinking_content. Recover them
-            // into the thinking block so historical conversations render correctly.
-            // 向后兼容：旧工具轮把“思考”写进了 assistant.content，这里恢复为思考块展示。
+            // Backward-compat: recover thinking from assistant.content when metadata lacks thinking_content / 向后兼容：旧轮次将思考写入 content，此处恢复为思考块以便历史展示
             if (cur.tool_calls?.length) {
               if (!persistedThinking.trim()) {
                 thinkingContentParts.push(cur.content);
@@ -1037,7 +1116,12 @@ export function useAIChat(options: UseAIChatOptions) {
         if (turnCompletionReason) {
           assistantMsg.completionReason = turnCompletionReason;
         }
-        if (isTurnFailure(turnOutcome, turnTerminationReason ?? turnCompletionReason)) {
+        if (
+          isTurnFailure(
+            turnOutcome,
+            turnTerminationReason ?? turnCompletionReason,
+          )
+        ) {
           assistantMsg.requestFailedRetry = true;
         }
         if (thinkingContentParts.length > 0) {
@@ -1661,13 +1745,11 @@ export function useAIChat(options: UseAIChatOptions) {
     const effectiveConversationId =
       activeConversationId.value ?? anchoredConversationId;
     const effectiveConversationAgentId =
-      effectiveConversationId !== null
-        ? (activeConversationAgentId.value ?? conversationAnchorAgentId)
-        : null;
+      effectiveConversationId === null
+        ? null
+        : (activeConversationAgentId.value ?? conversationAnchorAgentId);
     const maybeTargetAgentId =
-      opts?.agentId ??
-      effectiveConversationAgentId ??
-      selectedAgentId.value;
+      opts?.agentId ?? effectiveConversationAgentId ?? selectedAgentId.value;
     const routeSource = opts?.routeSource ?? null;
     const pageContext =
       opts?.pageContext === undefined
@@ -1705,8 +1787,7 @@ export function useAIChat(options: UseAIChatOptions) {
       effectiveConversationAgentId !== null &&
       selectedAgentId.value !== effectiveConversationAgentId
     ) {
-      // Follow the conversation-bound agent unless the user explicitly started
-      // a new routed / switched-agent turn.
+      // Follow conversation-bound agent unless user started a new route/switch turn / 除非显式新开路由或切换智能体，否则跟随会话绑定智能体
       selectedAgentId.value = effectiveConversationAgentId;
     }
 
@@ -1915,7 +1996,8 @@ export function useAIChat(options: UseAIChatOptions) {
     let didSseEnd = false;
     let hasReceivedStreamPayload = false;
     let shouldSyncInterruptedConversation = false;
-    let streamConversationId = activeConversationId.value ?? conversationAnchorId;
+    let streamConversationId =
+      activeConversationId.value ?? conversationAnchorId;
 
     function finalizeMessage() {
       const msg = chatMessages.value[assistantIdx];
@@ -2243,7 +2325,12 @@ export function useAIChat(options: UseAIChatOptions) {
               if (turnOutcome === 'partial') {
                 msg.partial = true;
               }
-              if (isTurnFailure(turnOutcome, terminationReason ?? completionReason)) {
+              if (
+                isTurnFailure(
+                  turnOutcome,
+                  terminationReason ?? completionReason,
+                )
+              ) {
                 msg.requestFailedRetry = true;
               }
 
@@ -2274,7 +2361,8 @@ export function useAIChat(options: UseAIChatOptions) {
                 nextContextDiagnostics.selected_tool_names = selectedToolNames;
               }
               if (selectedSkillNames.length > 0) {
-                nextContextDiagnostics.selected_skill_names = selectedSkillNames;
+                nextContextDiagnostics.selected_skill_names =
+                  selectedSkillNames;
               }
               if (contextSources.length > 0) {
                 nextContextDiagnostics.context_sources = contextSources;
@@ -2375,9 +2463,22 @@ export function useAIChat(options: UseAIChatOptions) {
 
     try {
       const prefix = unref(options.apiPrefix) as string;
-      // Refresh room binding before each request so page operations still work / 每次请求前刷新页面会话房间
-      // after backend reloads or transient Socket.IO room loss. / 避免后端重启或 Socket 掉线后 pageop 失效
-      refreshPageSessionRoom();
+      // Ensure page operation channel is connected before sending page-aware chat requests /
+      // 在发送页面感知请求前确保 page operation 通道已连接并完成入房，避免 pageop 在后端等待 60s 后超时
+      const pageChannelReady = await ensurePageOperationChannelReady(
+        prefix,
+        pageContext,
+      );
+      if (!pageChannelReady && hasPageOperations(pageContext)) {
+        const reconnectError = {
+          message: $t('shared.common.connectionLost'),
+          raw: { name: 'PageOperationChannelUnavailable' },
+        } as AppErrorInfo;
+        message.warning(reconnectError.message);
+        applyAssistantError(chatMessages.value[assistantIdx], reconnectError);
+        finalizeMessage();
+        return;
+      }
       const singleText = texts.length === 1 ? (texts[0] ?? '') : null;
       panelInteractionUpdates = aiPanelStore.consumeInteractionUpdates();
       localInteractionUpdates = [...pendingInteractionUpdates.value];
@@ -2408,9 +2509,9 @@ export function useAIChat(options: UseAIChatOptions) {
         imageParams.value.n !== 1
           ? { image_params: imageParams.value }
           : {}),
-          ...(pageContext ? { page_context: pageContext } : {}),
-          ...(routeSource ? { route_source: routeSource } : {}),
-          interaction_mode: interactionMode.value,
+        ...(pageContext ? { page_context: pageContext } : {}),
+        ...(routeSource ? { route_source: routeSource } : {}),
+        interaction_mode: interactionMode.value,
         ...(options.pageSessionIdGetter
           ? { page_session_id: options.pageSessionIdGetter() || null }
           : {}),

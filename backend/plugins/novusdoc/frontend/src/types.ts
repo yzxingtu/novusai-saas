@@ -42,6 +42,11 @@ export interface NovusPluginSharedAPI {
   createKeywordSearchPageOperation?: (
     options: Record<string, unknown>,
   ) => unknown;
+  getAccessCodes?: () => string[];
+  hasAccessByCodes?: (
+    codes: string | string[] | undefined,
+    options?: { mode?: 'all' | 'any' },
+  ) => boolean;
   registerRichTextDocumentPageAI?: (options: Record<string, unknown>) => () => void;
   waitForRichTextEditorOperations?: (
     pageKey: string,

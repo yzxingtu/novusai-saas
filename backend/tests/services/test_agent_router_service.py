@@ -22,6 +22,11 @@ def _make_skill_grant(skill_name: str, *, enabled: bool = True):
     grant.enabled = enabled
     grant.skill = MagicMock()
     grant.skill.name = skill_name
+    grant.skill.is_active = True
+    grant.skill.is_deleted = False
+    grant.skill.package = MagicMock()
+    grant.skill.package.is_active = True
+    grant.skill.package.is_deleted = False
     return grant
 
 
@@ -58,6 +63,44 @@ def _make_conversation(
     conversation.tenant_id = tenant_id
     conversation.user_id = user_id
     return conversation
+
+
+def test_agent_supports_page_operations_ignores_inactive_packages() -> None:
+    agent = _make_agent(
+        agent_id=59,
+        name="Page Agent",
+        supports_vision=False,
+        skill_names=["get_page_context", "invoke_page_operation"],
+    )
+    for grant in agent.skill_grants:
+        grant.skill.package.is_active = False
+
+    assert AgentRouterService._agent_supports_page_operations(agent) is False
+
+
+def test_agent_needs_function_calling_ignores_inactive_packages() -> None:
+    agent = _make_agent(
+        agent_id=60,
+        name="Tool Agent",
+        supports_vision=False,
+        skill_names=["invoke_page_operation"],
+    )
+    for grant in agent.skill_grants:
+        grant.skill.package.is_active = False
+
+    assert AgentRouterService._agent_needs_function_calling(agent) is False
+
+
+def _semantic_agents_menu_entry() -> dict[str, object]:
+    return {
+        "title": "智能体管理",
+        "page_key": "admin.ai.agents",
+        "path": "/admin/ai/agents",
+        "description": "创建、编辑和管理 AI 智能体",
+        "keywords": ["智能体", "agent", "AI助手", "assistant"],
+        "capabilities": ["create_agent", "edit_agent"],
+        "category": "ai",
+    }
 
 
 @pytest.mark.asyncio
@@ -226,7 +269,7 @@ async def test_route_accepts_image_turn_when_smart_routing_can_supply_vision_mod
         def __init__(self, db):
             self.db = db
 
-        async def can_handle_attachments(self, agent, **kwargs):
+        async def can_handle_attachments(self, _agent, **_kwargs):
             return True
 
     monkeypatch.setattr(
@@ -296,6 +339,173 @@ async def test_route_directly_selects_only_page_operation_capable_agent(mock_db)
     assert result.agent_name == "Page Agent"
     service._get_router_agent.assert_not_awaited()
     service._fallback_to_default.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_route_detects_admin_cross_page_navigation_intent(mock_db):
+    service = AgentRouterService(mock_db)
+    general_agent = _make_agent(
+        agent_id=15,
+        name="General Agent",
+        supports_vision=False,
+    )
+    page_agent = _make_agent(
+        agent_id=59,
+        name="Admin Page Agent",
+        supports_vision=False,
+        owner_tenant_id=None,
+        skill_names=["get_page_context", "invoke_page_operation"],
+    )
+
+    service._list_available_agents = AsyncMock(
+        return_value=[general_agent, page_agent],
+    )
+    service._get_router_agent = AsyncMock()
+    service._fallback_to_default = AsyncMock()
+
+    result = await service.route(
+        tenant_id=None,
+        message="我想添加一个智能体",
+        page_context={
+            "page_key": "admin.dashboard",
+            "page_data": {
+                "available_operations": [{"name": "navigate_menu"}],
+                "available_menus": [_semantic_agents_menu_entry()],
+            },
+        },
+        user_role=UserRoleEnum.PLATFORM_ADMIN.value,
+        user_role_id=1,
+        user_id=1,
+    )
+
+    assert result.agent_id == 59
+    assert result.routed_by == "router"
+    service._get_router_agent.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_route_detects_tenant_cross_page_navigation_intent(mock_db):
+    service = AgentRouterService(mock_db)
+    general_agent = _make_agent(
+        agent_id=15,
+        name="General Agent",
+        supports_vision=False,
+    )
+    page_agent = _make_agent(
+        agent_id=66,
+        name="Tenant Page Agent",
+        supports_vision=False,
+        skill_names=["get_page_context", "invoke_page_operation"],
+    )
+
+    service._list_available_agents = AsyncMock(
+        return_value=[general_agent, page_agent],
+    )
+    service._get_router_agent = AsyncMock()
+    service._fallback_to_default = AsyncMock()
+
+    result = await service.route(
+        tenant_id=1,
+        message="帮我添加一个智能体",
+        page_context={
+            "page_key": "tenant.dashboard",
+            "page_data": {
+                "available_operations": [{"name": "navigate_menu"}],
+                "available_menus": [_semantic_agents_menu_entry()],
+            },
+        },
+        user_role=UserRoleEnum.TENANT_ADMIN.value,
+        user_role_id=1,
+        user_id=10,
+    )
+
+    assert result.agent_id == 66
+    assert result.routed_by == "router"
+    service._get_router_agent.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_route_detects_semantic_agent_navigation_phrase(mock_db):
+    service = AgentRouterService(mock_db)
+    general_agent = _make_agent(
+        agent_id=15,
+        name="General Agent",
+        supports_vision=False,
+    )
+    page_agent = _make_agent(
+        agent_id=59,
+        name="Admin Page Agent",
+        supports_vision=False,
+        owner_tenant_id=None,
+        skill_names=["get_page_context", "invoke_page_operation"],
+    )
+
+    service._list_available_agents = AsyncMock(
+        return_value=[general_agent, page_agent],
+    )
+    service._get_router_agent = AsyncMock()
+    service._fallback_to_default = AsyncMock()
+
+    result = await service.route(
+        tenant_id=None,
+        message="我想创建一个 agent",
+        page_context={
+            "page_key": "admin.system.organization",
+            "page_data": {
+                "available_operations": [{"name": "navigate_menu"}],
+                "available_menus": [_semantic_agents_menu_entry()],
+            },
+        },
+        user_role=UserRoleEnum.PLATFORM_ADMIN.value,
+        user_role_id=1,
+        user_id=1,
+    )
+
+    assert result.agent_id == 59
+    assert result.routed_by == "router"
+    service._get_router_agent.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_route_detects_semantic_ai_assistant_navigation_phrase(mock_db):
+    service = AgentRouterService(mock_db)
+    general_agent = _make_agent(
+        agent_id=15,
+        name="General Agent",
+        supports_vision=False,
+    )
+    page_agent = _make_agent(
+        agent_id=59,
+        name="Admin Page Agent",
+        supports_vision=False,
+        owner_tenant_id=None,
+        skill_names=["get_page_context", "invoke_page_operation"],
+    )
+
+    service._list_available_agents = AsyncMock(
+        return_value=[general_agent, page_agent],
+    )
+    service._get_router_agent = AsyncMock()
+    service._fallback_to_default = AsyncMock()
+
+    result = await service.route(
+        tenant_id=None,
+        message="帮我新增 AI 助手",
+        page_context={
+            "page_key": "admin.system.organization",
+            "page_data": {
+                "available_operations": [{"name": "navigate_menu"}],
+                "available_menus": [_semantic_agents_menu_entry()],
+            },
+        },
+        user_role=UserRoleEnum.PLATFORM_ADMIN.value,
+        user_role_id=1,
+        user_id=1,
+    )
+
+    assert result.agent_id == 59
+    assert result.routed_by == "router"
+    service._get_router_agent.assert_not_awaited()
 
 
 @pytest.mark.asyncio

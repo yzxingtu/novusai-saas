@@ -1,0 +1,35 @@
+{
+  "id": "runtime-core-parity",
+  "name": "runtime-core-parity",
+  "title": "Runtime Core Parity",
+  "description": "",
+  "status": "completed",
+  "dev_type": "ai",
+  "scope": null,
+  "priority": "P0",
+  "creator": "yudi",
+  "assignee": "yudi",
+  "createdAt": "2026-04-04",
+  "completedAt": "2026-04-05",
+  "branch": "codex/runtime-core-parity",
+  "base_branch": "main",
+  "worktree_path": "E:\\git_clone\\trellis-worktrees\\codex\\runtime-core-parity",
+  "execution_path": "deep",
+  "required_artifacts": [
+    "prd.md",
+    "info.md"
+  ],
+  "context_files": [
+    "implement.jsonl",
+    "check.jsonl"
+  ],
+  "verification_mode": "command",
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "04-04-04-04-ai-orchestration-runtime-rebuild",
+  "relatedFiles": [],
+  "notes": "Verified against shared state-machine, stream parity, and recovery diagnostics coverage on 2026-04-04.",
+  "meta": {}
+}

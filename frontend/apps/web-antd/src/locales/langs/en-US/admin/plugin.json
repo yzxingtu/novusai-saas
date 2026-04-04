@@ -73,6 +73,7 @@
     "installDependencies": "Install Dependencies",
     "uninstall": "Uninstall",
     "uninstallDependencies": "Uninstall Dependencies",
+    "refreshSchedules": "Refresh Schedules",
     "repair": "Repair",
     "configure": "Configure",
     "settings": "Settings",
@@ -92,6 +93,7 @@
     "force_disable_content": "This plugin's storage driver is currently used by the platform or a tenant. Force disabling will automatically switch the storage configuration back to local storage, which may affect file access. Continue?",
     "force_disable_ok": "Force Disable",
     "repair": "Confirm repair plugin \"{name}\"? Dependencies will be re-installed and extensions re-registered.",
+    "refreshSchedules": "Refresh schedule state for plugin \"{name}\"? This will resync current task definitions and retry scheduler refresh.",
     "installDependencies": "Install dependencies for plugin \"{name}\"?",
     "uninstallDependencies": "Uninstall dependencies for plugin \"{name}\"?",
     "uninstallDependenciesContent": "Only plugin-exclusive dependencies are removed. It is recommended to run this while plugin is disabled.",
@@ -144,6 +146,21 @@
     "noError": "Running normally, no errors",
     "repair": "Reset Error Count"
   },
+  "recovery": {
+    "title": "Recovery Guidance",
+    "tag": {
+      "missingDependencies": "Dependencies Missing",
+      "missingFromDisk": "Files Missing",
+      "runtimeError": "Needs Repair",
+      "scheduleRefreshFailed": "Schedules Out Of Sync"
+    },
+    "description": {
+      "missingDependencies": "Required dependencies are not fully installed. Install dependencies first before trying to enable or recover this plugin.",
+      "missingFromDisk": "Plugin files are missing from disk, so direct repair is no longer safe. Clean up orphan records before reinstalling the plugin.",
+      "runtimeError": "The plugin is currently in an error state. Try the repair flow to re-register its runtime extensions and recover execution.",
+      "scheduleRefreshFailed": "The plugin task definitions are out of sync with the current scheduler state. Refresh schedules first and then verify recovery."
+    }
+  },
   "preview": {
     "title": "Install Preview",
     "pluginInfo": "Plugin Info",
@@ -152,11 +169,13 @@
     "conflicts": "Conflicts",
     "warnings": "Warnings",
     "capabilities": "Requested Capabilities",
-    "confirmInstall": "Authorize & Install",
+    "confirmInstall": "Confirm Install",
     "cancel": "Cancel",
     "noConflicts": "No conflicts",
     "noWarnings": "No warnings",
-    "noDependencies": "No additional dependencies"
+    "noDependencies": "No additional dependencies",
+    "pythonDeps": "Python deps",
+    "pluginDeps": "Plugin deps"
   },
   "structureType": {
     "skills": "Skills",
@@ -169,7 +188,13 @@
     "storage_drivers": "Storage Drivers",
     "notifications": "Notifications",
     "permissions": "Permissions",
-    "frontend_menus": "Frontend Menus"
+    "frontend_pages": "Frontend Pages",
+    "page_menus": "Page Menus",
+    "header_widgets": "Header Widgets",
+    "dashboard_widgets": "Dashboard Widgets",
+    "settings_tabs": "Settings Tabs",
+    "floating_panels": "Floating Panels",
+    "notification_ui": "Notification UI"
   },
   "marketplace": {
     "title": "Plugin Marketplace",
@@ -262,6 +287,8 @@
     "installSuccess": "Plugin installed successfully",
     "repairSuccess": "Plugin repaired",
     "repairFailed": "Plugin repair failed",
+    "refreshSchedulesSuccess": "Plugin schedules refreshed",
+    "refreshSchedulesFailed": "Plugin schedule refresh failed",
     "installDepsSuccess": "Dependencies installed",
     "uninstallDepsSuccess": "Dependencies uninstalled",
     "uninstallDepsFailed": "Dependency uninstall failed",

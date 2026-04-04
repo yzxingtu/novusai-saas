@@ -9,10 +9,7 @@ import type { PreferencesData } from '#/api/shared/types';
 
 import { onUnmounted, watch } from 'vue';
 
-import {
-  updatePreferences,
-  preferences as vbenPreferences,
-} from '@vben/preferences';
+import { preferences as vbenPreferences } from '@vben/preferences';
 
 import { useDebounceFn } from '@vueuse/core';
 
@@ -20,12 +17,11 @@ import { useSocketIOStore } from '#/store';
 import {
   getVbenSnapshot,
   mapFromVbenPreferences,
-  mapToVbenPreferences,
   useUserPreferenceStore,
 } from '#/store/shared/user-preference';
 
 interface GlobalUpdatedPayload {
-  preferences: Record<string, boolean | number | string>;
+  preferences: PreferencesData;
 }
 
 const GLOBAL_ONLY_KEYS = new Set(['watermark_content', 'watermark_enable']);
@@ -59,6 +55,7 @@ export function usePreferenceSync() {
 
   let lastWsTimestamp = 0;
   let serverSnapshot: PreferencesData = {};
+  let snapshotReady = false;
 
   /**
    * 初始化：从后端加载偏好后设置快照
@@ -66,6 +63,7 @@ export function usePreferenceSync() {
    */
   function initSnapshot() {
     serverSnapshot = getVbenSnapshot();
+    snapshotReady = true;
   }
 
   /**
@@ -77,6 +75,7 @@ export function usePreferenceSync() {
     }
 
     if (!preferenceStore.loaded || !preferenceStore.side) return;
+    if (!snapshotReady) return;
     if (preferenceStore.globalPreviewActive) return;
 
     const current = mapFromVbenPreferences(
@@ -108,26 +107,19 @@ export function usePreferenceSync() {
   /**
    * WebSocket 全局偏好更新处理 / WebSocket global preference update handler
    */
-  const onGlobalUpdated = (data: GlobalUpdatedPayload) => {
+  const onGlobalUpdated = async (data: GlobalUpdatedPayload) => {
     lastWsTimestamp = Date.now();
 
-    if (preferenceStore.preferences) {
-      preferenceStore.preferences = {
-        ...preferenceStore.preferences,
-        ...data.preferences,
-      };
-    }
-
-    const mapped = mapToVbenPreferences(data.preferences);
-    if (Object.keys(mapped).length > 0) {
-      updatePreferences(mapped as Parameters<typeof updatePreferences>[0]);
-    }
+    await preferenceStore.applyServerPreferences(data.preferences);
 
     serverSnapshot = getVbenSnapshot();
+    snapshotReady = true;
   };
 
   const onGlobalUpdatedRaw = (data: unknown) => {
-    onGlobalUpdated(data as GlobalUpdatedPayload);
+    void onGlobalUpdated(data as GlobalUpdatedPayload).catch((error) => {
+      console.warn('[PreferenceSync] Failed to apply global preferences:', error);
+    });
   };
 
   sioStore.registerHandler('preference:global_updated', onGlobalUpdatedRaw);
@@ -138,6 +130,7 @@ export function usePreferenceSync() {
    */
   function skipSync() {
     lastWsTimestamp = Date.now();
+    snapshotReady = false;
   }
 
   function cleanup() {

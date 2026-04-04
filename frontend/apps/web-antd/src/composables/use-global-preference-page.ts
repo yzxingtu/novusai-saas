@@ -9,14 +9,12 @@ import type { PreferencesData } from '#/api/shared/types';
 
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
-import { updatePreferences } from '@vben/preferences';
-
 import { message } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 import {
+  applyPreferencesToVben,
   getVbenSnapshot,
-  mapToVbenPreferences,
   useUserPreferenceStore,
 } from '#/store/shared/user-preference';
 import { showRequestError } from '#/utils/error-helpers';
@@ -76,10 +74,12 @@ export function useGlobalPreferencePage(side: Side) {
   }
 
   function applyPreview(data: PreferencesData) {
-    const mapped = mapToVbenPreferences(data);
-    if (Object.keys(mapped).length > 0) {
-      updatePreferences(mapped as Parameters<typeof updatePreferences>[0]);
-    }
+    void applyPreferencesToVben(data).catch((error) => {
+      console.warn(
+        '[GlobalPreferencePage] Failed to apply preview preferences:',
+        error,
+      );
+    });
   }
 
   function revertToSnapshot() {

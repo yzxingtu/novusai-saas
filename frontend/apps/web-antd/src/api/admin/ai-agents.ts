@@ -183,6 +183,11 @@ interface PageResponse<T> {
 
 const AGENT_PREFIX = '/admin/ai/agents';
 
+/** Get agent select options / 获取智能体下拉选项 */
+export async function getAIAgentSelectApi(params?: Record<string, unknown>) {
+  return requestClient.get(`${AGENT_PREFIX}/select`, { params });
+}
+
 /** Get agent list / 获取智能体列表 */
 export async function getAIAgentListApi(
   params?: Record<string, unknown>,

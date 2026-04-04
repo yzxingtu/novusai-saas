@@ -14,11 +14,17 @@ Provides security protection for tool execution:
 
 import asyncio
 import ipaddress
-import re
 import socket
 from typing import Any
 from urllib.parse import urlparse
 
+from app.ai.data_intelligence.sql_analysis import (
+    append_limit_clause,
+    extract_table_references,
+    find_keyword_sequences,
+    has_top_level_limit,
+    starts_with_select_or_cte,
+)
 from app.core.i18n import _
 from app.core.logging import LogManager
 
@@ -147,20 +153,18 @@ class InputValidator:
 # Output Sanitization / 输出脱敏
 # ============================================
 
-# Sensitive data regex patterns / 敏感数据正则模式
-_SENSITIVE_PATTERNS = [
-    # API Key / Token patterns / 上文为英文说明 / English above
-    (
-        re.compile(
-            r'(?i)(api[_-]?key|token|secret|password|passwd|authorization)\s*[:=]\s*["\']?([a-zA-Z0-9_\-/.]{8,})["\']?'
-        ),
-        r"\1=***MASKED***",
-    ),
-    # Bearer Token pattern / 上文为英文说明 / English above
-    (re.compile(r"(?i)bearer\s+[a-zA-Z0-9_\-/.]{8,}"), "Bearer ***MASKED***"),
-    # Common key formats (sk-xxx, pk-xxx) / 常见 Key 格式
-    (re.compile(r"\b(sk|pk|ak)[_-][a-zA-Z0-9]{16,}\b"), "***MASKED_KEY***"),
-]
+_SENSITIVE_FIELD_TERMS = (
+    "apikey",
+    "token",
+    "secret",
+    "password",
+    "passwd",
+    "authorization",
+)
+_SENSITIVE_VALUE_CHARS = frozenset(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-/."
+)
+_KEY_PREFIXES = ("sk-", "pk-", "ak-", "sk_", "pk_", "ak_")
 
 
 class OutputSanitizer:
@@ -184,9 +188,9 @@ class OutputSanitizer:
             (processed_output, was_truncated)
         """
         # 1. Sanitize / 脱敏
-        sanitized = output
-        for pattern, replacement in _SENSITIVE_PATTERNS:
-            sanitized = pattern.sub(replacement, sanitized)
+        sanitized = _mask_inline_secret_assignments(output)
+        sanitized = _mask_bearer_tokens(sanitized)
+        sanitized = _mask_prefixed_keys(sanitized)
 
         # 2. Truncate / 截断
         truncated = False
@@ -195,6 +199,100 @@ class OutputSanitizer:
             truncated = True
 
         return sanitized, truncated
+
+
+def _mask_inline_secret_assignments(text: str) -> str:
+    lines: list[str] = []
+    for line in text.splitlines():
+        masked = _mask_secret_assignment_line(line)
+        lines.append(masked)
+    return "\n".join(lines)
+
+
+def _mask_secret_assignment_line(line: str) -> str:
+    separator_index = _find_first_assignment_separator(line)
+    if separator_index < 0:
+        return line
+
+    separator = line[separator_index]
+    head = line[:separator_index]
+    key = head.strip().strip("\"'")
+    normalized_key = key.replace("-", "").replace("_", "").replace(" ", "").lower()
+    if not key or not any(term in normalized_key for term in _SENSITIVE_FIELD_TERMS):
+        return line
+
+    tail = line[separator_index + 1 :]
+    leading_ws_len = len(tail) - len(tail.lstrip())
+    leading_ws = tail[:leading_ws_len]
+    if separator == ":" and head.rstrip().endswith('"'):
+        return f'{head}{separator}{leading_ws}"***MASKED***"'
+    return f"{head}{separator}{leading_ws}***MASKED***"
+
+
+def _find_first_assignment_separator(text: str) -> int:
+    first_equals = text.find("=")
+    first_colon = text.find(":")
+    candidates = [index for index in (first_equals, first_colon) if index >= 0]
+    return min(candidates) if candidates else -1
+
+
+def _mask_bearer_tokens(text: str) -> str:
+    lower = text.lower()
+    parts: list[str] = []
+    index = 0
+    while index < len(text):
+        hit = lower.find("bearer", index)
+        if hit < 0:
+            parts.append(text[index:])
+            break
+        parts.append(text[index:hit])
+        token_start = hit + len("bearer")
+        while token_start < len(text) and text[token_start].isspace():
+            token_start += 1
+        token_end = token_start
+        while token_end < len(text) and text[token_end] in _SENSITIVE_VALUE_CHARS:
+            token_end += 1
+        if token_end - token_start >= 8:
+            parts.append("Bearer ***MASKED***")
+            index = token_end
+            continue
+        parts.append(text[hit : hit + len("bearer")])
+        index = hit + len("bearer")
+    return "".join(parts)
+
+
+def _mask_prefixed_keys(text: str) -> str:
+    lower = text.lower()
+    parts: list[str] = []
+    index = 0
+    while index < len(text):
+        match_start = -1
+        match_prefix = ""
+        for prefix in _KEY_PREFIXES:
+            candidate = lower.find(prefix, index)
+            if candidate < 0:
+                continue
+            if match_start < 0 or candidate < match_start:
+                match_start = candidate
+                match_prefix = prefix
+        if match_start < 0:
+            parts.append(text[index:])
+            break
+        parts.append(text[index:match_start])
+        if match_start > 0 and text[match_start - 1] in _SENSITIVE_VALUE_CHARS:
+            parts.append(text[match_start])
+            index = match_start + 1
+            continue
+        end = match_start + len(match_prefix)
+        while end < len(text) and text[end].isalnum():
+            end += 1
+        if end - (match_start + len(match_prefix)) >= 16:
+            parts.append("***MASKED_KEY***")
+            index = end
+            continue
+        parts.append(text[match_start:end])
+        index = end
+    return "".join(parts)
 
 
 # ============================================
@@ -391,20 +489,24 @@ class UrlValidator:
 # Database Tool SQL Security / 数据库工具 SQL 安全
 # ============================================
 
-# Blocked SQL keywords (non-SELECT) / 禁止的 SQL 关键字
-_SQL_BLOCKED_PATTERN = re.compile(
-    r"\b(INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE|CREATE|GRANT|REVOKE|EXEC"
-    r"|INTO|COPY|SET|DO|EXPLAIN)\b",
-    re.IGNORECASE,
-)
-
-# Blocked system schemas / 禁止访问的系统 schema
+_BLOCKED_SQL_SEQUENCES: list[tuple[str, ...]] = [
+    ("INSERT",),
+    ("UPDATE",),
+    ("DELETE",),
+    ("DROP",),
+    ("ALTER",),
+    ("TRUNCATE",),
+    ("CREATE",),
+    ("GRANT",),
+    ("REVOKE",),
+    ("EXEC",),
+    ("INTO",),
+    ("COPY",),
+    ("SET",),
+    ("DO",),
+    ("EXPLAIN",),
+]
 _BLOCKED_SCHEMAS = {"pg_catalog", "information_schema", "pg_toast"}
-
-_SYSTEM_TABLE_PATTERN = re.compile(
-    r"\b(pg_catalog|information_schema|pg_toast)\b",
-    re.IGNORECASE,
-)
 
 
 class SqlValidator:
@@ -431,15 +533,20 @@ class SqlValidator:
             raise SqlInjectionBlockedError(_("tool.error.empty_sql"))
 
         # Check if starts with SELECT or WITH / 检查是否以 SELECT 或 WITH 开头
-        if not re.match(r"^\s*(SELECT|WITH)\b", stripped, re.IGNORECASE):
+        if not starts_with_select_or_cte(stripped):
             raise SqlInjectionBlockedError(_("tool.error.sql_only_select"))
 
         # Check blocked keywords (prevent write operations in subqueries) / 检查禁止关键字
-        if _SQL_BLOCKED_PATTERN.search(stripped):
+        if find_keyword_sequences(stripped, _BLOCKED_SQL_SEQUENCES):
             raise SqlInjectionBlockedError(_("tool.error.sql_write_blocked"))
 
         # Check system table access / 检查系统表访问
-        if _SYSTEM_TABLE_PATTERN.search(stripped):
+        references = extract_table_references(stripped)
+        if any(
+            (ref.schema_name or "").lower() in _BLOCKED_SCHEMAS
+            or ref.table_name.lower() in _BLOCKED_SCHEMAS
+            for ref in references
+        ) or any(f"{schema}." in stripped.lower() for schema in _BLOCKED_SCHEMAS):
             raise SqlInjectionBlockedError(_("tool.error.sql_system_table_blocked"))
 
     @staticmethod
@@ -454,10 +561,10 @@ class SqlValidator:
         Returns:
             SQL with LIMIT / 带 LIMIT 的 SQL
         """
-        stripped = sql.strip().rstrip(";")
-        if not re.search(r"\bLIMIT\b", stripped, re.IGNORECASE):
-            return f"{stripped} LIMIT {max_rows}"
-        return stripped
+        stripped = sql.strip()
+        if has_top_level_limit(stripped):
+            return stripped.rstrip(";")
+        return append_limit_clause(stripped, max_rows)
 
 
 # ============================================

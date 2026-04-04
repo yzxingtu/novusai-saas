@@ -14,7 +14,10 @@ import {
   listPageOperations,
 } from '#/components/business/ai-slide-panel/page-operation-registry';
 
-import { usePageOperationChannel } from '../use-page-operation-channel';
+import {
+  usePageOperationChannel,
+  waitForPageSessionJoin,
+} from '../use-page-operation-channel';
 
 const {
   connected,
@@ -72,6 +75,13 @@ vi.mock('#/store/shared/ai-panel', () => ({
 vi.mock('#/components/business/ai-slide-panel', () => ({
   normalizePageKey: (value?: string) =>
     String(value ?? '')
+      .replace(/^\//, '')
+      .replaceAll('/', '.'),
+  resolveRoutePageKey: (
+    route?: { meta?: { ai?: { pageContextKey?: string } }; path?: string },
+    fallbackPath = '',
+  ) =>
+    String(route?.meta?.ai?.pageContextKey || route?.path || fallbackPath)
       .replace(/^\//, '')
       .replaceAll('/', '.'),
 }));
@@ -142,7 +152,7 @@ describe('usePageOperationChannel', () => {
       usePageOperationChannel();
     });
 
-    expect(registerHandler).toHaveBeenCalledOnce();
+    expect(registerHandler).toHaveBeenCalledTimes(2);
 
     connected.value = true;
     await nextTick();
@@ -163,6 +173,55 @@ describe('usePageOperationChannel', () => {
 
     expect(emit).toHaveBeenCalledWith('page_session_join', {
       page_key: 'admin.ai.agents',
+      page_session_id: 'page-session-1',
+      trace_id: 'socket-trace-1',
+    });
+
+    scope.stop();
+  });
+
+  it('marks the page session as joined after receiving an ack event', async () => {
+    const scope = effectScope();
+    scope.run(() => {
+      usePageOperationChannel();
+    });
+
+    const joinAckHandler = registerHandler.mock.calls.find(
+      ([event]) => event === 'page_session_joined',
+    )?.[1] as ((data: unknown) => void) | undefined;
+
+    joinAckHandler?.({
+      page_key: 'admin.ai.agents',
+      page_session_id: 'page-session-1',
+    });
+
+    await expect(
+      waitForPageSessionJoin('page-session-1', 'admin.ai.agents', 10, 1),
+    ).resolves.toBe(true);
+
+    scope.stop();
+  });
+
+  it('uses the canonical pageContextKey instead of the raw route path when joining the room', async () => {
+    connected.value = true;
+    currentPageAIExecutionPolicy.value = {
+      disabledCapabilities: [],
+      disabledOperations: [],
+      mode: 'operate',
+      pageContextKey: 'admin.ai.agents.detail',
+    };
+    window.history.replaceState({}, '', '/admin/ai/agents/123');
+
+    const scope = effectScope();
+    scope.run(() => {
+      usePageOperationChannel();
+    });
+
+    await nextTick();
+    vi.advanceTimersByTime(0);
+
+    expect(emit).toHaveBeenCalledWith('page_session_join', {
+      page_key: 'admin.ai.agents.detail',
       page_session_id: 'page-session-1',
       trace_id: 'socket-trace-1',
     });
@@ -199,7 +258,7 @@ describe('usePageOperationChannel', () => {
     emit.mockClear();
     scope.stop();
 
-    expect(unregisterHandler).toHaveBeenCalledOnce();
+    expect(unregisterHandler).toHaveBeenCalledTimes(2);
     expect(emit).toHaveBeenCalledWith('page_session_leave', {
       page_session_id: 'page-session-2',
       trace_id: 'socket-trace-1',

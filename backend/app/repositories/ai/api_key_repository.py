@@ -6,10 +6,10 @@ AI 供应商密钥 Repository / AI API Key Repository
 
 from sqlalchemy import and_, select
 
-from app.core.base_model import utc_now
 from app.core.base_repository import BaseRepository
 from app.enums.common import ResourceScopeEnum
 from app.models.ai import ProviderApiKey
+from app.models.ai.api_key import aware_utc_now
 
 # 企业端可回退使用的平台密钥（非 admin_only）/ Platform keys visible to tenant-side AI
 _TENANT_PLATFORM_KEY_SCOPES: frozenset[str] = frozenset(
@@ -254,7 +254,7 @@ class ProviderApiKeyRepository(BaseRepository[ProviderApiKey]):
         key = await self.get_by_id(key_id)
         if key:
             key.usage_count += increment
-            key.last_used_at = utc_now()
+            key.last_used_at = aware_utc_now()
             await self.db.commit()
 
 

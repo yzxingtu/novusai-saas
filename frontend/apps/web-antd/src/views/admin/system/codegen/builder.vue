@@ -65,7 +65,7 @@ import {
 } from '#/api/admin/codegen';
 import { $t } from '#/locales';
 import { useCodegenBuilderStore } from '#/store';
-import { formatDate } from '#/utils/common';
+import { formatDate, formatRelativeTime } from '#/utils/common';
 import { downloadText } from '#/utils/download';
 
 import { createFieldFromPalette, ensureFieldKeys } from './modules/field-utils';
@@ -1055,7 +1055,7 @@ async function onRestoreVersion(v: CodegenVersionItem) {
 }
 
 function formatVersionTime(iso: null | string) {
-  return formatDate(iso) ?? '-';
+  return formatRelativeTime(iso) ?? '-';
 }
 
 function formatConflictItem(conflict: unknown): string {
@@ -1789,9 +1789,11 @@ watch(
         <template #renderItem="{ item }">
           <List.Item class="flex items-center justify-between">
             <div class="flex flex-col gap-0.5">
-              <span class="text-sm">{{
-                formatVersionTime(item.created_at)
-              }}</span>
+              <Tooltip :title="formatDate(item.created_at)">
+                <span class="text-sm">
+                  {{ formatVersionTime(item.created_at) }}
+                </span>
+              </Tooltip>
               <span v-if="item.note" class="text-xs text-muted-foreground">{{
                 item.note
               }}</span>

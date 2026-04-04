@@ -82,6 +82,8 @@ extensions:
 - 插件 AI/技能在 manifest 中当前只以 `extensions.skills[*]` 为正式契约；不要再写 `extensions.capabilities[*]`、`extensions.skills[*].capabilities[]`、`skill_md_path` 这类当前 schema 不消费的字段。
 - 如声明 `extensions.frontend.dashboard_widgets[*]`，插件前端入口必须导出对应组件，宿主 dashboard 只负责插槽挂载。
 - 只要插件声明了 `extensions.frontend`，或声明了依赖前端入口的 `custom.type=captcha_provider`，都必须提供 `frontend/package.json`、`vite.config.ts`、`extensions.frontend.dev.entry` 与 `extensions.frontend.release.manifest`；`novusai plugin validate` 会按前端插件完整校验。
+- `full-module` 脚手架新建后不会预生成 `frontend/dist/plugin.manifest.json`；这是 `build` 的真实产物。fresh create 时 `validate` 允许以 warning 提示“frontend release manifest missing”，发布验收仍必须执行 `validate -> build -> pack --release`。
+- 浏览器 network 预期要区分 runtime：开发态宿主会先从 `/__plugin_dev__/{plugin}/entry` 导入插件源码入口；release/preview 宿主才会按正式资源边界去请求 `/plugin-assets/...` 或 `/plugin-public-assets/...`。public captcha 的资源隔离验收必须在 release runtime 下做。
 - `extensions.frontend.*.component` 里声明的组件名，必须由 `frontend` 入口文件显式导出，否则宿主能拿到 manifest 但无法真正挂载页面或小部件。
 - 插件页面标题与菜单标题分别来自 `extensions.frontend.pages[*].title` 和 `pages[*].menu.title`；页面内部按钮、提示、表单文案才走 `registerLocale(locale, 'plugin.{manifest-name}', messages)`。
 - `pages[*].title` 与 `pages[*].menu.title` 必须同时覆盖 `zh-CN` / `en`；`novusai plugin validate` 会直接拦截缺失语言。
@@ -244,7 +246,7 @@ plugin_modules = [k for k in sys.modules if k.startswith("plugins.my-plugin")]
 # 校验
 novusai plugin validate backend/plugins/my-plugin
 
-# 构建前端发布产物（会执行插件自己的 npm/pnpm/yarn build 脚本）
+# 构建前端发布产物（fresh scaffold 若还没有 frontend/node_modules，会先自动执行一次本地 npm/pnpm/yarn install，再执行 build）
 novusai plugin build backend/plugins/my-plugin
 
 # 打包发布包（用于安装/分发）
@@ -255,7 +257,7 @@ novusai plugin pack backend/plugins/my-plugin --source
 ```
 
 安全边界：
-- `novusai plugin build` 会直接执行插件仓库中的第三方构建脚本。仅对可信源码运行；第三方插件先做安全扫描和人工审阅。
+- `novusai plugin build` 在缺少 `frontend/node_modules` 时会先执行包管理器 install，再执行插件仓库中的 build 脚本。仅对可信源码运行；第三方插件先做安全扫描和人工审阅。
 - 推荐发布前流程：`validate -> build -> pack --release`。
 
 ## 四、发布到市场

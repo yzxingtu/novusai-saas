@@ -28,6 +28,7 @@ import {
   USER_HOME_ALIAS_PATH,
   USER_HOME_PATH,
 } from '#/constants/endpoints';
+import { resolveRuntimeLocale } from '#/locales/runtime-locale';
 import { TokenStorage } from '#/store/shared/token-storage';
 
 import {
@@ -224,7 +225,7 @@ function createConfiguredClient(
   client.setTokenGetter(tokenGetter.getToken);
   client.setMessageHandler(messageHandler.showMessage);
   client.setI18n(messageHandler.t);
-  client.setLocaleGetter(() => preferences.app.locale);
+  client.setLocaleGetter(resolveRuntimeLocale);
   client.setReAuthenticateHandler(doReAuthenticate);
   client.setRefreshTokenHandler(doRefreshToken);
 
@@ -234,7 +235,7 @@ function createConfiguredClient(
       createRequestInterceptor(
         client,
         tokenGetter,
-        () => preferences.app.locale,
+        resolveRuntimeLocale,
         messageHandler,
       ),
     );

@@ -3,7 +3,7 @@ import type { FormInstance, RadioChangeEvent } from 'ant-design-vue';
 
 import type { OrgNodeFormData } from './types';
 
-import type { OrgNodeInfo, OrgNodeType } from '#/api/admin/organization';
+import type { OrgNodeType } from '#/api/admin/organization';
 import type { PermissionNode } from '#/api/admin/permission';
 
 import { computed, ref, watch } from 'vue';
@@ -40,6 +40,7 @@ import {
   getTenantOrganizationTreeApi,
   updateTenantOrganizationNodeApi,
 } from '#/api/tenant/organization';
+import { getTenantPermissionTreeApi } from '#/api/tenant/permission';
 import { PermissionSelector } from '#/components/business/permission-selector';
 import { $t } from '#/locales';
 
@@ -60,6 +61,7 @@ type DeptTreeOption = {
 const props = withDefaults(
   defineProps<{
     apiPrefix?: 'admin' | 'tenant';
+    canAssignPermissions?: boolean;
     initialData?: Partial<OrgNodeFormData>;
     mode?: 'create' | 'edit';
     nodeId?: null | number;
@@ -75,6 +77,7 @@ const props = withDefaults(
     parentType: null,
     parentName: '',
     nodeId: null,
+    canAssignPermissions: true,
     initialData: undefined,
     apiPrefix: 'admin',
   },
@@ -207,14 +210,17 @@ async function loadDeptTree() {
 }
 
 async function loadPermissionTree() {
-  if (props.apiPrefix !== 'admin') {
+  if (!props.canAssignPermissions) {
     permissionTree.value = [];
     return;
   }
 
   permissionTreeLoading.value = true;
   try {
-    permissionTree.value = await getPermissionTreeApi();
+    permissionTree.value =
+      props.apiPrefix === 'tenant'
+        ? await getTenantPermissionTreeApi()
+        : await getPermissionTreeApi();
   } catch {
     permissionTree.value = [];
   } finally {
@@ -228,10 +234,11 @@ async function loadNodeDetail() {
   loading.value = true;
   try {
     const detail = await api.value.getNodeDetail(props.nodeId);
-    const permissionIds: number[] =
-      props.apiPrefix === 'admin'
-        ? (((detail as OrgNodeInfo).permissionIds ?? []) as number[])
-        : [];
+    const permissionIds = Array.isArray(
+      (detail as { permissionIds?: number[] }).permissionIds,
+    )
+      ? (((detail as { permissionIds?: number[] }).permissionIds ?? []) as number[])
+      : [];
     formData.value = {
       name: detail.name,
       description: detail.description || '',
@@ -290,8 +297,9 @@ async function handleSubmit() {
       is_active: formData.value.isActive,
       sort_order: formData.value.sortOrder,
       parent_id: props.mode === 'create' ? props.parentId : undefined,
-      permission_ids:
-        props.apiPrefix === 'admin' ? formData.value.permissionIds : undefined,
+      permission_ids: props.canAssignPermissions
+        ? formData.value.permissionIds
+        : undefined,
       data_scope: formData.value.dataScope,
       custom_dept_ids:
         formData.value.dataScope === 'custom'
@@ -473,7 +481,7 @@ watch(
         </div>
 
         <div
-          v-if="props.apiPrefix === 'admin'"
+          v-if="props.canAssignPermissions"
           class="rounded-lg border border-border/60 p-4"
         >
           <div class="mb-3">

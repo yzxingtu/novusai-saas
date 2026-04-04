@@ -39,6 +39,7 @@ import {
   StorageDriverSelector,
 } from '#/components/business/storage-config';
 import { $t } from '#/locales';
+import { useAccess } from '#/utils';
 
 defineOptions({ name: 'TenantStorageDrawer' });
 
@@ -59,6 +60,9 @@ const credentials = ref({
   options: {} as Record<string, unknown>,
 });
 const credentialsVersion = ref(0);
+const { hasAccessByCodes } = useAccess();
+const canReadPlatformStorageDrivers = hasAccessByCodes(['platform_config:read']);
+const canUpdateTenantStorage = hasAccessByCodes(['tenant:update']);
 
 function open(tenant: { id: number; name: string }) {
   tenantId.value = tenant.id;
@@ -71,13 +75,15 @@ async function loadData() {
   loading.value = true;
   try {
     let driversData: StorageDriverInfo[] = [];
-    try {
-      driversData = await getStorageDriversApi();
-    } catch (error) {
-      console.error(
-        '[TenantStorageDrawer] getStorageDriversApi failed:',
-        error,
-      );
+    if (canReadPlatformStorageDrivers) {
+      try {
+        driversData = await getStorageDriversApi();
+      } catch (error) {
+        console.error(
+          '[TenantStorageDrawer] getStorageDriversApi failed:',
+          error,
+        );
+      }
     }
     drivers.value = driversData;
 
@@ -245,6 +251,7 @@ defineExpose({ open });
           <!-- 测试连接 -->
           <div class="mt-4 flex gap-3">
             <Button
+              v-if="canUpdateTenantStorage"
               :loading="testing"
               :disabled="!selectedDriver"
               @click="onTestConnection"
@@ -282,7 +289,12 @@ defineExpose({ open });
         <Button @click="visible = false">
           {{ $t('shared.common.cancel') }}
         </Button>
-        <Button type="primary" :loading="saving" @click="onSave">
+        <Button
+          v-if="canUpdateTenantStorage"
+          type="primary"
+          :loading="saving"
+          @click="onSave"
+        >
           {{ $t('shared.storage.save') }}
         </Button>
       </div>

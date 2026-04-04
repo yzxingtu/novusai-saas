@@ -1,27 +1,31 @@
 # NovusAI SaaS 开发规则
 
-> 本文件仅作为旧版 Cursor 兼容入口。**规范正文以 `.cursor/rules/*.md` 为准**，请勿在此文件中添加具体规则。
+> 本文件仅作为旧版 Cursor 兼容入口。**规范正文以 `.trellis/spec/**` 与 `.trellis/workflow.md` 为准**，请勿在此文件中添加具体规则。
 
 ## 权威入口
 
-- **总纲**：[.cursor/rules/novusai-saas.md](.cursor/rules/novusai-saas.md) — 全局禁令、前后端规则、AI 架构、trytrellis 任务与文档协作
+- **总纲**：[.trellis/workflow.md](.trellis/workflow.md) — Trellis 路径、任务契约、上下文与验证规则
+- **后端规范**：[.trellis/spec/backend/index.md](.trellis/spec/backend/index.md)
+- **前端规范**：[.trellis/spec/frontend/index.md](.trellis/spec/frontend/index.md)
+- **AI Runtime 规范**：[.trellis/spec/ai-runtime/index.md](.trellis/spec/ai-runtime/index.md)
+- **思维与跨层指南**：[.trellis/spec/guides/index.md](.trellis/spec/guides/index.md)
 
 ## 专题规则
 
-| 主题 | 文件 |
+| 主题 | 规范入口 |
 |------|------|
-| AI / Agent / Skill | [ai-architecture.md](.cursor/rules/ai-architecture.md) |
-| 上传 / 下载 / 存储 | [attachments-and-storage.md](.cursor/rules/attachments-and-storage.md) |
-| Celery / 通知 / Socket.IO | [async-notification-websocket.md](.cursor/rules/async-notification-websocket.md) |
-| 插件系统 | [plugin-system.md](.cursor/rules/plugin-system.md) |
-| RBAC / 数据权限 | [rbac-and-data-permission.md](.cursor/rules/rbac-and-data-permission.md) |
-| 用户端 / 域名隔离 | [user-endpoint-and-domain-isolation.md](.cursor/rules/user-endpoint-and-domain-isolation.md) |
-| 测试 / 验证 | [testing-validation.md](.cursor/rules/testing-validation.md) |
-| Alembic 迁移 | [alembic-migration-authoring.md](.cursor/rules/alembic-migration-authoring.md) |
-| Trace / 监控 | [trace-and-monitoring.md](.cursor/rules/trace-and-monitoring.md) |
-| 企业端架构 | [tenant-architecture.md](.cursor/rules/tenant-architecture.md) |
-| 菜单 / 多语言 | [menu-i18n.md](.cursor/rules/menu-i18n.md) |
+| AI / Agent / Skill | [.trellis/spec/ai-runtime/index.md](.trellis/spec/ai-runtime/index.md) |
+| 上传 / 下载 / 存储 | [.trellis/spec/guides/index.md](.trellis/spec/guides/index.md) |
+| Celery / 通知 / Socket.IO | [.trellis/spec/backend/logging-guidelines.md](.trellis/spec/backend/logging-guidelines.md) |
+| 插件系统 | [.trellis/spec/guides/plugin-runtime-playbook.md](.trellis/spec/guides/plugin-runtime-playbook.md) |
+| RBAC / 数据权限 | [.trellis/spec/guides/cross-layer-thinking-guide.md](.trellis/spec/guides/cross-layer-thinking-guide.md) |
+| 用户端 / 域名隔离 | [.trellis/spec/frontend/index.md](.trellis/spec/frontend/index.md) |
+| 测试 / 验证 | [.trellis/spec/backend/quality-guidelines.md](.trellis/spec/backend/quality-guidelines.md), [.trellis/spec/frontend/quality-guidelines.md](.trellis/spec/frontend/quality-guidelines.md) |
+| Alembic 迁移 | [.trellis/spec/backend/database-guidelines.md](.trellis/spec/backend/database-guidelines.md) |
+| Trace / 监控 | [.trellis/spec/backend/logging-guidelines.md](.trellis/spec/backend/logging-guidelines.md) |
+| 企业端架构 | [.trellis/spec/guides/cross-layer-thinking-guide.md](.trellis/spec/guides/cross-layer-thinking-guide.md) |
+| 菜单 / 多语言 | [.trellis/spec/frontend/component-guidelines.md](.trellis/spec/frontend/component-guidelines.md) |
 
 ## 参考文档
 
-详见 `.cursor/skills/novusai-saas/references/` 目录。
+如需兼容旧入口，可再跳转到 `.cursor/rules/novusai-saas.md`，但不要把它视为权威正文。

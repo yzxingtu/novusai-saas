@@ -146,35 +146,52 @@ def log_ai_call_task(
         )
 
         normalized_latency_ms = CallLogService._normalize_latency_ms(latency_ms)
-
-        # Sanitize and truncate / 脱敏和截断处理
-        sanitized_request = _sanitize_request(request_data)
-        truncated_response = _truncate_response(response_data)
+        normalized_user_id = CallLogService._normalize_optional_fk_id(user_id)
+        normalized_agent_id = CallLogService._normalize_optional_fk_id(agent_id)
+        normalized_conversation_id = CallLogService._normalize_optional_fk_id(
+            conversation_id
+        )
+        normalized_routed_model_id = CallLogService._normalize_optional_fk_id(
+            routed_model_id
+        )
 
         # Generate request hash / 生成请求哈希
         messages = request_data.get("messages", []) if request_data else []
         temperature = request_data.get("temperature", 0.7) if request_data else 0.7
         tools = request_data.get("tools") if request_data else None
         tool_choice = request_data.get("tool_choice") if request_data else None
-        request_hash = _generate_request_hash(
+        request_hash = CallLogService._generate_request_hash(
             model_id,
             messages,
             temperature,
             tools,
             tool_choice=tool_choice,
         )
+        request_metadata = CallLogService._build_request_metadata_payload(
+            request_data=request_data,
+            response_data=response_data,
+            turn_diagnostics=None,
+            agent_id=normalized_agent_id,
+            conversation_id=normalized_conversation_id,
+            routed_model_id=normalized_routed_model_id,
+            route_reason=route_reason,
+        )
 
         # Create AICallLog record directly (sync write) / 直接创建 AICallLog 记录（同步写入）
         call_log = AICallLog(
             tenant_id=tenant_id,
-            user_id=user_id,
+            user_id=normalized_user_id,
             user_type=user_type,
-            billing_tenant_id=(billing_context or {}).get("billing_tenant_id"),
-            actor_user_id=(billing_context or {}).get("actor_user_id", user_id),
+            billing_tenant_id=CallLogService._normalize_optional_fk_id(
+                (billing_context or {}).get("billing_tenant_id")
+            ),
+            actor_user_id=CallLogService._normalize_optional_fk_id(
+                (billing_context or {}).get("actor_user_id", normalized_user_id)
+            ),
             actor_user_type=(billing_context or {}).get("actor_user_type", user_type),
             access_channel=(billing_context or {}).get("access_channel"),
-            agent_id=agent_id,
-            conversation_id=conversation_id,
+            agent_id=normalized_agent_id,
+            conversation_id=normalized_conversation_id,
             trace_id=trace_id,
             tool_call_id=tool_call_id,
             provider_id=provider_id,
@@ -189,29 +206,25 @@ def log_ai_call_task(
             status=status,
             error_message=error_message,
             request_hash=request_hash,
-            request_metadata={
-                "request": sanitized_request,
-                "response": truncated_response,
-                "timestamp": utc_now().isoformat(),
-                "agent_id": agent_id,
-                "conversation_id": conversation_id,
-                "routed_model_id": routed_model_id,
-                "route_reason": route_reason,
-            },
-            routed_model_id=routed_model_id,
+            request_metadata=request_metadata,
+            routed_model_id=normalized_routed_model_id,
             route_reason=route_reason,
             agent_owner_type=(billing_context or {}).get("agent_owner_type"),
-            agent_owner_tenant_id=(billing_context or {}).get("agent_owner_tenant_id"),
+            agent_owner_tenant_id=CallLogService._normalize_optional_fk_id(
+                (billing_context or {}).get("agent_owner_tenant_id")
+            ),
             agent_resource_scope=(billing_context or {}).get("agent_resource_scope"),
-            tenant_publication_id=(billing_context or {}).get("tenant_publication_id"),
+            tenant_publication_id=CallLogService._normalize_optional_fk_id(
+                (billing_context or {}).get("tenant_publication_id")
+            ),
             publication_enabled_snapshot=(billing_context or {}).get(
                 "publication_enabled_snapshot"
             ),
             publication_access_type_snapshot=(billing_context or {}).get(
                 "publication_access_type_snapshot"
             ),
-            agent_id_snapshot=(billing_context or {}).get(
-                "agent_id_snapshot", agent_id
+            agent_id_snapshot=CallLogService._normalize_optional_fk_id(
+                (billing_context or {}).get("agent_id_snapshot", normalized_agent_id)
             ),
             agent_name_snapshot=(billing_context or {}).get("agent_name_snapshot"),
             billing_tenant_name_snapshot=(billing_context or {}).get(

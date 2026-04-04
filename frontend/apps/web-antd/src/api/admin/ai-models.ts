@@ -12,6 +12,46 @@ import { requestClient } from '#/utils/request';
 
 /** Model type / 模型类型 */
 export type ModelType = 'chat' | 'embedding' | 'image';
+export type ReasoningEffort = 'none' | 'low' | 'medium' | 'high' | 'xhigh';
+export type ModelProviderType = 'openai_compatible' | string;
+
+export interface AIModelReasoningConfig {
+  effort?: null | ReasoningEffort | string;
+  [key: string]: unknown;
+}
+
+export interface AIModelOpenAICompatibleResponsesOverrides {
+  reasoning?: AIModelReasoningConfig | null;
+  [key: string]: unknown;
+}
+
+export interface AIModelOpenAICompatibleChatCompletionsOverrides {
+  reasoning_effort?: null | ReasoningEffort | string;
+  [key: string]: unknown;
+}
+
+export interface AIModelOpenAICompatibleRuntimeOverrides {
+  responses?: AIModelOpenAICompatibleResponsesOverrides | null;
+  chat_completions?: AIModelOpenAICompatibleChatCompletionsOverrides | null;
+  [key: string]: unknown;
+}
+
+export interface AIModelRuntimeOverrides {
+  common?: null | Record<string, unknown>;
+  openai_compatible?: AIModelOpenAICompatibleRuntimeOverrides | null;
+  anthropic?: null | Record<string, unknown>;
+  google?: null | Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface AIModelConfig {
+  runtime_overrides?: AIModelRuntimeOverrides | null;
+  runtimeOverrides?: AIModelRuntimeOverrides | null;
+  reasoning?: AIModelReasoningConfig | null;
+  reasoning_effort?: null | ReasoningEffort | string;
+  reasoningEffort?: null | ReasoningEffort | string;
+  [key: string]: unknown;
+}
 
 /** AI model info / AI 模型信息 */
 export interface AIModelInfo {
@@ -34,11 +74,12 @@ export interface AIModelInfo {
   max_image_count: null | number;
   max_image_size_mb: null | number;
   is_active: boolean;
-  config: null | Record<string, unknown>;
+  config: AIModelConfig | null;
   fallback_model_id: null | number;
   fallback_model_name: null | string;
   tier: null | string;
   provider_name: null | string;
+  provider_type?: null | ModelProviderType;
   provider_icon?: null | string;
   created_at: string;
   updated_at: string;
@@ -64,7 +105,7 @@ export interface AIModelCreateRequest {
   max_image_count?: null | number;
   max_image_size_mb?: null | number;
   is_active?: boolean;
-  config?: null | Record<string, unknown>;
+  config?: AIModelConfig | null;
   fallback_model_id?: null | number;
   tier?: null | string;
 }
@@ -89,7 +130,7 @@ export interface AIModelUpdateRequest {
   max_image_count?: null | number;
   max_image_size_mb?: null | number;
   is_active?: boolean | null;
-  config?: null | Record<string, unknown>;
+  config?: AIModelConfig | null;
   fallback_model_id?: null | number;
   tier?: null | string;
 }

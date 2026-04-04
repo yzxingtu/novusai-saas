@@ -1,0 +1,35 @@
+{
+  "id": "page-awareness-navigation-v2",
+  "name": "page-awareness-navigation-v2",
+  "title": "Page awareness navigation v2",
+  "description": "统一页面读/导航/写能力的前后端契约，让 page AI 与导航语义在 runtime、tool executor、frontend helper 和 monitoring 之间保持一致。",
+  "status": "planning",
+  "dev_type": "fullstack",
+  "scope": null,
+  "priority": "P2",
+  "creator": "yudi",
+  "assignee": "yudi",
+  "createdAt": "2026-04-03",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "execution_path": "deep",
+  "required_artifacts": [
+    "prd.md",
+    "info.md"
+  ],
+  "context_files": [
+    "implement.jsonl",
+    "check.jsonl"
+  ],
+  "verification_mode": "command",
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "04-04-repo-stabilization-control-plane",
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

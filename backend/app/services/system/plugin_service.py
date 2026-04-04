@@ -24,6 +24,7 @@ from app.plugins.dependencies import (
     build_python_dependency_states,
     normalize_plugin_dependencies,
 )
+from app.plugins.runtime_recovery import build_plugin_recovery_state
 from app.repositories.system.plugin_repository import PluginRepository
 
 if TYPE_CHECKING:
@@ -169,6 +170,17 @@ class PluginService(BaseService[Plugin, PluginRepository]):
     ) -> None:
         """启用插件 / Enable plugin."""
         await self._lifecycle.enable(plugin_id, operator_id=operator_id)
+
+    async def refresh_plugin_schedules(
+        self,
+        plugin_id: int,
+        operator_id: int | None = None,
+    ) -> dict:
+        """Retry plugin scheduler reconciliation without rerunning full repair."""
+        return await self._lifecycle.refresh_schedules(
+            plugin_id,
+            operator_id=operator_id,
+        )
 
     async def disable_plugin(
         self, plugin_id: int, force: bool = False, operator_id: int | None = None
@@ -633,3 +645,17 @@ class PluginService(BaseService[Plugin, PluginRepository]):
                 "state": "installed" if len(missing_plugins) == 0 else "missing",
             },
         }
+
+    def get_recovery_state(
+        self,
+        plugin: Plugin,
+        *,
+        dependency_status: dict | None = None,
+    ) -> dict:
+        """Build the plugin recovery contract used by admin plugin UIs."""
+        return build_plugin_recovery_state(
+            dependency_status=dependency_status,
+            error_message=plugin.error_message,
+            manifest=plugin.manifest if isinstance(plugin.manifest, dict) else None,
+            status=plugin.status,
+        )

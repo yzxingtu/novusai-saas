@@ -98,17 +98,24 @@ Agent
 
 ```text
 plugin.yaml
-  -> extensions.capabilities[*]        # 能力声明层
-  -> extensions.skills[*]              # Skill 投影层
-  -> extensions.skills[*].capabilities # 显式引用 capability.key
-  -> SkillPackage / Skill 同步投影
+  -> extensions.skills[*]                # Skill 声明层
+  -> SkillPackage(source_plugin=插件名)  # 来源 / 归组投影
+  -> Skill(source_plugin=插件名)         # 运行时技能投影
+  -> AgentSkillGrant                     # 唯一授权真相
+  -> SkillResolver -> ToolDefinition
 ```
 
 约束：
 
-- `extensions.capabilities[*]` 与 `extensions.skills[*].capabilities[]` 必须显式关联
 - 插件启用/升级时同步的是 `SkillPackage + Skill` 目录投影
+- `SkillPackage` 只是目录/来源单元，不再承载包级自动授权
+- `Skill` 的运行时可见性必须同时满足：
+  - `skill.is_active`
+  - `skill.is_deleted = false`
+  - `skill.package.is_active`
+  - `skill.package.is_deleted = false`
 - 插件启用**不等于**自动把整包绑定给 Agent
+- 插件禁用、SkillPackage 停用或包被删除后，Resolver / Agent Router / Grant 列表都必须同步 fail-close
 - 插件前端如声明 `dashboard_widgets`，必须在插件自己的前端入口导出对应组件
 
 ---

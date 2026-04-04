@@ -5,11 +5,21 @@
 Provides platform-level knowledge base global query, statistics monitoring, document management, retrieval testing endpoints (platform admin only)
 """
 
-import hashlib
 import os
 
 from fastapi import File, Form, Query, Request, UploadFile
 
+from app.api.shared._kb_helpers import (
+    build_content_hash,
+    build_document_progress_payload,
+    build_qa_content,
+    create_qa_document_and_chunk,
+    create_url_import_documents,
+    enqueue_document_processing,
+    enrich_model_names,
+    resolve_document_type,
+    serialize_search_results,
+)
 from app.core.base_controller import GlobalController
 from app.core.base_schema import PageResponse
 from app.core.deps import ActiveAdmin, DbSession, QueryParams
@@ -26,6 +36,7 @@ from app.enums.knowledge_base import DocumentStatusEnum, DocumentTypeEnum
 from app.enums.rbac import PermissionScope
 from app.exceptions import BusinessException, NotFoundException
 from app.rbac.decorators import (
+    MenuAIConfig,
     MenuConfig,
     action_create,
     action_delete,
@@ -55,34 +66,6 @@ SCOPES_NEEDING_ASSIGNMENT = (
     ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
 )
 
-# 支持的文件类型映射 / Supported file type mapping
-ALLOWED_EXTENSIONS: dict[str, str] = {
-    ".txt": DocumentTypeEnum.TXT.value,
-    ".md": DocumentTypeEnum.MD.value,
-    ".pdf": DocumentTypeEnum.PDF.value,
-    ".docx": DocumentTypeEnum.DOCX.value,
-    ".csv": DocumentTypeEnum.CSV.value,
-    ".xlsx": DocumentTypeEnum.XLSX.value,
-    ".html": DocumentTypeEnum.HTML.value,
-    ".htm": DocumentTypeEnum.HTML.value,
-    ".pptx": DocumentTypeEnum.PPTX.value,
-    ".jpg": DocumentTypeEnum.IMAGE.value,
-    ".jpeg": DocumentTypeEnum.IMAGE.value,
-    ".png": DocumentTypeEnum.IMAGE.value,
-    ".webp": DocumentTypeEnum.IMAGE.value,
-    ".gif": DocumentTypeEnum.IMAGE.value,
-    ".mp3": DocumentTypeEnum.AUDIO.value,
-    ".wav": DocumentTypeEnum.AUDIO.value,
-    ".m4a": DocumentTypeEnum.AUDIO.value,
-    ".flac": DocumentTypeEnum.AUDIO.value,
-    ".aac": DocumentTypeEnum.AUDIO.value,
-    ".mp4": DocumentTypeEnum.VIDEO.value,
-    ".webm": DocumentTypeEnum.VIDEO.value,
-    ".mov": DocumentTypeEnum.VIDEO.value,
-    ".avi": DocumentTypeEnum.VIDEO.value,
-    ".mkv": DocumentTypeEnum.VIDEO.value,
-}
-
 
 @permission_resource(
     resource="ai_knowledge_base",
@@ -90,6 +73,26 @@ ALLOWED_EXTENSIONS: dict[str, str] = {
     scope=PermissionScope.ADMIN,
     parent_resource="ai_agent_mgmt",
     menu=MenuConfig(
+        ai=MenuAIConfig(
+            description="Create, manage, and search knowledge bases and documents for AI retrieval",
+            keywords=[
+                "知识库",
+                "知识文档",
+                "文档库",
+                "knowledge base",
+                "knowledge bases",
+                "kb",
+                "rag",
+                "documents",
+            ],
+            capabilities=[
+                "create_knowledge_base",
+                "manage_documents",
+                "search_knowledge_base",
+                "view_knowledge_bases",
+            ],
+            category="knowledge",
+        ),
         icon="lucide:book-open",
         path="/ai/monitor/knowledge-bases",
         component="ai/knowledge-bases/index",
@@ -141,8 +144,6 @@ class AdminKnowledgeBaseController(GlobalController):
             service = AdminKnowledgeBaseService(db)
             items, total = await service.query_list(spec)
 
-            from app.api.shared._kb_helpers import enrich_model_names
-
             result = []
             for kb in items:
                 item = kb.to_dict()
@@ -190,8 +191,6 @@ class AdminKnowledgeBaseController(GlobalController):
             await db.commit()
             await db.refresh(kb)
 
-            from app.api.shared._kb_helpers import enrich_model_names
-
             result = kb.to_dict()
             enrich_model_names(kb, result)
             return created(data=result, message=_("knowledge_base.created"))
@@ -232,8 +231,6 @@ class AdminKnowledgeBaseController(GlobalController):
 
             await db.commit()
             await db.refresh(kb)
-
-            from app.api.shared._kb_helpers import enrich_model_names
 
             result = kb.to_dict()
             enrich_model_names(kb, result)
@@ -376,8 +373,6 @@ class AdminKnowledgeBaseController(GlobalController):
             if not kb:
                 raise NotFoundException(message=_("knowledge_base.error.not_found"))
 
-            from app.api.shared._kb_helpers import enrich_model_names
-
             result = kb.to_dict()
             enrich_model_names(kb, result)
             # 返回已分配的企业 ID 列表 / Return assigned tenant ID list
@@ -459,14 +454,13 @@ class AdminKnowledgeBaseController(GlobalController):
 
             filename = file.filename or "unnamed"
             ext = os.path.splitext(filename)[1].lower()
-            if ext not in ALLOWED_EXTENSIONS:
+            file_type = resolve_document_type(filename)
+            if not file_type:
                 raise BusinessException(
                     message=_("knowledge_base.error.unsupported_file_type"),
                 )
-
-            file_type = ALLOWED_EXTENSIONS[ext]
             file_bytes = await file.read()
-            file_hash = hashlib.md5(file_bytes).hexdigest()
+            file_hash = build_content_hash(file_bytes)
             file_size = len(file_bytes)
 
             doc_service = KnowledgeDocumentService(db, tenant_id)
@@ -568,11 +562,9 @@ class AdminKnowledgeBaseController(GlobalController):
             )
             await db.commit()
 
-            from app.ai.rag.processor import process_document
-
-            process_document.delay(
+            await enqueue_document_processing(
                 tenant_id=tenant_id,
-                document_id=doc.id,
+                document_ids=[doc.id],
             )
 
             return created(
@@ -609,7 +601,7 @@ class AdminKnowledgeBaseController(GlobalController):
             await kb_service.check_document_quota(kb_id)
 
             content_bytes = data.content.encode("utf-8")
-            content_hash = hashlib.md5(content_bytes).hexdigest()
+            content_hash = build_content_hash(content_bytes)
 
             doc_service = KnowledgeDocumentService(db, tenant_id)
             existing = await doc_service.get_by_kb_and_hash(kb_id, content_hash)
@@ -632,11 +624,9 @@ class AdminKnowledgeBaseController(GlobalController):
             )
             await db.commit()
 
-            from app.ai.rag.processor import process_document
-
-            process_document.delay(
+            await enqueue_document_processing(
                 tenant_id=tenant_id,
-                document_id=doc.id,
+                document_ids=[doc.id],
             )
 
             return created(
@@ -782,11 +772,9 @@ class AdminKnowledgeBaseController(GlobalController):
             doc.status = DocumentStatusEnum.PENDING.value
             await db.commit()
 
-            from app.ai.rag.processor import process_document
-
-            process_document.delay(
+            await enqueue_document_processing(
                 tenant_id=tenant_id,
-                document_id=doc.id,
+                document_ids=[doc.id],
             )
 
             return success(
@@ -828,17 +816,7 @@ class AdminKnowledgeBaseController(GlobalController):
                 )
 
             progress = await _get_progress(doc_id)
-            if progress is None:
-                progress = {
-                    "stage": doc.status,
-                    "progress": 100 if doc.status == "completed" else 0,
-                    "total_chunks": doc.chunk_count,
-                    "processed_chunks": doc.chunk_count
-                    if doc.status == "completed"
-                    else 0,
-                }
-
-            return success(data=progress)
+            return success(data=build_document_progress_payload(doc, progress))
 
         # ========================================
         # 重索引 & 检索测试 / Re-index & Retrieval Testing
@@ -907,21 +885,7 @@ class AdminKnowledgeBaseController(GlobalController):
                 score_threshold=data.score_threshold,
                 search_mode=data.search_mode,
             )
-
-            return success(
-                data=[
-                    {
-                        "chunk_id": r.chunk_id,
-                        "content": r.content,
-                        "score": r.score,
-                        "metadata": r.metadata,
-                        "document_name": r.document_name,
-                        "document_id": r.document_id,
-                        "highlight": r.highlight,
-                    }
-                    for r in results
-                ]
-            )
+            return success(data=serialize_search_results(results))
 
         # ========================================
         # Q&A 问答对 / Q&A Pairs
@@ -956,9 +920,8 @@ class AdminKnowledgeBaseController(GlobalController):
             kb_service = KnowledgeBaseService(db, tenant_id)
             await kb_service.check_document_quota(kb_id)
 
-            # 构建 Q&A 内容 / Build Q&A content
-            qa_content = f"Q: {data.question}\nA: {data.answer}"
-            content_hash = hashlib.md5(qa_content.encode("utf-8")).hexdigest()
+            qa_content = build_qa_content(data.question, data.answer)
+            content_hash = build_content_hash(qa_content)
 
             # 去重检查 / Deduplication check
             doc_service = KnowledgeDocumentService(db, tenant_id)
@@ -968,54 +931,17 @@ class AdminKnowledgeBaseController(GlobalController):
                     message=_("knowledge_base.document.error.duplicate"),
                 )
 
-            # 创建文档记录（metadata_extra 存储原始 Q&A JSON，供 reindex 使用） / Create document record (metadata_extra stores original Q&A JSON for reindex)
-            import json as _json
-
-            doc = await doc_service.create(
-                {
-                    "knowledge_base_id": kb_id,
-                    "file_name": f"qa_{content_hash[:8]}.txt",
-                    "file_type": DocumentTypeEnum.QA.value,
-                    "file_size": len(qa_content.encode("utf-8")),
-                    "file_hash": content_hash,
-                    "status": DocumentStatusEnum.COMPLETED.value,
-                    "chunk_count": 1,
-                    "char_count": len(qa_content),
-                    "metadata_extra": _json.dumps(
-                        {"question": data.question, "answer": data.answer}
-                    ),
-                }
-            )
-
-            # 直接创建 chunk（无需 Celery 异步） / Directly create chunk (no Celery async needed)
-            from app.ai.rag.embedding import EmbeddingService
-            from app.ai.utils.token_estimator import estimate_tokens
-
             chunk_service = DocumentChunkService(db, tenant_id)
-
-            embedding_service = EmbeddingService(db, tenant_id)
-            embeddings = await embedding_service.generate_embedding(qa_content, kb)
-            token_count = estimate_tokens(qa_content)
-
-            await chunk_service.create(
-                {
-                    "document_id": doc.id,
-                    "knowledge_base_id": kb_id,
-                    "chunk_index": 0,
-                    "content": qa_content,
-                    "content_hash": content_hash,
-                    "embedding": embeddings,
-                    "char_count": len(qa_content),
-                    "token_count": token_count,
-                    "metadata_": {
-                        "type": "qa",
-                        "question": data.question,
-                        "answer": data.answer,
-                    },
-                }
+            doc = await create_qa_document_and_chunk(
+                db=db,
+                tenant_id=tenant_id,
+                kb=kb,
+                kb_id=kb_id,
+                question=data.question,
+                answer=data.answer,
+                doc_service=doc_service,
+                chunk_service=chunk_service,
             )
-
-            doc.token_count = token_count
             await kb_service.update_statistics(kb_id)
             await db.commit()
 
@@ -1072,12 +998,8 @@ class AdminKnowledgeBaseController(GlobalController):
                     message=_("knowledge_base.qa.batch.missing_columns"),
                 )
 
-            from app.ai.rag.embedding import EmbeddingService
-            from app.ai.utils.token_estimator import estimate_tokens
-
             doc_service = KnowledgeDocumentService(db, tenant_id)
             chunk_service = DocumentChunkService(db, tenant_id)
-            embedding_service = EmbeddingService(db, tenant_id)
 
             from app.services.ai.knowledge_base_service import KnowledgeBaseService
 
@@ -1094,8 +1016,8 @@ class AdminKnowledgeBaseController(GlobalController):
                     skipped += 1
                     continue
 
-                qa_content = f"Q: {q}\nA: {a}"
-                content_hash = hashlib.md5(qa_content.encode("utf-8")).hexdigest()
+                qa_content = build_qa_content(q, a)
+                content_hash = build_content_hash(qa_content)
 
                 existing = await doc_service.get_by_kb_and_hash(kb_id, content_hash)
                 if existing:
@@ -1103,41 +1025,16 @@ class AdminKnowledgeBaseController(GlobalController):
                     continue
 
                 try:
-                    import json as _json
-
-                    doc = await doc_service.create(
-                        {
-                            "knowledge_base_id": kb_id,
-                            "file_name": f"qa_{content_hash[:8]}.txt",
-                            "file_type": DocumentTypeEnum.QA.value,
-                            "file_size": len(qa_content.encode("utf-8")),
-                            "file_hash": content_hash,
-                            "status": DocumentStatusEnum.COMPLETED.value,
-                            "chunk_count": 1,
-                            "char_count": len(qa_content),
-                            "metadata_extra": _json.dumps({"question": q, "answer": a}),
-                        }
+                    await create_qa_document_and_chunk(
+                        db=db,
+                        tenant_id=tenant_id,
+                        kb=kb,
+                        kb_id=kb_id,
+                        question=q,
+                        answer=a,
+                        doc_service=doc_service,
+                        chunk_service=chunk_service,
                     )
-
-                    embeddings = await embedding_service.generate_embedding(
-                        qa_content, kb
-                    )
-                    token_count = estimate_tokens(qa_content)
-
-                    await chunk_service.create(
-                        {
-                            "document_id": doc.id,
-                            "knowledge_base_id": kb_id,
-                            "chunk_index": 0,
-                            "content": qa_content,
-                            "content_hash": content_hash,
-                            "embedding": embeddings,
-                            "char_count": len(qa_content),
-                            "token_count": token_count,
-                            "metadata_": {"type": "qa", "question": q, "answer": a},
-                        }
-                    )
-                    doc.token_count = token_count
                     imported += 1
                 except Exception as exc:
                     errors.append(
@@ -1187,41 +1084,17 @@ class AdminKnowledgeBaseController(GlobalController):
 
             tenant_id = kb.tenant_id
             doc_service = KnowledgeDocumentService(db, tenant_id)
-            created_docs: list[dict] = []
-
-            for url in urls:
-                url = url.strip()
-                if not url or not url.startswith(("http://", "https://")):
-                    continue
-
-                url_hash = hashlib.md5(url.encode("utf-8")).hexdigest()
-                existing = await doc_service.get_by_kb_and_hash(kb_id, url_hash)
-                if existing:
-                    continue
-
-                doc = await doc_service.create(
-                    {
-                        "knowledge_base_id": kb_id,
-                        "file_name": url[:200],
-                        "file_type": DocumentTypeEnum.URL.value,
-                        "file_size": len(url.encode("utf-8")),
-                        "file_hash": url_hash,
-                        "source_url": url,
-                        "status": DocumentStatusEnum.PENDING.value,
-                        "metadata_extra": url,
-                    }
-                )
-                created_docs.append(doc.to_dict())
+            created_docs = await create_url_import_documents(
+                doc_service=doc_service,
+                kb_id=kb_id,
+                urls=urls,
+            )
 
             await db.commit()
-
-            from app.ai.rag.processor import process_document
-
-            for doc_dict in created_docs:
-                process_document.delay(
-                    tenant_id=tenant_id,
-                    document_id=doc_dict["id"],
-                )
+            await enqueue_document_processing(
+                tenant_id=tenant_id,
+                document_ids=[int(doc_dict["id"]) for doc_dict in created_docs],
+            )
 
             return success(
                 data={

@@ -3,26 +3,26 @@
 Covers:
 - _validate_column_names: rejects SQL injection payloads, special chars
 - _validate_table_name: rejects unsafe table names
-- _SAFE_COLUMN_NAME_RE / _SAFE_TABLE_NAME_RE: regex correctness
+- is_safe_sql_identifier: identifier safety correctness
 - _normalize_agent_data: only canonical ResourceScopeEnum values; legacy aliases rejected; invalid scope raises"""
 
 from __future__ import annotations
 
 import pytest
 
+from app.ai.data_intelligence.sql_analysis import is_safe_sql_identifier
 from app.ai.tools.executors.crud_executor import (
-    _SAFE_COLUMN_NAME_RE,
     _normalize_agent_data,
     _validate_column_names,
     _validate_table_name,
 )
 
 # ============================================
-# _SAFE_COLUMN_NAME_RE tests
+# is_safe_sql_identifier tests
 # ============================================
 
-class TestSafeColumnNameRegex:
-    """Test the column name safety regex directly. / 测试"""
+class TestSafeSqlIdentifier:
+    """Test the column name safety helper directly. / 测试"""
 
     @pytest.mark.parametrize("name", [
         "name",
@@ -37,7 +37,7 @@ class TestSafeColumnNameRegex:
         "column_123_test",
     ])
     def test_valid_column_names(self, name: str) -> None:
-        assert _SAFE_COLUMN_NAME_RE.match(name) is not None
+        assert is_safe_sql_identifier(name) is True
 
     @pytest.mark.parametrize("name", [
         "Name",              # uppercase
@@ -60,7 +60,7 @@ class TestSafeColumnNameRegex:
         "col,name",          # comma
     ])
     def test_invalid_column_names(self, name: str) -> None:
-        assert _SAFE_COLUMN_NAME_RE.match(name) is None
+        assert is_safe_sql_identifier(name) is False
 
 
 # ============================================

@@ -1,0 +1,35 @@
+{
+  "id": "04-04-ai-orchestration-runtime-rebuild",
+  "name": "04-04-ai-orchestration-runtime-rebuild",
+  "title": "AI orchestration runtime rebuild",
+  "description": "整体重构 AI 对话编排内核、预算护栏、恢复机制、诊断链路与 Trellis 治理，解决 666 风格多意图会话的慢、错、token 浪费和乱调用。",
+  "status": "completed",
+  "dev_type": "ai",
+  "scope": null,
+  "priority": "P0",
+  "creator": "yudi",
+  "assignee": "yudi",
+  "createdAt": "2026-04-04",
+  "completedAt": "2026-04-05",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "execution_path": "deep",
+  "required_artifacts": [
+    "prd.md",
+    "info.md"
+  ],
+  "context_files": [
+    "implement.jsonl",
+    "check.jsonl"
+  ],
+  "verification_mode": "command",
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "04-04-repo-stabilization-control-plane",
+  "relatedFiles": [],
+  "notes": "Verified runtime-v2 cutover, hard stop-loss budgets, Trellis governance cleanup, and 661-666 style regression coverage on 2026-04-04.",
+  "meta": {}
+}

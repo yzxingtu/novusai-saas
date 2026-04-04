@@ -337,6 +337,9 @@ describe('useCrudPage', () => {
 
     await vm.vm.$nextTick();
 
+    expect(mockRefs.gridFactoryOptions.at(-1)?.searchPanelAnimation).toBe(
+      false,
+    );
     expect(mockRefs.gridFactoryOptions.at(-1)?.showSearchForm).toBe(false);
     expect(
       (
@@ -352,5 +355,44 @@ describe('useCrudPage', () => {
           | { options?: Array<Record<string, unknown>> }
       )?.options?.[0]?.placeholder,
     ).toBe('Search name');
+  });
+
+  it('passes animated search panel opt-in to grid wrapper', async () => {
+    const vm = mount(
+      defineComponent({
+        name: 'UseCrudPageAnimatedSearchHarness',
+        setup() {
+          return useCrudPage({
+            api: {
+              list: vi.fn().mockResolvedValue({ items: [], total: 0 }),
+              resource: '/admin/items',
+            },
+            columns: () => [],
+            i18nPrefix: 'admin.test',
+            search: {
+              animatePanel: true,
+            },
+            searchSchema: [
+              {
+                component: 'Input',
+                fieldName: 'filter[name][ilike]',
+                label: 'Name',
+              },
+            ],
+          });
+        },
+        render() {
+          const Grid = (
+            this as unknown as { Grid: ReturnType<typeof defineComponent> }
+          ).Grid;
+          return Grid ? h(Grid) : null;
+        },
+      }),
+    );
+
+    await vm.vm.$nextTick();
+
+    expect(mockRefs.gridFactoryOptions.at(-1)?.searchPanelAnimation).toBe(true);
+    expect(mockRefs.gridFactoryOptions.at(-1)?.showSearchForm).toBe(true);
   });
 });

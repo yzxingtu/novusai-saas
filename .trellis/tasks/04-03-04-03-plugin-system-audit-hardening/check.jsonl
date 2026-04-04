@@ -1,0 +1,4 @@
+{"file": "backend/tests/test_plugin_runtime_recovery.py", "reason": "Runtime recovery regression"}
+{"file": "backend/tests/test_plugin_schedule_recovery.py", "reason": "Scheduler recovery regression"}
+{"file": "backend/tests/test_plugin_scheduler_refresh.py", "reason": "Scheduler refresh regression"}
+{"file": "frontend/apps/web-antd/src/views/admin/plugins/__tests__/", "type": "directory", "reason": "Plugin admin frontend regression suite"}

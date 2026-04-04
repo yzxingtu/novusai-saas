@@ -1232,7 +1232,7 @@ async def test_build_responses_request_enables_reasoning_summary_for_gpt5() -> N
 
     request = await adapter._build_responses_request(
         messages=[ChatMessage(role="user", content="hello")],
-        model="gpt-5.4-xhigh",
+        model="gpt-5.4",
         stream=True,
     )
 
@@ -1278,6 +1278,157 @@ async def test_build_responses_request_preserves_explicit_reasoning_effort() -> 
         "effort": "high",
         "summary": "auto",
     }
+
+
+def test_build_chat_completions_request_applies_model_config_reasoning_effort() -> None:
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+    )
+
+    request = adapter._build_chat_completions_request(
+        openai_messages=[{"role": "user", "content": "hello"}],
+        model="gpt-5.4",
+        temperature=0.7,
+        max_tokens=128,
+        top_p=1.0,
+        tools=None,
+        tool_choice=None,
+        stream=False,
+        model_config={
+            "runtime_overrides": {
+                "openai_compatible": {
+                    "chat_completions": {"reasoning_effort": "xhigh"},
+                }
+            }
+        },
+    )
+
+    assert request["model"] == "gpt-5.4"
+    assert request["reasoning_effort"] == "xhigh"
+
+
+@pytest.mark.asyncio
+async def test_build_responses_request_applies_model_config_reasoning_effort() -> None:
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+
+    request = await adapter._build_responses_request(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4",
+        model_config={
+            "runtime_overrides": {
+                "openai_compatible": {
+                    "responses": {"reasoning": {"effort": "xhigh"}},
+                }
+            }
+        },
+    )
+
+    assert request["model"] == "gpt-5.4"
+    assert request["reasoning"] == {
+        "effort": "xhigh",
+        "summary": "auto",
+    }
+
+
+@pytest.mark.asyncio
+async def test_build_responses_request_legacy_alias_uses_base_model_and_effort() -> None:
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+
+    request = await adapter._build_responses_request(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+    )
+
+    assert request["model"] == "gpt-5.4"
+    assert request["reasoning"] == {
+        "effort": "xhigh",
+        "summary": "auto",
+    }
+
+
+def test_build_chat_completions_request_keeps_plain_model_without_reasoning_override() -> None:
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+    )
+
+    request = adapter._build_chat_completions_request(
+        openai_messages=[{"role": "user", "content": "hello"}],
+        model="deepseek-chat",
+        temperature=0.7,
+        max_tokens=None,
+        top_p=1.0,
+        tools=None,
+        tool_choice=None,
+        stream=False,
+    )
+
+    assert request["model"] == "deepseek-chat"
+    assert "reasoning_effort" not in request
+
+
+def test_build_chat_completions_request_ignores_reasoning_effort_for_unsupported_model() -> None:
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+    )
+
+    request = adapter._build_chat_completions_request(
+        openai_messages=[{"role": "user", "content": "hello"}],
+        model="claude-3-5-sonnet",
+        temperature=0.7,
+        max_tokens=128,
+        top_p=1.0,
+        tools=None,
+        tool_choice=None,
+        stream=False,
+        model_config={
+            "runtime_overrides": {
+                "openai_compatible": {
+                    "chat_completions": {"reasoning_effort": "xhigh"},
+                }
+            }
+        },
+    )
+
+    assert request["model"] == "claude-3-5-sonnet"
+    assert "reasoning_effort" not in request
+
+
+def test_resolve_effective_model_request_reports_ignored_overrides_for_unsupported_model() -> None:
+    effective_request = OpenAIAdapter.resolve_effective_model_request(
+        model="claude-3-5-sonnet",
+        model_config={
+            "runtime_overrides": {
+                "openai_compatible": {
+                    "responses": {"reasoning": {"effort": "xhigh"}},
+                }
+            }
+        },
+        wire_api="responses",
+    )
+
+    assert effective_request["upstream_model"] == "claude-3-5-sonnet"
+    assert effective_request["applied_overrides"] == []
+    assert (
+        "runtime_overrides.openai_compatible.responses.reasoning.effort"
+        in effective_request["ignored_overrides"]
+    )
+    assert (
+        effective_request["ignore_reasons"][
+            "runtime_overrides.openai_compatible.responses.reasoning.effort"
+        ]
+        == "unsupported_model_family"
+    )
 
 
 def test_convert_responses_chat_response_extracts_reasoning_summary() -> None:

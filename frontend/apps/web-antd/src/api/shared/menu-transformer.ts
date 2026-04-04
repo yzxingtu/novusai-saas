@@ -29,8 +29,12 @@ export interface BackendMenuItemRaw {
   meta?: {
     affix_tab?: boolean;
     ai?: {
+      capabilities?: string[];
+      category?: string;
+      description?: string;
       disabled_capabilities?: string | string[];
       disabled_operations?: string | string[];
+      keywords?: string[];
       mode?: string;
       page_context_key?: string;
     };
@@ -208,6 +212,12 @@ function transformMenuItem(
     if (item.meta.link) meta.link = item.meta.link;
     if (item.meta.ai) {
       const aiMeta: Record<string, unknown> = {};
+      if (item.meta.ai.description) aiMeta.description = item.meta.ai.description;
+      if (item.meta.ai.category) aiMeta.category = item.meta.ai.category;
+      if (item.meta.ai.keywords) aiMeta.keywords = item.meta.ai.keywords;
+      if (item.meta.ai.capabilities) {
+        aiMeta.capabilities = item.meta.ai.capabilities;
+      }
       if (item.meta.ai.mode) aiMeta.mode = item.meta.ai.mode;
       if (item.meta.ai.page_context_key) {
         aiMeta.pageContextKey = item.meta.ai.page_context_key;

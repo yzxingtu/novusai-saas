@@ -19,6 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.response import serialize_datetime_for_api
 from app.models.system.plugin import Plugin
 from app.models.tenant.tenant import Tenant
 from app.models.tenant.tenant_plan import TenantPlan
@@ -46,8 +47,8 @@ def _serialize_plan(plan: TenantPlan) -> dict[str, Any]:
         "sort_order": plan.sort_order,
         "quota": plan.quota or {},
         "features": plan.features or {},
-        "created_at": plan.created_at.isoformat() if plan.created_at else None,
-        "updated_at": plan.updated_at.isoformat() if plan.updated_at else None,
+        "created_at": serialize_datetime_for_api(plan.created_at),
+        "updated_at": serialize_datetime_for_api(plan.updated_at),
     }
 
 
@@ -160,8 +161,8 @@ class HostReadFacade:
                     "status": row[5],
                     "pricing_type": row[6],
                     "granted_capabilities": list(row[7] or []),
-                    "enabled_at": row[8].isoformat() if row[8] else None,
-                    "updated_at": row[9].isoformat() if row[9] else None,
+                    "enabled_at": serialize_datetime_for_api(row[8]),
+                    "updated_at": serialize_datetime_for_api(row[9]),
                     "enabled": str(row[5] or "") == "enabled",
                 }
             )

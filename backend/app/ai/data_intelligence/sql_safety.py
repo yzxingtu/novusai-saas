@@ -14,11 +14,15 @@ Extends SqlValidator from security.py / 继承并增强 security.py 中的 SqlVa
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 
-import sqlparse
-
+from app.ai.data_intelligence.sql_analysis import (
+    contains_sql_comments,
+    extract_called_functions,
+    extract_table_names as extract_table_names_from_sql,
+    find_keyword_sequences,
+    starts_with_select_or_cte,
+)
 from app.ai.tools.security import SqlValidator
 from app.core.i18n import _
 from app.core.logging import LogManager
@@ -33,7 +37,7 @@ logger = LogManager.get_logger("ai.data_intelligence")
 
 @dataclass
 class SQLValidationResult:
-    """SQL validation result / SQL 校验结果"""  # 校验结果 / validation outcome
+    """SQL validation result / SQL 校验结果"""
 
     passed: bool
     violations: list[str] = field(default_factory=list)
@@ -78,83 +82,44 @@ _BLOCKED_FUNCTIONS: list[str] = [
     "pg_execute_server_program",
 ]
 
-# Compile into regex pattern (match function call form) / 编译成正则模式（匹配函数调用形式）
-_BLOCKED_FUNC_PATTERN = re.compile(
-    r"\b(" + "|".join(re.escape(f) for f in _BLOCKED_FUNCTIONS) + r")\s*\(",
-    re.IGNORECASE,
-)
-
-# ============================================
-# Table Name Extraction / 表名提取
-# ============================================
-
-# Regex for extracting table names after FROM / JOIN / FROM / JOIN 后的表名提取正则
-# Matches: FROM table_name [AS alias], JOIN table_name [AS alias] / 匹配格式
-_TABLE_REF_PATTERN = re.compile(
-    r"""
-    (?:FROM|JOIN)\s+           # FROM 或 JOIN 关键字
-    (?:ONLY\s+)?               # 可选 ONLY
-    (\w+)                      # 表名（捕获组） / table name (capture group)
-    (?:                        # 可选别名（避免吞掉 JOIN/WHERE 等关键字）
-      \s+
-      (?!
-        JOIN\b|ON\b|WHERE\b|GROUP\b|ORDER\b|LIMIT\b|OFFSET\b|HAVING\b|
-        UNION\b|EXCEPT\b|INTERSECT\b|LEFT\b|RIGHT\b|FULL\b|INNER\b|CROSS\b
-      )
-      (?:AS\s+)?\w+
-    )?
-    """,
-    re.IGNORECASE | re.VERBOSE,
-)
-
+_DANGEROUS_KEYWORD_SEQUENCES: list[tuple[str, ...]] = [
+    ("INSERT",),
+    ("UPDATE",),
+    ("DELETE",),
+    ("DROP",),
+    ("ALTER",),
+    ("TRUNCATE",),
+    ("CREATE",),
+    ("GRANT",),
+    ("REVOKE",),
+    ("EXEC",),
+    ("INTO",),
+    ("COPY",),
+    ("LOAD", "DATA"),
+    ("DO",),
+]
+_WRITE_OPERATION_SEQUENCES: list[tuple[str, ...]] = [
+    ("INSERT", "INTO"),
+    ("UPDATE",),
+    ("DELETE", "FROM"),
+    ("DROP", "TABLE"),
+    ("ALTER", "TABLE"),
+    ("TRUNCATE",),
+]
+_SYSTEM_SCHEMAS = {"pg_catalog", "information_schema", "pg_toast"}
 
 def extract_table_names(sql: str) -> set[str]:
     """
     从 SQL 中提取所有引用的表名 / Extract all referenced table names from SQL.
 
-    Uses sqlparse parsing + regex to handle CTEs, subqueries, etc.
-    使用 sqlparse 解析 + 正则辅助，处理 CTE、子查询等情况。
+    Uses shared sqlparse-based analysis helpers.
+    使用共享的 sqlparse 语义分析辅助工具。
     """
-    tables: set[str] = set()
-
-    # Normalize SQL with sqlparse / 先用 sqlparse 标准化 SQL
-    parsed = sqlparse.parse(sql)
-    if not parsed:
-        return tables
-
-    normalized = str(parsed[0]).strip()
-
-    # Extract CTE-defined names (not real tables, need to exclude) / 提取 CTE 定义的名称
-    cte_names: set[str] = set()
-    cte_pattern = re.compile(
-        r"\bWITH\s+(?:RECURSIVE\s+)?(\w+)\s+AS\s*\(",
-        re.IGNORECASE,
-    )
-    for match in cte_pattern.finditer(normalized):
-        cte_names.add(match.group(1).lower())
-
-    # Extract table names after FROM / JOIN / 提取 FROM / JOIN 后的表名
-    for match in _TABLE_REF_PATTERN.finditer(normalized):
-        table_name = match.group(1).lower()
-        # Exclude CTE names and SQL keywords / 排除 CTE 名称和 SQL 关键字
-        if table_name not in cte_names and table_name not in {
-            "select",
-            "where",
-            "and",
-            "or",
-            "not",
-            "in",
-            "lateral",
-            "unnest",
-            "generate_series",
-        }:
-            tables.add(table_name)
-
-    return tables
+    return extract_table_names_from_sql(sql)
 
 
-# ============================================ / 上文为英文说明 / English above
-# SQLSafetyValidator
+# ============================================
+# SQLSafetyValidator / SQL 安全校验器
 # ============================================
 
 
@@ -195,30 +160,22 @@ class SQLSafetyValidator:
             violations.append(_("data_intelligence.sql.empty"))
 
         # ---- Check 1: Must be SELECT or WITH (CTE) / 检查 1: 必须是 SELECT 或 WITH ----
-        if not re.match(r"^\s*(SELECT|WITH)\b", stripped, re.IGNORECASE):
+        if not starts_with_select_or_cte(stripped):
             violations.append(_("data_intelligence.sql.select_only"))
 
         # ---- Check 2: Prohibit dangerous keywords / 检查 2: 禁止危险关键字 ----
-        dangerous_pattern = re.compile(
-            r"\b(INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE|CREATE|"
-            r"GRANT|REVOKE|EXEC|COPY|INTO|"
-            r"LOAD\s+DATA|DO)\b",
-            re.IGNORECASE,
-        )
-        match = dangerous_pattern.search(stripped)
-        if match:
+        blocked_keywords = find_keyword_sequences(stripped, _DANGEROUS_KEYWORD_SEQUENCES)
+        if blocked_keywords:
             violations.append(
-                _("data_intelligence.sql.dangerous_keyword", keyword=match.group())
+                _(
+                    "data_intelligence.sql.dangerous_keyword",
+                    keyword=blocked_keywords[0],
+                )
             )
 
         # ---- Check 3: Subquery modification detection / 检查 3: 子查询修改检测 ----
         # Even if main query is SELECT, write ops in subqueries are not allowed / 子查询中也不允许写操作
-        write_ops = re.compile(
-            r"\b(INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|"
-            r"DROP\s+TABLE|ALTER\s+TABLE|TRUNCATE)\b",
-            re.IGNORECASE,
-        )
-        if write_ops.search(stripped):
+        if find_keyword_sequences(stripped, _WRITE_OPERATION_SEQUENCES):
             violations.append(_("data_intelligence.sql.write_in_subquery"))
 
         # ---- Check 4: Table whitelist validation / 检查 4: 表白名单验证 ----
@@ -231,24 +188,25 @@ class SQLSafetyValidator:
                     )
 
         # ---- Check 5: Function blacklist / 检查 5: 函数黑名单 ----
-        func_match = _BLOCKED_FUNC_PATTERN.search(stripped)
-        if func_match:
+        blocked_calls = extract_called_functions(stripped)
+        blocked_function = next(
+            (func for func in _BLOCKED_FUNCTIONS if func.lower() in blocked_calls),
+            None,
+        )
+        if blocked_function:
             violations.append(
-                _("data_intelligence.sql.blocked_function", func=func_match.group(1))
+                _("data_intelligence.sql.blocked_function", func=blocked_function)
             )
 
         # ---- Check 6: Comment prohibition (prevent bypassing via comments) / 检查 6: 注释禁止 ----
-        if "--" in stripped:
+        if contains_sql_comments(stripped):
             violations.append(_("data_intelligence.sql.no_line_comment"))
-        if "/*" in stripped:
-            violations.append(_("data_intelligence.sql.no_block_comment"))
 
         # ---- Extra check: System tables / 额外检查：系统表 ----
-        system_pattern = re.compile(
-            r"\b(pg_catalog|information_schema|pg_toast)\b",
-            re.IGNORECASE,
-        )
-        if system_pattern.search(stripped):
+        table_names = extract_table_names_from_sql(stripped)
+        if any(table in _SYSTEM_SCHEMAS for table in table_names) or any(
+            f"{schema}." in stripped.lower() for schema in _SYSTEM_SCHEMAS
+        ):
             violations.append(_("data_intelligence.sql.system_table_blocked"))
 
         passed = len(violations) == 0

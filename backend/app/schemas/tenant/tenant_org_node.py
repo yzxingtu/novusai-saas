@@ -49,6 +49,7 @@ class TenantOrgNodeResponse(BaseSchema):
     leader: TenantOrgNodeLeaderResponse | None = Field(None, description="Leader info")
     leader_name: str | None = Field(None, description="Leader display name")
     member_count: int = Field(0, description="Direct member count")
+    permissions_count: int = Field(0, description="Direct permission count")
     data_scope: str = Field(
         DataScope.DEPT_AND_CHILDREN.value,
         description="Organization authority scope policy",
@@ -63,6 +64,17 @@ class TenantOrgNodeResponse(BaseSchema):
 
 class TenantOrgNodeDetailResponse(TenantOrgNodeResponse):
     """Tenant org node detail response / 企业组织节点详情响应"""
+
+    permission_ids: list[int] = Field(
+        default_factory=list, description="Assigned permission IDs"
+    )
+    permission_codes: list[str] = Field(
+        default_factory=list, description="Assigned permission codes"
+    )
+    can_assign_permissions: bool = Field(
+        False,
+        description="Whether current tenant admin can assign permissions on the node",
+    )
 
 
 class TenantOrgNodeCreateRequest(BaseSchema):
@@ -89,6 +101,10 @@ class TenantOrgNodeCreateRequest(BaseSchema):
         None,
         description="Custom organization node IDs used when data_scope=custom",
     )
+    permission_ids: list[int] | None = Field(
+        None,
+        description="Assigned permission IDs",
+    )
 
 
 class TenantOrgNodeUpdateRequest(BaseSchema):
@@ -113,6 +129,10 @@ class TenantOrgNodeUpdateRequest(BaseSchema):
     custom_dept_ids: list[int] | None = Field(
         None,
         description="Custom organization node IDs used when data_scope=custom",
+    )
+    permission_ids: list[int] | None = Field(
+        None,
+        description="Assigned permission IDs",
     )
 
 

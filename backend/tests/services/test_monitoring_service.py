@@ -28,6 +28,69 @@ def _result_with_all(rows):
     return result
 
 
+class TestCallTraceDiagnostics:
+
+    def test_extract_call_trace_diagnostics_prefers_turn_record_fields_and_infers_partial(self):
+        from app.services.ai.monitoring_service import MonitoringService
+
+        diagnostics = MonitoringService._extract_call_trace_diagnostics(
+            {
+                "turn_diagnostics": {
+                    "partial": True,
+                    "completion_reason": "elapsed_budget_exceeded",
+                    "turn_record": {
+                        "execution_path": "deep",
+                        "candidate_tool_names": ["get_current_weather"],
+                        "retry_events": [
+                            {
+                                "action": "retry_intent",
+                                "target_intent_id": "intent-1",
+                            }
+                        ],
+                        "partial_exit_reason": "elapsed_budget_exceeded",
+                        "failure_kind": "budget_exit",
+                        "provider_events": [
+                            {
+                                "kind": "budget_exit",
+                                "reason": "elapsed_budget_exceeded",
+                            }
+                        ],
+                        "budget_status": "exited",
+                        "budget_exit_reason": "elapsed_budget_exceeded",
+                    },
+                }
+            }
+        )
+
+        assert diagnostics["turn_outcome"] == "partial"
+        assert diagnostics["termination_reason"] == "elapsed_budget_exceeded"
+        assert diagnostics["execution_path"] == "deep"
+        assert diagnostics["candidate_tool_names"] == ["get_current_weather"]
+        assert diagnostics["retry_events"] == [
+            {
+                "action": "retry_intent",
+                "target_intent_id": "intent-1",
+                "retry_family": None,
+                "allowed_tool_names": [],
+                "completed_intent_ids": [],
+                "unfinished_intent_ids": [],
+                "reason": None,
+                "provider_failure_kind": None,
+                "metadata": {},
+            }
+        ]
+        assert diagnostics["partial_exit_reason"] == "elapsed_budget_exceeded"
+        assert diagnostics["failure_kind"] == "budget_exit"
+        assert diagnostics["provider_events"] == [
+            {
+                "kind": "budget_exit",
+                "reason": "elapsed_budget_exceeded",
+            }
+        ]
+        assert diagnostics["budget_status"] == "exited"
+        assert diagnostics["budget_exit_reason"] == "elapsed_budget_exceeded"
+
+
 class TestMonitoringScope:
 
     def test_scope_builders_return_expected_flags(self):
@@ -353,6 +416,29 @@ class TestConversationQueries:
                 "message_count": 3,
                 "token_count": 80,
                 "cost": 0.4,
+                "context_diagnostics": {
+                    "execution_path": "deep",
+                    "failure_kind": "provider_unavailable",
+                    "budget_status": "within_budget",
+                    "intent_plan": [
+                        {
+                            "intent_id": "weather-1",
+                            "kind": "weather_query",
+                            "family": "weather",
+                            "status": "completed",
+                        }
+                    ],
+                },
+                "last_run_summary": {
+                    "execution_path": "deep",
+                    "budget_exit_reason": "elapsed_budget_exceeded",
+                    "provider_events": [
+                        {
+                            "kind": "provider_http_5xx",
+                            "status_code": 503,
+                        }
+                    ],
+                },
                 "metadata": {"topic": "demo"},
                 "message_list": [{"role": "user", "content": "hello"}],
             }
@@ -394,7 +480,32 @@ class TestConversationQueries:
                         cost=0.2,
                         latency_ms=120,
                         error_message=None,
-                        request_metadata={"response": {"usage_mode": "stream"}},
+                        request_metadata={
+                            "response": {"usage_mode": "stream"},
+                            "turn_diagnostics": {
+                                "turn_outcome": "partial",
+                                "termination_reason": "elapsed_budget_exceeded",
+                                "budget": {
+                                    "status": "exited",
+                                    "exit_reason": "elapsed_budget_exceeded",
+                                },
+                                "budget_status": "exited",
+                                "budget_exit_reason": "elapsed_budget_exceeded",
+                                "failures": {
+                                    "failure_kind": "budget_exit",
+                                    "provider_events": [
+                                        {"kind": "budget_exit", "reason": "elapsed_budget_exceeded"}
+                                    ],
+                                },
+                                "turn_record": {
+                                    "execution_path": "deep",
+                                    "last_tool_name": "get_current_weather",
+                                    "tool_loop_progress": {
+                                        "budget_exit_reason": "elapsed_budget_exceeded"
+                                    },
+                                },
+                            },
+                        },
                     )
                 ]
             )
@@ -416,6 +527,41 @@ class TestConversationQueries:
         assert detail.total_cost == 0.9
         assert detail.call_count == 4
         assert detail.call_trace[0].usage_mode == "stream"
+        assert detail.call_trace[0].turn_outcome == "partial"
+        assert detail.call_trace[0].execution_path == "deep"
+        assert detail.call_trace[0].budget_exit_reason == "elapsed_budget_exceeded"
+        assert detail.call_trace[0].failure_kind == "budget_exit"
+        assert detail.call_trace[0].last_tool_name == "get_current_weather"
+        assert detail.call_trace[0].turn_record == {
+            "execution_path": "deep",
+            "last_tool_name": "get_current_weather",
+            "tool_loop_progress": {
+                "budget_exit_reason": "elapsed_budget_exceeded"
+            },
+        }
+        assert detail.context_diagnostics == {
+            "execution_path": "deep",
+            "failure_kind": "provider_unavailable",
+            "budget_status": "within_budget",
+            "intent_plan": [
+                {
+                    "intent_id": "weather-1",
+                    "kind": "weather_query",
+                    "family": "weather",
+                    "status": "completed",
+                }
+            ],
+        }
+        assert detail.last_run_summary == {
+            "execution_path": "deep",
+            "budget_exit_reason": "elapsed_budget_exceeded",
+            "provider_events": [
+                {
+                    "kind": "provider_http_5xx",
+                    "status_code": 503,
+                }
+            ],
+        }
 
     @pytest.mark.asyncio
     async def test_get_conversation_detail_raises_when_tenant_conversation_missing(

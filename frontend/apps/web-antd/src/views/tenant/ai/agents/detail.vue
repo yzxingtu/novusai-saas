@@ -13,7 +13,7 @@ import type {
 import type { AgentKnowledgeBaseBindingDraftItem } from '#/components/business/agent-kb-binding-picker';
 import type { InputVariable } from '#/types/ai-chat';
 
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
@@ -56,11 +56,19 @@ import {
   bindingsToDrafts as kbBindingsToDrafts,
   draftsToBatchPayload as kbDraftsToBatchPayload,
 } from '#/components/business/agent-kb-binding-picker';
+import AgentRoutingTab from '#/components/business/agent-routing-tab/AgentRoutingTab.vue';
 import InputVariablesEditor from '#/components/business/input-variables-editor/InputVariablesEditor.vue';
 import {
   createOpenCurrentPageOperation,
   createSavePageOperation,
 } from '#/composables';
+import {
+  applyAgentRoutingConfig,
+  buildAgentRoutingModelOptions,
+  buildAgentRoutingPayload,
+  createAgentRoutingState,
+  createEmptyAgentRoutingModelOptions,
+} from '#/composables/use-agent-routing';
 import { useDetailPageAi } from '#/composables/use-detail-page-ai';
 import { usePageAIContext } from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
@@ -699,54 +707,19 @@ async function saveQuota() {
 }
 
 // ==================== Routing Config Tab / 路由配置页签 ====================
-const routingEnabled = ref(false);
-const routingMaxTier = ref<string | undefined>(undefined);
-const routingVisionModelId = ref<number | undefined>(undefined);
-const routingAudioModelId = ref<number | undefined>(undefined);
-const routingVideoModelId = ref<number | undefined>(undefined);
-const routingLongContextModelId = ref<number | undefined>(undefined);
-const routingLongContextThreshold = ref(32_000);
-
-const visionModelOptions = ref<{ label: string; value: number }[]>([]);
-const audioModelOptions = ref<{ label: string; value: number }[]>([]);
-const videoModelOptions = ref<{ label: string; value: number }[]>([]);
-const chatModelOptions = ref<{ label: string; value: number }[]>([]);
+const routingState = reactive(createAgentRoutingState());
+const routingModelOptions = ref(createEmptyAgentRoutingModelOptions());
 
 async function loadRoutingModelOptions() {
   try {
     const models = await getTenantAIModelsApi();
-    const toOption = (model: {
-      id: number;
-      name: string;
-      provider_name: null | string;
-    }) => ({
-      label: `${model.name} (${model.provider_name || '-'})`,
-      value: model.id,
-    });
-    visionModelOptions.value = models
-      .filter((m) => m.type === 'chat' && m.supports_vision)
-      .map((model) => toOption(model));
-    audioModelOptions.value = models
-      .filter((m) => m.type === 'chat' && m.supports_audio)
-      .map((model) => toOption(model));
-    videoModelOptions.value = models
-      .filter((m) => m.type === 'chat' && m.supports_video)
-      .map((model) => toOption(model));
-    chatModelOptions.value = models
-      .filter((m) => m.type === 'chat')
-      .map((model) => toOption(model));
-    chatModelMaxOutputTokens.value = Object.fromEntries(
-      models
-        .filter((m) => m.type === 'chat')
-        .map((m) => [m.id, m.max_output_tokens ?? undefined]),
-    );
+    const chatModels = models.filter((model) => model.type === 'chat');
+    routingModelOptions.value = buildAgentRoutingModelOptions(chatModels);
+    chatModelMaxOutputTokens.value =
+      routingModelOptions.value.chatModelMaxOutputTokens;
   } catch {
-    // fallback: empty list / 回退为空列表
+    routingModelOptions.value = createEmptyAgentRoutingModelOptions();
     chatModelMaxOutputTokens.value = {};
-    visionModelOptions.value = [];
-    audioModelOptions.value = [];
-    videoModelOptions.value = [];
-    chatModelOptions.value = [];
   }
 }
 
@@ -758,32 +731,15 @@ const tierOptions = [
 
 function initRouting() {
   if (!agent.value) return;
-  const rc = (agent.value.routing_config ?? {}) as Record<string, unknown>;
-  routingEnabled.value = Boolean(rc.enable_routing);
-  routingMaxTier.value = (rc.max_tier as string | undefined) ?? undefined;
-  routingVisionModelId.value =
-    (rc.vision_model_id as number | undefined) ?? undefined;
-  routingAudioModelId.value =
-    (rc.audio_model_id as number | undefined) ?? undefined;
-  routingVideoModelId.value =
-    (rc.video_model_id as number | undefined) ?? undefined;
-  routingLongContextModelId.value =
-    (rc.long_context_model_id as number | undefined) ?? undefined;
-  routingLongContextThreshold.value =
-    (rc.long_context_threshold as number) ?? 32_000;
+  applyAgentRoutingConfig(
+    routingState,
+    (agent.value.routing_config ?? {}) as Record<string, unknown>,
+  );
 }
 
 async function saveRouting() {
   await saveFields({
-    routing_config: {
-      enable_routing: routingEnabled.value,
-      max_tier: routingMaxTier.value || null,
-      vision_model_id: routingVisionModelId.value ?? null,
-      audio_model_id: routingAudioModelId.value ?? null,
-      video_model_id: routingVideoModelId.value ?? null,
-      long_context_model_id: routingLongContextModelId.value ?? null,
-      long_context_threshold: routingLongContextThreshold.value,
-    },
+    routing_config: buildAgentRoutingPayload(routingState),
   });
 }
 
@@ -1540,12 +1496,18 @@ useDetailPageAi({
                     class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/60 bg-background/50 px-3 py-2"
                   >
                     <div class="min-w-0">
-                      <div class="text-sm font-medium">{{
-                        $t('tenant.ai.agent.contextConfig.longTermMemoryEnabled')
-                      }}</div>
-                      <p class="mt-0.5 text-xs text-muted-foreground">{{
-                        $t('tenant.ai.agent.contextConfig.longTermMemoryHint')
-                      }}</p>
+                      <div class="text-sm font-medium">
+                        {{
+                          $t(
+                            'tenant.ai.agent.contextConfig.longTermMemoryEnabled',
+                          )
+                        }}
+                      </div>
+                      <p class="mt-0.5 text-xs text-muted-foreground">
+                        {{
+                          $t('tenant.ai.agent.contextConfig.longTermMemoryHint')
+                        }}
+                      </p>
                     </div>
                     <Switch
                       v-model:checked="chatLongTermMemoryEnabled"
@@ -2217,260 +2179,16 @@ useDetailPageAi({
                   ></span>
                 </span>
               </template>
-              <div class="p-5 pt-3">
-                <!-- Master toggle card -->
-                <div
-                  class="mb-5 rounded-xl border-2 p-5 transition-all duration-300"
-                  :class="
-                    routingEnabled
-                      ? 'border-green-500/30 bg-green-500/5'
-                      : 'border-border bg-accent/20'
-                  "
-                >
-                  <div class="flex items-start gap-4">
-                    <div
-                      class="flex size-12 shrink-0 items-center justify-center rounded-xl transition-all duration-300"
-                      :class="
-                        routingEnabled
-                          ? 'bg-green-500/10 text-green-600 dark:text-green-400'
-                          : 'bg-muted text-muted-foreground'
-                      "
-                    >
-                      <IconifyIcon icon="lucide:git-branch" class="size-6" />
-                    </div>
-                    <div class="flex-1">
-                      <div class="flex items-center justify-between gap-4">
-                        <div>
-                          <h3 class="text-base font-semibold text-foreground">
-                            {{ $t('tenant.ai.agent.routing.enableRouting') }}
-                          </h3>
-                          <p class="mt-0.5 text-sm text-muted-foreground">
-                            {{ $t('tenant.ai.agent.routing.description') }}
-                          </p>
-                        </div>
-                        <Switch
-                          v-model:checked="routingEnabled"
-                          :disabled="!isTenantOwned"
-                          class="shrink-0"
-                          :aria-label="
-                            $t('tenant.ai.agent.routing.enableRouting')
-                          "
-                        />
-                      </div>
-                      <div
-                        v-if="routingEnabled"
-                        class="mt-3 inline-flex items-center gap-1.5 rounded-full bg-green-500/10 px-3 py-1 text-xs font-medium text-green-600 dark:text-green-400"
-                      >
-                        <span
-                          class="inline-block size-1.5 rounded-full bg-green-500"
-                        ></span>
-                        {{ $t('tenant.ai.agent.routing.statusEnabled') }}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Feature cards (only when enabled) -->
-                <div
-                  v-if="routingEnabled"
-                  class="grid grid-cols-1 gap-4 md:grid-cols-2"
-                >
-                  <div class="rounded-xl border bg-background p-5 shadow-sm">
-                    <div class="mb-4 flex items-center gap-3">
-                      <div
-                        class="flex size-9 items-center justify-center rounded-xl bg-amber-500/10"
-                      >
-                        <IconifyIcon
-                          icon="lucide:layers"
-                          class="size-5 text-amber-500"
-                        />
-                      </div>
-                      <div>
-                        <div class="text-sm font-semibold">
-                          {{ $t('tenant.ai.agent.routing.maxTier') }}
-                        </div>
-                        <div class="text-xs text-muted-foreground">
-                          {{ $t('tenant.ai.agent.routing.maxTierHelp') }}
-                        </div>
-                      </div>
-                    </div>
-                    <ASelect
-                      v-model:value="routingMaxTier"
-                      :options="tierOptions"
-                      class="w-full"
-                      :allow-clear="true"
-                      :placeholder="$t('tenant.ai.agent.routing.noLimit')"
-                      :disabled="!isTenantOwned"
-                    />
-                  </div>
-
-                  <div class="rounded-xl border bg-background p-5 shadow-sm">
-                    <div class="mb-4 flex items-center gap-3">
-                      <div
-                        class="flex size-9 items-center justify-center rounded-xl bg-violet-500/10"
-                      >
-                        <IconifyIcon
-                          icon="lucide:eye"
-                          class="size-5 text-violet-500"
-                        />
-                      </div>
-                      <div>
-                        <div class="text-sm font-semibold">
-                          {{ $t('tenant.ai.agent.routing.visionModel') }}
-                        </div>
-                        <div class="text-xs text-muted-foreground">
-                          {{ $t('tenant.ai.agent.routing.visionModelHelp') }}
-                        </div>
-                      </div>
-                    </div>
-                    <ASelect
-                      v-model:value="routingVisionModelId"
-                      :options="visionModelOptions"
-                      class="w-full"
-                      :allow-clear="true"
-                      :placeholder="$t('tenant.ai.agent.routing.autoSelect')"
-                      show-search
-                      option-filter-prop="label"
-                      :disabled="!isTenantOwned"
-                    />
-                  </div>
-
-                  <div class="rounded-xl border bg-background p-5 shadow-sm">
-                    <div class="mb-4 flex items-center gap-3">
-                      <div
-                        class="flex size-9 items-center justify-center rounded-xl bg-rose-500/10"
-                      >
-                        <IconifyIcon
-                          icon="lucide:audio-lines"
-                          class="size-5 text-rose-500"
-                        />
-                      </div>
-                      <div>
-                        <div class="text-sm font-semibold">
-                          {{ $t('tenant.ai.agent.routing.audioModel') }}
-                        </div>
-                        <div class="text-xs text-muted-foreground">
-                          {{ $t('tenant.ai.agent.routing.audioModelHelp') }}
-                        </div>
-                      </div>
-                    </div>
-                    <ASelect
-                      v-model:value="routingAudioModelId"
-                      :options="audioModelOptions"
-                      class="w-full"
-                      :allow-clear="true"
-                      :placeholder="$t('tenant.ai.agent.routing.autoSelect')"
-                      show-search
-                      option-filter-prop="label"
-                      :disabled="!isTenantOwned"
-                    />
-                  </div>
-
-                  <div class="rounded-xl border bg-background p-5 shadow-sm">
-                    <div class="mb-4 flex items-center gap-3">
-                      <div
-                        class="flex size-9 items-center justify-center rounded-xl bg-fuchsia-500/10"
-                      >
-                        <IconifyIcon
-                          icon="lucide:clapperboard"
-                          class="size-5 text-fuchsia-500"
-                        />
-                      </div>
-                      <div>
-                        <div class="text-sm font-semibold">
-                          {{ $t('tenant.ai.agent.routing.videoModel') }}
-                        </div>
-                        <div class="text-xs text-muted-foreground">
-                          {{ $t('tenant.ai.agent.routing.videoModelHelp') }}
-                        </div>
-                      </div>
-                    </div>
-                    <ASelect
-                      v-model:value="routingVideoModelId"
-                      :options="videoModelOptions"
-                      class="w-full"
-                      :allow-clear="true"
-                      :placeholder="$t('tenant.ai.agent.routing.autoSelect')"
-                      show-search
-                      option-filter-prop="label"
-                      :disabled="!isTenantOwned"
-                    />
-                  </div>
-
-                  <div class="rounded-xl border bg-background p-5 shadow-sm">
-                    <div class="mb-4 flex items-center gap-3">
-                      <div
-                        class="flex size-9 items-center justify-center rounded-xl bg-blue-500/10"
-                      >
-                        <IconifyIcon
-                          icon="lucide:scroll-text"
-                          class="size-5 text-blue-500"
-                        />
-                      </div>
-                      <div>
-                        <div class="text-sm font-semibold">
-                          {{ $t('tenant.ai.agent.routing.longContextModel') }}
-                        </div>
-                        <div class="text-xs text-muted-foreground">
-                          {{
-                            $t('tenant.ai.agent.routing.longContextModelHelp')
-                          }}
-                        </div>
-                      </div>
-                    </div>
-                    <ASelect
-                      v-model:value="routingLongContextModelId"
-                      :options="chatModelOptions"
-                      class="w-full"
-                      :allow-clear="true"
-                      :placeholder="$t('tenant.ai.agent.routing.autoSelect')"
-                      show-search
-                      option-filter-prop="label"
-                      :disabled="!isTenantOwned"
-                    />
-                  </div>
-
-                  <div class="rounded-xl border bg-background p-5 shadow-sm">
-                    <div class="mb-4 flex items-center gap-3">
-                      <div
-                        class="flex size-9 items-center justify-center rounded-xl bg-cyan-500/10"
-                      >
-                        <IconifyIcon
-                          icon="lucide:gauge"
-                          class="size-5 text-cyan-500"
-                        />
-                      </div>
-                      <div>
-                        <div class="text-sm font-semibold">
-                          {{
-                            $t('tenant.ai.agent.routing.longContextThreshold')
-                          }}
-                        </div>
-                        <div class="text-xs text-muted-foreground">
-                          {{
-                            $t(
-                              'tenant.ai.agent.routing.longContextThresholdHelp',
-                            )
-                          }}
-                        </div>
-                      </div>
-                    </div>
-                    <InputNumber
-                      v-model:value="routingLongContextThreshold"
-                      :min="1000"
-                      :step="1000"
-                      class="w-full"
-                      :disabled="!isTenantOwned"
-                    />
-                  </div>
-                </div>
-
-                <div v-if="isTenantOwned" class="mt-5">
-                  <Button type="primary" :loading="saving" @click="saveRouting">
-                    {{ $t('common.save') }}
-                  </Button>
-                </div>
-              </div>
+              <AgentRoutingTab
+                v-model:state="routingState"
+                :can-edit="isTenantOwned"
+                i18n-prefix="tenant.ai.agent"
+                :model-options="routingModelOptions"
+                :saving="saving"
+                :show-save-button="isTenantOwned"
+                :tier-options="tierOptions"
+                @save="saveRouting"
+              />
             </TabPane>
           </Tabs>
         </div>

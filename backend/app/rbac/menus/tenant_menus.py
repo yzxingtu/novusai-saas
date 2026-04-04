@@ -24,7 +24,7 @@ Icon names use kebab-case / 图标名称使用 kebab-case
 """
 
 from app.enums.rbac import PermissionScope, PermissionType
-from app.rbac.decorators import PermissionMeta
+from app.rbac.decorators import MenuAIConfig, PermissionMeta
 
 # Tenant admin directory menus / 企业管理端目录菜单
 TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
@@ -42,6 +42,12 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
         path="/dashboard",
         component="dashboard/Index",
         sort_order=0,
+        ai=MenuAIConfig(
+            description="View the current tenant overview, key metrics, and quick entry points",
+            keywords=["控制台", "首页", "dashboard", "overview", "总览"],
+            capabilities=["view_dashboard", "check_metrics"],
+            category="dashboard",
+        ),
     ),
     # ========================================
     # Workspace (directory, for content/doc plugin mounting) / 工作台（目录，供内容/文档类插件挂载）
@@ -110,6 +116,12 @@ TENANT_DIRECTORY_MENUS: list[PermissionMeta] = [
         component="system/preferences/index",
         sort_order=20,
         parent_code="menu:tenant.system_mgmt",
+        ai=MenuAIConfig(
+            description="Manage global preferences, system settings, and UI behavior",
+            keywords=["偏好设置", "系统设置", "preferences", "settings", "config"],
+            capabilities=["view_settings", "edit_settings"],
+            category="settings",
+        ),
     ),
     # ========================================
     # AI Management (directory) / AI 管理（目录）

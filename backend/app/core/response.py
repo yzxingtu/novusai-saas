@@ -19,6 +19,18 @@ from app.core.i18n import _
 from app.middleware.trace import extract_optional_trace_id, trace_id_var
 
 
+def serialize_datetime_for_api(data: datetime | None) -> str | None:
+    """
+    将 datetime 统一序列化为带 UTC 信息的 ISO 8601 字符串。
+    Serialize datetime as an ISO 8601 string with explicit UTC info.
+    """
+    if data is None:
+        return None
+    if data.tzinfo is None:
+        data = data.replace(tzinfo=timezone.utc)
+    return data.isoformat()
+
+
 def _serialize(data: Any) -> Any:
     """
     将 Pydantic 模型实例转为 dict，触发 model_serializer；
@@ -33,9 +45,7 @@ def _serialize(data: Any) -> Any:
     if isinstance(data, BaseModel):
         return data.model_dump()
     if isinstance(data, datetime):
-        if data.tzinfo is None:
-            data = data.replace(tzinfo=timezone.utc)
-        return data.isoformat()
+        return serialize_datetime_for_api(data)
     if isinstance(data, list):
         return [_serialize(item) for item in data]
     if isinstance(data, dict):
@@ -560,6 +570,7 @@ __all__ = [
     "build_error_payload",
     "build_error_event",
     "build_socket_connect_error",
+    "serialize_datetime_for_api",
     "success",
     "error",
     "created",

@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Session Start Hook - Inject structured context
+Session start hook with budgeted Trellis summary injection.
 """
 
-# IMPORTANT: Suppress all warnings FIRST
-import warnings
-warnings.filterwarnings("ignore")
+from __future__ import annotations
 
 import json
 import os
@@ -15,14 +13,17 @@ import sys
 from io import StringIO
 from pathlib import Path
 
-# IMPORTANT: Force stdout to use UTF-8 on Windows
-# This fixes UnicodeEncodeError when outputting non-ASCII characters
 if sys.platform == "win32":
     import io as _io
+
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
     elif hasattr(sys.stdout, "detach"):
-        sys.stdout = _io.TextIOWrapper(sys.stdout.detach(), encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+        sys.stdout = _io.TextIOWrapper(  # type: ignore[union-attr]
+            sys.stdout.detach(),
+            encoding="utf-8",
+            errors="replace",
+        )
 
 
 def should_skip_injection() -> bool:
@@ -32,172 +33,149 @@ def should_skip_injection() -> bool:
     )
 
 
-def read_file(path: Path, fallback: str = "") -> str:
+def read_text(path: Path) -> str:
     try:
         return path.read_text(encoding="utf-8")
-    except (FileNotFoundError, PermissionError):
-        return fallback
+    except OSError:
+        return ""
 
 
-def run_script(script_path: Path) -> str:
+def run_command(args: list[str], cwd: Path, timeout: int = 5) -> str:
     try:
-        if script_path.suffix == ".py":
-            # Add PYTHONIOENCODING to force UTF-8 in subprocess
-            env = os.environ.copy()
-            env["PYTHONIOENCODING"] = "utf-8"
-            cmd = [sys.executable, "-W", "ignore", str(script_path)]
-        else:
-            env = os.environ
-            cmd = [str(script_path)]
-
         result = subprocess.run(
-            cmd,
+            args,
+            cwd=cwd,
             capture_output=True,
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=5,
-            cwd=script_path.parent.parent.parent,
-            env=env,
+            timeout=timeout,
+            check=False,
         )
-        return result.stdout if result.returncode == 0 else "No context available"
-    except (subprocess.TimeoutExpired, FileNotFoundError, PermissionError):
-        return "No context available"
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    return (result.stdout or "").strip()
 
 
-def _get_task_status(trellis_dir: Path) -> str:
-    """Check current task status and return structured status string."""
-    current_task_file = trellis_dir / ".current-task"
-    if not current_task_file.is_file():
-        return "Status: NO ACTIVE TASK\nNext: Describe what you want to work on"
+def read_developer_name(trellis_dir: Path) -> str | None:
+    developer = read_text(trellis_dir / ".developer").strip()
+    return developer or None
 
-    task_ref = current_task_file.read_text(encoding="utf-8").strip()
+
+def read_current_task(project_dir: Path, trellis_dir: Path) -> tuple[str | None, Path | None]:
+    task_ref = read_text(trellis_dir / ".current-task").strip()
     if not task_ref:
-        return "Status: NO ACTIVE TASK\nNext: Describe what you want to work on"
-
-    # Resolve task directory
-    if Path(task_ref).is_absolute():
-        task_dir = Path(task_ref)
-    elif task_ref.startswith(".trellis/"):
-        task_dir = trellis_dir.parent / task_ref
+        return None, None
+    task_path = Path(task_ref)
+    if task_path.is_absolute():
+        resolved = task_path
     else:
-        task_dir = trellis_dir / "tasks" / task_ref
-    if not task_dir.is_dir():
-        return f"Status: STALE POINTER\nTask: {task_ref}\nNext: Task directory not found. Run: python3 ./.trellis/scripts/task.py finish"
-
-    # Read task.json
-    task_json_path = task_dir / "task.json"
-    task_data = {}
-    if task_json_path.is_file():
-        try:
-            task_data = json.loads(task_json_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, PermissionError):
-            pass
-
-    task_title = task_data.get("title", task_ref)
-    task_status = task_data.get("status", "unknown")
-
-    if task_status == "completed":
-        return f"Status: COMPLETED\nTask: {task_title}\nNext: Archive with `python3 ./.trellis/scripts/task.py archive {task_dir.name}` or start a new task"
-
-    # Check if context is configured (jsonl files exist and non-empty)
-    has_context = False
-    for jsonl_name in ("implement.jsonl", "check.jsonl", "spec.jsonl"):
-        jsonl_path = task_dir / jsonl_name
-        if jsonl_path.is_file() and jsonl_path.stat().st_size > 0:
-            has_context = True
-            break
-
-    has_prd = (task_dir / "prd.md").is_file()
-
-    if not has_prd:
-        return f"Status: NOT READY\nTask: {task_title}\nMissing: prd.md not created\nNext: Write PRD, then research → init-context → start"
-
-    if not has_context:
-        return f"Status: NOT READY\nTask: {task_title}\nMissing: Context not configured (no jsonl files)\nNext: Complete Phase 2 (research → init-context → start) before implementing"
-
-    return f"Status: READY\nTask: {task_title}\nNext: Continue with implement or check"
+        resolved = (project_dir / task_ref).resolve()
+    if not resolved.exists():
+        return task_ref, None
+    return task_ref, resolved
 
 
-def main():
+def load_task_payload(task_dir: Path | None) -> dict:
+    if task_dir is None:
+        return {}
+    try:
+        return json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def task_artifact_status(task_dir: Path | None, task_data: dict) -> str:
+    if task_dir is None:
+        return "No active task."
+
+    execution_path = str(task_data.get("execution_path") or "normal").strip() or "normal"
+    required = [str(item).strip() for item in task_data.get("required_artifacts", []) if str(item).strip()]
+    missing = [name for name in required if not (task_dir / name).exists()]
+    lines = [
+        f"Task: {task_data.get('title') or task_dir.name}",
+        f"Path: {execution_path}",
+        f"Status: {task_data.get('status') or 'unknown'}",
+    ]
+    if missing:
+        lines.append(f"Missing artifacts: {', '.join(missing)}")
+    else:
+        lines.append("Required artifacts: ready")
+    return "\n".join(lines)
+
+
+def git_state_summary(project_dir: Path) -> str:
+    branch = run_command(["git", "branch", "--show-current"], project_dir) or "unknown"
+    dirty_lines = run_command(["git", "status", "--short"], project_dir).splitlines()
+    dirty_count = len([line for line in dirty_lines if line.strip()])
+    preview = ", ".join(line.strip() for line in dirty_lines[:8] if line.strip())
+    if len(dirty_lines) > 8:
+        preview = f"{preview}, ..."
+    lines = [
+        f"Branch: {branch}",
+        f"Dirty files: {dirty_count}",
+    ]
+    if preview:
+        lines.append(f"Dirty preview: {preview}")
+    return "\n".join(lines)
+
+
+def build_additional_context(project_dir: Path) -> str:
+    trellis_dir = project_dir / ".trellis"
+    current_task_ref, current_task_dir = read_current_task(project_dir, trellis_dir)
+    task_data = load_task_payload(current_task_dir)
+
+    output = StringIO()
+    output.write("<session-context>\n")
+    output.write("Trellis uses a path-based workflow. Start with the lightest path that safely fits the task.\n")
+    output.write("</session-context>\n\n")
+
+    output.write("<current-state>\n")
+    developer = read_developer_name(trellis_dir)
+    if developer:
+        output.write(f"Developer: {developer}\n")
+    output.write(git_state_summary(project_dir))
+    if current_task_ref:
+        output.write(f"\nCurrent task ref: {current_task_ref}")
+    output.write("\n</current-state>\n\n")
+
+    output.write("<path-rules>\n")
+    output.write("fast: no task by default; direct answer or direct edit; no heavy context\n")
+    output.write("normal: task recommended; require prd.md; keep context minimal\n")
+    output.write("deep: task required; require prd.md + info.md; curated context only\n")
+    output.write("Retired: heavy-by-default workflow escalation, release-step lifecycle coupling, marker loops\n")
+    output.write("</path-rules>\n\n")
+
+    output.write("<canonical-spec>\n")
+    output.write(".trellis/workflow.md\n")
+    output.write(".trellis/spec/guides/trellis-paths.md\n")
+    output.write(".trellis/spec/backend/index.md\n")
+    output.write(".trellis/spec/frontend/index.md\n")
+    output.write(".trellis/spec/ai-runtime/index.md\n")
+    output.write("</canonical-spec>\n\n")
+
+    output.write("<task-status>\n")
+    output.write(task_artifact_status(current_task_dir, task_data))
+    output.write("\n</task-status>\n\n")
+
+    output.write("<ready>\n")
+    output.write("Do not re-read the full workflow or all spec indexes by default.\n")
+    output.write("Read only the canonical files needed for the current task and selected path.\n")
+    output.write("</ready>")
+    return output.getvalue()
+
+
+def main() -> None:
     if should_skip_injection():
         sys.exit(0)
 
     project_dir = Path(os.environ.get("CLAUDE_PROJECT_DIR", ".")).resolve()
-    trellis_dir = project_dir / ".trellis"
-    claude_dir = project_dir / ".claude"
-
-    output = StringIO()
-
-    output.write("""<session-context>
-You are starting a new session in a Trellis-managed project.
-Read and follow all instructions below carefully.
-</session-context>
-
-""")
-
-    output.write("<current-state>\n")
-    context_script = trellis_dir / "scripts" / "get_context.py"
-    output.write(run_script(context_script))
-    output.write("\n</current-state>\n\n")
-
-    output.write("<workflow>\n")
-    workflow_content = read_file(trellis_dir / "workflow.md", "No workflow.md found")
-    output.write(workflow_content)
-    output.write("\n</workflow>\n\n")
-
-    output.write("<guidelines>\n")
-    output.write("**Note**: The guidelines below are index files — they list available guideline documents and their locations.\n")
-    output.write("During actual development, you MUST read the specific guideline files listed in each index's Pre-Development Checklist.\n\n")
-
-    spec_dir = trellis_dir / "spec"
-    if spec_dir.is_dir():
-        for sub in sorted(spec_dir.iterdir()):
-            if not sub.is_dir() or sub.name.startswith("."):
-                continue
-            index_file = sub / "index.md"
-            if index_file.is_file():
-                output.write(f"## {sub.name}\n")
-                output.write(read_file(index_file))
-                output.write("\n\n")
-            else:
-                # Check for nested package dirs (monorepo: spec/<pkg>/<layer>/index.md)
-                for nested in sorted(sub.iterdir()):
-                    if not nested.is_dir():
-                        continue
-                    nested_index = nested / "index.md"
-                    if nested_index.is_file():
-                        output.write(f"## {sub.name}/{nested.name}\n")
-                        output.write(read_file(nested_index))
-                        output.write("\n\n")
-
-    output.write("</guidelines>\n\n")
-
-    output.write("<instructions>\n")
-    start_md = read_file(
-        claude_dir / "commands" / "trellis" / "start.md", "No start.md found"
-    )
-    output.write(start_md)
-    output.write("\n</instructions>\n\n")
-
-    # R2: Check task status and inject structured tag
-    task_status = _get_task_status(trellis_dir)
-    output.write(f"<task-status>\n{task_status}\n</task-status>\n\n")
-
-    output.write("""<ready>
-Context loaded. Steps 1-3 (workflow, context, guidelines) are already injected above — do NOT re-read them.
-Start from Step 4. Wait for user's first message, then follow <instructions> to handle their request.
-If there is an active task, ask whether to continue it.
-</ready>""")
-
     result = {
         "hookSpecificOutput": {
             "hookEventName": "SessionStart",
-            "additionalContext": output.getvalue(),
+            "additionalContext": build_additional_context(project_dir),
         }
     }
-
-    # Output JSON - stdout is already configured for UTF-8
     print(json.dumps(result, ensure_ascii=False), flush=True)
 
 

@@ -34,6 +34,7 @@ import {
   uploadSslCertApi,
 } from '#/api/admin/tenant-domain';
 import { $t } from '#/locales';
+import { useAccess } from '#/utils';
 import { formatDate } from '#/utils/common';
 
 /** SSL 抽屉打开数据 / SSL drawer open payload */
@@ -61,6 +62,12 @@ const title = computed(() =>
     ? `${$t('admin.tenant.domain.ssl.title')} - ${drawerData.value.domain}`
     : $t('admin.tenant.domain.ssl.title'),
 );
+const { hasAccessByCodes } = useAccess();
+const canProvisionSsl = hasAccessByCodes(['tenant_domain:ssl_provision']);
+const canRenewSsl = hasAccessByCodes(['tenant_domain:ssl_renew']);
+const canUploadSsl = hasAccessByCodes(['tenant_domain:ssl_upload']);
+const canDeleteSsl = hasAccessByCodes(['tenant_domain:ssl_delete']);
+const canToggleSslAutoRenew = hasAccessByCodes(['tenant_domain:ssl_auto_renew']);
 
 // Drawer / 抽屉
 const [Drawer, drawerApi] = useVbenDrawer({
@@ -294,7 +301,7 @@ defineExpose({ open });
               {{ formatDate(sslDetail.expiresAt) }}
             </Descriptions.Item>
             <Descriptions.Item
-              v-if="sslDetail.certType === 'platform'"
+              v-if="sslDetail.certType === 'platform' && canToggleSslAutoRenew"
               :label="$t('admin.tenant.domain.ssl.autoRenew.label')"
             >
               <Switch
@@ -327,7 +334,7 @@ defineExpose({ open });
         <!-- 操作按钮 -->
         <div class="mb-4 flex flex-wrap gap-2">
           <Button
-            v-if="sslDetail.certType === 'platform'"
+            v-if="sslDetail.certType === 'platform' && canRenewSsl"
             type="primary"
             size="small"
             :loading="actionLoading"
@@ -337,7 +344,7 @@ defineExpose({ open });
             {{ $t('admin.tenant.domain.ssl.actions.renew') }}
           </Button>
           <Button
-            v-if="!sslDetail || sslDetail.status !== 'active'"
+            v-if="(!sslDetail || sslDetail.status !== 'active') && canProvisionSsl"
             type="primary"
             size="small"
             :loading="actionLoading"
@@ -346,11 +353,12 @@ defineExpose({ open });
             <IconifyIcon icon="lucide:shield-check" class="mr-1 size-3" />
             {{ $t('admin.tenant.domain.ssl.actions.provision') }}
           </Button>
-          <Button size="small" @click="showUploadForm = !showUploadForm">
+          <Button v-if="canUploadSsl" size="small" @click="showUploadForm = !showUploadForm">
             <IconifyIcon icon="lucide:upload" class="mr-1 size-3" />
             {{ $t('admin.tenant.domain.ssl.actions.upload') }}
           </Button>
           <Button
+            v-if="canDeleteSsl"
             danger
             size="small"
             :loading="actionLoading"
@@ -391,6 +399,7 @@ defineExpose({ open });
           </p>
           <div class="flex gap-2">
             <Button
+              v-if="canProvisionSsl"
               type="primary"
               size="small"
               :loading="actionLoading"
@@ -399,7 +408,7 @@ defineExpose({ open });
               <IconifyIcon icon="lucide:shield-check" class="mr-1 size-3" />
               {{ $t('admin.tenant.domain.ssl.actions.provision') }}
             </Button>
-            <Button size="small" @click="showUploadForm = !showUploadForm">
+            <Button v-if="canUploadSsl" size="small" @click="showUploadForm = !showUploadForm">
               <IconifyIcon icon="lucide:upload" class="mr-1 size-3" />
               {{ $t('admin.tenant.domain.ssl.actions.upload') }}
             </Button>
@@ -408,7 +417,7 @@ defineExpose({ open });
       </template>
 
       <!-- 上传自定义证书表单 -->
-      <template v-if="showUploadForm">
+      <template v-if="showUploadForm && canUploadSsl">
         <Divider />
         <div>
           <h4 class="mb-3 text-sm font-medium">

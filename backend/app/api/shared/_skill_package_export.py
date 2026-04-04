@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.base_model import utc_now
 from app.core.i18n import _
 from app.core.logging import LogManager
+from app.core.response import serialize_datetime_for_api
 from app.exceptions import BusinessException
 from app.models.ai.skill import Skill
 from app.models.ai.skill_package import SkillPackage
@@ -98,7 +99,7 @@ async def export_skill_package(
 
     return {
         "export_version": EXPORT_VERSION,
-        "exported_at": utc_now().isoformat(),
+        "exported_at": serialize_datetime_for_api(utc_now()),
         "package_info": package_info,
         "skills": skills_data,
         "valves_schema": pkg.valves_schema,

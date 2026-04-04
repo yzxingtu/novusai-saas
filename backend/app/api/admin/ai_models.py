@@ -76,6 +76,9 @@ class AdminAIModelController(GlobalController):
             page_size: int = Query(
                 20, ge=1, le=100, description=_("api.param.page_size")
             ),
+            provider_id: int | None = Query(
+                None, description=_("enum.ai_model.provider_id")
+            ),
             type: str = Query("", description=_("api.param.type")),
             supports_vision: str = Query(
                 "", description=_("enum.ai_model.filter_supports_vision")
@@ -89,6 +92,8 @@ class AdminAIModelController(GlobalController):
         ):
             service = AIModelService(db)
             extra_filters: dict = {"is_active": True}
+            if provider_id:
+                extra_filters["provider_id"] = provider_id
             if type:
                 extra_filters["type"] = type
             if supports_vision.lower() == "true":

@@ -246,10 +246,10 @@ class MiddlewareExtensionSchema(BaseModel):
     """Plugin ASGI middleware extension declaration.
     / 插件 ASGI 中间件扩展声明
 
-    Plugins can declare an ASGI middleware, injected into the request chain at app startup.
-    Middleware is registered on plugin enable, marked for optimization on disable (full removal requires service restart).
-    / 插件可声明一个 ASGI 中间件，在应用启动时注入请求链。
-    中间件在插件启用时注册，禁用时标记为待优化（完全移除需重启服务）。
+    Plugins can declare an ASGI middleware, injected into the request chain by the host runtime.
+    Middleware is registered on plugin enable and removed on disable by rebuilding the runtime stack.
+    / 插件可声明一个 ASGI 中间件，由宿主运行时注入请求链。
+    中间件在插件启用时注册，禁用时会通过重建运行时栈移除。
 
     handler must be an ASGI middleware factory class that accepts app and returns a middleware instance:
     / handler 必须是一个 ASGI 中间件工厂类：

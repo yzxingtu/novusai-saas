@@ -9,6 +9,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import * as domSemanticScanner from '../dom-semantic-scanner';
 import {
   clearPageContextRegistry,
   registerPageContext,
@@ -39,6 +40,7 @@ describe('page context editor ops', () => {
 
   afterEach(() => {
     capturePageScreenshotMock.mockReset();
+    vi.restoreAllMocks();
     clearPageContextRegistry();
     clearPageOperationRegistry();
   });
@@ -76,6 +78,8 @@ describe('page context editor ops', () => {
     const ops = listPageOperations('admin.dashboard');
     expect(ops.map((op) => op.name)).toContain('read_current_view');
     expect(ops.map((op) => op.name)).toContain('read_current_sections');
+    expect(ops.map((op) => op.name)).toContain('list_available_menus');
+    expect(ops.map((op) => op.name)).toContain('navigate_menu');
     expect(ops.map((op) => op.name)).toContain('capture_screenshot');
   });
 
@@ -158,6 +162,21 @@ describe('page context editor ops', () => {
     expect(desc).toContain(primaryDesc);
     expect(desc).toContain('update_title modifies document metadata title');
     expect(resolved.page_data?.document_id).toBe(42);
+  });
+
+  it('explicit page keys fall back to a minimal context when DOM scanning is empty', () => {
+    vi.spyOn(domSemanticScanner, 'scanDomSemantics').mockReturnValue(null);
+    document.title = 'Diagnostics Page';
+
+    const resolved = resolvePageContext('admin/diagnostics/empty');
+
+    expect(resolved).toEqual({
+      page_key: 'admin.diagnostics.empty',
+      page_title: 'Diagnostics Page',
+      page_data: {
+        source: 'minimal_fallback',
+      },
+    });
   });
 
   it('enriched available_operations includes params when ops have params (payload shape for AIChatSlidePanel)', () => {
@@ -298,6 +317,8 @@ describe('page context editor ops', () => {
     expect(ops.map((op) => op.name)).toEqual([
       'read_current_view',
       'read_current_sections',
+      'list_available_menus',
+      'navigate_menu',
       'capture_screenshot',
       'refresh_list',
       'search',
@@ -312,6 +333,8 @@ describe('page context editor ops', () => {
     expect(afterCleanup.map((op) => op.name)).toEqual([
       'read_current_view',
       'read_current_sections',
+      'list_available_menus',
+      'navigate_menu',
       'capture_screenshot',
       'refresh_list',
       'search',

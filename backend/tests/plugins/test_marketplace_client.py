@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-import zipfile
 from unittest.mock import AsyncMock
 
+import httpx
 import pytest
 
+from app.core.config import settings
 from app.plugins.marketplace import MarketplaceClient
 from app.plugins.exceptions import PluginError
-from app.plugins.package_security import validate_plugin_zip_archive
 
 
 class _Resp404:
@@ -105,23 +105,30 @@ async def test_download_plugin_rejects_non_github_repository_fallback():
         await client.download_plugin("example-weather", "1.0.0")
 
 
-def test_build_debug_stub_package_creates_valid_zip(tmp_path):
+@pytest.mark.asyncio
+async def test_download_plugin_does_not_fallback_to_debug_stub_on_retry_exhaustion(
+    monkeypatch: pytest.MonkeyPatch,
+):
     client = MarketplaceClient(db=None)
-    zip_path = client._build_debug_stub_package(
-        tmp_dir=tmp_path,
-        slug="debug-probe",
-        version="1.0.0",
-        detail={
-            "display_name": "Debug Probe",
-            "description": "stub package for tests",
-        },
+    client.fetch_plugin_detail = AsyncMock(  # type: ignore[method-assign]
+        return_value={
+            "slug": "debug-probe",
+            "download_url": "https://github.com/example/debug-probe/releases/download/v1.0.0/debug-probe-1.0.0.zip",
+        }
     )
 
-    assert zip_path.is_file()
-    validate_plugin_zip_archive(zip_path)
+    async def _always_fail(*_args, **_kwargs):
+        raise httpx.ConnectError("boom")
 
-    with zipfile.ZipFile(zip_path, "r") as zf:
-        names = set(zf.namelist())
-        assert "plugin.yaml" in names
-        assert "backend/main.py" in names
-        assert "backend/__init__.py" in names
+    monkeypatch.setattr(
+        "app.plugins.marketplace.open_github_only_stream",
+        _always_fail,
+    )
+
+    original_debug = settings.DEBUG
+    settings.DEBUG = True
+    try:
+        with pytest.raises(PluginError, match="Failed to download plugin"):
+            await client.download_plugin("debug-probe", "1.0.0")
+    finally:
+        settings.DEBUG = original_debug

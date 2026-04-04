@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend contract for repository/service/controller changes"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend contract for admin model/provider UI changes"}
+{"file": ".trellis/spec/ai-runtime/observability.md", "reason": "Provider failure diagnostics must align with runtime diagnostics"}
+{"file": "backend/app/ai/adapters/openai_adapter.py", "reason": "OpenAI-compatible request planning and overrides"}
+{"file": "backend/app/services/ai/model_service.py", "reason": "Model CRUD and validation behavior"}
+{"file": "frontend/apps/web-antd/src/views/admin/ai/models/modules/form.vue", "reason": "Structured runtime override form"}

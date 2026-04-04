@@ -1,19 +1,17 @@
 """
-Execution Engine Type Definitions / 执行引擎类型定义
+Execution engine types.
 
-Defines execution request, execution result, batch processing and other dataclasses.
-定义执行请求、执行结果、批量处理等数据类。
+This module keeps the runtime request/result contracts stable for the legacy
+engines while also carrying the structured orchestration state introduced by
+the 666 rebuild.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
-from app.ai.constants import (
-    DEFAULT_MEMORY_SCENE,
-    MEMORY_CHANNEL_SYSTEM,
-)
+from app.ai.constants import DEFAULT_MEMORY_SCENE, MEMORY_CHANNEL_SYSTEM
 from app.ai.runtime.types import CapabilityBundle, TurnRecord
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.types import ChatMessage
@@ -24,26 +22,206 @@ if TYPE_CHECKING:
     from app.ai.routing.router import RouteResult
 
 
+ExecutionPath = Literal["fast", "normal", "deep"]
+IntentStatus = Literal[
+    "pending",
+    "running",
+    "completed",
+    "failed",
+    "skipped",
+    "awaiting_consent",
+]
+ProviderFailureKind = Literal[
+    "none",
+    "provider_timeout",
+    "provider_rate_limit",
+    "provider_unavailable",
+    "provider_http_5xx",
+    "provider_bad_response",
+    "tool_timeout",
+    "tool_execution_error",
+    "server_interrupt",
+    "budget_exit",
+]
+
+
+@dataclass
+class IntentPlan:
+    """Structured execution intent for a single user turn."""
+
+    intent_id: str
+    kind: str
+    family: str
+    order: int
+    user_visible_label: str
+    source_text: str
+    status: IntentStatus = "pending"
+    requires_tools: bool = True
+    allow_text_response: bool = False
+    continuation: bool = False
+    allowed_tool_names: list[str] = field(default_factory=list)
+    preferred_tool_names: list[str] = field(default_factory=list)
+    completion_signals: list[str] = field(default_factory=list)
+    completed_by_tool_names: list[str] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "intent_id": self.intent_id,
+            "kind": self.kind,
+            "family": self.family,
+            "order": self.order,
+            "user_visible_label": self.user_visible_label,
+            "source_text": self.source_text,
+            "status": self.status,
+            "requires_tools": self.requires_tools,
+            "allow_text_response": self.allow_text_response,
+            "continuation": self.continuation,
+            "allowed_tool_names": list(self.allowed_tool_names),
+            "preferred_tool_names": list(self.preferred_tool_names),
+            "completion_signals": list(self.completion_signals),
+            "completed_by_tool_names": list(self.completed_by_tool_names),
+            "metadata": dict(self.metadata),
+        }
+
+
+@dataclass
+class ToolInvocationPlan:
+    """Legacy-facing projection of the structured intent plan."""
+
+    intent: str = "direct_reply"
+    family: str = "none"
+    allow_no_tool: bool = True
+    allow_family_continuation: bool = False
+    reason: str = "default_no_tool"
+    confidence_band: str = "medium"
+    execution_path: ExecutionPath = "fast"
+    intent_plan: list[dict[str, Any]] | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "intent": self.intent,
+            "family": self.family,
+            "allow_no_tool": self.allow_no_tool,
+            "allow_family_continuation": self.allow_family_continuation,
+            "reason": self.reason,
+            "confidence_band": self.confidence_band,
+            "execution_path": self.execution_path,
+            "intent_plan": list(self.intent_plan or []),
+        }
+
+
+@dataclass
+class ExecutionBudget:
+    """Hard orchestration budget for one turn."""
+
+    max_prompt_tokens: int
+    max_completion_tokens: int
+    max_tool_rounds: int
+    max_elapsed_ms: int
+    max_retry_per_intent: int
+    max_candidate_tools: int
+    max_tool_result_bytes: int
+    prompt_tokens_used: int = 0
+    completion_tokens_used: int = 0
+    tool_rounds_used: int = 0
+    elapsed_ms_used: int = 0
+    tool_result_bytes_used: int = 0
+    candidate_tools_count: int = 0
+    retries_by_intent: dict[str, int] = field(default_factory=dict)
+
+    def first_exceeded_reason(self) -> str | None:
+        if self.max_prompt_tokens and self.prompt_tokens_used > self.max_prompt_tokens:
+            return "prompt_budget_exceeded"
+        if (
+            self.max_completion_tokens
+            and self.completion_tokens_used > self.max_completion_tokens
+        ):
+            return "completion_budget_exceeded"
+        if self.max_tool_rounds and self.tool_rounds_used > self.max_tool_rounds:
+            return "tool_round_budget_exceeded"
+        if self.max_elapsed_ms and self.elapsed_ms_used > self.max_elapsed_ms:
+            return "elapsed_budget_exceeded"
+        if (
+            self.max_tool_result_bytes
+            and self.tool_result_bytes_used > self.max_tool_result_bytes
+        ):
+            return "tool_result_budget_exceeded"
+        if (
+            self.max_candidate_tools
+            and self.candidate_tools_count > self.max_candidate_tools
+        ):
+            return "candidate_tool_budget_exceeded"
+        return None
+
+    def snapshot(self) -> dict[str, Any]:
+        exit_reason = self.first_exceeded_reason()
+        return {
+            "status": "exited" if exit_reason else "ok",
+            "exit_reason": exit_reason,
+            "limits": {
+                "max_prompt_tokens": self.max_prompt_tokens,
+                "max_completion_tokens": self.max_completion_tokens,
+                "max_tool_rounds": self.max_tool_rounds,
+                "max_elapsed_ms": self.max_elapsed_ms,
+                "max_retry_per_intent": self.max_retry_per_intent,
+                "max_candidate_tools": self.max_candidate_tools,
+                "max_tool_result_bytes": self.max_tool_result_bytes,
+            },
+            "usage": {
+                "prompt_tokens_used": self.prompt_tokens_used,
+                "completion_tokens_used": self.completion_tokens_used,
+                "tool_rounds_used": self.tool_rounds_used,
+                "elapsed_ms_used": self.elapsed_ms_used,
+                "tool_result_bytes_used": self.tool_result_bytes_used,
+                "candidate_tools_count": self.candidate_tools_count,
+                "retries_by_intent": dict(self.retries_by_intent),
+            },
+            "exceeded_reason": exit_reason,
+        }
+
+
+@dataclass
+class RecoveryDecision:
+    """Recovery decision scoped to unfinished intents."""
+
+    action: Literal[
+        "none",
+        "retry_intent",
+        "return_partial",
+        "abort",
+        "pause_for_consent",
+    ] = "none"
+    target_intent_id: str | None = None
+    retry_family: str | None = None
+    allowed_tool_names: list[str] = field(default_factory=list)
+    completed_intent_ids: list[str] = field(default_factory=list)
+    unfinished_intent_ids: list[str] = field(default_factory=list)
+    reason: str = ""
+    provider_failure_kind: ProviderFailureKind = "none"
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "action": self.action,
+            "target_intent_id": self.target_intent_id,
+            "retry_family": self.retry_family,
+            "allowed_tool_names": list(self.allowed_tool_names),
+            "completed_intent_ids": list(self.completed_intent_ids),
+            "unfinished_intent_ids": list(self.unfinished_intent_ids),
+            "reason": self.reason,
+            "provider_failure_kind": self.provider_failure_kind,
+            "metadata": dict(self.metadata),
+        }
+
+
 @dataclass
 class ToolUsePolicy:
     """
-    Tool-use policy for the current turn / 当前轮次的工具使用策略。
+    Tool-use policy for the current turn.
 
-    family:
-        Logical tool family currently in focus.
-        当前聚焦的工具族。
-    mode:
-        auto = model may decide; required = tool use is enforced.
-        auto = 模型自行判断；required = 强制走工具。
-    allowed_tool_names:
-        Optional tool-name subset exposed to the model when policy is strict.
-        严格模式下暴露给模型的工具名子集。
-    retry_on_contract_breach:
-        Whether one corrective retry is allowed after a capability denial / no-tool breach.
-        发生“能力否认 / 未用工具”违约后是否允许一次纠偏重试。
-    reason:
-        Human-readable internal reason for diagnostics.
-        供诊断使用的内部原因说明。
+    The legacy engine still consumes this shape heavily, so it remains the
+    runtime projection of the currently active intent/tool subset.
     """
 
     family: str = "none"
@@ -55,19 +233,7 @@ class ToolUsePolicy:
 
 @dataclass
 class ExecutionRequest:
-    """
-    Execution Request / 执行请求
-
-    Attributes:
-        agent_id: Agent ID / 智能体 ID
-        tenant_id: Tenant ID / 企业 ID
-        user_id: User ID (optional, None for anonymous/API calls) / 用户 ID（可选，匿名/API 调用时为 None）
-        messages: User message list (conversation mode) / 用户消息列表（conversation 模式）
-        input_variables: Input variables (task/batch mode, injected into system_prompt) / 输入变量（task/batch 模式，注入到 system_prompt）
-        execution_mode: Execution mode (conversation/task/batch/api) / 执行模式
-        stream: Whether to stream output / 是否流式输出
-        conversation_id: Conversation ID (for resuming conversation mode) / 对话 ID（conversation 模式续接会话）
-    """
+    """Execution request passed into the dispatcher/engines."""
 
     agent_id: int
     tenant_id: int
@@ -81,45 +247,21 @@ class ExecutionRequest:
     system_prompt_additions: list[str] = field(default_factory=list)
     trust_policy_ref: dict[str, Any] | None = None
     interaction_mode: str = "confirm"
-
-    # User attachments (images/files, appended to latest user message) / 用户附件（图片/文件，附加到最新用户消息）
     attachments: list[dict[str, Any]] | None = None
-
-    # Frontend transient consent hints for the current runtime only.
-    # Backend trust policy remains the source of truth.
-    # 前端当前运行时的临时授权提示，最终仍以后端信任策略为准。
     consented_actions: list[str] | None = None
-
-    # Structured interaction updates from the client (confirmation/rejection/consent).
-    # Used by stream_handler to detect interaction-only turns without text.
     interaction_updates: list[dict[str, Any]] | None = None
-
-    # User role (platform_admin / tenant_admin / tenant_user) / 用户角色
     user_role: str = UserRoleEnum.TENANT_ADMIN.value
     user_role_id: int | None = None
-    # User RBAC permission code set / 用户 RBAC 权限码集合
     permissions: set[str] | None = None
-
-    # Immutable billing / attribution snapshot captured at call time
-    # 调用时捕获的不可变计费归属快照
     billing_context: dict[str, Any] | None = None
-
-    # API mode control flags (set by caller or dispatcher automatically) / API 模式控制标志（由调用方或 dispatcher 自动设置）
     skip_quota: bool = False
     skip_persistence: bool = False
     skip_logging: bool = False
-
-    # Session memory scene control (entry boundary) / 会话记忆场景控制（入口边界）
-    # scene: request source scene (ai_chat_page/admin_chat/plugin/ai_gateway/unknown)
-    # channel: channel (tenant_chat/admin_chat/plugin/system)
-    # source: source identifier (e.g. ai_chat_page / plugin.weather-widget)
     memory_scene: str = DEFAULT_MEMORY_SCENE
     memory_channel: str = MEMORY_CHANNEL_SYSTEM
     memory_source: str = ""
     memory_enabled: bool = False
     long_term_memory_enabled: bool = False
-
-    # Frontend page session ID (for PageOperationExecutor to locate target page instance) / 前端页面会话 ID
     page_session_id: str | None = None
     knowledge_base_feedback: dict[str, Any] | None = None
     tool_use_policy: ToolUsePolicy = field(default_factory=ToolUsePolicy)
@@ -127,22 +269,7 @@ class ExecutionRequest:
 
 @dataclass
 class ExecutionResult:
-    """
-    Execution Result / 执行结果
-
-    Attributes:
-        success: Whether successful / 是否成功
-        output: Final output text / 最终输出文本
-        messages: Complete message list (system/user/assistant/tool) / 完整消息列表
-        tool_results: Tool call result list / 工具调用结果列表
-        total_tokens: Total token consumption / 总 Token 消耗
-        duration_ms: Total execution time (ms) / 总执行耗时（毫秒）
-        conversation_id: Conversation ID (conversation mode) / 对话 ID
-        error: Error message / 错误信息
-        partial: Whether result is partial (interrupted before normal completion) / 是否为 partial（中断导致未正常完成）
-        interrupted: Whether execution was interrupted (cancel/disconnect) / 是否被中断（取消/断开）
-        completion_reason: Why execution ended (stop/cancel/interrupted/error) / 结束原因
-    """
+    """Execution result returned by an engine."""
 
     success: bool = True
     output: str = ""
@@ -166,25 +293,19 @@ class ExecutionResult:
     memory_recalled: bool = False
     prune_stats: dict[str, Any] | None = None
     tool_planner: dict[str, Any] | None = None
-    turn_record: TurnRecord | None = None
+    turn_record: TurnRecord | dict[str, Any] | None = None
+    intent_plan: list[IntentPlan] = field(default_factory=list)
+    execution_path: ExecutionPath | None = None
+    execution_budget: dict[str, Any] | None = None
+    recovery_history: list[dict[str, Any]] = field(default_factory=list)
+    provider_failure_kind: ProviderFailureKind = "none"
+    provider_events: list[dict[str, Any]] = field(default_factory=list)
+    diagnostics: dict[str, Any] | None = None
 
 
 @dataclass
 class PreparedExecution:
-    """
-    Prepared Execution Context / 预处理执行上下文
-
-    Built by _prepare_execution(), shared by execute() and stream_execute().
-    由 _prepare_execution() 构建，供 execute() 和 stream_execute() 共享。
-
-    Attributes:
-        messages: Built message list (system + history + RAG injection) / 构建好的消息列表
-        tools: Optimized tool definition list / 优化后的工具定义列表
-        rag_sources: RAG citation sources (None if no RAG) / RAG 引用来源
-        tool_consent_modes: Tool name → consent_mode mapping / 工具名 → consent_mode 映射
-        optimize_event: Tool optimization event data (for SSE push, None if no optimization) / 工具优化事件数据
-        route_result: Route result (from ModelRouter, None if no routing) / 路由结果
-    """
+    """Shared execution context built by BaseEngine._prepare_execution()."""
 
     messages: list[ChatMessage] = field(default_factory=list)
     tools: list[ToolDefinition] = field(default_factory=list)
@@ -208,11 +329,17 @@ class PreparedExecution:
     optimize_event: dict[str, Any] | None = None
     route_result: RouteResult | None = None
     stream_runtime: Any | None = None
+    intent_plan: list[IntentPlan] = field(default_factory=list)
+    execution_path: ExecutionPath = "fast"
+    execution_budget: ExecutionBudget | None = None
+    active_intent_id: str | None = None
+    provider_events: list[dict[str, Any]] = field(default_factory=list)
+    recovery_history: list[RecoveryDecision] = field(default_factory=list)
 
 
 @dataclass
 class ResearchContinuationContext:
-    """Runtime metadata for external web research. / 外部联网研究运行时上下文。"""
+    """Runtime metadata for external web research."""
 
     active: bool = False
     family: str | None = None
@@ -228,15 +355,7 @@ class ResearchContinuationContext:
 
 @dataclass
 class BatchItem:
-    """
-    Batch Item / 批处理单项
-
-    Attributes:
-        item_id: Item unique identifier / 项目唯一标识
-        input_variables: Input variables / 输入变量
-        status: Status (pending/succeeded/failed) / 状态
-        result: Execution result / 执行结果
-    """
+    """Single item in a batch execution."""
 
     item_id: str
     input_variables: dict[str, Any] = field(default_factory=dict)
@@ -246,16 +365,7 @@ class BatchItem:
 
 @dataclass
 class BatchResult:
-    """
-    Batch Result / 批处理结果
-
-    Attributes:
-        items: All items and their results / 所有项目及其结果
-        total: Total count / 总数
-        succeeded: Success count / 成功数
-        failed: Failure count / 失败数
-        duration_ms: Total execution time (ms) / 总执行耗时（毫秒）
-    """
+    """Aggregated batch execution result."""
 
     batch_run_id: int | None = None
     items: list[BatchItem] = field(default_factory=list)
@@ -266,11 +376,17 @@ class BatchResult:
 
 
 __all__ = [
-    "ExecutionRequest",
-    "ExecutionResult",
-    "PreparedExecution",
-    "ResearchContinuationContext",
-    "ToolUsePolicy",
     "BatchItem",
     "BatchResult",
+    "ExecutionBudget",
+    "ExecutionPath",
+    "ExecutionRequest",
+    "ExecutionResult",
+    "IntentPlan",
+    "PreparedExecution",
+    "ProviderFailureKind",
+    "RecoveryDecision",
+    "ResearchContinuationContext",
+    "ToolInvocationPlan",
+    "ToolUsePolicy",
 ]

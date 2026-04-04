@@ -28,6 +28,7 @@ import {
 } from '#/api/admin/tenant';
 import { $t } from '#/locales';
 import { usePresenceStore } from '#/store';
+import { useAccess } from '#/utils';
 import { formatRelativeTime } from '#/utils/common';
 import { showRequestError } from '#/utils/error-helpers';
 import { toAvatarDisplayUrl } from '#/utils/image';
@@ -45,6 +46,10 @@ const props = defineProps<{
 }>();
 
 const presenceStore = usePresenceStore();
+const { hasAccessByCodes } = useAccess();
+const canCreateTenantAdmin = hasAccessByCodes(['tenant_admin:create']);
+const canListTenantAdmins = hasAccessByCodes(['tenant_admin:list']);
+const canUpdateTenantAdmin = hasAccessByCodes(['tenant_admin:update']);
 
 const admins = ref<TenantAdminItem[]>([]);
 const loading = ref(false);
@@ -53,6 +58,11 @@ const resetPwdRef = ref<InstanceType<typeof TenantAdminResetPwdModal>>();
 
 /** 加载管理员列表 + 在线状态 / Load admin list and online status */
 async function loadAdmins() {
+  if (!canListTenantAdmins) {
+    admins.value = [];
+    loading.value = false;
+    return;
+  }
   loading.value = true;
   try {
     const [data] = await Promise.all([
@@ -141,7 +151,12 @@ onMounted(() => {
         <span class="text-sm font-medium text-foreground">
           {{ $t('admin.tenant.adminPanel.title') }}
         </span>
-        <Button type="primary" size="small" @click="handleCreate">
+        <Button
+          v-if="canCreateTenantAdmin"
+          type="primary"
+          size="small"
+          @click="handleCreate"
+        >
           <template #icon>
             <IconifyIcon icon="lucide:user-plus" />
           </template>
@@ -228,7 +243,7 @@ onMounted(() => {
             <!-- 操作 -->
             <div class="flex flex-shrink-0 items-center gap-2">
               <!-- 编辑按钮 -->
-              <Tooltip :title="$t('shared.common.edit')">
+              <Tooltip v-if="canUpdateTenantAdmin" :title="$t('shared.common.edit')">
                 <Button
                   type="text"
                   size="small"
@@ -241,7 +256,10 @@ onMounted(() => {
                 </Button>
               </Tooltip>
               <!-- 重置密码按钮 -->
-              <Tooltip :title="$t('admin.tenant.resetPassword')">
+              <Tooltip
+                v-if="canUpdateTenantAdmin"
+                :title="$t('admin.tenant.resetPassword')"
+              >
                 <Button
                   type="text"
                   size="small"
@@ -279,13 +297,13 @@ onMounted(() => {
               </span>
               <!-- 启用/禁用开关 -->
               <Tooltip
-                v-if="admin.is_owner"
+                v-if="admin.is_owner && canUpdateTenantAdmin"
                 :title="$t('admin.tenant.adminPanel.ownerCannotDisable')"
               >
                 <Switch :checked="true" size="small" disabled />
               </Tooltip>
               <Tooltip
-                v-else
+                v-else-if="canUpdateTenantAdmin"
                 :title="
                   admin.is_active
                     ? $t('admin.common.disable')

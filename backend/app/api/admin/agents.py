@@ -16,6 +16,7 @@ from app.enums.common import ResourceScopeEnum
 from app.enums.rbac import PermissionScope
 from app.exceptions import BusinessException, NotFoundException
 from app.rbac.decorators import (
+    MenuAIConfig,
     MenuConfig,
     action_create,
     action_delete,
@@ -102,6 +103,29 @@ def _build_admin_agent_item(
     scope=PermissionScope.ADMIN,
     parent_resource="ai_agent_mgmt",
     menu=MenuConfig(
+        ai=MenuAIConfig(
+            description="Create, edit, publish, and manage AI agents and their behaviors",
+            keywords=[
+                "智能体",
+                "智能代理",
+                "AI 助手",
+                "AI助手",
+                "agent",
+                "agents",
+                "assistant",
+                "assistants",
+                "bot",
+                "bots",
+                "机器人",
+            ],
+            capabilities=[
+                "create_agent",
+                "edit_agent",
+                "publish_agent",
+                "view_agents",
+            ],
+            category="ai",
+        ),
         icon="lucide:bot",
         path="/ai/agents",
         component="ai/agents/index",
@@ -130,6 +154,27 @@ class AdminAgentController(GlobalController):
             resource_name="ai_agent",
             serialize=_build_admin_agent_item,
         )
+
+        @router.get("/select", summary="获取智能体下拉选项")
+        @action_read("action.ai_agent.list")
+        async def select_agents(
+            request: Request,
+            db: DbSession,
+            admin: ActiveAdmin,
+            search: str = Query("", description=_("api.param.search")),
+            page: int = Query(0, ge=0, description=_("api.param.page")),
+            page_size: int = Query(
+                20, ge=1, le=100, description=_("api.param.page_size")
+            ),
+        ):
+            """获取智能体远程下拉选项 / Get paginated remote agent select options."""
+            service = AdminAgentService(db)
+            response = await service.get_select_options(
+                search=search,
+                page=page,
+                page_size=page_size,
+            )
+            return success(data=response, message=_("common.success"))
 
         @router.get("", summary="全企业智能体列表")
         @action_read("action.ai_agent.list")

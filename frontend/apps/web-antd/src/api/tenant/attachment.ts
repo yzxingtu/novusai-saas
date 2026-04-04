@@ -15,56 +15,13 @@ import type {
 import type { PaginatedResponse, SelectOption } from '#/types/query';
 import type { ApiRequestOptions } from '#/utils/request';
 
-import { inferCategory } from '#/types/attachment';
+import {
+  transformAttachmentInfo,
+  transformStorageQuota,
+} from '#/api/shared/attachment-transform';
 import { downloadBlob } from '#/utils/download';
 import { computeFileHash } from '#/utils/file-hash';
 import { requestClient } from '#/utils/request';
-
-// ============================================================
-// Transform functions / 转换函数
-// ============================================================
-
-/** Convert backend snake_case to frontend camelCase / 后端转前端格式 */
-function transformAttachmentInfo(raw: AttachmentInfoRaw): AttachmentInfo {
-  return {
-    id: raw.id,
-    tenantId: raw.tenant_id,
-    name: raw.name,
-    originalName: raw.original_name,
-    path: raw.path,
-    size: raw.size,
-    hash: raw.hash,
-    mimeType: raw.mime_type,
-    extension: raw.extension,
-    visibility: raw.visibility,
-    driver: raw.driver,
-    baseUrl: raw.base_url,
-    status: raw.status,
-    source: raw.source,
-    uploaderId: raw.uploader_id,
-    businessType: raw.business_type,
-    businessId: raw.business_id,
-    meta: raw.meta,
-    previewUrl: raw.preview_url,
-    category: inferCategory(raw.mime_type),
-    createdAt: raw.created_at,
-    updatedAt: raw.updated_at,
-  } satisfies AttachmentInfo;
-}
-
-/** Transform storage quota info / 转换存储配额信息 */
-function transformStorageQuota(raw: StorageQuotaInfoRaw): StorageQuotaInfo {
-  return {
-    usedBytes: raw.used_bytes,
-    limitBytes: raw.limit_bytes,
-    limitGb: raw.limit_gb,
-    remainingBytes: raw.remaining_bytes,
-    usagePercent: raw.usage_percent,
-    totalCount: raw.total_count,
-    maxFileSizeMb: raw.max_file_size_mb,
-    unlimited: raw.unlimited,
-  };
-}
 
 // ============================================================
 // Type definitions / 类型定义

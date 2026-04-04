@@ -92,15 +92,17 @@ from app.api.admin.system_logs import AdminSystemLogController
 from app.api.admin.system_logs import router as system_logs_router
 from app.api.admin.tasks import AdminTaskController
 from app.api.admin.tasks import router as tasks_router
-from app.api.admin.tenant_admins import AdminTenantAdminController
-from app.api.admin.tenant_admins import router as tenant_admins_router
-from app.api.admin.tenant_domains import AdminTenantDomainController
-from app.api.admin.tenant_domains import router as tenant_domains_router
 
+# isort: off
 # Must import tenants before tenant_admins/tenant_domains so menu:admin.tenant is registered first
 # 必须先导入 tenants，注册 menu:admin.tenant，否则 tenant_admins/tenant_domains 的操作权限找不到父菜单
 from app.api.admin.tenants import AdminTenantController
 from app.api.admin.tenants import router as tenants_router
+from app.api.admin.tenant_admins import AdminTenantAdminController
+from app.api.admin.tenant_admins import router as tenant_admins_router
+from app.api.admin.tenant_domains import AdminTenantDomainController
+from app.api.admin.tenant_domains import router as tenant_domains_router
+# isort: on
 from app.api.admin.users import AdminUserController
 from app.api.admin.users import router as users_router
 from app.api.admin.ws import router as ws_router

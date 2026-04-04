@@ -6,10 +6,10 @@ import type { AttachmentInfo } from '#/types/attachment';
 
 import { ref } from 'vue';
 
-import { Page, useVbenDrawer } from '@vben/common-ui';
+import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import { Button, Card, Image, message, Tag, Tooltip } from 'ant-design-vue';
+import { Button, Card, Image, Tag, Tooltip } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
 import {
@@ -17,9 +17,9 @@ import {
   getAttachmentListApi,
 } from '#/api/tenant/attachment';
 import { FilePicker } from '#/components/business/file-picker';
+import { useAttachmentListActions } from '#/composables/use-attachment-list-actions';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
-import { getAttachmentUrl } from '#/utils/image';
 
 import {
   formatFileSize,
@@ -38,52 +38,20 @@ defineOptions({ name: 'TenantSystemAttachments' });
 
 const quotaCardRef = ref<InstanceType<typeof QuotaCard> | null>(null);
 
-// Detail drawer / 详情抽屉
-const [DetailDrawerComp, detailDrawerApi] = useVbenDrawer({
+const {
+  DetailDrawerComp,
+  getPreviewUrl,
+  getThumbnailUrl,
+  isImage,
+  onDownload,
+  onViewDetail,
+} = useAttachmentListActions({
   connectedComponent: DetailDrawer,
+  download: downloadAttachmentApi,
+  downloadSuccessMessage: $t(
+    'tenant.system.attachment.messages.downloadStarted',
+  ),
 });
-
-/**
- * 查看详情
- */
-function onViewDetail(row: AttachmentInfo) {
-  detailDrawerApi.setData({ id: row.id, mode: 'view' }).open();
-}
-
-/**
- * 获取缩略图URL（列表显示用）
- */
-function getThumbnailUrl(row: AttachmentInfo): string {
-  return getAttachmentUrl(row, { preset: 'thumb' });
-}
-
-/**
- * 获取预览URL（点击放大用）
- */
-function getPreviewUrl(row: AttachmentInfo): string {
-  return getAttachmentUrl(row);
-}
-
-/**
- * 判断是否为图片
- */
-function isImage(row: AttachmentInfo): boolean {
-  if (row.category === 'image') return true;
-  if (row.mimeType?.startsWith('image/')) return true;
-  return false;
-}
-
-/**
- * 下载附件
- */
-async function onDownload(row: AttachmentInfo) {
-  try {
-    await downloadAttachmentApi(row.id, row.name, row.mimeType);
-    message.success($t('tenant.system.attachment.messages.downloadStarted'));
-  } catch {
-    // Error handled by request interceptor / 错误由请求拦截器处理
-  }
-}
 
 const pickerRef = ref<InstanceType<typeof FilePicker> | null>(null);
 

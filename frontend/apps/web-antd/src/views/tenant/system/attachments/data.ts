@@ -8,6 +8,11 @@ import type { AttachmentInfo } from '#/types/attachment';
 
 import { searchInput, select } from '#/core/adapter/form/schema-helpers';
 import { $t } from '#/locales';
+import {
+  getAttachmentCategoryColor,
+  getAttachmentMimeCategoryFilterValues,
+  getAttachmentVisibilityColor,
+} from '#/utils/attachment-presentation';
 
 // ============ 工具函数 / Helpers ============
 
@@ -15,19 +20,9 @@ import { $t } from '#/locales';
 export function getCategoryColor(
   category?: null | string,
 ): 'blue' | 'cyan' | 'default' | 'green' | 'orange' | 'purple' | 'red' {
-  if (!category) return 'default';
-  const colorMap: Record<
-    string,
-    'blue' | 'cyan' | 'default' | 'green' | 'orange' | 'purple' | 'red'
-  > = {
-    image: 'green',
-    document: 'blue',
-    video: 'purple',
-    audio: 'orange',
-    archive: 'cyan',
-    other: 'default',
-  };
-  return colorMap[category] || 'default';
+  return getAttachmentCategoryColor(
+    (category as AttachmentInfo['category']) ?? undefined,
+  );
 }
 
 /** 文件分类文本映射 / File category text mapping */
@@ -40,7 +35,7 @@ export function getCategoryText(category?: null | string): string {
 export function getVisibilityColor(
   visibility: string,
 ): 'default' | 'green' | 'orange' {
-  return visibility === 'public' ? 'green' : 'orange';
+  return getAttachmentVisibilityColor(visibility as 'private' | 'public');
 }
 
 /** 获取可见性文本映射 / Get visibility text mapping */
@@ -50,14 +45,16 @@ export function getVisibilityText(visibility: string): string {
 
 /** 获取分类筛选选项（按 mime_type 前缀过滤） / Get category filter options */
 export function getCategoryFilterOptions(): { label: string; value: string }[] {
+  const [image, document, video, audio] =
+    getAttachmentMimeCategoryFilterValues();
   return [
-    { label: $t('tenant.system.attachment.categories.image'), value: 'image/' },
+    { label: $t('tenant.system.attachment.categories.image'), value: image },
     {
       label: $t('tenant.system.attachment.categories.document'),
-      value: 'application/',
+      value: document,
     },
-    { label: $t('tenant.system.attachment.categories.video'), value: 'video/' },
-    { label: $t('tenant.system.attachment.categories.audio'), value: 'audio/' },
+    { label: $t('tenant.system.attachment.categories.video'), value: video },
+    { label: $t('tenant.system.attachment.categories.audio'), value: audio },
   ];
 }
 

@@ -14,7 +14,6 @@ from .worktree import parse_simple_yaml
 
 
 # Defaults
-DEFAULT_SESSION_COMMIT_MESSAGE = "chore: record journal"
 DEFAULT_MAX_JOURNAL_LINES = 2000
 
 CONFIG_FILE = "config.yaml"
@@ -34,13 +33,6 @@ def _load_config(repo_root: Path | None = None) -> dict:
         return parse_simple_yaml(content)
     except (OSError, IOError):
         return {}
-
-
-def get_session_commit_message(repo_root: Path | None = None) -> str:
-    """Get the commit message for auto-committing session records."""
-    config = _load_config(repo_root)
-    return config.get("session_commit_message", DEFAULT_SESSION_COMMIT_MESSAGE)
-
 
 def get_max_journal_lines(repo_root: Path | None = None) -> int:
     """Get the maximum lines per journal file."""

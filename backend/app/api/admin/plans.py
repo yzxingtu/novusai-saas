@@ -28,6 +28,7 @@ from app.rbac.decorators import (
     action_update,
     permission_resource,
 )
+from app.rbac.services import PermissionService
 from app.schemas.common import ReorderRequest
 from app.schemas.tenant.plan import (
     PermissionSimpleResponse,
@@ -39,24 +40,6 @@ from app.schemas.tenant.plan import (
     TenantPlanUpdateRequest,
 )
 from app.services.tenant import TenantPlanService
-
-
-def _translate_permission_name(name: str) -> str:
-    """
-    翻译权限名称 / Translate permission name
-
-    Args:
-        name: 权限名称（可能是 i18n key） / Permission name (may be i18n key)
-
-    Returns:
-        翻译后的名称 / Translated name
-    """
-    if name and "." in name:
-        translated = _(name)
-        if translated == name:
-            return name.split(".")[-1]
-        return translated
-    return name or ""
 
 
 @permission_resource(
@@ -200,7 +183,10 @@ class AdminPlanController(GlobalController):
             权限 / Permission: tenant_plan:available_permissions
             """
             service = TenantPlanService(db)
-            permissions = await service.get_available_permissions()
+            perm_service = PermissionService(db)
+            permissions = await perm_service.fill_parent_permissions_for_tree(
+                await service.get_available_permissions()
+            )
 
             # 构建权限树 / Build permission tree
             def build_tree(
@@ -215,7 +201,7 @@ class AdminPlanController(GlobalController):
                             PermissionTreeSimpleResponse(
                                 id=p.id,
                                 code=p.code,
-                                name=_translate_permission_name(p.name),
+                                name=PermissionService.translate_name(p.name),
                                 type=p.type,
                                 resource=p.resource,
                                 parent_id=p.parent_id,
@@ -253,7 +239,7 @@ class AdminPlanController(GlobalController):
 
             return success(
                 data=TenantPlanDetailResponse.from_model(
-                    plan, translate_fn=_translate_permission_name
+                    plan, translate_fn=PermissionService.translate_name
                 ),
                 message=_("common.success"),
             )
@@ -400,7 +386,7 @@ class AdminPlanController(GlobalController):
                     PermissionSimpleResponse(
                         id=p.id,
                         code=p.code,
-                        name=_translate_permission_name(p.name),
+                        name=PermissionService.translate_name(p.name),
                         type=p.type,
                         resource=p.resource,
                     )
@@ -433,7 +419,7 @@ class AdminPlanController(GlobalController):
 
             return success(
                 data=TenantPlanDetailResponse.from_model(
-                    plan, translate_fn=_translate_permission_name
+                    plan, translate_fn=PermissionService.translate_name
                 ),
                 message=_("tenant_plan.permissions_updated"),
             )

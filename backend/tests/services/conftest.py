@@ -20,7 +20,7 @@ def mock_db():
     execute() 返回的 result 默认为 MagicMock，
     测试中可通过 mock_db.execute.return_value 自定义。
     """
-    db = AsyncMock()
+    db = MagicMock()
     db.execute = AsyncMock()
     db.flush = AsyncMock()
     db.commit = AsyncMock()
@@ -35,7 +35,7 @@ def mock_db():
 @pytest.fixture()
 def mock_redis():
     """Mock Redis client with common operations. / 说明"""
-    redis = AsyncMock()
+    redis = MagicMock()
     redis.get = AsyncMock(return_value=None)
     redis.set = AsyncMock(return_value=True)
     redis.delete = AsyncMock(return_value=1)

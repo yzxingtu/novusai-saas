@@ -44,6 +44,9 @@ export interface TenantOrgNodeInfoRaw {
   leader_id?: null | number;
   leader?: null | TenantLeaderInfo;
   permissions_count?: number;
+  permission_ids?: number[];
+  permission_codes?: string[];
+  can_assign_permissions?: boolean;
   data_scope?: null | TenantLeaderScopeType;
   custom_dept_ids?: null | number[];
   scope_target_count?: number;
@@ -69,6 +72,9 @@ export interface TenantOrgNodeInfo {
   leaderId?: null | number;
   leader?: null | TenantLeaderInfo;
   permissionsCount?: number;
+  permissionIds?: number[];
+  permissionCodes?: string[];
+  canAssignPermissions?: boolean;
   dataScope?: null | TenantLeaderScopeType;
   customDeptIds?: null | number[];
   scopeTargetCount?: number;
@@ -183,6 +189,7 @@ export interface CreateTenantOrganizationNodeRequest {
   allow_members?: boolean;
   is_active?: boolean;
   sort_order?: number;
+  permission_ids?: null | number[];
   data_scope?: null | TenantLeaderScopeType;
   custom_dept_ids?: null | number[];
 }
@@ -195,6 +202,7 @@ export interface UpdateTenantOrganizationNodeRequest {
   is_active?: boolean | null;
   sort_order?: null | number;
   leader_id?: null | number;
+  permission_ids?: null | number[];
   data_scope?: null | TenantLeaderScopeType;
   custom_dept_ids?: null | number[];
 }
@@ -216,6 +224,9 @@ function transformOrgNode(raw: TenantOrgNodeInfoRaw): TenantOrgNodeInfo {
     leaderId: raw.leader_id,
     leader: raw.leader,
     permissionsCount: raw.permissions_count,
+    permissionIds: raw.permission_ids,
+    permissionCodes: raw.permission_codes,
+    canAssignPermissions: raw.can_assign_permissions,
     dataScope: raw.data_scope,
     customDeptIds: raw.custom_dept_ids,
     scopeTargetCount:

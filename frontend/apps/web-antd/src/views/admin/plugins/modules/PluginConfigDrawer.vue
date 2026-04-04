@@ -47,18 +47,14 @@ import {
   activatePluginTrialApi,
   assignPluginTenantsApi,
   deletePluginBackupApi,
-  disablePluginApi,
-  enablePluginApi,
   getPluginDetailApi,
   getPluginLicenseApi,
   getPluginTenantsApi,
   getPluginVersionsApi,
   listPluginBackupsApi,
-  repairPluginApi,
   revokePluginLicenseApi,
   rollbackPluginApi,
   unassignPluginTenantApi,
-  uninstallPluginApi,
   updatePluginConfigApi,
   upgradePluginApi,
 } from '#/api/admin/plugin';
@@ -66,12 +62,8 @@ import { getTenantListApi } from '#/api/admin/tenant';
 import { ConfigImagePicker } from '#/components/business/config-image-picker';
 import { MarkdownRender } from '#/components/business/markdown-render';
 import { scopeNeedsAssignment } from '#/components/business/scope-select';
-import {
-  refreshAdminMenusAndPluginRoutes as _refreshAdminRoutes,
-  handleDisableError,
-} from '#/composables/use-plugin-admin-refresh';
+import { refreshAdminMenusAndPluginRoutes as _refreshAdminRoutes } from '#/composables/use-plugin-admin-refresh';
 import { $t } from '#/locales';
-import { usePluginInstallProgressStore } from '#/store';
 import { formatDate } from '#/utils/common';
 import { resolvePluginMetadataIcon } from '#/utils/plugin-metadata-icon';
 import { getScopeText } from '#/utils/scope-helpers';
@@ -85,12 +77,17 @@ import {
   getTypeColor,
   getTypeText,
 } from '../data';
+import {
+  getPluginRecoveryMeta,
+  getPluginRecoveryState,
+  hasPluginRecoveryAction,
+  hasPluginScheduledTasks,
+} from '../plugin-recovery';
+import { usePluginAdminActions } from '../use-plugin-admin-actions';
 
 const emit = defineEmits<{ saved: [] }>();
 
 const router = useRouter();
-const progressStore = usePluginInstallProgressStore();
-
 const visible = ref(false);
 const plugin = ref<null | PluginInfo>(null);
 const loading = ref(false);
@@ -143,6 +140,19 @@ const availableTenants = computed(() =>
 async function refreshAdminMenusAndPluginRoutes() {
   await _refreshAdminRoutes(router);
 }
+
+const pluginActions = usePluginAdminActions({
+  afterMutation: async () => {
+    await reload();
+    emit('saved');
+    await refreshAdminMenusAndPluginRoutes();
+  },
+  afterUninstall: async () => {
+    visible.value = false;
+    emit('saved');
+    await refreshAdminMenusAndPluginRoutes();
+  },
+});
 
 interface ConfigField {
   key: string;
@@ -202,6 +212,14 @@ const hasConfigToShow = computed(() => {
   if (configSchemaFields.value.length > 0) return true;
   const cfg = plugin.value?.config;
   return !!cfg && Object.keys(cfg).length > 0;
+});
+
+const recoveryState = computed(() => {
+  return plugin.value ? getPluginRecoveryState(plugin.value) : null;
+});
+
+const recoveryMeta = computed(() => {
+  return plugin.value ? getPluginRecoveryMeta(plugin.value) : null;
 });
 
 async function open(row: PluginInfo) {
@@ -312,101 +330,41 @@ function getTenantName(tenantId: number): string {
 
 async function onEnable() {
   if (!plugin.value) return;
-  const pluginVal = plugin.value;
-  const progressStore = usePluginInstallProgressStore();
-
-  try {
-    progressStore.reset();
-    progressStore.startOperation(pluginVal.display_name, 'enable');
-    await enablePluginApi(pluginVal.id);
-    progressStore.markComplete();
-    message.success($t('admin.plugin.messages.enableSuccess'));
-    await reload();
-    emit('saved');
-    await refreshAdminMenusAndPluginRoutes();
-  } catch (error: unknown) {
-    const msg =
-      (error as { message?: string })?.message ||
-      $t('admin.plugin.messages.enableFailed');
-    progressStore.markError(msg);
-    message.error(msg);
-  }
+  pluginActions.onEnable(plugin.value);
 }
 
 function onDisable() {
   if (!plugin.value) return;
-  const pluginVal = plugin.value;
-  Modal.confirm({
-    title: $t('admin.plugin.confirm.disable', { name: pluginVal.display_name }),
-    onOk() {
-      disablePluginApi(pluginVal.id)
-        .then(async () => {
-          message.success($t('admin.plugin.messages.disableSuccess'));
-          await reload();
-          emit('saved');
-          await refreshAdminMenusAndPluginRoutes();
-        })
-        .catch(async (error: unknown) => {
-          handleDisableError(error, pluginVal.display_name, async () => {
-            await disablePluginApi(pluginVal.id, true);
-            message.success($t('admin.plugin.messages.disableSuccess'));
-            await reload();
-            emit('saved');
-            await refreshAdminMenusAndPluginRoutes();
-          });
-        });
-    },
-  });
+  pluginActions.onDisable(plugin.value);
 }
 
 function onUninstall() {
   if (!plugin.value) return;
-  const pluginVal = plugin.value;
-  Modal.confirm({
-    title: $t('admin.plugin.confirm.uninstall', {
-      name: pluginVal.display_name,
-    }),
-    okType: 'danger',
-    onOk() {
-      // Don't return Promise, let Modal close immediately / 不 return Promise，让 Modal 立即关闭
-      uninstallPluginApi(pluginVal.id)
-        .then(() => {
-          message.success($t('admin.plugin.messages.uninstallSuccess'));
-          visible.value = false;
-          emit('saved');
-          void refreshAdminMenusAndPluginRoutes();
-        })
-        .catch(() => {
-          message.error($t('admin.plugin.messages.uninstallFailed'));
-        });
-    },
-  });
+  pluginActions.onUninstall(plugin.value);
 }
 
 function onRepair() {
   if (!plugin.value) return;
-  const pluginVal = plugin.value;
-  Modal.confirm({
-    title: $t('admin.plugin.confirm.repair', { name: pluginVal.display_name }),
-    onOk() {
-      progressStore.reset();
-      progressStore.startOperation(pluginVal.display_name, 'enable');
-      repairPluginApi(pluginVal.id)
-        .then(async () => {
-          progressStore.markComplete();
-          message.success($t('admin.plugin.messages.repairSuccess'));
-          await reload();
-          emit('saved');
-          await refreshAdminMenusAndPluginRoutes();
-        })
-        .catch((error: unknown) => {
-          const msg =
-            (error as { message?: string })?.message ||
-            $t('admin.plugin.messages.repairFailed');
-          progressStore.markError(msg);
-        });
-    },
-  });
+  pluginActions.onRepair(plugin.value);
+}
+
+function hasScheduledTasks() {
+  return plugin.value ? hasPluginScheduledTasks(plugin.value) : false;
+}
+
+function hasRecoveryAction(
+  action:
+    | 'force_cleanup'
+    | 'install_dependencies'
+    | 'refresh_schedules'
+    | 'repair',
+) {
+  return plugin.value ? hasPluginRecoveryAction(plugin.value, action) : false;
+}
+
+function onRefreshSchedules() {
+  if (!plugin.value) return;
+  pluginActions.onRefreshSchedules(plugin.value);
 }
 
 async function onSaveConfig() {
@@ -693,15 +651,85 @@ function getPluginMetadataIcon(
           <IconifyIcon icon="lucide:pause" class="mr-1.5 size-4" />
           {{ $t('admin.plugin.action.disable') }}
         </Button>
-        <Button v-if="plugin.status === 'error'" @click="onRepair">
+        <Button @click="pluginActions.onInstallDependencies(plugin)">
+          <IconifyIcon icon="lucide:package-plus" class="mr-1.5 size-4" />
+          {{ $t('admin.plugin.action.installDependencies') }}
+        </Button>
+        <Button
+          :disabled="plugin.status === 'enabled'"
+          @click="pluginActions.onUninstallDependencies(plugin)"
+        >
+          <IconifyIcon icon="lucide:package-minus" class="mr-1.5 size-4" />
+          {{ $t('admin.plugin.action.uninstallDependencies') }}
+        </Button>
+        <Button v-if="hasRecoveryAction('repair')" @click="onRepair">
           <IconifyIcon icon="lucide:wrench" class="mr-1.5 size-4" />
           {{ $t('admin.plugin.action.repair') }}
+        </Button>
+        <Button
+          v-if="hasRecoveryAction('force_cleanup')"
+          danger
+          @click="pluginActions.onForceCleanup(plugin)"
+        >
+          <IconifyIcon icon="lucide:eraser" class="mr-1.5 size-4" />
+          {{ $t('admin.plugin.action.forceCleanup') }}
+        </Button>
+        <Button v-if="hasScheduledTasks()" @click="onRefreshSchedules">
+          <IconifyIcon icon="lucide:refresh-cw" class="mr-1.5 size-4" />
+          {{ $t('admin.plugin.action.refreshSchedules') }}
         </Button>
         <Button danger @click="onUninstall">
           <IconifyIcon icon="lucide:trash-2" class="mr-1.5 size-4" />
           {{ $t('admin.plugin.action.uninstall') }}
         </Button>
       </div>
+
+      <Alert
+        v-if="recoveryState?.needs_attention && recoveryMeta"
+        :message="$t('admin.plugin.recovery.title')"
+        :type="recoveryMeta.alertType"
+        show-icon
+        class="mb-6"
+      >
+        <template #description>
+          <div class="space-y-3">
+            <p class="mb-0 text-sm">
+              {{ $t(recoveryMeta.descriptionKey) }}
+            </p>
+            <div class="flex flex-wrap gap-2">
+              <Button
+                v-if="hasRecoveryAction('install_dependencies')"
+                size="small"
+                @click="pluginActions.onInstallDependencies(plugin)"
+              >
+                {{ $t('admin.plugin.action.installDependencies') }}
+              </Button>
+              <Button
+                v-if="hasRecoveryAction('refresh_schedules')"
+                size="small"
+                @click="onRefreshSchedules"
+              >
+                {{ $t('admin.plugin.action.refreshSchedules') }}
+              </Button>
+              <Button
+                v-if="hasRecoveryAction('repair')"
+                size="small"
+                @click="onRepair"
+              >
+                {{ $t('admin.plugin.action.repair') }}
+              </Button>
+              <Button
+                v-if="hasRecoveryAction('force_cleanup')"
+                size="small"
+                danger
+                @click="pluginActions.onForceCleanup(plugin)"
+              >
+                {{ $t('admin.plugin.action.forceCleanup') }}
+              </Button>
+            </div>
+          </div>
+        </template>
+      </Alert>
 
       <!-- Basic info / 基本信息 -->
       <Descriptions :column="1" size="small" bordered class="mb-6">

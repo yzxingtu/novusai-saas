@@ -8,6 +8,11 @@ import type { AttachmentCategory, AttachmentInfo } from '#/types/attachment';
 import { searchInput, select } from '#/adapter/form';
 import { getTenantSelectApi } from '#/api/admin/tenant';
 import { $t } from '#/locales';
+import {
+  getAttachmentCategoryColor,
+  getAttachmentMimeCategoryFilterValues,
+  getAttachmentVisibilityColor,
+} from '#/utils/attachment-presentation';
 
 // ============ 工具函数 / Helpers ============
 
@@ -17,27 +22,7 @@ import { $t } from '#/locales';
 export function getCategoryColor(
   category: AttachmentCategory | null | undefined,
 ): string {
-  if (!category) return 'default';
-  switch (category) {
-    case 'archive': {
-      return 'orange';
-    }
-    case 'audio': {
-      return 'cyan';
-    }
-    case 'document': {
-      return 'blue';
-    }
-    case 'image': {
-      return 'green';
-    }
-    case 'video': {
-      return 'purple';
-    }
-    default: {
-      return 'default';
-    }
-  }
+  return getAttachmentCategoryColor(category);
 }
 
 /**
@@ -56,7 +41,7 @@ export function getCategoryText(
 export function getVisibilityColor(
   visibility: 'private' | 'public' | undefined,
 ): string {
-  return visibility === 'public' ? 'success' : 'warning';
+  return getAttachmentVisibilityColor(visibility);
 }
 
 /**
@@ -76,22 +61,24 @@ export function getCategoryFilterOptions(): {
   label: string;
   value: string;
 }[] {
+  const [image, document, video, audio] =
+    getAttachmentMimeCategoryFilterValues();
   return [
     {
       label: $t('admin.system.attachment.categoryType.image'),
-      value: 'image/',
+      value: image,
     },
     {
       label: $t('admin.system.attachment.categoryType.document'),
-      value: 'application/',
+      value: document,
     },
     {
       label: $t('admin.system.attachment.categoryType.video'),
-      value: 'video/',
+      value: video,
     },
     {
       label: $t('admin.system.attachment.categoryType.audio'),
-      value: 'audio/',
+      value: audio,
     },
   ];
 }

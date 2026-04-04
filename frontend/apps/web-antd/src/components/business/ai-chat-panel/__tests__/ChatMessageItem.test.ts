@@ -433,6 +433,53 @@ describe('chatMessageItem', () => {
     await wrapper.vm.$nextTick();
     expect(wrapper.text()).toContain('common.globalAiChat.thinking');
     expect(wrapper.text()).toContain('先检查上下文，再决定下一步。');
+    expect(wrapper.get('[data-testid="thinking-body"]').attributes('style')).toContain(
+      'grid-template-rows: 1fr',
+    );
+  });
+
+  it('renders a compact thinking trigger after streaming completes and expands on demand', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: {
+          clientKey: 'assistant-thinking-finished',
+          role: 'assistant',
+          content: '最终答复',
+          thinkingContent:
+            '先检查上下文，再确认用户意图，然后组织更合适的回答结构。',
+          streaming: false,
+        },
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: {
+            props: ['content'],
+            template: '<div>{{ content }}</div>',
+          },
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain('common.globalAiChat.thinkingCollapsed');
+    expect(wrapper.text()).toContain(
+      '先检查上下文，再确认用户意图，然后组织更合适的回答结构。',
+    );
+    expect(wrapper.get('[data-testid="thinking-body"]').attributes('style')).toContain(
+      'grid-template-rows: 0fr',
+    );
+
+    await wrapper.get('[data-testid="thinking-toggle"]').trigger('click');
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.get('[data-testid="thinking-body"]').attributes('style')).toContain(
+      'grid-template-rows: 1fr',
+    );
   });
 
   it('renders @ route badge for one-time mention messages', async () => {

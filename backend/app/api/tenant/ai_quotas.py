@@ -14,6 +14,7 @@ from app.core.response import success
 from app.enums.rbac import PermissionScope
 from app.exceptions import AuthorizationException, NotFoundException
 from app.rbac.decorators import (
+    MenuAIConfig,
     MenuConfig,
     action_create,
     action_delete,
@@ -41,6 +42,12 @@ from app.services.ai.tenant_rate_limit_service import TenantRateLimitService
     scope=PermissionScope.TENANT,
     parent_resource="ai_settings",
     menu=MenuConfig(
+        ai=MenuAIConfig(
+            description="View and manage AI quotas, limits, and usage rules",
+            keywords=["配额", "额度", "quota", "quotas", "usage quota", "限额"],
+            capabilities=["view_quota", "edit_quota", "inspect_usage"],
+            category="ai",
+        ),
         icon="lucide:gauge",
         path="/ai/quotas",
         component="ai/quotas/index",

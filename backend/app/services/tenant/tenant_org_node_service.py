@@ -12,9 +12,10 @@ from sqlalchemy.orm import selectinload
 
 from app.core.base_service import TenantService
 from app.core.i18n import _
-from app.enums import ErrorCode, RoleType
+from app.enums import ErrorCode, PermissionScope, RoleType
 from app.enums.role import DataScope
 from app.exceptions import BusinessException, NotFoundException
+from app.models.auth.permission import Permission
 from app.models.org.tenant_org_node import (
     TenantOrgNode,
     TenantOrgScopePolicy,
@@ -45,6 +46,28 @@ class TenantOrgNodeService(
     def _generate_org_node_code(self) -> str:
         return f"org_{uuid.uuid4().hex[:12]}"
 
+    async def _normalize_permission_ids(
+        self, permission_ids: list[int] | None
+    ) -> list[int]:
+        if not permission_ids:
+            return []
+
+        deduped = list(dict.fromkeys(permission_ids))
+        result = await self.db.execute(
+            select(Permission.id).where(
+                Permission.id.in_(deduped),
+                Permission.scope.in_(
+                    [PermissionScope.TENANT.value, PermissionScope.BOTH.value]
+                ),
+                Permission.is_deleted.is_(False),
+            )
+        )
+        existing_ids = set(result.scalars().all())
+        missing_ids = [item for item in deduped if item not in existing_ids]
+        if missing_ids:
+            raise NotFoundException(message=_("permission.not_found"))
+        return deduped
+
     def _role_to_dict(self, org_node: TenantOrgNode) -> dict[str, Any]:
         base = super()._role_to_dict(org_node)
         leader = None
@@ -64,6 +87,7 @@ class TenantOrgNodeService(
                 "leader_id": org_node.leader_id,
                 "leader": leader,
                 "member_count": org_node.member_count,
+                "permissions_count": org_node.permissions_count,
                 "data_scope": org_node.scope_mode,
                 "custom_dept_ids": org_node.custom_org_node_ids,
             }
@@ -153,6 +177,32 @@ class TenantOrgNodeService(
         await self.db.flush()
         await self.db.refresh(org_node)
 
+    async def _assign_permissions(
+        self,
+        org_node: TenantOrgNode,
+        permission_ids: list[int] | None,
+    ) -> None:
+        normalized_permission_ids = await self._normalize_permission_ids(permission_ids)
+        if not normalized_permission_ids:
+            org_node.permissions = []
+            await self.db.flush()
+            return
+
+        result = await self.db.execute(
+            select(Permission).where(
+                Permission.id.in_(normalized_permission_ids),
+                Permission.is_deleted.is_(False),
+            )
+        )
+        permissions = list(result.scalars().all())
+        permission_map = {permission.id: permission for permission in permissions}
+        org_node.permissions = [
+            permission_map[permission_id]
+            for permission_id in normalized_permission_ids
+            if permission_id in permission_map
+        ]
+        await self.db.flush()
+
     async def create_org_node(
         self,
         name: str,
@@ -165,6 +215,7 @@ class TenantOrgNodeService(
         allow_members: bool = True,
         data_scope: str | None = None,
         custom_dept_ids: list[int] | None = None,
+        permission_ids: list[int] | None = None,
     ) -> TenantOrgNode:
         code = self._generate_org_node_code()
         self._validate_org_node_type(type)
@@ -209,6 +260,7 @@ class TenantOrgNodeService(
             data_scope=data_scope,
             custom_dept_ids=custom_dept_ids,
         )
+        await self._assign_permissions(org_node, permission_ids)
         return await self.repo.get_with_members(org_node.id)
 
     async def update_org_node(
@@ -226,6 +278,7 @@ class TenantOrgNodeService(
 
         data_scope = data.pop("data_scope", None)
         custom_dept_ids = data.pop("custom_dept_ids", None)
+        permission_ids = data.pop("permission_ids", None)
 
         if "type" in data and data["type"] is not None:
             self._validate_org_node_type(data["type"])
@@ -271,6 +324,8 @@ class TenantOrgNodeService(
             data_scope=data_scope,
             custom_dept_ids=custom_dept_ids,
         )
+        if permission_ids is not None:
+            await self._assign_permissions(updated, permission_ids)
         return await self.repo.get_with_members(org_node_id)
 
     async def update_authority_policy(

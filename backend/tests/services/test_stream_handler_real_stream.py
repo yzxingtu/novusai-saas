@@ -314,6 +314,39 @@ class _BrokenStreamEngine(_FakeEngine):
         yield  # pragma: no cover
 
 
+class _BlockingThinkingStreamEngine(_FakeEngine):
+    def __init__(self) -> None:
+        super().__init__(rounds=[])
+        self._round = 0
+        self.allow_tool_finish = asyncio.Event()
+
+    async def _stream_llm_chunks(self, **kwargs):
+        _ = kwargs
+        if self._round == 0:
+            self._round += 1
+            yield ChatChunk(delta="", reasoning_delta="先")
+            await self.allow_tool_finish.wait()
+            yield ChatChunk(
+                delta="",
+                tool_calls=[
+                    {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {
+                            "name": "query_db",
+                            "arguments": '{"sql":"SELECT 1"}',
+                        },
+                    }
+                ],
+                finish_reason="tool_calls",
+                total_tokens=12,
+            )
+            return
+
+        self._round += 1
+        yield ChatChunk(delta="完成", finish_reason="stop", total_tokens=20)
+
+
 def _build_handler(
     engine: _FakeEngine,
     tools: list[ToolDefinition] | None = None,
@@ -390,6 +423,113 @@ async def test_stream_handler_done_and_on_complete_when_llm_stream_stops_at_fini
     assert len(captured) == 1
     assert captured[0].success is True
     assert captured[0].partial is False
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_budget_exit_after_tool_round_still_emits_final_message():
+    """预算退出在工具轮后仍要保留最终 assistant 文本输出。"""
+    engine = _FakeEngine(
+        rounds=[
+            [
+                ChatChunk(
+                    delta="Final summary after the tool call.",
+                    tool_calls=[
+                        {
+                            "id": "call_tool_1",
+                            "type": "function",
+                            "function": {
+                                "name": "web_search",
+                                "arguments": '{"query":"budget exit"}',
+                            },
+                        },
+                    ],
+                    finish_reason="tool_calls",
+                    total_tokens=20,
+                ),
+            ],
+        ],
+    )
+    tools = [ToolDefinition(name="web_search", description="Search the web")]
+    handler = _build_handler(engine, tools=tools)
+
+    events: list[dict] = []
+    with patch(
+        "app.ai.engine.budget_guard.BudgetGuard.completion_reason",
+        return_value="elapsed_budget_exceeded",
+    ):
+        async for raw in handler.generate():
+            if raw.strip().startswith("data: {"):
+                events.append(_parse_sse_payload(raw))
+
+    message_text = "".join(
+        event.get("delta", "") for event in events if event.get("event") == "message"
+    )
+    assert "Final summary after the tool call." in message_text
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_budget_exit_after_successful_tool_adds_fallback_reply():
+    """工具已成功执行但预算提前退出时，仍应补一条最终 assistant 回复。"""
+    from app.ai.engine.types import ExecutionResult
+
+    captured: list[ExecutionResult] = []
+
+    async def on_complete(result: ExecutionResult) -> None:
+        captured.append(result)
+
+    engine = _FakeEngine(
+        rounds=[
+            [
+                ChatChunk(
+                    delta="",
+                    tool_calls=[
+                        {
+                            "id": "call_page_context_1",
+                            "type": "function",
+                            "function": {
+                                "name": "get_page_context",
+                                "arguments": "{}",
+                            },
+                        },
+                    ],
+                    finish_reason="tool_calls",
+                    total_tokens=12,
+                ),
+            ],
+        ],
+    )
+    tools = [ToolDefinition(name="get_page_context", description="Read page context")]
+    handler = _build_handler(engine, tools=tools)
+    handler.on_complete = on_complete
+    handler.request.input_variables = {
+        "page_context": {
+            "page_key": "tenant.dashboard",
+            "page_title": "仪表盘",
+            "page_data": {"locale": "zh_CN"},
+        }
+    }
+    handler._state.budget_exit_reason = MagicMock(
+        side_effect=[None, "elapsed_budget_exceeded", "elapsed_budget_exceeded"]
+    )
+
+    events: list[dict] = []
+    async for raw in handler.generate():
+        if raw.strip().startswith("data: {"):
+            events.append(_parse_sse_payload(raw))
+
+    message_text = "".join(
+        event.get("delta", "") for event in events if event.get("event") == "message"
+    )
+    await asyncio.sleep(0)
+    assert "工具执行" in message_text
+    assert "执行预算" in message_text
+    assert len(captured) == 1
+    persisted_assistants = [
+        message
+        for message in captured[0].messages
+        if message.get("role") == "assistant" and (message.get("content") or "").strip()
+    ]
+    assert any("执行预算" in (message.get("content") or "") for message in persisted_assistants)
 
 
 @pytest.mark.asyncio
@@ -470,6 +610,31 @@ async def test_stream_handler_with_tools_keeps_real_delta_order():
     assert "".join(message_deltas) == "第一段"
     assert any(e.get("event") == "done" for e in events)
     assert not any(e.get("event") == "thinking" for e in events)
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_with_tools_emits_thinking_before_round_finishes():
+    engine = _BlockingThinkingStreamEngine()
+    handler = _build_handler(engine)
+    agen = handler.generate()
+
+    first = _parse_sse_payload(await agen.__anext__())
+    assert first["event"] == "conversation"
+
+    thinking = _parse_sse_payload(await asyncio.wait_for(agen.__anext__(), timeout=0.2))
+    assert thinking["event"] == "thinking"
+    assert thinking["delta"] == "先"
+
+    engine.allow_tool_finish.set()
+
+    events = [first, thinking]
+    async for raw in agen:
+        if raw.strip().startswith("data: {"):
+            events.append(_parse_sse_payload(raw))
+
+    assert any(e.get("event") == "tool_start" and e.get("name") == "query_db" for e in events)
+    assert any(e.get("event") == "tool_call" and e.get("success") is True for e in events)
+    assert any(e.get("event") == "done" for e in events)
 
 
 @pytest.mark.asyncio

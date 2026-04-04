@@ -129,6 +129,13 @@ class Agent(BaseModel):
         "created_at": "created_at",
     }
 
+    __selectable__ = {
+        "label": "name",
+        "value": "id",
+        "search": ["name", "description"],
+        "extra": ["avatar", "scope"],
+    }
+
     # 允许排序的字段 / Sortable columns for UI
     __sortable__ = {
         "id": "id",

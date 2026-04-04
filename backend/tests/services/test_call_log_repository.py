@@ -13,7 +13,6 @@ from tests.services.conftest import make_mock_model, make_row_result
 
 
 class TestEnrichLogs:
-
     @pytest.mark.asyncio
     async def test_enrich_detail_unpacks_request_and_response_payloads(self, mock_db):
         from app.repositories.ai.call_log_repository import AICallLogRepository
@@ -22,6 +21,8 @@ class TestEnrichLogs:
         log = make_mock_model(
             id=1,
             tenant_id=0,
+            agent_id=None,
+            agent_id_snapshot=None,
             model_id=10,
             provider_id=20,
             routed_model_id=30,
@@ -76,22 +77,25 @@ class TestEnrichLogs:
 
 
 class TestTenantZeroFilter:
-
     @pytest.mark.asyncio
-    async def test_overall_summary_with_platform_tenant_zero_keeps_filter(self, mock_db):
+    async def test_overall_summary_with_platform_tenant_zero_keeps_filter(
+        self, mock_db
+    ):
         from app.repositories.ai.call_log_repository import AICallLogRepository
 
         repo = AICallLogRepository(mock_db)
-        mock_db.execute.return_value = make_row_result({
-            "total_calls": 0,
-            "total_tokens": 0,
-            "input_tokens": 0,
-            "output_tokens": 0,
-            "total_cost": 0,
-            "avg_latency": 0,
-            "success_calls": 0,
-            "failed_calls": 0,
-        })
+        mock_db.execute.return_value = make_row_result(
+            {
+                "total_calls": 0,
+                "total_tokens": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "total_cost": 0,
+                "avg_latency": 0,
+                "success_calls": 0,
+                "failed_calls": 0,
+            }
+        )
 
         await repo.get_overall_summary(tenant_id=0)
 
@@ -99,7 +103,9 @@ class TestTenantZeroFilter:
         assert "ai_call_logs.tenant_id" in str(stmt)
 
     @pytest.mark.asyncio
-    async def test_query_usage_stats_includes_platform_internal_usage_bucket(self, mock_db):
+    async def test_query_usage_stats_includes_platform_internal_usage_bucket(
+        self, mock_db
+    ):
         from app.repositories.ai.call_log_repository import AICallLogRepository
 
         repo = AICallLogRepository(mock_db)
@@ -107,23 +113,25 @@ class TestTenantZeroFilter:
         count_result.scalar.return_value = 1
 
         rows_result = MagicMock()
-        rows_result.mappings.return_value.all.return_value = [{
-            "stat_date": date(2026, 3, 27),
-            "tenant_id": 0,
-            "tenant_name": "平台管理端",
-            "model_id": 9,
-            "model_name": "gpt-5.4-xhigh",
-            "request_type": "chat",
-            "input_tokens": 120,
-            "output_tokens": 80,
-            "total_tokens": 200,
-            "call_count": 3,
-            "success_count": 3,
-            "failed_count": 0,
-            "total_cost": 0.42,
-            "avg_latency_ms": 1234.5,
-            "max_latency_ms": 3000,
-        }]
+        rows_result.mappings.return_value.all.return_value = [
+            {
+                "stat_date": date(2026, 3, 27),
+                "tenant_id": 0,
+                "tenant_name": "平台管理端",
+                "model_id": 9,
+                "model_name": "gpt-5.4-xhigh",
+                "request_type": "chat",
+                "input_tokens": 120,
+                "output_tokens": 80,
+                "total_tokens": 200,
+                "call_count": 3,
+                "success_count": 3,
+                "failed_count": 0,
+                "total_cost": 0.42,
+                "avg_latency_ms": 1234.5,
+                "max_latency_ms": 3000,
+            }
+        ]
 
         mock_db.execute.side_effect = [count_result, rows_result]
 
@@ -140,20 +148,24 @@ class TestTenantZeroFilter:
         assert "ai_call_logs.tenant_id = :tenant_id_" in main_sql
 
     @pytest.mark.asyncio
-    async def test_billing_tenant_summary_with_platform_tenant_zero_uses_effective_usage_tenant(self, mock_db):
+    async def test_billing_tenant_summary_with_platform_tenant_zero_uses_effective_usage_tenant(
+        self, mock_db
+    ):
         from app.repositories.ai.call_log_repository import AICallLogRepository
 
         repo = AICallLogRepository(mock_db)
         mock_db.execute.side_effect = [
-            make_row_result({
-                "total_tokens": 200,
-                "input_tokens": 120,
-                "output_tokens": 80,
-                "call_count": 3,
-                "total_cost": 0.42,
-                "success_count": 3,
-                "failed_count": 0,
-            }),
+            make_row_result(
+                {
+                    "total_tokens": 200,
+                    "input_tokens": 120,
+                    "output_tokens": 80,
+                    "call_count": 3,
+                    "total_cost": 0.42,
+                    "success_count": 3,
+                    "failed_count": 0,
+                }
+            ),
             MagicMock(all=MagicMock(return_value=[])),
             MagicMock(all=MagicMock(return_value=[])),
             MagicMock(all=MagicMock(return_value=[])),

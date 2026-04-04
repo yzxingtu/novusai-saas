@@ -1,6 +1,24 @@
+/**
+ * Page context payload budgeting for AI page awareness.
+ * AI 页面感知：page_context 体积预算与渐进压缩。
+ *
+ * Keeps serialized ``pageData`` under tenant/agent limits by truncating lists,
+ * form fields, operations, menus, and long text in a deterministic order.
+ * 按固定顺序裁剪列表、表单字段、可用操作、菜单与长文本，使序列化体积不超限。
+ */
+
+// --- Tunables / 可调常量 ---
 const MAX_FORM_FIELDS = 20;
 const DEFAULT_PAGE_CONTEXT_MAX_BYTES_FALLBACK = 8192;
 const PAGE_CONTEXT_SOFT_RESERVE_BYTES = 1024;
+const REQUIRED_NAVIGATION_OPERATION_NAMES = new Set([
+  'capture_screenshot',
+  'list_available_menus',
+  'navigate_menu',
+  'read_current_view',
+]);
+
+// --- Visual snapshot & byte limits / 视觉快照与字节上限 ---
 
 export function collectVisualState(
   modals: Array<{ type: string }> = [],
@@ -22,6 +40,8 @@ export function getPageContextHardLimitBytes(configuredValue?: number): number {
 export function getPageContextSoftLimitBytes(hardLimitBytes: number): number {
   return Math.max(hardLimitBytes - PAGE_CONTEXT_SOFT_RESERVE_BYTES, 1024);
 }
+
+// --- JSON byte measurement & field truncation / JSON 字节计量与字段截断 ---
 
 export function getSerializedPageDataBytes(
   pageData: Record<string, unknown>,
@@ -48,6 +68,8 @@ export function truncateFormFields(
     `Showing ${MAX_FORM_FIELDS} of ${entries.length} fields`;
   return { ...pageData, form_fields: truncated };
 }
+
+// --- Available operations: priority + compaction / 可用操作：优先级与压缩 ---
 
 export function compactAvailableOperations(
   operations: unknown[],
@@ -118,8 +140,12 @@ export function compactAvailableOperations(
   });
 }
 
+// Internal: stable sort for operation importance / 内部：按重要性稳定排序操作
+
 function getPrioritizedOperations(operations: unknown[]): unknown[] {
   const operationPriority: Record<string, number> = {
+    navigate_menu: -2,
+    list_available_menus: -1,
     create_record: 0,
     edit_record: 1,
     get_form_state: 2,
@@ -168,12 +194,26 @@ function getPrioritizedOperations(operations: unknown[]): unknown[] {
     .map((item) => item.operation);
 }
 
+// Internal: keep nav ops + minimal op list when over budget / 超预算时保留导航类与最小操作列表
+
 function compactEssentialAvailableOperations(
   operations: unknown[],
   maxOps: number,
 ): unknown[] {
-  return getPrioritizedOperations(operations)
-    .slice(0, maxOps)
+  const prioritized = getPrioritizedOperations(operations);
+  const required = prioritized.filter((item) => {
+    if (!item || typeof item !== 'object') {
+      return false;
+    }
+
+    return REQUIRED_NAVIGATION_OPERATION_NAMES.has(
+      String((item as Record<string, unknown>).name || ''),
+    );
+  });
+  const extras = prioritized.filter((item) => !required.includes(item));
+
+  return [...required, ...extras]
+    .slice(0, Math.max(maxOps, required.length))
     .map((item) => {
       if (!item || typeof item !== 'object') {
         return item;
@@ -186,6 +226,62 @@ function compactEssentialAvailableOperations(
       };
     });
 }
+
+// Internal: shrink menu entries for budget / 内部：压缩菜单项以控制体积
+
+function compactAvailableMenus(
+  menus: unknown[],
+  options: {
+    includeDescription: boolean;
+    maxCapabilitiesPerMenu: number;
+    maxEntries: number;
+    maxKeywordsPerMenu: number;
+  },
+): unknown[] {
+  return menus.slice(0, options.maxEntries).map((item) => {
+    if (!item || typeof item !== 'object') {
+      return item;
+    }
+
+    const menu = item as Record<string, unknown>;
+    const compact: Record<string, unknown> = {
+      title: menu.title,
+      path: menu.path,
+      page_key: menu.page_key,
+    };
+
+    if (Array.isArray(menu.breadcrumb) && menu.breadcrumb.length > 0) {
+      compact.breadcrumb = menu.breadcrumb.slice(0, 4);
+    }
+    if (typeof menu.category === 'string' && menu.category) {
+      compact.category = menu.category;
+    }
+    if (options.includeDescription && typeof menu.description === 'string') {
+      compact.description = menu.description.slice(0, 120);
+    }
+    if (
+      options.maxKeywordsPerMenu > 0 &&
+      Array.isArray(menu.keywords) &&
+      menu.keywords.length > 0
+    ) {
+      compact.keywords = menu.keywords.slice(0, options.maxKeywordsPerMenu);
+    }
+    if (
+      options.maxCapabilitiesPerMenu > 0 &&
+      Array.isArray(menu.capabilities) &&
+      menu.capabilities.length > 0
+    ) {
+      compact.capabilities = menu.capabilities.slice(
+        0,
+        options.maxCapabilitiesPerMenu,
+      );
+    }
+
+    return compact;
+  });
+}
+
+// --- Form fields & semantic snapshots / 表单字段与语义块 ---
 
 function compactFormFieldsForBudget(
   formFields: Record<string, unknown>,
@@ -324,6 +420,8 @@ function compactSemanticSnapshot(
   return changed ? nextPageData : pageData;
 }
 
+// --- Main guard: iterative shrink until under max bytes / 主入口：迭代压缩至上限以下 ---
+
 export function guardPageDataSize(
   pageData: Record<string, unknown>,
   maxPageDataBytes: number,
@@ -414,6 +512,45 @@ export function guardPageDataSize(
       data = {
         ...data,
         available_operations: compactOperations,
+      };
+      size = getSerializedPageDataBytes(data);
+      if (size <= maxPageDataBytes) return data;
+    }
+  }
+
+  const availableMenus = data.available_menus;
+  if (Array.isArray(availableMenus) && availableMenus.length > 0) {
+    const menuVariants = [
+      compactAvailableMenus(availableMenus, {
+        includeDescription: true,
+        maxCapabilitiesPerMenu: 4,
+        maxEntries: 24,
+        maxKeywordsPerMenu: 5,
+      }),
+      compactAvailableMenus(availableMenus, {
+        includeDescription: true,
+        maxCapabilitiesPerMenu: 2,
+        maxEntries: 16,
+        maxKeywordsPerMenu: 3,
+      }),
+      compactAvailableMenus(availableMenus, {
+        includeDescription: false,
+        maxCapabilitiesPerMenu: 0,
+        maxEntries: 12,
+        maxKeywordsPerMenu: 2,
+      }),
+      compactAvailableMenus(availableMenus, {
+        includeDescription: false,
+        maxCapabilitiesPerMenu: 0,
+        maxEntries: 8,
+        maxKeywordsPerMenu: 0,
+      }),
+    ];
+
+    for (const compactMenus of menuVariants) {
+      data = {
+        ...data,
+        available_menus: compactMenus,
       };
       size = getSerializedPageDataBytes(data);
       if (size <= maxPageDataBytes) return data;

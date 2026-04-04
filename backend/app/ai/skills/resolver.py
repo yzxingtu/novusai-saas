@@ -25,7 +25,9 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from app.ai.events.hooks import HookPoint, get_hook_registry
+from app.ai.prompt_contracts import render_prompt_contract
 from app.ai.runtime.types import CapabilityDescriptor
+from app.ai.text_semantics import extract_double_brace_placeholders
 from app.ai.tools.semantic_defaults import FAMILY_HINT_TAGS
 from app.ai.tools.types import ToolDefinition, ToolParameter
 from app.core.logging import LogManager
@@ -149,6 +151,20 @@ def enrich_skill_capability_descriptors_with_tools(
         }
 
 
+def _is_runtime_eligible_skill(skill: Any) -> bool:
+    if not skill:
+        return False
+    if not getattr(skill, "is_active", True) or getattr(skill, "is_deleted", False):
+        return False
+    package = getattr(skill, "package", None)
+    if package is None:
+        return False
+    return bool(
+        getattr(package, "is_active", True)
+        and not getattr(package, "is_deleted", False)
+    )
+
+
 class SkillResolver:
     """
     Skill → ToolDefinition converter / Skill → ToolDefinition 转换器。
@@ -258,7 +274,7 @@ class SkillResolver:
         plugin_map = await self._load_source_plugins(skills)
 
         for skill in skills:
-            if not skill.is_active:
+            if not _is_runtime_eligible_skill(skill):
                 continue
 
             # Merge config: Skill.config + binding.config_override
@@ -481,14 +497,9 @@ class SkillResolver:
         result.tools.append(
             ToolDefinition(
                 name="data_query",
-                description=(
-                    "Query the database using natural language. "
-                    "The system will automatically generate safe SQL and return results. "
-                    f"Available tables: {table_list}. "
-                    "IMPORTANT: You MUST use this tool for ANY question about data counts, "
-                    "totals, statistics, listings, or aggregations — including tenant counts, "
-                    "user counts, agent counts, conversation counts, usage stats, etc. "
-                    "Do NOT use other action tools for counting or statistical questions."
+                description=render_prompt_contract(
+                    "data_query_tool_description",
+                    table_list=table_list,
                 ),
                 tool_type=ToolTypeEnum.TEXT_TO_SQL.value,
                 parameters=[
@@ -531,13 +542,10 @@ class SkillResolver:
             result.tools.append(
                 ToolDefinition(
                     name="data_create",
-                    description=(
-                        "Create a new record in a database table. "
-                        "First call without 'confirmed' to get a preview; "
-                        "then call again with confirmed=true after user approval. "
-                        f"ONLY these tables allow creation: {create_list}. "
-                        "Do NOT attempt to create records in any other table."
-                        f"{schema_block}"
+                    description=render_prompt_contract(
+                        "data_create_tool_description",
+                        table_list=create_list,
+                        schema_block=schema_block,
                     ),
                     tool_type=ToolTypeEnum.DATA_CREATE.value,
                     parameters=[
@@ -582,13 +590,10 @@ class SkillResolver:
             result.tools.append(
                 ToolDefinition(
                     name="data_update",
-                    description=(
-                        "Update an existing record in a database table. "
-                        "First call without 'confirmed' to see a diff preview; "
-                        "then call again with confirmed=true after user approval. "
-                        f"ONLY these tables allow updates: {update_list}. "
-                        "Do NOT attempt to update records in any other table."
-                        f"{schema_block}"
+                    description=render_prompt_contract(
+                        "data_update_tool_description",
+                        table_list=update_list,
+                        schema_block=schema_block,
                     ),
                     tool_type=ToolTypeEnum.DATA_UPDATE.value,
                     parameters=[
@@ -635,12 +640,9 @@ class SkillResolver:
             result.tools.append(
                 ToolDefinition(
                     name="data_delete",
-                    description=(
-                        "Soft-delete a record from a database table. "
-                        "First call without 'confirmed' to see record details; "
-                        "then call again with confirmed=true after user explicitly confirms. "
-                        f"ONLY these tables allow deletion: {delete_list}. "
-                        "Do NOT attempt to delete records in any other table."
+                    description=render_prompt_contract(
+                        "data_delete_tool_description",
+                        table_list=delete_list,
                     ),
                     tool_type=ToolTypeEnum.DATA_DELETE.value,
                     parameters=[
@@ -673,9 +675,9 @@ class SkillResolver:
                 )
             )
 
-    # ======================================== / 上文为英文说明 / English above
+    # ============================================
     # Toolkit Skill / Toolkit 技能
-    # ========================================
+    # ============================================
 
     def _resolve_toolkit(
         self,
@@ -734,9 +736,9 @@ class SkillResolver:
             len(tool_defs),
         )
 
-    # ======================================== / 上文为英文说明 / English above
-    # Builtin Skill
-    # ========================================
+    # ============================================
+    # Builtin Skill / 内置技能
+    # ============================================
 
     @staticmethod
     def _augment_builtin_tool_description(
@@ -747,16 +749,11 @@ class SkillResolver:
         base = (description or "").strip()
 
         if normalized == "web_search":
-            extra = (
-                "Search the web for current or external information. "
-                "Results are candidate sources; verify content with fetch_url when needed."
-            )
+            extra = render_prompt_contract("builtin_web_search_description")
         elif normalized == "fetch_url":
-            extra = "Read the full content of a specific web page by URL."
+            extra = render_prompt_contract("builtin_fetch_url_description")
         elif normalized == "get_current_time":
-            extra = (
-                "Return the current runtime date and time in the requested timezone."
-            )
+            extra = render_prompt_contract("builtin_current_time_description")
         else:
             return base
 
@@ -829,9 +826,9 @@ class SkillResolver:
                 )
             )
 
-    # ======================================== / 上文为英文说明 / English above
-    # HTTP/Webhook Skill
-    # ========================================
+    # ============================================
+    # HTTP/Webhook Skill / HTTP 与 Webhook 技能
+    # ============================================
 
     def _resolve_http(
         self,
@@ -875,17 +872,15 @@ class SkillResolver:
 
         # Extract {{variable}} placeholders from body_template as LLM parameters
         # 从 body_template 提取 {{variable}} 占位符作为 LLM 参数
-        import re
-
-        template_vars = re.findall(r"\{\{(\w+)\}\}", body_template or "")
+        template_vars = extract_double_brace_placeholders(body_template)
         # Also extract variables from URL and query_params
         # 也从 URL 和 query_params 提取变量
-        url_vars = re.findall(r"\{\{(\w+)\}\}", url)
+        url_vars = extract_double_brace_placeholders(url)
         query_params = config.get("query_params", {}) or {}
         qp_vars = []
         for v in query_params.values():
             if isinstance(v, str):
-                qp_vars.extend(re.findall(r"\{\{(\w+)\}\}", v))
+                qp_vars.extend(extract_double_brace_placeholders(v))
 
         all_vars = list(dict.fromkeys(url_vars + template_vars + qp_vars))
 
@@ -946,9 +941,9 @@ class SkillResolver:
             len(params),
         )
 
-    # ======================================== / 上文为英文说明 / English above
-    # Email Skill
-    # ========================================
+    # ============================================
+    # Email Skill / 邮件技能
+    # ============================================
 
     def _resolve_email(
         self,
@@ -976,9 +971,9 @@ class SkillResolver:
         max_recipients = config.get("max_recipients", 5)
         allow_cc = config.get("allow_cc", True)
 
-        description = (
-            "Send an email to specified recipients. "
-            f"Maximum {max_recipients} recipients allowed."
+        description = render_prompt_contract(
+            "email_tool_description",
+            max_recipients=max_recipients,
         )
         if skill.description:
             description = skill.description
@@ -1040,9 +1035,9 @@ class SkillResolver:
 
         logger.debug("Email skill '{}' resolved", skill.name)
 
-    # ======================================== / 上文为英文说明 / English above
-    # Code Execution Skill
-    # ========================================
+    # ============================================
+    # Code Execution Skill / 代码执行技能
+    # ============================================
 
     def _resolve_code_execution(
         self,
@@ -1084,11 +1079,10 @@ class SkillResolver:
             ],
         )
 
-        description = (
-            f"Execute {language} code in a secure sandbox. "
-            f"Allowed modules: {', '.join(allowed_modules[:10])}. "
-            "Use this for calculations, data processing, or text manipulation. "
-            "The code must print its output to stdout."
+        description = render_prompt_contract(
+            "execute_code_tool_description",
+            language=language,
+            allowed_modules=", ".join(allowed_modules[:10]),
         )
         if skill.description:
             description = skill.description
@@ -1380,7 +1374,7 @@ async def resolve_for_agent(
 
     for grant in grants:
         skill = grant.skill
-        if not skill or not skill.is_active or skill.is_deleted:
+        if not _is_runtime_eligible_skill(skill):
             continue
 
         skills.append(skill)

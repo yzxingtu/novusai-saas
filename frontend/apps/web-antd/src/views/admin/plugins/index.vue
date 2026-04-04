@@ -13,25 +13,10 @@ import { useRouter } from 'vue-router';
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import {
-  Button,
-  Input,
-  message,
-  Modal,
-  Switch,
-  Tag,
-  Tooltip,
-} from 'ant-design-vue';
+import { Button, Input, message, Switch, Tag, Tooltip } from 'ant-design-vue';
 
 import {
-  disablePluginApi,
-  enablePluginApi,
-  forceCleanupPluginApi,
   getPluginListApi,
-  installPluginDependenciesApi,
-  repairPluginApi,
-  uninstallPluginApi,
-  uninstallPluginDependenciesApi,
   updatePluginMenuConfigApi,
 } from '#/api/admin/plugin';
 import {
@@ -44,10 +29,7 @@ import {
   usePageAIContext,
   usePageAIOperations,
 } from '#/composables/use-page-ai-registration';
-import {
-  handleDisableError as _handleDisableError,
-  refreshAdminMenusAndPluginRoutes as _refreshRoutes,
-} from '#/composables/use-plugin-admin-refresh';
+import { refreshAdminMenusAndPluginRoutes as _refreshRoutes } from '#/composables/use-plugin-admin-refresh';
 import { $t } from '#/locales';
 import { usePluginInstallProgressStore } from '#/store';
 import { resolvePluginMetadataIcon } from '#/utils/plugin-metadata-icon';
@@ -65,6 +47,12 @@ import PluginConfigDrawer from './modules/PluginConfigDrawer.vue';
 import PluginInstallProgress from './modules/PluginInstallProgress.vue';
 import PluginInstallWizard from './modules/PluginInstallWizard.vue';
 import PluginMenuConfigModal from './modules/PluginMenuConfigModal.vue';
+import {
+  getPluginRecoveryMeta,
+  hasPluginRecoveryAction,
+  hasPluginScheduledTasks,
+} from './plugin-recovery';
+import { usePluginAdminActions } from './use-plugin-admin-actions';
 
 defineOptions({ name: 'AdminPluginList' });
 
@@ -210,6 +198,16 @@ async function refreshAdminMenusAndPluginRoutes() {
   await _refreshRoutes(router);
 }
 
+const pluginActions = usePluginAdminActions({
+  afterMutation: async () => {
+    await loadPlugins();
+    await refreshAdminMenusAndPluginRoutes();
+  },
+  withProcessing: async (id, run) => {
+    await withProcessing(id, run);
+  },
+});
+
 onMounted(() => {
   loadPlugins();
   progressStore.startListening();
@@ -296,28 +294,7 @@ function onEnable(plugin: PluginInfo) {
 }
 
 function doEnable(plugin: PluginInfo, menuOverrides?: MenuOverrideItem[]) {
-  Modal.confirm({
-    title: $t('admin.plugin.confirm.enable', { name: plugin.display_name }),
-    onOk() {
-      // Don't return Promise, let Modal close immediately, progress tracked by progressStore (Socket.IO) / 不 return Promise，让 Modal 立即关闭，进度由 progressStore (Socket.IO) 跟踪
-      progressStore.reset();
-      progressStore.startOperation(plugin.display_name, 'enable');
-      withProcessing(plugin.id, async () => {
-        await enablePluginApi(plugin.id, menuOverrides);
-        // SIO fallback: if no Socket.IO events arrived, mark complete via HTTP success / SIO 兜底：无 Socket.IO 事件时按 HTTP 成功标记完成
-        progressStore.markComplete();
-        message.success($t('admin.plugin.messages.enableSuccess'));
-        await loadPlugins();
-        await refreshAdminMenusAndPluginRoutes();
-      }).catch((error: unknown) => {
-        // SIO fallback: if no Socket.IO error event arrived, show error from HTTP / SIO 兜底：无 Socket.IO 错误事件时展示 HTTP 错误
-        const msg =
-          (error as { message?: string })?.message ||
-          $t('admin.plugin.messages.enableFailed');
-        progressStore.markError(msg);
-      });
-    },
-  });
+  pluginActions.onEnable(plugin, menuOverrides);
 }
 
 let menuConfigUpdatePlugin: null | PluginInfo = null;
@@ -347,145 +324,58 @@ function onMenuLocation(plugin: PluginInfo) {
 }
 
 function onDisable(plugin: PluginInfo) {
-  Modal.confirm({
-    title: $t('admin.plugin.confirm.disable', { name: plugin.display_name }),
-    onOk: () => {
-      progressStore.reset();
-      progressStore.startOperation(plugin.display_name, 'disable');
-      return withProcessing(plugin.id, async () => {
-        try {
-          await disablePluginApi(plugin.id);
-        } catch (error: unknown) {
-          _handleDisableError(error, plugin.display_name, () =>
-            withProcessing(plugin.id, async () => {
-              await disablePluginApi(plugin.id, true);
-              message.success($t('admin.plugin.messages.disableSuccess'));
-              await loadPlugins();
-              await refreshAdminMenusAndPluginRoutes();
-            }),
-          );
-          return;
-        }
-        progressStore.markComplete();
-        message.success($t('admin.plugin.messages.disableSuccess'));
-        await loadPlugins();
-        await refreshAdminMenusAndPluginRoutes();
-      });
-    },
-  });
+  pluginActions.onDisable(plugin);
 }
 
 function onUninstall(plugin: PluginInfo) {
-  Modal.confirm({
-    title: $t('admin.plugin.confirm.uninstall', { name: plugin.display_name }),
-    okType: 'danger',
-    onOk() {
-      // Don't return Promise, let Modal close immediately / 不 return Promise，让 Modal 立即关闭
-      progressStore.reset();
-      progressStore.startOperation(plugin.display_name, 'uninstall');
-      withProcessing(plugin.id, async () => {
-        await uninstallPluginApi(plugin.id);
-        progressStore.markComplete();
-        message.success($t('admin.plugin.messages.uninstallSuccess'));
-        await loadPlugins();
-        await refreshAdminMenusAndPluginRoutes();
-      }).catch((error: unknown) => {
-        const msg =
-          (error as { message?: string })?.message ||
-          $t('admin.plugin.messages.uninstallFailed');
-        progressStore.markError(msg);
-      });
-    },
-  });
+  pluginActions.onUninstall(plugin);
 }
 
 function onInstallDependencies(plugin: PluginInfo) {
-  Modal.confirm({
-    title: $t('admin.plugin.confirm.installDependencies', {
-      name: plugin.display_name,
-    }),
-    onOk: () =>
-      withProcessing(plugin.id, async () => {
-        await installPluginDependenciesApi(plugin.id, {
-          python: true,
-        });
-        message.success($t('admin.plugin.messages.installDepsSuccess'));
-      }),
-  });
+  pluginActions.onInstallDependencies(plugin);
 }
 
 function onUninstallDependencies(plugin: PluginInfo) {
-  if (plugin.status === 'enabled') {
-    message.warning($t('admin.plugin.messages.disableBeforeUninstallDeps'));
-    return;
-  }
-
-  Modal.confirm({
-    title: $t('admin.plugin.confirm.uninstallDependencies', {
-      name: plugin.display_name,
-    }),
-    content: $t('admin.plugin.confirm.uninstallDependenciesContent'),
-    okType: 'danger',
-    onOk: () =>
-      withProcessing(plugin.id, async () => {
-        try {
-          await uninstallPluginDependenciesApi(plugin.id, {
-            python: true,
-          });
-          message.success($t('admin.plugin.messages.uninstallDepsSuccess'));
-        } catch (error: unknown) {
-          type AxiosLike = {
-            message?: string;
-            response?: { data?: { message?: string } };
-          };
-          const apiMsg =
-            (error as AxiosLike)?.response?.data?.message ??
-            (error as AxiosLike)?.message ??
-            '';
-          message.error(
-            apiMsg || $t('admin.plugin.messages.uninstallDepsFailed'),
-          );
-        }
-      }),
-  });
+  pluginActions.onUninstallDependencies(plugin);
 }
 
 function onRepair(plugin: PluginInfo) {
-  Modal.confirm({
-    title: $t('admin.plugin.confirm.repair', { name: plugin.display_name }),
-    onOk() {
-      progressStore.reset();
-      progressStore.startOperation(plugin.display_name, 'enable');
-      withProcessing(plugin.id, async () => {
-        await repairPluginApi(plugin.id);
-        progressStore.markComplete();
-        message.success($t('admin.plugin.messages.repairSuccess'));
-        await loadPlugins();
-        await refreshAdminMenusAndPluginRoutes();
-      }).catch((error: unknown) => {
-        const msg =
-          (error as { message?: string })?.message ||
-          $t('admin.plugin.messages.repairFailed');
-        progressStore.markError(msg);
-      });
-    },
-  });
+  pluginActions.onRepair(plugin);
+}
+
+function hasScheduledTasks(plugin: PluginInfo) {
+  return hasPluginScheduledTasks(plugin);
+}
+
+function getRecoveryMeta(plugin: PluginInfo) {
+  return getPluginRecoveryMeta(plugin);
+}
+
+function getRecoveryTagColor(plugin: PluginInfo) {
+  return getRecoveryMeta(plugin)?.tagColor;
+}
+
+function getRecoveryTagKey(plugin: PluginInfo) {
+  return getRecoveryMeta(plugin)?.tagKey;
+}
+
+function hasRecoveryAction(
+  plugin: PluginInfo,
+  action:
+    | 'force_cleanup'
+    | 'install_dependencies'
+    | 'refresh_schedules'
+    | 'repair',
+) {
+  return hasPluginRecoveryAction(plugin, action);
+}
+
+function onRefreshSchedules(plugin: PluginInfo) {
+  pluginActions.onRefreshSchedules(plugin);
 }
 
 function onForceCleanup(plugin: PluginInfo) {
-  Modal.confirm({
-    title: $t('admin.plugin.confirm.forceCleanup', {
-      name: plugin.display_name,
-    }),
-    okType: 'danger',
-    onOk: () =>
-      withProcessing(plugin.id, async () => {
-        await forceCleanupPluginApi(plugin.id);
-        message.success($t('admin.plugin.messages.forceCleanupSuccess'));
-        await loadPlugins();
-        await refreshAdminMenusAndPluginRoutes();
-      }),
-  });
+  pluginActions.onForceCleanup(plugin);
 }
 
 function onUploadClick() {
@@ -869,6 +759,13 @@ onUnmounted(() => {
             >
               {{ getStatusText(plugin.status) }}
             </Tag>
+            <Tag
+              v-if="getRecoveryMeta(plugin)"
+              :color="getRecoveryTagColor(plugin)"
+              class="!m-0 !rounded-md !border-0 !text-[11px]"
+            >
+              {{ $t(getRecoveryTagKey(plugin) || '') }}
+            </Tag>
           </div>
 
           <!-- 底部操作栏 -->
@@ -937,10 +834,18 @@ onUnmounted(() => {
                 </button>
               </Tooltip>
               <Tooltip
-                v-if="
-                  plugin.status === 'error' &&
-                  !plugin.error_message?.includes('missing from disk')
-                "
+                v-if="hasScheduledTasks(plugin)"
+                :title="$t('admin.plugin.action.refreshSchedules')"
+              >
+                <button
+                  class="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                  @click="onRefreshSchedules(plugin)"
+                >
+                  <IconifyIcon icon="lucide:refresh-cw" class="size-4" />
+                </button>
+              </Tooltip>
+              <Tooltip
+                v-if="hasRecoveryAction(plugin, 'repair')"
                 :title="$t('admin.plugin.action.repair')"
               >
                 <button
@@ -951,10 +856,7 @@ onUnmounted(() => {
                 </button>
               </Tooltip>
               <Tooltip
-                v-if="
-                  plugin.status === 'error' &&
-                  plugin.error_message?.includes('missing from disk')
-                "
+                v-if="hasRecoveryAction(plugin, 'force_cleanup')"
                 :title="$t('admin.plugin.action.forceCleanup')"
               >
                 <button

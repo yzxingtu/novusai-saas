@@ -1,0 +1,6 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend development guide"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "Organization page composables and data-loading patterns"}
+{"file": "C:\\Users\\Administrator\\.codex\\skills\\novusai-saas\\novusai-saas\\references\\rbac-permission-spec.md", "reason": "RBAC and organization permission assignment contract"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Tenant organization API changes must preserve response/error contract"}

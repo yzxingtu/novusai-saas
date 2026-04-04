@@ -48,10 +48,20 @@
 - Do not use `print()`, `logging.getLogger()`, or raw `loguru.logger`; use
   `app.core.logging`.
 - Do not hardcode user-facing text; backend strings must go through `_()`.
+- Do not hardcode fixed LLM-facing prompts, tool descriptions, or model
+  instruction blocks directly in Python business/runtime code; store them under
+  `backend/app/ai/prompt_contracts/resources/` and load them through the shared
+  prompt contract renderer.
 - Do not add new handwritten models without exporting them from
   `backend/app/models/__init__.py` and registering them in
   `backend/migrations/env.py`.
 - Do not write migration SQL with f-string identifiers or `text(f"...")`.
+- Do not hand-call `.isoformat()` on model datetimes in API payloads unless you
+  also normalize naive UTC values to `+00:00`; prefer returning raw `datetime`
+  objects through `success()` / `paginated()` or using
+  `serialize_datetime_for_api()`.
+- Do not write `utc_now()` into `DateTime(timezone=True)` columns; use an aware
+  UTC value such as `datetime.now(timezone.utc)` for timestamptz fields.
 
 ## Pre-Development Checklist
 
@@ -64,6 +74,9 @@ Read these files in order when touching backend code:
    - controller/service exceptions -> [Error Handling](./error-handling.md)
    - logs, trace, tasks, monitoring -> [Logging Guidelines](./logging-guidelines.md)
    - tests or release readiness -> [Quality Guidelines](./quality-guidelines.md)
+   - AI runtime / routing / prompt contract work -> also inspect
+     `backend/app/ai/prompt_contracts/` before adding or changing any fixed
+     model-facing instruction text
 4. If the task crosses frontend, AI, plugins, uploads, or domains, also read
    `../guides/cross-layer-thinking-guide.md`.
 
@@ -88,3 +101,5 @@ Read these files in order when touching backend code:
 - Swallowing exceptions with `except Exception: pass` or `continue`.
 - Expanding legacy `200 + success=false` response shapes into new APIs.
 - Re-implementing trace propagation or log formatting manually.
+- Writing or editing fixed model-facing prompt text inline in Python instead of
+  using the shared prompt contract resources.

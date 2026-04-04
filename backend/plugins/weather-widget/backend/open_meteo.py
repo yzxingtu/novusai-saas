@@ -51,7 +51,7 @@ _NOMINATIM_HEADERS = {"User-Agent": "NovusAI-WeatherPlugin/1.0"}
 
 # ── 超时 / timeouts ──
 _WEATHER_TIMEOUT = 10.0
-_NOMINATIM_TIMEOUT = 5.0
+_NOMINATIM_TIMEOUT = 10.0
 
 # ── Nominatim Rate-Limit (1 req/s) / Nominatim 限速 1 次每秒 ──
 _nominatim_lock = asyncio.Lock()

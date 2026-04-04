@@ -36,12 +36,11 @@ post_create:
   # - yarn install --frozen-lockfile
 
 #-------------------------------------------------------------------------------
-# Check Agent Verification (Ralph Loop)
+# Check Agent Verification
 #-------------------------------------------------------------------------------
 
-# Commands to verify code quality before allowing check agent to finish
-# If configured, Ralph Loop will run these commands - all must pass to allow completion
-# If not configured or empty, trusts agent's completion markers
+# Optional commands to verify code quality in multi-agent workflow.
+# If configured, all commands must pass.
 verify:
   # - pnpm lint
   # - pnpm typecheck

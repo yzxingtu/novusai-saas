@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import io
 import mimetypes
-import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, BinaryIO
@@ -22,6 +21,7 @@ if TYPE_CHECKING:
     from app.ai.rag.vision_describer import VisionDescriber
     from app.models.ai.knowledge_base import KnowledgeBase
 
+from app.ai.text_semantics import parse_markdown_heading, split_on_blank_lines
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.exceptions import BusinessException
@@ -245,7 +245,7 @@ class TxtParser(DocumentParser):
         self, file_content: BinaryIO, file_name: str = ""
     ) -> list[ParsedPage]:
         text = file_content.read().decode("utf-8", errors="replace")
-        paragraphs = re.split(r"\n\s*\n", text)
+        paragraphs = split_on_blank_lines(text)
 
         pages: list[ParsedPage] = []
         for idx, para in enumerate(paragraphs):
@@ -305,10 +305,10 @@ class MarkdownParser(DocumentParser):
 
         for line in text.split("\n"):
             # Detect heading line / 检测标题行
-            heading_match = re.match(r"^(#{1,6})\s+(.+)$", line)
-            if heading_match:
+            heading = parse_markdown_heading(line)
+            if heading is not None:
                 flush()
-                current_heading = heading_match.group(2).strip()
+                current_heading = heading[1]
                 current_content.append(line)
             else:
                 current_content.append(line)

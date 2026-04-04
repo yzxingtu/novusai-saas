@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+import inspect
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -15,6 +16,7 @@ from app.core.base_model import utc_now
 from app.core.base_service import GlobalService, TenantService
 from app.core.i18n import _
 from app.core.logging import LogManager
+from app.core.response import serialize_datetime_for_api
 from app.enums.agent import (
     AgentPublicationAccessTypeEnum,
     AgentStatusEnum,
@@ -962,8 +964,8 @@ class AgentService(TenantService[Agent, AgentRepository]):
             "tenant_user_ids": getattr(publication, "tenant_user_ids", None),
             "org_node_ids": getattr(publication, "org_node_ids", None),
             "published_at": (
-                publication.published_at.isoformat()
-                if publication and publication.published_at
+                serialize_datetime_for_api(publication.published_at)
+                if publication
                 else None
             ),
             "published_by": getattr(publication, "published_by", None),
@@ -1153,6 +1155,8 @@ class AgentService(TenantService[Agent, AgentRepository]):
                 select(Tenant.name).where(Tenant.id == billing_tenant_id).limit(1),
             )
             billing_tenant_name_snapshot = row.scalar_one_or_none()
+            if inspect.isawaitable(billing_tenant_name_snapshot):
+                billing_tenant_name_snapshot = await billing_tenant_name_snapshot
 
         _own_tid = getattr(agent, "owner_tenant_id", None)
         return {

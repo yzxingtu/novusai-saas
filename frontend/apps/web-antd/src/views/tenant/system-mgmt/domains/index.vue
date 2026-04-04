@@ -36,6 +36,7 @@ import {
   usePageAIOperations,
 } from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
+import { useAccess } from '#/utils';
 import { copyToClipboard, formatDate } from '#/utils/common';
 
 import {
@@ -52,6 +53,12 @@ defineOptions({ name: 'TenantDomains' });
 
 const t = (key: string) => $t(`tenant.system.domain.${key}`);
 const AI_PAGE_KEY = 'tenant.system.domains';
+const { hasAccessByCodes } = useAccess();
+const canCreateDomain = hasAccessByCodes(['tenant_domain:create']);
+const canViewDomainDetail = hasAccessByCodes(['tenant_domain:detail']);
+const canSetPrimaryDomain = hasAccessByCodes(['tenant_domain:set_primary']);
+const canDeleteDomain = hasAccessByCodes(['tenant_domain:delete']);
+const canViewDomainSslDetail = hasAccessByCodes(['tenant_domain:ssl_detail']);
 
 // State / 状态
 const domains = ref<TenantDomainInfo[]>([]);
@@ -395,7 +402,12 @@ usePageAIOperations({
         class="flex min-h-[400px] flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card p-8"
       >
         <Empty :description="t('noDomains')" />
-        <Button type="primary" class="mt-4" @click="onOpenAddDrawer">
+        <Button
+          v-if="canCreateDomain"
+          type="primary"
+          class="mt-4"
+          @click="onOpenAddDrawer"
+        >
           {{ t('add') }}
         </Button>
       </div>
@@ -519,6 +531,7 @@ usePageAIOperations({
                   :text="getSslStatusConfig(domain.sslStatus).text"
                 />
                 <Button
+                  v-if="canViewDomainSslDetail"
                   type="link"
                   size="small"
                   class="!p-0"
@@ -589,7 +602,7 @@ usePageAIOperations({
             <!-- Set Primary -->
             <template v-else>
               <Tooltip
-                v-if="!domain.isPrimary"
+                v-if="!domain.isPrimary && canSetPrimaryDomain"
                 :title="
                   domain.verificationStatus !== 'verified'
                     ? t('messages.verifyFirst')
@@ -597,7 +610,6 @@ usePageAIOperations({
                 "
               >
                 <Button
-                  v-access:code="['tenant_domain:update']"
                   size="small"
                   class="rounded-md"
                   :disabled="domain.verificationStatus !== 'verified'"
@@ -611,6 +623,7 @@ usePageAIOperations({
 
             <!-- Edit -->
             <Button
+              v-if="canViewDomainDetail"
               size="small"
               class="rounded-md"
               @click="onOpenDetail(domain)"
@@ -620,7 +633,7 @@ usePageAIOperations({
 
             <!-- Delete -->
             <Popconfirm
-              v-if="domain.domainType === 'custom' && !domain.isPrimary"
+              v-if="canDeleteDomain && domain.domainType === 'custom' && !domain.isPrimary"
               :title="
                 $t('tenant.system.domain.messages.confirmDelete', {
                   domain: domain.domain,
@@ -629,7 +642,6 @@ usePageAIOperations({
               @confirm="onDeleteDomain(domain)"
             >
               <Button
-                v-access:code="['tenant_domain:delete']"
                 size="small"
                 danger
                 type="text"

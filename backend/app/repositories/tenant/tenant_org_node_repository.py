@@ -56,6 +56,7 @@ class TenantOrgNodeRepository(TenantRepository[TenantOrgNode]):
             selectinload(self.model.scope_policy).selectinload(
                 TenantOrgScopePolicy.targets
             ),
+            selectinload(self.model.permissions),
         ]
 
     async def get_by_code(self, code: str) -> TenantOrgNode | None:

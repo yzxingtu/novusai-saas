@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.plugins.exceptions import PluginLicenseError
+from app.plugins.exceptions import PluginLicenseError, PluginSecurityError
 from app.plugins.lifecycle import PluginLifecycle
 
 
@@ -177,12 +177,62 @@ async def test_enable_impl_isolates_permission_sync_failure_with_savepoint(
     lifecycle._set_plugin_permissions_enabled = AsyncMock(side_effect=_assert_session_clean)
     lifecycle._auto_grant_plugin_menus_to_plans = AsyncMock()
 
-    await lifecycle._enable_impl(plugin.id)
+    from app.plugins.exceptions import PluginError
 
-    assert plugin.status == "enabled"
-    assert db.begin_nested_calls == 1
+    with pytest.raises(PluginError):
+        await lifecycle._enable_impl(plugin.id)
+
+    assert plugin.status == "error"
+    assert plugin.error_count == 1
+    assert db.begin_nested_calls == 0
     lifecycle._set_plugin_permissions_enabled.assert_awaited_once_with(
         plugin.name,
-        True,
+        False,
     )
-    lifecycle._auto_grant_plugin_menus_to_plans.assert_awaited_once_with(plugin.name)
+    lifecycle._auto_grant_plugin_menus_to_plans.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_enable_impl_fail_closes_when_security_scan_blocks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plugin = SimpleNamespace(
+        id=9,
+        name="suspicious-plugin",
+        status="disabled",
+        pricing_type="free",
+        config={},
+        granted_capabilities=[],
+        error_count=0,
+        enabled_at=None,
+        error_message=None,
+    )
+
+    db = AsyncMock()
+    db.execute = AsyncMock(return_value=_ScalarResult(plugin))
+    db.flush = AsyncMock()
+
+    lifecycle = PluginLifecycle(db)
+    emitter = MagicMock()
+    emitter.emit_step = AsyncMock()
+    emitter.emit_done = AsyncMock()
+    emitter.emit_error = AsyncMock()
+    monkeypatch.setattr(
+        "app.plugins.progress.PluginProgressEmitter",
+        lambda *_args, **_kwargs: emitter,
+    )
+    monkeypatch.setattr(
+        "app.plugins.security_scan.assert_plugin_security_clean",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            PluginSecurityError(message="blocked by security scan")
+        ),
+    )
+
+    with pytest.raises(PluginSecurityError):
+        await lifecycle._enable_impl(plugin.id)
+
+    assert plugin.status == "error"
+    assert plugin.error_message == "blocked by security scan"
+    assert plugin.error_count == 1
+    db.flush.assert_awaited_once()
+    emitter.emit_error.assert_awaited_once()

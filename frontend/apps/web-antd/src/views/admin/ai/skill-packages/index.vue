@@ -1467,6 +1467,7 @@ usePageAIOperations({
                 <Space>
                   <Tooltip :title="$t('admin.ai.skill.testBtn')">
                     <Button
+                      v-access:code="['ai_skill:detail']"
                       type="link"
                       size="small"
                       @click="onTestSkill(record as AdminSkillInfo)"

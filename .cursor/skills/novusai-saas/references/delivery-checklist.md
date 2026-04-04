@@ -21,6 +21,7 @@
 - [ ] 手写新 Model 已注册到 `models/__init__.py` 与 `migrations/env.py`
 - [ ] 敏感信息不硬编码，改走环境变量或配置
 - [ ] 时间写入遵循项目时间约定，避免混用 naive / aware datetime
+- [ ] 手工 API dict / 导出载荷中的 datetime 没有直接 `.isoformat()` naive UTC；需要字符串时统一走 `serialize_datetime_for_api()`
 - [ ] 新 Service 有对应测试，至少覆盖主要成功、失败与边界场景
 - [ ] 公开敏感端点已有 `IPRateLimiter`
 - [ ] AI 功能通过 `Agent -> Skill -> AIGateway` 链路接入

@@ -49,6 +49,7 @@ class AgentConversation(TenantModel):
     __filterable__ = {
         "id": "id",
         "agent_id": "agent_id",
+        "title": "title",
         "user_id": "user_id",
         "owner_type": "owner_type",
         "status": "status",

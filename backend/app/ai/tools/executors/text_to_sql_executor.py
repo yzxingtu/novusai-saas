@@ -17,13 +17,17 @@ Requires AIGateway injection, registered in ToolSandbox._init_executors().
 from __future__ import annotations
 
 import json
-import re
 import time
 from typing import TYPE_CHECKING, Any
 
 from app.ai.data_intelligence.readonly_executor import ReadOnlyExecutor
 from app.ai.data_intelligence.result_formatter import ResultFormatter
 from app.ai.data_intelligence.schema_provider import SchemaProvider
+from app.ai.data_intelligence.sql_analysis import (
+    extract_group_by_expressions,
+    extract_select_aggregates,
+    extract_table_name_list,
+)
 from app.ai.data_intelligence.sql_safety import SQLSafetyValidator
 from app.ai.data_intelligence.tenant_isolation import (
     TenantIsolationError,
@@ -54,51 +58,15 @@ logger = LogManager.get_logger("ai.tool.text_to_sql")
 
 
 def _parse_sql_table_names(sql: str) -> list[str]:
-    matches = re.findall(
-        r"\b(?:from|join|into|update)\s+([a-zA-Z0-9_.\"]+)",
-        sql,
-        flags=re.IGNORECASE,
-    )
-    out: list[str] = []
-    for raw in matches:
-        normalized = raw.replace('"', "").strip().split()[0]
-        if normalized and normalized not in out:
-            out.append(normalized)
-    return out
+    return extract_table_name_list(sql)
 
 
 def _parse_sql_metrics(sql: str) -> list[str]:
-    select_match = re.search(r"\bselect\b([\s\S]*?)\bfrom\b", sql, flags=re.IGNORECASE)
-    if not select_match:
-        return []
-    select_clause = select_match.group(1).strip()
-    matches = re.findall(
-        r"\b(count|sum|avg|min|max)\s*\(([\s\S]*?)\)",
-        select_clause,
-        flags=re.IGNORECASE,
-    )
-    out: list[str] = []
-    for fn_name, arg in matches:
-        normalized_arg = re.sub(r"\s+", " ", arg).strip()
-        formatted = f"{fn_name.upper()}({normalized_arg})"
-        if formatted not in out:
-            out.append(formatted)
-    return out
+    return extract_select_aggregates(sql)
 
 
 def _parse_sql_group_by(sql: str) -> list[str]:
-    match = re.search(
-        r"\bgroup\s+by\b([\s\S]*?)(?:\border\s+by\b|\blimit\b|$)",
-        sql,
-        flags=re.IGNORECASE,
-    )
-    if not match:
-        return []
-    return [
-        re.sub(r"\s+", " ", part).strip()
-        for part in match.group(1).split(",")
-        if part.strip()
-    ][:4]
+    return extract_group_by_expressions(sql, max_items=4)
 
 
 def _parse_sql_filters(sql: str) -> list[str]:

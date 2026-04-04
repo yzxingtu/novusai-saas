@@ -188,6 +188,28 @@ class ModelTestResponse(BaseModel):
     error: str | None = Field(default=None, description="Error message")
     model: str = Field(..., description="Model name")
     provider: str = Field(..., description="Provider code")
+    trace_id: str | None = Field(default=None, description="Trace ID")
+    wire_api: str | None = Field(default=None, description="Wire API")
+    effective_upstream_model: str | None = Field(
+        default=None,
+        description="Effective upstream model id",
+    )
+    effective_reasoning_effort: str | None = Field(
+        default=None,
+        description="Effective reasoning effort",
+    )
+    applied_overrides: list[str] | None = Field(
+        default=None,
+        description="Applied runtime override keys",
+    )
+    ignored_overrides: list[str] | None = Field(
+        default=None,
+        description="Ignored runtime override keys",
+    )
+    ignore_reasons: dict[str, str] | None = Field(
+        default=None,
+        description="Reasons why runtime overrides were ignored",
+    )
 
     model_config = {"extra": "allow"}
 

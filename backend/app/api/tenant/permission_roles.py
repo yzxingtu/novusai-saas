@@ -10,7 +10,13 @@ from app.core.base_controller import TenantController
 from app.core.base_schema import PageResponse
 from app.core.deps import ActiveTenantAdmin, DbSession
 from app.core.i18n import _
-from app.core.response import created, deleted, success, updated
+from app.core.response import (
+    created,
+    deleted,
+    serialize_datetime_for_api,
+    success,
+    updated,
+)
 from app.enums.rbac import PermissionScope
 from app.exceptions import NotFoundException
 from app.rbac.decorators import (
@@ -42,8 +48,8 @@ def _serialize_role(role) -> dict:
         "sort_order": role.sort_order,
         "permissions_count": role.permissions_count,
         "member_count": role.member_count,
-        "created_at": role.created_at.isoformat() if role.created_at else None,
-        "updated_at": role.updated_at.isoformat() if role.updated_at else None,
+        "created_at": serialize_datetime_for_api(role.created_at),
+        "updated_at": serialize_datetime_for_api(role.updated_at),
     }
 
 

@@ -5,6 +5,7 @@ import type {
   AgentItem,
   ConversationItem,
 } from '#/types/ai-chat';
+import type { MenuNavigationSearchResult } from '#/utils/menu-navigation';
 
 /**
  * Command Bar Component
@@ -244,7 +245,7 @@ function scrollSearchIntoView() {
   });
 }
 
-function handleMenuItemClick(item: MenuRecordRaw) {
+function handleMenuItemClick(item: MenuNavigationSearchResult) {
   hide();
   if (item.path.startsWith('http://') || item.path.startsWith('https://')) {
     window.open(item.path, '_blank');
@@ -542,7 +543,7 @@ defineExpose({
                   </div>
                   <div class="min-w-0 flex-1">
                     <div class="truncate text-sm font-medium">
-                      {{ item.name }}
+                      {{ item.title }}
                     </div>
                     <div
                       v-if="getMenuBreadcrumb(item)"

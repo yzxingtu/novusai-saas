@@ -20,20 +20,41 @@ Variables marked in SKILL.md metadata.clawdbot.requires.env are required.
 
 from __future__ import annotations
 
-import re
 from typing import Any
 
 from app.core.logging import LogManager
 
 logger = LogManager.get_logger("ai.skill.env")
 
-# Match valid env variable lines: VAR_NAME=value or VAR_NAME=
-# 匹配有效的环境变量行：VAR_NAME=value 或 VAR_NAME=
-_ENV_LINE_RE = re.compile(r"^([A-Z][A-Z0-9_]+)\s*=\s*(.*?)\s*$")
 
-# Match commented-out env variable lines: # VAR_NAME=value
-# 匹配注释掉的环境变量行：# VAR_NAME=value
-_COMMENTED_ENV_RE = re.compile(r"^#\s*([A-Z][A-Z0-9_]+)\s*=\s*(.*?)\s*$")
+def _is_valid_env_name(name: str) -> bool:
+    if not name or not ("A" <= name[0] <= "Z"):
+        return False
+    return all(
+        ("A" <= ch <= "Z") or ("0" <= ch <= "9") or ch == "_" for ch in name
+    )
+
+
+def _parse_env_assignment(
+    line: str,
+    *,
+    allow_commented: bool,
+) -> tuple[str, str] | None:
+    stripped = line.strip()
+    if allow_commented:
+        if not stripped.startswith("#"):
+            return None
+        stripped = stripped[1:].lstrip()
+    elif stripped.startswith("#"):
+        return None
+
+    if "=" not in stripped:
+        return None
+    raw_name, raw_value = stripped.split("=", 1)
+    name = raw_name.strip()
+    if not _is_valid_env_name(name):
+        return None
+    return name, raw_value.strip()
 
 
 def parse_env_example(
@@ -95,12 +116,15 @@ def parse_env_example(
         # Pure comment line (not a commented-out variable definition)
         # 纯注释行（不是注释掉的变量定义）
         if stripped.startswith("#"):
-            commented_match = _COMMENTED_ENV_RE.match(stripped)
-            if commented_match:
+            commented_assignment = _parse_env_assignment(
+                stripped,
+                allow_commented=True,
+            )
+            if commented_assignment:
                 # Commented-out variable definition → optional variable
                 # 注释掉的变量定义 → 可选变量
-                var_name = commented_match.group(1)
-                default_value = commented_match.group(2).strip("'\"")
+                var_name, raw_default_value = commented_assignment
+                default_value = raw_default_value.strip("'\"")
 
                 prop: dict[str, Any] = {"type": "string"}
                 desc = " ".join(pending_comments).strip()
@@ -124,10 +148,10 @@ def parse_env_example(
 
         # Environment variable definition line
         # 环境变量定义行
-        env_match = _ENV_LINE_RE.match(stripped)
-        if env_match:
-            var_name = env_match.group(1)
-            raw_value = env_match.group(2).strip("'\"")
+        env_assignment = _parse_env_assignment(stripped, allow_commented=False)
+        if env_assignment:
+            var_name, raw_value = env_assignment
+            raw_value = raw_value.strip("'\"")
 
             prop = {"type": _infer_type(raw_value)}
             desc = " ".join(pending_comments).strip()
@@ -186,7 +210,7 @@ def _is_placeholder(value: str) -> bool:
     if lower.startswith("cli_xxxx"):
         return True
     # All-x placeholder / 全 x 占位符
-    return bool(re.match(r"^[xX]+$", value))
+    return bool(value) and all(ch in {"x", "X"} for ch in value)
 
 
 def _infer_type(value: str) -> str:

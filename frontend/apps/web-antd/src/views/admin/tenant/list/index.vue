@@ -27,6 +27,7 @@ import { useCrudPage } from '#/adapter/vxe-table';
 import { adminApi as admin } from '#/api';
 import { createOpenRecordPageOperation } from '#/composables';
 import { $t } from '#/locales';
+import { useAccess } from '#/utils';
 import {
   copyToClipboard,
   formatDate,
@@ -44,6 +45,16 @@ import TenantStorageDrawer from './modules/TenantStorageDrawer.vue';
 defineOptions({ name: 'TenantList' });
 
 type TenantInfo = adminApi.TenantInfo;
+const { hasAccessByCodes } = useAccess();
+
+const canManageTenantDomains = hasAccessByCodes(['tenant_domain:list']);
+const canEditTenant = hasAccessByCodes(['tenant:update']);
+const canDeleteTenant = hasAccessByCodes(['tenant:delete']);
+const canEnterTenantBackend = hasAccessByCodes(['tenant:impersonate']);
+const canResetTenantOwnerPassword = hasAccessByCodes([
+  'tenant:reset_owner_password',
+]);
+const canViewTenantStorageConfig = hasAccessByCodes(['tenant:detail']);
 
 // Check if in dev mode / 检测是否为开发模式
 const isDev = computed(() => import.meta.env.DEV);
@@ -450,7 +461,10 @@ const { Grid, FormDrawer, ExportModal, onRefresh, handleActionClick, gridApi } =
             }}</span>
 
             <!-- 域名管理入口 -->
-            <Tooltip :title="$t('admin.tenant.manageDomains')">
+            <Tooltip
+              v-if="canManageTenantDomains"
+              :title="$t('admin.tenant.manageDomains')"
+            >
               <Button
                 type="link"
                 size="small"
@@ -615,28 +629,47 @@ const { Grid, FormDrawer, ExportModal, onRefresh, handleActionClick, gridApi } =
         <template #operation_cell="{ row }">
           <div class="flex items-center justify-center gap-1">
             <!-- 更多下拉菜单 -->
-            <Dropdown>
+            <Dropdown
+              v-if="
+                canManageTenantDomains ||
+                canViewTenantStorageConfig ||
+                canResetTenantOwnerPassword ||
+                canEnterTenantBackend
+              "
+            >
               <template #overlay>
                 <Menu>
-                  <MenuItem @click="onManageDomains(row)">
+                  <MenuItem
+                    v-if="canManageTenantDomains"
+                    @click="onManageDomains(row)"
+                  >
                     <div class="flex items-center gap-2">
                       <IconifyIcon icon="lucide:globe" class="size-4" />
                       <span>{{ $t('admin.tenant.manageDomains') }}</span>
                     </div>
                   </MenuItem>
-                  <MenuItem @click="onStorageConfig(row)">
+                  <MenuItem
+                    v-if="canViewTenantStorageConfig"
+                    @click="onStorageConfig(row)"
+                  >
                     <div class="flex items-center gap-2">
                       <IconifyIcon icon="lucide:database" class="size-4" />
                       <span>{{ $t('shared.storage.adminTab.title') }}</span>
                     </div>
                   </MenuItem>
-                  <MenuItem @click="onResetPassword(row)">
+                  <MenuItem
+                    v-if="canResetTenantOwnerPassword"
+                    @click="onResetPassword(row)"
+                  >
                     <div class="flex items-center gap-2">
                       <IconifyIcon icon="lucide:key-round" class="size-4" />
                       <span>{{ $t('admin.tenant.resetPassword') }}</span>
                     </div>
                   </MenuItem>
-                  <MenuItem @click="onImpersonate(row)">
+                  <MenuItem
+                    v-if="canEnterTenantBackend"
+                    @click="onImpersonate(row)"
+                  >
                     <div class="flex items-center gap-2">
                       <IconifyIcon icon="lucide:log-in" class="size-4" />
                       <span>{{ $t('admin.tenant.enterBackend') }}</span>
@@ -644,7 +677,7 @@ const { Grid, FormDrawer, ExportModal, onRefresh, handleActionClick, gridApi } =
                   </MenuItem>
                   <!-- 开发模式: 当前标签页进入 -->
                   <MenuItem
-                    v-if="isDev"
+                    v-if="isDev && canEnterTenantBackend"
                     @click="onImpersonateInCurrentTab(row)"
                   >
                     <div class="flex items-center gap-2 text-warning">
@@ -666,7 +699,7 @@ const { Grid, FormDrawer, ExportModal, onRefresh, handleActionClick, gridApi } =
               </Tooltip>
             </Dropdown>
             <!-- 编辑按钮 -->
-            <Tooltip :title="$t('common.edit')">
+            <Tooltip v-if="canEditTenant" :title="$t('common.edit')">
               <button
                 class="action-icon-btn"
                 @click="handleActionClick({ code: 'edit', row })"
@@ -676,6 +709,7 @@ const { Grid, FormDrawer, ExportModal, onRefresh, handleActionClick, gridApi } =
             </Tooltip>
             <!-- 删除按钮 -->
             <Popconfirm
+              v-if="canDeleteTenant"
               :title="$t('ui.actionTitle.delete', [$t('admin.tenant.name')])"
               :description="$t('ui.actionMessage.deleteConfirm', [row.name])"
               placement="topLeft"

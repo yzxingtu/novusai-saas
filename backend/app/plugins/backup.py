@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 
 from app.core.base_model import utc_now
 from app.core.logging import get_logger
+from app.core.response import serialize_datetime_for_api
 from app.plugins.loader import PLUGINS_DIR, PluginLoader
 
 if TYPE_CHECKING:
@@ -110,7 +111,7 @@ async def backup_plugin_data(
                     "config": row[0] or {},
                     "manifest": row[1] or {},
                     "granted_capabilities": row[2] or [],
-                    "backed_up_at": utc_now().isoformat(),
+                    "backed_up_at": serialize_datetime_for_api(utc_now()),
                 }
                 config_path = backup_dir / "config_snapshot.json"
                 config_path.write_text(

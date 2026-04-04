@@ -100,6 +100,8 @@ If the change spans multiple layers:
 
 ## Quick Check Flow
 
+> Path reminder: Trellis tasks declare a path (`fast`, `normal`, or `deep`) before work starts; these checks should confirm the work relevant to the chosen path.
+
 ```bash
 # 1. Code checks
 pnpm lint && pnpm type-check

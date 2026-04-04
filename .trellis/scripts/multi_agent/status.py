@@ -33,7 +33,6 @@ from common.paths import (
     get_repo_root,
     get_tasks_dir,
 )
-from common.phase import get_phase_info
 from common.task_queue import format_task_stats, get_task_stats
 from common.worktree import get_agents_dir
 
@@ -414,16 +413,15 @@ def cmd_summary(repo_root: Path, filter_assignee: str | None = None) -> int:
                 # Running agent
                 task_dir_rel = agent_info.get("task_dir", "")
                 worktree_task_json = Path(worktree) / task_dir_rel / "task.json"
-                phase_source = task_json
+                status_source = task_json
                 if worktree_task_json.is_file():
-                    phase_source = worktree_task_json
-
-                phase_info_str = get_phase_info(phase_source)
+                    status_source = worktree_task_json
                 elapsed = calc_elapsed(started)
                 modified = count_modified_files(worktree)
 
-                worktree_data = _read_json_file(phase_source)
+                worktree_data = _read_json_file(status_source)
                 branch = worktree_data.get("branch", "N/A") if worktree_data else "N/A"
+                live_status = worktree_data.get("status", status) if worktree_data else status
 
                 log_file = Path(worktree) / ".agent-log"
                 last_tool = get_last_tool(log_file, platform=agent_platform)
@@ -433,7 +431,7 @@ def cmd_summary(repo_root: Path, filter_assignee: str | None = None) -> int:
                         "name": name,
                         "priority": priority,
                         "assignee": assignee,
-                        "phase_info": phase_info_str,
+                        "status": live_status,
                         "elapsed": elapsed,
                         "branch": branch,
                         "modified": modified,
@@ -488,7 +486,7 @@ def cmd_summary(repo_root: Path, filter_assignee: str | None = None) -> int:
             print(
                 f"{Colors.GREEN}▶{Colors.NC} {Colors.CYAN}{t['name']}{Colors.NC} {Colors.GREEN}[running]{Colors.NC} {priority_color}[{t['priority']}]{Colors.NC} @{t['assignee']}"
             )
-            print(f"  Phase:    {t['phase_info']}")
+            print(f"  Status:   {t['status']}")
             print(f"  Elapsed:  {t['elapsed']}")
             print(f"  Branch:   {Colors.DIM}{t['branch']}{Colors.NC}")
             print(f"  Modified: {t['modified']} file(s)")

@@ -300,6 +300,40 @@ class TestPageToolExpander:
         assert "pageop_refresh_list" in expanded_names
         assert "pageop_search" in expanded_names
         assert "pageop_get_form_state" in expanded_names
+        assert "pageop_navigate_menu" not in expanded_names
+
+    def test_expands_menu_navigation_tools_when_available(self) -> None:
+        """菜单导航操作也应展开为 pageop_* tools。"""
+        from app.ai.tools.page_tool_expander import expand_page_tools
+        from app.ai.tools.types import ToolDefinition
+
+        base = [ToolDefinition(name="invoke_page_operation", description="x")]
+        input_vars = {
+            "page_context": {
+                "page_key": "admin.dashboard",
+                "page_data": {
+                    "available_operations": [
+                        {
+                            "name": "list_available_menus",
+                            "label": "List Available Menus",
+                            "readonly": True,
+                        },
+                        {
+                            "name": "navigate_menu",
+                            "label": "Navigate Menu",
+                            "params": {
+                                "target": {"type": "string", "required": True},
+                            },
+                            "readonly": True,
+                        },
+                    ]
+                },
+            },
+        }
+        result = expand_page_tools(base, input_vars)
+        expanded_names = [tool.name for tool in result]
+        assert "pageop_list_available_menus" in expanded_names
+        assert "pageop_navigate_menu" in expanded_names
 
     def test_no_expansion_when_no_expandable_page_ops(self) -> None:
         """available_operations 无可展开操作时不展开。"""

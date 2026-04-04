@@ -34,6 +34,7 @@ import {
 
 import { adminApi as admin } from '#/api';
 import { $t } from '#/locales';
+import { useAccess } from '#/utils';
 import { copyToClipboard } from '#/utils/common';
 
 import DomainsAddDrawer from './DomainsAddDrawer.vue';
@@ -62,6 +63,18 @@ const addDrawerRef = ref<InstanceType<typeof DomainsAddDrawer>>();
 const detailDrawerRef = ref<InstanceType<typeof DomainsDetailDrawer>>();
 const dnsGuideModalRef = ref<InstanceType<typeof DomainsDnsGuideModal>>();
 const sslDrawerRef = ref<InstanceType<typeof DomainsSslDrawer>>();
+const { hasAccessByCodes } = useAccess();
+
+const canCreateDomain = hasAccessByCodes(['tenant_domain:create']);
+const canDeleteDomain = hasAccessByCodes(['tenant_domain:delete']);
+const canSetPrimaryDomain = hasAccessByCodes(['tenant_domain:set_primary']);
+const canVerifyDomain = hasAccessByCodes(['tenant_domain:verify']);
+const canViewDomainDetail = hasAccessByCodes(['tenant_domain:detail']);
+const canViewDevHosts = hasAccessByCodes(['tenant_domain:hosts_status']);
+const canSyncDevHosts = hasAccessByCodes(['tenant_domain:hosts_sync']);
+const canSyncAllDevHosts = hasAccessByCodes(['tenant_domain:hosts_sync_all']);
+const canRemoveDevHosts = hasAccessByCodes(['tenant_domain:hosts_remove']);
+const canViewDomainSslDetail = hasAccessByCodes(['tenant_domain:ssl_detail']);
 
 // Computed title / 计算标题
 const title = computed(() =>
@@ -77,7 +90,11 @@ const [Modal, modalApi] = useVbenModal({
       const data = modalApi.getData<DomainModalData>();
       if (data?.tenantId) {
         currentTenant.value = data;
-        await Promise.all([loadDomains(), loadDevHosts()]);
+        const loadingTasks = [loadDomains()];
+        if (canViewDevHosts) {
+          loadingTasks.push(loadDevHosts());
+        }
+        await Promise.all(loadingTasks);
       }
     } else {
       currentTenant.value = null;
@@ -114,7 +131,7 @@ async function loadDomains() {
 }
 
 async function loadDevHosts() {
-  if (!currentTenant.value?.tenantId) return;
+  if (!currentTenant.value?.tenantId || !canViewDevHosts) return;
 
   devHostsLoading.value = true;
   devHostsLoadError.value = false;
@@ -485,16 +502,28 @@ defineExpose({ open, openAddDomain });
     <div class="min-h-[400px]">
       <Spin :spinning="loading">
         <div class="mb-4 flex flex-wrap items-center gap-2">
-          <Button type="primary" @click="() => onOpenAddDrawer()">
+          <Button
+            v-if="canCreateDomain"
+            type="primary"
+            @click="() => onOpenAddDrawer()"
+          >
             <IconifyIcon icon="lucide:plus" class="mr-1 size-4" />
             {{ $t('admin.tenant.domain.addDomain') }}
           </Button>
-          <Button :loading="devHostsLoading" @click="loadDevHosts">
+          <Button
+            v-if="canViewDevHosts"
+            :loading="devHostsLoading"
+            @click="loadDevHosts"
+          >
             <IconifyIcon icon="lucide:refresh-cw" class="mr-1 size-4" />
             {{ $t('admin.tenant.domain.devHosts.refresh') }}
           </Button>
           <Button
-            v-if="devHostsOverview?.runtime.enabled"
+            v-if="
+              canViewDevHosts &&
+              canSyncAllDevHosts &&
+              devHostsOverview?.runtime.enabled
+            "
             :loading="syncingAllDevHosts"
             @click="onSyncAllDevHosts"
           >
@@ -506,7 +535,10 @@ defineExpose({ open, openAddDomain });
           </Button>
         </div>
 
-        <div class="mb-4 rounded-lg border border-border bg-card p-4">
+        <div
+          v-if="canViewDevHosts"
+          class="mb-4 rounded-lg border border-border bg-card p-4"
+        >
           <div class="mb-3 flex items-center gap-2">
             <IconifyIcon icon="lucide:laptop" class="size-4 text-primary" />
             <span class="font-medium">{{
@@ -742,7 +774,12 @@ defineExpose({ open, openAddDomain });
               class="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3"
             >
               <!-- 编辑域名 -->
-              <Button type="link" size="small" @click="onOpenDetail(domain)">
+              <Button
+                v-if="canViewDomainDetail"
+                type="link"
+                size="small"
+                @click="onOpenDetail(domain)"
+              >
                 <IconifyIcon icon="lucide:pencil" class="mr-1 size-4" />
                 {{ $t('admin.tenant.domain.editDomain') }}
               </Button>
@@ -751,7 +788,8 @@ defineExpose({ open, openAddDomain });
               <Button
                 v-if="
                   domain.verificationStatus === 'verified' &&
-                  domain.domainType === 'custom'
+                  domain.domainType === 'custom' &&
+                  canViewDomainSslDetail
                 "
                 type="link"
                 size="small"
@@ -774,7 +812,7 @@ defineExpose({ open, openAddDomain });
 
               <!-- 验证域名 (待验证才显示) -->
               <Button
-                v-if="domain.verificationStatus === 'pending'"
+                v-if="domain.verificationStatus === 'pending' && canVerifyDomain"
                 type="link"
                 size="small"
                 @click="onVerifyDomain(domain)"
@@ -785,7 +823,7 @@ defineExpose({ open, openAddDomain });
 
               <!-- 设为主域名 (非主域名显示，未验证时禁用) -->
               <Tooltip
-                v-if="!domain.isPrimary"
+                v-if="!domain.isPrimary && canSetPrimaryDomain"
                 :title="
                   domain.verificationStatus !== 'verified'
                     ? $t('admin.tenant.domain.verifyFirst')
@@ -804,7 +842,10 @@ defineExpose({ open, openAddDomain });
               </Tooltip>
 
               <Button
-                v-if="canSyncDevHost(getDevHostsDomainStatus(domain.id))"
+                v-if="
+                  canSyncDevHosts &&
+                  canSyncDevHost(getDevHostsDomainStatus(domain.id))
+                "
                 type="link"
                 size="small"
                 :loading="isSyncingDomain(domain.id)"
@@ -818,7 +859,10 @@ defineExpose({ open, openAddDomain });
               </Button>
 
               <Button
-                v-if="canRemoveDevHost(getDevHostsDomainStatus(domain.id))"
+                v-if="
+                  canRemoveDevHosts &&
+                  canRemoveDevHost(getDevHostsDomainStatus(domain.id))
+                "
                 type="link"
                 size="small"
                 :loading="isRemovingDomain(domain.id)"
@@ -830,7 +874,11 @@ defineExpose({ open, openAddDomain });
 
               <!-- 删除 (自定义域名且非主域名才显示) -->
               <Popconfirm
-                v-if="domain.domainType === 'custom' && !domain.isPrimary"
+                v-if="
+                  canDeleteDomain &&
+                  domain.domainType === 'custom' &&
+                  !domain.isPrimary
+                "
                 :title="
                   $t('admin.tenant.domain.confirmDelete', {
                     domain: domain.domain,

@@ -121,6 +121,19 @@ export interface TenantProviderOption {
   value: number;
 }
 
+interface TenantSelectOption {
+  label: string;
+  value: number;
+  extra?: Record<string, unknown>;
+}
+
+interface TenantSelectResponse {
+  items: TenantSelectOption[];
+  page: number;
+  page_size: number;
+  total: number;
+}
+
 // ============================================================
 // API functions - AI config / API 接口 - AI 配置
 // ============================================================
@@ -136,6 +149,96 @@ export async function getTenantAIModelsApi(
     params,
     ...options,
   });
+}
+
+function paginateTenantSelect<T>(
+  items: T[],
+  page: number,
+  pageSize: number,
+): { items: T[]; page: number; page_size: number; total: number } {
+  const normalizedPage = Math.max(1, page);
+  const normalizedPageSize = Math.max(1, pageSize);
+  const start = (normalizedPage - 1) * normalizedPageSize;
+  const end = start + normalizedPageSize;
+  return {
+    items: items.slice(start, end),
+    page: normalizedPage,
+    page_size: normalizedPageSize,
+    total: items.length,
+  };
+}
+
+/** Tenant model remote select adapter / 企业端模型远程下拉适配 */
+export async function getTenantAIModelSelectApi(
+  params?: Record<string, unknown>,
+  options?: ApiRequestOptions,
+): Promise<TenantSelectResponse> {
+  const search =
+    typeof params?.search === 'string' ? params.search.trim().toLowerCase() : '';
+  const page = Math.max(1, Number(params?.page ?? 1));
+  const pageSize = Math.max(1, Number(params?.page_size ?? 10));
+  const providerId = Number(params?.provider_id ?? 0) || undefined;
+
+  const models = await getTenantAIModelsApi(
+    providerId ? { provider_id: providerId } : undefined,
+    options,
+  );
+
+  const filtered = models
+    .filter((item) => item.is_active)
+    .filter((item) => {
+      if (!search) return true;
+      return [item.name, item.code, item.provider_name]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(search));
+    })
+    .map<TenantSelectOption>((item) => ({
+      label: item.name,
+      value: item.id,
+      extra: {
+        code: item.code,
+        provider_name: item.provider_name,
+        type: item.type,
+      },
+    }));
+
+  return paginateTenantSelect(filtered, page, pageSize);
+}
+
+/** Tenant provider remote select adapter / 企业端供应商远程下拉适配 */
+export async function getTenantAIProviderSelectApi(
+  params?: Record<string, unknown>,
+  options?: ApiRequestOptions,
+): Promise<TenantSelectResponse> {
+  const search =
+    typeof params?.search === 'string' ? params.search.trim().toLowerCase() : '';
+  const page = Math.max(1, Number(params?.page ?? 1));
+  const pageSize = Math.max(1, Number(params?.page_size ?? 10));
+
+  const models = await getTenantAIModelsApi(undefined, options);
+  const providerMap = new Map<number, TenantSelectOption>();
+
+  for (const model of models) {
+    if (!model.provider_id || !model.provider_name) {
+      continue;
+    }
+    if (!providerMap.has(model.provider_id)) {
+      providerMap.set(model.provider_id, {
+        label: model.provider_name,
+        value: model.provider_id,
+        extra: {
+          code: model.provider_name,
+        },
+      });
+    }
+  }
+
+  const filtered = [...providerMap.values()].filter((item) => {
+    if (!search) return true;
+    return item.label.toLowerCase().includes(search);
+  });
+
+  return paginateTenantSelect(filtered, page, pageSize);
 }
 
 /** Get my API Keys / 获取我的 API Keys */

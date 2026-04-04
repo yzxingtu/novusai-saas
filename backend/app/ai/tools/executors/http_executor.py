@@ -8,7 +8,6 @@ Executes declarative HTTP requests with template variable substitution, multiple
 from __future__ import annotations
 
 import json
-import re
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -32,12 +31,26 @@ _MAX_RESPONSE_SIZE = 50_000  # 50KB  # 补充说明 / note
 
 def _substitute_template(template: str, variables: dict[str, Any]) -> str:
     """Substitute {{variable}} placeholders / 替换 {{variable}} 占位符"""
+    result: list[str] = []
+    idx = 0
+    while idx < len(template):
+        start = template.find("{{", idx)
+        if start < 0:
+            result.append(template[idx:])
+            break
+        end = template.find("}}", start + 2)
+        if end < 0:
+            result.append(template[idx:])
+            break
 
-    def replacer(match: re.Match) -> str:
-        key = match.group(1)
-        return str(variables.get(key, match.group(0)))
-
-    return re.sub(r"\{\{(\w+)\}\}", replacer, template)
+        result.append(template[idx:start])
+        key = template[start + 2 : end].strip()
+        if key and all(ch.isalnum() or ch == "_" for ch in key):
+            result.append(str(variables.get(key, template[start : end + 2])))
+        else:
+            result.append(template[start : end + 2])
+        idx = end + 2
+    return "".join(result)
 
 
 def _extract_json_path(data: Any, path: str) -> Any:
@@ -133,9 +146,7 @@ class HttpToolExecutor(BaseToolExecutor):
             import httpx
 
             timeout = definition.timeout or 30
-            # Redirects are disabled here so every outbound target must pass the / 上文为英文说明 / English above
-            # shared UrlValidator check explicitly instead of silently hopping
-            # to another host after the first validated URL.
+            # Redirects off: each URL must pass UrlValidator; no silent hop to another host / 禁止跟随重定向，目标须通过校验，避免跳到其他主机
             async with httpx.AsyncClient(
                 timeout=timeout, follow_redirects=False
             ) as client:

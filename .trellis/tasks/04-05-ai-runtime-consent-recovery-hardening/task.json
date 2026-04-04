@@ -1,0 +1,35 @@
+{
+  "id": "ai-runtime-consent-recovery-hardening",
+  "name": "ai-runtime-consent-recovery-hardening",
+  "title": "AI runtime consent recovery hardening",
+  "description": "Fix consent pause semantics, recovery/partial-exit UX, runtime capability/trust regressions, and supporting AI runtime bugs from audit findings.",
+  "status": "planning",
+  "dev_type": "ai",
+  "scope": null,
+  "priority": "P0",
+  "creator": "yudi",
+  "assignee": "yudi",
+  "createdAt": "2026-04-05",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "execution_path": "deep",
+  "required_artifacts": [
+    "prd.md",
+    "info.md"
+  ],
+  "context_files": [
+    "implement.jsonl",
+    "check.jsonl"
+  ],
+  "verification_mode": "command",
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "04-04-repo-stabilization-control-plane",
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

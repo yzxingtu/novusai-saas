@@ -137,6 +137,11 @@ export interface SearchConfig {
    */
   defaultOpen?: boolean;
   /**
+   * Whether to animate the advanced search panel expand/collapse transition.
+   * 搜索面板展开/收起时是否启用过渡动画。
+   */
+  animatePanel?: boolean;
+  /**
    * Right-side quick-search config. `true` means auto-derive from `searchSchema`.
    * 表格右侧快速搜索配置。`true` 表示自动从 `searchSchema` 推导。
    */

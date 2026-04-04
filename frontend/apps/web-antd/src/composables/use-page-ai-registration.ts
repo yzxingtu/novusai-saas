@@ -2,7 +2,16 @@ import type { MaybeRefOrGetter } from 'vue';
 
 import type { PageOperation } from '#/components/business/ai-slide-panel/page-operation-registry';
 
-import { getCurrentScope, onScopeDispose, toValue, watch } from 'vue';
+import {
+  getCurrentInstance,
+  getCurrentScope,
+  onActivated,
+  onDeactivated,
+  onScopeDispose,
+  ref,
+  toValue,
+  watch,
+} from 'vue';
 import { useRoute } from 'vue-router';
 
 import {
@@ -57,6 +66,7 @@ export function usePageAIRegistration(
   options: UsePageAIRegistrationOptions,
 ): void {
   const route = useRoute();
+  const registrationActive = ref(true);
   let cleanupContext: (() => void) | null = null;
   let cleanupOperations: (() => void) | null = null;
 
@@ -85,8 +95,19 @@ export function usePageAIRegistration(
       .join('|');
   }
 
+  if (getCurrentInstance()) {
+    onActivated(() => {
+      registrationActive.value = true;
+    });
+
+    onDeactivated(() => {
+      registrationActive.value = false;
+    });
+  }
+
   watch(
     [
+      () => registrationActive.value,
       () => toValue(options.enabled) ?? true,
       () => {
         const resolvedPageKey =
@@ -104,6 +125,7 @@ export function usePageAIRegistration(
     ],
     (
       [
+        isRegistrationActive,
         enabled,
         pageKey,
         contextStrategy,
@@ -116,7 +138,7 @@ export function usePageAIRegistration(
     ) => {
       cleanupRegistrations();
 
-      if (!enabled || !pageKey) {
+      if (!isRegistrationActive || !enabled || !pageKey) {
         return;
       }
 

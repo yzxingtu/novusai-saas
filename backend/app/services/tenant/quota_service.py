@@ -6,14 +6,17 @@ Provides tenant quota checking functionality.
 """
 
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.configs.service import ConfigService
+from app.core.base_model import utc_now
 from app.core.config import settings
 from app.core.i18n import _
+from app.core.redis import get_redis
 from app.models.tenant.tenant import Tenant
 from app.models.tenant.tenant_admin import TenantAdmin
 from app.models.tenant.tenant_domain import TenantDomain
@@ -48,6 +51,17 @@ class QuotaService:
     Provides tenant runtime quota checks; priority: tenant override > plan default.
     """
 
+    API_CALLS_MONTHLY_PREFIX = "quota:api_calls:monthly:"
+    _API_CALLS_CHECK_AND_RECORD_LUA = """
+    local current = tonumber(redis.call('GET', KEYS[1]) or '0')
+    if current + tonumber(ARGV[1]) > tonumber(ARGV[2]) then
+        return current
+    end
+    redis.call('INCRBY', KEYS[1], ARGV[1])
+    redis.call('EXPIRE', KEYS[1], tonumber(ARGV[3]))
+    return -1
+    """
+
     def __init__(self, db: AsyncSession, tenant: Tenant):
         """
         初始化配额服务 / Initialize quota service.
@@ -58,6 +72,60 @@ class QuotaService:
         """
         self.db = db
         self.tenant = tenant
+
+    @classmethod
+    def _build_api_calls_month_key(cls, tenant_id: int, now: datetime) -> str:
+        return f"{cls.API_CALLS_MONTHLY_PREFIX}{tenant_id}:{now.year}-{now.month:02d}"
+
+    @staticmethod
+    def _build_api_calls_month_ttl(now: datetime) -> int:
+        next_month = (now.replace(day=28) + timedelta(days=4)).replace(
+            day=1,
+            hour=0,
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
+        return max(int((next_month - now).total_seconds()) + 86400, 86400)
+
+    async def _count_current_month_api_calls_from_db(
+        self, month_start: datetime
+    ) -> int:
+        from app.models.ai.call_log import AICallLog
+
+        query = select(func.count(AICallLog.id)).where(
+            AICallLog.tenant_id == self.tenant.id,
+            AICallLog.created_at >= month_start,
+        )
+        result = await self.db.execute(query)
+        return int(result.scalar() or 0)
+
+    async def _get_or_seed_api_calls_counter(
+        self,
+        *,
+        now: datetime,
+    ) -> tuple[Any, str, int, int]:
+        redis = await get_redis()
+        key = self._build_api_calls_month_key(self.tenant.id, now)
+        ttl_seconds = self._build_api_calls_month_ttl(now)
+        raw = await redis.get(key)
+        if raw is not None:
+            return redis, key, int(raw), ttl_seconds
+
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        seeded_count = await self._count_current_month_api_calls_from_db(month_start)
+        created = await redis.setnx(key, seeded_count)
+        if created:
+            await redis.expire(key, ttl_seconds)
+            return redis, key, seeded_count, ttl_seconds
+
+        raw_after = await redis.get(key)
+        return (
+            redis,
+            key,
+            int(raw_after) if raw_after is not None else seeded_count,
+            ttl_seconds,
+        )
 
     async def _get_domain_suffix(self) -> str:
         """
@@ -348,22 +416,36 @@ class QuotaService:
                 message=_("quota.no_limit"),
             )
 
-        # 从 AI 调用日志统计当月调用次数
-        from app.core.base_model import utc_now
-
         now = utc_now()
-        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        from app.models.ai.call_log import AICallLog
-
-        query = select(func.count(AICallLog.id)).where(
-            AICallLog.tenant_id == self.tenant.id,
-            AICallLog.created_at >= month_start,
+        redis, key, current, ttl_seconds = await self._get_or_seed_api_calls_counter(
+            now=now
         )
-        result = await self.db.execute(query)
-        current = result.scalar() or 0
+
+        if additional <= 0:
+            remaining = limit - current
+            return QuotaCheckResult(
+                allowed=current <= limit,
+                current=current,
+                limit=limit,
+                remaining=max(0, remaining),
+                message=None
+                if current <= limit
+                else _("quota.api_calls_exceeded", limit=limit),
+            )
+
+        result = await redis.eval(
+            self._API_CALLS_CHECK_AND_RECORD_LUA,
+            1,
+            key,
+            str(additional),
+            str(limit),
+            str(ttl_seconds),
+        )
+        allowed = int(result) < 0
+        if not allowed:
+            current = int(result)
 
         remaining = limit - current
-        allowed = (current + additional) <= limit
 
         return QuotaCheckResult(
             allowed=allowed,

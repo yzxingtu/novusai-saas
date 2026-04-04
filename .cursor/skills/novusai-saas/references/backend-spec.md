@@ -370,6 +370,34 @@ validation_error(message, errors=[...])     # 422
 server_error(message)                       # 500
 ```
 
+### 时间序列化规范
+
+- `utc_now()` 只用于 `TIMESTAMP WITHOUT TIME ZONE` 的 naive UTC 列，例如 `BaseModel.created_at` / `updated_at`。
+- `DateTime(timezone=True)` / PostgreSQL `timestamptz` 字段必须写入 aware UTC，例如 `datetime.now(timezone.utc)`。
+- 手工组装 API dict 时，不要直接对 ORM 时间字段调用 `.isoformat()`；对 naive UTC 值这样做会丢掉 `+00:00`，浏览器会把它当成本地时间解析，上海时区会直接偏 `8` 小时。
+- 优先把原始 `datetime` 交给 `success()` / `paginated()` / `created()` / `updated()` 统一序列化；若必须手工转字符串，统一使用 `serialize_datetime_for_api()`。
+
+```python
+from datetime import datetime, timezone
+
+from app.core.response import serialize_datetime_for_api, success
+
+# ✅ timestamptz 字段写 aware UTC
+record.last_login_at = datetime.now(timezone.utc)
+
+# ✅ 手工响应时走统一序列化
+return success(
+    data={
+        "created_at": record.created_at,
+        "last_login_at": record.last_login_at,
+        "expires_at": serialize_datetime_for_api(record.expires_at),
+    }
+)
+
+# ❌ 错误：naive UTC 直接 isoformat，会丢失 +00:00
+payload = {"created_at": record.created_at.isoformat()}
+```
+
 ---
 
 ## 查询规范 (JSON:API)

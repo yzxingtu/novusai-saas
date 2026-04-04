@@ -50,6 +50,8 @@
 - Do not create ad-hoc upload/download flows outside the attachment system.
 - Do not create a second request-error UX when `requestClient` already owns the
   error.
+- Do not ship protected UI entry points that rely on backend `403` as the only
+  permission guard.
 - Do not duplicate dynamic menu translations in the frontend; host menus are
   already translated by backend menu data, while plugin menu titles come from
   plugin manifests.

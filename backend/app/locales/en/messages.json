@@ -793,6 +793,10 @@
       "error": {
         "service_unavailable": "Sorry, AI service is temporarily unavailable. Please try again later.",
         "fallback_failed": "AI service response failed. Please try again later."
+      },
+      "partial": {
+        "budget_exit": "This turn hit its execution budget before I could finish the final summary. You can continue the conversation and I will pick up from the current progress.",
+        "tool_budget_after_success": "The tool run completed, but this turn hit its execution budget before I could finish the final answer. You can continue the conversation and I will keep going from the result above."
       }
     },
     "error": {
@@ -1084,7 +1088,8 @@
       "update_member": "Update Member",
       "reset_password": "Reset Password",
       "toggle_status": "Toggle Status",
-      "update_authority": "Update Organization Authority Scope"
+      "update_authority": "Update Organization Authority Scope",
+      "recycle_bin": "Recycle Bin"
     },
     "permission_role": {
       "list": "View Permission Role List",
@@ -1127,7 +1132,8 @@
     "tenant_admin": {
       "list": "View Tenant Admin List",
       "create": "Create Tenant Admin",
-      "update": "Update Tenant Admin"
+      "update": "Update Tenant Admin",
+      "force_logout": "Force Logout"
     },
     "tenant_settings": {
       "view": "View Tenant Settings",
@@ -1424,8 +1430,14 @@
       "rollback": "Rollback Agent Version",
       "versions": "View Agent Version List",
       "version_detail": "View Version Detail",
+      "version_diff": "View Version Diff",
       "access_config": "View Access Configuration",
       "update_access": "Update Access Configuration",
+      "knowledge_bases": "View Agent Knowledge Bases",
+      "bind_kb": "Bind Knowledge Base",
+      "batch_bind_kbs": "Batch Bind Knowledge Bases",
+      "update_kb_binding": "Update Knowledge Base Binding",
+      "unbind_kb": "Unbind Knowledge Base",
       "recycle_bin": "Recycle Bin"
     },
     "admin_agent_chat": {
@@ -1436,6 +1448,7 @@
       "conversations": "View Conversation List",
       "conversation_detail": "View Conversation Detail",
       "delete_conversation": "Delete Conversation",
+      "update_conversation": "Update Conversation",
       "read_conversation": "Read Conversation",
       "clear_memory": "Clear Conversation Memory"
     },
@@ -1446,7 +1459,8 @@
       "create": "Create API Key",
       "update": "Update API Key",
       "delete": "Delete API Key",
-      "toggle_status": "Enable/Disable API Key"
+      "toggle_status": "Enable/Disable API Key",
+      "recycle_bin": "Recycle Bin"
     },
     "ai_call_log": {
       "list": "View AI Call Log List",
@@ -1592,6 +1606,10 @@
       "list": "View Skill Registry",
       "detail": "View Skill Registry Detail",
       "install": "Install Skill Registry Package"
+    },
+    "execution_decision": {
+      "list": "View Execution Decision List",
+      "detail": "View Execution Decision Detail"
     },
     "ai_long_term_memory_debug": {
       "list": "View Long-Term Memory Debug",
@@ -2168,13 +2186,18 @@
       "not_found": "Plugin not found",
       "manifest_invalid": "Invalid plugin manifest",
       "dependency_failed": "Plugin dependency installation failed",
-      "security_violation": "Plugin security check failed",
-      "license_invalid": "Invalid plugin license",
-      "license_expired": "Plugin license has expired",
-      "license_already_activated": "This license key has already been activated",
-      "conflict": "Plugin conflicts with existing extensions",
-      "install_failed": "Plugin installation failed",
-      "invalid_marketplace_slug": "Invalid marketplace slug: {slug}",
+        "security_violation": "Plugin security check failed",
+        "license_invalid": "Invalid plugin license",
+        "license_expired": "Plugin license has expired",
+        "license_already_activated": "This license key has already been activated",
+        "conflict": "Plugin conflicts with existing extensions",
+        "install_failed": "Plugin installation failed",
+        "schedule_refresh_failed": "Failed to refresh scheduled tasks for plugin {plugin_name} after {action}. Please retry or inspect the scheduler state.",
+        "invalid_marketplace_slug": "Invalid marketplace slug: {slug}",
+        "install_preview_required": "Install confirmation requires a fresh preview. Please preview the plugin again before installing.",
+        "install_preview_invalid": "The install preview session is invalid. Please preview the plugin again before installing.",
+        "install_preview_expired": "The install preview session has expired. Please preview the plugin again before installing.",
+        "install_preview_stale": "The install preview is stale. Please preview the latest plugin package again before installing.",
       "invalid_registry_url_scheme": "Only http/https URLs are allowed",
       "invalid_registry_private_ip": "Private or reserved IP addresses are not allowed",
       "invalid_registry_host": "Host is not allowed for registry access: {host}",
@@ -2211,10 +2234,60 @@
       "ai_call_failed": "AI call failed",
       "path_traversal_detected": "Path traversal detected in storage access: {path}"
     },
-    "license_activated": "License activated successfully",
-    "enabled": "Plugin enabled",
-    "disabled": "Plugin disabled",
-    "menu_config_updated": "Menu configuration updated",
+    "preview": {
+      "warning": {
+        "frontend_page_title_i18n_incomplete": "Frontend page title i18n incomplete: pages[{index}].title missing {locales}",
+        "frontend_menu_title_i18n_incomplete": "Frontend menu title i18n incomplete: pages[{index}].menu.title missing {locales}",
+        "conflicts_detected": "Detected {count} conflict(s) with existing extensions",
+        "python_dependencies_missing": "Python dependencies need install or upgrade: {requirements}",
+        "python_dependencies_ready": "Python dependencies already satisfied ({count} package(s))",
+        "plugin_dependency_issues": "Plugin dependency issues: {details}",
+        "python_shared_env_conflicts": "Python shared-env conflicts: {details}",
+        "paid_plugin_missing_price": "Paid plugin but no price specified",
+        "security_scan_found": "Security scan found {count} warning(s)"
+      },
+      "dependency": {
+        "unknown_version": "unknown",
+        "plugin_db_context_missing": "Install preview needs database context to verify plugin dependency state: {plugin} ({source})",
+        "plugin_missing": "Plugin dependency {plugin} is not installed",
+        "plugin_disabled": "Plugin dependency {plugin} is not enabled",
+        "plugin_version_mismatch": "Plugin dependency {plugin} requires {required}, installed {installed}",
+        "plugin_ready": "Plugin dependency {plugin} is ready",
+        "plugin_ready_versioned": "Plugin dependency {plugin} version {installed} satisfies {required}",
+        "python_ready": "Python dependency {package} is satisfied",
+        "python_missing_or_mismatch": "Python dependency {package} is missing or has a version mismatch"
+      },
+      "conflict": {
+        "system_owner": "system",
+        "generic_type": "extension",
+        "adapter": "Adapter '{conflict_key}' is already registered by plugin '{owner}'",
+        "storage": "Storage driver '{conflict_key}' is already registered by plugin '{owner}'",
+        "skill": "Skill namespace '{conflict_key}' is already claimed by plugin '{owner}'",
+        "generic": "{type} '{conflict_key}' is already claimed by plugin '{owner}'"
+      },
+      "python_conflict": {
+        "multiple_exact_versions": "multiple incompatible exact versions declared: {versions}",
+        "invalid_exact_version": "invalid exact version '{version}' in requirement set",
+        "exact_version_rejected": "exact version {version} does not satisfy: {specifiers}",
+        "installed_version_rejected": "installed version {version} does not satisfy: {specifiers}"
+      },
+      "security": {
+        "scan_failed_generic": "security scan failed",
+        "scan_failed_file": "Failed to scan {file}: {error}",
+        "scan_failed_action": "Plugin '{plugin_name}' blocked because security scan failed during {action}: {error}",
+        "blocked": "Plugin '{plugin_name}' blocked by security scan: {warnings}",
+        "syntax_error": "{file}: syntax error, cannot parse",
+        "dangerous_call": "{file}:{line}: dangerous call '{call}'",
+        "dangerous_import": "{file}:{line}: imports dangerous module '{module}'",
+        "dangerous_import_from": "{file}:{line}: imports from dangerous module '{module}'",
+        "dangerous_attribute": "{file}:{line}: dangerous call '{call}'"
+      }
+    },
+      "license_activated": "License activated successfully",
+      "enabled": "Plugin enabled",
+      "disabled": "Plugin disabled",
+      "schedule_refreshed": "Plugin schedules refreshed",
+      "menu_config_updated": "Menu configuration updated",
     "manifest_synced": "Plugin manifest synced",
     "deleted_already": "Plugin #{plugin_id} has already been removed",
     "capabilities_updated": "Plugin capabilities updated",

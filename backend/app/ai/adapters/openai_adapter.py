@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import base64
 import json
-import re
 from collections.abc import AsyncIterator
 from typing import Any
 from urllib.parse import urlparse
@@ -22,6 +21,7 @@ from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
 from app.ai.adapters.base import BaseAdapter
 from app.ai.exceptions import AIGatewayError, convert_openai_error
+from app.ai.text_semantics import extract_data_url_payload, split_last_suffix
 from app.ai.tools.security import SSRFBlockedError, UrlValidator
 from app.ai.types import (
     ChatChunk,
@@ -83,6 +83,26 @@ _RESPONSES_REASONING_SUMMARY_MODEL_PREFIXES: tuple[str, ...] = (
     "o3",
     "o4",
 )
+_SUPPORTED_REASONING_EFFORTS: tuple[str, ...] = (
+    "none",
+    "minimal",
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+)
+_OPENAI_RUNTIME_OVERRIDE_PATHS: dict[str, str] = {
+    "responses_reasoning_effort": (
+        "runtime_overrides.openai_compatible.responses.reasoning.effort"
+    ),
+    "chat_completions_reasoning_effort": (
+        "runtime_overrides.openai_compatible.chat_completions.reasoning_effort"
+    ),
+    "legacy_reasoning_effort": "reasoning.effort",
+    "legacy_reasoning_effort_flat": "reasoning_effort",
+    "legacy_reasoning_effort_camel": "reasoningEffort",
+    "legacy_model_code_alias": "legacy_model_code_alias",
+}
 
 
 class OpenAIAdapter(BaseAdapter):
@@ -121,6 +141,302 @@ class OpenAIAdapter(BaseAdapter):
         if configured_wire_api:
             return self._normalize_wire_api(configured_wire_api)
         return self._normalize_wire_api(None)
+
+    @staticmethod
+    def _normalize_wire_api_value(wire_api: Any) -> str:
+        value = str(wire_api or "").strip().lower().replace("-", "_")
+        if value in {"responses", "response", "responses_api"}:
+            return "responses"
+        return "chat_completions"
+
+    @staticmethod
+    def _normalize_reasoning_effort(value: Any) -> str | None:
+        normalized = str(value or "").strip().lower()
+        if normalized in _SUPPORTED_REASONING_EFFORTS:
+            return normalized
+        return None
+
+    @staticmethod
+    def _extract_runtime_overrides(model_config: Any) -> dict[str, Any]:
+        if not isinstance(model_config, dict):
+            return {}
+        runtime_overrides = model_config.get("runtime_overrides")
+        if isinstance(runtime_overrides, dict):
+            return runtime_overrides.copy()
+        return {}
+
+    @classmethod
+    def _extract_protocol_reasoning_effort_override(
+        cls,
+        model_config: Any,
+        *,
+        wire_api: str,
+    ) -> tuple[str | None, list[str], dict[str, str]]:
+        runtime_overrides = cls._extract_runtime_overrides(model_config)
+        openai_overrides = runtime_overrides.get("openai_compatible")
+        if not isinstance(openai_overrides, dict):
+            return (None, [], {})
+
+        normalized_wire_api = (
+            "responses"
+            if str(wire_api or "").strip().lower() == "responses"
+            else "chat_completions"
+        )
+
+        ignored_overrides: list[str] = []
+        ignore_reasons: dict[str, str] = {}
+
+        if normalized_wire_api == "responses":
+            path = _OPENAI_RUNTIME_OVERRIDE_PATHS["responses_reasoning_effort"]
+            responses_overrides = openai_overrides.get("responses")
+            if not isinstance(responses_overrides, dict):
+                return (None, ignored_overrides, ignore_reasons)
+            reasoning = responses_overrides.get("reasoning")
+            raw_effort = reasoning.get("effort") if isinstance(reasoning, dict) else None
+        else:
+            path = _OPENAI_RUNTIME_OVERRIDE_PATHS[
+                "chat_completions_reasoning_effort"
+            ]
+            chat_overrides = openai_overrides.get("chat_completions")
+            if not isinstance(chat_overrides, dict):
+                return (None, ignored_overrides, ignore_reasons)
+            raw_effort = chat_overrides.get("reasoning_effort")
+
+        if raw_effort is None:
+            return (None, ignored_overrides, ignore_reasons)
+
+        normalized_effort = cls._normalize_reasoning_effort(raw_effort)
+        if normalized_effort is None:
+            ignored_overrides.append(path)
+            ignore_reasons[path] = "invalid_value"
+            return (None, ignored_overrides, ignore_reasons)
+
+        return (normalized_effort, ignored_overrides, ignore_reasons)
+
+    @classmethod
+    def _extract_legacy_reasoning_effort_from_model_config(
+        cls,
+        model_config: Any,
+    ) -> str | None:
+        if not isinstance(model_config, dict):
+            return None
+
+        reasoning = model_config.get("reasoning")
+        if isinstance(reasoning, dict):
+            effort = cls._normalize_reasoning_effort(reasoning.get("effort"))
+            if effort is not None:
+                return effort
+
+        return cls._normalize_reasoning_effort(
+            model_config.get("reasoning_effort")
+            or model_config.get("reasoningEffort"),
+        )
+
+    @classmethod
+    def _get_runtime_overrides_for_provider(
+        cls,
+        model_config: Any,
+        provider_type: str,
+    ) -> dict[str, Any]:
+        if not isinstance(model_config, dict):
+            return {}
+        runtime_overrides = model_config.get("runtime_overrides")
+        if not isinstance(runtime_overrides, dict):
+            return {}
+        provider_overrides = runtime_overrides.get(provider_type)
+        if not isinstance(provider_overrides, dict):
+            return {}
+        return dict(provider_overrides)
+
+    @classmethod
+    def _get_openai_protocol_override(
+        cls,
+        *,
+        model_config: Any,
+        wire_api: str | None,
+    ) -> tuple[str | None, str | None]:
+        provider_overrides = cls._get_runtime_overrides_for_provider(
+            model_config,
+            "openai_compatible",
+        )
+        normalized_wire_api = cls._normalize_wire_api_value(wire_api)
+        protocol_overrides = provider_overrides.get(normalized_wire_api)
+        if not isinstance(protocol_overrides, dict):
+            return (None, None)
+
+        if normalized_wire_api == "responses":
+            reasoning = protocol_overrides.get("reasoning")
+            if not isinstance(reasoning, dict):
+                return (None, None)
+            return (
+                cls._normalize_reasoning_effort(reasoning.get("effort")),
+                "runtime_overrides.openai_compatible.responses.reasoning.effort",
+            )
+
+        return (
+            cls._normalize_reasoning_effort(protocol_overrides.get("reasoning_effort")),
+            "runtime_overrides.openai_compatible.chat_completions.reasoning_effort",
+        )
+
+    @classmethod
+    def _supports_reasoning_effort_model(cls, model: str) -> bool:
+        normalized = str(model or "").strip().lower()
+        if not normalized:
+            return False
+        return any(
+            normalized.startswith(prefix)
+            for prefix in _RESPONSES_REASONING_SUMMARY_MODEL_PREFIXES
+        )
+
+    @classmethod
+    def _extract_legacy_reasoning_effort_from_model(
+        cls,
+        model: str,
+    ) -> tuple[str, str | None]:
+        normalized_model = str(model or "").strip()
+        if not normalized_model:
+            return ("", None)
+
+        base_model, effort = split_last_suffix(
+            normalized_model,
+            separator="-",
+            allowed_suffixes=("none", "minimal", "low", "medium", "high", "xhigh"),
+        )
+        if effort is None:
+            return (normalized_model, None)
+
+        if not any(
+            base_model.lower().startswith(prefix)
+            for prefix in _RESPONSES_REASONING_SUMMARY_MODEL_PREFIXES
+        ):
+            return (normalized_model, None)
+
+        return (base_model, effort)
+
+    @classmethod
+    def resolve_effective_model_request(
+        cls,
+        *,
+        model: str,
+        model_config: Any = None,
+        wire_api: str | None = None,
+    ) -> dict[str, Any]:
+        logical_model_code = str(model or "").strip()
+        normalized_wire_api = cls._normalize_wire_api_value(wire_api)
+        effective_request: dict[str, Any] = {
+            "logical_model_code": logical_model_code,
+            "upstream_model": logical_model_code,
+            "reasoning_effort": None,
+            "effective_params": {},
+            "applied_overrides": [],
+            "ignored_overrides": [],
+            "ignore_reasons": {},
+            "override_source": "model_code",
+        }
+
+        config_effort, config_path = cls._get_openai_protocol_override(
+            model_config=model_config,
+            wire_api=normalized_wire_api,
+        )
+        if config_path is not None:
+            if config_effort is None:
+                effective_request["ignored_overrides"].append(config_path)
+                effective_request["ignore_reasons"][config_path] = "invalid_value"
+            elif not cls._supports_reasoning_effort_model(logical_model_code):
+                effective_request["ignored_overrides"].append(config_path)
+                effective_request["ignore_reasons"][config_path] = (
+                    "unsupported_model_family"
+                )
+            else:
+                effective_request["reasoning_effort"] = config_effort
+                effective_request["override_source"] = "runtime_overrides"
+                effective_request["applied_overrides"].append(config_path)
+
+        if effective_request["reasoning_effort"] is None:
+            legacy_config_effort = cls._extract_legacy_reasoning_effort_from_model_config(
+                model_config
+            )
+            if legacy_config_effort is not None:
+                legacy_path = "config.reasoning.effort"
+                if cls._supports_reasoning_effort_model(logical_model_code):
+                    effective_request["reasoning_effort"] = legacy_config_effort
+                    effective_request["override_source"] = "legacy_model_config"
+                    effective_request["applied_overrides"].append(legacy_path)
+                else:
+                    effective_request["ignored_overrides"].append(legacy_path)
+                    effective_request["ignore_reasons"][legacy_path] = (
+                        "unsupported_model_family"
+                    )
+
+        upstream_model, legacy_effort = cls._extract_legacy_reasoning_effort_from_model(
+            logical_model_code
+        )
+        if legacy_effort is not None:
+            effective_request["upstream_model"] = upstream_model
+            if effective_request["reasoning_effort"] is None:
+                effective_request["reasoning_effort"] = legacy_effort
+                effective_request["override_source"] = "legacy_model_code"
+                effective_request["applied_overrides"].append(
+                    "legacy_model_code_suffix"
+                )
+
+        if effective_request["reasoning_effort"] is not None:
+            if normalized_wire_api == "responses":
+                effective_request["effective_params"]["reasoning"] = {
+                    "effort": effective_request["reasoning_effort"]
+                }
+            else:
+                effective_request["effective_params"]["reasoning_effort"] = (
+                    effective_request["reasoning_effort"]
+                )
+
+        return effective_request
+
+    def _log_effective_model_request(
+        self,
+        *,
+        effective_request: dict[str, Any],
+        wire_api: str,
+    ) -> None:
+        logger.info(
+            "AI model request resolved: provider_type=openai_compatible logical_model_code={} effective_upstream_model={} effective_reasoning_effort={} wire_api={} override_source={} applied_overrides={} ignored_overrides={} ignore_reasons={}",
+            effective_request.get("logical_model_code", ""),
+            effective_request.get("upstream_model", ""),
+            effective_request.get("reasoning_effort", "") or "",
+            wire_api,
+            effective_request.get("override_source", ""),
+            json.dumps(effective_request.get("applied_overrides", []), ensure_ascii=False),
+            json.dumps(effective_request.get("ignored_overrides", []), ensure_ascii=False),
+            json.dumps(effective_request.get("ignore_reasons", {}), ensure_ascii=False),
+        )
+
+    @staticmethod
+    def _augment_request_metadata(
+        metadata: dict[str, Any] | None,
+        *,
+        effective_request: dict[str, Any],
+    ) -> dict[str, Any]:
+        enriched = dict(metadata or {})
+        enriched["logical_model_code"] = effective_request.get("logical_model_code")
+        enriched["effective_upstream_model"] = effective_request.get("upstream_model")
+        if effective_request.get("reasoning_effort") is not None:
+            enriched["effective_reasoning_effort"] = effective_request.get(
+                "reasoning_effort"
+            )
+        enriched["effective_params"] = dict(
+            effective_request.get("effective_params", {}) or {}
+        )
+        enriched["applied_overrides"] = list(
+            effective_request.get("applied_overrides", []) or []
+        )
+        enriched["ignored_overrides"] = list(
+            effective_request.get("ignored_overrides", []) or []
+        )
+        enriched["ignore_reasons"] = dict(
+            effective_request.get("ignore_reasons", {}) or {}
+        )
+        enriched["model_override_source"] = effective_request.get("override_source")
+        return enriched
 
     def _get_effective_base_url(self) -> str:
         return (self.base_url or "https://api.openai.com/v1").rstrip("/")
@@ -414,8 +730,20 @@ class OpenAIAdapter(BaseAdapter):
         stream: bool,
         **kwargs,
     ) -> dict[str, Any]:
+        effective_request = kwargs.pop("_effective_model_request", None)
+        model_config = kwargs.pop("model_config", None)
+        if effective_request is None:
+            effective_request = self.resolve_effective_model_request(
+                model=model,
+                model_config=(
+                    model_config
+                    if model_config is not None
+                    else self.config.get("model_config")
+                ),
+                wire_api="chat_completions",
+            )
         request_params: dict[str, Any] = {
-            "model": model,
+            "model": effective_request["upstream_model"],
             "messages": openai_messages,
             "temperature": temperature,
             "top_p": top_p,
@@ -427,6 +755,13 @@ class OpenAIAdapter(BaseAdapter):
         if tools:
             request_params["tools"] = tools
             request_params["tool_choice"] = tool_choice or "auto"
+        if (
+            kwargs.get("reasoning_effort") is None
+            and "reasoning_effort" in effective_request.get("effective_params", {})
+        ):
+            request_params["reasoning_effort"] = effective_request["effective_params"][
+                "reasoning_effort"
+            ]
         request_params.update(kwargs)
         return request_params
 
@@ -439,18 +774,19 @@ class OpenAIAdapter(BaseAdapter):
         fallback_to_responses: bool = True,
         responses_kwargs: dict[str, Any] | None = None,
     ) -> ChatResponse:
+        effective_model = str(request_params.get("model") or model)
         self._log_upstream_request(
             endpoint_path="chat/completions",
-            model=model,
+            model=effective_model,
             stream=False,
             wire_api="chat_completions",
         )
-        logger.info("Chat request: model={} messages={}", model, len(messages))
+        logger.info("Chat request: model={} messages={}", effective_model, len(messages))
         response = await self.client.chat.completions.create(**request_params)
         response = await self._retry_chat_completions_with_v1_if_needed(
             payload=response,
             request_params=request_params,
-            model=model,
+            model=effective_model,
             stream=False,
         )
 
@@ -478,7 +814,7 @@ class OpenAIAdapter(BaseAdapter):
                 },
             )
 
-        # Reject non-ChatCompletion responses (e.g., HTML/JSON error payloads)
+        # Reject non-ChatCompletion responses (e.g. HTML/JSON errors) / 拒绝非 ChatCompletion 响应（如 HTML/JSON 错误体）
         if isinstance(response, str):
             logger.error(
                 "Chat response returned unsalvageable string payload: model={} preview={}",
@@ -499,18 +835,19 @@ class OpenAIAdapter(BaseAdapter):
         fallback_to_responses: bool = True,
         responses_kwargs: dict[str, Any] | None = None,
     ) -> AsyncIterator[ChatChunk]:
+        effective_model = str(request_params.get("model") or model)
         self._log_upstream_request(
             endpoint_path="chat/completions",
-            model=model,
+            model=effective_model,
             stream=True,
             wire_api="chat_completions",
         )
-        logger.info("Stream chat request: model={}", model)
+        logger.info("Stream chat request: model={}", effective_model)
         stream = await self.client.chat.completions.create(**request_params)
         stream = await self._retry_chat_completions_with_v1_if_needed(
             payload=stream,
             request_params=request_params,
-            model=model,
+            model=effective_model,
             stream=True,
         )
         stream_closed = False
@@ -636,7 +973,7 @@ class OpenAIAdapter(BaseAdapter):
                 str(stream_error) if stream_error is not None else "None",
                 str(rescue_error),
             )
-            # Re-raise original stream error if available, otherwise raise rescue error
+            # Re-raise original stream error if present, else rescue error / 优先抛出原始流错误，否则抛出 rescue 异常
             raise stream_error if stream_error is not None else rescue_error
 
     async def chat(
@@ -661,17 +998,31 @@ class OpenAIAdapter(BaseAdapter):
         active_wire_api = (
             "responses" if self._use_responses_api() else "chat_completions"
         )
+        effective_error_model = model
         try:
             runtime_force_wire_api = kwargs.pop("_runtime_force_wire_api", None)
             runtime_disable_cross_protocol_fallback = bool(
                 kwargs.pop("_runtime_disable_cross_protocol_fallback", False),
             )
+            runtime_model_config = kwargs.pop("model_config", None)
+            if runtime_model_config is None:
+                runtime_model_config = self.config.get("model_config")
             runtime_wire_api = self._resolve_runtime_wire_api(runtime_force_wire_api)
             use_responses_api = runtime_wire_api == "responses"
             active_endpoint_path = (
                 "responses" if use_responses_api else "chat/completions"
             )
             active_wire_api = "responses" if use_responses_api else "chat_completions"
+            effective_request = self.resolve_effective_model_request(
+                model=model,
+                model_config=runtime_model_config,
+                wire_api=active_wire_api,
+            )
+            self._log_effective_model_request(
+                effective_request=effective_request,
+                wire_api=active_wire_api,
+            )
+            effective_error_model = str(effective_request.get("upstream_model") or model)
 
             # Pop adapter-only flags before building request params / 提取适配器专用标志，避免传入 API
             vision_flag = kwargs.pop("supports_vision", True)
@@ -695,11 +1046,14 @@ class OpenAIAdapter(BaseAdapter):
                 tools=tools,
                 tool_choice=tool_choice,
                 stream=False,
+                model_config=runtime_model_config,
+                _effective_model_request=effective_request,
                 **kwargs,
             )
             responses_kwargs = {
                 "messages": messages,
                 "model": model,
+                "model_config": runtime_model_config,
                 "temperature": temperature,
                 "max_tokens": max_tokens,
                 "top_p": top_p,
@@ -708,6 +1062,7 @@ class OpenAIAdapter(BaseAdapter):
                 "supports_vision": vision_flag,
                 "supports_audio": audio_flag,
                 "supports_video": video_flag,
+                "_effective_model_request": effective_request,
                 **kwargs,
             }
 
@@ -754,6 +1109,10 @@ class OpenAIAdapter(BaseAdapter):
 
             response.metadata = dict(response.metadata or {})
             response.metadata.setdefault("protocol_path", active_wire_api)
+            response.metadata = self._augment_request_metadata(
+                response.metadata,
+                effective_request=effective_request,
+            )
             return response
 
         except AIGatewayError:
@@ -762,7 +1121,7 @@ class OpenAIAdapter(BaseAdapter):
             self._log_upstream_error(
                 e,
                 endpoint_path=active_endpoint_path,
-                model=model,
+                model=effective_error_model,
                 wire_api=active_wire_api,
             )
             logger.error("Chat error: model={} error={}", model, str(e))
@@ -790,17 +1149,31 @@ class OpenAIAdapter(BaseAdapter):
         active_wire_api = (
             "responses" if self._use_responses_api() else "chat_completions"
         )
+        effective_error_model = model
         try:
             runtime_force_wire_api = kwargs.pop("_runtime_force_wire_api", None)
             runtime_disable_cross_protocol_fallback = bool(
                 kwargs.pop("_runtime_disable_cross_protocol_fallback", False),
             )
+            runtime_model_config = kwargs.pop("model_config", None)
+            if runtime_model_config is None:
+                runtime_model_config = self.config.get("model_config")
             runtime_wire_api = self._resolve_runtime_wire_api(runtime_force_wire_api)
             use_responses_api = runtime_wire_api == "responses"
             active_endpoint_path = (
                 "responses" if use_responses_api else "chat/completions"
             )
             active_wire_api = "responses" if use_responses_api else "chat_completions"
+            effective_request = self.resolve_effective_model_request(
+                model=model,
+                model_config=runtime_model_config,
+                wire_api=active_wire_api,
+            )
+            self._log_effective_model_request(
+                effective_request=effective_request,
+                wire_api=active_wire_api,
+            )
+            effective_error_model = str(effective_request.get("upstream_model") or model)
 
             # Pop adapter-only flags before building request params / 提取适配器专用标志，避免传入 API
             vision_flag = kwargs.pop("supports_vision", True)
@@ -824,6 +1197,8 @@ class OpenAIAdapter(BaseAdapter):
                 tools=tools,
                 tool_choice=tool_choice,
                 stream=True,
+                model_config=runtime_model_config,
+                _effective_model_request=effective_request,
                 **kwargs,
             )
             sync_request_params = self._build_chat_completions_request(
@@ -835,11 +1210,14 @@ class OpenAIAdapter(BaseAdapter):
                 tools=tools,
                 tool_choice=tool_choice,
                 stream=False,
+                model_config=runtime_model_config,
+                _effective_model_request=effective_request,
                 **kwargs,
             )
             responses_kwargs = {
                 "messages": messages,
                 "model": model,
+                "model_config": runtime_model_config,
                 "temperature": temperature,
                 "max_tokens": max_tokens,
                 "top_p": top_p,
@@ -848,6 +1226,7 @@ class OpenAIAdapter(BaseAdapter):
                 "supports_vision": vision_flag,
                 "supports_audio": audio_flag,
                 "supports_video": video_flag,
+                "_effective_model_request": effective_request,
                 **kwargs,
             }
 
@@ -859,6 +1238,10 @@ class OpenAIAdapter(BaseAdapter):
                     ):
                         if self._is_meaningful_stream_chunk(chunk):
                             responses_stream_emitted_meaningful_chunk = True
+                        chunk.metadata = self._augment_request_metadata(
+                            getattr(chunk, "metadata", None),
+                            effective_request=effective_request,
+                        )
                         yield chunk
                     return
                 except Exception as responses_error:
@@ -888,6 +1271,10 @@ class OpenAIAdapter(BaseAdapter):
                             model=model,
                             rescue_reason="responses_fallback",
                         ):
+                            chunk.metadata = self._augment_request_metadata(
+                                getattr(chunk, "metadata", None),
+                                effective_request=effective_request,
+                            )
                             yield chunk
                         return
                     if responses_stream_emitted_meaningful_chunk:
@@ -906,6 +1293,10 @@ class OpenAIAdapter(BaseAdapter):
                 model=model,
                 rescue_reason="chat_completions_primary",
             ):
+                chunk.metadata = self._augment_request_metadata(
+                    getattr(chunk, "metadata", None),
+                    effective_request=effective_request,
+                )
                 yield chunk
 
         except AIGatewayError:
@@ -914,7 +1305,7 @@ class OpenAIAdapter(BaseAdapter):
             self._log_upstream_error(
                 e,
                 endpoint_path=active_endpoint_path,
-                model=model,
+                model=effective_error_model,
                 wire_api=active_wire_api,
             )
             logger.error("Stream chat error: model={} error={}", model, str(e))
@@ -982,10 +1373,7 @@ class OpenAIAdapter(BaseAdapter):
             raise convert_openai_error(e, provider_code="openai", model_code="") from e
 
     def _normalize_wire_api(self, wire_api: Any) -> str:
-        value = str(wire_api or "").strip().lower().replace("-", "_")
-        if value in {"responses", "response", "responses_api"}:
-            return "responses"
-        return "chat_completions"
+        return self._normalize_wire_api_value(wire_api)
 
     def _resolve_runtime_wire_api(self, runtime_force_wire_api: Any) -> str:
         if runtime_force_wire_api is None:
@@ -1085,9 +1473,16 @@ class OpenAIAdapter(BaseAdapter):
             tool_choice=tool_choice,
             **kwargs,
         )
-        self._log_upstream_request(endpoint_path="responses", model=model, stream=False)
+        effective_model = str(request_params.get("model") or model)
+        self._log_upstream_request(
+            endpoint_path="responses",
+            model=effective_model,
+            stream=False,
+        )
         logger.info(
-            "Responses chat request: model={} messages={}", model, len(messages)
+            "Responses chat request: model={} messages={}",
+            effective_model,
+            len(messages),
         )
         response = await self.client.responses.create(**request_params)
         return self._convert_responses_chat_response(response, model)
@@ -1114,8 +1509,13 @@ class OpenAIAdapter(BaseAdapter):
             stream=True,
             **kwargs,
         )
-        self._log_upstream_request(endpoint_path="responses", model=model, stream=True)
-        logger.info("Responses stream request: model={}", model)
+        effective_model = str(request_params.get("model") or model)
+        self._log_upstream_request(
+            endpoint_path="responses",
+            model=effective_model,
+            stream=True,
+        )
+        logger.info("Responses stream request: model={}", effective_model)
         stream = await self.client.responses.create(**request_params)
         emitted_text = False
         emitted_reasoning = False
@@ -1139,8 +1539,7 @@ class OpenAIAdapter(BaseAdapter):
                         yield ChatChunk(delta=delta)
                     continue
 
-                # Some OpenAI-compatible proxies end the text stream with this event and never send / 上文为英文说明 / English above
-                # response.completed — align with raw SSE clients that treat the stream as done here.
+                # Some proxies emit output_text.done without response.completed; treat as stream end (SSE-aligned) / 部分兼容网关仅发 output_text.done 不发 response.completed，与原生 SSE 行为对齐并在此结束流
                 if event_type == "response.output_text.done":
                     text = getattr(event, "text", None) or ""
                     if text and not emitted_text:
@@ -1346,8 +1745,25 @@ class OpenAIAdapter(BaseAdapter):
         supports_audio = kwargs.pop("supports_audio", False)
         supports_video = kwargs.pop("supports_video", False)
         explicit_reasoning = kwargs.pop("reasoning", None)
+        effective_request = kwargs.pop("_effective_model_request", None)
+        model_config = kwargs.pop("model_config", None)
+        if effective_request is None:
+            effective_request = self.resolve_effective_model_request(
+                model=model,
+                model_config=(
+                    model_config
+                    if model_config is not None
+                    else self.config.get("model_config")
+                ),
+                wire_api="responses",
+            )
+        if (
+            explicit_reasoning is None
+            and "reasoning" in effective_request.get("effective_params", {})
+        ):
+            explicit_reasoning = effective_request["effective_params"]["reasoning"]
         request_params: dict[str, Any] = {
-            "model": model,
+            "model": effective_request["upstream_model"],
             "input": await self._convert_messages_to_responses_input(
                 messages,
                 supports_vision=supports_vision,
@@ -1727,12 +2143,12 @@ class OpenAIAdapter(BaseAdapter):
         if not url or not url.strip():
             return None
         url = url.strip()
-        # data URL: data:audio/xxx;base64,<b64> / 上文为英文说明 / English above
+        # data URL (data:audio/...;base64,...) / data URL 音频（base64）
         if url.startswith("data:audio"):
-            match = re.match(r"data:audio/[^;]+;base64,(.+)", url, re.DOTALL)
-            if match:
+            payload = extract_data_url_payload(url, media_prefix="audio")
+            if payload is not None:
                 try:
-                    return base64.b64decode(match.group(1))
+                    return base64.b64decode(payload)
                 except Exception as e:
                     logger.warning("Audio data URL base64 decode failed: {}", e)
                     return None
@@ -1826,8 +2242,7 @@ class OpenAIAdapter(BaseAdapter):
                 "role": msg.role,
             }
 
-            # Multimodal content: when user message has attachments, convert to content array
-            # 多模态内容：user 消息含附件时转换为 content 数组（image/audio/video/file）
+            # Multimodal: user message with attachments -> content[] / 多模态：user 含附件时转为 content 数组
             if msg.role == "user" and msg.attachments:
                 content_parts: list[dict] = []
                 if msg.content:
@@ -1863,8 +2278,7 @@ class OpenAIAdapter(BaseAdapter):
                             hint = f"[Image: {att_name or 'uploaded image'}]"
                             content_parts.append({"type": "text", "text": hint})
                     elif att_type == "audio":
-                        # Audio: when supports_audio and native supported, use input_audio block; else text hint
-                        # 音频：supports_audio 且支持原生时使用 input_audio 块；否则文字提示
+                        # Audio: input_audio if native supported, else text hint / 音频：原生支持用 input_audio，否则文字提示
                         hint = f"[Audio: {att_name or 'uploaded audio'}]"
                         if not att_url:
                             content_parts.append({"type": "text", "text": hint})
@@ -1886,8 +2300,7 @@ class OpenAIAdapter(BaseAdapter):
                         else:
                             content_parts.append({"type": "text", "text": hint})
                     elif att_type == "video" and att_url:
-                        # Video: native format to be extended when vendor API supports it; for now text hint
-                        # 视频：原生格式待厂商支持后扩展；当前为文字提示
+                        # Video: vendor-native TBD; use text hint for now / 视频：待厂商 API 扩展原生格式，暂用文字提示
                         if supports_video:
                             hint = f"[Video: {att_name or 'uploaded video'}]"
                             content_parts.append({"type": "text", "text": hint})
@@ -1983,8 +2396,7 @@ class OpenAIAdapter(BaseAdapter):
         choice = chunk.choices[0]
         delta = choice.delta
 
-        # Keep reasoning delta separate so frontend can render "thinking" independently
-        # from the final answer / 将 reasoning 增量与最终答复分离，便于前端单独展示“思考内容”
+        # Keep reasoning delta separate from final answer for "thinking" UI / 将 reasoning 与最终答复分离，便于前端展示思考过程
         delta_content = delta.content or ""
         reasoning_delta = getattr(delta, "reasoning_content", None) or ""
 

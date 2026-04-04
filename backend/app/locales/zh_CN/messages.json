@@ -793,6 +793,10 @@
       "error": {
         "service_unavailable": "抱歉，AI 服务暂时不可用，请稍后重试。",
         "fallback_failed": "AI 服务响应失败，请稍后重试。"
+      },
+      "partial": {
+        "budget_exit": "本轮在生成最终总结前达到了执行预算。你可以继续追问，我会接着刚才的进度继续回答。",
+        "tool_budget_after_success": "本轮已完成工具执行，但在整理最终回答前达到了执行预算。你可以继续追问，我会基于刚才的结果继续回答。"
       }
     },
     "error": {
@@ -1084,7 +1088,8 @@
       "update_member": "更新成员",
       "reset_password": "重置密码",
       "toggle_status": "切换状态",
-      "update_authority": "更新组织权限范围"
+      "update_authority": "更新组织权限范围",
+      "recycle_bin": "回收站"
     },
     "permission_role": {
       "list": "查看权限角色列表",
@@ -1127,7 +1132,8 @@
     "tenant_admin": {
       "list": "查看企业管理员列表",
       "create": "创建企业管理员",
-      "update": "编辑企业管理员"
+      "update": "编辑企业管理员",
+      "force_logout": "强制下线"
     },
     "tenant_settings": {
       "view": "查看企业设置",
@@ -1424,8 +1430,14 @@
       "rollback": "回滚智能体版本",
       "versions": "查看智能体版本列表",
       "version_detail": "查看版本详情",
+      "version_diff": "查看版本差异",
       "access_config": "查看访问配置",
       "update_access": "修改访问配置",
+      "knowledge_bases": "查看智能体知识库",
+      "bind_kb": "绑定知识库",
+      "batch_bind_kbs": "批量绑定知识库",
+      "update_kb_binding": "修改知识库绑定",
+      "unbind_kb": "解绑知识库",
       "recycle_bin": "回收站"
     },
     "admin_agent_chat": {
@@ -1436,6 +1448,7 @@
       "conversations": "查看对话列表",
       "conversation_detail": "查看对话详情",
       "delete_conversation": "删除对话",
+      "update_conversation": "更新对话",
       "read_conversation": "阅读对话",
       "clear_memory": "清空会话记忆"
     },
@@ -1446,7 +1459,8 @@
       "create": "创建 API Key",
       "update": "编辑 API Key",
       "delete": "删除 API Key",
-      "toggle_status": "启用/禁用 API Key"
+      "toggle_status": "启用/禁用 API Key",
+      "recycle_bin": "回收站"
     },
     "ai_call_log": {
       "list": "查看 AI 调用日志列表",
@@ -1592,6 +1606,10 @@
       "list": "查看技能市场",
       "detail": "查看技能市场详情",
       "install": "安装技能市场包"
+    },
+    "execution_decision": {
+      "list": "查看执行决策列表",
+      "detail": "查看执行决策详情"
     },
     "ai_long_term_memory_debug": {
       "list": "查看长期记忆调试",
@@ -2177,13 +2195,18 @@
       "not_found": "插件不存在",
       "manifest_invalid": "插件清单格式无效",
       "dependency_failed": "插件依赖安装失败",
-      "security_violation": "插件安全检查未通过",
-      "license_invalid": "插件许可证无效",
-      "license_expired": "插件许可证已过期",
-      "license_already_activated": "该许可证密钥已被激活",
-      "conflict": "插件与已有扩展冲突",
-      "install_failed": "插件安装失败",
-      "invalid_marketplace_slug": "无效的 marketplace 标识：{slug}",
+        "security_violation": "插件安全检查未通过",
+        "license_invalid": "插件许可证无效",
+        "license_expired": "插件许可证已过期",
+        "license_already_activated": "该许可证密钥已被激活",
+        "conflict": "插件与已有扩展冲突",
+        "install_failed": "插件安装失败",
+        "schedule_refresh_failed": "插件 {plugin_name} 在 {action} 后刷新定时调度失败，请稍后重试或检查调度器状态",
+        "invalid_marketplace_slug": "无效的 marketplace 标识：{slug}",
+        "install_preview_required": "安装确认需要先完成一次最新预览，请重新预览插件后再安装。",
+        "install_preview_invalid": "当前安装预览会话无效，请重新预览插件后再安装。",
+        "install_preview_expired": "当前安装预览会话已过期，请重新预览插件后再安装。",
+        "install_preview_stale": "当前安装预览已过期或与最新插件包不一致，请重新预览后再安装。",
       "invalid_registry_url_scheme": "只允许使用 http/https 地址",
       "invalid_registry_private_ip": "不允许使用私有或保留 IP 地址",
       "invalid_registry_host": "不允许的 registry 主机：{host}",
@@ -2220,10 +2243,60 @@
       "ai_call_failed": "AI 调用失败",
       "path_traversal_detected": "检测到非法存储路径：{path}"
     },
-    "license_activated": "许可证激活成功",
-    "enabled": "插件已启用",
-    "disabled": "插件已禁用",
-    "menu_config_updated": "菜单配置已更新",
+    "preview": {
+      "warning": {
+        "frontend_page_title_i18n_incomplete": "前端页面标题多语言不完整：pages[{index}].title 缺少 {locales}",
+        "frontend_menu_title_i18n_incomplete": "前端菜单标题多语言不完整：pages[{index}].menu.title 缺少 {locales}",
+        "conflicts_detected": "检测到 {count} 个与现有扩展冲突的项目",
+        "python_dependencies_missing": "Python 依赖需要安装或升级：{requirements}",
+        "python_dependencies_ready": "Python 依赖已满足（{count} 个包）",
+        "plugin_dependency_issues": "插件依赖存在问题：{details}",
+        "python_shared_env_conflicts": "Python 共享环境存在冲突：{details}",
+        "paid_plugin_missing_price": "插件定价为付费，但未声明价格",
+        "security_scan_found": "安全扫描发现 {count} 个警告"
+      },
+      "dependency": {
+        "unknown_version": "未知版本",
+        "plugin_db_context_missing": "安装预览需要数据库上下文才能校验插件依赖状态：{plugin}（{source}）",
+        "plugin_missing": "插件依赖 {plugin} 未安装",
+        "plugin_disabled": "插件依赖 {plugin} 未启用",
+        "plugin_version_mismatch": "插件依赖 {plugin} 需要 {required}，当前已安装 {installed}",
+        "plugin_ready": "插件依赖 {plugin} 已就绪",
+        "plugin_ready_versioned": "插件依赖 {plugin} 当前版本 {installed} 满足 {required}",
+        "python_ready": "Python 依赖 {package} 已满足",
+        "python_missing_or_mismatch": "Python 依赖 {package} 缺失或版本不匹配"
+      },
+      "conflict": {
+        "system_owner": "系统",
+        "generic_type": "扩展",
+        "adapter": "适配器 '{conflict_key}' 已被插件 '{owner}' 注册",
+        "storage": "存储驱动 '{conflict_key}' 已被插件 '{owner}' 注册",
+        "skill": "技能命名空间 '{conflict_key}' 已被插件 '{owner}' 占用",
+        "generic": "{type} '{conflict_key}' 已被插件 '{owner}' 占用"
+      },
+      "python_conflict": {
+        "multiple_exact_versions": "声明了多个不兼容的精确版本：{versions}",
+        "invalid_exact_version": "依赖集合中存在无效的精确版本 '{version}'",
+        "exact_version_rejected": "精确版本 {version} 不满足这些约束：{specifiers}",
+        "installed_version_rejected": "当前已安装版本 {version} 不满足这些约束：{specifiers}"
+      },
+      "security": {
+        "scan_failed_generic": "安全扫描失败",
+        "scan_failed_file": "扫描 {file} 失败：{error}",
+        "scan_failed_action": "插件 '{plugin_name}' 在执行 {action} 时安全扫描失败：{error}",
+        "blocked": "插件 '{plugin_name}' 被安全扫描阻止：{warnings}",
+        "syntax_error": "{file}: 语法错误，无法解析",
+        "dangerous_call": "{file}:{line}: 检测到危险调用 '{call}'",
+        "dangerous_import": "{file}:{line}: 导入了危险模块 '{module}'",
+        "dangerous_import_from": "{file}:{line}: 从危险模块 '{module}' 导入",
+        "dangerous_attribute": "{file}:{line}: 检测到危险调用 '{call}'"
+      }
+    },
+      "license_activated": "许可证激活成功",
+      "enabled": "插件已启用",
+      "disabled": "插件已禁用",
+      "schedule_refreshed": "插件调度已刷新",
+      "menu_config_updated": "菜单配置已更新",
     "manifest_synced": "插件清单已同步",
     "deleted_already": "插件 #{plugin_id} 已被移除",
     "capabilities_updated": "插件能力已更新",

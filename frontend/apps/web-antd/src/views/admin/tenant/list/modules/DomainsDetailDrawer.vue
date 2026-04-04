@@ -23,6 +23,7 @@ import {
 
 import { adminApi as admin } from '#/api';
 import { $t } from '#/locales';
+import { useAccess } from '#/utils';
 import { formatDate } from '#/utils/common';
 
 import DomainsDnsGuideModal from './DomainsDnsGuideModal.vue';
@@ -42,6 +43,8 @@ const editRemark = ref('');
 
 // Child component refs / 子组件引用
 const dnsGuideModalRef = ref<InstanceType<typeof DomainsDnsGuideModal>>();
+const { hasAccessByCodes } = useAccess();
+const canUpdateDomain = hasAccessByCodes(['tenant_domain:update']);
 
 // Drawer / 抽屉
 const [Drawer, drawerApi] = useVbenDrawer({
@@ -270,7 +273,7 @@ defineExpose({ open });
               {{ $t('admin.tenant.domain.remark') }}
             </h4>
             <Button
-              v-if="!editMode"
+              v-if="!editMode && canUpdateDomain"
               type="link"
               size="small"
               @click="onEnterEdit"

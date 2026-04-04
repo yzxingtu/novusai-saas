@@ -37,6 +37,34 @@ class PermissionTreeResponse(PermissionResponse):
     )
 
 
+class MenuAIResponse(BaseSchema):
+    """菜单 AI 元信息响应 / Menu AI metadata response."""
+
+    description: str | None = Field(None, description="AI 菜单描述")
+    keywords: list[str] = Field(default_factory=list, description="AI 菜单关键词")
+    capabilities: list[str] = Field(
+        default_factory=list,
+        description="AI 菜单能力标签",
+    )
+    category: str | None = Field(None, description="AI 菜单分类")
+    mode: str | None = Field(None, description="AI 页面模式")
+    page_context_key: str | None = Field(None, description="AI 页面上下文键")
+    disabled_capabilities: list[str] | str | None = Field(
+        None,
+        description="禁用的 AI 能力",
+    )
+    disabled_operations: list[str] | str | None = Field(
+        None,
+        description="禁用的 AI 操作",
+    )
+
+
+class MenuMetaResponse(BaseSchema):
+    """菜单元信息响应 / Menu meta response."""
+
+    ai: MenuAIResponse | None = Field(None, description="AI 菜单元信息")
+
+
 class MenuResponse(BaseSchema):
     """菜单响应 / Menu response."""
 
@@ -51,6 +79,7 @@ class MenuResponse(BaseSchema):
     permissions: list[str] = Field(
         default_factory=list, description="该菜单下的操作权限码列表"
     )
+    meta: MenuMetaResponse | None = Field(None, description="菜单元信息")
     children: list["MenuResponse"] = Field(default_factory=list, description="子菜单")
 
 
@@ -60,6 +89,8 @@ MenuResponse.model_rebuild()
 
 
 __all__ = [
+    "MenuAIResponse",
+    "MenuMetaResponse",
     "PermissionResponse",
     "PermissionTreeResponse",
     "MenuResponse",

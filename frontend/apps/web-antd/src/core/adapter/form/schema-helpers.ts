@@ -59,6 +59,8 @@ export interface ApiSelectOptions {
   pageSize?: number;
   /** Enable click pagination, default true / 是否启用点击分页，默认 true */
   clickPagination?: boolean;
+  /** Extra component props merged into ApiSelect / 额外透传给 ApiSelect 的组件属性 */
+  componentProps?: Record<string, unknown>;
   /** Required / 是否必填 */
   required?: boolean;
 }
@@ -137,12 +139,18 @@ export function select(
   label: string,
   options: SelectOptions = {},
 ): VbenFormSchema {
-  const { api, options: staticOptions, ...rest } = options;
+  const {
+    api,
+    options: staticOptions,
+    componentProps = {},
+    ...rest
+  } = options;
 
   // 1. If API provided, use ApiSelect / 如果有 API，使用 ApiSelect
   if (api) {
     return apiSelect({
       api,
+      componentProps,
       fieldName: field,
       label,
       ...rest,
@@ -161,7 +169,11 @@ export function select(
           }));
   }
 
-  const { required, placeholder, ...componentProps } = rest;
+  const {
+    required,
+    placeholder,
+    ...restComponentProps
+  } = rest;
 
   return {
     component: 'Select',
@@ -172,6 +184,7 @@ export function select(
       options: normalizedOptions,
       showSearch: true,
       optionFilterProp: 'label', // Allow searching by label / 允许按 label 搜索
+      ...restComponentProps,
       ...componentProps,
     },
     fieldName: field,
@@ -283,6 +296,7 @@ export function apiTreeSelect(options: ApiSelectOptions): VbenFormSchema {
 export function apiSelect(options: ApiSelectOptions): VbenFormSchema {
   const {
     api,
+    componentProps = {},
     fieldName,
     label = '',
     placeholder,
@@ -307,6 +321,7 @@ export function apiSelect(options: ApiSelectOptions): VbenFormSchema {
       pagination: true,
       clickPagination,
       pageSize,
+      ...componentProps,
       ...(extraField
         ? {
             optionRightField: extraField.includes('.')
@@ -574,6 +589,7 @@ export function inputField(
   fieldName: string,
   label: string,
   options: {
+    componentProps?: Record<string, unknown>;
     disabled?: boolean;
     maxLength?: number;
     placeholder?: string;
@@ -581,6 +597,7 @@ export function inputField(
   } = {},
 ): VbenFormSchema {
   const {
+    componentProps = {},
     placeholder,
     required = false,
     maxLength,
@@ -593,6 +610,7 @@ export function inputField(
       placeholder: placeholder || `请输入${label}`,
       ...(maxLength ? { maxLength } : {}),
       ...(disabled ? { disabled } : {}),
+      ...componentProps,
     },
     fieldName,
     label,

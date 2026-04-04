@@ -95,6 +95,8 @@ If the change spans multiple layers:
 
 ## Quick Check Flow
 
+> Reminder: Trellis tasks declare a path (`fast`, `normal`, or `deep`); run these checks against whichever path you originally selected.
+
 ```bash
 # 1. Code checks
 pnpm lint && pnpm type-check

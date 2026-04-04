@@ -33,6 +33,8 @@ import {
 import { useCrudList } from '#/composables';
 import { $t } from '#/locales';
 
+import AIPageHeroCard from '../_shared/AIPageHeroCard.vue';
+
 // ========== 声明式列表管理 / declarative CRUD list ==========
 const assignmentSummary = ref({ active: 0, assigned: 0 });
 
@@ -195,88 +197,124 @@ function getFeatureIcon(featureCode: string): FeatureIconConfig {
 
 // ========== 统计 / stats ==========
 watchEffect(() => {
-  const all = assignments.value;
   assignmentSummary.value = {
-    active: all.filter((a) => a.is_active).length,
-    assigned: all.filter((a) => a.agent_id !== null).length,
+    active: assignments.value.filter((item) => item.is_active).length,
+    assigned: assignments.value.filter((item) => item.agent_id !== null).length,
   };
 });
 
-const stats = computed(() => ({
-  total: assignments.value.length,
-  active: assignments.value.filter((a) => a.is_active).length,
-  assigned: assignments.value.filter((a) => a.agent_id !== null).length,
-}));
+const assignmentStats = computed(() => {
+  const items = assignments.value;
+  const total = items.length;
+  const active = items.filter((item) => item.is_active).length;
+  const assigned = items.filter((item) => item.agent_id !== null).length;
+  const plugins = items.filter((item) =>
+    item.feature_code.startsWith('plugin.'),
+  ).length;
+
+  return {
+    active,
+    assigned,
+    plugins,
+    publishedAgents: agentOptions.value.length,
+    total,
+    unassigned: total - assigned,
+  };
+});
+
+const heroMetrics = computed(() => [
+  {
+    key: 'features',
+    label: $t('admin.ai.agentAssignment.hero.metrics.features'),
+    value: assignmentStats.value.total,
+  },
+  {
+    key: 'publishedAgents',
+    label: $t('admin.ai.agentAssignment.hero.metrics.publishedAgents'),
+    value: assignmentStats.value.publishedAgents,
+  },
+  {
+    key: 'enabled',
+    label: $t('admin.ai.agentAssignment.hero.metrics.enabled'),
+    value: assignmentStats.value.active,
+  },
+  {
+    key: 'assigned',
+    label: $t('admin.ai.agentAssignment.hero.metrics.assigned'),
+    value: assignmentStats.value.assigned,
+  },
+]);
+
+const heroChips = computed(() => {
+  const chips = [
+    {
+      key: 'scope',
+      icon: 'lucide:globe-2',
+      className: 'bg-primary/10 text-primary',
+      text: $t('admin.ai.agentAssignment.hero.chips.scope'),
+    },
+    {
+      key: 'publishedAgents',
+      icon: 'lucide:bot',
+      className: 'bg-background/90 text-foreground',
+      text: $t('admin.ai.agentAssignment.hero.chips.publishedAgents', {
+        count: assignmentStats.value.publishedAgents,
+      }),
+    },
+  ];
+
+  if (assignmentStats.value.plugins > 0) {
+    chips.push({
+      key: 'plugins',
+      icon: 'lucide:puzzle',
+      className: 'bg-violet-500/10 text-violet-700 dark:text-violet-200',
+      text: $t('admin.ai.agentAssignment.hero.chips.plugins', {
+        count: assignmentStats.value.plugins,
+      }),
+    });
+  }
+
+  chips.push(
+    assignmentStats.value.unassigned > 0
+      ? {
+          key: 'pending',
+          icon: 'lucide:badge-alert',
+          className: 'bg-amber-500/10 text-amber-700 dark:text-amber-200',
+          text: $t('admin.ai.agentAssignment.hero.chips.pending', {
+            count: assignmentStats.value.unassigned,
+          }),
+        }
+      : {
+          key: 'ready',
+          icon: 'lucide:badge-check',
+          className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-200',
+          text: $t('admin.ai.agentAssignment.hero.chips.ready'),
+        },
+  );
+
+  return chips;
+});
 </script>
 
 <template>
-  <Page
-    :title="$t('admin.ai.agentAssignment.title')"
-    content-class="flex flex-col gap-4"
-  >
-    <!-- ==================== 信息摘要栏 ==================== -->
-    <div class="relative overflow-hidden rounded-xl border bg-card shadow-sm">
-      <div
-        class="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent"
-      ></div>
-      <div class="relative flex flex-wrap items-center gap-5 p-5">
-        <!-- 功能图标 -->
-        <div
-          class="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-sm ring-2 ring-primary/20 ring-offset-2 ring-offset-card"
-        >
-          <IconifyIcon icon="lucide:cpu" class="size-7" />
-        </div>
-
-        <!-- 说明文字 -->
-        <div class="flex-1">
-          <h2 class="mb-1 text-base font-bold text-foreground">
-            {{ $t('admin.ai.agentAssignment.title') }}
-          </h2>
-          <p class="text-sm text-muted-foreground">
-            {{ $t('admin.ai.agentAssignment.pageDesc') }}
-          </p>
-          <!-- 统计行 -->
-          <div
-            class="mt-3 flex flex-wrap items-center gap-4 text-xs text-muted-foreground"
-          >
-            <div class="flex items-center gap-1.5">
-              <span class="inline-block size-2 rounded-full bg-border"></span>
-              <span>{{
-                $t('admin.ai.agentAssignment.stats.total', {
-                  count: stats.total,
-                })
-              }}</span>
-            </div>
-            <div class="flex items-center gap-1.5">
-              <span
-                class="inline-block size-2 rounded-full bg-green-500"
-              ></span>
-              <span>{{
-                $t('admin.ai.agentAssignment.stats.active', {
-                  count: stats.active,
-                })
-              }}</span>
-            </div>
-            <div class="flex items-center gap-1.5">
-              <IconifyIcon icon="lucide:link" class="size-3" />
-              <span>{{
-                $t('admin.ai.agentAssignment.stats.assigned', {
-                  count: stats.assigned,
-                })
-              }}</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- 刷新按钮 -->
-        <Button size="small" :loading="loading" @click="loadList">
+  <Page auto-content-height content-class="flex flex-col gap-4 !p-4">
+    <AIPageHeroCard
+      :chips="heroChips"
+      :description="$t('admin.ai.agentAssignment.hero.description')"
+      icon="lucide:cpu"
+      icon-wrap-class="bg-primary/10 text-primary"
+      :metrics="heroMetrics"
+      :title="$t('admin.ai.agentAssignment.title')"
+    >
+      <template #actions>
+        <Button :loading="loading" @click="loadList">
           <template #icon>
             <IconifyIcon icon="lucide:refresh-cw" class="size-3.5" />
           </template>
           {{ $t('common.refresh') }}
         </Button>
-      </div>
-    </div>
+      </template>
+    </AIPageHeroCard>
 
     <!-- ==================== 功能绑定卡片列表 ==================== -->
     <Spin :spinning="loading && assignments.length === 0">
@@ -284,9 +322,9 @@ const stats = computed(() => ({
         <div
           v-for="item in assignments"
           :key="item.feature_code"
-          class="rounded-xl border bg-card px-5 py-4 transition-all duration-200"
+          class="rounded-2xl border border-border/70 bg-card/95 px-5 py-4 shadow-sm transition-all duration-200 hover:border-primary/20 hover:shadow-[0_10px_30px_-24px_hsl(var(--primary))]"
           :class="
-            item.is_active ? 'border-border' : 'border-border/50 opacity-60'
+            item.is_active ? '' : 'border-border/50 opacity-60'
           "
         >
           <div class="flex flex-wrap items-center gap-4">

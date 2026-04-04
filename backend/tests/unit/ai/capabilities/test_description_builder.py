@@ -398,6 +398,35 @@ class TestCapabilityDescriptionBuilder:
         assert "- 产品文档库: 120 documents" in result
         assert "When the user asks questions" in result
 
+    def test_format_as_system_prompt_block_accepts_mapping_inputs(self):
+        """Ensure mapping-like descriptors render correctly"""
+        builder = CapabilityDescriptionBuilder()
+        mapping_desc = {
+            "category": "skills",
+            "title": "Mapping Skills",
+            "items": ["mapped_tool: Mapping item"],
+        }
+
+        result = builder.format_as_system_prompt_block([mapping_desc])
+
+        assert "## Mapping Skills" in result
+        assert "- mapped_tool: Mapping item" in result
+
+    def test_format_as_system_prompt_block_handles_callable_items(self):
+        """Ensure callable items are resolved before rendering"""
+        builder = CapabilityDescriptionBuilder()
+        descriptor = CapabilityDescription(
+            category="skills",
+            title="Callable Skills",
+            items=[],
+        )
+        descriptor.items = lambda: ["lambda_item: Callable description"]
+
+        result = builder.format_as_system_prompt_block([descriptor])
+
+        assert "## Callable Skills" in result
+        assert "- lambda_item: Callable description" in result
+
     def test_max_items_per_category_limit(self):
         """Test that max_items_per_category is respected"""
 

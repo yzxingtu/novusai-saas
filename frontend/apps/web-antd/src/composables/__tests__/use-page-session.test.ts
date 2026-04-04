@@ -3,9 +3,13 @@ import { effectScope, nextTick, ref } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const routePath = ref('/admin/ai/agents');
+const routeMeta = ref<Record<string, unknown>>({});
 
 vi.mock('vue-router', () => ({
   useRoute: () => ({
+    get meta() {
+      return routeMeta.value;
+    },
     get path() {
       return routePath.value;
     },
@@ -16,6 +20,7 @@ describe('usePageSession', () => {
   beforeEach(() => {
     vi.resetModules();
     routePath.value = '/admin/ai/agents';
+    routeMeta.value = {};
   });
 
   afterEach(() => {
@@ -71,5 +76,33 @@ describe('usePageSession', () => {
     expect(secondState.pageSessionId.value).toBe('uuid-1');
     expect(randomUUID).toHaveBeenCalledTimes(1);
     scopeB.stop();
+  });
+
+  it('regenerates the session id when pageContextKey changes on the same route', async () => {
+    vi.stubGlobal('crypto', {
+      randomUUID: vi
+        .fn()
+        .mockReturnValueOnce('uuid-1')
+        .mockReturnValueOnce('uuid-2'),
+    });
+
+    const module = await import('../use-page-session');
+    const scope = effectScope();
+    let state!: ReturnType<typeof module.usePageSession>;
+    scope.run(() => {
+      state = module.usePageSession();
+    });
+
+    expect(state.pageSessionId.value).toBe('uuid-1');
+
+    routeMeta.value = {
+      ai: {
+        pageContextKey: 'admin.ai.agents.detail',
+      },
+    };
+    await nextTick();
+
+    expect(state.pageSessionId.value).toBe('uuid-2');
+    scope.stop();
   });
 });

@@ -17,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.response import serialize_datetime_for_api
 from app.models.system.operation_log import OperationLog
 
 
@@ -155,7 +156,7 @@ class TraceLookupService:
     ) -> dict[str, Any]:
         payload = {
             "id": item.id,
-            "created_at": item.created_at.isoformat() if item.created_at else None,
+            "created_at": serialize_datetime_for_api(item.created_at),
             "tenant_id": item.tenant_id,
             "user_type": item.user_type,
             "user_id": item.user_id,

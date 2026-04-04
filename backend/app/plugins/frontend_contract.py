@@ -49,7 +49,11 @@ def has_frontend_extensions(manifest: Any) -> bool:
             frontend.get("settings_tabs"),
         )
     )
-    if has_standard_frontend:
+    has_runtime_contract = bool(
+        str(((frontend.get("dev") or {}).get("entry") or "")).strip()
+        or str(((frontend.get("release") or {}).get("manifest") or "")).strip()
+    )
+    if has_standard_frontend or has_runtime_contract:
         return True
 
     custom_extensions = _get_custom_ext_decl(manifest)

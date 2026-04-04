@@ -10,12 +10,16 @@ Provides:
 
 from __future__ import annotations
 
+import json
 import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
 
-from .paths import get_repo_root
+from .paths import FILE_TASK_JSON, get_repo_root
+
+
+ALLOWED_ARCHIVE_STATUSES = {"completed", "done"}
 
 
 # =============================================================================
@@ -99,6 +103,31 @@ def find_task_by_name(task_name: str, tasks_dir: Path) -> Path | None:
 # Archive Operations
 # =============================================================================
 
+def load_archive_ready_task(task_dir_abs: Path) -> tuple[dict | None, str | None]:
+    """Load task.json and verify the task is ready to archive."""
+    task_json_path = task_dir_abs / FILE_TASK_JSON
+    if not task_json_path.is_file():
+        return None, "Error: Task must have task.json before archiving."
+
+    try:
+        data = json.loads(task_json_path.read_text(encoding="utf-8"))
+    except (OSError, IOError, json.JSONDecodeError):
+        return None, "Error: Task task.json is unreadable; refusing to archive."
+
+    if not isinstance(data, dict) or not data:
+        return None, "Error: Task task.json must contain an object; refusing to archive."
+
+    current_status = str(data.get("status") or "").strip().lower()
+    if current_status not in ALLOWED_ARCHIVE_STATUSES:
+        return (
+            None,
+            "Error: Task must be marked completed before archiving "
+            f"(status={current_status or 'unset'}).",
+        )
+
+    return data, None
+
+
 def archive_task_dir(task_dir_abs: Path, repo_root: Path | None = None) -> Path | None:
     """Archive a task directory to archive/{YYYY-MM}/.
 
@@ -155,6 +184,24 @@ def archive_task_complete(
     if not task_dir_abs.is_dir():
         print(f"Error: task directory not found: {task_dir_abs}", file=sys.stderr)
         return {}
+
+    task_data, error = load_archive_ready_task(task_dir_abs)
+    if error:
+        print(error, file=sys.stderr)
+        return {}
+
+    if not task_data.get("completedAt"):
+        task_json_path = task_dir_abs / FILE_TASK_JSON
+        updated_task_data = dict(task_data)
+        updated_task_data["completedAt"] = datetime.now().strftime("%Y-%m-%d")
+        try:
+            task_json_path.write_text(
+                json.dumps(updated_task_data, indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
+        except (OSError, IOError):
+            print("Error: Failed to persist completedAt before archiving.", file=sys.stderr)
+            return {}
 
     archive_dest = archive_task_dir(task_dir_abs, repo_root)
     if archive_dest:

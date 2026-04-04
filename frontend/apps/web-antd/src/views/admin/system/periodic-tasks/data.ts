@@ -491,6 +491,7 @@ export function useColumns<T = PeriodicTaskInfo>(
             code: 'logs',
             text: $t('admin.system.periodicTask.viewLogs'),
             icon: 'lucide:scroll-text',
+            accessCodes: ['task_log:list'],
           },
           {
             code: 'bindings',

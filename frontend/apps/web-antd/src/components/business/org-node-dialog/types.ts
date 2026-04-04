@@ -36,6 +36,7 @@ export interface OrgNodeDialogProps {
   nodeId?: null | number;
   initialData?: Partial<OrgNodeFormData>;
   apiPrefix?: 'admin' | 'tenant';
+  canAssignPermissions?: boolean;
 }
 
 export interface OrgNodeDialogEmits {

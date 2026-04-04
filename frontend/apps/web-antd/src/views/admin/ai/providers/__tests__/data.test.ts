@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  hasLikelyMissingProviderApiVersion,
   hasForbiddenProviderEndpointSuffix,
   normalizeProviderBaseUrlInput,
   resolveProviderWireApi,
@@ -67,5 +68,20 @@ describe('provider connection settings helpers', () => {
 
   it('does not expose wire api for non-openai-compatible providers', () => {
     expect(resolveProviderWireApi('anthropic', 'responses')).toBeNull();
+  });
+
+  it('warns when an openai-compatible base url looks like it is missing /v1', () => {
+    expect(
+      hasLikelyMissingProviderApiVersion(
+        'https://api.asxs.top',
+        'openai_compatible',
+      ),
+    ).toBe(true);
+    expect(
+      hasLikelyMissingProviderApiVersion(
+        'https://api.openai.com/v1',
+        'openai_compatible',
+      ),
+    ).toBe(false);
   });
 });

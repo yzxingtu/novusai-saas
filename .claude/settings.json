@@ -53,18 +53,6 @@
           }
         ]
       }
-    ],
-    "SubagentStop": [
-      {
-        "matcher": "check",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python .claude/hooks/ralph-loop.py",
-            "timeout": 10
-          }
-        ]
-      }
     ]
   },
   "enabledPlugins": {}

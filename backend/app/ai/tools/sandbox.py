@@ -48,8 +48,7 @@ if TYPE_CHECKING:
 
 logger = LogManager.get_logger("ai.tool.sandbox")
 
-# Heuristic mapping: params key signatures -> probable operation_name. / 上文为英文说明 / English above
-# Used when LLM omits operation_name in parallel tool calls.
+# Heuristic: param key signatures -> operation_name (parallel calls may omit it) / 启发式：参数键组合推断 operation_name（并行调用常省略）
 _PARAM_KEY_TO_OP: list[tuple[frozenset[str], str]] = [
     (frozenset({"title"}), "update_title"),
     (frozenset({"command"}), "format_text"),
@@ -214,6 +213,9 @@ class ToolSandbox:
         self._conversation_id = conversation_id
         self.trust_policy_ref = trust_policy_ref
         self.interaction_mode = interaction_mode
+        # Bumped when a non-readonly page tool succeeds; ToolCallProcessor folds into readonly cache keys.
+        # 非只读页面工具成功执行后递增，供 ToolCallProcessor 只读快照缓存键区分同页状态。
+        self._page_readonly_cache_epoch: int = 0
 
         # Initialize executors / 初始化执行器
         self._executors: dict[str, BaseToolExecutor] = {}
@@ -298,10 +300,7 @@ class ToolSandbox:
         # 1. Find tool definition / 查找工具定义
         definition = self._find_definition(name, definitions)
 
-        # 1.1 Redirect: LLM may call an operation name directly as a tool / 上文为英文说明 / English above
-        # (e.g. "get_editor_text" instead of invoke_page_operation).
-        # When the name matches an available page operation, rewrite to
-        # invoke_page_operation transparently.
+        # 1.1 Redirect: operation name as tool -> invoke_page_operation when it matches a page op / 将页面操作名透明改写为 invoke_page_operation
         if not definition and definitions:
             redirect_target = self._try_redirect_to_page_op(
                 name,
@@ -353,8 +352,7 @@ class ToolSandbox:
                     underlying,
                 )
 
-        # For invoke_page_operation: top-level whitelist, auto-fill page_key, / 上文为英文说明 / English above
-        # return actionable error when operation_name absent or unknown fields present.
+        # invoke_page_operation: top-level whitelist, auto page_key; clear errors if op missing or stray keys / 顶层白名单并补 page_key；缺 operation_name 或非法顶层字段时返回明确错误
         if name == "invoke_page_operation":
             # Top-level field whitelist: reject unknown keys to avoid content/old_html/new_html
             # being silently dropped when placed at top level.
@@ -388,7 +386,7 @@ class ToolSandbox:
 
             if not (arguments.get("operation_name") or "").strip():
                 nested_params: dict[str, Any] = arguments.get("params") or {}
-                # operation_name must be at top level, not inside params / 上文为英文说明 / English above
+                # operation_name must be top-level, not inside params / operation_name 须在顶层，不可放在 params 内
                 if "operation_name" in nested_params:
                     return ToolResult(
                         tool_call_id=tool_call_id,
@@ -591,9 +589,18 @@ class ToolSandbox:
                 executor.execute(definition, tool_call_id, arguments, context=context),
                 timeout=tool_timeout,
             )
-            # Ensure result.name is always set (some executors omit it in error paths) / 上文为英文说明 / English above
+            # Ensure result.name is set (some executors omit on error paths) / 确保 result.name 有值（部分执行器错误路径未设）
             if not result.name:
                 result.name = name
+            # Persist executor-mutated page session identity (navigation / reconnect) for subsequent tools + cache keys.
+            # 将执行器写回的页面会话身份持久化到沙箱，供后续工具与只读缓存键使用。
+            try:
+                if context.page_session_id is not None:
+                    self._page_session_id = context.page_session_id
+                    if isinstance(self.input_variables, dict):
+                        self.input_variables["page_session_id"] = context.page_session_id
+            except Exception:
+                pass
         except asyncio.TimeoutError:
             duration_ms = int((time.perf_counter() - start) * 1000)
             logger.warning(

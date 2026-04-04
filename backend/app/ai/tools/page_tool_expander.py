@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.ai.prompt_contracts import render_prompt_contract
 from app.ai.tools.types import ToolDefinition, ToolParameter
 from app.core.logging import LogManager
 from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
@@ -46,6 +47,8 @@ GENERIC_PAGE_OPS_TO_EXPAND: frozenset[str] = frozenset(
         "get_form_options",
         "get_form_state",
         "go_to_page",
+        "list_available_menus",
+        "navigate_menu",
         "next_page",
         "prev_page",
         "read_row_detail",
@@ -185,7 +188,7 @@ def expand_page_tools(
     if not isinstance(raw_ops, list) or not raw_ops:
         return tools
 
-    # Build op map: name -> {label, description, params, readonly} / 上文为英文说明 / English above
+    # Build op map: name -> {label, description, params, readonly} / 构建操作映射：名称 -> 元信息
     op_map: dict[str, dict[str, Any]] = {}
     for o in raw_ops:
         if not isinstance(o, dict) or not o.get("name"):
@@ -203,17 +206,22 @@ def expand_page_tools(
     if not op_map:
         return tools
 
-    # Build expanded tool definitions / 上文为英文说明 / English above
+    # Build expanded tool definitions / 构建展开后的工具定义
     expanded: list[ToolDefinition] = []
     for op_name in sorted(op_map.keys()):
         meta = op_map[op_name]
         tool_name = f"{PREFIX}{op_name}"
-        # Avoid duplicate if already present / 上文为英文说明 / English above
+        # Avoid duplicate if already present / 已存在则跳过重复
         if any(t.name == tool_name for t in tools):
             continue
 
         params_list = _params_to_parameters(meta.get("params"))
         desc = str(meta.get("description", "") or meta.get("label", op_name))
+        if op_name == "navigate_menu":
+            desc = render_prompt_contract(
+                "page_tool_expander_navigate",
+                base_description=desc,
+            )
         label = str(meta.get("label", op_name) or op_name)
         capability_tags = [
             "页面操作",

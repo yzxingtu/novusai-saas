@@ -369,6 +369,15 @@ class PageSessionMixin:
                 sid,
                 room,
             )
+            await self.emit(
+                "page_session_joined",
+                {
+                    "page_session_id": page_session_id,
+                    "page_key": page_key,
+                    "trace_id": trace_id_var.get() or None,
+                },
+                to=sid,
+            )
             return None
         except Exception as exc:
             return _handle_socket_event_failure(

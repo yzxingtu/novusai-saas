@@ -14,6 +14,7 @@ from app.core.response import success
 from app.enums.rbac import PermissionScope
 from app.exceptions import NotFoundException
 from app.rbac.decorators import (
+    MenuAIConfig,
     MenuConfig,
     action_create,
     action_delete,
@@ -86,6 +87,12 @@ def _build_quota_response(quota) -> dict:
     scope=PermissionScope.ADMIN,
     parent_resource="ai_quota_mgmt",
     menu=MenuConfig(
+        ai=MenuAIConfig(
+            description="View and manage AI quotas, limits, and usage rules",
+            keywords=["配额", "额度", "quota", "quotas", "usage quota", "限额"],
+            capabilities=["view_quota", "edit_quota", "inspect_usage"],
+            category="ai",
+        ),
         icon="lucide:gauge",
         path="/ai/quotas",
         component="ai/quotas/index",

@@ -14,6 +14,7 @@ from abc import ABC, abstractmethod
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.gateway import AIGateway
+from app.ai.prompt_contracts import render_prompt_contract
 from app.ai.types import ChatMessage
 from app.core.logging import LogManager
 
@@ -52,12 +53,7 @@ class MultiQueryRewriter(BaseRewriter):
     调用 LLM 将用户问题改写为 3 个不同角度的查询，提升检索召回率。
     """
 
-    SYSTEM_PROMPT = (
-        "You are a search query optimizer. Given a user question, "
-        "generate 3 different search queries that approach the question "
-        "from different angles. Output ONLY the 3 queries, one per line, "
-        "without numbering or extra text."
-    )
+    SYSTEM_PROMPT = render_prompt_contract("rag_multi_query_system")
 
     def __init__(self, db: AsyncSession, tenant_id: int, model: str | None = None):
         """
@@ -145,12 +141,7 @@ class HyDERewriter(BaseRewriter):
     因为假设回答通常比简短问题更接近目标文档的语义。
     """
 
-    SYSTEM_PROMPT = (
-        "You are a helpful assistant. Given a user question, "
-        "write a brief hypothetical answer (1-2 paragraphs) as if "
-        "you found the answer in a document. Do NOT say 'I don't know'. "
-        "Just write the hypothetical content directly."
-    )
+    SYSTEM_PROMPT = render_prompt_contract("rag_hyde_system")
 
     def __init__(self, db: AsyncSession, tenant_id: int, model: str | None = None):
         self.db = db

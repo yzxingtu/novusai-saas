@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/guides/trellis-paths.md", "reason": "Trellis path and stop conditions"}
+{"file": ".trellis/spec/ai-runtime/tool-skill-governance.md", "reason": "Skill and tool boundary debugging rules"}
+{"file": "backend/app/services/ai/conversation_service.py", "reason": "Residual AsyncMock warning path"}
+{"file": "backend/app/services/ai/action_log_service.py", "reason": "Residual AsyncMock warning path"}
+{"file": ".trellis/tasks/04-04-tenant-org-permission-assignment/task.json", "reason": "Cross-track dirty test overlap to keep visible"}

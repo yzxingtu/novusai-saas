@@ -313,6 +313,14 @@ function toggleExpand(idx: number) {
 
 /** Thinking block: expanded during streaming, collapsed by default when done. User can toggle. */
 const thinkingExpandedMap = ref<Record<number, boolean>>({});
+
+function isThinkingExpanded(idx: number) {
+  return Boolean(
+    (props.msg.streaming && props.msg.thinkingContent) ||
+      thinkingExpandedMap.value[idx],
+  );
+}
+
 function toggleThinkingExpand(idx: number) {
   thinkingExpandedMap.value = {
     ...thinkingExpandedMap.value,
@@ -1107,62 +1115,79 @@ watch(
         <!-- Thinking content (streamed separately from final answer). Less prominent; auto-collapse when done; expandable. -->
         <div
           v-if="msg.thinkingContent"
-          class="overflow-hidden rounded-lg border border-border/25 bg-accent/15"
-          :class="compact ? 'mb-1' : 'mb-2'"
+          class="relative"
+          :class="compact ? 'mb-1.5' : 'mb-2'"
         >
           <button
+            :aria-expanded="isThinkingExpanded(index)"
+            data-testid="thinking-toggle"
             type="button"
-            class="flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-2.5 py-1.5 text-left transition-colors hover:bg-accent/25"
-            :class="compact ? 'py-1' : 'py-2'"
+            class="thinking-chip flex max-w-full cursor-pointer items-center gap-2 border-0 bg-transparent text-left transition-all duration-200 hover:border-primary/18 hover:text-foreground"
+            :class="compact ? 'px-2.5 py-1.5' : 'px-3 py-1.5'"
             @click="toggleThinkingExpand(index)"
           >
-            <IconifyIcon
-              icon="lucide:brain"
-              class="size-3.5 shrink-0 text-muted-foreground/70"
-              :class="msg.streaming ? 'thinking-glow text-primary/60' : ''"
-            />
-            <span v-if="msg.streaming" class="typing-dots shrink-0"
-              ><span></span><span></span><span></span>
-              <span class="flex-1 truncate text-xs text-muted-foreground">
+            <span
+              class="thinking-chip-icon relative flex shrink-0 items-center justify-center rounded-full"
+              :class="compact ? 'size-6' : 'size-7'"
+            >
+              <IconifyIcon
+                icon="lucide:brain"
+                class="size-3.5 text-muted-foreground/80"
+                :class="msg.streaming ? 'thinking-glow text-primary/70' : ''"
+              />
+            </span>
+
+            <span class="min-w-0 flex flex-1 items-center gap-1.5">
+              <span class="truncate text-xs font-medium text-foreground/84">
                 {{
-                  msg.streaming && !msg.content
+                  msg.streaming
                     ? $t('common.globalAiChat.thinking')
                     : $t('common.globalAiChat.thinkingCollapsed')
                 }}
-                <span
-                  v-if="!msg.streaming && !thinkingExpandedMap[index]"
-                  class="ml-1 text-muted-foreground/60"
-                  >({{ $t('common.globalAiChat.thinkingExpandHint') }})</span
-                >
               </span>
+
+              <span
+                v-if="msg.streaming"
+                class="typing-dots thinking-status-dots shrink-0"
+                ><span></span><span></span><span></span
+              ></span>
+              <span
+                v-else
+                aria-hidden="true"
+                class="size-1.5 shrink-0 rounded-full bg-primary/35"
+              >
+              </span>
+            </span>
+
+            <span
+              class="ml-auto flex shrink-0 items-center text-muted-foreground/60"
+            >
               <IconifyIcon
                 icon="lucide:chevron-down"
-                class="size-3 shrink-0 text-muted-foreground/50 transition-transform duration-150"
-                :class="[
-                  (msg.streaming && msg.thinkingContent) ||
-                  thinkingExpandedMap[index]
-                    ? 'rotate-180'
-                    : '',
-                ]"
+                class="size-3.5 transition-transform duration-200"
+                :class="isThinkingExpanded(index) ? 'rotate-180 text-primary/80' : ''"
               />
             </span>
           </button>
           <div
-            class="grid transition-[grid-template-rows] duration-200 ease-out"
+            data-testid="thinking-body"
+            class="grid transition-[grid-template-rows,opacity] duration-200 ease-out"
             :style="{
-              gridTemplateRows:
-                (msg.streaming && msg.thinkingContent) ||
-                thinkingExpandedMap[index]
-                  ? '1fr'
-                  : '0fr',
+              gridTemplateRows: isThinkingExpanded(index) ? '1fr' : '0fr',
+              opacity: isThinkingExpanded(index) ? 1 : 0,
             }"
           >
-            <div class="min-h-0 overflow-hidden border-t border-border/20">
+            <div class="min-h-0 overflow-hidden">
               <div
-                class="px-2.5 pb-2 pt-0"
-                :class="compact ? 'px-2 py-1' : 'px-3 py-1.5'"
+                class="thinking-sheet-card mt-2 transition-transform duration-200"
+                :class="compact ? 'ml-1.5 px-3 py-2.5' : 'ml-2 px-3.5 py-3'"
+                :style="{
+                  transform: isThinkingExpanded(index)
+                    ? 'translateY(0)'
+                    : 'translateY(-6px)',
+                }"
               >
-                <div class="leading-5.5 text-xs text-muted-foreground/80">
+                <div class="thinking-markdown leading-5.5 text-xs text-muted-foreground/82">
                   <MarkdownRender
                     :content="msg.thinkingContent"
                     :streaming="!!msg.streaming && !msg.content"
@@ -2718,6 +2743,71 @@ watch(
   );
   border-radius: 50%;
   animation: glow-pulse 2s ease-in-out infinite;
+}
+
+.thinking-chip {
+  width: fit-content;
+  border: 1px solid hsl(var(--border) / 28%);
+  border-radius: 999px;
+  background: linear-gradient(
+    180deg,
+    hsl(var(--background) / 96%),
+    hsl(var(--accent) / 42%)
+  );
+  box-shadow:
+    inset 0 1px 0 hsl(var(--background) / 84%),
+    0 12px 28px -30px hsl(var(--primary) / 55%);
+}
+
+.thinking-chip-icon {
+  background: linear-gradient(
+    180deg,
+    hsl(var(--primary) / 9%),
+    hsl(var(--primary) / 4%)
+  );
+}
+
+.thinking-status-dots span {
+  width: 3px;
+  height: 3px;
+}
+
+.thinking-sheet-card {
+  position: relative;
+  border: 1px solid hsl(var(--border) / 18%);
+  border-radius: 18px;
+  background: linear-gradient(
+    180deg,
+    hsl(var(--background) / 95%),
+    hsl(var(--accent) / 18%)
+  );
+  box-shadow:
+    inset 0 1px 0 hsl(var(--background) / 82%),
+    0 18px 42px -36px hsl(var(--foreground) / 35%);
+  backdrop-filter: blur(12px);
+}
+
+.thinking-sheet-card::before {
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  left: 0;
+  width: 2px;
+  content: '';
+  background: linear-gradient(
+    180deg,
+    hsl(var(--primary) / 46%),
+    hsl(var(--primary) / 0%)
+  );
+  border-radius: 999px;
+}
+
+.thinking-markdown :deep(p + p) {
+  margin-top: 0.65rem;
+}
+
+.thinking-markdown :deep(pre) {
+  margin: 0.75rem 0;
 }
 
 /* Typing dots animation / 打字点点动画 */

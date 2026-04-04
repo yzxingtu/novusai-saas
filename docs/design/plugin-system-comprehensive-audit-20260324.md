@@ -188,6 +188,8 @@
 
 ### 浏览器网络回归
 
+- 开发态宿主若启用 Vite plugin dev loader，插件源码入口会先命中 `/__plugin_dev__/{plugin}/entry`
+- `/plugin-public-assets/...` 与 `/plugin-assets/...` 的路径隔离验收，必须在 release runtime / preview 宿主下执行
 - 普通插件页网络请求只能命中 `/plugin-assets/...`
 - public captcha 网络请求只能命中 `/plugin-public-assets/...`
 - public captcha 请求头不含 `Authorization`
@@ -220,3 +222,60 @@
   - `frontend.admin.entry`
   - `frontend.tenant.entry`
   - `frontend.npm_dependencies`
+
+## 七、2026-04-04 再审计硬化结果
+
+本轮实际收口了以下高风险问题：
+
+- `startup discovery / restore / enable` 现在统一走 fail-close 安全扫描；存在扫描告警的插件不再在启动期继续注册、恢复或执行生命周期钩子。
+- marketplace preview 与 confirm-install 现在都会校验“registry detail -> 解压 manifest”身份一致性，防止 slug 选项与最终安装包漂移。
+- marketplace 下载在重试耗尽后不再生成 DEBUG stub 包，而是统一 fail-close。
+- `VersionManager.rollback()` 不再在 Alembic downgrade 失败后继续偷偷恢复文件；现在会阻断回滚，并尽量恢复当前启用版本的 runtime。
+- rollback 过程中会同步更新 `PluginVersion` 活跃记录，避免 DB 版本历史与磁盘版本漂移。
+- `SkillPackage / Skill / AgentSkillGrant` 运行时门禁统一到 package active/not deleted 语义；插件停用或包停用后不会再从 resolver / router 暴露能力。
+- `novusdoc` 样例插件补齐了共享权限桥接：首屏请求前 gating、CTA gating、只读编辑器、无权限页、AI page operations 同步收口。
+- CLI `full-module` 模板不再伪造 `frontend/dist/plugin.manifest.json`；fresh create -> validate 与 build 后 release 校验语义已对齐。
+- `slider-captcha` 在 release preview 宿主上的 tenant login 真实页级 E2E 已补齐：tenant 侧只命中 `/plugin-public-assets/tenant/slider-captcha/*`、请求不带 `Authorization`、响应会主动清理历史 `novus_plugin_asset_token` cookie，tenant 资源返回 503 时会回退到内置图片验证码。
+
+## 八、注入能力矩阵（2026-04-04）
+
+| 注入面 | Schema | Runtime | Disable/Uninstall 收口 | Permission / Scope / Security | 测试 / 样例 | 结论 |
+|---|---|---|---|---|---|---|
+| 顶层 capability 注入 | PASS | `PluginContext` / runtime gate 消费 | PASS | capability 明确校验 | lifecycle tests；`weather-widget` | 正常 |
+| Skill 注入 | PASS | `extensions.skills[*]` -> Skill 投影 | PASS | resolver 走 grant + package gate | skill resolver tests；`weather-widget` | 正常 |
+| SkillPackage 投影同步 | PASS | enable/upgrade 同步 | PASS | 只做目录投影，不自动授权 | skill service tests | 正常 |
+| Agent 绑定链路 | PASS | `AgentSkillGrant -> Skill -> Resolver` | PASS | package inactive / deleted fail-close | grant/router tests | 正常 |
+| admin API route 注入 | PASS | API dispatcher 注册 | PASS | permission/action + db proxy gate | dispatcher tests；`novusdoc` | 正常 |
+| tenant API route 注入 | PASS | API dispatcher 注册 | PASS | tenant scope + permission gate | dispatcher tests；`novusdoc` | 正常 |
+| public API route 注入 | PASS | dispatcher 注册 | PASS | public route 显式声明，鉴权单独控制 | webhook/public tests；`slider-captcha` | 正常 |
+| Webhook endpoint 注入 | PASS | webhook dispatcher 注册 | PASS | auth type / secret / runtime gate | webhook tests | 正常 |
+| EventBus 事件订阅 | PASS | event bus 注册 | PASS | payload/timeout 隔离 | event bus lifecycle + registrar bridge tests | 正常 |
+| 系统 Hook 点注入 | PASS | hook registry 注册 | PASS | hook point 白名单 | hook runtime + registrar bridge tests | 正常 |
+| Celery task 注入 | PASS | task registry / beat sync | PASS | task definition sync + fail-close | task sync tests；`storage-billing` | 正常 |
+| queue consumer 注入 | PASS | schema 有入口，runtime 较薄 | PARTIAL | manifest -> registrar -> Celery bootstrap / task execution / unregister 边界已测，但热卸载仍受 Celery worker 生命周期限制 | registrar bridge tests；Celery bootstrap tests；sample contract tests；unregister contract tests | 边界已明确 |
+| Socket.IO namespace 注入 | PASS | namespace 注册 | PASS | namespace auth/gate + wrapper early-fail 已测 | namespace lifecycle + wrapper + registrar bridge tests | 正常 |
+| middleware 注入 | PASS | runtime 支持 | PASS | enable/disable 会重排 `user_middleware` 并重建 `middleware_stack` | registrar bridge tests + started-app runtime rebuild tests | 正常 |
+| storage driver 注入 | PASS | storage registry 注册 | PASS | driver capability + config gate | storage plugin tests；host helper/facade tests；host selector tests；`amazon-s3`/`aliyun-oss` | 正常 |
+| adapter 注入 | PASS | adapter registry 注册 | PASS | typed adapter contract | adapter runtime bridge tests | 正常 |
+| notification template 注入 | PASS | enable 时同步 DB | PASS | send path / sync / cleanup 生命周期已测 | notification runtime lifecycle tests | 正常 |
+| permission/action 注入 | PASS | RBAC sync 注册 | PASS | action code / menu bridge | permission sync tests；`novusdoc` | 正常 |
+| menu/page 注入 | PASS | pages -> menus/routes | PASS | accessCodes + menu bridge | frontend runtime tests；`weather-widget` | 正常 |
+| frontend route 注入 | PASS | `ensurePluginRoutes()` | PASS | route meta accessCodes | loader/route tests | 正常 |
+| dashboard widget 注入 | PASS | slot registry | PASS | `/plugins/slots` + runtime gate | `weather-widget` | 正常 |
+| header widget 注入 | PASS | slot registry | PASS | access/scope filter | slot filter tests | 正常 |
+| settings tab 注入 | PASS | slot registry + host settings page 消费 | PASS | slot refresh / unload 闭环沿用统一 plugin slot runtime | `plugin-slots` store + `PluginSettingsTabs` tests | 正常 |
+| floating panel 注入 | PASS | slot registry + layout 浮层消费 | PASS | slot refresh / unload 闭环沿用统一 plugin slot runtime | `plugin-slots` store + `PluginFloatingPanels` tests | 正常 |
+| notification UI 注入 | PASS | slot registry + notification panel/toast 消费 | PASS | event 匹配 + slot refresh 闭环已补 | `plugin-slots` store + `PluginNotificationUI` tests | 正常 |
+| public asset / captcha provider 注入 | PASS | public asset runtime | PASS | 无 `Authorization` + 清 cookie | public asset tests；`slider-captcha` | 正常 |
+| custom typed extension 注入 | PARTIAL | `custom.type` 仅少量宿主消费 | PARTIAL | typed whitelist 有限 | captcha provider 有样例 | 应新增更多 typed point |
+| tenant menu policy / entitlement policy 注入 | PASS | tenant entitlement service + slot filter | PASS | plan/license/assignment gate | entitlement tests | 正常 |
+| plugin managed agent / source_plugin 注入 | PASS | managed agent sync / source_plugin 绑定 | PASS | plugin source scope 明确 | managed agent sync tests | 正常 |
+## 九、当前残余缺口
+
+注：
+
+- `AI 页面感知 / 页面操作 / KB / RAG` 不再计入狭义“插件原生注入矩阵”。它更准确地属于“插件 -> 宿主 AI runtime 集成面”：插件页面通过宿主共享 bridge 注册 page awareness / operations，KB / RAG 也通过宿主 Agent / resolver / injector 体系联动，而不是通过 `plugin.yaml` 声明一个独立原生注入点。
+
+- `consumer` 仍属于“schema / registrar bridge 已打通，但 worker 热卸载语义受 Celery 限制”的扩展面；当前已经覆盖 manifest -> registrar -> Celery bootstrap、消息处理、任务执行以及 `unregister_all` 只清 tracking 的合同。它之所以仍保留 `PARTIAL`，是因为 Celery worker 进程内 hot-unregister 本身不是宿主可承诺语义，而不是因为 bootstrap 证据缺失。
+- storage 方向已经补到宿主 helper/facade + 前端选择器级证据，但页级/API/browser 回归仍偏薄。下一步最好再在 `backend/tests` 或 `frontend` 页面上跑一个真实的 storage plugin 用例（例如 admin/tenant 存储配置页、上传/下载入口或 API 消费）来证明 host 这边的 UI/API 不只是展示驱动标签，而是真正配置并使用了 `storage manager` 注册的驱动。
+- browser 级多语言联动仍建议在长期运行的完整宿主环境再做一轮人工复核；public captcha 的 tenant login 网络面板与 failover 已在 release preview 宿主完成实测。

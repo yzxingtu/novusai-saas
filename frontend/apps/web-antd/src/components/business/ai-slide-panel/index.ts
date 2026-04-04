@@ -17,7 +17,7 @@ export type {
   PageContextData,
   PageContextResolver,
 } from './page-context-registry';
-export { normalizePageKey } from './page-key-utils';
+export { normalizePageKey, resolveRoutePageKey } from './page-key-utils';
 export {
   appendPageOperations,
   clearPageOperationRegistry,

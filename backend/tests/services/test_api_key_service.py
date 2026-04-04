@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.enums.common import ResourceScopeEnum
-from app.schemas.ai.api_key import ProviderApiKeyCreate
+from app.schemas.ai.api_key import ProviderApiKeyCreate, ProviderApiKeyUpdate
 
 
 class _FakeProviderApiKey:
@@ -22,15 +22,6 @@ class _FakeProviderApiKey:
 
     def update_from_dict(self, data: dict) -> None:
         self.__dict__.update(data)
-
-
-class _UpdatePayload:
-    def __init__(self, *, key=None, **fields):
-        self.key = key
-        self._fields = fields
-
-    def model_dump(self, **_kwargs):
-        return dict(self._fields)
 
 
 class TestCreateKey:
@@ -93,7 +84,7 @@ class TestCreateKey:
 class TestUpdateKey:
 
     @pytest.mark.asyncio
-    async def test_update_key_encrypts_new_secret_and_updates_fields(self, mock_db):
+    async def test_update_key_updates_metadata_with_real_schema(self, mock_db):
         from app.services.ai.api_key_service import ProviderApiKeyService
 
         key = _FakeProviderApiKey(id=7, name="Old", is_active=True)
@@ -104,12 +95,12 @@ class TestUpdateKey:
 
         result = await service.update_key(
             7,
-            _UpdatePayload(key="new-secret", name="Updated", is_active=False),
+            ProviderApiKeyUpdate(name="Updated", is_active=False),
         )
 
         assert result.name == "Updated"
         assert result.is_active is False
-        assert result.encrypted_value == "new-secret"
+        assert result.encrypted_value is None
         mock_db.flush.assert_awaited_once()
 
     @pytest.mark.asyncio
@@ -123,7 +114,7 @@ class TestUpdateKey:
         service.get_by_id = AsyncMock(return_value=None)
 
         with pytest.raises(NotFoundException):
-            await service.update_key(7, _UpdatePayload(name="Updated"))
+            await service.update_key(7, ProviderApiKeyUpdate(name="Updated"))
 
 
 class TestToggleStatus:

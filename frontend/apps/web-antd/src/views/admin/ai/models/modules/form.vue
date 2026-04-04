@@ -7,7 +7,7 @@
  * 选择供应商后自动拉取远程模型列表，选择后自动填充 name 和 code
  */
 import type { VbenFormSchema } from '#/adapter/form';
-import type { AIModelInfo, RemoteModelInfo } from '#/api/admin/ai';
+import type { AIModelConfig, AIModelInfo, RemoteModelInfo } from '#/api/admin/ai';
 
 import { computed, ref, watch } from 'vue';
 
@@ -16,15 +16,26 @@ import { IconifyIcon } from '@vben/icons';
 import { Select, Spin, Tag } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
-import { fetchRemoteModelsApi, getAIModelDetailApi } from '#/api/admin/ai';
+import {
+  fetchRemoteModelsApi,
+  getAIModelDetailApi,
+  getAIProviderDetailApi,
+} from '#/api/admin/ai';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 
-import { getFormDefaults, useFormSchema } from '../data';
+import {
+  buildModelFormValues,
+  buildModelPayload,
+  buildRemoteModelFormValues,
+  getFormDefaults,
+  useFormSchema,
+} from '../data';
 
 defineOptions({ name: 'AIModelForm' });
 
 const emits = defineEmits<{ success: [] }>();
+const configSnapshot = ref<AIModelConfig | null>(null);
 
 const [Form, formApi] = useVbenForm({
   schema: useFormSchema(),
@@ -42,60 +53,19 @@ const { Drawer, isEdit, recordId } = useCrudDrawer<AIModelInfo>({
     useFormSchema(
       isEditMode,
       isEditMode ? (recordId.value as number) : undefined,
-      isEditMode ? undefined : onProviderChange,
+      onProviderChange,
     ),
   defaults: getFormDefaults,
-  transform: (values) => {
-    return {
-      name: values.name,
-      code: values.code,
-      type: values.type,
-      provider_id: values.provider_id,
-      context_window: values.context_window || null,
-      max_output_tokens: values.max_output_tokens || null,
-      input_price_per_1k: values.input_price_per_1k || null,
-      output_price_per_1k: values.output_price_per_1k || null,
-      rpm_limit: values.rpm_limit || null,
-      tpm_limit: values.tpm_limit || null,
-      supports_function_calling: values.supports_function_calling ?? false,
-      supports_vision: values.supports_vision ?? false,
-      supports_audio: values.supports_audio ?? false,
-      supports_video: values.supports_video ?? false,
-      supports_streaming: values.supports_streaming ?? true,
-      max_image_count: values.supports_vision
-        ? values.max_image_count || 5
-        : null,
-      max_image_size_mb: values.supports_vision
-        ? values.max_image_size_mb || 10
-        : null,
-      is_active: values.is_active ?? true,
-      fallback_model_id: values.fallback_model_id || null,
-      tier: values.tier || null,
-    };
-  },
+  transform: (values) => buildModelPayload(values, configSnapshot.value),
   toFormValues: (data) => {
-    return {
-      name: data.name,
-      code: data.code,
-      type: data.type,
-      provider_id: data.provider_id,
-      context_window: data.context_window,
-      max_output_tokens: data.max_output_tokens,
-      input_price_per_1k: data.input_price_per_1k,
-      output_price_per_1k: data.output_price_per_1k,
-      rpm_limit: data.rpm_limit,
-      tpm_limit: data.tpm_limit,
-      supports_function_calling: data.supports_function_calling,
-      supports_vision: data.supports_vision,
-      supports_audio: data.supports_audio,
-      supports_video: data.supports_video,
-      supports_streaming: data.supports_streaming,
-      max_image_count: data.max_image_count ?? 5,
-      max_image_size_mb: data.max_image_size_mb ?? 10,
-      is_active: data.is_active,
-      fallback_model_id: data.fallback_model_id,
-      tier: data.tier,
-    };
+    configSnapshot.value =
+      data.config && typeof data.config === 'object' ? { ...data.config } : null;
+    currentProviderId.value = data.provider_id;
+    currentProviderType.value = data.provider_type || null;
+    if (!data.provider_type && data.provider_id) {
+      void syncProviderType(data.provider_id);
+    }
+    return buildModelFormValues(data);
   },
   onSuccess: () => {
     emits('success');
@@ -113,6 +83,7 @@ const remoteModels = ref<RemoteModelInfo[]>([]);
 const remoteLoading = ref(false);
 const selectedRemoteModel = ref<string | undefined>(undefined);
 const currentProviderId = ref<number | undefined>(undefined);
+const currentProviderType = ref<string | null>(null);
 
 const remoteModelOptions = computed(() =>
   remoteModels.value.map((m) => ({
@@ -121,6 +92,17 @@ const remoteModelOptions = computed(() =>
     caps: m.capabilities ?? null,
   })),
 );
+
+async function syncProviderType(providerId: number) {
+  try {
+    const provider = await getAIProviderDetailApi(providerId);
+    currentProviderType.value = provider.type;
+    formApi.setValues({ provider_type: provider.type });
+  } catch {
+    currentProviderType.value = null;
+    formApi.setValues({ provider_type: null });
+  }
+}
 
 function filterRemoteOption(
   input: string,
@@ -157,7 +139,14 @@ async function fetchRemoteByProvider(providerId: number) {
 // Watch currentProviderId changes / 监听 currentProviderId 变化
 watch(currentProviderId, (newId) => {
   if (newId && !isEdit.value) {
+    void syncProviderType(newId);
     fetchRemoteByProvider(newId);
+  }
+});
+
+watch(isEdit, (editing) => {
+  if (!editing) {
+    configSnapshot.value = null;
   }
 });
 
@@ -166,64 +155,15 @@ function onRemoteModelSelect(modelId: unknown) {
   if (!modelId || typeof modelId !== 'string') return;
 
   const model = remoteModels.value.find((m) => m.id === modelId);
-  const caps = model?.capabilities;
-
-  const defaults = getFormDefaults();
-  const providerId = currentProviderId.value;
-
-  const values: Record<string, unknown> = {
-    ...defaults,
-    provider_id: providerId,
-    code: modelId,
-    name: modelId,
-    context_window: null,
-    max_output_tokens: null,
-    input_price_per_1k: null,
-    output_price_per_1k: null,
-    rpm_limit: null,
-    tpm_limit: null,
-    fallback_model_id: null,
-  };
-
-  if (caps) {
-    if (caps.model_type) values.type = caps.model_type;
-    if (caps.supports_vision !== null && caps.supports_vision !== undefined)
-      values.supports_vision = caps.supports_vision;
-    if (caps.supports_audio !== null && caps.supports_audio !== undefined)
-      values.supports_audio = caps.supports_audio;
-    if (caps.supports_video !== null && caps.supports_video !== undefined)
-      values.supports_video = caps.supports_video;
-    if (
-      caps.supports_function_calling !== null &&
-      caps.supports_function_calling !== undefined
-    )
-      values.supports_function_calling = caps.supports_function_calling;
-    if (
-      caps.supports_streaming !== null &&
-      caps.supports_streaming !== undefined
-    )
-      values.supports_streaming = caps.supports_streaming;
-    if (caps.context_window !== null && caps.context_window !== undefined)
-      values.context_window = caps.context_window;
-    if (caps.max_output_tokens !== null && caps.max_output_tokens !== undefined)
-      values.max_output_tokens = caps.max_output_tokens;
-    if (
-      caps.input_price_per_1k !== null &&
-      caps.input_price_per_1k !== undefined
-    )
-      values.input_price_per_1k = caps.input_price_per_1k;
-    if (
-      caps.output_price_per_1k !== null &&
-      caps.output_price_per_1k !== undefined
-    )
-      values.output_price_per_1k = caps.output_price_per_1k;
-    if (caps.rpm_limit !== null && caps.rpm_limit !== undefined)
-      values.rpm_limit = caps.rpm_limit;
-    if (caps.tpm_limit !== null && caps.tpm_limit !== undefined)
-      values.tpm_limit = caps.tpm_limit;
-  }
-
-  formApi.setValues(values);
+  configSnapshot.value = null;
+  formApi.setValues(
+    buildRemoteModelFormValues(
+      modelId,
+      currentProviderId.value,
+      currentProviderType.value,
+      model?.capabilities,
+    ),
+  );
 }
 </script>
 

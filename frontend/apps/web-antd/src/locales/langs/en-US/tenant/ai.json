@@ -113,9 +113,12 @@
     "cost": "Cost",
     "latency": "Latency (ms)",
     "status": "Status",
+    "agentName": "Agent",
+    "conversationId": "Conversation ID",
     "modelName": "Model",
     "providerName": "Provider",
     "callerName": "Caller",
+    "traceId": "Trace ID",
     "createdAt": "Created At",
     "errorMessage": "Error Message",
     "requestData": "Request Data",
@@ -124,7 +127,13 @@
     "detailTitle": "Call Log Detail",
     "placeholder": {
       "allStatuses": "All Statuses",
-      "allModels": "All Models"
+      "allModels": "All Models",
+      "searchAgentName": "Search agent name",
+      "searchTrace": "Search trace ID",
+      "searchConversation": "Search conversation ID",
+      "selectProvider": "Select provider",
+      "selectModel": "Select model",
+      "selectAgent": "Select agent"
     },
     "status_options": {
       "success": "Success",
@@ -578,6 +587,9 @@
     "pageTitle": "Conversations",
     "name": "Conversations",
     "agentName": "Agent",
+    "conversationId": "Conversation ID",
+    "providerName": "Provider",
+    "modelName": "Model",
     "tenantName": "Tenant",
     "user": "User",
     "status": "Status",
@@ -601,6 +613,42 @@
     "untitled": "Untitled Conversation",
     "viewDetail": "View Detail",
     "detailTitle": "Conversation Detail",
+    "runtimeDiagnostics": "Runtime Diagnostics",
+    "diagnosticsEmpty": "No runtime diagnostics recorded",
+    "diagnosticNotes": "Stop-Loss Notes",
+    "executionPath": "Execution Path",
+    "failureKind": "Failure Kind",
+    "budgetStatus": "Budget Status",
+    "budgetExitReason": "Budget Exit Reason",
+    "partialExitReason": "Partial Exit Reason",
+    "intentPlan": "Intent Plan",
+    "candidateTools": "Candidate Tools",
+    "providerEvents": "Provider Events",
+    "retryEvents": "Retry Events",
+    "requiredCapabilities": "Required Capabilities",
+    "allowedTools": "Allowed Tools",
+    "selectedTools": "Selected Tools",
+    "completedTools": "Completed Tools",
+    "unfinishedReason": "Unfinished Reason",
+    "executionPathOptions": {
+      "fast": "Fast",
+      "normal": "Normal",
+      "deep": "Deep"
+    },
+    "failureKindOptions": {
+      "none": "None",
+      "provider_failure": "Provider Failure",
+      "tool_failure": "Tool Failure",
+      "orchestration_failure": "Orchestration Failure",
+      "budget_exit": "Budget Exit",
+      "server_interrupt": "Server Interrupt"
+    },
+    "budgetStatusOptions": {
+      "ok": "OK",
+      "within_budget": "Within Budget",
+      "budget_exit": "Budget Exit",
+      "exceeded": "Exceeded"
+    },
     "actorType": {
       "platform_admin": "Platform admin",
       "tenant_admin": "Tenant admin",
@@ -611,11 +659,16 @@
     },
     "placeholder": {
       "searchTitle": "Search conversation title",
-      "allStatuses": "All Statuses"
+      "allStatuses": "All Statuses",
+      "searchConversationId": "Search conversation ID",
+      "selectProvider": "Select provider",
+      "selectModel": "Select model",
+      "selectAgent": "Select agent"
     },
     "status_options": {
       "active": "Active",
-      "archived": "Archived"
+      "archived": "Archived",
+      "closed": "Closed"
     },
     "messages": {
       "archiveSuccess": "Conversation archived",

@@ -6,7 +6,7 @@ Provides conversation list, detail, search, archive, delete and export.
 """
 
 import json
-import re
+import inspect
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 from unittest.mock import Mock
@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.ai.engine.output_parser import parse_output
 from app.ai.engine.types import ExecutionResult
 from app.ai.tools.types import ToolResult
+from app.ai.text_semantics import extract_public_attachment_reference
 from app.ai.types import ChatMessage
 from app.ai.utils.token_estimator import estimate_tokens
 from app.configs.service import PLATFORM_TENANT_ID
@@ -41,6 +42,7 @@ from app.models.ai.action_log import AIActionLog
 from app.models.ai.agent import Agent
 from app.models.ai.agent_conversation import AgentConversation
 from app.models.ai.call_log import AICallLog
+from app.models.ai.conversation_message import ConversationMessage
 from app.models.ai.execution_decision import ExecutionDecision
 from app.models.tenant.attachment import Attachment
 from app.repositories.ai.agent_conversation_repository import (
@@ -62,10 +64,6 @@ if TYPE_CHECKING:
     )
 
 logger = LogManager.get_logger("ai.conversation_service")
-_ATTACHMENT_URL_RE = re.compile(
-    r"/api/public/attachments/(\d+)/(?:access|image)",
-    re.IGNORECASE,
-)
 _CONTEXT_COMPACTION_METADATA_KEY = "context_compaction"
 
 
@@ -92,13 +90,8 @@ class ConversationService(
 
     @staticmethod
     def _extract_attachment_id(raw_url: Any) -> int | None:
-        text = str(raw_url or "").strip()
-        if not text:
-            return None
-        match = _ATTACHMENT_URL_RE.search(text)
-        if not match:
-            return None
-        return int(match.group(1))
+        attachment_id, _ = extract_public_attachment_reference(raw_url)
+        return attachment_id
 
     async def _hydrate_chat_attachments(
         self,
@@ -193,6 +186,34 @@ class ConversationService(
                 self.tenant_id,
             )
         return self._tenant_admin_repo
+
+    async def _serialize_conversation_message(
+        self,
+        msg: ConversationMessage,
+    ) -> dict[str, Any]:
+        """Normalize a conversation message for detail/CLI surfaces."""
+        msg_dict = msg.to_dict()
+        agent_obj = getattr(msg, "agent", None)
+        if agent_obj is not None:
+            msg_dict["agent_name"] = agent_obj.name
+            msg_dict["agent_avatar"] = agent_obj.avatar
+        else:
+            msg_dict["agent_name"] = None
+            msg_dict["agent_avatar"] = None
+        runtime_meta = msg.metadata_ if isinstance(msg.metadata_, dict) else {}
+        hydrated_attachments = await self._hydrate_chat_attachments(
+            runtime_meta.get("attachments")
+        )
+        if hydrated_attachments is not None:
+            metadata_payload = dict(msg_dict.get("metadata") or {})
+            metadata_payload["attachments"] = hydrated_attachments
+            msg_dict["metadata"] = metadata_payload
+        msg_dict["model_name"] = runtime_meta.get("model_name")
+        if not msg_dict["model_name"] and getattr(msg, "model", None) is not None:
+            msg_dict["model_name"] = msg.model.name
+        msg_dict["provider_id"] = runtime_meta.get("provider_id")
+        msg_dict["provider_name"] = runtime_meta.get("provider_name")
+        return msg_dict
 
     async def enrich_conversation_list(
         self,
@@ -344,35 +365,14 @@ class ConversationService(
         )
 
         result = conversation.to_dict()
-        # Enrich messages with agent info for multi-agent avatar display / 说明 / note
+        # Enrich messages with agent info for avatars / 为消息补充智能体信息供头像展示
         message_list = []
         for msg in messages:
-            msg_dict = msg.to_dict()
-            agent_obj = getattr(msg, "agent", None)
-            if agent_obj is not None:
-                msg_dict["agent_name"] = agent_obj.name
-                msg_dict["agent_avatar"] = agent_obj.avatar
-            else:
-                msg_dict["agent_name"] = None
-                msg_dict["agent_avatar"] = None
-            runtime_meta = msg.metadata_ if isinstance(msg.metadata_, dict) else {}
-            hydrated_attachments = await self._hydrate_chat_attachments(
-                runtime_meta.get("attachments")
-            )
-            if hydrated_attachments is not None:
-                metadata_payload = dict(msg_dict.get("metadata") or {})
-                metadata_payload["attachments"] = hydrated_attachments
-                msg_dict["metadata"] = metadata_payload
-            msg_dict["model_name"] = runtime_meta.get("model_name")
-            if not msg_dict["model_name"] and getattr(msg, "model", None) is not None:
-                msg_dict["model_name"] = msg.model.name
-            msg_dict["provider_id"] = runtime_meta.get("provider_id")
-            msg_dict["provider_name"] = runtime_meta.get("provider_name")
-            message_list.append(msg_dict)
+            message_list.append(await self._serialize_conversation_message(msg))
         result["message_list"] = message_list
         result["message_count"] = message_count
 
-        # 提取关联智能体名称 / Extract linked agent names
+        # Extract linked agent name from conversation / 提取会话关联智能体名称
         result["agent_name"] = None
         try:
             agent_obj = getattr(conversation, "agent", None)
@@ -389,6 +389,20 @@ class ConversationService(
             ),
             None,
         )
+        latest_assistant_loader = getattr(
+            self.message_repo,
+            "get_latest_assistant_message",
+            None,
+        )
+        latest_assistant_message = None
+        if callable(latest_assistant_loader):
+            latest_assistant_candidate = latest_assistant_loader(conversation_id)
+            if inspect.isawaitable(latest_assistant_candidate):
+                latest_assistant_message = await latest_assistant_candidate
+        if latest_assistant_message is not None:
+            last_assistant_message = await self._serialize_conversation_message(
+                latest_assistant_message
+            )
         compaction_snapshot = await self.get_context_compaction_snapshot(
             conversation.id
         )
@@ -820,7 +834,12 @@ class ConversationService(
                 if msg.id not in seen_ids:
                     updated += 1
                     seen_ids.add(msg.id)
-                if decision_payload:
+                should_record_decision = (
+                    decision_payload is not None
+                    and user_id is not None
+                    and bool(owner_type)
+                )
+                if should_record_decision:
                     try:
                         interaction_context: dict[str, Any] = {}
                         planner_context = None
@@ -971,11 +990,28 @@ class ConversationService(
             "selected_tool_names": turn_meta.get("selected_tool_names") or [],
             "selected_skill_names": turn_meta.get("selected_skill_names") or [],
             "context_sources": turn_meta.get("context_sources") or [],
+            "execution_path": turn_meta.get("execution_path"),
+            "intent_plan": turn_meta.get("intent_plan") or [],
+            "budget": turn_meta.get("budget"),
+            "budget_status": turn_meta.get("budget_status"),
+            "budget_exit_reason": turn_meta.get("budget_exit_reason"),
+            "candidate_tool_names": turn_meta.get("candidate_tool_names") or [],
+            "retry_events": turn_meta.get("retry_events") or [],
+            "partial_exit_reason": turn_meta.get("partial_exit_reason"),
+            "failure_kind": turn_meta.get("failure_kind"),
+            "provider_events": turn_meta.get("provider_events") or [],
             "contract_breach_type": turn_meta.get("contract_breach_type"),
             "tool_leak_detected": bool(turn_meta.get("tool_leak_detected")),
             "unfinished_intents": turn_meta.get("unfinished_intents") or [],
             "leaked_tool_names": turn_meta.get("leaked_tool_names") or [],
             "recovered_via_retry": turn_meta.get("recovered_via_retry"),
+            "last_tool_name": turn_meta.get("last_tool_name"),
+            "last_page_key": turn_meta.get("last_page_key"),
+            "last_page_op": turn_meta.get("last_page_op"),
+            "interrupted_stage": turn_meta.get("interrupted_stage"),
+            "tool_loop_progress": turn_meta.get("tool_loop_progress") or {},
+            "sync_rescue": turn_meta.get("sync_rescue"),
+            "should_record_call_log": turn_meta.get("should_record_call_log"),
         }
 
     @staticmethod
@@ -1025,11 +1061,28 @@ class ConversationService(
             "selected_tool_names": turn_meta.get("selected_tool_names") or [],
             "selected_skill_names": turn_meta.get("selected_skill_names") or [],
             "context_sources": turn_meta.get("context_sources") or [],
+            "execution_path": turn_meta.get("execution_path"),
+            "intent_plan": turn_meta.get("intent_plan") or [],
+            "budget": turn_meta.get("budget"),
+            "budget_status": turn_meta.get("budget_status"),
+            "budget_exit_reason": turn_meta.get("budget_exit_reason"),
+            "candidate_tool_names": turn_meta.get("candidate_tool_names") or [],
+            "retry_events": turn_meta.get("retry_events") or [],
+            "partial_exit_reason": turn_meta.get("partial_exit_reason"),
+            "failure_kind": turn_meta.get("failure_kind"),
+            "provider_events": turn_meta.get("provider_events") or [],
             "contract_breach_type": turn_meta.get("contract_breach_type"),
             "tool_leak_detected": bool(turn_meta.get("tool_leak_detected")),
             "unfinished_intents": turn_meta.get("unfinished_intents") or [],
             "leaked_tool_names": turn_meta.get("leaked_tool_names") or [],
             "recovered_via_retry": turn_meta.get("recovered_via_retry"),
+            "last_tool_name": turn_meta.get("last_tool_name"),
+            "last_page_key": turn_meta.get("last_page_key"),
+            "last_page_op": turn_meta.get("last_page_op"),
+            "interrupted_stage": turn_meta.get("interrupted_stage"),
+            "tool_loop_progress": turn_meta.get("tool_loop_progress") or {},
+            "sync_rescue": turn_meta.get("sync_rescue"),
+            "should_record_call_log": turn_meta.get("should_record_call_log"),
         }
 
     async def rebuild_context_compaction_snapshot(
@@ -1388,7 +1441,7 @@ class ConversationService(
             },
         )
 
-        # 主动清理会话记忆（兜底 TTL 之外的即时清理）
+        # Proactively clear session memory (immediate cleanup beyond TTL) / 主动清理会话记忆（TTL 外的即时清理）
         memory_svc = SessionMemoryService(self._get_memory_tenant_id())
         try:
             await memory_svc.clear_conversation_memory(conversation_id)
@@ -1676,12 +1729,12 @@ class ConversationService(
         return "\n".join(lines)
 
     # ========================================
-    # 对话执行辅助（从 AgentChatService 提取）
+    # Chat execution helpers (from AgentChatService) / 对话执行辅助（从 AgentChatService 提取）
     # ========================================
 
-    # 历史消息最大加载条数（兜底默认值） / Max history messages to load (fallback default)
+    # Max history messages to load (fallback default) / 历史消息最大条数（兜底默认）
     MAX_HISTORY_MESSAGES = 50
-    # 历史消息最大 Token 数（兜底默认值，0=不限制）
+    # Max history tokens (0 = unlimited) / 历史消息最大 Token（0=不限制）
     MAX_HISTORY_TOKENS = 0
     # 对话标题最大长度 / Max conversation title length
     MAX_TITLE_LENGTH = 100
@@ -1782,11 +1835,11 @@ class ConversationService(
 
         chat_messages: list[ChatMessage] = []
         for msg in db_messages:
-            # 跳过 system 消息（由引擎重新构建）
+            # Skip system messages (rebuilt by engine) / 跳过 system（由引擎重建）
             if msg.role == MessageRoleEnum.SYSTEM.value:
                 continue
 
-            # 从 metadata 恢复附件（用于多模态历史消息）
+            # Restore attachments from metadata (multimodal history) / 从 metadata 恢复附件（多模态历史）
             msg_attachments = None
             msg_reasoning_content = None
             if msg.metadata_ and isinstance(msg.metadata_, dict):
@@ -1802,9 +1855,7 @@ class ConversationService(
                 and msg_reasoning_content
                 and msg_content.strip() == msg_reasoning_content
             ):
-                # Tool-round thinking is persisted separately in metadata; do not
-                # feed the same text back as assistant content in future rounds.
-                # 工具轮思考已单独存入 metadata，后续续聊时不要再把同文案当成 assistant 正文回灌给模型。
+                # Tool-round thinking is in metadata; do not replay as assistant content / 工具轮思考在 metadata，勿当 assistant 正文回灌
                 msg_content = ""
 
             chat_messages.append(
@@ -1819,14 +1870,14 @@ class ConversationService(
                 ),
             )
 
-        # Token 截断：从最旧消息开始移除，直到总 token 不超过 max_tokens
+        # Token budget: remove oldest until under max_tokens / Token 截断：从最旧消息删起直至不超上限
         if max_tokens > 0 and chat_messages:
             total = sum(estimate_tokens(m.content or "") for m in chat_messages)
             while total > max_tokens and len(chat_messages) > 1:
                 removed = chat_messages.pop(0)
                 total -= estimate_tokens(removed.content or "")
 
-        # 清理孤立的 tool 消息（前面没有 tool_calls 的 assistant 消息）
+        # Drop orphan tool messages (no matching assistant tool_calls) / 清理孤立 tool 消息
         chat_messages = self.sanitize_tool_messages(chat_messages)
 
         return chat_messages
@@ -1919,7 +1970,11 @@ class ConversationService(
     @staticmethod
     def _to_non_empty_str(value: Any) -> str | None:
         text = str(value or "").strip()
-        return text or None
+        if not text:
+            return None
+        if text.lower() in {"none", "null", "undefined"}:
+            return None
+        return text
 
     @staticmethod
     def _normalize_string_list(value: Any) -> list[str]:
@@ -1949,6 +2004,94 @@ class ConversationService(
             )
         return normalized
 
+    @staticmethod
+    def _normalize_json_dict(value: Any) -> dict[str, Any] | None:
+        if not isinstance(value, dict):
+            return None
+        return {
+            str(key): value[key]
+            for key in value
+            if isinstance(key, str) or key is not None
+        }
+
+    @classmethod
+    def _normalize_intent_plan(cls, value: Any) -> list[dict[str, Any]]:
+        if not isinstance(value, list):
+            return []
+        normalized: list[dict[str, Any]] = []
+        for item in value:
+            payload = cls._normalize_json_dict(item)
+            if not payload:
+                continue
+            normalized.append(
+                {
+                    "intent_id": cls._to_non_empty_str(payload.get("intent_id")),
+                    "kind": cls._to_non_empty_str(payload.get("kind")),
+                    "family": cls._to_non_empty_str(payload.get("family")),
+                    "order": int(payload.get("order") or 0) or None,
+                    "user_visible_label": cls._to_non_empty_str(
+                        payload.get("user_visible_label")
+                    ),
+                    "status": cls._to_non_empty_str(payload.get("status")),
+                    "allowed_tool_names": cls._normalize_string_list(
+                        payload.get("allowed_tool_names")
+                    ),
+                    "completed_by_tool_names": cls._normalize_string_list(
+                        payload.get("completed_by_tool_names")
+                    ),
+                    "failure_reason": cls._to_non_empty_str(
+                        payload.get("failure_reason")
+                    ),
+                }
+            )
+        return normalized
+
+    @classmethod
+    def _normalize_retry_events(cls, value: Any) -> list[dict[str, Any]]:
+        if not isinstance(value, list):
+            return []
+        normalized: list[dict[str, Any]] = []
+        for item in value:
+            payload = cls._normalize_json_dict(item)
+            if not payload:
+                continue
+            normalized.append(
+                {
+                    "action": cls._to_non_empty_str(payload.get("action")),
+                    "target_intent_id": cls._to_non_empty_str(
+                        payload.get("target_intent_id")
+                    ),
+                    "retry_family": cls._to_non_empty_str(payload.get("retry_family")),
+                    "allowed_tool_names": cls._normalize_string_list(
+                        payload.get("allowed_tool_names")
+                    ),
+                    "completed_intent_ids": cls._normalize_string_list(
+                        payload.get("completed_intent_ids")
+                    ),
+                    "unfinished_intent_ids": cls._normalize_string_list(
+                        payload.get("unfinished_intent_ids")
+                    ),
+                    "reason": cls._to_non_empty_str(payload.get("reason")),
+                    "provider_failure_kind": cls._to_non_empty_str(
+                        payload.get("provider_failure_kind")
+                    ),
+                    "metadata": dict(payload.get("metadata") or {}),
+                }
+            )
+        return normalized
+
+    @classmethod
+    def _normalize_provider_events(cls, value: Any) -> list[dict[str, Any]]:
+        if not isinstance(value, list):
+            return []
+        normalized: list[dict[str, Any]] = []
+        for item in value:
+            payload = cls._normalize_json_dict(item)
+            if not payload:
+                continue
+            normalized.append(dict(payload))
+        return normalized
+
     @classmethod
     def _extract_turn_diagnostics_from_metadata(
         cls,
@@ -1960,13 +2103,36 @@ class ConversationService(
             if isinstance((turn_record or {}).get("metadata"), dict)
             else {}
         )
+        turn_record_diagnostics = (
+            dict(turn_record_metadata.get("turn_diagnostics") or {})
+            if isinstance(turn_record_metadata.get("turn_diagnostics"), dict)
+            else {}
+        )
+        context_diagnostics = (
+            dict(metadata.get("context_diagnostics") or {})
+            if isinstance(metadata.get("context_diagnostics"), dict)
+            else {}
+        )
+        last_run_summary = (
+            dict(metadata.get("last_run_summary") or {})
+            if isinstance(metadata.get("last_run_summary"), dict)
+            else {}
+        )
         turn_outcome = cls._to_non_empty_str(
-            (turn_record or {}).get("turn_outcome") or metadata.get("turn_outcome")
+            (turn_record or {}).get("turn_outcome")
+            or metadata.get("turn_outcome")
+            or turn_record_diagnostics.get("turn_outcome")
+            or context_diagnostics.get("turn_outcome")
+            or last_run_summary.get("turn_outcome")
         )
         termination_reason = cls._to_non_empty_str(
             (turn_record or {}).get("termination_reason")
             or metadata.get("termination_reason")
             or metadata.get("completion_reason")
+            or turn_record_diagnostics.get("termination_reason")
+            or context_diagnostics.get("termination_reason")
+            or last_run_summary.get("termination_reason")
+            or last_run_summary.get("completion_reason")
         )
         if not turn_outcome:
             if (
@@ -1983,45 +2149,254 @@ class ConversationService(
             }:
                 turn_outcome = "failed"
         protocol_path = cls._to_non_empty_str(
-            (turn_record or {}).get("protocol_path") or metadata.get("protocol_path")
+            (turn_record or {}).get("protocol_path")
+            or metadata.get("protocol_path")
+            or turn_record_diagnostics.get("protocol_path")
+            or context_diagnostics.get("protocol_path")
+            or last_run_summary.get("protocol_path")
         )
         selected_tool_names = cls._normalize_string_list(
             (turn_record or {}).get("selected_tool_names")
             or metadata.get("selected_tool_names")
+            or turn_record_diagnostics.get("selected_tool_names")
+            or context_diagnostics.get("selected_tool_names")
+            or last_run_summary.get("selected_tool_names")
         )
         selected_skill_names = cls._normalize_string_list(
             (turn_record or {}).get("selected_skill_names")
             or metadata.get("selected_skill_names")
+            or turn_record_diagnostics.get("selected_skill_names")
+            or context_diagnostics.get("selected_skill_names")
+            or last_run_summary.get("selected_skill_names")
         )
         context_sources = cls._normalize_context_sources(
             (turn_record or {}).get("context_sources")
             or metadata.get("context_sources")
+            or turn_record_diagnostics.get("context_sources")
+            or context_diagnostics.get("context_sources")
+            or last_run_summary.get("context_sources")
         )
         contract_breach_type = cls._to_non_empty_str(
             turn_record_metadata.get("contract_breach_type")
             or metadata.get("contract_breach_type")
+            or turn_record_diagnostics.get("contract_breach_type")
+            or context_diagnostics.get("contract_breach_type")
+            or last_run_summary.get("contract_breach_type")
         )
         tool_leak_detected = bool(
             turn_record_metadata.get("tool_leak_detected")
             or metadata.get("tool_leak_detected")
+            or turn_record_diagnostics.get("tool_leak_detected")
+            or context_diagnostics.get("tool_leak_detected")
+            or last_run_summary.get("tool_leak_detected")
         )
         unfinished_intents = cls._normalize_string_list(
             turn_record_metadata.get("unfinished_intents")
             or metadata.get("unfinished_intents")
+            or turn_record_diagnostics.get("unfinished_intents")
+            or context_diagnostics.get("unfinished_intents")
+            or last_run_summary.get("unfinished_intents")
         )
         leaked_tool_names = cls._normalize_string_list(
             turn_record_metadata.get("leaked_tool_names")
             or metadata.get("leaked_tool_names")
+            or turn_record_diagnostics.get("leaked_tool_names")
+            or context_diagnostics.get("leaked_tool_names")
+            or last_run_summary.get("leaked_tool_names")
         )
         recovered_via_retry_raw = (
             turn_record_metadata.get("recovered_via_retry")
             if "recovered_via_retry" in turn_record_metadata
-            else metadata.get("recovered_via_retry")
+            else (
+                metadata.get("recovered_via_retry")
+                if "recovered_via_retry" in metadata
+                else (
+                    turn_record_diagnostics.get("recovered_via_retry")
+                    if "recovered_via_retry" in turn_record_diagnostics
+                    else (
+                        context_diagnostics.get("recovered_via_retry")
+                        if "recovered_via_retry" in context_diagnostics
+                        else last_run_summary.get("recovered_via_retry")
+                    )
+                )
+            )
         )
         recovered_via_retry = (
             bool(recovered_via_retry_raw)
             if recovered_via_retry_raw is not None
             else None
+        )
+        last_tool_name = cls._to_non_empty_str(
+            (turn_record or {}).get("last_tool_name")
+            or metadata.get("last_tool_name")
+            or turn_record_diagnostics.get("last_tool_name")
+            or context_diagnostics.get("last_tool_name")
+            or last_run_summary.get("last_tool_name")
+        )
+        last_page_key = cls._to_non_empty_str(
+            (turn_record or {}).get("last_page_key")
+            or metadata.get("last_page_key")
+            or turn_record_diagnostics.get("last_page_key")
+            or context_diagnostics.get("last_page_key")
+            or last_run_summary.get("last_page_key")
+        )
+        last_page_op = cls._to_non_empty_str(
+            (turn_record or {}).get("last_page_op")
+            or metadata.get("last_page_op")
+            or turn_record_diagnostics.get("last_page_op")
+            or context_diagnostics.get("last_page_op")
+            or last_run_summary.get("last_page_op")
+        )
+        interrupted_stage = cls._to_non_empty_str(
+            (turn_record or {}).get("interrupted_stage")
+            or metadata.get("interrupted_stage")
+            or turn_record_diagnostics.get("interrupted_stage")
+            or context_diagnostics.get("interrupted_stage")
+            or last_run_summary.get("interrupted_stage")
+        )
+        tool_loop_progress = (
+            dict((turn_record or {}).get("tool_loop_progress") or {})
+            if isinstance((turn_record or {}).get("tool_loop_progress"), dict)
+            else (
+                dict(turn_record_diagnostics.get("tool_loop_progress") or {})
+                if isinstance(turn_record_diagnostics.get("tool_loop_progress"), dict)
+                else {}
+            )
+        )
+        if not tool_loop_progress and isinstance(metadata.get("tool_loop_progress"), dict):
+            tool_loop_progress = dict(metadata.get("tool_loop_progress") or {})
+        if not tool_loop_progress and isinstance(
+            context_diagnostics.get("tool_loop_progress"), dict
+        ):
+            tool_loop_progress = dict(context_diagnostics.get("tool_loop_progress") or {})
+        if not tool_loop_progress and isinstance(
+            last_run_summary.get("tool_loop_progress"), dict
+        ):
+            tool_loop_progress = dict(last_run_summary.get("tool_loop_progress") or {})
+
+        execution_path = cls._to_non_empty_str(
+            (turn_record or {}).get("execution_path")
+            or metadata.get("execution_path")
+            or turn_record_diagnostics.get("execution_path")
+            or context_diagnostics.get("execution_path")
+            or last_run_summary.get("execution_path")
+        )
+        intent_plan = cls._normalize_intent_plan(
+            (turn_record or {}).get("intent_plan")
+            or metadata.get("intent_plan")
+            or turn_record_diagnostics.get("intent_plan")
+            or context_diagnostics.get("intent_plan")
+            or last_run_summary.get("intent_plan")
+        )
+        budget = cls._normalize_json_dict(
+            (turn_record or {}).get("budget")
+            or metadata.get("budget")
+            or turn_record_diagnostics.get("budget")
+            or context_diagnostics.get("budget")
+            or last_run_summary.get("budget")
+        )
+        routing = cls._normalize_json_dict(
+            metadata.get("routing")
+            or turn_record_diagnostics.get("routing")
+            or context_diagnostics.get("routing")
+            or last_run_summary.get("routing")
+        ) or {}
+        candidate_tool_names = cls._normalize_string_list(
+            routing.get("candidate_tool_names")
+            or metadata.get("candidate_tool_names")
+            or turn_record_diagnostics.get("candidate_tool_names")
+            or context_diagnostics.get("candidate_tool_names")
+            or last_run_summary.get("candidate_tool_names")
+        )
+        recovery = cls._normalize_json_dict(
+            metadata.get("recovery")
+            or turn_record_diagnostics.get("recovery")
+            or context_diagnostics.get("recovery")
+            or last_run_summary.get("recovery")
+        ) or {}
+        retry_events = cls._normalize_retry_events(
+            recovery.get("retry_events")
+            or metadata.get("retry_events")
+            or turn_record_diagnostics.get("retry_events")
+            or context_diagnostics.get("retry_events")
+            or last_run_summary.get("retry_events")
+        )
+        partial_exit_reason = cls._to_non_empty_str(
+            recovery.get("partial_exit_reason")
+            or metadata.get("partial_exit_reason")
+            or turn_record_diagnostics.get("partial_exit_reason")
+            or context_diagnostics.get("partial_exit_reason")
+            or last_run_summary.get("partial_exit_reason")
+        )
+        failure_kind = cls._to_non_empty_str(
+            metadata.get("failure_kind")
+            or turn_record_diagnostics.get("failure_kind")
+            or (cls._normalize_json_dict(metadata.get("failures")) or {}).get("failure_kind")
+            or (cls._normalize_json_dict(turn_record_diagnostics.get("failures")) or {}).get("failure_kind")
+            or context_diagnostics.get("failure_kind")
+            or last_run_summary.get("failure_kind")
+        )
+        provider_events = cls._normalize_provider_events(
+            metadata.get("provider_events")
+            or (cls._normalize_json_dict(metadata.get("failures")) or {}).get("provider_events")
+            or turn_record_diagnostics.get("provider_events")
+            or (cls._normalize_json_dict(turn_record_diagnostics.get("failures")) or {}).get("provider_events")
+            or context_diagnostics.get("provider_events")
+            or last_run_summary.get("provider_events")
+        )
+        sync_rescue_raw = (
+            turn_record_metadata.get("sync_rescue")
+            if "sync_rescue" in turn_record_metadata
+            else (
+                metadata.get("sync_rescue")
+                if "sync_rescue" in metadata
+                else (
+                    turn_record_diagnostics.get("sync_rescue")
+                    if "sync_rescue" in turn_record_diagnostics
+                    else (
+                        context_diagnostics.get("sync_rescue")
+                        if "sync_rescue" in context_diagnostics
+                        else last_run_summary.get("sync_rescue")
+                    )
+                )
+            )
+        )
+        sync_rescue = (
+            bool(sync_rescue_raw) if sync_rescue_raw is not None else None
+        )
+        should_record_call_log_raw = (
+            turn_record_metadata.get("should_record_call_log")
+            if "should_record_call_log" in turn_record_metadata
+            else (
+                metadata.get("should_record_call_log")
+                if "should_record_call_log" in metadata
+                else (
+                    turn_record_diagnostics.get("should_record_call_log")
+                    if "should_record_call_log" in turn_record_diagnostics
+                    else (
+                        context_diagnostics.get("should_record_call_log")
+                        if "should_record_call_log" in context_diagnostics
+                        else last_run_summary.get("should_record_call_log")
+                    )
+                )
+            )
+        )
+        should_record_call_log = (
+            bool(should_record_call_log_raw)
+            if should_record_call_log_raw is not None
+            else None
+        )
+        budget_status = cls._to_non_empty_str(
+            (budget or {}).get("status")
+            or metadata.get("budget_status")
+            or context_diagnostics.get("budget_status")
+            or last_run_summary.get("budget_status")
+        )
+        budget_exit_reason = cls._to_non_empty_str(
+            (budget or {}).get("exit_reason")
+            or metadata.get("budget_exit_reason")
+            or context_diagnostics.get("budget_exit_reason")
+            or last_run_summary.get("budget_exit_reason")
         )
         return {
             "turn_record": turn_record,
@@ -2036,6 +2411,23 @@ class ConversationService(
             "unfinished_intents": unfinished_intents,
             "leaked_tool_names": leaked_tool_names,
             "recovered_via_retry": recovered_via_retry,
+            "execution_path": execution_path,
+            "intent_plan": intent_plan,
+            "budget": budget,
+            "budget_status": budget_status,
+            "budget_exit_reason": budget_exit_reason,
+            "candidate_tool_names": candidate_tool_names,
+            "retry_events": retry_events,
+            "partial_exit_reason": partial_exit_reason,
+            "failure_kind": failure_kind,
+            "provider_events": provider_events,
+            "last_tool_name": last_tool_name,
+            "last_page_key": last_page_key,
+            "last_page_op": last_page_op,
+            "interrupted_stage": interrupted_stage,
+            "tool_loop_progress": tool_loop_progress,
+            "sync_rescue": sync_rescue,
+            "should_record_call_log": should_record_call_log,
         }
 
     @classmethod
@@ -2158,7 +2550,7 @@ class ConversationService(
             收集到的 tool_calls 与实际持久化的消息数量（用于响应和错误兜底判断）
             / Collected tool_calls plus the number of messages actually persisted.
         """
-        # 动态计算前缀 system 消息数（而非硬编码 1）
+        # Count leading system messages dynamically (not hard-coded as 1) / 动态统计前缀 system 条数
         system_count = 0
         for msg_dict in result.messages:
             if msg_dict.get("role") == "system":
@@ -2171,8 +2563,7 @@ class ConversationService(
         if not new_messages_raw:
             return [], 0
 
-        # Sanitize: only persist complete tool rounds and plain assistant; drop orphan tool_calls
-        # 仅持久化完整 tool round 与普通 assistant，避免半截 tool skeleton
+        # Sanitize: persist complete tool rounds only; drop orphan tool_calls / 仅持久化完整 tool 轮，丢弃孤立 tool_calls
         chat_msgs = [
             ChatMessage(
                 role=m.get("role", ""),
@@ -2203,14 +2594,14 @@ class ConversationService(
         if not new_messages:
             return [], 0
 
-        # 构建 tool_call_id → ToolResult 的查找表
+        # tool_call_id -> ToolResult lookup / 构建 tool_call_id 到 ToolResult 映射
         tool_result_map: dict[str, ToolResult] = {}
         if result.tool_results:
             for tr in result.tool_results:
                 if tr.tool_call_id:
                     tool_result_map[tr.tool_call_id] = tr
 
-        # 获取下一个 sequence
+        # Next message sequence / 获取下一 message sequence
         next_seq = await self.message_repo.get_next_sequence(conversation.id)
         tool_calls_collected: list[dict[str, Any]] = []
         persisted_count = 0
@@ -2250,6 +2641,78 @@ class ConversationService(
             effective_context_diagnostics["selected_skill_names"] = turn_selected_skills
         if turn_context_sources:
             effective_context_diagnostics["context_sources"] = turn_context_sources
+        if turn_meta.get("execution_path"):
+            effective_context_diagnostics["execution_path"] = turn_meta[
+                "execution_path"
+            ]
+        if turn_meta.get("intent_plan"):
+            effective_context_diagnostics["intent_plan"] = turn_meta["intent_plan"]
+        if turn_meta.get("budget"):
+            effective_context_diagnostics["budget"] = turn_meta["budget"]
+        if turn_meta.get("budget_status"):
+            effective_context_diagnostics["budget_status"] = turn_meta["budget_status"]
+        if turn_meta.get("budget_exit_reason"):
+            effective_context_diagnostics["budget_exit_reason"] = turn_meta[
+                "budget_exit_reason"
+            ]
+        if turn_meta.get("candidate_tool_names"):
+            effective_context_diagnostics["candidate_tool_names"] = turn_meta[
+                "candidate_tool_names"
+            ]
+        if turn_meta.get("retry_events"):
+            effective_context_diagnostics["retry_events"] = turn_meta["retry_events"]
+        if turn_meta.get("partial_exit_reason"):
+            effective_context_diagnostics["partial_exit_reason"] = turn_meta[
+                "partial_exit_reason"
+            ]
+        if turn_meta.get("failure_kind"):
+            effective_context_diagnostics["failure_kind"] = turn_meta["failure_kind"]
+        if turn_meta.get("provider_events"):
+            effective_context_diagnostics["provider_events"] = turn_meta[
+                "provider_events"
+            ]
+        if turn_meta.get("contract_breach_type"):
+            effective_context_diagnostics["contract_breach_type"] = turn_meta[
+                "contract_breach_type"
+            ]
+        if turn_meta.get("tool_leak_detected"):
+            effective_context_diagnostics["tool_leak_detected"] = True
+        if turn_meta.get("unfinished_intents"):
+            effective_context_diagnostics["unfinished_intents"] = turn_meta[
+                "unfinished_intents"
+            ]
+        if turn_meta.get("leaked_tool_names"):
+            effective_context_diagnostics["leaked_tool_names"] = turn_meta[
+                "leaked_tool_names"
+            ]
+        if turn_meta.get("recovered_via_retry") is not None:
+            effective_context_diagnostics["recovered_via_retry"] = turn_meta[
+                "recovered_via_retry"
+            ]
+        if turn_meta.get("last_tool_name"):
+            effective_context_diagnostics["last_tool_name"] = turn_meta[
+                "last_tool_name"
+            ]
+        if turn_meta.get("last_page_key"):
+            effective_context_diagnostics["last_page_key"] = turn_meta[
+                "last_page_key"
+            ]
+        if turn_meta.get("last_page_op"):
+            effective_context_diagnostics["last_page_op"] = turn_meta["last_page_op"]
+        if turn_meta.get("interrupted_stage"):
+            effective_context_diagnostics["interrupted_stage"] = turn_meta[
+                "interrupted_stage"
+            ]
+        if turn_meta.get("tool_loop_progress"):
+            effective_context_diagnostics["tool_loop_progress"] = turn_meta[
+                "tool_loop_progress"
+            ]
+        if turn_meta.get("sync_rescue") is not None:
+            effective_context_diagnostics["sync_rescue"] = turn_meta["sync_rescue"]
+        if turn_meta.get("should_record_call_log") is not None:
+            effective_context_diagnostics["should_record_call_log"] = turn_meta[
+                "should_record_call_log"
+            ]
         effective_context_diagnostics.setdefault(
             "last_interrupted",
             bool(getattr(result, "interrupted", False))
@@ -2274,6 +2737,72 @@ class ConversationService(
             effective_last_run_summary["selected_skill_names"] = turn_selected_skills
         if turn_context_sources:
             effective_last_run_summary["context_sources"] = turn_context_sources
+        if turn_meta.get("execution_path"):
+            effective_last_run_summary["execution_path"] = turn_meta["execution_path"]
+        if turn_meta.get("intent_plan"):
+            effective_last_run_summary["intent_plan"] = turn_meta["intent_plan"]
+        if turn_meta.get("budget"):
+            effective_last_run_summary["budget"] = turn_meta["budget"]
+        if turn_meta.get("budget_status"):
+            effective_last_run_summary["budget_status"] = turn_meta["budget_status"]
+        if turn_meta.get("budget_exit_reason"):
+            effective_last_run_summary["budget_exit_reason"] = turn_meta[
+                "budget_exit_reason"
+            ]
+        if turn_meta.get("candidate_tool_names"):
+            effective_last_run_summary["candidate_tool_names"] = turn_meta[
+                "candidate_tool_names"
+            ]
+        if turn_meta.get("retry_events"):
+            effective_last_run_summary["retry_events"] = turn_meta["retry_events"]
+        if turn_meta.get("partial_exit_reason"):
+            effective_last_run_summary["partial_exit_reason"] = turn_meta[
+                "partial_exit_reason"
+            ]
+        if turn_meta.get("failure_kind"):
+            effective_last_run_summary["failure_kind"] = turn_meta["failure_kind"]
+        if turn_meta.get("provider_events"):
+            effective_last_run_summary["provider_events"] = turn_meta[
+                "provider_events"
+            ]
+        if turn_meta.get("contract_breach_type"):
+            effective_last_run_summary["contract_breach_type"] = turn_meta[
+                "contract_breach_type"
+            ]
+        if turn_meta.get("tool_leak_detected"):
+            effective_last_run_summary["tool_leak_detected"] = True
+        if turn_meta.get("unfinished_intents"):
+            effective_last_run_summary["unfinished_intents"] = turn_meta[
+                "unfinished_intents"
+            ]
+        if turn_meta.get("leaked_tool_names"):
+            effective_last_run_summary["leaked_tool_names"] = turn_meta[
+                "leaked_tool_names"
+            ]
+        if turn_meta.get("recovered_via_retry") is not None:
+            effective_last_run_summary["recovered_via_retry"] = turn_meta[
+                "recovered_via_retry"
+            ]
+        if turn_meta.get("last_tool_name"):
+            effective_last_run_summary["last_tool_name"] = turn_meta["last_tool_name"]
+        if turn_meta.get("last_page_key"):
+            effective_last_run_summary["last_page_key"] = turn_meta["last_page_key"]
+        if turn_meta.get("last_page_op"):
+            effective_last_run_summary["last_page_op"] = turn_meta["last_page_op"]
+        if turn_meta.get("interrupted_stage"):
+            effective_last_run_summary["interrupted_stage"] = turn_meta[
+                "interrupted_stage"
+            ]
+        if turn_meta.get("tool_loop_progress"):
+            effective_last_run_summary["tool_loop_progress"] = turn_meta[
+                "tool_loop_progress"
+            ]
+        if turn_meta.get("sync_rescue") is not None:
+            effective_last_run_summary["sync_rescue"] = turn_meta["sync_rescue"]
+        if turn_meta.get("should_record_call_log") is not None:
+            effective_last_run_summary["should_record_call_log"] = turn_meta[
+                "should_record_call_log"
+            ]
         if (
             bool(getattr(result, "interrupted", False))
             or turn_termination_reason == "interrupted"
@@ -2315,12 +2844,11 @@ class ConversationService(
                 tool_result_map,
             )
 
-            # 收集 tool_calls 用于响应
+            # Collect tool_calls for response payload / 收集 tool_calls 供响应拼装
             if tool_calls:
                 tool_calls_collected.extend(tool_calls)
 
-            # Prevent persisting empty assistant success turns unless the turn carries
-            # pending confirmation/consent or partial/interrupted semantics.
+            # Skip empty assistant success unless pending confirm/consent or partial/interrupted / 空 assistant 成功轮不落库，除非待确认或中断语义
             should_skip_empty_assistant_success = (
                 role == "assistant"
                 and bool(getattr(result, "success", False))
@@ -2339,10 +2867,10 @@ class ConversationService(
             if should_skip_empty_assistant_success:
                 continue
 
-            # 估算 token 数
+            # Token estimate for accounting / 估算 token 用量
             token_estimate = estimate_tokens(content) if content else 0
 
-            # 附件存入 metadata
+            # Persist attachments under metadata / 附件写入 metadata
             metadata = persisted_metadata or None
             if attachments:
                 metadata = metadata or {}

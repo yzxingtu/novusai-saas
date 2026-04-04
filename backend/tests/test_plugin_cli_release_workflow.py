@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import zipfile
 from pathlib import Path
@@ -536,10 +537,17 @@ def test_cmd_build_generates_release_manifest(
     tmp_path: Path,
 ) -> None:
     plugin_dir = _write_plugin(tmp_path, with_release=False)
+    call_order: list[str] = []
 
     def _fake_run(command, cwd, check):  # noqa: ANN001
-        assert command[-2:] == ["run", "build"] or command[-1:] == ["build"]
+        command_text = " ".join(command)
         assert check is True
+        if "install" in command_text:
+            call_order.append("install")
+            (Path(cwd) / "node_modules").mkdir(parents=True, exist_ok=True)
+            return
+        assert command[-2:] == ["run", "build"] or command[-1:] == ["build"]
+        call_order.append("build")
         dist_dir = Path(cwd) / "dist" / "assets"
         dist_dir.mkdir(parents=True, exist_ok=True)
         (Path(cwd) / "dist" / "plugin.js").write_text(
@@ -557,6 +565,7 @@ def test_cmd_build_generates_release_manifest(
     assert payload["entry"] == "plugin.js"
     assert payload["css"] == ["assets/style.css"]
     assert payload["global_var"] == "NovusPlugin_demo_plugin"
+    assert call_order == ["install", "build"]
 
 
 def test_cmd_build_handles_captcha_provider_frontend_plugin(
@@ -564,10 +573,17 @@ def test_cmd_build_handles_captcha_provider_frontend_plugin(
     tmp_path: Path,
 ) -> None:
     plugin_dir = _write_captcha_plugin(tmp_path, with_release=False)
+    call_order: list[str] = []
 
     def _fake_run(command, cwd, check):  # noqa: ANN001
-        assert command[-2:] == ["run", "build"] or command[-1:] == ["build"]
+        command_text = " ".join(command)
         assert check is True
+        if "install" in command_text:
+            call_order.append("install")
+            (Path(cwd) / "node_modules").mkdir(parents=True, exist_ok=True)
+            return
+        assert command[-2:] == ["run", "build"] or command[-1:] == ["build"]
+        call_order.append("build")
         dist_dir = Path(cwd) / "dist" / "assets"
         dist_dir.mkdir(parents=True, exist_ok=True)
         (Path(cwd) / "dist" / "plugin.js").write_text(
@@ -582,6 +598,7 @@ def test_cmd_build_handles_captcha_provider_frontend_plugin(
 
     manifest_path = plugin_dir / "frontend" / "dist" / "plugin.manifest.json"
     assert manifest_path.is_file()
+    assert call_order == ["install", "build"]
 
 
 def test_cmd_build_runs_security_scan_before_build_script(
@@ -604,9 +621,14 @@ def test_cmd_build_runs_security_scan_before_build_script(
         return _FakeScanResult()
 
     def _fake_run(command, cwd, check):  # noqa: ANN001
-        call_order.append("build")
-        assert command[-2:] == ["run", "build"] or command[-1:] == ["build"]
+        command_text = " ".join(command)
         assert check is True
+        if "install" in command_text:
+            call_order.append("install")
+            (Path(cwd) / "node_modules").mkdir(parents=True, exist_ok=True)
+            return
+        assert command[-2:] == ["run", "build"] or command[-1:] == ["build"]
+        call_order.append("build")
         dist_dir = Path(cwd) / "dist" / "assets"
         dist_dir.mkdir(parents=True, exist_ok=True)
         (Path(cwd) / "dist" / "plugin.js").write_text(
@@ -623,7 +645,33 @@ def test_cmd_build_runs_security_scan_before_build_script(
 
     pc.cmd_build(SimpleNamespace(dir=str(plugin_dir)))
 
-    assert call_order == ["scan", "build"]
+    assert call_order == ["scan", "install", "build"]
+
+
+def test_cmd_build_skips_dependency_bootstrap_when_node_modules_exists(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    plugin_dir = _write_plugin(tmp_path, with_release=False)
+    (plugin_dir / "frontend" / "node_modules").mkdir()
+    call_order: list[str] = []
+
+    def _fake_run(command, cwd, check):  # noqa: ANN001
+        call_order.append(" ".join(command))
+        assert check is True
+        dist_dir = Path(cwd) / "dist" / "assets"
+        dist_dir.mkdir(parents=True, exist_ok=True)
+        (Path(cwd) / "dist" / "plugin.js").write_text(
+            "window.NovusPlugin_demo_plugin = {};",
+            encoding="utf-8",
+        )
+        (dist_dir / "style.css").write_text(".demo { color: red; }", encoding="utf-8")
+
+    monkeypatch.setattr(pc.subprocess, "run", _fake_run)
+
+    pc.cmd_build(SimpleNamespace(dir=str(plugin_dir)))
+
+    assert call_order == ["npm.cmd run build"] if os.name == "nt" else ["npm run build"]
 
 
 def test_cmd_pack_release_excludes_source_and_tests(tmp_path: Path) -> None:
@@ -764,7 +812,10 @@ def test_cmd_pack_rejects_security_scan_warnings(
     assert "dangerous call 'exec()'" in out
 
 
-def test_cmd_create_full_module_uses_new_frontend_contract(tmp_path: Path) -> None:
+def test_cmd_create_full_module_uses_new_frontend_contract(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     output_dir = tmp_path / "scaffold-demo"
 
     pc.cmd_create(
@@ -782,7 +833,15 @@ def test_cmd_create_full_module_uses_new_frontend_contract(tmp_path: Path) -> No
     assert "standalone_pages:" not in plugin_yaml
     assert "menus:" not in plugin_yaml
     assert (output_dir / "frontend" / "src" / "ScaffoldDemoPage.vue").is_file()
-    assert (output_dir / "frontend" / "dist" / "plugin.manifest.json").is_file()
+    assert not (output_dir / "frontend" / "dist" / "plugin.manifest.json").exists()
+
+    with pytest.raises(SystemExit) as exc:
+        pc.cmd_validate(SimpleNamespace(dir=str(output_dir)))
+
+    assert exc.value.code == 0
+    out = capsys.readouterr().out
+    assert "frontend dev entry exists: src/index.ts" in out
+    assert "frontend release manifest missing" in out
 
 
 def test_cmd_create_minimal_generates_manifest_valid_plugin_yaml(

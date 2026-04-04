@@ -374,7 +374,7 @@ def main() -> int:
     # Also remind the model to follow its agent definition for better cross-model compatibility
     cli_cmd = adapter.build_run_command(
         agent="dispatch",
-        prompt="Follow your agent instructions to execute the task workflow. Start by reading .trellis/.current-task to get the task directory, then execute each action in task.json next_action array in order.",
+        prompt="Follow your agent instructions using task-path context. Start by reading .trellis/.current-task and execute the workflow from task files and Trellis source-of-truth docs/scripts.",
         session_id=session_id if adapter.supports_session_id_on_create else None,
         skip_permissions=True,
         verbose=True,

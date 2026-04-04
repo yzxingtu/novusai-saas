@@ -23,7 +23,7 @@ Key references:
 - Controller/service/repository chain: `backend/app/api/tenant/domains.py`, `backend/app/services/system/tenant_domain_service.py`, `backend/app/repositories/tenant/tenant_domain_tenant_repository.py`, `backend/app/models/tenant/tenant_domain.py`
 - Trace middleware/logging: `backend/app/middleware/trace.py`, `backend/app/core/logging.py`
 - Attachment + storage rules: `.cursor/rules/attachments-and-storage.md`
-- Plugin system rules: `.cursor/rules/plugin-system.md`
+- Plugin runtime rules: `.trellis/spec/guides/plugin-runtime-playbook.md`
 - Domain/permissions rules: `.cursor/rules/tenant-architecture.md`, `.cursor/rules/rbac-and-data-permission.md`, `.cursor/rules/menu-i18n.md`
 - AI contract rules: `.cursor/rules/ai-architecture.md`, `.cursor/rules/async-notification-websocket.md`
 
@@ -35,7 +35,10 @@ For each layer pair, answer:
   `Agent -> Skill -> AIGateway`? Do not let controllers/services call gateway
   chat or embedding methods directly. Runtime capability truth is
   `AgentSkillGrant`, not package visibility alone. Do not revive deprecated
-  `ToolRegistry` or `tool_bindings` style paths.
+  `ToolRegistry` or `tool_bindings` style paths. Fixed LLM-facing prompt text
+  (system blocks, router prompts, tool descriptions, retry guidance, page-op
+  workflow guidance) must live in `backend/app/ai/prompt_contracts/resources/`,
+  not inline in Python execution code.
 - **Frontend ↔ API**: Does the page use `useCrudPage`/`useCrudList` for schema-driven search/form config? Does it rely on attachments or downloads (smartUploadFile + requestClient.download)? Reference `frontend/apps/web-antd/src/composables/use-crud-list.ts`, `frontend/apps/web-antd/src/api/admin/attachment.ts`.
 - **API ↔ Service**: Do controllers only delegate to services (TenantController/GlobalController pattern)? Do services honor RBAC (`@permission_resource`, `@permission_action`) and logging conventions (`get_logger`, success wrappers)? See `backend/app/core/base_controller.py`, `.cursor/rules/rbac-and-data-permission.md`.
 - **Service ↔ Repository/Model**: Are queries centralized in repositories with tenant filters? Do models expose `__filterable__`, `__sortable__`, and specify `__delete_deps__` when needed? See `backend/app/repositories/tenant/tenant_domain_tenant_repository.py`, `backend/app/models/tenant/tenant_domain.py`.
@@ -47,7 +50,7 @@ For each layer pair, answer:
 - **Service ↔ Migrations**: Do migrations stay idempotent, register in `backend/migrations/env.py`, and avoid f-string SQL? Reference `.cursor/rules/alembic-migration-authoring.md`, `backend/migrations/env.py`.
 - **Backend ↔ AI/Tasks**: Does async behavior use `@register_task` in `backend/app/tasks/ai.py`? Are trace ids preserved when enqueuing/consuming? See `backend/app/tasks/base.py`, `.cursor/rules/trace-and-monitoring.md`.
 - **Uploads/Attachments ↔ Frontend**: Are uploads routed through `smartUploadFile` and attachments stored via `AttachmentService`? Is `public` vs `private` treated as part of attachment identity and dedupe scope? Do platform uploads preserve `tenant_id=0`? Are display images using shared image endpoints and private previews using signed access/preview URLs? See `.cursor/rules/attachments-and-storage.md`, `backend/app/services/tenant/attachment_service.py`, `frontend/apps/web-antd/src/components/business/file-picker/FilePicker.vue`.
-- **Plugins ↔ Backend**: Does plugin UI rely on `plugin.yaml` as the only declaration source? Are `endpoint` and `publicEndpoint` used exclusively and correctly, assets split strictly between `/plugin-assets/...` and `/plugin-public-assets/...`, loader cache keys tied to runtime signature, and menu/page/runtime gates treated as separate fail-closed checks? Check `.cursor/rules/plugin-system.md`, `frontend/apps/web-antd/src/stores/plugin-slots.ts`.
+- **Plugins ↔ Backend**: Does plugin UI rely on `plugin.yaml` as the only declaration source? Are `endpoint` and `publicEndpoint` used exclusively and correctly, assets split strictly between `/plugin-assets/...` and `/plugin-public-assets/...`, loader cache keys tied to runtime signature, and menu/page/runtime gates treated as separate fail-closed checks? Check `.trellis/spec/guides/plugin-runtime-playbook.md`, `frontend/apps/web-antd/src/stores/plugin-slots.ts`.
 - **Plugins ↔ Permissions**: If plugin permissions changed, does the flow still
   use `sync_plugin_permissions(plugin.name)` and keep menu/page/runtime gating
   aligned?
@@ -114,3 +117,5 @@ If the answer is no, stop and gather the missing contract before coding.
   pipeline.
 - Treating plugin page visibility as proof that runtime gate, asset scope, and
   permission bridge are all correct.
+- Reintroducing fixed LLM-facing prompt strings directly in Python instead of
+  adding or updating a prompt contract resource.

@@ -40,13 +40,16 @@ import {
 import { registerCaptchaProvider as registerCaptchaProviderRegistry } from '#/components/business/captcha';
 import {
   mountRichTextEditor,
+  registerRichTextDocumentPageAI,
   RichTextEditor,
+  waitForRichTextEditorOperations,
 } from '#/components/business/rich-text-editor';
 import {
   createKeywordSearchPageOperation,
   createParameterizedPageOperation,
   createPrefilledCreatePageOperation,
   createRefreshPageOperation,
+  createSavePageOperation,
   createSimplePageOperation,
 } from '#/composables/use-page-ai-operation-helpers';
 import { $t } from '#/locales';
@@ -68,6 +71,7 @@ export {
   createParameterizedPageOperation,
   createPrefilledCreatePageOperation,
   createRefreshPageOperation,
+  createSavePageOperation,
   createSimplePageOperation,
   downloadBlob,
   getAccessCodes,
@@ -83,11 +87,13 @@ export {
   registerPageContext,
   registerPageContextExtras,
   registerPageOperations,
+  registerRichTextDocumentPageAI,
   requestClient,
   RichTextEditor,
   subscribeAIConversation,
   usePluginExtensionsStore,
   usePluginSlotsStore,
+  waitForRichTextEditorOperations,
 };
 
 /**
@@ -336,10 +342,16 @@ export interface NovusPluginSharedAPI {
   createParameterizedPageOperation: typeof createParameterizedPageOperation;
   /** Build a refresh operation / 构建刷新页面操作 */
   createRefreshPageOperation: typeof createRefreshPageOperation;
+  /** Build a save operation / 构建保存页面操作 */
+  createSavePageOperation: typeof createSavePageOperation;
   /** Build a keyword-search operation / 构建关键词搜索页面操作 */
   createKeywordSearchPageOperation: typeof createKeywordSearchPageOperation;
   /** Build a prefilled create operation / 构建预填新建页面操作 */
   createPrefilledCreatePageOperation: typeof createPrefilledCreatePageOperation;
+  /** Register rich text editor document AI bridge / 注册富文本文档 AI bridge */
+  registerRichTextDocumentPageAI: typeof registerRichTextDocumentPageAI;
+  /** Wait for rich text editor operations to become available / 等待富文本编辑器页面操作就绪 */
+  waitForRichTextEditorOperations: typeof waitForRichTextEditorOperations;
   /** Register captcha provider component / 注册验证码提供方组件 */
   registerCaptchaProvider: typeof registerCaptchaProviderRegistry;
   /** List currently registered page operations (e.g. to merge with plugin ops) / 获取当前已注册的页面操作（如与插件操作合并） */
@@ -400,8 +412,11 @@ export function exposePluginShared(): void {
     createSimplePageOperation,
     createParameterizedPageOperation,
     createRefreshPageOperation,
+    createSavePageOperation,
     createKeywordSearchPageOperation,
     createPrefilledCreatePageOperation,
+    registerRichTextDocumentPageAI,
+    waitForRichTextEditorOperations,
     appendPageOperations,
     downloadBlob,
     openAIPanel,

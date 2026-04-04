@@ -19,10 +19,10 @@ Falls back to a combined-source template if auto-conversion fails.
 from __future__ import annotations
 
 import ast
-import re
 from pathlib import Path
 from typing import Any
 
+from app.ai.text_semantics import extract_braced_identifiers
 from app.core.logging import LogManager
 
 logger = LogManager.get_logger("ai.skill.converter")
@@ -142,14 +142,18 @@ def _extract_env_requires(metadata: dict[str, Any]) -> list[str]:
 
 
 def _find_base_url(sources: dict[str, str]) -> str:
+    keys = {"HOST", "BASE_URL", "API_URL", "FEISHU_HOST", "API_BASE"}
     for src in sources.values():
-        m = re.search(
-            r"(?:HOST|BASE_URL|API_URL|FEISHU_HOST|API_BASE)"
-            r"\s*=\s*[\"']([^\"']+)[\"']",
-            src,
-        )
-        if m:
-            return m.group(1)
+        for line in src.splitlines():
+            stripped = line.strip()
+            if "=" not in stripped:
+                continue
+            name, value = stripped.split("=", 1)
+            if name.strip().upper() not in keys:
+                continue
+            normalized_value = value.strip().strip('"').strip("'")
+            if normalized_value:
+                return normalized_value
     return ""
 
 
@@ -191,7 +195,7 @@ def _parse_handlers(source: str, module_name: str) -> list[dict[str, Any]]:
             continue
 
         # Extract path parameters like {event_id} / 提取路径参数如 {event_id}
-        path_params = re.findall(r"\{(\w+)\}", url_path)
+        path_params = extract_braced_identifiers(url_path)
 
         params = _extract_params(node, models, path_params)
         docstring = ast.get_docstring(node) or ""
@@ -652,18 +656,15 @@ def _gen_tool_method(L: list[str], handler: dict[str, Any]) -> None:
 # Credential sanitisation / 凭据脱敏
 # ─────────────────────────────────────────────────────────────
 
-_CREDENTIAL_PATTERN = re.compile(
-    r"""(?ix)
-    ^\s*
-    (?:
-        [A-Z_]*(?:SECRET|PASSWORD|PASSWD|TOKEN|API_KEY|APP_KEY|PRIVATE_KEY|ACCESS_KEY)
-        [A-Z_]*
-    )
-    \s*=\s*
-    ['\"]
-    [^'\"]+
-    ['\"]
-    """,
+_CREDENTIAL_TERMS = (
+    "secret",
+    "password",
+    "passwd",
+    "token",
+    "api_key",
+    "app_key",
+    "private_key",
+    "access_key",
 )
 
 
@@ -671,12 +672,46 @@ def _sanitize_source(source: str) -> str:
     """Redact credential-like assignments from source code. / 从源码中脱敏凭据类赋值。"""
     lines: list[str] = []
     for line in source.splitlines():
-        if _CREDENTIAL_PATTERN.match(line):
-            var_name = line.split("=", 1)[0].strip()
-            lines.append(f'{var_name} = "***REDACTED***"')
+        credential_name = _extract_credential_assignment_name(line)
+        if credential_name:
+            lines.append(f'{credential_name} = "***REDACTED***"')
         else:
             lines.append(line)
     return "\n".join(lines)
+
+
+def _extract_credential_assignment_name(line: str) -> str | None:
+    stripped = line.strip()
+    if not stripped or "=" not in stripped:
+        return None
+    left, right = stripped.split("=", 1)
+    name = left.strip()
+    value = right.strip()
+    normalized_name = name.lower()
+    if not any(term in normalized_name for term in _CREDENTIAL_TERMS):
+        return None
+    if not (
+        (value.startswith('"') and value.endswith('"'))
+        or (value.startswith("'") and value.endswith("'"))
+    ):
+        return None
+    if not name or not _is_upper_snake_identifier(name):
+        return None
+    return name
+
+
+def _is_upper_snake_identifier(name: str) -> bool:
+    if not name:
+        return False
+    for index, ch in enumerate(name):
+        if ch == "_":
+            continue
+        if "A" <= ch <= "Z":
+            continue
+        if index > 0 and "0" <= ch <= "9":
+            continue
+        return False
+    return True
 
 
 # ─────────────────────────────────────────────────────────────

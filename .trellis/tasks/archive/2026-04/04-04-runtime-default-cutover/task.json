@@ -1,0 +1,34 @@
+{
+  "id": "runtime-default-cutover",
+  "name": "runtime-default-cutover",
+  "title": "Runtime Default Cutover",
+  "description": "",
+  "status": "completed",
+  "dev_type": "ai",
+  "scope": null,
+  "priority": "P0",
+  "creator": "yudi",
+  "assignee": "yudi",
+  "createdAt": "2026-04-04",
+  "completedAt": "2026-04-05",
+  "branch": "codex/runtime-default-cutover",
+  "base_branch": "main",
+  "worktree_path": "E:\\git_clone\\trellis-worktrees\\codex\\runtime-default-cutover",
+  "execution_path": "normal",
+  "required_artifacts": [
+    "prd.md"
+  ],
+  "context_files": [
+    "implement.jsonl",
+    "check.jsonl"
+  ],
+  "verification_mode": "command",
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "04-04-04-04-ai-orchestration-runtime-rebuild",
+  "relatedFiles": [],
+  "notes": "Verified that runtime-v2 is the only active runtime path and the compatibility planner was removed on 2026-04-04.",
+  "meta": {}
+}

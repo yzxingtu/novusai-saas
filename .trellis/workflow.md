@@ -1,416 +1,156 @@
-# Development Workflow
+# Trellis Workflow
 
-> Based on [Effective Harnesses for Long-Running Agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents)
+Trellis is the project task harness. It is not a mandatory heavy process.
 
----
+The default rule is simple:
 
-## Table of Contents
+- Use the lightest path that can complete the work safely.
+- Read only the specs needed for the current task.
+- Create a task only when the work benefits from tracked requirements or multi-step coordination.
+- Do not inject or read full workflow/spec trees by default.
 
-1. [Quick Start (Do This First)](#quick-start-do-this-first)
-2. [Workflow Overview](#workflow-overview)
-3. [Session Start Process](#session-start-process)
-4. [Development Process](#development-process)
-5. [Session End](#session-end)
-6. [File Descriptions](#file-descriptions)
-7. [Best Practices](#best-practices)
+## Source Of Truth
 
----
+- Path rules: `.trellis/spec/guides/trellis-paths.md`
+- Backend conventions: `.trellis/spec/backend/index.md`
+- Frontend conventions: `.trellis/spec/frontend/index.md`
+- AI runtime governance: `.trellis/spec/ai-runtime/index.md`
 
-## Quick Start (Do This First)
+All other command docs, hooks, and skills must stay thin and point back to these files.
 
-### Step 0: Initialize Developer Identity (First Time Only)
-
-> **Multi-developer support**: Each developer/Agent needs to initialize their identity first
-
-```bash
-# Check if already initialized
-python3 ./.trellis/scripts/get_developer.py
-
-# If not initialized, run:
-python3 ./.trellis/scripts/init_developer.py <your-name>
-# Example: python3 ./.trellis/scripts/init_developer.py cursor-agent
-```
-
-This creates:
-- `.trellis/.developer` - Your identity file (gitignored, not committed)
-- `.trellis/workspace/<your-name>/` - Your personal workspace directory
-
-**Naming suggestions**:
-- Human developers: Use your name, e.g., `john-doe`
-- Cursor AI: `cursor-agent` or `cursor-<task>`
-- Claude Code: `claude-agent` or `claude-<task>`
-- iFlow cli: `iflow-agent` or `iflow-<task>`
-
-### Step 1: Understand Current Context
-
-```bash
-# Get full context in one command
-python3 ./.trellis/scripts/get_context.py
-
-# Or check manually:
-python3 ./.trellis/scripts/get_developer.py      # Your identity
-python3 ./.trellis/scripts/task.py list          # Active tasks
-git status && git log --oneline -10              # Git state
-```
-
-### Step 2: Read Project Guidelines [MANDATORY]
-
-**CRITICAL**: Read guidelines before writing any code:
-
-```bash
-# Read frontend guidelines index (if applicable)
-cat .trellis/spec/frontend/index.md
-
-# Read backend guidelines index (if applicable)
-cat .trellis/spec/backend/index.md
-```
-
-**Why read both?**
-- Understand the full project architecture
-- Know coding standards for the entire codebase
-- See how frontend and backend interact
-- Learn the overall code quality requirements
-
-### Step 3: Before Coding - Read Specific Guidelines (Required)
-
-Based on your task, read the **detailed** guidelines:
-
-**Frontend Task**:
-```bash
-cat .trellis/spec/frontend/hook-guidelines.md      # For hooks
-cat .trellis/spec/frontend/component-guidelines.md # For components
-cat .trellis/spec/frontend/type-safety.md          # For types
-```
-
-**Backend Task**:
-```bash
-cat .trellis/spec/backend/database-guidelines.md   # For DB operations
-cat .trellis/spec/backend/type-safety.md           # For types
-cat .trellis/spec/backend/logging-guidelines.md    # For logging
-```
-
----
-
-## Workflow Overview
-
-### Core Principles
-
-1. **Read Before Write** - Understand context before starting
-2. **Follow Standards** - [!] **MUST read `.trellis/spec/` guidelines before coding**
-3. **Incremental Development** - Complete one task at a time
-4. **Record Promptly** - Update tracking files immediately after completion
-5. **Document Limits** - [!] **Max 2000 lines per journal document**
-
-### File System
-
-```
-.trellis/
-|-- .developer           # Developer identity (gitignored)
-|-- scripts/
-|   |-- __init__.py          # Python package init
-|   |-- common/              # Shared utilities (Python)
-|   |   |-- __init__.py
-|   |   |-- paths.py         # Path utilities
-|   |   |-- developer.py     # Developer management
-|   |   +-- git_context.py   # Git context implementation
-|   |-- multi_agent/         # Multi-agent pipeline scripts
-|   |   |-- __init__.py
-|   |   |-- start.py         # Start worktree agent
-|   |   |-- status.py        # Monitor agent status
-|   |   |-- create_pr.py     # Create PR
-|   |   +-- cleanup.py       # Cleanup worktree
-|   |-- init_developer.py    # Initialize developer identity
-|   |-- get_developer.py     # Get current developer name
-|   |-- task.py              # Manage tasks
-|   |-- get_context.py       # Get session context
-|   +-- add_session.py       # One-click session recording
-|-- workspace/           # Developer workspaces
-|   |-- index.md         # Workspace index + Session template
-|   +-- {developer}/     # Per-developer directories
-|       |-- index.md     # Personal index (with @@@auto markers)
-|       +-- journal-N.md # Journal files (sequential numbering)
-|-- tasks/               # Task tracking
-|   +-- {MM}-{DD}-{name}/
-|       +-- task.json
-|-- spec/                # [!] MUST READ before coding
-|   |-- frontend/        # Frontend guidelines (if applicable)
-|   |   |-- index.md               # Start here - guidelines index
-|   |   +-- *.md                   # Topic-specific docs
-|   |-- backend/         # Backend guidelines (if applicable)
-|   |   |-- index.md               # Start here - guidelines index
-|   |   +-- *.md                   # Topic-specific docs
-|   +-- guides/          # Thinking guides
-|       |-- index.md                      # Guides index
-|       |-- cross-layer-thinking-guide.md # Pre-implementation checklist
-|       +-- *.md                          # Other guides
-+-- workflow.md             # This document
-```
-
----
-
-## Session Start Process
-
-### Step 1: Get Session Context
-
-Use the unified context script:
-
-```bash
-# Get all context in one command
-python3 ./.trellis/scripts/get_context.py
-
-# Or get JSON format
-python3 ./.trellis/scripts/get_context.py --json
-```
-
-### Step 2: Read Development Guidelines [!] REQUIRED
-
-**[!] CRITICAL: MUST read guidelines before writing any code**
-
-Based on what you'll develop, read the corresponding guidelines:
-
-**Frontend Development** (if applicable):
-```bash
-# Read index first, then specific docs based on task
-cat .trellis/spec/frontend/index.md
-```
-
-**Backend Development** (if applicable):
-```bash
-# Read index first, then specific docs based on task
-cat .trellis/spec/backend/index.md
-```
-
-**Cross-Layer Features**:
-```bash
-# For features spanning multiple layers
-cat .trellis/spec/guides/cross-layer-thinking-guide.md
-```
-
-### Step 3: Select Task to Develop
-
-Use the task management script:
-
-```bash
-# List active tasks
-python3 ./.trellis/scripts/task.py list
-
-# Create new task (creates directory with task.json)
-python3 ./.trellis/scripts/task.py create "<title>" --slug <task-name>
-```
-
----
-
-## Development Process
-
-### Task Development Flow
-
-```
-1. Create or select task
-   --> python3 ./.trellis/scripts/task.py create "<title>" --slug <name> or list
-
-2. Write code according to guidelines
-   --> Read .trellis/spec/ docs relevant to your task
-   --> For cross-layer: read .trellis/spec/guides/
-
-3. Self-test
-   --> Run project's lint/test commands (see spec docs)
-   --> Manual feature testing
-
-4. Commit code
-   --> git add <files>
-   --> git commit -m "type(scope): description"
-       Format: feat/fix/docs/refactor/test/chore
-
-5. Record session (one command)
-   --> python3 ./.trellis/scripts/add_session.py --title "Title" --commit "hash"
-```
-
-### Code Quality Checklist
-
-**Must pass before commit**:
-- [OK] Lint checks pass (project-specific command)
-- [OK] Type checks pass (if applicable)
-- [OK] Manual feature testing passes
-
-**Project-specific checks**:
-- See `.trellis/spec/frontend/quality-guidelines.md` for frontend
-- See `.trellis/spec/backend/quality-guidelines.md` for backend
-
----
-
-## Session End
-
-### One-Click Session Recording
-
-After code is committed, use:
-
-```bash
-python3 ./.trellis/scripts/add_session.py \
-  --title "Session Title" \
-  --commit "abc1234" \
-  --summary "Brief summary"
-```
-
-This automatically:
-1. Detects current journal file
-2. Creates new file if 2000-line limit exceeded
-3. Appends session content
-4. Updates index.md (sessions count, history table)
-
-### Pre-end Checklist
-
-Use `/trellis:finish-work` command to run through:
-1. [OK] All code committed, commit message follows convention
-2. [OK] Session recorded via `add_session.py`
-3. [OK] No lint/test errors
-4. [OK] Working directory clean (or WIP noted)
-5. [OK] Spec docs updated if needed
-
----
-
-## File Descriptions
-
-### 1. workspace/ - Developer Workspaces
-
-**Purpose**: Record each AI Agent session's work content
-
-**Structure** (Multi-developer support):
-```
-workspace/
-|-- index.md              # Main index (Active Developers table)
-+-- {developer}/          # Per-developer directory
-    |-- index.md          # Personal index (with @@@auto markers)
-    +-- journal-N.md      # Journal files (sequential: 1, 2, 3...)
-```
-
-**When to update**:
-- [OK] End of each session
-- [OK] Complete important task
-- [OK] Fix important bug
-
-### 2. spec/ - Development Guidelines
-
-**Purpose**: Documented standards for consistent development
-
-**Structure** (Multi-doc format):
-```
-spec/
-|-- frontend/           # Frontend docs (if applicable)
-|   |-- index.md        # Start here
-|   +-- *.md            # Topic-specific docs
-|-- backend/            # Backend docs (if applicable)
-|   |-- index.md        # Start here
-|   +-- *.md            # Topic-specific docs
-+-- guides/             # Thinking guides
-    |-- index.md        # Start here
-    +-- *.md            # Guide-specific docs
-```
-
-**When to update**:
-- [OK] New pattern discovered
-- [OK] Bug fixed that reveals missing guidance
-- [OK] New convention established
-
-### 3. Tasks - Task Tracking
-
-Each task is a directory containing `task.json`:
-
-```
-tasks/
-|-- 01-21-my-task/
-|   +-- task.json
-+-- archive/
-    +-- 2026-01/
-        +-- 01-15-old-task/
-            +-- task.json
-```
-
-**Commands**:
-```bash
-python3 ./.trellis/scripts/task.py create "<title>" [--slug <name>]   # Create task directory
-python3 ./.trellis/scripts/task.py archive <name>  # Archive to archive/{year-month}/
-python3 ./.trellis/scripts/task.py list            # List active tasks
-python3 ./.trellis/scripts/task.py list-archive    # List archived tasks
-```
-
----
-
-## Best Practices
-
-### [OK] DO - Should Do
-
-1. **Before session start**:
-   - Run `python3 ./.trellis/scripts/get_context.py` for full context
-   - [!] **MUST read** relevant `.trellis/spec/` docs
-
-2. **During development**:
-   - [!] **Follow** `.trellis/spec/` guidelines
-   - For cross-layer features, use `/trellis:check-cross-layer`
-   - Develop only one task at a time
-   - Run lint and tests frequently
-
-3. **After development complete**:
-   - Use `/trellis:finish-work` for completion checklist
-   - After fix bug, use `/trellis:break-loop` for deep analysis
-   - Human commits after testing passes
-   - Use `add_session.py` to record progress
-
-### [X] DON'T - Should Not Do
-
-1. [!] **Don't** skip reading `.trellis/spec/` guidelines
-2. [!] **Don't** let journal single file exceed 2000 lines
-3. **Don't** develop multiple unrelated tasks simultaneously
-4. **Don't** commit code with lint/test errors
-5. **Don't** forget to update spec docs after learning something
-6. [!] **Don't** execute `git commit` - AI should not commit code
-
----
-
-## Quick Reference
-
-### Must-read Before Development
-
-| Task Type | Must-read Document |
-|-----------|-------------------|
-| Frontend work | `frontend/index.md` → relevant docs |
-| Backend work | `backend/index.md` → relevant docs |
-| Cross-Layer Feature | `guides/cross-layer-thinking-guide.md` |
-
-### Commit Convention
-
-```bash
-git commit -m "type(scope): description"
-```
-
-**Type**: feat, fix, docs, refactor, test, chore
-**Scope**: Module name (e.g., auth, api, ui)
-
-### Common Commands
-
-```bash
-# Session management
-python3 ./.trellis/scripts/get_context.py    # Get full context
-python3 ./.trellis/scripts/add_session.py    # Record session
-
-# Task management
-python3 ./.trellis/scripts/task.py list      # List tasks
-python3 ./.trellis/scripts/task.py create "<title>" # Create task
-
-# Slash commands
-/trellis:finish-work          # Pre-commit checklist
-/trellis:break-loop           # Post-debug analysis
-/trellis:check-cross-layer    # Cross-layer verification
-```
-
----
-
-## Summary
-
-Following this workflow ensures:
-- [OK] Continuity across multiple sessions
-- [OK] Consistent code quality
-- [OK] Trackable progress
-- [OK] Knowledge accumulation in spec docs
-- [OK] Transparent team collaboration
-
-**Core Philosophy**: Read before write, follow standards, record promptly, capture learnings
+## Path Selector
+
+Choose one path before doing substantial work.
+
+| Path | Use When | Default Tasking | Default Context | Subagents |
+|---|---|---|---|---|
+| `fast` | question, trivial fix, one-file/small-scope change, direct audit answer | no task by default | only targeted files and the relevant index/spec | off by default |
+| `normal` | clear implementation task across a few files | task recommended | `prd.md` plus minimal implement/check refs | optional |
+| `deep` | ambiguous work, architecture change, multi-step refactor, cross-layer redesign | task required | `prd.md`, `info.md`, curated refs, explicit budgets | allowed, never default |
+
+Do not upgrade to a heavier path just because the user asked a long question.
+
+## Fast Path
+
+Use `fast` when the work is direct and bounded.
+
+- No task is required unless the user explicitly wants one.
+- Do not create PRD/info/context files by default.
+- Read only the exact files needed to answer or change the code.
+- Do not start brainstorm, research, subagents, or worktrees unless the task actually stalls on uncertainty.
+
+Typical examples:
+
+- code explanation
+- typo or copy fix
+- one-file bug fix with clear cause
+- focused audit of a specific function or command
+
+## Normal Path
+
+Use `normal` when the work benefits from lightweight task tracking.
+
+- Create a task when the work spans multiple files, needs acceptance criteria, or should be resumable.
+- `prd.md` is the only required planning artifact.
+- `info.md` is optional; use it only if there are non-trivial design choices.
+- Context files are optional and minimal. Default to `implement.jsonl` and `check.jsonl` only.
+- Verification is real commands and real tests, not marker loops.
+
+Typical examples:
+
+- backend endpoint change with tests
+- frontend page/composable change across a few files
+- governance or CLI cleanup with a clear target
+
+## Deep Path
+
+Use `deep` only when the work is structurally complex.
+
+- A task is required.
+- `prd.md` and `info.md` are required.
+- Context files must be curated, explicit, and small.
+- Multi-agent, worktree, or parallel execution must be an explicit decision, not a fallback reflex.
+- Research must output exact file paths and narrow examples, not broad repo summaries.
+
+Typical examples:
+
+- orchestration/runtime redesign
+- cross-layer contract change
+- broad refactor with multiple subsystems
+- incident recovery plan requiring staged execution
+
+## Task Lifecycle
+
+Task lifecycle is path-driven, not phase-driven dogma.
+
+- `fast`: usually no task
+- `normal`: `plan -> active -> verified -> completed`
+- `deep`: `plan -> designed -> active -> verified -> completed`
+
+PR creation is not part of the task lifecycle. It is an optional release action.
+
+## Context Rules
+
+Context must be budgeted.
+
+- Prefer explicit file paths over directories.
+- Prefer excerpts over full file bodies.
+- Prefer index files over full spec trees.
+- Prefer `prd.md` / `info.md` summaries over repeated workflow text.
+- Keep injected task context small enough that the subagent can still spend most of its context on the actual work.
+
+Retired behavior:
+
+- mandatory research before implementation
+- mandatory PRD for simple work
+- mandatory release-step lifecycle chaining
+- full workflow/spec injection at session start
+- directory-wide context loading
+- marker-based check loops
+- archive-time git mutations
+
+## Verification
+
+Verification must be command-driven.
+
+- Run the smallest real validation set that can prove the change.
+- If there is no meaningful automated validation, say so explicitly.
+- Do not loop on text markers, “continue” prompts, or fake completion heuristics.
+
+## Task Files
+
+When a task exists, prefer this minimal contract:
+
+- `task.json`: identity, path, status, ownership, lightweight lifecycle metadata
+- `prd.md`: goal, requirements, acceptance criteria
+- `info.md`: only for deep path or non-obvious design
+- `implement.jsonl`: minimal implementation references
+- `check.jsonl`: minimal verification references
+- `debug.jsonl` / `research.jsonl`: deep path only, when justified
+
+## Command Expectations
+
+`task.py` should enforce the light-path defaults:
+
+- default new task path is `normal`
+- `--path fast|normal|deep` is explicit
+- `init-context` creates only the files the selected path needs
+- `archive` only archives; it never commits
+
+## Start Session Rule
+
+At session start:
+
+- summarize current git/task state
+- show the path selector
+- show canonical spec entry points
+- do not inject the full workflow or all spec indexes
+
+## Subagent Rule
+
+When subagents are used:
+
+- pass task brief, exact target files, and capped excerpts
+- do not pass entire docs or entire jsonl expansions
+- do not mutate task progression through hidden marker logic
+- do not rely on subagents to rediscover the whole repo

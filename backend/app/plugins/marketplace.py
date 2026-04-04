@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import shutil
 import tempfile
-import zipfile
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
@@ -403,35 +402,6 @@ class MarketplaceClient:
                     )
                     continue
 
-                # DEBUG fallback: generate minimal stub package when remote package doesn't exist,
-                # ensuring local regression can cover the marketplace install flow.
-                # / DEBUG 回退：当远程包不存在时生成最小桩包
-                from app.core.config import settings
-
-                if settings.DEBUG:
-                    try:
-                        stub_zip = self._build_debug_stub_package(
-                            tmp_dir=tmp_dir,
-                            slug=slug,
-                            version=version,
-                            detail=detail,
-                        )
-                        validate_plugin_zip_archive(stub_zip)
-                        logger.warning(
-                            "Using DEBUG marketplace stub package for {} v{} "
-                            "because remote download failed: %s",
-                            slug,
-                            version,
-                            exc,
-                        )
-                        return stub_zip
-                    except Exception as stub_exc:
-                        logger.warning(
-                            "Failed to build DEBUG marketplace stub for {}: {}",
-                            slug,
-                            stub_exc,
-                        )
-
                 shutil.rmtree(tmp_dir, ignore_errors=True)
                 raise PluginInstallError(
                     message=resolve_public_error_message(
@@ -441,82 +411,6 @@ class MarketplaceClient:
                 ) from exc
 
         return zip_path  # unreachable but satisfies type checker / 不可达，仅为满足类型检查
-
-    def _build_debug_stub_package(
-        self,
-        *,
-        tmp_dir: Path,
-        slug: str,
-        version: str,
-        detail: dict,
-    ) -> Path:
-        """Build minimal DEBUG plugin package (dev environment fallback only) / 构建 DEBUG 用最小插件包（仅开发环境回退）"""
-        import re
-
-        def _yaml_quote(value: object) -> str:
-            text = str(value or "")
-            return "'" + text.replace("'", "''") + "'"
-
-        display_name = detail.get("display_name") or slug
-        description = detail.get("description") or (
-            f"DEBUG marketplace stub package for '{slug}'"
-        )
-
-        class_base = "".join(
-            part.capitalize() for part in re.split(r"[^0-9a-zA-Z]+", slug) if part
-        )
-        if not class_base:
-            class_base = "MarketplaceStub"
-        class_name = f"{class_base}Plugin"
-
-        plugin_yaml = (
-            f"name: {slug}\n"
-            f'version: "{version}"\n'
-            "display_name:\n"
-            f"  en: {_yaml_quote(display_name)}\n"
-            f"  zh-CN: {_yaml_quote(display_name)}\n"
-            "description:\n"
-            f"  en: {_yaml_quote(description)}\n"
-            f"  zh-CN: {_yaml_quote(description)}\n"
-            "author: 'NovusAI DEBUG Marketplace'\n"
-            "scope: admin_only\n"
-            "tags: ['marketplace', 'debug', 'stub']\n"
-            "capabilities: []\n"
-            "extensions: {}\n"
-            "dependencies:\n"
-            "  python: []\n"
-            "  plugins: []\n"
-            "pricing:\n"
-            "  type: free\n"
-        )
-
-        main_py = (
-            "from app.plugins.base import PluginBase\n\n\n"
-            f"class {class_name}(PluginBase):\n"
-            "    async def on_install(self, ctx):\n"
-            "        return None\n\n"
-            "    async def on_enable(self, ctx):\n"
-            "        return None\n\n"
-            "    async def on_disable(self, ctx):\n"
-            "        return None\n\n"
-            "    async def on_uninstall(self, ctx):\n"
-            "        return None\n"
-        )
-
-        readme = (
-            f"# {display_name}\n\n"
-            "This is a DEBUG fallback package generated locally because "
-            "the remote marketplace package could not be downloaded.\n"
-        )
-
-        stub_zip = tmp_dir / f"{slug}-{version}-debug-stub.zip"
-        with zipfile.ZipFile(stub_zip, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-            zf.writestr("plugin.yaml", plugin_yaml)
-            zf.writestr("README.md", readme)
-            zf.writestr("backend/__init__.py", "")
-            zf.writestr("backend/main.py", main_py)
-
-        return stub_zip
 
     async def check_for_updates(
         self,

@@ -1,0 +1,4 @@
+{"file": ".claude/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".claude/commands/trellis/check-frontend.md", "reason": "Frontend check spec"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Review page rendering against shared UI patterns"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Review browser validation and timestamp consistency"}

@@ -18,15 +18,9 @@ Note: Cleaning is only for embedding vector generation, does not affect stored o
 
 from __future__ import annotations
 
-import re
-
-# URL regex (http/https/ftp + bare domains) / URL 正则（http/https/ftp + 裸域名）
-_URL_PATTERN = re.compile(
-    r"https?://[^\s<>\"\'\]\)]+|"
-    r"ftp://[^\s<>\"\'\]\)]+|"
-    r"www\.[^\s<>\"\'\]\)]+",
-    re.IGNORECASE,
-)
+_URL_PREFIXES = ("http://", "https://", "ftp://", "www.")
+_URL_STOP_CHARS = frozenset({" ", "\t", "\n", "\r", "<", ">", '"', "'"})
+_URL_TRAILING_PUNCTUATION = frozenset({"]", ")", ".", ",", ";", "!", "?"})
 
 # IM platform bracket emoji whitelist (PDD/WeChat/Taobao common emoji tags)
 # IM 平台中括号表情白名单（拼多多/微信/淘宝常见表情标签）
@@ -80,48 +74,125 @@ _KNOWN_BRACKET_EMOJIS = {
     "踩",
 }
 
-# System operation tag patterns / 系统操作标签模式
-_SYSTEM_TAG_PATTERN = re.compile(
-    r"\["
-    r"(?:常见问题[列表]*|当前用户来自[^\]]*|自动回复|快捷回复|系统消息|已读|未读|商品推荐)"
-    r"\]"
-)
+_SYSTEM_TAG_EXACT = {"自动回复", "快捷回复", "系统消息", "已读", "未读", "商品推荐"}
 
 
 def _strip_bracket_emojis(text: str) -> str:
     """Remove known IM emoji tags and system operation tags / 移除已知 IM 表情标签和系统操作标签"""
-    # 1. System tags / 系统标签
-    text = _SYSTEM_TAG_PATTERN.sub("", text)
-    # 2. Whitelist emojis / 白名单表情
-    for emoji in _KNOWN_BRACKET_EMOJIS:
-        text = text.replace(f"[{emoji}]", "")
-    return text
+    pieces: list[str] = []
+    index = 0
+    while index < len(text):
+        if text[index] != "[":
+            pieces.append(text[index])
+            index += 1
+            continue
+        closing = text.find("]", index + 1)
+        if closing < 0:
+            pieces.append(text[index])
+            index += 1
+            continue
+        content = text[index + 1 : closing]
+        if content in _KNOWN_BRACKET_EMOJIS or _is_system_operation_tag(content):
+            index = closing + 1
+            continue
+        pieces.append(text[index : closing + 1])
+        index = closing + 1
+    return "".join(pieces)
 
 
-# Unicode emoji ranges (Emoji_Presentation + Emoji_Modifier + common symbols)
-# Unicode emoji 范围（Emoji_Presentation + Emoji_Modifier + 常见符号）
-_EMOJI_PATTERN = re.compile(
-    "["
-    "\U0001f600-\U0001f64f"  # Emoticons / 表情
-    "\U0001f300-\U0001f5ff"  # Misc Symbols and Pictographs / 杂项符号与图形
-    "\U0001f680-\U0001f6ff"  # Transport and Map / 交通与地图
-    "\U0001f1e0-\U0001f1ff"  # Flags / 旗帜
-    "\U00002702-\U000027b0"  # Dingbats / 装饰符号
-    "\U0000fe00-\U0000fe0f"  # Variation Selectors / 变体选择符
-    "\U0001f900-\U0001f9ff"  # Supplemental Symbols / 补充符号
-    "\U0001fa00-\U0001fa6f"  # Chess Symbols / 国际象棋符号
-    "\U0001fa70-\U0001faff"  # Symbols Extended-A / 扩展符号 A
-    "\U00002600-\U000026ff"  # Misc Symbols / 杂项符号
-    "\U0000200d"  # Zero Width Joiner / 零宽连接符
-    "\U0000203c-\U00002fff"  # Misc symbols (exclude CJK brackets 【】) / 杂项（排除【】）
-    "]+",
-    re.UNICODE,
-)
+def _collapse_spaces(text: str) -> str:
+    """Replace consecutive spaces/tabs with a single space / 将连续空格/制表符合并为一个空格"""
+    buffer: list[str] = []
+    prev_space = False
+    for ch in text:
+        if ch in {" ", "\t"}:
+            if not prev_space:
+                buffer.append(" ")
+            prev_space = True
+            continue
+        buffer.append(ch)
+        prev_space = False
+    return "".join(buffer)
 
-# Compress consecutive whitespace (including newlines) / 连续空白（含换行）压缩
-_MULTI_WHITESPACE = re.compile(r"[ \t]+")
-_MULTI_NEWLINE = re.compile(r"\n{3,}")
 
+def _compress_newlines(text: str) -> str:
+    """Collapse long newline runs (>=3) to two newline characters / 将 3+ 个换行压缩为两个"""
+    buffer: list[str] = []
+    newline_count = 0
+    for ch in text:
+        if ch == "\n":
+            newline_count += 1
+            continue
+        if newline_count:
+            if newline_count >= 3:
+                buffer.append("\n\n")
+            else:
+                buffer.append("\n" * newline_count)
+            newline_count = 0
+        buffer.append(ch)
+    if newline_count:
+        if newline_count >= 3:
+            buffer.append("\n\n")
+        else:
+            buffer.append("\n" * newline_count)
+    return "".join(buffer)
+
+
+def _strip_urls(text: str) -> str:
+    pieces: list[str] = []
+    index = 0
+    length = len(text)
+    while index < length:
+        if not _looks_like_url_at(text, index):
+            pieces.append(text[index])
+            index += 1
+            continue
+        end = index
+        while end < length and text[end] not in _URL_STOP_CHARS:
+            end += 1
+        token = text[index:end]
+        trimmed = token.rstrip("".join(_URL_TRAILING_PUNCTUATION))
+        pieces.append(token[len(trimmed) :])
+        index = end
+    return "".join(pieces)
+
+
+def _looks_like_url_at(text: str, index: int) -> bool:
+    if index > 0 and not text[index - 1].isspace():
+        return False
+    return any(
+        text[index : index + len(prefix)].lower() == prefix for prefix in _URL_PREFIXES
+    )
+
+
+def _is_system_operation_tag(content: str) -> bool:
+    return (
+        content in _SYSTEM_TAG_EXACT
+        or content.startswith("常见问题")
+        or content.startswith("当前用户来自")
+    )
+
+
+def _remove_unicode_emoji(text: str) -> str:
+    return "".join(ch for ch in text if not _is_emoji_char(ch))
+
+
+def _is_emoji_char(ch: str) -> bool:
+    code = ord(ch)
+    return (
+        0x1F600 <= code <= 0x1F64F
+        or 0x1F300 <= code <= 0x1F5FF
+        or 0x1F680 <= code <= 0x1F6FF
+        or 0x1F1E0 <= code <= 0x1F1FF
+        or 0x2702 <= code <= 0x27B0
+        or 0xFE00 <= code <= 0xFE0F
+        or 0x1F900 <= code <= 0x1F9FF
+        or 0x1FA00 <= code <= 0x1FA6F
+        or 0x1FA70 <= code <= 0x1FAFF
+        or 0x2600 <= code <= 0x26FF
+        or code == 0x200D
+        or 0x203C <= code <= 0x2FFF
+    )
 
 def clean_for_embedding(text: str) -> str:
     """
@@ -152,18 +223,18 @@ def clean_for_embedding(text: str) -> str:
 
     # 1. URL → placeholder (preserve "has link" signal, remove random char noise)
     # URL → 占位符（保留“有链接”的信号，去除随机字符噪声）
-    text = _URL_PATTERN.sub("", text)
+    text = _strip_urls(text)
 
     # 2. Bracket emojis/tags → remove (whitelist + system tags)
     # 中括号表情/标签 → 移除（白名单 + 系统标签）
     text = _strip_bracket_emojis(text)
 
     # 3. Unicode emoji → remove / Unicode emoji → 移除
-    text = _EMOJI_PATTERN.sub("", text)
+    text = _remove_unicode_emoji(text)
 
     # 4. Compress whitespace / 压缩空白
-    text = _MULTI_WHITESPACE.sub(" ", text)
-    text = _MULTI_NEWLINE.sub("\n\n", text)
+    text = _collapse_spaces(text)
+    text = _compress_newlines(text)
 
     cleaned = text.strip()
 

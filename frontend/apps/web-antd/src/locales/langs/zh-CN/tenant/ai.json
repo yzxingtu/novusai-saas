@@ -113,9 +113,12 @@
     "cost": "费用",
     "latency": "延迟 (ms)",
     "status": "状态",
+    "agentName": "智能体",
+    "conversationId": "对话 ID",
     "modelName": "模型",
     "providerName": "供应商",
     "callerName": "调用人",
+    "traceId": "Trace ID",
     "createdAt": "调用时间",
     "errorMessage": "错误信息",
     "requestData": "请求数据",
@@ -124,7 +127,13 @@
     "detailTitle": "调用日志详情",
     "placeholder": {
       "allStatuses": "全部状态",
-      "allModels": "全部模型"
+      "allModels": "全部模型",
+      "searchAgentName": "搜索智能体名称",
+      "searchTrace": "搜索 Trace ID",
+      "searchConversation": "搜索对话 ID",
+      "selectProvider": "选择供应商",
+      "selectModel": "选择模型",
+      "selectAgent": "选择智能体"
     },
     "status_options": {
       "success": "成功",
@@ -578,6 +587,9 @@
     "pageTitle": "对话管理",
     "name": "对话管理",
     "agentName": "智能体",
+    "conversationId": "对话 ID",
+    "providerName": "供应商",
+    "modelName": "模型",
     "tenantName": "企业",
     "user": "用户",
     "status": "状态",
@@ -601,6 +613,42 @@
     "untitled": "未命名对话",
     "viewDetail": "查看详情",
     "detailTitle": "对话详情",
+    "runtimeDiagnostics": "运行时诊断",
+    "diagnosticsEmpty": "暂无运行时诊断记录",
+    "diagnosticNotes": "停损说明",
+    "executionPath": "执行路径",
+    "failureKind": "失败归因",
+    "budgetStatus": "预算状态",
+    "budgetExitReason": "预算退出原因",
+    "partialExitReason": "部分返回原因",
+    "intentPlan": "意图计划",
+    "candidateTools": "候选工具",
+    "providerEvents": "供应商事件",
+    "retryEvents": "重试事件",
+    "requiredCapabilities": "所需能力",
+    "allowedTools": "允许工具",
+    "selectedTools": "已选工具",
+    "completedTools": "已完成工具",
+    "unfinishedReason": "未完成原因",
+    "executionPathOptions": {
+      "fast": "快速路径",
+      "normal": "标准路径",
+      "deep": "深度路径"
+    },
+    "failureKindOptions": {
+      "none": "无",
+      "provider_failure": "供应商失败",
+      "tool_failure": "工具失败",
+      "orchestration_failure": "编排失败",
+      "budget_exit": "预算退出",
+      "server_interrupt": "服务中断"
+    },
+    "budgetStatusOptions": {
+      "ok": "正常",
+      "within_budget": "预算内",
+      "budget_exit": "预算退出",
+      "exceeded": "已超限"
+    },
     "actorType": {
       "platform_admin": "平台管理员",
       "tenant_admin": "企业管理员",
@@ -611,11 +659,16 @@
     },
     "placeholder": {
       "searchTitle": "搜索对话标题",
-      "allStatuses": "全部状态"
+      "allStatuses": "全部状态",
+      "searchConversationId": "搜索对话 ID",
+      "selectProvider": "选择供应商",
+      "selectModel": "选择模型",
+      "selectAgent": "选择智能体"
     },
     "status_options": {
       "active": "活跃",
-      "archived": "已归档"
+      "archived": "已归档",
+      "closed": "已关闭"
     },
     "messages": {
       "archiveSuccess": "对话已归档",

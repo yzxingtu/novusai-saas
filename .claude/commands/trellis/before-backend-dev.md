@@ -6,7 +6,7 @@ Execute these steps:
    - Database work → `.trellis/spec/backend/database-guidelines.md`
    - Error handling → `.trellis/spec/backend/error-handling.md`
    - Logging → `.trellis/spec/backend/logging-guidelines.md`
-   - Type questions → `.trellis/spec/backend/type-safety.md`
+   - Tests / release readiness → `.trellis/spec/backend/quality-guidelines.md`
 3. Understand the coding standards and patterns you need to follow
 4. Then proceed with your development plan
 

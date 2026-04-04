@@ -82,19 +82,23 @@ export function getSourceSummaryText(
 
   if (summary.startsWith('plugin:')) {
     return $t('admin.ai.skillPackage.sourceSummaryValue.plugin', {
-      plugin: sourcePlugin || summary.replace(/^plugin:/, ''),
+      plugin: sourcePlugin || stripPrefix(summary, 'plugin:'),
     });
   }
 
   if (summary.startsWith('tenant:')) {
     return $t('admin.ai.skillPackage.sourceSummaryValue.tenant', {
-      tenantId: summary.replace(/^tenant:/, ''),
+      tenantId: stripPrefix(summary, 'tenant:'),
     });
   }
 
   return $t(
     `admin.ai.skillPackage.sourceSummaryOptions.${summary.replace(':', '_')}`,
   );
+}
+
+function stripPrefix(value: string, prefix: string): string {
+  return value.startsWith(prefix) ? value.slice(prefix.length) : value;
 }
 
 /** Table column definitions / 表格列定义 */

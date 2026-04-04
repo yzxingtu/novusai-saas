@@ -3,12 +3,14 @@ import type {
   AdminMemoryRecordItem,
   AdminProfileSnapshotItem,
 } from '#/api/admin/long-term-memory';
+import type { TableColumnsType } from 'ant-design-vue';
 
 import { computed, onMounted, ref, watch } from 'vue';
 
 import { Page } from '@vben/common-ui';
 
 import {
+  Alert,
   Button,
   Descriptions,
   Drawer,
@@ -26,13 +28,19 @@ import {
 } from '#/api/admin/long-term-memory';
 import AIPageHeroCard from '#/components/business/ai-page-hero/AIPageHeroCard.vue';
 import { $t } from '#/locales';
+import { showRequestError } from '#/utils/error-helpers';
 
 defineOptions({ name: 'AdminDebugMemoryPage' });
 
 type DebugTab = 'profiles' | 'records';
+const LIST_REQUEST_OPTIONS = {
+  showCodeMessage: false,
+  showErrorMessage: false,
+} as const;
 
 const activeTab = ref<DebugTab>('records');
 const loading = ref(false);
+const loadError = ref('');
 const detailOpen = ref(false);
 const detailLoading = ref(false);
 const detailPayload = ref<Record<string, unknown> | null>(null);
@@ -46,22 +54,91 @@ const heroChips = computed(() => [
 ]);
 
 const metrics = computed(() => [
-  { key: 'records', label: $t('admin.ai.memoryDebug.tabs.records'), value: records.value.length },
-  { key: 'profiles', label: $t('admin.ai.memoryDebug.tabs.profiles'), value: profiles.value.length },
+  {
+    key: 'records',
+    label: $t('admin.ai.memoryDebug.tabs.records'),
+    value: records.value.length,
+  },
+  {
+    key: 'profiles',
+    label: $t('admin.ai.memoryDebug.tabs.profiles'),
+    value: profiles.value.length,
+  },
+]);
+
+const recordColumns = computed<TableColumnsType<AdminMemoryRecordItem>>(() => [
+  { title: $t('admin.ai.memoryDebug.id'), dataIndex: 'id', key: 'id', width: 90 },
+  {
+    title: $t('admin.ai.memoryDebug.scopeType'),
+    dataIndex: 'scope_type',
+    key: 'scope_type',
+    width: 180,
+  },
+  {
+    title: $t('admin.ai.memoryDebug.memoryType'),
+    dataIndex: 'memory_type',
+    key: 'memory_type',
+    width: 140,
+  },
+  {
+    title: $t('admin.ai.memoryDebug.status'),
+    dataIndex: 'status',
+    key: 'status',
+    width: 120,
+  },
+  {
+    title: $t('admin.ai.memoryDebug.summary'),
+    dataIndex: 'summary',
+    key: 'summary',
+  },
+  { title: $t('admin.common.operation'), key: 'op', width: 120 },
+]);
+
+const profileColumns = computed<TableColumnsType<AdminProfileSnapshotItem>>(() => [
+  { title: $t('admin.ai.memoryDebug.id'), dataIndex: 'id', key: 'id', width: 90 },
+  {
+    title: $t('admin.ai.memoryDebug.scopeType'),
+    dataIndex: 'scope_type',
+    key: 'scope_type',
+    width: 180,
+  },
+  {
+    title: $t('admin.ai.memoryDebug.recordCount'),
+    dataIndex: 'record_count',
+    key: 'record_count',
+    width: 120,
+  },
+  {
+    title: $t('admin.ai.memoryDebug.summary'),
+    dataIndex: 'summary',
+    key: 'summary',
+  },
+  { title: $t('admin.common.operation'), key: 'op', width: 120 },
 ]);
 
 async function loadCurrentTab() {
   loading.value = true;
+  loadError.value = '';
   try {
     if (activeTab.value === 'records') {
-      const res = await getAdminMemoryRecordListApi({ page: 1, page_size: 50 });
+      const res = await getAdminMemoryRecordListApi(
+        { 'page[number]': 1, 'page[size]': 50 },
+        LIST_REQUEST_OPTIONS,
+      );
       records.value = res.items ?? [];
+      profiles.value = [];
       return;
     }
-    if (activeTab.value === 'profiles') {
-      const res = await getAdminProfileSnapshotListApi({ page: 1, page_size: 50 });
-      profiles.value = res.items ?? [];
-    }
+    const res = await getAdminProfileSnapshotListApi(
+      { 'page[number]': 1, 'page[size]': 50 },
+      LIST_REQUEST_OPTIONS,
+    );
+    profiles.value = res.items ?? [];
+    records.value = [];
+  } catch (error) {
+    records.value = [];
+    profiles.value = [];
+    loadError.value = showRequestError(error, 'common.loadFailed');
   } finally {
     loading.value = false;
   }
@@ -74,7 +151,7 @@ async function openRecordDetail(item: AdminMemoryRecordItem) {
   detailPayload.value = item as unknown as Record<string, unknown>;
 }
 
-function openRecordDetailFromTable(record: Record<string, any>) {
+function openRecordDetailFromTable(record: Record<string, unknown>) {
   return openRecordDetail(record as unknown as AdminMemoryRecordItem);
 }
 
@@ -82,15 +159,21 @@ async function openProfileDetail(item: AdminProfileSnapshotItem) {
   detailOpen.value = true;
   detailLoading.value = true;
   detailTitle.value = `${$t('admin.ai.memoryDebug.tabs.profiles')} #${item.id}`;
+  detailPayload.value = null;
   try {
-    const detail = await getAdminProfileSnapshotDetailApi(item.id);
+    const detail = await getAdminProfileSnapshotDetailApi(
+      item.id,
+      LIST_REQUEST_OPTIONS,
+    );
     detailPayload.value = (detail || {}) as Record<string, unknown>;
+  } catch (error) {
+    showRequestError(error, 'common.loadFailed');
   } finally {
     detailLoading.value = false;
   }
 }
 
-function openProfileDetailFromTable(record: Record<string, any>) {
+function openProfileDetailFromTable(record: Record<string, unknown>) {
   return openProfileDetail(record as unknown as AdminProfileSnapshotItem);
 }
 
@@ -117,20 +200,20 @@ onMounted(async () => {
       <Tabs.TabPane key="profiles" :tab="$t('admin.ai.memoryDebug.tabs.profiles')" />
     </Tabs>
 
+    <Alert
+      v-if="loadError"
+      :message="loadError"
+      show-icon
+      type="error"
+    />
+
     <div v-if="loading" class="flex items-center justify-center py-16">
       <Spin />
     </div>
 
     <Table
       v-else-if="activeTab === 'records'"
-      :columns="[
-        { title: $t('admin.common.id'), dataIndex: 'id', width: 90 },
-        { title: $t('admin.ai.memoryDebug.scopeType'), dataIndex: 'scope_type', width: 180 },
-        { title: $t('admin.ai.memoryDebug.memoryType'), dataIndex: 'memory_type', width: 140 },
-        { title: $t('admin.ai.memoryDebug.status'), dataIndex: 'status', width: 120 },
-        { title: $t('admin.ai.memoryDebug.summary'), dataIndex: 'summary' },
-        { title: $t('admin.common.operation'), key: 'op', width: 120 },
-      ]"
+      :columns="recordColumns"
       :data-source="records"
       :pagination="false"
       row-key="id"
@@ -142,7 +225,7 @@ onMounted(async () => {
         </template>
         <template v-else-if="column.key === 'op'">
           <Button type="link" @click="openRecordDetailFromTable(record)">
-            {{ $t('admin.common.view') }}
+            {{ $t('shared.common.viewDetail') }}
           </Button>
         </template>
       </template>
@@ -150,13 +233,7 @@ onMounted(async () => {
 
     <Table
       v-else-if="activeTab === 'profiles'"
-      :columns="[
-        { title: $t('admin.common.id'), dataIndex: 'id', width: 90 },
-        { title: $t('admin.ai.memoryDebug.scopeType'), dataIndex: 'scope_type', width: 180 },
-        { title: $t('admin.ai.memoryDebug.recordCount'), dataIndex: 'record_count', width: 120 },
-        { title: $t('admin.ai.memoryDebug.summary'), dataIndex: 'summary' },
-        { title: $t('admin.common.operation'), key: 'op', width: 120 },
-      ]"
+      :columns="profileColumns"
       :data-source="profiles"
       :pagination="false"
       row-key="id"
@@ -165,7 +242,7 @@ onMounted(async () => {
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'op'">
           <Button type="link" @click="openProfileDetailFromTable(record)">
-            {{ $t('admin.common.view') }}
+            {{ $t('shared.common.viewDetail') }}
           </Button>
         </template>
       </template>
@@ -196,10 +273,14 @@ onMounted(async () => {
           :key="String(key)"
           :label="String(key)"
         >
-          <pre class="whitespace-pre-wrap break-all">{{ typeof value === 'string' ? value : JSON.stringify(value, null, 2) }}</pre>
+          <pre class="whitespace-pre-wrap break-all">{{
+            typeof value === 'string'
+              ? value
+              : JSON.stringify(value, null, 2)
+          }}</pre>
         </Descriptions.Item>
       </Descriptions>
-      <Empty v-else :description="$t('admin.common.noData')"/>
+      <Empty v-else :description="$t('admin.common.noData')" />
     </Drawer>
   </Page>
 </template>

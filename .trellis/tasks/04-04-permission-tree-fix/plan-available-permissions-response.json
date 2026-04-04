@@ -1,0 +1,280 @@
+[
+  {
+    "id": 7,
+    "code": "menu:tenant.dashboard",
+    "name": "仪表板",
+    "type": "menu",
+    "resource": "menu",
+    "parent_id": null,
+    "sort_order": 0,
+    "children": []
+  },
+  {
+    "id": 1170,
+    "code": "menu:tenant.tenant_workspace",
+    "name": "工作台",
+    "type": "menu",
+    "resource": "menu",
+    "parent_id": null,
+    "sort_order": 5,
+    "children": []
+  },
+  {
+    "id": 8,
+    "code": "menu:tenant.system",
+    "name": "权限管理",
+    "type": "menu",
+    "resource": "menu",
+    "parent_id": null,
+    "sort_order": 10,
+    "children": [
+      {
+        "id": 39,
+        "code": "menu:tenant.organization",
+        "name": "组织架构",
+        "type": "menu",
+        "resource": "menu",
+        "parent_id": 8,
+        "sort_order": 15,
+        "children": []
+      },
+      {
+        "id": 1184,
+        "code": "menu:tenant.tenant_user_role",
+        "name": "用户架构",
+        "type": "menu",
+        "resource": "menu",
+        "parent_id": 8,
+        "sort_order": 25,
+        "children": []
+      },
+      {
+        "id": 1355,
+        "code": "menu:tenant.plugin_novusdoc_novusdoc-tenant",
+        "name": "title",
+        "type": "menu",
+        "resource": "menu",
+        "parent_id": 8,
+        "sort_order": 50,
+        "children": []
+      }
+    ]
+  },
+  {
+    "id": 9,
+    "code": "menu:tenant.system_mgmt",
+    "name": "系统管理",
+    "type": "menu",
+    "resource": "menu",
+    "parent_id": null,
+    "sort_order": 20,
+    "children": [
+      {
+        "id": 34,
+        "code": "menu:tenant.tenant_config",
+        "name": "系统配置",
+        "type": "menu",
+        "resource": "menu",
+        "parent_id": 9,
+        "sort_order": 10,
+        "children": []
+      },
+      {
+        "id": 36,
+        "code": "menu:tenant.tenant_domain",
+        "name": "域名管理",
+        "type": "menu",
+        "resource": "menu",
+        "parent_id": 9,
+        "sort_order": 15,
+        "children": []
+      },
+      {
+        "id": 1176,
+        "code": "menu:tenant.global_preferences",
+        "name": "偏好设置",
+        "type": "menu",
+        "resource": "menu",
+        "parent_id": 9,
+        "sort_order": 20,
+        "children": []
+      },
+      {
+        "id": 35,
+        "code": "menu:tenant.attachment",
+        "name": "附件管理",
+        "type": "menu",
+        "resource": "menu",
+        "parent_id": 9,
+        "sort_order": 50,
+        "children": []
+      }
+    ]
+  },
+  {
+    "id": 10,
+    "code": "menu:tenant.ai_mgmt",
+    "name": "AI 管理",
+    "type": "menu",
+    "resource": "menu",
+    "parent_id": null,
+    "sort_order": 25,
+    "children": [
+      {
+        "id": 334,
+        "code": "menu:tenant.ai_workspace",
+        "name": "智能应用",
+        "type": "menu",
+        "resource": "menu",
+        "parent_id": 10,
+        "sort_order": 10,
+        "children": [
+          {
+            "id": 237,
+            "code": "menu:tenant.agent",
+            "name": "智能体管理",
+            "type": "menu",
+            "resource": "menu",
+            "parent_id": 334,
+            "sort_order": 10,
+            "children": []
+          },
+          {
+            "id": 262,
+            "code": "menu:tenant.agent_chat",
+            "name": "AI 对话",
+            "type": "menu",
+            "resource": "menu",
+            "parent_id": 334,
+            "sort_order": 20,
+            "children": []
+          },
+          {
+            "id": 307,
+            "code": "menu:tenant.knowledge_base",
+            "name": "知识库",
+            "type": "menu",
+            "resource": "menu",
+            "parent_id": 334,
+            "sort_order": 30,
+            "children": []
+          }
+        ]
+      },
+      {
+        "id": 335,
+        "code": "menu:tenant.ai_settings",
+        "name": "设置",
+        "type": "menu",
+        "resource": "menu",
+        "parent_id": 10,
+        "sort_order": 20,
+        "children": [
+          {
+            "id": 41,
+            "code": "menu:tenant.ai_config",
+            "name": "可用模型",
+            "type": "menu",
+            "resource": "menu",
+            "parent_id": 335,
+            "sort_order": 10,
+            "children": []
+          },
+          {
+            "id": 42,
+            "code": "menu:tenant.ai_quota",
+            "name": "配额管理",
+            "type": "menu",
+            "resource": "menu",
+            "parent_id": 335,
+            "sort_order": 20,
+            "children": []
+          }
+        ]
+      },
+      {
+        "id": 336,
+        "code": "menu:tenant.ai_analytics",
+        "name": "数据分析",
+        "type": "menu",
+        "resource": "menu",
+        "parent_id": 10,
+        "sort_order": 30,
+        "children": [
+          {
+            "id": 245,
+            "code": "menu:tenant.agent_conversation",
+            "name": "对话管理",
+            "type": "menu",
+            "resource": "menu",
+            "parent_id": 336,
+            "sort_order": 20,
+            "children": []
+          },
+          {
+            "id": 43,
+            "code": "menu:tenant.ai_tenant_usage",
+            "name": "用量统计",
+            "type": "menu",
+            "resource": "menu",
+            "parent_id": 336,
+            "sort_order": 30,
+            "children": []
+          },
+          {
+            "id": 44,
+            "code": "menu:tenant.ai_tenant_call_log",
+            "name": "调用日志",
+            "type": "menu",
+            "resource": "menu",
+            "parent_id": 336,
+            "sort_order": 40,
+            "children": []
+          },
+          {
+            "id": 295,
+            "code": "menu:tenant.ai_action_log",
+            "name": "操作审计",
+            "type": "menu",
+            "resource": "menu",
+            "parent_id": 336,
+            "sort_order": 50,
+            "children": []
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": 11,
+    "code": "menu:tenant.system_maintenance",
+    "name": "系统维护",
+    "type": "menu",
+    "resource": "menu",
+    "parent_id": null,
+    "sort_order": 30,
+    "children": [
+      {
+        "id": 1177,
+        "code": "menu:tenant.logs",
+        "name": "日志中心",
+        "type": "menu",
+        "resource": "menu",
+        "parent_id": 11,
+        "sort_order": 10,
+        "children": [
+          {
+            "id": 37,
+            "code": "menu:tenant.operation_log",
+            "name": "操作日志",
+            "type": "menu",
+            "resource": "menu",
+            "parent_id": 1177,
+            "sort_order": 10,
+            "children": []
+          }
+        ]
+      }
+    ]
+  }
+]

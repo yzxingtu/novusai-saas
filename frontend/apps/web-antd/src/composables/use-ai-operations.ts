@@ -23,21 +23,20 @@
 
 import type { Ref } from 'vue';
 
-import type { FormState } from './use-form-state-tracker';
 import type {
   AiFieldComponent,
   AiFieldOption,
   AiFieldScalarType,
   EnhancedFormFieldDescriptor,
 } from './ai-operation-types';
+import type { FormState } from './use-form-state-tracker';
 
 import type { PageOperation } from '#/components/business/ai-slide-panel/page-operation-registry';
 import type { VbenFormSchema } from '#/core/adapter/form/setup';
 import type { PageAICapabilityKey } from '#/utils/ai-page-capabilities';
 
-import { useRouter } from 'vue-router';
-
 import { $t } from '#/locales';
+import { router } from '#/router';
 import { mergeDisabledOperations } from '#/utils/ai-page-capabilities';
 import { requestClient } from '#/utils/request';
 
@@ -61,8 +60,7 @@ interface SearchParamEntry {
   dateRangeRole?: 'end' | 'start';
 }
 
-// FormParamEntry is now EnhancedFormFieldDescriptor (used throughout this module)
-// FormParamEntry 现在是 EnhancedFormFieldDescriptor（在本模块中使用）
+// FormParamEntry is EnhancedFormFieldDescriptor throughout this module / 本模块内 FormParamEntry 即 EnhancedFormFieldDescriptor
 
 /**
  * Form popup API interface (compatible with useVbenDrawer / useVbenModal result)
@@ -516,6 +514,7 @@ export function extractFormParams(
     const descriptor: EnhancedFormFieldDescriptor = {
       type,
       description: label,
+      label,
       component: aiComponent,
       ...(items ? { items } : {}),
       ...(required ? { required: true } : {}),
@@ -539,7 +538,7 @@ export function extractFormParams(
 /** Cache for resolved remote options / 远程选项缓存 */
 const _remoteOptionsCache = new Map<string, AiFieldOption[]>();
 const _remoteOptionsPending = new Map<string, Promise<AiFieldOption[]>>();
-const REMOTE_OPTIONS_TIMEOUT_MS = 8_000;
+const REMOTE_OPTIONS_TIMEOUT_MS = 8000;
 
 /**
  * Build a stable cache key from resource + field + api function
@@ -647,7 +646,10 @@ async function ensureRemoteOptionsWithTimeout(
     return await Promise.race([
       loader().then(() => 'ok' as const),
       new Promise<'timeout'>((resolve) => {
-        timerId = setTimeout(() => resolve('timeout'), REMOTE_OPTIONS_TIMEOUT_MS);
+        timerId = setTimeout(
+          () => resolve('timeout'),
+          REMOTE_OPTIONS_TIMEOUT_MS,
+        );
       }),
     ]);
   } finally {
@@ -752,7 +754,7 @@ function sanitizeRemoteSelectScalarValue(
     return undefined;
   }
   const normalized = value.trim();
-  return normalized ? normalized : undefined;
+  return normalized || undefined;
 }
 
 function sanitizeRemoteSelectOverrides(
@@ -778,8 +780,12 @@ function sanitizeRemoteSelectOverrides(
       }
       const itemType = descriptor.items?.type ?? 'string';
       const normalizedItems = value
-        .map((item) => sanitizeRemoteSelectScalarValue(fieldName, itemType, item))
-        .filter((item): item is boolean | number | string => item !== undefined);
+        .map((item) =>
+          sanitizeRemoteSelectScalarValue(fieldName, itemType, item),
+        )
+        .filter(
+          (item): item is boolean | number | string => item !== undefined,
+        );
       if (normalizedItems.length > 0) {
         sanitized[fieldName] = normalizedItems;
       }
@@ -1117,9 +1123,6 @@ export function createStandardOperations(
       includeRequired: false,
     });
   }
-
-  // Router for navigation operations / 导航操作用的 router
-  const router = useRouter();
 
   const operations: PageOperation[] = [];
 
@@ -1487,7 +1490,10 @@ export function createStandardOperations(
         for (const key of Object.keys(formParamsMap)) {
           if (params[key] !== undefined) rawOverrides[key] = params[key];
         }
-        const overrides = sanitizeRemoteSelectOverrides(formParamsMap, rawOverrides);
+        const overrides = sanitizeRemoteSelectOverrides(
+          formParamsMap,
+          rawOverrides,
+        );
 
         const defaults = getFormDefaults();
         formPopupApi
@@ -1596,7 +1602,10 @@ export function createStandardOperations(
         for (const key of Object.keys(formParamsMap)) {
           if (params[key] !== undefined) rawOverrides[key] = params[key];
         }
-        const overrides = sanitizeRemoteSelectOverrides(formParamsMap, rawOverrides);
+        const overrides = sanitizeRemoteSelectOverrides(
+          formParamsMap,
+          rawOverrides,
+        );
 
         const expandedOverrides =
           Object.keys(overrides).length > 0
@@ -1710,7 +1719,7 @@ export function createStandardOperations(
           };
         }
         const path = detailRoute.replace(':id', String(id));
-        router.push(path);
+        await router.push(path);
         return {
           success: true,
           message: $t('shared.pageOperation.msg.navigatedTo', { path }),
@@ -1985,7 +1994,8 @@ export function createStandardOperations(
             };
           }
 
-          const status = await ensureRemoteOptionsWithTimeout(ensureRemoteOptions);
+          const status =
+            await ensureRemoteOptionsWithTimeout(ensureRemoteOptions);
           if (status === 'timeout') {
             return {
               success: false,
@@ -2338,7 +2348,8 @@ export function createFormOperations(
           };
         }
 
-        const status = await ensureRemoteOptionsWithTimeout(ensureRemoteOptions);
+        const status =
+          await ensureRemoteOptionsWithTimeout(ensureRemoteOptions);
         if (status === 'timeout') {
           return {
             success: false,

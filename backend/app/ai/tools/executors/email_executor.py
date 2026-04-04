@@ -7,7 +7,6 @@ Calls the existing EmailService to send emails, with domain whitelist and recipi
 
 from __future__ import annotations
 
-import re
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -25,8 +24,6 @@ if TYPE_CHECKING:
 
 logger = LogManager.get_logger("ai.tool.email")
 
-_EMAIL_REGEX = re.compile(r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$")
-
 
 def _parse_email_list(raw: str) -> list[str]:
     """Parse comma-separated email list / 解析逗号分隔的邮箱列表"""
@@ -35,13 +32,41 @@ def _parse_email_list(raw: str) -> list[str]:
     return [addr.strip() for addr in raw.split(",") if addr.strip()]
 
 
+def _is_valid_email_address(address: str) -> bool:
+    if not address or address.count("@") != 1:
+        return False
+    local_part, domain_part = address.split("@", 1)
+    if not local_part or not domain_part:
+        return False
+    if local_part.startswith(".") or local_part.endswith(".") or ".." in local_part:
+        return False
+
+    allowed_local_chars = set(
+        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._%+-"
+    )
+    if any(char not in allowed_local_chars for char in local_part):
+        return False
+
+    labels = domain_part.split(".")
+    if len(labels) < 2:
+        return False
+    for label in labels:
+        if not label or label.startswith("-") or label.endswith("-"):
+            return False
+        if not all(char.isalnum() or char == "-" for char in label):
+            return False
+
+    top_level = labels[-1]
+    return len(top_level) >= 2 and top_level.isalpha()
+
+
 def _validate_emails(
     addresses: list[str],
     allowed_domains: list[str],
 ) -> str | None:
     """Validate email format and domain whitelist, return error message or None. / 校验邮箱格式和域名白名单，返回错误消息或 None。"""
     for addr in addresses:
-        if not _EMAIL_REGEX.match(addr):
+        if not _is_valid_email_address(addr):
             return f"Invalid email address: {addr}"
         if allowed_domains:
             domain = addr.split("@")[1].lower()

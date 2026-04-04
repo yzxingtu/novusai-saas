@@ -2,9 +2,11 @@
  * Admin long-term memory debug API / 平台管理端长期记忆调试 API
  */
 
+import type { ApiRequestOptions } from '#/utils/request';
+
 import { requestClient } from '#/utils/request';
 
-const MEMORY_PREFIX = '/admin/ai/long-term-memory/debug';
+const MEMORY_PREFIX = '/admin/ai/long-term-memory';
 
 export interface AdminMemoryRecordItem {
   agent_id: null | number;
@@ -50,22 +52,32 @@ interface PageResponse<T> {
   total: number;
 }
 
-export function getAdminMemoryRecordListApi(params?: Record<string, unknown>) {
+export function getAdminMemoryRecordListApi(
+  params?: Record<string, unknown>,
+  options?: ApiRequestOptions,
+) {
   return requestClient.get<PageResponse<AdminMemoryRecordItem>>(
     `${MEMORY_PREFIX}/records`,
-    { params },
+    { params, ...options },
   );
 }
 
-export function getAdminProfileSnapshotListApi(params?: Record<string, unknown>) {
+export function getAdminProfileSnapshotListApi(
+  params?: Record<string, unknown>,
+  options?: ApiRequestOptions,
+) {
   return requestClient.get<PageResponse<AdminProfileSnapshotItem>>(
     `${MEMORY_PREFIX}/profiles`,
-    { params },
+    { params, ...options },
   );
 }
 
-export function getAdminProfileSnapshotDetailApi(id: number) {
+export function getAdminProfileSnapshotDetailApi(
+  id: number,
+  options?: ApiRequestOptions,
+) {
   return requestClient.get<AdminProfileSnapshotItem | null>(
     `${MEMORY_PREFIX}/profiles/${id}`,
+    options,
   );
 }

@@ -188,7 +188,7 @@ async def _load_and_parse_document(db, doc, tenant_id, kb=None) -> list:
         raise ValueError("Attachment not found")
 
     config_service = ConfigService(db)
-    # Resolve platform storage config (same logic as AttachmentService) / 上文为英文说明 / English above
+    # Resolve platform storage config (same as AttachmentService) / 解析平台存储配置（与 AttachmentService 一致）
     driver_name = await config_service.get_platform_config(
         "platform_storage_driver", default="local"
     )

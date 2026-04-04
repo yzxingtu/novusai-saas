@@ -73,6 +73,7 @@
     "installDependencies": "安装依赖",
     "uninstall": "卸载",
     "uninstallDependencies": "卸载依赖",
+    "refreshSchedules": "刷新调度",
     "repair": "修复",
     "configure": "配置",
     "settings": "设置",
@@ -92,6 +93,7 @@
     "force_disable_content": "该插件的存储驱动正被平台或企业使用。强制禁用将自动将其存储配置切换回本地存储，可能影响文件访问。确认继续？",
     "force_disable_ok": "强制禁用",
     "repair": "确认修复插件「{name}」？将重新安装依赖并注册扩展点。",
+    "refreshSchedules": "确认刷新插件「{name}」的调度状态？这会重新同步当前任务定义并重试调度器刷新。",
     "installDependencies": "确认为插件「{name}」安装依赖？",
     "uninstallDependencies": "确认卸载插件「{name}」的依赖？",
     "uninstallDependenciesContent": "此操作会按共享依赖保护规则卸载独占依赖，建议在插件禁用状态执行。",
@@ -144,6 +146,21 @@
     "noError": "运行正常，无错误",
     "repair": "重置错误计数"
   },
+  "recovery": {
+    "title": "恢复建议",
+    "tag": {
+      "missingDependencies": "依赖待安装",
+      "missingFromDisk": "文件已缺失",
+      "runtimeError": "待修复",
+      "scheduleRefreshFailed": "调度待恢复"
+    },
+    "description": {
+      "missingDependencies": "当前插件依赖未完整安装，建议先补齐依赖，再继续启用或恢复运行。",
+      "missingFromDisk": "插件磁盘文件已缺失，无法直接修复，建议先清理残留记录后再重新安装。",
+      "runtimeError": "插件运行时处于异常状态，可尝试执行修复流程重新注册扩展点与运行态。",
+      "scheduleRefreshFailed": "插件任务定义与当前调度器状态未完全同步，建议先刷新调度状态再观察是否恢复。"
+    }
+  },
   "preview": {
     "title": "安装预览",
     "pluginInfo": "插件信息",
@@ -152,11 +169,13 @@
     "conflicts": "冲突",
     "warnings": "警告",
     "capabilities": "请求的能力",
-    "confirmInstall": "全部授权并安装",
+    "confirmInstall": "确认安装",
     "cancel": "取消",
     "noConflicts": "无冲突",
     "noWarnings": "无警告",
-    "noDependencies": "无额外依赖"
+    "noDependencies": "无额外依赖",
+    "pythonDeps": "Python 依赖",
+    "pluginDeps": "插件依赖"
   },
   "structureType": {
     "skills": "技能",
@@ -169,7 +188,13 @@
     "storage_drivers": "存储驱动",
     "notifications": "通知模板",
     "permissions": "权限",
-    "frontend_menus": "前端菜单"
+    "frontend_pages": "前端页面",
+    "page_menus": "页面菜单",
+    "header_widgets": "头部挂件",
+    "dashboard_widgets": "仪表板挂件",
+    "settings_tabs": "设置页签",
+    "floating_panels": "浮动面板",
+    "notification_ui": "通知界面"
   },
   "marketplace": {
     "title": "插件市场",
@@ -262,6 +287,8 @@
     "installSuccess": "插件安装成功",
     "repairSuccess": "插件已修复",
     "repairFailed": "插件修复失败",
+    "refreshSchedulesSuccess": "插件调度已刷新",
+    "refreshSchedulesFailed": "插件调度刷新失败",
     "installDepsSuccess": "依赖安装完成",
     "uninstallDepsSuccess": "依赖卸载完成",
     "uninstallDepsFailed": "依赖卸载失败",

@@ -12,7 +12,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from app.core.i18n import get_locale
+from app.core.i18n import _, get_locale
 from app.core.logging import get_logger
 from app.plugins.dependencies import (
     build_plugin_dependency_states,
@@ -39,6 +39,7 @@ class InstallPreview(BaseModel):
     capabilities: list[dict] = Field(default_factory=list)
     compatibility: dict = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
+    preview_token: str = ""
 
 
 # Capability description mapping / 能力说明映射
@@ -113,6 +114,37 @@ def resolve_i18n(text: dict[str, str] | str, locale: str | None = None) -> str:
         if isinstance(value, str) and value:
             return value
     return next((value for value in text.values() if isinstance(value, str)), "")
+
+
+def _localize_conflict_reason(conflict: dict[str, Any]) -> str:
+    conflict_type = str(conflict.get("type") or "").strip().lower()
+    key = str(conflict.get("key") or "").strip()
+    owner = str(conflict.get("owner") or "system").strip() or "system"
+    owner_label = (
+        _("plugin.preview.conflict.system_owner")
+        if owner == "system"
+        else owner
+    )
+    template_key = {
+        "adapter": "plugin.preview.conflict.adapter",
+        "skill": "plugin.preview.conflict.skill",
+        "storage": "plugin.preview.conflict.storage",
+    }.get(conflict_type, "plugin.preview.conflict.generic")
+    return _(
+        template_key,
+        conflict_key=key,
+        owner=owner_label,
+        type=conflict_type or _("plugin.preview.conflict.generic_type"),
+    )
+
+
+def _localize_conflicts(conflicts: list[dict[str, str]]) -> list[dict[str, str]]:
+    localized_conflicts: list[dict[str, str]] = []
+    for conflict in conflicts:
+        localized_conflict = dict(conflict)
+        localized_conflict["reason"] = _localize_conflict_reason(conflict)
+        localized_conflicts.append(localized_conflict)
+    return localized_conflicts
 
 
 async def generate_preview(
@@ -213,11 +245,26 @@ async def generate_preview(
         ]
         if ext.frontend.pages
         else [],
-        "frontend_menus": len([p for p in ext.frontend.pages if p.menu is not None]),
-        "frontend_menus_details": [
+        "page_menus": len([p for p in ext.frontend.pages if p.menu is not None]),
+        "page_menus_details": [
             resolve_i18n(p.menu.title or p.title, locale)
             for p in ext.frontend.pages
             if p.menu is not None
+        ],
+        "header_widgets": len(ext.frontend.header_widgets),
+        "header_widgets_details": [w.name for w in ext.frontend.header_widgets],
+        "floating_panels": len(ext.frontend.floating_panels),
+        "floating_panels_details": [p.name for p in ext.frontend.floating_panels],
+        "notification_ui": len(ext.frontend.notification_ui),
+        "notification_ui_details": [n.event for n in ext.frontend.notification_ui],
+        "dashboard_widgets": len(ext.frontend.dashboard_widgets),
+        "dashboard_widgets_details": [
+            resolve_i18n(w.title, locale) or w.name
+            for w in ext.frontend.dashboard_widgets
+        ],
+        "settings_tabs": len(ext.frontend.settings_tabs),
+        "settings_tabs_details": [
+            resolve_i18n(t.title, locale) or t.name for t in ext.frontend.settings_tabs
         ],
     }
 
@@ -264,7 +311,11 @@ async def generate_preview(
                 "enabled": False,
                 "installed_version": None,
                 "state": "unknown",
-                "message": "install preview requires DB context to verify plugin dependency state",
+                "message": _(
+                    "plugin.preview.dependency.plugin_db_context_missing",
+                    plugin=item.plugin,
+                    source=item.source,
+                ),
             }
             for item in plugin_dependency_requirements
         ]
@@ -280,7 +331,9 @@ async def generate_preview(
     # Conflict detection / 冲突检测
     from app.plugins.registry import ExtensionRegistry
 
-    conflicts = ExtensionRegistry.get_instance().get_conflicts(manifest)
+    conflicts = _localize_conflicts(
+        ExtensionRegistry.get_instance().get_conflicts(manifest)
+    )
 
     # Capability declarations / 能力声明
     capabilities = []
@@ -311,7 +364,7 @@ async def generate_preview(
     warnings.extend(collect_frontend_i18n_warnings(manifest))
     if conflicts:
         warnings.append(
-            f"Detected {len(conflicts)} conflict(s) with existing extensions"
+            _("plugin.preview.warning.conflicts_detected", count=len(conflicts))
         )
     if python_dependency_states:
         missing_python = [
@@ -321,12 +374,17 @@ async def generate_preview(
         ]
         if missing_python:
             warnings.append(
-                "Python dependencies need install or upgrade: "
-                + ", ".join(str(item) for item in missing_python)
+                _(
+                    "plugin.preview.warning.python_dependencies_missing",
+                    requirements=", ".join(str(item) for item in missing_python),
+                )
             )
         else:
             warnings.append(
-                f"Python dependencies already satisfied ({len(python_dependency_states)} package(s))"
+                _(
+                    "plugin.preview.warning.python_dependencies_ready",
+                    count=len(python_dependency_states),
+                )
             )
 
     dependency_warnings = [
@@ -335,7 +393,12 @@ async def generate_preview(
         if state["state"] not in {"ready", "unknown"}
     ]
     if dependency_warnings:
-        warnings.append("Plugin dependency issues: " + "; ".join(dependency_warnings))
+        warnings.append(
+            _(
+                "plugin.preview.warning.plugin_dependency_issues",
+                details="; ".join(dependency_warnings),
+            )
+        )
 
     if db is not None and manifest.dependencies.python:
         from sqlalchemy import select
@@ -417,16 +480,20 @@ async def generate_preview(
         )
         if direct_conflicts:
             warnings.append(
-                "Python shared-env conflicts: "
-                + "; ".join(
-                    f"{conflict.package}: {conflict.reason}"
-                    for conflict in direct_conflicts
+                _(
+                    "plugin.preview.warning.python_shared_env_conflicts",
+                    details="; ".join(
+                        f"{conflict.package}: {conflict.reason}"
+                        for conflict in direct_conflicts
+                    ),
                 )
             )
     if manifest.pricing.type == "paid" and not manifest.pricing.price:
-        warnings.append("Paid plugin but no price specified")
+        warnings.append(_("plugin.preview.warning.paid_plugin_missing_price"))
     if scan_result.has_warnings:
-        warnings.append(f"Security scan found {len(scan_result.warnings)} warning(s)")
+        warnings.append(
+            _("plugin.preview.warning.security_scan_found", count=len(scan_result.warnings))
+        )
         warnings.extend(scan_result.warnings)
 
     return InstallPreview(

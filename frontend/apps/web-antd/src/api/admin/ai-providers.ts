@@ -124,8 +124,17 @@ export interface AIHealthStatus {
   provider_code: string;
   provider_name: string;
   provider_icon?: null | string;
+  wire_api?: null | string;
   is_healthy: boolean;
   is_available: boolean;
+  base_connectivity_healthy?: boolean;
+  tool_calling_healthy?: boolean | null;
+  tool_probe_model?: null | string;
+  tool_probe_reasoning_effort?: null | string;
+  tool_probe_applied_overrides?: string[] | null;
+  tool_probe_ignored_overrides?: string[] | null;
+  tool_probe_ignore_reasons?: null | Record<string, string>;
+  tool_probe_error_message?: null | string;
   response_time_ms: number;
   consecutive_failures: number;
   error_message: null | string;
@@ -157,6 +166,13 @@ export interface TestAIGatewayResult {
   error: null | string;
   model: string;
   provider: string;
+  trace_id?: null | string;
+  wire_api?: null | string;
+  effective_upstream_model?: null | string;
+  effective_reasoning_effort?: null | string;
+  applied_overrides?: string[] | null;
+  ignored_overrides?: string[] | null;
+  ignore_reasons?: null | Record<string, string>;
 }
 
 // ============================================================

@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from app.enums.plugin import PluginStatusEnum
+from app.plugins.exceptions import PluginSecurityError
 from app.plugins.startup import discover_and_register, restore_enabled_plugins
 
 
@@ -74,6 +75,10 @@ async def test_discover_only_marks_sync_required_without_hot_syncing_manifest(
     db.flush = AsyncMock()
 
     monkeypatch.setattr("app.plugins.loader.PluginLoader", _Loader)
+    monkeypatch.setattr(
+        "app.plugins.frontend_contract.validate_runtime_frontend_contract",
+        lambda *_args, **_kwargs: None,
+    )
 
     result = await discover_and_register(db)
 
@@ -112,6 +117,7 @@ async def test_restore_refuses_disk_version_drift(
         side_effect=[
             _ScalarsResult([plugin]),
             _RowsResult([]),
+            _RowsResult([("demo-plugin", "drift")]),
         ]
     )
 
@@ -204,6 +210,10 @@ async def test_discover_reconciles_stale_scope_error_when_manifest_is_now_canoni
     db.flush = AsyncMock()
 
     monkeypatch.setattr("app.plugins.loader.PluginLoader", _Loader)
+    monkeypatch.setattr(
+        "app.plugins.frontend_contract.validate_runtime_frontend_contract",
+        lambda *_args, **_kwargs: None,
+    )
 
     result = await discover_and_register(db)
 
@@ -218,3 +228,45 @@ async def test_discover_reconciles_stale_scope_error_when_manifest_is_now_canoni
     assert existing_plugin.error_message is None
     assert existing_plugin.error_count == 0
     db.flush.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_discover_fail_closes_new_plugin_when_security_scan_blocks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _Loader:
+        def __init__(self):
+            self.plugins_dir = Path(".")
+
+        def discover_plugins(self):
+            return ["demo-plugin"]
+
+        def load_manifest(self, _plugin_name: str):
+            from app.plugins.manifest import PluginManifest
+
+            return PluginManifest.model_validate(_base_manifest())
+
+    db = AsyncMock()
+    db.add = AsyncMock()
+    db.execute = AsyncMock(return_value=_ScalarsResult([]))
+    db.flush = AsyncMock()
+
+    monkeypatch.setattr("app.plugins.loader.PluginLoader", _Loader)
+    monkeypatch.setattr(
+        "app.plugins.startup._assert_startup_security_clean",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            PluginSecurityError(message="blocked by security scan")
+        ),
+    )
+
+    result = await discover_and_register(db)
+
+    assert result == {
+        "discovered": 0,
+        "sync_required": 0,
+        "upgrade_required": 0,
+        "missing": 0,
+        "failed": 1,
+    }
+    db.add.assert_not_called()
+    db.flush.assert_not_awaited()

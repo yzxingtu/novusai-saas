@@ -91,8 +91,11 @@ export {
 // ============================================================
 
 export {
+  type AIModelConfig,
   type AIModelCreateRequest,
   type AIModelInfo,
+  type ModelProviderType,
+  type AIModelReasoningConfig,
   type AIModelUpdateRequest,
   createAIModelApi,
   deleteAIModelApi,
@@ -102,6 +105,7 @@ export {
   getAIModelsByProviderApi,
   getAIModelSelectApi,
   type ModelType,
+  type ReasoningEffort,
   type RemoteModelCapabilities,
   type RemoteModelInfo,
   toggleAIModelStatusApi,

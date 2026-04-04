@@ -1,3 +1,5 @@
+// @vitest-environment happy-dom
+
 /* eslint-disable vue/one-component-per-file */
 import { flushPromises, mount } from '@vue/test-utils';
 import { defineComponent, reactive } from 'vue';

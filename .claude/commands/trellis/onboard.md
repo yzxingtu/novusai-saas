@@ -106,6 +106,8 @@ Even after injecting guidelines, AI has limited context window. As conversation 
 
 ## COMMAND DEEP DIVE
 
+> Path reminder: each Trellis task now declares a path (`fast`, `normal`, or `deep`) up front; the command sequence below belongs to whichever path you chose rather than representing a separate lifecycle phase.
+
 ### /trellis:start - Restore AI Memory
 
 **WHY IT EXISTS**:

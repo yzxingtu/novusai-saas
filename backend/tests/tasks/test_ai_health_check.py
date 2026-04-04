@@ -10,6 +10,7 @@ from app.ai.failover import FailoverService
 from app.tasks.ai_health_check import (
     _check_provider_health,
     _provider_needs_responses_tool_probe,
+    _send_base_health_probe,
 )
 
 
@@ -52,6 +53,14 @@ class _FakeRedis:
         _ = (key, ttl)
 
 
+def _healthy_probe(**_kwargs):
+    return (True, None)
+
+
+def _failed_tool_probe(**_kwargs):
+    return (False, "responses tool probe failed")
+
+
 def test_check_provider_health_records_tool_probe_failure(monkeypatch) -> None:
     provider = SimpleNamespace(
         id=10,
@@ -67,11 +76,11 @@ def test_check_provider_health_records_tool_probe_failure(monkeypatch) -> None:
 
     monkeypatch.setattr(
         "app.tasks.ai_health_check._send_base_health_probe",
-        lambda **kwargs: (True, None),
+        _healthy_probe,
     )
     monkeypatch.setattr(
         "app.tasks.ai_health_check._send_responses_tool_probe",
-        lambda **kwargs: (False, "responses tool probe failed"),
+        _failed_tool_probe,
     )
 
     _check_provider_health(
@@ -84,7 +93,8 @@ def test_check_provider_health_records_tool_probe_failure(monkeypatch) -> None:
     assert payload["wire_api"] == "responses"
     assert payload["base_connectivity_healthy"] is True
     assert payload["tool_calling_healthy"] is False
-    assert payload["tool_probe_model"] == "gpt-5.4-xhigh"
+    assert payload["tool_probe_model"] == "gpt-5.4"
+    assert payload["tool_probe_reasoning_effort"] == "xhigh"
     assert payload["tool_probe_error_message"] == "responses tool probe failed"
     assert payload["is_healthy"] is False
     assert payload["error_message"] == "responses tool probe failed"
@@ -111,7 +121,7 @@ def test_check_provider_health_skips_responses_tool_probe_when_disabled(
 
     monkeypatch.setattr(
         "app.tasks.ai_health_check._send_base_health_probe",
-        lambda **kwargs: (True, None),
+        _healthy_probe,
     )
 
     def _fake_tool_probe(**kwargs):
@@ -134,7 +144,9 @@ def test_check_provider_health_skips_responses_tool_probe_when_disabled(
     assert probe_called["tool_probe"] == 0
     assert payload["wire_api"] == "responses"
     assert payload["base_connectivity_healthy"] is True
+    assert payload["tool_probe_model"] == "gpt-5.4"
     assert payload["tool_calling_healthy"] is None
+    assert payload["tool_probe_reasoning_effort"] == "xhigh"
     assert payload["is_healthy"] is True
     assert payload["error_message"] is None
 
@@ -156,7 +168,7 @@ def test_check_provider_health_keeps_base_health_when_no_tool_probe_model(
 
     monkeypatch.setattr(
         "app.tasks.ai_health_check._send_base_health_probe",
-        lambda **kwargs: (True, None),
+        _healthy_probe,
     )
 
     def _fake_tool_probe(**kwargs):
@@ -193,6 +205,46 @@ def test_provider_needs_responses_tool_probe_honors_false_string_flag() -> None:
     )
     tool_model = SimpleNamespace(supports_function_calling=True)
     assert _provider_needs_responses_tool_probe(provider, tool_model) is False
+
+
+def test_send_base_health_probe_rejects_non_json_models_payload(monkeypatch) -> None:
+    response = SimpleNamespace(
+        status_code=200,
+        headers={"content-type": "text/html"},
+        json=lambda: None,
+    )
+    monkeypatch.setattr(
+        "app.tasks.ai_health_check.httpx.get",
+        lambda *_args, **_kwargs: response,
+    )
+
+    is_healthy, error_message = _send_base_health_probe(
+        api_key="sk-test",
+        base_url="https://api.example.com/v1",
+    )
+
+    assert is_healthy is False
+    assert "non-JSON" in str(error_message)
+
+
+def test_send_base_health_probe_accepts_models_list_json_shape(monkeypatch) -> None:
+    response = SimpleNamespace(
+        status_code=200,
+        headers={"content-type": "application/json"},
+        json=lambda: {"data": [{"id": "gpt-5.4"}]},
+    )
+    monkeypatch.setattr(
+        "app.tasks.ai_health_check.httpx.get",
+        lambda *_args, **_kwargs: response,
+    )
+
+    is_healthy, error_message = _send_base_health_probe(
+        api_key="sk-test",
+        base_url="https://api.example.com/v1",
+    )
+
+    assert is_healthy is True
+    assert error_message is None
 
 
 @pytest.mark.asyncio

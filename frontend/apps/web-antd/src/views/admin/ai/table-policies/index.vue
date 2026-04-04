@@ -7,6 +7,7 @@ import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
 import {
+  Card,
   Collapse,
   CollapsePanel,
   message,
@@ -194,7 +195,8 @@ const { Grid, FormDrawer, onRefresh } = useCrudPage<AITablePolicyInfo>({
     />
     <FormDrawer @success="onRefresh" />
 
-    <Grid>
+    <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
+      <Grid>
       <!-- 展开行 -->
       <template #expand_content="{ row }">
         <div class="grid grid-cols-1 gap-4 px-4 py-3 md:grid-cols-3">
@@ -446,6 +448,7 @@ const { Grid, FormDrawer, onRefresh } = useCrudPage<AITablePolicyInfo>({
           </button>
         </Tooltip>
       </template>
-    </Grid>
+      </Grid>
+    </Card>
   </Page>
 </template>

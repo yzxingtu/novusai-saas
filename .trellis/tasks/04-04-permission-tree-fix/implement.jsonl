@@ -1,0 +1,5 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Backend layer placement for permission API changes"}
+{"file": "C:\\Users\\Administrator\\.codex\\skills\\novusai-saas\\novusai-saas\\references\\rbac-permission-spec.md", "reason": "RBAC parent_resource and translation rules"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Validation requirements for RBAC-related backend changes"}

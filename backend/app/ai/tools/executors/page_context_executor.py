@@ -13,6 +13,7 @@ import json
 import time
 from typing import TYPE_CHECKING, Any
 
+from app.ai.prompt_contracts import render_prompt_contract
 from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.core.logging import LogManager
@@ -98,46 +99,58 @@ class PageContextExecutor(BaseToolExecutor):
         """Read page info from context variables and return / 从上下文变量读取页面信息并返回"""
         start = time.perf_counter()
 
-        if not context or not context.variables:
+        unavailable = render_prompt_contract("page_context_unavailable")
+
+        if not context:
             return ToolResult(
                 tool_call_id=tool_call_id,
                 name=definition.name,
                 success=True,
-                output="No page context available.",
+                output=unavailable,
                 duration_ms=int((time.perf_counter() - start) * 1000),
             )
 
-        page_ctx = PageContext.normalize(context.variables.get(PAGE_CONTEXT_KEY))
+        variables = context.variables
+        if variables is None:
+            return ToolResult(
+                tool_call_id=tool_call_id,
+                name=definition.name,
+                success=True,
+                output=unavailable,
+                duration_ms=int((time.perf_counter() - start) * 1000),
+            )
+
+        page_ctx = PageContext.normalize(variables.get(PAGE_CONTEXT_KEY))
+
         if not page_ctx:
+            if bool(variables.get(PAGE_CONTEXT_TURN_SEEN_KEY)):
+                return ToolResult(
+                    tool_call_id=tool_call_id,
+                    name=definition.name,
+                    success=True,
+                    output=render_prompt_contract("page_context_repeated", page_key=""),
+                    duration_ms=int((time.perf_counter() - start) * 1000),
+                )
+            variables[PAGE_CONTEXT_TURN_SEEN_KEY] = True
             return ToolResult(
                 tool_call_id=tool_call_id,
                 name=definition.name,
                 success=True,
-                output="No page context available.",
+                output=unavailable,
                 duration_ms=int((time.perf_counter() - start) * 1000),
             )
 
-        if bool(context.variables.get(PAGE_CONTEXT_TURN_SEEN_KEY)):
+        if bool(variables.get(PAGE_CONTEXT_TURN_SEEN_KEY)):
             page_key = str(page_ctx.get("page_key", "")).strip()
-            repeated_output = (
-                "Page context was already returned earlier in this turn. "
-                "Reuse the previous get_page_context result unless the page actually changed."
-            )
-            if page_key:
-                repeated_output += f" Current page: {page_key}."
-            repeated_output += (
-                "\n页面上下文在本轮已经返回过一次。除非页面实际发生变化，否则请复用上一次 "
-                "get_page_context 结果，不要再次读取完整页面上下文。"
-            )
             return ToolResult(
                 tool_call_id=tool_call_id,
                 name=definition.name,
                 success=True,
-                output=repeated_output,
+                output=render_prompt_contract("page_context_repeated", page_key=page_key),
                 duration_ms=int((time.perf_counter() - start) * 1000),
             )
 
-        context.variables[PAGE_CONTEXT_TURN_SEEN_KEY] = True
+        variables[PAGE_CONTEXT_TURN_SEEN_KEY] = True
 
         # Build structured output with enhanced semantic information
         # 构建含增强语义信息的结构化输出
@@ -492,7 +505,7 @@ class PageContextExecutor(BaseToolExecutor):
                     )
                 parts.append(f"Data: {data_str}")
 
-        output = "\n".join(parts) if parts else "No page context available."
+        output = "\n".join(parts) if parts else unavailable
         duration_ms = int((time.perf_counter() - start) * 1000)
 
         logger.info(

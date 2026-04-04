@@ -9,11 +9,15 @@ Unified output as ChunkData list for embedding and storage.
 from __future__ import annotations
 
 import hashlib
-import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
 from app.ai.rag.parser import ParsedPage
+from app.ai.text_semantics import (
+    parse_markdown_heading,
+    split_on_blank_lines,
+    split_sentences_by_terminal_punctuation,
+)
 from app.core.logging import LogManager
 
 logger = LogManager.get_logger("ai.rag.chunker")
@@ -33,6 +37,58 @@ class ChunkData:
 def _compute_hash(text: str) -> str:
     """Compute MD5 hash of text / 计算文本 MD5 哈希"""
     return hashlib.md5(text.encode("utf-8")).hexdigest()
+
+
+_CJK_OUTLINE_NUMERALS = frozenset("一二三四五六七八九十百零")
+
+
+def _looks_like_outline_heading(line: str) -> bool:
+    stripped = (line or "").strip()
+    if not stripped:
+        return False
+    if parse_markdown_heading(stripped) is not None:
+        return True
+
+    if stripped.startswith("第"):
+        idx = 1
+        while idx < len(stripped) and (
+            stripped[idx].isdigit() or stripped[idx] in _CJK_OUTLINE_NUMERALS
+        ):
+            idx += 1
+        if idx > 1 and idx < len(stripped) and stripped[idx] in "章节部分篇条款、.．":
+            return bool(stripped[idx + 1 :].strip())
+
+    idx = 0
+    while idx < len(stripped) and stripped[idx] in _CJK_OUTLINE_NUMERALS:
+        idx += 1
+    if idx > 0 and idx < len(stripped) and stripped[idx] in "、.．":
+        return bool(stripped[idx + 1 :].strip())
+
+    idx = 0
+    while idx < len(stripped) and stripped[idx].isdigit():
+        idx += 1
+    if idx > 0 and idx < len(stripped) and stripped[idx] in ".)、．":
+        return bool(stripped[idx + 1 :].strip())
+
+    if len(stripped) >= 3 and stripped[0].isalpha() and stripped[1] in ".)":
+        return bool(stripped[2:].strip())
+
+    return False
+
+
+def _looks_like_list_item(line: str) -> bool:
+    stripped = (line or "").strip()
+    if not stripped:
+        return False
+    if stripped[0] in {"-", "*", "•"}:
+        return len(stripped) > 1 and stripped[1].isspace() and bool(stripped[2:].strip())
+
+    idx = 0
+    while idx < len(stripped) and stripped[idx].isdigit():
+        idx += 1
+    if idx > 0 and idx < len(stripped) and stripped[idx] in ".)、．":
+        return bool(stripped[idx + 1 :].strip())
+    return False
 
 
 class BaseChunker(ABC):
@@ -297,7 +353,7 @@ class ParagraphChunker(BaseChunker):
             if not text:
                 continue
 
-            paragraphs = re.split(r"\n\s*\n", text)
+            paragraphs = split_on_blank_lines(text)
             current = ""
 
             for para in paragraphs:
@@ -350,9 +406,6 @@ class SentenceChunker(BaseChunker):
     轻量的句边界分块，适合 FAQ 与短文本。
     """
 
-    # Chinese and English sentence separators / 中英文句子分隔符
-    SENTENCE_SEPARATORS = re.compile(r"(?<=[。！？.!?])\s*")
-
     def chunk(self, pages: list[ParsedPage]) -> list[ChunkData]:
         # Pre-merge: merge adjacent small pages to near chunk_size, avoid fragmented chunks
         # 预合并：将相邻小 page 合并至接近 chunk_size，避免碎片化 chunk
@@ -367,8 +420,7 @@ class SentenceChunker(BaseChunker):
                 continue
 
             # Split by sentences / 按句子分割
-            sentences = self.SENTENCE_SEPARATORS.split(text)
-            sentences = [s.strip() for s in sentences if s.strip()]
+            sentences = split_sentences_by_terminal_punctuation(text)
 
             current = ""
             for sentence in sentences:
@@ -431,13 +483,6 @@ class SemanticChunker(BaseChunker):
     优先按标题、列表、表格、段落等结构边界切分，再对超长块回退到句子级拆分。
     """
 
-    _BLOCK_SPLITTER = re.compile(r"\n\s*\n+")
-    _HEADING_RE = re.compile(
-        r"^(?:#{1,6}\s+.+|第[一二三四五六七八九十百零\d]+[章节部分篇条款、.．]\s*.+|"
-        r"[一二三四五六七八九十]+[、.．]\s*.+|\d+[.)、．]\s*.+|[A-Za-z][.)]\s*.+)$"
-    )
-    _LIST_RE = re.compile(r"^(?:[-*•]\s+.+|\d+[.)、．]\s+.+)")
-
     def chunk(self, pages: list[ParsedPage]) -> list[ChunkData]:
         pages = self._merge_small_pages(pages)
 
@@ -494,9 +539,7 @@ class SemanticChunker(BaseChunker):
         return chunks
 
     def _split_semantic_units(self, text: str) -> list[str]:
-        blocks = [
-            block.strip() for block in self._BLOCK_SPLITTER.split(text) if block.strip()
-        ]
+        blocks = [block.strip() for block in split_on_blank_lines(text) if block.strip()]
         if not blocks:
             return []
 
@@ -519,9 +562,10 @@ class SemanticChunker(BaseChunker):
                 units.append(block)
                 continue
 
-            sentences = SentenceChunker.SENTENCE_SEPARATORS.split(block)
             normalized = [
-                sentence.strip() for sentence in sentences if sentence.strip()
+                sentence.strip()
+                for sentence in split_sentences_by_terminal_punctuation(block)
+                if sentence.strip()
             ]
             if normalized:
                 units.extend(normalized)
@@ -538,7 +582,7 @@ class SemanticChunker(BaseChunker):
         return (
             single_line
             and len(block) <= max(120, self.chunk_size // 3)
-            and bool(self._HEADING_RE.match(block))
+            and _looks_like_outline_heading(block)
         )
 
     def _is_structured_block(self, block: str) -> bool:
@@ -547,7 +591,7 @@ class SemanticChunker(BaseChunker):
         if block.count("|") >= 4 or "\t" in block:
             return True
         lines = [line.strip() for line in block.splitlines() if line.strip()]
-        return len(lines) >= 2 and all(self._LIST_RE.match(line) for line in lines)
+        return len(lines) >= 2 and all(_looks_like_list_item(line) for line in lines)
 
     def _prefers_sentence_split(self, block: str) -> bool:
         return "。" in block or "！" in block or "？" in block or ". " in block

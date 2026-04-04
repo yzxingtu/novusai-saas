@@ -5,17 +5,18 @@ Resolve chat attachment image URLs to data URLs for LLM multimodal APIs.
 Relative paths like ``/api/public/attachments/{id}/access`` or
 ``/api/public/attachments/{id}/image`` are not fetchable by vendor APIs; we
 read bytes from storage (tenant-scoped) or use HTTP fallback.
+形如 ``/api/public/attachments/{id}/access`` 的相对路径无法被厂商侧直接拉取；
+本模块从存储（按租户作用域）读字节，或在配置内网基址后走 HTTP 回退。
 """
 
 from __future__ import annotations
 
 import base64
-import re
-from urllib.parse import parse_qs, urlparse
 
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai.text_semantics import extract_public_attachment_reference, safe_positive_int
 from app.ai.tools.security import SSRFBlockedError, UrlValidator
 from app.core.config import settings
 from app.core.logging import LogManager
@@ -25,46 +26,25 @@ from app.storage import storage_manager
 
 logger = LogManager.get_logger("ai")
 
-_ATTACHMENT_URL_RE = re.compile(
-    r"/api/public/attachments/(\d+)/(?:access|image)",
-    re.IGNORECASE,
-)
-
-# Max image body when resolving for LLM (bytes) / 上文为英文说明 / English above
+# Max image body when resolving for LLM (bytes) / 解析给 LLM 的图片最大体积（字节）
 _IMAGE_MAX_BYTES: int = 20 * 1024 * 1024
 _FETCH_TIMEOUT_SEC: float = 45.0
 
 
 def _coerce_attachment_id(raw: object) -> int | None:
     """Normalize positive attachment IDs from payloads or URLs / 规范化附件 ID。"""
-    if isinstance(raw, int):
-        return raw if raw > 0 else None
-    text = str(raw or "").strip()
-    if not text or not text.isdigit():
-        return None
-    value = int(text)
-    return value if value > 0 else None
+    return safe_positive_int(raw)
 
 
 def _attachment_id_from_url(raw: str) -> tuple[int | None, str | None]:
     """
     Parse attachment id and optional JWT token from path or full URL.
+    从路径或完整 URL 中解析附件 ID 与可选 JWT token（query ``token``）。
     """
     s = (raw or "").strip()
     if not s:
         return None, None
-    parsed = urlparse(
-        s if "://" in s else f"http://_ignored{s if s.startswith('/') else '/' + s}"
-    )
-    path = parsed.path or ""
-    m = _ATTACHMENT_URL_RE.search(path)
-    if not m:
-        return None, None
-    aid = int(m.group(1))
-    qs = parse_qs(parsed.query or "")
-    token_list = qs.get("token")
-    token = token_list[0] if token_list else None
-    return aid, token
+    return extract_public_attachment_reference(s)
 
 
 async def _read_attachment_bytes_via_db(
@@ -78,6 +58,7 @@ async def _read_attachment_bytes_via_db(
     """
     Load attachment bytes using DB + storage driver (supports private files when
     tenant_id matches attachment owner, or token is valid).
+    通过 DB + 存储驱动读取附件字节（租户匹配或 token 有效时可读私有文件）。
     """
     try:
         svc = AttachmentDownloadService(db, tenant_id=tenant_id)
@@ -87,7 +68,7 @@ async def _read_attachment_bytes_via_db(
         elif token:
             await svc.validate_access(att, token)
         elif tenant_id is not None:
-            # Private, no JWT: scoped get_attachment already matched tenant / 上文为英文说明 / English above
+            # Private file without JWT: get_attachment scope already matched tenant / 私有且无 JWT：get_attachment 已按租户作用域匹配
             pass
         else:
             await svc.validate_access(att, None)
@@ -131,7 +112,7 @@ async def _read_attachment_bytes_via_db(
 
 
 async def _fetch_url_bytes(url: str, *, max_bytes: int) -> tuple[bytes, str] | None:
-    """HTTP(S) GET with SSRF validation."""
+    """HTTP(S) GET with SSRF validation / 经 SSRF 校验后拉取 HTTP(S) 内容。"""
     try:
         await UrlValidator.validate(url)
     except SSRFBlockedError as e:
@@ -169,6 +150,7 @@ async def resolve_image_url_for_llm(
     """
     Return a ``data:image/...;base64,...`` URL suitable for OpenAI ``image_url``,
     or None if resolution fails.
+    返回可供多模态 ``image_url`` 使用的 ``data:image/...;base64,...``，失败则为 None。
     """
     url = (raw_url or "").strip()
     hint_attachment_id = _coerce_attachment_id(attachment_id)
@@ -208,7 +190,7 @@ async def resolve_image_url_for_llm(
     if not url:
         return None
 
-    # Relative app path → internal HTTP (public files or URL with token) / 上文为英文说明 / English above
+    # Relative app path → internal HTTP (public or token URL) / 相对路径走内网 HTTP（公开或带 token）
     if url.startswith("/"):
         base = (settings.APP_INTERNAL_BASE_URL or "").strip().rstrip("/")
         if base:

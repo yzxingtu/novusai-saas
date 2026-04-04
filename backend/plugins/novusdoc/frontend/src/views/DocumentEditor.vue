@@ -8,10 +8,23 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 import type { DocDetail } from '../types';
 import { exportDocumentAsBlob, getDoc, getExportUrl, updateDoc } from '../api/novusdoc';
+import {
+  getNovusdocPermissionCodes,
+  hasNovusdocAccess,
+  resolveRouteAccessCodes,
+} from '../permissions';
 
 const shared = (window as unknown as Record<string, unknown>).NovusPluginShared as {
   $t?: (k: string, params?: Record<string, unknown>) => string;
-  router?: { push: (to: string) => void; currentRoute?: { value?: { params?: Record<string, string> } } };
+  router?: {
+    push: (to: string) => void;
+    currentRoute?: {
+      value?: {
+        meta?: Record<string, unknown>;
+        params?: Record<string, string>;
+      };
+    };
+  };
   createParameterizedPageOperation?: (options: Record<string, unknown>) => unknown;
   createSavePageOperation?: (options: Record<string, unknown>) => unknown;
   createSimplePageOperation?: (options: Record<string, unknown>) => unknown;
@@ -54,8 +67,32 @@ const mountedEditor = shallowRef<{
 } | null>(null);
 
 const isAdmin = computed(() => location.pathname.includes('/admin/'));
+const permissionScope = computed(() => (isAdmin.value ? 'admin' : 'tenant'));
+const permissionCodes = computed(() =>
+  getNovusdocPermissionCodes(permissionScope.value),
+);
+const routeAccessCodes = computed(() =>
+  resolveRouteAccessCodes(
+    shared?.router?.currentRoute?.value?.meta as
+      | Record<string, unknown>
+      | undefined,
+    [permissionCodes.value.view],
+  ),
+);
+const canView = computed(() => hasNovusdocAccess(routeAccessCodes.value));
+const canUpdate = computed(
+  () => canView.value && hasNovusdocAccess(permissionCodes.value.update),
+);
+const canExport = computed(
+  () => canView.value && hasNovusdocAccess(permissionCodes.value.export),
+);
 
 async function loadDocument() {
+  if (!canView.value) {
+    doc.value = null;
+    loading.value = false;
+    return;
+  }
   loading.value = true;
   try {
     const res = await getDoc(docId.value);
@@ -93,7 +130,7 @@ function mountEditor() {
     mode: 'full',
     ai: true,
     upload: true,
-    editable: true,
+    editable: canUpdate.value,
     placeholder: $t('plugin.novusdoc.doc.untitled'),
     contextTitle: title.value,
     pageKey: editorPageKey.value,
@@ -116,7 +153,7 @@ function debounceSave() {
 }
 
 async function saveNow() {
-  if (!mountedEditor.value || !doc.value) return;
+  if (!canUpdate.value || !mountedEditor.value || !doc.value) return;
   saving.value = true;
   try {
     const json = mountedEditor.value.getJSON();
@@ -138,11 +175,12 @@ async function saveNow() {
 }
 
 function onTitleChange() {
+  if (!canUpdate.value) return;
   debounceSave();
 }
 
 async function toggleStatus() {
-  if (!doc.value) return;
+  if (!canUpdate.value || !doc.value) return;
   const newStatus = doc.value.status === 'draft' ? 'published' : 'draft';
   try {
     const res = await updateDoc(doc.value.id, { status: newStatus });
@@ -162,7 +200,7 @@ function goBack() {
 }
 
 async function onExport(format: 'html' | 'md' | 'pdf') {
-  if (!doc.value) return;
+  if (!canExport.value || !doc.value) return;
   exportMenuOpen.value = false;
   const downloadBlob = shared?.downloadBlob;
   if (!downloadBlob) {
@@ -206,67 +244,96 @@ const editorPageKey = computed(() => {
 
 let cleanupPageAI: (() => void) | undefined;
 
-const documentOps = [
-  shared?.createSavePageOperation?.({
-    name: 'save_document',
-    label: $t('plugin.novusdoc.op.save'),
-    description: 'Save the current document immediately',
-    action: async () => {
-      await saveNow();
-      return { success: true, message: $t('plugin.novusdoc.op.savedSuccess', { title: title.value }) };
-    },
-  }),
-  shared?.createSimplePageOperation?.({
-    name: 'toggle_status',
-    label: $t('plugin.novusdoc.op.toggleStatus'),
-    description: 'Switch between draft and published status',
-    readonly: false,
-    action: async () => {
-      await toggleStatus();
-      return { success: true, message: $t('plugin.novusdoc.op.statusChangedTo', { status: doc.value?.status ?? '' }) };
-    },
-  }),
-  shared?.createParameterizedPageOperation?.({
-    name: 'update_title',
-    label: $t('plugin.novusdoc.op.updateTitle'),
-    description: 'Change the document title',
-    readonly: false,
-    params: {
-      title: {
-        type: 'string',
-        description: 'New document title',
-      },
-    },
-    action: async (params: Record<string, unknown>) => {
-      title.value = String(params.title || '');
-      debounceSave();
-      return { success: true, message: $t('plugin.novusdoc.op.titleUpdatedTo', { title: title.value }) };
-    },
-  }),
-  shared?.createParameterizedPageOperation?.({
-    name: 'export_document',
-    label: $t('plugin.novusdoc.op.export'),
-    description: 'Export document in HTML, Markdown or PDF format',
-    readonly: true,
-    params: {
-      format: {
-        type: 'string',
-        enum: ['html', 'md', 'pdf'],
-        description: 'Export format',
-      },
-    },
-    action: async (params: Record<string, unknown>) => {
-      if (!doc.value) return { success: false, message: $t('common.noData') };
-      const fmt = (params.format as 'html' | 'md' | 'pdf') || 'html';
-      const url = getExportUrl(doc.value.id, fmt);
-      return {
-        success: true,
-        message: $t('plugin.novusdoc.op.exportInitiatedIn', { format: fmt }),
-        data: { export_url: url },
-      };
-    },
-  }),
-].filter(Boolean);
+function buildDocumentOps() {
+  if (!canView.value) {
+    return [];
+  }
+
+  return [
+    canUpdate.value
+      ? shared?.createSavePageOperation?.({
+          name: 'save_document',
+          label: $t('plugin.novusdoc.op.save'),
+          description: 'Save the current document immediately',
+          action: async () => {
+            await saveNow();
+            return {
+              success: true,
+              message: $t('plugin.novusdoc.op.savedSuccess', { title: title.value }),
+            };
+          },
+        })
+      : null,
+    canUpdate.value
+      ? shared?.createSimplePageOperation?.({
+          name: 'toggle_status',
+          label: $t('plugin.novusdoc.op.toggleStatus'),
+          description: 'Switch between draft and published status',
+          readonly: false,
+          action: async () => {
+            await toggleStatus();
+            return {
+              success: true,
+              message: $t('plugin.novusdoc.op.statusChangedTo', {
+                status: doc.value?.status ?? '',
+              }),
+            };
+          },
+        })
+      : null,
+    canUpdate.value
+      ? shared?.createParameterizedPageOperation?.({
+          name: 'update_title',
+          label: $t('plugin.novusdoc.op.updateTitle'),
+          description: 'Change the document title',
+          readonly: false,
+          params: {
+            title: {
+              type: 'string',
+              description: 'New document title',
+            },
+          },
+          action: async (params: Record<string, unknown>) => {
+            title.value = String(params.title || '');
+            debounceSave();
+            return {
+              success: true,
+              message: $t('plugin.novusdoc.op.titleUpdatedTo', {
+                title: title.value,
+              }),
+            };
+          },
+        })
+      : null,
+    canExport.value
+      ? shared?.createParameterizedPageOperation?.({
+          name: 'export_document',
+          label: $t('plugin.novusdoc.op.export'),
+          description: 'Export document in HTML, Markdown or PDF format',
+          readonly: true,
+          params: {
+            format: {
+              type: 'string',
+              enum: ['html', 'md', 'pdf'],
+              description: 'Export format',
+            },
+          },
+          action: async (params: Record<string, unknown>) => {
+            if (!doc.value) return { success: false, message: $t('common.noData') };
+            const fmt = (params.format as 'html' | 'md' | 'pdf') || 'html';
+            const url = getExportUrl(doc.value.id, fmt);
+            return {
+              success: true,
+              message: $t('plugin.novusdoc.op.exportInitiatedIn', {
+                format: fmt,
+              }),
+              data: { export_url: url },
+            };
+          },
+        })
+      : null,
+  ].filter(Boolean);
+}
 
 /** Extras merged onto platform editor context. update_title modifies metadata, not body H1. */
 const ENTITY_DESCRIPTION_APPEND =
@@ -274,6 +341,9 @@ const ENTITY_DESCRIPTION_APPEND =
 
 function setupEditorPageAwareness() {
   cleanupPageAI?.();
+  if (!canView.value) {
+    return;
+  }
   cleanupPageAI = shared?.registerRichTextDocumentPageAI?.({
     pageKey: editorPageKey.value,
     documentId: () => docId.value,
@@ -283,11 +353,15 @@ function setupEditorPageAwareness() {
     saving: () => saving.value,
     editor: () => mountedEditor.value,
     entityDescriptionAppend: ENTITY_DESCRIPTION_APPEND,
-    operations: documentOps,
+    operations: buildDocumentOps(),
   });
 }
 
 onMounted(async () => {
+  if (!canView.value) {
+    loading.value = false;
+    return;
+  }
   await loadDocument();
   if (doc.value) {
     await nextTickMount();
@@ -313,6 +387,7 @@ onBeforeUnmount(() => {
 });
 
 const saveStatusText = computed(() => {
+  if (!canUpdate.value) return '';
   if (saving.value) return $t('plugin.novusdoc.doc.saving');
   if (saved.value) return $t('plugin.novusdoc.doc.saved');
   return '';
@@ -321,6 +396,14 @@ const saveStatusText = computed(() => {
 
 <template>
   <div class="flex flex-col h-full bg-background text-foreground">
+    <div
+      v-if="!canView"
+      data-testid="novusdoc-no-permission"
+      class="flex flex-1 items-center justify-center text-muted-foreground"
+    >
+      {{ $t('common.noPermissions') }}
+    </div>
+    <template v-else>
     <!-- ── Header bar ── -->
     <header class="shrink-0 flex items-center gap-3 px-4 py-2 border-b border-border bg-card">
       <!-- Back -->
@@ -334,8 +417,10 @@ const saveStatusText = computed(() => {
       <!-- Title input -->
       <input
         v-model="title"
+        data-testid="novusdoc-editor-title"
         class="flex-1 text-base font-medium bg-transparent border-none outline-none placeholder:text-muted-foreground"
         :placeholder="$t('plugin.novusdoc.doc.untitled')"
+        :readonly="!canUpdate"
       />
 
       <!-- Word count -->
@@ -350,7 +435,8 @@ const saveStatusText = computed(() => {
 
       <!-- Status badge -->
       <button
-        v-if="doc"
+        v-if="doc && canUpdate"
+        data-testid="novusdoc-toggle-status"
         class="inline-flex items-center px-2 py-1 rounded text-xs font-medium transition-colors"
         :class="doc.status === 'published' ? 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400'"
         @click="toggleStatus"
@@ -359,9 +445,14 @@ const saveStatusText = computed(() => {
       </button>
 
       <!-- Export dropdown (click to open, fix hover gap causing "cannot select") -->
-      <div class="relative" data-export-dropdown>
+      <div
+        v-if="canExport"
+        class="relative"
+        data-export-dropdown
+      >
         <button
           type="button"
+          data-testid="novusdoc-export-menu"
           class="w-8 h-8 flex items-center justify-center rounded hover:bg-accent text-muted-foreground"
           @click.stop="exportMenuOpen = !exportMenuOpen"
         >
@@ -396,5 +487,6 @@ const saveStatusText = computed(() => {
     </div>
 
     <div v-else ref="editorContainer" class="flex-1 min-h-0 overflow-hidden" />
+    </template>
   </div>
 </template>

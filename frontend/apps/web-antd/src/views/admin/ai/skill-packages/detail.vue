@@ -38,6 +38,7 @@ import { deleteSkillApi, toggleSkillStatusApi } from '#/api/admin/skills';
 import { useDetailPageAi } from '#/composables/use-detail-page-ai';
 import { usePageAIContext } from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
+import { useAccess } from '#/utils';
 import { getSkillTypeColor, getSkillTypeIcon } from '#/utils/ai-helpers';
 import { formatRelativeTime } from '#/utils/common';
 
@@ -67,6 +68,11 @@ interface ValveField {
 
 const route = useRoute();
 const router = useRouter();
+const { hasAccessByCodes } = useAccess();
+const canViewSkillDetail = hasAccessByCodes(['ai_skill:detail']);
+const canToggleSkillStatus = hasAccessByCodes(['ai_skill:update_status']);
+const canDeleteSkill = hasAccessByCodes(['ai_skill:delete']);
+const canUpdateSkillPackage = hasAccessByCodes(['ai_skill_package:update']);
 
 const packageId = computed(() => Number(route.params.id));
 const activeTab = ref(
@@ -161,7 +167,10 @@ function getToolTypeText(type: null | string | undefined): string {
   if (!type) return '-';
   return type
     .replaceAll('_', ' ')
-    .replaceAll(/\b\w/g, (char) => char.toUpperCase());
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
 }
 
 function getToolRequiredParamCount(tool: ResolvedTool): number {
@@ -169,9 +178,15 @@ function getToolRequiredParamCount(tool: ResolvedTool): number {
 }
 
 function isSecretKey(key: string): boolean {
-  return /\b(?:api_?key|secret|password|access_?token|auth_?token|private_?key)\b/i.test(
-    key,
-  );
+  const normalizedKey = key.toLowerCase().replaceAll('-', '_');
+  return [
+    'api_key',
+    'secret',
+    'password',
+    'access_token',
+    'auth_token',
+    'private_key',
+  ].some((term) => normalizedKey.includes(term));
 }
 
 function getValveInputType(type?: string): ValvesInputType {
@@ -1150,6 +1165,7 @@ useDetailPageAi({
 
                         <div class="flex shrink-0 items-center gap-1">
                           <Button
+                            v-if="canViewSkillDetail"
                             size="small"
                             type="text"
                             @click="openSkillDetail(skill.id)"
@@ -1162,11 +1178,11 @@ useDetailPageAi({
                           <Switch
                             :checked="skill.is_active"
                             size="small"
-                            :disabled="skill.is_system"
+                            :disabled="skill.is_system || !canToggleSkillStatus"
                             @change="handleToggleSkillStatus(skill)"
                           />
                           <Popconfirm
-                            v-if="!skill.is_system"
+                            v-if="!skill.is_system && canDeleteSkill"
                             :title="$t('admin.common.confirmDelete')"
                             @confirm="handleDeleteSkill(skill)"
                           >
@@ -1365,6 +1381,7 @@ useDetailPageAi({
 
                   <div class="flex items-center gap-2">
                     <Button
+                      v-if="canUpdateSkillPackage"
                       size="small"
                       :disabled="!hasValves"
                       @click="resetValvesToDefaults"
@@ -1372,6 +1389,7 @@ useDetailPageAi({
                       {{ $t('admin.ai.skillPackage.valves.resetDefaults') }}
                     </Button>
                     <Button
+                      v-if="canUpdateSkillPackage"
                       size="small"
                       type="primary"
                       :loading="valvesSaving"

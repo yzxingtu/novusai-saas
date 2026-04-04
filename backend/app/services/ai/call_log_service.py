@@ -8,11 +8,15 @@ Uses Celery to asynchronously record AI call logs without blocking main requests
 import hashlib
 import json
 from dataclasses import asdict, is_dataclass
+from decimal import Decimal
 from typing import Any
+
+from fastapi.encoders import jsonable_encoder
 
 from app.core.base_model import utc_now
 from app.core.base_service import BaseService
 from app.core.logging import LogManager
+from app.core.response import serialize_datetime_for_api
 from app.enums.ai import CallStatusEnum, CallTypeEnum
 from app.models.ai import AICallLog
 from app.repositories.ai import AICallLogRepository
@@ -64,10 +68,28 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
     model = AICallLog
     repository_class = AICallLogRepository
 
-    # 响应体截断阈值 (10KB)
+    # Response body size cap before truncation (10KB) / 响应体截断阈值（10KB）
     RESPONSE_TRUNCATE_THRESHOLD = 10 * 1024
     TRUNCATED_MARKER = "...truncated"
     MAX_LATENCY_MS = 2_147_483_647
+
+    @staticmethod
+    def _make_json_safe(value: Any) -> Any:
+        return jsonable_encoder(
+            value,
+            custom_encoder={Decimal: lambda raw: str(raw)},
+        )
+
+    @staticmethod
+    def _normalize_optional_fk_id(value: Any) -> int | None:
+        """Normalize optional FK-like ids so sentinel 0 never reaches the DB."""
+        if value is None:
+            return None
+        try:
+            normalized = int(value)
+        except (TypeError, ValueError):
+            return None
+        return normalized if normalized > 0 else None
 
     @staticmethod
     def _sanitize_request(request_data: dict) -> dict:
@@ -85,7 +107,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
 
         sanitized = request_data.copy()
 
-        # 脱敏 API Key
+        # Redact api_key field / 脱敏 api_key 字段
         if "api_key" in sanitized:
             api_key = str(sanitized["api_key"])
             if len(api_key) > 8:
@@ -99,7 +121,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
                 if len(value) > 8:
                     sanitized[field] = f"{value[:4]}...{value[-4:]}"
 
-        return sanitized
+        return CallLogService._make_json_safe(sanitized)
 
     @staticmethod
     def _truncate_response(response_data: Any) -> Any:
@@ -117,7 +139,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         if not response_data:
             return response_data
 
-        # 转换为字符串检查大小（default=str 处理 Decimal 等特殊类型）
+        # Serialize for size check (default=str for Decimal, etc.) / 转字符串测体积（Decimal 等用 default=str）
         response_str = json.dumps(response_data, ensure_ascii=False, default=str)
 
         if (
@@ -131,7 +153,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
                 "preview": response_str[:1024] + CallLogService.TRUNCATED_MARKER,
             }
 
-        return response_data
+        return CallLogService._make_json_safe(response_data)
 
     @staticmethod
     def _generate_request_hash(
@@ -161,7 +183,11 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
             "tool_choice": tool_choice,
         }
 
-        params_str = json.dumps(params, sort_keys=True)
+        params_str = json.dumps(
+            CallLogService._make_json_safe(params),
+            sort_keys=True,
+            ensure_ascii=False,
+        )
         return hashlib.sha256(params_str.encode()).hexdigest()
 
     @classmethod
@@ -516,6 +542,39 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
                 req.get("should_record_call_log"),
             ]
         )
+        last_tool_name = cls._to_non_empty_str(
+            (turn_record or {}).get("last_tool_name")
+            or incoming.get("last_tool_name")
+            or req.get("last_tool_name")
+        )
+        last_page_key = cls._to_non_empty_str(
+            (turn_record or {}).get("last_page_key")
+            or incoming.get("last_page_key")
+            or req.get("last_page_key")
+        )
+        last_page_op = cls._to_non_empty_str(
+            (turn_record or {}).get("last_page_op")
+            or incoming.get("last_page_op")
+            or req.get("last_page_op")
+        )
+        interrupted_stage = cls._to_non_empty_str(
+            (turn_record or {}).get("interrupted_stage")
+            or incoming.get("interrupted_stage")
+            or req.get("interrupted_stage")
+        )
+        tool_loop_progress = (
+            dict((turn_record or {}).get("tool_loop_progress") or {})
+            if isinstance((turn_record or {}).get("tool_loop_progress"), dict)
+            else (
+                dict(incoming.get("tool_loop_progress") or {})
+                if isinstance(incoming.get("tool_loop_progress"), dict)
+                else (
+                    dict(req.get("tool_loop_progress") or {})
+                    if isinstance(req.get("tool_loop_progress"), dict)
+                    else {}
+                )
+            )
+        )
 
         if not turn_outcome:
             turn_outcome = (
@@ -541,11 +600,46 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
             diagnostics["sync_rescue"] = sync_rescue
         if should_record_call_log is not None:
             diagnostics["should_record_call_log"] = should_record_call_log
+        if last_tool_name:
+            diagnostics["last_tool_name"] = last_tool_name
+        if last_page_key:
+            diagnostics["last_page_key"] = last_page_key
+        if last_page_op:
+            diagnostics["last_page_op"] = last_page_op
+        if interrupted_stage:
+            diagnostics["interrupted_stage"] = interrupted_stage
+        if tool_loop_progress:
+            diagnostics["tool_loop_progress"] = tool_loop_progress
         if turn_record:
             diagnostics["turn_record"] = turn_record
         if status != CallStatusEnum.SUCCESS.value and error_message:
             diagnostics["error_message"] = error_message
         return diagnostics
+
+    @classmethod
+    def _build_request_metadata_payload(
+        cls,
+        *,
+        request_data: dict[str, Any] | None,
+        response_data: Any,
+        turn_diagnostics: dict[str, Any] | None,
+        agent_id: int | None,
+        conversation_id: int | None,
+        routed_model_id: int | None,
+        route_reason: str | None,
+    ) -> dict[str, Any]:
+        return cls._make_json_safe(
+            {
+                "request": cls._sanitize_request(request_data),
+                "response": cls._truncate_response(response_data),
+                "turn_diagnostics": turn_diagnostics,
+                "timestamp": serialize_datetime_for_api(utc_now()),
+                "agent_id": agent_id,
+                "conversation_id": conversation_id,
+                "routed_model_id": routed_model_id,
+                "route_reason": route_reason,
+            }
+        )
 
     async def log_call(
         self,
@@ -631,9 +725,6 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
             request_payload["turn_record"] = turn_diagnostics["turn_record"]
 
         # 脱敏和截断处理 / Redact and truncate
-        sanitized_request = self._sanitize_request(request_payload)
-        truncated_response = self._truncate_response(response_data)
-
         # 生成请求哈希 / Generate request hash
         messages = request_payload.get("messages", [])
         temperature = request_payload.get("temperature", 0.7)
@@ -653,16 +744,33 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         eff_trace = _normalize_trace_for_call_log(trace_id, use_context_var=True)
         eff_tool = _normalize_tool_call_id_for_call_log(tool_call_id)
         eff_call_type = _normalize_call_type_for_call_log(call_type)
+        normalized_user_id = self._normalize_optional_fk_id(user_id)
+        normalized_agent_id = self._normalize_optional_fk_id(agent_id)
+        normalized_conversation_id = self._normalize_optional_fk_id(conversation_id)
+        normalized_routed_model_id = self._normalize_optional_fk_id(routed_model_id)
+        request_metadata = self._build_request_metadata_payload(
+            request_data=request_payload,
+            response_data=response_data,
+            turn_diagnostics=turn_diagnostics,
+            agent_id=normalized_agent_id,
+            conversation_id=normalized_conversation_id,
+            routed_model_id=normalized_routed_model_id,
+            route_reason=route_reason,
+        )
         call_log = AICallLog(
             tenant_id=tenant_id,
-            user_id=user_id,
+            user_id=normalized_user_id,
             user_type=user_type,
-            billing_tenant_id=billing_context.get("billing_tenant_id"),
-            actor_user_id=billing_context.get("actor_user_id", user_id),
+            billing_tenant_id=self._normalize_optional_fk_id(
+                billing_context.get("billing_tenant_id")
+            ),
+            actor_user_id=self._normalize_optional_fk_id(
+                billing_context.get("actor_user_id", normalized_user_id)
+            ),
             actor_user_type=billing_context.get("actor_user_type", user_type),
             access_channel=billing_context.get("access_channel"),
-            agent_id=agent_id,
-            conversation_id=conversation_id,
+            agent_id=normalized_agent_id,
+            conversation_id=normalized_conversation_id,
             trace_id=eff_trace,
             tool_call_id=eff_tool,
             provider_id=provider_id,
@@ -677,29 +785,26 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
             status=status,
             error_message=error_message,
             request_hash=request_hash,
-            request_metadata={
-                "request": sanitized_request,
-                "response": truncated_response,
-                "turn_diagnostics": turn_diagnostics,
-                "timestamp": utc_now().isoformat(),
-                "agent_id": agent_id,
-                "conversation_id": conversation_id,
-                "routed_model_id": routed_model_id,
-                "route_reason": route_reason,
-            },
-            routed_model_id=routed_model_id,
+            request_metadata=request_metadata,
+            routed_model_id=normalized_routed_model_id,
             route_reason=route_reason,
             agent_owner_type=billing_context.get("agent_owner_type"),
-            agent_owner_tenant_id=billing_context.get("agent_owner_tenant_id"),
+            agent_owner_tenant_id=self._normalize_optional_fk_id(
+                billing_context.get("agent_owner_tenant_id")
+            ),
             agent_resource_scope=billing_context.get("agent_resource_scope"),
-            tenant_publication_id=billing_context.get("tenant_publication_id"),
+            tenant_publication_id=self._normalize_optional_fk_id(
+                billing_context.get("tenant_publication_id")
+            ),
             publication_enabled_snapshot=billing_context.get(
                 "publication_enabled_snapshot"
             ),
             publication_access_type_snapshot=billing_context.get(
                 "publication_access_type_snapshot"
             ),
-            agent_id_snapshot=billing_context.get("agent_id_snapshot", agent_id),
+            agent_id_snapshot=self._normalize_optional_fk_id(
+                billing_context.get("agent_id_snapshot", normalized_agent_id)
+            ),
             agent_name_snapshot=billing_context.get("agent_name_snapshot"),
             billing_tenant_name_snapshot=billing_context.get(
                 "billing_tenant_name_snapshot"
@@ -821,6 +926,10 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         eff_trace = _normalize_trace_for_call_log(trace_id, use_context_var=True)
         eff_tool = _normalize_tool_call_id_for_call_log(tool_call_id)
         eff_call_type = _normalize_call_type_for_call_log(call_type)
+        normalized_user_id = self._normalize_optional_fk_id(user_id)
+        normalized_agent_id = self._normalize_optional_fk_id(agent_id)
+        normalized_conversation_id = self._normalize_optional_fk_id(conversation_id)
+        normalized_routed_model_id = self._normalize_optional_fk_id(routed_model_id)
         request_payload = self._inject_turn_hints(
             request_data,
             turn_record=turn_record,
@@ -843,14 +952,17 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         if isinstance(turn_diagnostics.get("turn_record"), dict):
             request_payload["turn_record"] = turn_diagnostics["turn_record"]
 
-        # 发送 Celery 任务
+        safe_request_payload = self._sanitize_request(request_payload)
+        safe_response_data = self._make_json_safe(response_data)
+
+        # Enqueue Celery task / 异步发送 Celery 任务
         log_ai_call_task.delay(
             tenant_id=tenant_id,
             model_id=model_id,
             provider_id=provider_id,
             request_type=request_type,
-            request_data=request_payload,
-            response_data=response_data,
+            request_data=safe_request_payload,
+            response_data=safe_response_data,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             total_tokens=total_tokens,
@@ -858,12 +970,12 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
             latency_ms=normalized_latency_ms,
             status=status,
             error_message=error_message,
-            user_id=user_id,
+            user_id=normalized_user_id,
             user_type=user_type,
-            agent_id=agent_id,
-            conversation_id=conversation_id,
+            agent_id=normalized_agent_id,
+            conversation_id=normalized_conversation_id,
             billing_context=billing_context,
-            routed_model_id=routed_model_id,
+            routed_model_id=normalized_routed_model_id,
             route_reason=route_reason,
             trace_id=eff_trace,
             tool_call_id=eff_tool,

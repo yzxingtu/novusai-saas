@@ -115,6 +115,7 @@ export function useColumns<T = AdminSkillInfo>(
             code: 'test',
             text: $t('admin.ai.skill.testBtn'),
             icon: 'lucide:play',
+            accessCodes: ['ai_skill:detail'],
           },
           'edit',
           { code: 'delete', show: (row: AdminSkillInfo) => !row.is_system },

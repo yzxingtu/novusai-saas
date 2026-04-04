@@ -52,6 +52,8 @@ import type {
   PageOperationResult,
 } from './page-operation-types';
 
+// --- Internal: param schemas, guards, sanitization / 内部：参数 schema、守卫与清洗 ---
+
 interface PageOperationParamSchema {
   default?: unknown;
   defaultValue?: unknown;
@@ -68,6 +70,8 @@ interface PageOperationContextSnapshot {
 }
 
 type PageOperationContextDiff = Record<string, boolean>;
+
+// --- Post-handler UI context diff (modal / drawer / form) / 执行后 UI 差分（弹窗/抽屉/表单）---
 
 const CONTEXT_DIFF_POLL_INTERVAL_MS = 60;
 const CONTEXT_DIFF_WAIT_TIMEOUT_MS = 1500;
@@ -152,6 +156,8 @@ function buildInvalidParamEnumResult(
     error_type: 'invalid_input',
   };
 }
+
+// --- Coerce & validate params against JSON-like schema / 按类 JSON schema 强制并校验参数 ---
 
 function parseStructuredParamValue(
   value: string,
@@ -288,6 +294,8 @@ function validateAndNormalizeOperationParams(
   return normalizedParams;
 }
 
+// --- Snapshot & diff helpers (after handler runs) / 快照与差分（handler 执行后）---
+
 function getContextSnapshot(pageKey: string): PageOperationContextSnapshot {
   return {
     formOpen: formStateTracker.isOpenWithFallback(pageKey),
@@ -331,6 +339,8 @@ function mergeContextDiffs(
   return merged;
 }
 
+// Poll until modal/drawer/form state changes after handler / 在 handler 后轮询直至弹窗/抽屉/表单状态变化
+
 async function waitForContextSnapshotChange(
   pageKey: string,
   before: PageOperationContextSnapshot,
@@ -353,6 +363,8 @@ async function waitForContextSnapshotChange(
 
   return latest;
 }
+
+// --- Registry maps, defaults merge, extras / 注册表、默认操作合并、extras ---
 
 /**
  * Registry: normalized page key (dot-notation) → operations[]
@@ -481,6 +493,8 @@ export function appendPageOperations(
   };
 }
 
+// --- Public API: discover & execute / 对外 API：发现与执行 ---
+
 /**
  * Get operation list for a specific page (read-only discovery)
  * 获取指定页面的操作列表（只读发现）
@@ -599,6 +613,8 @@ export function findPageOperation(
   const operations = getMergedOperations(normalizePageKey(key));
   return operations?.find((op) => op.name === operationName);
 }
+
+// --- Debug & test helpers / 调试与测试辅助 ---
 
 /**
  * Get all currently registered page operation keys (for debugging)

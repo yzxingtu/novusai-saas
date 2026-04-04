@@ -11,7 +11,7 @@ from fastapi import APIRouter, Query
 
 from app.core.deps import ActiveTenantAdmin, DbSession
 from app.core.i18n import _
-from app.core.response import success
+from app.core.response import serialize_datetime_for_api, success
 from app.exceptions import NotFoundException
 from app.rbac.decorators import auth_only
 from app.services.common.notification_service import NotificationService
@@ -60,8 +60,8 @@ async def list_notifications(
                     "link": n.link,
                     "priority": n.priority,
                     "is_read": n.is_read,
-                    "read_at": n.read_at.isoformat() if n.read_at else None,
-                    "created_at": n.created_at.isoformat() if n.created_at else None,
+                    "read_at": serialize_datetime_for_api(n.read_at),
+                    "created_at": serialize_datetime_for_api(n.created_at),
                 }
                 for n in items
             ],

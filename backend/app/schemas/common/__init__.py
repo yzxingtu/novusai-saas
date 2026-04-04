@@ -17,6 +17,8 @@ from app.schemas.common.captcha import (
     CaptchaVerifyResponse,
 )
 from app.schemas.common.permission import (
+    MenuAIResponse,
+    MenuMetaResponse,
     MenuResponse,
     PermissionResponse,
     PermissionTreeResponse,
@@ -45,6 +47,8 @@ __all__ = [
     "CaptchaVerifyResponse",
     "PermissionResponse",
     "PermissionTreeResponse",
+    "MenuAIResponse",
+    "MenuMetaResponse",
     "MenuResponse",
     "FilterOp",
     "FilterRule",

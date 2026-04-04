@@ -34,3 +34,35 @@
 export function normalizePageKey(raw: string): string {
   return raw.replace(/^\//, '').replaceAll('/', '.');
 }
+
+export interface PageKeyRouteLike {
+  meta?: null | Record<string, unknown>;
+  path?: string;
+}
+
+/** Read ``meta.ai.pageContextKey`` when present / 读取路由 meta 中显式配置的 page key */
+function extractMetaPageContextKey(route?: null | PageKeyRouteLike): string {
+  const meta = route?.meta;
+  if (!meta || typeof meta !== 'object') {
+    return '';
+  }
+  const aiMeta =
+    'ai' in meta && meta.ai && typeof meta.ai === 'object'
+      ? (meta.ai as { pageContextKey?: unknown })
+      : undefined;
+  return typeof aiMeta?.pageContextKey === 'string'
+    ? aiMeta.pageContextKey.trim()
+    : '';
+}
+
+export function resolveRoutePageKey(
+  route?: null | PageKeyRouteLike,
+  fallbackPath = '',
+): string {
+  const pageContextKey = extractMetaPageContextKey(route);
+  if (pageContextKey) {
+    return normalizePageKey(pageContextKey);
+  }
+  const rawPath = route?.path || fallbackPath;
+  return normalizePageKey(rawPath);
+}

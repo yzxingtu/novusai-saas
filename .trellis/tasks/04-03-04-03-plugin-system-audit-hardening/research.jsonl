@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/guides/plugin-runtime-playbook.md", "reason": "Canonical plugin runtime contract"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend host/plugin management conventions"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend plugin runtime conventions"}
+{"file": "backend/app/api/admin/plugins.py", "reason": "Plugin admin API contract"}
+{"file": "backend/app/plugins/runtime_recovery.py", "reason": "Plugin runtime recovery behavior"}
+{"file": "frontend/apps/web-antd/src/views/admin/plugins/index.vue", "reason": "Plugin admin UI behavior"}

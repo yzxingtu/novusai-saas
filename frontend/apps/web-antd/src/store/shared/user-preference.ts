@@ -32,6 +32,7 @@ import {
   updateTenantGlobalPreferencesApi,
   updateTenantMyPreferencesApi,
 } from '#/api/tenant/preferences';
+import { syncRuntimeLocale } from '#/locales/runtime-locale';
 
 type EndpointSide = 'admin' | 'tenant';
 
@@ -201,6 +202,19 @@ export function getVbenSnapshot(): PreferencesData {
   );
 }
 
+export async function applyPreferencesToVben(
+  prefs: PreferencesData,
+): Promise<void> {
+  if (typeof prefs.locale === 'string' && prefs.locale.trim()) {
+    await syncRuntimeLocale(prefs.locale);
+  }
+
+  const mapped = mapToVbenPreferences(prefs);
+  if (Object.keys(mapped).length > 0) {
+    updatePreferences(mapped as Parameters<typeof updatePreferences>[0]);
+  }
+}
+
 export const useUserPreferenceStore = defineStore('userPreference', {
   state: (): UserPreferenceState => ({
     preferences: null,
@@ -239,9 +253,8 @@ export const useUserPreferenceStore = defineStore('userPreference', {
 
         const prefs = await getMyApi();
         this.preferences = prefs;
+        await this._applyToVben(prefs);
         this.loaded = true;
-
-        this._applyToVben(prefs);
 
         return prefs;
       } catch (error) {
@@ -302,7 +315,7 @@ export const useUserPreferenceStore = defineStore('userPreference', {
         if (this.preferences) {
           this.preferences = { ...this.preferences, ...prefs };
         }
-        this._applyToVben(prefs);
+        await this._applyToVben(prefs);
 
         return prefs;
       } catch (error) {
@@ -355,7 +368,7 @@ export const useUserPreferenceStore = defineStore('userPreference', {
 
         const prefs = await resetApi();
         this.preferences = prefs;
-        this._applyToVben(prefs);
+        await this._applyToVben(prefs);
         return prefs;
       } catch (error) {
         console.error('[UserPreference] Failed to reset preferences:', error);
@@ -374,15 +387,19 @@ export const useUserPreferenceStore = defineStore('userPreference', {
       this.side = null;
     },
 
+    async applyServerPreferences(prefs: PreferencesData) {
+      this.preferences = this.preferences
+        ? { ...this.preferences, ...prefs }
+        : { ...prefs };
+      await this._applyToVben(prefs);
+    },
+
     /**
      * 将偏好同步到 @vben/preferences
      * Sync preferences to @vben/preferences
      */
-    _applyToVben(prefs: PreferencesData) {
-      const mapped = mapToVbenPreferences(prefs);
-      if (Object.keys(mapped).length > 0) {
-        updatePreferences(mapped as Parameters<typeof updatePreferences>[0]);
-      }
+    async _applyToVben(prefs: PreferencesData) {
+      await applyPreferencesToVben(prefs);
     },
   },
 });

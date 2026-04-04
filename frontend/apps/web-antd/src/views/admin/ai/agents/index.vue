@@ -48,7 +48,7 @@ import {
   useCrudList,
 } from '#/composables';
 import { $t } from '#/locales';
-import { formatRelativeTime } from '#/utils/common';
+import { formatDate, formatRelativeTime } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
 import {
   getAdminScopeOptions,
@@ -851,7 +851,7 @@ const heroChips = computed(() => {
           <div
             class="mt-4 flex items-center justify-between border-t border-border/50 pt-3 text-[11px] text-muted-foreground"
           >
-            <Tooltip :title="agent.created_at">
+            <Tooltip :title="formatDate(agent.created_at)">
               <span>{{ formatRelativeTime(agent.created_at) }}</span>
             </Tooltip>
 

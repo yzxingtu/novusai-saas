@@ -42,7 +42,9 @@ def _build_conversation():
     )
 
 
-def _build_failed_result(*, output: str = "", error: str = "Upstream API failed: 502 Bad Gateway"):
+def _build_failed_result(
+    *, output: str = "", error: str = "Upstream API failed: 502 Bad Gateway"
+):
     return ExecutionResult(
         success=False,
         output=output,
@@ -143,6 +145,79 @@ async def _capture_on_complete(service, mock_db):
         )
 
     return engine.stream_execute.await_args.kwargs["on_complete"], hook_registry
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_defers_new_conversation_commit_until_api_quota_passes(
+    mock_db,
+):
+    from app.exceptions import BusinessException
+
+    service = await _build_stream_service(mock_db)
+    engine = AsyncMock()
+    engine.stream_execute = AsyncMock(return_value=MagicMock())
+    record_conversation = AsyncMock()
+    hook_registry = SimpleNamespace(
+        has_hooks=MagicMock(return_value=False),
+        trigger=AsyncMock(return_value={}),
+    )
+
+    with (
+        patch(
+            "app.services.ai.agent_chat_service.ConversationEngine",
+            return_value=engine,
+        ),
+        patch(
+            "app.ai.skills.resolver.resolve_for_agent",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentQuotaManager.check_quota",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentQuotaManager.check_user_quota",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation",
+            new=record_conversation,
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentConcurrencyLimiter.acquire",
+            new=AsyncMock(return_value=""),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.BaseEngine._publish_execution_started",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.get_hook_registry",
+            return_value=hook_registry,
+        ),
+        patch(
+            "app.services.tenant.quota_service.QuotaService.check_api_quota_for_tenant_id",
+            new=AsyncMock(
+                return_value=SimpleNamespace(allowed=False, message="monthly quota hit")
+            ),
+        ),
+        patch(
+            "app.configs.service.ConfigService.get_platform_config",
+            new=AsyncMock(side_effect=["normal", 256]),
+        ),
+        pytest.raises(BusinessException, match="monthly quota hit"),
+    ):
+        await service.stream_chat(
+            agent_id=1,
+            message="blocked before stream starts",
+            conversation_id=None,
+            user_id=10,
+            user_role=UserRoleEnum.TENANT_ADMIN.value,
+        )
+
+    record_conversation.assert_not_awaited()
+    mock_db.commit.assert_not_awaited()
+    engine.stream_execute.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -251,7 +326,9 @@ async def test_stream_on_complete_updates_conversation_last_error_metadata(mock_
         await on_complete(_build_failed_result(error="Fallback crashed hard"))
 
     assert "last_error" in conversation.metadata_
-    assert conversation.metadata_["last_error"]["error_type"] == "stream_execution_error"
+    assert (
+        conversation.metadata_["last_error"]["error_type"] == "stream_execution_error"
+    )
     assert "friendly_message" in conversation.metadata_["last_error"]
 
 

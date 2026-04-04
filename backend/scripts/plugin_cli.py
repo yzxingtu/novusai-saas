@@ -322,15 +322,6 @@ export default defineConfig({{
 }});
 '''
 
-_FE_RELEASE_MANIFEST_TEMPLATE = '''{{
-  "format": "novus.plugin.release.v1",
-  "entry": "plugin.js",
-  "global_var": "NovusPlugin_{name_underscore}",
-  "css": [],
-  "assets": []
-}}
-'''
-
 _FE_GITIGNORE = """node_modules/
 dist/
 """
@@ -552,6 +543,33 @@ def _detect_package_manager(frontend_dir: Path) -> list[str]:
     if (frontend_dir / "yarn.lock").is_file():
         return ["yarn.cmd" if is_windows else "yarn", "build"]
     return ["npm.cmd" if is_windows else "npm", "run", "build"]
+
+
+def _detect_package_manager_install(frontend_dir: Path) -> list[str]:
+    is_windows = os.name == "nt"
+    if (frontend_dir / "pnpm-lock.yaml").is_file():
+        return ["pnpm.cmd" if is_windows else "pnpm", "install"]
+    if (frontend_dir / "yarn.lock").is_file():
+        return ["yarn.cmd" if is_windows else "yarn", "install"]
+    return ["npm.cmd" if is_windows else "npm", "install"]
+
+
+def _frontend_dependencies_need_bootstrap(frontend_dir: Path) -> bool:
+    return not (frontend_dir / "node_modules").is_dir()
+
+
+def _run_frontend_command(
+    command: list[str],
+    *,
+    cwd: Path,
+    error_message: str,
+) -> None:
+    print(f"  [RUN] {' '.join(command)}")
+    try:
+        subprocess.run(command, cwd=cwd, check=True)
+    except subprocess.CalledProcessError as exc:
+        print(f"Error: {error_message} (exit={exc.returncode})")
+        sys.exit(1)
 
 
 def _collect_dist_files(dist_dir: Path) -> list[str]:
@@ -795,11 +813,6 @@ def cmd_create(args: argparse.Namespace) -> None:
         (fe_dir / "package.json").write_text(_FE_PACKAGE_JSON.format(**fe_vars), encoding="utf-8")
         (fe_dir / "vite.config.ts").write_text(_FE_VITE_CONFIG_TS.format(**fe_vars), encoding="utf-8")
         (fe_dir / ".gitignore").write_text(_FE_GITIGNORE, encoding="utf-8")
-        (fe_dir / "dist").mkdir()
-        (fe_dir / "dist" / "plugin.manifest.json").write_text(
-            _FE_RELEASE_MANIFEST_TEMPLATE.format(**fe_vars),
-            encoding="utf-8",
-        )
 
     # locales
     for lang, label in [("zh-CN", display_name), ("en", display_name)]:
@@ -868,9 +881,23 @@ def cmd_build(args: argparse.Namespace) -> None:
         sys.exit(1)
     print(f"  [OK] Security scan clean ({scan_result.files_scanned} files)")
 
+    if _frontend_dependencies_need_bootstrap(frontend_dir):
+        install_command = _detect_package_manager_install(frontend_dir)
+        _run_frontend_command(
+            install_command,
+            cwd=frontend_dir,
+            error_message=(
+                "Frontend dependency install failed. "
+                "Check frontend/package.json and your package manager environment"
+            ),
+        )
+
     command = _detect_package_manager(frontend_dir)
-    print(f"  [RUN] {' '.join(command)}")
-    subprocess.run(command, cwd=frontend_dir, check=True)
+    _run_frontend_command(
+        command,
+        cwd=frontend_dir,
+        error_message="Frontend build command failed",
+    )
 
     try:
         release_manifest_path = _generate_release_manifest(

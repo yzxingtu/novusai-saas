@@ -10,11 +10,13 @@ Retry/Key rotation delegated to RetryService; usage/quota/logging delegated to U
 import asyncio
 import time
 from collections.abc import AsyncIterator
+from typing import Any
 
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.adapters import AdapterRegistry
+from app.ai.adapters.openai_adapter import OpenAIAdapter
 from app.ai.cache import AIResponseCache
 from app.ai.exceptions import (
     AIGatewayError,
@@ -48,6 +50,7 @@ from app.core.runtime_identity import get_runtime_identity_tag
 from app.enums.ai import CallStatusEnum, CallTypeEnum, RequestTypeEnum
 from app.enums.log import UserTypeEnum as LogUserTypeEnum
 from app.exceptions import BusinessException, NotFoundException
+from app.middleware.trace import trace_id_var
 from app.models.ai import AIModel, AIProvider, ProviderApiKey
 from app.repositories.ai import (
     AIModelRepository,
@@ -250,6 +253,43 @@ class AIGateway:
         }
         payload.metadata = metadata
 
+    def _build_adapter_extra(
+        self,
+        *,
+        ai_model: AIModel | None,
+        tenant_id: int | None,
+    ) -> dict[str, object | None]:
+        return {
+            "internal_db": self.db,
+            "internal_tenant_id": tenant_id,
+            "model_config": getattr(ai_model, "config", None),
+        }
+
+    @staticmethod
+    def _resolve_effective_model_request(
+        *,
+        provider: AIProvider,
+        ai_model: AIModel | None,
+        model_code: str,
+        wire_api: str | None = None,
+    ) -> dict[str, Any]:
+        if provider.type == "openai_compatible":
+            return OpenAIAdapter.resolve_effective_model_request(
+                model=model_code,
+                model_config=getattr(ai_model, "config", None),
+                wire_api=wire_api,
+            )
+        return {
+            "logical_model_code": model_code,
+            "upstream_model": model_code,
+            "reasoning_effort": None,
+            "effective_params": {},
+            "applied_overrides": [],
+            "ignored_overrides": [],
+            "ignore_reasons": {},
+            "override_source": "model_code",
+        }
+
     async def chat(
         self,
         provider_code: str,
@@ -392,8 +432,10 @@ class AIGateway:
                 ),
                 tenant_id=tenant_id,
                 adapter_extra={
-                    "internal_db": self.db,
-                    "internal_tenant_id": tenant_id,
+                    **self._build_adapter_extra(
+                        ai_model=ai_model,
+                        tenant_id=tenant_id,
+                    ),
                 },
             )
         except AIGatewayError as original_error:
@@ -470,8 +512,10 @@ class AIGateway:
                     ),
                     tenant_id=tenant_id,
                     adapter_extra={
-                        "internal_db": self.db,
-                        "internal_tenant_id": tenant_id,
+                        **self._build_adapter_extra(
+                            ai_model=fallback_model,
+                            tenant_id=tenant_id,
+                        ),
                     },
                 )
                 # Update references for subsequent metering / 更新引用用于后续计量
@@ -739,6 +783,7 @@ class AIGateway:
                             provider_config=provider.config,
                             internal_db=self.db,
                             internal_tenant_id=tenant_id,
+                            model_config=getattr(ai_model, "config", None),
                         )
 
                         # Call adapter streaming interface / 调用适配器流式接口
@@ -887,6 +932,7 @@ class AIGateway:
                         provider_config=fb_provider.config,
                         internal_db=self.db,
                         internal_tenant_id=tenant_id,
+                        model_config=getattr(fallback_model, "config", None),
                     )
 
                     async for chunk in fb_adapter.stream_chat(
@@ -1095,6 +1141,12 @@ class AIGateway:
             ),
             tenant_id=tenant_id,
             log_key="ai.log.gateway_embedding_call",
+            adapter_extra={
+                **self._build_adapter_extra(
+                    ai_model=ai_model,
+                    tenant_id=tenant_id,
+                ),
+            },
         )
         self._attach_runtime_metadata(response, provider=provider, ai_model=ai_model)
 
@@ -1261,6 +1313,12 @@ class AIGateway:
             ),
             tenant_id=tenant_id,
             log_key="ai.log.gateway_image_call",
+            adapter_extra={
+                **self._build_adapter_extra(
+                    ai_model=ai_model,
+                    tenant_id=tenant_id,
+                ),
+            },
         )
         self._attach_runtime_metadata(response, provider=provider, ai_model=ai_model)
 
@@ -1379,6 +1437,7 @@ class AIGateway:
                 connected=False,
                 error=_("ai.provider_not_found"),
                 model=model_code,
+                trace_id=trace_id_var.get() or None,
             )
 
         # Get platform-level API Key via Repository / 通过 Repository 获取平台级 API Key
@@ -1393,6 +1452,12 @@ class AIGateway:
                 error=_("ai.no_api_key"),
                 model=model_code,
                 provider=provider.code,
+                trace_id=trace_id_var.get() or None,
+                wire_api=(
+                    (provider.config or {}).get("wire_api", "chat_completions")
+                    if isinstance(provider.config, dict)
+                    else "chat_completions"
+                ),
             )
 
         # Detect model type (embedding models need different test approach) / 检测模型类型（embedding 模型需要不同的测试方式）
@@ -1401,13 +1466,26 @@ class AIGateway:
 
         # Record start time / 记录开始时间
         start_time = time.time()
+        effective_request = self._resolve_effective_model_request(
+            provider=provider,
+            ai_model=ai_model,
+            model_code=model_code,
+            wire_api=(
+                (provider.config or {}).get("wire_api")
+                if isinstance(provider.config, dict)
+                else None
+            ),
+        )
+        trace_id = trace_id_var.get() or None
 
         try:
             logger.info(
-                "AI model test config: provider={} provider_id={} model={} base_url={} wire_api={} api_key_id={} stream={}",
+                "AI model test config: provider={} provider_id={} logical_model_code={} effective_upstream_model={} effective_reasoning_effort={} base_url={} wire_api={} api_key_id={} stream={}",
                 provider.code,
                 provider.id,
                 model_code,
+                effective_request["upstream_model"],
+                effective_request.get("reasoning_effort") or "",
                 provider.base_url or "",
                 (provider.config or {}).get("wire_api", "chat_completions")
                 if isinstance(provider.config, dict)
@@ -1421,6 +1499,7 @@ class AIGateway:
                 api_key=api_key.decrypt_key(),
                 base_url=provider.base_url,
                 provider_config=provider.config,
+                model_config=getattr(ai_model, "config", None),
             )
 
             if is_embedding:
@@ -1440,6 +1519,25 @@ class AIGateway:
                     response_text=f"Embedding OK: dim={dim}",
                     model=model_code,
                     provider=provider.code,
+                    trace_id=trace_id,
+                    wire_api=(
+                        (provider.config or {}).get("wire_api", "chat_completions")
+                        if isinstance(provider.config, dict)
+                        else "chat_completions"
+                    ),
+                    effective_upstream_model=effective_request["upstream_model"],
+                    effective_reasoning_effort=effective_request.get(
+                        "reasoning_effort"
+                    ),
+                    applied_overrides=list(
+                        effective_request.get("applied_overrides", []) or []
+                    ),
+                    ignored_overrides=list(
+                        effective_request.get("ignored_overrides", []) or []
+                    ),
+                    ignore_reasons=dict(
+                        effective_request.get("ignore_reasons", {}) or {}
+                    ),
                 )
 
             # Chat model / Chat 模型
@@ -1473,6 +1571,25 @@ class AIGateway:
                     response_text=response_text,
                     model=model_code,
                     provider=provider.code,
+                    trace_id=trace_id,
+                    wire_api=(
+                        (provider.config or {}).get("wire_api", "chat_completions")
+                        if isinstance(provider.config, dict)
+                        else "chat_completions"
+                    ),
+                    effective_upstream_model=effective_request["upstream_model"],
+                    effective_reasoning_effort=effective_request.get(
+                        "reasoning_effort"
+                    ),
+                    applied_overrides=list(
+                        effective_request.get("applied_overrides", []) or []
+                    ),
+                    ignored_overrides=list(
+                        effective_request.get("ignored_overrides", []) or []
+                    ),
+                    ignore_reasons=dict(
+                        effective_request.get("ignore_reasons", {}) or {}
+                    ),
                 )
             else:
                 # Non-streaming response test / 非流式响应测试
@@ -1498,6 +1615,25 @@ class AIGateway:
                     response_text=response_text,
                     model=model_code,
                     provider=provider.code,
+                    trace_id=trace_id,
+                    wire_api=(
+                        (provider.config or {}).get("wire_api", "chat_completions")
+                        if isinstance(provider.config, dict)
+                        else "chat_completions"
+                    ),
+                    effective_upstream_model=effective_request["upstream_model"],
+                    effective_reasoning_effort=effective_request.get(
+                        "reasoning_effort"
+                    ),
+                    applied_overrides=list(
+                        effective_request.get("applied_overrides", []) or []
+                    ),
+                    ignored_overrides=list(
+                        effective_request.get("ignored_overrides", []) or []
+                    ),
+                    ignore_reasons=dict(
+                        effective_request.get("ignore_reasons", {}) or {}
+                    ),
                 )
 
         except Exception as e:
@@ -1518,6 +1654,23 @@ class AIGateway:
                 ),
                 model=model_code,
                 provider=provider.code,
+                trace_id=trace_id,
+                wire_api=(
+                    (provider.config or {}).get("wire_api", "chat_completions")
+                    if isinstance(provider.config, dict)
+                    else "chat_completions"
+                ),
+                effective_upstream_model=effective_request["upstream_model"],
+                effective_reasoning_effort=effective_request.get("reasoning_effort"),
+                applied_overrides=list(
+                    effective_request.get("applied_overrides", []) or []
+                ),
+                ignored_overrides=list(
+                    effective_request.get("ignored_overrides", []) or []
+                ),
+                ignore_reasons=dict(
+                    effective_request.get("ignore_reasons", {}) or {}
+                ),
             )
 
     async def get_provider_and_key(
@@ -1572,8 +1725,15 @@ class AIGateway:
         Returns:
             AIModel instance, or None if not found / AIModel 实例，如果不存在则返回 None
         """
+        model = await self.model_repo.get_active_by_code_and_provider(
+            model_name,
+            provider_id,
+        )
+        if model is not None:
+            return model
         return await self.model_repo.get_active_by_name_and_provider(
-            model_name, provider_id
+            model_name,
+            provider_id,
         )
 
 

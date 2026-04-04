@@ -1,6 +1,13 @@
+/**
+ * Page AI capability keys, mode normalization, and policy-based operation filtering.
+ * 页面 AI 能力键、模式规范化，以及按策略过滤可用操作（含 navigation_only 白名单）。
+ */
+
 import type { AIPageMode } from '@vben/types';
 
 import type { PageOperation } from '#/components/business/ai-slide-panel/page-operation-registry';
+
+// --- Capability keys & navigation-only allowlist / 能力键与仅导航白名单 ---
 
 export type PageAICapabilityKey =
   | 'content'
@@ -14,6 +21,14 @@ export type PageAICapabilityKey =
   | 'search'
   | 'submit'
   | 'table_policy';
+
+export const NAVIGATION_ONLY_OPERATION_NAMES = new Set([
+  'capture_screenshot',
+  'list_available_menus',
+  'navigate_menu',
+  'read_current_sections',
+  'read_current_view',
+]);
 
 export interface PageAIPolicyLike {
   disabledCapabilities?: string | string[];
@@ -29,6 +44,8 @@ export interface TablePolicySupportConfig {
   relatedTables?: string[];
   supportedActions?: string[];
 }
+
+// Disabled capability → concrete operation names to hide / 禁用的能力 → 对应要隐藏的操作名
 
 const CAPABILITY_TO_OPERATION_NAMES: Record<
   Exclude<PageAICapabilityKey, 'context' | 'custom' | 'table_policy'>,
@@ -79,6 +96,8 @@ const CAPABILITY_TO_OPERATION_NAMES: Record<
   submit: ['submit_form'],
 };
 
+// --- String / number list normalizers / 字符串与数字列表规范化 ---
+
 function normalizeStringList(values?: string | string[]): string[] {
   if (!values) return [];
   if (Array.isArray(values)) {
@@ -100,7 +119,10 @@ export function normalizePageAIMode(
   mode: AIPageMode | null | undefined,
   fallback: AIPageMode = 'operate',
 ): AIPageMode {
-  return mode === 'disabled' || mode === 'context_only' || mode === 'operate'
+  return mode === 'disabled' ||
+    mode === 'context_only' ||
+    mode === 'navigation_only' ||
+    mode === 'operate'
     ? mode
     : fallback;
 }
@@ -137,8 +159,10 @@ function normalizeNumberList(values?: number[]): number[] {
   return [...new Set(normalized)];
 }
 
+// --- Mode & capability queries / 模式与能力查询 ---
+
 export function canExposePageOperations(mode: AIPageMode): boolean {
-  return mode === 'operate';
+  return mode === 'operate' || mode === 'navigation_only';
 }
 
 export function shouldDisablePageContext(
@@ -183,6 +207,8 @@ export function mergeDisabledOperations(input: {
   return [...merged];
 }
 
+// --- Apply policy to registered operations / 将策略应用到已注册操作列表 ---
+
 export function filterPageOperationsByPolicy<
   T extends Pick<PageOperation, 'name'>,
 >(operations: readonly T[], policy: PageAIPolicyLike): T[] {
@@ -198,8 +224,18 @@ export function filterPageOperationsByPolicy<
     }),
   );
 
-  return operations.filter((operation) => !disabledNames.has(operation.name));
+  return operations.filter((operation) => {
+    if (disabledNames.has(operation.name)) {
+      return false;
+    }
+    if (mode === 'navigation_only') {
+      return NAVIGATION_ONLY_OPERATION_NAMES.has(operation.name);
+    }
+    return true;
+  });
 }
+
+// Build optional page_data fragment for table-policy-aware pages / 构建表策略相关的 page_data 片段
 
 export function buildTablePolicySupportData(
   config?: TablePolicySupportConfig,

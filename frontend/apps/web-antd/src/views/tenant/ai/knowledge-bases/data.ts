@@ -270,7 +270,7 @@ export function useColumns<T = KnowledgeBaseItem>(
             code: 'detail',
             text: $t('tenant.knowledgeBase.detail'),
             icon: 'lucide:eye',
-            accessCodes: ['knowledge_base:list'],
+            accessCodes: ['knowledge_base:detail'],
           },
           {
             code: 'edit',

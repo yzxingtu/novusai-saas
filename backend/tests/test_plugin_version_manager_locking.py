@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.enums.plugin import PluginStatusEnum
+from app.plugins.exceptions import PluginError
 from app.plugins.version_manager import VersionManager
 
 
@@ -95,11 +96,19 @@ async def test_rollback_unlocked_unloads_plugin_modules_after_restore(
         status=PluginStatusEnum.DISABLED.value,
         manifest={},
     )
-    query_result = MagicMock()
-    query_result.scalar_one_or_none.return_value = plugin
+    plugin_query = MagicMock()
+    plugin_query.scalar_one_or_none.return_value = plugin
+    version_query = MagicMock()
+    target_version_row = SimpleNamespace(
+        status="archived",
+        manifest={},
+        rolled_back_at=None,
+    )
+    version_query.scalar_one_or_none.return_value = target_version_row
 
     db = AsyncMock()
-    db.execute = AsyncMock(return_value=query_result)
+    db.execute = AsyncMock(side_effect=[plugin_query, MagicMock(), version_query])
+    db.add = MagicMock()
     db.flush = AsyncMock()
 
     manager = VersionManager(db)
@@ -131,5 +140,73 @@ async def test_rollback_unlocked_unloads_plugin_modules_after_restore(
 
     assert unloaded == [plugin_name]
     assert plugin.version == "1.0.0"
+    assert target_version_row.status == "active"
+    assert target_version_row.manifest == {"name": plugin_name, "version": "1.0.0"}
+    assert target_version_row.rolled_back_at is not None
     assert (target_dir / "plugin.yaml").is_file()
     db.flush.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_rollback_unlocked_blocks_on_downgrade_failure_and_restores_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    plugin_name = "demo-plugin"
+    plugins_root = tmp_path / "plugins"
+    versions_root = plugins_root / ".versions"
+    target_dir = plugins_root / plugin_name
+    backup_dir = versions_root / plugin_name / "1.0.0"
+
+    target_dir.mkdir(parents=True)
+    (target_dir / "keep.txt").write_text("current", encoding="utf-8")
+    backup_dir.mkdir(parents=True)
+    (backup_dir / "plugin.yaml").write_text("name: demo-plugin", encoding="utf-8")
+
+    monkeypatch.setattr("app.plugins.version_manager.PLUGINS_DIR", plugins_root)
+    monkeypatch.setattr("app.plugins.version_manager.VERSIONS_DIR", versions_root)
+
+    plugin = SimpleNamespace(
+        id=2,
+        name=plugin_name,
+        version="2.0.0",
+        status=PluginStatusEnum.ENABLED.value,
+        manifest={},
+    )
+    query_result = MagicMock()
+    query_result.scalar_one_or_none.return_value = plugin
+
+    db = AsyncMock()
+    db.execute = AsyncMock(return_value=query_result)
+    db.flush = AsyncMock()
+
+    manager = VersionManager(db)
+    monkeypatch.setattr(
+        manager,
+        "archive_version",
+        lambda _plugin_name, _version: versions_root / _plugin_name / _version,
+    )
+
+    lifecycle_instances: list[object] = []
+
+    class _Lifecycle:
+        def __init__(self, _db):
+            self._disable_impl = AsyncMock()
+            self._enable_impl = AsyncMock()
+            self.run_alembic_downgrade = AsyncMock(
+                side_effect=RuntimeError("downgrade failed")
+            )
+            lifecycle_instances.append(self)
+
+    monkeypatch.setattr("app.plugins.lifecycle.PluginLifecycle", _Lifecycle)
+
+    with pytest.raises(PluginError, match="alembic downgrade failed"):
+        await manager._rollback_unlocked(plugin_id=2, target_version="1.0.0")
+
+    assert len(lifecycle_instances) == 1
+    lifecycle = lifecycle_instances[0]
+    lifecycle._disable_impl.assert_awaited_once_with(2)
+    lifecycle._enable_impl.assert_awaited_once_with(2)
+    assert plugin.version == "2.0.0"
+    assert (target_dir / "keep.txt").read_text(encoding="utf-8") == "current"
+    db.flush.assert_not_awaited()

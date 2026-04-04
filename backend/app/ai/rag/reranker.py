@@ -10,11 +10,12 @@ Disabled by default, serves as optional enhancement capability.
 from __future__ import annotations
 
 import json
-import re
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.gateway import AIGateway
+from app.ai.prompt_contracts import render_prompt_contract
+from app.ai.text_semantics import extract_first_json_array, parse_index_score_pair
 from app.ai.types import ChatMessage
 from app.core.logging import LogManager
 
@@ -30,12 +31,7 @@ class LLMReranker:
     将 query + 每个 chunk 拼接发给 LLM 评分 1~10，根据评分重新排序结果。
     """
 
-    SYSTEM_PROMPT = (
-        "You are a relevance scoring assistant. "
-        "Rate the relevance of the document excerpt to the query on a scale of 1-10.\n"
-        "Output ONLY a JSON array of objects with 'index' (0-based) and 'score' (1-10).\n"
-        'Example: [{"index": 0, "score": 8}, {"index": 1, "score": 3}]'
-    )
+    SYSTEM_PROMPT = render_prompt_contract("rag_reranker_system")
 
     def __init__(self, db: AsyncSession, tenant_id: int, model: str | None = None):
         """
@@ -122,12 +118,14 @@ class LLMReranker:
     @staticmethod
     def _build_prompt(query: str, results: list) -> str:
         """Build scoring request prompt / 构建评分请求 prompt"""
-        parts = [f"Query: {query}\n\nDocument excerpts:"]
-        for idx, r in enumerate(results):
-            content_preview = r.content[:300]
-            parts.append(f"\n[{idx}] {content_preview}")
-        parts.append("\n\nRate each excerpt's relevance to the query (1-10):")
-        return "\n".join(parts)
+        return render_prompt_contract(
+            "rag_reranker_user",
+            query=query,
+            excerpts=[
+                {"index": idx, "content": (getattr(r, "content", "") or "")[:300]}
+                for idx, r in enumerate(results)
+            ],
+        )
 
     @staticmethod
     def _parse_scores(content: str, count: int) -> dict[int, float]:
@@ -142,9 +140,8 @@ class LLMReranker:
 
         try:
             # Try direct JSON parsing / 尝试直接解析 JSON
-            json_match = re.search(r"\[.*\]", content, re.DOTALL)
-            if json_match:
-                data = json.loads(json_match.group())
+            data = extract_first_json_array(content)
+            if data is not None:
                 for item in data:
                     idx = int(item.get("index", -1))
                     score = float(item.get("score", 0))
@@ -154,12 +151,12 @@ class LLMReranker:
             # Fallback: try line-by-line parsing "0: 8" or "[0] 8" format
             # 回退：尝试逐行解析 "0: 8" 或 "[0] 8" 格式
             for line in content.split("\n"):
-                match = re.search(r"[\[\(]?(\d+)[\]\)]?\s*[:=]\s*(\d+\.?\d*)", line)
-                if match:
-                    idx = int(match.group(1))
-                    score = float(match.group(2))
-                    if 0 <= idx < count:
-                        scores[idx] = min(max(score, 1), 10)
+                pair = parse_index_score_pair(line)
+                if pair is None:
+                    continue
+                idx, score = pair
+                if 0 <= idx < count:
+                    scores[idx] = min(max(score, 1), 10)
 
         return scores
 

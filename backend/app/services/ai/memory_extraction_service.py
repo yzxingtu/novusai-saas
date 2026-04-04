@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 
 from app.ai.internal_ai_service import InternalAIService
+from app.ai.prompt_contracts import render_prompt_contract
 from app.ai.types import ChatMessage
 from app.configs.service import PLATFORM_TENANT_ID, ConfigService
 from app.core.database import async_session_factory
@@ -158,23 +159,10 @@ class MemoryExtractionService:
 
     @classmethod
     def _build_extraction_prompt(cls, *, message: str, response: str) -> str:
-        return (
-            "Analyze this conversation turn and extract information worth remembering.\n\n"
-            f"User message:\n{message[:1500]}\n\n"
-            f"Assistant response:\n{(response or '')[:1500]}\n\n"
-            "Extract ONLY genuinely important items into these categories:\n"
-            "- preferences: User's stated preferences, likes, dislikes, preferred formats/tools/styles\n"
-            "- constraints: Explicit restrictions, rules, things to avoid, 'don't do X'\n"
-            "- task_states: Current task progress, todos, next steps, ongoing work\n"
-            "- verified_facts: User's personal facts (name, role, company, tech stack, etc.)\n\n"
-            "Rules:\n"
-            "1. Only extract items the user explicitly stated or strongly implied\n"
-            "2. Summarize each item concisely (1 short sentence max)\n"
-            "3. If nothing worth remembering, return all empty arrays\n"
-            "4. Do NOT extract trivial greetings, acknowledgments, or filler\n"
-            "5. Do NOT repeat what the assistant said unless the user confirmed it as a preference\n\n"
-            "Respond ONLY with valid JSON (no markdown, no explanation):\n"
-            '{"preferences": [], "constraints": [], "task_states": [], "verified_facts": []}'
+        return render_prompt_contract(
+            "memory_extraction",
+            message=message[:1500],
+            response=(response or "")[:1500],
         )
 
     @classmethod

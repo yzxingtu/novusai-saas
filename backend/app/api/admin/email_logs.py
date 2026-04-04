@@ -10,7 +10,7 @@ from fastapi import Request
 from app.core.base_controller import GlobalController
 from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
-from app.core.response import paginated, success
+from app.core.response import paginated, serialize_datetime_for_api, success
 from app.enums.rbac import PermissionScope
 from app.exceptions import NotFoundException
 from app.rbac.decorators import (
@@ -100,11 +100,9 @@ class AdminEmailLogController(GlobalController):
                     "html_body": log.html_body,
                     "text_body": log.text_body,
                     "error_message": log.error_message,
-                    "sent_at": log.sent_at.isoformat() if log.sent_at else None,
+                    "sent_at": serialize_datetime_for_api(log.sent_at),
                     "tenant_id": log.tenant_id,
-                    "created_at": log.created_at.isoformat()
-                    if log.created_at
-                    else None,
+                    "created_at": serialize_datetime_for_api(log.created_at),
                 }
             )
 

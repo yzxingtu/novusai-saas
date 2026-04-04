@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING, Any
 
 from app.core.i18n import _
 from app.core.logging import get_logger
+from app.core.response import serialize_datetime_for_api
 from app.enums.plugin import PluginLicenseTypeEnum, PluginPricingTypeEnum
 from app.plugins.exceptions import PluginLicenseError
 
@@ -190,9 +191,7 @@ def _parse_payload_without_verify(license_key: str) -> dict | None:
 
 
 def _fmt_dt(dt: datetime | None) -> str | None:
-    if dt is None:
-        return None
-    return dt.isoformat()
+    return serialize_datetime_for_api(dt)
 
 
 def _mask_key(key: str | None) -> str:

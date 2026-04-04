@@ -49,6 +49,7 @@ from app.plugins.lifecycle_guards import run_plugin_lifecycle_guards
 from app.plugins.loader import PLUGINS_DIR, PluginLoader
 from app.plugins.migration_paths import build_migration_version_locations
 from app.plugins.preview import resolve_i18n
+from app.plugins.runtime_recovery import is_schedule_refresh_error_message
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -56,7 +57,6 @@ if TYPE_CHECKING:
     from app.models.system.plugin import Plugin
 
 logger = get_logger(__name__)
-
 
 def _log_lifecycle_action(
     action: str,
@@ -734,18 +734,14 @@ class PluginLifecycle:
             )
 
             # 3d. Security scan (high-risk fail-close) / 安全扫描（高风险 fail-close）
-            from app.plugins.security_scan import scan_plugin_directory
+            from app.plugins.security_scan import assert_plugin_security_clean
 
             scan_target = target_dir if target_dir.is_dir() else source_path
-            scan_result = scan_plugin_directory(scan_target)
-            if scan_result.has_warnings:
-                top_warnings = "; ".join(scan_result.warnings[:5])
-                raise PluginSecurityError(
-                    message=(
-                        f"Plugin '{plugin_name}' blocked by security scan: "
-                        f"{top_warnings}"
-                    ),
-                )
+            assert_plugin_security_clean(
+                scan_target,
+                plugin_name=plugin_name,
+                action="install",
+            )
 
             # 4. Record declared deps (runtime environment changes deferred to explicit dependency handling) / 记录声明的依赖（运行时环境变更延迟到显式依赖处理）
             installed_packages = manifest.dependencies.python or []
@@ -990,6 +986,42 @@ class PluginLifecycle:
 
         plugin_name = plugin.name
         emitter = PluginProgressEmitter(operator_id, plugin_name, "enable")
+        plugin_dir = self._loader.plugins_dir / plugin_name
+        await emitter.emit_step(
+            "security_scan",
+            "running",
+            "Running plugin security scan...",
+        )
+        try:
+            from app.plugins.security_scan import assert_plugin_security_clean
+
+            assert_plugin_security_clean(
+                plugin_dir,
+                plugin_name=plugin_name,
+                action="enable",
+            )
+            await emitter.emit_step(
+                "security_scan",
+                "success",
+                "Security scan passed",
+            )
+        except Exception as exc:
+            err_msg = resolve_public_error_message(
+                exc,
+                fallback_message=_("plugin.error.security_violation"),
+            )
+            plugin.status = PluginStatusEnum.ERROR.value
+            plugin.error_message = err_msg
+            plugin.error_count = (plugin.error_count or 0) + 1
+            await self._db.flush()
+            await emitter.emit_error(
+                build_public_error_text(
+                    exc=exc,
+                    message=_("plugin.error.security_violation"),
+                )
+            )
+            raise
+
         manifest = self._loader.load_manifest(plugin_name)
         validate_runtime_frontend_contract(
             self._loader.plugins_dir / plugin_name, manifest
@@ -1133,7 +1165,31 @@ class PluginLifecycle:
         # M50-T2: Task definition DB sync — enable Celery Beat to schedule plugin tasks / 任务定义 DB 同步
         # / M50-T2: 任务定义 DB 同步 — 使 Celery Beat 可正常调度插件任务
         if ext.tasks:
-            await self._sync_plugin_task_definitions(plugin_name, ext.tasks)
+            try:
+                await self._sync_plugin_task_definitions(plugin_name, ext.tasks)
+            except Exception as exc:
+                registry.unregister_all(plugin_name)
+                plugin.status = PluginStatusEnum.ERROR.value
+                plugin.enabled_at = None
+                plugin.error_message = resolve_public_error_message(
+                    exc,
+                    fallback_message=_("plugin.error.schedule_refresh_failed").format(
+                        plugin_name=plugin_name,
+                        action="enable",
+                    ),
+                )
+                plugin.error_count = (plugin.error_count or 0) + 1
+                await self._db.flush()
+                await emitter.emit_error(
+                    build_public_error_text(
+                        exc=exc,
+                        message=_("plugin.error.schedule_refresh_failed").format(
+                            plugin_name=plugin_name,
+                            action="enable",
+                        ),
+                    )
+                )
+                raise PluginError(message=plugin.error_message) from exc
 
         await emitter.emit_step(
             "extensions",
@@ -1246,6 +1302,17 @@ class PluginLifecycle:
         """Disable plugin (with distributed lock) / 禁用插件（带分布式锁）"""
         async with _plugin_lock(plugin_id):
             await self._disable_impl(plugin_id, force=force, operator_id=operator_id)
+
+    async def refresh_schedules(
+        self,
+        plugin_id: int,
+        *,
+        operator_id: int | None = None,
+    ) -> dict[str, Any]:
+        """Retry scheduler refresh/reconciliation for a plugin's task definitions."""
+        _ = operator_id
+        async with _plugin_lock(plugin_id):
+            return await self._refresh_schedules_impl(plugin_id)
 
     async def _disable_impl(
         self,
@@ -1392,6 +1459,76 @@ class PluginLifecycle:
             )
         except Exception as exc:
             logger.warning("system_hook PLUGIN_DISABLED failed: {}", exc)
+
+    async def _refresh_schedules_impl(self, plugin_id: int) -> dict[str, Any]:
+        """Reconcile plugin task definitions with the in-process scheduler."""
+        from sqlalchemy import select
+
+        from app.models.system.plugin import Plugin as PluginModel
+        from app.plugins.scheduler_refresh import refresh_plugin_schedule_or_raise
+
+        result = await self._db.execute(
+            select(PluginModel).where(
+                PluginModel.id == plugin_id,
+                PluginModel.is_deleted.is_(False),
+            )
+        )
+        plugin = result.scalar_one_or_none()
+        if not plugin:
+            from app.plugins.exceptions import PluginNotFoundError
+
+            raise PluginNotFoundError(message=f"Plugin ID {plugin_id} not found")
+
+        manifest = self._loader.load_manifest(plugin.name)
+        tasks = list(manifest.extensions.tasks or [])
+        mode = "refresh_only"
+
+        if tasks:
+            if plugin.status == PluginStatusEnum.ENABLED.value:
+                await self._sync_plugin_task_definitions(plugin.name, tasks)
+                mode = "sync_enabled"
+            elif plugin.status == PluginStatusEnum.ERROR.value and is_schedule_refresh_error_message(
+                plugin.error_message
+            ):
+                await self._sync_plugin_task_definitions(plugin.name, tasks)
+                mode = "recover_error"
+            elif plugin.status == PluginStatusEnum.DISABLED.value:
+                await self._deactivate_plugin_task_definitions(plugin.name)
+                mode = "sync_disabled"
+            elif plugin.status == PluginStatusEnum.INSTALLED.value:
+                await self._delete_plugin_task_definitions(plugin.name)
+                mode = "cleanup_installed"
+            else:
+                refresh_plugin_schedule_or_raise(
+                    plugin.name,
+                    action="manual_recovery",
+                )
+                mode = "refresh_error_state"
+        else:
+            refresh_plugin_schedule_or_raise(
+                plugin.name,
+                action="manual_recovery",
+            )
+
+        if is_schedule_refresh_error_message(plugin.error_message):
+            plugin.error_message = None
+            plugin.error_count = 0
+            if plugin.status == PluginStatusEnum.ERROR.value and tasks:
+                plugin.status = PluginStatusEnum.ENABLED.value
+                plugin.enabled_at = plugin.enabled_at or utc_now()
+            await self._db.flush()
+
+        logger.info(
+            "Plugin {}: scheduler reconciliation completed with mode {}",
+            plugin.name,
+            mode,
+        )
+        return {
+            "mode": mode,
+            "plugin_id": plugin.id,
+            "plugin_name": plugin.name,
+            "task_count": len(tasks),
+        }
 
     # ================================================================
     # dependencies / 依赖
@@ -3736,16 +3873,9 @@ command.downgrade(cfg, {f"{branch_label}@base"!r})
             await self._db.flush()
             # Refresh Celery Beat schedule (take effect immediately in current process's Beat)
             # / 刷新 Celery Beat 调度（让当前进程的 Beat 立即生效）
-            try:
-                from app.tasks.scheduler import refresh_schedule
+            from app.plugins.scheduler_refresh import refresh_plugin_schedule_or_raise
 
-                refresh_schedule()
-            except Exception as exc:
-                logger.warning(
-                    "Plugin {}: failed to refresh Celery schedule after enable: {}",
-                    plugin_name,
-                    exc,
-                )
+            refresh_plugin_schedule_or_raise(plugin_name, action="enable")
             logger.info(
                 "Plugin {}: synced {} task definition(s) to DB",
                 plugin_name,
@@ -3769,16 +3899,9 @@ command.downgrade(cfg, {f"{branch_label}@base"!r})
         )
         if result.rowcount:
             await self._db.flush()
-            try:
-                from app.tasks.scheduler import refresh_schedule
+            from app.plugins.scheduler_refresh import refresh_plugin_schedule_or_raise
 
-                refresh_schedule()
-            except Exception as exc:
-                logger.warning(
-                    "Plugin {}: failed to refresh Celery schedule after disable: {}",
-                    plugin_name,
-                    exc,
-                )
+            refresh_plugin_schedule_or_raise(plugin_name, action="disable")
             logger.info(
                 "Plugin {}: deactivated {} task definition(s)",
                 plugin_name,
@@ -3799,16 +3922,9 @@ command.downgrade(cfg, {f"{branch_label}@base"!r})
         )
         if result.rowcount:
             await self._db.flush()
-            try:
-                from app.tasks.scheduler import refresh_schedule
+            from app.plugins.scheduler_refresh import refresh_plugin_schedule_or_raise
 
-                refresh_schedule()
-            except Exception as exc:
-                logger.warning(
-                    "Plugin {}: failed to refresh Celery schedule after uninstall: {}",
-                    plugin_name,
-                    exc,
-                )
+            refresh_plugin_schedule_or_raise(plugin_name, action="uninstall")
             logger.info(
                 "Plugin {}: deleted {} task definition(s) from DB",
                 plugin_name,

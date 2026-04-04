@@ -17,7 +17,6 @@ Generates ECharts config for direct frontend rendering.
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Any
@@ -71,9 +70,16 @@ class FormattedResult:
 # Time Column Detection / 时间列检测
 # ============================================
 
-_TIME_COLUMN_PATTERNS = re.compile(
-    r"(date|time|day|month|year|week|created|updated|period|_at$)",
-    re.IGNORECASE,
+_TIME_COLUMN_TERMS = (
+    "date",
+    "time",
+    "day",
+    "month",
+    "year",
+    "week",
+    "created",
+    "updated",
+    "period",
 )
 
 _NUMERIC_TYPES = {"int", "float", "decimal", "numeric", "bigint", "real"}
@@ -81,7 +87,14 @@ _NUMERIC_TYPES = {"int", "float", "decimal", "numeric", "bigint", "real"}
 
 def _is_time_column(col_name: str) -> bool:
     """Check if column name is a time type / 判断列名是否为时间类型"""
-    return bool(_TIME_COLUMN_PATTERNS.search(col_name))
+    normalized = str(col_name or "").strip().lower()
+    return bool(
+        normalized
+        and (
+            normalized.endswith("_at")
+            or any(term in normalized for term in _TIME_COLUMN_TERMS)
+        )
+    )
 
 
 def _is_time_value(value: Any) -> bool:
@@ -89,8 +102,13 @@ def _is_time_value(value: Any) -> bool:
     if isinstance(value, (date, datetime)):
         return True
     if isinstance(value, str):
-        # Simple ISO date format detection / 简单检测 ISO 日期格式
-        return bool(re.match(r"^\d{4}[-/]\d{2}", value))
+        raw = value.strip()
+        if len(raw) < 7:
+            return False
+        year = raw[:4]
+        separator = raw[4]
+        month = raw[5:7]
+        return year.isdigit() and separator in {"-", "/"} and month.isdigit()
     return False
 
 

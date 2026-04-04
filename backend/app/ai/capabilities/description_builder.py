@@ -8,6 +8,7 @@ descriptions that LLMs can understand.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -307,14 +308,21 @@ class CapabilityDescriptionBuilder:
         ]
 
         for desc in descriptions:
-            # Add category title
-            lines.append(f"## {desc.title}")
+            title = self._extract_descriptor_title(desc)
+            items = self._extract_descriptor_items(desc)
+            if not title or not items:
+                continue
 
-            # Add items
-            for item in desc.items:
+            lines.append(f"## {title}")
+
+            for item in items:
                 lines.append(f"- {item}")
 
             lines.append("")  # Empty line between categories
+
+        if len(lines) == 5:
+            # No valid descriptions appended
+            return ""
 
         # Add usage instructions
         lines.extend(
@@ -416,3 +424,45 @@ class CapabilityDescriptionBuilder:
                 parts.append(f"Allowed operations: {', '.join(operations)}")
 
         return ": ".join(parts) if len(parts) > 1 else parts[0]
+
+    @staticmethod
+    def _extract_descriptor_title(
+        desc: CapabilityDescription | Mapping[str, Any],
+    ) -> str:
+        if isinstance(desc, Mapping):
+            title_value = desc.get("title")
+        else:
+            title_value = getattr(desc, "title", None)
+        return str(title_value or "").strip()
+
+    @staticmethod
+    def _extract_descriptor_items(
+        desc: CapabilityDescription | Mapping[str, Any],
+    ) -> list[str]:
+        if isinstance(desc, Mapping):
+            raw_items = desc.get("items")
+        else:
+            raw_items = getattr(desc, "items", None)
+
+        if callable(raw_items) and not isinstance(raw_items, (str, bytes)):
+            try:
+                raw_items = raw_items()
+            except TypeError:
+                raw_items = None
+
+        if raw_items is None:
+            return []
+
+        if isinstance(raw_items, (str, bytes)):
+            raw_items = [raw_items]
+
+        try:
+            iterable_items = list(raw_items)
+        except TypeError:
+            return []
+
+        return [
+            str(item or "").strip()
+            for item in iterable_items
+            if str(item or "").strip()
+        ]

@@ -103,6 +103,64 @@
   overflow: hidden;
 }
 
+.vxe-grid-search-panel {
+  transform-origin: top center;
+  will-change: opacity, transform, clip-path, filter;
+}
+
+.vxe-grid-search-panel.is-legacy-motion {
+  transition:
+    opacity 200ms ease,
+    transform 200ms ease;
+}
+
+.vxe-grid-search-panel.is-legacy-motion.is-hidden {
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.vxe-grid-search-panel.is-legacy-motion.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.vxe-grid-search-panel.is-modern-motion {
+  transition:
+    opacity var(--vxe-search-panel-motion-duration, 220ms)
+      var(--vxe-search-panel-motion-easing, cubic-bezier(0.16, 1, 0.3, 1)),
+    transform var(--vxe-search-panel-motion-duration, 220ms)
+      var(--vxe-search-panel-motion-easing, cubic-bezier(0.16, 1, 0.3, 1)),
+    clip-path calc(var(--vxe-search-panel-motion-duration, 220ms) + 20ms)
+      var(--vxe-search-panel-motion-easing, cubic-bezier(0.16, 1, 0.3, 1)),
+    filter var(--vxe-search-panel-motion-duration, 220ms)
+      var(--vxe-search-panel-motion-easing, cubic-bezier(0.16, 1, 0.3, 1));
+}
+
+.vxe-grid-search-panel.is-modern-motion.is-hidden {
+  pointer-events: none;
+  opacity: 0;
+  filter: blur(6px);
+  transform: translateY(-10px) scaleY(0.985);
+  clip-path: inset(0 0 100% 0 round 14px);
+}
+
+.vxe-grid-search-panel.is-modern-motion.is-visible {
+  opacity: 1;
+  filter: blur(0);
+  transform: translateY(0) scaleY(1);
+  clip-path: inset(0 0 0 0 round 14px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vxe-grid-search-panel {
+    transition: none !important;
+    filter: none !important;
+    transform: none !important;
+    clip-path: inset(0 0 0 0 round 14px) !important;
+  }
+}
+
 /* 表头样式 - 精致层次感 */
 .vxe-header--column {
   .vxe-cell--title {

@@ -7,6 +7,7 @@ Executes user-provided code in a secure sandbox (subprocess isolation + module w
 
 from __future__ import annotations
 
+import ast
 import asyncio
 import json
 import sys
@@ -367,22 +368,45 @@ class CodeExecutionExecutor(BaseToolExecutor):
             违规列表（空列表表示安全）
         """
         violations: list[str] = []
-        import re
+        try:
+            tree = ast.parse(code)
+        except SyntaxError:
+            return violations
 
-        # Detect direct import of dangerous modules / 检测直接 import 危险模块
-        for mod in _BLOCKED_MODULES:
-            pattern = (
-                rf"\b(?:import\s+{re.escape(mod)}|from\s+{re.escape(mod)}\s+import)\b"
-            )
-            if re.search(pattern, code):
-                violations.append(f"Blocked import: {mod}")
+        blocked_imports: set[str] = set()
+        blocked_calls: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    top_level = str(alias.name or "").split(".", 1)[0]
+                    if top_level in _BLOCKED_MODULES:
+                        blocked_imports.add(top_level)
+            elif isinstance(node, ast.ImportFrom):
+                module_name = str(node.module or "").split(".", 1)[0]
+                if module_name in _BLOCKED_MODULES:
+                    blocked_imports.add(module_name)
+            elif isinstance(node, ast.Call):
+                func = node.func
+                if isinstance(func, ast.Name):
+                    if func.id in {"eval", "exec", "compile", "open"}:
+                        blocked_calls.add(func.id)
+                elif isinstance(func, ast.Attribute) and isinstance(
+                    func.value,
+                    ast.Name,
+                ):
+                    if func.value.id in {"builtins", "__builtins__"} and func.attr in {
+                        "eval",
+                        "exec",
+                        "compile",
+                        "open",
+                    }:
+                        blocked_calls.add(func.attr)
 
-        # Detect eval/exec calls / 检测 eval/exec 调用
-        if re.search(r"\b(?:eval|exec|compile)\s*\(", code):
+        for module_name in sorted(blocked_imports):
+            violations.append(f"Blocked import: {module_name}")
+        if {"compile", "eval", "exec"} & blocked_calls:
             violations.append("Direct eval/exec/compile calls are not allowed")
-
-        # Detect file operations / 检测文件操作
-        if re.search(r"\bopen\s*\(", code):
+        if "open" in blocked_calls:
             violations.append("File operations (open) are not allowed")
 
         return violations

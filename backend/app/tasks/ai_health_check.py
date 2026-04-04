@@ -9,12 +9,14 @@ writing status to Redis for failover service consumption.
 
 import json
 import time
+from datetime import timezone
 
 import httpx
 import redis
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.ai.adapters.openai_adapter import OpenAIAdapter
 from app.core.base_model import utc_now
 from app.core.config import settings
 from app.core.database import sync_session_factory
@@ -35,6 +37,10 @@ _FALSE_VALUES = {"0", "false", "no", "off"}
 def _get_sync_redis() -> redis.Redis:
     """Get sync Redis client (Celery Worker only) / 获取同步 Redis 客户端（Celery Worker 专用）"""
     return redis.from_url(settings.REDIS_URL, decode_responses=True)
+
+
+def _utc_iso_now() -> str:
+    return utc_now().replace(tzinfo=timezone.utc).isoformat()
 
 
 @register_task(
@@ -112,6 +118,10 @@ def _check_provider_health(
     base_connectivity_healthy = False
     tool_calling_healthy: bool | None = None
     tool_probe_model: str | None = None
+    tool_probe_reasoning_effort: str | None = None
+    tool_probe_applied_overrides: list[str] = []
+    tool_probe_ignored_overrides: list[str] = []
+    tool_probe_ignore_reasons: dict[str, str] = {}
     tool_probe_error_message: str | None = None
     wire_api = _normalize_wire_api(
         (provider.config or {}).get("wire_api")
@@ -151,12 +161,30 @@ def _check_provider_health(
 
             tool_model = _resolve_tool_probe_model(provider, db)
             if base_connectivity_healthy and tool_model is not None:
-                tool_probe_model = tool_model.code
+                effective_request = OpenAIAdapter.resolve_effective_model_request(
+                    model=tool_model.code,
+                    model_config=getattr(tool_model, "config", None),
+                    wire_api="responses",
+                )
+                tool_probe_model = effective_request["upstream_model"]
+                tool_probe_reasoning_effort = effective_request.get(
+                    "reasoning_effort"
+                )
+                tool_probe_applied_overrides = list(
+                    effective_request.get("applied_overrides", []) or []
+                )
+                tool_probe_ignored_overrides = list(
+                    effective_request.get("ignored_overrides", []) or []
+                )
+                tool_probe_ignore_reasons = dict(
+                    effective_request.get("ignore_reasons", {}) or {}
+                )
                 tool_calling_healthy, tool_probe_error_message = (
                     _send_responses_tool_probe(
                         api_key=api_key.decrypt_key(),
                         base_url=provider.base_url,
                         model_code=tool_model.code,
+                        model_config=getattr(tool_model, "config", None),
                     )
                     if _provider_needs_responses_tool_probe(provider, tool_model)
                     else (None, None)
@@ -194,6 +222,8 @@ def _check_provider_health(
     else:
         consecutive_failures += 1
 
+    checked_at = _utc_iso_now()
+
     # Write current health status / 写入当前健康状态
     health_data = {
         "provider_id": provider_id,
@@ -204,12 +234,16 @@ def _check_provider_health(
         "base_connectivity_healthy": base_connectivity_healthy,
         "tool_calling_healthy": tool_calling_healthy,
         "tool_probe_model": tool_probe_model,
+        "tool_probe_reasoning_effort": tool_probe_reasoning_effort,
+        "tool_probe_applied_overrides": tool_probe_applied_overrides,
+        "tool_probe_ignored_overrides": tool_probe_ignored_overrides,
+        "tool_probe_ignore_reasons": tool_probe_ignore_reasons,
         "tool_probe_error_message": tool_probe_error_message,
         "response_time_ms": response_time_ms,
         "error_message": error_message,
         "consecutive_failures": consecutive_failures,
         "is_available": consecutive_failures < CONSECUTIVE_FAILURES_THRESHOLD,
-        "checked_at": utc_now().isoformat(),
+        "checked_at": checked_at,
     }
 
     redis_client.setex(
@@ -226,7 +260,7 @@ def _check_provider_health(
             "tool_calling_healthy": tool_calling_healthy,
             "response_time_ms": response_time_ms,
             "error_message": error_message,
-            "checked_at": utc_now().isoformat(),
+            "checked_at": checked_at,
         },
         ensure_ascii=False,
     )
@@ -238,13 +272,14 @@ def _check_provider_health(
     redis_client.expire(history_key, HEALTH_HISTORY_TTL)
 
     logger.info(
-        "{} provider={} is_healthy={} base_connectivity_healthy={} tool_calling_healthy={} tool_probe_model={} consecutive_failures={} response_time_ms={}",
+        "{} provider={} is_healthy={} base_connectivity_healthy={} tool_calling_healthy={} tool_probe_model={} tool_probe_reasoning_effort={} consecutive_failures={} response_time_ms={}",
         _("ai.log.health_check_result"),
         provider.code,
         is_healthy,
         base_connectivity_healthy,
         tool_calling_healthy,
         tool_probe_model or "",
+        tool_probe_reasoning_effort or "",
         consecutive_failures,
         response_time_ms,
     )
@@ -335,9 +370,23 @@ def _send_base_health_probe(
             headers={"Authorization": f"Bearer {api_key}"},
             timeout=10.0,
         )
-        if response.status_code < 500:
+        if not 200 <= response.status_code < 300:
+            return False, f"GET /models -> HTTP {response.status_code}"
+        content_type = (response.headers.get("content-type") or "").lower()
+        if "json" not in content_type:
+            return False, f"GET /models returned non-JSON content-type: {content_type}"
+        try:
+            payload = response.json()
+        except ValueError:
+            return False, "GET /models returned invalid JSON payload"
+        if isinstance(payload, list):
             return True, None
-        return False, f"GET /models -> HTTP {response.status_code}"
+        if isinstance(payload, dict) and (
+            isinstance(payload.get("data"), list)
+            or isinstance(payload.get("models"), list)
+        ):
+            return True, None
+        return False, "GET /models returned unexpected JSON shape"
 
     except httpx.TimeoutException:
         return False, "GET /models timed out"
@@ -352,10 +401,16 @@ def _send_responses_tool_probe(
     api_key: str,
     base_url: str | None,
     model_code: str,
+    model_config: dict | None = None,
 ) -> tuple[bool, str | None]:
+    effective_request = OpenAIAdapter.resolve_effective_model_request(
+        model=model_code,
+        model_config=model_config,
+        wire_api="responses",
+    )
     url = f"{(base_url or 'https://api.openai.com/v1').rstrip('/')}/responses"
     payload = {
-        "model": model_code,
+        "model": effective_request["upstream_model"],
         "input": [
             {
                 "role": "user",
@@ -376,6 +431,8 @@ def _send_responses_tool_probe(
         "tool_choice": "required",
         "max_output_tokens": 1,
     }
+    if effective_request.get("reasoning_effort") is not None:
+        payload["reasoning"] = {"effort": effective_request["reasoning_effort"]}
 
     try:
         response = httpx.post(

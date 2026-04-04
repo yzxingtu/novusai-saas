@@ -11,7 +11,6 @@ and endpoint-internal access semantics.
 from __future__ import annotations
 
 import json
-import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -19,7 +18,16 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.ai.navigation_semantics import (
+    has_navigation_intent,
+)
+from app.ai.prompt_contracts import render_prompt_contract
 from app.ai.routing.router import ModelRouter
+from app.ai.text_semantics import (
+    collapse_whitespace,
+    extract_first_json_object_with_key,
+    extract_fenced_json_block,
+)
 from app.configs.service import PLATFORM_TENANT_ID
 from app.core.i18n import _
 from app.core.logging import LogManager
@@ -34,6 +42,7 @@ from app.exceptions import BusinessException, NotFoundException
 from app.models.ai.agent import Agent
 from app.models.ai.agent_conversation import AgentConversation
 from app.models.ai.agent_skill_grant import AgentSkillGrant
+from app.models.ai.skill import Skill
 from app.models.system.agent_assignment import SystemAgentAssignment
 from app.repositories.ai.agent_repository import _tenant_available_condition
 from app.services.ai.agent_service import AgentService
@@ -82,6 +91,7 @@ PAGE_OPERATION_REFERENCE_TOKENS = (
 )
 PAGE_OPERATION_ACTION_TOKENS = (
     "apply",
+    "add",
     "change",
     "click",
     "configure",
@@ -96,20 +106,30 @@ PAGE_OPERATION_ACTION_TOKENS = (
     "search",
     "select",
     "set",
+    "switch to",
     "submit",
     "switch",
     "update",
+    "visit",
+    "go to",
+    "jump to",
+    "navigate",
+    "进入",
+    "添加",
     "保存",
     "修改",
     "切换",
+    "切到",
     "创建",
     "删除",
     "刷新",
+    "新增",
     "填写",
     "打开",
     "操作",
     "搜索",
     "提交",
+    "跳转",
     "新建",
     "点击",
     "筛选",
@@ -241,7 +261,7 @@ class AgentRouterService:
                 has_image_attachments=has_image_attachments,
             )
 
-        # P1: pinned 直通
+        # P1: pinned agent short-circuit / P1：pinned 智能体直通
         if pinned_agent_id:
             agent = await self._get_published_agent(pinned_agent_id)
             if agent:
@@ -449,7 +469,7 @@ class AgentRouterService:
         )
 
     # ========================================
-    # 候选列表构建 / Build candidate list
+    # Build candidate list / 构建候选列表
     # ========================================
 
     async def _list_available_agents(
@@ -468,7 +488,9 @@ class AgentRouterService:
             select(Agent)
             .options(
                 selectinload(Agent.model),
-                selectinload(Agent.skill_grants).selectinload(AgentSkillGrant.skill),
+                selectinload(Agent.skill_grants)
+                .selectinload(AgentSkillGrant.skill)
+                .selectinload(Skill.package),
             )
             .where(
                 Agent.status == AgentStatusEnum.PUBLISHED.value,
@@ -504,7 +526,7 @@ class AgentRouterService:
         return sorted(visible, key=lambda item: item.id)
 
     # ========================================
-    # Router 智能体查找
+    # Resolve router agent / 查找 Router 智能体
     # ========================================
 
     async def _get_router_agent(self) -> Agent | None:
@@ -524,7 +546,7 @@ class AgentRouterService:
         return result.scalar_one_or_none()
 
     # ========================================
-    # 调用 Router 智能体
+    # Call router agent / 调用 Router 智能体
     # ========================================
 
     async def _call_router(
@@ -555,7 +577,7 @@ class AgentRouterService:
         from app.ai.engine.types import ExecutionRequest
         from app.ai.types import ChatMessage
 
-        # 构建候选列表描述（含能力摘要，帮助 Router 选择合适的 Agent）
+        # Build candidate descriptions (capability hints for Router) / 构建候选描述（能力摘要，供 Router 选 Agent）
         agent_list = []
         for a in candidates:
             entry: dict[str, Any] = {
@@ -564,16 +586,14 @@ class AgentRouterService:
                 "description": a.description or "",
             }
             entry["supports_vision"] = await self._agent_can_handle_images(a)
-            # 提取已启用技能名称列表，让 Router 知道 Agent 的工具能力
+            # Collect enabled skill names (tool surface for Router) / 提取已启用技能名，告知工具能力
             skill_grants = getattr(a, "skill_grants", None)
             if skill_grants:
                 skill_names = []
                 for grant in skill_grants:
-                    if not getattr(grant, "enabled", True):
-                        continue
-                    skill = getattr(grant, "skill", None)
-                    if skill and getattr(skill, "name", None):
-                        skill_names.append(skill.name)
+                    skill_name = self._grant_skill_name_if_active(grant)
+                    if skill_name:
+                        skill_names.append(skill_name)
                 if skill_names:
                     entry["capabilities"] = skill_names
             agent_list.append(entry)
@@ -581,11 +601,7 @@ class AgentRouterService:
         # 构建路由指令消息 / Build routing instruction message
         vision_preamble = ""
         if has_image_attachments:
-            vision_preamble = (
-                "IMPORTANT: The user message includes image attachment(s). "
-                "You MUST select an agent with supports_vision=true (listed in JSON). "
-                "Do not choose an agent that cannot analyze images.\n\n"
-            )
+            vision_preamble = render_prompt_contract("agent_router_vision_preamble")
         attachment_notes: list[str] = []
         if has_audio_attachments:
             attachment_notes.append("audio")
@@ -596,28 +612,20 @@ class AgentRouterService:
 
         attachment_preamble = ""
         if attachment_notes:
-            attachment_preamble = (
-                "The user message also includes attachment(s): "
-                f"{', '.join(attachment_notes)}.\n\n"
+            attachment_preamble = render_prompt_contract(
+                "agent_router_attachment_preamble",
+                attachment_types=", ".join(attachment_notes),
             )
 
-        routing_prompt = (
-            vision_preamble
-            + attachment_preamble
-            + (
-                "Based on the user's message and context, select the most appropriate agent.\n\n"
-                f"Available agents:\n{json.dumps(agent_list, ensure_ascii=False)}\n\n"
-            )
-        )
-        if page_context:
-            routing_prompt += (
-                f"Page context:\n{json.dumps(page_context, ensure_ascii=False)}\n\n"
-            )
-
-        routing_prompt += (
-            f"User message: {message}\n\n"
-            "Respond with ONLY a JSON object: "
-            '{"agent_id": <id>, "confidence": <0.0-1.0>}'
+        routing_prompt = render_prompt_contract(
+            "agent_router_selection",
+            vision_preamble=vision_preamble.strip(),
+            attachment_preamble=attachment_preamble.strip(),
+            agent_list_json=json.dumps(agent_list, ensure_ascii=False),
+            page_context_json=(
+                json.dumps(page_context, ensure_ascii=False) if page_context else ""
+            ),
+            message=message,
         )
 
         request = ExecutionRequest(
@@ -652,7 +660,7 @@ class AgentRouterService:
             logger.warning("Router agent returned no output: {}", result.error)
             return None
 
-        # 解析 JSON
+        # Parse JSON from router output / 解析 Router 输出的 JSON
         return self._parse_router_output(result.output)
 
     @staticmethod
@@ -669,24 +677,23 @@ class AgentRouterService:
         except (json.JSONDecodeError, ValueError, TypeError):
             pass
 
-        # 尝试提取 JSON 代码块
-        json_match = re.search(r"```(?:json)?\s*(\{[^`]+\})\s*```", output, re.DOTALL)
-        if json_match:
+        # Extract JSON from fenced code block / 从 ``` 代码块提取 JSON
+        json_block = extract_fenced_json_block(output)
+        if json_block:
             try:
-                data = json.loads(json_match.group(1))
+                data = json.loads(json_block)
                 if isinstance(data, dict) and "agent_id" in data:
                     return {
                         "agent_id": int(data["agent_id"]),
                         "confidence": float(data.get("confidence", 0.5)),
-                    }
+                }
             except (json.JSONDecodeError, ValueError, TypeError):
                 pass
 
-        # 尝试提取裸 JSON 对象
-        json_match = re.search(r'\{[^{}]*"agent_id"\s*:\s*\d+[^{}]*\}', output)
-        if json_match:
+        # Match bare JSON object with agent_id / 匹配含 agent_id 的裸 JSON
+        data = extract_first_json_object_with_key(output, "agent_id")
+        if data is not None:
             try:
-                data = json.loads(json_match.group(0))
                 return {
                     "agent_id": int(data["agent_id"]),
                     "confidence": float(data.get("confidence", 0.5)),
@@ -834,7 +841,9 @@ class AgentRouterService:
             select(Agent)
             .options(
                 selectinload(Agent.model),
-                selectinload(Agent.skill_grants).selectinload(AgentSkillGrant.skill),
+                selectinload(Agent.skill_grants)
+                .selectinload(AgentSkillGrant.skill)
+                .selectinload(Skill.package),
             )
             .where(
                 Agent.id == agent_id,
@@ -926,13 +935,31 @@ class AgentRouterService:
         skill_names: set[str] = set()
         skill_grants = getattr(agent, "skill_grants", None) or []
         for grant in skill_grants:
-            if getattr(grant, "enabled", True) is False:
-                continue
-            skill = getattr(grant, "skill", None)
-            skill_name = getattr(skill, "name", None)
-            if isinstance(skill_name, str) and skill_name:
+            skill_name = AgentRouterService._grant_skill_name_if_active(grant)
+            if skill_name:
                 skill_names.add(skill_name)
         return skill_names
+
+    @staticmethod
+    def _grant_skill_name_if_active(grant: AgentSkillGrant | Any) -> str | None:
+        if getattr(grant, "enabled", True) is False:
+            return None
+        skill = getattr(grant, "skill", None)
+        if not skill:
+            return None
+        if not getattr(skill, "is_active", True) or getattr(skill, "is_deleted", False):
+            return None
+        package = getattr(skill, "package", None)
+        if package is None:
+            return None
+        if not getattr(package, "is_active", True) or getattr(
+            package, "is_deleted", False
+        ):
+            return None
+        skill_name = getattr(skill, "name", None)
+        if isinstance(skill_name, str) and skill_name:
+            return skill_name
+        return None
 
     @classmethod
     def _agent_supports_page_operations(cls, agent: Agent | None) -> bool:
@@ -956,6 +983,29 @@ class AgentRouterService:
         operations = page_context.get("available_operations")
         return isinstance(operations, list) and len(operations) > 0
 
+    @staticmethod
+    def _page_context_supports_navigation(
+        page_context: dict[str, Any] | None,
+    ) -> bool:
+        if not isinstance(page_context, dict):
+            return False
+
+        raw_operations: list[Any] = []
+        page_data = page_context.get("page_data")
+        if isinstance(page_data, dict) and isinstance(
+            page_data.get("available_operations"), list
+        ):
+            raw_operations = page_data.get("available_operations") or []
+        elif isinstance(page_context.get("available_operations"), list):
+            raw_operations = page_context.get("available_operations") or []
+
+        operation_names = {
+            str(item.get("name") or "").strip()
+            for item in raw_operations
+            if isinstance(item, dict)
+        }
+        return "navigate_menu" in operation_names or "list_available_menus" in operation_names
+
     @classmethod
     def _requires_page_operation_routing(
         cls,
@@ -965,7 +1015,7 @@ class AgentRouterService:
         if not message or not page_context:
             return False
 
-        normalized_message = re.sub(r"\s+", " ", message).strip().lower()
+        normalized_message = collapse_whitespace(message).strip().lower()
         if not normalized_message:
             return False
 
@@ -981,6 +1031,16 @@ class AgentRouterService:
         has_action_token = any(
             token in normalized_message for token in PAGE_OPERATION_ACTION_TOKENS
         )
+        has_navigation_request = has_navigation_intent(
+            normalized_message,
+            page_context,
+        )
+        if has_navigation_request:
+            return True
+
+        if cls._page_context_supports_navigation(page_context) and has_navigation_request:
+            return True
+
         if not has_action_token:
             return False
 
@@ -1020,9 +1080,7 @@ class AgentRouterService:
     def _agent_needs_function_calling(agent: Agent | None) -> bool:
         skill_grants = getattr(agent, "skill_grants", None) or []
         for grant in skill_grants:
-            if not getattr(grant, "enabled", True):
-                continue
-            if getattr(grant, "skill", None) is not None:
+            if AgentRouterService._grant_skill_name_if_active(grant):
                 return True
         return False
 

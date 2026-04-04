@@ -12,6 +12,7 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING, Any
 
+from app.ai.prompt_contracts import render_prompt_contract
 from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.core.i18n import _
@@ -23,6 +24,8 @@ from app.enums.execution import (
     ExecutionDecisionSubjectEnum,
     ExecutionDecisionTypeEnum,
 )
+from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY as SHARED_PAGE_CONTEXT_KEY
+from app.schemas.ai.agent_chat import PageContext
 from app.services.ai.action_log_service import resolve_action_level, write_ai_action_log
 from app.services.ai.execution_decision_service import ExecutionDecisionService
 from app.services.ai.execution_trust_policy_service import (
@@ -33,6 +36,7 @@ if TYPE_CHECKING:
     from app.ai.tools.types import ExecutionContext
 
 logger = LogManager.get_logger("ai.tool.page_operation")
+PAGE_CONTEXT_TURN_SEEN_KEY = "_page_context_already_returned_this_turn"
 
 
 def _extract_screenshot_attachment(
@@ -124,18 +128,37 @@ class PageOperationExecutor(BaseToolExecutor):
                 error_type="vision_not_supported",
             )
 
-        # Resolve page_session_id: prefer fresh from active tracking (recover after reconnect) / 上文为英文说明 / English above
+        # Resolve page_session_id: prefer active tracking (reconnect recovery) / 解析 page_session_id：优先活跃追踪（断线恢复）
         from app.sio.page_session import get_active_session_id, invoke_page_operation
 
         session_id = None
         if context:
-            session_id = context.page_session_id
-            if not session_id:
-                session_id = get_active_session_id(
-                    context.user_id,
-                    page_key,
-                    context.user_role,
-                )
+            current_page_context = (
+                PageContext.normalize(context.variables.get(SHARED_PAGE_CONTEXT_KEY))
+                if isinstance(context.variables, dict)
+                else None
+            )
+            current_page_key = (
+                str(current_page_context.get("page_key") or "").strip()
+                if current_page_context
+                else ""
+            )
+            recovered_session_id = get_active_session_id(
+                context.user_id,
+                page_key,
+                context.user_role,
+            )
+            if context.page_session_id:
+                session_id = context.page_session_id
+                if (
+                    page_key
+                    and current_page_key
+                    and page_key != current_page_key
+                    and recovered_session_id
+                ):
+                    session_id = recovered_session_id
+            else:
+                session_id = recovered_session_id
 
         if not session_id:
             return ToolResult(
@@ -198,11 +221,87 @@ class PageOperationExecutor(BaseToolExecutor):
             if isinstance(result_data, dict)
             else result_data
         )
+        if operation_name == "navigate_menu" and success and isinstance(
+            llm_result_data, dict
+        ):
+            destination_ready = bool(llm_result_data.get("destination_ready"))
+            can_auto_continue = bool(llm_result_data.get("can_auto_continue"))
+            destination_ready_reason = str(
+                llm_result_data.get("destination_ready_reason") or ""
+            ).strip()
+            if message:
+                if not message.endswith(("。", ".", "！", "!")):
+                    message = f"{message}。"
+                if destination_ready and can_auto_continue:
+                    message = f"{message}目标页面已就绪，可以继续执行操作。"
+                elif destination_ready:
+                    message = f"{message}目标页面已到达，但暂不自动继续执行下一步。"
+                else:
+                    message = f"{message}目标页面已到达，但尚未就绪。"
+
+            llm_result_data["_navigation_completed"] = True
+            llm_result_data["_page_ready"] = destination_ready
+            llm_result_data["_can_auto_continue"] = can_auto_continue
+            if destination_ready_reason:
+                llm_result_data["_destination_ready_reason"] = (
+                    destination_ready_reason
+                )
+            page_ctx = llm_result_data.get("page_context")
+            if isinstance(page_ctx, dict):
+                page_data = page_ctx.get("page_data")
+                if isinstance(page_data, dict):
+                    ops = page_data.get("available_operations", [])
+                    if isinstance(ops, list) and ops:
+                        llm_result_data["_available_operations_count"] = len(ops)
+                        op_names = [
+                            str(op.get("name") or "").strip()
+                            for op in ops
+                            if isinstance(op, dict) and op.get("name")
+                        ]
+                        if op_names:
+                            llm_result_data["_available_operation_names"] = op_names[:10]
         screenshot_attachment = (
             _extract_screenshot_attachment(llm_result_data)
             if operation_name == "capture_screenshot"
             else None
         )
+        if context and isinstance(context.variables, dict):
+            next_page_context = (
+                PageContext.normalize(llm_result_data.get("page_context"))
+                if isinstance(llm_result_data, dict)
+                else None
+            )
+            next_page_session_id = (
+                str(llm_result_data.get("page_session_id") or "").strip()
+                if isinstance(llm_result_data, dict)
+                and isinstance(llm_result_data.get("page_session_id"), str)
+                else ""
+            )
+            if next_page_context:
+                previous_page_context = PageContext.normalize(
+                    context.variables.get(SHARED_PAGE_CONTEXT_KEY)
+                )
+                previous_page_key = (
+                    str(previous_page_context.get("page_key") or "").strip()
+                    if previous_page_context
+                    else ""
+                )
+                next_page_key = str(next_page_context.get("page_key") or "").strip()
+                context.variables[SHARED_PAGE_CONTEXT_KEY] = next_page_context
+                if next_page_key and next_page_key != previous_page_key:
+                    context.variables.pop(PAGE_CONTEXT_TURN_SEEN_KEY, None)
+                if next_page_session_id:
+                    context.page_session_id = next_page_session_id
+                elif next_page_key and context.user_id:
+                    recovered_next_session_id = get_active_session_id(
+                        context.user_id,
+                        next_page_key,
+                        context.user_role,
+                    )
+                    if recovered_next_session_id:
+                        context.page_session_id = recovered_next_session_id
+            elif next_page_session_id:
+                context.page_session_id = next_page_session_id
         execution_decision_id: int | None = None
 
         if context and context.db and decision_meta:
@@ -338,7 +437,7 @@ class PageOperationExecutor(BaseToolExecutor):
                 if len(data_str) <= 4000:
                     output += f"\nData: {data_str}"
                 elif operation_name == "get_editor_html" and "html" in llm_result_data:
-                    # Large document: still expose html so LLM can use it for replace_section old_html / 上文为英文说明 / English above
+                    # Large doc: still pass html for replace_section old_html / 长文档仍传 html 供 replace_section 匹配
                     html_content = llm_result_data.get("html", "") or ""
                     max_html_chars = 12000
                     if len(html_content) > max_html_chars:
@@ -349,8 +448,10 @@ class PageOperationExecutor(BaseToolExecutor):
                         "page_operation.hint.replace_section"
                     )
                     output += f"\n{hint}\nHTML:\n{html_content}"
-                    output += "\n[Do NOT echo this HTML to the user. Use it internally for replace_section, then respond in natural language.]"
-                # Agent Loop guidance: suggest next step based on context_diff / 上文为英文说明 / English above
+                    output += "\n" + render_prompt_contract(
+                        "page_operation_html_relay"
+                    )
+                # Agent Loop: suggest next step from context_diff / Agent 循环：据 context_diff 提示下一步
                 context_diff = llm_result_data.get("context_diff", {})
                 remaining_empty_fields = llm_result_data.get("remaining_empty_fields")
                 remaining_empty_preview = ""
@@ -369,62 +470,89 @@ class PageOperationExecutor(BaseToolExecutor):
                         or context_diff.get("form_opened")
                     )
                     if form_is_open:
-                        output += (
-                            "\n\n[Agent Loop] Form is open. "
-                            "Do NOT call create_record/edit_record again. "
+                        output += "\n\n" + render_prompt_contract(
+                            "page_operation_form_already_open",
+                            remaining_empty_preview=remaining_empty_preview,
                         )
-                        if remaining_empty_preview:
-                            output += (
-                                "Next: call fill_form for the remaining fields: "
-                                f"{remaining_empty_preview}."
-                            )
-                        else:
-                            output += (
-                                "Next: call get_form_state to inspect current values, "
-                                "then call fill_form for any missing or requested fields."
-                            )
                 elif operation_name == "fill_form":
                     if remaining_empty_preview:
-                        output += (
-                            "\n\n[Agent Loop] Some form fields are still empty: "
-                            f"{remaining_empty_preview}. "
-                            "If the user requested values for them, call fill_form again. "
-                            "Otherwise call get_form_state to inspect the form before deciding whether to submit."
+                        output += "\n\n" + render_prompt_contract(
+                            "page_operation_fill_remaining",
+                            remaining_empty_preview=remaining_empty_preview,
                         )
                     else:
-                        output += (
-                            "\n\n[Agent Loop] The form appears filled. "
-                            "If the user explicitly asked to save/create/update the record and submit_form is available, "
-                            "continue the submission workflow. "
-                            "Call validate_form if validation has not been checked yet; "
-                            "after validation passes, call submit_form. "
-                            "Only stop for confirmation when the page explicitly requires it or submit_form is unavailable."
+                        output += "\n\n" + render_prompt_contract(
+                            "page_operation_fill_ready"
                         )
                 elif operation_name == "validate_form":
                     valid = bool(result_data.get("valid"))
                     if valid:
-                        output += (
-                            "\n\n[Agent Loop] Validation passed. "
-                            "If the user explicitly asked to save/create/update the record and submit_form is available, "
-                            "call submit_form now. "
-                            "Only stop for confirmation when the page explicitly requires it or submit_form is unavailable."
+                        output += "\n\n" + render_prompt_contract(
+                            "page_operation_validate_passed"
                         )
                     else:
-                        output += (
-                            "\n\n[Agent Loop] Validation did not pass. "
-                            "Call get_form_state to inspect errors, then fix the invalid fields before deciding whether to submit."
+                        output += "\n\n" + render_prompt_contract(
+                            "page_operation_validate_failed"
                         )
                 elif context_diff.get("form_opened"):
-                    output += (
-                        "\n\n[Agent Loop] Form opened. "
-                        "Next: call get_form_state to inspect current values, "
-                        "then call fill_form with intelligent values."
+                    output += "\n\n" + render_prompt_contract(
+                        "page_operation_form_opened"
                     )
                 elif context_diff.get("form_closed"):
-                    output += (
-                        "\n\n[Agent Loop] Form closed. "
-                        "Call refresh_list to see updated data."
+                    output += "\n\n" + render_prompt_contract(
+                        "page_operation_form_closed"
                     )
+                elif operation_name == "navigate_menu":
+                    available_operation_names = llm_result_data.get(
+                        "_available_operation_names", []
+                    )
+                    can_auto_continue = bool(
+                        llm_result_data.get("_can_auto_continue")
+                    )
+                    destination_ready = bool(llm_result_data.get("_page_ready"))
+                    destination_ready_reason = str(
+                        llm_result_data.get("_destination_ready_reason") or ""
+                    ).strip()
+                    if isinstance(available_operation_names, list):
+                        available_preview = ", ".join(
+                            str(item)
+                            for item in available_operation_names[:8]
+                            if str(item).strip()
+                        )
+                    else:
+                        available_preview = ""
+                    if destination_ready and can_auto_continue:
+                        output += "\n\n" + render_prompt_contract(
+                            "page_operation_nav_ready"
+                        )
+                    elif destination_ready:
+                        output += "\n\n" + render_prompt_contract(
+                            "page_operation_nav_disabled"
+                        )
+                    else:
+                        output += "\n\n" + render_prompt_contract(
+                            "page_operation_nav_pending"
+                        )
+                    if available_preview and destination_ready:
+                        output += (
+                            render_prompt_contract(
+                                "page_operation_nav_available_ops",
+                                available_preview=available_preview,
+                            )
+                            + " "
+                        )
+                    if destination_ready and can_auto_continue:
+                        output += render_prompt_contract(
+                            "page_operation_nav_continue_now"
+                        )
+                    elif destination_ready_reason:
+                        output += (
+                            render_prompt_contract(
+                                "page_operation_nav_reason",
+                                destination_ready_reason=destination_ready_reason,
+                            )
+                            + " "
+                        )
             return ToolResult(
                 tool_call_id=tool_call_id,
                 name=definition.name,

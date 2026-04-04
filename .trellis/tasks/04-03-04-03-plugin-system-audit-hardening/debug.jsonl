@@ -1,0 +1,3 @@
+{"file": "backend/app/plugins/health.py", "reason": "Health and diagnostics for plugin runtime incidents"}
+{"file": "backend/app/plugins/version_manager.py", "reason": "Version and package boundary investigation"}
+{"file": "frontend/apps/web-antd/src/views/admin/plugins/plugin-recovery.ts", "reason": "Recovery UI debugging surface"}

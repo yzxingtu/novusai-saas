@@ -76,6 +76,7 @@ from app.models.org import (
     TenantOrgScopePolicy,
     TenantOrgScopeTarget,
     admin_org_node_permissions,
+    tenant_org_node_permissions,
 )
 from app.models.system import (
     Admin,
@@ -145,6 +146,7 @@ __all__ = [
     "TenantOrgNode",
     "TenantOrgScopePolicy",
     "TenantOrgScopeTarget",
+    "tenant_org_node_permissions",
     # AI / 模型与用量等 AI 基础表
     "AIProvider",
     "AIModel",

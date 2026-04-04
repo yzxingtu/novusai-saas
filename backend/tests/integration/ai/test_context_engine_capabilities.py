@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from app.ai.capabilities.description_builder import CapabilityDescriptionBuilder
 from app.ai.context.engine import ConversationContextEngine
 from app.ai.engine.types import ExecutionRequest
 from app.ai.runtime.types import CapabilityDescriptor
@@ -119,6 +120,18 @@ async def _assemble_context(
         )
 
 
+def _build_mapping_skill_descriptions(*_args, **_kwargs):
+    class MappingDescriptor:
+        def __init__(self):
+            self.category = "skills"
+            self.title = "Mapping Skills"
+
+        def items(self):
+            return ["mapped_tool: Mapping item"]
+
+    return [MappingDescriptor()]
+
+
 @pytest.mark.asyncio
 async def test_context_engine_injects_skill_capabilities_block() -> None:
     skill_result = _build_skill_result(
@@ -143,6 +156,33 @@ async def test_context_engine_injects_skill_capabilities_block() -> None:
         assembly.messages[0].content
     )
     assert assembly.diagnostics["dynamic_capability_awareness_enabled"] is True
+
+
+@pytest.mark.asyncio
+async def test_context_engine_handles_mapping_description_inputs() -> None:
+    skill_result = _build_skill_result(
+        CapabilityDescriptor(
+            name="intent_mapper",
+            kind="prompt_skill",
+            source="skill_package:mapper",
+            description="Map intents to capabilities",
+            metadata={"family": "general"},
+        )
+    )
+
+    with patch.object(
+        CapabilityDescriptionBuilder,
+        "build_skill_descriptions",
+        new=_build_mapping_skill_descriptions,
+    ):
+        assembly = await _assemble_context(
+            request=_build_request(),
+            skill_result=skill_result,
+            settings=TenantCapabilityAwarenessSettings(),
+        )
+
+    assert "## Mapping Skills" in assembly.messages[0].content
+    assert "- mapped_tool: Mapping item" in assembly.messages[0].content
 
 
 @pytest.mark.asyncio
@@ -197,7 +237,10 @@ async def test_context_engine_injects_skill_and_knowledge_base_capabilities() ->
 
     assert "## Data Intelligence Skills" in assembly.messages[0].content
     assert "## Knowledge Bases" in assembly.messages[0].content
-    assert "[CAPABILITIES]" in assembly.system_prompt_additions[0]
+    assert any(
+        "[CAPABILITIES]" in addition
+        for addition in (assembly.system_prompt_additions or [])
+    )
 
 
 @pytest.mark.asyncio
@@ -246,6 +289,31 @@ async def test_context_engine_injects_page_context_capabilities() -> None:
     assert "Available operations: create_user, delete_user" in (
         assembly.messages[0].content
     )
+
+
+@pytest.mark.asyncio
+async def test_context_engine_injects_locale_hint_from_page_context() -> None:
+    request = _build_request(
+        input_variables={
+            "page_context": {
+                "page_key": "tenant.dashboard",
+                "page_title": "仪表盘",
+                "page_data": {
+                    "locale": "zh_CN",
+                },
+            }
+        }
+    )
+
+    assembly = await _assemble_context(
+        request=request,
+        skill_result=None,
+        settings=TenantCapabilityAwarenessSettings(),
+    )
+
+    additions = " ".join(assembly.system_prompt_additions or [])
+    assert "zh_CN" in additions or "zh-CN" in additions
+    assert "Chinese" in additions
 
 
 @pytest.mark.asyncio

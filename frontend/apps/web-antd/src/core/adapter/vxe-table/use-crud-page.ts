@@ -45,7 +45,15 @@ import type {
 } from '#/components/business/dependency-block-modal/service';
 import type { FormPopupApi } from '#/composables/use-ai-operations';
 
-import { computed, defineComponent, h, onBeforeUnmount, ref } from 'vue';
+import {
+  computed,
+  defineComponent,
+  h,
+  onActivated,
+  onBeforeUnmount,
+  onDeactivated,
+  ref,
+} from 'vue';
 import { useRoute } from 'vue-router';
 
 import { useVbenDrawer, useVbenModal } from '@vben/common-ui';
@@ -675,6 +683,9 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
   const [OriginalGrid, _gridApi] = useVbenVxeGrid({
     formOptions: searchFormOptions,
     gridOptions,
+    searchPanelAnimation: searchSchema
+      ? (search.animatePanel ?? false)
+      : undefined,
     showSearchForm: searchSchema ? (search.defaultOpen ?? true) : undefined,
   });
 
@@ -793,7 +804,20 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
   let cleanupAiContextBase: (() => void) | null = null;
   let cleanupAiContextExtras: (() => void) | null = null;
 
-  if (aiConfig && aiPageKey) {
+  function cleanupAiBindings() {
+    cleanupAiOps?.();
+    cleanupAiOps = null;
+    cleanupAiContextExtras?.();
+    cleanupAiContextExtras = null;
+    cleanupAiContextBase?.();
+    cleanupAiContextBase = null;
+  }
+
+  function registerAiBindings() {
+    if (!aiConfig || !aiPageKey || cleanupAiOps || cleanupAiContextBase) {
+      return;
+    }
+
     const resolveEntityName = () =>
       aiConfig.entityName ??
       resolveRouteMetaTitle(route.meta, {
@@ -909,10 +933,18 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
     });
   }
 
+  registerAiBindings();
+
+  onDeactivated(() => {
+    cleanupAiBindings();
+  });
+
+  onActivated(() => {
+    registerAiBindings();
+  });
+
   onBeforeUnmount(() => {
-    cleanupAiOps?.();
-    cleanupAiContextExtras?.();
-    cleanupAiContextBase?.();
+    cleanupAiBindings();
     if (aiPageKey) formStateTracker.close(aiPageKey);
   });
 

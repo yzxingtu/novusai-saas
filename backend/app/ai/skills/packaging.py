@@ -23,7 +23,6 @@ Skill ZIP package structure / Skill ZIP 包结构：
 from __future__ import annotations
 
 import os
-import re
 import shutil
 import zipfile
 from pathlib import Path
@@ -47,19 +46,66 @@ MAX_ZIP_UNCOMPRESSED_SIZE = (
 MAX_ZIP_FILE_COUNT = int(os.environ.get("SKILL_MAX_FILE_COUNT", "500"))
 MAX_ZIP_RATIO = float(os.environ.get("SKILL_MAX_COMPRESSION_RATIO", "100"))
 
-# Semantic version regex / 语义化版本正则
-SEMVER_RE = re.compile(
-    r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
-    r"(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)"
-    r"(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?"
-    r"(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$"
-)
-
 # Skill package storage root directory (relative to backend/)
 # 技能包存储根目录（相对于 backend/）
 SKILLS_STORAGE_DIR = (
     Path(__file__).resolve().parent.parent.parent / "storage" / "skills"
 )
+
+
+def _validate_semver_identifier(
+    value: str,
+    *,
+    allow_leading_zero_numeric: bool,
+) -> bool:
+    """Validate semver identifiers for prerelease/metadata segments."""
+    if not value:
+        return False
+    for segment in value.split("."):
+        if not segment:
+            return False
+        if not all(ch.isalnum() or ch == "-" for ch in segment):
+            return False
+        if (
+            not allow_leading_zero_numeric
+            and segment.isdigit()
+            and segment != "0"
+            and segment.startswith("0")
+        ):
+            return False
+    return True
+
+
+def _is_valid_semver(version: str) -> bool:
+    """Return True if the version follows semver major.minor.patch format."""
+    if not version:
+        return False
+    metadata_part = ""
+    main_part = version
+    if "+" in version:
+        main_part, metadata_part = version.split("+", 1)
+    prerelease_part = ""
+    if "-" in main_part:
+        main_part, prerelease_part = main_part.split("-", 1)
+    segments = main_part.split(".")
+    if len(segments) != 3:
+        return False
+    for segment in segments:
+        if not segment.isdigit():
+            return False
+        if segment != "0" and segment.startswith("0"):
+            return False
+    if prerelease_part and not _validate_semver_identifier(
+        prerelease_part,
+        allow_leading_zero_numeric=False,
+    ):
+        return False
+    if metadata_part and not _validate_semver_identifier(
+        metadata_part,
+        allow_leading_zero_numeric=True,
+    ):
+        return False
+    return True
 
 
 class SkillPackageError(Exception):
@@ -133,7 +179,7 @@ def validate_skill_metadata(metadata: dict[str, Any]) -> list[str]:
     version = metadata.get("version", "")
     if isinstance(version, (int, float)):
         version = str(version)
-    if not SEMVER_RE.match(version):
+    if not _is_valid_semver(version):
         errors.append(f"Invalid version: '{version}'. Must follow semver (e.g. 1.0.0).")
 
     return errors

@@ -81,6 +81,27 @@ def auth_only(func: F) -> F:
 
 
 @dataclass
+class MenuAIConfig:
+    """
+    AI metadata attached to a menu declaration.
+    菜单声明上的 AI 元信息。
+
+    These fields are emitted through `/permissions/menus` so the frontend page-AI
+    layer can consume a single backend-owned menu semantic contract.
+    这些字段会通过 `/permissions/menus` 下发，供前端页面 AI 层消费统一的后端菜单语义契约。
+    """
+
+    description: str | None = None
+    keywords: list[str] | None = None
+    capabilities: list[str] | None = None
+    category: str | None = None
+    mode: str | None = None
+    page_context_key: str | None = None
+    disabled_capabilities: list[str] | str | None = None
+    disabled_operations: list[str] | str | None = None
+
+
+@dataclass
 class MenuConfig:
     """
     Menu Configuration.
@@ -106,6 +127,7 @@ class MenuConfig:
     parent: str | None = None  # Parent menu resource identifier / 父菜单资源标识
     sort_order: int = 0
     hidden: bool = False  # Whether to hide menu (permission control only) / 是否隐藏菜单（仅做权限控制）
+    ai: MenuAIConfig | None = None  # Backend-owned AI menu semantics / 后端拥有的 AI 菜单语义
 
 
 @dataclass
@@ -126,6 +148,7 @@ class PermissionMeta:
     parent_code: str | None = None
     sort_order: int = 0
     hidden: bool = False
+    ai: MenuAIConfig | None = None
 
 
 def permission_resource(
@@ -213,6 +236,7 @@ def permission_resource(
                 parent_code=parent_code,
                 sort_order=menu.sort_order,
                 hidden=menu.hidden,
+                ai=menu.ai,
             )
             permission_registry.register(menu_perm)
 

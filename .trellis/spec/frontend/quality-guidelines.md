@@ -35,6 +35,8 @@ pnpm exec vue-tsc --noEmit --skipLibCheck --pretty false -p apps/web-antd/tsconf
 
 - Use `$t()` / `t()` for visible text.
 - Use `v-access` or shared access helpers for permission-gated UI.
+- Do not rely on backend `403` alone for routine permission UX. Protected
+  entry points should normally be hidden or disabled in the frontend as well.
 - Use `smartUploadFile` or its wrapped shared components for uploads.
 - Use `requestClient.download()` plus `downloadBlob()` for downloads.
 - Use shared error helpers (`showRequestError`, `getErrorMessage`) when a page
@@ -60,6 +62,8 @@ Examples:
   file uploads or multi-tab flows require it.
 - For CRUD pages, validate search, pagination, and permission-controlled
   actions.
+- For permission work, validate both sides of the contract:
+  frontend entry-point visibility and backend enforcement.
 - For forms, validate open, submit, and failure feedback.
 - For upload/download flows, validate both the happy path and visibility/route
   correctness.
@@ -70,6 +74,12 @@ Examples:
 - For quota/rate-limit work, validate the live runtime behavior rather than only
   CRUD/UI responses.
 - Check console and network first before blaming page logic.
+- When a page uses `CellOperation` custom actions or `CellSwitch`, explicitly
+  validate that a limited-permission account cannot see or trigger update/delete
+  behavior.
+- When a page opens a protected drawer/modal from a custom button or dropdown,
+  validate that the opener itself is hidden for accounts missing the target
+  permission.
 
 Examples:
 
@@ -84,6 +94,8 @@ Examples:
 - Confirm route/menu/title/i18n stay in sync after locale changes.
 - Confirm request failures show one coherent message path with `trace_id`
   preserved when relevant.
+- Confirm users with list/detail-only roles do not see update/delete/test/toggle
+  controls that would later fail with `403`.
 - Confirm `novusai trace show <trace_id>` remains a viable operator workflow for
   backend-linked failures when the change affects request error presentation.
 - Confirm plugin routes and menus respect runtime, permission, and locale rules
@@ -101,6 +113,8 @@ Before merge, confirm:
 
 - The page uses an existing platform pattern if one exists.
 - Text, permissions, menu ownership, and route ownership are correct.
+- Custom buttons, dropdown items, `CellOperation` custom codes, and
+  `CellSwitch` toggles are not relying on backend `403` as the only guard.
 - Upload/download/image behavior uses the attachment helpers.
 - API transforms and types stay in the API/types layers.
 - Unit tests and browser validation match the real risk of the change.

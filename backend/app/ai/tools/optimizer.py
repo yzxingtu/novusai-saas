@@ -17,9 +17,12 @@ Filtering strategies (by priority):
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 
+from app.ai.text_semantics import (
+    extract_cjk_bigram_and_word_tokens,
+    has_forbid_instruction_phrase,
+)
 from app.ai.tools.semantic_defaults import (
     FAMILY_EXPLICIT_REQUEST_HINTS,
     tool_semantic_family,
@@ -29,11 +32,6 @@ from app.ai.tools.types import ToolDefinition
 from app.core.logging import LogManager
 
 logger = LogManager.get_logger("ai.tool.optimizer")
-
-_FORBID_FAMILY_RE = re.compile(
-    r"(不要|别|不用|无需|勿|甭|dont|don't|do not|without|no need)",
-    re.IGNORECASE,
-)
 
 # Skip optimization when tool count ≤ this value, pass all / 工具数≤此值时跳过优化
 MAX_TOOLS_WITHOUT_OPTIMIZATION = 6
@@ -88,7 +86,7 @@ def _query_forbids_family(
     family_tokens: set[str],
     family_hints: tuple[str, ...],
 ) -> bool:
-    if not _FORBID_FAMILY_RE.search(query_text):
+    if not has_forbid_instruction_phrase(query_text):
         return False
     return _query_mentions_family(query_text, query_tokens, family_tokens, family_hints)
 
@@ -289,12 +287,6 @@ _STOPWORDS_EN = frozenset(
 
 _STOPWORDS = _STOPWORDS_ZH | _STOPWORDS_EN
 
-# Chinese character regex / 中文字符正则
-_CJK_RE = re.compile(r"[\u4e00-\u9fff]+")
-# English word regex / 英文单词正则
-_WORD_RE = re.compile(r"[a-zA-Z]{2,}")
-
-
 @dataclass
 class OptimizeResult:
     """Tool optimization result / 工具优化结果"""
@@ -307,26 +299,7 @@ class OptimizeResult:
 
 def _tokenize(text: str) -> set[str]:
     """Simple tokenization: extract CJK character groups and English words, remove stopwords / 简单分词"""
-    tokens: set[str] = set()
-
-    for match in _CJK_RE.finditer(text):
-        chars = match.group()
-        # Split Chinese by bigram / 中文按 bigram 拆分
-        for i in range(len(chars)):
-            char = chars[i]
-            if char not in _STOPWORDS:
-                tokens.add(char)
-            if i < len(chars) - 1:
-                bigram = chars[i : i + 2]
-                if bigram not in _STOPWORDS:
-                    tokens.add(bigram)
-
-    for match in _WORD_RE.finditer(text):
-        word = match.group().lower()
-        if word not in _STOPWORDS:
-            tokens.add(word)
-
-    return tokens
+    return extract_cjk_bigram_and_word_tokens(text, stopwords=_STOPWORDS)
 
 
 def _score_tool(

@@ -1,5 +1,7 @@
 [!] **Prerequisite**: This command should only be used AFTER the human has tested and committed the code.
 
+> Since Trellis tasks now declare a path (`fast`, `normal`, or `deep`), include that path note when you summarize the session so the journal reflects the verification flow you just finished.
+
 **Do NOT run `git commit` directly** — the scripts below handle their own commits for `.trellis/` metadata. You only need to read git history (`git log`, `git status`, `git diff`) and run the Python scripts.
 
 ---

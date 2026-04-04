@@ -2,6 +2,8 @@
 Execution decision repository / 执行决策仓储
 """
 
+import inspect
+
 from sqlalchemy import and_, select
 
 from app.core.base_repository import BaseRepository, TenantRepository
@@ -24,7 +26,10 @@ class ExecutionDecisionRepository(TenantRepository[ExecutionDecision]):
                 )
             )
         )
-        return result.scalar_one_or_none()
+        decision = result.scalar_one_or_none()
+        if inspect.isawaitable(decision):
+            decision = await decision
+        return decision
 
 
 class AdminExecutionDecisionRepository(BaseRepository[ExecutionDecision]):

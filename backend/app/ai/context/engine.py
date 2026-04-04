@@ -15,6 +15,8 @@ from typing import TYPE_CHECKING, Any
 from app.ai.capabilities import CapabilityDescriptionBuilder
 from app.ai.context.long_term_memory import get_long_term_memory_provider
 from app.ai.context.pruning import TransientPruner
+from app.ai.page_locale import page_language_name, resolve_page_locale
+from app.ai.prompt_contracts import render_prompt_contract
 from app.ai.runtime.context_assembler import (
     ContextAssemblerState,
     LegacyContextAssemblerAdapter,
@@ -41,6 +43,25 @@ if TYPE_CHECKING:
 
 
 logger = LogManager.get_logger("ai.context_engine")
+
+_DEFAULT_CONTEXT_PROMPT_BUDGET_TOKENS = 8000
+_DEFAULT_CONTEXT_OUTPUT_RESERVE_RATIO = 0.25
+_DEFAULT_SYSTEM_ADDITIONS_BUDGET_TOKENS = 1600
+_DEFAULT_CAPABILITY_BLOCK_BUDGET_TOKENS = 500
+_DEFAULT_MEMORY_BLOCK_BUDGET_TOKENS = 400
+_DEFAULT_COMPACT_SUMMARY_BUDGET_TOKENS = 700
+_DEFAULT_DATE_ANCHOR_BUDGET_TOKENS = 160
+_DEFAULT_PAGE_LOCALE_BUDGET_TOKENS = 96
+_MIN_ADDITION_SECTION_TOKENS = 48
+
+
+def _capability_description_category(description: Any) -> str:
+    """Normalize category access for object and mapping descriptors."""
+    if isinstance(description, dict):
+        raw_category = description.get("category")
+    else:
+        raw_category = getattr(description, "category", None)
+    return str(raw_category or "").strip()
 
 
 @dataclass
@@ -182,9 +203,15 @@ class ConversationContextEngine(ContextEngine):
         compact_max_summary_chars = int(
             context_config.get("compact_max_summary_chars", 1600) or 1600
         )
+        context_budget = self._resolve_context_budget(context_config)
 
         compact_summary: str | None = None
         system_prompt_additions: list[str] = []
+        budget_usage: dict[str, Any] = {
+            "used_tokens": 0,
+            "trimmed_sections": [],
+            "skipped_sections": [],
+        }
         context_compacted = False
         memory_recalled = False
         memory_recall_slice: dict[str, Any] | None = None
@@ -198,7 +225,24 @@ class ConversationContextEngine(ContextEngine):
             skill_result=skill_result,
         )
         if web_research_date_anchor:
-            system_prompt_additions.append(web_research_date_anchor)
+            self._append_budgeted_addition(
+                additions=system_prompt_additions,
+                text=web_research_date_anchor,
+                category="web_research_date_anchor",
+                per_item_token_limit=context_budget["date_anchor_tokens"],
+                total_token_limit=context_budget["system_additions_tokens"],
+                budget_usage=budget_usage,
+            )
+        page_locale_hint = self._build_page_locale_hint(request)
+        if page_locale_hint:
+            self._append_budgeted_addition(
+                additions=system_prompt_additions,
+                text=page_locale_hint,
+                category="page_locale_thinking",
+                per_item_token_limit=context_budget["page_locale_tokens"],
+                total_token_limit=context_budget["system_additions_tokens"],
+                budget_usage=budget_usage,
+            )
 
         try:
             capability_settings = await get_tenant_capability_awareness_settings(
@@ -270,13 +314,22 @@ class ConversationContextEngine(ContextEngine):
                     capability_descriptions.append(memory_description)
 
                 capability_awareness_categories = [
-                    description.category for description in capability_descriptions
+                    category
+                    for description in capability_descriptions
+                    if (category := _capability_description_category(description))
                 ]
                 capability_block = capability_builder.format_as_system_prompt_block(
                     capability_descriptions
                 )
                 if capability_block:
-                    system_prompt_additions.append(capability_block)
+                    self._append_budgeted_addition(
+                        additions=system_prompt_additions,
+                        text=capability_block,
+                        category="capability_block",
+                        per_item_token_limit=context_budget["capability_block_tokens"],
+                        total_token_limit=context_budget["system_additions_tokens"],
+                        budget_usage=budget_usage,
+                    )
         except Exception as exc:
             capability_awareness_error = str(exc)
             logger.warning(
@@ -301,7 +354,14 @@ class ConversationContextEngine(ContextEngine):
                 if profile_snapshot:
                     profile_block = self._build_profile_snapshot_block(profile_snapshot)
                     if profile_block:
-                        system_prompt_additions.append(profile_block)
+                        self._append_budgeted_addition(
+                            additions=system_prompt_additions,
+                            text=profile_block,
+                            category="memory_profile_snapshot",
+                            per_item_token_limit=context_budget["memory_block_tokens"],
+                            total_token_limit=context_budget["system_additions_tokens"],
+                            budget_usage=budget_usage,
+                        )
                         memory_recalled = True
                         memory_recall_slice = {
                             "count": 0,
@@ -317,7 +377,14 @@ class ConversationContextEngine(ContextEngine):
                 if recalled_records:
                     recall_block = self._build_memory_recall_block(recalled_records)
                     if recall_block:
-                        system_prompt_additions.append(recall_block)
+                        self._append_budgeted_addition(
+                            additions=system_prompt_additions,
+                            text=recall_block,
+                            category="memory_recall",
+                            per_item_token_limit=context_budget["memory_block_tokens"],
+                            total_token_limit=context_budget["system_additions_tokens"],
+                            budget_usage=budget_usage,
+                        )
                         memory_recalled = True
                         memory_recall_slice = {
                             "count": len(recalled_records),
@@ -361,7 +428,14 @@ class ConversationContextEngine(ContextEngine):
             if compact_summary:
                 context_compacted = True
                 block = "[COMPACTED CONTEXT SUMMARY]\n" + compact_summary
-                system_prompt_additions.append(block)
+                self._append_budgeted_addition(
+                    additions=system_prompt_additions,
+                    text=block,
+                    category="compacted_context_summary",
+                    per_item_token_limit=context_budget["compact_summary_tokens"],
+                    total_token_limit=context_budget["system_additions_tokens"],
+                    budget_usage=budget_usage,
+                )
                 messages = [messages[0], *suffix]
 
         messages = self._inject_system_prompt_additions(
@@ -369,11 +443,14 @@ class ConversationContextEngine(ContextEngine):
             system_prompt_additions,
         )
 
+        estimated_tokens_before_prune = self._messages_token_estimate(messages)
         pruned_messages, prune_stats = self.pruner.prune(messages)
         estimated_tokens = self._messages_token_estimate(pruned_messages)
         diagnostics = {
             "pruning_applied": bool(prune_stats.pruned_message_count),
             "compaction_source_tokens": compaction_source_tokens,
+            "estimated_tokens_before_prune": estimated_tokens_before_prune,
+            "estimated_tokens_after_prune": estimated_tokens,
             "context_compacted": context_compacted,
             "memory_recalled": memory_recalled,
             "web_research_date_anchor": bool(web_research_date_anchor),
@@ -386,6 +463,15 @@ class ConversationContextEngine(ContextEngine):
             "requested_knowledge_base_ids": requested_kb_ids,
             "effective_knowledge_base_ids": list(merged_kb_ids or []),
             "dropped_knowledge_base_ids": dropped_kb_ids,
+            "context_budget": {
+                **context_budget,
+                "system_additions_used_tokens": budget_usage["used_tokens"],
+                "trimmed_sections": list(budget_usage["trimmed_sections"]),
+                "skipped_sections": list(budget_usage["skipped_sections"]),
+                "prompt_budget_exceeded": (
+                    estimated_tokens > context_budget["prompt_target_tokens"]
+                ),
+            },
         }
         if capability_awareness_error:
             diagnostics["dynamic_capability_awareness_error"] = (
@@ -793,6 +879,123 @@ class ConversationContextEngine(ContextEngine):
             "When the user says today/latest/current/recent or asks about the current time/date, interpret it against this runtime clock. "
             "Do not assume a different year or timezone unless a source or the user explicitly specifies one."
         )
+
+    @staticmethod
+    def _build_page_locale_hint(request: ExecutionRequest) -> str:
+        page_locale = resolve_page_locale(getattr(request, "input_variables", None))
+        return render_prompt_contract(
+            "page_locale_thinking",
+            page_locale=page_locale,
+            page_language=page_language_name(page_locale),
+        )
+
+    @staticmethod
+    def _resolve_context_budget(context_config: dict[str, Any]) -> dict[str, Any]:
+        prompt_budget_tokens = int(
+            context_config.get("prompt_budget_tokens")
+            or context_config.get("max_prompt_tokens")
+            or _DEFAULT_CONTEXT_PROMPT_BUDGET_TOKENS
+        )
+        reserve_ratio = float(
+            context_config.get("output_reserve_ratio")
+            or _DEFAULT_CONTEXT_OUTPUT_RESERVE_RATIO
+        )
+        reserve_ratio = min(max(reserve_ratio, 0.05), 0.5)
+        prompt_target_tokens = max(
+            1200,
+            int(prompt_budget_tokens * (1 - reserve_ratio)),
+        )
+        system_additions_tokens = int(
+            context_config.get("system_additions_budget_tokens")
+            or min(
+                _DEFAULT_SYSTEM_ADDITIONS_BUDGET_TOKENS,
+                max(400, prompt_target_tokens // 4),
+            )
+        )
+        return {
+            "prompt_budget_tokens": prompt_budget_tokens,
+            "prompt_target_tokens": prompt_target_tokens,
+            "output_reserve_ratio": reserve_ratio,
+            "system_additions_tokens": system_additions_tokens,
+            "capability_block_tokens": int(
+                context_config.get("capability_block_budget_tokens")
+                or min(_DEFAULT_CAPABILITY_BLOCK_BUDGET_TOKENS, system_additions_tokens)
+            ),
+            "memory_block_tokens": int(
+                context_config.get("memory_block_budget_tokens")
+                or min(_DEFAULT_MEMORY_BLOCK_BUDGET_TOKENS, system_additions_tokens)
+            ),
+            "compact_summary_tokens": int(
+                context_config.get("compact_summary_budget_tokens")
+                or min(_DEFAULT_COMPACT_SUMMARY_BUDGET_TOKENS, system_additions_tokens)
+            ),
+            "date_anchor_tokens": int(
+                context_config.get("date_anchor_budget_tokens")
+                or min(_DEFAULT_DATE_ANCHOR_BUDGET_TOKENS, system_additions_tokens)
+            ),
+            "page_locale_tokens": int(
+                context_config.get("page_locale_budget_tokens")
+                or min(_DEFAULT_PAGE_LOCALE_BUDGET_TOKENS, system_additions_tokens)
+            ),
+        }
+
+    def _append_budgeted_addition(
+        self,
+        *,
+        additions: list[str],
+        text: str,
+        category: str,
+        per_item_token_limit: int,
+        total_token_limit: int,
+        budget_usage: dict[str, Any],
+    ) -> None:
+        normalized = str(text or "").strip()
+        if not normalized:
+            return
+
+        used_tokens = int(budget_usage.get("used_tokens", 0) or 0)
+        remaining_total = max(total_token_limit - used_tokens, 0)
+        if remaining_total < _MIN_ADDITION_SECTION_TOKENS:
+            budget_usage.setdefault("skipped_sections", []).append(category)
+            return
+
+        effective_limit = max(
+            _MIN_ADDITION_SECTION_TOKENS,
+            min(int(per_item_token_limit or remaining_total), remaining_total),
+        )
+        original_tokens = estimate_tokens(normalized)
+        trimmed = self._trim_text_to_token_limit(normalized, effective_limit)
+        if not trimmed:
+            budget_usage.setdefault("skipped_sections", []).append(category)
+            return
+
+        additions.append(trimmed)
+        budget_usage["used_tokens"] = used_tokens + estimate_tokens(trimmed)
+        if original_tokens > estimate_tokens(trimmed):
+            budget_usage.setdefault("trimmed_sections", []).append(category)
+
+    @staticmethod
+    def _trim_text_to_token_limit(text: str, token_limit: int) -> str:
+        normalized = str(text or "").strip()
+        if not normalized or token_limit <= 0:
+            return ""
+        if estimate_tokens(normalized) <= token_limit:
+            return normalized
+
+        low = 0
+        high = len(normalized)
+        best = ""
+        while low <= high:
+            mid = (low + high) // 2
+            candidate = normalized[:mid].rstrip()
+            if mid < len(normalized):
+                candidate = candidate.rstrip(" .,;:") + "\n..."
+            if estimate_tokens(candidate) <= token_limit:
+                best = candidate
+                low = mid + 1
+            else:
+                high = mid - 1
+        return best
 
 
 def get_context_engine(

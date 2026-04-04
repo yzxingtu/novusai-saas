@@ -99,6 +99,138 @@ def _sample_snapshot_with_datetimes() -> dict:
     return snapshot
 
 
+def _sample_snapshot_with_nested_assistant_diagnostics() -> dict:
+    snapshot = _sample_snapshot()
+    snapshot["recent_messages"][1]["metadata"]["context_diagnostics"] = {
+        "execution_path": "fast",
+        "intent_plan": [
+            {
+                "intent_id": "intent-1",
+                "family": "weather",
+                "status": "pending",
+                "allowed_tool_names": ["get_current_weather"],
+            }
+        ],
+        "budget": {
+            "status": "exited",
+            "exit_reason": "completion_budget_exceeded",
+        },
+        "budget_exit_reason": "completion_budget_exceeded",
+        "partial_exit_reason": "completion_budget_exceeded",
+        "tool_loop_progress": {"budget_exit_reason": "completion_budget_exceeded"},
+    }
+    snapshot["recent_messages"][1]["metadata"]["last_run_summary"] = {
+        "execution_path": "fast",
+        "turn_outcome": "partial",
+        "termination_reason": "completion_budget_exceeded",
+    }
+    return snapshot
+
+
+def _sample_snapshot_with_historical_budget_exit_metadata() -> dict:
+    snapshot = _sample_snapshot()
+    snapshot["recent_messages"][1]["metadata"]["context_diagnostics"] = {
+        "turn_outcome": "partial",
+        "termination_reason": "completion_budget_exceeded",
+        "tool_loop_progress": {"budget_exit_reason": "completion_budget_exceeded"},
+        "tool_planner": {
+            "execution_path": "fast",
+            "intent_plan": [
+                {
+                    "intent_id": "intent-1",
+                    "family": "weather",
+                    "status": "pending",
+                    "allowed_tool_names": ["get_current_weather"],
+                }
+            ],
+        },
+    }
+    snapshot["recent_messages"][1]["metadata"]["last_run_summary"] = {
+        "turn_outcome": "partial",
+        "termination_reason": "completion_budget_exceeded",
+        "tool_loop_progress": {"budget_exit_reason": "completion_budget_exceeded"},
+        "tool_planner": {
+            "execution_path": "fast",
+            "intent_plan": [
+                {
+                    "intent_id": "intent-1",
+                    "family": "weather",
+                    "status": "pending",
+                    "allowed_tool_names": ["get_current_weather"],
+                }
+            ],
+        },
+    }
+    return snapshot
+
+
+def _sample_snapshot_with_call_log_turn_record_fallback() -> dict:
+    snapshot = _sample_snapshot()
+    snapshot["recent_messages"][1]["metadata"] = {
+        "model_name": "gpt-5.4-xhigh",
+        "provider_name": "响应云",
+    }
+    snapshot["recent_call_logs"][0].update(
+        {
+            "turn_outcome": "partial",
+            "termination_reason": "elapsed_budget_exceeded",
+            "execution_path": "fast",
+            "budget_exit_reason": "elapsed_budget_exceeded",
+            "tool_loop_progress": {
+                "budget_exit_reason": "elapsed_budget_exceeded",
+                "marker": "None",
+            },
+            "contract_breach_type": "None",
+            "tool_leak_detected": True,
+            "unfinished_intents": ["intent-1", "None"],
+            "leaked_tool_names": ["get_current_weather", "None"],
+            "recovered_via_retry": "true",
+            "fallback_history": [
+                {
+                    "from_protocol": "None",
+                    "to_protocol": "fast",
+                    "reason": "None",
+                    "metadata": {"marker": "None"},
+                }
+            ],
+            "turn_record": {
+                "execution_path": "fast",
+                "budget_status": "exited",
+                "budget_exit_reason": "elapsed_budget_exceeded",
+                "budget": {
+                    "status": "exited",
+                    "exit_reason": "elapsed_budget_exceeded",
+                    "note": "None",
+                },
+                "intent_plan": [
+                    {
+                        "intent_id": "intent-1",
+                        "family": "weather",
+                        "status": "completed",
+                        "user_visible_label": "None",
+                        "allowed_tool_names": ["get_current_weather"],
+                    }
+                ],
+                "tool_loop_progress": {
+                    "budget_exit_reason": "elapsed_budget_exceeded",
+                    "marker": "None",
+                },
+                "metadata": {
+                    "tool_leak_detected": True,
+                    "unfinished_intents": ["intent-1", "None"],
+                    "leaked_tool_names": ["get_current_weather", "None"],
+                    "recovered_via_retry": "true",
+                },
+            },
+        }
+    )
+    snapshot["diagnostics"] = {
+        "last_assistant_message_id": 3235,
+        "last_assistant_sequence": 18,
+    }
+    return snapshot
+
+
 def test_ai_conversation_show_json_success(monkeypatch) -> None:
     from app.cli import cli
 
@@ -114,6 +246,102 @@ def test_ai_conversation_show_json_success(monkeypatch) -> None:
     assert '"id": 563' in result.output
     assert '"last_assistant_textual_tool_call_names": [' in result.output
     assert '"get_page_context"' in result.output
+
+
+def test_ai_conversation_show_json_surfaces_nested_assistant_diagnostics(monkeypatch) -> None:
+    from app.cli import cli
+
+    monkeypatch.setattr(
+        "app.cli._run_async",
+        _return_value(_sample_snapshot_with_nested_assistant_diagnostics()),
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["ai", "conversation", "show", "563", "--json"],
+    )
+
+    assert result.exit_code == 0
+    assert '"execution_path": "fast"' in result.output
+    assert '"budget_exit_reason": "completion_budget_exceeded"' in result.output
+    assert '"intent_id": "intent-1"' in result.output
+    assert '"turn_outcome": "partial"' in result.output
+
+
+def test_ai_conversation_show_json_infers_budget_exit_from_historical_assistant_metadata(monkeypatch) -> None:
+    from app.cli import cli
+
+    monkeypatch.setattr(
+        "app.cli._run_async",
+        _return_value(_sample_snapshot_with_historical_budget_exit_metadata()),
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["ai", "conversation", "show", "563", "--json"],
+    )
+
+    assert result.exit_code == 0
+    assert '"execution_path": "fast"' in result.output
+    assert '"budget_exit_reason": "completion_budget_exceeded"' in result.output
+    assert '"partial_exit_reason": "completion_budget_exceeded"' in result.output
+    assert '"intent_id": "intent-1"' in result.output
+
+
+def test_ai_conversation_show_json_falls_back_to_call_log_turn_record(monkeypatch) -> None:
+    from app.cli import cli
+
+    monkeypatch.setattr(
+        "app.cli._run_async",
+        _return_value(_sample_snapshot_with_call_log_turn_record_fallback()),
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["ai", "conversation", "show", "563", "--json"],
+    )
+
+    assert result.exit_code == 0
+    assert '"source": "call_log_turn_record"' in result.output
+    assert '"budget_exit_reason": "elapsed_budget_exceeded"' in result.output
+    assert '"turn_record": {' in result.output
+    assert '"budget_status": "exited"' in result.output
+    assert '"tool_leak_detected": true' in result.output
+    assert '"unfinished_intents": [' in result.output
+    assert '"get_current_weather"' in result.output
+    assert '"recovered_via_retry": true' in result.output
+    assert '"contract_breach_type": "None"' not in result.output
+    assert '"user_visible_label": "None"' not in result.output
+    assert '"marker": "None"' not in result.output
+
+
+def test_ai_conversation_show_text_omits_none_contract_breach_type(monkeypatch) -> None:
+    from app.cli import cli
+
+    monkeypatch.setattr(
+        "app.cli._run_async",
+        _return_value(_sample_snapshot_with_call_log_turn_record_fallback()),
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["ai", "conversation", "show", "563"],
+    )
+
+    assert result.exit_code == 0
+    assert "Diagnostic: contract_breach_type=None" not in result.output
+    assert "Turn diagnostics source: call_log_turn_record" in result.output
+    assert (
+        "Diagnostic: last assistant message looks like leaked textual tool call"
+        in result.output
+    )
+    assert "Diagnostic: unfinished_intents=intent-1" in result.output
+    assert "Diagnostic: recovered_via_retry=True" in result.output
+    assert "None" not in result.output
 
 
 def test_ai_conversation_show_text_renders_diagnostic(monkeypatch) -> None:

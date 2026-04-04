@@ -14,8 +14,6 @@ import { IconifyIcon } from '@vben/icons';
 import {
   Button,
   Input,
-  message,
-  Modal,
   Pagination,
   Select,
   SelectOption,
@@ -25,12 +23,12 @@ import {
 
 import {
   getMarketplaceListApi,
-  marketplaceConfirmInstallApi,
 } from '#/api/admin/plugin-marketplace';
 import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
 
 import { getTierColor, getTierText } from '../data';
+import PluginInstallWizard from '../modules/PluginInstallWizard.vue';
 import MarketplaceSettingsModal from './MarketplaceSettingsModal.vue';
 import SkillRegistryPanel from './SkillRegistryPanel.vue';
 
@@ -38,6 +36,7 @@ defineOptions({ name: 'AdminPluginMarketplace' });
 
 const router = useRouter();
 const route = useRoute();
+const installWizardRef = ref<InstanceType<typeof PluginInstallWizard>>();
 const settingsRef = ref<InstanceType<typeof MarketplaceSettingsModal>>();
 const plugins = ref<MarketplacePluginItem[]>([]);
 const loading = ref(false);
@@ -144,20 +143,11 @@ function handleSearch() {
 }
 
 async function handleInstall(plugin: MarketplacePluginItem) {
-  const slug = plugin.slug || plugin.name;
-  Modal.confirm({
-    title: $t('admin.plugin.marketplace.confirmInstall'),
-    content: `${plugin.display_name || plugin.name} v${plugin.version}`,
-    async onOk() {
-      try {
-        await marketplaceConfirmInstallApi(slug);
-        message.success($t('admin.plugin.messages.installSuccess'));
-        await loadMarketplace();
-      } catch {
-        message.error($t('admin.plugin.messages.installFailed'));
-      }
-    },
-  });
+  await installWizardRef.value?.openMarketplace(plugin);
+}
+
+async function handleWizardInstalled() {
+  await loadMarketplace();
 }
 
 usePageAIRegistration({
@@ -275,6 +265,10 @@ usePageAIRegistration({
     </div>
 
     <MarketplaceSettingsModal ref="settingsRef" @saved="loadMarketplace" />
+    <PluginInstallWizard
+      ref="installWizardRef"
+      @installed="handleWizardInstalled"
+    />
 
     <div class="flex items-center gap-1.5">
       <button

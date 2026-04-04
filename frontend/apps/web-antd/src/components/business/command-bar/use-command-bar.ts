@@ -25,19 +25,21 @@ import type {
   AgentItem,
   ConversationItem,
 } from '#/types/ai-chat';
+import type {
+  MenuNavigationEntry,
+  MenuNavigationSearchResult,
+} from '#/utils/menu-navigation';
 
 import {
   computed,
   onMounted,
   onUnmounted,
   ref,
-  shallowRef,
   unref,
   watch,
 } from 'vue';
 
 import { $t } from '@vben/locales';
-import { mapTree, traverseTreeValues, uniqueByField } from '@vben/utils';
 
 import {
   getChatAgentsApi,
@@ -45,7 +47,12 @@ import {
   updateChatConversationTitleApi,
 } from '#/api/shared/ai-chat';
 import { useAIPanelStore } from '#/store';
+import { getEndpointFromPath } from '#/utils';
 import { normalizeStarterQuestions } from '#/utils/ai-starter-questions';
+import {
+  buildMenuNavigationEntries,
+  searchMenuNavigationEntries,
+} from '#/utils/menu-navigation';
 
 /** Command Bar mode / Command Bar 模式 */
 export type CommandBarMode = 'input' | 'mention';
@@ -92,18 +99,13 @@ export function useCommandBar(options: UseCommandBarOptions) {
 
   // ==================== Menu search / 菜单搜索 ====================
 
-  const searchItems = shallowRef<MenuRecordRaw[]>([]);
-  const pathToNameMap = new Map<string, string>();
+  const searchItems = ref<MenuNavigationEntry[]>([]);
 
   function _buildSearchItems(menus: MenuRecordRaw[]) {
-    const items = mapTree(menus, (item) => ({
-      ...item,
-      name: $t(item?.name),
-    }));
-    searchItems.value = items;
-    pathToNameMap.clear();
-    traverseTreeValues(items, (item) => {
-      pathToNameMap.set(item.path, item.name);
+    searchItems.value = buildMenuNavigationEntries({
+      currentEndpoint: getEndpointFromPath(unref(options.apiPrefix)),
+      menus,
+      translate: $t,
     });
   }
 
@@ -117,51 +119,14 @@ export function useCommandBar(options: UseCommandBarOptions) {
     { immediate: true },
   );
 
-  const SEARCH_SPECIAL_CHARS = new Set([
-    '$',
-    '(',
-    ')',
-    '*',
-    '+',
-    '.',
-    '?',
-    '[',
-    '\\',
-    ']',
-    '^',
-    '{',
-    '|',
-    '}',
-  ]);
-
-  function _createSearchReg(key: string): RegExp {
-    const keys = [...key]
-      .map((c) => (SEARCH_SPECIAL_CHARS.has(c) ? `\\${c}` : c))
-      .join('.*');
-    return new RegExp(`.*${keys}.*`);
-  }
-
-  const menuSearchResults = computed(() => {
+  const menuSearchResults = computed<MenuNavigationSearchResult[]>(() => {
     const text = inputText.value.trim();
     if (!text || text.startsWith('@') || mode.value === 'mention') return [];
-    const reg = _createSearchReg(text);
-    const results: MenuRecordRaw[] = [];
-    traverseTreeValues(searchItems.value, (item) => {
-      if (reg.test(item.name?.toLowerCase())) {
-        results.push(item);
-      }
-    });
-    return uniqueByField(results, 'path');
+    return searchMenuNavigationEntries(searchItems.value, text);
   });
 
-  function getMenuBreadcrumb(item: MenuRecordRaw): string {
-    if (item.parents && item.parents.length > 0) {
-      return item.parents
-        .map((p: string) => pathToNameMap.get(p))
-        .filter(Boolean)
-        .join(' / ');
-    }
-    return item.parent ? pathToNameMap.get(item.parent) || '' : '';
+  function getMenuBreadcrumb(item: MenuNavigationEntry): string {
+    return item.breadcrumb.slice(0, -1).join(' / ');
   }
 
   // ==================== 计算属性 / computed ====================

@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from app.core.base_controller import GlobalController
 from app.core.deps import ActiveAdmin, DbSession
 from app.core.i18n import _
-from app.core.response import created, success
+from app.core.response import created, serialize_datetime_for_api, success
 from app.enums.rbac import PermissionScope
 from app.exceptions import BusinessException, NotFoundException
 from app.rbac.decorators import (
@@ -89,13 +89,9 @@ def _serialize_tenant_admin(tenant_admin) -> dict:
         "permission_role_id": tenant_admin.role_id,
         "org_node_name": org_node.name if org_node else None,
         "org_node_id": tenant_admin.org_node_id,
-        "last_login_at": tenant_admin.last_login_at.isoformat()
-        if tenant_admin.last_login_at
-        else None,
+        "last_login_at": serialize_datetime_for_api(tenant_admin.last_login_at),
         "last_login_ip": tenant_admin.last_login_ip,
-        "created_at": tenant_admin.created_at.isoformat()
-        if tenant_admin.created_at
-        else None,
+        "created_at": serialize_datetime_for_api(tenant_admin.created_at),
     }
 
 

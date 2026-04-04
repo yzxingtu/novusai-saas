@@ -1,0 +1,1 @@
+[Agent Loop] The form appears filled. If the user explicitly asked to save/create/update the record and submit_form is available, continue the submission workflow. Call validate_form if validation has not been checked yet; after validation passes, call submit_form. Only stop for confirmation when the page explicitly requires it or submit_form is unavailable.

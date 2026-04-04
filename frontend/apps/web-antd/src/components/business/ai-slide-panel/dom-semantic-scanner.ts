@@ -8,7 +8,11 @@
  *
  * Security: never extracts input values (only labels/headings/visible descriptive text).
  * Performance: capped at ~50ms scan budget; output capped at ~3KB JSON.
+ * 安全：不采集输入框值，仅标签/标题/可见描述性文本。
+ * 性能：扫描约 50ms 预算，序列化输出约 3KB 上限。
  */
+
+// --- Snapshot shape & byte budget / 快照结构与字节预算 ---
 
 export interface DomSnapshot {
   action_buttons: string[];
@@ -38,6 +42,8 @@ const MAX_TABS = 12;
 const MAX_TEXT_BLOCKS = 6;
 const MAX_TEXT_LENGTH = 180;
 const encoder = new TextEncoder();
+
+// --- Text & collection helpers / 文本与采集辅助 ---
 
 function normalizeText(text: string, maxLength = 80): string {
   return text.replaceAll(/\s+/g, ' ').trim().slice(0, maxLength);
@@ -88,6 +94,8 @@ function collectTextSummary(
   });
   return values;
 }
+
+// --- Shrink snapshot JSON to MAX_OUTPUT_BYTES / 将快照压到 MAX_OUTPUT_BYTES 以下 ---
 
 function trimSnapshotToBudget(snapshot: DomSnapshot): DomSnapshot {
   const trimmed: DomSnapshot = {
@@ -155,6 +163,8 @@ function trimSnapshotToBudget(snapshot: DomSnapshot): DomSnapshot {
 
   return trimmed;
 }
+
+// --- Main entry: ordered DOM passes (tables, forms, …) / 主入口：按序扫描表格、表单等 ---
 
 /**
  * Scan the current page DOM and return a semantic snapshot / 扫描当前页 DOM 并返回语义快照

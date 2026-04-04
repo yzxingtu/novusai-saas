@@ -126,6 +126,109 @@ class TestPageOperationExecutor:
         assert result.duration_ms >= 0
 
     @pytest.mark.asyncio
+    async def test_navigation_result_updates_execution_context(
+        self, executor, definition
+    ):
+        context = ExecutionContext(
+            tenant_id=1,
+            agent_id=2,
+            user_id=9,
+            user_role="tenant_admin",
+            page_session_id="ps-old",
+            variables={
+                "page_context": {
+                    "page_key": "tenant.dashboard",
+                    "page_title": "Dashboard",
+                },
+                "_page_context_already_returned_this_turn": True,
+            },
+        )
+        mock_result = {
+            "invoke_id": "inv-nav",
+            "success": True,
+            "message": "Navigated",
+            "data": {
+                "page_session_id": "ps-new",
+                "page_context": {
+                    "page_key": "tenant.ai.agents",
+                    "page_title": "Agents",
+                    "page_data": {"source": "registered"},
+                },
+            },
+        }
+
+        with patch(
+            "app.sio.page_session.invoke_page_operation",
+            new=AsyncMock(return_value=mock_result),
+        ):
+            result = await executor.execute(
+                definition,
+                "call_navigation",
+                {
+                    "page_key": "tenant.dashboard",
+                    "operation_name": "navigate_menu",
+                },
+                context,
+            )
+
+        assert result.success is True
+        assert context.page_session_id == "ps-new"
+        assert context.variables["page_context"]["page_key"] == "tenant.ai.agents"
+        assert "_page_context_already_returned_this_turn" not in context.variables
+
+    @pytest.mark.asyncio
+    async def test_navigation_result_does_not_mark_page_ready_for_fallback_context(
+        self, executor, definition
+    ):
+        context = ExecutionContext(
+            tenant_id=1,
+            agent_id=2,
+            user_id=9,
+            user_role="tenant_admin",
+            page_session_id="ps-old",
+            variables={
+                "page_context": {
+                    "page_key": "tenant.dashboard",
+                    "page_title": "Dashboard",
+                },
+            },
+        )
+        mock_result = {
+            "invoke_id": "inv-nav-fallback",
+            "success": True,
+            "message": "Navigated",
+            "data": {
+                "destination_ready": False,
+                "destination_ready_reason": "destination_not_ready",
+                "can_auto_continue": False,
+                "page_session_id": "ps-new",
+                "page_context": {
+                    "page_key": "tenant.ai.agents",
+                    "page_title": "Agents",
+                    "page_data": {"source": "minimal_fallback"},
+                },
+            },
+        }
+
+        with patch(
+            "app.sio.page_session.invoke_page_operation",
+            new=AsyncMock(return_value=mock_result),
+        ):
+            result = await executor.execute(
+                definition,
+                "call_navigation_fallback",
+                {
+                    "page_key": "tenant.dashboard",
+                    "operation_name": "navigate_menu",
+                },
+                context,
+            )
+
+        assert result.success is True
+        assert '"_page_ready": false' in result.output
+        assert "not ready yet" in result.output
+
+    @pytest.mark.asyncio
     async def test_confirm_mode_allows_generic_read_operation(
         self, executor, definition
     ):
@@ -587,6 +690,53 @@ class TestPageOperationExecutor:
         assert result.success is True
         invoke_mock.assert_awaited_once()
         assert invoke_mock.await_args.kwargs["page_session_id"] == "ps-recovered"
+
+    @pytest.mark.asyncio
+    async def test_cross_page_operation_prefers_recovered_target_session(
+        self, executor, definition
+    ):
+        context = ExecutionContext(
+            tenant_id=1,
+            agent_id=2,
+            user_id=9,
+            user_role="tenant_admin",
+            page_session_id="ps-current-page",
+            variables={
+                "page_context": {
+                    "page_key": "tenant.dashboard",
+                    "page_title": "Dashboard",
+                }
+            },
+        )
+        mock_result = {
+            "invoke_id": "inv-cross-page",
+            "success": True,
+            "message": "Used target page session",
+        }
+
+        with (
+            patch(
+                "app.sio.page_session.get_active_session_id",
+                return_value="ps-target-page",
+            ),
+            patch(
+                "app.sio.page_session.invoke_page_operation",
+                new=AsyncMock(return_value=mock_result),
+            ) as invoke_mock,
+        ):
+            result = await executor.execute(
+                definition,
+                "call_cross_page",
+                {
+                    "page_key": "tenant.ai.agents",
+                    "operation_name": "create_record",
+                },
+                context,
+            )
+
+        assert result.success is True
+        invoke_mock.assert_awaited_once()
+        assert invoke_mock.await_args.kwargs["page_session_id"] == "ps-target-page"
 
     @pytest.mark.asyncio
     async def test_no_page_session_id(self, executor, definition):
@@ -1244,10 +1394,13 @@ class TestPageSessionMixin:
         mixin = PageSessionMixin()
         mixin.namespace = "/admin"
         mixin.enter_room = AsyncMock()
+        mixin.emit = AsyncMock()
 
         await mixin.on_page_session_join("sid-1", {"page_session_id": "ps-join"})
 
         mixin.enter_room.assert_called_once_with("sid-1", "page_session:ps-join")
+        mixin.emit.assert_awaited_once()
+        assert mixin.emit.await_args.args[0] == "page_session_joined"
 
     @pytest.mark.asyncio
     async def test_join_room_no_data(self):
@@ -1358,12 +1511,14 @@ class TestPageSessionMixin:
         mixin = PageSessionMixin()
         mixin.namespace = "/admin"
         mixin.enter_room = AsyncMock()
+        mixin.emit = AsyncMock()
 
         long_id = "x" * 100
         await mixin.on_page_session_join("sid-1", {"page_session_id": long_id})
 
         expected_room = f"page_session:{long_id[:64]}"
         mixin.enter_room.assert_called_once_with("sid-1", expected_room)
+        mixin.emit.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_bind_socket_trace_normalizes_trace_id_length(self):

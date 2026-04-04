@@ -45,10 +45,14 @@ sys.modules.setdefault("redis.asyncio", redis_asyncio_module)
 sys.modules.setdefault("redis.asyncio.client", redis_asyncio_client_module)
 sys.modules.setdefault("redis.exceptions", redis_exceptions_module)
 
+from app.ai.prompt_contracts import render_prompt_contract
 from app.ai.engine.conversation import ConversationEngine
 from app.ai.engine.types import ExecutionRequest
 from app.ai.skills.resolver import SkillResolver, SkillResolveResult, resolve_for_agent
-from app.ai.tools.executors.page_context_executor import PageContextExecutor
+from app.ai.tools.executors.page_context_executor import (
+    PAGE_CONTEXT_TURN_SEEN_KEY,
+    PageContextExecutor,
+)
 from app.ai.tools.types import ExecutionContext, ToolDefinition, to_openai_tools
 from app.ai.types import ChatMessage, ChatResponse
 from app.enums.agent import SkillTypeEnum
@@ -62,6 +66,12 @@ def _make_scalars_result(items: list[object]) -> MagicMock:
     scalars = MagicMock()
     scalars.all.return_value = items
     result.scalars.return_value = scalars
+    return result
+
+
+def _make_iterable_result(items: list[object]) -> MagicMock:
+    result = MagicMock()
+    result.__iter__.return_value = iter(items)
     return result
 
 
@@ -244,7 +254,7 @@ async def test_validate_page_context_size_accepts_payload_within_runtime_limit()
 
     with patch(
         "app.services.ai.page_context_limits.get_page_context_max_bytes",
-        AsyncMock(return_value=1024),
+        new=AsyncMock(return_value=1024),
     ):
         await validate_page_context_size(MagicMock(), page_context)
 
@@ -260,7 +270,7 @@ async def test_validate_page_context_size_rejects_payload_over_runtime_limit() -
 
     with patch(
         "app.services.ai.page_context_limits.get_page_context_max_bytes",
-        AsyncMock(return_value=32),
+        new=AsyncMock(return_value=32),
     ):
         with pytest.raises(ValidationException) as exc_info:
             await validate_page_context_size(MagicMock(), page_context)
@@ -297,15 +307,59 @@ async def test_page_context_executor_formats_legacy_payload_from_variables() -> 
 @pytest.mark.asyncio
 async def test_page_context_executor_returns_empty_output_without_context() -> None:
     executor = PageContextExecutor()
+    ctx = ExecutionContext(tenant_id=1, agent_id=2, variables={})
     result = await executor.execute(
         ToolDefinition(name="get_page_context"),
         "call_2",
         {},
-        ExecutionContext(tenant_id=1, agent_id=2, variables={}),
+        ctx,
     )
 
     assert result.success is True
-    assert result.output == "No page context available."
+    assert result.output == render_prompt_contract("page_context_unavailable")
+    assert ctx.variables.get(PAGE_CONTEXT_TURN_SEEN_KEY) is True
+
+
+@pytest.mark.asyncio
+async def test_page_context_executor_second_call_without_page_context_returns_repeated_hint() -> None:
+    """空 variables 时首轮记 turn seen；同轮再次调用返回重复提示，而非再次输出无上下文。"""
+    executor = PageContextExecutor()
+    ctx = ExecutionContext(tenant_id=1, agent_id=2, variables={})
+    first = await executor.execute(
+        ToolDefinition(name="get_page_context"),
+        "call-empty-1",
+        {},
+        ctx,
+    )
+    second = await executor.execute(
+        ToolDefinition(name="get_page_context"),
+        "call-empty-2",
+        {},
+        ctx,
+    )
+
+    unavailable = render_prompt_contract("page_context_unavailable")
+    assert first.success is True
+    assert first.output == unavailable
+    assert second.success is True
+    assert "already returned earlier in this turn" in second.output
+    assert second.output != unavailable
+
+
+@pytest.mark.asyncio
+async def test_page_context_executor_variables_none_returns_no_context() -> None:
+    executor = PageContextExecutor()
+    ctx = MagicMock()
+    ctx.variables = None
+    result = await executor.execute(
+        ToolDefinition(name="get_page_context"),
+        "call-vars-none",
+        {},
+        ctx,
+    )
+
+    assert result.success is True
+    assert result.output == render_prompt_contract("page_context_unavailable")
 
 
 @pytest.mark.asyncio
@@ -412,7 +466,7 @@ async def test_agent_chat_service_injects_page_context_into_execution_request(mo
     service.conversation_svc.update_stats = AsyncMock(return_value=None)
     service.conversation_svc.mark_memory_updated = AsyncMock(return_value=None)
 
-    dispatcher = AsyncMock()
+    dispatcher = MagicMock()
     dispatcher.dispatch = AsyncMock(return_value=result)
 
     with patch("app.services.ai.agent_chat_service.ExecutionDispatcher", return_value=dispatcher), patch(
@@ -614,7 +668,7 @@ async def test_resolve_for_agent_with_skill_grant_includes_get_page_context_tool
 
     mock_db.execute.side_effect = [
         _make_scalars_result([grant]),
-        [],
+        _make_iterable_result([]),
     ]
 
     result = await resolve_for_agent(mock_db, agent, tenant_id=1)
@@ -683,7 +737,7 @@ async def test_resolve_for_agent_admin_grant_applies_capability_override(mock_db
 
     mock_db.execute.side_effect = [
         _make_scalars_result([grant]),
-        [],
+        _make_iterable_result([]),
     ]
 
     result = await resolve_for_agent(mock_db, agent, tenant_id=None)
@@ -801,7 +855,8 @@ async def test_conversation_engine_injects_tools_into_gateway() -> None:
     ):
         result = await engine.execute(agent, request, skill_result=skill_result)
 
-    assert result.success is True
+    assert result.success is False
+    assert result.partial is True
     assert gateway.chat.call_count >= 1
     first_call = gateway.chat.call_args_list[0]
     sent_tools = first_call.kwargs.get(

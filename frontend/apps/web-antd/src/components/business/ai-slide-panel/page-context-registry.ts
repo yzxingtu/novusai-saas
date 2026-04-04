@@ -118,6 +118,8 @@ export function registerPageContextExtras(
   };
 }
 
+// --- Internal: merge extras resolvers into base page_data / 内部：将 extras 合并进主 page_data ---
+
 function mergeExtrasIntoContext(
   base: PageContextData,
   extrasList: PageContextResolver[],
@@ -186,13 +188,16 @@ export function resolvePageContext(key?: string): null | PageContextData {
     }
     // Fallback: use DOM semantic snapshot for unregistered pages / 降级：对未注册页面使用 DOM 语义快照
     const fallback = buildDomFallbackContext(nk, {
-      allowMinimal: !!extras?.length,
+      // Explicit page keys should still yield a minimal context when DOM scanning
+      // finds nothing, otherwise page-aware chat silently loses the current page.
+      allowMinimal: true,
     });
     return fallback && extras?.length
       ? mergeExtrasIntoContext(fallback, extras)
       : fallback;
   }
 
+  // No explicit key: match resolver by current pathname, then extras + DOM fallback / 未传 key：按当前路径匹配，再合并 extras 与 DOM 降级
   // Attempt route-based matching first to avoid multi-resolver conflicts / 优先路由匹配，避免多 resolver 冲突
   const inferredKey = normalizePageKey(window.location.pathname);
   const routeResolver = registry.get(inferredKey);
@@ -221,40 +226,17 @@ export function resolvePageContext(key?: string): null | PageContextData {
     }
   }
 
-  // Fallback: iterate all resolvers, return the last non-null result (with extras merged) / 遍历解析器取最后非空
-  let result: null | PageContextData = null;
-  let resultKey: null | string = null;
-  for (const [registeredKey, resolver] of registry) {
-    try {
-      const ctx = resolver();
-      if (ctx) {
-        result = ctx;
-        resultKey = registeredKey;
-      }
-    } catch (error) {
-      console.warn(
-        `[PageContextRegistry] Resolver '${registeredKey}' error:`,
-        error,
-      );
-    }
-  }
-  if (result && resultKey) {
-    const extras = extrasRegistry.get(resultKey);
-    if (extras?.length) {
-      result = mergeExtrasIntoContext(result, extras);
-    }
-  }
-  if (!result) {
-    return buildDomFallbackContext();
-  }
-  return result;
+  return buildDomFallbackContext(inferredKey, {
+    allowMinimal: true,
+  });
 }
 
+// --- DOM fallback builders / DOM 降级构建 ---
+
 /**
- * Build a minimal page context from DOM semantic scanning.
- * Used as fallback when no resolver is registered or none returns a result.
- * 从 DOM 语义扫描构建最小页面上下文。
- * 当无 resolver 注册或全部返回 null 时作为降级方案。
+ * Title-only minimal context when ``scanDomSemantics()`` returns nothing.
+ * ``allowMinimal`` path in ``buildDomFallbackContext`` uses this.
+ * 当 ``scanDomSemantics()`` 无结果时的仅标题最小上下文；由 ``buildDomFallbackContext`` 的 ``allowMinimal`` 路径使用。
  */
 function buildMinimalFallbackContext(pageKey: string): PageContextData {
   const title = typeof document === 'undefined' ? '' : document.title.trim();
@@ -268,6 +250,11 @@ function buildMinimalFallbackContext(pageKey: string): PageContextData {
   };
 }
 
+/**
+ * DOM semantic snapshot or minimal title-only context when scanning fails.
+ * ``allowMinimal`` yields title-based context so extras can still merge.
+ * DOM 语义快照；扫描失败时在 ``allowMinimal`` 下返回仅标题的最小 context，便于 extras 仍可合并。
+ */
 function buildDomFallbackContext(
   pageKey?: string,
   options: { allowMinimal?: boolean } = {},
@@ -290,6 +277,8 @@ function buildDomFallbackContext(
     },
   };
 }
+
+// --- Debug & test helpers / 调试与测试辅助 ---
 
 /**
  * Get list of currently active registered keys (for debugging)

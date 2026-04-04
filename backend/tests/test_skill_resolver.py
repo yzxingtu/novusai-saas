@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -12,6 +12,7 @@ from app.ai.skills.resolver import (
     SkillResolver,
     SkillResolveResult,
     enrich_skill_capability_descriptors_with_tools,
+    resolve_for_agent,
 )
 
 
@@ -142,3 +143,50 @@ def test_build_params_from_schema_keeps_array_items_schema() -> None:
     assert len(params) == 1
     assert params[0].name == "tenant_ids"
     assert params[0].items == {"type": "integer"}
+
+
+@pytest.mark.asyncio
+async def test_resolve_for_agent_skips_grants_from_inactive_packages(monkeypatch) -> None:
+    package = SimpleNamespace(
+        id=77,
+        name="weather-widget",
+        is_active=False,
+        is_deleted=False,
+        valves_config=None,
+    )
+    skill = SimpleNamespace(
+        id=101,
+        name="weather_tools",
+        type="toolkit",
+        package_id=77,
+        config=None,
+        timeout=30,
+        is_active=True,
+        is_deleted=False,
+        package=package,
+    )
+    grant = SimpleNamespace(
+        enabled=True,
+        is_deleted=False,
+        skill=skill,
+        config_override=None,
+        default_consent_mode="auto",
+        capability_consent_overrides=None,
+    )
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = [grant]
+    db = MagicMock()
+    db.execute = AsyncMock(return_value=result)
+
+    resolver_instance = AsyncMock()
+    monkeypatch.setattr(
+        "app.ai.skills.resolver.SkillResolver",
+        lambda db=None: resolver_instance,
+    )
+
+    agent = SimpleNamespace(id=1, owner_tenant_id=9)
+
+    resolved = await resolve_for_agent(db, agent, tenant_id=9)
+
+    assert resolved is None
+    resolver_instance.resolve.assert_not_awaited()

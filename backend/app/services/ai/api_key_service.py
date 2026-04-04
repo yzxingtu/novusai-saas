@@ -40,7 +40,7 @@ class ProviderApiKeyService(BaseService[ProviderApiKey, ProviderApiKeyRepository
         Returns:
             ProviderApiKey 实例
         """
-        # 从 schema 中提取数据，排除 api_key 字段（模型中用 encrypted_key 存储）
+        # Schema dump excluding api_key (persisted as encrypted_key on model) / 排除 api_key（模型用 encrypted_key 存储）
         create_data = data.model_dump(exclude={"api_key"})
         owner_tid = create_data.pop("tenant_id", None)
         scope = str(create_data.get("scope") or "")
@@ -108,12 +108,8 @@ class ProviderApiKeyService(BaseService[ProviderApiKey, ProviderApiKeyRepository
         if not key:
             raise NotFoundException(message=_("ai.error.api_key_not_found"))
 
-        # 如果提供了新的 key，需要重新加密
-        if data.key is not None:
-            key.encrypt_key(data.key)
-
-        # 更新其他字段 / Update other fields
-        update_data = data.model_dump(exclude_unset=True, exclude={"key"})
+        # Metadata updates only; plaintext secret is create-only / 仅更新元数据，明文密钥仅创建时可写
+        update_data = data.model_dump(exclude_unset=True)
         key.update_from_dict(update_data)
         await self.db.flush()
         return key

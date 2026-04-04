@@ -401,7 +401,6 @@ function defaultResponseAdapter<T>(data: unknown): {
 
 // ============================================================
 // Date range processing (reused from useCrudPage) / 日期范围处理（复用自 useCrudPage）
-// 日期范围处理（复用自 useCrudPage）
 // ============================================================
 function processFormValues(
   formValues: Record<string, unknown>,
@@ -627,22 +626,33 @@ export function useCrudList<T extends object = Record<string, unknown>>(
 
   // ==================== AI page operations / AI 页面操作自动注册 ====================
   // Auto-register standard CRUD operations if ai config is provided / 若提供 ai 配置则自动注册标准 CRUD 操作
-  // 如果提供了 ai 配置，自动注册标准 CRUD 操作
   let cleanupAiOps: (() => void) | null = null;
 
   // Resolved AI page key (shared between operations and form tracking) / 解析后的 AI 页面 key（操作与表单追踪共用）
-  // 解析后的 AI 页面标识（在操作注册和表单追踪间共享）
   let resolvedAiPageKey: string | undefined;
   let cleanupAiContextBase: (() => void) | null = null;
   let cleanupAiContextExtras: (() => void) | null = null;
+  const aiRoute = aiConfig ? useRoute() : null;
 
-  if (aiConfig) {
-    const route = useRoute();
+  function cleanupAiBindings() {
+    cleanupAiOps?.();
+    cleanupAiOps = null;
+    cleanupAiContextExtras?.();
+    cleanupAiContextExtras = null;
+    cleanupAiContextBase?.();
+    cleanupAiContextBase = null;
+  }
+
+  function registerAiBindings() {
+    if (!aiConfig || !aiRoute || cleanupAiOps || cleanupAiContextBase) {
+      return;
+    }
+
     const pageKey = normalizePageKey(
       aiConfig.pageKey ??
-        ((route.meta?.ai as Record<string, unknown> | undefined)
+        ((aiRoute.meta?.ai as Record<string, unknown> | undefined)
           ?.pageContextKey as string | undefined) ??
-        route.path,
+        aiRoute.path,
     );
     resolvedAiPageKey = pageKey;
 
@@ -678,7 +688,7 @@ export function useCrudList<T extends object = Record<string, unknown>>(
 
     const resolveEntityName = () =>
       aiConfig.entityName ??
-      resolveRouteMetaTitle(route.meta, {
+      resolveRouteMetaTitle(aiRoute.meta, {
         hasLocaleKey: $te,
         locale: preferences.app.locale,
         translate: $t,
@@ -745,6 +755,10 @@ export function useCrudList<T extends object = Record<string, unknown>>(
         },
       };
     });
+  }
+
+  if (aiConfig) {
+    registerAiBindings();
   }
 
   // ==================== Debounce state / 防抖状态 ====================
@@ -937,10 +951,12 @@ export function useCrudList<T extends object = Record<string, unknown>>(
   // Stop auto-refresh when KeepAlive page deactivates / KeepAlive 页面切走时停止自动刷新
   onDeactivated(() => {
     stopAutoRefresh();
+    cleanupAiBindings();
   });
 
   // Resume auto-refresh when KeepAlive page reactivates / KeepAlive 页面恢复时再启动
   onActivated(() => {
+    registerAiBindings();
     if (autoRefreshInterval > 0) {
       startAutoRefresh();
     }
@@ -948,9 +964,7 @@ export function useCrudList<T extends object = Record<string, unknown>>(
 
   onBeforeUnmount(() => {
     stopAutoRefresh();
-    cleanupAiOps?.();
-    cleanupAiContextExtras?.();
-    cleanupAiContextBase?.();
+    cleanupAiBindings();
     if (resolvedAiPageKey) formStateTracker.close(resolvedAiPageKey);
   });
 

@@ -6,6 +6,11 @@ from __future__ import annotations
 
 from fastapi import HTTPException, Query, Request, status
 
+from app.api.shared._organization_helpers import (
+    await_or_raise_http,
+    commit_or_raise_http,
+    serialize_organization_tree,
+)
 from app.core.base_controller import GlobalController
 from app.core.base_schema import PageResponse
 from app.core.deps import ActiveAdmin, DbSession
@@ -13,8 +18,8 @@ from app.core.i18n import _
 from app.core.recycle_bin import register_admin_recycle_bin_routes
 from app.core.response import success
 from app.enums.rbac import PermissionScope
-from app.exceptions import BusinessException, NotFoundException
 from app.rbac.decorators import (
+    MenuAIConfig,
     MenuConfig,
     action_create,
     action_delete,
@@ -95,28 +100,6 @@ def _serialize_org_node_detail(org_node) -> AdminOrgNodeDetailResponse:
     )
 
 
-def _serialize_org_tree(org_nodes: list) -> list[dict]:
-    if not org_nodes:
-        return []
-
-    node_map = {org_node.id: org_node for org_node in org_nodes}
-    children_map: dict[int, list] = {org_node.id: [] for org_node in org_nodes}
-    roots: list = []
-
-    for org_node in org_nodes:
-        if org_node.parent_id is not None and org_node.parent_id in node_map:
-            children_map[org_node.parent_id].append(org_node)
-        else:
-            roots.append(org_node)
-
-    def build(node) -> dict:
-        payload = _serialize_org_node(node).model_dump()
-        payload["children"] = [build(child) for child in children_map.get(node.id, [])]
-        return payload
-
-    return [build(root) for root in roots]
-
-
 def _serialize_member(member) -> AdminOrgNodeMemberResponse:
     org_relation = getattr(member, "org_node", None)
     is_leader = (
@@ -139,24 +122,31 @@ def _serialize_member(member) -> AdminOrgNodeMemberResponse:
     )
 
 
-def _raise_http(exc: Exception):
-    if isinstance(exc, NotFoundException):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc.message)
-        )
-    if isinstance(exc, BusinessException):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc.message)
-        )
-    raise exc
-
-
 @permission_resource(
     resource="organization",
     name="menu.admin.organization",
     scope=PermissionScope.ADMIN,
     parent_resource="platform_mgmt",
     menu=MenuConfig(
+        ai=MenuAIConfig(
+            description="Manage organization structure, departments, members, and leaders",
+            keywords=[
+                "组织",
+                "组织架构",
+                "部门",
+                "成员",
+                "organization",
+                "org",
+                "team",
+            ],
+            capabilities=[
+                "create_org_node",
+                "edit_org_node",
+                "assign_members",
+                "view_organization",
+            ],
+            category="organization",
+        ),
         icon="lucide:git-branch",
         path="/system/organization",
         component="admin/system/organization/index",
@@ -202,13 +192,19 @@ class AdminOrganizationController(GlobalController):
             authority = AdminOrgAuthorityService(db, current_admin)
             if current_admin.is_super:
                 return success(
-                    data=_serialize_org_tree(await service.get_visible_org_tree()),
+                    data=serialize_organization_tree(
+                        await service.get_visible_org_tree(),
+                        lambda node: _serialize_org_node(node).model_dump(),
+                    ),
                     message=_("common.success"),
                 )
 
             scope_ids = await authority.get_visible_org_node_ids()
             return success(
-                data=_serialize_org_tree(await service.get_visible_org_tree(scope_ids)),
+                data=serialize_organization_tree(
+                    await service.get_visible_org_tree(scope_ids),
+                    lambda node: _serialize_org_node(node).model_dump(),
+                ),
                 message=_("common.success"),
             )
 
@@ -228,7 +224,10 @@ class AdminOrganizationController(GlobalController):
 
             scope_ids = await authority.get_visible_org_node_ids()
             items = await service.get_visible_root_nodes(scope_ids)
-            return success(data=items, message=_("common.success"))
+            return success(
+                data=[_serialize_org_node(node) for node in items],
+                message=_("common.success"),
+            )
 
         @router.put("/reorder", summary="批量重排序组织节点")
         @action_update("action.organization.reorder")
@@ -300,16 +299,13 @@ class AdminOrganizationController(GlobalController):
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=_("role.parent_must_be_visible"),
                 )
-            try:
-                org_node = await AdminOrgNodeService(db).create_org_node(
-                    **data.model_dump()
-                )
-                await db.commit()
-                return success(
-                    data=_serialize_org_node(org_node), message=_("role.created")
-                )
-            except Exception as exc:
-                _raise_http(exc)
+            org_node = await commit_or_raise_http(
+                db,
+                AdminOrgNodeService(db).create_org_node(**data.model_dump()),
+            )
+            return success(
+                data=_serialize_org_node(org_node), message=_("role.created")
+            )
 
         @router.put("/{org_node_id}", summary="更新组织节点")
         @action_update("action.organization.update")
@@ -328,17 +324,16 @@ class AdminOrganizationController(GlobalController):
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=_("role.parent_must_be_visible"),
                 )
-            try:
-                org_node = await AdminOrgNodeService(db).update_org_node(
+            org_node = await commit_or_raise_http(
+                db,
+                AdminOrgNodeService(db).update_org_node(
                     org_node_id,
                     data.model_dump(exclude_unset=True),
-                )
-                await db.commit()
-                return success(
-                    data=_serialize_org_node(org_node), message=_("role.updated")
-                )
-            except Exception as exc:
-                _raise_http(exc)
+                ),
+            )
+            return success(
+                data=_serialize_org_node(org_node), message=_("role.updated")
+            )
 
         @router.put("/{org_node_id}/move", summary="移动组织节点")
         @action_update("action.organization.move")
@@ -357,17 +352,14 @@ class AdminOrganizationController(GlobalController):
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=_("role.parent_must_be_visible"),
                 )
-            try:
-                org_node = await AdminOrgNodeService(db).move_org_node(
+            org_node = await commit_or_raise_http(
+                db,
+                AdminOrgNodeService(db).move_org_node(
                     org_node_id,
                     data.new_parent_id,
-                )
-                await db.commit()
-                return success(
-                    data=_serialize_org_node(org_node), message=_("role.moved")
-                )
-            except Exception as exc:
-                _raise_http(exc)
+                ),
+            )
+            return success(data=_serialize_org_node(org_node), message=_("role.moved"))
 
         @router.put("/{org_node_id}/authority", summary="更新组织权限范围策略")
         @action_update("action.organization.update_authority")
@@ -379,18 +371,17 @@ class AdminOrganizationController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             await self._require_manage(db, current_admin, org_node_id)
-            try:
-                org_node = await AdminOrgNodeService(db).update_authority_policy(
+            org_node = await commit_or_raise_http(
+                db,
+                AdminOrgNodeService(db).update_authority_policy(
                     org_node_id,
                     data_scope=data.data_scope,
                     custom_dept_ids=data.custom_dept_ids,
-                )
-                await db.commit()
-                return success(
-                    data=_serialize_org_node(org_node), message=_("role.updated")
-                )
-            except Exception as exc:
-                _raise_http(exc)
+                ),
+            )
+            return success(
+                data=_serialize_org_node(org_node), message=_("role.updated")
+            )
 
         @router.delete("/{org_node_id}", summary="删除组织节点")
         @action_delete("action.organization.delete")
@@ -401,12 +392,10 @@ class AdminOrganizationController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             await self._require_manage(db, current_admin, org_node_id)
-            try:
-                await AdminOrgNodeService(db).delete_org_node(org_node_id)
-                await db.commit()
-                return success(data={"id": org_node_id}, message=_("role.deleted"))
-            except Exception as exc:
-                _raise_http(exc)
+            await commit_or_raise_http(
+                db, AdminOrgNodeService(db).delete_org_node(org_node_id)
+            )
+            return success(data={"id": org_node_id}, message=_("role.deleted"))
 
         @router.get("/{org_node_id}/members", summary="获取组织节点成员")
         @action_read("action.organization.members")
@@ -431,25 +420,24 @@ class AdminOrganizationController(GlobalController):
             ),
         ):
             await self._require_view(db, current_admin, org_node_id)
-            try:
-                members, total = await AdminOrgNodeService(db).get_members(
+            members, total = await await_or_raise_http(
+                AdminOrgNodeService(db).get_members(
                     org_node_id,
                     search=search or None,
                     page=page,
                     page_size=page_size,
                     include_descendants=include_descendants,
                 )
-                return success(
-                    data=PageResponse.create(
-                        items=[_serialize_member(member) for member in members],
-                        total=total,
-                        page=page,
-                        page_size=page_size,
-                    ),
-                    message=_("common.success"),
-                )
-            except Exception as exc:
-                _raise_http(exc)
+            )
+            return success(
+                data=PageResponse.create(
+                    items=[_serialize_member(member) for member in members],
+                    total=total,
+                    page=page,
+                    page_size=page_size,
+                ),
+                message=_("common.success"),
+            )
 
         @router.post("/{org_node_id}/members/create", summary="在组织节点下创建成员")
         @action_create("action.organization.create_member")
@@ -461,8 +449,9 @@ class AdminOrganizationController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             await self._require_manage(db, current_admin, org_node_id)
-            try:
-                admin = await AdminOrgNodeService(db).create_member(
+            admin = await commit_or_raise_http(
+                db,
+                AdminOrgNodeService(db).create_member(
                     org_node_id=org_node_id,
                     username=data.username,
                     email=data.email,
@@ -470,13 +459,11 @@ class AdminOrganizationController(GlobalController):
                     phone=data.phone,
                     nickname=data.nickname,
                     is_active=data.is_active,
-                )
-                await db.commit()
-                return success(
-                    data=_serialize_member(admin), message=_("role.member_created")
-                )
-            except Exception as exc:
-                _raise_http(exc)
+                ),
+            )
+            return success(
+                data=_serialize_member(admin), message=_("role.member_created")
+            )
 
         @router.put("/{org_node_id}/members/{admin_id}", summary="更新组织节点成员")
         @action_update("action.organization.update_member")
@@ -491,8 +478,9 @@ class AdminOrganizationController(GlobalController):
             await self._require_manage(db, current_admin, org_node_id)
             if data.org_node_id is not None:
                 await self._require_manage(db, current_admin, data.org_node_id)
-            try:
-                admin = await AdminOrgNodeService(db).update_member(
+            admin = await commit_or_raise_http(
+                db,
+                AdminOrgNodeService(db).update_member(
                     org_node_id=org_node_id,
                     admin_id=admin_id,
                     email=data.email,
@@ -501,13 +489,11 @@ class AdminOrganizationController(GlobalController):
                     avatar=data.avatar,
                     is_active=data.is_active,
                     new_org_node_id=data.org_node_id,
-                )
-                await db.commit()
-                return success(
-                    data=_serialize_member(admin), message=_("role.member_updated")
-                )
-            except Exception as exc:
-                _raise_http(exc)
+                ),
+            )
+            return success(
+                data=_serialize_member(admin), message=_("role.member_updated")
+            )
 
         @router.put(
             "/{org_node_id}/members/{admin_id}/reset-password",
@@ -523,18 +509,15 @@ class AdminOrganizationController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             await self._require_manage(db, current_admin, org_node_id)
-            try:
-                await AdminOrgNodeService(db).reset_member_password(
+            await commit_or_raise_http(
+                db,
+                AdminOrgNodeService(db).reset_member_password(
                     org_node_id,
                     admin_id,
                     data.new_password,
-                )
-                await db.commit()
-                return success(
-                    data={"success": True}, message=_("admin.password_reset")
-                )
-            except Exception as exc:
-                _raise_http(exc)
+                ),
+            )
+            return success(data={"success": True}, message=_("admin.password_reset"))
 
         @router.put(
             "/{org_node_id}/members/{admin_id}/status", summary="切换组织节点成员状态"
@@ -549,18 +532,17 @@ class AdminOrganizationController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             await self._require_manage(db, current_admin, org_node_id)
-            try:
-                admin = await AdminOrgNodeService(db).toggle_member_status(
+            admin = await commit_or_raise_http(
+                db,
+                AdminOrgNodeService(db).toggle_member_status(
                     org_node_id,
                     admin_id,
                     data.is_active,
-                )
-                await db.commit()
-                return success(
-                    data=_serialize_member(admin), message=_("admin.status_updated")
-                )
-            except Exception as exc:
-                _raise_http(exc)
+                ),
+            )
+            return success(
+                data=_serialize_member(admin), message=_("admin.status_updated")
+            )
 
         @router.post("/{org_node_id}/members", summary="分配成员到组织节点")
         @action_update("action.organization.assign_member")
@@ -572,16 +554,13 @@ class AdminOrganizationController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             await self._require_manage(db, current_admin, org_node_id)
-            try:
-                admin = await AdminOrgNodeService(db).add_member(
-                    org_node_id, data.admin_id
-                )
-                await db.commit()
-                return success(
-                    data=_serialize_member(admin), message=_("role.member_added")
-                )
-            except Exception as exc:
-                _raise_http(exc)
+            admin = await commit_or_raise_http(
+                db,
+                AdminOrgNodeService(db).add_member(org_node_id, data.admin_id),
+            )
+            return success(
+                data=_serialize_member(admin), message=_("role.member_added")
+            )
 
         @router.delete(
             "/{org_node_id}/members/{admin_id}", summary="从组织节点移除成员"
@@ -595,16 +574,13 @@ class AdminOrganizationController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             await self._require_manage(db, current_admin, org_node_id)
-            try:
-                admin = await AdminOrgNodeService(db).remove_member(
-                    org_node_id, admin_id
-                )
-                await db.commit()
-                return success(
-                    data=_serialize_member(admin), message=_("role.member_removed")
-                )
-            except Exception as exc:
-                _raise_http(exc)
+            admin = await commit_or_raise_http(
+                db,
+                AdminOrgNodeService(db).remove_member(org_node_id, admin_id),
+            )
+            return success(
+                data=_serialize_member(admin), message=_("role.member_removed")
+            )
 
         @router.put("/{org_node_id}/leader", summary="设置组织节点负责人")
         @action_update("action.organization.set_leader")
@@ -616,16 +592,13 @@ class AdminOrganizationController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             await self._require_manage(db, current_admin, org_node_id)
-            try:
-                org_node = await AdminOrgNodeService(db).set_leader(
-                    org_node_id, data.leader_id
-                )
-                await db.commit()
-                return success(
-                    data=_serialize_org_node(org_node), message=_("role.leader_set")
-                )
-            except Exception as exc:
-                _raise_http(exc)
+            org_node = await commit_or_raise_http(
+                db,
+                AdminOrgNodeService(db).set_leader(org_node_id, data.leader_id),
+            )
+            return success(
+                data=_serialize_org_node(org_node), message=_("role.leader_set")
+            )
 
         register_admin_recycle_bin_routes(
             router=router,

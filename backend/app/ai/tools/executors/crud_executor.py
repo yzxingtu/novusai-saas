@@ -23,11 +23,11 @@ from __future__ import annotations
 
 import copy
 import json
-import re
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import text
 
+from app.ai.data_intelligence.sql_analysis import is_safe_sql_identifier
 from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.types import ExecutionContext, ToolDefinition, ToolResult
 from app.configs.service import PLATFORM_TENANT_ID
@@ -53,7 +53,7 @@ if TYPE_CHECKING:
 
 logger = LogManager.get_logger("ai.tool.crud")
 
-# Only canonical ResourceScopeEnum values are accepted; no legacy aliases / 上文为英文说明 / English above
+# Only canonical ResourceScopeEnum values; no legacy aliases / 仅接受规范枚举值，不接受历史别名
 _RESOURCE_SCOPE_NORMALIZE: dict[str, str] = {
     e.value: e.value for e in ResourceScopeEnum
 }
@@ -65,17 +65,9 @@ _RESOURCE_SCOPES_NEEDING_ASSIGNMENT: frozenset[str] = frozenset(
     }
 )
 
-# Table name whitelist regex: only lowercase letters, digits, underscores (prevent SQL injection)
-# 表名白名单正则：仅允许小写字母、数字、下划线（防 SQL 注入）
-_SAFE_TABLE_NAME_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
-# Column name whitelist regex: same rules as table names (prevent SQL injection)
-# 列名白名单正则：与表名规则一致（防 SQL 注入）
-_SAFE_COLUMN_NAME_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
-
-
 def _validate_table_name(table_name: str) -> str | None:
     """Validate table name is safe, return error message or None. / 校验表名是否安全，返回错误消息或 None。"""
-    if not _SAFE_TABLE_NAME_RE.match(table_name):
+    if not is_safe_sql_identifier(table_name):
         return _("data_intelligence.crud.invalid_table_name").format(table=table_name)
     return None
 
@@ -88,12 +80,25 @@ def _validate_column_names(data: dict[str, Any]) -> str | None:
     防止 LLM 传入恶意列名导致 SQL 注入。
     列名仅允许小写字母、数字和下划线，且必须以字母或下划线开头。
     """
-    invalid = [k for k in data if not _SAFE_COLUMN_NAME_RE.match(k)]
+    invalid = [k for k in data if not is_safe_sql_identifier(k)]
     if invalid:
         return _("data_intelligence.crud.invalid_column_names").format(
             columns=", ".join(sorted(invalid)),
         )
     return None
+
+
+def _extract_not_null_column_name(message: str) -> str | None:
+    marker = 'column "'
+    start = message.find(marker)
+    if start < 0:
+        return None
+    start += len(marker)
+    end = message.find('"', start)
+    if end < 0 or end <= start:
+        return None
+    column_name = message[start:end].strip()
+    return column_name or None
 
 
 # Global safety: columns that are never writable / 全局安全：永远不允许写入的列
@@ -433,7 +438,7 @@ _SYSTEM_MANAGED_COLUMNS: set[str] = {
     "created_at",
     "updated_at",
 }
-# Columns never required from user (auto-generated or always injected) / 上文为英文说明 / English above
+# Columns never required from user (auto-generated or system-injected) / 用户无需填写的列（自动生成或系统注入）
 _CREATE_SKIP_REQUIRED: frozenset[str] = frozenset(
     {
         "id",
@@ -541,8 +546,8 @@ async def _audit_log(
         logger.warning("Failed to write audit log: {}", str(exc))
 
 
-# ============================================ / 上文为英文说明 / English above
-# CreateRecordExecutor
+# ============================================
+# CreateRecordExecutor / 创建记录执行器
 # ============================================
 
 
@@ -667,7 +672,7 @@ class CreateRecordExecutor(BaseToolExecutor):
                 output=json.dumps(preview, ensure_ascii=False, default=str),
             )
 
-        # Agents table: use service layer instead of raw SQL / 上文为英文说明 / English above
+        # Agents table: use service layer, not raw SQL / agents 表走 Service，禁止裸 SQL
         if table_name == "agents":
             try:
                 async with context.db.begin_nested():
@@ -752,8 +757,7 @@ class CreateRecordExecutor(BaseToolExecutor):
                 "NotNullViolationError" in type(exc).__name__
                 or "not-null constraint" in error_msg
             ):
-                col_match = re.search(r'column "(\w+)"', error_msg)
-                col_name = col_match.group(1) if col_match else "unknown"
+                col_name = _extract_not_null_column_name(error_msg) or "unknown"
                 error_msg = (
                     f"Missing required field '{col_name}' for table '{table_name}'. "
                     f"Please include '{col_name}' in the data parameter."
@@ -770,8 +774,8 @@ class CreateRecordExecutor(BaseToolExecutor):
             )
 
 
-# ============================================ / 上文为英文说明 / English above
-# UpdateRecordExecutor
+# ============================================
+# UpdateRecordExecutor / 更新记录执行器
 # ============================================
 
 
@@ -982,8 +986,8 @@ class UpdateRecordExecutor(BaseToolExecutor):
             )
 
 
-# ============================================ / 上文为英文说明 / English above
-# DeleteRecordExecutor
+# ============================================
+# DeleteRecordExecutor / 删除记录执行器
 # ============================================
 
 

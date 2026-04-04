@@ -8,7 +8,6 @@ Provides safe built-in functions (datetime, math, etc.) without external calls.
 import ast
 import json
 import operator
-import re
 import time
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
@@ -193,9 +192,7 @@ class WebSearchExecution:
 
 def _normalize_text(text: str) -> str:
     """Collapse whitespace and trim text. / 折叠空白并裁剪文本。"""
-    import re
-
-    return re.sub(r"\s+", " ", text or "").strip()
+    return " ".join((text or "").split())
 
 
 def _truncate_text(text: str, max_length: int) -> tuple[str, bool]:
@@ -346,10 +343,17 @@ def _build_search_summary_payload(
 
 
 def _extract_title_from_html(html: str) -> str:
-    match = re.search(r"<title>(.*?)</title>", html, re.IGNORECASE | re.DOTALL)
-    if not match:
+    lowered = (html or "").lower()
+    start = lowered.find("<title")
+    if start < 0:
         return ""
-    return _normalize_text(match.group(1))
+    start = lowered.find(">", start)
+    if start < 0:
+        return ""
+    end = lowered.find("</title>", start + 1)
+    if end < 0:
+        return ""
+    return _normalize_text((html or "")[start + 1 : end])
 
 
 def _html_may_contain_search_results(html: str) -> bool:
@@ -371,8 +375,8 @@ def _html_may_contain_search_results(html: str) -> bool:
 
 def _query_tokens_for_relevance(query: str) -> set[str]:
     """Tokens from the query (site: host stripped) for overlap scoring — no fixed topic lexicon."""
-    scrubbed = re.sub(r"site:[^\s]+", " ", query, flags=re.IGNORECASE)
-    return set(re.findall(r"[a-z]{2,}|\d{4}|[\u4e00-\u9fff]{2,}", scrubbed.lower()))
+    scrubbed = _strip_site_filters(query)
+    return _scan_search_tokens(scrubbed.lower())
 
 
 def _result_text_tokens(result: dict[str, str], *, include_url: bool) -> set[str]:
@@ -380,7 +384,7 @@ def _result_text_tokens(result: dict[str, str], *, include_url: bool) -> set[str
     if include_url:
         parts.append(str(result.get("url") or ""))
     hay = _normalize_text(" ".join(parts)).lower()
-    return set(re.findall(r"[a-z]{2,}|\d{4}|[\u4e00-\u9fff]{2,}", hay))
+    return _scan_search_tokens(hay)
 
 
 def _result_passes_relevance(query: str, result: dict[str, str]) -> bool:
@@ -408,12 +412,6 @@ def _result_passes_relevance(query: str, result: dict[str, str]) -> bool:
     return all_hits / len(q_tokens) >= _QUERY_RELEVANCE_MIN_RATIO
 
 
-# Structural pattern: detect queries about specific historical eras / periods
-# (explicit century, dynasty, era markers, or "ancient/historical" terms)
-_HISTORICAL_QUERY_RE = re.compile(
-    r"(\d{1,2}\s*(世纪|century)|\b\d{3}s\b|年代|朝代|dynasty|era\b|古代|ancient|medieval|战时|wartime|历史|history\b|historical\b)",
-    re.IGNORECASE,
-)
 _HISTORY_QUERY_TERMS = frozenset(
     {
         "历史",
@@ -429,24 +427,105 @@ _HISTORY_QUERY_TERMS = frozenset(
 )
 
 
+def _is_cjk(char: str) -> bool:
+    return "\u4e00" <= char <= "\u9fff"
+
+
+def _scan_search_tokens(text: str) -> set[str]:
+    tokens: set[str] = set()
+    idx = 0
+    length = len(text)
+    while idx < length:
+        char = text[idx]
+        if _is_cjk(char):
+            start = idx
+            while idx < length and _is_cjk(text[idx]):
+                idx += 1
+            segment = text[start:idx]
+            if len(segment) >= 2:
+                tokens.add(segment)
+            continue
+        if char.isdigit():
+            start = idx
+            while idx < length and text[idx].isdigit():
+                idx += 1
+            segment = text[start:idx]
+            if len(segment) == 4:
+                tokens.add(segment)
+            continue
+        if char.isalpha():
+            start = idx
+            while idx < length and text[idx].isalpha():
+                idx += 1
+            segment = text[start:idx]
+            if len(segment) >= 2:
+                tokens.add(segment)
+            continue
+        idx += 1
+    return tokens
+
+
+def _strip_site_filters(query: str) -> str:
+    tokens = []
+    for token in (query or "").split():
+        if token.lower().startswith("site:"):
+            continue
+        tokens.append(token)
+    return " ".join(tokens)
+
+
+def _looks_historical_query(query: str) -> bool:
+    normalized = _normalize_text(query).lower()
+    if not normalized:
+        return False
+    if any(term in normalized for term in ("年代", "朝代", "古代", "战时", "世纪", "历史")):
+        return True
+
+    tokens = normalized.split()
+    for idx, token in enumerate(tokens):
+        if token in {"history", "historical", "era", "ancient", "medieval", "wartime", "dynasty"}:
+            return True
+        if token.endswith("s") and token[:-1].isdigit() and len(token[:-1]) >= 3:
+            return True
+        if token.isdigit() and idx + 1 < len(tokens) and tokens[idx + 1] == "century":
+            return True
+    return False
+
+
+def _replace_recent_years(query: str, current_year: int) -> str:
+    chars = list(query)
+    result: list[str] = []
+    idx = 0
+    length = len(chars)
+    while idx < length:
+        if (
+            idx + 4 <= length
+            and "".join(chars[idx : idx + 4]).isdigit()
+            and (idx == 0 or not chars[idx - 1].isalnum())
+            and (idx + 4 == length or not chars[idx + 4].isalnum())
+        ):
+            year_text = "".join(chars[idx : idx + 4])
+            year_value = int(year_text)
+            if year_value != current_year and 2000 <= year_value <= current_year + 1:
+                result.append(str(current_year))
+                idx += 4
+                continue
+        result.append(chars[idx])
+        idx += 1
+    return "".join(result)
+
+
 def _correct_query_year(query: str) -> str:
     """Replace stale calendar years in web_search queries unless the query is clearly historical."""
     if not query:
         return query
-    if _HISTORICAL_QUERY_RE.search(query):
+    if _looks_historical_query(query):
         return query
     try:
         current_year = datetime.now(settings.tz).year
     except Exception:
         current_year = datetime.now(timezone.utc).year
-
-    def _repl_year(match: re.Match[str]) -> str:
-        y = int(match.group(0))
-        if y != current_year and 2000 <= y <= current_year + 1:
-            return str(current_year)
-        return match.group(0)
-
-    return re.sub(r"\b(20\d{2})\b", _repl_year, query)
+    return _replace_recent_years(query, current_year)
 
 
 def _search_engine_redirect_note(url: str) -> bool:

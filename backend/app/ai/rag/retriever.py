@@ -12,7 +12,6 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import math
-import re
 from dataclasses import asdict, dataclass, field, replace
 
 from sqlalchemy import Integer, String, and_, bindparam, select, text
@@ -188,18 +187,150 @@ class KeywordSearcher:
     文件名命中和中文关键词命中增强。
     """
 
-    _QUERY_SEGMENT_RE = re.compile(r"[\u4e00-\u9fff]+|[A-Za-z0-9][A-Za-z0-9._-]*")
-    _QUOTED_TERM_RE = re.compile(r'"([^"]{2,64})"|\'([^\']{2,64})\'')
+    _PUNCTUATION_CHARS = " \t\r\n，,。：:；;！？!?."
+    _PREFIX_PHRASES = [
+        "请你根据内部知识库",
+        "请根据内部知识库",
+        "麻烦你根据内部知识库",
+        "帮我根据内部知识库",
+        "请你在内部知识库中",
+        "请在内部知识库中",
+        "根据内部知识库",
+        "based on the internal knowledge base",
+        "answer based on the internal knowledge base",
+        "respond based on the internal knowledge base",
+        "please answer based on the internal knowledge base",
+        "please explain using the internal knowledge base",
+    ]
+    _SUFFIX_PHRASES = [
+        "请基于内部知识库回答",
+        "请基于内部知识库",
+        "请只基于内部知识回答",
+        "请只基于内部知识库回答",
+        "请只基于内部知识",
+        "请只参考内部知识库",
+        "请仅参考内部知识库",
+        "请不要使用外部资料",
+        "please answer based on the internal knowledge base only",
+        "please do not use external sources",
+        "please do not reference external information",
+    ]
+    _LEADING_FILLERS = [
+        "请你回答",
+        "麻烦你回答",
+        "帮我回答",
+        "请你说明",
+        "麻烦你说明",
+        "请你解释",
+    ]
 
     def __init__(self, db: AsyncSession):
         self.db = db
 
     def _normalize_query(self, query: str) -> str:
-        return re.sub(r"\s+", " ", (query or "").strip())
+        return " ".join((query or "").split())
+
+    @staticmethod
+    def _is_cjk(ch: str) -> bool:
+        return "\u4e00" <= ch <= "\u9fff"
+
+    @classmethod
+    def _iter_query_segments(cls, query: str) -> list[str]:
+        segments: list[str] = []
+        i = 0
+        length = len(query)
+        while i < length:
+            ch = query[i]
+            if cls._is_cjk(ch):
+                start = i
+                while i < length and cls._is_cjk(query[i]):
+                    i += 1
+                segments.append(query[start:i])
+                continue
+            if ch.isalnum():
+                start = i
+                while (
+                    i < length
+                    and (
+                        query[i].isalnum()
+                        or query[i] in "._-"
+                    )
+                ):
+                    i += 1
+                segment = query[start:i]
+                if segment:
+                    segments.append(segment)
+                continue
+            i += 1
+        return segments
+
+    @classmethod
+    def _extract_quoted_terms(cls, query: str) -> list[str]:
+        terms: list[str] = []
+        i = 0
+        length = len(query)
+        while i < length:
+            ch = query[i]
+            if ch in {"\"", "'"}:
+                quote = ch
+                start = i + 1
+                i += 1
+                while i < length and query[i] != quote:
+                    i += 1
+                term = query[start:i].strip()
+                if 2 <= len(term) <= 64:
+                    terms.append(term)
+                i += 1
+                continue
+            i += 1
+        return terms
+
+    @classmethod
+    def _strip_candidates(
+        cls,
+        text: str,
+        candidates: list[str],
+        *,
+        strip_start: bool,
+    ) -> str:
+        stripped = text
+        while True:
+            matched = False
+            for candidate in candidates:
+                candidate_lower = candidate.lower()
+                working = stripped.lstrip(cls._PUNCTUATION_CHARS)
+                lower = working.lower()
+                if strip_start and lower.startswith(candidate_lower):
+                    stripped = working[len(candidate) :]
+                    stripped = stripped.lstrip(cls._PUNCTUATION_CHARS)
+                    matched = True
+                    break
+                if not strip_start:
+                    working = stripped.rstrip(cls._PUNCTUATION_CHARS)
+                    lower = working.lower()
+                    if lower.endswith(candidate_lower):
+                        stripped = working[: -len(candidate)].rstrip(
+                            cls._PUNCTUATION_CHARS
+                        )
+                        matched = True
+                        break
+            if not matched:
+                break
+        return stripped
+
+    @classmethod
+    def _strip_leading_fillers(cls, text: str) -> str:
+        stripped = text
+        for filler in cls._LEADING_FILLERS:
+            if stripped.lower().startswith(filler):
+                stripped = stripped[len(filler) :]
+                stripped = stripped.lstrip(cls._PUNCTUATION_CHARS)
+                break
+        return stripped
 
     def _expand_tokens(self, query: str) -> list[str]:
         tokens: list[str] = []
-        for segment in self._QUERY_SEGMENT_RE.findall(query):
+        for segment in self._iter_query_segments(query):
             has_cjk = any("\u4e00" <= ch <= "\u9fff" for ch in segment)
             if has_cjk:
                 if len(segment) >= 2:
@@ -225,12 +356,9 @@ class KeywordSearcher:
             return []
 
         candidates: list[str] = []
-        for match in self._QUOTED_TERM_RE.findall(normalized):
-            value = (match[0] or match[1] or "").strip()
-            if len(value) >= 2:
-                candidates.append(value)
+        candidates.extend(self._extract_quoted_terms(normalized))
 
-        for token in self._QUERY_SEGMENT_RE.findall(normalized):
+        for token in self._iter_query_segments(normalized):
             token = token.strip()
             if len(token) < 2:
                 continue
@@ -432,6 +560,11 @@ class HybridRetriever:
     支持向量、关键词和混合检索，并按知识库独立召回后再融合。
     """
 
+    _PUNCTUATION_CHARS = KeywordSearcher._PUNCTUATION_CHARS
+    _PREFIX_PHRASES = KeywordSearcher._PREFIX_PHRASES
+    _SUFFIX_PHRASES = KeywordSearcher._SUFFIX_PHRASES
+    _LEADING_FILLERS = KeywordSearcher._LEADING_FILLERS
+
     def __init__(self, db: AsyncSession, tenant_id: int | None):
         self.db = db
         self.tenant_id = tenant_id
@@ -439,45 +572,37 @@ class HybridRetriever:
         self.vector_searcher = VectorSearcher(db, self.embedding_service)
         self.keyword_searcher = KeywordSearcher(db)
 
-    @staticmethod
-    def _normalize_retrieval_query(query: str) -> str:
-        normalized = re.sub(r"\s+", " ", (query or "").strip())
+    @classmethod
+    def _strip_candidates(
+        cls,
+        text: str,
+        candidates: list[str],
+        *,
+        strip_start: bool,
+    ) -> str:
+        return KeywordSearcher._strip_candidates(
+            text,
+            candidates,
+            strip_start=strip_start,
+        )
+
+    @classmethod
+    def _strip_leading_fillers(cls, text: str) -> str:
+        return KeywordSearcher._strip_leading_fillers(text)
+
+    @classmethod
+    def _normalize_retrieval_query(cls, query: str) -> str:
+        normalized = " ".join((query or "").split())
         if not normalized:
             return ""
 
         # Remove retrieval wrappers so recall focuses on the user's core question.
         # 去掉“基于内部知识库回答”等包装语，避免污染检索 query。
-        prefix_patterns = [
-            r"^(请(?:你)?|麻烦(?:你)?|帮我)?\s*(根据|基于|依据|依照|参考|结合|从)\s*(内部|当前|已绑定|已提供)?\s*(知识库|知识内容|文档)(中|里)?(的内容|信息)?[，,:： ]*",
-            r"^(请(?:你)?|麻烦(?:你)?|帮我)?\s*(先)?\s*(在|于)\s*(内部|当前|已绑定)?\s*(知识库|文档)(中|里)?[，,:： ]*",
-            r"^(please\s+)?(answer|respond|explain)\s+(based on|using|from)\s+(the\s+)?(internal|provided)\s+(knowledge\s*base|knowledge|docs?)\s*[,:\-]?\s*",
-            r"^(please\s+)?(based on|using|from)\s+(the\s+)?(internal|provided)\s+(knowledge\s*base|knowledge|docs?)\s*[,:\-]?\s*",
-        ]
-        suffix_patterns = [
-            r"[\?？。，,:： ]*(请)?(只|仅|务必)?\s*(基于|依据|根据|参考)\s*(内部|当前|已提供)?\s*(知识(库|内容)?|文档)\s*(来)?(回答|作答|回复|说明|分析)(即可)?[。！! ]*$",
-            r"[\?？。，,:： ]*(请)?(不要|别)\s*(使用|参考)?\s*(外部|网络|互联网|联网)\s*(资料|信息|知识|内容|来源)?[。！! ]*$",
-            r"[\?？。，,:： ]*(请)?(仅|只)\s*(使用|参考)?\s*(内部|当前)\s*(知识(库|内容)|文档)[。！! ]*$",
-            r"[\?？。，,:： ]*(please\s+)?(answer|respond)\s+(strictly\s+)?(based on|using)\s+(the\s+)?(internal|provided)\s+(knowledge\s*base|knowledge|docs?)(\s+only)?[. ]*$",
-            r"[\?？。，,:： ]*(please\s+)?(do\s+not|don't)\s+use\s+(external|internet|web)\s+(sources|knowledge|information)?[. ]*$",
-        ]
-        leading_filler_patterns = [
-            r"^(请(?:你)?|麻烦(?:你)?|帮我)\s*(回答|回复|说明|分析|总结)\s*[:：,， ]*",
-        ]
-
         stripped = normalized
-        while True:
-            updated = stripped
-            for pattern in prefix_patterns:
-                updated = re.sub(pattern, "", updated, flags=re.IGNORECASE)
-            if updated == stripped:
-                break
-            stripped = updated
-
-        for pattern in suffix_patterns:
-            stripped = re.sub(pattern, "", stripped, flags=re.IGNORECASE)
-        for pattern in leading_filler_patterns:
-            stripped = re.sub(pattern, "", stripped, flags=re.IGNORECASE)
-        stripped = stripped.strip(" ，,。：:；;！？!?")
+        stripped = cls._strip_candidates(stripped, cls._PREFIX_PHRASES, strip_start=True)
+        stripped = cls._strip_candidates(stripped, cls._SUFFIX_PHRASES, strip_start=False)
+        stripped = cls._strip_leading_fillers(stripped)
+        stripped = stripped.strip(cls._PUNCTUATION_CHARS)
         return stripped or normalized
 
     async def search(

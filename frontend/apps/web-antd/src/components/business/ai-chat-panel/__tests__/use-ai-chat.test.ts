@@ -1,3 +1,5 @@
+import type { AIInteractionUpdate } from '#/store/shared/ai-panel';
+
 // @vitest-environment happy-dom
 import { flushPromises } from '@vue/test-utils';
 
@@ -15,8 +17,13 @@ const apiMocks = vi.hoisted(() => ({
 }));
 
 const aiPanelStoreMocks = vi.hoisted(() => ({
-  consumeInteractionUpdates: vi.fn(() => []),
+  consumeInteractionUpdates: vi.fn<() => AIInteractionUpdate[]>(() => []),
   restoreInteractionUpdates: vi.fn(),
+}));
+const socketStoreMocks = vi.hoisted(() => ({
+  connect: vi.fn(),
+  emit: vi.fn(),
+  isConnected: false,
 }));
 
 vi.mock('ant-design-vue', () => ({
@@ -62,8 +69,9 @@ vi.mock('#/locales', () => ({
 
 vi.mock('#/store', () => ({
   useSocketIOStore: () => ({
-    emit: vi.fn(),
-    isConnected: false,
+    connect: socketStoreMocks.connect,
+    emit: socketStoreMocks.emit,
+    isConnected: socketStoreMocks.isConnected,
   }),
 }));
 
@@ -108,6 +116,9 @@ describe('useAIChat interrupted stream recovery', () => {
     aiPanelStoreMocks.consumeInteractionUpdates.mockReset();
     aiPanelStoreMocks.consumeInteractionUpdates.mockReturnValue([]);
     aiPanelStoreMocks.restoreInteractionUpdates.mockReset();
+    socketStoreMocks.connect.mockReset();
+    socketStoreMocks.emit.mockReset();
+    socketStoreMocks.isConnected = false;
 
     apiMocks.getChatAgentsApi.mockResolvedValue({
       items: [
@@ -900,6 +911,31 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(requestBody?.route_source).toBeUndefined();
   });
 
+  it('short-circuits page operation chat when socket channel is unavailable', async () => {
+    const chat = useAIChat({
+      apiPrefix: '/tenant',
+      uploadUrl: '/tenant/attachments',
+      pageContextResolver: () => ({
+        page_key: 'tenant.dashboard',
+        page_data: {
+          available_operations: [{ name: 'navigate_menu', readonly: true }],
+        },
+      }),
+      pageSessionIdGetter: () => 'page-session-1',
+    });
+
+    await chat.loadAgents();
+    chat.inputMessage.value = '请帮我打开智能体页面';
+
+    const sendPromise = chat.sendMessage();
+    await vi.advanceTimersByTimeAsync(3200);
+    await sendPromise;
+    await flushPromises();
+
+    expect(socketStoreMocks.connect).toHaveBeenCalledOnce();
+    expect(apiMocks.sendChatStreamApi).not.toHaveBeenCalled();
+  });
+
   it('sends interaction_updates when user resolves confirmation/consent/button state', async () => {
     apiMocks.sendChatStreamApi.mockImplementation(
       async (
@@ -1022,7 +1058,7 @@ describe('useAIChat interrupted stream recovery', () => {
         rejected: false,
         tool_name: 'pageop_create_record',
       },
-    ]);
+    ] as AIInteractionUpdate[]);
 
     const chat = useAIChat({
       apiPrefix: '/tenant',

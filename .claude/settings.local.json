@@ -6,10 +6,30 @@
       "Bash(python -m app.cli ai --help)",
       "Bash(python:*)",
       "Bash(ruff check:*)",
-      "Bash(pytest tests/ai/engine/test_tool_invocation_planner.py -v)",
+      "Bash(pytest tests/ai/engine/test_intent_planner.py -v)",
       "Bash(ls -t backend/alembic/versions/*.py)",
       "Bash(ls -t backend/migrations/versions/*.py)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Read(//mnt/e/git_clone/**)",
+      "Bash(python3 ./.trellis/scripts/get_context.py --conversation-id 653 --output-format markdown)",
+      "Read(//Users/**)",
+      "Bash(wc -l /e/git_clone/novusai-saas-yudi/.trellis/scripts/*.py /e/git_clone/novusai-saas-yudi/.trellis/scripts/common/*.py /e/git_clone/novusai-saas-yudi/.trellis/scripts/multi_agent/*.py)",
+      "Bash(ls -lh /e/git_clone/novusai-saas-yudi/.trellis/spec/frontend/*.md /e/git_clone/novusai-saas-yudi/.trellis/spec/backend/*.md)",
+      "Bash(xargs wc:*)",
+      "Bash(find /e/git_clone/novusai-saas-yudi/.agents/skills -name \"SKILL.md\" -exec wc -l {} +)",
+      "Bash(find /e/git_clone/novusai-saas-yudi/.claude/agents -name \"*.md\" -exec wc -l {} +)",
+      "Bash(find /e/git_clone/novusai-saas-yudi/.cursor/rules -name \"*.md\" -exec wc -l {} +)",
+      "Bash(du -sh /e/git_clone/novusai-saas-yudi/.trellis/spec/*/*.md)",
+      "Bash(grep -l \"\\\\\"conversation_id\\\\\"\" /e/git_clone/novusai-saas-yudi/.trellis/tasks/*/*.jsonl)",
+      "Bash(ls -la .claude.json*)",
+      "Bash(grep -E \"\\(commands|skills\\)$\")",
+      "Bash(grep -E \"\\(661|662|663|664|665|666\\)\" /e/git_clone/novusai-saas-yudi/logs/*.log /e/git_clone/novusai-saas-yudi/backend/logs/*.log)",
+      "Bash(grep \"conversation_id=[566][0-9][0-9]\" /e/git_clone/novusai-saas-yudi/backend/logs/*.log)",
+      "Bash(grep \"conversation_id=66[0-9]\" /e/git_clone/novusai-saas-yudi/backend/logs/*.log)",
+      "Bash(wc:*)",
+      "Bash(grep \"conversation_id=666\" /e/git_clone/novusai-saas-yudi/backend/logs/*.log)",
+      "Bash(chmod +x /tmp/extract_traces.sh)",
+      "Bash(/tmp/extract_traces.sh)"
     ]
   }
 }

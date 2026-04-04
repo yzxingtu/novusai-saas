@@ -36,6 +36,7 @@ describe('ai-page-capabilities', () => {
   it('filters operations by mode and disabled capabilities', () => {
     const operations = [
       { name: 'search' },
+      { name: 'navigate_menu' },
       { name: 'next_page' },
       { name: 'sync_policies' },
     ];
@@ -51,7 +52,13 @@ describe('ai-page-capabilities', () => {
         mode: 'operate',
         disabledCapabilities: ['search', 'pagination'],
       }),
-    ).toEqual([{ name: 'sync_policies' }]);
+    ).toEqual([{ name: 'navigate_menu' }, { name: 'sync_policies' }]);
+
+    expect(
+      filterPageOperationsByPolicy(operations, {
+        mode: 'navigation_only',
+      }),
+    ).toEqual([{ name: 'navigate_menu' }]);
   });
 
   it('builds table policy runtime payload in snake case', () => {

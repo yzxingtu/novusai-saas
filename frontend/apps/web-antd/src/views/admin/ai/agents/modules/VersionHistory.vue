@@ -23,6 +23,7 @@ import {
   SelectOption,
   Spin,
   Tag,
+  Tooltip,
   Timeline,
   TimelineItem,
 } from 'ant-design-vue';
@@ -33,7 +34,7 @@ import {
   rollbackAIAgentApi,
 } from '#/api/admin/ai';
 import { $t } from '#/locales';
-import { formatDate } from '#/utils/common';
+import { formatDate, formatRelativeTime } from '#/utils/common';
 
 defineOptions({ name: 'AdminAgentVersionHistory' });
 
@@ -266,7 +267,9 @@ const diffChanges = computed(() => {
                 {{ ver.change_log }}
               </div>
               <div class="mt-1 text-xs text-muted-foreground">
-                {{ formatDate(ver.created_at) }}
+                <Tooltip :title="formatDate(ver.created_at)">
+                  <span>{{ formatRelativeTime(ver.created_at) }}</span>
+                </Tooltip>
               </div>
             </div>
             <Button

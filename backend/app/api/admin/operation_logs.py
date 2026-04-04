@@ -11,7 +11,7 @@ from app.core.base_controller import GlobalController
 from app.core.base_schema import PageResponse
 from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
-from app.core.response import success
+from app.core.response import serialize_datetime_for_api, success
 from app.enums.rbac import PermissionScope
 from app.rbac.decorators import (
     MenuConfig,
@@ -185,9 +185,10 @@ class AdminOperationLogController(GlobalController):
                     "action": getattr(item, "action", ""),
                     "ip": getattr(item, "ip", ""),
                     "response_code": getattr(item, "response_code", ""),
-                    "created_at": getattr(item, "created_at", "").isoformat()
-                    if hasattr(getattr(item, "created_at", ""), "isoformat")
-                    else str(getattr(item, "created_at", "")),
+                    "created_at": serialize_datetime_for_api(
+                        getattr(item, "created_at", None)
+                    )
+                    or str(getattr(item, "created_at", "")),
                 }
                 for item in items
             ]

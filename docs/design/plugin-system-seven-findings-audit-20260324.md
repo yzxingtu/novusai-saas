@@ -1,5 +1,8 @@
 # 插件系统七项核心问题审计（2026-03-24）
 
+> 说明：本文件保留 2026-03-24 的历史发现基线；2026-04-04 的修复现状、注入能力矩阵与最新 fail-close 约束已同步到
+> [plugin-system-comprehensive-audit-20260324.md](/E:/git_clone/novusai-saas-yudi/docs/design/plugin-system-comprehensive-audit-20260324.md)。
+
 ## 结论摘要
 
 当前插件系统的问题不是单点实现瑕疵，而是宿主运行时、权限同步、前端动态路由、国际化契约、脚手架/校验链路之间缺少单一事实源，导致插件作者即使按现有规范开发，仍然容易遇到以下高频问题：

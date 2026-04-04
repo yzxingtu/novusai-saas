@@ -50,8 +50,19 @@ const mountRichTextEditorSpy = vi.fn(() => mockEditor);
 describe('DocumentEditor page awareness', () => {
   beforeEach(() => {
     const win = globalThis as unknown as Record<string, unknown>;
+    const accessCodes = [
+      'plugin.novusdoc.novusdoc_portal:view',
+      'plugin.novusdoc.novusdoc_portal:update',
+      'plugin.novusdoc.novusdoc_portal:export',
+    ];
     win.NovusPluginShared = {
       $t: (k: string) => k.split('.').pop() ?? k,
+      getAccessCodes: () => accessCodes,
+      hasAccessByCodes: (codes: string | string[] | undefined) => {
+        const requested = Array.isArray(codes) ? codes : codes ? [codes] : [];
+        return requested.length === 0
+          || requested.some((code) => accessCodes.includes(code));
+      },
       createSavePageOperation: createSavePageOperationSpy,
       createSimplePageOperation: createSimplePageOperationSpy,
       createParameterizedPageOperation: createParameterizedPageOperationSpy,
@@ -59,6 +70,16 @@ describe('DocumentEditor page awareness', () => {
       waitForRichTextEditorOperations: waitForRichTextEditorOperationsSpy,
       mountRichTextEditor: mountRichTextEditorSpy,
       downloadBlob: vi.fn(),
+      router: {
+        push: vi.fn(),
+        currentRoute: {
+          value: {
+            meta: {
+              accessCodes: ['plugin.novusdoc.novusdoc_portal:view'],
+            },
+          },
+        },
+      },
     };
     createSavePageOperationSpy.mockClear();
     createSimplePageOperationSpy.mockClear();

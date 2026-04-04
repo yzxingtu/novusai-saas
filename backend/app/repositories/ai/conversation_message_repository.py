@@ -5,6 +5,7 @@
 from sqlalchemy import and_, func, select
 
 from app.core.base_repository import TenantRepository
+from app.enums.agent import MessageRoleEnum
 from app.models.ai.conversation_message import ConversationMessage
 
 
@@ -186,6 +187,27 @@ class ConversationMessageRepository(TenantRepository[ConversationMessage]):
         messages = list(result.scalars().all())
         messages.reverse()
         return messages
+
+    async def get_latest_assistant_message(
+        self,
+        conversation_id: int,
+    ) -> ConversationMessage | None:
+        """Return the latest assistant message for a conversation."""
+        stmt = (
+            select(ConversationMessage)
+            .where(
+                and_(
+                    ConversationMessage.tenant_id == self.tenant_id,
+                    ConversationMessage.conversation_id == conversation_id,
+                    ConversationMessage.is_deleted.is_(False),
+                    ConversationMessage.role == MessageRoleEnum.ASSISTANT.value,
+                )
+            )
+            .order_by(ConversationMessage.sequence.desc())
+            .limit(1)
+        )
+        result = await self.db.execute(stmt)
+        return result.scalars().first()
 
 
 __all__ = ["ConversationMessageRepository"]

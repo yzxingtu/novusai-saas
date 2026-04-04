@@ -8,7 +8,7 @@ import type { Key } from 'ant-design-vue/es/_util/type';
  * 权限类型
  * Permission Type
  */
-export type PermissionType = 'api' | 'button' | 'menu';
+export type PermissionType = 'api' | 'button' | 'menu' | 'operation';
 
 /**
  * 权限来源类型

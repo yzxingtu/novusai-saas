@@ -1,0 +1,1 @@
+Screenshot rule: use capture_screenshot only when text page context, DOM structure, or visible-row/form data is insufficient for a visual/layout question. Do NOT take repeated screenshots unless the page visibly changed.

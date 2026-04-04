@@ -18,6 +18,7 @@ from app.enums.common import ResourceScopeEnum
 from app.enums.rbac import PermissionScope
 from app.exceptions import BusinessException, NotFoundException
 from app.rbac.decorators import (
+    MenuAIConfig,
     MenuConfig,
     action_create,
     action_delete,
@@ -83,6 +84,29 @@ def _build_agent_list_item(agent) -> dict:
     scope=PermissionScope.TENANT,
     parent_resource="ai_workspace",
     menu=MenuConfig(
+        ai=MenuAIConfig(
+            description="Create, edit, publish, and manage AI agents and their behaviors",
+            keywords=[
+                "智能体",
+                "智能代理",
+                "AI 助手",
+                "AI助手",
+                "agent",
+                "agents",
+                "assistant",
+                "assistants",
+                "bot",
+                "bots",
+                "机器人",
+            ],
+            capabilities=[
+                "create_agent",
+                "edit_agent",
+                "publish_agent",
+                "view_agents",
+            ],
+            category="ai",
+        ),
         icon="lucide:bot",
         path="/ai/agents",
         component="ai/agents/index",

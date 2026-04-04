@@ -20,7 +20,6 @@ one Python file defines a Tools class, each public method automatically becomes 
 from __future__ import annotations
 
 import ast
-import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -33,15 +32,6 @@ logger = LogManager.get_logger("ai.skill.toolkit")
 # --------------------------------------------------------------------------- #
 # Data Structures / 数据结构
 # --------------------------------------------------------------------------- #
-
-_FRONTMATTER_RE = re.compile(
-    r'^"""(.*?)"""',
-    re.DOTALL,
-)
-
-_PARAM_DOC_RE = re.compile(
-    r":param\s+(\w+)\s*:\s*(.+)",
-)
 
 # Python type hint → JSON Schema type mapping / 映射
 _TYPE_MAP: dict[str, str] = {
@@ -314,9 +304,13 @@ def _extract_tools_methods(cls: ast.ClassDef, source: str) -> list[ToolkitToolMe
 
         for line in docstring.splitlines():
             stripped = line.strip()
-            m = _PARAM_DOC_RE.match(stripped)
-            if m:
-                param_docs[m.group(1)] = m.group(2).strip()
+            lowered = stripped.lower()
+            if lowered.startswith(":param "):
+                remainder = stripped[len(":param ") :].strip()
+                if ":" in remainder:
+                    name, _, description = remainder.partition(":")
+                    if name:
+                        param_docs[name.strip()] = description.strip()
             elif stripped and not stripped.startswith(":return"):
                 desc_lines.append(stripped)
 

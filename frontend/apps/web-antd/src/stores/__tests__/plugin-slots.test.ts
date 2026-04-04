@@ -230,4 +230,70 @@ describe('plugin-slots store', () => {
       'demo-home-v2',
     ]);
   });
+
+  it('projects settings tabs, floating panels, and notification ui from one plugin runtime bundle', async () => {
+    adminPluginApiMocks.getPluginSlotsApi.mockResolvedValue({
+      ...createEmptySlotsResponse(),
+      floating_panels: [
+        {
+          component: 'OpsPanel',
+          frontend_runtime: {
+            release_manifest: 'manifests/release.json',
+          },
+          name: 'ops-panel',
+          plugin_name: 'demo-plugin',
+          position: 'top-left',
+        },
+      ],
+      notification_ui: [
+        {
+          component: 'BuildNotification',
+          frontend_runtime: {
+            release_manifest: 'manifests/release.json',
+          },
+          name: 'build.finished',
+          plugin_name: 'demo-plugin',
+        },
+      ],
+      settings_tabs: [
+        {
+          component: 'AdvancedSettingsTab',
+          frontend_runtime: {
+            release_manifest: 'manifests/release.json',
+          },
+          name: 'advanced-settings',
+          plugin_name: 'demo-plugin',
+          scope: 'admin',
+          title: {
+            'zh-CN': '高级设置',
+          },
+        },
+      ],
+    });
+    pluginLoaderMocks.loadPluginComponents.mockResolvedValue({
+      AdvancedSettingsTab: { name: 'AdvancedSettingsTab' },
+      BuildNotification: { name: 'BuildNotification' },
+      OpsPanel: { name: 'OpsPanel' },
+    });
+
+    const store = usePluginSlotsStore();
+    await store.fetchSlots('admin');
+
+    expect(pluginLoaderMocks.loadPluginComponents).toHaveBeenCalledTimes(1);
+    expect(pluginLoaderMocks.loadPluginComponents).toHaveBeenCalledWith(
+      'demo-plugin',
+      { release_manifest: 'manifests/release.json' },
+      { endpoint: 'admin' },
+    );
+
+    expect(store.settingsTabs).toHaveLength(1);
+    expect(store.settingsTabs[0]?.title).toBe('高级设置');
+    expect(store.settingsTabs[0]?.scope).toBe('admin');
+
+    expect(store.floatingPanels).toHaveLength(1);
+    expect(store.floatingPanels[0]?.position).toBe('top-left');
+
+    expect(store.notificationUI).toHaveLength(1);
+    expect(store.notificationUI[0]?.event).toBe('build.finished');
+  });
 });

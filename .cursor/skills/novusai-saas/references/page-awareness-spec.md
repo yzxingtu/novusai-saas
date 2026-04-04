@@ -547,7 +547,7 @@ const CHAIN_AUTO_OPS = new Set(['fill_form']);
 - 同一个 `invoke_id` 的重复下发必须直接回放缓存结果，不能重复打开确认卡片或重复执行页面动作
 - 页面会话切换、`leavePageSessionRoom()`、Socket 断开连接时必须执行 `clearChainConfirmed()`，禁止跨会话残留自动批准状态
 - 若操作事件携带的 `page_key` 与当前活动页不一致，前端返回 `page_key_mismatch`，不执行任何页面动作
-- 既有的 `MAX_TOOL_CALL_ROUNDS = 10`（后端）限制了最大循环次数
+- 既有的硬编码工具轮次上限（后端）限制了最大循环次数
 
 ### 11.9 page_data 大小保护
 

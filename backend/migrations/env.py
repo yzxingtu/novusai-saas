@@ -57,6 +57,7 @@ from app.models import (
     TenantOrgNode,
     TenantOrgScopePolicy,
     TenantOrgScopeTarget,
+    tenant_org_node_permissions,
     # 通知
     NotificationTemplate,
     Notification,

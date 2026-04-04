@@ -53,6 +53,36 @@ class MonitoringCallTraceItem(BaseSchema):
     latency_ms: int | None = None
     usage_mode: str | None = None
     error_message: str | None = None
+    turn_outcome: str | None = None
+    termination_reason: str | None = None
+    protocol_path: str | None = None
+    selected_tool_names: list[str] = Field(default_factory=list)
+    selected_skill_names: list[str] = Field(default_factory=list)
+    execution_path: str | None = None
+    intent_plan: list[dict[str, Any]] = Field(default_factory=list)
+    budget: dict[str, Any] | None = None
+    budget_status: str | None = None
+    budget_exit_reason: str | None = None
+    candidate_tool_names: list[str] = Field(default_factory=list)
+    context_sources: list[dict[str, Any]] = Field(default_factory=list)
+    fallback_history: list[dict[str, Any]] = Field(default_factory=list)
+    retry_events: list[dict[str, Any]] = Field(default_factory=list)
+    partial_exit_reason: str | None = None
+    failure_kind: str | None = None
+    provider_events: list[dict[str, Any]] = Field(default_factory=list)
+    sync_rescue: bool | None = None
+    should_record_call_log: bool | None = None
+    contract_breach_type: str | None = None
+    tool_leak_detected: bool = False
+    unfinished_intents: list[str] = Field(default_factory=list)
+    leaked_tool_names: list[str] = Field(default_factory=list)
+    recovered_via_retry: bool | None = None
+    last_tool_name: str | None = None
+    last_page_key: str | None = None
+    last_page_op: str | None = None
+    interrupted_stage: str | None = None
+    tool_loop_progress: dict[str, Any] | None = None
+    turn_record: dict[str, Any] | None = None
 
 
 class MonitoringConversationDetail(BaseSchema):
@@ -73,6 +103,8 @@ class MonitoringConversationDetail(BaseSchema):
     last_call_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
+    context_diagnostics: dict[str, Any] | None = None
+    last_run_summary: dict[str, Any] | None = None
     metadata: dict[str, Any] | None = None
     message_list: list[dict[str, Any]] = Field(default_factory=list)
     call_trace: list[MonitoringCallTraceItem] = Field(default_factory=list)

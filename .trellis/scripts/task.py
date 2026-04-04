@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Task Management Script for Multi-Agent Pipeline.
+Task management for path-driven Trellis workflows.
 
 Usage:
-    python3 task.py create "<title>" [--slug <name>] [--assignee <dev>] [--priority P0|P1|P2|P3] [--parent <dir>]
-    python3 task.py init-context <dir> <type>   # Initialize jsonl files
+    python3 task.py create "<title>" [--slug <name>] [--path fast|normal|deep] [--assignee <dev>] [--priority P0|P1|P2|P3] [--parent <dir>]
+    python3 task.py init-context <dir> <type> [--path fast|normal|deep]
     python3 task.py add-context <dir> <file> <path> [reason] # Add jsonl entry
     python3 task.py validate <dir>              # Validate jsonl files
     python3 task.py list-context <dir>          # List jsonl entries
@@ -14,7 +14,6 @@ Usage:
     python3 task.py set-branch <dir> <branch>   # Set git branch
     python3 task.py set-base-branch <dir> <branch>  # Set PR target branch
     python3 task.py set-scope <dir> <scope>     # Set scope for PR title
-    python3 task.py create-pr [dir] [--dry-run] # Create PR from task
     python3 task.py archive <task-name>         # Archive completed task
     python3 task.py list                        # List active tasks
     python3 task.py list-archive [month]        # List archived tasks
@@ -61,6 +60,7 @@ from common.paths import (
 from common.task_utils import (
     find_task_by_name,
     archive_task_complete,
+    load_archive_ready_task,
 )
 from common.config import get_hooks
 
@@ -81,6 +81,75 @@ class Colors:
 def colored(text: str, color: str) -> str:
     """Apply color to text."""
     return f"{color}{text}{Colors.NC}"
+
+
+VALID_DEV_TYPES = ("backend", "frontend", "fullstack", "test", "docs", "ai")
+VALID_EXECUTION_PATHS = ("fast", "normal", "deep")
+
+PATH_CONTEXT_FILES: dict[str, list[str]] = {
+    "fast": ["implement.jsonl"],
+    "normal": ["implement.jsonl", "check.jsonl"],
+    "deep": ["implement.jsonl", "check.jsonl"],
+}
+
+PATH_REQUIRED_ARTIFACTS: dict[str, list[str]] = {
+    "fast": [],
+    "normal": ["prd.md"],
+    "deep": ["prd.md", "info.md"],
+}
+
+
+def normalize_execution_path(value: str | None) -> str:
+    """Normalize execution path to a supported value."""
+    normalized = str(value or "normal").strip().lower()
+    if normalized not in VALID_EXECUTION_PATHS:
+        return "normal"
+    return normalized
+
+
+def get_path_context_files(execution_path: str) -> list[str]:
+    """Return default context files for a Trellis path."""
+    return list(PATH_CONTEXT_FILES.get(normalize_execution_path(execution_path), PATH_CONTEXT_FILES["normal"]))
+
+
+def get_required_artifacts(execution_path: str) -> list[str]:
+    """Return required planning artifacts for a Trellis path."""
+    return list(PATH_REQUIRED_ARTIFACTS.get(normalize_execution_path(execution_path), PATH_REQUIRED_ARTIFACTS["normal"]))
+
+
+def get_context_file_names(task_dir: Path | None, task_data: dict | None = None) -> list[str]:
+    """Get ordered list of context JSONL files for a task, including custom files."""
+    execution_path = normalize_execution_path((task_data or {}).get("execution_path"))
+    ordered = get_path_context_files(execution_path)
+
+    if task_dir is None or not task_dir.is_dir():
+        return ordered
+
+    existing = sorted(
+        file_path.name
+        for file_path in task_dir.glob("*.jsonl")
+        if file_path.is_file() and file_path.name not in ordered
+    )
+    return ordered + existing
+
+
+def update_task_contract(task_json_path: Path, *, execution_path: str | None = None, dev_type: str | None = None) -> dict | None:
+    """Update task contract metadata without disturbing unrelated fields."""
+    data = _read_json_file(task_json_path)
+    if not data:
+        return None
+
+    path_value = normalize_execution_path(execution_path or data.get("execution_path"))
+    if dev_type:
+        data["dev_type"] = dev_type
+    data["execution_path"] = path_value
+    data["required_artifacts"] = get_required_artifacts(path_value)
+    data["context_files"] = get_path_context_files(path_value)
+    data["verification_mode"] = "direct" if path_value == "fast" else "command"
+
+    if _write_json_file(task_json_path, data):
+        return data
+    return None
 
 
 # =============================================================================
@@ -193,11 +262,54 @@ def _resolve_task_dir(target_dir: str, repo_root: Path) -> Path:
 # JSONL Default Content Generators
 # =============================================================================
 
-def get_implement_base() -> list[dict]:
+def get_implement_base(dev_type: str = "") -> list[dict]:
     """Get base implement context entries."""
-    return [
-        {"file": f"{DIR_WORKFLOW}/workflow.md", "reason": "Project workflow and conventions"},
+    entries = [
+        {
+            "file": f"{DIR_WORKFLOW}/{DIR_SPEC}/guides/trellis-paths.md",
+            "reason": "Canonical Trellis path and context rules",
+        },
     ]
+    if dev_type == "ai":
+        entries.append(
+            {
+                "file": f"{DIR_WORKFLOW}/{DIR_SPEC}/ai-runtime/index.md",
+                "reason": "AI runtime governance index",
+            }
+        )
+    return entries
+
+
+def get_research_context(dev_type: str) -> list[dict]:
+    """Get research context entries for deep-path tasks."""
+    entries = [
+        {
+            "file": f"{DIR_WORKFLOW}/{DIR_SPEC}/guides/trellis-paths.md",
+            "reason": "Canonical Trellis path and context rules",
+        },
+    ]
+    if dev_type in ("backend", "fullstack", "test", "ai"):
+        entries.append(
+            {
+                "file": f"{DIR_WORKFLOW}/{DIR_SPEC}/backend/index.md",
+                "reason": "Backend index for targeted code research",
+            }
+        )
+    if dev_type in ("frontend", "fullstack"):
+        entries.append(
+            {
+                "file": f"{DIR_WORKFLOW}/{DIR_SPEC}/frontend/index.md",
+                "reason": "Frontend index for targeted code research",
+            }
+        )
+    if dev_type == "ai":
+        entries.append(
+            {
+                "file": f"{DIR_WORKFLOW}/{DIR_SPEC}/ai-runtime/index.md",
+                "reason": "AI runtime governance index",
+            }
+        )
+    return entries
 
 
 def get_implement_backend() -> list[dict]:
@@ -218,14 +330,24 @@ def get_check_context(dev_type: str, repo_root: Path) -> list[dict]:
     """Get check context entries."""
     adapter = get_cli_adapter_auto(repo_root)
 
-    entries = [
-        {"file": adapter.get_trellis_command_path("finish-work"), "reason": "Finish work checklist"},
+    entries: list[dict] = [
+        {
+            "file": f"{DIR_WORKFLOW}/{DIR_SPEC}/guides/trellis-paths.md",
+            "reason": "Trellis verification and path rules",
+        }
     ]
 
-    if dev_type in ("backend", "fullstack"):
+    if dev_type in ("backend", "fullstack", "test", "ai"):
         entries.append({"file": adapter.get_trellis_command_path("check-backend"), "reason": "Backend check spec"})
     if dev_type in ("frontend", "fullstack"):
         entries.append({"file": adapter.get_trellis_command_path("check-frontend"), "reason": "Frontend check spec"})
+    if dev_type == "ai":
+        entries.append(
+            {
+                "file": f"{DIR_WORKFLOW}/{DIR_SPEC}/ai-runtime/index.md",
+                "reason": "AI runtime governance index",
+            }
+        )
 
     return entries
 
@@ -234,12 +356,24 @@ def get_debug_context(dev_type: str, repo_root: Path) -> list[dict]:
     """Get debug context entries."""
     adapter = get_cli_adapter_auto(repo_root)
 
-    entries: list[dict] = []
+    entries: list[dict] = [
+        {
+            "file": f"{DIR_WORKFLOW}/{DIR_SPEC}/guides/trellis-paths.md",
+            "reason": "Trellis path and stop conditions",
+        }
+    ]
 
-    if dev_type in ("backend", "fullstack"):
+    if dev_type in ("backend", "fullstack", "test", "ai"):
         entries.append({"file": adapter.get_trellis_command_path("check-backend"), "reason": "Backend check spec"})
     if dev_type in ("frontend", "fullstack"):
         entries.append({"file": adapter.get_trellis_command_path("check-frontend"), "reason": "Frontend check spec"})
+    if dev_type == "ai":
+        entries.append(
+            {
+                "file": f"{DIR_WORKFLOW}/{DIR_SPEC}/ai-runtime/index.md",
+                "reason": "AI runtime debugging and governance index",
+            }
+        )
 
     return entries
 
@@ -276,6 +410,8 @@ def ensure_tasks_dir(repo_root: Path) -> Path:
 def cmd_create(args: argparse.Namespace) -> int:
     """Create a new task."""
     repo_root = get_repo_root()
+    execution_path = normalize_execution_path(args.path)
+    dev_type = args.dev_type
 
     if not args.title:
         print(colored("Error: title is required", Colors.RED), file=sys.stderr)
@@ -324,7 +460,7 @@ def cmd_create(args: argparse.Namespace) -> int:
         "title": args.title,
         "description": args.description or "",
         "status": "planning",
-        "dev_type": None,
+        "dev_type": dev_type,
         "scope": None,
         "priority": args.priority,
         "creator": creator,
@@ -334,13 +470,10 @@ def cmd_create(args: argparse.Namespace) -> int:
         "branch": None,
         "base_branch": current_branch,
         "worktree_path": None,
-        "current_phase": 0,
-        "next_action": [
-            {"phase": 1, "action": "implement"},
-            {"phase": 2, "action": "check"},
-            {"phase": 3, "action": "finish"},
-            {"phase": 4, "action": "create-pr"},
-        ],
+        "execution_path": execution_path,
+        "required_artifacts": get_required_artifacts(execution_path),
+        "context_files": get_path_context_files(execution_path),
+        "verification_mode": "direct" if execution_path == "fast" else "command",
         "commit": None,
         "pr_url": None,
         "subtasks": [],
@@ -376,10 +509,20 @@ def cmd_create(args: argparse.Namespace) -> int:
                 print(colored(f"Linked as child of: {parent_dir.name}", Colors.GREEN), file=sys.stderr)
 
     print(colored(f"Created task: {dir_name}", Colors.GREEN), file=sys.stderr)
+    print(f"  path: {execution_path}", file=sys.stderr)
+    if dev_type:
+        print(f"  dev_type: {dev_type}", file=sys.stderr)
     print("", file=sys.stderr)
     print(colored("Next steps:", Colors.BLUE), file=sys.stderr)
-    print("  1. Create prd.md with requirements", file=sys.stderr)
-    print("  2. Run: python3 task.py init-context <dir> <dev_type>", file=sys.stderr)
+    if execution_path == "fast":
+        print("  1. Create prd.md only if the work needs tracked requirements", file=sys.stderr)
+        print("  2. Run: python3 task.py init-context <dir> <dev_type> --path fast", file=sys.stderr)
+    elif execution_path == "deep":
+        print("  1. Create prd.md and info.md before substantial implementation", file=sys.stderr)
+        print("  2. Run: python3 task.py init-context <dir> <dev_type> --path deep", file=sys.stderr)
+    else:
+        print("  1. Create prd.md with requirements and acceptance criteria", file=sys.stderr)
+        print("  2. Run: python3 task.py init-context <dir> <dev_type> --path normal", file=sys.stderr)
     print("  3. Run: python3 task.py start <dir>", file=sys.stderr)
     print("", file=sys.stderr)
 
@@ -398,27 +541,35 @@ def cmd_init_context(args: argparse.Namespace) -> int:
     """Initialize JSONL context files for a task."""
     repo_root = get_repo_root()
     target_dir = _resolve_task_dir(args.dir, repo_root)
-    dev_type = args.type
+    dev_type = str(args.type or "").strip().lower()
 
     if not dev_type:
         print(colored("Error: Missing arguments", Colors.RED))
         print("Usage: python3 task.py init-context <task-dir> <dev_type>")
-        print("  dev_type: backend | frontend | fullstack | test | docs")
+        print("  dev_type: backend | frontend | fullstack | test | docs | ai")
+        return 1
+
+    if dev_type not in VALID_DEV_TYPES:
+        print(colored(f"Error: Unsupported dev_type: {dev_type}", Colors.RED))
+        print(f"  supported: {', '.join(VALID_DEV_TYPES)}")
         return 1
 
     if not target_dir.is_dir():
         print(colored(f"Error: Directory not found: {target_dir}", Colors.RED))
         return 1
 
+    task_json_path = target_dir / FILE_TASK_JSON
+    task_data = _read_json_file(task_json_path) if task_json_path.is_file() else {}
+    execution_path = normalize_execution_path(args.path or task_data.get("execution_path"))
+
     print(colored("=== Initializing Agent Context Files ===", Colors.BLUE))
     print(f"Target dir: {target_dir}")
     print(f"Dev type: {dev_type}")
+    print(f"Execution path: {execution_path}")
     print()
 
-    # implement.jsonl
-    print(colored("Creating implement.jsonl...", Colors.CYAN))
-    implement_entries = get_implement_base()
-    if dev_type in ("backend", "test"):
+    implement_entries = get_implement_base(dev_type)
+    if dev_type in ("backend", "test", "ai"):
         implement_entries.extend(get_implement_backend())
     elif dev_type == "frontend":
         implement_entries.extend(get_implement_frontend())
@@ -426,30 +577,38 @@ def cmd_init_context(args: argparse.Namespace) -> int:
         implement_entries.extend(get_implement_backend())
         implement_entries.extend(get_implement_frontend())
 
-    implement_file = target_dir / "implement.jsonl"
-    _write_jsonl(implement_file, implement_entries)
-    print(f"  {colored('✓', Colors.GREEN)} {len(implement_entries)} entries")
-
-    # check.jsonl
-    print(colored("Creating check.jsonl...", Colors.CYAN))
     check_entries = get_check_context(dev_type, repo_root)
-    check_file = target_dir / "check.jsonl"
-    _write_jsonl(check_file, check_entries)
-    print(f"  {colored('✓', Colors.GREEN)} {len(check_entries)} entries")
-
-    # debug.jsonl
-    print(colored("Creating debug.jsonl...", Colors.CYAN))
     debug_entries = get_debug_context(dev_type, repo_root)
-    debug_file = target_dir / "debug.jsonl"
-    _write_jsonl(debug_file, debug_entries)
-    print(f"  {colored('✓', Colors.GREEN)} {len(debug_entries)} entries")
+    research_entries = get_research_context(dev_type)
+
+    context_payloads: dict[str, list[dict]] = {
+        "implement.jsonl": implement_entries,
+        "check.jsonl": check_entries,
+        "debug.jsonl": debug_entries,
+        "research.jsonl": research_entries,
+    }
+
+    created_files: list[str] = []
+    for jsonl_name in get_path_context_files(execution_path):
+        print(colored(f"Creating {jsonl_name}...", Colors.CYAN))
+        jsonl_file = target_dir / jsonl_name
+        entries = context_payloads[jsonl_name]
+        _write_jsonl(jsonl_file, entries)
+        created_files.append(jsonl_name)
+        print(f"  {colored('✓', Colors.GREEN)} {len(entries)} entries")
+
+    if task_json_path.is_file():
+        update_task_contract(task_json_path, execution_path=execution_path, dev_type=dev_type)
 
     print()
-    print(colored("✓ All context files created", Colors.GREEN))
+    print(colored("✓ Context files created", Colors.GREEN))
+    print(f"  files: {', '.join(created_files)}")
     print()
     print(colored("Next steps:", Colors.BLUE))
-    print("  1. Add task-specific specs: python3 task.py add-context <dir> <jsonl> <path>")
+    print("  1. Add only task-specific files: python3 task.py add-context <dir> <jsonl> <path>")
     print("  2. Set as current: python3 task.py start <dir>")
+    if execution_path == "deep":
+        print("  3. Keep context curated; do not add directories or broad spec trees unless justified")
 
     return 0
 
@@ -525,8 +684,9 @@ def cmd_validate(args: argparse.Namespace) -> int:
     print(f"Target dir: {target_dir}")
     print()
 
+    task_data = _read_json_file(target_dir / FILE_TASK_JSON) or {}
     total_errors = 0
-    for jsonl_name in ["implement.jsonl", "check.jsonl", "debug.jsonl"]:
+    for jsonl_name in get_context_file_names(target_dir, task_data):
         jsonl_file = target_dir / jsonl_name
         errors = _validate_jsonl(jsonl_file, repo_root)
         total_errors += errors
@@ -604,7 +764,8 @@ def cmd_list_context(args: argparse.Namespace) -> int:
     print(colored("=== Context Files ===", Colors.BLUE))
     print()
 
-    for jsonl_name in ["implement.jsonl", "check.jsonl", "debug.jsonl"]:
+    task_data = _read_json_file(target_dir / FILE_TASK_JSON) or {}
+    for jsonl_name in get_context_file_names(target_dir, task_data):
         jsonl_file = target_dir / jsonl_name
         if not jsonl_file.is_file():
             continue
@@ -722,46 +883,41 @@ def cmd_archive(args: argparse.Namespace) -> int:
         return 1
 
     dir_name = task_dir.name
-    task_json_path = task_dir / FILE_TASK_JSON
+    archive_data, archive_error = load_archive_ready_task(task_dir)
+    if archive_error:
+        print(colored(archive_error, Colors.RED), file=sys.stderr)
+        return 1
+    data = archive_data or {}
 
-    # Update status before archiving
-    today = datetime.now().strftime("%Y-%m-%d")
-    if task_json_path.is_file():
-        data = _read_json_file(task_json_path)
-        if data:
-            data["status"] = "completed"
-            data["completedAt"] = today
-            _write_json_file(task_json_path, data)
+    # Handle subtask relationships on archive
+    task_parent = data.get("parent")
+    task_children = data.get("children", [])
 
-            # Handle subtask relationships on archive
-            task_parent = data.get("parent")
-            task_children = data.get("children", [])
+    # If this is a child, remove from parent's children list
+    if task_parent:
+        parent_dir = find_task_by_name(task_parent, tasks_dir)
+        if parent_dir:
+            parent_json = parent_dir / FILE_TASK_JSON
+            if parent_json.is_file():
+                parent_data = _read_json_file(parent_json)
+                if parent_data:
+                    parent_children = parent_data.get("children", [])
+                    if dir_name in parent_children:
+                        parent_children.remove(dir_name)
+                        parent_data["children"] = parent_children
+                        _write_json_file(parent_json, parent_data)
 
-            # If this is a child, remove from parent's children list
-            if task_parent:
-                parent_dir = find_task_by_name(task_parent, tasks_dir)
-                if parent_dir:
-                    parent_json = parent_dir / FILE_TASK_JSON
-                    if parent_json.is_file():
-                        parent_data = _read_json_file(parent_json)
-                        if parent_data:
-                            parent_children = parent_data.get("children", [])
-                            if dir_name in parent_children:
-                                parent_children.remove(dir_name)
-                                parent_data["children"] = parent_children
-                                _write_json_file(parent_json, parent_data)
-
-            # If this is a parent, clear parent field in all children
-            if task_children:
-                for child_name in task_children:
-                    child_dir_path = find_task_by_name(child_name, tasks_dir)
-                    if child_dir_path:
-                        child_json = child_dir_path / FILE_TASK_JSON
-                        if child_json.is_file():
-                            child_data = _read_json_file(child_json)
-                            if child_data:
-                                child_data["parent"] = None
-                                _write_json_file(child_json, child_data)
+    # If this is a parent, clear parent field in all children
+    if task_children:
+        for child_name in task_children:
+            child_dir_path = find_task_by_name(child_name, tasks_dir)
+            if child_dir_path:
+                child_json = child_dir_path / FILE_TASK_JSON
+                if child_json.is_file():
+                    child_data = _read_json_file(child_json)
+                    if child_data:
+                        child_data["parent"] = None
+                        _write_json_file(child_json, child_data)
 
     # Clear if current task
     current = get_current_task(repo_root)
@@ -775,10 +931,6 @@ def cmd_archive(args: argparse.Namespace) -> int:
         year_month = archive_dest.parent.name
         print(colored(f"Archived: {dir_name} -> archive/{year_month}/", Colors.GREEN), file=sys.stderr)
 
-        # Auto-commit unless --no-commit
-        if not getattr(args, "no_commit", False):
-            _auto_commit_archive(dir_name, repo_root)
-
         # Return the archive path
         print(f"{DIR_WORKFLOW}/{DIR_TASKS}/{DIR_ARCHIVE}/{year_month}/{dir_name}")
 
@@ -788,27 +940,6 @@ def cmd_archive(args: argparse.Namespace) -> int:
         return 0
 
     return 1
-
-
-def _auto_commit_archive(task_name: str, repo_root: Path) -> None:
-    """Stage .trellis/tasks/ changes and commit after archive."""
-    tasks_rel = f"{DIR_WORKFLOW}/{DIR_TASKS}"
-    _run_git_command(["add", "-A", tasks_rel], cwd=repo_root)
-
-    # Check if there are staged changes
-    rc, _, _ = _run_git_command(
-        ["diff", "--cached", "--quiet", "--", tasks_rel], cwd=repo_root
-    )
-    if rc == 0:
-        print("[OK] No task changes to commit.", file=sys.stderr)
-        return
-
-    commit_msg = f"chore(task): archive {task_name}"
-    rc, _, err = _run_git_command(["commit", "-m", commit_msg], cwd=repo_root)
-    if rc == 0:
-        print(f"[OK] Auto-committed: {commit_msg}", file=sys.stderr)
-    else:
-        print(f"[WARN] Auto-commit failed: {err.strip()}", file=sys.stderr)
 
 
 # =============================================================================
@@ -1170,38 +1301,15 @@ def cmd_set_scope(args: argparse.Namespace) -> int:
     return 0
 
 
-# =============================================================================
-# Command: create-pr (delegates to multi-agent script)
-# =============================================================================
-
-def cmd_create_pr(args: argparse.Namespace) -> int:
-    """Create PR from task - delegates to multi_agent/create_pr.py."""
-    import subprocess
-    script_dir = Path(__file__).parent
-    create_pr_script = script_dir / "multi_agent" / "create_pr.py"
-
-    cmd = [sys.executable, str(create_pr_script)]
-    if args.dir:
-        cmd.append(args.dir)
-    if args.dry_run:
-        cmd.append("--dry-run")
-
-    result = subprocess.run(cmd)
-    return result.returncode
-
-
-# =============================================================================
-# Help
-# =============================================================================
-
 def show_usage() -> None:
     """Show usage help."""
-    print("""Task Management Script for Multi-Agent Pipeline
+    print("""Task management for path-driven Trellis workflows
 
 Usage:
   python3 task.py create <title>                     Create new task directory
+  python3 task.py create <title> --path deep         Create deep-path task
   python3 task.py create <title> --parent <dir>      Create task as child of parent
-  python3 task.py init-context <dir> <dev_type>      Initialize jsonl files
+  python3 task.py init-context <dir> <dev_type>      Initialize path-aware context files
   python3 task.py add-context <dir> <jsonl> <path> [reason]  Add entry to jsonl
   python3 task.py validate <dir>                     Validate jsonl files
   python3 task.py list-context <dir>                 List jsonl entries
@@ -1209,7 +1317,6 @@ Usage:
   python3 task.py finish                             Clear current task
   python3 task.py set-branch <dir> <branch>          Set git branch for multi-agent
   python3 task.py set-scope <dir> <scope>            Set scope for PR title
-  python3 task.py create-pr [dir] [--dry-run]        Create PR from task
   python3 task.py archive <task-name>                Archive completed task
   python3 task.py add-subtask <parent> <child>       Link child task to parent
   python3 task.py remove-subtask <parent> <child>    Unlink child from parent
@@ -1217,21 +1324,21 @@ Usage:
   python3 task.py list-archive [YYYY-MM]             List archived tasks
 
 Arguments:
-  dev_type: backend | frontend | fullstack | test | docs
+  dev_type: backend | frontend | fullstack | test | docs | ai
+  path: fast | normal | deep
 
 List options:
   --mine, -m           Show only tasks assigned to current developer
   --status, -s <s>     Filter by status (planning, in_progress, review, completed)
 
 Examples:
-  python3 task.py create "Add login feature" --slug add-login
+  python3 task.py create "Add login feature" --slug add-login --path normal
+  python3 task.py create "Rebuild orchestration governance" --path deep --dev-type ai
   python3 task.py create "Child task" --slug child --parent .trellis/tasks/01-21-parent
-  python3 task.py init-context .trellis/tasks/01-21-add-login backend
+  python3 task.py init-context .trellis/tasks/01-21-add-login backend --path normal
   python3 task.py add-context <dir> implement .trellis/spec/backend/auth.md "Auth guidelines"
   python3 task.py set-branch <dir> task/add-login
   python3 task.py start .trellis/tasks/01-21-add-login
-  python3 task.py create-pr                          # Uses current task
-  python3 task.py create-pr <dir> --dry-run          # Preview without changes
   python3 task.py finish
   python3 task.py archive add-login
   python3 task.py add-subtask parent-task child-task  # Link existing tasks
@@ -1249,7 +1356,7 @@ Examples:
 def main() -> int:
     """CLI entry point."""
     parser = argparse.ArgumentParser(
-        description="Task Management Script for Multi-Agent Pipeline",
+        description="Task management for path-driven Trellis workflows",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     subparsers = parser.add_subparsers(dest="command", help="Commands")
@@ -1261,17 +1368,20 @@ def main() -> int:
     p_create.add_argument("--assignee", "-a", help="Assignee developer")
     p_create.add_argument("--priority", "-p", default="P2", help="Priority (P0-P3)")
     p_create.add_argument("--description", "-d", help="Task description")
+    p_create.add_argument("--dev-type", choices=VALID_DEV_TYPES, help="Task development type")
+    p_create.add_argument("--path", choices=VALID_EXECUTION_PATHS, default="normal", help="Execution path")
     p_create.add_argument("--parent", help="Parent task directory (establishes subtask link)")
 
     # init-context
     p_init = subparsers.add_parser("init-context", help="Initialize context files")
     p_init.add_argument("dir", help="Task directory")
-    p_init.add_argument("type", help="Dev type: backend|frontend|fullstack|test|docs")
+    p_init.add_argument("type", help="Dev type: backend|frontend|fullstack|test|docs|ai")
+    p_init.add_argument("--path", choices=VALID_EXECUTION_PATHS, help="Execution path (defaults to task.json)")
 
     # add-context
     p_add = subparsers.add_parser("add-context", help="Add context entry")
     p_add.add_argument("dir", help="Task directory")
-    p_add.add_argument("file", help="JSONL file (implement|check|debug)")
+    p_add.add_argument("file", help="JSONL file (implement|check|debug|research|custom)")
     p_add.add_argument("path", help="File path to add")
     p_add.add_argument("reason", nargs="?", help="Reason for adding")
 
@@ -1305,15 +1415,9 @@ def main() -> int:
     p_scope.add_argument("dir", help="Task directory")
     p_scope.add_argument("scope", help="Scope name")
 
-    # create-pr
-    p_pr = subparsers.add_parser("create-pr", help="Create PR")
-    p_pr.add_argument("dir", nargs="?", help="Task directory")
-    p_pr.add_argument("--dry-run", action="store_true", help="Dry run mode")
-
     # archive
     p_archive = subparsers.add_parser("archive", help="Archive task")
     p_archive.add_argument("name", help="Task name")
-    p_archive.add_argument("--no-commit", action="store_true", help="Skip auto git commit after archive")
 
     # list
     p_list = subparsers.add_parser("list", help="List tasks")
@@ -1351,7 +1455,6 @@ def main() -> int:
         "set-branch": cmd_set_branch,
         "set-base-branch": cmd_set_base_branch,
         "set-scope": cmd_set_scope,
-        "create-pr": cmd_create_pr,
         "archive": cmd_archive,
         "add-subtask": cmd_add_subtask,
         "remove-subtask": cmd_remove_subtask,

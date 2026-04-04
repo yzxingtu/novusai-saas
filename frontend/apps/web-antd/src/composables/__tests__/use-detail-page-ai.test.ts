@@ -1,6 +1,8 @@
+// @vitest-environment happy-dom
+
 import { effectScope } from 'vue';
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   clearPageOperationRegistry,
@@ -10,7 +12,7 @@ import {
 
 import { useDetailPageAi } from '../use-detail-page-ai';
 
-const { pushMock } = vi.hoisted(() => ({
+const navigationMocks = vi.hoisted(() => ({
   pushMock: vi.fn(),
 }));
 
@@ -24,7 +26,7 @@ vi.mock('vue-router', () => ({
     path: '/tenant/ai/samples/42',
   }),
   useRouter: () => ({
-    push: pushMock,
+    push: navigationMocks.pushMock,
   }),
 }));
 
@@ -33,10 +35,26 @@ vi.mock('#/locales', () => ({
     params ? `${key}:${JSON.stringify(params)}` : key,
 }));
 
+vi.mock('#/router', () => ({
+  router: {
+    currentRoute: {
+      value: {
+        meta: {},
+        path: '/tenant/ai/samples/42',
+      },
+    },
+    push: navigationMocks.pushMock,
+  },
+}));
+
 describe('useDetailPageAi', () => {
+  beforeEach(() => {
+    navigationMocks.pushMock.mockReset();
+  });
+
   afterEach(() => {
     clearPageOperationRegistry();
-    pushMock.mockReset();
+    navigationMocks.pushMock.mockReset();
   });
 
   it('registers standard detail operations via the unified page AI registration layer', async () => {
@@ -56,6 +74,8 @@ describe('useDetailPageAi', () => {
     expect(names).toEqual([
       'read_current_view',
       'read_current_sections',
+      'list_available_menus',
+      'navigate_menu',
       'capture_screenshot',
       'refresh_detail',
       'navigate_back',
@@ -65,7 +85,7 @@ describe('useDetailPageAi', () => {
     expect(refreshFn).toHaveBeenCalledTimes(1);
 
     await executePageOperation('tenant.ai.samples.detail', 'navigate_back');
-    expect(pushMock).toHaveBeenCalledWith('/tenant/ai/samples');
+    expect(navigationMocks.pushMock).toHaveBeenCalledWith('/tenant/ai/samples');
 
     scope.stop();
   });
@@ -105,11 +125,13 @@ describe('useDetailPageAi', () => {
     expect(ops.map((op) => op.name)).toEqual([
       'read_current_view',
       'read_current_sections',
+      'list_available_menus',
+      'navigate_menu',
       'capture_screenshot',
       'refresh_detail',
       'publish_detail',
     ]);
-    expect(ops[3]?.label).toBe('Custom Refresh');
+    expect(ops[5]?.label).toBe('Custom Refresh');
 
     scope.stop();
   });

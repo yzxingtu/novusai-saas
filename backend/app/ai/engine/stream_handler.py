@@ -11,13 +11,14 @@ from __future__ import annotations
 
 import asyncio
 import json
-import re
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
+from app.ai.page_locale import resolve_page_locale
+from app.ai.prompt_contracts import render_prompt_contract
 from app.ai.sse import SSEChunkEncoder
-from app.ai.types import ChatMessage, ChatResponse
+from app.ai.types import ChatMessage
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.core.response import (
@@ -28,8 +29,20 @@ from app.core.response import (
 from app.enums.common import UserRoleEnum
 from app.middleware.trace import trace_id_var
 
-from .base import MAX_TOOL_CALL_ROUNDS, log_user_type_for_call_log
-from .types import ExecutionRequest, ExecutionResult, PreparedExecution, ToolUsePolicy
+from .base import BaseEngine, log_user_type_for_call_log
+from .budget_guard import BudgetGuard
+from .execution_state_machine import ExecutionStateMachine
+from .failure_classifier import FailureClassifier
+from .intent_planner import IntentPlanner
+from .path_selector import PathSelector
+from .recovery_manager import RecoveryManager
+from .types import (
+    ExecutionRequest,
+    ExecutionResult,
+    IntentPlan,
+    PreparedExecution,
+    ToolUsePolicy,
+)
 
 if TYPE_CHECKING:
     from app.ai.tools.types import ToolDefinition, ToolResult
@@ -84,11 +97,21 @@ class StreamExecutionHandler:
         self.start_time = start_time
         self.on_complete = on_complete
         self._background_tasks: set[asyncio.Task[None]] = set()
-        self._contract_breach_type: str | None = None
-        self._contract_breach_diagnostics: dict[str, Any] = {}
-        self._contract_recovered_via_retry = False
-        self._contract_policy: ToolUsePolicy | None = None
-        self._contract_tools_snapshot: list[ToolDefinition] = []
+        self._interrupted_stage = "stream_initializing"
+        self._state = ExecutionStateMachine.from_prepared_execution(prep)
+        self._total_tokens = 0
+        self._completion_tokens_used = 0
+
+    def _register_tool_failures(self, tool_results: list[ToolResult]) -> None:
+        tool_failure_kind, tool_failure_events = FailureClassifier.classify_tool_results(
+            tool_results
+        )
+        if tool_failure_kind != "none":
+            for event in tool_failure_events:
+                self._state.register_provider_failure(
+                    kind=tool_failure_kind,
+                    event=event,
+                )
 
     def _schedule_on_complete(self, result: ExecutionResult) -> None:
         """Run on_complete in background before client disconnect can cancel it.
@@ -124,6 +147,94 @@ class StreamExecutionHandler:
         self._background_tasks.add(task)
         task.add_done_callback(self._background_tasks.discard)
 
+    def _ensure_runtime_turn_record(self) -> dict[str, Any]:
+        if not isinstance(self._runtime_turn_record, dict):
+            self._runtime_turn_record = {}
+        return self._runtime_turn_record
+
+    def _update_turn_progress(self, **fields: Any) -> None:
+        record = self._ensure_runtime_turn_record()
+        progress = (
+            dict(record.get("tool_loop_progress") or {})
+            if isinstance(record.get("tool_loop_progress"), dict)
+            else {}
+        )
+        for key, value in fields.items():
+            if key == "tool_loop_progress" and isinstance(value, dict):
+                progress.update(value)
+                continue
+            if value is None:
+                continue
+            record[key] = value
+        if progress:
+            record["tool_loop_progress"] = progress
+
+    def _register_budget_exit(self, reason: str | None) -> None:
+        if not reason:
+            return
+        self._state.register_provider_failure(
+            kind="budget_exit",
+            event={"kind": "budget_exit", "reason": reason},
+        )
+        self._update_turn_progress(
+            budget_exit_reason=reason,
+            tool_loop_progress={"budget_exit_reason": reason},
+        )
+
+    def _tool_loop_round_limit(self, tools: list[ToolDefinition]) -> int:
+        budget = getattr(self.prep, "execution_budget", None)
+        if budget is not None and budget.max_tool_rounds > 0:
+            return (
+                int(budget.max_tool_rounds)
+                + max(1, int(budget.max_retry_per_intent or 0))
+                + 1
+            )
+        tool_count = len(getattr(self.prep, "all_tools", None) or tools or [])
+        intent_count = len(getattr(self.prep, "intent_plan", None) or [])
+        return max(3, min(6, tool_count + max(1, intent_count) + 1))
+
+    @staticmethod
+    def _build_text_round_response(
+        *,
+        content: str,
+        reasoning_content: str,
+        total_tokens: int,
+    ):
+        from app.ai.types import ChatResponse
+
+        return ChatResponse(
+            message=ChatMessage(
+                role="assistant",
+                content=content,
+                reasoning_content=reasoning_content or None,
+            ),
+            total_tokens=total_tokens,
+            finish_reason="stop",
+        )
+
+    @staticmethod
+    def _last_visible_assistant_content(messages: list[ChatMessage]) -> str:
+        for message in reversed(messages):
+            if message.role != "assistant" or message.tool_calls:
+                continue
+            content = str(message.content or "").strip()
+            if content:
+                return content
+        return ""
+
+    def _build_budget_exit_fallback_output(
+        self,
+        *,
+        tool_results: list[ToolResult],
+    ) -> str:
+        locale = resolve_page_locale(getattr(self.request, "input_variables", None))
+        key = (
+            "ai.stream.partial.tool_budget_after_success"
+            if any(result.success for result in tool_results)
+            else "ai.stream.partial.budget_exit"
+        )
+        return _(key, locale=locale)
+
     async def generate(self) -> AsyncIterator[str]:
         """SSE event generator main loop / SSE 事件生成器主循环"""
         from .conversation import _strip_model_fc_tokens
@@ -145,11 +256,13 @@ class StreamExecutionHandler:
         self._runtime_model_info: dict[str, Any] | None = None
         self._runtime_turn_record: dict[str, Any] | None = None
         self._on_complete_called = False
+        initial_budget_exit = self._state.budget_exit_reason()
 
         try:
+            self._interrupted_stage = "stream_generating"
             next_runtime_context = getattr(self.prep, "stream_runtime", None)
             if self.request.conversation_id:
-                # Publish conversation id early so frontend keeps the session / 上文为英文说明 / English above
+                # Publish conversation id early so frontend keeps the session / 尽早下发 conversation id 以便前端保持会话
                 # even when the stream is interrupted before the final done event.
                 yield SSEChunkEncoder.encode(
                     _trace_payload(
@@ -158,6 +271,16 @@ class StreamExecutionHandler:
                             "conversation_id": self.request.conversation_id,
                         }
                     )
+                )
+            current_page_context = (
+                self.request.input_variables.get("page_context")
+                if isinstance(getattr(self.request, "input_variables", None), dict)
+                else None
+            )
+            if isinstance(current_page_context, dict):
+                self._update_turn_progress(
+                    last_page_key=str(current_page_context.get("page_key") or "").strip()
+                    or None
                 )
             kb_feedback = getattr(self.request, "knowledge_base_feedback", None)
             if isinstance(kb_feedback, dict) and kb_feedback.get(
@@ -203,7 +326,9 @@ class StreamExecutionHandler:
                     else _optimize_event
                 )
 
-            if tools:
+            if initial_budget_exit:
+                self._register_budget_exit(initial_budget_exit)
+            elif tools:
                 # ---- With tools: tool call loop + final reply streaming ---- / 有工具：工具调用循环 + 最终回复流式推送
                 async for event in self._generate_with_tools(
                     messages,
@@ -318,44 +443,71 @@ class StreamExecutionHandler:
 
             # ---- Build result ---- / 构建结果
             duration_ms = int((time.perf_counter() - self.start_time) * 1000)
-            if self._contract_breach_type:
-                final_contract_response = ChatResponse(
-                    message=ChatMessage(role="assistant", content=output),
-                    total_tokens=total_tokens,
+            self._state.register_completion_tokens(self._completion_tokens_used)
+            budget_exit_reason = self._state.budget_exit_reason()
+            if budget_exit_reason:
+                self._register_budget_exit(budget_exit_reason)
+            decision = RecoveryManager.decide(
+                self._state.intent_plan,
+                budget=self._state.budget,
+                provider_failure_kind=self._state.provider_failure_kind,
+            )
+            if decision is not None and decision.action in {
+                "pause_for_consent",
+                "return_partial",
+            }:
+                self._state.recovery_history.append(decision)
+            paused_for_consent = bool(
+                decision is not None and decision.action == "pause_for_consent"
+            )
+            partial = bool(decision is not None and decision.action == "return_partial")
+            partial_reply_stream_chunks: list[str] = []
+            completion_reason = "completed"
+            if partial:
+                self._state.transition("partial_exit")
+                completion_reason = decision.reason or "return_partial"
+                visible_assistant_output = self._last_visible_assistant_content(messages)
+                streamed_output = str(self._output or "").strip()
+                if visible_assistant_output:
+                    output = visible_assistant_output
+                elif str(output or "").strip():
+                    output = str(output).strip()
+                elif self._state.provider_failure_kind == "budget_exit":
+                    output = self._build_budget_exit_fallback_output(
+                        tool_results=all_tool_results,
+                    )
+                else:
+                    output = RecoveryManager.build_partial_output(
+                        self._state.intent_plan,
+                        reason=decision.reason or "return_partial",
+                        provider_failure_kind=self._state.provider_failure_kind,
+                    )
+                self._output = output
+                if output and not visible_assistant_output:
+                    messages.append(ChatMessage(role="assistant", content=output))
+                    if output != streamed_output:
+                        partial_reply_stream_chunks = self._chunk_text_for_streaming(
+                            output
+                        )
+            elif paused_for_consent:
+                self._state.transition("awaiting_consent")
+                completion_reason = decision.reason or "pause_for_consent"
+                RecoveryManager.ensure_latest_assistant_pending_consent(
+                    messages,
+                    RecoveryManager.pending_consent_payload_from_decision(decision),
                 )
-                (
-                    final_breach_type,
-                    final_breach_policy_unused,
-                    final_breach_diagnostics,
-                ) = self.engine._analyze_post_tool_contract_breach(
-                    messages=messages,
-                    response=final_contract_response,
-                    current_policy=self._contract_policy or ToolUsePolicy(),
-                    tools=self._contract_tools_snapshot,
-                    input_variables=getattr(self.request, "input_variables", None),
-                )
-                del final_breach_policy_unused
-                self._contract_recovered_via_retry = final_breach_type is None
-                if final_breach_diagnostics:
-                    self._contract_breach_diagnostics = final_breach_diagnostics
-                self.engine._log_tool_contract_diagnostics(
-                    agent=self.agent,
-                    messages=messages,
-                    response=final_contract_response,
-                    tools=self._contract_tools_snapshot,
-                    policy=self._contract_policy or ToolUsePolicy(),
-                    conversation_id=self.request.conversation_id,
-                    breach_type=self._contract_breach_type,
-                    retry_result=(
-                        "succeeded" if self._contract_recovered_via_retry else "failed"
-                    ),
-                    continuation=getattr(self.prep, "continuation_context", None),
-                )
+                output = self._last_visible_assistant_content(messages) or str(
+                    self._output or ""
+                ).strip()
+                self._output = output
+            else:
+                self._state.transition("completed")
 
             tool_planner = getattr(self.prep, "tool_planner", None)
+            diagnostics_payload = self._state.build_diagnostics_payload()
 
             result = ExecutionResult(
-                success=True,
+                success=not partial,
                 output=output,
                 messages=self.engine._messages_to_dicts(messages),
                 tool_results=all_tool_results,
@@ -370,28 +522,87 @@ class StreamExecutionHandler:
                 ),
                 rag_sources=rag_sources,
                 rag_source_kinds=self.prep.rag_source_kinds,
+                partial=partial,
+                completion_reason=completion_reason,
                 context_compacted=self.prep.context_compacted,
                 memory_flush_triggered=self.prep.memory_flush_triggered,
                 memory_recalled=self.prep.memory_recalled,
                 prune_stats=self.prep.prune_stats,
                 tool_planner=tool_planner,
                 turn_record=self._runtime_turn_record,
+                intent_plan=list(self._state.intent_plan),
+                execution_path=getattr(self.prep, "execution_path", None),
+                execution_budget=(
+                    self._state.budget.snapshot()
+                    if self._state.budget is not None
+                    else None
+                ),
+                recovery_history=[
+                    decision_item.to_dict()
+                    for decision_item in self._state.recovery_history
+                ],
+                provider_failure_kind=self._state.provider_failure_kind,
+                provider_events=list(self._state.provider_events),
+                diagnostics=diagnostics_payload,
             )
-            result.turn_record = (
-                self.engine._merge_contract_diagnostics_into_turn_record(
-                    result.turn_record,
-                    breach_type=self._contract_breach_type,
-                    diagnostics=self._contract_breach_diagnostics,
-                    recovered_via_retry=self._contract_recovered_via_retry,
+
+            if paused_for_consent:
+                result.success = False
+                result.interrupted = True
+
+            if isinstance(result.turn_record, dict):
+                result.turn_record["execution_path"] = getattr(
+                    self.prep,
+                    "execution_path",
+                    None,
                 )
-            )
+                result.turn_record["intent_plan"] = diagnostics_payload.get(
+                    "intent_plan",
+                )
+                result.turn_record["budget"] = diagnostics_payload.get("budget")
+                result.turn_record["budget_status"] = diagnostics_payload.get(
+                    "budget_status",
+                )
+                result.turn_record["budget_exit_reason"] = diagnostics_payload.get(
+                    "budget_exit_reason",
+                )
+                result.turn_record["candidate_tool_names"] = diagnostics_payload.get(
+                    "candidate_tool_names",
+                )
+                result.turn_record["retry_events"] = diagnostics_payload.get(
+                    "retry_events",
+                )
+                result.turn_record["partial_exit_reason"] = diagnostics_payload.get(
+                    "partial_exit_reason",
+                )
+                result.turn_record["unfinished_intents"] = diagnostics_payload.get(
+                    "unfinished_intents",
+                )
+                result.turn_record["provider_events"] = diagnostics_payload.get(
+                    "provider_events",
+                )
+                result.turn_record["failure_kind"] = diagnostics_payload.get(
+                    "failure_kind",
+                )
+                metadata = dict(result.turn_record.get("metadata") or {})
+                metadata["orchestration"] = diagnostics_payload
+                result.turn_record["metadata"] = metadata
+
+            if partial_reply_stream_chunks:
+                for chunk in partial_reply_stream_chunks:
+                    yield SSEChunkEncoder.encode(
+                        {
+                            "event": "message",
+                            "delta": chunk,
+                        }
+                    )
 
             # Start callback before yielding done so client-side disconnect
             # cannot prevent persistence from even starting.
             # 在发送 done 之前启动后台回调，确保客户端断开不会阻止持久化开始。
             self._schedule_on_complete(result)
 
-            # ---- Send done event FIRST so frontend unlocks immediately ---- / 上文为英文说明 / English above
+            # ---- Send done first so UI unlocks immediately ---- / 先发送 done 以便前端立即解锁
             # on_complete may trigger slow operations (e.g. memory extraction LLM call);
             # emitting done before the callback prevents the UI from hanging.
             yield SSEChunkEncoder.encode(
@@ -443,7 +654,7 @@ class StreamExecutionHandler:
                 partial_tokens = getattr(self, "_total_tokens", None)
                 if partial_tokens is None:
                     partial_tokens = total_tokens
-                # Append partial assistant message when we have output but did not finish normally / 上文为英文说明 / English above
+                # Append partial assistant when output exists but stream aborted / 有输出但未正常结束时追加部分 assistant
                 if partial_output:
                     reasoning = (
                         getattr(self, "_reasoning_output", None) or ""
@@ -502,6 +713,7 @@ class StreamExecutionHandler:
                 str(exc),
                 exc_info=True,
             )
+            self._update_turn_progress(interrupted_stage=self._interrupted_stage)
             if self.on_complete and not self._on_complete_called:
                 duration_ms = int((time.perf_counter() - self.start_time) * 1000)
                 partial_output = getattr(self, "_output", None) or output
@@ -579,7 +791,23 @@ class StreamExecutionHandler:
         Tool rounds use real streaming and incremental tool_call aggregation.
         工具轮次使用真实流式，并增量聚合 tool_call。
         """
+        helper_methods = {
+            "_restrict_tools_to_names": BaseEngine._restrict_tools_to_names,
+            "_truncate_tool_calls_after_navigation": BaseEngine._truncate_tool_calls_after_navigation,
+            "_tool_call_operation_name": BaseEngine._tool_call_operation_name,
+            "_tool_call_name": BaseEngine._tool_call_name,
+            "_mark_multi_family_progress": BaseEngine._mark_multi_family_progress,
+            "_build_page_no_progress_recovery": BaseEngine._build_page_no_progress_recovery,
+            "_messages_have_blocking_pending_interaction": BaseEngine._messages_have_blocking_pending_interaction,
+            "_first_incomplete_requested_family": BaseEngine._first_incomplete_requested_family,
+            "_allowed_tool_names_for_family": BaseEngine._allowed_tool_names_for_family,
+        }
+        for method_name, fallback in helper_methods.items():
+            if not callable(getattr(self.engine, method_name, None)):
+                setattr(self.engine, method_name, fallback)
+
         self._total_tokens = 0
+        self._completion_tokens_used = 0
         self._output = ""
         self._reasoning_output = ""
         _unused_strip_fc_tokens = (
@@ -601,6 +829,92 @@ class StreamExecutionHandler:
             getattr(self.prep.capability_bundle, "context_sources", None)
             if getattr(self.prep, "capability_bundle", None) is not None
             else None
+        )
+        forced_tool_names: list[str] | None = None
+        ordered_requested_families: list[str] = []
+        if not self._state.intent_plan:
+            inferred_intents = IntentPlanner.plan_turn(
+                messages=list(getattr(self.request, "messages", None) or messages or []),
+                tools=getattr(self.prep, "all_tools", None) or tools_full,
+                input_variables=getattr(self.request, "input_variables", None),
+                continuation_context=continuation_context,
+                capability_bundle=getattr(self.prep, "capability_bundle", None),
+            )
+            actionable_inferred_intents = any(
+                intent.family != "none" and intent.requires_tools
+                for intent in inferred_intents
+            )
+            fallback_family = round_tool_policy.family
+            if fallback_family == "none" and round_tool_policy.retry_on_contract_breach:
+                allowed_tool_names = set(round_tool_policy.allowed_tool_names or [])
+                if {"web_search", "fetch_url"} & allowed_tool_names:
+                    fallback_family = "web_research"
+                elif any(
+                    name == "get_page_context" or name.startswith("pageop_")
+                    for name in allowed_tool_names
+                ):
+                    fallback_family = "page_ops"
+                elif "get_current_weather" in allowed_tool_names:
+                    fallback_family = "weather"
+                elif "get_current_time" in allowed_tool_names:
+                    fallback_family = "time_ops"
+            if (
+                not actionable_inferred_intents
+                and fallback_family != "none"
+            ):
+                fallback_allowed_tools = list(round_tool_policy.allowed_tool_names)
+                inferred_intents = [
+                    IntentPlan(
+                        intent_id=f"{fallback_family}-1",
+                        kind=f"{fallback_family}_intent",
+                        family=fallback_family,
+                        order=1,
+                        user_visible_label=fallback_family,
+                        source_text=BaseEngine._extract_last_user_text(messages),
+                        status="pending",
+                        requires_tools=True,
+                        allow_text_response=False,
+                        allowed_tool_names=fallback_allowed_tools,
+                        preferred_tool_names=fallback_allowed_tools,
+                        completion_signals=BaseEngine._intent_completion_signals(
+                            fallback_family,
+                            allowed_tool_names=fallback_allowed_tools,
+                            preferred_tool_names=fallback_allowed_tools,
+                        ),
+                    )
+                ]
+                actionable_inferred_intents = True
+            if actionable_inferred_intents:
+                self._state.intent_plan = [
+                    IntentPlan(**intent.to_dict())
+                    if isinstance(intent, IntentPlan)
+                    else IntentPlan(**intent)
+                    for intent in inferred_intents
+                ]
+                self.prep.intent_plan = list(self._state.intent_plan)
+                if getattr(self.prep, "execution_path", None) in {None, ""}:
+                    inferred_path = PathSelector.select(self._state.intent_plan)
+                    self.prep.execution_path = inferred_path
+                    self._state.execution_path = inferred_path
+                if getattr(self.prep, "execution_budget", None) is None:
+                    inferred_budget = BudgetGuard.build_default(
+                        self._state.execution_path,
+                        intent_count=len(self._state.intent_plan),
+                    )
+                    self.prep.execution_budget = inferred_budget
+                    self._state.budget = inferred_budget
+        for intent in list(getattr(self.prep, "intent_plan", []) or []):
+            family = (
+                str(intent.get("family") or "").strip()
+                if isinstance(intent, dict)
+                else str(getattr(intent, "family", "") or "").strip()
+            )
+            if family and family != "none" and family not in ordered_requested_families:
+                ordered_requested_families.append(family)
+        completed_families: set[str] = set()
+        has_fetch_url_in_toolset = any(
+            t.name == "fetch_url"
+            for t in (getattr(self.prep, "all_tools", None) or tools_full)
         )
 
         # ---- Confirmation interception ---- / 确认拦截
@@ -666,19 +980,32 @@ class StreamExecutionHandler:
             _follow_up_message = processor.build_attachment_relay_message(_result)
             if _follow_up_message:
                 messages.append(_follow_up_message)
+            self._state.register_tool_results(
+                messages=messages,
+                tool_results=[_result],
+            )
+            self._register_tool_failures([_result])
 
         _consecutive_page_op_failures = 0
         _consecutive_data_op_failures = 0
         _page_op_aborted = False
         PAGE_OP_ABORT_THRESHOLD = 3
 
-        for _round in range(MAX_TOOL_CALL_ROUNDS):
+        round_limit = self._tool_loop_round_limit(tools_full)
+
+        for _round in range(round_limit):
+            pre_model_reason = BudgetGuard.pre_model_reason(self._state.budget)
+            if pre_model_reason:
+                self._register_budget_exit(pre_model_reason)
+                break
+            self._interrupted_stage = f"tool_loop_round_{_round + 1}:llm"
             round_output = ""
             round_reasoning_output = ""
             round_visible_thinking = ""
             round_tool_calls: list[dict[str, Any]] = []
+            round_tool_results: list[ToolResult] = []
             round_total_tokens = 0
-            round_thinking_events: list[str] = []
+            round_output_tokens = 0
             round_message_events: list[str] = []
             self._output = ""
             self._reasoning_output = ""
@@ -690,12 +1017,7 @@ class StreamExecutionHandler:
                 messages.append(
                     ChatMessage(
                         role="system",
-                        content=(
-                            "[WEB RESEARCH] You already have successful web_search results in "
-                            "the conversation. You MUST call fetch_url with at least one "
-                            "candidate URL from those results before writing a final summary. "
-                            "Do not issue more web_search calls until fetch_url has been attempted."
-                        ),
+                        content=render_prompt_contract("fetch_url_gate"),
                     )
                 )
                 self._fetch_gate_message_sent = True
@@ -705,6 +1027,12 @@ class StreamExecutionHandler:
                 tools_full,
                 getattr(self.prep, "all_tools", None) or tools_full,
             )
+            restrict_tools = getattr(self.engine, "_restrict_tools_to_names", None)
+            if callable(restrict_tools):
+                round_tools = restrict_tools(
+                    round_tools,
+                    forced_tool_names,
+                )
             processor.tools = round_tools
 
             _req_role = getattr(
@@ -748,13 +1076,11 @@ class StreamExecutionHandler:
                     round_reasoning_output += chunk.reasoning_delta
                     round_visible_thinking += chunk.reasoning_delta
                     self._reasoning_output = round_reasoning_output
-                    round_thinking_events.append(
-                        SSEChunkEncoder.encode(
-                            {
-                                "event": "thinking",
-                                "delta": chunk.reasoning_delta,
-                            }
-                        )
+                    yield SSEChunkEncoder.encode(
+                        {
+                            "event": "thinking",
+                            "delta": chunk.reasoning_delta,
+                        }
                     )
 
                 if chunk.delta:
@@ -778,74 +1104,87 @@ class StreamExecutionHandler:
 
                 if chunk.total_tokens is not None:
                     round_total_tokens = chunk.total_tokens
+                if chunk.output_tokens is not None:
+                    round_output_tokens = chunk.output_tokens
 
             next_runtime_context = None
 
             self._total_tokens += round_total_tokens
+            self._completion_tokens_used += int(round_output_tokens or round_total_tokens)
+            completion_reason = BudgetGuard.completion_reason(
+                self._state.budget,
+                completion_tokens=self._completion_tokens_used,
+                total_tokens=self._total_tokens,
+            )
             tc_list = self._finalize_stream_tool_calls(round_tool_calls)
+            tc_list, truncated_after_navigation = (
+                self.engine._truncate_tool_calls_after_navigation(tc_list)
+            )
+            if completion_reason:
+                self._state.register_completion_tokens(self._completion_tokens_used)
+                self._register_budget_exit(completion_reason)
+                for event in round_message_events:
+                    yield event
+                self._output = round_output
+                self._reasoning_output = round_reasoning_output
+                break
+            if truncated_after_navigation:
+                logger.info(
+                    "Truncated streamed assistant tool call batch after navigation op to avoid stale page follow-up calls: {}",
+                    [
+                        str((tc.get("function") or {}).get("name") or tc.get("name") or "")
+                        for tc in tc_list
+                    ],
+                )
 
             if not tc_list:
-                denial_response = ChatResponse(
-                    message=ChatMessage(role="assistant", content=round_output),
+                denial_response = self._build_text_round_response(
+                    content=round_output,
+                    reasoning_content=round_reasoning_output,
                     total_tokens=round_total_tokens,
                 )
-                breach_type = "stream_capability_denial_or_no_tool_use"
-                should_retry, retry_policy, generic_breach_preview = (
-                    self.engine._should_retry_tool_contract_breach(
-                        response=denial_response,
-                        current_policy=round_tool_policy,
-                        tools=tools_full,
-                        input_variables=getattr(self.request, "input_variables", None),
-                    )
+                self._state.register_completion_tokens(self._completion_tokens_used)
+                decision = RecoveryManager.decide(
+                    self._state.intent_plan,
+                    budget=self._state.budget,
+                    provider_failure_kind=self._state.provider_failure_kind,
                 )
-                del generic_breach_preview
-                if not should_retry:
-                    should_retry, retry_policy, web_breach_preview = (
-                        self.engine._should_retry_web_research_contract_breach(
-                            messages=messages,
-                            response=denial_response,
-                            current_policy=round_tool_policy,
-                            tools=tools_full,
-                            input_variables=getattr(
-                                self.request, "input_variables", None
-                            ),
-                            continuation=continuation_context,
-                        )
-                    )
-                    del web_breach_preview
-                    if should_retry:
-                        breach_type = "web_research_summary_without_fetch"
-                if not should_retry:
-                    breach_type, retry_policy, breach_diagnostics = (
+                if decision is not None and decision.action == "retry_intent":
+                    analyzed_breach_type, analyzed_retry_policy, _analyzed_diagnostics = (
                         self.engine._analyze_post_tool_contract_breach(
                             messages=messages,
                             response=denial_response,
                             current_policy=round_tool_policy,
-                            tools=tools_full,
+                            tools=getattr(self.prep, "all_tools", None) or tools_full,
                             input_variables=getattr(
-                                self.request, "input_variables", None
+                                self.request,
+                                "input_variables",
+                                None,
                             ),
                         )
                     )
-                    should_retry = breach_type is not None and retry_policy is not None
-                    if should_retry:
-                        self._contract_breach_type = breach_type
-                        self._contract_breach_diagnostics = breach_diagnostics
-                        self._contract_policy = retry_policy
-                        self._contract_tools_snapshot = list(tools_full)
-                force_retry_on_breach = breach_type in {
-                    "web_research_summary_without_fetch",
-                    "leaked_textual_tool_call",
-                    "unfinished_multi_intent_reply",
-                }
-                retry_blocked = (
-                    should_retry
-                    and retry_policy is not None
-                    and not round_tool_policy.retry_on_contract_breach
-                    and round_tool_policy.mode != "required"
-                    and not force_retry_on_breach
-                )
-                if retry_blocked:
+                    del analyzed_breach_type, _analyzed_diagnostics
+                    retry_reason = (
+                        analyzed_retry_policy.reason
+                        if analyzed_retry_policy is not None
+                        else (
+                            "web_research_summary_without_fetch"
+                            if (
+                                decision.retry_family == "web_research"
+                                and self.engine._needs_fetch_url_before_summary(messages)
+                            )
+                            else decision.reason
+                        )
+                    )
+                    retry_policy = ToolUsePolicy(
+                        family=decision.retry_family
+                        or getattr(self.prep, "tool_use_policy", ToolUsePolicy()).family,
+                        mode="required",
+                        allowed_tool_names=decision.allowed_tool_names
+                        or [tool.name for tool in tools_full],
+                        retry_on_contract_breach=False,
+                        reason=retry_reason,
+                    )
                     self.engine._log_tool_contract_diagnostics(
                         agent=self.agent,
                         messages=messages,
@@ -853,81 +1192,69 @@ class StreamExecutionHandler:
                         tools=tools_full,
                         policy=retry_policy,
                         conversation_id=self.request.conversation_id,
-                        breach_type=breach_type,
-                        retry_result="no_retry",
-                        continuation=continuation_context,
-                    )
-                elif (
-                    should_retry
-                    and retry_policy is not None
-                    and (
-                        round_tool_policy.retry_on_contract_breach
-                        or force_retry_on_breach
-                    )
-                ):
-                    self.engine._log_tool_contract_diagnostics(
-                        agent=self.agent,
-                        messages=messages,
-                        response=denial_response,
-                        tools=tools_full,
-                        policy=retry_policy,
-                        conversation_id=self.request.conversation_id,
-                        breach_type=breach_type,
+                        breach_type="stream_capability_denial_or_no_tool_use",
                         retry_result="retrying",
                         continuation=continuation_context,
                     )
-                    tools_full = self.engine._filter_tools_for_policy(
-                        getattr(self.prep, "all_tools", None) or tools_full,
-                        retry_policy,
-                    )
-                    round_tool_policy = retry_policy
-                    if breach_type in {
-                        "leaked_textual_tool_call",
-                        "unfinished_multi_intent_reply",
-                    }:
-                        messages.append(
-                            self.engine._build_contract_recovery_system_message(
-                                breach_type=breach_type,
-                                diagnostics=self._contract_breach_diagnostics,
-                            )
+                    self._state.register_retry(decision)
+                    messages.append(
+                        RecoveryManager.build_recovery_message(
+                            decision=decision,
+                            intents=self._state.intent_plan,
                         )
+                    )
+                    retry_tools = self.engine._restrict_tools_to_names(
+                        getattr(self.prep, "all_tools", None) or tools_full,
+                        decision.allowed_tool_names,
+                    )
+                    tools_full = list(retry_tools or tools_full)
+                    round_tool_policy = retry_policy
+                    forced_tool_names = (
+                        list(decision.allowed_tool_names)
+                        if decision.allowed_tool_names
+                        else forced_tool_names
+                    )
+                    self._update_turn_progress(
+                        tool_loop_progress={
+                            "retry_intent": decision.target_intent_id,
+                            "retry_allowed_tools": list(decision.allowed_tool_names),
+                        }
+                    )
                     next_runtime_context = None
                     continue
-
-                if should_retry and retry_policy is not None and not retry_blocked:
+                if round_tool_policy.mode == "required" and self._state.recovery_history:
                     self.engine._log_tool_contract_diagnostics(
                         agent=self.agent,
                         messages=messages,
                         response=denial_response,
                         tools=tools_full,
-                        policy=retry_policy,
+                        policy=round_tool_policy,
                         conversation_id=self.request.conversation_id,
-                        breach_type=breach_type,
+                        breach_type="stream_capability_denial_or_no_tool_use",
                         retry_result="failed",
                         continuation=continuation_context,
                     )
-                else:
-                    self.engine._log_web_research_contract_diagnostics(
-                        agent=self.agent,
-                        messages=messages,
-                        response=denial_response,
-                        tools=tools_full,
-                        continuation=continuation_context,
-                        conversation_id=self.request.conversation_id,
-                    )
 
-                for event in round_thinking_events:
-                    yield event
                 for event in round_message_events:
                     yield event
                 self._output = round_output
                 self._reasoning_output = round_reasoning_output
                 break
 
-            for event in round_thinking_events:
-                yield event
             for event in round_message_events:
                 yield event
+            tool_round_reason = BudgetGuard.tool_round_reason(
+                self._state.budget,
+                next_rounds_used=(
+                    int(getattr(self._state.budget, "tool_rounds_used", 0) or 0) + 1
+                    if self._state.budget is not None
+                    else 1
+                ),
+            )
+            if tool_round_reason:
+                self._register_budget_exit(tool_round_reason)
+                break
+            self._state.register_tool_round()
             messages.append(
                 processor.build_assistant_tool_call_message(
                     content=round_output,
@@ -942,9 +1269,9 @@ class StreamExecutionHandler:
                 self.engine._log_tool_contract_diagnostics(
                     agent=self.agent,
                     messages=messages,
-                    response=ChatResponse(
-                        message=ChatMessage(role="assistant", content=round_output),
-                        tool_calls=tc_list,
+                    response=self._build_text_round_response(
+                        content=round_output,
+                        reasoning_content="",
                         total_tokens=round_total_tokens,
                     ),
                     tools=tools_full,
@@ -963,8 +1290,25 @@ class StreamExecutionHandler:
                 tc_id = tc.get("id", "")
                 func = tc.get("function", {})
                 func_name = func.get("name", "")
+                operation_name = self.engine._tool_call_operation_name(tc)
                 raw_args = func.get("arguments", "{}")
                 arguments, parse_error = processor.parse_arguments(raw_args)
+                self._interrupted_stage = (
+                    f"tool_loop_round_{_round + 1}:tool:{func_name or 'unknown'}"
+                )
+                self._update_turn_progress(
+                    last_tool_name=func_name or None,
+                    last_page_op=operation_name or None,
+                    tool_loop_progress={
+                        "round": _round + 1,
+                        "last_round_tool_names": [
+                            self.engine._tool_call_name(item)
+                            for item in tc_list
+                            if isinstance(item, dict)
+                            and self.engine._tool_call_name(item)
+                        ],
+                    },
+                )
 
                 # JSON parse failure: do not execute, push error result instead / JSON 解析失败：不执行，推送错误结果
                 # Parse error 也纳入连续 pageop/invoke 失败计数，达阈值后熔断
@@ -1007,6 +1351,12 @@ class StreamExecutionHandler:
                         ),
                     )
                     messages.append(processor.build_tool_message(err_result, tc_id))
+                    round_tool_results.append(err_result)
+                    self._update_turn_progress(
+                        interrupted_stage=(
+                            f"tool_loop_round_{_round + 1}:parse_error:{func_name or 'unknown'}"
+                        ),
+                    )
 
                     # Count parse error as page op failure (circuit breaking) / parse error 计入页面操作失败以触发熔断
                     _is_page_op = func_name == "invoke_page_operation" or (
@@ -1089,7 +1439,17 @@ class StreamExecutionHandler:
                     arguments,
                     conversation_id=self.request.conversation_id or 0,
                 )
+                if result.success:
+                    self.engine._mark_multi_family_progress(
+                        func_name=func_name,
+                        success=True,
+                        ordered_requested_families=ordered_requested_families,
+                        completed_families=completed_families,
+                        has_fetch_url_in_toolset=has_fetch_url_in_toolset,
+                        input_variables=getattr(self.request, "input_variables", None),
+                    )
                 all_tool_results.append(result)
+                round_tool_results.append(result)
                 processor.annotate_tool_call(
                     tc,
                     duration_ms=tc_duration,
@@ -1097,7 +1457,7 @@ class StreamExecutionHandler:
                     skill_info=_skill_info,
                 )
 
-                # Track consecutive page operation failures; abort to stop apology loops / 上文为英文说明 / English above
+                # Track consecutive page op failures; abort to avoid apology loops / 连续页面操作失败则中止，避免道歉循环
                 _is_page_op = func_name == "invoke_page_operation" or (
                     func_name.startswith("pageop_") if func_name else False
                 )
@@ -1150,8 +1510,24 @@ class StreamExecutionHandler:
                 _follow_up_message = processor.build_attachment_relay_message(result)
                 if _follow_up_message:
                     follow_up_messages.append(_follow_up_message)
+                self._state.register_tool_results(
+                    messages=messages,
+                    tool_results=[result],
+                )
+                self._register_tool_failures([result])
+                tool_result_budget_reason = self._state.budget_exit_reason()
+                if tool_result_budget_reason:
+                    self._register_budget_exit(tool_result_budget_reason)
+                self._update_turn_progress(
+                    last_tool_name=func_name or None,
+                    last_page_op=operation_name or None,
+                    tool_loop_progress={
+                        "round": _round + 1,
+                        "last_tool_success": bool(result.success),
+                    },
+                )
 
-                if _page_op_aborted:
+                if _page_op_aborted or self._state.provider_failure_kind == "budget_exit":
                     break
 
             if (
@@ -1160,6 +1536,50 @@ class StreamExecutionHandler:
                 and not _page_op_aborted
             ):
                 messages.extend(follow_up_messages)
+
+            recovery_hint, recovery_tool_names, recovery_diagnostics = (
+                self.engine._build_page_no_progress_recovery(
+                    messages=messages,
+                    tool_calls=tc_list,
+                    tool_results=round_tool_results,
+                    tools=getattr(self.prep, "all_tools", None) or tools_full,
+                    input_variables=getattr(self.request, "input_variables", None),
+                )
+            )
+            if recovery_hint and not round_has_confirmation and not _page_op_aborted:
+                forced_tool_names = recovery_tool_names
+                messages.append(ChatMessage(role="system", content=recovery_hint))
+                self._update_turn_progress(
+                    last_page_key=recovery_diagnostics.get("current_page_key"),
+                    tool_loop_progress={
+                        "page_recovery_reason": recovery_diagnostics.get("reason"),
+                        "forced_tool_names": recovery_tool_names,
+                    }
+                )
+                logger.info(
+                    "Injected streamed page-flow recovery hint after no-progress page round: conversation_id={} diagnostics={}",
+                    self.request.conversation_id,
+                    recovery_diagnostics,
+                )
+            elif len(ordered_requested_families) > 1:
+                if not self.engine._messages_have_blocking_pending_interaction(
+                    messages
+                ):
+                    focus = self.engine._first_incomplete_requested_family(
+                        ordered_requested_families,
+                        completed_families,
+                    )
+                    forced_tool_names = (
+                        None
+                        if focus is None
+                        else self.engine._allowed_tool_names_for_family(
+                            focus,
+                            getattr(self.prep, "all_tools", None) or tools_full,
+                            getattr(self.request, "input_variables", None),
+                        )
+                    )
+            elif forced_tool_names:
+                forced_tool_names = None
 
             executed_web_research_round = (
                 round_tool_policy.family == "web_research"
@@ -1170,21 +1590,16 @@ class StreamExecutionHandler:
                     if isinstance(tc, dict)
                 )
             )
+            if self._state.provider_failure_kind == "budget_exit":
+                break
+
             if executed_web_research_round:
                 round_tool_policy = ToolUsePolicy(
                     family="web_research",
                     mode="required",
                     allowed_tool_names=[tool.name for tool in tools_full],
-                    retry_on_contract_breach=not round_tool_policy.reason.startswith(
-                        "web_research_summary_without_fetch"
-                    ),
-                    reason=(
-                        "post_tool_web_research_after_retry"
-                        if round_tool_policy.reason.startswith(
-                            "web_research_summary_without_fetch"
-                        )
-                        else "post_tool_web_research"
-                    ),
+                    retry_on_contract_breach=False,
+                    reason="post_tool_web_research",
                 )
             else:
                 round_tool_policy = ToolUsePolicy(
@@ -1199,57 +1614,18 @@ class StreamExecutionHandler:
                 if round_has_confirmation:
                     self._output = round_output.strip()
                     self._reasoning_output = round_reasoning_output.strip()
-                    # The current round already has assistant(tool_calls) content; / 上文为英文说明 / English above
-                    # do not append a second plain assistant copy into history.
+                    # Round already has assistant(tool_calls); do not duplicate plain assistant / 本轮已有 tool_calls，勿再追加纯文本 assistant
                     append_final_assistant = False
                 break
         else:
             logger.warning(
                 "Tool call rounds exceeded max: conversation={} max_rounds={}",
                 self.request.conversation_id,
-                MAX_TOOL_CALL_ROUNDS,
+                round_limit,
             )
-            _req_role = getattr(
-                self.request,
-                "user_role",
-                UserRoleEnum.TENANT_ADMIN.value,
-            )
-            final_round_output = ""
-            final_round_reasoning = ""
-            async for chunk in self.engine._stream_llm_chunks(
-                agent=self.agent,
-                messages=messages,
-                tenant_id=self.request.tenant_id,
-                conversation_id=self.request.conversation_id,
-                route_result=self.prep.route_result,
-                tools=None,
-                user_id=getattr(self.request, "user_id", None),
-                billing_context=getattr(self.request, "billing_context", None),
-                log_user_type=log_user_type_for_call_log(_req_role),
-                all_tool_names=[],
-            ):
-                if self._runtime_model_info is None and isinstance(
-                    getattr(chunk, "metadata", None), dict
-                ):
-                    self._runtime_model_info = chunk.metadata.get(
-                        "runtime_model_info",
-                    )
-                if chunk.reasoning_delta:
-                    final_round_reasoning += chunk.reasoning_delta
-                    yield SSEChunkEncoder.encode(
-                        {"event": "thinking", "delta": chunk.reasoning_delta}
-                    )
-                if chunk.delta:
-                    final_round_output += chunk.delta
-                    yield SSEChunkEncoder.encode(
-                        {"event": "message", "delta": chunk.delta}
-                    )
-                if chunk.total_tokens is not None:
-                    self._total_tokens += chunk.total_tokens
-            self._output = final_round_output
-            self._reasoning_output = final_round_reasoning
+            self._register_budget_exit("tool_round_budget_exceeded")
 
-        if append_final_assistant:
+        if append_final_assistant and (self._output or "").strip():
             final_output, final_action_buttons = self._extract_action_buttons(
                 self._output
             )
@@ -1420,10 +1796,8 @@ class StreamExecutionHandler:
     # Action Buttons Parsing / Action Buttons 解析
     # ========================================
 
-    _ACTION_BUTTONS_RE = re.compile(
-        r"\[ACTIONS\](.*?)\[/ACTIONS\]",
-        re.DOTALL,
-    )
+    _ACTION_START = "[ACTIONS]"
+    _ACTION_END = "[/ACTIONS]"
 
     @staticmethod
     def _extract_action_buttons(
@@ -1442,11 +1816,20 @@ class StreamExecutionHandler:
             (cleaned_output, buttons) — Cleaned output and button list (None if no buttons)
             清理后的输出和按钮列表（无按钮时为 None）
         """
-        match = StreamExecutionHandler._ACTION_BUTTONS_RE.search(output)
-        if not match:
+        start_idx = output.find(StreamExecutionHandler._ACTION_START)
+        if start_idx < 0:
             return output, None
 
-        raw = match.group(1).strip()
+        end_idx = output.find(
+            StreamExecutionHandler._ACTION_END,
+            start_idx + len(StreamExecutionHandler._ACTION_START),
+        )
+        if end_idx < 0:
+            return output, None
+
+        raw = output[
+            start_idx + len(StreamExecutionHandler._ACTION_START) : end_idx
+        ].strip()
         try:
             buttons = json.loads(raw)
             if not isinstance(buttons, list):
@@ -1469,9 +1852,9 @@ class StreamExecutionHandler:
             if not valid_buttons:
                 return output, None
             # Remove markers from output / 从输出中移除标记
-            cleaned = StreamExecutionHandler._ACTION_BUTTONS_RE.sub(
-                "",
-                output,
+            cleaned = (
+                output[:start_idx]
+                + output[end_idx + len(StreamExecutionHandler._ACTION_END) :]
             ).strip()
             return cleaned, valid_buttons
         except (json.JSONDecodeError, TypeError, ValueError):

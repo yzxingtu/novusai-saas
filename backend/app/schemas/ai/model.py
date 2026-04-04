@@ -158,6 +158,9 @@ class AIModelResponse(BaseResponseSchema):
     provider_name: str | None = Field(
         None, description=_("enum.ai_model.provider_name")
     )
+    provider_type: str | None = Field(
+        None, description=_("enum.ai_model.provider_type")
+    )
     provider_icon: str | None = Field(
         None, description=_("enum.ai_model.provider_icon")
     )

@@ -30,6 +30,7 @@ _cache_get = mod._cache_get
 _cache_set = mod._cache_set
 _expand_city_queries = mod._expand_city_queries
 _rank_city_candidate = mod._rank_city_candidate
+_NOMINATIM_TIMEOUT = mod._NOMINATIM_TIMEOUT
 
 
 # ── WMO Code 映射测试 ──
@@ -73,6 +74,9 @@ class TestWmoCodeMapping:
     def test_describe_exception_uses_repr_for_blank_connect_error(self):
         summary = mod._describe_exception(httpx.ConnectError(""))
         assert "ConnectError" in summary
+
+    def test_nominatim_timeout_allows_more_headroom(self):
+        assert _NOMINATIM_TIMEOUT == 10.0
 
 
 # ── 缓存测试 / cache tests ──

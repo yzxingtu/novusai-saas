@@ -80,7 +80,7 @@ class TestCreateModel:
         service = AIModelService.__new__(AIModelService)
         service.db = mock_db
         service.repo = AsyncMock()
-        service.repo.code_exists = AsyncMock(return_value=False)
+        service.repo.code_exists_for_provider = AsyncMock(return_value=False)
 
         with patch.object(module, "AIModel", _FakeModel):
             model_obj = await service.create_model(
@@ -104,7 +104,7 @@ class TestCreateModel:
         service = AIModelService.__new__(AIModelService)
         service.db = mock_db
         service.repo = AsyncMock()
-        service.repo.code_exists = AsyncMock(return_value=True)
+        service.repo.code_exists_for_provider = AsyncMock(return_value=True)
 
         with pytest.raises(ConflictException):
             await service.create_model(
@@ -128,7 +128,7 @@ class TestUpdateModel:
         service.db = mock_db
         service.repo = AsyncMock()
         service.get_by_id = AsyncMock(return_value=existing)
-        service.repo.code_exists = AsyncMock(return_value=False)
+        service.repo.code_exists_for_provider = AsyncMock(return_value=False)
 
         result = await service.update_model(7, AIModelUpdate(name="New Name"))
 
@@ -147,6 +147,77 @@ class TestUpdateModel:
 
         with pytest.raises(NotFoundException):
             await service.update_model(7, AIModelUpdate(name="New Name"))
+
+    @pytest.mark.asyncio
+    async def test_update_model_checks_code_uniqueness_with_provider_scope(
+        self, mock_db
+    ):
+        from app.services.ai.model_service import AIModelService
+
+        existing = _FakeModel(id=7, provider_id=2, code="gpt-5.4", name="Old Name")
+        service = AIModelService.__new__(AIModelService)
+        service.db = mock_db
+        service.repo = AsyncMock()
+        service.get_by_id = AsyncMock(return_value=existing)
+        service.repo.code_exists_for_provider = AsyncMock(return_value=False)
+
+        await service.update_model(
+            7,
+            AIModelUpdate(provider_id=3, code="gpt-5.4-pro"),
+        )
+
+        service.repo.code_exists_for_provider.assert_awaited_once_with(
+            "gpt-5.4-pro",
+            3,
+            exclude_id=7,
+        )
+
+    @pytest.mark.asyncio
+    async def test_create_model_preserves_reasoning_effort_in_config(self, mock_db):
+        from app.services.ai import model_service as module
+        from app.services.ai.model_service import AIModelService
+
+        service = AIModelService.__new__(AIModelService)
+        service.db = mock_db
+        service.repo = AsyncMock()
+        service.repo.code_exists_for_provider = AsyncMock(return_value=False)
+
+        with patch.object(module, "AIModel", _FakeModel):
+            model_obj = await service.create_model(
+                AIModelCreate(
+                    provider_id=1,
+                    name="GPT-5.4",
+                    code="gpt-5.4",
+                    type="chat",
+                    config={"reasoning": {"effort": "xhigh"}},
+                )
+            )
+
+        assert model_obj.config == {"reasoning": {"effort": "xhigh"}}
+
+    @pytest.mark.asyncio
+    async def test_update_model_preserves_reasoning_effort_in_config(self, mock_db):
+        from app.services.ai.model_service import AIModelService
+
+        existing = _FakeModel(
+            id=7,
+            provider_id=2,
+            code="gpt-5.4",
+            name="GPT-5.4",
+            config={"reasoning": {"effort": "medium"}},
+        )
+        service = AIModelService.__new__(AIModelService)
+        service.db = mock_db
+        service.repo = AsyncMock()
+        service.get_by_id = AsyncMock(return_value=existing)
+        service.repo.code_exists_for_provider = AsyncMock(return_value=False)
+
+        result = await service.update_model(
+            7,
+            AIModelUpdate(config={"reasoning": {"effort": "xhigh"}}),
+        )
+
+        assert result.config == {"reasoning": {"effort": "xhigh"}}
 
 
 class TestDeleteModel:

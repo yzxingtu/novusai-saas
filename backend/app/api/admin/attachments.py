@@ -6,8 +6,15 @@ Provides cross-tenant attachment management endpoints (platform admin only).
 """
 
 from fastapi import File, Form, Query, Request, UploadFile
-from fastapi.responses import RedirectResponse
 
+from app.api.shared._attachment_helpers import (
+    build_attachment_access_payload,
+    build_attachment_delivery_response,
+    normalize_attachment_hash,
+    resolve_attachment_default_visibility,
+    resolve_attachment_upload_rules,
+    with_attachment_preview_url,
+)
 from app.configs.service import PLATFORM_TENANT_ID, ConfigService
 from app.core.base_controller import GlobalController
 from app.core.base_schema import PageResponse
@@ -39,16 +46,6 @@ from app.schemas.tenant.attachment import (
 )
 from app.services.system.attachment_service import AdminAttachmentService
 from app.services.tenant.attachment_download_service import AttachmentDownloadService
-
-
-def _with_preview_url(data: dict) -> dict:
-    """为序列化后的附件字典注入 preview_url / Inject preview_url into serialized attachment dict."""
-    data["preview_url"] = AttachmentDownloadService.build_preview_url(
-        attachment_id=data["id"],
-        tenant_id=data.get("tenant_id", PLATFORM_TENANT_ID),
-        visibility=data.get("visibility", "private"),
-    )
-    return data
 
 
 @permission_resource(
@@ -95,27 +92,8 @@ class AdminAttachmentController(GlobalController):
 
             权限 / Permission: attachment:upload_rules
             """
-            from app.configs.service import ConfigService
-
             config_service = ConfigService(db)
-
-            allowed = await config_service.get_platform_config(
-                "platform_storage_allowed_extensions", default=""
-            )
-            denied = await config_service.get_platform_config(
-                "platform_storage_denied_extensions", default=""
-            )
-            max_size = await config_service.get_platform_config(
-                "platform_storage_max_file_size_mb", default=100
-            )
-
-            return success(
-                data={
-                    "allowed_extensions": str(allowed) if allowed else "",
-                    "denied_extensions": str(denied) if denied else "",
-                    "max_file_size_mb": int(max_size) if max_size else 100,
-                }
-            )
+            return success(data=await resolve_attachment_upload_rules(config_service))
 
         # ========== 预检接口（秒传） / Preflight (Instant Upload) ==========
 
@@ -142,14 +120,10 @@ class AdminAttachmentController(GlobalController):
 
             权限 / Permission: attachment:upload
             """
-            raw_hash = body.hash
-            if raw_hash.startswith("sha256:"):
-                raw_hash = raw_hash[7:]
-
             service = AdminAttachmentService(db)
             result = await service.preflight_check(
                 tenant_id=tenant_id,
-                file_hash=raw_hash,
+                file_hash=normalize_attachment_hash(body.hash),
                 filename=body.filename,
                 size=body.size,
                 visibility=AttachmentVisibility(body.visibility),
@@ -201,9 +175,7 @@ class AdminAttachmentController(GlobalController):
             # 未指定 visibility 时使用平台配置的默认值 / Use platform default when visibility not specified
             if not visibility:
                 config_svc = ConfigService(db)
-                visibility = await config_svc.get_platform_config(
-                    "platform_storage_default_visibility", default="private"
-                )
+                visibility = await resolve_attachment_default_visibility(config_svc)
             service = AdminAttachmentService(db)
             result = await service.upload_file(
                 tenant_id=tenant_id,
@@ -259,9 +231,7 @@ class AdminAttachmentController(GlobalController):
                 files = files[:20]
             if not visibility:
                 config_svc = ConfigService(db)
-                visibility = await config_svc.get_platform_config(
-                    "platform_storage_default_visibility", default="private"
-                )
+                visibility = await resolve_attachment_default_visibility(config_svc)
             service = AdminAttachmentService(db)
             items: list[BatchUploadItem] = []
             for f in files:
@@ -535,10 +505,11 @@ class AdminAttachmentController(GlobalController):
             service = AdminAttachmentService(db)
             items, total = await service.query_list(spec, scope="admin")
             serialized = [
-                _with_preview_url(
+                with_attachment_preview_url(
                     AttachmentListItem.model_validate(
                         item, from_attributes=True
-                    ).model_dump()
+                    ).model_dump(),
+                    tenant_id=None,
                 )
                 for item in items
             ]
@@ -569,10 +540,11 @@ class AdminAttachmentController(GlobalController):
             attachment = await service.get_by_id(attachment_id)
             if not attachment:
                 raise NotFoundException(message=_("error.common.not_found"))
-            data = _with_preview_url(
+            data = with_attachment_preview_url(
                 AttachmentResponse.model_validate(
                     attachment, from_attributes=True
-                ).model_dump()
+                ).model_dump(),
+                tenant_id=None,
             )
             return success(
                 data=data,
@@ -613,9 +585,11 @@ class AdminAttachmentController(GlobalController):
             """
             # 平台端不做企业隔离，传入 None / Platform doesn't enforce tenant isolation, pass None
             service = AttachmentDownloadService(db, tenant_id=None)
-            attachment = await service.get_attachment(attachment_id)
-            data = await service.build_access_url(
-                attachment, expires=expires, preview=False
+            data = await build_attachment_access_payload(
+                service,
+                attachment_id=attachment_id,
+                expires=expires,
+                preview=False,
             )
             return success(
                 data=AttachmentAccessUrlResponse(**data), message=_("common.success")
@@ -635,9 +609,11 @@ class AdminAttachmentController(GlobalController):
             权限 / Permission: attachment:preview_url
             """
             service = AttachmentDownloadService(db, tenant_id=None)
-            attachment = await service.get_attachment(attachment_id)
-            data = await service.build_access_url(
-                attachment, expires=expires, preview=True
+            data = await build_attachment_access_payload(
+                service,
+                attachment_id=attachment_id,
+                expires=expires,
+                preview=True,
             )
             return success(
                 data=AttachmentAccessUrlResponse(**data), message=_("common.success")
@@ -657,14 +633,12 @@ class AdminAttachmentController(GlobalController):
             权限 / Permission: attachment:download
             """
             service = AttachmentDownloadService(db, tenant_id=None)
-            attachment = await service.get_attachment(attachment_id)
-            if attachment.driver == "local":
-                await service.record_download(attachment)
-                return await service.get_download_response(attachment, preview=False)
-            url = await service.get_redirect_url(
-                attachment, expires=expires, preview=False
+            return await build_attachment_delivery_response(
+                service,
+                attachment_id=attachment_id,
+                expires=expires,
+                preview=False,
             )
-            return RedirectResponse(url=url)
 
         @router.get("/{attachment_id}/preview", summary="预览附件")
         @action_read("action.attachment.preview")
@@ -680,14 +654,12 @@ class AdminAttachmentController(GlobalController):
             权限 / Permission: attachment:preview
             """
             service = AttachmentDownloadService(db, tenant_id=None)
-            attachment = await service.get_attachment(attachment_id)
-            if attachment.driver == "local":
-                await service.record_download(attachment)
-                return await service.get_download_response(attachment, preview=True)
-            url = await service.get_redirect_url(
-                attachment, expires=expires, preview=True
+            return await build_attachment_delivery_response(
+                service,
+                attachment_id=attachment_id,
+                expires=expires,
+                preview=True,
             )
-            return RedirectResponse(url=url)
 
 
 router = AdminAttachmentController.get_router()

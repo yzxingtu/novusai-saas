@@ -5,13 +5,17 @@
 import re
 import shutil
 import tempfile
+from datetime import timedelta
 from pathlib import Path
 
-from fastapi import File, Response, UploadFile
+from fastapi import File, Form, Response, UploadFile
+from jose import ExpiredSignatureError, JWTError, jwt
 from pydantic import BaseModel as PydanticBaseModel
 from pydantic import ConfigDict, Field
 
+from app.core.base_model import utc_now
 from app.core.base_controller import GlobalController
+from app.core.config import settings
 from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.logging import LogManager
@@ -25,6 +29,7 @@ from app.core.response import (
 )
 from app.enums.rbac import PermissionScope
 from app.rbac.decorators import (
+    MenuAIConfig,
     MenuConfig,
     action_create,
     action_delete,
@@ -37,6 +42,9 @@ from app.services.system.plugin_service import PluginService
 
 _SLUG_PATTERN = re.compile(r"^[a-z0-9][a-z0-9\-]*$")
 logger = LogManager.get_logger("plugin.admin")
+
+_INSTALL_PREVIEW_TOKEN_TYPE = "plugin_install_preview"
+_INSTALL_PREVIEW_TOKEN_EXPIRE_SECONDS = 15 * 60
 
 
 def _sanitize_slug(slug: str) -> None:
@@ -55,6 +63,11 @@ _SEMVER_PATTERN = re.compile(r"^\d+\.\d+\.\d+(?:-[\w.]+)?(?:\+[\w.]+)?$")
 
 class PluginConfigBody(PydanticBaseModel):
     config: dict = Field(default_factory=dict, max_length=65536)
+
+
+class PluginInstallConfirmBody(PydanticBaseModel):
+    config: dict = Field(default_factory=dict, max_length=65536)
+    preview_token: str = Field(default="", max_length=4096)
 
 
 class PluginCapabilitiesBody(PydanticBaseModel):
@@ -93,6 +106,104 @@ class MenuOverrideItem(PydanticBaseModel):
     )
 
 
+def _assert_marketplace_package_identity(
+    *,
+    slug: str,
+    detail: dict,
+    manifest,
+) -> None:
+    from app.plugins.exceptions import PluginInstallError
+
+    expected_name = str(detail.get("name") or slug)
+    expected_version = detail.get("version")
+
+    if manifest.name != expected_name:
+        raise PluginInstallError(
+            message=(
+                f"Marketplace package mismatch for '{slug}': expected plugin "
+                f"'{expected_name}', got '{manifest.name}'"
+            ),
+        )
+
+    if expected_version and manifest.version != expected_version:
+        raise PluginInstallError(
+            message=(
+                f"Marketplace package version mismatch for '{slug}': expected "
+                f"'{expected_version}', got '{manifest.version}'"
+            ),
+        )
+
+
+def _create_install_preview_token(
+    *,
+    source: str,
+    plugin_name: str,
+    version: str,
+    admin_id: int | None,
+    marketplace_slug: str | None = None,
+) -> str:
+    issued_at = utc_now()
+    payload = {
+        "sub": f"plugin-preview:{source}:{plugin_name}",
+        "type": _INSTALL_PREVIEW_TOKEN_TYPE,
+        "source": source,
+        "plugin_name": plugin_name,
+        "version": version,
+        "iat": issued_at,
+        "exp": issued_at + timedelta(seconds=_INSTALL_PREVIEW_TOKEN_EXPIRE_SECONDS),
+    }
+    if admin_id is not None:
+        payload["admin_id"] = int(admin_id)
+    if marketplace_slug:
+        payload["marketplace_slug"] = marketplace_slug
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+def _decode_install_preview_token(token: str) -> dict:
+    from app.exceptions.base import ValidationException
+
+    if not token:
+        raise ValidationException(message=_("plugin.error.install_preview_required"))
+
+    try:
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+        )
+    except ExpiredSignatureError as exc:
+        raise ValidationException(message=_("plugin.error.install_preview_expired")) from exc
+    except JWTError as exc:
+        raise ValidationException(message=_("plugin.error.install_preview_invalid")) from exc
+
+    if payload.get("type") != _INSTALL_PREVIEW_TOKEN_TYPE:
+        raise ValidationException(message=_("plugin.error.install_preview_invalid"))
+    return payload
+
+
+def _assert_install_preview_token(
+    payload: dict,
+    *,
+    source: str,
+    plugin_name: str | None = None,
+    version: str | None = None,
+    marketplace_slug: str | None = None,
+    admin_id: int | None = None,
+) -> None:
+    from app.exceptions.base import ValidationException
+
+    if payload.get("source") != source:
+        raise ValidationException(message=_("plugin.error.install_preview_invalid"))
+    if marketplace_slug is not None and payload.get("marketplace_slug") != marketplace_slug:
+        raise ValidationException(message=_("plugin.error.install_preview_invalid"))
+    if admin_id is not None and payload.get("admin_id") not in {None, int(admin_id)}:
+        raise ValidationException(message=_("plugin.error.install_preview_invalid"))
+    if plugin_name is not None and payload.get("plugin_name") != plugin_name:
+        raise ValidationException(message=_("plugin.error.install_preview_stale"))
+    if version is not None and payload.get("version") != version:
+        raise ValidationException(message=_("plugin.error.install_preview_stale"))
+
+
 class PluginMenuConfigBody(PydanticBaseModel):
     """管理员可配置的菜单位置覆盖 / Admin-configurable menu placement overrides."""
 
@@ -119,6 +230,25 @@ class PluginDependencyActionBody(PydanticBaseModel):
     scope=PermissionScope.ADMIN,
     parent_resource="system_maintenance",
     menu=MenuConfig(
+        ai=MenuAIConfig(
+            description="Install, enable, disable, configure, and manage system plugins",
+            keywords=[
+                "插件",
+                "扩展",
+                "plugin",
+                "plugins",
+                "extension",
+                "extensions",
+                "addon",
+            ],
+            capabilities=[
+                "install_plugin",
+                "configure_plugin",
+                "enable_plugin",
+                "view_plugins",
+            ],
+            category="plugin",
+        ),
         icon="lucide:puzzle",
         path="/plugins",
         component="admin/plugins/index",
@@ -482,7 +612,20 @@ class AdminPluginController(GlobalController):
                 extract_dir = zip_path.parent / "extracted"
                 plugin_dir = extract_plugin_zip_safely(zip_path, extract_dir)
                 loader = PluginLoader(plugins_dir=plugin_dir.parent)
+                manifest = loader.load_manifest_from_path(plugin_dir)
+                _assert_marketplace_package_identity(
+                    slug=slug,
+                    detail=detail,
+                    manifest=manifest,
+                )
                 preview = await generate_preview(plugin_dir, loader, db=db)
+                preview.preview_token = _create_install_preview_token(
+                    source="marketplace",
+                    plugin_name=manifest.name,
+                    version=manifest.version,
+                    admin_id=getattr(admin, "id", None),
+                    marketplace_slug=slug,
+                )
                 return success(data=preview.model_dump())
             finally:
                 shutil.rmtree(zip_path.parent, ignore_errors=True)
@@ -491,12 +634,19 @@ class AdminPluginController(GlobalController):
         @action_create("action.plugin.install")
         async def marketplace_confirm_install(
             slug: str,
-            body: PluginConfigBody,
+            body: PluginInstallConfirmBody,
             db: DbSession = None,
             admin: ActiveAdmin = None,
         ):
             """确认从市场安装（下载+安装，设置 install_source=marketplace） / Confirm marketplace install (download+install, set install_source=marketplace)"""
             _sanitize_slug(slug)
+            preview_payload = _decode_install_preview_token(body.preview_token)
+            _assert_install_preview_token(
+                preview_payload,
+                source="marketplace",
+                marketplace_slug=slug,
+                admin_id=getattr(admin, "id", None),
+            )
 
             from app.enums.plugin import PluginInstallSourceEnum
             from app.plugins.marketplace import MarketplaceClient
@@ -513,6 +663,13 @@ class AdminPluginController(GlobalController):
                 )
 
             version = detail.get("version", "1.0.0")
+            _assert_install_preview_token(
+                preview_payload,
+                source="marketplace",
+                version=str(version),
+                admin_id=getattr(admin, "id", None),
+                marketplace_slug=slug,
+            )
             zip_path = await client.download_plugin(slug, version)
 
             from app.plugins.loader import PluginLoader
@@ -524,6 +681,19 @@ class AdminPluginController(GlobalController):
 
                 loader = PluginLoader()
                 manifest = loader.load_manifest_from_path(plugin_dir)
+                _assert_marketplace_package_identity(
+                    slug=slug,
+                    detail=detail,
+                    manifest=manifest,
+                )
+                _assert_install_preview_token(
+                    preview_payload,
+                    source="marketplace",
+                    plugin_name=manifest.name,
+                    version=manifest.version,
+                    admin_id=getattr(admin, "id", None),
+                    marketplace_slug=slug,
+                )
                 logger.info(
                     "Marketplace confirm install: slug={} plugin={}",
                     slug,
@@ -655,7 +825,12 @@ class AdminPluginController(GlobalController):
                 config_schema = manifest_data.get("config_schema")
                 if config_schema and data.get("config"):
                     data["config"] = mask_plugin_config(data["config"], config_schema)
-                data["dependency_status"] = await service.get_dependency_status(item)
+                dependency_status = await service.get_dependency_status(item)
+                data["dependency_status"] = dependency_status
+                data["recovery_state"] = service.get_recovery_state(
+                    item,
+                    dependency_status=dependency_status,
+                )
                 result_items.append(data)
 
             return paginated(
@@ -694,7 +869,12 @@ class AdminPluginController(GlobalController):
             if config_schema and data.get("config"):
                 data["config"] = mask_plugin_config(data["config"], config_schema)
 
-            data["dependency_status"] = await service.get_dependency_status(plugin)
+            dependency_status = await service.get_dependency_status(plugin)
+            data["dependency_status"] = dependency_status
+            data["recovery_state"] = service.get_recovery_state(
+                plugin,
+                dependency_status=dependency_status,
+            )
 
             # 加载 README（按 locale 优先级） / Load README (by locale priority)
             readme = await service.get_readme(plugin_id, locale=locale)
@@ -756,6 +936,13 @@ class AdminPluginController(GlobalController):
 
                 loader = PluginLoader(plugins_dir=plugin_dir.parent)
                 preview = await generate_preview(plugin_dir, loader, db=db)
+                manifest = loader.load_manifest_from_path(plugin_dir)
+                preview.preview_token = _create_install_preview_token(
+                    source="upload",
+                    plugin_name=manifest.name,
+                    version=manifest.version,
+                    admin_id=getattr(admin, "id", None),
+                )
                 return success(data=preview.model_dump())
             finally:
                 shutil.rmtree(staging_dir, ignore_errors=True)
@@ -764,6 +951,7 @@ class AdminPluginController(GlobalController):
         @action_create("action.plugin.install")
         async def install_plugin(
             file: UploadFile = File(...),
+            preview_token: str = Form(""),
             db: DbSession = None,
             admin: ActiveAdmin = None,
         ):
@@ -775,6 +963,13 @@ class AdminPluginController(GlobalController):
             此端点只需解压 + 调用安装逻辑 + 清理临时目录。
             """
             from sqlalchemy import select
+
+            preview_payload = _decode_install_preview_token(preview_token)
+            _assert_install_preview_token(
+                preview_payload,
+                source="upload",
+                admin_id=getattr(admin, "id", None),
+            )
 
             from app.models.system.plugin import Plugin as PluginModel
 
@@ -789,6 +984,14 @@ class AdminPluginController(GlobalController):
                 with open(plugin_dir / "plugin.yaml", encoding="utf-8") as yf:
                     manifest_data = yaml.safe_load(yf)
                 plugin_name = manifest_data.get("name", plugin_dir.name)
+                plugin_version = str(manifest_data.get("version", ""))
+                _assert_install_preview_token(
+                    preview_payload,
+                    source="upload",
+                    plugin_name=str(plugin_name),
+                    version=plugin_version,
+                    admin_id=getattr(admin, "id", None),
+                )
 
                 # 检查是否已安装（DB 有记录则提示走升级流程） / Check if already installed (prompt upgrade if DB record exists)
                 existing = await db.execute(
@@ -1007,6 +1210,25 @@ class AdminPluginController(GlobalController):
 
             return deleted()
 
+        @self.router.post("/{plugin_id}/refresh-schedules")
+        @action_update("action.plugin.repair")
+        async def refresh_plugin_schedules(
+            plugin_id: int,
+            db: DbSession,
+            admin: ActiveAdmin,
+        ):
+            """手动刷新插件调度状态 / Manually refresh plugin scheduler state."""
+            service = self.get_service(db)
+            result = await service.refresh_plugin_schedules(
+                plugin_id,
+                operator_id=admin.id,
+            )
+            await db.commit()
+            return success(
+                data=result,
+                message=_("plugin.schedule_refreshed"),
+            )
+
         @self.router.post("/{plugin_id}/repair")
         @action_update("action.plugin.repair")
         async def repair_plugin(plugin_id: int, db: DbSession, admin: ActiveAdmin):
@@ -1046,6 +1268,14 @@ class AdminPluginController(GlobalController):
                             "Repair: failed to unregister runtime extensions for {}: {}",
                             plugin.name,
                             cleanup_exc,
+                        )
+                    try:
+                        await lifecycle._deactivate_plugin_skill_records(plugin.name)
+                    except Exception as skill_exc:
+                        logger.warning(
+                            "Repair: failed to deactivate skill records for {}: {}",
+                            plugin.name,
+                            skill_exc,
                         )
                     try:
                         await lifecycle._set_plugin_permissions_enabled(

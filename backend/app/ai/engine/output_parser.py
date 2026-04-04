@@ -7,18 +7,12 @@ and field extraction based on output_schema.
 """
 
 import json
-import re
 from typing import Any
 
 from app.core.logging import LogManager
+from app.ai.text_semantics import extract_fenced_json_block, extract_named_field_value
 
 logger = LogManager.get_logger("ai.engine.output_parser")
-
-# Match ```json ... ``` code blocks / 匹配 ```json ... ``` 代码块
-_JSON_BLOCK_RE = re.compile(
-    r"```json\s*\n(.*?)\n\s*```",
-    re.DOTALL | re.IGNORECASE,
-)
 
 
 def extract_json_block(text: str) -> dict[str, Any] | list[Any] | None:
@@ -32,12 +26,12 @@ def extract_json_block(text: str) -> dict[str, Any] | list[Any] | None:
     Returns:
         Parsed dict/list or None / 解析后的 dict/list 或 None
     """
-    match = _JSON_BLOCK_RE.search(text)
-    if not match:
+    json_text = extract_fenced_json_block(text)
+    if not json_text:
         return None
 
     try:
-        return json.loads(match.group(1))
+        return json.loads(json_text)
     except json.JSONDecodeError as exc:
         logger.debug("Failed to parse JSON block: {}", str(exc))
         return None
@@ -51,9 +45,9 @@ def extract_fields(
     Extract field values from text based on output_schema definition.
     基于 output_schema 定义从文本中提取字段值。
 
-    Prioritizes extraction from JSON code blocks, falls back to regex matching
-    "field_name: value" patterns.
-    优先从 JSON 代码块提取，若无则尝试正则匹配 "field_name: value" 模式。
+    Prioritizes extraction from JSON code blocks, then falls back to
+    structured line parsing for "field_name: value" style replies.
+    优先从 JSON 代码块提取，若无则退回到结构化逐行解析 "field_name: value" 形式的回复。
 
     output_schema format / 格式:
         [{"name": "summary", "type": "string"}, {"name": "score", "type": "number"}]
@@ -77,19 +71,14 @@ def extract_fields(
             if name and name in json_data:
                 result[name] = json_data[name]
 
-    # 2. Supplement fields not extracted from JSON: regex match "field: value" / 补充未从 JSON 提取到的字段
+    # 2. Supplement fields not extracted from JSON: parse line-oriented "field: value" replies / 补充未从 JSON 提取到的字段
     for field in output_schema:
         name = field.get("name", "")
         if not name or name in result:
             continue
 
-        pattern = re.compile(
-            rf"(?:^|\n)\s*{re.escape(name)}\s*[:：]\s*(.+?)(?:\n|$)",
-            re.IGNORECASE,
-        )
-        match = pattern.search(text)
-        if match:
-            raw_value = match.group(1).strip()
+        raw_value = extract_named_field_value(text, name)
+        if raw_value:
             result[name] = _coerce_type(raw_value, field.get("type", "string"))
 
     return result

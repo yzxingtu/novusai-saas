@@ -209,6 +209,22 @@ interface AgentPageResponse {
   total: number;
 }
 
+interface TenantAgentSelectOption {
+  label: string;
+  value: number;
+  extra?: {
+    avatar?: null | string;
+    scope?: null | string;
+  };
+}
+
+interface TenantAgentSelectResponse {
+  items: TenantAgentSelectOption[];
+  page: number;
+  page_size: number;
+  total: number;
+}
+
 // ============================================================
 // API functions / API 接口
 // ============================================================
@@ -221,6 +237,41 @@ export async function getAgentListApi(
   options?: ApiRequestOptions,
 ): Promise<AgentPageResponse> {
   return requestClient.get<AgentPageResponse>(PREFIX, { params, ...options });
+}
+
+/** Get tenant agent select options / 获取企业端智能体下拉选项 */
+export async function getTenantAgentSelectApi(
+  params?: Record<string, unknown>,
+  options?: ApiRequestOptions,
+): Promise<TenantAgentSelectResponse> {
+  const search =
+    typeof params?.search === 'string' ? params.search.trim() : '';
+  const page = Math.max(1, Number(params?.page ?? 1));
+  const pageSize = Math.max(1, Number(params?.page_size ?? 10));
+
+  const response = await getAgentListApi(
+    {
+      ...(search ? { 'filter[name][ilike]': search } : {}),
+      'page[number]': page,
+      'page[size]': pageSize,
+      sort: '-updated_at',
+    },
+    options,
+  );
+
+  return {
+    items: response.items.map((item) => ({
+      label: item.name,
+      value: item.id,
+      extra: {
+        avatar: item.avatar,
+        scope: item.scope,
+      },
+    })),
+    page: response.page,
+    page_size: response.page_size,
+    total: response.total,
+  };
 }
 
 /** Get agent detail / 获取智能体详情 */

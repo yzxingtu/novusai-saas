@@ -10,7 +10,14 @@ from fastapi import Query, Request
 from app.core.base_controller import TenantController
 from app.core.deps import ActiveTenantAdmin, DbSession, QueryParams
 from app.core.i18n import _
-from app.core.response import created, deleted, paginated, success, updated
+from app.core.response import (
+    created,
+    deleted,
+    paginated,
+    serialize_datetime_for_api,
+    success,
+    updated,
+)
 from app.enums.rbac import PermissionScope
 from app.exceptions import NotFoundException
 from app.rbac.decorators import (
@@ -46,9 +53,9 @@ def _serialize_user(user) -> dict:
         "role_name": user.role.name if user.role else None,
         "org_node_id": getattr(user, "org_node_id", None),
         "org_node_name": getattr(org_node, "name", None),
-        "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
-        "created_at": user.created_at.isoformat() if user.created_at else None,
-        "updated_at": user.updated_at.isoformat() if user.updated_at else None,
+        "last_login_at": serialize_datetime_for_api(user.last_login_at),
+        "created_at": serialize_datetime_for_api(user.created_at),
+        "updated_at": serialize_datetime_for_api(user.updated_at),
     }
 
 

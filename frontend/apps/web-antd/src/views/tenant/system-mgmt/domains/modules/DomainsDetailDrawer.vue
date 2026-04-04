@@ -21,6 +21,7 @@ import {
 
 import { getTenantDomainApi, updateTenantDomainApi } from '#/api/tenant/domain';
 import { $t } from '#/locales';
+import { useAccess } from '#/utils';
 import { formatDate } from '#/utils/common';
 
 import DomainsDnsGuideModal from './DomainsDnsGuideModal.vue';
@@ -37,6 +38,8 @@ const loading = ref(false);
 const submitting = ref(false);
 const editMode = ref(false);
 const editRemark = ref('');
+const { hasAccessByCodes } = useAccess();
+const canUpdateDomain = hasAccessByCodes(['tenant_domain:update']);
 
 // Child component refs / 子组件引用
 const dnsGuideModalRef = ref<InstanceType<typeof DomainsDnsGuideModal>>();
@@ -271,7 +274,7 @@ defineExpose({ open });
               {{ $t('tenant.system.domain.remark') }}
             </h4>
             <Button
-              v-if="!editMode"
+              v-if="!editMode && canUpdateDomain"
               type="link"
               size="small"
               @click="onEnterEdit"

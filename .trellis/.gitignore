@@ -4,9 +4,6 @@
 # Current task pointer (each dev works on different task)
 .current-task
 
-# Ralph Loop state file
-.ralph-state.json
-
 # Agent runtime files
 .agents/
 .agent-log

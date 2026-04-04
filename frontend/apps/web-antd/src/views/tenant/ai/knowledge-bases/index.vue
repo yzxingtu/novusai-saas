@@ -3,24 +3,14 @@
  * 企业端知识库管理列表页面 — useCrudList + 卡片网格
  */
 import type { KnowledgeBaseItem } from '#/api/tenant/knowledge-bases';
+import type { KnowledgeBaseCardViewModel } from '#/components/business/knowledge-base-card-grid/KnowledgeBaseCardGrid.vue';
 
 import { computed, ref } from 'vue';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import {
-  Badge,
-  Button,
-  Dropdown,
-  Input,
-  Menu,
-  MenuItem,
-  Pagination,
-  Spin,
-  Tag,
-  Tooltip,
-} from 'ant-design-vue';
+import { Badge, Button, Input, Tooltip } from 'ant-design-vue';
 
 import { RecycleBinDrawer } from '#/adapter/vxe-table/components';
 import {
@@ -28,6 +18,7 @@ import {
   getKnowledgeBaseListApi,
 } from '#/api/tenant/knowledge-bases';
 import AIPageHeroCard from '#/components/business/ai-page-hero/AIPageHeroCard.vue';
+import KnowledgeBaseCardGrid from '#/components/business/knowledge-base-card-grid/KnowledgeBaseCardGrid.vue';
 import {
   buildPageAIFormExtraData,
   createKeywordSearchPageOperation,
@@ -36,7 +27,7 @@ import {
   useCrudList,
 } from '#/composables';
 import { $t } from '#/locales';
-import { formatDate } from '#/utils/common';
+import { formatDate, formatRelativeTime } from '#/utils/common';
 import { formatFileSize } from '#/utils/file';
 import { getScopeColor, getScopeText } from '#/utils/scope-helpers';
 
@@ -275,6 +266,52 @@ function onMenuClick(key: number | string, row: KnowledgeBaseItem) {
     handleMenuAction(String(key), row);
   }
 }
+
+const cardItems = computed<KnowledgeBaseCardViewModel[]>(() =>
+  list.value.map((item) => ({
+    id: item.id,
+    name: item.name,
+    description: item.description,
+    embeddingModelName: item.embedding_model_name,
+    statusColor: getKBStatusColor(item.status),
+    statusText: getKBStatusText(item.status),
+    scopeColor:
+      item.scope && item.scope !== 'all_tenants'
+        ? getScopeColor(item.scope)
+        : undefined,
+    scopeText:
+      item.scope && item.scope !== 'all_tenants'
+        ? getScopeText(item.scope)
+        : undefined,
+    documentCount: item.document_count,
+    totalChunks: item.total_chunks,
+    totalSizeText: formatFileSize(item.total_size_bytes),
+    createdAtText: formatRelativeTime(item.created_at),
+    createdAtTitle: formatDate(item.created_at),
+    menuActions: [
+      {
+        key: 'detail',
+        label: $t('tenant.knowledgeBase.detail'),
+        icon: 'lucide:eye',
+      },
+      ...(isTenantManageableKb(item)
+        ? [
+            {
+              key: 'edit',
+              label: $t('tenant.knowledgeBase.edit'),
+              icon: 'lucide:pencil',
+            },
+            {
+              key: 'delete',
+              label: $t('tenant.common.delete'),
+              icon: 'lucide:trash-2',
+              danger: true,
+            },
+          ]
+        : []),
+    ],
+  })),
+);
 </script>
 
 <template>
@@ -337,192 +374,33 @@ function onMenuClick(key: number | string, row: KnowledgeBaseItem) {
       </Button>
     </div>
 
-    <!-- 卡片网格 -->
-    <Spin :spinning="loading">
-      <div
-        v-if="list.length === 0 && !loading"
-        class="flex flex-col items-center justify-center py-20"
-      >
-        <div
-          class="mb-3 flex size-16 items-center justify-center rounded-2xl bg-muted"
-        >
-          <IconifyIcon
-            icon="lucide:book-open"
-            class="size-8 text-muted-foreground"
-          />
-        </div>
-        <p class="mb-4 text-sm text-muted-foreground">
-          {{ $t('tenant.knowledgeBase.empty') }}
-        </p>
-        <Button
-          v-access:code="['knowledge_base:create']"
-          type="primary"
-          @click="onCreateKB"
-        >
-          <template #icon>
-            <IconifyIcon icon="lucide:plus" class="size-4" />
-          </template>
-          {{ $t('tenant.knowledgeBase.create') }}
-        </Button>
-      </div>
-      <div v-else class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <div
-          v-for="item in list"
-          :key="item.id"
-          class="group cursor-pointer rounded-xl border border-border/60 bg-card transition-all hover:border-primary/30 hover:shadow-md"
-          @click="onDetail(item)"
-        >
-          <!-- 卡片头部 -->
-          <div class="flex items-start gap-3 p-4 pb-2">
-            <div
-              class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10"
-            >
-              <IconifyIcon
-                icon="lucide:book-open"
-                class="size-5 text-primary"
-              />
-            </div>
-            <div class="min-w-0 flex-1">
-              <h4 class="truncate text-sm font-semibold text-foreground">
-                {{ item.name }}
-              </h4>
-              <div class="mt-1 flex items-center gap-1.5">
-                <Tag
-                  :color="getKBStatusColor(item.status)"
-                  style="
-                    padding: 0 5px;
-                    margin: 0;
-                    font-size: 10px;
-                    line-height: 16px;
-                  "
-                >
-                  {{ getKBStatusText(item.status) }}
-                </Tag>
-                <Tag
-                  v-if="item.scope && item.scope !== 'all_tenants'"
-                  :color="getScopeColor(item.scope)"
-                  style="
-                    padding: 0 5px;
-                    margin: 0;
-                    font-size: 10px;
-                    line-height: 16px;
-                  "
-                >
-                  {{ getScopeText(item.scope) }}
-                </Tag>
-              </div>
-            </div>
-            <!-- 操作菜单 -->
-            <Dropdown :trigger="['click']" placement="bottomRight" @click.stop>
-              <Button
-                type="text"
-                size="small"
-                class="!size-7 !min-w-0 shrink-0 !p-0 opacity-0 transition-opacity group-hover:opacity-100"
-                @click.stop
-              >
-                <IconifyIcon
-                  icon="lucide:ellipsis-vertical"
-                  class="size-4 text-muted-foreground"
-                />
-              </Button>
-              <template #overlay>
-                <Menu
-                  @click="
-                    (info: { key: string | number }) =>
-                      onMenuClick(info.key, item)
-                  "
-                >
-                  <MenuItem key="detail">
-                    <div class="flex items-center gap-2">
-                      <IconifyIcon icon="lucide:eye" class="size-3.5" />
-                      <span>{{ $t('tenant.knowledgeBase.detail') }}</span>
-                    </div>
-                  </MenuItem>
-                  <MenuItem v-if="isTenantManageableKb(item)" key="edit">
-                    <div class="flex items-center gap-2">
-                      <IconifyIcon icon="lucide:pencil" class="size-3.5" />
-                      <span>{{ $t('tenant.knowledgeBase.edit') }}</span>
-                    </div>
-                  </MenuItem>
-                  <MenuItem
-                    v-if="isTenantManageableKb(item)"
-                    key="delete"
-                    class="!text-destructive"
-                  >
-                    <div class="flex items-center gap-2">
-                      <IconifyIcon icon="lucide:trash-2" class="size-3.5" />
-                      <span>{{ $t('tenant.common.delete') }}</span>
-                    </div>
-                  </MenuItem>
-                </Menu>
-              </template>
-            </Dropdown>
-          </div>
-
-          <!-- 描述 -->
-          <div class="px-4 pb-2">
-            <p
-              v-if="item.description"
-              class="line-clamp-2 text-xs leading-relaxed text-muted-foreground"
-            >
-              {{ item.description }}
-            </p>
-            <p v-else class="text-xs text-muted-foreground/50">—</p>
-          </div>
-
-          <!-- Embedding 模型 -->
-          <div
-            v-if="item.embedding_model_name"
-            class="mx-4 mb-2 flex items-center gap-1.5 text-xs text-muted-foreground"
-          >
-            <IconifyIcon icon="lucide:cpu" class="size-3 shrink-0" />
-            <span class="truncate">{{ item.embedding_model_name }}</span>
-          </div>
-
-          <!-- 统计数据 -->
-          <div
-            class="flex items-center gap-4 border-t border-border/40 px-4 py-3 text-xs text-muted-foreground"
-          >
-            <div
-              class="flex items-center gap-1"
-              :title="$t('tenant.knowledgeBase.field.documentCount')"
-            >
-              <IconifyIcon icon="lucide:file-text" class="size-3.5" />
-              <span class="tabular-nums">{{ item.document_count }}</span>
-            </div>
-            <div
-              class="flex items-center gap-1"
-              :title="$t('tenant.knowledgeBase.field.totalChunks')"
-            >
-              <IconifyIcon icon="lucide:puzzle" class="size-3.5" />
-              <span class="tabular-nums">{{ item.total_chunks }}</span>
-            </div>
-            <div
-              class="flex items-center gap-1"
-              :title="$t('tenant.knowledgeBase.field.totalSizeBytes')"
-            >
-              <IconifyIcon icon="lucide:hard-drive" class="size-3.5" />
-              <span>{{ formatFileSize(item.total_size_bytes) }}</span>
-            </div>
-            <div class="ml-auto flex items-center gap-1">
-              <IconifyIcon icon="lucide:clock" class="size-3.5" />
-              <span>{{ formatDate(item.created_at) }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Spin>
-
-    <!-- 分页 -->
-    <div v-if="total > pageSize" class="flex justify-end">
-      <Pagination
-        :current="currentPage"
-        :total="total"
-        :page-size="pageSize"
-        size="small"
-        :show-size-changer="false"
-        @change="onPageChange"
-      />
-    </div>
+    <KnowledgeBaseCardGrid
+      card-clickable
+      :create-label="$t('tenant.knowledgeBase.create')"
+      :current-page="currentPage"
+      :empty-description="$t('tenant.knowledgeBase.empty')"
+      :loading="loading"
+      :page-size="pageSize"
+      :stat-titles="{
+        documents: $t('tenant.knowledgeBase.field.documentCount'),
+        chunks: $t('tenant.knowledgeBase.field.totalChunks'),
+        size: $t('tenant.knowledgeBase.field.totalSizeBytes'),
+      }"
+      :total="total"
+      :value="cardItems"
+      @menu-action="
+        (actionKey, itemId) => {
+          const row = list.find((item) => item.id === itemId);
+          if (row) onMenuClick(actionKey, row);
+        }
+      "
+      @page-change="onPageChange"
+      @select="
+        (itemId) => {
+          const row = list.find((item) => item.id === itemId);
+          if (row) onDetail(row);
+        }
+      "
+    />
   </Page>
 </template>

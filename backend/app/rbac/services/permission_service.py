@@ -5,6 +5,8 @@ Provides permission retrieval and check functionality.
 提供权限获取和检查功能。
 """
 
+import re
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -16,11 +18,21 @@ from app.models.auth.admin_role import AdminRole
 from app.models.auth.tenant_admin_role import TenantAdminRole
 from app.models.auth.tenant_user_role import TenantUserRole
 from app.models.org.admin_org_node import AdminOrgNode
+from app.models.org.tenant_org_node import TenantOrgNode
 from app.models.tenant.tenant import Tenant
 from app.models.tenant.tenant_plan import TenantPlan
-from app.schemas.common import MenuResponse, PermissionResponse, PermissionTreeResponse
+from app.rbac.registry import permission_registry
+from app.schemas.common import (
+    MenuAIResponse,
+    MenuMetaResponse,
+    MenuResponse,
+    PermissionResponse,
+    PermissionTreeResponse,
+)
 from app.services.system.admin_org_authority_service import AdminOrgAuthorityService
 from app.services.tenant.tenant_org_authority_service import TenantOrgAuthorityService
+
+_MENU_AI_TOKEN_RE = re.compile(r"[A-Za-z0-9]+|[\u4e00-\u9fff]+")
 
 
 class PermissionService:
@@ -44,6 +56,23 @@ class PermissionService:
             select(AdminOrgNode)
             .where(AdminOrgNode.id == admin.org_node_id)
             .options(selectinload(AdminOrgNode.permissions))
+        )
+        org_node = result.scalar_one_or_none()
+        if org_node is None or org_node.is_deleted or not org_node.is_active:
+            return None
+        return org_node
+
+    async def _get_tenant_org_node(
+        self,
+        tenant_admin: TenantAdmin,
+    ) -> TenantOrgNode | None:
+        if tenant_admin.org_node_id is None:
+            return None
+
+        result = await self.db.execute(
+            select(TenantOrgNode)
+            .where(TenantOrgNode.id == tenant_admin.org_node_id)
+            .options(selectinload(TenantOrgNode.permissions))
         )
         org_node = result.scalar_one_or_none()
         if org_node is None or org_node.is_deleted or not org_node.is_active:
@@ -269,6 +298,13 @@ class PermissionService:
         if tenant_admin.is_owner:
             return plan_perms[0]
 
+        org_node = await self._get_tenant_org_node(tenant_admin)
+        if org_node is not None:
+            org_node_perms = {
+                p.code for p in org_node.permissions if p.is_enabled and not p.is_deleted
+            }
+            return org_node_perms & plan_perms[0]
+
         # No role means no permissions / 无角色则无权限
         if tenant_admin.role_id is None:
             return set()
@@ -319,6 +355,13 @@ class PermissionService:
         # Tenant owner: return all plan permission IDs / 企业所有者：返回套餐全部权限 ID
         if tenant_admin.is_owner:
             return plan_perms[1]
+
+        org_node = await self._get_tenant_org_node(tenant_admin)
+        if org_node is not None:
+            org_node_permission_ids = {
+                p.id for p in org_node.permissions if p.is_enabled and not p.is_deleted
+            }
+            return org_node_permission_ids & plan_perms[1]
 
         # No role means no permissions / 无角色则无权限
         if tenant_admin.role_id is None:
@@ -520,6 +563,18 @@ class PermissionService:
                 return PermissionService._fallback_permission_name(name)
             return translated
         return name or ""
+
+    @classmethod
+    def translate_name(cls, name: str) -> str:
+        """
+        Public translation helper for permission/menu names.
+        对外暴露的权限/菜单名称翻译助手。
+
+        Keep secondary permission consumers aligned with the main permission tree
+        translation logic, including plugin runtime title resolution.
+        让套餐权限树等二次消费方复用主权限树的翻译逻辑，避免丢失插件运行时标题解析。
+        """
+        return cls._translate_name(name)
 
     @staticmethod
     def _resolve_plugin_menu_title(name: str) -> str | None:
@@ -877,7 +932,171 @@ class PermissionService:
 
         return permissions
 
+    async def fill_parent_permissions_for_tree(
+        self, permissions: list[Permission]
+    ) -> list[Permission]:
+        """
+        Return a copy of permissions with missing ancestors filled in.
+        返回补齐缺失祖先节点后的权限列表副本。
+
+        Useful for secondary tree builders (for example plan-available permissions)
+        so they stay consistent with the main `/permissions` endpoint.
+        供套餐可分配权限树等二次构树场景复用，确保与主 `/permissions` 接口保持一致。
+        """
+        return await self._fill_parent_permissions(list(permissions))
+
     # ==================== Menu Building Methods / 菜单构建方法 ====================
+
+    @staticmethod
+    def _normalize_menu_ai_strings(values: list[str] | None) -> list[str]:
+        normalized: list[str] = []
+        for value in values or []:
+            text = str(value or "").strip()
+            if text and text not in normalized:
+                normalized.append(text)
+        return normalized
+
+    @staticmethod
+    def _scope_enum_from_value(scope: str | None) -> PermissionScope | None:
+        try:
+            if scope:
+                return PermissionScope(scope)
+        except ValueError:
+            return None
+        return None
+
+    @classmethod
+    def _infer_menu_ai_category(cls, permission: Permission) -> str | None:
+        path = str(permission.path or "").strip("/")
+        if path:
+            first_segment = path.split("/", 1)[0].strip()
+            if first_segment and first_segment not in {"admin", "tenant", "user"}:
+                return first_segment
+
+        action = str(permission.action or "").strip()
+        if action:
+            parts = [part for part in action.split(".") if part]
+            if len(parts) >= 2:
+                return parts[1]
+        return None
+
+    @classmethod
+    def _build_generic_menu_ai_keywords(
+        cls,
+        permission: Permission,
+        *,
+        translated_name: str,
+    ) -> list[str]:
+        keywords: list[str] = []
+
+        def _add(value: str | None) -> None:
+            text = str(value or "").strip()
+            if not text or text in keywords:
+                return
+            keywords.append(text)
+
+        _add(translated_name)
+
+        path = str(permission.path or "").strip()
+        if path:
+            for segment in path.strip("/").split("/"):
+                cleaned = segment.strip()
+                if not cleaned or cleaned in {"admin", "tenant", "user"}:
+                    continue
+                _add(cleaned)
+                for token in _MENU_AI_TOKEN_RE.findall(cleaned.replace("-", " ")):
+                    _add(token)
+
+        action = str(permission.action or "").strip()
+        if action:
+            for part in action.split("."):
+                cleaned = part.strip()
+                if not cleaned or cleaned in {"admin", "tenant", "user"}:
+                    continue
+                _add(cleaned)
+                for token in _MENU_AI_TOKEN_RE.findall(cleaned.replace("_", " ")):
+                    _add(token)
+
+        code = str(permission.code or "").strip()
+        if code.startswith("menu:"):
+            tail = code.split(":", 1)[1]
+            for part in tail.split("."):
+                cleaned = part.strip()
+                if not cleaned or cleaned in {"admin", "tenant", "user", "menu"}:
+                    continue
+                _add(cleaned)
+                for token in _MENU_AI_TOKEN_RE.findall(cleaned.replace("_", " ")):
+                    _add(token)
+
+        return keywords
+
+    @classmethod
+    def _build_menu_ai_meta(cls, permission: Permission) -> MenuMetaResponse | None:
+        scope_enum = cls._scope_enum_from_value(getattr(permission, "scope", None))
+        registry_meta = (
+            permission_registry.get(permission.code, scope_enum)
+            if scope_enum is not None
+            else None
+        )
+        ai_config = getattr(registry_meta, "ai", None)
+
+        translated_name = cls._translate_name(permission.name)
+        keywords = cls._build_generic_menu_ai_keywords(
+            permission,
+            translated_name=translated_name,
+        )
+        if ai_config is not None:
+            keywords = cls._normalize_menu_ai_strings(
+                [*(ai_config.keywords or []), *keywords]
+            )
+            capabilities = cls._normalize_menu_ai_strings(ai_config.capabilities or [])
+            category = str(ai_config.category or "").strip() or cls._infer_menu_ai_category(
+                permission
+            )
+            description = (
+                str(ai_config.description or "").strip()
+                or str(permission.description or "").strip()
+                or None
+            )
+            mode = str(ai_config.mode or "").strip() or None
+            page_context_key = str(ai_config.page_context_key or "").strip() or None
+            disabled_capabilities = ai_config.disabled_capabilities
+            disabled_operations = ai_config.disabled_operations
+        else:
+            capabilities = []
+            category = cls._infer_menu_ai_category(permission)
+            description = str(permission.description or "").strip() or None
+            mode = None
+            page_context_key = None
+            disabled_capabilities = None
+            disabled_operations = None
+
+        if not any(
+            [
+                description,
+                keywords,
+                capabilities,
+                category,
+                mode,
+                page_context_key,
+                disabled_capabilities,
+                disabled_operations,
+            ]
+        ):
+            return None
+
+        return MenuMetaResponse(
+            ai=MenuAIResponse(
+                description=description,
+                keywords=keywords,
+                capabilities=capabilities,
+                category=category,
+                mode=mode,
+                page_context_key=page_context_key,
+                disabled_capabilities=disabled_capabilities,
+                disabled_operations=disabled_operations,
+            )
+        )
 
     @classmethod
     def _build_menu_tree(
@@ -951,6 +1170,7 @@ class PermissionService:
                         hidden=perm.hidden,
                         sort_order=perm.sort_order,
                         permissions=sorted(menu_permissions),
+                        meta=cls._build_menu_ai_meta(perm),
                         children=children,
                     )
                 )

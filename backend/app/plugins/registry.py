@@ -14,6 +14,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from starlette.middleware import Middleware
+
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -1231,6 +1233,71 @@ class ExtensionRegistry:
 
     # ── 14. Middleware / 中间件 ──
 
+    def _iter_runtime_plugin_middlewares(self) -> list[dict[str, Any]]:
+        """Iterate plugin middlewares in runtime order. / 按运行时顺序遍历插件中间件。"""
+        entries: list[dict[str, Any]] = []
+        for plugin_middlewares in self._plugin_middlewares.values():
+            entries.extend(plugin_middlewares)
+
+        # Higher priority middleware stays at the outer layer; stable sort preserves
+        # registration order for equal priorities.
+        # / priority 越高越靠外层；相同 priority 保持注册顺序。
+        entries.sort(key=lambda item: -int(item.get("priority", 50)))
+        return entries
+
+    def _rebuild_runtime_middleware_stack(self, fastapi_app: Any) -> None:
+        """Rebuild runtime middleware stack after list mutation. / 在列表变更后重建运行时中间件栈。"""
+        build_stack = getattr(fastapi_app, "build_middleware_stack", None)
+        if callable(build_stack):
+            fastapi_app.middleware_stack = build_stack()
+
+    def _sync_runtime_plugin_middlewares(
+        self,
+        *,
+        removed_runtime_middleware: Middleware | None = None,
+    ) -> bool:
+        """Project plugin middlewares into FastAPI runtime. / 将插件中间件投影到 FastAPI 运行时。"""
+        try:
+            from app.main import app as fastapi_app
+        except Exception as exc:
+            logger.warning(
+                "Plugin middleware runtime sync skipped: failed to import app: {}",
+                exc,
+            )
+            return False
+
+        user_middleware = getattr(fastapi_app, "user_middleware", None)
+        if not isinstance(user_middleware, list):
+            logger.warning(
+                "Plugin middleware runtime sync skipped: app.user_middleware unavailable"
+            )
+            return False
+
+        managed_ids = {
+            id(runtime_middleware)
+            for entry in self._iter_runtime_plugin_middlewares()
+            if (runtime_middleware := entry.get("runtime_middleware")) is not None
+        }
+        if removed_runtime_middleware is not None:
+            managed_ids.add(id(removed_runtime_middleware))
+
+        preserved_user_middleware = [
+            middleware
+            for middleware in list(user_middleware)
+            if id(middleware) not in managed_ids
+        ]
+        runtime_plugin_middlewares = [
+            entry["runtime_middleware"]
+            for entry in self._iter_runtime_plugin_middlewares()
+            if entry.get("runtime_middleware") is not None
+        ]
+
+        fastapi_app.user_middleware = (
+            runtime_plugin_middlewares + preserved_user_middleware
+        )
+        self._rebuild_runtime_middleware_stack(fastapi_app)
+        return True
+
     def register_middleware(
         self,
         plugin_name: str,
@@ -1242,52 +1309,59 @@ class ExtensionRegistry:
         Register plugin ASGI middleware.
         / 注册插件 ASGI 中间件。
 
-        Higher priority middleware is injected to the outer layer of the request chain at app startup.
-        Marked for removal after plugin disable; full removal requires restart.
-        / 应用启动时注入中间件，禁用后完全移除需重启。
+        Higher priority middleware is injected to the outer layer of the request chain.
+        Registration and removal rebuild the runtime stack so enable/disable works after startup.
+        / priority 越高越靠外层；启用/停用时会重建运行时中间件栈，应用启动后也能生效。
         """
         entry: dict[str, Any] = {
             "plugin_name": plugin_name,
             "name": name,
             "cls": middleware_cls,
             "priority": priority,
+            "runtime_middleware": Middleware(middleware_cls),
         }
         self._plugin_middlewares.setdefault(plugin_name, []).append(entry)
-        self._track(plugin_name, "middleware", f"{plugin_name}:{name}", middleware_cls)
-        # Try to inject into runtime FastAPI app / 尝试注入到运行时 FastAPI 应用
-        try:
-            from app.main import app as fastapi_app
+        self._track(plugin_name, "middleware", f"{plugin_name}:{name}", entry)
 
-            fastapi_app.add_middleware(middleware_cls)
+        if self._sync_runtime_plugin_middlewares():
             logger.info(
                 "Plugin {} registered middleware: {} (priority={})",
                 plugin_name,
                 name,
                 priority,
             )
-        except Exception as exc:
+        else:
             logger.warning(
-                "Plugin {}: failed to add middleware {} at runtime: {}",
+                "Plugin {}: middleware {} registered in registry, but runtime sync skipped",
                 plugin_name,
                 name,
-                exc,
             )
 
     def _unregister_middleware(self, ext: RegisteredExtension) -> None:
-        """Remove middleware registration (memory cleanup, full removal requires restart)
-        / 移除中间件注册（完全移除需重启）"""
+        """Remove middleware registration and rebuild runtime stack.
+        / 移除中间件注册并重建运行时中间件栈。"""
         plugin_name = ext.plugin_name
         name = ext.key.split(":", 1)[-1]
+        removed_runtime_middleware = (
+            ext.ref.get("runtime_middleware") if isinstance(ext.ref, dict) else None
+        )
         if plugin_name in self._plugin_middlewares:
             self._plugin_middlewares[plugin_name] = [
                 m
                 for m in self._plugin_middlewares[plugin_name]
-                if m.get("name") != name
+                if m is not ext.ref and m.get("name") != name
             ]
-        logger.info(
-            "Plugin middleware unregistered (full removal requires restart): {}",
-            ext.key,
-        )
+            if not self._plugin_middlewares[plugin_name]:
+                self._plugin_middlewares.pop(plugin_name, None)
+
+        if self._sync_runtime_plugin_middlewares(
+            removed_runtime_middleware=removed_runtime_middleware
+        ):
+            logger.info("Plugin middleware unregistered from runtime: {}", ext.key)
+        else:
+            logger.info(
+                "Plugin middleware unregistered from registry only: {}", ext.key
+            )
 
     def get_plugin_middlewares(
         self, plugin_name: str | None = None

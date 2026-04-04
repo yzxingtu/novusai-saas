@@ -65,12 +65,18 @@ export function marketplacePreviewInstallApi(slug: string) {
 }
 
 /** Marketplace confirm install / 市场确认安装 */
+export interface MarketplaceConfirmInstallOptions {
+  config?: Record<string, unknown>;
+  previewToken: string;
+}
+
 export function marketplaceConfirmInstallApi(
   slug: string,
-  config?: Record<string, unknown>,
+  options: MarketplaceConfirmInstallOptions,
 ) {
   return requestClient.post(`${BASE_URL}/marketplace/${slug}/confirm-install`, {
-    config: config || {},
+    config: options.config || {},
+    preview_token: options.previewToken,
   });
 }
 

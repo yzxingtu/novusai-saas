@@ -8,6 +8,7 @@
 Required commands from `backend/`:
 
 ```bash
+python scripts/check_prompt_contracts.py
 pytest
 ruff check .
 ruff format .
@@ -29,11 +30,17 @@ Primary references:
   subsystem.
 - Reintroducing deprecated AI runtime paths such as `ToolRegistry` or
   `tool_bindings`.
+- Reintroducing fixed LLM-facing prompt text directly in Python under
+  `app/ai` or `app/services/ai` instead of using the shared prompt contract
+  resources.
 
 ## Required Patterns
 
 - New or substantially changed services should have unit tests in
   `backend/tests/services/`.
+- AI runtime or routing changes that touch model-facing instruction text should
+  pass `python scripts/check_prompt_contracts.py` and add or update prompt
+  contract resources instead of hardcoding new strings inline.
 - Tests must not depend on a real database, Redis, network, or third-party API.
 - Reuse fixtures and mock factories from `backend/tests/services/conftest.py`.
 - Many service tests instantiate services with `__new__` and inject `db`,
@@ -44,6 +51,19 @@ Primary references:
 - New RBAC-aware controllers should update `@permission_resource`,
   `parent_resource`, and the matching `messages.json` action translations in the
   same change.
+- For menu-less RBAC controllers that mount actions via `parent_resource`,
+  ensure the parent menu controller is imported first in
+  `backend/app/api/{scope}/__init__.py`; otherwise synced permissions will get
+  `parent_id=null` and appear as orphan/root operations in `/permissions`.
+- Secondary permission-tree consumers (for example
+  `/admin/plans/available-permissions`) must reuse the shared
+  `PermissionService` translation and parent-fill helpers instead of re-rolling
+  fallback logic, or plugin titles can degrade to `title` and ancestor menus can
+  disappear.
+- Tenant organization nodes that support direct permission assignment must
+  enforce the leader-only rule at the API layer: only the current node leader
+  or an ancestor organization leader may submit `permission_ids`; non-leaders
+  may view but must not mutate assignments.
 - Plugin permission changes should continue to use
   `sync_plugin_permissions(plugin.name)` instead of broad ad-hoc refreshes.
 - Row-level permission changes should be validated through the repository/base
@@ -95,6 +115,9 @@ Examples:
   the new code and consuming the `ai_gateway` queue.
 - If the UI depends on those logs or limits, validate the full operator path,
   not just the backend return payload.
+- For datetime-bearing APIs, verify hand-built dict payloads do not leak naive
+  UTC strings such as `2026-04-03T19:00:41` without `+00:00`. Browser clients
+  will parse those as local time and drift by the timezone offset.
 
 ### Recycle bin and route-order work
 
@@ -116,6 +139,8 @@ Before merge, confirm:
 - Repositories own data access.
 - Any new model is exported and migration-registered.
 - Any new task is registered with `@register_task` and reachable by the worker.
+- Any API response that bypasses `BaseSchema` still serializes datetimes through
+  the shared UTC-safe path instead of direct `.isoformat()` on ORM values.
 
 ## Real Examples To Follow
 

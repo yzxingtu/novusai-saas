@@ -302,6 +302,7 @@ function getDnsHostRecord(domain: string): string {
             </Button>
             <Button
               v-else
+              v-access:code="['tenant_domain:verify']"
               type="primary"
               :loading="verifying"
               @click="onVerify"

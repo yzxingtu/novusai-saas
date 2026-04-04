@@ -315,6 +315,17 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
   },
   columns: useColumns,
   searchSchema: useGridFormSchema(),
+  search: {
+    defaultOpen: false,
+    quickSearch: {
+      defaultField: 'filter[action_name][ilike]',
+      fields: [
+        'filter[action_name][ilike]',
+        'filter[trace_id][ilike]',
+        'filter[tool_call_id][ilike]',
+      ],
+    },
+  },
   i18nPrefix: 'admin.ai.actionLog',
   defaultSort: '-created_at',
   customActions: {
@@ -386,21 +397,34 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
         <template #agent_cell="{ row }">
           <div class="flex items-center gap-2">
             <div
-              class="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"
+              class="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border/60 bg-primary/10 text-primary shadow-sm"
             >
-              <IconifyIcon
-                v-if="isIconAvatar(row.agent_avatar)"
-                :icon="String(row.agent_avatar)"
-                class="size-4"
-              />
-              <Avatar
-                v-else-if="row.agent_avatar"
-                :size="28"
+              <img
+                v-if="row.agent_avatar && !isIconAvatar(row.agent_avatar)"
+                :alt="getAgentDisplayName(row)"
                 :src="toAvatarDisplayUrl(row.agent_avatar)"
+                class="size-full object-cover"
               />
-              <IconifyIcon v-else icon="lucide:bot" class="size-4" />
+              <IconifyIcon
+                v-else-if="isIconAvatar(row.agent_avatar)"
+                :icon="String(row.agent_avatar)"
+                class="size-4.5"
+              />
+              <span v-else class="text-sm font-semibold">
+                {{ getAgentDisplayName(row).charAt(0).toUpperCase() }}
+              </span>
             </div>
-            <span class="truncate">{{ getAgentDisplayName(row) }}</span>
+            <div class="min-w-0 flex-1">
+              <div class="truncate text-sm font-medium text-foreground">
+                {{ getAgentDisplayName(row) }}
+              </div>
+              <div
+                v-if="row.agent_id"
+                class="truncate text-xs text-muted-foreground"
+              >
+                #{{ row.agent_id }}
+              </div>
+            </div>
           </div>
         </template>
 

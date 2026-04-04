@@ -5,11 +5,11 @@
  * Differentiates admin/tenant via apiPrefix parameter.
  * 封装 use-ai-chat.ts 中的所有 requestClient 调用。
  */
-import type { ChatAttachment, RagSource } from '#/types/ai-chat';
 import type {
   TurnContextSourcePayload,
   TurnRecordPayload,
 } from '#/api/shared/types';
+import type { ChatAttachment, RagSource } from '#/types/ai-chat';
 
 import { smartUploadFile as adminSmartUploadFile } from '#/api/admin/attachment';
 import { smartUploadFile as tenantSmartUploadFile } from '#/api/tenant/attachment';
@@ -361,10 +361,14 @@ export function buildChatAttachmentFromUpload(
 
 // ============ Route Types / 路由请求类型 ============
 
+export interface PageDataWithLocale extends Record<string, unknown> {
+  locale?: string;
+}
+
 export interface PageContext {
   page_key: string;
   page_title?: string;
-  page_data?: Record<string, unknown>;
+  page_data?: PageDataWithLocale;
 }
 
 export interface AgentChatImageParams {

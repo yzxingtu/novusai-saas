@@ -5,7 +5,7 @@ AI 供应商 API Key 模型 / AI Provider API Key Model
 Stores AI provider API keys, supports platform-level and tenant-level keys.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String
@@ -15,6 +15,14 @@ from app.core.base_model import BaseModel, utc_now
 from app.core.i18n import _
 from app.core.security import decrypt_data, encrypt_data
 from app.enums.common import ResourceScopeEnum
+
+
+def aware_utc_now() -> datetime:
+    """
+    返回带 UTC 时区的当前时间，供 timestamptz 字段写入使用。
+    Return the current UTC time with tzinfo for timestamptz columns.
+    """
+    return datetime.now(timezone.utc)
 
 
 class ProviderApiKey(BaseModel):
@@ -150,12 +158,12 @@ class ProviderApiKey(BaseModel):
         仅刷新最近使用时间（不增加 usage_count）。
         For cache hits etc. where no upstream provider call occurred.
         """
-        self.last_used_at = utc_now()
+        self.last_used_at = aware_utc_now()
 
     def increment_usage(self) -> None:
         """增加使用次数 / Increment usage count."""
         self.usage_count += 1
-        self.last_used_at = utc_now()
+        self.last_used_at = aware_utc_now()
 
     def is_expired(self) -> bool:
         """
@@ -166,7 +174,12 @@ class ProviderApiKey(BaseModel):
         """
         if self.expires_at is None:
             return False
-        return utc_now() > self.expires_at
+        expires_at = (
+            self.expires_at.replace(tzinfo=timezone.utc)
+            if self.expires_at.tzinfo is None
+            else self.expires_at
+        )
+        return aware_utc_now() > expires_at
 
     def is_usage_limit_reached(self) -> bool:
         """

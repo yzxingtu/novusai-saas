@@ -57,7 +57,7 @@ const mainRoutes: RouteRecordRaw = {
         affixTab: true,
         icon: 'lucide:layout-dashboard',
         title: 'page.dashboard.title',
-        ai: { mode: 'context_only' as const },
+        ai: { mode: 'navigation_only' as const },
       },
     },
     // Analytics：数据分析页面
@@ -68,7 +68,7 @@ const mainRoutes: RouteRecordRaw = {
       meta: {
         icon: 'lucide:bar-chart-3',
         title: 'tenant.analytics.title',
-        ai: { mode: 'context_only' as const },
+        ai: { mode: 'navigation_only' as const },
       },
     },
     // 智能体详情页 / Agent detail page

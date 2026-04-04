@@ -1,0 +1,5 @@
+{"file": ".trellis/workflow.md", "reason": "Path-driven workflow rules"}
+{"file": ".trellis/spec/guides/plugin-runtime-playbook.md", "reason": "Canonical plugin runtime contract"}
+{"file": ".cursor/rules/plugin-system.md", "reason": "Thin plugin rule entry point kept aligned with canonical spec"}
+{"file": "backend/app/plugins/lifecycle.py", "reason": "Backend plugin lifecycle implementation"}
+{"file": "frontend/apps/web-antd/src/views/admin/plugins/use-plugin-admin-actions.ts", "reason": "Frontend plugin admin actions"}

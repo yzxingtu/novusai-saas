@@ -24,6 +24,18 @@ TerminationReason = Literal[
 
 
 @dataclass
+class ProviderEvent:
+    """Provider/runtime side event for diagnostics / 供应商运行态诊断事件。"""
+
+    kind: str = "none"
+    message: str = ""
+    retry_count: int = 0
+    provider_code: str | None = None
+    model_code: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class CapabilityDescriptor:
     name: str
     kind: CapabilityKind
@@ -75,8 +87,17 @@ class TurnRecord:
     turn_outcome: TurnOutcome = "success"
     termination_reason: TerminationReason = "completed"
     protocol_path: ProtocolPath | None = None
+    execution_path: str | None = None
     selected_tool_names: list[str] = field(default_factory=list)
+    candidate_tool_names: list[str] = field(default_factory=list)
     selected_skill_names: list[str] = field(default_factory=list)
     context_sources: list[ContextSource] = field(default_factory=list)
     fallback_history: list[FallbackRecord] = field(default_factory=list)
+    intent_plan: list[dict[str, Any]] = field(default_factory=list)
+    completed_intent_ids: list[str] = field(default_factory=list)
+    unfinished_intent_ids: list[str] = field(default_factory=list)
+    retry_events: list[dict[str, Any]] = field(default_factory=list)
+    provider_events: list[ProviderEvent] = field(default_factory=list)
+    budget: dict[str, Any] = field(default_factory=dict)
+    failure_kind: str = "none"
     metadata: dict[str, Any] = field(default_factory=dict)

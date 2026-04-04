@@ -71,7 +71,7 @@ class AIModelService(BaseService[AIModel, AIModelRepository]):
         Raises:
             ConflictException: 代码已存在
         """
-        if await self.repo.code_exists(data.code):
+        if await self.repo.code_exists_for_provider(data.code, data.provider_id):
             raise ConflictException(message=_("ai.error.model_code_exists"))
 
         model_obj = AIModel(**data.model_dump())
@@ -107,13 +107,17 @@ class AIModelService(BaseService[AIModel, AIModelRepository]):
 
         update_data = data.model_dump(exclude_unset=True)
 
-        # 校验 fallback 不可自引用
+        # Validate fallback is not self-referential / 校验 fallback 不可自引用
         self._validate_fallback(id, update_data)
 
         if (
             "code" in update_data
             and update_data["code"] != model_obj.code
-            and await self.repo.code_exists(update_data["code"], exclude_id=id)
+            and await self.repo.code_exists_for_provider(
+                update_data["code"],
+                int(update_data.get("provider_id") or model_obj.provider_id),
+                exclude_id=id,
+            )
         ):
             raise ConflictException(message=_("ai.error.model_code_exists"))
 
@@ -194,8 +198,8 @@ class AIModelService(BaseService[AIModel, AIModelRepository]):
                 message=_("ai.error.fetch_remote_models_failed") + f": {str(e)}"
             ) from e
 
-        # 合并 provider.config.extra_models（某些供应商的 /v1/models 不返回 embedding 等模型）
-        # 格式: {"extra_models": [{"id": "text-embedding-v3", "owned_by": "dashscope"}, ...]}
+        # Merge provider.config.extra_models when /v1/models omits embedding etc. / 合并 extra_models（部分供应商列表不全）
+        # Shape: {"extra_models": [{"id": "...", "owned_by": "..."}, ...]} / 格式见 extra_models 数组
         if provider.config and isinstance(provider.config, dict):
             extra = provider.config.get("extra_models", [])
             if extra and isinstance(extra, list):
@@ -208,8 +212,7 @@ class AIModelService(BaseService[AIModel, AIModelRepository]):
                     ):
                         remote_models.append(em)
 
-        # Enrich with LiteLLM capabilities (graceful degradation)
-        # 通过 LiteLLM 注册表附加模型能力（优雅降级）
+        # Enrich via LiteLLM registry (graceful degradation) / 通过 LiteLLM 注册表附加能力（优雅降级）
         try:
             from app.services.ai.model_capability_lookup import enrich_remote_models
 

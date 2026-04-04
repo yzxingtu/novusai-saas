@@ -7,6 +7,7 @@ import type {
   AdminKnowledgeBaseItem,
   KnowledgeBaseGlobalStats,
 } from '#/api/admin/knowledge-bases';
+import type { KnowledgeBaseCardViewModel } from '#/components/business/knowledge-base-card-grid/KnowledgeBaseCardGrid.vue';
 
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
@@ -14,20 +15,7 @@ import { useRouter } from 'vue-router';
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import {
-  Badge,
-  Button,
-  Dropdown,
-  Empty,
-  Input,
-  Menu,
-  MenuItem,
-  Pagination,
-  Select,
-  Spin,
-  Tag,
-  Tooltip,
-} from 'ant-design-vue';
+import { Badge, Button, Input, Select, Tooltip } from 'ant-design-vue';
 
 import { RecycleBinDrawer } from '#/adapter/vxe-table/components';
 import {
@@ -35,6 +23,7 @@ import {
   getAdminKnowledgeBaseListApi,
   getKnowledgeBaseStatsApi,
 } from '#/api/admin/knowledge-bases';
+import KnowledgeBaseCardGrid from '#/components/business/knowledge-base-card-grid/KnowledgeBaseCardGrid.vue';
 import {
   createCreateRecordPageOperation,
   createStructuredSearchPageOperation,
@@ -248,6 +237,47 @@ function onMenuClick(key: number | string, row: AdminKnowledgeBaseItem) {
   }
 }
 
+const cardItems = computed<KnowledgeBaseCardViewModel[]>(() =>
+  list.value.map((item) => ({
+    id: item.id,
+    name: item.name,
+    description: item.description,
+    embeddingModelName: item.embedding_model_name,
+    statusColor: item.status === 'active' ? 'success' : 'error',
+    statusText: $t(`admin.knowledgeBase.status.${item.status}`),
+    scopeColor: getScopeColor(item.scope),
+    scopeText: getScopeText(item.scope),
+    documentCount: item.document_count,
+    totalChunks: item.total_chunks,
+    totalSizeText: formatFileSize(item.total_size_bytes),
+    createdAtText: formatRelativeTime(item.created_at),
+    createdAtTitle: formatDate(item.created_at),
+    menuActions: [
+      {
+        key: 'detail',
+        label: $t('admin.knowledgeBase.detail'),
+        icon: 'lucide:eye',
+      },
+      {
+        key: 'edit',
+        label: $t('admin.common.edit'),
+        icon: 'lucide:pencil',
+      },
+      {
+        key: 'delete',
+        label: $t('admin.common.delete'),
+        icon: 'lucide:trash-2',
+        danger: true,
+      },
+    ],
+    secondaryAction: {
+      key: 'edit',
+      label: $t('admin.common.edit'),
+      icon: 'lucide:pencil',
+    },
+  })),
+);
+
 function onFormSuccess() {
   loadList();
   loadStats();
@@ -336,192 +366,33 @@ function onDetailSuccess() {
       </Button>
     </div>
 
-    <!-- Card grid / 卡片网格 -->
-    <Spin :spinning="loading">
-      <div
-        v-if="list.length === 0 && !loading"
-        class="flex min-h-[300px] items-center justify-center"
-      >
-        <Empty :description="$t('admin.knowledgeBase.emptyList')">
-          <Button
-            v-access:code="['ai_knowledge_base:create']"
-            type="primary"
-            @click="onCreate"
-          >
-            <template #icon>
-              <IconifyIcon icon="lucide:plus" class="size-4" />
-            </template>
-            {{ $t('admin.knowledgeBase.create') }}
-          </Button>
-        </Empty>
-      </div>
-      <div v-else class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <div
-          v-for="item in list"
-          :key="item.id"
-          class="group relative rounded-xl border border-border bg-card transition-all duration-200 hover:border-primary/30 hover:shadow-md"
-        >
-          <!-- Card header / 卡片头部 -->
-          <div class="flex items-start gap-3 p-4 pb-2">
-            <div
-              class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10"
-            >
-              <IconifyIcon
-                icon="lucide:book-open"
-                class="size-5 text-primary"
-              />
-            </div>
-            <div class="min-w-0 flex-1">
-              <h4
-                class="cursor-pointer truncate text-sm font-semibold text-foreground hover:text-primary"
-                @click="onDetailClick(item)"
-              >
-                {{ item.name }}
-              </h4>
-              <div class="mt-1 flex flex-wrap items-center gap-1.5">
-                <Tag
-                  :color="getScopeColor(item.scope)"
-                  class="!mr-0 !text-[10px] !leading-4"
-                  style="padding: 0 5px"
-                >
-                  {{ getScopeText(item.scope) }}
-                </Tag>
-                <Tag
-                  :color="item.status === 'active' ? 'success' : 'error'"
-                  class="!mr-0 !text-[10px] !leading-4"
-                  style="padding: 0 5px"
-                >
-                  {{ $t(`admin.knowledgeBase.status.${item.status}`) }}
-                </Tag>
-              </div>
-            </div>
-            <!-- Action menu / 操作菜单 -->
-            <Dropdown
-              :trigger="['click']"
-              placement="bottomRight"
-              class="shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
-            >
-              <button
-                class="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                @click.stop
-              >
-                <IconifyIcon icon="lucide:more-vertical" class="size-4" />
-              </button>
-              <template #overlay>
-                <Menu
-                  @click="
-                    (info: { key: string | number }) =>
-                      onMenuClick(info.key, item)
-                  "
-                >
-                  <MenuItem key="detail">
-                    <div class="flex items-center gap-2">
-                      <IconifyIcon icon="lucide:eye" class="size-4" />
-                      <span>{{ $t('admin.knowledgeBase.detail') }}</span>
-                    </div>
-                  </MenuItem>
-                  <MenuItem key="edit">
-                    <div class="flex items-center gap-2">
-                      <IconifyIcon icon="lucide:pencil" class="size-4" />
-                      <span>{{ $t('admin.common.edit') }}</span>
-                    </div>
-                  </MenuItem>
-                  <MenuItem key="delete" class="!text-destructive">
-                    <div class="flex items-center gap-2">
-                      <IconifyIcon icon="lucide:trash-2" class="size-4" />
-                      <span>{{ $t('admin.common.delete') }}</span>
-                    </div>
-                  </MenuItem>
-                </Menu>
-              </template>
-            </Dropdown>
-          </div>
-
-          <!-- Description / 描述 -->
-          <p
-            v-if="item.description"
-            class="mx-4 mb-2 line-clamp-2 text-xs leading-relaxed text-muted-foreground"
-          >
-            {{ item.description }}
-          </p>
-          <p v-else class="mx-4 mb-2 text-xs italic text-muted-foreground/50">
-            {{ $t('admin.knowledgeBase.noDescription') }}
-          </p>
-
-          <!-- Embedding model chip / Embedding 模型芯片 -->
-          <div
-            v-if="item.embedding_model_name"
-            class="mx-4 mb-3 flex items-center gap-1.5"
-          >
-            <div
-              class="flex items-center gap-1.5 rounded-md bg-accent px-2 py-1 text-[11px] text-muted-foreground"
-            >
-              <IconifyIcon icon="lucide:cpu" class="size-3" />
-              <span class="truncate">{{ item.embedding_model_name }}</span>
-            </div>
-          </div>
-
-          <!-- Footer: stats + time + quick actions / 底栏：统计+时间+快捷操作 -->
-          <div
-            class="flex items-center justify-between border-t border-border/50 px-4 py-3 text-[11px] text-muted-foreground"
-          >
-            <div class="flex items-center gap-3">
-              <Tooltip :title="$t('admin.knowledgeBase.field.documentCount')">
-                <span class="flex items-center gap-1">
-                  <IconifyIcon icon="lucide:file-text" class="size-3.5" />
-                  <span class="tabular-nums">{{ item.document_count }}</span>
-                </span>
-              </Tooltip>
-              <Tooltip :title="$t('admin.knowledgeBase.field.totalChunks')">
-                <span class="flex items-center gap-1">
-                  <IconifyIcon icon="lucide:puzzle" class="size-3.5" />
-                  <span class="tabular-nums">{{ item.total_chunks }}</span>
-                </span>
-              </Tooltip>
-              <Tooltip :title="$t('admin.knowledgeBase.field.totalSizeBytes')">
-                <span class="flex items-center gap-1">
-                  <IconifyIcon icon="lucide:hard-drive" class="size-3.5" />
-                  <span>{{ formatFileSize(item.total_size_bytes) }}</span>
-                </span>
-              </Tooltip>
-              <Tooltip :title="formatDate(item.created_at)">
-                <span class="flex items-center gap-1">
-                  <IconifyIcon icon="lucide:clock" class="size-3.5" />
-                  <span>{{ formatRelativeTime(item.created_at) }}</span>
-                </span>
-              </Tooltip>
-            </div>
-            <div class="flex items-center gap-2">
-              <button
-                class="flex items-center gap-1 rounded-md px-2 py-1 text-primary transition-colors hover:bg-primary/10"
-                @click="onDetailClick(item)"
-              >
-                <IconifyIcon icon="lucide:eye" class="size-3" />
-                <span>{{ $t('admin.knowledgeBase.detail') }}</span>
-              </button>
-              <button
-                class="flex items-center gap-1 rounded-md px-2 py-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                @click="handleMenuAction('edit', item)"
-              >
-                <IconifyIcon icon="lucide:pencil" class="size-3" />
-                <span>{{ $t('admin.common.edit') }}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Spin>
-
-    <!-- 分页 -->
-    <div v-if="total > pageSize" class="flex justify-end">
-      <Pagination
-        :current="currentPage"
-        :total="total"
-        :page-size="pageSize"
-        size="small"
-        :show-size-changer="false"
-        @change="onPageChange"
-      />
-    </div>
+    <KnowledgeBaseCardGrid
+      :create-label="$t('admin.knowledgeBase.create')"
+      :current-page="currentPage"
+      :detail-action-label="$t('admin.knowledgeBase.detail')"
+      :empty-description="$t('admin.knowledgeBase.emptyList')"
+      :loading="loading"
+      :page-size="pageSize"
+      :stat-titles="{
+        documents: $t('admin.knowledgeBase.field.documentCount'),
+        chunks: $t('admin.knowledgeBase.field.totalChunks'),
+        size: $t('admin.knowledgeBase.field.totalSizeBytes'),
+      }"
+      :total="total"
+      :value="cardItems"
+      @menu-action="
+        (actionKey, itemId) => {
+          const row = list.find((item) => item.id === itemId);
+          if (row) onMenuClick(actionKey, row);
+        }
+      "
+      @page-change="onPageChange"
+      @select="
+        (itemId) => {
+          const row = list.find((item) => item.id === itemId);
+          if (row) onDetailClick(row);
+        }
+      "
+    />
   </Page>
 </template>

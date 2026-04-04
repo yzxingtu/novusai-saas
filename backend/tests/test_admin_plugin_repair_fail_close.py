@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from app.api.admin.plugins import AdminPluginController, MenuOverrideItem
 from app.core.config import settings
+from app.core.i18n import _, set_locale
 from app.core.response import deleted
 from app.enums.plugin import PluginStatusEnum
 from app.exceptions.base import BusinessException
@@ -40,6 +41,13 @@ async def _lock_context(_plugin_id: int):
     yield
 
 
+@pytest.fixture(autouse=True)
+def _use_english_locale():
+    set_locale("en")
+    yield
+    set_locale("zh_CN")
+
+
 @pytest.mark.asyncio
 async def test_admin_repair_extension_load_failure_disables_permissions_and_unregisters_runtime(
     monkeypatch: pytest.MonkeyPatch,
@@ -64,6 +72,7 @@ async def test_admin_repair_extension_load_failure_disables_permissions_and_unre
     )
     lifecycle = SimpleNamespace(
         _assert_plugin_runtime_enable_guards=AsyncMock(),
+        _deactivate_plugin_skill_records=AsyncMock(),
         _ensure_plugin_ai_features=AsyncMock(),
         _ensure_plugin_skill_records=AsyncMock(),
         _install_python_deps=AsyncMock(return_value=[]),
@@ -107,10 +116,12 @@ async def test_admin_repair_extension_load_failure_disables_permissions_and_unre
     db.flush = AsyncMock()
     admin = SimpleNamespace(id=1)
 
-    with pytest.raises(BusinessException, match="Repair failed: 1 extension\\(s\\) failed"):
+    with pytest.raises(BusinessException) as exc:
         await endpoint(plugin.id, db, admin)
 
+    assert exc.value.message == _("plugin.error.repair_extensions_failed").format(count=1)
     registry.unregister_all.assert_called_once_with(plugin.name)
+    lifecycle._deactivate_plugin_skill_records.assert_awaited_once_with(plugin.name)
     lifecycle._set_plugin_permissions_enabled.assert_awaited_once_with(plugin.name, False)
     db.flush.assert_awaited_once()
     emitter.emit_error.assert_awaited_once()
@@ -144,6 +155,7 @@ async def test_admin_repair_unexpected_failure_still_fail_closes_runtime(
     )
     lifecycle = SimpleNamespace(
         _assert_plugin_runtime_enable_guards=AsyncMock(),
+        _deactivate_plugin_skill_records=AsyncMock(),
         _ensure_plugin_ai_features=AsyncMock(),
         _ensure_plugin_skill_records=AsyncMock(),
         _install_python_deps=AsyncMock(return_value=[]),
@@ -190,19 +202,21 @@ async def test_admin_repair_unexpected_failure_still_fail_closes_runtime(
     original_debug = settings.DEBUG
     settings.DEBUG = False
     try:
-        with pytest.raises(BusinessException, match="Repair failed"):
+        with pytest.raises(BusinessException) as exc:
             await endpoint(plugin.id, db, admin)
     finally:
         settings.DEBUG = original_debug
 
+    assert exc.value.message == _("plugin.error.repair_failed")
     registry.unregister_all.assert_called_once_with(plugin.name)
+    lifecycle._deactivate_plugin_skill_records.assert_awaited_once_with(plugin.name)
     lifecycle._set_plugin_permissions_enabled.assert_awaited_once_with(plugin.name, False)
     db.flush.assert_awaited_once()
     emitter.emit_error.assert_awaited_once()
     emitter.emit_done.assert_not_awaited()
     assert plugin.status == PluginStatusEnum.ERROR.value
     assert plugin.error_count == 3
-    assert plugin.error_message == "Repair failed"
+    assert plugin.error_message == _("plugin.error.repair_failed")
 
 
 def test_menu_override_item_accepts_hyphenated_parent_codes() -> None:
@@ -243,4 +257,6 @@ async def test_admin_uninstall_returns_deleted_when_plugin_already_removed(
         False,
     )
 
-    assert response == deleted(message="Plugin #1089 already removed")
+    assert response == deleted(
+        message=_("plugin.deleted_already").format(plugin_id=1089)
+    )

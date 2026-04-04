@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 
 from app.core.base_model import utc_now
 from app.core.logging import get_logger
-from app.core.response import resolve_public_error_message
+from app.core.response import resolve_public_error_message, serialize_datetime_for_api
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -189,5 +189,5 @@ class PluginHealthMonitor:
             "error_count": plugin.error_count,
             "error_message": plugin.error_message,
             "auto_disable_threshold": threshold,
-            "enabled_at": plugin.enabled_at.isoformat() if plugin.enabled_at else None,
+            "enabled_at": serialize_datetime_for_api(plugin.enabled_at),
         }

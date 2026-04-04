@@ -16,6 +16,7 @@ from app.core.logging import LogManager
 from app.enums.ai import CallStatusEnum, UserTypeEnum
 from app.enums.log import UserTypeEnum as LogUserTypeEnum
 from app.models.ai import AICallLog
+from app.models.ai.agent import Agent
 from app.models.ai.model import AIModel
 from app.models.ai.provider import AIProvider
 from app.models.system.admin import Admin
@@ -160,6 +161,15 @@ class AICallLogRepository(BaseRepository[AICallLog]):
             for model_id in (item.model_id, item.routed_model_id)
             if model_id
         }
+        agent_ids = {
+            int(agent_id)
+            for item in items
+            for agent_id in (
+                item.agent_id,
+                getattr(item, "agent_id_snapshot", None),
+            )
+            if agent_id
+        }
         provider_ids = {i.provider_id for i in items if i.provider_id}
         tenant_ids = set()
         for item in items:
@@ -177,6 +187,24 @@ class AICallLogRepository(BaseRepository[AICallLog]):
                 )
             ).all()
             model_map = {r.id: r.name for r in rows}
+
+        agent_meta_map: dict[int, dict[str, str | None]] = {}
+        if agent_ids:
+            rows = (
+                await self.db.execute(
+                    select(Agent.id, Agent.name, Agent.avatar).where(
+                        Agent.id.in_(agent_ids),
+                        Agent.is_deleted.is_(False),
+                    )
+                )
+            ).all()
+            agent_meta_map = {
+                r.id: {
+                    "avatar": getattr(r, "avatar", None),
+                    "name": getattr(r, "name", None),
+                }
+                for r in rows
+            }
 
         provider_map: dict[int, str] = {}
         provider_icon_map: dict[int, str | None] = {}
@@ -293,13 +321,18 @@ class AICallLogRepository(BaseRepository[AICallLog]):
             snap_model = getattr(item, "model_name_snapshot", None)
             snap_provider = getattr(item, "provider_name_snapshot", None)
             snap_agent = getattr(item, "agent_name_snapshot", None)
+            resolved_agent_id = int(
+                item.agent_id or getattr(item, "agent_id_snapshot", None) or 0
+            )
+            agent_meta = agent_meta_map.get(resolved_agent_id, {})
             d["model_name"] = snap_model or model_map.get(item.model_id, "-")
             d["provider_name"] = snap_provider or provider_map.get(
                 item.provider_id, "-"
             )
             d["provider_icon"] = provider_icon_map.get(item.provider_id)
             d["routed_model_name"] = model_map.get(item.routed_model_id, "-")
-            d["agent_name"] = snap_agent or "-"
+            d["agent_name"] = snap_agent or agent_meta.get("name") or "-"
+            d["agent_avatar"] = agent_meta.get("avatar")
             d["agent_id_snapshot"] = getattr(item, "agent_id_snapshot", None)
             d["billing_tenant_name_snapshot"] = getattr(
                 item,

@@ -29,6 +29,8 @@ export function useColumns<T = AIApiKeyInfo>(
       field: 'name',
       title: $t('admin.ai.apiKey.name'),
       minWidth: 220,
+      align: 'left',
+      headerAlign: 'left',
       slots: { default: 'name_cell' },
     },
     {
@@ -49,8 +51,9 @@ export function useColumns<T = AIApiKeyInfo>(
     {
       field: 'scope',
       title: $t('common.scope.label'),
-      width: 148,
+      width: 220,
       align: 'left',
+      headerAlign: 'left',
       slots: { default: 'scope_cell' },
     },
     {

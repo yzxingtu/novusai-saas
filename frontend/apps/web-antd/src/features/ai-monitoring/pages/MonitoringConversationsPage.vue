@@ -4,11 +4,20 @@ import type { MonitoringConversationInfo, MonitoringScope } from '../api';
 import { computed, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
+import { IconifyIcon } from '@vben/icons';
 
 import { Avatar, Card, Tag, Tooltip } from 'ant-design-vue';
 
-import { searchInput, select } from '#/adapter/form';
+import { searchDateRange, searchInput, select } from '#/adapter/form';
 import { useCrudPage } from '#/adapter/vxe-table';
+import { getAIAgentSelectApi } from '#/api/admin/ai-agents';
+import { getAIModelSelectApi } from '#/api/admin/ai-models';
+import { getAIProviderSelectApi } from '#/api/admin/ai-providers';
+import { getTenantAgentSelectApi } from '#/api/tenant/agents';
+import {
+  getTenantAIModelSelectApi,
+  getTenantAIProviderSelectApi,
+} from '#/api/tenant/ai';
 import AIPageHeroCard from '#/components/business/ai-page-hero/AIPageHeroCard.vue';
 import { createViewDetailPageOperation } from '#/composables';
 import { $t } from '#/locales';
@@ -29,15 +38,100 @@ const props = defineProps<{
 
 const detailOpen = ref(false);
 const detailId = ref<null | number>(null);
+const providerSelectApi =
+  props.scope === 'admin' ? getAIProviderSelectApi : getTenantAIProviderSelectApi;
+const modelSelectApi =
+  props.scope === 'admin' ? getAIModelSelectApi : getTenantAIModelSelectApi;
+const agentSelectApi =
+  props.scope === 'admin' ? getAIAgentSelectApi : getTenantAgentSelectApi;
+
+function isIconAvatar(avatar: null | string | undefined): boolean {
+  return Boolean(avatar && String(avatar).includes(':'));
+}
+
+function getStatusText(status?: null | string) {
+  if (!status) {
+    return '-';
+  }
+  const key = `${props.i18nPrefix}.status_options.${status}`;
+  const translated = $t(key);
+  return translated === key ? status : translated;
+}
+
+function getConversationAgentName(row: MonitoringConversationInfo) {
+  if (row.agent_name) {
+    return row.agent_name;
+  }
+  if (row.agent_id) {
+    return `#${row.agent_id}`;
+  }
+  return '-';
+}
+
+function onProviderChange(providerId: null | number | string | undefined) {
+  gridApi.formApi?.setValues({
+    'filter[model_id][eq]': undefined,
+  });
+  gridApi.formApi?.updateSchema([
+    {
+      componentProps: {
+        disabled: !providerId,
+        params: providerId ? { provider_id: Number(providerId) } : {},
+      },
+      fieldName: 'filter[model_id][eq]',
+    },
+  ]);
+}
+
 const searchSchema = [
-  searchInput('filter[title][ilike]', $t(`${props.i18nPrefix}.title`)),
-  searchInput('filter[agent_id][eq]', $t(`${props.i18nPrefix}.agentName`)),
+  searchInput('title', $t(`${props.i18nPrefix}.conversationTitle`), {
+    placeholder: $t(`${props.i18nPrefix}.placeholder.searchTitle`),
+  }),
+  searchInput('id', $t(`${props.i18nPrefix}.conversationId`), {
+    op: 'eq',
+    placeholder: $t(`${props.i18nPrefix}.placeholder.searchConversationId`),
+  }),
+  select('filter[provider_id][eq]', $t(`${props.i18nPrefix}.providerName`), {
+    api: providerSelectApi,
+    componentProps: {
+      onChange: onProviderChange,
+    },
+    extraField: 'code',
+    placeholder: $t(`${props.i18nPrefix}.placeholder.selectProvider`),
+  }),
+  select('filter[model_id][eq]', $t(`${props.i18nPrefix}.modelName`), {
+    api: modelSelectApi,
+    componentProps: {
+      disabled: true,
+    },
+    extraField: 'code',
+    placeholder: $t(`${props.i18nPrefix}.placeholder.selectModel`),
+  }),
+  select('filter[agent_id][eq]', $t(`${props.i18nPrefix}.agentName`), {
+    api: agentSelectApi,
+    extraField: 'scope',
+    placeholder: $t(`${props.i18nPrefix}.placeholder.selectAgent`),
+  }),
   select('filter[status][eq]', $t(`${props.i18nPrefix}.status`), {
     options: [
-      { label: 'active', value: 'active' },
-      { label: 'archived', value: 'archived' },
-      { label: 'closed', value: 'closed' },
+      {
+        label: $t(`${props.i18nPrefix}.status_options.active`),
+        value: 'active',
+      },
+      {
+        label: $t(`${props.i18nPrefix}.status_options.archived`),
+        value: 'archived',
+      },
+      {
+        label: $t(`${props.i18nPrefix}.status_options.closed`),
+        value: 'closed',
+      },
     ],
+    placeholder: $t(`${props.i18nPrefix}.placeholder.allStatuses`),
+  }),
+  searchDateRange({
+    field: 'created_at',
+    label: $t(`${props.i18nPrefix}.createdAt`),
   }),
 ];
 
@@ -53,6 +147,12 @@ const heroChips = computed(() => [
     icon: 'lucide:chart-column-big',
     className: 'bg-background/90 text-foreground',
     text: `${$t(`${props.i18nPrefix}.messageCount`)} / ${$t(`${props.i18nPrefix}.tokenCount`)} / ${$t(`${props.i18nPrefix}.cost`)}`,
+  },
+  {
+    key: 'filters',
+    icon: 'lucide:sliders-horizontal',
+    className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-200',
+    text: `${$t(`${props.i18nPrefix}.providerName`)} / ${$t(`${props.i18nPrefix}.modelName`)} / ${$t(`${props.i18nPrefix}.status`)}`,
   },
 ]);
 
@@ -86,12 +186,13 @@ function handleOperationClick(payload: { row: MonitoringConversationInfo }) {
 }
 
 const columns = computed(() => {
-  const base = [
+  const base: any[] = [
     { field: 'id', title: 'ID', width: 90, sortable: true },
     {
       field: 'agent_name',
       title: $t(`${props.i18nPrefix}.agentName`),
-      minWidth: 150,
+      minWidth: 210,
+      slots: { default: 'agent_cell' },
     },
     {
       field: 'title',
@@ -191,15 +292,23 @@ const columns = computed(() => {
   ];
 });
 
-const { Grid } = useCrudPage<MonitoringConversationInfo>({
+const { Grid, gridApi } = useCrudPage<MonitoringConversationInfo>({
   api: {
     list: (params) => getMonitoringConversationList(props.scope, params),
     resource: props.resource,
   },
   columns: () => columns.value,
   searchSchema,
+  search: {
+    defaultOpen: false,
+    quickSearch: {
+      defaultField: 'filter[title][ilike]',
+      fields: ['filter[title][ilike]', 'filter[id]'],
+    },
+  },
   i18nPrefix: props.i18nPrefix,
   defaultSort: '-created_at',
+  rowHeight: 72,
   customActions: {
     detail: viewDetail,
   },
@@ -222,7 +331,7 @@ const { Grid } = useCrudPage<MonitoringConversationInfo>({
 </script>
 
 <template>
-  <Page auto-content-height content-class="flex flex-col gap-4 !p-4">
+  <Page auto-content-height content-class="monitoring-page flex flex-col gap-4 !p-4">
     <AIPageHeroCard
       :chips="heroChips"
       :description="$t(`${i18nPrefix}.pageDesc`)"
@@ -239,13 +348,52 @@ const { Grid } = useCrudPage<MonitoringConversationInfo>({
     />
 
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
-      <Grid>
+      <Grid class="monitoring-grid">
+        <template #agent_cell="{ row }">
+          <div class="flex items-center gap-3 py-0.5">
+            <div
+              class="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border/60 bg-primary/10 text-primary shadow-sm"
+            >
+              <IconifyIcon
+                v-if="isIconAvatar(row.agent_avatar)"
+                :icon="String(row.agent_avatar)"
+                class="size-4.5"
+              />
+              <img
+                v-else-if="row.agent_avatar"
+                :alt="getConversationAgentName(row)"
+                :src="toAvatarDisplayUrl(row.agent_avatar)"
+                class="size-full object-cover"
+              />
+              <span v-else class="text-sm font-semibold">
+                {{ getConversationAgentName(row).charAt(0).toUpperCase() }}
+              </span>
+            </div>
+            <div class="min-w-0">
+              <div class="truncate text-sm font-medium text-foreground">
+                {{ getConversationAgentName(row) }}
+              </div>
+              <div class="truncate text-xs text-muted-foreground">
+                #{{ row.id }}
+              </div>
+            </div>
+          </div>
+        </template>
         <template #title_cell="{ row }">
-          <span>{{ row.title || '-' }}</span>
+          <div class="min-w-0">
+            <div class="line-clamp-2 text-sm font-medium text-foreground">
+              {{ row.title || $t(`${i18nPrefix}.untitled`) }}
+            </div>
+            <div class="truncate text-xs text-muted-foreground">
+              {{ row.last_call_at ? formatRelativeTime(row.last_call_at) : '-' }}
+            </div>
+          </div>
         </template>
 
         <template #tenant_cell="{ row }">
-          <span>{{ row.tenant_name || '-' }}</span>
+          <span class="truncate text-sm text-foreground">{{
+            row.tenant_name || '-'
+          }}</span>
         </template>
 
         <template #actor_cell="{ row }">
@@ -267,7 +415,7 @@ const { Grid } = useCrudPage<MonitoringConversationInfo>({
 
         <template #status_cell="{ row }">
           <Tag :color="row.status === 'active' ? 'success' : 'default'">
-            {{ row.status }}
+            {{ getStatusText(row.status) }}
           </Tag>
         </template>
 
@@ -306,3 +454,10 @@ const { Grid } = useCrudPage<MonitoringConversationInfo>({
     </Card>
   </Page>
 </template>
+
+<style scoped>
+.monitoring-grid :deep(.vxe-body--row .vxe-cell) {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+</style>

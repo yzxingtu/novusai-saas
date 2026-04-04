@@ -241,7 +241,7 @@ const { Grid, FormDrawer, onRefresh } = useCrudPage<AIApiKeyInfo>({
           </Tag>
           <span
             v-if="row.tenant_name"
-            class="line-clamp-2 max-w-[10rem] text-[11px] leading-tight text-muted-foreground"
+            class="line-clamp-2 max-w-[14rem] text-[11px] leading-tight text-muted-foreground"
           >
             {{ row.tenant_name }}
           </span>

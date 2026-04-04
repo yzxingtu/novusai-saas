@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -66,7 +67,7 @@ def test_normalize_audit_payload_serializes_models_and_nested_values():
             }
         ],
         'cost': '12.50',
-        'created_at': '2026-02-13T00:42:39',
+        'created_at': '2026-02-13T00:42:39+00:00',
         'nested': {'value': 'ok'},
     }
 
@@ -75,6 +76,14 @@ def test_normalize_audit_payload_wraps_non_dict_top_level_values():
     normalized = _normalize_audit_payload(['a', 'b'])
 
     assert normalized == {'value': ['a', 'b']}
+
+
+def test_normalize_audit_payload_does_not_call_async_mock_serializers():
+    payload = {'result': SimpleNamespace(model_dump=AsyncMock(), to_dict=AsyncMock())}
+
+    normalized = _normalize_audit_payload(payload)
+
+    assert normalized == {'result': str(payload['result'])}
 
 
 async def _fake_empty_async(*_args, **_kwargs):

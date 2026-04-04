@@ -280,11 +280,13 @@ export function buildRecycleColumns(
         options: [
           {
             code: 'restore',
+            accessCodes: ['recycle_bin:delete'],
             icon: 'lucide:rotate-ccw',
             text: $t('common.recycleBin.restore'),
           },
           {
             code: 'delete',
+            accessCodes: ['recycle_bin:delete'],
             danger: true,
             icon: 'lucide:x',
             text: $t('common.recycleBin.permanentDelete'),

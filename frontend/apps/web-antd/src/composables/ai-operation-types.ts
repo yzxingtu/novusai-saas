@@ -32,6 +32,8 @@ export type AiFieldComponent =
 export interface EnhancedFormFieldDescriptor {
   type: 'array' | 'boolean' | 'number' | 'string';
   description: string;
+  /** Original field label / 原始字段标签 */
+  label?: string;
   required?: boolean;
   /** Array item schema / 数组元素 schema */
   items?: {

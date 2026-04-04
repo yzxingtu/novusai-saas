@@ -5,11 +5,13 @@ AI 操作审计日志 Service / AI Action Log Service
 Provides audit log query/statistics services and write helpers.
 """
 
+import inspect
 from dataclasses import asdict, is_dataclass
 from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
 from typing import Any
+from unittest.mock import AsyncMock
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.configs.service import PLATFORM_TENANT_ID
 from app.core.base_model import BaseModel
 from app.core.base_service import GlobalService, TenantService
+from app.core.response import serialize_datetime_for_api
 from app.enums.agent import ActionLevelEnum, ActionStatusEnum, ActionTypeEnum
 from app.middleware.trace import trace_id_var
 from app.models.ai.action_log import AIActionLog
@@ -58,7 +61,10 @@ def _normalize_audit_value(value: Any) -> Any:
     if isinstance(value, Decimal):
         return str(value)
 
-    if isinstance(value, (date, datetime)):
+    if isinstance(value, datetime):
+        return serialize_datetime_for_api(value)
+
+    if isinstance(value, date):
         return value.isoformat()
 
     if isinstance(value, Enum):
@@ -79,11 +85,19 @@ def _normalize_audit_value(value: Any) -> Any:
         return [_normalize_audit_value(item) for item in value]
 
     model_dump = getattr(value, "model_dump", None)
-    if callable(model_dump):
+    if (
+        callable(model_dump)
+        and not inspect.iscoroutinefunction(model_dump)
+        and not isinstance(model_dump, AsyncMock)
+    ):
         return _normalize_audit_value(model_dump())
 
     to_dict = getattr(value, "to_dict", None)
-    if callable(to_dict):
+    if (
+        callable(to_dict)
+        and not inspect.iscoroutinefunction(to_dict)
+        and not isinstance(to_dict, AsyncMock)
+    ):
         try:
             return _normalize_audit_value(to_dict())
         except TypeError:
@@ -132,6 +146,17 @@ def _normalize_operator_type(operator_type: str | None) -> str | None:
     return operator_type
 
 
+async def _execute_first(
+    db: AsyncSession,
+    stmt: Any,
+) -> Any:
+    result = await db.execute(stmt)
+    row = result.first()
+    if inspect.isawaitable(row):
+        row = await row
+    return row
+
+
 def _resolve_agent_meta(
     item: dict[str, Any],
     live_meta: dict[str, Any] | None = None,
@@ -172,7 +197,7 @@ async def _load_agent_snapshot(
         Agent.id == agent_id,
         Agent.is_deleted.is_(False),
     )
-    row = (await db.execute(stmt)).first()
+    row = await _execute_first(db, stmt)
     if not row:
         return {}
     return {
@@ -199,7 +224,7 @@ async def _load_operator_snapshot(
             Admin.id == operator_id,
             Admin.is_deleted.is_(False),
         )
-        row = (await db.execute(stmt)).first()
+        row = await _execute_first(db, stmt)
         if row:
             return {
                 "operator_avatar_snapshot": row.avatar,
@@ -218,7 +243,7 @@ async def _load_operator_snapshot(
             TenantUser.id == operator_id,
             TenantUser.is_deleted.is_(False),
         )
-        row = (await db.execute(stmt)).first()
+        row = await _execute_first(db, stmt)
         if row:
             return {
                 "operator_avatar_snapshot": row.avatar,
@@ -236,7 +261,7 @@ async def _load_operator_snapshot(
         TenantAdmin.id == operator_id,
         TenantAdmin.is_deleted.is_(False),
     )
-    row = (await db.execute(stmt)).first()
+    row = await _execute_first(db, stmt)
     if row:
         return {
             "operator_avatar_snapshot": row.avatar,
@@ -254,7 +279,7 @@ async def _load_operator_snapshot(
         TenantUser.id == operator_id,
         TenantUser.is_deleted.is_(False),
     )
-    user_row = (await db.execute(user_stmt)).first()
+    user_row = await _execute_first(db, user_stmt)
     if user_row:
         return {
             "operator_avatar_snapshot": user_row.avatar,

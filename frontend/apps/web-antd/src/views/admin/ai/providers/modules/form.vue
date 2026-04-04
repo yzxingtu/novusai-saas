@@ -15,6 +15,7 @@ import { $t } from '#/locales';
 
 import {
   getFormDefaults,
+  hasLikelyMissingProviderApiVersion,
   hasForbiddenProviderEndpointSuffix,
   isResponsesToolHistoryCompatEnabled,
   normalizeProviderBaseUrlInput,
@@ -50,6 +51,14 @@ const { Drawer, isEdit } = useCrudDrawer<AIProviderInfo>({
         $t('admin.ai.provider.validation.baseUrlEndpointNotAllowed'),
       );
       throw new Error('Provider base_url must not include endpoint path');
+    }
+    if (
+      hasLikelyMissingProviderApiVersion(
+        normalizedBaseUrl,
+        typeof values.type === 'string' ? values.type : null,
+      )
+    ) {
+      message.warning($t('admin.ai.provider.validation.baseUrlLikelyMissingVersion'));
     }
 
     const effectiveWireApi = resolveProviderWireApi(

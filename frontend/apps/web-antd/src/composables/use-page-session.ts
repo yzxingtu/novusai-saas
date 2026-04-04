@@ -22,9 +22,11 @@ import type { Ref } from 'vue';
 import { ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 
+import { resolveRoutePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
+
 /** Global active page_session_id (only one active page in SPA) / 全局当前活跃的 page_session_id */
 const activePageSessionId = ref<string>('');
-let lastRoutePath = '';
+let lastResolvedPageKey = '';
 
 /**
  * Generate UUID v4
@@ -60,23 +62,26 @@ export interface UsePageSessionReturn {
  */
 export function usePageSession(): UsePageSessionReturn {
   const route = useRoute();
+  const resolveCurrentPageKey = () =>
+    resolveRoutePageKey(route, typeof window !== 'undefined' ? window.location.pathname : '');
 
   // Reuse current session id when remounted on the same route / 同一路由重挂载时复用当前 session id
-  if (!activePageSessionId.value || lastRoutePath !== route.path) {
+  if (!activePageSessionId.value || lastResolvedPageKey !== resolveCurrentPageKey()) {
     activePageSessionId.value = generateUUID();
-    lastRoutePath = route.path;
+    lastResolvedPageKey = resolveCurrentPageKey();
   }
 
-  // Regenerate on route change / 路由变化时重新生成
+  // Regenerate on effective AI page key change / 页面 AI key 变化时重新生成
   watch(
-    () => route.path,
-    (nextPath) => {
-      if (nextPath === lastRoutePath && activePageSessionId.value) {
+    resolveCurrentPageKey,
+    (nextPageKey) => {
+      if (nextPageKey === lastResolvedPageKey && activePageSessionId.value) {
         return;
       }
       activePageSessionId.value = generateUUID();
-      lastRoutePath = nextPath;
+      lastResolvedPageKey = nextPageKey;
     },
+    { immediate: true },
   );
 
   return { pageSessionId: activePageSessionId };

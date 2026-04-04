@@ -64,7 +64,6 @@ export interface DetailPageAiOptions {
  */
 export function useDetailPageAi(opts: DetailPageAiOptions): void {
   const { refreshFn, backRoute, disabled = [], extra = [] } = opts;
-
   const router = useRouter();
 
   const isDisabled = (name: string) => disabled.includes(name);
@@ -96,7 +95,7 @@ export function useDetailPageAi(opts: DetailPageAiOptions): void {
       description: 'Navigate back to the list page / 返回列表页',
       readonly: true,
       handler: async () => {
-        router.push(backRoute);
+        await router.push(backRoute);
         return {
           success: true,
           message: $t('shared.pageOperation.msg.navigatedTo', {
@@ -107,8 +106,7 @@ export function useDetailPageAi(opts: DetailPageAiOptions): void {
     });
   }
 
-  // Merge extra operations (extra overrides same-named standard ops)
-  // 合并额外操作（extra 可覆盖同名标准操作）
+  // Merge extra ops (extra overrides same-named standard ops) / 合并额外操作（extra 可覆盖同名标准操作）
   for (const op of extra) {
     const existingIdx = operations.findIndex((o) => o.name === op.name);
     if (existingIdx === -1) {

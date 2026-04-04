@@ -35,6 +35,20 @@ class AgentSkillGrantService:
             self.skill_repo = AdminSkillRepository(db)  # type: ignore[assignment]  # 类型存根 / typing stub
             self.agent_repo = AdminAgentRepository(db)  # type: ignore[assignment]  # 类型存根 / typing stub
 
+    @staticmethod
+    def _skill_runtime_available(skill: Any) -> bool:
+        if not skill:
+            return False
+        if not getattr(skill, "is_active", True) or getattr(skill, "is_deleted", False):
+            return False
+        package = getattr(skill, "package", None)
+        if package is None:
+            return False
+        return bool(
+            getattr(package, "is_active", True)
+            and not getattr(package, "is_deleted", False)
+        )
+
     def _grant_to_item(self, grant: AgentSkillGrant) -> dict[str, Any]:
         """Serialize a grant row with joined skill/package metadata."""
         item: dict[str, Any] = {
@@ -85,7 +99,7 @@ class AgentSkillGrantService:
     async def _validate_skill_accessible(self, skill_id: int):
         """Validate skill exists and is visible in the current scope."""
         skill = await self.skill_repo.get_by_id(skill_id)
-        if not skill:
+        if not self._skill_runtime_available(skill):
             raise NotFoundException(
                 message=_("agent_skill_grant.error.skill_not_found"),
             )
@@ -102,7 +116,11 @@ class AgentSkillGrantService:
         owner_tenant_id = getattr(agent, "owner_tenant_id", self.tenant_id)
         effective_repo = AgentSkillGrantRepository(self.db, owner_tenant_id)
         grants = await effective_repo.get_by_agent_id(agent_id)
-        return [self._grant_to_item(grant) for grant in grants]
+        return [
+            self._grant_to_item(grant)
+            for grant in grants
+            if self._skill_runtime_available(getattr(grant, "skill", None))
+        ]
 
     async def bind_skill(
         self,
@@ -184,7 +202,11 @@ class AgentSkillGrantService:
 
         deduped_skill_ids = list(dict.fromkeys(skill_ids))
         skills = await self.skill_repo.get_by_ids(deduped_skill_ids)
-        skill_map = {skill.id: skill for skill in skills}
+        skill_map = {
+            skill.id: skill
+            for skill in skills
+            if self._skill_runtime_available(skill)
+        }
 
         for skill_id in deduped_skill_ids:
             if skill_map.get(skill_id) is None:

@@ -18,12 +18,13 @@ Multi-turn conversation / 多轮对话：
 from __future__ import annotations
 
 import json
-import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from app.ai.data_intelligence.schema_provider import SchemaProvider, TableSchema
 from app.ai.data_intelligence.sql_safety import SQLSafetyValidator
+from app.ai.prompt_contracts import render_prompt_contract
+from app.ai.text_semantics import extract_fenced_json_block, extract_first_json_object
 from app.ai.types import ChatMessage
 from app.core.i18n import _
 from app.core.logging import LogManager
@@ -81,50 +82,7 @@ class ConversationRound:
 
 
 # ============================================
-# System Prompt Construction / System Prompt 构建
-# ============================================
-
-_SYSTEM_PROMPT_TEMPLATE = """You are a PostgreSQL query generator for a multi-tenant SaaS platform.
-
-## STRICT RULES / 上文为英文说明 / English above
-1. ONLY generate SELECT statements. Never INSERT/UPDATE/DELETE/DROP/ALTER/CREATE.
-2. NEVER use comments (-- or /* */) in SQL.
-3. NEVER use dangerous functions like pg_read_file, pg_sleep, dblink, lo_import, etc.
-4. NEVER access system tables (pg_catalog, information_schema, pg_toast).
-5. ONLY query the tables listed below — no other tables exist.
-6. Do NOT add tenant_id conditions — they will be injected automatically.
-7. Use table aliases for readability.
-8. Add ORDER BY and reasonable LIMIT when appropriate.
-9. For time ranges, use standard PostgreSQL date functions.
-10. Most tables have an `is_deleted` column for soft-delete. ALWAYS add `is_deleted = false` in the WHERE clause to exclude deleted records, unless the user explicitly asks for deleted data.
-11. PostgreSQL requires ALL non-aggregated columns in SELECT to appear in GROUP BY. Never select columns like `created_at`, `name`, etc. without including them in GROUP BY when using aggregate functions.
-12. Keep SQL simple and direct. Prefer a single query without unnecessary subqueries or CTEs.
-
-## AVAILABLE TABLES / 上文为英文说明 / English above
-{schema_ddl}
-
-## OUTPUT FORMAT / 上文为英文说明 / English above
-Return ONLY a JSON object (no markdown, no extra text):
-{{
-  "sql": "SELECT ...",
-  "explanation": "Brief explanation in the user's language",
-  "visualization": "line|bar|pie|table|number",
-  "confidence": 0.0-1.0
-}}
-
-- visualization: "number" for single-value, "line" for time series, "bar" for category comparison, "pie" for proportions, "table" for multi-column data.
-- confidence: your certainty about the SQL correctness (1.0 = very sure, 0.5 = uncertain, 0.0 = cannot generate).
-- If you CANNOT generate valid SQL, return: {{"sql": "", "explanation": "reason", "visualization": "text", "confidence": 0.0}}
-"""
-
-_RETRY_USER_TEMPLATE = """The SQL you generated has safety violations:
-{violations}
-
-Please fix the SQL to comply with all rules. Return the corrected JSON output."""
-
-
-# ============================================ / 上文为英文说明 / English above
-# TextToSQLGenerator
+# TextToSQLGenerator / 文本转 SQL 生成器
 # ============================================
 
 
@@ -224,7 +182,8 @@ class TextToSQLGenerator:
 
                 # Validation failed: build retry feedback / 校验失败：构建重试反馈
                 if attempt < MAX_GENERATE_ATTEMPTS - 1:
-                    retry_msg = _RETRY_USER_TEMPLATE.format(
+                    retry_msg = render_prompt_contract(
+                        "text_to_sql_retry",
                         violations="\n".join(f"- {v}" for v in validation.violations),
                     )
                     messages.append(
@@ -283,7 +242,8 @@ class TextToSQLGenerator:
 
         # System prompt (with schema DDL) / System prompt（含 schema DDL）
         schema_ddl = "\n\n".join(t.to_ddl() for t in schema)
-        system_content = _SYSTEM_PROMPT_TEMPLATE.format(
+        system_content = render_prompt_contract(
+            "text_to_sql_system",
             schema_ddl=schema_ddl,
         )
         messages.append(ChatMessage(role="system", content=system_content))
@@ -344,21 +304,8 @@ class TextToSQLGenerator:
         - Strip markdown code fence / 去除 markdown code fence
         - Lenient JSON parsing / 宽松 JSON 解析
         """
-        # Strip markdown code fence / 去除 markdown code fence
-        cleaned = content.strip()
-        cleaned = re.sub(
-            r"^```(?:json)?\s*\n?",
-            "",
-            cleaned,
-            flags=re.MULTILINE,
-        )
-        cleaned = re.sub(
-            r"\n?```\s*$",
-            "",
-            cleaned,
-            flags=re.MULTILINE,
-        )
-        cleaned = cleaned.strip()
+        fenced_json = extract_fenced_json_block(content)
+        cleaned = str(fenced_json if fenced_json is not None else content or "").strip()
 
         if not cleaned:
             return GeneratedSQL(
@@ -370,16 +317,8 @@ class TextToSQLGenerator:
             data = json.loads(cleaned)
         except json.JSONDecodeError:
             # Try to extract JSON object from content / 尝试从内容中提取 JSON 对象
-            json_match = re.search(r"\{[\s\S]*\}", cleaned)
-            if json_match:
-                try:
-                    data = json.loads(json_match.group())
-                except json.JSONDecodeError:
-                    return GeneratedSQL(
-                        success=False,
-                        error=_("data_intelligence.generator.parse_error"),
-                    )
-            else:
+            data = extract_first_json_object(cleaned)
+            if not isinstance(data, dict):
                 return GeneratedSQL(
                     success=False,
                     error=_("data_intelligence.generator.parse_error"),

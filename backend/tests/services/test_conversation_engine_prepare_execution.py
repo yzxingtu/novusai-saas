@@ -9,10 +9,6 @@ from app.ai.context import get_context_engine
 from app.ai.engine.base import BaseEngine
 from app.ai.engine.conversation import ConversationEngine
 from app.ai.engine.types import ExecutionRequest, ToolUsePolicy
-from app.ai.runtime.flags import (
-    reset_shadow_rate_limiter_for_tests,
-    should_run_shadow_probe,
-)
 from app.ai.runtime.types import CapabilityDescriptor
 from app.ai.skills.resolver import SkillResolveResult
 from app.ai.tools.types import ToolDefinition
@@ -94,6 +90,41 @@ def _build_plugin_page_web_skill_result() -> SkillResolveResult:
             ),
         ]
     )
+
+
+def _build_structured_skill_result() -> SkillResolveResult:
+    return SkillResolveResult(
+        tools=[
+            ToolDefinition(name="get_current_weather", description="Current weather"),
+            ToolDefinition(name="get_weather_forecast", description="Forecast"),
+            ToolDefinition(name="web_search", description="Search the web"),
+            ToolDefinition(name="fetch_url", description="Fetch the url"),
+            ToolDefinition(name="get_page_context", description="Read page context"),
+            ToolDefinition(
+                name="invoke_page_operation",
+                description="Operate current page",
+            ),
+            ToolDefinition(
+                name="pageop_navigate_menu",
+                description="Navigate to a page from available menus",
+            ),
+        ]
+    )
+
+
+@pytest.fixture(autouse=True)
+def _stub_missing_tool_runtime_summary_prompt(monkeypatch):
+    import app.ai.engine.base as base_module
+
+    original = base_module.render_prompt_contract
+
+    def _render(name, *args, **kwargs):
+        if name == "tool_runtime_summary":
+            _ = args, kwargs
+            return "[TOOL RUNTIME SUMMARY]"
+        return original(name, *args, **kwargs)
+
+    monkeypatch.setattr(base_module, "render_prompt_contract", _render)
 
 
 @pytest.mark.asyncio
@@ -180,16 +211,10 @@ async def test_prepare_execution_uses_current_user_text_for_optimizer_before_res
     assert prep.continuation_context.research_target_text == (
         "Search current public information about Sample Topic."
     )
-    assert captured["user_query"] == "Search current public information about Sample Topic."
-    assert captured["kwargs"] == {"preferred_family": "web_research"}
-    assert [tool.name for tool in prep.tools] == ["web_search", "fetch_url"]
-    assert prep.tool_use_policy == ToolUsePolicy(
-        family="web_research",
-        mode="auto",
-        allowed_tool_names=["web_search", "fetch_url"],
-        retry_on_contract_breach=True,
-        reason="explicit_web_request",
-    )
+    assert prep.execution_path == "fast"
+    assert [intent.kind for intent in prep.intent_plan] == ["direct_reply"]
+    assert prep.tools == []
+    assert prep.tool_use_policy == ToolUsePolicy()
 
 
 @pytest.mark.asyncio
@@ -271,19 +296,10 @@ async def test_prepare_execution_preserves_active_web_research_state_without_opt
         "Search current public information about Sample Topic.",
         "Continue reviewing the same public webpages.",
     ]
-    assert captured["user_query"] == "Continue reviewing the same public webpages."
-    assert captured["kwargs"] == {"preferred_family": "web_research"}
-    assert [tool.name for tool in prep.tools] == [
-        "web_search",
-        "fetch_url",
-    ]
-    assert prep.tool_use_policy == ToolUsePolicy(
-        family="web_research",
-        mode="required",
-        allowed_tool_names=["web_search", "fetch_url"],
-        retry_on_contract_breach=True,
-        reason="anchored_or_unfinished_web_continuation",
-    )
+    assert prep.execution_path == "fast"
+    assert [intent.kind for intent in prep.intent_plan] == ["direct_reply"]
+    assert prep.tools == []
+    assert prep.tool_use_policy == ToolUsePolicy()
 
 
 @pytest.mark.asyncio
@@ -352,15 +368,10 @@ async def test_prepare_execution_keeps_generic_follow_up_in_research_state() -> 
     assert prep.continuation_context.research_target_text == "sample topic public info"
     assert prep.continuation_context.search_query_count == 1
     assert prep.continuation_context.fetched_url_count == 0
-    assert captured["user_query"] == "Continue."
-    assert captured["kwargs"] == {"preferred_family": "web_research"}
-    assert prep.tool_use_policy == ToolUsePolicy(
-        family="web_research",
-        mode="required",
-        allowed_tool_names=["web_search", "fetch_url"],
-        retry_on_contract_breach=True,
-        reason="anchored_or_unfinished_web_continuation",
-    )
+    assert prep.execution_path == "fast"
+    assert [intent.kind for intent in prep.intent_plan] == ["direct_reply"]
+    assert prep.tools == []
+    assert prep.tool_use_policy == ToolUsePolicy()
 
 
 @pytest.mark.asyncio
@@ -437,15 +448,8 @@ async def test_prepare_execution_does_not_inherit_page_ops_for_generic_follow_up
             skill_result=skill_result,
         )
 
-    assert captured["kwargs"] == {"preferred_family": None}
     assert [tool.name for tool in prep.tools] == []
-    assert prep.tool_use_policy == ToolUsePolicy(
-        family="none",
-        mode="auto",
-        allowed_tool_names=[],
-        retry_on_contract_breach=True,
-        reason="default_no_tool",
-    )
+    assert prep.tool_use_policy == ToolUsePolicy()
 
 
 @pytest.mark.asyncio
@@ -507,21 +511,13 @@ async def test_prepare_execution_selects_page_ops_for_local_page_content_request
             skill_result=skill_result,
         )
 
-    assert captured["user_query"] == "看看本页面的内容"
-    assert captured["kwargs"] == {"preferred_family": "page_ops"}
-    assert [tool.name for tool in prep.tools] == [
-        "get_page_context",
-        "invoke_page_operation",
-    ]
+    assert [tool.name for tool in prep.tools] == ["get_page_context"]
     assert prep.tool_use_policy == ToolUsePolicy(
         family="page_ops",
         mode="required",
-        allowed_tool_names=[
-            "get_page_context",
-            "invoke_page_operation",
-        ],
+        allowed_tool_names=["get_page_context"],
         retry_on_contract_breach=True,
-        reason="explicit_page_request",
+        reason="intent:page_read",
     )
 
 
@@ -620,14 +616,8 @@ async def test_prepare_execution_routes_weather_requests_to_weather_family(mock_
         )
 
     assert prep.tool_use_policy.family == "weather"
-    assert {tool.name for tool in prep.tools} == {
-        "get_current_weather",
-        "get_weather_forecast",
-    }
-    assert prep.tool_use_policy.allowed_tool_names == [
-        "get_current_weather",
-        "get_weather_forecast",
-    ]
+    assert {tool.name for tool in prep.tools} == {"get_current_weather"}
+    assert prep.tool_use_policy.allowed_tool_names == ["get_current_weather"]
 
 
 @pytest.mark.asyncio
@@ -679,14 +669,8 @@ async def test_prepare_execution_keeps_weather_tools_for_mixed_weather_and_healt
         )
 
     assert prep.tool_use_policy.family == "weather"
-    assert prep.tool_use_policy.allowed_tool_names == [
-        "get_current_weather",
-        "get_weather_forecast",
-    ]
-    assert [tool.name for tool in prep.tools] == [
-        "get_current_weather",
-        "get_weather_forecast",
-    ]
+    assert prep.tool_use_policy.allowed_tool_names == ["get_current_weather"]
+    assert [tool.name for tool in prep.tools] == ["get_current_weather"]
 
 
 @pytest.mark.asyncio
@@ -740,23 +724,14 @@ async def test_prepare_execution_allows_page_and_weather_tools_for_mixed_request
     assert prep.tool_use_policy.family == "page_ops"
     assert prep.tool_use_policy.allowed_tool_names == [
         "get_page_context",
-        "invoke_page_operation",
-        "pageop_read_row_detail",
-        "pageop_read_visible_rows",
         "get_current_weather",
-        "get_weather_forecast",
     ]
     assert [tool.name for tool in prep.tools] == [
         "get_page_context",
-        "invoke_page_operation",
-        "pageop_read_row_detail",
-        "pageop_read_visible_rows",
         "get_current_weather",
-        "get_weather_forecast",
     ]
-    assert "[ORDERED CAPABILITY INTENT]" in prep.messages[0].content
-    assert "1. page operations" in prep.messages[0].content
-    assert "2. weather tools" in prep.messages[0].content
+    assert prep.execution_path == "normal"
+    assert [intent.kind for intent in prep.intent_plan] == ["page_read", "weather_query"]
 
 
 @pytest.mark.asyncio
@@ -810,19 +785,11 @@ async def test_prepare_execution_allows_page_and_weather_tools_for_mixed_request
     assert prep.tool_use_policy.family == "page_ops"
     assert prep.tool_use_policy.allowed_tool_names == [
         "get_page_context",
-        "invoke_page_operation",
-        "pageop_read_row_detail",
-        "pageop_read_visible_rows",
         "get_current_weather",
-        "get_weather_forecast",
     ]
     assert [tool.name for tool in prep.tools] == [
         "get_page_context",
-        "invoke_page_operation",
-        "pageop_read_row_detail",
-        "pageop_read_visible_rows",
         "get_current_weather",
-        "get_weather_forecast",
     ]
 
 
@@ -894,16 +861,10 @@ async def test_prepare_execution_restores_secondary_family_when_optimizer_drops_
     assert prep.tool_use_policy.family == "page_ops"
     assert prep.tool_use_policy.allowed_tool_names == [
         "get_page_context",
-        "invoke_page_operation",
-        "pageop_read_row_detail",
-        "pageop_read_visible_rows",
         "get_current_weather",
     ]
     assert [tool.name for tool in prep.tools] == [
         "get_page_context",
-        "invoke_page_operation",
-        "pageop_read_row_detail",
-        "pageop_read_visible_rows",
         "get_current_weather",
     ]
 
@@ -964,21 +925,17 @@ async def test_prepare_execution_prefers_web_research_on_first_turn_even_with_pa
 
     assert prep.tool_use_policy == ToolUsePolicy(
         family="web_research",
-        mode="auto",
+        mode="required",
         allowed_tool_names=[
             "web_search",
             "fetch_url",
-            "get_page_context",
-            "invoke_page_operation",
         ],
         retry_on_contract_breach=True,
-        reason="explicit_web_request",
+        reason="intent:web_research",
     )
     assert [tool.name for tool in prep.tools] == [
         "web_search",
         "fetch_url",
-        "get_page_context",
-        "invoke_page_operation",
     ]
 
 
@@ -1111,10 +1068,10 @@ async def test_prepare_execution_prefers_current_time_tool_for_time_question() -
 
     assert prep.tool_use_policy == ToolUsePolicy(
         family="time_ops",
-        mode="auto",
+        mode="required",
         allowed_tool_names=["get_current_time"],
         retry_on_contract_breach=True,
-        reason="explicit_time_request",
+        reason="intent:time_query",
     )
     assert [tool.name for tool in prep.tools] == ["get_current_time"]
     assert "[RUNTIME CLOCK]" in prep.messages[0].content
@@ -1693,9 +1650,8 @@ async def test_prepare_execution_keeps_runtime_capability_summary_when_dynamic_a
         )
 
     assert "[CAPABILITIES]" not in prep.messages[0].content
-    assert "[TOOL AWARENESS]" in prep.messages[0].content
-    assert "[CAPABILITY REPORTING]" in prep.messages[0].content
-    assert "[TURN CAPABILITIES]" in prep.messages[0].content
+    assert "[TOOL RUNTIME SUMMARY]" in prep.messages[0].content
+    assert "Selected skills for this turn: Research Skill." in prep.messages[0].content
 
 
 @pytest.mark.asyncio
@@ -1765,9 +1721,8 @@ async def test_prepare_execution_prefers_data_ops_for_combined_data_and_kb_reque
             skill_result=skill_result,
         )
 
-    assert captured["kwargs"] == {"preferred_family": "data_ops"}
     assert prep.tool_use_policy.family == "data_ops"
-    assert prep.tool_use_policy.reason == "data_time_range_with_kb"
+    assert prep.tool_use_policy.reason == "intent:data_query"
     assert "knowledge_base" in prep.diagnostics["context_source_kinds"]
 
 
@@ -1980,7 +1935,7 @@ async def test_prepare_execution_applies_execution_trust_policy_to_ask_tools() -
             skill_result=skill_result,
         )
 
-    assert prep.tool_consent_modes["web_search"] == "auto"
+    assert prep.tool_consent_modes["web_search"] == "ask"
     assert prep.tool_consent_modes["data_delete"] == "ask"
 
 
@@ -2056,7 +2011,6 @@ async def test_call_llm_routes_non_stream_to_runtime_query_engine_when_active() 
     legacy_call = AsyncMock(return_value=legacy_response)
 
     with (
-        patch("app.ai.engine.conversation.get_runtime_mode", return_value="active"),
         patch.object(ConversationEngine, "_call_runtime_query_turn", new=runtime_call),
         patch.object(BaseEngine, "_call_llm", new=legacy_call),
     ):
@@ -2070,23 +2024,23 @@ async def test_call_llm_routes_non_stream_to_runtime_query_engine_when_active() 
 
     assert result is runtime_response
     assert runtime_call.await_count == 1
-    assert runtime_call.await_args.kwargs["shadow_mode"] is False
+    assert runtime_call.await_args.kwargs["skip_metering_preflight"] is False
     assert legacy_call.await_count == 0
 
 
 @pytest.mark.asyncio
-async def test_call_llm_pageaware_only_keeps_legacy_for_non_page_tools() -> None:
+async def test_call_llm_uses_runtime_query_engine_only() -> None:
     engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
     agent = _build_agent()
-    legacy_response = ChatResponse(
-        message=ChatMessage(role="assistant", content="legacy reply"),
-        total_tokens=5,
+    runtime_response = ChatResponse(
+        message=ChatMessage(role="assistant", content="runtime reply"),
+        total_tokens=7,
     )
-    runtime_call = AsyncMock()
-    legacy_call = AsyncMock(return_value=legacy_response)
+    runtime_engine = SimpleNamespace(turn_record=SimpleNamespace(protocol_path="responses"))
+    runtime_call = AsyncMock(return_value=(runtime_response, runtime_engine))
+    legacy_call = AsyncMock()
 
     with (
-        patch("app.ai.engine.conversation.get_runtime_mode", return_value="pageaware_only"),
         patch.object(ConversationEngine, "_call_runtime_query_turn", new=runtime_call),
         patch.object(BaseEngine, "_call_llm", new=legacy_call),
     ):
@@ -2096,128 +2050,162 @@ async def test_call_llm_pageaware_only_keeps_legacy_for_non_page_tools() -> None
             tools=[ToolDefinition(name="web_search", description="Search web")],
         )
 
-    assert result is legacy_response
-    assert runtime_call.await_count == 0
-    assert legacy_call.await_count == 1
-
-
-@pytest.mark.asyncio
-async def test_call_llm_shadow_mode_returns_legacy_and_records_compare() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
-    agent = _build_agent()
-    legacy_response = ChatResponse(
-        message=ChatMessage(role="assistant", content="legacy reply"),
-        total_tokens=8,
-        metadata={"protocol_path": "chat_completions"},
-    )
-    runtime_response = ChatResponse(
-        message=ChatMessage(role="assistant", content="runtime reply"),
-        total_tokens=10,
-    )
-    runtime_engine = SimpleNamespace(
-        turn_record=SimpleNamespace(
-            selected_tool_names=["get_page_context"],
-            selected_skill_names=["page_skill"],
-            protocol_path="responses",
-            termination_reason="protocol_fallback",
-        ),
-    )
-    runtime_call = AsyncMock(return_value=(runtime_response, runtime_engine))
-    legacy_call = AsyncMock(return_value=legacy_response)
-    compare_mock = MagicMock()
-
-    with (
-        patch("app.ai.engine.conversation.get_runtime_mode", return_value="shadow"),
-        patch("app.ai.engine.conversation.should_run_shadow_probe", return_value=(True, "enabled")),
-        patch.object(ConversationEngine, "_call_runtime_query_turn", new=runtime_call),
-        patch.object(ConversationEngine, "_record_runtime_shadow_compare", new=compare_mock),
-        patch.object(BaseEngine, "_call_llm", new=legacy_call),
-    ):
-        result = await engine._call_llm(
-            agent=agent,
-            messages=[ChatMessage(role="user", content="继续")],
-            tools=[ToolDefinition(name="get_page_context", description="Read page context")],
-            selected_skill_names=["page_skill"],
-            context_sources=[],
-            conversation_id=9001,
-        )
-
-    assert result is legacy_response
-    assert legacy_call.await_count == 1
+    assert result is runtime_response
     assert runtime_call.await_count == 1
-    assert runtime_call.await_args.kwargs["shadow_mode"] is True
-    compare_mock.assert_called_once()
+    assert runtime_call.await_args.kwargs["skip_metering_preflight"] is False
+    assert legacy_call.await_count == 0
 
 
 @pytest.mark.asyncio
-async def test_call_llm_shadow_mode_skips_runtime_compare_when_guardrail_blocks() -> None:
+async def test_call_llm_runtime_errors_do_not_fallback_to_legacy() -> None:
     engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
     agent = _build_agent()
-    legacy_response = ChatResponse(
-        message=ChatMessage(role="assistant", content="legacy reply"),
-        total_tokens=8,
-    )
-    runtime_call = AsyncMock()
-    legacy_call = AsyncMock(return_value=legacy_response)
+    runtime_call = AsyncMock(side_effect=RuntimeError("runtime-v2 failed"))
+    legacy_call = AsyncMock()
 
     with (
-        patch("app.ai.engine.conversation.get_runtime_mode", return_value="shadow"),
-        patch(
-            "app.ai.engine.conversation.should_run_shadow_probe",
-            return_value=(False, "sampled_out"),
-        ),
         patch.object(ConversationEngine, "_call_runtime_query_turn", new=runtime_call),
         patch.object(BaseEngine, "_call_llm", new=legacy_call),
     ):
-        result = await engine._call_llm(
-            agent=agent,
-            messages=[ChatMessage(role="user", content="继续")],
-            tools=[ToolDefinition(name="get_page_context", description="Read page context")],
-            conversation_id=9002,
-            tenant_id=1,
+        with pytest.raises(RuntimeError, match="runtime-v2 failed"):
+            await engine._call_llm(
+                agent=agent,
+                messages=[ChatMessage(role="user", content="继续")],
+                tools=[ToolDefinition(name="get_page_context", description="Read page context")],
+                selected_skill_names=["page_skill"],
+                context_sources=[],
+                conversation_id=9001,
+            )
+
+    assert runtime_call.await_count == 1
+    assert legacy_call.await_count == 0
+
+
+@pytest.mark.asyncio
+async def test_prepare_execution_builds_deep_structured_plan_for_666_style_turn() -> None:
+    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    request = ExecutionRequest(
+        agent_id=1,
+        tenant_id=1,
+        user_id=1,
+        messages=[
+            ChatMessage(
+                role="user",
+                content="请帮我查一下今天北京的天气，然后联网查一下长沙去北京的高铁票，再帮我阅读一下本页面都有什么内容",
+            )
+        ],
+        input_variables={
+            "page_context": {
+                "page_key": "admin.ai.dashboard",
+                "page_data": {
+                    "available_operations": [{"name": "navigate_menu"}],
+                    "available_menus": [],
+                },
+            }
+        },
+    )
+
+    with (
+        patch(
+            "app.ai.rag_injector.load_agent_kb_bindings",
+            new=AsyncMock(return_value=([], {})),
+        ),
+        patch("app.ai.routing.router.ModelRouter", new=_FakeRouter),
+    ):
+        prep = await engine._prepare_execution(
+            _build_agent(),
+            request,
+            skill_result=_build_structured_skill_result(),
         )
 
-    assert result is legacy_response
-    assert legacy_call.await_count == 1
-    assert runtime_call.await_count == 0
+    assert [intent.family for intent in prep.intent_plan] == [
+        "weather",
+        "web_research",
+        "page_ops",
+    ]
+    assert [intent.kind for intent in prep.intent_plan] == [
+        "weather_query",
+        "web_research",
+        "page_read",
+    ]
+    assert prep.execution_path == "deep"
+    assert prep.execution_budget is not None
+    assert prep.execution_budget.max_candidate_tools == 6
+    assert prep.execution_budget.candidate_tools_count == len(prep.tools)
+    assert [tool.name for tool in prep.tools] == [
+        "get_current_weather",
+        "web_search",
+        "fetch_url",
+        "get_page_context",
+    ]
+    assert prep.active_intent_id == "intent-1"
+    assert prep.tool_use_policy.family == "weather"
+    assert prep.tool_use_policy.reason == "intent:weather_query"
 
 
-def test_shadow_probe_guardrails_cover_whitelist_sampling_and_rate_limit(monkeypatch) -> None:
-    reset_shadow_rate_limiter_for_tests()
-    monkeypatch.setenv("CLAUDE_CODE_STYLE_RUNTIME_SHADOW_ENABLED", "1")
-
-    monkeypatch.setenv("CLAUDE_CODE_STYLE_RUNTIME_SHADOW_WHITELIST", "tenant:99")
-    allowed, reason = should_run_shadow_probe(
+@pytest.mark.asyncio
+async def test_prepare_execution_current_weather_only_avoids_forecast_tool() -> None:
+    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    request = ExecutionRequest(
         agent_id=1,
         tenant_id=1,
-        conversation_id=9001,
+        user_id=1,
+        messages=[ChatMessage(role="user", content="帮我查一下北京现在的天气")],
+        input_variables={},
     )
-    assert allowed is False
-    assert reason == "not_in_whitelist"
 
-    monkeypatch.setenv("CLAUDE_CODE_STYLE_RUNTIME_SHADOW_WHITELIST", "")
-    monkeypatch.setenv("CLAUDE_CODE_STYLE_RUNTIME_SHADOW_SAMPLE_RATE", "0")
-    allowed, reason = should_run_shadow_probe(
-        agent_id=1,
-        tenant_id=1,
-        conversation_id=9001,
-    )
-    assert allowed is False
-    assert reason == "sampled_out"
+    with (
+        patch(
+            "app.ai.rag_injector.load_agent_kb_bindings",
+            new=AsyncMock(return_value=([], {})),
+        ),
+        patch("app.ai.routing.router.ModelRouter", new=_FakeRouter),
+    ):
+        prep = await engine._prepare_execution(
+            _build_agent(),
+            request,
+            skill_result=_build_structured_skill_result(),
+        )
 
-    monkeypatch.setenv("CLAUDE_CODE_STYLE_RUNTIME_SHADOW_SAMPLE_RATE", "1")
-    monkeypatch.setenv("CLAUDE_CODE_STYLE_RUNTIME_SHADOW_MAX_PER_MINUTE", "1")
-    first_allowed, first_reason = should_run_shadow_probe(
+    assert prep.execution_path == "fast"
+    assert [intent.kind for intent in prep.intent_plan] == ["weather_query"]
+    assert [tool.name for tool in prep.tools] == ["get_current_weather"]
+    assert prep.intent_plan[0].allowed_tool_names == ["get_current_weather"]
+    assert prep.execution_budget is not None
+    assert prep.execution_budget.max_tool_rounds == 1
+
+
+@pytest.mark.asyncio
+async def test_prepare_execution_page_read_turn_keeps_page_only_candidates() -> None:
+    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    request = ExecutionRequest(
         agent_id=1,
         tenant_id=1,
-        conversation_id=9001,
+        user_id=1,
+        messages=[ChatMessage(role="user", content="帮我阅读一下本页面都有什么内容")],
+        input_variables={
+            "page_context": {
+                "page_key": "admin.ai.dashboard",
+                "page_data": {"available_operations": [{"name": "navigate_menu"}]},
+            }
+        },
     )
-    second_allowed, second_reason = should_run_shadow_probe(
-        agent_id=1,
-        tenant_id=1,
-        conversation_id=9001,
-    )
-    assert first_allowed is True
-    assert first_reason == "enabled"
-    assert second_allowed is False
-    assert second_reason == "rate_limited"
+
+    with (
+        patch(
+            "app.ai.rag_injector.load_agent_kb_bindings",
+            new=AsyncMock(return_value=([], {})),
+        ),
+        patch("app.ai.routing.router.ModelRouter", new=_FakeRouter),
+    ):
+        prep = await engine._prepare_execution(
+            _build_agent(),
+            request,
+            skill_result=_build_structured_skill_result(),
+        )
+
+    assert prep.execution_path == "fast"
+    assert [intent.kind for intent in prep.intent_plan] == ["page_read"]
+    assert [tool.name for tool in prep.tools] == ["get_page_context"]
+    assert prep.intent_plan[0].allowed_tool_names == ["get_page_context"]
+    assert prep.tool_use_policy.allowed_tool_names == ["get_page_context"]

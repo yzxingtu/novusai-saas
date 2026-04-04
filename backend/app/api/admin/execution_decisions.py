@@ -24,7 +24,7 @@ from app.services.ai.execution_decision_service import AdminExecutionDecisionSer
     resource="execution_decision",
     name="menu.admin.execution_decision",
     scope=PermissionScope.ADMIN,
-    parent_resource="ai_quota_mgmt",
+    parent_resource="ai_action_log",
 )
 class AdminExecutionDecisionController(GlobalController):
     prefix = "/ai/execution-decisions"

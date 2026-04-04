@@ -44,7 +44,7 @@ import {
   createViewDetailPageOperation,
 } from '#/composables';
 import { $t } from '#/locales';
-import { copyToClipboard, formatDate } from '#/utils/common';
+import { copyToClipboard, formatDate, formatRelativeTime } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
 
 import {
@@ -134,6 +134,11 @@ function getOperatorSecondaryText(
 
 function isIconAvatar(avatar: null | string | undefined): boolean {
   return Boolean(avatar && String(avatar).includes(':'));
+}
+
+function getInitialLetter(value: null | string | undefined): string {
+  const text = String(value || '').trim();
+  return text ? text.charAt(0).toUpperCase() : '?';
 }
 
 function isStructuredValue(
@@ -379,8 +384,20 @@ const { Grid, onRefresh } = useCrudPage<ActionLogItem>({
   },
   columns: useColumns,
   searchSchema: useGridFormSchema(),
+  search: {
+    defaultOpen: false,
+    quickSearch: {
+      defaultField: 'filter[action_name][ilike]',
+      fields: [
+        'filter[action_name][ilike]',
+        'filter[trace_id][ilike]',
+        'filter[tool_call_id][ilike]',
+      ],
+    },
+  },
   i18nPrefix: 'tenant.ai.actionLog',
   defaultSort: '-created_at',
+  rowHeight: 72,
   customActions: {
     detail: openDetail,
   },
@@ -436,7 +453,7 @@ const { Grid, onRefresh } = useCrudPage<ActionLogItem>({
         <template #createdAt_cell="{ row }">
           <Tooltip :title="formatDate(row.created_at)">
             <span class="text-muted-foreground">
-              {{ formatDate(row.created_at) }}
+              {{ formatRelativeTime(row.created_at) }}
             </span>
           </Tooltip>
         </template>
@@ -466,41 +483,60 @@ const { Grid, onRefresh } = useCrudPage<ActionLogItem>({
         </template>
 
         <template #agent_cell="{ row }">
-          <div class="flex items-center gap-2">
+          <div class="flex items-center justify-start gap-2 text-left">
             <div
-              class="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"
+              class="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border/60 bg-primary/10 text-primary shadow-sm"
             >
-              <IconifyIcon
-                v-if="isIconAvatar(row.agent_avatar)"
-                :icon="String(row.agent_avatar)"
-                class="size-4"
-              />
-              <Avatar
-                v-else-if="row.agent_avatar"
-                :size="28"
+              <img
+                v-if="row.agent_avatar && !isIconAvatar(row.agent_avatar)"
+                :alt="getAgentDisplayName(row)"
                 :src="toAvatarDisplayUrl(row.agent_avatar)"
+                class="size-full object-cover"
               />
-              <IconifyIcon v-else icon="lucide:bot" class="size-4" />
+              <IconifyIcon
+                v-else-if="isIconAvatar(row.agent_avatar)"
+                :icon="String(row.agent_avatar)"
+                class="size-4.5"
+              />
+              <span v-else class="text-sm font-semibold">
+                {{ getInitialLetter(getAgentDisplayName(row)) }}
+              </span>
             </div>
-            <span class="truncate">{{ getAgentDisplayName(row) }}</span>
+            <div class="min-w-0 flex-1 text-left">
+              <div class="truncate text-sm font-medium text-foreground">
+                {{ getAgentDisplayName(row) }}
+              </div>
+              <div
+                v-if="row.agent_id"
+                class="truncate text-xs text-muted-foreground"
+              >
+                #{{ row.agent_id }}
+              </div>
+            </div>
           </div>
         </template>
 
         <template #operator_cell="{ row }">
-          <div class="flex items-center gap-2">
-            <Avatar
-              v-if="row.operator_avatar"
-              :src="toAvatarDisplayUrl(row.operator_avatar)"
-              :size="28"
-            />
-            <Avatar
-              v-else
-              :size="28"
-              class="flex-shrink-0 bg-primary/10 text-xs text-primary"
+          <div class="flex items-center justify-start gap-2 text-left">
+            <div
+              class="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border/60 bg-primary/10 text-primary shadow-sm"
             >
-              {{ getOperatorDisplayName(row).charAt(0) }}
-            </Avatar>
-            <div class="min-w-0 flex-1">
+              <img
+                v-if="row.operator_avatar && !isIconAvatar(row.operator_avatar)"
+                :alt="getOperatorDisplayName(row)"
+                :src="toAvatarDisplayUrl(row.operator_avatar)"
+                class="size-full object-cover"
+              />
+              <IconifyIcon
+                v-else-if="isIconAvatar(row.operator_avatar)"
+                :icon="String(row.operator_avatar)"
+                class="size-4.5"
+              />
+              <span v-else class="text-sm font-semibold">
+                {{ getInitialLetter(getOperatorDisplayName(row)) }}
+              </span>
+            </div>
+            <div class="min-w-0 flex-1 text-left">
               <div class="truncate text-sm font-medium text-foreground">
                 {{ getOperatorDisplayName(row) }}
               </div>
@@ -580,6 +616,94 @@ const { Grid, onRefresh } = useCrudPage<ActionLogItem>({
                 </Button>
               </div>
 
+              <div class="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                <article
+                  class="rounded-xl border border-border/70 bg-background/80 px-3 py-3 shadow-sm"
+                >
+                  <div class="text-xs text-muted-foreground">
+                    {{ $t('tenant.ai.actionLog.agentName') }}
+                  </div>
+                  <div class="mt-2 flex items-center gap-3">
+                    <div
+                      class="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border/60 bg-primary/10 text-primary"
+                    >
+                      <img
+                        v-if="
+                          detailData.agent_avatar &&
+                          !isIconAvatar(detailData.agent_avatar)
+                        "
+                        :alt="detailAgentLabel"
+                        :src="toAvatarDisplayUrl(detailData.agent_avatar)"
+                        class="size-full object-cover"
+                      />
+                      <IconifyIcon
+                        v-else-if="isIconAvatar(detailData.agent_avatar)"
+                        :icon="String(detailData.agent_avatar)"
+                        class="size-5"
+                      />
+                      <span v-else class="text-sm font-semibold">
+                        {{ getInitialLetter(detailAgentLabel) }}
+                      </span>
+                    </div>
+                    <div class="min-w-0">
+                      <div class="truncate text-sm font-semibold text-foreground">
+                        {{ detailAgentLabel }}
+                      </div>
+                      <div
+                        v-if="detailData.agent_id"
+                        class="text-xs text-muted-foreground"
+                      >
+                        #{{ detailData.agent_id }}
+                      </div>
+                    </div>
+                  </div>
+                </article>
+
+                <article
+                  class="rounded-xl border border-border/70 bg-background/80 px-3 py-3 shadow-sm"
+                >
+                  <div class="text-xs text-muted-foreground">
+                    {{ $t('tenant.ai.actionLog.operatorId') }}
+                  </div>
+                  <div class="mt-2 flex items-center gap-3">
+                    <div
+                      class="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border/60 bg-primary/10 text-primary"
+                    >
+                      <img
+                        v-if="
+                          detailData.operator_avatar &&
+                          !isIconAvatar(detailData.operator_avatar)
+                        "
+                        :alt="getOperatorDisplayName(detailData)"
+                        :src="toAvatarDisplayUrl(detailData.operator_avatar)"
+                        class="size-full object-cover"
+                      />
+                      <IconifyIcon
+                        v-else-if="isIconAvatar(detailData.operator_avatar)"
+                        :icon="String(detailData.operator_avatar)"
+                        class="size-5"
+                      />
+                      <span v-else class="text-sm font-semibold">
+                        {{
+                          getInitialLetter(getOperatorDisplayName(detailData))
+                        }}
+                      </span>
+                    </div>
+                    <div class="min-w-0">
+                      <div class="truncate text-sm font-semibold text-foreground">
+                        {{ getOperatorDisplayName(detailData) }}
+                      </div>
+                      <div
+                        v-if="getOperatorSecondaryText(detailData)"
+                        class="truncate text-xs text-muted-foreground"
+                      >
+                        {{ getOperatorSecondaryText(detailData) }}
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              </div>
+
               <div class="grid grid-cols-2 gap-3 xl:grid-cols-4">
                 <div
                   class="rounded-lg border border-dashed border-border bg-background p-3"
@@ -599,16 +723,6 @@ const { Grid, onRefresh } = useCrudPage<ActionLogItem>({
                   </div>
                   <div class="mt-2 text-sm font-semibold">
                     {{ formatDuration(detailData.duration_ms) }}
-                  </div>
-                </div>
-                <div
-                  class="rounded-lg border border-dashed border-border bg-background p-3"
-                >
-                  <div class="text-xs text-muted-foreground">
-                    {{ $t('tenant.ai.actionLog.agentName') }}
-                  </div>
-                  <div class="mt-2 text-sm font-semibold">
-                    {{ detailAgentLabel }}
                   </div>
                 </div>
                 <div

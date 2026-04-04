@@ -20,7 +20,6 @@ if TYPE_CHECKING:
         LegacyContextAssemblerAdapter,
         get_context_assembler,
     )
-    from app.ai.runtime.flags import RuntimeMode, get_runtime_mode
     from app.ai.runtime.query_engine import ConversationQueryEngine
     from app.ai.runtime.tool_executor import ToolExecutor
     from app.ai.runtime.types import (
@@ -44,8 +43,6 @@ _EXPORT_MAP = {
     "ContextAssemblerState": "app.ai.runtime.context_assembler",
     "LegacyContextAssemblerAdapter": "app.ai.runtime.context_assembler",
     "get_context_assembler": "app.ai.runtime.context_assembler",
-    "RuntimeMode": "app.ai.runtime.flags",
-    "get_runtime_mode": "app.ai.runtime.flags",
     "ConversationQueryEngine": "app.ai.runtime.query_engine",
     "ToolExecutor": "app.ai.runtime.tool_executor",
     "CapabilityBundle": "app.ai.runtime.types",
@@ -85,11 +82,9 @@ __all__ = [
     "FallbackRecord",
     "LegacyContextAssemblerAdapter",
     "ProtocolPath",
-    "RuntimeMode",
     "TerminationReason",
     "TurnOutcome",
     "TurnRecord",
     "ToolExecutor",
     "get_context_assembler",
-    "get_runtime_mode",
 ]

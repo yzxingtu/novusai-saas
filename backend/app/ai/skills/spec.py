@@ -9,13 +9,11 @@ required by the new skill architecture.
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 
 import yaml
 
-# Skill id: lowercase letters, digits, underscores only / 技能标识：仅小写字母、数字、下划线
-SKILL_NAME_PATTERN = re.compile(r"^[a-z0-9_]+$")
+from app.ai.text_semantics import slugify_ascii_identifier
 
 
 class SkillSpecError(ValueError):
@@ -79,7 +77,7 @@ def parse_skill_markdown(markdown: str) -> ParsedSkillSpec:
     raw_name = str(frontmatter.get("name", "")).strip()
     if not raw_name:
         raise SkillSpecError("SKILL.md frontmatter must include 'name'")
-    if not SKILL_NAME_PATTERN.fullmatch(raw_name):
+    if slugify_ascii_identifier(raw_name) != raw_name:
         raise SkillSpecError(
             "SKILL.md name must contain only lowercase letters, numbers, and underscores"
         )
@@ -104,7 +102,6 @@ def validate_skill_markdown(markdown: str) -> ParsedSkillSpec:
 __all__ = [
     "ParsedSkillSpec",
     "SkillSpecError",
-    "SKILL_NAME_PATTERN",
     "parse_skill_markdown",
     "validate_skill_markdown",
 ]

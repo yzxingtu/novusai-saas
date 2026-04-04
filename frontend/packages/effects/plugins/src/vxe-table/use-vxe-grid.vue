@@ -72,6 +72,7 @@ const {
   gridClass,
   gridEvents,
   formOptions,
+  searchPanelAnimation,
   tableTitle,
   tableTitleHelp,
   showSearchForm,
@@ -79,9 +80,14 @@ const {
 } = usePriorityValues(props, state);
 
 const SEARCH_PANEL_TRANSITION_MS = 240;
+const SEARCH_PANEL_CONTENT_TRANSITION_MS = 220;
 const SEARCH_PANEL_EASING = 'cubic-bezier(0.2, 0.8, 0.2, 1)';
+const SEARCH_PANEL_CONTENT_EASING = 'cubic-bezier(0.16, 1, 0.3, 1)';
 const isSearchPanelAnimating = ref(false);
+const isSearchPanelMounted = ref(showSearchForm.value !== false);
+const isSearchPanelContentVisible = ref(showSearchForm.value !== false);
 let searchPanelTransitionTimer: null | ReturnType<typeof setTimeout> = null;
+let searchPanelTransitionToken = 0;
 
 function clearSearchPanelTransitionTimer() {
   if (searchPanelTransitionTimer) {
@@ -94,15 +100,26 @@ async function recalculateGridLayout() {
   await nextTick();
   gridRef.value?.recalculate?.();
 }
+const shouldAnimateSearchPanel = computed(
+  () => searchPanelAnimation.value === true,
+);
 const isSearchPanelCollapsed = computed(() => showSearchForm.value === false);
 const searchPanelShellStyle = computed(() => {
-  return formOptions.value
-    ? {
-        display: 'grid',
-        gridTemplateRows: isSearchPanelCollapsed.value ? '0fr' : '1fr',
-        transition: `grid-template-rows ${SEARCH_PANEL_TRANSITION_MS}ms ${SEARCH_PANEL_EASING}`,
-      }
-    : undefined;
+  if (!formOptions.value) {
+    return undefined;
+  }
+
+  if (!shouldAnimateSearchPanel.value) {
+    return {
+      display: isSearchPanelMounted.value ? 'block' : 'none',
+    };
+  }
+
+  return {
+    display: 'grid',
+    gridTemplateRows: isSearchPanelCollapsed.value ? '0fr' : '1fr',
+    transition: `grid-template-rows ${SEARCH_PANEL_TRANSITION_MS}ms ${SEARCH_PANEL_EASING}`,
+  };
 });
 const searchPanelBodyClass = computed(() => {
   let compactPaddingClass = 'pb-0';
@@ -112,15 +129,24 @@ const searchPanelBodyClass = computed(() => {
     compactPaddingClass = 'pb-4';
   }
 
+  const isVisible = shouldAnimateSearchPanel.value
+    ? !isSearchPanelCollapsed.value
+    : isSearchPanelContentVisible.value;
+
   return cn(
-    'relative min-h-0 rounded py-3 transition-[opacity,transform] duration-200 ease-out',
-    {
-      'pointer-events-none -translate-y-1 opacity-0':
-        isSearchPanelCollapsed.value,
-      'translate-y-0 opacity-100': !isSearchPanelCollapsed.value,
-    },
+    'vxe-grid-search-panel relative min-h-0 rounded py-3',
+    shouldAnimateSearchPanel.value ? 'is-legacy-motion' : 'is-modern-motion',
+    isVisible ? 'is-visible' : 'is-hidden',
     compactPaddingClass,
   );
+});
+const searchPanelBodyStyle = computed(() => {
+  return shouldAnimateSearchPanel.value
+    ? undefined
+    : {
+        '--vxe-search-panel-motion-duration': `${SEARCH_PANEL_CONTENT_TRANSITION_MS}ms`,
+        '--vxe-search-panel-motion-easing': SEARCH_PANEL_CONTENT_EASING,
+      };
 });
 
 const { isMobile } = usePreferences();
@@ -392,10 +418,51 @@ watch(
 
 watch(
   () => showSearchForm.value,
-  () => {
+  async (isShown) => {
     if (!formOptions.value) {
       return;
     }
+
+    const currentTransitionToken = ++searchPanelTransitionToken;
+
+    if (!shouldAnimateSearchPanel.value) {
+      clearSearchPanelTransitionTimer();
+      isSearchPanelAnimating.value = true;
+
+      if (isShown === false) {
+        isSearchPanelContentVisible.value = false;
+        searchPanelTransitionTimer = setTimeout(() => {
+          if (currentTransitionToken !== searchPanelTransitionToken) {
+            return;
+          }
+          isSearchPanelMounted.value = false;
+          isSearchPanelAnimating.value = false;
+          searchPanelTransitionTimer = null;
+          void recalculateGridLayout();
+        }, SEARCH_PANEL_CONTENT_TRANSITION_MS);
+        return;
+      }
+
+      isSearchPanelMounted.value = true;
+      await recalculateGridLayout();
+      if (currentTransitionToken !== searchPanelTransitionToken) {
+        return;
+      }
+      await nextTick();
+      if (currentTransitionToken !== searchPanelTransitionToken) {
+        return;
+      }
+      isSearchPanelContentVisible.value = true;
+      searchPanelTransitionTimer = setTimeout(() => {
+        if (currentTransitionToken !== searchPanelTransitionToken) {
+          return;
+        }
+        isSearchPanelAnimating.value = false;
+        searchPanelTransitionTimer = null;
+      }, SEARCH_PANEL_CONTENT_TRANSITION_MS);
+      return;
+    }
+
     isSearchPanelAnimating.value = true;
     clearSearchPanelTransitionTimer();
     searchPanelTransitionTimer = setTimeout(() => {
@@ -484,7 +551,7 @@ onUnmounted(() => {
           :style="searchPanelShellStyle"
         >
           <div class="min-h-0 overflow-hidden">
-            <div :class="searchPanelBodyClass">
+            <div :class="searchPanelBodyClass" :style="searchPanelBodyStyle">
               <slot name="form">
                 <Form>
                   <template

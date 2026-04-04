@@ -54,10 +54,13 @@ describe('formStateTracker', () => {
       initialValues: {},
     });
 
-    expect(formStateTracker.isOpenWithFallback('different.page.key')).toBe(true);
+    expect(formStateTracker.isOpenWithFallback('different.page.key')).toBe(
+      true,
+    );
     expect(formStateTracker.getFormApi('different.page.key')).toBe(formApi);
 
-    const state = await formStateTracker.getStateWithFallback('different.page.key');
+    const state =
+      await formStateTracker.getStateWithFallback('different.page.key');
     expect(state.currentValues).toEqual({ name: 'Only Form' });
   });
 

@@ -1,5 +1,12 @@
 <script lang="ts" setup>
-import type { MonitoringConversationDetail, MonitoringScope } from '../api';
+import type {
+  MonitoringConversationDetail,
+  MonitoringIntentPlanItem,
+  MonitoringProviderEvent,
+  MonitoringRetryEvent,
+  MonitoringRuntimeDiagnostics,
+  MonitoringScope,
+} from '../api';
 
 import { computed, ref, watch } from 'vue';
 
@@ -33,6 +40,17 @@ const emits = defineEmits<{ 'update:open': [value: boolean] }>();
 
 const loading = ref(false);
 const detail = ref<MonitoringConversationDetail | null>(null);
+
+function isIconAvatar(avatar: null | string | undefined): boolean {
+  return Boolean(avatar && String(avatar).includes(':'));
+}
+
+function getInitialLetter(value: null | string | undefined): string {
+  const text = String(value || '').trim();
+  return text ? text.charAt(0).toUpperCase() : '?';
+}
+
+const detailAgentName = computed(() => detail.value?.agent_name || '-');
 
 watch(
   () => [props.open, props.conversationId] as const,
@@ -124,6 +142,148 @@ const heroStats = computed(() => {
   ];
 });
 
+function asRecord(
+  value: null | Record<string, unknown> | unknown,
+): null | Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function asRecordArray<T extends Record<string, unknown>>(value: unknown): T[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter(
+    (item): item is T =>
+      Boolean(item) && typeof item === 'object' && !Array.isArray(item),
+  );
+}
+
+function asString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((item) => asString(item))
+    .filter((item, index, list) => Boolean(item) && list.indexOf(item) === index);
+}
+
+function prettyJson(value: unknown): string {
+  return JSON.stringify(value ?? {}, null, 2);
+}
+
+function hasEntries(value: null | Record<string, unknown> | undefined): boolean {
+  return Boolean(value && Object.keys(value).length > 0);
+}
+
+function translateOption(group: string, value: null | string | undefined): string {
+  const raw = asString(value);
+  if (!raw) {
+    return '-';
+  }
+  const key = `${props.i18nPrefix}.${group}.${raw}`;
+  const translated = $t(key);
+  return translated === key ? raw : translated;
+}
+
+const runtimeDiagnostics = computed<MonitoringRuntimeDiagnostics | null>(() => {
+  if (!detail.value) {
+    return null;
+  }
+  const metadata = asRecord(detail.value.metadata);
+  const contextDiagnostics =
+    asRecord(detail.value.context_diagnostics) ||
+    asRecord(metadata?.context_diagnostics);
+  const lastRunSummary =
+    asRecord(detail.value.last_run_summary) ||
+    asRecord(metadata?.last_run_summary);
+  const merged = {
+    ...(contextDiagnostics || {}),
+    ...(lastRunSummary || {}),
+  } as MonitoringRuntimeDiagnostics;
+  return hasEntries(merged) ? merged : null;
+});
+
+const intentPlanItems = computed<MonitoringIntentPlanItem[]>(() =>
+  asRecordArray<MonitoringIntentPlanItem>(runtimeDiagnostics.value?.intent_plan),
+);
+
+const providerEvents = computed<MonitoringProviderEvent[]>(() =>
+  asRecordArray<MonitoringProviderEvent>(runtimeDiagnostics.value?.provider_events),
+);
+
+const retryEvents = computed<MonitoringRetryEvent[]>(() =>
+  asRecordArray<MonitoringRetryEvent>(runtimeDiagnostics.value?.retry_events),
+);
+
+const candidateToolNames = computed(() =>
+  asStringArray(runtimeDiagnostics.value?.candidate_tool_names),
+);
+
+const diagnosticsSummary = computed(() => {
+  const diagnostics = runtimeDiagnostics.value;
+  if (!diagnostics) {
+    return [];
+  }
+    const summaryItems = [
+      {
+        key: 'path',
+        label: $t(`${props.i18nPrefix}.executionPath`),
+        value: translateOption('executionPathOptions', diagnostics.execution_path),
+      },
+      {
+        key: 'failure',
+        label: $t(`${props.i18nPrefix}.failureKind`),
+        value: translateOption('failureKindOptions', diagnostics.failure_kind),
+      },
+      {
+        key: 'budget',
+        label: $t(`${props.i18nPrefix}.budgetStatus`),
+        value: translateOption('budgetStatusOptions', diagnostics.budget_status),
+      },
+      {
+        key: 'budgetExitReason',
+        label: $t(`${props.i18nPrefix}.budgetExitReason`),
+        value: asString(diagnostics.budget_exit_reason),
+      },
+      {
+        key: 'providerEvents',
+        label: $t(`${props.i18nPrefix}.providerEvents`),
+        value: formatTokens(providerEvents.value.length),
+    },
+    {
+      key: 'retryEvents',
+      label: $t(`${props.i18nPrefix}.retryEvents`),
+      value: formatTokens(retryEvents.value.length),
+    },
+  ];
+  return summaryItems.filter((item) => item.value && item.value !== '-');
+});
+
+const diagnosticsDetailRows = computed(() => {
+  const diagnostics = runtimeDiagnostics.value;
+  if (!diagnostics) {
+    return [];
+  }
+  return [
+    {
+      key: 'budgetExitReason',
+      label: $t(`${props.i18nPrefix}.budgetExitReason`),
+      value: asString(diagnostics.budget_exit_reason),
+    },
+    {
+      key: 'partialExitReason',
+      label: $t(`${props.i18nPrefix}.partialExitReason`),
+      value: asString(diagnostics.partial_exit_reason),
+    },
+  ].filter((item) => item.value);
+});
+
 const drawerTitle = computed(() => $t(`${props.i18nPrefix}.detailTitle`));
 
 function actorTypeLabel(type?: null | string) {
@@ -145,6 +305,10 @@ function formatCost(cost?: null | number) {
 
 function formatTokens(tokens?: null | number) {
   return Number(tokens || 0).toLocaleString();
+}
+
+function formatTagValue(value: null | string | undefined): string {
+  return asString(value) || '-';
 }
 
 function roleColor(role: string) {
@@ -220,8 +384,27 @@ function traceStatusColor(status?: null | string) {
               </div>
               <div class="monitoring-hero__meta">
                 <span class="monitoring-hero__meta-item">
-                  <IconifyIcon class="size-3.5" icon="lucide:bot" />
-                  <span>{{ detail.agent_name || '-' }}</span>
+                  <span
+                    class="flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary/10 text-primary"
+                  >
+                    <img
+                      v-if="
+                        detail.agent_avatar && !isIconAvatar(detail.agent_avatar)
+                      "
+                      :alt="detailAgentName"
+                      :src="toAvatarDisplayUrl(detail.agent_avatar)"
+                      class="size-full object-cover"
+                    />
+                    <IconifyIcon
+                      v-else-if="isIconAvatar(detail.agent_avatar)"
+                      :icon="String(detail.agent_avatar)"
+                      class="size-4"
+                    />
+                    <span v-else class="text-[11px] font-semibold">
+                      {{ getInitialLetter(detailAgentName) }}
+                    </span>
+                  </span>
+                  <span>{{ detailAgentName }}</span>
                 </span>
                 <span class="monitoring-hero__meta-item">
                   <IconifyIcon class="size-3.5" icon="lucide:building-2" />
@@ -277,11 +460,25 @@ function traceStatusColor(status?: null | string) {
               <div class="monitoring-overview-value">
                 <div class="flex items-center gap-2">
                   <Avatar
-                    v-if="detail.agent_avatar"
+                    v-if="
+                      detail.agent_avatar && !isIconAvatar(detail.agent_avatar)
+                    "
                     :size="24"
                     :src="toAvatarDisplayUrl(detail.agent_avatar)"
                   />
-                  <span>{{ detail.agent_name || '-' }}</span>
+                  <IconifyIcon
+                    v-else-if="isIconAvatar(detail.agent_avatar)"
+                    :icon="String(detail.agent_avatar)"
+                    class="size-4 text-primary"
+                  />
+                  <Avatar
+                    v-else
+                    :size="24"
+                    class="bg-primary/10 text-xs text-primary"
+                  >
+                    {{ getInitialLetter(detailAgentName) }}
+                  </Avatar>
+                  <span>{{ detailAgentName }}</span>
                 </div>
               </div>
             </div>
@@ -342,6 +539,264 @@ function traceStatusColor(status?: null | string) {
               </div>
             </div>
           </div>
+        </Card>
+
+        <Card class="monitoring-card mt-4" :bordered="false">
+          <template #title>
+            <div class="monitoring-card__title">
+              <IconifyIcon class="size-4" icon="lucide:workflow" />
+              <span>{{ $t(`${i18nPrefix}.runtimeDiagnostics`) }}</span>
+            </div>
+          </template>
+
+          <Empty
+            v-if="!runtimeDiagnostics"
+            :description="$t(`${i18nPrefix}.diagnosticsEmpty`)"
+          />
+
+          <template v-else>
+            <div class="monitoring-diagnostics-summary">
+              <article
+                v-for="item in diagnosticsSummary"
+                :key="item.key"
+                class="monitoring-diagnostics-summary__item"
+              >
+                <div class="monitoring-overview-label">{{ item.label }}</div>
+                <div class="monitoring-overview-value">{{ item.value }}</div>
+              </article>
+            </div>
+
+            <div v-if="diagnosticsDetailRows.length" class="mt-4">
+              <div class="monitoring-card__subtitle">
+                {{ $t(`${i18nPrefix}.diagnosticNotes`) }}
+              </div>
+              <div class="monitoring-overview-grid mt-3">
+                <div
+                  v-for="item in diagnosticsDetailRows"
+                  :key="item.key"
+                  class="monitoring-overview-item"
+                >
+                  <div class="monitoring-overview-label">{{ item.label }}</div>
+                  <div class="monitoring-overview-value">{{ item.value }}</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
+              <section class="monitoring-diagnostics-panel">
+                <div class="monitoring-card__subtitle">
+                  {{ $t(`${i18nPrefix}.intentPlan`) }}
+                </div>
+                <Empty
+                  v-if="intentPlanItems.length === 0"
+                  :description="$t(`${i18nPrefix}.diagnosticsEmpty`)"
+                />
+                <div v-else class="mt-3 space-y-3">
+                  <article
+                    v-for="(intent, index) in intentPlanItems"
+                    :key="intent.id || intent.intent_id || `${index}`"
+                    class="monitoring-diagnostics-intent"
+                  >
+                    <div class="monitoring-diagnostics-intent__head">
+                      <Tag color="blue">
+                        {{ formatTagValue(intent.kind || intent.label) }}
+                      </Tag>
+                      <Tag
+                        v-if="intent.status"
+                        :color="
+                          intent.status === 'completed'
+                            ? 'success'
+                            : intent.status === 'failed'
+                              ? 'error'
+                              : 'processing'
+                        "
+                      >
+                        {{ formatTagValue(intent.status) }}
+                      </Tag>
+                      <span
+                        v-if="intent.intent_id"
+                        class="text-xs text-muted-foreground"
+                      >
+                        {{ intent.intent_id }}
+                      </span>
+                    </div>
+                    <div
+                      v-if="
+                        asStringArray(intent.required_capabilities).length ||
+                        asStringArray(intent.allowed_tools).length ||
+                        asStringArray(intent.selected_tools).length ||
+                        asStringArray(intent.completed_tools).length
+                      "
+                      class="mt-3 space-y-2"
+                    >
+                      <div
+                        v-if="asStringArray(intent.required_capabilities).length"
+                        class="monitoring-diagnostics-line"
+                      >
+                        <span class="monitoring-overview-label">
+                          {{ $t(`${i18nPrefix}.requiredCapabilities`) }}
+                        </span>
+                        <div class="monitoring-tag-list">
+                          <Tag
+                            v-for="capability in asStringArray(
+                              intent.required_capabilities,
+                            )"
+                            :key="capability"
+                            color="cyan"
+                          >
+                            {{ capability }}
+                          </Tag>
+                        </div>
+                      </div>
+                      <div
+                        v-if="asStringArray(intent.allowed_tools).length"
+                        class="monitoring-diagnostics-line"
+                      >
+                        <span class="monitoring-overview-label">
+                          {{ $t(`${i18nPrefix}.allowedTools`) }}
+                        </span>
+                        <div class="monitoring-tag-list">
+                          <Tag
+                            v-for="tool in asStringArray(intent.allowed_tools)"
+                            :key="tool"
+                            color="geekblue"
+                          >
+                            {{ tool }}
+                          </Tag>
+                        </div>
+                      </div>
+                      <div
+                        v-if="asStringArray(intent.selected_tools).length"
+                        class="monitoring-diagnostics-line"
+                      >
+                        <span class="monitoring-overview-label">
+                          {{ $t(`${i18nPrefix}.selectedTools`) }}
+                        </span>
+                        <div class="monitoring-tag-list">
+                          <Tag
+                            v-for="tool in asStringArray(intent.selected_tools)"
+                            :key="tool"
+                            color="processing"
+                          >
+                            {{ tool }}
+                          </Tag>
+                        </div>
+                      </div>
+                      <div
+                        v-if="asStringArray(intent.completed_tools).length"
+                        class="monitoring-diagnostics-line"
+                      >
+                        <span class="monitoring-overview-label">
+                          {{ $t(`${i18nPrefix}.completedTools`) }}
+                        </span>
+                        <div class="monitoring-tag-list">
+                          <Tag
+                            v-for="tool in asStringArray(intent.completed_tools)"
+                            :key="tool"
+                            color="success"
+                          >
+                            {{ tool }}
+                          </Tag>
+                        </div>
+                      </div>
+                    </div>
+                    <div
+                      v-if="intent.unfinished_reason"
+                      class="mt-3 text-xs text-muted-foreground"
+                    >
+                      {{ $t(`${i18nPrefix}.unfinishedReason`) }}:
+                      {{ intent.unfinished_reason }}
+                    </div>
+                  </article>
+                </div>
+              </section>
+
+              <section class="monitoring-diagnostics-panel">
+                <div class="monitoring-card__subtitle">
+                  {{ $t(`${i18nPrefix}.candidateTools`) }}
+                </div>
+                <div
+                  v-if="candidateToolNames.length"
+                  class="monitoring-tag-list mt-3"
+                >
+                  <Tag
+                    v-for="tool in candidateToolNames"
+                    :key="tool"
+                    color="purple"
+                  >
+                    {{ tool }}
+                  </Tag>
+                </div>
+                <Empty
+                  v-else
+                  class="mt-3"
+                  :description="$t(`${i18nPrefix}.diagnosticsEmpty`)"
+                />
+
+                <div class="monitoring-card__subtitle mt-5">
+                  {{ $t(`${i18nPrefix}.providerEvents`) }}
+                </div>
+                <Empty
+                  v-if="providerEvents.length === 0"
+                  class="mt-3"
+                  :description="$t(`${i18nPrefix}.diagnosticsEmpty`)"
+                />
+                <div v-else class="mt-3 space-y-3">
+                  <article
+                    v-for="(event, index) in providerEvents"
+                    :key="`${event.kind || 'provider'}-${index}`"
+                    class="monitoring-diagnostics-event"
+                  >
+                    <div class="monitoring-diagnostics-intent__head">
+                      <Tag color="orange">
+                        {{ formatTagValue(event.kind || event.provider_failure_kind) }}
+                      </Tag>
+                      <span
+                        v-if="event.stage"
+                        class="text-xs text-muted-foreground"
+                      >
+                        {{ event.stage }}
+                      </span>
+                    </div>
+                    <pre class="monitoring-diagnostics-json">{{
+                      prettyJson(event)
+                    }}</pre>
+                  </article>
+                </div>
+
+                <div class="monitoring-card__subtitle mt-5">
+                  {{ $t(`${i18nPrefix}.retryEvents`) }}
+                </div>
+                <Empty
+                  v-if="retryEvents.length === 0"
+                  class="mt-3"
+                  :description="$t(`${i18nPrefix}.diagnosticsEmpty`)"
+                />
+                <div v-else class="mt-3 space-y-3">
+                  <article
+                    v-for="(event, index) in retryEvents"
+                    :key="`${event.kind || 'retry'}-${index}`"
+                    class="monitoring-diagnostics-event"
+                  >
+                    <div class="monitoring-diagnostics-intent__head">
+                      <Tag color="gold">
+                        {{ formatTagValue(event.kind || event.reason) }}
+                      </Tag>
+                      <span
+                        v-if="event.attempt != null"
+                        class="text-xs text-muted-foreground"
+                      >
+                        #{{ event.attempt }}
+                      </span>
+                    </div>
+                    <pre class="monitoring-diagnostics-json">{{
+                      prettyJson(event)
+                    }}</pre>
+                  </article>
+                </div>
+              </section>
+            </div>
+          </template>
         </Card>
 
         <div class="mt-4 grid grid-cols-1 gap-4 2xl:grid-cols-2">
@@ -603,6 +1058,12 @@ function traceStatusColor(status?: null | string) {
   font-weight: 600;
 }
 
+.monitoring-card__subtitle {
+  color: hsl(var(--foreground) / 0.98);
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .monitoring-overview-grid {
   display: grid;
   gap: 10px;
@@ -626,6 +1087,53 @@ function traceStatusColor(status?: null | string) {
   color: hsl(var(--foreground) / 0.98);
   font-size: 13px;
   font-weight: 500;
+}
+
+.monitoring-diagnostics-summary {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.monitoring-diagnostics-summary__item,
+.monitoring-diagnostics-panel,
+.monitoring-diagnostics-intent,
+.monitoring-diagnostics-event {
+  border: 1px solid hsl(var(--border) / 0.2);
+  border-radius: 12px;
+  background: hsl(var(--background) / 0.88);
+  padding: 12px;
+}
+
+.monitoring-diagnostics-intent__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+.monitoring-diagnostics-line {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.monitoring-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.monitoring-diagnostics-json {
+  margin-top: 10px;
+  overflow-x: auto;
+  border-radius: 10px;
+  background: hsl(var(--accent) / 0.5);
+  color: hsl(var(--foreground) / 0.96);
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 10px;
+  white-space: pre-wrap;
 }
 
 .monitoring-scroll-area {

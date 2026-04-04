@@ -98,6 +98,108 @@ Examples:
 - `frontend/apps/web-antd/src/views/admin/ai/agents/index.vue`
 - `.cursor/rules/menu-i18n.md`
 
+### Permission Enforcement Contract
+
+This repo does not treat backend `403` responses as the primary permission UX.
+If a user cannot perform an action, the frontend should normally hide or disable
+the entry point before the request is sent.
+
+Trigger:
+
+- adding or editing any button, dropdown item, switch, table operation, drawer
+  opener, detail opener, or route shortcut that eventually touches a
+  permission-protected endpoint
+- wiring a page through `useCrudPage`, `useCrudList`, `CellOperation`, or
+  `CellSwitch`
+
+Required contracts:
+
+- Plain buttons, links, dropdown items, and menu items that trigger protected
+  actions must use `v-access:code`.
+- CRUD create/recycle-bin entry points should prefer shared config
+  (`createPermission`, `recycleBin.permission`) instead of ad-hoc checks.
+- `CellOperation` can auto-derive permissions only for built-in CRUD actions
+  (`detail`, `view`, `edit`, `delete`) and only when `attrs.resource` is
+  present.
+- Any custom `CellOperation` action such as `test`, `restore`, `bindings`,
+  `impersonate`, `download`, or `resetPassword` must declare explicit
+  `accessCodes`.
+- If a `CellOperation` column omits `attrs.resource`, every protected action in
+  `options` must declare explicit `accessCodes`, including built-in CRUD codes.
+- `CellSwitch` does not perform permission filtering by itself. A toggle that
+  maps to an update/delete endpoint must be hidden, disabled, or downgraded to a
+  read-only tag for users without that permission.
+- Opening a drawer/modal/page that will immediately call protected APIs still
+  counts as a protected action. Guard the opener, not only the API call inside
+  the target component.
+- Permission code wiring must match the backend action contract exactly. Do not
+  reuse `:list` for a detail/test/update flow just because the user can already
+  enter the page.
+- For tenant organization-node permission assignment, do not gate solely on
+  generic manage permissions. The permission selector must only be shown when
+  the backend says the current tenant admin may assign node permissions
+  (current-node leader or ancestor-leader rule), and hidden otherwise.
+
+Examples in this repo:
+
+- Shared directive:
+  `frontend/apps/web-antd/src/directives/access.ts`
+- Shared CRUD create/recycle-bin gating:
+  `frontend/apps/web-antd/src/core/adapter/vxe-table/components/crud-grid.vue`
+- Shared operation filtering:
+  `frontend/apps/web-antd/src/core/adapter/vxe-table/renderers.ts`
+
+Wrong vs correct:
+
+```vue
+<!-- Wrong: visible to list-only users; backend will 403 later -->
+<Button type="link" @click="onTestModel(row)">
+  {{ $t('admin.ai.model.test') }}
+</Button>
+
+<!-- Correct: guard the entry point with the real backend permission -->
+<Button
+  v-access:code="['ai_gateway:test']"
+  type="link"
+  @click="onTestModel(row)"
+>
+  {{ $t('admin.ai.model.test') }}
+</Button>
+```
+
+```ts
+// Wrong: custom CellOperation action without accessCodes
+options: [{ code: 'restore', text: $t('common.recycleBin.restore') }];
+
+// Correct: custom actions declare the real permission explicitly
+options: [
+  {
+    code: 'restore',
+    text: $t('common.recycleBin.restore'),
+    accessCodes: ['recycle_bin:delete'],
+  },
+];
+```
+
+```ts
+// Wrong: CellSwitch exposes update action to list-only users
+cellRender: {
+  name: 'CellSwitch',
+  attrs: { beforeChange: onStatusChange },
+}
+
+// Correct: only mount the toggle when update permission exists,
+// otherwise render a read-only status tag
+cellRender: canUpdate
+  ? {
+      name: 'CellSwitch',
+      attrs: { beforeChange: onStatusChange },
+    }
+  : {
+      name: 'CellTag',
+    }
+```
+
 ## Upload, Download, And Media Components
 
 - Business uploads must go through `smartUploadFile`, `FilePicker`,

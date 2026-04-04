@@ -9,7 +9,6 @@ Supports SSE streaming output.
 
 from __future__ import annotations
 
-import re
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import asdict, dataclass
@@ -18,14 +17,8 @@ from typing import TYPE_CHECKING, Any
 from fastapi.responses import StreamingResponse
 
 from app.ai.adapters import AdapterRegistry
-from app.ai.runtime import ConversationQueryEngine, get_runtime_mode
-from app.ai.runtime.flags import (
-    is_shadow_mode,
-    should_run_shadow_probe,
-)
-from app.ai.runtime.flags import (
-    should_use_runtime_query_engine as should_use_runtime_query_engine_for_mode,
-)
+from app.ai.runtime import ConversationQueryEngine
+from app.ai.text_semantics import strip_model_function_call_markup
 from app.ai.tools.types import ToolDefinition, to_openai_tools
 from app.ai.types import ChatChunk, ChatMessage, ChatResponse, messages_to_dicts
 from app.ai.usage_mode import resolve_chat_usage
@@ -41,6 +34,9 @@ from app.models.ai.agent import Agent
 from app.services.ai.usage_metrics import CostCalculator, TokenCounter
 
 from .base import BaseEngine, log_user_type_for_call_log
+from .execution_state_machine import ExecutionStateMachine
+from .failure_classifier import FailureClassifier
+from .recovery_manager import RecoveryManager
 from .stream_handler import StreamExecutionHandler
 from .types import ExecutionRequest, ExecutionResult, ToolUsePolicy
 
@@ -66,34 +62,9 @@ class _StreamRuntimeContext:
     runtime_info: dict[str, Any]
 
 
-# DeepSeek model internal function call markers (｜DSML｜parameter, ｜DSML｜invoke etc.) / DeepSeek 模型内部 function call 标记
-_MODEL_FC_TOKEN_RE = re.compile(r"</?｜[A-Za-z]+｜[^>]*>")
-# Complete DSML function_calls block (with nested content) / 完整 DSML function_calls 块（含嵌套内容）
-_MODEL_FC_BLOCK_RE = re.compile(
-    r"<｜DSML｜function_calls>.*?</｜DSML｜function_calls>",
-    re.DOTALL,
-)
-
-
 def _strip_model_fc_tokens(text: str) -> str:
     """Filter leaked internal function call markers from model output (DeepSeek ｜DSML｜ etc.) / 过滤模型泄漏的内部 function call 标记"""
-    if "｜" not in text:
-        return text
-    # Remove complete blocks first, then clean up residual tags / 先移除完整块，再清理残留标签
-    text = _MODEL_FC_BLOCK_RE.sub("", text)
-    return _MODEL_FC_TOKEN_RE.sub("", text)
-
-
-def _should_use_runtime_query_engine(
-    *,
-    runtime_mode: str,
-    tools: list[ToolDefinition] | None,
-) -> bool:
-    return should_use_runtime_query_engine_for_mode(
-        runtime_mode=runtime_mode,  # type: ignore[arg-type]
-        tools=tools,
-        include_shadow=False,
-    )
+    return strip_model_function_call_markup(text)
 
 
 def _serialize_context_sources(
@@ -140,6 +111,43 @@ class ConversationEngine(BaseEngine):
     - stream_execute(): SSE streaming, pushes token by token / SSE 流式，逐 token 推送
     """
 
+    @staticmethod
+    def _assistant_tool_round_count(messages: list[ChatMessage]) -> int:
+        return sum(
+            1
+            for message in messages
+            if message.role == "assistant" and bool(message.tool_calls)
+        )
+
+    @staticmethod
+    def _register_tool_round_delta(
+        state: ExecutionStateMachine,
+        *,
+        before_count: int,
+        messages: list[ChatMessage],
+    ) -> None:
+        delta = max(
+            0,
+            ConversationEngine._assistant_tool_round_count(messages) - before_count,
+        )
+        for _tool_round in range(delta):
+            state.register_tool_round()
+
+    @staticmethod
+    def _register_tool_failures(
+        state: ExecutionStateMachine,
+        tool_results: list[Any],
+    ) -> None:
+        tool_failure_kind, tool_failure_events = FailureClassifier.classify_tool_results(
+            tool_results
+        )
+        if tool_failure_kind != "none":
+            for event in tool_failure_events:
+                state.register_provider_failure(
+                    kind=tool_failure_kind,
+                    event=event,
+                )
+
     async def execute(
         self,
         agent: Agent,
@@ -149,13 +157,17 @@ class ConversationEngine(BaseEngine):
         """Execute conversation mode / 执行对话模式"""
         start = time.perf_counter()
 
+        prep = None
+        messages: list[ChatMessage] = []
+        response: ChatResponse | None = None
+        tool_results = []
+        state: ExecutionStateMachine | None = None
+
         try:
-            # 1. Shared pre-logic (Skill resolve + message building + RAG + tool optimization) / 共享前置逻辑
             prep = await self._prepare_execution(agent, request, skill_result)
             messages = prep.messages
             tools = prep.tools
             rag_sources = prep.rag_sources
-            retry_overhead_tokens = 0
             runtime_selected_skill_names = (
                 list(getattr(prep.capability_bundle, "selected_skill_names", []) or [])
                 if prep.capability_bundle is not None
@@ -166,73 +178,30 @@ class ConversationEngine(BaseEngine):
                 if prep.capability_bundle is not None
                 else []
             )
+            state = ExecutionStateMachine.from_prepared_execution(prep)
+            initial_budget_exit = state.budget_exit_reason()
+            active_tools = list(tools or [])
+            active_policy = prep.tool_use_policy
+            completion_tokens_used = 0
 
-            # 2. Call LLM / 调用 LLM
-            response = await self._call_llm(
-                agent=agent,
-                messages=messages,
-                tools=tools or None,
-                all_tool_names=[tool.name for tool in prep.all_tools],
-                tool_use_policy=prep.tool_use_policy,
-                tenant_id=request.tenant_id,
-                user_id=request.user_id,
-                conversation_id=request.conversation_id,
-                billing_context=request.billing_context,
-                route_result=prep.route_result,
-                log_user_type=log_user_type_for_call_log(request.user_role),
-                selected_skill_names=runtime_selected_skill_names,
-                context_sources=runtime_context_sources,
-            )
-            should_retry, retry_policy, breach_preview = (
-                self._should_retry_tool_contract_breach(
-                    response=response,
-                    current_policy=prep.tool_use_policy,
-                    tools=tools or [],
-                    input_variables=request.input_variables,
+            if initial_budget_exit:
+                state.register_provider_failure(
+                    kind="budget_exit",
+                    event={"kind": "budget_exit", "reason": initial_budget_exit},
                 )
-            )
-            del breach_preview
-            if (
-                should_retry
-                and retry_policy is not None
-                and not prep.tool_use_policy.retry_on_contract_breach
-                and prep.tool_use_policy.mode != "required"
-            ):
-                self._log_tool_contract_diagnostics(
+                response = ChatResponse(
+                    message=ChatMessage(role="assistant", content=""),
+                    total_tokens=0,
+                    output_tokens=0,
+                )
+                total_tokens = 0
+            else:
+                response = await self._call_llm(
                     agent=agent,
                     messages=messages,
-                    response=response,
-                    tools=tools or [],
-                    policy=retry_policy,
-                    conversation_id=request.conversation_id,
-                    breach_type="initial_capability_denial_or_no_tool_use",
-                    retry_result="no_retry",
-                    continuation=prep.continuation_context,
-                )
-            elif should_retry and retry_policy is not None:
-                retry_overhead_tokens += response.total_tokens or 0
-                self._log_tool_contract_diagnostics(
-                    agent=agent,
-                    messages=messages,
-                    response=response,
-                    tools=tools or [],
-                    policy=retry_policy,
-                    conversation_id=request.conversation_id,
-                    breach_type="initial_capability_denial_or_no_tool_use",
-                    retry_result="retrying",
-                    continuation=prep.continuation_context,
-                )
-                retry_tools = self._filter_tools_for_policy(
-                    prep.all_tools or tools or [],
-                    retry_policy,
-                )
-                retry_response = await self._call_llm(
-                    agent=agent,
-                    messages=messages,
-                    tools=retry_tools or None,
+                    tools=tools or None,
                     all_tool_names=[tool.name for tool in prep.all_tools],
-                    tool_use_policy=retry_policy,
-                    breach_retry_result="retry_follow_up",
+                    tool_use_policy=prep.tool_use_policy,
                     tenant_id=request.tenant_id,
                     user_id=request.user_id,
                     conversation_id=request.conversation_id,
@@ -242,36 +211,26 @@ class ConversationEngine(BaseEngine):
                     selected_skill_names=runtime_selected_skill_names,
                     context_sources=runtime_context_sources,
                 )
-                retry_fixed = bool(retry_response.tool_calls)
-                self._log_tool_contract_diagnostics(
-                    agent=agent,
-                    messages=messages,
-                    response=retry_response,
-                    tools=retry_tools or [],
-                    policy=retry_policy,
-                    conversation_id=request.conversation_id,
-                    breach_type="initial_capability_denial_or_no_tool_use",
-                    retry_result="succeeded" if retry_fixed else "failed",
-                    continuation=prep.continuation_context,
+                total_tokens = response.total_tokens or 0
+                completion_tokens_used = int(
+                    response.output_tokens
+                    if response.output_tokens is not None
+                    else total_tokens
                 )
-                response = retry_response
-                if retry_fixed:
-                    tools = retry_tools
+                state.register_completion_tokens(completion_tokens_used)
 
-            total_tokens = retry_overhead_tokens + (response.total_tokens or 0)
-            post_tool_contract_breach_type: str | None = None
-            post_tool_contract_diagnostics: dict[str, Any] = {}
-            recovered_post_tool_retry = False
-
-            # 4. Tool call loop (pass route_result + tool_consent_modes for unified consent semantic) / 工具调用循环（传入 route_result + tool_consent_modes 统一授权语义）
-            tool_results = []
-            active_policy = prep.tool_use_policy
-            if response.tool_calls and tools:
-                response, tool_results, loop_tokens = await self._handle_tool_calls(
+            if response.tool_calls and active_tools:
+                tool_rounds_before = self._assistant_tool_round_count(messages)
+                (
+                    response,
+                    tool_results,
+                    total_tokens,
+                    completion_tokens_used,
+                ) = await self._handle_tool_calls(
                     agent=agent,
                     messages=messages,
                     response=response,
-                    tools=tools,
+                    tools=active_tools,
                     all_tools=prep.all_tools,
                     request=request,
                     route_result=prep.route_result,
@@ -279,65 +238,79 @@ class ConversationEngine(BaseEngine):
                     continuation_context=prep.continuation_context,
                     selected_skill_names=runtime_selected_skill_names,
                     context_sources=runtime_context_sources,
+                    tool_use_policy=active_policy,
+                    execution_budget=prep.execution_budget,
+                    starting_total_tokens=total_tokens,
+                    starting_completion_tokens=completion_tokens_used,
                 )
-                total_tokens = retry_overhead_tokens + loop_tokens
-                if response is not None:
-                    self._log_web_research_contract_diagnostics(
-                        agent=agent,
-                        messages=messages,
-                        response=response,
-                        tools=tools or [],
-                        continuation=prep.continuation_context,
-                        conversation_id=request.conversation_id,
-                    )
+                self._register_tool_round_delta(
+                    state,
+                    before_count=tool_rounds_before,
+                    messages=messages,
+                )
+                state.register_tool_results(
+                    messages=messages,
+                    tool_results=tool_results,
+                )
+                state.register_completion_tokens(completion_tokens_used)
+                self._register_tool_failures(state, tool_results)
+            elif state.intent_plan:
+                state.intent_plan = RecoveryManager.update_intent_statuses(
+                    state.intent_plan,
+                    messages=messages,
+                    tool_results=[],
+                )
 
-            for _post_retry_attempt in range(2):
-                del _post_retry_attempt
-                if response is None:
-                    break
+            budget_exit_reason = state.budget_exit_reason()
+            if budget_exit_reason:
+                state.register_provider_failure(
+                    kind="budget_exit",
+                    event={"kind": "budget_exit", "reason": budget_exit_reason},
+                )
 
-                breach_type, breach_policy, breach_diagnostics = (
-                    self._analyze_post_tool_contract_breach(
-                        messages=messages,
-                        response=response,
-                        current_policy=active_policy,
-                        tools=tools or [],
-                        input_variables=request.input_variables,
+            decision = RecoveryManager.decide(
+                state.intent_plan,
+                budget=state.budget,
+                provider_failure_kind=state.provider_failure_kind,
+            )
+            retry_limit = int(
+                getattr(state.budget, "max_retry_per_intent", 0)
+                if state.budget is not None
+                else 0
+            )
+            retry_attempts = 0
+            while (
+                decision is not None
+                and decision.action == "retry_intent"
+                and retry_attempts < retry_limit
+            ):
+                retry_attempts += 1
+                state.register_retry(decision)
+                messages.append(
+                    RecoveryManager.build_recovery_message(
+                        decision=decision,
+                        intents=state.intent_plan,
                     )
                 )
-                if breach_type is None or breach_policy is None:
-                    break
-
-                post_tool_contract_breach_type = breach_type
-                post_tool_contract_diagnostics = breach_diagnostics
-                recovery_messages = messages + [
-                    self._build_contract_recovery_system_message(
-                        breach_type=breach_type,
-                        diagnostics=breach_diagnostics,
-                    )
-                ]
-                retry_tools = self._filter_tools_for_policy(
-                    prep.all_tools or tools or [],
-                    breach_policy,
+                retry_tools = self._restrict_tools_to_names(
+                    prep.all_tools or tools,
+                    decision.allowed_tool_names,
                 )
-                self._log_tool_contract_diagnostics(
+                retry_policy = ToolUsePolicy(
+                    family=decision.retry_family or prep.tool_use_policy.family,
+                    mode="required",
+                    allowed_tool_names=decision.allowed_tool_names
+                    or [tool.name for tool in retry_tools],
+                    retry_on_contract_breach=False,
+                    reason=decision.reason,
+                )
+                response = await self._call_llm(
                     agent=agent,
                     messages=messages,
-                    response=response,
-                    tools=retry_tools or [],
-                    policy=breach_policy,
-                    conversation_id=request.conversation_id,
-                    breach_type=breach_type,
-                    retry_result="retrying",
-                    continuation=prep.continuation_context,
-                )
-                retry_response = await self._call_llm(
-                    agent=agent,
-                    messages=recovery_messages,
                     tools=retry_tools or None,
                     all_tool_names=[tool.name for tool in prep.all_tools],
-                    tool_use_policy=breach_policy,
-                    breach_retry_result="retry_follow_up",
+                    tool_use_policy=retry_policy,
+                    breach_retry_result="intent_retry",
                     tenant_id=request.tenant_id,
                     user_id=request.user_id,
                     conversation_id=request.conversation_id,
@@ -347,17 +320,24 @@ class ConversationEngine(BaseEngine):
                     selected_skill_names=runtime_selected_skill_names,
                     context_sources=runtime_context_sources,
                 )
-                active_policy = breach_policy
-                messages = recovery_messages
-                if retry_response.tool_calls:
+                total_tokens += response.total_tokens or 0
+                completion_tokens_used += int(
+                    response.output_tokens
+                    if response.output_tokens is not None
+                    else (response.total_tokens or 0)
+                )
+                state.register_completion_tokens(completion_tokens_used)
+                if response.tool_calls and retry_tools:
+                    tool_rounds_before = self._assistant_tool_round_count(messages)
                     (
                         response,
                         extra_tool_results,
-                        extra_loop_tokens,
+                        total_tokens,
+                        completion_tokens_used,
                     ) = await self._handle_tool_calls(
                         agent=agent,
                         messages=messages,
-                        response=retry_response,
+                        response=response,
                         tools=retry_tools,
                         all_tools=prep.all_tools,
                         request=request,
@@ -366,165 +346,79 @@ class ConversationEngine(BaseEngine):
                         continuation_context=prep.continuation_context,
                         selected_skill_names=runtime_selected_skill_names,
                         context_sources=runtime_context_sources,
+                        tool_use_policy=retry_policy,
+                        execution_budget=prep.execution_budget,
+                        starting_total_tokens=total_tokens,
+                        starting_completion_tokens=completion_tokens_used,
                     )
                     tool_results.extend(extra_tool_results)
-                    total_tokens += extra_loop_tokens
-                    tools = retry_tools
-                    continue
-
-                total_tokens += retry_response.total_tokens or 0
-                response = retry_response
-
-            if response is not None and post_tool_contract_breach_type:
-                (
-                    final_breach_type,
-                    final_breach_policy_unused,
-                    final_breach_diagnostics,
-                ) = self._analyze_post_tool_contract_breach(
-                    messages=messages,
-                    response=response,
-                    current_policy=active_policy,
-                    tools=tools or [],
-                    input_variables=request.input_variables,
-                )
-                del final_breach_policy_unused
-                recovered_post_tool_retry = final_breach_type is None
-                if final_breach_diagnostics:
-                    post_tool_contract_diagnostics = final_breach_diagnostics
-                self._log_tool_contract_diagnostics(
-                    agent=agent,
-                    messages=messages,
-                    response=response,
-                    tools=tools or [],
-                    policy=active_policy,
-                    conversation_id=request.conversation_id,
-                    breach_type=post_tool_contract_breach_type,
-                    retry_result="succeeded" if recovered_post_tool_retry else "failed",
-                    continuation=prep.continuation_context,
-                )
-            for web_retry_attempt in range(2):
-                del web_retry_attempt
-                if response is None:
-                    break
-                should_retry_web_research, web_retry_policy, web_breach_preview = (
-                    self._should_retry_web_research_contract_breach(
+                    self._register_tool_round_delta(
+                        state,
+                        before_count=tool_rounds_before,
                         messages=messages,
-                        response=response,
-                        current_policy=active_policy,
-                        tools=tools or [],
-                        input_variables=request.input_variables,
-                        continuation=prep.continuation_context,
                     )
-                )
-                del web_breach_preview
-                if not should_retry_web_research or web_retry_policy is None:
-                    break
-                # Always retry for web_research_summary_without_fetch (same as streaming path);
-                # do not honor retry_on_contract_breach=False for this breach type.
-
-                retry_tools = self._filter_tools_for_policy(
-                    prep.all_tools or tools or [],
-                    web_retry_policy,
-                )
-                self._log_tool_contract_diagnostics(
-                    agent=agent,
-                    messages=messages,
-                    response=response,
-                    tools=retry_tools or [],
-                    policy=web_retry_policy,
-                    conversation_id=request.conversation_id,
-                    breach_type="web_research_summary_without_fetch",
-                    retry_result="retrying",
-                    continuation=prep.continuation_context,
-                )
-                retry_response = await self._call_llm(
-                    agent=agent,
-                    messages=messages,
-                    tools=retry_tools or None,
-                    all_tool_names=[tool.name for tool in prep.all_tools],
-                    tool_use_policy=web_retry_policy,
-                    breach_retry_result="retry_follow_up",
-                    tenant_id=request.tenant_id,
-                    user_id=request.user_id,
-                    conversation_id=request.conversation_id,
-                    billing_context=request.billing_context,
-                    route_result=prep.route_result,
-                    log_user_type=log_user_type_for_call_log(request.user_role),
-                    selected_skill_names=runtime_selected_skill_names,
-                    context_sources=runtime_context_sources,
-                )
-                active_policy = web_retry_policy
-                if not retry_response.tool_calls:
-                    total_tokens += retry_response.total_tokens or 0
-                    self._log_tool_contract_diagnostics(
-                        agent=agent,
+                    state.register_tool_results(
                         messages=messages,
-                        response=retry_response,
-                        tools=retry_tools or [],
-                        policy=web_retry_policy,
-                        conversation_id=request.conversation_id,
-                        breach_type="web_research_summary_without_fetch",
-                        retry_result="failed",
-                        continuation=prep.continuation_context,
+                        tool_results=extra_tool_results,
                     )
-                    response = retry_response
-                    break
-
-                self._log_tool_contract_diagnostics(
-                    agent=agent,
-                    messages=messages,
-                    response=retry_response,
-                    tools=retry_tools or [],
-                    policy=web_retry_policy,
-                    conversation_id=request.conversation_id,
-                    breach_type="web_research_summary_without_fetch",
-                    retry_result="succeeded",
-                    continuation=prep.continuation_context,
-                )
-                (
-                    response,
-                    extra_tool_results,
-                    extra_loop_tokens,
-                ) = await self._handle_tool_calls(
-                    agent=agent,
-                    messages=messages,
-                    response=retry_response,
-                    tools=retry_tools,
-                    all_tools=prep.all_tools,
-                    request=request,
-                    route_result=prep.route_result,
-                    tool_consent_modes=prep.tool_consent_modes,
-                    continuation_context=prep.continuation_context,
-                    selected_skill_names=runtime_selected_skill_names,
-                    context_sources=runtime_context_sources,
-                )
-                tool_results.extend(extra_tool_results)
-                total_tokens += extra_loop_tokens
-                tools = retry_tools
-                if response is not None:
-                    self._log_web_research_contract_diagnostics(
-                        agent=agent,
+                    state.register_completion_tokens(completion_tokens_used)
+                    self._register_tool_failures(state, extra_tool_results)
+                elif state.intent_plan:
+                    state.intent_plan = RecoveryManager.update_intent_statuses(
+                        state.intent_plan,
                         messages=messages,
-                        response=response,
-                        tools=tools or [],
-                        continuation=prep.continuation_context,
-                        conversation_id=request.conversation_id,
+                        tool_results=[],
                     )
+                budget_exit_reason = state.budget_exit_reason()
+                if budget_exit_reason:
+                    state.register_provider_failure(
+                        kind="budget_exit",
+                        event={"kind": "budget_exit", "reason": budget_exit_reason},
+                    )
+                decision = RecoveryManager.decide(
+                    state.intent_plan,
+                    budget=state.budget,
+                    provider_failure_kind=state.provider_failure_kind,
+                )
 
-            # 5. Append final assistant message / 追加最终 assistant 消息
-            skip_final_assistant = bool(
-                getattr(response, "metadata", None)
-                and response.metadata.get("skip_final_assistant")
+            output = response.message.content if response is not None else ""
+            if decision is not None and decision.action in {
+                "pause_for_consent",
+                "return_partial",
+            }:
+                state.recovery_history.append(decision)
+            paused_for_consent = bool(
+                decision is not None and decision.action == "pause_for_consent"
             )
-            output = response.message.content or ""
-            cleaned_output, action_buttons = (
-                StreamExecutionHandler._extract_action_buttons(
-                    output,
+            partial = bool(
+                decision is not None and decision.action == "return_partial"
+            )
+            completion_reason = "completed"
+            if paused_for_consent:
+                state.transition("awaiting_consent")
+                completion_reason = decision.reason or "pause_for_consent"
+                RecoveryManager.ensure_latest_assistant_pending_consent(
+                    messages,
+                    RecoveryManager.pending_consent_payload_from_decision(decision),
                 )
+            elif partial:
+                state.transition("partial_exit")
+                completion_reason = decision.reason or "return_partial"
+                output = RecoveryManager.build_partial_output(
+                    state.intent_plan,
+                    reason=completion_reason,
+                    provider_failure_kind=state.provider_failure_kind,
+                )
+            else:
+                state.transition("completed")
+
+            cleaned_output, action_buttons = StreamExecutionHandler._extract_action_buttons(
+                output,
             )
             if action_buttons:
                 output = cleaned_output
-            if not skip_final_assistant:
+
+            if output and not paused_for_consent:
                 messages.append(
                     ChatMessage(
                         role="assistant",
@@ -541,9 +435,36 @@ class ConversationEngine(BaseEngine):
             response_metadata = dict(getattr(response, "metadata", {}) or {})
             runtime_info = response_metadata.get("runtime_model_info", {})
             turn_record = response_metadata.get("runtime_turn_record")
+            if isinstance(turn_record, dict):
+                turn_record_payload = dict(turn_record)
+            elif turn_record is not None and hasattr(turn_record, "__dataclass_fields__"):
+                turn_record_payload = asdict(turn_record)
+            elif turn_record is not None and hasattr(turn_record, "__dict__"):
+                turn_record_payload = dict(getattr(turn_record, "__dict__", {}) or {})
+            else:
+                turn_record_payload = {}
+            diagnostics_payload = state.build_diagnostics_payload()
+            turn_record_payload.update(
+                {
+                    "execution_path": prep.execution_path,
+                    "intent_plan": diagnostics_payload.get("intent_plan"),
+                    "budget": diagnostics_payload.get("budget"),
+                    "budget_status": diagnostics_payload.get("budget_status"),
+                    "budget_exit_reason": diagnostics_payload.get("budget_exit_reason"),
+                    "candidate_tool_names": diagnostics_payload.get("candidate_tool_names"),
+                    "retry_events": diagnostics_payload.get("retry_events"),
+                    "partial_exit_reason": diagnostics_payload.get("partial_exit_reason"),
+                    "unfinished_intents": diagnostics_payload.get("unfinished_intents"),
+                    "provider_events": diagnostics_payload.get("provider_events"),
+                    "failure_kind": diagnostics_payload.get("failure_kind"),
+                }
+            )
+            metadata = dict(turn_record_payload.get("metadata") or {})
+            metadata["orchestration"] = diagnostics_payload
+            turn_record_payload["metadata"] = metadata
 
             result = ExecutionResult(
-                success=True,
+                success=not partial,
                 output=output,
                 messages=self._messages_to_dicts(messages),
                 tool_results=tool_results,
@@ -554,6 +475,9 @@ class ConversationEngine(BaseEngine):
                 runtime_model_name=runtime_info.get("model_name"),
                 runtime_provider_id=runtime_info.get("provider_id"),
                 runtime_provider_name=runtime_info.get("provider_name"),
+                error="" if not partial else output,
+                partial=partial,
+                completion_reason=completion_reason,
                 rag_sources=rag_sources,
                 rag_source_kinds=prep.rag_source_kinds,
                 context_compacted=prep.context_compacted,
@@ -561,14 +485,23 @@ class ConversationEngine(BaseEngine):
                 memory_recalled=prep.memory_recalled,
                 prune_stats=prep.prune_stats,
                 tool_planner=prep.tool_planner,
-                turn_record=turn_record,
+                turn_record=turn_record_payload,
+                intent_plan=list(state.intent_plan),
+                execution_path=prep.execution_path,
+                execution_budget=(
+                    state.budget.snapshot() if state.budget is not None else None
+                ),
+                recovery_history=[
+                    decision_item.to_dict() for decision_item in state.recovery_history
+                ],
+                provider_failure_kind=state.provider_failure_kind,
+                provider_events=list(state.provider_events),
+                diagnostics=diagnostics_payload,
             )
-            result.turn_record = self._merge_contract_diagnostics_into_turn_record(
-                result.turn_record,
-                breach_type=post_tool_contract_breach_type,
-                diagnostics=post_tool_contract_diagnostics,
-                recovered_via_retry=recovered_post_tool_retry,
-            )
+
+            if paused_for_consent:
+                result.success = False
+                result.interrupted = True
 
             if prep.context_engine is not None:
                 await prep.context_engine.after_turn(
@@ -590,118 +523,63 @@ class ConversationEngine(BaseEngine):
                 str(exc),
                 exc_info=True,
             )
+            kind, event = FailureClassifier.classify_exception(exc)
+            partial_output = ""
+            diagnostics_payload: dict[str, Any] | None = None
+            if state is not None and kind != "none":
+                state.transition("failed" if kind != "budget_exit" else "partial_exit")
+                state.register_provider_failure(kind=kind, event=event or None)
+                diagnostics_payload = state.build_diagnostics_payload()
+                decision = RecoveryManager.decide(
+                    state.intent_plan,
+                    budget=state.budget,
+                    provider_failure_kind=state.provider_failure_kind,
+                )
+                if decision is not None:
+                    partial_output = RecoveryManager.build_partial_output(
+                        state.intent_plan,
+                        reason=decision.reason or "execution_exception",
+                        provider_failure_kind=state.provider_failure_kind,
+                    )
             return ExecutionResult(
                 success=False,
+                output=partial_output,
+                messages=self._messages_to_dicts(messages) if messages else [],
+                tool_results=tool_results,
                 error=build_public_error_text(
                     message=_("common.server_error"),
                     exc=exc,
                 ),
+                partial=bool(partial_output),
+                completion_reason="error",
                 duration_ms=duration_ms,
                 conversation_id=request.conversation_id,
+                rag_sources=(prep.rag_sources if prep is not None else None),
+                rag_source_kinds=(
+                    prep.rag_source_kinds if prep is not None else []
+                ),
+                context_compacted=bool(getattr(prep, "context_compacted", False)),
+                memory_flush_triggered=bool(
+                    getattr(prep, "memory_flush_triggered", False)
+                ),
+                memory_recalled=bool(getattr(prep, "memory_recalled", False)),
+                prune_stats=getattr(prep, "prune_stats", None),
+                tool_planner=getattr(prep, "tool_planner", None),
+                intent_plan=list(state.intent_plan) if state is not None else [],
+                execution_path=(prep.execution_path if prep is not None else None),
+                execution_budget=(
+                    state.budget.snapshot()
+                    if state is not None and state.budget is not None
+                    else None
+                ),
+                recovery_history=[
+                    decision_item.to_dict()
+                    for decision_item in (state.recovery_history if state else [])
+                ],
+                provider_failure_kind=kind,
+                provider_events=[event] if event else [],
+                diagnostics=diagnostics_payload,
             )
-
-    @staticmethod
-    def _build_legacy_turn_snapshot(
-        response: Any,
-        *,
-        tools: list[ToolDefinition] | None,
-        selected_skill_names: list[str] | None,
-    ) -> dict[str, Any]:
-        metadata = dict(getattr(response, "metadata", {}) or {})
-        tool_calls = getattr(response, "tool_calls", None) or (
-            getattr(getattr(response, "message", None), "tool_calls", None)
-        )
-        content = str(getattr(getattr(response, "message", None), "content", "") or "")
-        if tool_calls:
-            termination_reason = "completed_with_tool_calls"
-        elif content.strip():
-            termination_reason = "completed"
-        else:
-            termination_reason = "empty_response"
-        return {
-            "selected_tool_names": [tool.name for tool in (tools or [])],
-            "selected_skill_names": list(selected_skill_names or []),
-            "protocol_path": metadata.get("protocol_path"),
-            "termination_reason": termination_reason,
-        }
-
-    @staticmethod
-    def _build_runtime_turn_snapshot(turn_record: Any) -> dict[str, Any]:
-        if turn_record is None:
-            return {
-                "selected_tool_names": [],
-                "selected_skill_names": [],
-                "protocol_path": None,
-                "termination_reason": "unknown",
-            }
-        if isinstance(turn_record, dict):
-            record_data = dict(turn_record)
-        elif hasattr(turn_record, "__dataclass_fields__"):
-            record_data = asdict(turn_record)
-        elif hasattr(turn_record, "__dict__"):
-            record_data = dict(getattr(turn_record, "__dict__", {}) or {})
-        else:
-            record_data = {}
-        return {
-            "selected_tool_names": list(record_data.get("selected_tool_names") or []),
-            "selected_skill_names": list(record_data.get("selected_skill_names") or []),
-            "protocol_path": record_data.get("protocol_path"),
-            "termination_reason": record_data.get("termination_reason"),
-        }
-
-    @staticmethod
-    def _build_shadow_compare_diff(
-        *,
-        legacy_snapshot: dict[str, Any],
-        runtime_snapshot: dict[str, Any],
-    ) -> dict[str, dict[str, Any]]:
-        diff: dict[str, dict[str, Any]] = {}
-        for field_name in (
-            "selected_tool_names",
-            "selected_skill_names",
-            "protocol_path",
-            "termination_reason",
-        ):
-            legacy_value = legacy_snapshot.get(field_name)
-            runtime_value = runtime_snapshot.get(field_name)
-            if legacy_value != runtime_value:
-                diff[field_name] = {
-                    "legacy": legacy_value,
-                    "runtime_v2": runtime_value,
-                }
-        return diff
-
-    def _record_runtime_shadow_compare(
-        self,
-        *,
-        agent: Agent,
-        conversation_id: int | None,
-        legacy_response: Any,
-        runtime_turn_record: Any,
-        tools: list[ToolDefinition] | None,
-        selected_skill_names: list[str] | None,
-    ) -> None:
-        legacy_snapshot = self._build_legacy_turn_snapshot(
-            legacy_response,
-            tools=tools,
-            selected_skill_names=selected_skill_names,
-        )
-        runtime_snapshot = self._build_runtime_turn_snapshot(runtime_turn_record)
-        diff = self._build_shadow_compare_diff(
-            legacy_snapshot=legacy_snapshot,
-            runtime_snapshot=runtime_snapshot,
-        )
-        log_fn = logger.warning if diff else logger.info
-        log_fn(
-            "Runtime-v2 shadow compare: runtime={} agent_id={} conversation_id={} has_diff={} diff={} legacy={} runtime_v2={}",
-            get_runtime_identity_tag(),
-            getattr(agent, "id", None),
-            conversation_id,
-            bool(diff),
-            diff,
-            legacy_snapshot,
-            runtime_snapshot,
-        )
 
     async def _call_runtime_query_turn(
         self,
@@ -720,14 +598,14 @@ class ConversationEngine(BaseEngine):
         log_user_type: str | None,
         selected_skill_names: list[str] | None,
         context_sources: list[Any] | None,
-        shadow_mode: bool,
+        skip_metering_preflight: bool,
     ) -> tuple[ChatResponse, ConversationQueryEngine]:
         runtime_context = await self._prepare_stream_runtime(
             agent=agent,
             messages=messages,
             tenant_id=tenant_id,
             route_result=route_result,
-            skip_metering_preflight=shadow_mode,
+            skip_metering_preflight=skip_metering_preflight,
         )
         provider = runtime_context.provider
         api_key = runtime_context.api_key
@@ -746,6 +624,7 @@ class ConversationEngine(BaseEngine):
             provider_config=provider.config,
             internal_db=self.db,
             internal_tenant_id=tenant_id,
+            model_config=getattr(ai_model, "config", None),
         )
         openai_tools = to_openai_tools(tools) if tools else None
         effective_policy = tool_use_policy or ToolUsePolicy(
@@ -813,15 +692,14 @@ class ConversationEngine(BaseEngine):
             )
         except Exception as exc:
             logger.error(
-                "Runtime-v2 non-stream call failed: provider={} model={} conversation={} shadow={} error={}",
+                "Runtime-v2 non-stream call failed: provider={} model={} conversation={} error={}",
                 provider.code,
                 model_code,
                 conversation_id,
-                shadow_mode,
                 str(exc),
                 exc_info=True,
             )
-            if not shadow_mode and tenant_id is not None and ai_model:
+            if tenant_id is not None and ai_model:
                 try:
                     await self.gateway.usage_recorder.log_call_failure(
                         error=exc,
@@ -878,9 +756,6 @@ class ConversationEngine(BaseEngine):
         metadata.setdefault("runtime_model_info", runtime_context.runtime_info)
         metadata["runtime_turn_record"] = query_engine.turn_record
         response.metadata = metadata
-
-        if shadow_mode:
-            return response, query_engine
 
         resolved_usage = resolve_chat_usage(
             messages=messages,
@@ -990,119 +865,7 @@ class ConversationEngine(BaseEngine):
         selected_skill_names: list[str] | None = None,
         context_sources: list[Any] | None = None,
     ) -> ChatResponse:
-        runtime_mode = get_runtime_mode()
-        use_runtime_query_engine = should_use_runtime_query_engine_for_mode(
-            runtime_mode=runtime_mode,
-            tools=tools,
-            include_shadow=False,
-        )
-        shadow_mode = is_shadow_mode(runtime_mode)
-
-        if shadow_mode:
-            legacy_response = await super()._call_llm(
-                agent=agent,
-                messages=messages,
-                tools=tools,
-                all_tool_names=all_tool_names,
-                tool_use_policy=tool_use_policy,
-                breach_retry_result=breach_retry_result,
-                tenant_id=tenant_id,
-                user_id=user_id,
-                conversation_id=conversation_id,
-                billing_context=billing_context,
-                route_result=route_result,
-                log_user_type=log_user_type,
-                selected_skill_names=selected_skill_names,
-                context_sources=context_sources,
-            )
-            should_probe_shadow, shadow_guardrail_reason = should_run_shadow_probe(
-                agent_id=getattr(agent, "id", None),
-                tenant_id=tenant_id,
-                conversation_id=conversation_id,
-            )
-            if not should_probe_shadow:
-                logger.info(
-                    "Runtime-v2 shadow compare skipped by guardrail: runtime={} agent_id={} tenant_id={} conversation_id={} reason={}",
-                    get_runtime_identity_tag(),
-                    getattr(agent, "id", None),
-                    tenant_id,
-                    conversation_id,
-                    shadow_guardrail_reason,
-                )
-                return legacy_response
-            try:
-                (
-                    runtime_response_unused,
-                    runtime_query_engine,
-                ) = await self._call_runtime_query_turn(
-                    agent=agent,
-                    messages=messages,
-                    tools=tools,
-                    all_tool_names=all_tool_names,
-                    tool_use_policy=tool_use_policy,
-                    breach_retry_result=breach_retry_result,
-                    tenant_id=tenant_id,
-                    user_id=user_id,
-                    conversation_id=conversation_id,
-                    billing_context=billing_context,
-                    route_result=route_result,
-                    log_user_type=log_user_type,
-                    selected_skill_names=selected_skill_names,
-                    context_sources=context_sources,
-                    shadow_mode=True,
-                )
-                self._record_runtime_shadow_compare(
-                    agent=agent,
-                    conversation_id=conversation_id,
-                    legacy_response=legacy_response,
-                    runtime_turn_record=runtime_query_engine.turn_record,
-                    tools=tools,
-                    selected_skill_names=selected_skill_names,
-                )
-            except Exception as shadow_exc:
-                logger.warning(
-                    "Runtime-v2 shadow compare skipped due to runtime error: runtime={} agent_id={} conversation_id={} error={}",
-                    get_runtime_identity_tag(),
-                    getattr(agent, "id", None),
-                    conversation_id,
-                    str(shadow_exc),
-                )
-            return legacy_response
-
-        if use_runtime_query_engine:
-            try:
-                (
-                    runtime_response,
-                    runtime_turn_debug,
-                ) = await self._call_runtime_query_turn(
-                    agent=agent,
-                    messages=messages,
-                    tools=tools,
-                    all_tool_names=all_tool_names,
-                    tool_use_policy=tool_use_policy,
-                    breach_retry_result=breach_retry_result,
-                    tenant_id=tenant_id,
-                    user_id=user_id,
-                    conversation_id=conversation_id,
-                    billing_context=billing_context,
-                    route_result=route_result,
-                    log_user_type=log_user_type,
-                    selected_skill_names=selected_skill_names,
-                    context_sources=context_sources,
-                    shadow_mode=False,
-                )
-                del runtime_turn_debug
-                return runtime_response
-            except Exception as runtime_exc:
-                logger.warning(
-                    "Runtime-v2 non-stream fallback to legacy: runtime={} agent_id={} conversation_id={} error={}",
-                    get_runtime_identity_tag(),
-                    getattr(agent, "id", None),
-                    conversation_id,
-                    str(runtime_exc),
-                )
-
-        return await super()._call_llm(
+        runtime_response, _runtime_query_engine = await self._call_runtime_query_turn(
             agent=agent,
             messages=messages,
             tools=tools,
@@ -1117,7 +880,9 @@ class ConversationEngine(BaseEngine):
             log_user_type=log_user_type,
             selected_skill_names=selected_skill_names,
             context_sources=context_sources,
+            skip_metering_preflight=False,
         )
+        return runtime_response
 
     # ========================================
     # SSE Streaming Execution / SSE 流式执行
@@ -1254,6 +1019,7 @@ class ConversationEngine(BaseEngine):
             provider_config=provider.config,
             internal_db=self.db,
             internal_tenant_id=tenant_id,
+            model_config=getattr(ai_model, "config", None),
         )
         openai_tools = to_openai_tools(tools) if tools else None
         effective_policy = tool_use_policy or ToolUsePolicy()
@@ -1326,11 +1092,6 @@ class ConversationEngine(BaseEngine):
         usage_mode = "actual"
         streamed_output = ""
         runtime_info = runtime_context.runtime_info
-        runtime_mode = get_runtime_mode()
-        use_runtime_query_engine = _should_use_runtime_query_engine(
-            runtime_mode=runtime_mode,
-            tools=tools,
-        )
         runtime_selected_skill_names = list(selected_skill_names or [])
         runtime_context_sources = _serialize_context_sources(context_sources)
         query_engine: ConversationQueryEngine | None = None
@@ -1343,237 +1104,16 @@ class ConversationEngine(BaseEngine):
             )
 
         try:
-            if use_runtime_query_engine:
-                query_engine = ConversationQueryEngine(
-                    adapter=adapter,
-                    strict_contract=(effective_tool_choice == "required"),
-                )
-                if not supports_streaming:
-                    logger.info(
-                        "Model {} does not support streaming, falling back to sync chat",
-                        model_code,
-                    )
-                    response = await query_engine.run_chat_turn(
-                        messages=messages,
-                        model=model_code,
-                        temperature=agent.temperature,
-                        max_tokens=agent.max_tokens,
-                        top_p=agent.top_p or 1.0,
-                        tools=openai_tools,
-                        tool_choice=effective_tool_choice,
-                        supports_vision=bool(is_vision),
-                        supports_audio=bool(is_audio),
-                        supports_video=bool(is_video),
-                        selected_skill_names=runtime_selected_skill_names,
-                        context_sources=runtime_context_sources,
-                    )
-                    total_tokens = response.total_tokens or 0
-                    input_tokens = response.input_tokens or 0
-                    output_tokens = response.output_tokens or 0
-                    streamed_output = response.message.content or ""
-                    yield ChatChunk(
-                        delta=response.message.content or "",
-                        role=response.message.role,
-                        finish_reason=response.finish_reason or "stop",
-                        input_tokens=input_tokens,
-                        output_tokens=output_tokens,
-                        total_tokens=total_tokens,
-                        tool_calls=response.tool_calls or response.message.tool_calls,
-                        metadata={
-                            "runtime_model_info": runtime_info,
-                            "runtime_turn_record": query_engine.turn_record,
-                        },
-                    )
-                else:
-                    try:
-                        runtime_chunks = await query_engine.run_stream_turn(
-                            messages=messages,
-                            model=model_code,
-                            temperature=agent.temperature,
-                            max_tokens=agent.max_tokens,
-                            top_p=agent.top_p or 1.0,
-                            tools=openai_tools,
-                            tool_choice=effective_tool_choice,
-                            supports_vision=bool(is_vision),
-                            supports_audio=bool(is_audio),
-                            supports_video=bool(is_video),
-                            selected_skill_names=runtime_selected_skill_names,
-                            context_sources=runtime_context_sources,
-                        )
-                    except Exception as runtime_stream_exc:
-                        turn_record_metadata = dict(
-                            getattr(
-                                getattr(query_engine, "turn_record", None),
-                                "metadata",
-                                {},
-                            )
-                            or {},
-                        )
-                        had_meaningful_chunk_before_error = bool(
-                            turn_record_metadata.get(
-                                "stream_failure_has_meaningful_chunk"
-                            ),
-                        )
-                        if had_meaningful_chunk_before_error:
-                            request_log_data[
-                                "runtime_v2_stream_failure_after_chunk"
-                            ] = True
-                            if query_engine is not None:
-                                query_engine.turn_record.metadata[
-                                    "runtime_v2_stream_failure_after_chunk"
-                                ] = True
-                            logger.warning(
-                                "Runtime-v2 stream emitted a meaningful chunk then failed without fallback: runtime={} agent_id={} conversation_id={} error_type={} error={}",
-                                get_runtime_identity_tag(),
-                                getattr(agent, "id", None),
-                                conversation_id,
-                                type(runtime_stream_exc).__name__,
-                                str(runtime_stream_exc),
-                            )
-                            raise
-                        request_log_data["runtime_v2_stream_fallback"] = "legacy_stream"
-                        logger.warning(
-                            "Runtime-v2 stream failed before first meaningful chunk, fallback to legacy stream: runtime={} agent_id={} conversation_id={} error={}",
-                            get_runtime_identity_tag(),
-                            getattr(agent, "id", None),
-                            conversation_id,
-                            str(runtime_stream_exc),
-                        )
-                        legacy_stream_had_meaningful_chunk = False
-                        try:
-                            async for chunk in adapter.stream_chat(
-                                messages=messages,
-                                model=model_code,
-                                temperature=agent.temperature,
-                                max_tokens=agent.max_tokens,
-                                top_p=agent.top_p or 1.0,
-                                tools=openai_tools,
-                                tool_choice=effective_tool_choice,
-                                supports_vision=bool(is_vision),
-                                supports_audio=bool(is_audio),
-                                supports_video=bool(is_video),
-                            ):
-                                if chunk.total_tokens is not None:
-                                    total_tokens = chunk.total_tokens
-                                if chunk.input_tokens is not None:
-                                    input_tokens = chunk.input_tokens
-                                if chunk.output_tokens is not None:
-                                    output_tokens = chunk.output_tokens
-                                if chunk.delta:
-                                    streamed_output += chunk.delta
-                                if _chunk_has_meaningful_payload(chunk):
-                                    legacy_stream_had_meaningful_chunk = True
-                                chunk.metadata = dict(chunk.metadata or {})
-                                if chunk.metadata.get("usage_mode"):
-                                    usage_mode = str(chunk.metadata["usage_mode"])
-                                chunk.metadata.setdefault(
-                                    "runtime_model_info", runtime_info
-                                )
-                                yield chunk
-                            if legacy_stream_had_meaningful_chunk:
-                                query_engine = None
-                            else:
-                                request_log_data["runtime_v2_stream_fallback"] = (
-                                    "sync_chat"
-                                )
-                                logger.warning(
-                                    "Legacy stream fallback produced no meaningful chunk, fallback to sync chat: runtime={} agent_id={} conversation_id={}",
-                                    get_runtime_identity_tag(),
-                                    getattr(agent, "id", None),
-                                    conversation_id,
-                                )
-                                response = await adapter.chat(
-                                    messages=messages,
-                                    model=model_code,
-                                    temperature=agent.temperature,
-                                    max_tokens=agent.max_tokens,
-                                    top_p=agent.top_p or 1.0,
-                                    tools=openai_tools,
-                                    tool_choice=effective_tool_choice,
-                                    supports_vision=bool(is_vision),
-                                    supports_audio=bool(is_audio),
-                                    supports_video=bool(is_video),
-                                )
-                                total_tokens = response.total_tokens or 0
-                                input_tokens = response.input_tokens or 0
-                                output_tokens = response.output_tokens or 0
-                                streamed_output = response.message.content or ""
-                                yield ChatChunk(
-                                    delta=response.message.content or "",
-                                    role=response.message.role,
-                                    finish_reason=response.finish_reason or "stop",
-                                    input_tokens=input_tokens,
-                                    output_tokens=output_tokens,
-                                    total_tokens=total_tokens,
-                                    tool_calls=response.tool_calls
-                                    or response.message.tool_calls,
-                                    metadata={"runtime_model_info": runtime_info},
-                                )
-                                query_engine = None
-                        except Exception as legacy_stream_exc:
-                            request_log_data["runtime_v2_stream_fallback"] = "sync_chat"
-                            logger.warning(
-                                "Legacy stream fallback failed, fallback to sync chat: runtime={} agent_id={} conversation_id={} error={}",
-                                get_runtime_identity_tag(),
-                                getattr(agent, "id", None),
-                                conversation_id,
-                                str(legacy_stream_exc),
-                            )
-                            response = await adapter.chat(
-                                messages=messages,
-                                model=model_code,
-                                temperature=agent.temperature,
-                                max_tokens=agent.max_tokens,
-                                top_p=agent.top_p or 1.0,
-                                tools=openai_tools,
-                                tool_choice=effective_tool_choice,
-                                supports_vision=bool(is_vision),
-                                supports_audio=bool(is_audio),
-                                supports_video=bool(is_video),
-                            )
-                            total_tokens = response.total_tokens or 0
-                            input_tokens = response.input_tokens or 0
-                            output_tokens = response.output_tokens or 0
-                            streamed_output = response.message.content or ""
-                            yield ChatChunk(
-                                delta=response.message.content or "",
-                                role=response.message.role,
-                                finish_reason=response.finish_reason or "stop",
-                                input_tokens=input_tokens,
-                                output_tokens=output_tokens,
-                                total_tokens=total_tokens,
-                                tool_calls=response.tool_calls
-                                or response.message.tool_calls,
-                                metadata={"runtime_model_info": runtime_info},
-                            )
-                            query_engine = None
-                    else:
-                        for chunk in runtime_chunks:
-                            if chunk.total_tokens is not None:
-                                total_tokens = chunk.total_tokens
-                            if chunk.input_tokens is not None:
-                                input_tokens = chunk.input_tokens
-                            if chunk.output_tokens is not None:
-                                output_tokens = chunk.output_tokens
-                            if chunk.delta:
-                                streamed_output += chunk.delta
-                            chunk.metadata = dict(chunk.metadata or {})
-                            if chunk.metadata.get("usage_mode"):
-                                usage_mode = str(chunk.metadata["usage_mode"])
-                            chunk.metadata.setdefault(
-                                "runtime_model_info", runtime_info
-                            )
-                            chunk.metadata.setdefault(
-                                "runtime_turn_record",
-                                query_engine.turn_record,
-                            )
-                            yield chunk
-            elif not supports_streaming:
+            query_engine = ConversationQueryEngine(
+                adapter=adapter,
+                strict_contract=(effective_tool_choice == "required"),
+            )
+            if not supports_streaming:
                 logger.info(
-                    "Model {} does not support streaming, falling back to sync chat",
+                    "Model {} does not support streaming, using runtime-v2 sync turn",
                     model_code,
                 )
-                response = await adapter.chat(
+                response = await query_engine.run_chat_turn(
                     messages=messages,
                     model=model_code,
                     temperature=agent.temperature,
@@ -1584,6 +1124,8 @@ class ConversationEngine(BaseEngine):
                     supports_vision=bool(is_vision),
                     supports_audio=bool(is_audio),
                     supports_video=bool(is_video),
+                    selected_skill_names=runtime_selected_skill_names,
+                    context_sources=runtime_context_sources,
                 )
                 total_tokens = response.total_tokens or 0
                 input_tokens = response.input_tokens or 0
@@ -1596,11 +1138,15 @@ class ConversationEngine(BaseEngine):
                     input_tokens=input_tokens,
                     output_tokens=output_tokens,
                     total_tokens=total_tokens,
-                    tool_calls=response.tool_calls,
-                    metadata={"runtime_model_info": runtime_info},
+                    tool_calls=response.tool_calls or response.message.tool_calls,
+                    metadata={
+                        "runtime_model_info": runtime_info,
+                        "runtime_turn_record": query_engine.turn_record,
+                    },
                 )
             else:
-                async for chunk in adapter.stream_chat(
+                try:
+                    runtime_chunks = await query_engine.run_stream_turn(
                     messages=messages,
                     model=model_code,
                     temperature=agent.temperature,
@@ -1611,20 +1157,55 @@ class ConversationEngine(BaseEngine):
                     supports_vision=bool(is_vision),
                     supports_audio=bool(is_audio),
                     supports_video=bool(is_video),
-                ):
-                    if chunk.total_tokens is not None:
-                        total_tokens = chunk.total_tokens
-                    if chunk.input_tokens is not None:
-                        input_tokens = chunk.input_tokens
-                    if chunk.output_tokens is not None:
-                        output_tokens = chunk.output_tokens
-                    if chunk.delta:
-                        streamed_output += chunk.delta
-                    chunk.metadata = dict(chunk.metadata or {})
-                    if chunk.metadata.get("usage_mode"):
-                        usage_mode = str(chunk.metadata["usage_mode"])
-                    chunk.metadata.setdefault("runtime_model_info", runtime_info)
-                    yield chunk
+                    selected_skill_names=runtime_selected_skill_names,
+                    context_sources=runtime_context_sources,
+                )
+                except Exception as runtime_stream_exc:
+                    turn_record_metadata = dict(
+                        getattr(
+                            getattr(query_engine, "turn_record", None),
+                            "metadata",
+                            {},
+                        )
+                        or {},
+                    )
+                    had_meaningful_chunk_before_error = bool(
+                        turn_record_metadata.get("stream_failure_has_meaningful_chunk"),
+                    )
+                    if had_meaningful_chunk_before_error and query_engine is not None:
+                        request_log_data["runtime_v2_stream_failure_after_chunk"] = True
+                        query_engine.turn_record.metadata[
+                            "runtime_v2_stream_failure_after_chunk"
+                        ] = True
+                    logger.warning(
+                        "Runtime-v2 stream failed: runtime={} agent_id={} conversation_id={} had_meaningful_chunk={} error_type={} error={}",
+                        get_runtime_identity_tag(),
+                        getattr(agent, "id", None),
+                        conversation_id,
+                        had_meaningful_chunk_before_error,
+                        type(runtime_stream_exc).__name__,
+                        str(runtime_stream_exc),
+                    )
+                    raise
+                else:
+                    for chunk in runtime_chunks:
+                        if chunk.total_tokens is not None:
+                            total_tokens = chunk.total_tokens
+                        if chunk.input_tokens is not None:
+                            input_tokens = chunk.input_tokens
+                        if chunk.output_tokens is not None:
+                            output_tokens = chunk.output_tokens
+                        if chunk.delta:
+                            streamed_output += chunk.delta
+                        chunk.metadata = dict(chunk.metadata or {})
+                        if chunk.metadata.get("usage_mode"):
+                            usage_mode = str(chunk.metadata["usage_mode"])
+                        chunk.metadata.setdefault("runtime_model_info", runtime_info)
+                        chunk.metadata.setdefault(
+                            "runtime_turn_record",
+                            query_engine.turn_record,
+                        )
+                        yield chunk
         except Exception as exc:
             logger.error(
                 "Engine stream upstream failed: provider={} model={} conversation={} error={}",

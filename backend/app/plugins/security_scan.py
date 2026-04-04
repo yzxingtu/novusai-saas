@@ -17,7 +17,10 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from app.core.i18n import _
 from app.core.logging import get_logger
+from app.core.response import resolve_public_error_message
+from app.plugins.exceptions import PluginSecurityError
 
 logger = get_logger(__name__)
 
@@ -133,7 +136,53 @@ def scan_plugin_directory(plugin_dir: Path) -> SecurityScanResult:
             _scan_file(source, str(relative), result)
             result.files_scanned += 1
         except Exception as exc:
-            result.warnings.append(f"Failed to scan {py_file.name}: {exc}")
+            result.warnings.append(
+                _(
+                    "plugin.preview.security.scan_failed_file",
+                    file=py_file.name,
+                    error=resolve_public_error_message(
+                        exc,
+                        fallback_message=_(
+                            "plugin.preview.security.scan_failed_generic"
+                        ),
+                    ),
+                )
+            )
+
+    return result
+
+
+def assert_plugin_security_clean(
+    plugin_dir: Path,
+    *,
+    plugin_name: str,
+    action: str,
+) -> SecurityScanResult:
+    """Fail-close security assertion for plugin runtime entry points. / 插件运行时入口统一安全断言。"""
+    try:
+        result = scan_plugin_directory(plugin_dir)
+    except Exception as exc:
+        raise PluginSecurityError(
+            message=_(
+                "plugin.preview.security.scan_failed_action",
+                plugin_name=plugin_name,
+                action=action,
+                error=resolve_public_error_message(
+                    exc,
+                    fallback_message=_("plugin.preview.security.scan_failed_generic"),
+                ),
+            ),
+        ) from exc
+
+    if result.has_warnings:
+        top_warnings = "; ".join(result.warnings[:5])
+        raise PluginSecurityError(
+            message=_(
+                "plugin.preview.security.blocked",
+                plugin_name=plugin_name,
+                warnings=top_warnings,
+            ),
+        )
 
     return result
 
@@ -143,7 +192,9 @@ def _scan_file(source: str, filename: str, result: SecurityScanResult) -> None:
     try:
         tree = ast.parse(source, filename=filename)
     except SyntaxError:
-        result.warnings.append(f"{filename}: syntax error, cannot parse")
+        result.warnings.append(
+            _("plugin.preview.security.syntax_error", file=filename)
+        )
         return
 
     for node in ast.walk(tree):
@@ -152,7 +203,12 @@ def _scan_file(source: str, filename: str, result: SecurityScanResult) -> None:
             func_name = _get_call_name(node)
             if func_name in _DANGEROUS_CALLS:
                 result.warnings.append(
-                    f"{filename}:{node.lineno}: dangerous call '{func_name}()'"
+                    _(
+                        "plugin.preview.security.dangerous_call",
+                        file=filename,
+                        line=node.lineno,
+                        call=f"{func_name}()",
+                    )
                 )
 
         # Check dangerous imports / 检查危险 import
@@ -165,7 +221,12 @@ def _scan_file(source: str, filename: str, result: SecurityScanResult) -> None:
                     if alias.name in _IMPORTLIB_SAFE_SUBMODULES:
                         continue
                     result.warnings.append(
-                        f"{filename}:{node.lineno}: imports dangerous module '{alias.name}'"
+                        _(
+                            "plugin.preview.security.dangerous_import",
+                            file=filename,
+                            line=node.lineno,
+                            module=alias.name,
+                        )
                     )
 
         if isinstance(node, ast.ImportFrom) and node.module:
@@ -175,7 +236,12 @@ def _scan_file(source: str, filename: str, result: SecurityScanResult) -> None:
                 if node.module in _IMPORTLIB_SAFE_SUBMODULES:
                     continue
                 result.warnings.append(
-                    f"{filename}:{node.lineno}: imports from dangerous module '{node.module}'"
+                    _(
+                        "plugin.preview.security.dangerous_import_from",
+                        file=filename,
+                        line=node.lineno,
+                        module=node.module,
+                    )
                 )
 
         # Check dangerous attribute access: os.system(), subprocess.run(), etc.
@@ -185,7 +251,12 @@ def _scan_file(source: str, filename: str, result: SecurityScanResult) -> None:
             attr_name = node.attr
             if mod_name in _DANGEROUS_ATTRS and attr_name in _DANGEROUS_ATTRS[mod_name]:
                 result.warnings.append(
-                    f"{filename}:{node.lineno}: dangerous call '{mod_name}.{attr_name}'"
+                    _(
+                        "plugin.preview.security.dangerous_attribute",
+                        file=filename,
+                        line=node.lineno,
+                        call=f"{mod_name}.{attr_name}",
+                    )
                 )
 
 

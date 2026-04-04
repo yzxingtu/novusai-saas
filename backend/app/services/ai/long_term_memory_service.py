@@ -5,12 +5,12 @@ Long-term memory service / 长期记忆服务
 from __future__ import annotations
 
 import hashlib
-import re
 from dataclasses import dataclass
 from datetime import datetime
 
 from app.ai.internal_ai_service import InternalAIService
 from app.ai.rag.text_cleaner import clean_for_embedding
+from app.ai.text_semantics import extract_memory_keywords
 from app.core.base_model import utc_now
 from app.core.base_service import TenantService
 from app.enums.ai import CallTypeEnum
@@ -31,22 +31,7 @@ def _memory_hash(text: str) -> str:
 
 
 def _extract_keywords(text: str, *, limit: int = 12) -> list[str]:
-    normalized = " ".join((text or "").split()).lower()
-    if not normalized:
-        return []
-
-    seen: set[str] = set()
-    keywords: list[str] = []
-    for token in re.findall(
-        r"[\u4e00-\u9fff]{2,}|[a-z0-9][a-z0-9_\-]{1,31}", normalized
-    ):
-        if token in seen:
-            continue
-        seen.add(token)
-        keywords.append(token)
-        if len(keywords) >= limit:
-            break
-    return keywords
+    return extract_memory_keywords(text, limit=limit)
 
 
 @dataclass

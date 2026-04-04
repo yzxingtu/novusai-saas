@@ -5,6 +5,8 @@ description: "Record work progress after human has tested and committed code"
 
 [!] **Prerequisite**: This skill should only be used AFTER the human has tested and committed the code.
 
+> When recording, explicitly note which Trellis path (`fast`, `normal`, or `deep`) the archived task followed so the session history shows the right verification trail.
+
 **Do NOT run `git commit` directly** — the scripts below handle their own commits for `.trellis/` metadata. You only need to read git history (`git log`, `git status`, `git diff`) and run the Python scripts.
 
 ---

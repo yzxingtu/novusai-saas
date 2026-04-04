@@ -228,6 +228,82 @@ class TestGetConversationDetail:
         assert detail["context_diagnostics"]["last_interrupted"] is True
         assert detail["last_run_summary"]["interrupted"] is True
 
+    @pytest.mark.asyncio
+    async def test_conversation_detail_uses_latest_assistant_for_diagnostics_even_when_page_is_older(
+        self, mock_db
+    ):
+        from app.services.ai.conversation_service import ConversationService
+
+        conversation = _make_conversation(message_count=120)
+        older_assistant = _make_message(role="assistant", content="旧结果")
+        older_assistant.to_dict.return_value = {
+            "id": 11,
+            "sequence": 50,
+            "role": "assistant",
+            "content": "旧结果",
+            "token_count": 10,
+            "created_at": "2026-04-01T00:00:00+00:00",
+            "metadata": {
+                "turn_record": {
+                    "execution_path": "fast",
+                    "termination_reason": "completed",
+                }
+            },
+        }
+        older_assistant.metadata_ = older_assistant.to_dict.return_value["metadata"]
+
+        latest_assistant = _make_message(role="assistant", content="新结果")
+        latest_assistant.to_dict.return_value = {
+            "id": 99,
+            "sequence": 120,
+            "role": "assistant",
+            "content": "新结果",
+            "token_count": 20,
+            "created_at": "2026-04-02T00:00:00+00:00",
+            "metadata": {
+                "turn_record": {
+                    "execution_path": "deep",
+                    "termination_reason": "tool_round_budget_exceeded",
+                    "budget": {
+                        "status": "exited",
+                        "exit_reason": "tool_round_budget_exceeded",
+                    },
+                    "tool_loop_progress": {
+                        "budget_exit_reason": "tool_round_budget_exceeded"
+                    },
+                }
+            },
+        }
+        latest_assistant.metadata_ = latest_assistant.to_dict.return_value["metadata"]
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service.get_accessible_conversation = AsyncMock(return_value=conversation)
+        service._message_repo = MagicMock()
+        service._message_repo.get_by_conversation = AsyncMock(
+            return_value=[older_assistant]
+        )
+        service._message_repo.count_by_conversation = AsyncMock(return_value=120)
+        service._message_repo.get_latest_assistant_message = AsyncMock(
+            return_value=latest_assistant
+        )
+        mock_db.execute = AsyncMock(
+            return_value=SimpleNamespace(scalars=lambda: [])
+        )
+
+        detail = await service.get_conversation_detail(1, message_skip=0, message_limit=50)
+
+        assert detail["message_list"][0]["id"] == 11
+        assert detail["context_diagnostics"]["execution_path"] == "deep"
+        assert detail["context_diagnostics"]["budget_exit_reason"] == (
+            "tool_round_budget_exceeded"
+        )
+        assert detail["last_run_summary"]["termination_reason"] == (
+            "tool_round_budget_exceeded"
+        )
+
 
 class TestGetServiceForConversation:
     @pytest.mark.asyncio
@@ -1642,3 +1718,321 @@ class TestSanitizeToolMessages:
         from app.services.ai.conversation_service import ConversationService
 
         assert ConversationService.sanitize_tool_messages([]) == []
+
+
+def test_extract_turn_diagnostics_reads_extended_runtime_fields_from_nested_turn_record() -> None:
+    from app.services.ai.conversation_service import ConversationService
+
+    payload = ConversationService._extract_turn_diagnostics_from_metadata(
+        {
+            "turn_record": {
+                "turn_outcome": "partial",
+                "termination_reason": "budget_exit",
+                "protocol_path": "responses",
+                "selected_tool_names": ["get_current_weather", "web_search"],
+                "selected_skill_names": ["runtime.page_context"],
+                "context_sources": [{"kind": "page_context", "name": "admin.ai.dashboard"}],
+                "execution_path": "deep",
+                "intent_plan": [
+                    {
+                        "intent_id": "intent-1",
+                        "kind": "weather_query",
+                        "family": "weather",
+                        "order": 1,
+                        "user_visible_label": "weather",
+                        "status": "completed",
+                        "allowed_tool_names": ["get_current_weather"],
+                    },
+                    {
+                        "intent_id": "intent-3",
+                        "kind": "page_read",
+                        "family": "page_ops",
+                        "order": 3,
+                        "user_visible_label": "page_read",
+                        "status": "pending",
+                        "allowed_tool_names": ["get_page_context"],
+                    },
+                ],
+                "budget": {
+                    "status": "exited",
+                    "exit_reason": "tool_round_budget_exceeded",
+                    "limits": {"max_tool_rounds": 3},
+                    "usage": {"tool_rounds_used": 4},
+                },
+                "last_tool_name": "get_page_context",
+                "last_page_key": "admin.ai.dashboard",
+                "last_page_op": "read",
+                "interrupted_stage": "tool_loop",
+                "tool_loop_progress": {"current_round": 2, "total_rounds": 3},
+                "metadata": {
+                    "contract_breach_type": "unfinished_multi_intent_reply",
+                    "tool_leak_detected": True,
+                    "unfinished_intents": ["intent-3"],
+                    "leaked_tool_names": ["web_search"],
+                    "recovered_via_retry": False,
+                    "turn_diagnostics": {
+                        "routing": {
+                            "candidate_tool_names": [
+                                "get_current_weather",
+                                "web_search",
+                                "fetch_url",
+                                "get_page_context",
+                            ]
+                        },
+                        "recovery": {
+                            "retry_events": [
+                                {
+                                    "action": "retry_intent",
+                                    "target_intent_id": "intent-3",
+                                    "retry_family": "page_ops",
+                                    "allowed_tool_names": ["get_page_context"],
+                                    "completed_intent_ids": ["intent-1", "intent-2"],
+                                    "unfinished_intent_ids": ["intent-3"],
+                                    "reason": "unfinished_intent_retry",
+                                }
+                            ],
+                            "partial_exit_reason": "retry_budget_exhausted",
+                        },
+                        "failures": {
+                            "failure_kind": "provider_http_5xx",
+                            "provider_events": [
+                                {
+                                    "kind": "provider_http_5xx",
+                                    "status_code": 503,
+                                }
+                            ],
+                        },
+                        "sync_rescue": True,
+                        "should_record_call_log": False,
+                    },
+                },
+            }
+        }
+    )
+
+    assert payload["execution_path"] == "deep"
+    assert payload["intent_plan"][0]["intent_id"] == "intent-1"
+    assert payload["budget_status"] == "exited"
+    assert payload["budget_exit_reason"] == "tool_round_budget_exceeded"
+    assert payload["candidate_tool_names"] == [
+        "get_current_weather",
+        "web_search",
+        "fetch_url",
+        "get_page_context",
+    ]
+    assert payload["retry_events"][0]["target_intent_id"] == "intent-3"
+    assert payload["partial_exit_reason"] == "retry_budget_exhausted"
+    assert payload["failure_kind"] == "provider_http_5xx"
+    assert payload["provider_events"] == [
+        {"kind": "provider_http_5xx", "status_code": 503}
+    ]
+    assert payload["last_tool_name"] == "get_page_context"
+    assert payload["last_page_key"] == "admin.ai.dashboard"
+    assert payload["interrupted_stage"] == "tool_loop"
+    assert payload["tool_loop_progress"] == {"current_round": 2, "total_rounds": 3}
+    assert payload["sync_rescue"] is True
+    assert payload["should_record_call_log"] is False
+
+
+@pytest.mark.asyncio
+async def test_persist_chat_messages_records_extended_runtime_diagnostics_fields(
+    mock_db,
+) -> None:
+    from app.services.ai.conversation_service import ConversationService
+
+    conversation = _make_conversation(id=990, message_count=0)
+    result = SimpleNamespace(
+        messages=[
+            {"role": "user", "content": "请继续"},
+            {
+                "role": "assistant",
+                "content": "已完成部分结果",
+                "tool_calls": None,
+                "tool_call_id": None,
+                "attachments": None,
+                "reasoning_content": None,
+            },
+        ],
+        tool_results=[],
+        partial=True,
+        interrupted=False,
+        completion_reason="budget_exit",
+        runtime_model_id=None,
+        runtime_model_name=None,
+        runtime_provider_id=None,
+        runtime_provider_name=None,
+        turn_record={
+            "turn_outcome": "partial",
+            "termination_reason": "budget_exit",
+            "protocol_path": "responses",
+            "execution_path": "deep",
+            "intent_plan": [
+                {
+                    "intent_id": "intent-1",
+                    "kind": "weather_query",
+                    "family": "weather",
+                    "order": 1,
+                    "user_visible_label": "weather",
+                    "status": "completed",
+                    "allowed_tool_names": ["get_current_weather"],
+                },
+                {
+                    "intent_id": "intent-3",
+                    "kind": "page_read",
+                    "family": "page_ops",
+                    "order": 3,
+                    "user_visible_label": "page_read",
+                    "status": "pending",
+                    "allowed_tool_names": ["get_page_context"],
+                },
+            ],
+            "budget": {
+                "status": "exited",
+                "exit_reason": "elapsed_budget_exceeded",
+                "limits": {"max_elapsed_ms": 20000},
+                "usage": {"elapsed_ms_used": 21000},
+            },
+            "last_tool_name": "web_search",
+            "metadata": {
+                "turn_diagnostics": {
+                    "routing": {
+                        "candidate_tool_names": [
+                            "get_current_weather",
+                            "web_search",
+                            "fetch_url",
+                            "get_page_context",
+                        ]
+                    },
+                    "recovery": {
+                        "retry_events": [
+                            {
+                                "action": "retry_intent",
+                                "target_intent_id": "intent-3",
+                                "retry_family": "page_ops",
+                                "allowed_tool_names": ["get_page_context"],
+                                "completed_intent_ids": ["intent-1", "intent-2"],
+                                "unfinished_intent_ids": ["intent-3"],
+                                "reason": "unfinished_intent_retry",
+                            }
+                        ],
+                        "partial_exit_reason": "elapsed_budget_exceeded",
+                    },
+                    "failures": {
+                        "failure_kind": "provider_timeout",
+                        "provider_events": [{"kind": "provider_timeout"}],
+                    },
+                }
+            },
+        },
+    )
+
+    service = ConversationService.__new__(ConversationService)
+    service.db = mock_db
+    service.tenant_id = 1
+    service.repo = AsyncMock()
+    service._message_repo = MagicMock()
+    service._message_repo.get_next_sequence = AsyncMock(return_value=1)
+    service._message_repo.create = AsyncMock()
+
+    await service.persist_chat_messages(
+        conversation=conversation,
+        result=result,
+        history_count=0,
+        agent_id=7,
+    )
+
+    assistant_payload = service._message_repo.create.await_args_list[1].args[0]
+    context_diag = assistant_payload["metadata_"]["context_diagnostics"]
+    last_summary = assistant_payload["metadata_"]["last_run_summary"]
+
+    assert context_diag["execution_path"] == "deep"
+    assert context_diag["intent_plan"][1]["intent_id"] == "intent-3"
+    assert context_diag["budget_status"] == "exited"
+    assert context_diag["budget_exit_reason"] == "elapsed_budget_exceeded"
+    assert context_diag["candidate_tool_names"] == [
+        "get_current_weather",
+        "web_search",
+        "fetch_url",
+        "get_page_context",
+    ]
+    assert context_diag["retry_events"][0]["target_intent_id"] == "intent-3"
+    assert context_diag["partial_exit_reason"] == "elapsed_budget_exceeded"
+    assert context_diag["failure_kind"] == "provider_timeout"
+    assert context_diag["provider_events"] == [{"kind": "provider_timeout"}]
+    assert context_diag["last_tool_name"] == "web_search"
+    assert last_summary["execution_path"] == "deep"
+    assert last_summary["budget_exit_reason"] == "elapsed_budget_exceeded"
+    assert last_summary["failure_kind"] == "provider_timeout"
+    assert last_summary["retry_events"][0]["retry_family"] == "page_ops"
+
+
+@pytest.mark.asyncio
+async def test_conversation_detail_surfaces_extended_runtime_diagnostics(mock_db) -> None:
+    from app.services.ai.conversation_service import ConversationService
+
+    conversation = _make_conversation()
+    conversation.metadata_ = {"interaction_mode": "confirm"}
+    message = _make_message(role="assistant", content="部分结果")
+    message.to_dict.return_value = {
+        "id": 1,
+        "role": "assistant",
+        "content": "部分结果",
+        "metadata": {
+            "turn_record": {
+                "turn_outcome": "partial",
+                "termination_reason": "budget_exit",
+                "protocol_path": "responses",
+                "execution_path": "deep",
+                "intent_plan": [
+                    {
+                        "intent_id": "intent-1",
+                        "kind": "weather_query",
+                        "family": "weather",
+                        "order": 1,
+                        "user_visible_label": "weather",
+                        "status": "completed",
+                        "allowed_tool_names": ["get_current_weather"],
+                    }
+                ],
+                "budget": {
+                    "status": "exited",
+                    "exit_reason": "tool_result_budget_exceeded",
+                    "limits": {"max_tool_result_bytes": 1000},
+                    "usage": {"tool_result_bytes_used": 2000},
+                },
+                "metadata": {
+                    "turn_diagnostics": {
+                        "routing": {"candidate_tool_names": ["get_current_weather"]},
+                        "failures": {
+                            "failure_kind": "provider_unavailable",
+                            "provider_events": [{"kind": "provider_unavailable"}],
+                        },
+                    }
+                },
+            }
+        },
+    }
+    message.metadata_ = message.to_dict.return_value["metadata"]
+
+    service = ConversationService.__new__(ConversationService)
+    service.db = mock_db
+    service.tenant_id = 1
+    service.repo = AsyncMock()
+    service.get_accessible_conversation = AsyncMock(return_value=conversation)
+    service._message_repo = MagicMock()
+    service._message_repo.get_by_conversation = AsyncMock(return_value=[message])
+    service._message_repo.count_by_conversation = AsyncMock(return_value=1)
+    mock_db.execute = AsyncMock(return_value=SimpleNamespace(scalars=lambda: []))
+
+    detail = await service.get_conversation_detail(1, user_id=1)
+
+    assert detail["context_diagnostics"]["execution_path"] == "deep"
+    assert detail["context_diagnostics"]["budget_exit_reason"] == (
+        "tool_result_budget_exceeded"
+    )
+    assert detail["context_diagnostics"]["failure_kind"] == "provider_unavailable"
+    assert detail["context_diagnostics"]["provider_events"] == [
+        {"kind": "provider_unavailable"}
+    ]
+    assert detail["last_run_summary"]["execution_path"] == "deep"
+    assert detail["last_run_summary"]["budget_status"] == "exited"

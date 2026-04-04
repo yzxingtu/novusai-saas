@@ -14,7 +14,7 @@ import { Badge, Button, Card, Empty, Spin, Tag, Tooltip } from 'ant-design-vue';
 import { getAIHealthStatusApi } from '#/api/admin/ai';
 import { useCrudList } from '#/composables';
 import { $t } from '#/locales';
-import { formatDate } from '#/utils/common';
+import { formatDate, formatRelativeTime } from '#/utils/common';
 import { toAttachmentImageUrl } from '#/utils/image';
 
 import AIGatewayQuickStartHero from '../_shared/AIGatewayQuickStartHero.vue';
@@ -91,6 +91,20 @@ function getBadgeStatus(
   status: AIHealthStatus,
 ): 'error' | 'success' | 'warning' {
   return getStatusColor(status) as 'error' | 'success' | 'warning';
+}
+
+function getProbeBadgeStatus(
+  passed: boolean | null | undefined,
+): 'default' | 'error' | 'success' | 'warning' {
+  if (passed === true) return 'success';
+  if (passed === false) return 'error';
+  return 'default';
+}
+
+function getProbeText(passed: boolean | null | undefined): string {
+  if (passed === true) return $t('admin.ai.health.checks.pass');
+  if (passed === false) return $t('admin.ai.health.checks.fail');
+  return $t('admin.ai.health.checks.skipped');
 }
 </script>
 
@@ -241,6 +255,45 @@ function getBadgeStatus(
             </div>
           </div>
 
+          <div class="mt-4 space-y-2 border-t border-border/60 pt-3 text-xs">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-muted-foreground">{{
+                $t('admin.ai.health.wireApi')
+              }}</span>
+              <Tag color="blue">{{ status.wire_api || '-' }}</Tag>
+            </div>
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-muted-foreground">{{
+                $t('admin.ai.health.baseConnectivity')
+              }}</span>
+              <Tag :color="getProbeBadgeStatus(status.base_connectivity_healthy)">
+                {{ getProbeText(status.base_connectivity_healthy) }}
+              </Tag>
+            </div>
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-muted-foreground">{{
+                $t('admin.ai.health.toolProbe')
+              }}</span>
+              <Tag :color="getProbeBadgeStatus(status.tool_calling_healthy)">
+                {{ getProbeText(status.tool_calling_healthy) }}
+              </Tag>
+            </div>
+            <div
+              v-if="status.tool_probe_model || status.tool_probe_reasoning_effort"
+              class="flex flex-col gap-1"
+            >
+              <span class="text-muted-foreground">{{
+                $t('admin.ai.health.toolProbeModel')
+              }}</span>
+              <code class="break-all text-foreground">
+                {{ status.tool_probe_model || '-' }}
+                <template v-if="status.tool_probe_reasoning_effort">
+                  ({{ status.tool_probe_reasoning_effort }})
+                </template>
+              </code>
+            </div>
+          </div>
+
           <!-- 错误信息 -->
           <div v-if="status.error_message" class="mt-3">
             <Tooltip :title="status.error_message">
@@ -255,7 +308,13 @@ function getBadgeStatus(
           <!-- 最后检查时间 -->
           <div class="mt-3 text-xs text-muted-foreground">
             {{ $t('admin.ai.health.lastCheck') }}:
-            {{ formatDate(status.checked_at) }}
+            <Tooltip :title="formatDate(status.checked_at)">
+              <span
+                class="ml-1 inline-flex cursor-default rounded-md px-1 py-0.5 tabular-nums transition-colors hover:bg-muted/80"
+              >
+                {{ formatRelativeTime(status.checked_at) }}
+              </span>
+            </Tooltip>
           </div>
         </Card>
       </div>

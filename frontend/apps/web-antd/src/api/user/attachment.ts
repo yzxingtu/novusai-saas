@@ -9,39 +9,12 @@ import type {
 } from '#/types/attachment';
 import type { ApiRequestOptions } from '#/utils/request';
 
-import { inferCategory } from '#/types/attachment';
+import { transformAttachmentInfo } from '#/api/shared/attachment-transform';
 import { downloadBlob } from '#/utils/download';
 import { computeFileHash } from '#/utils/file-hash';
 import { requestClient } from '#/utils/request';
 
 const API_PREFIX = '/api/user/attachments';
-
-function transformAttachmentInfo(raw: AttachmentInfoRaw): AttachmentInfo {
-  return {
-    id: raw.id,
-    tenantId: raw.tenant_id,
-    name: raw.name,
-    originalName: raw.original_name,
-    path: raw.path,
-    size: raw.size,
-    hash: raw.hash,
-    mimeType: raw.mime_type,
-    extension: raw.extension,
-    visibility: raw.visibility,
-    driver: raw.driver,
-    baseUrl: raw.base_url,
-    status: raw.status,
-    source: raw.source,
-    uploaderId: raw.uploader_id,
-    businessType: raw.business_type,
-    businessId: raw.business_id,
-    meta: raw.meta,
-    previewUrl: raw.preview_url,
-    category: inferCategory(raw.mime_type),
-    createdAt: raw.created_at,
-    updatedAt: raw.updated_at,
-  } satisfies AttachmentInfo;
-}
 
 /** Upload response / 上传响应 */
 export interface UploadResult {

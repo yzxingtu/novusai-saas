@@ -69,6 +69,16 @@ def _reconcile_stale_plugin_error(plugin) -> bool:
     return True
 
 
+def _assert_startup_security_clean(plugin_dir, *, plugin_name: str, action: str) -> None:
+    from app.plugins.security_scan import assert_plugin_security_clean
+
+    assert_plugin_security_clean(
+        plugin_dir,
+        plugin_name=plugin_name,
+        action=action,
+    )
+
+
 async def _collect_startup_dependency_errors(db: AsyncSession, manifest) -> list[str]:
     """Collect runtime dependency errors during startup restore. / 启动恢复阶段收集依赖错误。"""
     from sqlalchemy import select
@@ -175,25 +185,11 @@ async def discover_and_register(db: AsyncSession) -> dict:
         if plugin_name not in db_plugins:
             # ── New plugin: auto-register / 新插件：自动注册 ──
             try:
-                # Security scan (warning level, doesn't block registration, recorded to error_message for admin review)
-                # / 安全扫描（警告级别）
-                security_warnings: list[str] = []
-                try:
-                    from app.plugins.security_scan import scan_plugin_directory
-
-                    scan_result = scan_plugin_directory(PLUGINS_DIR / plugin_name)
-                    if scan_result.has_warnings:
-                        security_warnings = scan_result.warnings[:10]
-                        logger.warning(
-                            "Discover: plugin {} has {} security warning(s): {}",
-                            plugin_name,
-                            len(scan_result.warnings),
-                            "; ".join(scan_result.warnings[:3]),
-                        )
-                except Exception as exc:
-                    logger.warning(
-                        "Discover: security scan failed for {}: {}", plugin_name, exc
-                    )
+                _assert_startup_security_clean(
+                    PLUGINS_DIR / plugin_name,
+                    plugin_name=plugin_name,
+                    action="startup discovery",
+                )
 
                 plugin = PluginModel(
                     name=plugin_name,
@@ -222,10 +218,8 @@ async def discover_and_register(db: AsyncSession) -> dict:
                     pricing_info=manifest.pricing.model_dump()
                     if manifest.pricing.type != "free"
                     else None,
-                    error_count=len(security_warnings),
-                    error_message=f"Security warnings: {'; '.join(security_warnings)}"
-                    if security_warnings
-                    else None,
+                    error_count=0,
+                    error_message=None,
                     installed_packages=manifest.dependencies.python or [],
                     granted_capabilities=manifest.capabilities,
                     installed_at=utc_now(),
@@ -521,6 +515,11 @@ async def restore_enabled_plugins(
                 )
                 continue
 
+            _assert_startup_security_clean(
+                loader.plugins_dir / plugin.name,
+                plugin_name=plugin.name,
+                action="startup restore",
+            )
             manifest = loader.load_manifest(plugin.name)
             validate_runtime_frontend_contract(
                 loader.plugins_dir / plugin.name, manifest

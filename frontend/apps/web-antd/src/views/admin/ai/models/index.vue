@@ -5,7 +5,7 @@
  */
 import type { AIModelInfo } from '#/api/admin/ai';
 
-import { ref } from 'vue';
+import { h, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -72,6 +72,89 @@ function onToggleModelActive(row: AIModelInfo) {
 /** 正在测试中的模型 ID 集合 / Set of model IDs currently being tested */
 const testingModelIds = ref<Set<number>>(new Set());
 
+function showTestResultDetail(result: {
+  applied_overrides?: null | string[];
+  connected: boolean;
+  effective_reasoning_effort?: null | string;
+  effective_upstream_model?: null | string;
+  error: null | string;
+  ignore_reasons?: null | Record<string, string>;
+  ignored_overrides?: null | string[];
+  latency_ms: number;
+  provider: string;
+  response_text: string;
+  trace_id?: null | string;
+  wire_api?: null | string;
+}) {
+  const items: Array<[string, null | string | undefined]> = [
+    [$t('admin.ai.model.testDetails.provider'), result.provider],
+    [$t('admin.ai.model.testDetails.wireApi'), result.wire_api],
+    [
+      $t('admin.ai.model.testDetails.upstreamModel'),
+      result.effective_upstream_model,
+    ],
+    [
+      $t('admin.ai.model.testDetails.reasoningEffort'),
+      result.effective_reasoning_effort,
+    ],
+    [$t('admin.ai.model.testDetails.traceId'), result.trace_id],
+    [$t('admin.ai.model.testDetails.latency'), `${result.latency_ms}ms`],
+  ];
+
+  if (result.error) {
+    items.push([$t('admin.ai.model.testDetails.error'), result.error]);
+  }
+  if (result.response_text) {
+    items.push([
+      $t('admin.ai.model.testDetails.responsePreview'),
+      result.response_text,
+    ]);
+  }
+  if (result.applied_overrides?.length) {
+    items.push([
+      $t('admin.ai.model.testDetails.appliedOverrides'),
+      result.applied_overrides.join(', '),
+    ]);
+  }
+  if (result.ignored_overrides?.length) {
+    items.push([
+      $t('admin.ai.model.testDetails.ignoredOverrides'),
+      result.ignored_overrides.join(', '),
+    ]);
+  }
+  if (result.ignore_reasons && Object.keys(result.ignore_reasons).length > 0) {
+    items.push([
+      $t('admin.ai.model.testDetails.ignoreReasons'),
+      Object.entries(result.ignore_reasons)
+        .map(([key, reason]) => `${key}: ${reason}`)
+        .join('\n'),
+    ]);
+  }
+
+  Modal.info({
+    title: $t('admin.ai.model.testResultTitle'),
+    width: 680,
+    content: h(
+      'div',
+      { class: 'space-y-2 text-sm' },
+      items.map(([label, value]) =>
+        h(
+          'div',
+          { class: 'flex flex-col gap-1' },
+          [
+            h(
+              'span',
+              { class: 'text-xs text-muted-foreground' },
+              `${label}:`,
+            ),
+            h('span', { class: 'break-all text-foreground' }, value || '-'),
+          ],
+        ),
+      ),
+    ),
+  });
+}
+
 /**
  * 测试模型连通性 / Test model connectivity
  */
@@ -98,6 +181,7 @@ async function onTestModel(row: AIModelInfo) {
         }),
       );
     }
+    showTestResultDetail(result);
   } catch {
     message.error(
       $t('admin.ai.model.testFailed', { error: $t('common.requestFailed') }),

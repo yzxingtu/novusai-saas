@@ -91,7 +91,7 @@ class TaskEngine(BaseEngine):
             # 4. Tool call loop / 工具调用循环
             tool_results = []
             if response.tool_calls and tools:
-                response, tool_results, total_tokens = await self._handle_tool_calls(
+                response, tool_results, total_tokens, _completion_tokens_used = await self._handle_tool_calls(
                     agent=agent,
                     messages=messages,
                     response=response,

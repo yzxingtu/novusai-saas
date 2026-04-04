@@ -91,10 +91,37 @@ class AIModelRepository(BaseRepository[AIModel]):
 
     async def code_exists(self, code: str, exclude_id: int | None = None) -> bool:
         """
-        检查模型代码是否存在 / Check if model code exists.
+        检查模型代码是否全局存在 / Check if model code exists globally.
+
+        保留该方法以兼容仍依赖旧全局唯一语义的调用方；新模型写路径应使用
+        code_exists_for_provider()。
+        """
+        from sqlalchemy import func
+
+        stmt = select(func.count(AIModel.id)).where(
+            AIModel.code == code,
+            AIModel.is_deleted.is_(False),
+        )
+
+        if exclude_id is not None:
+            stmt = stmt.where(AIModel.id != exclude_id)
+
+        result = await self.db.execute(stmt)
+        count = result.scalar() or 0
+        return count > 0
+
+    async def code_exists_for_provider(
+        self,
+        code: str,
+        provider_id: int,
+        exclude_id: int | None = None,
+    ) -> bool:
+        """
+        检查同一供应商下模型代码是否存在 / Check if model code exists under the same provider.
 
         Args:
             code: 模型代码
+            provider_id: 供应商 ID
             exclude_id: 排除的 ID（用于更新时排除自己）
 
         Returns:
@@ -103,7 +130,9 @@ class AIModelRepository(BaseRepository[AIModel]):
         from sqlalchemy import func
 
         stmt = select(func.count(AIModel.id)).where(
-            AIModel.code == code, AIModel.is_deleted.is_(False)
+            AIModel.code == code,
+            AIModel.provider_id == provider_id,
+            AIModel.is_deleted.is_(False),
         )
 
         if exclude_id is not None:
@@ -153,6 +182,28 @@ class AIModelRepository(BaseRepository[AIModel]):
         stmt = select(AIModel).where(
             AIModel.provider_id == provider_id,
             AIModel.name == name,
+            AIModel.is_active.is_(True),
+            AIModel.is_deleted.is_(False),
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_active_by_code_and_provider(
+        self, code: str, provider_id: int
+    ) -> AIModel | None:
+        """
+        根据代码和供应商获取启用模型 / Get active model by code and provider.
+
+        Args:
+            code: 模型代码
+            provider_id: 供应商 ID
+
+        Returns:
+            AIModel 对象或 None
+        """
+        stmt = select(AIModel).where(
+            AIModel.provider_id == provider_id,
+            AIModel.code == code,
             AIModel.is_active.is_(True),
             AIModel.is_deleted.is_(False),
         )

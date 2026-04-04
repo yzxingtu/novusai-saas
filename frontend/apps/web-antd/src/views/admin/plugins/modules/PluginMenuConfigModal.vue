@@ -4,7 +4,7 @@
  *
  * 支持：
  * - 多级菜单树形选择（TreeSelect）
- * - 按菜单挂载端别（manifest 归一化）分组：admin / tenant / both / user
+ * - 按菜单挂载端别（manifest 归一化）分组：admin / tenant / both
  * - both：同时配置管理端与企业端父级（tenant_parent）
  */
 import type {
@@ -61,8 +61,8 @@ function resolveTitle(title: Record<string, string> | string): string {
   return title?.['zh-CN'] ?? title?.en ?? Object.values(title)[0] ?? '';
 }
 
-/** 菜单挂载端别（与后端 manifest 归一化一致）：admin | tenant | both | user */
-const MENU_ENDPOINT_SCOPES = ['admin', 'tenant', 'both', 'user'] as const;
+/** 菜单挂载端别（与后端 manifest 归一化一致）：admin | tenant | both */
+const MENU_ENDPOINT_SCOPES = ['admin', 'tenant', 'both'] as const;
 
 /**
  * Validate menu endpoint scope — only canonical values accepted.
