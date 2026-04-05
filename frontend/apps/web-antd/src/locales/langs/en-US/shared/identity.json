@@ -35,6 +35,7 @@
   },
   "owner": "Owner",
   "unassignedArchitecture": "Unassigned Architecture",
+  "unassignedRole": "Unassigned Role",
   "userTypes": {
     "admin": "Platform admin",
     "tenantAdmin": "Tenant admin",

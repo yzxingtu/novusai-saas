@@ -126,6 +126,7 @@ function buildUserIdentityModel(row: TenantUserInfo) {
     nickname: row.nickname || row.username,
     orgNodeName: row.orgNodeName,
     roleName: row.roleName,
+    userType: 'tenant_user',
   };
 }
 

@@ -27,7 +27,6 @@ import { usePresenceStore } from '#/store';
 import { showRequestError } from '#/utils/error-helpers';
 
 import AdminFormDrawer from './modules/AdminFormDrawer.vue';
-import AssignDrawer from './modules/AssignDrawer.vue';
 import MemberItem from './modules/MemberItem.vue';
 import ResetPasswordModal from './modules/ResetPasswordModal.vue';
 import { toResetPasswordInfo } from './types';
@@ -63,8 +62,6 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   (e: 'leaderChanged', leaderId: null | number): void;
-  (e: 'memberAdded', member: MemberPanelMember): void;
-  (e: 'memberRemoved', memberId: number): void;
   (e: 'refresh'): void;
 }>();
 
@@ -82,7 +79,6 @@ const searchText = ref('');
 
 // Component refs / 组件引用
 const adminFormDrawerRef = ref<InstanceType<typeof AdminFormDrawer>>();
-const assignDrawerRef = ref<InstanceType<typeof AssignDrawer>>();
 const resetPasswordModalRef = ref<InstanceType<typeof ResetPasswordModal>>();
 
 // Use composable / 使用 composable
@@ -92,8 +88,6 @@ const {
   operating,
   pagination,
   includeDescendants,
-  addMembers,
-  removeMember,
   setLeader,
   refresh,
   changePage,
@@ -153,10 +147,6 @@ function handleOpenCreateDrawer() {
   adminFormDrawerRef.value?.openCreate({ lockOrgNode: true });
 }
 
-function handleOpenAssignDrawer() {
-  assignDrawerRef.value?.open();
-}
-
 /** Handle edit member / 处理编辑成员 */
 function handleEditMember(member: MemberPanelMember) {
   adminFormDrawerRef.value?.openEdit(member);
@@ -211,19 +201,6 @@ function toOptionalNodeId(
   nodeId: null | number | undefined,
 ): number | undefined {
   return typeof nodeId === 'number' ? nodeId : undefined;
-}
-
-/** Handle remove member / 处理移除成员 */
-async function handleRemoveMember(member: MemberPanelMember) {
-  // Use member's orgNodeId, supports removing child node members in recursive mode / 使用成员所属 orgNodeId，支持递归模式下移除子节点成员
-  const success = await removeMember(
-    member.id,
-    toOptionalNodeId(member.orgNodeId),
-  );
-  if (success) {
-    emit('memberRemoved', member.id);
-    emit('refresh');
-  }
 }
 
 /** Handle set leader / 处理设置负责人 */
@@ -297,35 +274,14 @@ onMounted(() => {
           v-if="!allowMembers"
           :title="$t('shared.memberPanel.nodeTypeNotAllowMembers')"
         >
-          <div class="flex items-center gap-2">
-            <Button type="default" size="small" disabled>
-              <template #icon>
-                <IconifyIcon icon="lucide:user-check" />
-              </template>
-              {{ $t('shared.memberPanel.assignMember') }}
-            </Button>
-            <Button type="primary" size="small" disabled>
-              <template #icon>
-                <IconifyIcon icon="lucide:user-plus" />
-              </template>
-              {{ $t('shared.memberPanel.createMember') }}
-            </Button>
-          </div>
+          <Button type="primary" size="small" disabled>
+            <template #icon>
+              <IconifyIcon icon="lucide:user-plus" />
+            </template>
+            {{ $t('shared.memberPanel.createMember') }}
+          </Button>
         </Tooltip>
         <div v-else class="flex items-center gap-2">
-          <Tooltip :title="$t('shared.memberPanel.assignTooltip')">
-            <Button
-              type="default"
-              size="small"
-              :disabled="!nodeId"
-              @click="handleOpenAssignDrawer"
-            >
-              <template #icon>
-                <IconifyIcon icon="lucide:user-check" />
-              </template>
-              {{ $t('shared.memberPanel.assignMember') }}
-            </Button>
-          </Tooltip>
           <Tooltip :title="$t('shared.memberPanel.createTooltip')">
             <Button
               type="primary"
@@ -368,6 +324,12 @@ onMounted(() => {
 
     <template v-else>
       <!-- Search box and recursive query toggle / 搜索框和递归查询开关 -->
+      <div
+        v-if="allowMembers"
+        class="px-4 pt-3 text-left text-xs text-muted-foreground"
+      >
+        {{ $t('shared.memberPanel.flowHint') }}
+      </div>
       <div class="flex items-center gap-3 px-4 py-3">
         <Input
           v-model:value="searchText"
@@ -417,7 +379,6 @@ onMounted(() => {
                 @edit="handleEditMember"
                 @force-logout="handleForceLogout"
                 @reset-password="handleResetPassword"
-                @remove="handleRemoveMember"
                 @set-leader="handleSetLeader"
                 @cancel-leader="handleCancelLeader"
               />
@@ -442,7 +403,6 @@ onMounted(() => {
               @edit="handleEditMember"
               @force-logout="handleForceLogout"
               @reset-password="handleResetPassword"
-              @remove="handleRemoveMember"
               @set-leader="handleSetLeader"
               @cancel-leader="handleCancelLeader"
             />
@@ -494,14 +454,6 @@ onMounted(() => {
       :node-name="nodeName"
       :api-prefix="apiPrefix"
       :org-tree-api="orgTreeApi"
-      @success="handleMemberSuccess"
-    />
-
-    <AssignDrawer
-      ref="assignDrawerRef"
-      :api-prefix="apiPrefix"
-      :node-id="nodeId"
-      :add-members="addMembers"
       @success="handleMemberSuccess"
     />
 

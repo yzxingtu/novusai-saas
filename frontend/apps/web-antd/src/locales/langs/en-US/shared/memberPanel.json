@@ -30,6 +30,7 @@
   "assignSelectPlaceholder": "Search username, nickname or email to add...",
   "assignTooltip": "Map an existing account to this organization node",
   "createTooltip": "Create a new account directly within this node",
+  "flowHint": "Update existing account affiliations through Edit Account; this panel now only creates new accounts.",
   "addSuccess": "Member added successfully",
   "addFailed": "Failed to add member",
   "batchAddSuccess": "Successfully added {count} members",
@@ -42,12 +43,10 @@
   "item": {
     "disabled": "Disabled",
     "createdAt": "Created: {date}",
-    "edit": "Edit",
+    "edit": "Edit Account",
     "resetPassword": "Reset Password",
     "cancelLeader": "Cancel Leader",
     "cancelLeaderConfirm": "Are you sure to cancel this member's leader role?",
-    "setAsLeader": "Set as Leader",
-    "removeMember": "Remove Member",
-    "removeConfirm": "Are you sure to remove this member from this node?"
+    "setAsLeader": "Set as Leader"
   }
 }

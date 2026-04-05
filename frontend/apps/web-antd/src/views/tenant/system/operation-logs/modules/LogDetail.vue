@@ -93,6 +93,7 @@ const userIdentityModel = computed(() => {
     nickname: detail.value.nickname || detail.value.username,
     orgNodeName: detail.value.orgNodeName,
     roleName: detail.value.roleName,
+    userType: detail.value.userType,
   };
 });
 

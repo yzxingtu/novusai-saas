@@ -30,6 +30,7 @@
   "assignSelectPlaceholder": "搜索用户名、昵称或邮箱，添加已有账号...",
   "assignTooltip": "将企业已有账号添加到当前组织节点",
   "createTooltip": "在当前组织节点下新建账号并立即分配",
+  "flowHint": "已有账号的组织归属请通过“编辑账号”调整；这里仅保留新建账号入口。",
   "addSuccess": "成员添加成功",
   "addFailed": "添加成员失败",
   "batchAddSuccess": "成功添加 {count} 名成员",
@@ -42,12 +43,10 @@
   "item": {
     "disabled": "已禁用",
     "createdAt": "创建: {date}",
-    "edit": "编辑",
+    "edit": "编辑账号",
     "resetPassword": "重置密码",
     "cancelLeader": "取消负责人",
     "cancelLeaderConfirm": "确定取消该成员的负责人身份吗？",
-    "setAsLeader": "设为负责人",
-    "removeMember": "移除成员",
-    "removeConfirm": "确定将该成员从此节点移除吗？"
+    "setAsLeader": "设为负责人"
   }
 }

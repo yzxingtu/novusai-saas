@@ -46,10 +46,13 @@ const emit = defineEmits<{
   (e: 'cancelLeader', member: MemberPanelMember): void;
   (e: 'edit', member: MemberPanelMember): void;
   (e: 'forceLogout', member: MemberPanelMember): void;
-  (e: 'remove', member: MemberPanelMember): void;
   (e: 'resetPassword', member: MemberPanelMember): void;
   (e: 'setLeader', member: MemberPanelMember): void;
 }>();
+
+const showRoleBadge = computed(
+  () => props.apiPrefix === 'tenant' && Boolean(props.member.roleName),
+);
 
 const identityModel = computed<IdentityDisplayModel>(() => ({
   avatar: props.member.avatar ?? null,
@@ -79,11 +82,6 @@ const identityMeta = computed<IdentityDetailMeta>(() => ({
   userType: identityModel.value.userType,
   username: props.member.username,
 }));
-
-/** Handle remove member / 处理移除成员 */
-function handleRemove() {
-  emit('remove', props.member);
-}
 
 /** Handle set as leader / 处理设置为负责人 */
 function handleSetLeader() {
@@ -122,6 +120,7 @@ function handleForceLogout() {
         :avatar-size="40"
         :online="online"
         :show-online-status="showOnlineStatus"
+        :show-role-badge="showRoleBadge"
         class="flex-1"
       >
         <template #after>
@@ -241,22 +240,6 @@ function handleForceLogout() {
         </Button>
       </Tooltip>
 
-      <!-- Remove member / 移除成员 -->
-      <Tooltip :title="$t('shared.memberPanel.item.removeMember')">
-        <Popconfirm
-          :title="$t('shared.memberPanel.item.removeConfirm')"
-          :ok-text="$t('shared.common.confirm')"
-          :cancel-text="$t('shared.common.cancel')"
-          :ok-button-props="{ danger: true }"
-          @confirm="handleRemove"
-        >
-          <Button type="text" size="small" danger>
-            <template #icon>
-              <IconifyIcon icon="lucide:user-minus" />
-            </template>
-          </Button>
-        </Popconfirm>
-      </Tooltip>
     </div>
   </div>
 </template>

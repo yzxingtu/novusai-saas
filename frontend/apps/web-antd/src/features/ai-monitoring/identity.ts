@@ -174,6 +174,7 @@ export function createMonitoringActorIdentityModel(
     nickname: actor.nickname || actor.display_name,
     orgNodeName: actor.org_node_name,
     roleName: resolveMonitoringDisplayRoleName(actor),
+    userType: actor.type,
     username:
       normalizeText(actor.display_name) || normalizeText(actor.nickname)
         ? undefined
@@ -222,6 +223,7 @@ export function createMonitoringCallerIdentityModel(
     nickname: source.caller_nickname || source.caller_name,
     orgNodeName: source.caller_org_node_name,
     roleName: resolveMonitoringDisplayRoleName(source),
+    userType: source.caller_type,
     username: resolveCallerUsername(source),
   });
 }

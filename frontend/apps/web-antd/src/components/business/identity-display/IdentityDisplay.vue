@@ -15,10 +15,11 @@ import { $t } from '#/locales';
 import { toAvatarDisplayUrl } from '#/utils/image';
 
 import {
+  resolveIdentityContextIcon,
+  resolveIdentityContextLabel,
   resolveIdentityAvatarText,
   resolveIdentityDisplayModel,
   resolveIdentityDisplayTitle,
-  resolveIdentityOrgNodeLabel,
 } from './types';
 
 defineOptions({ name: 'IdentityDisplay' });
@@ -38,6 +39,7 @@ const props = withDefaults(
     showRoleBadge?: boolean;
     showStatusBadge?: boolean;
     showUserTypeBadge?: boolean;
+    verticalAlign?: 'center' | 'start';
   }>(),
   {
     avatarSize: 40,
@@ -52,6 +54,7 @@ const props = withDefaults(
     showRoleBadge: false,
     showStatusBadge: true,
     showUserTypeBadge: false,
+    verticalAlign: 'start',
   },
 );
 
@@ -95,10 +98,12 @@ const disabledLabel = computed(
   () => props.disabledLabel || $t('shared.memberPanel.item.disabled'),
 );
 
-const orgLineText = computed(
-  () =>
-    props.orgLabel ||
-    resolveIdentityOrgNodeLabel(resolvedModel.value.orgNodeName),
+const contextLineText = computed(
+  () => props.orgLabel || resolveIdentityContextLabel(resolvedModel.value),
+);
+
+const contextLineIcon = computed(() =>
+  resolveIdentityContextIcon(resolvedModel.value),
 );
 
 const displayBadges = computed<IdentityDisplayBadge[]>(() => {
@@ -213,7 +218,8 @@ function resolveBadgeToneClass(color?: string): string {
 <template>
   <div
     v-bind="$attrs"
-    class="identity-display flex min-w-0 items-start gap-2.5"
+    class="identity-display flex min-w-0 gap-2.5"
+    :class="props.verticalAlign === 'center' ? 'items-center' : 'items-start'"
   >
     <div v-if="showAvatar" class="relative shrink-0">
       <Avatar
@@ -276,10 +282,10 @@ function resolveBadgeToneClass(color?: string): string {
         <span class="identity-display__org-chip">
           <IconifyIcon
             class="identity-display__org-icon size-3"
-            icon="lucide:building-2"
+            :icon="contextLineIcon"
           />
           <span class="identity-display__org-text">
-            {{ orgLineText }}
+            {{ contextLineText }}
           </span>
         </span>
       </div>
@@ -476,7 +482,6 @@ function resolveBadgeToneClass(color?: string): string {
 }
 
 .identity-display {
-  align-items: flex-start;
   justify-content: flex-start;
   text-align: left;
   width: 100%;

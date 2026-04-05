@@ -23,8 +23,6 @@ export interface MemberPanelProps {
 
 /** Member Panel Emits / 成员面板 Emits */
 export interface MemberPanelEmits {
-  (e: 'memberAdded', member: MemberPanelMember): void;
-  (e: 'memberRemoved', memberId: number): void;
   (e: 'leaderChanged', leaderId: null | number): void;
   (e: 'refresh'): void;
 }
@@ -44,7 +42,6 @@ export interface MemberItemProps {
 /** Member List Item Emits / 成员列表项 Emits */
 /* eslint-disable @typescript-eslint/unified-signatures */
 export interface MemberItemEmits {
-  (e: 'remove', member: MemberPanelMember): void;
   (e: 'setLeader', member: MemberPanelMember): void;
   (e: 'cancelLeader', member: MemberPanelMember): void;
 }

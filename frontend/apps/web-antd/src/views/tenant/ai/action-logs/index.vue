@@ -174,6 +174,7 @@ function buildOperatorIdentityModel(
     nickname: getOperatorDisplayName(log),
     orgNodeName: log?.operator_org_node_name,
     roleName: log?.operator_role_name,
+    userType: log?.operator_type,
     username:
       log?.operator_display_name || log?.operator_nickname
         ? undefined

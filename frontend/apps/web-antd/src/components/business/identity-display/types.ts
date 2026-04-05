@@ -121,6 +121,40 @@ export function resolveIdentityOrgNodeLabel(
   return firstNonEmpty(orgNodeName) || fallbackLabel;
 }
 
+export function resolveIdentityRoleLabel(
+  roleName?: null | string,
+  fallbackLabel: string = $t('shared.identity.unassignedRole'),
+): string {
+  return firstNonEmpty(roleName) || fallbackLabel;
+}
+
+function normalizeIdentityUserType(userType?: null | string): string {
+  return firstNonEmpty(userType).toLowerCase();
+}
+
+export function shouldUseIdentityRoleLine(
+  model: Partial<IdentityDisplayModel>,
+): boolean {
+  return normalizeIdentityUserType(model.userType) === 'tenant_user';
+}
+
+export function resolveIdentityContextIcon(
+  model: Partial<IdentityDisplayModel>,
+): string {
+  return shouldUseIdentityRoleLine(model)
+    ? 'lucide:shield'
+    : 'lucide:building-2';
+}
+
+export function resolveIdentityContextLabel(
+  model: Partial<IdentityDisplayModel>,
+): string {
+  if (shouldUseIdentityRoleLine(model)) {
+    return resolveIdentityRoleLabel(model.roleName);
+  }
+  return resolveIdentityOrgNodeLabel(model.orgNodeName);
+}
+
 export function resolveIdentityDisplayModel(
   model: IdentityDisplayModel,
 ): ResolvedIdentityDisplayModel {

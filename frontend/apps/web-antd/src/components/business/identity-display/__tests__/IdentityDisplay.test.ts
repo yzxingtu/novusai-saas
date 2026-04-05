@@ -163,4 +163,36 @@ describe('identity display', () => {
       ]),
     );
   });
+
+  it('prefers role context for tenant users instead of architecture', () => {
+    const wrapper = mount(IdentityDisplay, {
+      props: {
+        model: {
+          id: 21,
+          nickname: 'Tenant User',
+          orgNodeName: '华东一区',
+          roleName: '采购专员',
+          userType: 'tenant_user',
+          username: 'tenant.user',
+        },
+      },
+    });
+
+    expect(wrapper.text()).toContain('采购专员');
+    expect(wrapper.text()).not.toContain('华东一区');
+  });
+
+  it('shows unassigned role fallback for tenant users without a role', () => {
+    const wrapper = mount(IdentityDisplay, {
+      props: {
+        model: {
+          id: 22,
+          nickname: 'Roleless User',
+          userType: 'tenant_user',
+        },
+      },
+    });
+
+    expect(wrapper.text()).toContain('shared.identity.unassignedRole');
+  });
 });

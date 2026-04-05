@@ -35,6 +35,7 @@
   },
   "owner": "所有者",
   "unassignedArchitecture": "未分配架构",
+  "unassignedRole": "未分配角色",
   "userTypes": {
     "admin": "平台管理员",
     "tenantAdmin": "企业管理员",

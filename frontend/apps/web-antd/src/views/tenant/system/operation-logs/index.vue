@@ -61,6 +61,7 @@ function buildOperatorIdentityModel(row: OperationLogInfo) {
     nickname: row.nickname || row.username,
     orgNodeName: row.orgNodeName,
     roleName: row.roleName,
+    userType: row.userType,
   };
 }
 

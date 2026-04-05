@@ -11,7 +11,11 @@ import {
 } from './identity-detail';
 import {
   formatIdentityDateTime,
+  resolveIdentityPrimaryContextLabel,
+  resolveIdentityPrimaryContextValue,
+  shouldShowIdentityOrganization,
   shouldShowIdentityRole,
+  usesRoleAsPrimaryIdentityContext,
 } from './detail-presentation';
 import IdentityDisplay from './IdentityDisplay.vue';
 import { useIdentityDetailDialog } from './use-identity-detail-dialog';
@@ -52,11 +56,40 @@ const basicRows = computed(() => {
       value: current.username || $t('shared.identity.field.empty'),
     },
     {
+      key: 'context',
+      label: resolveIdentityPrimaryContextLabel(current),
+      value: resolveIdentityPrimaryContextValue(current),
+    },
+  ];
+
+  if (current.tenantName?.trim()) {
+    rows.push({
+      key: 'tenant',
+      label: $t('shared.identity.field.tenant'),
+      value: current.tenantName.trim(),
+    });
+  }
+
+  if (shouldShowIdentityOrganization(current)) {
+    rows.push({
       key: 'organization',
       label: $t('shared.identity.field.organization'),
-      value:
-        current.orgNodeName || $t('shared.identity.unassignedArchitecture'),
-    },
+      value: current.orgNodeName!.trim(),
+    });
+  }
+
+  if (
+    !usesRoleAsPrimaryIdentityContext(current) &&
+    shouldShowIdentityRole(current)
+  ) {
+    rows.push({
+      key: 'role',
+      label: $t('shared.identity.field.role'),
+      value: current.roleName!.trim(),
+    });
+  }
+
+  rows.push(
     {
       key: 'status',
       label: $t('shared.identity.field.status'),
@@ -74,23 +107,7 @@ const basicRows = computed(() => {
       label: $t('shared.identity.field.leader'),
       value: current.isLeader ? $t('shared.common.yes') : $t('shared.common.no'),
     },
-  ];
-
-  if (current.tenantName?.trim()) {
-    rows.splice(2, 0, {
-      key: 'tenant',
-      label: $t('shared.identity.field.tenant'),
-      value: current.tenantName.trim(),
-    });
-  }
-
-  if (shouldShowIdentityRole(current)) {
-    rows.splice(3, 0, {
-      key: 'role',
-      label: $t('shared.identity.field.role'),
-      value: current.roleName!.trim(),
-    });
-  }
+  );
 
   if (current.email?.trim()) {
     rows.push({
