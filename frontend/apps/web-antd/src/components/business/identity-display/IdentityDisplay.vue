@@ -9,7 +9,7 @@ import { computed } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
-import { Avatar, Tag } from 'ant-design-vue';
+import { Avatar, Tooltip } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 import { toAvatarDisplayUrl } from '#/utils/image';
@@ -164,10 +164,57 @@ const displayBadges = computed<IdentityDisplayBadge[]>(() => {
 
   return badges;
 });
+
+function resolveBadgeIcon(badge: IdentityDisplayBadge): string {
+  if (badge.icon?.trim()) {
+    return badge.icon.trim();
+  }
+
+  const normalizedKey = badge.key.toLowerCase();
+  if (normalizedKey.includes('type') || normalizedKey.includes('user')) {
+    return 'lucide:users';
+  }
+  if (normalizedKey.includes('role')) {
+    return 'lucide:shield';
+  }
+  return 'lucide:badge-info';
+}
+
+function resolveBadgeToneClass(color?: string): string {
+  switch ((color || '').toLowerCase()) {
+    case 'blue':
+    case 'cyan':
+    case 'processing': {
+      return 'identity-display__indicator--blue';
+    }
+    case 'gold':
+    case 'warning':
+    case 'orange': {
+      return 'identity-display__indicator--gold';
+    }
+    case 'green':
+    case 'success': {
+      return 'identity-display__indicator--green';
+    }
+    case 'error':
+    case 'red': {
+      return 'identity-display__indicator--red';
+    }
+    case 'purple': {
+      return 'identity-display__indicator--purple';
+    }
+    default: {
+      return 'identity-display__indicator--default';
+    }
+  }
+}
 </script>
 
 <template>
-  <div v-bind="$attrs" class="identity-display flex min-w-0 items-center gap-3">
+  <div
+    v-bind="$attrs"
+    class="identity-display flex min-w-0 items-center gap-2.5"
+  >
     <div v-if="showAvatar" class="relative shrink-0">
       <Avatar
         v-if="avatarSrc"
@@ -192,43 +239,54 @@ const displayBadges = computed<IdentityDisplayBadge[]>(() => {
       ></span>
     </div>
 
-    <div class="min-w-0 flex-1">
-      <div class="flex flex-wrap items-center gap-2">
-        <span
-          class="truncate text-sm font-medium text-gray-900 dark:text-gray-100"
-        >
+    <div class="identity-display__content min-w-0 flex-1">
+      <div class="identity-display__heading">
+        <span class="identity-display__title text-sm font-medium">
           {{ resolvedTitle }}
         </span>
-        <Tag
-          v-for="badge in displayBadges"
-          :key="badge.key"
-          :color="badge.color"
-          class="!m-0 flex-shrink-0"
+        <div
+          v-if="displayBadges.length > 0"
+          class="identity-display__badge-list"
         >
-          <template v-if="badge.icon" #icon>
-            <IconifyIcon :icon="badge.icon" class="mr-1 size-3" />
-          </template>
-          {{ badge.label }}
-        </Tag>
+          <Tooltip
+            v-for="badge in displayBadges"
+            :key="badge.key"
+            :title="badge.label"
+            :trigger="['hover', 'focus', 'click']"
+          >
+            <button
+              :aria-label="badge.label"
+              class="identity-display__indicator"
+              :class="resolveBadgeToneClass(badge.color)"
+              type="button"
+            >
+              <IconifyIcon
+                :icon="resolveBadgeIcon(badge)"
+                class="size-3.5"
+              />
+            </button>
+          </Tooltip>
+        </div>
       </div>
 
       <div
         v-if="showOrgLine"
-        class="mt-1 flex min-w-0 items-center gap-2 text-xs text-gray-500 dark:text-gray-400"
+        class="identity-display__org-line flex min-w-0 items-center"
       >
-        <Tag
-          class="identity-display__org-tag !m-0 !inline-flex !items-center !gap-1 !rounded-full !border-sky-200 !bg-sky-50 !px-2 !py-0.5 !text-sky-700"
-        >
-          <template #icon>
-            <IconifyIcon icon="lucide:building-2" class="size-3" />
-          </template>
-          {{ orgLineText }}
-        </Tag>
+        <span class="identity-display__org-chip">
+          <IconifyIcon
+            class="identity-display__org-icon size-3"
+            icon="lucide:building-2"
+          />
+          <span class="identity-display__org-text">
+            {{ orgLineText }}
+          </span>
+        </span>
       </div>
 
-      <div v-if="resolvedSecondaryText || $slots.after" class="mt-1 min-w-0">
+      <div v-if="resolvedSecondaryText || $slots.after" class="min-w-0">
         <slot name="after" :model="resolvedModel">
-          <div class="truncate text-xs text-gray-500 dark:text-gray-400">
+          <div class="identity-display__secondary truncate text-xs">
             {{ resolvedSecondaryText }}
           </div>
         </slot>
@@ -238,7 +296,174 @@ const displayBadges = computed<IdentityDisplayBadge[]>(() => {
 </template>
 
 <style scoped>
+.identity-display__content {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.identity-display__heading {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  line-height: 1.1;
+  min-width: 0;
+}
+
+.identity-display__title {
+  color: rgb(17 24 39);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dark .identity-display__title {
+  color: rgb(243 244 246);
+}
+
 .identity-display__avatar {
   flex-shrink: 0;
+}
+
+.identity-display__badge-list {
+  align-items: center;
+  display: flex;
+  flex-shrink: 0;
+  gap: 2px;
+}
+
+.identity-display__indicator {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: none;
+  border-radius: 9999px;
+  cursor: pointer;
+  display: inline-flex;
+  height: 18px;
+  justify-content: center;
+  padding: 0;
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease,
+    transform 0.15s ease;
+  width: 18px;
+}
+
+.identity-display__indicator:hover,
+.identity-display__indicator:focus-visible {
+  background: var(--identity-indicator-bg);
+  outline: none;
+  transform: translateY(-0.5px);
+}
+
+.identity-display__indicator--default {
+  --identity-indicator-bg: rgb(243 244 246 / 0.92);
+  color: rgb(107 114 128);
+}
+
+.identity-display__indicator--blue {
+  --identity-indicator-bg: rgb(239 246 255 / 0.95);
+  color: rgb(37 99 235);
+}
+
+.identity-display__indicator--gold {
+  --identity-indicator-bg: rgb(255 247 237 / 0.95);
+  color: rgb(217 119 6);
+}
+
+.identity-display__indicator--green {
+  --identity-indicator-bg: rgb(236 253 245 / 0.95);
+  color: rgb(5 150 105);
+}
+
+.identity-display__indicator--red {
+  --identity-indicator-bg: rgb(254 242 242 / 0.95);
+  color: rgb(220 38 38);
+}
+
+.identity-display__indicator--purple {
+  --identity-indicator-bg: rgb(245 243 255 / 0.95);
+  color: rgb(124 58 237);
+}
+
+.dark .identity-display__indicator--default {
+  --identity-indicator-bg: rgb(31 41 55 / 0.95);
+  color: rgb(209 213 219);
+}
+
+.dark .identity-display__indicator--blue {
+  --identity-indicator-bg: rgb(30 41 59 / 0.95);
+  color: rgb(147 197 253);
+}
+
+.dark .identity-display__indicator--gold {
+  --identity-indicator-bg: rgb(120 53 15 / 0.2);
+  color: rgb(252 211 77);
+}
+
+.dark .identity-display__indicator--green {
+  --identity-indicator-bg: rgb(6 78 59 / 0.22);
+  color: rgb(110 231 183);
+}
+
+.dark .identity-display__indicator--red {
+  --identity-indicator-bg: rgb(69 10 10 / 0.22);
+  color: rgb(252 165 165);
+}
+
+.dark .identity-display__indicator--purple {
+  --identity-indicator-bg: rgb(59 7 100 / 0.2);
+  color: rgb(196 181 253);
+}
+
+.identity-display__org-line {
+  min-height: 20px;
+}
+
+.identity-display__org-chip {
+  align-items: center;
+  background: rgb(239 246 255 / 0.78);
+  border: 1px solid rgb(191 219 254 / 0.9);
+  border-radius: 9999px;
+  color: rgb(3 105 161);
+  display: inline-flex;
+  gap: 4px;
+  max-width: 100%;
+  min-width: 0;
+  padding: 1px 8px;
+}
+
+.identity-display__org-icon {
+  flex-shrink: 0;
+}
+
+.identity-display__org-text {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.35;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.identity-display__secondary {
+  color: rgb(107 114 128);
+  line-height: 1.35;
+}
+
+.dark .identity-display__org-chip {
+  background: rgb(8 47 73 / 0.32);
+  border-color: rgb(14 116 144 / 0.38);
+  color: rgb(125 211 252);
+}
+
+.dark .identity-display__secondary {
+  color: rgb(156 163 175);
 }
 </style>

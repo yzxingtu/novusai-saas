@@ -1,7 +1,5 @@
 {
   "$schema": "https://json.schemastore.org/i18n",
-  "identity": {
-    "owner": "Owner",
-    "unassignedArchitecture": "Unassigned Architecture"
-  }
+  "owner": "Owner",
+  "unassignedArchitecture": "Unassigned Architecture"
 }

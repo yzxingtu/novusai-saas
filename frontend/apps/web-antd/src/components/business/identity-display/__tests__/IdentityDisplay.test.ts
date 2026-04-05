@@ -35,6 +35,26 @@ vi.mock('ant-design-vue', async () => {
           );
       },
     }),
+    Tooltip: defineComponent({
+      name: 'TooltipStub',
+      props: {
+        title: {
+          default: '',
+          type: String,
+        },
+      },
+      setup(props, { slots }) {
+        return () =>
+          h(
+            'span',
+            {
+              'data-testid': 'tooltip',
+              'data-title': props.title,
+            },
+            slots.default?.(),
+          );
+      },
+    }),
     Tag: defineComponent({
       name: 'TagStub',
       props: {
@@ -102,11 +122,13 @@ describe('identity display', () => {
 
     expect(wrapper.text()).toContain('#12');
     expect(wrapper.text()).toContain('shared.identity.unassignedArchitecture');
-    expect(wrapper.text()).toContain('shared.memberPanel.item.disabled');
     expect(wrapper.get('[data-testid="avatar"]').text()).toContain('1');
+    expect(wrapper.get('[data-testid="tooltip"]').attributes()['data-title']).toBe(
+      'shared.memberPanel.item.disabled',
+    );
   });
 
-  it('renders nickname, built-in badges, custom badges, and secondary text', () => {
+  it('renders nickname, icon tooltips, and secondary text', () => {
     const wrapper = mount(IdentityDisplay, {
       props: {
         model: {
@@ -125,12 +147,20 @@ describe('identity display', () => {
 
     expect(wrapper.text()).toContain('Alice');
     expect(wrapper.text()).toContain('研发一组');
-    expect(wrapper.text()).toContain('shared.memberPanel.leader');
-    expect(wrapper.text()).toContain('shared.identity.owner');
-    expect(wrapper.text()).toContain('Beta');
     expect(wrapper.text()).toContain('alice@example.com');
     expect(wrapper.get('[data-testid="avatar"]').attributes()['data-src']).toBe(
       'avatar:88',
+    );
+    expect(
+      wrapper
+        .findAll('[data-testid="tooltip"]')
+        .map((node) => node.attributes()['data-title']),
+    ).toEqual(
+      expect.arrayContaining([
+        'shared.memberPanel.leader',
+        'shared.identity.owner',
+        'Beta',
+      ]),
     );
   });
 });
