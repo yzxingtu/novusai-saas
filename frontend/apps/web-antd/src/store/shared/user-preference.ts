@@ -41,6 +41,8 @@ interface UserPreferenceState {
   preferences: null | PreferencesData;
   /** 全局偏好 / Global preferences */
   globalPreferences: null | PreferencesData;
+  /** 全局偏好页实时预览值 / Live preview values from global preference page */
+  globalPreviewPreferences: null | PreferencesData;
   /** 是否已加载 / Whether loaded */
   loaded: boolean;
   /** 加载中 / Loading */
@@ -219,6 +221,7 @@ export const useUserPreferenceStore = defineStore('userPreference', {
   state: (): UserPreferenceState => ({
     preferences: null,
     globalPreferences: null,
+    globalPreviewPreferences: null,
     loaded: false,
     loading: false,
     side: null,
@@ -230,6 +233,13 @@ export const useUserPreferenceStore = defineStore('userPreference', {
     getPref:
       (state) =>
       (key: string): boolean | number | string | undefined => {
+        if (
+          state.globalPreviewActive &&
+          state.globalPreviewPreferences &&
+          key in state.globalPreviewPreferences
+        ) {
+          return state.globalPreviewPreferences[key];
+        }
         return state.preferences?.[key];
       },
   },
@@ -383,8 +393,10 @@ export const useUserPreferenceStore = defineStore('userPreference', {
     clearPreferences() {
       this.preferences = null;
       this.globalPreferences = null;
+      this.globalPreviewPreferences = null;
       this.loaded = false;
       this.side = null;
+      this.globalPreviewActive = false;
     },
 
     async applyServerPreferences(prefs: PreferencesData) {
@@ -392,6 +404,10 @@ export const useUserPreferenceStore = defineStore('userPreference', {
         ? { ...this.preferences, ...prefs }
         : { ...prefs };
       await this._applyToVben(prefs);
+    },
+
+    setGlobalPreviewPreferences(prefs: null | PreferencesData) {
+      this.globalPreviewPreferences = prefs ? { ...prefs } : null;
     },
 
     /**

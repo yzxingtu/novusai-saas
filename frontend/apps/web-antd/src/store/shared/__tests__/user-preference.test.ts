@@ -161,4 +161,33 @@ describe('user preference runtime sync', () => {
       }),
     );
   });
+
+  it('lets global preview override watermark values until preview ends', async () => {
+    const { useUserPreferenceStore } = await import('../user-preference');
+    const store = useUserPreferenceStore();
+    store.preferences = {
+      locale: 'en-US',
+      watermark_content: 'saved watermark',
+      watermark_enable: false,
+    };
+
+    expect(store.getPref('watermark_enable')).toBe(false);
+    expect(store.getPref('watermark_content')).toBe('saved watermark');
+
+    store.globalPreviewActive = true;
+    store.setGlobalPreviewPreferences({
+      watermark_content: 'preview watermark',
+      watermark_enable: true,
+    });
+
+    expect(store.getPref('watermark_enable')).toBe(true);
+    expect(store.getPref('watermark_content')).toBe('preview watermark');
+    expect(store.getPref('locale')).toBe('en-US');
+
+    store.setGlobalPreviewPreferences(null);
+    store.globalPreviewActive = false;
+
+    expect(store.getPref('watermark_enable')).toBe(false);
+    expect(store.getPref('watermark_content')).toBe('saved watermark');
+  });
 });

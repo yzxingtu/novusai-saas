@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -46,9 +46,6 @@ const { formData, isDirty, loading, saving, onSave } = useGlobalPreferencePage(
 
 const notifSettingsRef = ref<InstanceType<typeof NotificationSettings>>();
 const notifSaving = ref(false);
-const scrollContainerRef = ref<HTMLElement>();
-const primarySaveCardRef = ref<HTMLElement>();
-const showFloatingSaveBar = ref(false);
 
 const themeModeLabelMap: Record<string, string> = {
   auto: 'preferences.followSystem',
@@ -56,7 +53,6 @@ const themeModeLabelMap: Record<string, string> = {
   light: 'preferences.theme.light',
 };
 const SECTION_SCROLL_OFFSET = 24;
-let saveCardObserver: IntersectionObserver | null = null;
 
 const layoutModeLabelMap: Record<string, string> = {
   'full-content': 'preferences.fullContent',
@@ -169,51 +165,11 @@ async function onSaveNotif() {
     notifSaving.value = false;
   }
 }
-
-function initSaveCardObserver() {
-  saveCardObserver?.disconnect();
-
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  const root = scrollContainerRef.value;
-  const target = primarySaveCardRef.value;
-
-  if (!root || !target) {
-    showFloatingSaveBar.value = false;
-    return;
-  }
-
-  saveCardObserver = new IntersectionObserver(
-    ([entry]) => {
-      showFloatingSaveBar.value = !(entry?.isIntersecting ?? false);
-    },
-    {
-      root,
-      threshold: 0.4,
-    },
-  );
-
-  saveCardObserver.observe(target);
-}
-
-onMounted(() => {
-  initSaveCardObserver();
-});
-
-onBeforeUnmount(() => {
-  saveCardObserver?.disconnect();
-});
 </script>
 
 <template>
   <Page auto-content-height>
-    <div
-      ref="scrollContainerRef"
-      data-preference-scroll-container
-      class="flex h-full flex-col gap-6 overflow-auto pb-4"
-    >
+    <div data-preference-scroll-container class="flex h-full flex-col gap-6 overflow-auto pb-4">
       <section
         class="relative overflow-hidden rounded-[28px] border border-border/70 bg-card shadow-sm"
       >
@@ -221,9 +177,7 @@ onBeforeUnmount(() => {
           class="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent"
         ></div>
 
-        <div
-          class="relative z-10 grid gap-6 p-5 sm:p-6 xl:grid-cols-[minmax(0,1fr)_320px]"
-        >
+        <div class="relative z-10 p-5 sm:p-6">
           <div class="space-y-5">
             <div class="space-y-3">
               <div
@@ -288,21 +242,41 @@ onBeforeUnmount(() => {
                   {{ item.value }}
                 </div>
               </div>
+              </div>
             </div>
           </div>
+      </section>
 
-          <div
-            ref="primarySaveCardRef"
-            class="rounded-[24px] border border-border/60 bg-background/85 p-4 shadow-sm"
+      <section class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_380px]">
+        <div class="min-w-0">
+          <Spin :spinning="loading">
+            <PreferenceForm v-model="formData" />
+          </Spin>
+        </div>
+
+        <aside class="space-y-4 xl:sticky xl:top-4 xl:self-start">
+          <section
+            class="rounded-[28px] border border-border/70 bg-card p-5 shadow-sm sm:p-6"
           >
             <div class="space-y-4">
-              <div>
-                <div class="text-sm font-semibold text-foreground">
-                  {{ $t('common.save') }}
+              <div class="flex items-start gap-3">
+                <div
+                  class="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary"
+                >
+                  <IconifyIcon icon="lucide:save" class="size-5" />
                 </div>
-                <p class="mt-1 text-xs leading-5 text-muted-foreground">
-                  {{ $t('common.preference.globalSaveHint') }}
-                </p>
+                <div class="min-w-0">
+                  <div class="text-lg font-semibold text-foreground">
+                    {{
+                      isDirty
+                        ? $t('shared.config.page.unsaved_title')
+                        : $t('common.save')
+                    }}
+                  </div>
+                  <p class="mt-1 text-sm leading-6 text-muted-foreground">
+                    {{ $t('common.preference.globalSaveHint') }}
+                  </p>
+                </div>
               </div>
 
               <Button type="primary" block :loading="saving" @click="onSave">
@@ -317,7 +291,7 @@ onBeforeUnmount(() => {
                   v-for="link in quickLinks"
                   :key="link.anchor"
                   type="button"
-                  class="flex items-center gap-2 rounded-2xl border border-border/60 bg-card px-3 py-2 text-left text-sm text-foreground transition hover:border-primary/30 hover:bg-primary/5 hover:text-primary"
+                  class="flex items-center gap-2 rounded-2xl border border-border/60 bg-background/80 px-3 py-2 text-left text-sm text-foreground transition hover:border-primary/30 hover:bg-primary/5 hover:text-primary"
                   @click="scrollToSection(link.anchor)"
                 >
                   <IconifyIcon :icon="link.icon" class="size-4" />
@@ -325,56 +299,8 @@ onBeforeUnmount(() => {
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      </section>
+          </section>
 
-      <Transition name="fade">
-        <div
-          v-if="showFloatingSaveBar && isDirty"
-          class="pointer-events-none sticky bottom-4 z-20 flex justify-center px-3"
-        >
-          <div
-            class="bg-background/92 pointer-events-auto flex w-full max-w-[560px] items-center gap-3 rounded-full border border-border/70 px-3 py-2 shadow-lg shadow-primary/5 backdrop-blur-sm"
-          >
-            <div
-              class="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"
-            >
-              <IconifyIcon icon="lucide:save" class="size-4" />
-            </div>
-
-            <div class="min-w-0 flex-1">
-              <div class="text-sm font-semibold text-foreground">
-                {{ $t('shared.config.page.unsaved_title') }}
-              </div>
-              <p class="truncate text-xs text-muted-foreground">
-                {{ $t('common.preference.globalSaveHint') }}
-              </p>
-            </div>
-
-            <Button
-              type="primary"
-              class="!rounded-full !px-5"
-              :loading="saving"
-              @click="onSave"
-            >
-              <template #icon>
-                <IconifyIcon icon="lucide:save" />
-              </template>
-              {{ $t('common.save') }}
-            </Button>
-          </div>
-        </div>
-      </Transition>
-
-      <section class="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_380px]">
-        <div class="min-w-0">
-          <Spin :spinning="loading">
-            <PreferenceForm v-model="formData" />
-          </Spin>
-        </div>
-
-        <aside class="space-y-4 2xl:sticky 2xl:top-4 2xl:self-start">
           <section
             :id="NOTIFICATION_SECTION_ANCHOR"
             class="rounded-[28px] border border-border/70 bg-card p-5 shadow-sm sm:p-6"

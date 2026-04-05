@@ -74,6 +74,7 @@ export function useGlobalPreferencePage(side: Side) {
   }
 
   function applyPreview(data: PreferencesData) {
+    preferenceStore.setGlobalPreviewPreferences(data);
     void applyPreferencesToVben(data).catch((error) => {
       console.warn(
         '[GlobalPreferencePage] Failed to apply preview preferences:',
@@ -105,12 +106,14 @@ export function useGlobalPreferencePage(side: Side) {
   onMounted(async () => {
     vbenSnapshot = getVbenSnapshot();
     preferenceStore.globalPreviewActive = true;
+    preferenceStore.setGlobalPreviewPreferences(null);
     await loadData();
     loaded.value = true;
   });
 
   onBeforeUnmount(() => {
     revertToSnapshot();
+    preferenceStore.setGlobalPreviewPreferences(null);
     preferenceStore.globalPreviewActive = false;
   });
 
