@@ -91,55 +91,6 @@ async_session_factory = async_sessionmaker(
 
 
 # ============================================
-# 只读数据库引擎（用于 AI Text-to-SQL） / Read-only DB Engine (for AI Text-to-SQL)
-# ============================================
-
-_readonly_engine = None
-_readonly_session_factory = None
-
-
-def _get_readonly_engine():
-    """延迟初始化只读引擎 / Lazily initialize read-only engine (only created when AI_READONLY_DB_URL is configured)"""
-    global _readonly_engine
-    if _readonly_engine is not None:
-        return _readonly_engine
-
-    readonly_url = settings.AI_READONLY_DB_URL_ASYNC
-    if not readonly_url:
-        return None
-
-    _readonly_engine = create_async_engine(
-        readonly_url,
-        echo=False,
-        pool_size=3,
-        max_overflow=2,
-        pool_timeout=10,
-        pool_pre_ping=True,
-    )
-    return _readonly_engine
-
-
-def get_readonly_session_factory():
-    """获取只读会话工厂 / Get read-only session factory"""
-    global _readonly_session_factory
-    if _readonly_session_factory is not None:
-        return _readonly_session_factory
-
-    engine = _get_readonly_engine()
-    if engine is None:
-        return None
-
-    _readonly_session_factory = async_sessionmaker(
-        bind=engine,
-        class_=AsyncSession,
-        expire_on_commit=False,
-        autoflush=False,
-        autocommit=False,
-    )
-    return _readonly_session_factory
-
-
-# ============================================
 # 同步数据库引擎（用于 Alembic 迁移） / Sync DB Engine (for Alembic migrations)
 # ============================================
 
@@ -909,8 +860,6 @@ async def close_database() -> None:
     """关闭数据库连接（关闭时调用） / Close database connections (called at shutdown)"""
     await async_engine.dispose()
     sync_engine.dispose()
-    if _readonly_engine is not None:
-        await _readonly_engine.dispose()
     logger.info("Database connections closed")
 
 
@@ -918,7 +867,6 @@ async def close_database() -> None:
 __all__ = [
     "async_engine",
     "async_session_factory",
-    "get_readonly_session_factory",
     "sync_engine",
     "sync_session_factory",
     "get_db",

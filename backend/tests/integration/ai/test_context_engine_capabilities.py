@@ -212,11 +212,11 @@ async def test_context_engine_injects_knowledge_base_capabilities_block() -> Non
 async def test_context_engine_injects_skill_and_knowledge_base_capabilities() -> None:
     skill_result = _build_skill_result(
         CapabilityDescriptor(
-            name="data_query",
+            name="web_search",
             kind="prompt_skill",
-            source="skill_package:data",
-            description="Query internal business data",
-            metadata={"family": "data_intelligence"},
+            source="skill_package:web",
+            description="Search the public web",
+            metadata={"family": "web_research"},
         )
     )
 
@@ -235,7 +235,7 @@ async def test_context_engine_injects_skill_and_knowledge_base_capabilities() ->
         ],
     )
 
-    assert "## Data Intelligence Skills" in assembly.messages[0].content
+    assert "## Web Research Skills" in assembly.messages[0].content
     assert "## Knowledge Bases" in assembly.messages[0].content
     assert any(
         "[CAPABILITIES]" in addition

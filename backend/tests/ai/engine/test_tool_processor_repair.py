@@ -81,7 +81,7 @@ def test_find_pending_confirmation_injects_confirmed_for_preview_flow() -> None:
                 "id": "tc_preview",
                 "type": "function",
                 "function": {
-                    "name": "data_update",
+                    "name": "update_records",
                     "arguments": '{"table_name":"agents","confirmed":false}',
                 },
             }],
@@ -96,7 +96,7 @@ def test_find_pending_confirmation_injects_confirmed_for_preview_flow() -> None:
     pending = ToolCallProcessor.find_pending_confirmation(messages)
 
     assert pending is not None
-    assert pending["name"] == "data_update"
+    assert pending["name"] == "update_records"
     assert pending["arguments"]["confirmed"] is True
 
 

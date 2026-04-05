@@ -1,1 +1,0 @@
-Create a new record in a database table. First call without 'confirmed' to get a preview; then call again with confirmed=true after user approval. ONLY these tables allow creation: {{ table_list }}. Do NOT attempt to create records in any other table.{{ schema_block }}

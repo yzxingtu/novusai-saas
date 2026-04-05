@@ -6,6 +6,8 @@
 
 ---
 
+> **退役说明（2026-04）**：`data_intelligence` 能力链路（`readonly_executor.py`、`sql_safety.py` 等模块及 `SkillTypeEnum.DATA_INTELLIGENCE`）已退役，不再被构建或调用。文中提到的相关文件/路径仅保留为历史审计记录，项目中已删除该功能。
+
 ## 0. 审计完成标准（DoD）
 
 | 维度 | 证据形式 | 风险标注 | 产出 |

@@ -1132,8 +1132,6 @@
       "inputDescription": "Enter description"
     },
     "tenantId": "Tenant",
-    "tablePolicyFilterHint": "Filtering skills using table policy {id}",
-    "clearTablePolicyFilter": "Clear filter",
     "sourcePlugin": "Plugin",
     "uploadZip": "Upload Skill Package",
     "uploadDragText": "Click or drag a ZIP file here to upload",
@@ -1261,7 +1259,7 @@
   },
   "skill": {
     "title": "Skill Management",
-    "pageDesc": "Manage platform-wide skills including HTTP, email, code, knowledge base, data intelligence and more.",
+    "pageDesc": "Manage platform-wide skills including HTTP, email, code, knowledge base and more.",
     "system": "System",
     "name": "Skill Name",
     "description": "Description",
@@ -1276,7 +1274,6 @@
     "type_options": {
       "toolkit": "Toolkit",
       "knowledge_base": "Knowledge Base",
-      "data_intelligence": "Data Intelligence",
       "builtin": "Built-in",
       "http": "HTTP Request",
       "email": "Email",
@@ -1289,7 +1286,6 @@
     "typeDesc": {
       "toolkit": "Python Toolkit: Write a Tools class in the editor below. Each public method is auto-registered as an LLM-callable tool. Supports Valves env config and .zip upload.\nUse cases: Call 3rd-party APIs (weather/search/translate), custom business logic, data conversion, etc.\nTip: Method docstrings and :param annotations are shown to the LLM — write clear descriptions.",
       "knowledge_base": "RAG Document Q&A: Link one or more knowledge bases for automatic semantic retrieval and context injection during conversations.\nUse cases: Product docs Q&A, internal knowledge search, contract/policy consultation, etc.\nTip: Adjust Top K and score threshold to balance recall and precision.",
-      "data_intelligence": "Data Intelligence: Let the agent query databases using natural language via Text-to-SQL, with query/create/update/delete support.\nUse cases: Business data analytics, report queries, data entry assistance, etc.\nTip: Select accessible table policies below. CRUD permissions are controlled by each policy's allow_create/update/delete settings.",
       "builtin": "Built-in Tools: System-predefined capabilities like web search, image generation, etc. View the tool list after creation.\nTip: Built-in tools are maintained by the platform and cannot be edited.",
       "http": "HTTP Request: Declarative REST API integration. Just fill in URL, method and parameter templates — no coding needed.\nUse cases: Call internal APIs, integrate SaaS services (CRM/ERP), trigger webhooks, etc.\nTip: URL supports {variable} template syntax; configure auth info in Headers.",
       "email": "Email: Let the agent send emails on behalf of users during conversations. Uses platform SMTP config with domain allowlist and recipient limits.\nUse cases: Auto customer replies, meeting invitations, notification sending, etc.\nTip: SMTP server must be configured in System Settings first.",
@@ -1410,22 +1406,6 @@
       "onlyPyFiles": "Only .py files are supported",
       "networkError": "Network request failed"
     },
-    "dataIntelligenceConfig": {
-      "title": "Data Intelligence Config",
-      "tablePolicies": "Table Policies",
-      "tablePoliciesPlaceholder": "Select accessible table policies",
-      "tablePoliciesHelp": "Select tables this skill can access. Only tables with __ai_policy__ declaration are shown. Leave empty to use all available.",
-      "maxRowsOverride": "Max Rows",
-      "maxRowsOverrideHelp": "Override default query row limit, 0 means use default",
-      "systemHint": "This is a system-wide shared skill that automatically uses all configured table policies.",
-      "toolListTitle": "Available Tools",
-      "tools": {
-        "dataQuery": "Query database using natural language, auto-generates safe SQL and returns results",
-        "dataCreate": "Insert new records into the specified table",
-        "dataUpdate": "Update existing records in the specified table",
-        "dataDelete": "Delete records from the specified table"
-      }
-    },
     "placeholder": {
       "searchName": "Search skill name",
       "allTypes": "All types",
@@ -1442,7 +1422,7 @@
     },
     "createGuide": "A skill is a capability unit for agents, belonging to a skill package. Select a type and configure parameters as guided, then bind it to an agent to use.",
     "help": {
-      "type": "Toolkit: custom Python tools; Knowledge Base: RAG document Q&A; Data Intelligence: database query & CRUD; Builtin: system-predefined tools",
+      "type": "Toolkit: custom Python tools; Knowledge Base: RAG document Q&A; Builtin: system-predefined tools",
       "scope": "Platform skills are globally available, tenant skills are limited to their tenant",
       "config": "Runtime configuration for the skill",
       "inputSchema": "Define the parameter structure the skill accepts",
@@ -1464,57 +1444,6 @@
       "importResult": "Import complete: {created} created, {skipped} skipped",
       "importFailed": "Failed to import skills",
       "importInvalid": "Invalid file format, please upload a valid JSON file"
-    }
-  },
-  "tablePolicy": {
-    "name": "Table Policy",
-    "title": "AI Table Policy Management",
-    "create": "New Table Policy",
-    "pageDesc": "Manage database tables accessible to AI. After configuration, create a data intelligence skill in a skill package and associate these table policies, then bind the skill package to an agent for AI data query capabilities. Only tables with __ai_policy__ declaration are supported.",
-    "tableName": "Table Name",
-    "label": "Display Name",
-    "description": "Description",
-    "keywords": "Keywords / Aliases",
-    "columnDescriptions": "Column Descriptions",
-    "allowRead": "Allow Read",
-    "allowCreate": "Allow Create",
-    "allowUpdate": "Allow Update",
-    "allowDelete": "Allow Delete",
-    "maxRows": "Max Rows",
-    "blockedColumns": "Blocked Columns",
-    "readonlyColumns": "Readonly Columns",
-    "permissionCode": "Permission Code",
-    "sortOrder": "Sort Order",
-    "isActive": "Active",
-    "crud": "CRUD Permissions",
-    "sync": "Sync Tables",
-    "syncSuccess": "Synced {synced} table policies",
-    "syncConfirm": "Sync table policies from code declarations? All existing policies will be deleted and rebuilt from __ai_policy__. Admin customizations (max_rows, column_descriptions, etc.) will be preserved.",
-    "keywordsHelp": "Aliases and keywords for AI to match tables, e.g. customer, client",
-    "placeholder": {
-      "searchTableName": "Search table name",
-      "searchLabel": "Search display name",
-      "inputLabel": "Enter display name",
-      "inputDescription": "Enter table description",
-      "inputKeywords": "Enter keywords, press Enter to add",
-      "inputColumnDesc": "Enter column description to help AI understand the field",
-      "inputMaxRows": "Enter max rows",
-      "inputPermissionCode": "Enter permission code",
-      "selectBlockedColumns": "Select columns to block",
-      "selectReadonlyColumns": "Select readonly columns"
-    },
-    "columnDescHelp": "Add descriptions for each column to help AI understand field meanings",
-    "expandBlockedColumns": "Blocked Columns",
-    "expandReadonlyColumns": "Readonly Columns",
-    "expandDescribedColumns": "With Description",
-    "expandDescribedList": "View {count} column descriptions",
-    "expandNoData": "None",
-    "notDeclaredWarning": "This table's model has no __ai_policy__ declaration; it may be a legacy policy. Consider adding the declaration in model code or deleting this policy.",
-    "messages": {
-      "deleteSuccess": "Table policy deleted",
-      "toggleStatusTitle": "Toggle Status",
-      "toggleStatusConfirm": "Are you sure to {action} {name}?",
-      "columnLoadFailed": "Failed to load column info"
     }
   },
   "agentAssignment": {

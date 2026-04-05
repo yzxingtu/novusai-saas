@@ -41,7 +41,7 @@
 - Agent 运行时通过 `AgentSkillGrant` 直接持有 Skill 授权
 - SkillPackage 仍可作为管理端/企业端的归组、来源与目录单元，但**不是**运行时绑定真相
 - **授权模式**（`consent_mode`）：`auto`（自动）/ `ask`（需用户确认）/ `reject`（禁止）
-- 写操作类工具（`data_create` / `data_update` / `data_delete`）**建议**设为 `ask`
+- 写操作类工具默认应优先评估为 `ask` 或 `reject`，避免在无确认下直接执行副作用
 - `AgentSkillGrant` 上的 override/config 字段仅作用于该条直接授权，不重新引入包级自动绑定语义
 
 ## 四、技能体系核心规则
@@ -50,7 +50,7 @@
 - SkillPackage 是**归组 / 来源 / 目录**单元，不是运行时自动绑定单元
 - `SkillPackage` / `Skill` 的**目录可见性与归属**主要由 **`tenant_id`、`package_id`、Skill 的 `tenant_id`（归属列）及仓储层过滤**表达；**`ResourceScopeEnum` 只适用于带 `scope` 列的其它资源，不得直接套用到 `skill_packages` / `skills`**。**运行时是否给某个 Agent 生效，只看 `AgentSkillGrant`**
 - **前端入口**：管理端使用 `/admin/ai/skill-packages`；企业端允许只读目录 `/tenant/ai/skill-packages`，但禁止 tenant 侧 SkillPackage CRUD / valves 编辑 / 包级运行绑定
-- **6 种 SkillTypeEnum 技能类型**：`toolkit` / `data_intelligence` / `builtin` / `http` / `email` / `code_execution`，`knowledge_base` 类型已退役，相关功能由 `AgentKnowledgeBaseBinding` + `Agent.rag_config` 直接管理。
+- `data_intelligence` 类型已于 2026-04 退役；其余可用 Skill 类型以当前代码实现与管理端表单为准，禁止继续设计或恢复 `data_intelligence`。
 - **SkillResolver** 是唯一合法的 Skill→ToolDefinition 转换器，禁止使用 `ToolRegistry`
 
 ### Toolkit 安全扫描
@@ -194,13 +194,12 @@
 
 - 所有副作用工具必须统一写 `AIActionLog`
 - 当前最低覆盖要求：
-  - `data_create / data_update / data_delete`
   - `invoke_page_operation / pageop_*`
   - `http`
   - `email`
   - `toolkit`
   - `code_execution`
-  - `text_to_sql`（query 类也纳入统一账本）
+  - 其他所有具备外部副作用或安全影响的工具
 - `AIActionLog` 必须优先使用显式字段串联：
   - `trace_id`
   - `conversation_id`

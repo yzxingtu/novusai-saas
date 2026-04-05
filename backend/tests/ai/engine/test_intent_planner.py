@@ -11,7 +11,6 @@ def _tools() -> list[ToolDefinition]:
         ToolDefinition(name="fetch_url", description="Fetch a webpage"),
         ToolDefinition(name="get_page_context", description="Read current page"),
         ToolDefinition(name="invoke_page_operation", description="Operate page"),
-        ToolDefinition(name="data_query", description="Query data"),
     ]
 
 

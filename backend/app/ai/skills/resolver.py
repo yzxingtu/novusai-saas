@@ -6,7 +6,6 @@ Converts Skill models to ToolDefinition lists.
 将 Skill 模型转换为 ToolDefinition 列表。
 
 Conversion rules / 转换规则：
-- data_intelligence → 1~4 ToolDefinitions (data_query + CRUD)
 - toolkit → N ToolDefinitions (one per public method of Tools class)
 - builtin → 1 ToolDefinition (or N, via config.tools list)
 
@@ -193,8 +192,6 @@ class SkillResolver:
     def _apply_tool_semantics(
         cls,
         tool: ToolDefinition,
-        *,
-        skill_type: str | None = None,
     ) -> None:
         if tool.semantic_family:
             return
@@ -228,16 +225,6 @@ class SkillResolver:
                 *FAMILY_HINT_TAGS["weather"],
                 "weather",
                 "forecast",
-            )
-            return
-
-        if (
-            name.startswith("data_")
-            or skill_type == SkillTypeEnum.DATA_INTELLIGENCE.value
-        ):
-            tool.semantic_family = "data_ops"
-            tool.semantic_tags = tool.semantic_tags or cls._semantic_tags(
-                *FAMILY_HINT_TAGS["data_ops"],
             )
             return
 
@@ -291,7 +278,7 @@ class SkillResolver:
             try:
                 await self._resolve_one(skill, merged_config, result, source_plugin)
                 for tool in result.tools[before_count:]:
-                    self._apply_tool_semantics(tool, skill_type=skill.type)
+                    self._apply_tool_semantics(tool)
             except Exception as exc:
                 warning_msg = (
                     f"Skill '{skill.name}' (id={skill.id}) failed to load: {str(exc)}"
@@ -381,9 +368,7 @@ class SkillResolver:
 
         skill_type = skill.type
 
-        if skill_type == SkillTypeEnum.DATA_INTELLIGENCE.value:
-            await self._resolve_data_intelligence(skill, config, result)
-        elif skill_type == SkillTypeEnum.TOOLKIT.value:
+        if skill_type == SkillTypeEnum.TOOLKIT.value:
             self._resolve_toolkit(skill, config, result)
         elif skill_type == SkillTypeEnum.BUILTIN.value:
             self._resolve_builtin(skill, config, result)
@@ -398,283 +383,6 @@ class SkillResolver:
                 "Unknown skill type: {} (skill={}), no resolver available",
                 skill_type,
                 skill.id,
-            )
-
-    # ========================================
-    # Data Intelligence Skill / 数据智能 Skill
-    # ========================================
-
-    def _format_crud_schema_block(
-        self,
-        tables: list[tuple[str, str]],
-        hints: dict[str, list[dict[str, Any]]],
-    ) -> str:
-        """Format column schema for CRUD tool description / 格式化 CRUD 工具描述的列 schema"""
-        if not hints:
-            return ""
-        lines: list[str] = []
-        for table_name, label in tables:
-            cols = hints.get(table_name)
-            if not cols:
-                continue
-            parts: list[str] = []
-            for c in cols:
-                p = f"{c['name']}({c['type']}"
-                if c.get("required"):
-                    p += ", required"
-                if c.get("fk_table"):
-                    p += f", FK->{c['fk_table']}"
-                p += ")"
-                if c.get("desc"):
-                    p += f" -- {c['desc'][:40]}{'...' if len(c.get('desc', '')) > 40 else ''}"
-                parts.append(p)
-            lines.append(f"\n{table_name}({label}): " + ", ".join(parts))
-        if not lines:
-            return ""
-        return "\n\nTable schemas (include all required fields):" + "".join(lines)
-
-    async def _resolve_data_intelligence(
-        self,
-        skill: Skill,
-        config: dict[str, Any],
-        result: SkillResolveResult,
-    ) -> None:
-        """
-        Data Intelligence Skill → 1~4 ToolDefinitions.
-        数据智能 Skill → 1~4 个 ToolDefinition。
-
-        - data_query is always generated (as long as there are accessible tables)
-        - data_query 始终生成（只要有可访问的表）
-        - data_create / data_update / data_delete controlled by Table Policy's
-          per-table allow_create / allow_update / allow_delete switches
-        - data_create / data_update / data_delete 由 Table Policy 的
-          allow_create / allow_update / allow_delete 每表开关控制
-
-        The sole control source for CRUD permissions is the /admin/ai/table-policies page.
-        CRUD 权限的唯一控制源是 /admin/ai/table-policies 页面。
-
-        Skill.config structure / Skill.config 结构：
-        {
-            "table_policy_ids": [1, 5, 12],
-            "timeout": 60
-        }
-        """
-        # Extract table_policy_ids from Skill.config (which table policies to use for Agent)
-        # 从 Skill.config 提取 table_policy_ids（选择哪些表策略给 Agent 用）
-        table_policy_ids: list[int] | None = config.get("table_policy_ids")
-
-        # Load table descriptions and CRUD permissions from SchemaProvider (controlled by Table Policy)
-        # 从 SchemaProvider 加载表描述和 CRUD 权限（由 Table Policy 控制）
-        table_descriptions: list[tuple[str, str]] = []
-        crud_allowed_tables: dict[str, list[tuple[str, str]]] = {}
-
-        crud_column_hints: dict[str, list[dict[str, Any]]] = {}
-        if self.db:
-            try:
-                from app.ai.data_intelligence.schema_provider import SchemaProvider
-
-                table_descriptions = await SchemaProvider.get_table_descriptions(
-                    self.db,
-                    table_policy_ids=table_policy_ids,
-                )
-                crud_allowed_tables = await SchemaProvider.get_crud_allowed_tables(
-                    self.db,
-                    table_policy_ids=table_policy_ids,
-                )
-                crud_column_hints = await SchemaProvider.get_crud_column_hints(
-                    self.db,
-                    table_policy_ids=table_policy_ids,
-                )
-            except Exception as exc:
-                logger.warning("Failed to load table descriptions: {}", str(exc))
-
-        # data_query tool (always generated) / data_query 工具（始终生成）
-        if table_descriptions:
-            table_list = ", ".join(
-                f"{name}({label})" for name, label in table_descriptions
-            )
-        else:
-            table_list = "(no tables configured)"
-
-        result.tools.append(
-            ToolDefinition(
-                name="data_query",
-                description=render_prompt_contract(
-                    "data_query_tool_description",
-                    table_list=table_list,
-                ),
-                tool_type=ToolTypeEnum.TEXT_TO_SQL.value,
-                parameters=[
-                    ToolParameter(
-                        name="question",
-                        type="string",
-                        description="The data question in natural language",
-                        required=True,
-                    ),
-                ],
-                config={},
-                enabled=True,
-                timeout=config.get("timeout", 60),
-                source_skill_id=skill.id,
-                source_skill_name=skill.name,
-                source_skill_type=skill.type,
-                semantic_family="data_ops",
-                semantic_tags=self._semantic_tags(
-                    "data",
-                    "query",
-                    "统计",
-                    "查询",
-                    "count",
-                    "report",
-                ),
-            )
-        )
-
-        # CRUD tools — directly controlled by Table Policy's per-table allow_create/update/delete
-        # CRUD 工具 — 直接由 Table Policy 的每表 allow_create/update/delete 控制
-        create_tables = crud_allowed_tables.get("create", [])
-        if create_tables:
-            create_list = ", ".join(
-                f"{table_name}({labels})" for table_name, labels in create_tables
-            )
-            schema_block = self._format_crud_schema_block(
-                create_tables,
-                crud_column_hints,
-            )
-            result.tools.append(
-                ToolDefinition(
-                    name="data_create",
-                    description=render_prompt_contract(
-                        "data_create_tool_description",
-                        table_list=create_list,
-                        schema_block=schema_block,
-                    ),
-                    tool_type=ToolTypeEnum.DATA_CREATE.value,
-                    parameters=[
-                        ToolParameter(
-                            name="table_name",
-                            type="string",
-                            description="Target table name",
-                            required=True,
-                        ),
-                        ToolParameter(
-                            name="data",
-                            type="object",
-                            description="Record data as {field: value}",
-                            required=True,
-                        ),
-                        ToolParameter(
-                            name="confirmed",
-                            type="boolean",
-                            description="Set to true after user confirms",
-                        ),
-                    ],
-                    config={},
-                    enabled=True,
-                    timeout=skill.timeout,
-                    source_skill_id=skill.id,
-                    source_skill_name=skill.name,
-                    source_skill_type=skill.type,
-                    semantic_family="data_ops",
-                    semantic_tags=self._semantic_tags("data", "create", "新增", "创建"),
-                )
-            )
-
-        update_tables = crud_allowed_tables.get("update", [])
-        if update_tables:
-            update_list = ", ".join(
-                f"{table_name}({labels})" for table_name, labels in update_tables
-            )
-            schema_block = self._format_crud_schema_block(
-                update_tables,
-                crud_column_hints,
-            )
-            result.tools.append(
-                ToolDefinition(
-                    name="data_update",
-                    description=render_prompt_contract(
-                        "data_update_tool_description",
-                        table_list=update_list,
-                        schema_block=schema_block,
-                    ),
-                    tool_type=ToolTypeEnum.DATA_UPDATE.value,
-                    parameters=[
-                        ToolParameter(
-                            name="table_name",
-                            type="string",
-                            description="Target table name",
-                            required=True,
-                        ),
-                        ToolParameter(
-                            name="id",
-                            type="integer",
-                            description="Record ID to update",
-                            required=True,
-                        ),
-                        ToolParameter(
-                            name="data",
-                            type="object",
-                            description="Fields to update as {field: value}",
-                            required=True,
-                        ),
-                        ToolParameter(
-                            name="confirmed",
-                            type="boolean",
-                            description="Set to true after user confirms",
-                        ),
-                    ],
-                    config={},
-                    enabled=True,
-                    timeout=skill.timeout,
-                    source_skill_id=skill.id,
-                    source_skill_name=skill.name,
-                    source_skill_type=skill.type,
-                    semantic_family="data_ops",
-                    semantic_tags=self._semantic_tags("data", "update", "编辑", "修改"),
-                )
-            )
-
-        delete_tables = crud_allowed_tables.get("delete", [])
-        if delete_tables:
-            delete_list = ", ".join(
-                f"{table_name}({labels})" for table_name, labels in delete_tables
-            )
-            result.tools.append(
-                ToolDefinition(
-                    name="data_delete",
-                    description=render_prompt_contract(
-                        "data_delete_tool_description",
-                        table_list=delete_list,
-                    ),
-                    tool_type=ToolTypeEnum.DATA_DELETE.value,
-                    parameters=[
-                        ToolParameter(
-                            name="table_name",
-                            type="string",
-                            description="Target table name",
-                            required=True,
-                        ),
-                        ToolParameter(
-                            name="id",
-                            type="integer",
-                            description="Record ID to delete",
-                            required=True,
-                        ),
-                        ToolParameter(
-                            name="confirmed",
-                            type="boolean",
-                            description="Set to true after user confirms",
-                        ),
-                    ],
-                    config={},
-                    enabled=True,
-                    timeout=skill.timeout,
-                    source_skill_id=skill.id,
-                    source_skill_name=skill.name,
-                    source_skill_type=skill.type,
-                    semantic_family="data_ops",
-                    semantic_tags=self._semantic_tags("data", "delete", "删除"),
-                )
             )
 
     # ============================================

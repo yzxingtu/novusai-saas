@@ -39,37 +39,10 @@ class Notice(TenantModel):
 
 必须声明 `__filterable__`、`__sortable__`。需要下拉时声明 `__selectable__`。
 
-#### 可选：`__ai_policy__`（AI 表策略声明）
+#### 已退役：`__ai_policy__`
 
-如果此 Model 的数据需要对 AI（数据智能/Text-to-SQL）可见，必须在 Model 上声明 `__ai_policy__`。
-**未声明 `__ai_policy__` 的表对 AI 完全不可见**，不会出现在表策略同步中。
-
-```python
-class Notice(TenantModel):
-    __tablename__ = "notices"
-
-    # 声明此表对 AI 可见，定义默认策略
-    __ai_policy__ = {
-        "label": "公告",
-        "keywords": ["公告", "通知", "notice"],
-        "allow_read": True,
-        "allow_create": False,
-        "allow_update": False,
-        "allow_delete": False,
-        "max_rows": 200,
-    }
-
-    # ... 其他字段
-```
-
-简写形式（使用全部默认值，仅声明可见）：
-
-```python
-class Notice(TenantModel):
-    __ai_policy__ = True
-```
-
-完整属性：`label` / `keywords` / `allow_read` / `allow_create` / `allow_update` / `allow_delete` / `max_rows` / `blocked_columns` / `readonly_columns`。详见 [ai-table-policy-spec.md](ai-table-policy-spec.md)。声明后，在 /admin/ai/table-policies 页面点击「同步」，系统只会为声明了 `__ai_policy__` 的 Model 创建策略记录。
+`__ai_policy__`、AI 表策略和 `data_intelligence` 已于 2026-04 退役。
+新增或维护 Model 时不要再声明 `__ai_policy__`，也不要设计依赖 `/admin/ai/table-policies` 的链路。
 
 ### Step 2: Schema (`app/schemas/tenant/notice.py`)
 

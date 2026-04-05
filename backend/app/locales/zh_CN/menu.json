@@ -40,7 +40,6 @@
       "ai_action_log": "操作审计",
       "ai_long_term_memory_debug": "记忆调试",
       "execution_decision": "执行决策",
-      "ai_table_policy": "AI 表策略",
       "admin_agent_chat": "AI 对话",
       "ai_knowledge_base": "知识库",
       "ai_skill": "技能管理",
@@ -64,7 +63,6 @@
       "admin_ai_gateway": "AI 网关管理",
       "admin_ai_health": "AI 健康状态",
       "admin_ai_model": "AI 模型管理",
-      "admin_ai_table_policy": "AI 表策略管理",
       "admin_ai_knowledge_base": "知识库监控",
       "admin_ai_provider": "AI 供应商管理",
       "admin_ai_quota": "配额管理（平台）",
@@ -78,7 +76,6 @@
       "tenant_ai_quota": "AI 配额管理",
       "tenant_ai_usage": "AI 用量统计",
       "tenant_knowledge_base": "知识库",
-      "tenant_ai_table_policy": "数据访问策略",
       "admin_agent_assignment_mgmt": "功能分配管理",
       "notification_template": "通知模板管理",
       "admin_cache": "缓存管理"

@@ -1005,12 +1005,12 @@ class TestThinkingPersistence:
                         {
                             "id": "tc_data_1",
                             "function": {
-                                "name": "data_query",
+                                "name": "query_records",
                                 "arguments": '{"question":"统计今天调用情况"}',
                             },
                             "pending_consent": {
                                 "arguments": {"question": "统计今天调用情况"},
-                                "tool_name": "data_query",
+                                "tool_name": "query_records",
                             },
                             "summary_payload": {"tables": ["ai_call_logs"]},
                         }
@@ -1035,7 +1035,7 @@ class TestThinkingPersistence:
             tool_results=[
                 ToolResult(
                     tool_call_id="tc_data_1",
-                    name="data_query",
+                    name="query_records",
                     success=True,
                     duration_ms=123,
                     display_name="平台数据管理",
@@ -1044,7 +1044,7 @@ class TestThinkingPersistence:
                     summary_payload={
                         "filters": ["today"],
                         "tables": ["ai_call_logs"],
-                        "tool_kind": "data_query",
+                        "tool_kind": "query_records",
                     },
                 )
             ],
@@ -1082,7 +1082,7 @@ class TestThinkingPersistence:
         assert assistant_payload["tool_calls"][0]["summary_payload"] == {
             "filters": ["today"],
             "tables": ["ai_call_logs"],
-            "tool_kind": "data_query",
+            "tool_kind": "query_records",
         }
         assert assistant_payload["metadata_"]["pending_confirmation"] == {
             "action": "query",
@@ -1093,7 +1093,7 @@ class TestThinkingPersistence:
         assert tool_payload["metadata_"]["tool_summary_payload"] == {
             "filters": ["today"],
             "tables": ["ai_call_logs"],
-            "tool_kind": "data_query",
+            "tool_kind": "query_records",
         }
 
     @pytest.mark.asyncio
@@ -1333,7 +1333,7 @@ class TestThinkingPersistence:
                         {
                             "id": "tc_interrupted_1",
                             "function": {
-                                "name": "data_query",
+                                "name": "query_records",
                                 "arguments": '{"query":"today"}',
                             },
                         }
@@ -1474,15 +1474,15 @@ class TestThinkingPersistence:
             tool_calls=[
                 {
                     "id": "tc_confirm_1",
-                    "function": {"name": "data_query", "arguments": "{}"},
-                    "pending_consent": {"tool_name": "data_query"},
+                    "function": {"name": "query_records", "arguments": "{}"},
+                    "pending_consent": {"tool_name": "query_records"},
                 }
             ],
         )
         assistant.metadata_ = {
             "action_buttons": [{"label": "查看明细", "value": "查看明细"}],
             "pending_confirmation": {"action": "query", "table": "ai_call_logs"},
-            "pending_consent": {"tool_name": "data_query"},
+            "pending_consent": {"tool_name": "query_records"},
         }
 
         service = ConversationService.__new__(ConversationService)
@@ -1507,7 +1507,7 @@ class TestThinkingPersistence:
                 {
                     "kind": "pending_consent",
                     "rejected": True,
-                    "tool_name": "data_query",
+                    "tool_name": "query_records",
                 },
             ],
         )

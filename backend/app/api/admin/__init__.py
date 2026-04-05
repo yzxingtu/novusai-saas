@@ -34,8 +34,6 @@ from app.api.admin.ai_providers import AdminAIProviderController
 from app.api.admin.ai_providers import router as ai_providers_router
 from app.api.admin.ai_quotas import AdminAIQuotaController
 from app.api.admin.ai_quotas import router as ai_quotas_router
-from app.api.admin.ai_table_policies import AdminAITablePolicyController
-from app.api.admin.ai_table_policies import router as ai_table_policies_router
 from app.api.admin.ai_usage import AdminAIUsageController
 from app.api.admin.ai_usage import router as ai_usage_router
 from app.api.admin.ai_writing import router as ai_writing_router
@@ -149,8 +147,6 @@ admin_router.include_router(ai_agent_chat_router)
 # 知识库监控 / Knowledge base monitoring
 admin_router.include_router(ai_knowledge_bases_router)
 admin_router.include_router(ai_long_term_memory_debug_router)
-# AI 表策略 / AI table policies
-admin_router.include_router(ai_table_policies_router)
 # 技能包 & 技能管理 / Skill package & skill management
 admin_router.include_router(ai_skill_packages_router)
 admin_router.include_router(plugin_skill_registry_router)
@@ -218,8 +214,6 @@ __all__ = [
     # 知识库监控 / Knowledge base monitoring
     "AdminKnowledgeBaseController",
     "AdminLongTermMemoryDebugController",
-    # AI 表策略 / AI table policies
-    "AdminAITablePolicyController",
     # 技能包 & 技能管理 / Skill package & skill management
     "AdminSkillPackageController",
     "AdminSkillRegistryController",

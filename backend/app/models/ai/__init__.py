@@ -33,7 +33,6 @@ from app.models.ai.skill_call_log import SkillCallLog
 from app.models.ai.skill_capability_binding import SkillCapabilityBinding
 from app.models.ai.skill_package import SkillPackage
 from app.models.ai.skill_resource import SkillResource
-from app.models.ai.table_policy import AITablePolicy, AITablePolicyOverride
 from app.models.ai.tenant_agent_platform_kb_suppression import (
     TenantAgentPlatformKbSuppression,
 )
@@ -67,8 +66,6 @@ __all__ = [
     "KnowledgeBase",
     "KnowledgeDocument",
     "DocumentChunk",
-    "AITablePolicy",
-    "AITablePolicyOverride",
     "Capability",
     "SkillPackage",
     "Skill",

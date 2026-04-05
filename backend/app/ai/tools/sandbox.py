@@ -19,12 +19,6 @@ from app.ai.events.hooks import HookPoint, get_hook_registry
 from app.ai.events.types import ToolCallCompleted, ToolCallFailed, ToolCallRequested
 from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.executors.builtin_executor import BuiltinToolExecutor
-from app.ai.tools.executors.crud_executor import (
-    CreateRecordExecutor,
-    DeleteRecordExecutor,
-    UpdateRecordExecutor,
-)
-from app.ai.tools.executors.text_to_sql_executor import TextToSQLExecutor
 from app.ai.tools.executors.toolkit_executor import ToolkitExecutor
 from app.ai.tools.security import (
     ExecutionLimiter,
@@ -187,9 +181,9 @@ class ToolSandbox:
             user_id: Current user ID (optional, passed to ExecutionContext) / 当前操作用户 ID
             user_role: User role (platform_admin / tenant_admin / tenant_user) / 用户角色
             permissions: User RBAC permission code set / 用户 RBAC 权限码集合
-            gateway: AI gateway (optional, for TextToSQLExecutor) / AI 网关
-            db: Database session (optional, for TextToSQLExecutor) / 数据库会话
-            agent: Agent model instance (optional, for TextToSQLExecutor) / 智能体模型实例
+            gateway: AI gateway (reserved for executor integrations) / AI 网关（预留给执行器集成）
+            db: Database session (for DB-backed executors) / 数据库会话（供数据库相关执行器使用）
+            agent: Agent model instance (optional executor context) / 智能体模型实例（执行器可选上下文）
             toolkit_security_level: Toolkit security level (strict/normal/permissive) / 安全等级
             toolkit_memory_limit_mb: Toolkit subprocess memory limit (MB) / 子进程内存限制
             input_variables: Runtime variables (page context, etc.) / 运行时变量
@@ -232,17 +226,6 @@ class ToolSandbox:
             memory_limit_mb=self._toolkit_memory_limit_mb,
         )
         self._executors[ToolTypeEnum.BUILTIN.value] = BuiltinToolExecutor()
-        # Text-to-SQL executor (requires AIGateway injection) / Text-to-SQL 执行器
-        if self._gateway and self._db:
-            self._executors[ToolTypeEnum.TEXT_TO_SQL.value] = TextToSQLExecutor(
-                gateway=self._gateway,
-                db=self._db,
-                agent=self._agent,
-            )
-        # Generic CRUD executors / 通用 CRUD 执行器
-        self._executors[ToolTypeEnum.DATA_CREATE.value] = CreateRecordExecutor()
-        self._executors[ToolTypeEnum.DATA_UPDATE.value] = UpdateRecordExecutor()
-        self._executors[ToolTypeEnum.DATA_DELETE.value] = DeleteRecordExecutor()
         # HTTP/Webhook executor / HTTP/Webhook 执行器
         from app.ai.tools.executors.http_executor import HttpToolExecutor
 

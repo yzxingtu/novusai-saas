@@ -418,10 +418,9 @@
       "welcomeMessage": "当用户选中该智能体且尚未发送首条消息时显示，包括左侧选择、固定智能体或 {'@'} 选择智能体",
       "suggestedQuestions": "当用户选中该智能体且尚未发送首条消息时显示的开场问题。建议填写 3-4 条短问题，每行一个",
       "toolBindings": "绑定智能体可调用的工具，每个元素包含 tool_id 字段",
-      "skillBindings": "选择智能体可使用的技能。技能包含知识库、数据智能、HTTP 调用等能力",
+      "skillBindings": "选择智能体可使用的技能。技能包含知识库、HTTP 调用等能力",
       "skillPackageBindings": "选择智能体可使用的技能包。每个技能包包含多个技能，智能体将获得包内所有技能",
       "inputVariables": "定义用户在发起对话前需要填写的变量，可用于模板化提示词",
-      "dataIntelligenceEnabled": "开启后智能体可使用 Text-to-SQL 查询数据并执行业务操作",
       "contextMaxHistoryMessages": "带入模型的历史消息条数。越多上下文越丰富，但 Token 消耗越大；这不是模型总上下文窗口",
       "contextMaxHistoryTokens": "只限制带入模型的历史消息 Token，不是模型输入上限。0 表示不单独限制，由消息条数控制",
       "quotaConversationsPerDay": "该智能体每天允许的最大对话数，0 表示不限制",
@@ -451,7 +450,6 @@
       "maxHistoryTokens": "带入上下文的历史 Token 上限",
       "longTermMemoryEnabled": "长期记忆（跨会话）",
       "longTermMemoryHint": "开启后，将可持久化的洞察写入 MemoryRecord 并按需渐进召回；需同智能体会话记忆已启用。",
-      "dataIntelligenceEnabled": "数据智能",
       "placeholder": {
         "maxHistoryMessages": "默认 20，0 使用系统默认",
         "maxHistoryTokens": "0 表示只按消息条数截断，不单独限制 Token"
@@ -876,32 +874,6 @@
       "deleteSuccess": "速率限制已删除"
     }
   },
-  "tablePolicy": {
-    "title": "数据访问策略",
-    "pageDesc": "查看和覆盖 AI 数据访问策略。覆盖只能收紧（限制更多），不能放开。",
-    "tableName": "表名",
-    "label": "显示名称",
-    "allowRead": "查询",
-    "allowCreate": "创建",
-    "allowUpdate": "更新",
-    "allowDelete": "删除",
-    "maxRows": "最大行数",
-    "blockedColumns": "屏蔽列",
-    "scope": "作用域",
-    "hasOverride": "已覆盖",
-    "globalDefault": "全局默认",
-    "overridden": "已覆盖",
-    "editOverride": "编辑覆盖",
-    "resetOverride": "恢复默认",
-    "resetConfirm": "确认恢复到全局默认策略？当前覆盖将被删除。",
-    "placeholder": {
-      "searchTable": "搜索表名"
-    },
-    "messages": {
-      "overrideSuccess": "策略覆盖已保存",
-      "resetSuccess": "已恢复全局默认策略"
-    }
-  },
   "skillPackage": {
     "title": "技能包目录",
     "pageDesc": "查看当前企业可见的技能包目录。技能包负责归组、来源标识与可读展示；运行时真实授权仍由智能体直接技能授予决定。",
@@ -985,7 +957,6 @@
     "type_options": {
       "toolkit": "Toolkit 工具包",
       "knowledge_base": "知识库",
-      "data_intelligence": "数据智能",
       "builtin": "内置",
       "http": "HTTP 请求",
       "email": "邮件发送",
@@ -994,7 +965,6 @@
     "typeDesc": {
       "toolkit": "Python 工具包：在下方编辑器中编写 Tools 类，每个公开方法自动注册为 LLM 可调用的工具。支持 Valves 环境变量配置和 .zip 包上传。\n适用场景：调用第三方 API（天气/搜索/翻译）、自定义业务逻辑、数据转换等。\n提示：方法的 docstring 和 :param 注释会展示给 LLM，请写清楚描述和参数说明。",
       "knowledge_base": "RAG 文档问答：关联一个或多个知识库，对话时自动进行语义检索并将相关文档片段注入上下文。\n适用场景：产品文档问答、内部知识库搜索、合同/政策咨询等。\n提示：可调整检索数量(Top K)和得分阈值来平衡召回率和精确度。",
-      "data_intelligence": "数据智能：通过 Text-to-SQL 让智能体用自然语言查询数据库，支持查询、创建、更新、删除操作。\n适用场景：业务数据统计、报表查询、数据录入辅助等。\n提示：在下方选择可访问的表策略，CRUD 权限由表策略的 allow_create/update/delete 控制。",
       "builtin": "内置工具：系统预定义的基础能力，如网页搜索、图片生成等。创建后可查看工具列表。\n提示：内置工具由平台维护，配置项不可编辑。",
       "http": "HTTP 请求：声明式集成外部 REST API。只需填写 URL、请求方法和参数模板，无需编码即可让智能体调用。\n适用场景：调用企业内部 API、集成 SaaS 服务（CRM/ERP）、Webhook 触发等。\n提示：URL 支持 {variable} 模板语法；Headers 中可配置认证信息。",
       "email": "邮件发送：让智能体在对话中代用户发送邮件。基于平台 SMTP 配置，支持域名白名单和收件人限制。\n适用场景：客服自动回复、会议邀请、通知发送等。\n提示：需先在系统设置中配置 SMTP 服务器。",
@@ -1115,22 +1085,6 @@
       "onlyPyFiles": "仅支持 .py 文件",
       "networkError": "网络请求失败"
     },
-    "dataIntelligenceConfig": {
-      "title": "数据智能配置",
-      "tablePolicies": "表策略",
-      "tablePoliciesPlaceholder": "请选择可访问的表策略",
-      "tablePoliciesHelp": "选择此技能可操作的表。仅显示声明了 __ai_policy__ 的表。留空则使用所有可用策略。",
-      "maxRowsOverride": "最大返回行数",
-      "maxRowsOverrideHelp": "覆盖默认查询返回行数限制，0 表示使用默认值",
-      "systemHint": "此为系统全局共享技能，自动使用所有已配置的表策略，无需手动选择。",
-      "toolListTitle": "可用工具",
-      "tools": {
-        "dataQuery": "自然语言查询数据库，自动生成安全 SQL 并返回结果",
-        "dataCreate": "向指定表中插入新记录",
-        "dataUpdate": "更新指定表中的已有记录",
-        "dataDelete": "删除指定表中的记录"
-      }
-    },
     "placeholder": {
       "searchName": "搜索技能名称",
       "allTypes": "全部类型",
@@ -1143,7 +1097,7 @@
     },
     "createGuide": "技能是智能体的能力单元，属于某个技能包。选择类型后按提示配置对应参数，创建完成后绑定到智能体即可使用。",
     "help": {
-      "type": "Toolkit: 自定义 Python 工具；知识库: RAG 文档问答；数据智能: 数据库查询与操作；内置: 系统预定义工具",
+      "type": "Toolkit: 自定义 Python 工具；知识库: RAG 文档问答；内置: 系统预定义工具",
       "config": "技能运行时的配置信息。不同类型有不同的配置结构",
       "inputSchema": "定义技能接收的参数结构（OpenAI Function Calling 格式）",
       "timeout": "技能执行的最大等待时间，超时后自动终止"

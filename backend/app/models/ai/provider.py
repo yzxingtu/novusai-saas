@@ -25,11 +25,6 @@ class AIProvider(BaseModel):
 
     __tablename__ = "ai_providers"
 
-    __ai_policy__ = {
-        "label": "AI 供应商",
-        "keywords": ["供应商", "provider", "AI供应商"],
-        "allow_read": True,
-    }
 
     __delete_deps__ = [
         DeletionDep(

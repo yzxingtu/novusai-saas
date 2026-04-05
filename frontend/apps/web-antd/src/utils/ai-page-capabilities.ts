@@ -19,8 +19,7 @@ export type PageAICapabilityKey =
   | 'list_read'
   | 'pagination'
   | 'search'
-  | 'submit'
-  | 'table_policy';
+  | 'submit';
 
 export const NAVIGATION_ONLY_OPERATION_NAMES = new Set([
   'capture_screenshot',
@@ -36,19 +35,10 @@ export interface PageAIPolicyLike {
   mode?: AIPageMode;
 }
 
-export interface TablePolicySupportConfig {
-  enabled: boolean;
-  kind?: 'consumer' | 'management';
-  relatedPolicyIds?: number[];
-  relatedResources?: string[];
-  relatedTables?: string[];
-  supportedActions?: string[];
-}
-
 // Disabled capability → concrete operation names to hide / 禁用的能力 → 对应要隐藏的操作名
 
 const CAPABILITY_TO_OPERATION_NAMES: Record<
-  Exclude<PageAICapabilityKey, 'context' | 'custom' | 'table_policy'>,
+  Exclude<PageAICapabilityKey, 'context' | 'custom'>,
   string[]
 > = {
   content: ['read_current_sections', 'read_current_view'],
@@ -141,7 +131,6 @@ export function normalizeCapabilityKeys(
     'pagination',
     'search',
     'submit',
-    'table_policy',
   ]);
   return normalizeStringList(values).filter(
     (item): item is PageAICapabilityKey =>
@@ -151,12 +140,6 @@ export function normalizeCapabilityKeys(
 
 export function normalizeOperationNames(values?: string | string[]): string[] {
   return normalizeStringList(values);
-}
-
-function normalizeNumberList(values?: number[]): number[] {
-  if (!Array.isArray(values)) return [];
-  const normalized = values.map(Number).filter((item) => Number.isFinite(item));
-  return [...new Set(normalized)];
 }
 
 // --- Mode & capability queries / 模式与能力查询 ---
@@ -178,11 +161,7 @@ export function expandDisabledOperationsFromCapabilities(
   const operations = new Set<string>();
 
   for (const capability of disabled) {
-    if (
-      capability === 'context' ||
-      capability === 'custom' ||
-      capability === 'table_policy'
-    ) {
+    if (capability === 'context' || capability === 'custom') {
       continue;
     }
     const mapped = CAPABILITY_TO_OPERATION_NAMES[capability];
@@ -233,32 +212,4 @@ export function filterPageOperationsByPolicy<
     }
     return true;
   });
-}
-
-// Build optional page_data fragment for table-policy-aware pages / 构建表策略相关的 page_data 片段
-
-export function buildTablePolicySupportData(
-  config?: TablePolicySupportConfig,
-): Record<string, unknown> | undefined {
-  if (!config?.enabled) return undefined;
-
-  const relatedPolicyIds = normalizeNumberList(config.relatedPolicyIds);
-  const relatedResources = normalizeOperationNames(config.relatedResources);
-  const relatedTables = normalizeOperationNames(config.relatedTables);
-  const supportedActions = normalizeOperationNames(config.supportedActions);
-
-  return {
-    enabled: true,
-    ...(config.kind ? { kind: config.kind } : {}),
-    ...(supportedActions.length > 0
-      ? { supported_actions: supportedActions }
-      : {}),
-    ...(relatedTables.length > 0 ? { related_tables: relatedTables } : {}),
-    ...(relatedPolicyIds.length > 0
-      ? { related_policy_ids: relatedPolicyIds }
-      : {}),
-    ...(relatedResources.length > 0
-      ? { related_resources: relatedResources }
-      : {}),
-  };
 }

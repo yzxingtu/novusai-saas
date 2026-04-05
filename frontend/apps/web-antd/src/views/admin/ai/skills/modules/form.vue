@@ -17,7 +17,6 @@ import {
   textareaField,
   useVbenForm,
 } from '#/adapter/form';
-import { getAITablePolicyListApi } from '#/api/admin/ai';
 import { getSkillPackageSelectApi } from '#/api/admin/skill-packages';
 import {
   getSkillDetailApi,
@@ -31,25 +30,9 @@ defineOptions({ name: 'AdminSkillForm' });
 
 const emits = defineEmits<{ success: [] }>();
 
-async function getTablePolicySelectOptions() {
-  try {
-    const res = await getAITablePolicyListApi({ 'page[size]': 200 });
-    return res.items.map((p) => ({
-      label: `${p.label} (${p.table_name})`,
-      value: p.id,
-    }));
-  } catch {
-    return [];
-  }
-}
-
 function getSkillTypeOptions(currentType?: string) {
   const predefined = [
     { label: $t('admin.ai.skill.type_options.toolkit'), value: 'toolkit' },
-    {
-      label: $t('admin.ai.skill.type_options.data_intelligence'),
-      value: 'data_intelligence',
-    },
     { label: $t('admin.ai.skill.type_options.builtin'), value: 'builtin' },
     { label: $t('admin.ai.skill.type_options.http'), value: 'http' },
     { label: $t('admin.ai.skill.type_options.email'), value: 'email' },
@@ -94,9 +77,6 @@ const pluginTools = ref<PluginToolDefinition[]>([]);
 
 const isToolkit = (v: Record<string, unknown>) =>
   v.type === 'toolkit' && !isPluginSkill.value;
-const isDi = (v: Record<string, unknown>) => v.type === 'data_intelligence';
-const isDiNonSystem = (v: Record<string, unknown>) =>
-  v.type === 'data_intelligence' && !isSystemSkill.value;
 const isHttp = (v: Record<string, unknown>) => v.type === 'http';
 const isEmail = (v: Record<string, unknown>) => v.type === 'email';
 const isCode = (v: Record<string, unknown>) => v.type === 'code_execution';
@@ -141,13 +121,6 @@ function getAuthTypeOptions() {
 const isSystemSkill = ref(false);
 const isPluginSkill = ref(false);
 const pluginSourceName = ref('');
-
-interface DiToolInfo {
-  name: string;
-  description: string;
-  tables: string[];
-}
-const diTools = ref<DiToolInfo[]>([]);
 
 function useFormSchema() {
   return [
@@ -601,61 +574,6 @@ function useFormSchema() {
       help: $t('admin.ai.skill.codeExecutionConfig.allowedModulesHelp'),
       dependencies: { triggerFields: ['type'], if: isCode },
     },
-    // ============ data_intelligence-specific fields / data_intelligence 专属字段 ============
-    {
-      component: 'Divider',
-      fieldName: '_di_config_divider',
-      label: '',
-      hideLabel: true,
-      componentProps: { orientation: 'left', dashed: true },
-      renderComponentContent: () => ({
-        default: () => $t('admin.ai.skill.dataIntelligenceConfig.title'),
-      }),
-      dependencies: { triggerFields: ['type'], if: isDi },
-    },
-    {
-      component: 'Alert',
-      fieldName: '_di_system_hint',
-      label: '',
-      hideLabel: true,
-      componentProps: {
-        type: 'info',
-        showIcon: true,
-        message: $t('admin.ai.skill.dataIntelligenceConfig.systemHint'),
-      },
-      dependencies: {
-        triggerFields: ['type'],
-        if: (v: Record<string, unknown>) =>
-          v.type === 'data_intelligence' && isSystemSkill.value,
-      },
-    },
-    {
-      component: 'ApiSelect',
-      componentProps: {
-        allowClear: true,
-        api: getTablePolicySelectOptions,
-        class: 'w-full',
-        mode: 'multiple',
-        placeholder: $t(
-          'admin.ai.skill.dataIntelligenceConfig.tablePoliciesPlaceholder',
-        ),
-        showSearch: true,
-        optionFilterProp: 'label',
-      },
-      fieldName: 'di_table_policy_ids',
-      label: $t('admin.ai.skill.dataIntelligenceConfig.tablePolicies'),
-      help: $t('admin.ai.skill.dataIntelligenceConfig.tablePoliciesHelp'),
-      dependencies: { triggerFields: ['type'], if: isDiNonSystem },
-    },
-    {
-      ...numberField(
-        'di_max_rows_override',
-        $t('admin.ai.skill.dataIntelligenceConfig.maxRowsOverride'),
-        { min: 0, max: 10_000 },
-      ),
-      help: $t('admin.ai.skill.dataIntelligenceConfig.maxRowsOverrideHelp'),
-      dependencies: { triggerFields: ['type'], if: isDiNonSystem },
-    },
   ];
 }
 
@@ -665,7 +583,6 @@ function getFormDefaults(): Record<string, unknown> {
   pluginSourceName.value = '';
   pluginTools.value = [];
   builtinTools.value = [];
-  diTools.value = [];
   return {
     type: 'toolkit',
     timeout: 30,
@@ -680,8 +597,6 @@ function getFormDefaults(): Record<string, unknown> {
     rag_rewrite_strategy: 'none',
     rag_reranker_enabled: false,
     rag_context_token_ratio: 0.3,
-    di_table_policy_ids: [],
-    di_max_rows_override: 0,
     // http defaults / HTTP 技能默认值
     http_url: '',
     http_method: 'GET',
@@ -735,14 +650,6 @@ const { Drawer, isEdit } = useCrudDrawer<AdminSkillInfo>({
                 .map((m: string) => m.trim())
                 .filter(Boolean)
             : [],
-        };
-
-        break;
-      }
-      case 'data_intelligence': {
-        config = {
-          table_policy_ids: values.di_table_policy_ids || [],
-          max_rows_override: values.di_max_rows_override ?? 0,
         };
 
         break;
@@ -849,13 +756,6 @@ const { Drawer, isEdit } = useCrudDrawer<AdminSkillInfo>({
         ? (cfg.tools as BuiltinToolInfo[])
         : [];
 
-    // Load available tool info for data intelligence skills / 加载数据智能技能的可用工具信息
-    if (data.type === 'data_intelligence') {
-      loadDiTools(data.is_system, cfg.table_policy_ids as number[] | undefined);
-    } else {
-      diTools.value = [];
-    }
-
     // Plugin skill tool list: prefer API-returned plugin_tools, fallback to separate API / 插件技能工具列表：优先使用 API 返回的 plugin_tools，fallback 到单独 API
     if (data.source_plugin && Array.isArray(data.plugin_tools)) {
       pluginTools.value = data.plugin_tools;
@@ -863,7 +763,6 @@ const { Drawer, isEdit } = useCrudDrawer<AdminSkillInfo>({
       const standardTypes = new Set([
         'builtin',
         'code_execution',
-        'data_intelligence',
         'email',
         'http',
         'toolkit',
@@ -884,8 +783,6 @@ const { Drawer, isEdit } = useCrudDrawer<AdminSkillInfo>({
       is_active: data.is_active,
       toolkit_content: data.toolkit_content || '',
       valves_config: (cfg.valves as Record<string, unknown>) || {},
-      di_table_policy_ids: (cfg.table_policy_ids as number[]) || [],
-      di_max_rows_override: (cfg.max_rows_override as number) ?? 0,
       // http fields / HTTP 表单字段回填
       http_url: (cfg.url as string) || '',
       http_method: (cfg.method as string) || 'GET',
@@ -929,68 +826,6 @@ const { Drawer, isEdit } = useCrudDrawer<AdminSkillInfo>({
   },
 });
 
-async function loadDiTools(isSystem: boolean, tablePolicyIds?: number[]) {
-  try {
-    const res = await getAITablePolicyListApi({ 'page[size]': 200 });
-    let policies = res.items.filter((p) => p.is_active);
-    if (!isSystem && tablePolicyIds && tablePolicyIds.length > 0) {
-      policies = policies.filter((p) => tablePolicyIds.includes(p.id));
-    }
-    const tools: DiToolInfo[] = [];
-    const readTables = policies
-      .filter((p) => p.allow_read)
-      .map((p) => `${p.label} (${p.table_name})`);
-    if (readTables.length > 0) {
-      tools.push({
-        name: 'data_query',
-        description: $t(
-          'admin.ai.skill.dataIntelligenceConfig.tools.dataQuery',
-        ),
-        tables: readTables,
-      });
-    }
-    const createTables = policies
-      .filter((p) => p.allow_create)
-      .map((p) => `${p.label} (${p.table_name})`);
-    if (createTables.length > 0) {
-      tools.push({
-        name: 'data_create',
-        description: $t(
-          'admin.ai.skill.dataIntelligenceConfig.tools.dataCreate',
-        ),
-        tables: createTables,
-      });
-    }
-    const updateTables = policies
-      .filter((p) => p.allow_update)
-      .map((p) => `${p.label} (${p.table_name})`);
-    if (updateTables.length > 0) {
-      tools.push({
-        name: 'data_update',
-        description: $t(
-          'admin.ai.skill.dataIntelligenceConfig.tools.dataUpdate',
-        ),
-        tables: updateTables,
-      });
-    }
-    const deleteTables = policies
-      .filter((p) => p.allow_delete)
-      .map((p) => `${p.label} (${p.table_name})`);
-    if (deleteTables.length > 0) {
-      tools.push({
-        name: 'data_delete',
-        description: $t(
-          'admin.ai.skill.dataIntelligenceConfig.tools.dataDelete',
-        ),
-        tables: deleteTables,
-      });
-    }
-    diTools.value = tools;
-  } catch {
-    diTools.value = [];
-  }
-}
-
 async function loadPluginTools(skillId: number) {
   try {
     pluginTools.value = await getSkillToolsApi(skillId);
@@ -1021,33 +856,6 @@ const drawerWidthClass = computed(() =>
 <template>
   <Drawer :title="title" :class="drawerWidthClass">
     <Form />
-
-    <!-- data_intelligence 工具列表只读展示 -->
-    <template v-if="diTools.length > 0">
-      <Divider orientation="left" dashed>
-        {{ $t('admin.ai.skill.dataIntelligenceConfig.toolListTitle') }}
-        <Tag color="blue" class="ml-2">{{ diTools.length }}</Tag>
-      </Divider>
-      <div class="flex flex-col gap-2">
-        <div
-          v-for="tool in diTools"
-          :key="tool.name"
-          class="rounded-lg border border-border/60 p-3"
-        >
-          <div class="mb-1 flex items-center gap-2">
-            <Tag color="processing">{{ tool.name }}</Tag>
-            <span class="text-xs text-muted-foreground">{{
-              tool.description
-            }}</span>
-          </div>
-          <div class="mt-1 flex flex-wrap gap-1">
-            <Tag v-for="table in tool.tables" :key="table" class="!text-[10px]">
-              {{ table }}
-            </Tag>
-          </div>
-        </div>
-      </div>
-    </template>
 
     <!-- builtin 工具列表只读展示 -->
     <template v-if="builtinTools.length > 0">

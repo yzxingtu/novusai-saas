@@ -15,12 +15,6 @@ from app.core.deletion import DeletionDep, DeletionStrategy
 class Attachment(TenantModel):
     __tablename__ = "attachments"
 
-    __ai_policy__ = {
-        "label": "附件",
-        "keywords": ["文件", "附件", "file"],
-        "allow_read": True,
-        "blocked_columns": ["path"],
-    }
 
     __delete_deps__ = [
         DeletionDep(

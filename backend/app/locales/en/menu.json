@@ -40,7 +40,6 @@
       "ai_action_log": "Action Audit",
       "ai_long_term_memory_debug": "Memory Debug",
       "execution_decision": "Execution Decisions",
-      "ai_table_policy": "Table Policies",
       "admin_agent_chat": "AI Chat",
       "ai_knowledge_base": "Knowledge Bases",
       "ai_skill": "Skill Management",
@@ -64,7 +63,6 @@
       "admin_ai_gateway": "AI Gateway Management",
       "admin_ai_health": "AI Health Status",
       "admin_ai_model": "AI Model Management",
-      "admin_ai_table_policy": "AI Table Policy Management",
       "admin_ai_knowledge_base": "Knowledge Base Monitoring",
       "admin_ai_provider": "AI Provider Management",
       "admin_ai_quota": "AI Quota Management (Platform)",
@@ -78,7 +76,6 @@
       "tenant_ai_quota": "AI Quota Management",
       "tenant_ai_usage": "AI Usage Statistics",
       "tenant_knowledge_base": "Knowledge Bases",
-      "tenant_ai_table_policy": "Data Access Policies",
       "admin_agent_assignment_mgmt": "Agent Assignment Management",
       "notification_template": "Notification Template Management",
       "admin_cache": "Cache Management"

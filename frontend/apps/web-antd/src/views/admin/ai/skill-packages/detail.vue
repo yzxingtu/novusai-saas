@@ -119,12 +119,6 @@ function getToolTypeColor(type: null | string | undefined): string {
     case 'code_execution': {
       return 'orange';
     }
-    case 'data_create':
-    case 'data_delete':
-    case 'data_query':
-    case 'data_update': {
-      return 'cyan';
-    }
     case 'email': {
       return 'gold';
     }
@@ -144,12 +138,6 @@ function getToolTypeIcon(type: null | string | undefined): string {
     }
     case 'code_execution': {
       return 'lucide:square-terminal';
-    }
-    case 'data_create':
-    case 'data_delete':
-    case 'data_query':
-    case 'data_update': {
-      return 'lucide:database-zap';
     }
     case 'email': {
       return 'lucide:mail';

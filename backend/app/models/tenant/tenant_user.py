@@ -36,11 +36,6 @@ class TenantUser(TenantModel):
 
     __tablename__ = "tenant_users"
 
-    __ai_policy__ = {
-        "label": "终端用户",
-        "keywords": ["用户", "user", "终端用户"],
-        "allow_read": True,
-    }
 
     __table_args__ = (
         UniqueConstraint(

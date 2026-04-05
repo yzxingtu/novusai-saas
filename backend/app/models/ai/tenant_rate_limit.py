@@ -22,11 +22,6 @@ class TenantModelRateLimit(TenantModel):
 
     __tablename__ = "tenant_model_rate_limits"
 
-    __ai_policy__ = {
-        "label": "企业模型限速",
-        "keywords": ["限速", "rate_limit", "RPM"],
-        "allow_read": True,
-    }
 
     # 允许前端筛选的字段 / Fields exposed for list filtering
     __filterable__ = {

@@ -68,7 +68,7 @@ describe('chatMessageItem turn diagnostics', () => {
           content: 'diagnostics',
           role: 'assistant',
           selectedSkillNames: ['runtime.page_context', 'runtime.route'],
-          selectedToolNames: ['data_query'],
+          selectedToolNames: ['query_records'],
           turnOutcome: 'success',
         },
       },
@@ -96,6 +96,6 @@ describe('chatMessageItem turn diagnostics', () => {
     expect(rendered).toContain('runtime.page_context');
     expect(rendered).toContain('runtime.route');
     expect(rendered).toContain('selected_tools');
-    expect(rendered).toContain('data_query');
+    expect(rendered).toContain('query_records');
   });
 });

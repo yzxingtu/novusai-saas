@@ -1302,7 +1302,7 @@ async def test_stream_handler_retry_emits_clear_content_before_follow_up_message
     tools = [
         ToolDefinition(name="web_search", description="Search the web"),
         ToolDefinition(name="fetch_url", description="Fetch url"),
-        ToolDefinition(name="data_query", description="Query data"),
+        ToolDefinition(name="query_records", description="Query data"),
     ]
     handler = _build_handler(
         engine,
@@ -1389,7 +1389,7 @@ async def test_stream_handler_emits_clear_content_on_retry() -> None:
         engine,
         tool_use_policy=ToolUsePolicy(
             mode="required",
-            family="data_ops",
+            family="record_ops",
             allowed_tool_names=["query_db"],
             retry_on_contract_breach=True,
             reason="test_retry",
@@ -1397,7 +1397,7 @@ async def test_stream_handler_emits_clear_content_on_retry() -> None:
         intent_plan=[
             _build_pending_intent(
                 allowed_tool_names=["query_db"],
-                family="data_ops",
+                family="record_ops",
                 source_text="测试 query_db",
             )
         ],
@@ -1782,7 +1782,7 @@ async def test_tool_call_event_includes_summary_payload():
                 output='{"ok": true}',
                 summary="按今天范围统计调用并按租户分组",
                 summary_payload={
-                    "tool_kind": "data_query",
+                    "tool_kind": "query_records",
                     "tables": ["ai_call_logs", "tenants"],
                     "metrics": ["COUNT(acl.id)"],
                     "filters": ["today"],
@@ -1798,7 +1798,7 @@ async def test_tool_call_event_includes_summary_payload():
                         "id": "call_summary_1",
                         "type": "function",
                         "function": {
-                            "name": "data_query",
+                            "name": "query_records",
                             "arguments": '{"question":"统计今天调用情况"}',
                         },
                     },
@@ -1813,7 +1813,7 @@ async def test_tool_call_event_includes_summary_payload():
         ],
     )
     engine.sandbox = _SummarySandbox()
-    tools = [ToolDefinition(name="data_query", description="Query data")]
+    tools = [ToolDefinition(name="query_records", description="Query data")]
     handler = _build_handler(engine, tools=tools)
 
     events: list[dict] = []
@@ -1824,11 +1824,11 @@ async def test_tool_call_event_includes_summary_payload():
     tool_call_event = next(
         event
         for event in events
-        if event.get("event") == "tool_call" and event.get("name") == "data_query"
+        if event.get("event") == "tool_call" and event.get("name") == "query_records"
     )
     assert tool_call_event.get("summary") == "按今天范围统计调用并按租户分组"
     assert tool_call_event.get("summary_payload") == {
-        "tool_kind": "data_query",
+        "tool_kind": "query_records",
         "tables": ["ai_call_logs", "tenants"],
         "metrics": ["COUNT(acl.id)"],
         "filters": ["today"],

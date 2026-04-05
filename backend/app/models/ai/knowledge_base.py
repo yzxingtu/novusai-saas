@@ -31,11 +31,6 @@ class KnowledgeBase(BaseModel):
 
     __tablename__ = "knowledge_bases"
 
-    __ai_policy__ = {
-        "label": "知识库",
-        "keywords": ["知识库", "knowledge", "知识"],
-        "allow_read": True,
-    }
 
     __delete_deps__ = [
         DeletionDep(

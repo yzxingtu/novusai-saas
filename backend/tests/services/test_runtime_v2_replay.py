@@ -68,7 +68,7 @@ class _RuntimeQueryEngineStub:
             turn_outcome="success",
             termination_reason="completed",
             protocol_path="responses",
-            selected_tool_names=["data_query"],
+            selected_tool_names=["query_records"],
             selected_skill_names=["runtime.page_context"],
             context_sources=[],
             fallback_history=[
@@ -84,7 +84,7 @@ class _RuntimeQueryEngineStub:
                 "diagnostics_diff": {
                     "selected_tool_names": {
                         "previous": [],
-                        "runtime_v2": ["data_query"],
+                        "runtime_v2": ["query_records"],
                     }
                 }
             },
@@ -116,7 +116,7 @@ class _RuntimeQueryEngineFailBeforeMeaningfulChunkStub:
             turn_outcome="failed",
             termination_reason="error",
             protocol_path="responses",
-            selected_tool_names=["data_query"],
+            selected_tool_names=["query_records"],
             selected_skill_names=[],
             context_sources=[],
             fallback_history=[],
@@ -140,7 +140,7 @@ class _RuntimeQueryEngineFailAfterMeaningfulChunkStub:
             turn_outcome="partial",
             termination_reason="error",
             protocol_path="responses",
-            selected_tool_names=["data_query"],
+            selected_tool_names=["query_records"],
             selected_skill_names=["runtime.page_context"],
             context_sources=[],
             fallback_history=[],
@@ -241,7 +241,7 @@ async def test_runtime_v2_active_mode_uses_query_engine(mock_db) -> None:
                 messages=[ChatMessage(role="user", content="hello")],
                 tenant_id=1,
                 conversation_id=66,
-                tools=[ToolDefinition(name="data_query", description="Query data")],
+                tools=[ToolDefinition(name="query_records", description="Query data")],
                 runtime_context=runtime_context,
             )
         ]
@@ -359,7 +359,7 @@ def test_agent_chat_service_last_run_summary_carries_turn_record_skill_and_proto
             "turn_outcome": "success",
             "termination_reason": "protocol_fallback",
             "protocol_path": "chat_completions",
-            "selected_tool_names": ["data_query"],
+            "selected_tool_names": ["query_records"],
             "selected_skill_names": ["runtime.page_context"],
             "context_sources": [{"kind": "page_context", "name": "admin.ai"}],
         },
@@ -377,7 +377,7 @@ def test_agent_chat_service_last_run_summary_carries_turn_record_skill_and_proto
     assert payload["completion_reason"] == "protocol_fallback"
     assert payload["termination_reason"] == "protocol_fallback"
     assert payload["protocol_path"] == "chat_completions"
-    assert payload["selected_tool_names"] == ["data_query"]
+    assert payload["selected_tool_names"] == ["query_records"]
     assert payload["selected_skill_names"] == ["runtime.page_context"]
 
 
@@ -415,7 +415,7 @@ async def test_runtime_v2_stream_failure_before_first_chunk_raises_without_fallb
                 messages=[ChatMessage(role="user", content="hello")],
                 tenant_id=1,
                 conversation_id=68,
-                tools=[ToolDefinition(name="data_query", description="Query data")],
+                tools=[ToolDefinition(name="query_records", description="Query data")],
                 runtime_context=runtime_context,
             ):
                 pass
@@ -462,7 +462,7 @@ async def test_runtime_v2_stream_failure_before_first_chunk_does_not_fallback_to
                 messages=[ChatMessage(role="user", content="hello")],
                 tenant_id=1,
                 conversation_id=69,
-                tools=[ToolDefinition(name="data_query", description="Query data")],
+                tools=[ToolDefinition(name="query_records", description="Query data")],
                 runtime_context=runtime_context,
             ):
                 pass
@@ -504,7 +504,7 @@ async def test_runtime_v2_stream_success_with_call_log_enabled_records_success_l
                 tenant_id=1,
                 user_id=11,
                 conversation_id=70,
-                tools=[ToolDefinition(name="data_query", description="Query data")],
+                tools=[ToolDefinition(name="query_records", description="Query data")],
                 runtime_context=runtime_context,
             )
         ]
@@ -551,7 +551,7 @@ async def test_runtime_v2_stream_failure_with_call_log_enabled_records_failure_l
                 tenant_id=1,
                 user_id=12,
                 conversation_id=71,
-                tools=[ToolDefinition(name="data_query", description="Query data")],
+                tools=[ToolDefinition(name="query_records", description="Query data")],
                 runtime_context=runtime_context,
             ):
                 pass
@@ -595,7 +595,7 @@ async def test_runtime_v2_stream_failure_after_chunk_records_flag(mock_db) -> No
                 tenant_id=1,
                 user_id=13,
                 conversation_id=72,
-                tools=[ToolDefinition(name="data_query", description="Query data")],
+                tools=[ToolDefinition(name="query_records", description="Query data")],
                 runtime_context=runtime_context,
             ):
                 pass

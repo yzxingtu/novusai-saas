@@ -284,7 +284,7 @@ docstring 已明确私钥输出至 stdout 及生产环境使用安全存储的�
 
 | 模板 | 与手写代码一致性 | 备注 |
 |------|------------------|------|
-| model.py.j2 | 基本一致 | 未生成 `__ai_policy__`，可选支持 |
+| model.py.j2 | 基本一致 | 未生成 `__ai_policy__`（已退役，不再生成） |
 | repository.py.j2 | 基本一致 | 未生成 `_scope_fields` |
 | service.py.j2 | 一致 | 唯一约束校验、reorder 签名符合 |
 | controller_tenant.py.j2 | 一致 | PageResponse.create、spec.page/spec.size 符合 |

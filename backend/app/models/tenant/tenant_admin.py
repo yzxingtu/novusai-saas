@@ -27,12 +27,6 @@ class TenantAdmin(TenantModel):
 
     __tablename__ = "tenant_admins"
 
-    __ai_policy__ = {
-        "label": "企业管理员",
-        "keywords": ["管理员", "admin"],
-        "allow_read": True,
-        "blocked_columns": ["password_hash"],
-    }
 
     __table_args__ = (
         UniqueConstraint(

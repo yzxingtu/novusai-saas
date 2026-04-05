@@ -1,18 +1,13 @@
-"""Targeted regression tests for regex-free AI runtime helpers."""
+"""Targeted regression tests for shared AI runtime helpers."""
 
 from __future__ import annotations
 
 import pytest
 
-from app.ai.data_intelligence.schema_provider import TableSchema
-from app.ai.data_intelligence.sql_analysis import (
+from app.ai.tools.sql_analysis import (
     extract_group_by_expressions,
     extract_select_aggregates,
     extract_table_name_list,
-)
-from app.ai.data_intelligence.tenant_isolation import (
-    TenantIsolationError,
-    TenantIsolationInjector,
 )
 from app.ai.rag.text_cleaner import clean_for_embedding
 from app.ai.tools.security import (
@@ -20,7 +15,6 @@ from app.ai.tools.security import (
     SqlInjectionBlockedError,
     SqlValidator,
 )
-from app.enums.common import UserRoleEnum
 
 
 def test_extract_select_aggregates_and_group_by_are_structured() -> None:
@@ -50,36 +44,6 @@ def test_extract_table_name_list_includes_real_tables_inside_cte() -> None:
     assert "users" in tables
     assert "orders" in tables
     assert "active_users" not in tables
-
-
-def test_tenant_isolation_injects_outer_where_and_user_scope() -> None:
-    schema = [
-        TableSchema(table_name="agent_conversations", description="conversations"),
-        TableSchema(table_name="orders", description="orders"),
-    ]
-    sql = "SELECT * FROM agent_conversations ac JOIN orders o ON o.id = ac.id ORDER BY ac.id DESC"
-    injected = TenantIsolationInjector.inject(
-        sql,
-        tenant_id=42,
-        schema=schema,
-        user_role=UserRoleEnum.TENANT_USER.value,
-        user_id=7,
-    )
-    assert "ac.tenant_id = 42" in injected
-    assert "o.tenant_id = 42" in injected
-    assert "ac.user_id = 7" in injected
-    assert "ORDER BY ac.id DESC" in injected
-
-
-def test_tenant_isolation_rejects_table_without_tenant_column() -> None:
-    schema = [TableSchema(table_name="tenants", description="tenants", tenant_column="")]
-    with pytest.raises(TenantIsolationError):
-        TenantIsolationInjector.inject(
-            "SELECT * FROM tenants",
-            tenant_id=42,
-            schema=schema,
-            user_role=UserRoleEnum.TENANT_ADMIN.value,
-        )
 
 
 def test_output_sanitizer_masks_assignment_bearer_and_prefixed_keys() -> None:

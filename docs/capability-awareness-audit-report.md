@@ -19,6 +19,7 @@
 2. **测试覆盖充分**: 单元测试 31 条，集成测试 5 条，全部通过
 3. **代码质量良好**: Ruff 检查通过，无 TODO/FIXME
 4. **存在残留引用**: `AITablePolicyOverride` 相关导入未清理
+> **状态更新（2026-04）**: AI 表策略与 `data_intelligence` 技能链路已退役，相关模型/Schema/Repository 已移除。下面提及的 `AITablePolicyOverride` 清理建议仅保留作为历史记录。
 5. **缺少端到端验证**: 未进行真实对话测试
 
 ---
@@ -54,19 +55,21 @@
 ##### 问题 1: 残留的旧代码引用
 **严重程度**: 中等  
 **位置**:
-- `app/models/__init__.py:32,176` - 导入并导出 `AITablePolicyOverride`
-- `app/models/ai/__init__.py:36,71` - 导入并导出 `AITablePolicyOverride`
-- `app/repositories/ai/table_policy_override_repository.py` - 整个文件可能已废弃
+- `app/models/__init__.py:32,176` - 旧时导入并导出 `AITablePolicyOverride`
+- `app/models/ai/__init__.py:36,71` - 旧时导入并导出 `AITablePolicyOverride`
+- `app/repositories/ai/table_policy_override_repository.py` - 该文件于退役过程中移除
 
 **影响**: 
-- 虽然 `app/schemas/ai/table_policy_override.py` 已删除
-- 但模型层仍在引用（`AITablePolicyOverride` 在 `table_policy.py` 中仍存在）
-- 可能导致混淆，不清楚该模型是否仍在使用
+- 2026-04 退役后 `app/schemas/ai/table_policy_override.py`、`table_policy.py` 中的老模型声明已删除
+- 相关导入/导出不再存在；文档这里保留记录以便追溯老版本
+- 风险主要在于误以为该模型仍在使用
 
 **建议**: 
-1. 确认 `AITablePolicyOverride` 模型是否仍需要
-2. 如果不需要，从所有 `__init__.py` 中移除导出
-3. 如果需要，确保 schema 层有对应定义
+1. 避免在新模块中恢复 `AITablePolicyOverride` 或相关导出
+2. 把这类残留引用视为历史，不再为其创建新的 schema 或 API
+3. 如需类似能力，请参考新的权限方案（不涉及 `table_policy`）
+
+> **备注**: AI 表策略与 `data_intelligence` 已正式退役，此段落仅作为历史审计记录。
 
 ##### 问题 2: 缺少端到端测试
 **严重程度**: 高  

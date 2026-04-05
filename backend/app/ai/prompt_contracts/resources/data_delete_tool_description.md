@@ -1,1 +1,0 @@
-Soft-delete a record from a database table. First call without 'confirmed' to see record details; then call again with confirmed=true after user explicitly confirms. ONLY these tables allow deletion: {{ table_list }}. Do NOT attempt to delete records in any other table.

@@ -91,16 +91,6 @@ class ToolRouter:
                     intent, ["web_search", "fetch_url"], ["web_search", "fetch_url"]
                 )
                 continue
-            if intent.kind == "data_query":
-                data_names = [
-                    tool.name
-                    for tool in grouped.get("data_ops", [])
-                    if tool.name
-                    in {"data_query", "data_create", "data_update", "data_delete"}
-                    or tool.name.startswith("data_")
-                ]
-                register(intent, data_names[:3], data_names[:1] or data_names)
-                continue
             if intent.kind == "page_read":
                 register(intent, ["get_page_context"])
                 continue

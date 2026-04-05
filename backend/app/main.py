@@ -194,47 +194,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     except Exception as exc:
                         logger.debug("Redis lock release failed: {}", exc)
 
-        # Sync AI table policies (auto-discover new tables and create default policies)
-        # 同步 AI 表策略（自动发现新表并创建默认策略）
-        # Use distributed lock to prevent multi-worker concurrent INSERT of policy records
-        # 使用分布式锁防止多 worker 并发 INSERT 策略记录
-        from app.services.ai.table_policy_sync_service import sync_table_policies
-
-        _tp_owner = str(__import__("uuid").uuid4())
-        _tp_redis = None
-        _tp_locked = False
-        try:
-            from app.core.redis import get_redis_client as _get_rc3
-
-            _tp_redis = _get_rc3()
-            _tp_locked = await _tp_redis.set(
-                "plugin:startup:table_policy_lock", _tp_owner, nx=True, ex=60
-            )
-        except Exception:
-            _tp_locked = True
-
-        if _tp_locked:
-            try:
-                async with async_session_factory() as db:
-                    policy_sync_result = await sync_table_policies(db)
-                    logger.info(
-                        "Table policies synced: {} policies",
-                        policy_sync_result.get("synced", 0),
-                    )
-            finally:
-                if _tp_redis and _tp_locked is True:
-                    try:
-                        from app.plugins.lifecycle import _UNLOCK_IF_OWNER_LUA
-
-                        await _tp_redis.eval(
-                            _UNLOCK_IF_OWNER_LUA,
-                            1,
-                            "plugin:startup:table_policy_lock",
-                            _tp_owner,
-                        )
-                    except Exception as exc:
-                        logger.debug("Redis lock release failed: {}", exc)
-
         # Initialize Redis connection / 初始化 Redis 连接
         from app.core.redis import RedisManager
 

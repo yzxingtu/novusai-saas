@@ -161,14 +161,6 @@ async function loadPackages() {
 const router = useRouter();
 const route = useRoute();
 
-/** 从表策略跳转时的 table_policy_id 筛选 */
-const tablePolicyIdFilter = computed(() => {
-  const q = route.query.table_policy_id;
-  if (!q) return null;
-  const n = Number(q);
-  return Number.isFinite(n) ? n : null;
-});
-
 const heroChips = computed(() => {
   const chips = [
     {
@@ -207,35 +199,10 @@ const heroChips = computed(() => {
     );
   }
 
-  if (tablePolicyIdFilter.value !== null) {
-    chips.push({
-      key: 'policy',
-      icon: 'lucide:filter',
-      className: 'bg-rose-500/10 text-rose-700 dark:text-rose-200',
-      text: $t('admin.ai.skillPackage.tablePolicyFilterHint', {
-        id: tablePolicyIdFilter.value,
-      }),
-    });
-  }
-
   return chips;
 });
 
-/** 按 table_policy_id 筛选后的技能列表（null/空表策略 = 使用全部，应包含） */
-const displayedSkills = computed(() => {
-  const policyId = tablePolicyIdFilter.value;
-  if (policyId === null) return skills.value;
-  return skills.value.filter((s) => {
-    const ids = s.config?.table_policy_ids as null | number[] | undefined;
-    if (ids === null || ids === undefined || ids.length === 0) return true;
-    return Array.isArray(ids) && ids.includes(policyId);
-  });
-});
-
-function clearTablePolicyFilter() {
-  const { table_policy_id: _, ...rest } = route.query;
-  router.replace({ path: route.path, query: rest });
-}
+const displayedSkills = computed(() => skills.value);
 
 function onSelectPackage(pkg: AdminSkillPackageInfo) {
   selectedPackageId.value = pkg.id;
@@ -497,8 +464,6 @@ function buildSkillCreateDefaults(overrides: Record<string, unknown> = {}) {
     rag_rewrite_strategy: 'none',
     rag_reranker_enabled: false,
     rag_context_token_ratio: 0.3,
-    di_table_policy_ids: [],
-    di_max_rows_override: 0,
     ...overrides,
   };
 }
@@ -712,7 +677,6 @@ usePageAIOperations({
           enum: [
             'toolkit',
             'knowledge_base',
-            'data_intelligence',
             'builtin',
             'http',
             'email',
@@ -1315,29 +1279,6 @@ usePageAIOperations({
               {{ $t('admin.ai.skill.create') }}
             </Button>
           </Space>
-        </div>
-
-        <!-- 表策略筛选横幅 -->
-        <div
-          v-if="selectedPackage && tablePolicyIdFilter"
-          class="mb-3 flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm"
-        >
-          <span class="text-primary">
-            {{
-              $t('admin.ai.skillPackage.tablePolicyFilterHint', {
-                id: tablePolicyIdFilter,
-              })
-            }}
-            ({{ displayedSkills.length }}/{{ skills.length }})
-          </span>
-          <Button
-            type="link"
-            size="small"
-            class="!h-auto !p-0"
-            @click="clearTablePolicyFilter"
-          >
-            {{ $t('admin.ai.skillPackage.clearTablePolicyFilter') }}
-          </Button>
         </div>
 
         <!-- 技能表格 -->

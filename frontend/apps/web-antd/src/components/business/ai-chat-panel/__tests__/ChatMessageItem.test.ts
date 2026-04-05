@@ -616,7 +616,7 @@ describe('chatMessageItem', () => {
       props: {
         msg: createAssistantMsg([
           {
-            name: 'data_query',
+            name: 'query_records',
             status: 'success',
             arguments: {
               question: '统计今天调用情况',

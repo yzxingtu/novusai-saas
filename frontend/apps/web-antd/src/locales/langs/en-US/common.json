@@ -643,8 +643,6 @@
       "knowledge_base_audio": "KB (audio model)",
       "knowledge_base_video": "KB (video model)",
       "knowledge_document": "Knowledge Document",
-      "table_policy": "Table Policy",
-      "table_policy_override": "Table Policy Override",
       "tenant_quota": "Tenant Quota",
       "tenant_rate_limit": "Rate Limit",
       "admin_role": "Admin Role",

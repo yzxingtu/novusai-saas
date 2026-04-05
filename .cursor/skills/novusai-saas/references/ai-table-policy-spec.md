@@ -1,5 +1,7 @@
 # AI 表策略声明规范
 
+> **历史说明（2026-04）**：AI 表策略与 `data_intelligence` 能力已退役，`__ai_policy__` 声明与同步机制从仓库中移除。以下内容仅作为历史规范保留，不应在新模型中启用。
+
 ## 设计理念
 
 AI 表策略采用**白名单声明制**：只有在 Model 类上显式声明 `__ai_policy__` 的表才对 AI 可见。
@@ -53,8 +55,10 @@ Model.__ai_policy__  →  同步  →  AITablePolicy 记录
                                 SkillPackage（如"平台数据管理"）
                                       ↓
                                 Agent 绑定技能包
-                                      ↓
+                                     ↓
                                 对话时生成 data_query/create/update/delete 工具
+
+> ⚠️ 该链路已于 2026-04 随 AI 表策略与 `data_intelligence` 下线，不再有 Skill.type = `data_intelligence` 或 `config.table_policy_ids`。
 ```
 
 ## 安全准则

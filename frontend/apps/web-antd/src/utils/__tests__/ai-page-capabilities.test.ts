@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  buildTablePolicySupportData,
   filterPageOperationsByPolicy,
   mergeDisabledOperations,
   normalizePageAIMode,
@@ -59,25 +58,5 @@ describe('ai-page-capabilities', () => {
         mode: 'navigation_only',
       }),
     ).toEqual([{ name: 'navigate_menu' }]);
-  });
-
-  it('builds table policy runtime payload in snake case', () => {
-    expect(
-      buildTablePolicySupportData({
-        enabled: true,
-        kind: 'management',
-        relatedPolicyIds: [1, 2, 2],
-        relatedResources: ['/admin/ai/table-policies'],
-        relatedTables: ['ai_table_policies'],
-        supportedActions: ['list_policies', 'sync_policies'],
-      }),
-    ).toEqual({
-      enabled: true,
-      kind: 'management',
-      related_policy_ids: [1, 2],
-      related_resources: ['/admin/ai/table-policies'],
-      related_tables: ['ai_table_policies'],
-      supported_actions: ['list_policies', 'sync_policies'],
-    });
   });
 });

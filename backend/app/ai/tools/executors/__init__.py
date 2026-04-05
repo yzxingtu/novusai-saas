@@ -14,33 +14,13 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "app.ai.tools.executors.builtin_executor",
         "BuiltinToolExecutor",
     ),
-    "TextToSQLExecutor": (
-        "app.ai.tools.executors.text_to_sql_executor",
-        "TextToSQLExecutor",
-    ),
     "ToolkitExecutor": ("app.ai.tools.executors.toolkit_executor", "ToolkitExecutor"),
-    "CreateRecordExecutor": (
-        "app.ai.tools.executors.crud_executor",
-        "CreateRecordExecutor",
-    ),
-    "UpdateRecordExecutor": (
-        "app.ai.tools.executors.crud_executor",
-        "UpdateRecordExecutor",
-    ),
-    "DeleteRecordExecutor": (
-        "app.ai.tools.executors.crud_executor",
-        "DeleteRecordExecutor",
-    ),
 }
 
 __all__ = [
     "BaseToolExecutor",
     "BuiltinToolExecutor",
-    "TextToSQLExecutor",
     "ToolkitExecutor",
-    "CreateRecordExecutor",
-    "UpdateRecordExecutor",
-    "DeleteRecordExecutor",
 ]
 
 

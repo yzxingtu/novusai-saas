@@ -936,6 +936,7 @@
     "error": {
       "not_found": "知识库不存在",
       "name_exists": "知识库名称已存在",
+      "binding_required": "指定企业作用域至少需要绑定一个企业",
       "quota_exceeded": "知识库数量已达上限",
       "storage_exceeded": "知识库存储空间已达上限",
       "document_limit_exceeded": "文档数量已达上限",
@@ -1338,11 +1339,6 @@
       "embedding": "AI 向量化",
       "test": "测试 AI 调用"
     },
-    "ai_table_policy_override": {
-      "read": "查看数据访问策略覆盖",
-      "update": "修改数据访问策略覆盖",
-      "delete": "删除数据访问策略覆盖"
-    },
     "ai_tenant_call_log": {
       "list": "查看 AI 调用日志列表",
       "detail": "查看 AI 调用日志详情"
@@ -1490,13 +1486,6 @@
       "delete": "删除供应商",
       "toggle_status": "启用/禁用供应商",
       "recycle_bin": "回收站"
-    },
-    "ai_table_policy": {
-      "list": "查看数据访问策略列表",
-      "detail": "查看数据访问策略详情",
-      "update": "编辑数据访问策略",
-      "columns": "查看表列信息",
-      "sync": "同步数据访问策略"
     },
     "ai_usage": {
       "tenant_summary": "查看企业用量汇总",
@@ -1883,10 +1872,6 @@
       "tool_type": {
         "toolkit": "工具集",
         "builtin": "内置工具",
-        "text_to_sql": "Text-to-SQL 查询",
-        "data_create": "数据创建",
-        "data_update": "数据更新",
-        "data_delete": "数据删除",
         "http": "HTTP 请求",
         "email": "邮件发送",
         "code_execution": "代码执行"
@@ -2006,17 +1991,9 @@
       "array": "数组",
       "object": "对象"
     },
-    "table_policy": {
-      "scope": {
-        "platform": "平台级",
-        "tenant": "企业级",
-        "all": "全部"
-      }
-    },
     "skill": {
       "type": {
         "knowledge_base": "知识库",
-        "data_intelligence": "数据智能",
         "toolkit": "工具集",
         "builtin": "内置功能",
         "http": "HTTP 请求",
@@ -3104,82 +3081,6 @@
       "consent_rejected": "该工具已被授权策略禁止执行"
     }
   },
-  "data_intelligence": {
-    "sql": {
-      "empty": "SQL 语句为空",
-      "select_only": "仅允许 SELECT 查询",
-      "dangerous_keyword": "禁止使用危险关键字: {keyword}",
-      "write_in_subquery": "SQL 中包含写操作",
-      "table_not_allowed": "不允许查询表: {table}",
-      "blocked_function": "禁止调用函数: {func}",
-      "no_line_comment": "SQL 中不允许包含行注释(--)",
-      "no_block_comment": "SQL 中不允许包含块注释(/**/)",
-      "system_table_blocked": "禁止访问系统表"
-    },
-    "isolation": {
-      "no_table_ref": "SQL 中未找到表引用，无法注入企业隔离",
-      "unknown_table": "未知的表: {table}",
-      "no_tenant_column": "表 {table} 缺少企业隔离列"
-    },
-    "executor": {
-      "readonly_not_configured": "只读数据库连接未配置，请设置 AI_READONLY_DB_URL",
-      "missing_question": "缺少查询问题",
-      "missing_tenant": "缺少企业信息",
-      "execution_error": "数据查询执行失败，请稍后重试",
-      "no_accessible_tables": "当前权限无法查询任何数据表，请联系管理员"
-    },
-    "generator": {
-      "no_relevant_tables": "未找到与问题相关的数据表",
-      "validation_failed": "SQL 生成失败，无法生成安全的查询语句",
-      "generation_error": "SQL 生成过程出错，请尝试重新描述问题",
-      "empty_response": "AI 未返回有效内容",
-      "parse_error": "无法解析 AI 返回的内容",
-      "cannot_generate": "无法为该问题生成查询语句"
-    },
-    "formatter": {
-      "no_data": "查询未返回数据",
-      "number_summary": "{label} 的结果为 {value}",
-      "row_count": "共返回 {count} 条数据",
-      "truncated": "（结果已截断，仅显示前 200 条）",
-      "masked": "已对 {columns} 列进行脱敏处理"
-    },
-    "action": {
-      "not_found": "操作 '{name}' 不存在",
-      "permission_denied": "权限不足，无法执行此操作",
-      "rate_exceeded": "操作频率超限，请稍后再试",
-      "confirm_expired": "确认已过期或无效，请重新操作",
-      "execution_error": "操作执行失败，请稍后重试",
-      "no_service_configured": "该操作未配置服务方法",
-      "dangerous_guidance": "此操作为高危操作，无法通过 AI 执行，请按以下步骤在管理后台手动操作",
-      "dangerous_reason": "高危操作需要管理员在系统后台确认执行，以确保数据安全",
-      "step_login": "登录管理后台",
-      "step_navigate": "导航到对应功能页面",
-      "step_execute": "手动执行操作并确认",
-      "default_confirm": "确认要执行操作 '{action}' 吗？",
-      "confirm_create_role": "确认要创建角色 '{name}' 吗？",
-      "confirm_update_user_status": "确认要将用户 {user_id} 的状态修改为 {status} 吗？"
-    },
-    "crud": {
-      "no_context": "缺少执行上下文（数据库会话未注入）",
-      "table_not_found": "表 '{table}' 不存在或未启用 AI 访问策略",
-      "operation_denied": "表 '{table}' 不允许执行 {operation} 操作",
-      "record_not_found": "表 '{table}' 中未找到 ID={id} 的记录",
-      "blocked_columns_violation": "以下列禁止写入: {columns}",
-      "permission_denied": "权限不足，无法对表 '{table}' 执行 {action} 操作",
-      "cross_tenant_denied": "禁止跨企业数据访问",
-      "invalid_table_name": "表名 '{table}' 包含非法字符，仅允许小写字母、数字和下划线",
-      "invalid_column_names": "以下列名包含非法字符: {columns}，仅允许小写字母、数字和下划线",
-      "missing_required_fields": "Missing required fields for table '{table}': {columns}. Please provide values for these fields.",
-      "json_parse_guidance": "请勿切换到 invoke_page_operation。请修复 JSON 格式：确保字符串值中的换行符转义为 \\n。",
-      "json_parse_guidance_tip": "提示：请简化长文本字段（如 system_prompt）——先用简短占位符创建记录，再使用 data_update 更新完整内容。",
-      "no_retry_hint": " Do NOT retry this operation on this or other tables. Tell the user this table does not allow {operation} operations.",
-      "soft_delete_warning": "This will soft-delete the record (set is_deleted=true).",
-      "no_tenant_isolation": "表 '{table}' 没有企业隔离列，企业用户无法访问此表",
-      "agent_invalid_scope": "智能体 scope '{scope}' 无效。有效值：{valid}",
-      "rejected_legacy_field": "字段 '{field}' 已废弃且不再接受，请从请求中移除。"
-    },
-    "identity_declaration": "Your name is {agent_name}. Never reveal or claim to be any other AI model."
-  },
   "ai_action_log": {
     "not_found": "AI 操作日志不存在"
   },
@@ -3200,41 +3101,6 @@
       "error_message": "错误信息",
       "duration_ms": "执行耗时(ms)",
       "confidence": "置信度"
-    }
-  },
-  "ai_table_policy": {
-    "not_found": "AI 表策略不存在",
-    "field": {
-      "table_name": "表名",
-      "label": "显示名称",
-      "description": "表描述",
-      "keywords": "关键词/别名",
-      "column_descriptions": "列描述",
-      "allow_read": "允许查询",
-      "allow_create": "允许创建",
-      "allow_update": "允许更新",
-      "allow_delete": "允许删除",
-      "max_rows": "单次查询最大行数",
-      "blocked_columns": "屏蔽列",
-      "readonly_columns": "只读列",
-      "scope": "作用域",
-      "permission_code": "权限码",
-      "sort_order": "排序",
-      "is_active": "启用状态"
-    }
-  },
-  "ai_table_policy_override": {
-    "not_found": "AI 表策略覆盖不存在",
-    "cannot_expand": "企业只能收紧策略，不能超出全局设置",
-    "field": {
-      "policy_id": "策略 ID",
-      "allow_read": "覆盖查询权限",
-      "allow_create": "覆盖创建权限",
-      "allow_update": "覆盖更新权限",
-      "allow_delete": "覆盖删除权限",
-      "max_rows": "覆盖最大行数",
-      "blocked_columns": "追加屏蔽列",
-      "is_active": "覆盖启用状态"
     }
   },
   "system_agent_assignment": {
@@ -3290,8 +3156,6 @@
       "skill": "技能",
       "knowledge_base": "知识库",
       "knowledge_document": "知识库文档",
-      "table_policy": "表策略",
-      "table_policy_override": "表策略覆盖",
       "tenant_quota": "企业配额",
       "tenant_rate_limit": "速率限制",
       "admin_role": "管理员角色",

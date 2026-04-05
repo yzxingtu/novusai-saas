@@ -44,10 +44,6 @@ from app.repositories.ai.model_repository import AIModelRepository
 from app.repositories.ai.profile_snapshot_repository import ProfileSnapshotRepository
 from app.repositories.ai.provider_repository import AIProviderRepository
 from app.repositories.ai.skill_repository import AdminSkillRepository, SkillRepository
-from app.repositories.ai.table_policy_override_repository import (
-    AITablePolicyOverrideRepository,
-)
-from app.repositories.ai.table_policy_repository import AITablePolicyRepository
 from app.repositories.ai.tenant_agent_publication_repository import (
     TenantAgentPublicationRepository,
 )
@@ -89,8 +85,6 @@ __all__ = [
     "DocumentChunkRepository",
     "MemoryRecordRepository",
     "ProfileSnapshotRepository",
-    "AITablePolicyRepository",
-    "AITablePolicyOverrideRepository",
     "SkillRepository",
     "AdminSkillRepository",
     "AgentSkillGrantRepository",

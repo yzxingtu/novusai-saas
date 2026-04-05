@@ -3,7 +3,7 @@
  *
  * Sub-modules are split into separate files. This file provides:
  * 1. Backward-compatible re-exports (no need to change existing imports).
- * 2. Table policies, quotas, skills, and other APIs not yet split out.
+ * 2. Quotas and other APIs not yet split out.
  *
  * 各子模块已拆分到独立文件，此文件提供向后兼容 re-export 及尚未独立的 API。
  */
@@ -150,57 +150,6 @@ export {
 } from './ai-providers';
 
 // ============================================================
-// Type definitions - AI table policies / 类型定义 - AI 表策略
-// ============================================================
-
-/** AI table policy info / AI 表策略信息 */
-export interface AITablePolicyInfo {
-  id: number;
-  table_name: string;
-  label: string;
-  description: null | string;
-  keywords: null | string[];
-  column_descriptions: null | Record<string, string>;
-  allow_read: boolean;
-  allow_create: boolean;
-  allow_update: boolean;
-  allow_delete: boolean;
-  max_rows: number;
-  blocked_columns: null | string[];
-  readonly_columns: null | string[];
-  permission_code: string;
-  sort_order: number;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-/** Update table policy request / 更新表策略请求 */
-export interface AITablePolicyUpdateRequest {
-  label?: string;
-  description?: null | string;
-  keywords?: null | string[];
-  column_descriptions?: null | Record<string, string>;
-  allow_read?: boolean;
-  allow_create?: boolean;
-  allow_update?: boolean;
-  allow_delete?: boolean;
-  max_rows?: number;
-  blocked_columns?: null | string[];
-  readonly_columns?: null | string[];
-  permission_code?: string;
-  sort_order?: number;
-  is_active?: boolean;
-}
-
-/** Table column info / 表列信息 */
-export interface TableColumnInfo {
-  name: string;
-  type: string;
-  comment: string;
-}
-
-// ============================================================
 // Generic paginated response / 通用分页响应
 // ============================================================
 
@@ -209,77 +158,6 @@ interface PageResponse<T> {
   page: number;
   page_size: number;
   total: number;
-}
-
-// ============================================================
-// API - AI table policies / API 接口 - AI 表策略
-// ============================================================
-
-const TABLE_POLICY_PREFIX = '/admin/ai/table-policies';
-
-/** Get table policy list / 获取表策略列表 */
-export async function getAITablePolicyListApi(
-  params?: Record<string, unknown>,
-  options?: ApiRequestOptions,
-): Promise<PageResponse<AITablePolicyInfo>> {
-  return requestClient.get<PageResponse<AITablePolicyInfo>>(
-    TABLE_POLICY_PREFIX,
-    { params, ...options },
-  );
-}
-
-/** Get table policy detail / 获取表策略详情 */
-export async function getAITablePolicyDetailApi(
-  id: number,
-  options?: ApiRequestOptions,
-): Promise<AITablePolicyInfo> {
-  return requestClient.get<AITablePolicyInfo>(
-    `${TABLE_POLICY_PREFIX}/${id}`,
-    options,
-  );
-}
-
-/** Update table policy / 更新表策略 */
-export async function updateAITablePolicyApi(
-  id: number,
-  data: AITablePolicyUpdateRequest,
-  options?: ApiRequestOptions,
-): Promise<AITablePolicyInfo> {
-  return requestClient.put<AITablePolicyInfo>(
-    `${TABLE_POLICY_PREFIX}/${id}`,
-    data,
-    options,
-  );
-}
-
-/** Get table column info / 获取表的列信息 */
-export async function getAITablePolicyColumnsApi(
-  id: number,
-  options?: ApiRequestOptions,
-): Promise<TableColumnInfo[]> {
-  return requestClient.get<TableColumnInfo[]>(
-    `${TABLE_POLICY_PREFIX}/${id}/columns`,
-    options,
-  );
-}
-
-/** Trigger table policy sync / 触发表策略同步 */
-export async function syncAITablePoliciesApi(
-  options?: ApiRequestOptions,
-): Promise<Record<string, number> & { declared_tables?: string[] }> {
-  return requestClient.post<
-    Record<string, number> & { declared_tables?: string[] }
-  >(`${TABLE_POLICY_PREFIX}/sync`, {}, options);
-}
-
-/** Get declared table names (models with __ai_policy__) / 获取声明了 __ai_policy__ 的表名列表 */
-export async function getAITablePolicyDeclaredTablesApi(
-  options?: ApiRequestOptions,
-): Promise<string[]> {
-  return requestClient.get<string[]>(
-    `${TABLE_POLICY_PREFIX}/declared-tables`,
-    options,
-  );
 }
 
 // ============================================================

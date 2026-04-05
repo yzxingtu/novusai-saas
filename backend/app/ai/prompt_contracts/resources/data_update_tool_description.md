@@ -1,1 +1,0 @@
-Update an existing record in a database table. First call without 'confirmed' to see a diff preview; then call again with confirmed=true after user approval. ONLY these tables allow updates: {{ table_list }}. Do NOT attempt to update records in any other table.{{ schema_block }}

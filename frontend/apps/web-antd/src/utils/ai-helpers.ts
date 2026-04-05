@@ -25,9 +25,6 @@ export function getSkillTypeColor(type: string | undefined): string {
     case 'code_execution': {
       return 'purple';
     }
-    case 'data_intelligence': {
-      return 'blue';
-    }
     case 'email': {
       return 'cyan';
     }
@@ -57,9 +54,6 @@ export function getSkillTypeIcon(type: string | undefined): string {
     }
     case 'code_execution': {
       return 'lucide:terminal';
-    }
-    case 'data_intelligence': {
-      return 'lucide:database';
     }
     case 'email': {
       return 'lucide:mail';

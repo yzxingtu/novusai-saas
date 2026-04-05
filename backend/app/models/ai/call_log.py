@@ -28,11 +28,6 @@ class AICallLog(TenantModel):
 
     __tablename__ = "ai_call_logs"
 
-    __ai_policy__ = {
-        "label": "AI 调用日志",
-        "keywords": ["调用日志", "call_log", "AI调用"],
-        "allow_read": True,
-    }
 
     # 允许前端筛选的字段 / Fields exposed for list filtering
     __filterable__ = {

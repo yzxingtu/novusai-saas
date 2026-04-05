@@ -123,13 +123,6 @@ class HookPoint:
     # params: tenant_id, query, results | 可修改 results（过滤/重排）
     AFTER_KB_SEARCH = "after_kb_search"
 
-    # ── Data Intelligence (SQL) / 数据智能（SQL） ──
-    # params: tenant_id, sql, datasource_id | 可修改 sql, 可阻止
-    BEFORE_SQL_EXECUTE = "before_sql_execute"
-    # params: tenant_id, sql, rows, columns | 可修改 rows（脱敏/过滤）
-    AFTER_SQL_EXECUTE = "after_sql_execute"
-
-
 class _HookEntry:
     """Hook registration entry / 钩子注册条目"""
 

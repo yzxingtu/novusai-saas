@@ -131,12 +131,14 @@
 
 #### 问题 E：表策略仍然主要停留在 Skill 配置层，没有进入页面运行时协议
 
-当前表策略核心位于：
+历史上表策略核心曾位于：
 
 - [resolver.py](E:/git_clone/novusai-saas-yudi/backend/app/ai/skills/resolver.py)
-- `table_policy_ids`
+- `table_policy_ids`（现已删除）
 
-它已经能控制数据智能 Skill 的 CRUD 能力，但页面层仍然缺少统一协议来表达：
+> **退役说明（2026-04）**：AI 表策略与 `data_intelligence` 能力已退役，不再在平台运行时或页面能力中出现。以下提及 `table_policy` 的内容仅作历史记录。
+
+在退役前，这套设计一度用于控制数据智能 Skill 的 CRUD 能力，但页面层仍然缺少统一协议来表达：
 
 1. 该页面是否支持表策略。
 2. 该页面支持哪些表策略动作。
@@ -435,6 +437,8 @@ interface PageAICapabilityConfig {
 - 以及其它 editor 专用操作
 
 #### `table_policy`
+
+> ⚠️ `table_policy` / `table_policy_support` 能力随着 AI 表策略退役（2026-04）已下线，下面的 schema 仅用于历史追溯，不会在当前 runtime 或管理端注入。
 
 不是简单的一组按钮，而是页面运行时向 AI 声明：
 
@@ -980,6 +984,8 @@ ai: {
 3. 后端 prompt 展示规则
 
 #### B4-T2 管理页样板：`admin/ai/table-policies`
+
+> **历史提示**：B4 类表策略能力（管理页、技能页、page_context 中的 `table_policy_support`）随 AI 表策略与 `data_intelligence` 退役而下线，相关交付仅保留为存档，不再作为当前项目目标。
 
 交付：
 

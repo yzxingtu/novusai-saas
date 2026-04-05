@@ -69,7 +69,7 @@ def test_guard_flags_direct_tool_description(tmp_path: Path) -> None:
 from app.ai.tools.types import ToolDefinition
 
 tool = ToolDefinition(
-    name="data_query",
+    name="query_records",
     description="Query the database using natural language. IMPORTANT: You MUST use this tool for any count or statistics question.",
 )
 """.strip(),

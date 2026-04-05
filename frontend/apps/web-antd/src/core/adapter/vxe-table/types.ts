@@ -8,10 +8,7 @@ import type { Recordable } from '@vben/types';
 
 import type { VbenFormSchema } from '#/adapter/form';
 import type { PageOperation } from '#/components/business/ai-slide-panel/page-operation-registry';
-import type {
-  PageAICapabilityKey,
-  TablePolicySupportConfig,
-} from '#/utils/ai-page-capabilities';
+import type { PageAICapabilityKey } from '#/utils/ai-page-capabilities';
 
 // Export base types from vben plugin / 从 vben 插件导出基础类型
 export type { VxeTableGridOptions } from '@vben/plugins/vxe-table';
@@ -174,8 +171,6 @@ export interface CrudPageAiOptions {
   };
   /** Extra page_data merged into auto-registered context / 合并到自动注册上下文的额外 page_data */
   contextExtras?: () => Record<string, unknown>;
-  /** Table policy runtime capability block / 表策略运行时能力块 */
-  tablePolicy?: TablePolicySupportConfig;
 }
 
 /**

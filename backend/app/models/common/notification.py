@@ -33,12 +33,6 @@ class Notification(BaseModel):
 
     __tablename__ = "notifications"
 
-    __ai_policy__ = {
-        "label": "通知记录",
-        "keywords": ["通知", "notification"],
-        "allow_read": True,
-        "blocked_columns": ["body"],
-    }
 
     __table_args__ = (
         Index(

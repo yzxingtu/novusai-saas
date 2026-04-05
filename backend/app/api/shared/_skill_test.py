@@ -35,9 +35,7 @@ async def test_skill(db: AsyncSession, skill: Skill) -> dict[str, Any]:
     config = skill.config or {}
 
     try:
-        if skill_type == SkillTypeEnum.DATA_INTELLIGENCE.value:
-            return await _test_data_intelligence(db, skill, config)
-        elif skill_type == SkillTypeEnum.TOOLKIT.value:
+        if skill_type == SkillTypeEnum.TOOLKIT.value:
             return await _test_toolkit(db, skill)
         elif skill_type == SkillTypeEnum.BUILTIN.value:
             return _test_builtin(skill, config)
@@ -65,53 +63,6 @@ async def test_skill(db: AsyncSession, skill: Skill) -> dict[str, Any]:
             "message": build_public_error_text(
                 exc=exc,
                 message=_("common.server_error"),
-            ),
-            "details": None,
-        }
-
-
-async def _test_data_intelligence(
-    db: AsyncSession,
-    skill: Skill,
-    config: dict[str, Any],
-) -> dict[str, Any]:
-    """测试数据智能 Skill：执行 SELECT 1 验证数据库可达 / Test Data Intelligence skill: execute SELECT 1 to validate database connectivity"""
-    from sqlalchemy import text
-
-    try:
-        result = await db.execute(text("SELECT 1"))
-        row = result.scalar()
-        if row == 1:
-            # 检查是否有可用的表策略 / Check if there are available table policies
-            table_count = 0
-            try:
-                from app.ai.data_intelligence.schema_provider import SchemaProvider
-
-                descs = await SchemaProvider.get_table_descriptions(db)
-                table_count = len(descs) if descs else 0
-            except Exception:
-                pass
-
-            return {
-                "success": True,
-                "message": _("skill.test.di_ok", tables=table_count),
-                "details": {"db_reachable": True, "table_policies": table_count},
-            }
-
-        return {
-            "success": False,
-            "message": _("skill.test.di_fail"),
-            "details": None,
-        }
-    except Exception as exc:
-        return {
-            "success": False,
-            "message": _(
-                "skill.test.di_error",
-                error=build_public_error_text(
-                    exc=exc,
-                    message=_("common.server_error"),
-                ),
             ),
             "details": None,
         }

@@ -12,10 +12,6 @@ import { $t } from '#/locales';
 function getSkillTypeOptions(currentType?: string) {
   const predefined = [
     { label: $t('admin.ai.skill.type_options.toolkit'), value: 'toolkit' },
-    {
-      label: $t('admin.ai.skill.type_options.data_intelligence'),
-      value: 'data_intelligence',
-    },
     { label: $t('admin.ai.skill.type_options.builtin'), value: 'builtin' },
     { label: $t('admin.ai.skill.type_options.http'), value: 'http' },
     { label: $t('admin.ai.skill.type_options.email'), value: 'email' },

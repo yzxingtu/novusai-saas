@@ -34,11 +34,6 @@ class AIModel(BaseModel):
         ),
     )
 
-    __ai_policy__ = {
-        "label": "AI 模型",
-        "keywords": ["模型", "model", "AI模型"],
-        "allow_read": True,
-    }
 
     __delete_deps__ = [
         DeletionDep(

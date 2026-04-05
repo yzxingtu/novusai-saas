@@ -27,12 +27,6 @@ class Skill(TenantModel):
 
     __tablename__ = "skills"
 
-    __ai_policy__ = {
-        "label": "技能",
-        "keywords": ["技能", "skill", "工具"],
-        "allow_read": True,
-        "blocked_columns": ["toolkit_content"],
-    }
 
     # 覆盖 TenantModel 的 tenant_id，逐步从 SkillPackage 归属迁移为 Skill 自有归属
     tenant_id = Column(

@@ -128,24 +128,6 @@ class Settings(BaseSettings):
         return self.CELERY_RESULT_BACKEND or self.REDIS_URL
 
     # ========================================
-    # AI 数据智能（Text-to-SQL）配置 / AI Data Intelligence (Text-to-SQL) Configuration
-    # ========================================
-    # 只读数据库连接 URL / Read-only DB URL (for AI Text-to-SQL queries)
-    # 建议使用专用只读用户 / Recommend using a dedicated read-only user, see scripts/create_ai_readonly_user.sql
-    AI_READONLY_DB_URL: str = ""
-
-    @property
-    def AI_READONLY_DB_URL_ASYNC(self) -> str:
-        """异步只读数据库连接 URL / Async read-only database connection URL"""
-        url = self.AI_READONLY_DB_URL
-        if not url:
-            return ""
-        # 将 postgresql:// 转为 postgresql+asyncpg:// / Convert to async driver
-        if url.startswith("postgresql://"):
-            return url.replace("postgresql://", "postgresql+asyncpg://", 1)
-        return url
-
-    # ========================================
     # AI 缓存配置 / AI Cache Configuration
     # ========================================
     AI_CACHE_TTL: int = 3600  # AI 响应缓存 TTL（秒）/ AI response cache TTL (seconds), only effective when temperature=0

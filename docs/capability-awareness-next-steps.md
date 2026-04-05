@@ -581,3 +581,4 @@ def test_response_latency():
 - **测试负责人**：待定
 - **运维负责人**：待定
 - **产品负责人**：待定
+> **退役说明（2026-04）**：文中关于 `data_query`、AI 表策略和 `data_intelligence` 的后续事项已失效，仅保留为历史备忘。

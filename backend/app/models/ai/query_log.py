@@ -1,8 +1,8 @@
 """
 AI 数据查询审计日志模型 / AI Data Query Audit Log Model
 
-记录每次 Text-to-SQL 数据查询的完整审计信息，用于安全追溯、异常检测和合规审计
-Records complete audit info for each Text-to-SQL query for security tracing, anomaly detection and compliance.
+历史上用于记录 AI 查询链路的审计信息，现主要作为兼容性与审计留存模型。
+Historically used for AI query-chain auditing and now retained mainly for compatibility and audit records.
 """
 
 from sqlalchemy import Index, Integer, String, Text
@@ -16,9 +16,9 @@ class AIQueryLog(TenantModel):
     """
     AI 数据查询审计日志 / AI Data Query Audit Log.
 
-    记录每次 data_query 工具执行的详细信息：
+    记录 AI 查询链路的详细审计信息：
     - 用户原始问题
-    - LLM 生成的 SQL（原始 + 隔离注入后）
+    - 生成或执行过的查询语句
     - 执行者身份（user_id, user_role）
     - 执行状态、耗时、返回行数
     - 失败原因
@@ -26,12 +26,6 @@ class AIQueryLog(TenantModel):
 
     __tablename__ = "ai_query_logs"
 
-    __ai_policy__ = {
-        "label": "数据查询日志",
-        "keywords": ["SQL", "query", "查询"],
-        "allow_read": True,
-        "blocked_columns": ["generated_sql", "final_sql"],
-    }
 
     # 允许前端筛选的字段 / Fields exposed for list filtering
     __filterable__ = {

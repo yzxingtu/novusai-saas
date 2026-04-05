@@ -193,14 +193,6 @@ class ExecutionTrustPolicyService(
         ):
             return ActionLevelEnum.READ.value
 
-        if normalized_name.startswith(
-            ("data_query", "data_read", "data_list", "data_search")
-        ):
-            return ActionLevelEnum.READ.value
-
-        if normalized_name.startswith(("data_create", "data_update", "data_delete")):
-            return ActionLevelEnum.DANGEROUS.value
-
         if normalized_family == "page_ops" or normalized_name.startswith("pageop_"):
             return ActionLevelEnum.SAFE_WRITE.value
 
@@ -216,8 +208,6 @@ class ExecutionTrustPolicyService(
             return "web_research"
         if normalized in {"get_current_weather", "get_weather_forecast"}:
             return "weather"
-        if normalized.startswith("data_"):
-            return "data_ops"
         if normalized in {
             "get_page_context",
             "invoke_page_operation",

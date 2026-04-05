@@ -20,8 +20,8 @@ class TestCapabilityDescriptionBuilder:
         result = builder.build_skill_descriptions(None)
         assert result == []
 
-    def test_build_skill_descriptions_data_intelligence(self):
-        """Test data intelligence skill descriptions"""
+    def test_build_skill_descriptions_web_research(self):
+        """Test web research skill descriptions"""
         # Mock skill result
         class MockDescriptor:
             def __init__(self, name, description, kind="prompt_skill", metadata=None):
@@ -35,10 +35,10 @@ class TestCapabilityDescriptionBuilder:
                 self.tools = []
                 self.capability_descriptors = [
                     MockDescriptor(
-                        name="data_query",
-                        description="Query database using natural language",
+                        name="web_search",
+                        description="Search the web for recent information",
                         metadata={
-                            "family": "data_intelligence",
+                            "family": "web_research",
                             "available_tables": [
                                 {"name": "users", "comment": "用户"},
                                 {"name": "agents", "comment": "智能体"},
@@ -46,11 +46,11 @@ class TestCapabilityDescriptionBuilder:
                         },
                     ),
                     MockDescriptor(
-                        name="data_create",
-                        description="Create new records",
+                        name="fetch_url",
+                        description="Read webpage details",
                         metadata={
-                            "family": "data_intelligence",
-                            "allowed_operations": ["insert"],
+                            "family": "web_research",
+                            "allowed_operations": ["fetch"],
                         },
                     ),
                 ]
@@ -60,11 +60,11 @@ class TestCapabilityDescriptionBuilder:
 
         assert len(result) == 1
         assert result[0].category == "skills"
-        assert result[0].title == "Data Intelligence Skills"
+        assert result[0].title == "Web Research Skills"
         assert len(result[0].items) == 2
-        assert "data_query" in result[0].items[0]
+        assert "web_search" in result[0].items[0]
         assert "users(用户)" in result[0].items[0]
-        assert "data_create" in result[0].items[1]
+        assert "fetch_url" in result[0].items[1]
 
     def test_build_skill_descriptions_multiple_families(self):
         """Test skills from multiple families"""
@@ -81,11 +81,6 @@ class TestCapabilityDescriptionBuilder:
                 self.tools = []
                 self.capability_descriptors = [
                     MockDescriptor(
-                        name="data_query",
-                        description="Query database",
-                        metadata={"family": "data_intelligence"},
-                    ),
-                    MockDescriptor(
                         name="web_search",
                         description="Search the web",
                         metadata={"family": "web_research"},
@@ -95,6 +90,11 @@ class TestCapabilityDescriptionBuilder:
                         description="Get weather information",
                         metadata={"family": "weather"},
                     ),
+                    MockDescriptor(
+                        name="get_current_time",
+                        description="Get current time",
+                        metadata={"family": "time"},
+                    ),
                 ]
 
         builder = CapabilityDescriptionBuilder()
@@ -102,7 +102,7 @@ class TestCapabilityDescriptionBuilder:
 
         assert len(result) == 3
         families = {desc.metadata["family"] for desc in result}
-        assert families == {"data_intelligence", "web_research", "weather"}
+        assert families == {"web_research", "weather", "time"}
 
     def test_build_skill_descriptions_ignores_non_prompt_and_blank_names(self):
         """Test non-prompt descriptors and blank names are skipped"""
@@ -159,11 +159,14 @@ class TestCapabilityDescriptionBuilder:
         result = builder.build_skill_descriptions(MockSkillResult())
 
         assert [desc.title for desc in result] == [
-            "Data Intelligence Skills",
+            "General Skills",
             "Web Research Skills",
             "Weather Skills",
             "Time & Date Skills",
-            "General Skills",
+        ]
+        assert result[0].items == [
+            "database_lookup: Lookup records",
+            "custom_helper: General utility",
         ]
         assert result[1].items == ["fetch_news: Fetch the latest news"]
 
@@ -372,10 +375,10 @@ class TestCapabilityDescriptionBuilder:
         descriptions = [
             CapabilityDescription(
                 category="skills",
-                title="Data Intelligence Skills",
+                title="Web Research Skills",
                 items=[
-                    "data_query: Query database",
-                    "data_create: Create records",
+                    "web_search: Search recent sources",
+                    "fetch_url: Read webpage details",
                 ],
             ),
             CapabilityDescription(
@@ -392,8 +395,8 @@ class TestCapabilityDescriptionBuilder:
         result = builder.format_as_system_prompt_block(descriptions)
 
         assert "[CAPABILITIES]" in result
-        assert "## Data Intelligence Skills" in result
-        assert "- data_query: Query database" in result
+        assert "## Web Research Skills" in result
+        assert "- web_search: Search recent sources" in result
         assert "## Knowledge Bases" in result
         assert "- 产品文档库: 120 documents" in result
         assert "When the user asks questions" in result

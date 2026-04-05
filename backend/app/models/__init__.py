@@ -26,8 +26,6 @@ from app.models.ai import (
     AIModel,
     AIProvider,
     AIQueryLog,
-    AITablePolicy,
-    AITablePolicyOverride,
     BatchRun,
     Capability,
     ConversationMessage,
@@ -173,9 +171,6 @@ __all__ = [
     "AgentMemoryOverride",
     # AI 操作审计日志 / AI action logs
     "AIActionLog",
-    # AI 表策略 / AI table policies
-    "AITablePolicy",
-    "AITablePolicyOverride",
     "Capability",
     # 技能包 & 技能 / Skill packages & skills
     "SkillPackage",

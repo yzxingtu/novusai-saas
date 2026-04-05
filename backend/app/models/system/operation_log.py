@@ -22,12 +22,6 @@ class OperationLog(BaseModel):
 
     __tablename__ = "operation_logs"
 
-    __ai_policy__ = {
-        "label": "操作日志",
-        "keywords": ["日志", "audit", "审计"],
-        "allow_read": True,
-        "blocked_columns": ["request_body", "query_params", "ip", "user_agent"],
-    }
 
     # 表级索引 / Table-level indexes
     __table_args__ = (

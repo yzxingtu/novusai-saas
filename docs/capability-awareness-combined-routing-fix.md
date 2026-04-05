@@ -568,3 +568,4 @@ async def test_combined_data_kb_routing(db_session, test_agent_with_kb):
 
 **文档版本**: 1.0  
 **最后更新**: 2026-04-02
+> **历史说明（2026-04）**：本文描述的 `data_query` 联合路由修复基于已退役的 `data_intelligence` 链路，现仅作历史留档。

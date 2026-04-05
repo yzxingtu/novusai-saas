@@ -418,10 +418,9 @@
       "welcomeMessage": "Shown when this agent is the current target and the user has not sent the first message yet, including sidebar selection, pinned agent, or {'@'} mention",
       "suggestedQuestions": "Shown before the first message when this agent is the current target. Recommend 3-4 short starter questions, one per line",
       "toolBindings": "Bind tools the agent can invoke during conversations, each item contains a tool_id field",
-      "skillBindings": "Select skills the agent can use. Skills include knowledge base, data intelligence, HTTP calls, and more",
+      "skillBindings": "Select skills the agent can use. Skills include knowledge base, HTTP calls, and more",
       "skillPackageBindings": "Select skill packages the agent can use. Each package contains multiple skills, and the agent will gain all skills within the bound packages",
       "inputVariables": "Define variables users fill in before starting a conversation, useful for prompt templates",
-      "dataIntelligenceEnabled": "When enabled, the agent can use Text-to-SQL to query data and execute business actions",
       "contextMaxHistoryMessages": "How many recent messages are sent back to the model as context. More history means richer context but higher token cost; this is not the model's total context window",
       "contextMaxHistoryTokens": "Only limits tokens from history messages sent as context, not the full model input limit. 0 = no separate token cap, message count still applies",
       "quotaConversationsPerDay": "Max conversations per day for this agent, 0 = unlimited",
@@ -451,7 +450,6 @@
       "maxHistoryTokens": "History Token Budget Sent as Context",
       "longTermMemoryEnabled": "Long-term memory (cross-session)",
       "longTermMemoryHint": "When enabled, durable insights are captured into MemoryRecord and recalled progressively; requires session memory to be on for the same agent.",
-      "dataIntelligenceEnabled": "Data Intelligence",
       "placeholder": {
         "maxHistoryMessages": "Default 20, 0 uses system default",
         "maxHistoryTokens": "0 = trim by message count only, no separate token cap"
@@ -876,32 +874,6 @@
       "deleteSuccess": "Rate limit deleted"
     }
   },
-  "tablePolicy": {
-    "title": "Data Access Policies",
-    "pageDesc": "View and override AI data access policies. Overrides can only restrict (tighten), not expand.",
-    "tableName": "Table Name",
-    "label": "Display Name",
-    "allowRead": "Read",
-    "allowCreate": "Create",
-    "allowUpdate": "Update",
-    "allowDelete": "Delete",
-    "maxRows": "Max Rows",
-    "blockedColumns": "Blocked Columns",
-    "scope": "Scope",
-    "hasOverride": "Overridden",
-    "globalDefault": "Global Default",
-    "overridden": "Overridden",
-    "editOverride": "Edit Override",
-    "resetOverride": "Reset to Default",
-    "resetConfirm": "Reset to global default policy? Current override will be removed.",
-    "placeholder": {
-      "searchTable": "Search table name"
-    },
-    "messages": {
-      "overrideSuccess": "Policy override saved",
-      "resetSuccess": "Reset to global default policy"
-    }
-  },
   "skillPackage": {
     "title": "Skill Package Catalog",
     "pageDesc": "Browse the skill package catalog visible to the current tenant. Packages provide grouping, source attribution, and readable display, while runtime authorization still comes from direct agent skill grants.",
@@ -985,7 +957,6 @@
     "type_options": {
       "toolkit": "Toolkit",
       "knowledge_base": "Knowledge Base",
-      "data_intelligence": "Data Intelligence",
       "builtin": "Builtin",
       "http": "HTTP Request",
       "email": "Email",
@@ -994,7 +965,6 @@
     "typeDesc": {
       "toolkit": "Python Toolkit: Write a Tools class in the editor below. Each public method is auto-registered as an LLM-callable tool. Supports Valves env config and .zip upload.\nUse cases: Call 3rd-party APIs (weather/search/translate), custom business logic, data conversion, etc.\nTip: Method docstrings and :param annotations are shown to the LLM — write clear descriptions.",
       "knowledge_base": "RAG Document Q&A: Link one or more knowledge bases for automatic semantic retrieval and context injection during conversations.\nUse cases: Product docs Q&A, internal knowledge search, contract/policy consultation, etc.\nTip: Adjust Top K and score threshold to balance recall and precision.",
-      "data_intelligence": "Data Intelligence: Let the agent query databases using natural language via Text-to-SQL, with query/create/update/delete support.\nUse cases: Business data analytics, report queries, data entry assistance, etc.\nTip: Select accessible table policies below. CRUD permissions are controlled by each policy's allow_create/update/delete settings.",
       "builtin": "Built-in Tools: System-predefined capabilities like web search, image generation, etc. View the tool list after creation.\nTip: Built-in tools are maintained by the platform and cannot be edited.",
       "http": "HTTP Request: Declarative REST API integration. Just fill in URL, method and parameter templates — no coding needed.\nUse cases: Call internal APIs, integrate SaaS services (CRM/ERP), trigger webhooks, etc.\nTip: URL supports {variable} template syntax; configure auth info in Headers.",
       "email": "Email: Let the agent send emails on behalf of users during conversations. Uses platform SMTP config with domain allowlist and recipient limits.\nUse cases: Auto customer replies, meeting invitations, notification sending, etc.\nTip: SMTP server must be configured in System Settings first.",
@@ -1115,22 +1085,6 @@
       "onlyPyFiles": "Only .py files are supported",
       "networkError": "Network request failed"
     },
-    "dataIntelligenceConfig": {
-      "title": "Data Intelligence Config",
-      "tablePolicies": "Table Policies",
-      "tablePoliciesPlaceholder": "Select accessible table policies",
-      "tablePoliciesHelp": "Select tables this skill can access. Only tables with __ai_policy__ declaration are shown. Leave empty to use all available.",
-      "maxRowsOverride": "Max Rows",
-      "maxRowsOverrideHelp": "Override default query row limit, 0 means use default",
-      "systemHint": "This is a system-wide shared skill that automatically uses all configured table policies.",
-      "toolListTitle": "Available Tools",
-      "tools": {
-        "dataQuery": "Query database using natural language, auto-generates safe SQL and returns results",
-        "dataCreate": "Insert new records into the specified table",
-        "dataUpdate": "Update existing records in the specified table",
-        "dataDelete": "Delete records from the specified table"
-      }
-    },
     "placeholder": {
       "searchName": "Search skill name",
       "allTypes": "All types",
@@ -1143,7 +1097,7 @@
     },
     "createGuide": "A skill is a capability unit for agents, belonging to a skill package. Select a type and configure parameters as guided, then bind it to an agent to use.",
     "help": {
-      "type": "Toolkit: custom Python tools; Knowledge Base: RAG document Q&A; Data Intelligence: database query & CRUD; Builtin: system-predefined tools",
+      "type": "Toolkit: custom Python tools; Knowledge Base: RAG document Q&A; Builtin: system-predefined tools",
       "config": "Runtime configuration for the skill. Different types have different config structures",
       "inputSchema": "Define the parameter structure the skill accepts (OpenAI Function Calling format)",
       "timeout": "Maximum execution time for the skill, auto-terminates on timeout"

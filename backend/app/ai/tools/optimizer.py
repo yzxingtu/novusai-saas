@@ -11,8 +11,6 @@ Filtering strategies (by priority):
    关键词匹配：用户消息与工具 description 的关键词重叠度
 2. History preference: tools successfully called in the same conversation are prioritized
    历史偏好：同一对话中已成功调用过的工具优先保留
-3. Type priority: data_query prioritized for data questions, knowledge_base for knowledge Q&A
-   类型优先级：data_query 在数据相关问题中优先
 """
 
 from __future__ import annotations
@@ -91,8 +89,8 @@ def _query_forbids_family(
     return _query_mentions_family(query_text, query_tokens, family_tokens, family_hints)
 
 
-# Dedicated editor tools (pageop_*) and data tools (data_*) are also protected when present
-# 专用 editor tools 和 data tools 存在时同样保护
+# Dedicated editor tools (pageop_*) are also protected when present
+# 专用 editor tools 存在时同样保护
 def _is_protected_tool(
     tool: ToolDefinition,
     preferred_family: str | None = None,
@@ -107,7 +105,7 @@ def _is_protected_tool(
         return False
     if tool.name in PROTECTED_TOOL_NAMES:
         return True
-    return family in {"page_ops", "data_ops"}
+    return family == "page_ops"
 
 
 def _is_explicitly_requested_tool(
@@ -350,18 +348,7 @@ def _score_tool(
     ):
         score += 4.0
 
-    # 3. Data tool boost / 数据类工具加权
-    if (
-        tool_family == "data_ops" or tool.tool_type in ("text_to_sql", "crud")
-    ) and _query_mentions_family(
-        query_text,
-        query_tokens,
-        semantic_query_tokens,
-        family_hints,
-    ):
-        score += 5.0
-
-    # 4. Knowledge base tools: no fixed vocabulary list — overlap with name/description/tags (steps 1 & 3) already scores relevance.
+    # 4. Knowledge base tools: no fixed vocabulary list — overlap with name/description/tags already scores relevance.
 
     # 4.5 Web search tool boost / 联网搜索工具加权
     if tool_family == "web_research" and _query_mentions_family(
@@ -411,8 +398,6 @@ def _score_tool(
     if preferred_family == "web_research":
         if tool_family == "web_research":
             score += 15.0
-        elif tool_family == "data_ops":
-            score -= 25.0
         elif tool_family == "page_ops":
             score -= 8.0
         elif tool_family in {"weather", "time_ops"}:
@@ -420,22 +405,17 @@ def _score_tool(
     elif preferred_family == "weather":
         if tool_family == "weather":
             score += 15.0
-        elif tool_family in {"web_research", "data_ops", "page_ops", "time_ops"}:
+        elif tool_family in {"web_research", "page_ops", "time_ops"}:
             score -= 10.0
     elif preferred_family == "time_ops":
         if tool_family == "time_ops":
             score += 15.0
-        elif tool_family in {"web_research", "weather", "data_ops", "page_ops"}:
-            score -= 8.0
-    elif preferred_family == "data_ops":
-        if tool_family == "data_ops":
-            score += 15.0
-        elif tool_family in {"web_research", "weather", "time_ops", "page_ops"}:
+        elif tool_family in {"web_research", "weather", "page_ops"}:
             score -= 8.0
     elif preferred_family == "page_ops":
         if tool_family == "page_ops":
             score += 15.0
-        elif tool_family in {"web_research", "weather", "time_ops", "data_ops"}:
+        elif tool_family in {"web_research", "weather", "time_ops"}:
             score -= 8.0
 
     # 6. Base score (ensure minimum score to avoid unstable sorting) / 基础分

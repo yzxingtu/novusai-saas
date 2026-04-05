@@ -18,7 +18,7 @@ import socket
 from typing import Any
 from urllib.parse import urlparse
 
-from app.ai.data_intelligence.sql_analysis import (
+from app.ai.tools.sql_analysis import (
     append_limit_clause,
     extract_table_references,
     find_keyword_sequences,

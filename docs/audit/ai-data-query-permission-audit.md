@@ -164,3 +164,4 @@ permissions=user_perms,
 - 代码审查：`schema_provider.py`、`text_to_sql_executor.py`、`tenant_isolation.py`、`sql_safety.py`、各 API 入口。
 - 权限链路：从 API 到 `ExecutionContext` 的完整传递路径。
 - 缓存：Redis schema 缓存的 key 设计与使用方式。
+> **退役说明（2026-04）**：`data_query`、AI 表策略与 `data_intelligence` 运行链路已退役。本文仅保留为历史审计记录，不再代表当前实现。

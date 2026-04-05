@@ -38,7 +38,6 @@ class CapabilityExecutorTypeEnum(LabeledStrEnum):
     HTTP = ("http", "enum.capability.executor.http")
     EMAIL = ("email", "enum.capability.executor.email")
     CODE_EXECUTION = ("code_execution", "enum.capability.executor.code_execution")
-    DATA_QUERY = ("data_query", "enum.capability.executor.data_query")
     PAGE_OPERATION = ("page_operation", "enum.capability.executor.page_operation")
 
 

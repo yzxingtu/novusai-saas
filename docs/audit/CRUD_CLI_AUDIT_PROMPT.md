@@ -16,7 +16,7 @@
 
 | 层级 | 路径 | 关注点 |
 |------|------|--------|
-| 后端 Model | `backend/app/models/` | 继承关系、`__filterable__`/`__sortable__`/`__selectable__`/`__ai_policy__`、`__delete_deps__`、外键约束 |
+| 后端 Model | `backend/app/models/` | 继承关系、`__filterable__`/`__sortable__`/`__selectable__`/`__ai_policy__`（已退役，审计时确认无声明）/`__delete_deps__`、外键约束 |
 | 后端 Schema | `backend/app/schemas/` | 基类继承、Create/Update/Response、字段校验、序列化 |
 | 后端 Repository | `backend/app/repositories/` | 基类继承、查询协议（filter/sort/page）、软删除、租户隔离 |
 | 后端 Service | `backend/app/services/` | 业务逻辑、钩子、批量操作、事务边界 |

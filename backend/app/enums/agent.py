@@ -74,10 +74,6 @@ class ToolTypeEnum(LabeledStrEnum):
 
     TOOLKIT = ("toolkit", "enum.agent.tool_type.toolkit")
     BUILTIN = ("builtin", "enum.agent.tool_type.builtin")
-    TEXT_TO_SQL = ("text_to_sql", "enum.agent.tool_type.text_to_sql")
-    DATA_CREATE = ("data_create", "enum.agent.tool_type.data_create")
-    DATA_UPDATE = ("data_update", "enum.agent.tool_type.data_update")
-    DATA_DELETE = ("data_delete", "enum.agent.tool_type.data_delete")
     HTTP = ("http", "enum.agent.tool_type.http")
     EMAIL = ("email", "enum.agent.tool_type.email")
     CODE_EXECUTION = ("code_execution", "enum.agent.tool_type.code_execution")
@@ -179,7 +175,6 @@ class ActionResultTypeEnum(LabeledStrEnum):
 class SkillTypeEnum(LabeledStrEnum):
     """Skill Type Enum / 技能类型枚举"""
 
-    DATA_INTELLIGENCE = ("data_intelligence", "enum.skill.type.data_intelligence")
     TOOLKIT = ("toolkit", "enum.skill.type.toolkit")
     BUILTIN = ("builtin", "enum.skill.type.builtin")
     HTTP = ("http", "enum.skill.type.http")

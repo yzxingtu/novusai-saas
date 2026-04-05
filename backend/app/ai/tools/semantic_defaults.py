@@ -44,14 +44,6 @@ FAMILY_HINT_TAGS: dict[str, tuple[str, ...]] = {
         "current time",
         "current date",
     ),
-    "data_ops": (
-        "数据查询",
-        "数据库操作",
-        "记录管理",
-        "统计报表",
-        "data query",
-        "data update",
-    ),
     "page_ops": (
         "页面操作",
         "页面交互",
@@ -69,7 +61,6 @@ FAMILY_HINT_TAGS: dict[str, tuple[str, ...]] = {
 _EXPLICIT_HINT_EXCLUDE: dict[str, frozenset[str]] = {
     "web_research": frozenset({"最新信息"}),
     "time_ops": frozenset({"time now"}),
-    "data_ops": frozenset({"data update"}),
 }
 
 # Derived from FAMILY_HINT_TAGS — single maintenance point.
@@ -111,8 +102,6 @@ def tool_family_from_name(
         return "time_ops"
     if normalized in {"get_current_weather", "get_weather_forecast"}:
         return "weather"
-    if normalized.startswith("data_"):
-        return "data_ops"
     if (
         normalized in {"get_page_context", "invoke_page_operation"}
         or normalized.startswith("pageop_")

@@ -81,7 +81,6 @@ import {
 } from '#/composables/use-ai-operations';
 import { formStateTracker } from '#/composables/use-form-state-tracker';
 import { $t, $te } from '#/locales';
-import { buildTablePolicySupportData } from '#/utils/ai-page-capabilities';
 import {
   getErrorData,
   getErrorStatus,
@@ -895,9 +894,6 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
       });
       const activeFilters = getActiveFilters();
       const visibleColumns = getVisibleColumnFields();
-      const tablePolicySupport = buildTablePolicySupportData(
-        aiConfig.tablePolicy,
-      );
 
       return {
         page_key: aiPageKey,
@@ -924,9 +920,6 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
             ? { active_filters: activeFilters }
             : {}),
           ...(listSummary ? { list_summary: listSummary } : {}),
-          ...(tablePolicySupport
-            ? { table_policy_support: tablePolicySupport }
-            : {}),
           ...(aiConfig.contextExtras ? aiConfig.contextExtras() : {}),
         },
       };

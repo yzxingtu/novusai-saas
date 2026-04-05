@@ -172,7 +172,7 @@ async def test_conversation_engine_retries_capability_denial_with_required_tool_
         all_tools=[
             ToolDefinition(name="web_search", description="Search the web"),
             ToolDefinition(name="fetch_url", description="Fetch url"),
-            ToolDefinition(name="data_query", description="Query data"),
+            ToolDefinition(name="query_records", description="Query data"),
         ],
         tool_use_policy=ToolUsePolicy(
             family="none",
@@ -305,7 +305,7 @@ async def test_conversation_engine_retries_summary_without_fetch_with_fetch_url(
         all_tools=[
             ToolDefinition(name="web_search", description="Search the web"),
             ToolDefinition(name="fetch_url", description="Fetch url"),
-            ToolDefinition(name="data_query", description="Query data"),
+            ToolDefinition(name="query_records", description="Query data"),
         ],
         continuation_context=SimpleNamespace(
             active=True,

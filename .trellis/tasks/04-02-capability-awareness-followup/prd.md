@@ -1,5 +1,7 @@
 # Capability Awareness Validation And Follow-up
 
+> **历史说明（2026-04）**：本任务文档形成于 `data_intelligence` / AI 表策略退役前。涉及 `data_query`、`AITablePolicyOverride` 与相关文件路径的描述仅供历史追溯，不代表当前代码状态。
+
 ## Purpose
 
 收敛 LLM 动态能力感知功能上线前的剩余工作，确保真实环境验证、性能观察、问题清单与后续优化路径都被记录在 Trellis 工作流中。
@@ -15,7 +17,7 @@
 
 已确认:
 
-- 技能能力感知可在真实对话中触发 `data_query`
+- 历史验证阶段，技能能力感知曾可在真实对话中触发 `data_query`（该链路现已退役）
 - 知识库能力感知可在真实对话中使用已绑定知识库
 - 配置关闭与简洁模式均生效
 
@@ -27,16 +29,16 @@
 
 ## Findings
 
-### Finding 1: `AITablePolicyOverride` 不是单纯残留导入
+### Finding 1: 历史上 `AITablePolicyOverride` 并非单纯残留导入
 
-审计报告将其标记为残留代码，但当前代码扫描显示它仍被以下路径真实使用:
+该结论仅适用于当时的代码状态。相关链路与文件已在 2026-04 退役并移除，包括：
 
 - `backend/app/ai/data_intelligence/schema_provider.py`
 - `backend/app/ai/tools/executors/crud_executor.py`
 - `backend/app/repositories/ai/table_policy_override_repository.py`
 - `backend/app/models/ai/table_policy.py`
 
-因此现阶段不应直接删除相关 `__init__.py` 导出，除非同步完成整条覆盖策略链的退役。
+当前仓库不应再依据本段恢复相关导出或兼容逻辑。
 
 ### Finding 2: 组合能力请求存在误路由 (已修复)
 
@@ -44,7 +46,7 @@
 
 - “数据 + 知识库”混合请求在自然表述下可能误判为 `web_research`
 - 某些请求会异常调用 `get_page_context`
-- 明确要求”不要联网”时，模型可以正确走 `data_query + KB`
+- 明确要求”不要联网”时，模型在历史验证中可正确走 `data_query + KB`（现已退役）
 
 **状态**: 已修复并验证通过
 
@@ -139,4 +141,3 @@
 4. **灰度发布准备** (优先级: 高, 预计 2-3 小时)
    - 制定发布计划
    - 准备监控和回滚方案
-

@@ -512,7 +512,7 @@ def test_build_capability_reporting_hint_lists_only_current_tools_and_page_ops()
     hint = BaseEngine._build_capability_reporting_hint(
         [
             ToolDefinition(name="web_search"),
-            ToolDefinition(name="data_query"),
+            ToolDefinition(name="get_current_time"),
         ],
         {
             "page_context": {
@@ -528,7 +528,7 @@ def test_build_capability_reporting_hint_lists_only_current_tools_and_page_ops()
     )
 
     assert "[CAPABILITY REPORTING]" in hint
-    assert "Available tools: web_search, data_query." in hint
+    assert "Available tools: web_search, get_current_time." in hint
     assert "Available page operations: create_record, fill_form." in hint
     assert "never claim a listed tool is unavailable" in hint.lower()
 

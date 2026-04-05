@@ -57,19 +57,6 @@ _NO_WEB_TERMS = (
     "offline",
     "no web",
 )
-_DATA_TERMS = (
-    "数据",
-    "记录",
-    "筛选",
-    "排序",
-    "统计",
-    "数据库",
-    "字段",
-    "明细",
-    "列表",
-    "sql",
-    "报表",
-)
 _PAGE_POINTER_TERMS = (
     "这个页面",
     "当前页面",
@@ -274,15 +261,6 @@ class IntentPlanner:
                 signals.append(
                     _IntentSignal(
                         "web_research", "web_research", label, offset + position
-                    )
-                )
-
-        if "data_ops" in families and not any(term in lowered for term in _WEB_TERMS):
-            position = cls._first_position(lowered, _DATA_TERMS)
-            if position >= 0:
-                signals.append(
-                    _IntentSignal(
-                        "data_query", "data_ops", "data_query", offset + position
                     )
                 )
 

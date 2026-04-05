@@ -632,15 +632,15 @@ describe('useAIChat interrupted stream recovery', () => {
           `data: ${JSON.stringify({
             arguments: { question: '统计今天调用情况' },
             event: 'tool_start',
-            id: 'tc_data_query',
-            name: 'data_query',
+            id: 'tc_query_records',
+            name: 'query_records',
           })}\n`,
         );
         await options.onMessage(
           `data: ${JSON.stringify({
             duration_ms: 120,
             event: 'tool_call',
-            name: 'data_query',
+            name: 'query_records',
             success: true,
             summary: '按今天范围统计调用并按租户分组',
             summary_payload: {
@@ -648,7 +648,7 @@ describe('useAIChat interrupted stream recovery', () => {
               group_by: ['t.name'],
               metrics: ['COUNT(acl.id)'],
               tables: ['ai_call_logs', 'tenants'],
-              tool_kind: 'data_query',
+              tool_kind: 'query_records',
             },
           })}\n`,
         );
@@ -677,7 +677,7 @@ describe('useAIChat interrupted stream recovery', () => {
       group_by: ['t.name'],
       metrics: ['COUNT(acl.id)'],
       tables: ['ai_call_logs', 'tenants'],
-      tool_kind: 'data_query',
+      tool_kind: 'query_records',
     });
   });
 
@@ -706,7 +706,7 @@ describe('useAIChat interrupted stream recovery', () => {
             pending_consent: {
               arguments: { question: '统计今天调用情况' },
               skill_name: '平台数据管理',
-              tool_name: 'data_query',
+              tool_name: 'query_records',
             },
           },
           role: 'assistant',
@@ -716,7 +716,7 @@ describe('useAIChat interrupted stream recovery', () => {
               duration_ms: 120,
               function: {
                 arguments: '{"question":"统计今天调用情况"}',
-                name: 'data_query',
+                name: 'query_records',
               },
               id: 'tc_history_1',
               pending_confirmation: {
@@ -731,7 +731,7 @@ describe('useAIChat interrupted stream recovery', () => {
               summary_payload: {
                 filters: ['today'],
                 tables: ['ai_call_logs'],
-                tool_kind: 'data_query',
+                tool_kind: 'query_records',
               },
             },
           ],
@@ -746,12 +746,12 @@ describe('useAIChat interrupted stream recovery', () => {
             tool_summary_payload: {
               filters: ['today'],
               tables: ['ai_call_logs'],
-              tool_kind: 'data_query',
+              tool_kind: 'query_records',
             },
           },
           role: 'tool',
           tool_call_id: 'tc_history_1',
-          tool_name: 'data_query',
+          tool_name: 'query_records',
         },
       ],
     });
@@ -772,10 +772,10 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(assistantMessage?.toolCalls?.[0]?.summaryPayload).toEqual({
       filters: ['today'],
       tables: ['ai_call_logs'],
-      tool_kind: 'data_query',
+      tool_kind: 'query_records',
     });
     expect(assistantMessage?.pendingConfirmation?.table).toBe('ai_call_logs');
-    expect(assistantMessage?.pendingConsent?.toolName).toBe('data_query');
+    expect(assistantMessage?.pendingConsent?.toolName).toBe('query_records');
     expect(assistantMessage?.actionButtons?.[0]?.label).toBe('查看明细');
   });
 
@@ -976,7 +976,7 @@ describe('useAIChat interrupted stream recovery', () => {
         role: 'assistant',
         content: '需要授权',
         pendingConsent: {
-          toolName: 'data_query',
+          toolName: 'query_records',
         },
       },
       {
@@ -1011,7 +1011,7 @@ describe('useAIChat interrupted stream recovery', () => {
       {
         kind: 'pending_consent',
         rejected: false,
-        tool_name: 'data_query',
+        tool_name: 'query_records',
       },
     ]);
     expect(consentBody?.interaction_mode).toBe('trusted_auto');

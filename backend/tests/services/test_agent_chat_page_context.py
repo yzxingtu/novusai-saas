@@ -1057,10 +1057,10 @@ class TestToolOptimizerProtectedTools:
         tools = [
             ToolDefinition(name="get_page_context", description="Read page context"),
             ToolDefinition(name="invoke_page_operation", description="Page operations"),
-            ToolDefinition(name="data_query", description="Query data"),
-            ToolDefinition(name="data_create", description="Create data"),
-            ToolDefinition(name="data_update", description="Update data"),
-            ToolDefinition(name="data_delete", description="Delete data"),
+            ToolDefinition(name="query_records", description="Query data"),
+            ToolDefinition(name="create_records", description="Create data"),
+            ToolDefinition(name="update_records", description="Update data"),
+            ToolDefinition(name="delete_records", description="Delete data"),
             ToolDefinition(name="web_search", description="Web search"),
             ToolDefinition(name="fetch_url", description="Fetch url"),
             ToolDefinition(name="get_current_weather", description="Current weather"),
@@ -1083,10 +1083,10 @@ class TestToolOptimizerProtectedTools:
         tools = [
             ToolDefinition(name="get_page_context", description="Read page context"),
             ToolDefinition(name="invoke_page_operation", description="Page operations"),
-            ToolDefinition(name="data_query", description="Query data"),
-            ToolDefinition(name="data_create", description="Create data"),
-            ToolDefinition(name="data_update", description="Update data"),
-            ToolDefinition(name="data_delete", description="Delete data"),
+            ToolDefinition(name="query_records", description="Query data"),
+            ToolDefinition(name="create_records", description="Create data"),
+            ToolDefinition(name="update_records", description="Update data"),
+            ToolDefinition(name="delete_records", description="Delete data"),
             ToolDefinition(name="web_search", description="Search the web"),
             ToolDefinition(name="fetch_url", description="Fetch a web page"),
             ToolDefinition(name="tool_a", description="Misc"),
@@ -1109,10 +1109,10 @@ class TestToolOptimizerProtectedTools:
         tools = [
             ToolDefinition(name="get_page_context", description="Read page context"),
             ToolDefinition(name="invoke_page_operation", description="Page operations"),
-            ToolDefinition(name="data_query", description="Query data"),
-            ToolDefinition(name="data_create", description="Create data"),
-            ToolDefinition(name="data_update", description="Update data"),
-            ToolDefinition(name="data_delete", description="Delete data"),
+            ToolDefinition(name="query_records", description="Query data"),
+            ToolDefinition(name="create_records", description="Create data"),
+            ToolDefinition(name="update_records", description="Update data"),
+            ToolDefinition(name="delete_records", description="Delete data"),
             ToolDefinition(
                 name="web_search", description="Web search latest internet pages"
             ),
@@ -1141,7 +1141,7 @@ class TestToolOptimizerProtectedTools:
         tools = [
             ToolDefinition(name="get_page_context", description="Read page context"),
             ToolDefinition(name="invoke_page_operation", description="Page operations"),
-            ToolDefinition(name="data_query", description="Query data"),
+            ToolDefinition(name="query_records", description="Query data"),
             ToolDefinition(name="web_search", description="Search the web"),
             ToolDefinition(name="fetch_url", description="Fetch a webpage"),
             ToolDefinition(
@@ -1165,7 +1165,7 @@ class TestToolOptimizerProtectedTools:
             tool.name
             for tool in result.tools
             if tool.name
-            not in {"get_page_context", "invoke_page_operation", "data_query"}
+            not in {"get_page_context", "invoke_page_operation", "query_records"}
         ]
         assert set(non_protected[:2]) == {
             "get_current_weather",
@@ -1179,7 +1179,7 @@ class TestToolOptimizerProtectedTools:
         tools = [
             ToolDefinition(name="get_page_context", description="Read page context"),
             ToolDefinition(name="invoke_page_operation", description="Page operations"),
-            ToolDefinition(name="data_query", description="Query data"),
+            ToolDefinition(name="query_records", description="Query data"),
             ToolDefinition(name="web_search", description="Search the web"),
             ToolDefinition(name="fetch_url", description="Fetch a webpage"),
         ]
@@ -1192,7 +1192,7 @@ class TestToolOptimizerProtectedTools:
         )
 
         ordered = [tool.name for tool in result.tools]
-        assert ordered.index("web_search") < ordered.index("data_query")
+        assert ordered.index("web_search") < ordered.index("query_records")
 
     def test_time_query_prefers_current_time_tool(self):
         """时间问题应优先保留 get_current_time，而不是联网搜索。"""
@@ -1204,7 +1204,7 @@ class TestToolOptimizerProtectedTools:
             ToolDefinition(name="web_search", description="Search the web"),
             ToolDefinition(name="fetch_url", description="Fetch a webpage"),
             ToolDefinition(name="get_current_time", description="Get current time"),
-            ToolDefinition(name="data_query", description="Query data"),
+            ToolDefinition(name="query_records", description="Query data"),
             ToolDefinition(name="tool_a", description="Misc tool"),
             ToolDefinition(name="tool_b", description="Misc tool"),
         ]

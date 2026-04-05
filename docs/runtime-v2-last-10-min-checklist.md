@@ -243,3 +243,4 @@ Select-String -Path 'logs\app.log' -Pattern 'runtime_v2|shadow compare|runtime_v
 判定标准：
 - runtime-v2 相关日志快速下降
 - 新流量恢复 legacy 行为
+> **历史说明（2026-04）**：本文仍包含已退役的 `data_query` 示例，当前 runtime 已不再生成这类工具；以下内容仅作历史检查清单留档。

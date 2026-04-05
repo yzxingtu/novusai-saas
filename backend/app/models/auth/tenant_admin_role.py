@@ -47,11 +47,6 @@ class TenantAdminRole(TenantModel):
 
     __tablename__ = "tenant_admin_roles"
 
-    __ai_policy__ = {
-        "label": "企业管理角色",
-        "keywords": ["角色", "role"],
-        "allow_read": True,
-    }
 
     __delete_deps__ = [
         DeletionDep(

@@ -25,11 +25,6 @@ class TenantQuota(TenantModel):
 
     __tablename__ = "tenant_quotas"
 
-    __ai_policy__ = {
-        "label": "企业配额",
-        "keywords": ["配额", "quota"],
-        "allow_read": True,
-    }
 
     # 允许前端筛选的字段 / Fields exposed for list filtering
     __filterable__ = {

@@ -99,8 +99,8 @@ def test_uninstall_plugin_dependencies_response_omits_forced_field(
     )
 
 
-def test_ai_services_package_no_longer_exports_table_policy_override_service() -> None:
+def test_ai_services_package_no_longer_exports_table_policy_services() -> None:
     import app.services.ai as ai_services
 
-    assert hasattr(ai_services, "AITablePolicyService")
+    assert not hasattr(ai_services, "AITablePolicyService")
     assert not hasattr(ai_services, "AITablePolicyOverrideService")

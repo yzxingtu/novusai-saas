@@ -46,10 +46,7 @@ import type {
   DependencyGroup,
 } from '#/components/business/dependency-block-modal/service';
 import type { VbenFormSchema } from '#/core/adapter/form/setup';
-import type {
-  PageAICapabilityKey,
-  TablePolicySupportConfig,
-} from '#/utils/ai-page-capabilities';
+import type { PageAICapabilityKey } from '#/utils/ai-page-capabilities';
 
 import {
   computed,
@@ -78,7 +75,6 @@ import {
   showDependencyPreviewModal,
 } from '#/components/business/dependency-block-modal/service';
 import { $t, $te } from '#/locales';
-import { buildTablePolicySupportData } from '#/utils/ai-page-capabilities';
 import {
   getErrorData,
   getErrorStatus,
@@ -309,10 +305,6 @@ export interface CrudListAiOptions {
    * 使用此选项替代手动 registerPageContext()，避免 key 冲突。
    */
   contextExtras?: () => Record<string, unknown>;
-  /**
-   * Table policy runtime capability block / 表策略运行时能力块
-   */
-  tablePolicy?: TablePolicySupportConfig;
 }
 
 /** useCrudList return value / useCrudList 返回值 */
@@ -724,9 +716,6 @@ export function useCrudList<T extends object = Record<string, unknown>>(
       const activeFilters = compactCrudContextValues(
         processFormValues(searchParams.value),
       );
-      const tablePolicySupport = buildTablePolicySupportData(
-        aiConfig.tablePolicy,
-      );
 
       return {
         page_key: pageKey,
@@ -748,9 +737,6 @@ export function useCrudList<T extends object = Record<string, unknown>>(
             ? { active_filters: activeFilters }
             : {}),
           ...(listSummary ? { list_summary: listSummary } : {}),
-          ...(tablePolicySupport
-            ? { table_policy_support: tablePolicySupport }
-            : {}),
           ...(contextExtras ? contextExtras() : {}),
         },
       };

@@ -1133,8 +1133,6 @@
       "inputDescription": "请输入描述"
     },
     "tenantId": "所属企业",
-    "tablePolicyFilterHint": "筛选使用表策略 {id} 的技能",
-    "clearTablePolicyFilter": "清除筛选",
     "sourcePlugin": "插件",
     "uploadZip": "上传技能包",
     "uploadDragText": "点击或拖拽 ZIP 文件到此处上传",
@@ -1262,7 +1260,7 @@
   },
   "skill": {
     "title": "技能管理",
-    "pageDesc": "管理全平台技能，支持 HTTP、邮件、代码、知识库、数据智能等多种技能类型。",
+    "pageDesc": "管理全平台技能，支持 HTTP、邮件、代码、知识库等多种技能类型。",
     "system": "系统",
     "name": "技能名称",
     "description": "描述",
@@ -1277,7 +1275,6 @@
     "type_options": {
       "toolkit": "Toolkit 工具包",
       "knowledge_base": "知识库",
-      "data_intelligence": "数据智能",
       "builtin": "内置",
       "http": "HTTP 请求",
       "email": "邮件发送",
@@ -1290,7 +1287,6 @@
     "typeDesc": {
       "toolkit": "Python 工具包：在下方编辑器中编写 Tools 类，每个公开方法自动注册为 LLM 可调用的工具。支持 Valves 环境变量配置和 .zip 包上传。\n适用场景：调用第三方 API（天气/搜索/翻译）、自定义业务逻辑、数据转换等。\n提示：方法的 docstring 和 :param 注释会展示给 LLM，请写清楚描述和参数说明。",
       "knowledge_base": "RAG 文档问答：关联一个或多个知识库，对话时自动进行语义检索并将相关文档片段注入上下文。\n适用场景：产品文档问答、内部知识库搜索、合同/政策咨询等。\n提示：可调整检索数量(Top K)和得分阈值来平衡召回率和精确度。",
-      "data_intelligence": "数据智能：通过 Text-to-SQL 让智能体用自然语言查询数据库，支持查询、创建、更新、删除操作。\n适用场景：业务数据统计、报表查询、数据录入辅助等。\n提示：在下方选择可访问的表策略，CRUD 权限由表策略的 allow_create/update/delete 控制。",
       "builtin": "内置工具：系统预定义的基础能力，如网页搜索、图片生成等。创建后可查看工具列表。\n提示：内置工具由平台维护，配置项不可编辑。",
       "http": "HTTP 请求：声明式集成外部 REST API。只需填写 URL、请求方法和参数模板，无需编码即可让智能体调用。\n适用场景：调用企业内部 API、集成 SaaS 服务（CRM/ERP）、Webhook 触发等。\n提示：URL 支持 {variable} 模板语法；Headers 中可配置认证信息。",
       "email": "邮件发送：让智能体在对话中代用户发送邮件。基于平台 SMTP 配置，支持域名白名单和收件人限制。\n适用场景：客服自动回复、会议邀请、通知发送等。\n提示：需先在系统设置中配置 SMTP 服务器。",
@@ -1411,22 +1407,6 @@
       "allowedModulesHelp": "允许代码中 import 的 Python 模块白名单",
       "sandboxHint": "代码在安全沙箱中执行，禁止文件操作、网络请求和系统调用"
     },
-    "dataIntelligenceConfig": {
-      "title": "数据智能配置",
-      "tablePolicies": "表策略",
-      "tablePoliciesPlaceholder": "请选择可访问的表策略",
-      "tablePoliciesHelp": "选择此技能可操作的表。仅显示声明了 __ai_policy__ 的表，未声明的表不会出现在此列表中。留空则使用所有可用策略。",
-      "maxRowsOverride": "最大返回行数",
-      "maxRowsOverrideHelp": "覆盖默认查询返回行数限制，0 表示使用默认值",
-      "systemHint": "此为系统全局共享技能，自动使用所有已配置的表策略，无需手动选择。",
-      "toolListTitle": "可用工具",
-      "tools": {
-        "dataQuery": "自然语言查询数据库，自动生成安全 SQL 并返回结果",
-        "dataCreate": "向指定表中插入新记录",
-        "dataUpdate": "更新指定表中的已有记录",
-        "dataDelete": "删除指定表中的记录"
-      }
-    },
     "placeholder": {
       "searchName": "搜索技能名称",
       "allTypes": "全部类型",
@@ -1443,7 +1423,7 @@
     },
     "createGuide": "技能是智能体的能力单元，属于某个技能包。选择类型后按提示配置对应参数，创建完成后绑定到智能体即可使用。",
     "help": {
-      "type": "Toolkit: Python 工具；知识库: RAG 问答；数据智能: 数据库查询；HTTP: 外部 API；邮件: 发送邮件；代码执行: 沙箱运行代码",
+      "type": "Toolkit: Python 工具；知识库: RAG 问答；HTTP: 外部 API；邮件: 发送邮件；代码执行: 沙箱运行代码",
       "scope": "平台技能全局可用，企业技能仅限所属企业",
       "config": "技能运行时的配置信息",
       "inputSchema": "定义技能接收的参数结构",
@@ -1465,57 +1445,6 @@
       "importResult": "导入完成：新增 {created} 个，跳过 {skipped} 个",
       "importFailed": "技能导入失败",
       "importInvalid": "文件格式无效，请上传正确的 JSON 文件"
-    }
-  },
-  "tablePolicy": {
-    "name": "表策略",
-    "title": "AI 表策略管理",
-    "create": "新建表策略",
-    "pageDesc": "管理 AI 可访问的数据库表及其权限。配置完成后，在技能包中创建「数据智能」类型的技能并关联这些表策略，再将技能包绑定到智能体，AI 对话即可使用数据查询能力。仅对声明了 __ai_policy__ 的表生效。",
-    "tableName": "表名",
-    "label": "显示名称",
-    "description": "描述",
-    "keywords": "关键词/别名",
-    "columnDescriptions": "列描述",
-    "allowRead": "允许查询",
-    "allowCreate": "允许创建",
-    "allowUpdate": "允许更新",
-    "allowDelete": "允许删除",
-    "maxRows": "最大行数",
-    "blockedColumns": "屏蔽列",
-    "readonlyColumns": "只读列",
-    "permissionCode": "权限码",
-    "sortOrder": "排序",
-    "isActive": "启用状态",
-    "crud": "CRUD 权限",
-    "sync": "同步表",
-    "syncSuccess": "已同步 {synced} 条表策略",
-    "syncConfirm": "确认从代码声明同步表策略？将先删除全部旧记录，再从 __ai_policy__ 声明重建，管理员对 max_rows、column_descriptions 等的自定义会保留。",
-    "keywordsHelp": "AI 匹配表时的别名和关键词，例如：客户、顾客、customer",
-    "placeholder": {
-      "searchTableName": "搜索表名",
-      "searchLabel": "搜索显示名称",
-      "inputLabel": "请输入显示名称",
-      "inputDescription": "请输入表描述",
-      "inputKeywords": "输入关键词，按回车添加",
-      "inputColumnDesc": "输入列的中文描述，帮助 AI 理解字段含义",
-      "inputMaxRows": "请输入最大行数",
-      "inputPermissionCode": "请输入权限码",
-      "selectBlockedColumns": "选择要屏蔽的列",
-      "selectReadonlyColumns": "选择只读列"
-    },
-    "columnDescHelp": "为每列添加中文描述，AI 将据此理解字段含义和用途",
-    "expandBlockedColumns": "屏蔽列",
-    "expandReadonlyColumns": "只读列",
-    "expandDescribedColumns": "已配置描述",
-    "expandDescribedList": "查看 {count} 个列描述",
-    "expandNoData": "无",
-    "notDeclaredWarning": "此表的 Model 未声明 __ai_policy__，可能是历史遗留策略。建议在 Model 代码中添加声明或删除此策略。",
-    "messages": {
-      "deleteSuccess": "表策略已删除",
-      "toggleStatusTitle": "切换状态",
-      "toggleStatusConfirm": "确认{action} {name} 吗？",
-      "columnLoadFailed": "列信息加载失败"
     }
   },
   "agentAssignment": {

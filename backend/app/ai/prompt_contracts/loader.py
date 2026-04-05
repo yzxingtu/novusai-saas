@@ -47,8 +47,7 @@ class PromptContractName(StrEnum):
     PAGE_OPERATIONS_DEDICATED = "page_operations_dedicated"
     PAGE_OPERATIONS_FALLBACK = "page_operations_fallback"
 
-    # --- Domain capability blocks (data / web / weather / time) / 领域能力块 ---
-    DATA_OPERATIONS = "data_operations"
+    # --- Domain capability blocks (web / weather / time) / 领域能力块 ---
     WEB_RESEARCH = "web_research"
     WEATHER_TOOLS = "weather_tools"
     TIME_TOOLS = "time_tools"
@@ -90,16 +89,6 @@ class PromptContractName(StrEnum):
     # --- Memory extraction & agent router / 记忆抽取与智能体路由 ---
     MEMORY_EXTRACTION = "memory_extraction"
     AGENT_ROUTER_SELECTION = "agent_router_selection"
-
-    # --- Data CRUD tool descriptions (model-facing) / 数据增删改查工具说明（面向模型）---
-    DATA_QUERY_TOOL_DESCRIPTION = "data_query_tool_description"
-    DATA_CREATE_TOOL_DESCRIPTION = "data_create_tool_description"
-    DATA_UPDATE_TOOL_DESCRIPTION = "data_update_tool_description"
-    DATA_DELETE_TOOL_DESCRIPTION = "data_delete_tool_description"
-
-    # --- Text-to-SQL / 文本转 SQL ---
-    TEXT_TO_SQL_SYSTEM = "text_to_sql_system"
-    TEXT_TO_SQL_RETRY = "text_to_sql_retry"
 
     # --- Capability summary fragments (builder) / 能力摘要片段（构建器用）---
     CAPABILITIES_BLOCK = "capabilities_block"
@@ -198,12 +187,7 @@ _PROMPT_CONTRACTS: dict[str, PromptContractSpec] = {
         template_name="page_operations_fallback.md",
         description="Fallback page operations guidance block.",
     ),
-    # --- Domain capability blocks (data / web / weather / time) / 领域能力块 ---
-    PromptContractName.DATA_OPERATIONS.value: PromptContractSpec(
-        name=PromptContractName.DATA_OPERATIONS,
-        template_name="data_operations.md",
-        description="Data operations guidance block.",
-    ),
+    # --- Domain capability blocks (web / weather / time) / 领域能力块 ---
     PromptContractName.WEB_RESEARCH.value: PromptContractSpec(
         name=PromptContractName.WEB_RESEARCH,
         template_name="web_research.md",
@@ -354,38 +338,6 @@ _PROMPT_CONTRACTS: dict[str, PromptContractSpec] = {
         name=PromptContractName.AGENT_ROUTER_SELECTION,
         template_name="agent_router_selection.md",
         description="Prompt for selecting the best router agent candidate.",
-    ),
-    # --- Data CRUD tool descriptions / 数据 CRUD 工具说明 ---
-    PromptContractName.DATA_QUERY_TOOL_DESCRIPTION.value: PromptContractSpec(
-        name=PromptContractName.DATA_QUERY_TOOL_DESCRIPTION,
-        template_name="data_query_tool_description.md",
-        description="Model-facing description for the data_query tool.",
-    ),
-    PromptContractName.DATA_CREATE_TOOL_DESCRIPTION.value: PromptContractSpec(
-        name=PromptContractName.DATA_CREATE_TOOL_DESCRIPTION,
-        template_name="data_create_tool_description.md",
-        description="Model-facing description for the data_create tool.",
-    ),
-    PromptContractName.DATA_UPDATE_TOOL_DESCRIPTION.value: PromptContractSpec(
-        name=PromptContractName.DATA_UPDATE_TOOL_DESCRIPTION,
-        template_name="data_update_tool_description.md",
-        description="Model-facing description for the data_update tool.",
-    ),
-    PromptContractName.DATA_DELETE_TOOL_DESCRIPTION.value: PromptContractSpec(
-        name=PromptContractName.DATA_DELETE_TOOL_DESCRIPTION,
-        template_name="data_delete_tool_description.md",
-        description="Model-facing description for the data_delete tool.",
-    ),
-    # --- Text-to-SQL / 文本转 SQL ---
-    PromptContractName.TEXT_TO_SQL_SYSTEM.value: PromptContractSpec(
-        name=PromptContractName.TEXT_TO_SQL_SYSTEM,
-        template_name="text_to_sql_system.md",
-        description="System prompt for text-to-SQL generation.",
-    ),
-    PromptContractName.TEXT_TO_SQL_RETRY.value: PromptContractSpec(
-        name=PromptContractName.TEXT_TO_SQL_RETRY,
-        template_name="text_to_sql_retry.md",
-        description="Retry prompt for text-to-SQL safety corrections.",
     ),
     # --- Capability summary fragments (builder) / 能力摘要片段 ---
     PromptContractName.CAPABILITIES_BLOCK.value: PromptContractSpec(

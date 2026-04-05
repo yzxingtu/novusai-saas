@@ -139,3 +139,4 @@ max_capability_items_per_category = 20      # 防止 prompt 过长
 - [完整方案设计](./llm-dynamic-capability-awareness-solution.md)
 - [集成示例代码](./capability-awareness-integration-example.py)
 - [实施检查清单](./capability-awareness-implementation-checklist.md)
+> **历史说明（2026-04）**：本概览中的 `data_query` 示例基于已退役能力，仅保留为历史参考。

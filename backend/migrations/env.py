@@ -82,8 +82,6 @@ from app.models import (
     AIActionLog,
     ExecutionDecision,
     ExecutionTrustPolicy,
-    AITablePolicy,
-    AITablePolicyOverride,
     # 技能包 & 技能
     Capability,
     SkillPackage,

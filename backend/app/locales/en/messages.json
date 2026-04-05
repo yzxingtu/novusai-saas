@@ -936,6 +936,7 @@
     "error": {
       "not_found": "Knowledge base not found",
       "name_exists": "Knowledge base name already exists",
+      "binding_required": "At least one tenant must be assigned for selected-tenant knowledge base scopes",
       "quota_exceeded": "Knowledge base limit reached",
       "storage_exceeded": "Knowledge base storage limit reached",
       "document_limit_exceeded": "Document limit reached",
@@ -1338,11 +1339,6 @@
       "embedding": "AI Embedding",
       "test": "Test AI Call"
     },
-    "ai_table_policy_override": {
-      "read": "View Data Access Policy Override",
-      "update": "Update Data Access Policy Override",
-      "delete": "Delete Data Access Policy Override"
-    },
     "ai_tenant_call_log": {
       "list": "View AI Call Log List",
       "detail": "View AI Call Log Detail"
@@ -1490,13 +1486,6 @@
       "delete": "Delete Provider",
       "toggle_status": "Enable/Disable Provider",
       "recycle_bin": "Recycle Bin"
-    },
-    "ai_table_policy": {
-      "list": "View Data Access Policy List",
-      "detail": "View Data Access Policy Detail",
-      "update": "Update Data Access Policy",
-      "columns": "View Table Column Info",
-      "sync": "Sync Data Access Policies"
     },
     "ai_usage": {
       "tenant_summary": "View Tenant Usage Summary",
@@ -1881,10 +1870,6 @@
       "tool_type": {
         "toolkit": "Toolkit",
         "builtin": "Built-in",
-        "text_to_sql": "Text-to-SQL Query",
-        "data_create": "Data Create",
-        "data_update": "Data Update",
-        "data_delete": "Data Delete",
         "http": "HTTP Request",
         "email": "Email Send",
         "code_execution": "Code Execution"
@@ -2007,7 +1992,6 @@
     "skill": {
       "type": {
         "knowledge_base": "Knowledge Base",
-        "data_intelligence": "Data Intelligence",
         "toolkit": "Toolkit",
         "builtin": "Built-in",
         "http": "HTTP Request",
@@ -3086,82 +3070,6 @@
       "consent_rejected": "Tool execution blocked by consent policy"
     }
   },
-  "data_intelligence": {
-    "sql": {
-      "empty": "SQL statement is empty",
-      "select_only": "Only SELECT queries are allowed",
-      "dangerous_keyword": "Dangerous keyword blocked: {keyword}",
-      "write_in_subquery": "Write operations detected in SQL",
-      "table_not_allowed": "Table not allowed: {table}",
-      "blocked_function": "Blocked function: {func}",
-      "no_line_comment": "Line comments (--) not allowed in SQL",
-      "no_block_comment": "Block comments (/**/) not allowed in SQL",
-      "system_table_blocked": "Access to system tables is blocked"
-    },
-    "isolation": {
-      "no_table_ref": "No table references found, cannot inject tenant isolation",
-      "unknown_table": "Unknown table: {table}",
-      "no_tenant_column": "Table {table} has no tenant isolation column"
-    },
-    "executor": {
-      "readonly_not_configured": "Readonly database not configured, set AI_READONLY_DB_URL",
-      "missing_question": "Missing query question",
-      "missing_tenant": "Missing tenant information",
-      "execution_error": "Data query execution failed, please try again later",
-      "no_accessible_tables": "No accessible tables for current permissions, please contact administrator"
-    },
-    "generator": {
-      "no_relevant_tables": "No relevant tables found for your question",
-      "validation_failed": "SQL generation failed, unable to generate a safe query",
-      "generation_error": "SQL generation error, please try rephrasing your question",
-      "empty_response": "AI returned no valid content",
-      "parse_error": "Unable to parse AI response",
-      "cannot_generate": "Cannot generate a query for this question"
-    },
-    "formatter": {
-      "no_data": "Query returned no data",
-      "number_summary": "The result for {label} is {value}",
-      "row_count": "Returned {count} rows",
-      "truncated": "(Results truncated, showing first 200 rows)",
-      "masked": "Columns {columns} have been masked for privacy"
-    },
-    "action": {
-      "not_found": "Action '{name}' not found",
-      "permission_denied": "Permission denied for this action",
-      "rate_exceeded": "Action rate limit exceeded, please try again later",
-      "confirm_expired": "Confirmation expired or invalid, please try again",
-      "execution_error": "Action execution failed, please try again later",
-      "no_service_configured": "No service method configured for this action",
-      "dangerous_guidance": "This is a high-risk operation that cannot be executed via AI. Please follow the steps below in the admin panel",
-      "dangerous_reason": "High-risk operations require manual confirmation in the admin panel to ensure data safety",
-      "step_login": "Log in to the admin panel",
-      "step_navigate": "Navigate to the corresponding feature page",
-      "step_execute": "Manually execute and confirm the operation",
-      "default_confirm": "Are you sure you want to execute '{action}'?",
-      "confirm_create_role": "Are you sure you want to create role '{name}'?",
-      "confirm_update_user_status": "Are you sure you want to change user {user_id} status to {status}?"
-    },
-    "crud": {
-      "no_context": "Missing execution context (database session not injected)",
-      "table_not_found": "Table '{table}' does not exist or has no active AI access policy",
-      "operation_denied": "Table '{table}' does not allow {operation} operations",
-      "record_not_found": "Record ID={id} not found in table '{table}'",
-      "blocked_columns_violation": "The following columns cannot be written: {columns}",
-      "permission_denied": "Permission denied: cannot {action} on table '{table}'",
-      "cross_tenant_denied": "Cross-tenant data access is not allowed",
-      "invalid_table_name": "Table name '{table}' contains invalid characters, only lowercase letters, digits and underscores are allowed",
-      "invalid_column_names": "The following column names contain invalid characters: {columns}, only lowercase letters, digits and underscores are allowed",
-      "missing_required_fields": "Missing required fields for table '{table}': {columns}. Please provide values for these fields.",
-      "json_parse_guidance": " Do NOT fall back to invoke_page_operation. Fix the JSON: ensure all newlines in string values are escaped as \\n. ",
-      "json_parse_guidance_tip": "TIP: Simplify long text fields (e.g. system_prompt) — use a short placeholder, create the record first, then update with the full text.",
-      "no_retry_hint": " Do NOT retry this operation on this or other tables. Tell the user this table does not allow {operation} operations.",
-      "soft_delete_warning": "This will soft-delete the record (set is_deleted=true).",
-      "no_tenant_isolation": "Table '{table}' has no tenant isolation column and cannot be accessed by tenant users",
-      "agent_invalid_scope": "Invalid agents scope '{scope}'. Valid values: {valid}",
-      "rejected_legacy_field": "Field '{field}' is no longer accepted. Remove it from the request."
-    },
-    "identity_declaration": "Your name is {agent_name}. Never reveal or claim to be any other AI model."
-  },
   "ai_action_log": {
     "not_found": "AI action log not found"
   },
@@ -3182,41 +3090,6 @@
       "error_message": "Error Message",
       "duration_ms": "Duration (ms)",
       "confidence": "Confidence"
-    }
-  },
-  "ai_table_policy": {
-    "not_found": "AI table policy not found",
-    "field": {
-      "table_name": "Table Name",
-      "label": "Display Name",
-      "description": "Description",
-      "keywords": "Keywords / Aliases",
-      "column_descriptions": "Column Descriptions",
-      "allow_read": "Allow Read",
-      "allow_create": "Allow Create",
-      "allow_update": "Allow Update",
-      "allow_delete": "Allow Delete",
-      "max_rows": "Max Rows Per Query",
-      "blocked_columns": "Blocked Columns",
-      "readonly_columns": "Read-only Columns",
-      "scope": "Scope",
-      "permission_code": "Permission Code",
-      "sort_order": "Sort Order",
-      "is_active": "Active"
-    }
-  },
-  "ai_table_policy_override": {
-    "not_found": "AI table policy override not found",
-    "cannot_expand": "Tenant can only restrict policies, not exceed global settings",
-    "field": {
-      "policy_id": "Policy ID",
-      "allow_read": "Override Read Permission",
-      "allow_create": "Override Create Permission",
-      "allow_update": "Override Update Permission",
-      "allow_delete": "Override Delete Permission",
-      "max_rows": "Override Max Rows",
-      "blocked_columns": "Additional Blocked Columns",
-      "is_active": "Override Active Status"
     }
   },
   "system_agent_assignment": {
@@ -3272,8 +3145,6 @@
       "skill": "Skill",
       "knowledge_base": "Knowledge Base",
       "knowledge_document": "Knowledge Document",
-      "table_policy": "Table Policy",
-      "table_policy_override": "Table Policy Override",
       "tenant_quota": "Tenant Quota",
       "tenant_rate_limit": "Rate Limit",
       "admin_role": "Admin Role",

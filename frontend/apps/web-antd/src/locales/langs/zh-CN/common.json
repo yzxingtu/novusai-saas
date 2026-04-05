@@ -643,8 +643,6 @@
       "knowledge_base_audio": "知识库（音频模型）",
       "knowledge_base_video": "知识库（视频模型）",
       "knowledge_document": "知识库文档",
-      "table_policy": "表策略",
-      "table_policy_override": "表策略覆盖",
       "tenant_quota": "企业配额",
       "tenant_rate_limit": "速率限制",
       "admin_role": "管理员角色",

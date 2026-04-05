@@ -44,7 +44,7 @@ def _build_skill_result() -> SkillResolveResult:
         tools=[
             ToolDefinition(name="web_search", description="Search the web"),
             ToolDefinition(name="fetch_url", description="Fetch a webpage"),
-            ToolDefinition(name="data_query", description="Query platform data"),
+            ToolDefinition(name="query_records", description="Query platform data"),
         ]
     )
 
@@ -648,10 +648,10 @@ async def test_prepare_execution_keeps_weather_tools_for_mixed_weather_and_healt
             ToolDefinition(name="invoke_page_operation", description="Operate page"),
             ToolDefinition(name="get_current_weather", description="Get current weather"),
             ToolDefinition(name="get_weather_forecast", description="Get weather forecast"),
-            ToolDefinition(name="data_query", description="Query platform data"),
-            ToolDefinition(name="data_create", description="Create data"),
-            ToolDefinition(name="data_update", description="Update data"),
-            ToolDefinition(name="data_delete", description="Delete data"),
+            ToolDefinition(name="query_records", description="Query platform data"),
+            ToolDefinition(name="create_records", description="Create data"),
+            ToolDefinition(name="update_records", description="Update data"),
+            ToolDefinition(name="delete_records", description="Delete data"),
         ]
     )
 
@@ -701,10 +701,10 @@ async def test_prepare_execution_allows_page_and_weather_tools_for_mixed_request
             ToolDefinition(name="invoke_page_operation", description="Operate page"),
             ToolDefinition(name="get_current_weather", description="Get current weather"),
             ToolDefinition(name="get_weather_forecast", description="Get weather forecast"),
-            ToolDefinition(name="data_query", description="Query platform data"),
-            ToolDefinition(name="data_create", description="Create data"),
-            ToolDefinition(name="data_update", description="Update data"),
-            ToolDefinition(name="data_delete", description="Delete data"),
+            ToolDefinition(name="query_records", description="Query platform data"),
+            ToolDefinition(name="create_records", description="Create data"),
+            ToolDefinition(name="update_records", description="Update data"),
+            ToolDefinition(name="delete_records", description="Delete data"),
         ]
     )
 
@@ -762,10 +762,10 @@ async def test_prepare_execution_allows_page_and_weather_tools_for_mixed_request
             ToolDefinition(name="invoke_page_operation", description="Operate page"),
             ToolDefinition(name="get_current_weather", description="Get current weather"),
             ToolDefinition(name="get_weather_forecast", description="Get weather forecast"),
-            ToolDefinition(name="data_query", description="Query platform data"),
-            ToolDefinition(name="data_create", description="Create data"),
-            ToolDefinition(name="data_update", description="Update data"),
-            ToolDefinition(name="data_delete", description="Delete data"),
+            ToolDefinition(name="query_records", description="Query platform data"),
+            ToolDefinition(name="create_records", description="Create data"),
+            ToolDefinition(name="update_records", description="Update data"),
+            ToolDefinition(name="delete_records", description="Delete data"),
         ]
     )
 
@@ -821,7 +821,7 @@ async def test_prepare_execution_restores_secondary_family_when_optimizer_drops_
             ToolDefinition(name="invoke_page_operation", description="Operate page"),
             ToolDefinition(name="get_current_weather", description="Get current weather"),
             ToolDefinition(name="get_weather_forecast", description="Get weather forecast"),
-            ToolDefinition(name="data_query", description="Query platform data"),
+            ToolDefinition(name="query_records", description="Query platform data"),
         ]
     )
 
@@ -903,10 +903,10 @@ async def test_prepare_execution_prefers_web_research_on_first_turn_even_with_pa
             ToolDefinition(name="fetch_url", description="Fetch a webpage"),
             ToolDefinition(name="get_page_context", description="Read page context"),
             ToolDefinition(name="invoke_page_operation", description="Operate page"),
-            ToolDefinition(name="data_query", description="Query platform data"),
-            ToolDefinition(name="data_create", description="Create data"),
-            ToolDefinition(name="data_update", description="Update data"),
-            ToolDefinition(name="data_delete", description="Delete data"),
+            ToolDefinition(name="query_records", description="Query platform data"),
+            ToolDefinition(name="create_records", description="Create data"),
+            ToolDefinition(name="update_records", description="Update data"),
+            ToolDefinition(name="delete_records", description="Delete data"),
         ]
     )
 
@@ -1150,7 +1150,7 @@ async def test_prepare_execution_prunes_only_old_large_tool_results_from_prompt(
                     {
                         "id": "call_old",
                         "function": {
-                            "name": "data_query",
+                            "name": "query_records",
                             "arguments": '{"sql":"' + ("q" * 1400) + '"}',
                         },
                         "summary_payload": {"preview": "y" * 2048},
@@ -1201,7 +1201,7 @@ async def test_prepare_execution_prunes_only_old_large_tool_results_from_prompt(
 async def test_prepare_execution_keeps_pending_confirmation_tool_rounds_intact() -> None:
     engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
     pending_payload = (
-        '{"requires_confirmation": true, "action": "tool_consent", "tool_name": "data_delete"}'
+        '{"requires_confirmation": true, "action": "tool_consent", "tool_name": "delete_records"}'
     )
     request = ExecutionRequest(
         agent_id=1,
@@ -1216,7 +1216,7 @@ async def test_prepare_execution_keeps_pending_confirmation_tool_rounds_intact()
                     {
                         "id": "call_pending",
                         "function": {
-                            "name": "data_delete",
+                            "name": "delete_records",
                             "arguments": '{"id": 1}',
                         },
                         "pending_confirmation": {"action": "delete", "table": "demo"},
@@ -1273,7 +1273,7 @@ async def test_prepare_execution_keeps_small_tool_payloads_unpruned() -> None:
                     {
                         "id": "call_small",
                         "function": {
-                            "name": "data_query",
+                            "name": "query_records",
                             "arguments": '{"sql":"select * from demo"}',
                         },
                         "summary_payload": {"preview": "small"},
@@ -1655,7 +1655,7 @@ async def test_prepare_execution_keeps_runtime_capability_summary_when_dynamic_a
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_prefers_data_ops_for_combined_data_and_kb_request() -> None:
+async def test_prepare_execution_combined_kb_request_does_not_emit_retired_data_policy() -> None:
     engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
     agent = _build_agent()
     request = ExecutionRequest(
@@ -1687,7 +1687,7 @@ async def test_prepare_execution_prefers_data_ops_for_combined_data_and_kb_reque
         tools=[
             ToolDefinition(name="web_search", description="Search the web"),
             ToolDefinition(name="fetch_url", description="Fetch a webpage"),
-            ToolDefinition(name="data_query", description="Query platform data"),
+            ToolDefinition(name="query_records", description="Query platform data"),
         ]
     )
 
@@ -1721,8 +1721,7 @@ async def test_prepare_execution_prefers_data_ops_for_combined_data_and_kb_reque
             skill_result=skill_result,
         )
 
-    assert prep.tool_use_policy.family == "data_ops"
-    assert prep.tool_use_policy.reason == "intent:data_query"
+    assert prep.tool_use_policy.mode in {"auto", "required"}
     assert "knowledge_base" in prep.diagnostics["context_source_kinds"]
 
 
@@ -1914,11 +1913,11 @@ async def test_prepare_execution_applies_execution_trust_policy_to_ask_tools() -
     skill_result = SkillResolveResult(
         tools=[
             ToolDefinition(name="web_search", description="Search the web"),
-            ToolDefinition(name="data_delete", description="Delete data"),
+            ToolDefinition(name="delete_records", description="Delete data"),
         ],
         tool_consent_modes={
             "web_search": "ask",
-            "data_delete": "ask",
+            "delete_records": "ask",
         },
     )
 
@@ -1936,7 +1935,7 @@ async def test_prepare_execution_applies_execution_trust_policy_to_ask_tools() -
         )
 
     assert prep.tool_consent_modes["web_search"] == "ask"
-    assert prep.tool_consent_modes["data_delete"] == "ask"
+    assert prep.tool_consent_modes["delete_records"] == "ask"
 
 
 @pytest.mark.asyncio

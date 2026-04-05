@@ -560,3 +560,4 @@ enable_dynamic_capability_awareness = False
 - 不修改核心逻辑，只是增强上下文
 - 可通过配置快速回滚
 - 增量实施，逐步验证效果
+> **历史说明（2026-04）**：本文中的 `data_query` / `data_create` / `data_update` 等示例属于已退役的 `data_intelligence` 链路，现仅保留为方案存档。

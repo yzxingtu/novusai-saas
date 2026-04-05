@@ -1,8 +1,8 @@
 """
 AI 操作审计日志模型 / AI Action Audit Log Model
 
-记录 Text-to-SQL 查询和 API 业务操作的审计日志，用于安全追溯、合规审计和操作分析
-Records Text-to-SQL queries and API business operation audit logs for security tracing, compliance and analysis.
+记录 AI 工具调用与业务操作的审计日志，用于安全追溯、合规审计和操作分析。
+Records audit logs for AI tool invocations and business operations for tracing, compliance, and analysis.
 """
 
 from sqlalchemy import JSON, Index, Integer, String, Text
@@ -17,7 +17,7 @@ class AIActionLog(TenantModel):
     """
     AI 操作审计日志 / AI action audit log.
 
-    记录每次 Text-to-SQL 或 API Action 的详细信息，包括：
+    记录每次 AI 工具或 API Action 的详细信息，包括：
     - 操作者（operator_id 关联 tenant_admins）
     - 操作类型和安全等级
     - 请求和响应数据（JSON）
@@ -26,11 +26,6 @@ class AIActionLog(TenantModel):
 
     __tablename__ = "ai_action_logs"
 
-    __ai_policy__ = {
-        "label": "AI 操作日志",
-        "keywords": ["操作", "action"],
-        "allow_read": True,
-    }
 
     # 允许前端筛选的字段 / Fields exposed for list filtering
     __filterable__ = {
@@ -153,7 +148,7 @@ class AIActionLog(TenantModel):
         comment="操作者头像快照 / Operator avatar snapshot",
     )
 
-    # 操作名称（如 text_to_sql、create_order 等）
+    # 操作名称（如 web_search、create_order 等）
     action_name: Mapped[str] = mapped_column(
         String(100),
         nullable=False,

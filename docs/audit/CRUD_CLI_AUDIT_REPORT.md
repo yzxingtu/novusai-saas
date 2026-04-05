@@ -30,7 +30,7 @@
 
 | 模块 | 层级 | 结论 |
 |------|------|------|
-| tenant_user | Model | 正确：TenantModel、`__filterable__`、`__sortable__`、`__selectable__`、`__ai_policy__` |
+| tenant_user | Model | 正确：TenantModel、`__filterable__`、`__sortable__`、`__selectable__`、`__ai_policy__`（已退役） |
 | tenant_user | Repository | 正确：TenantRepository、`_scope_fields`、企业内唯一性校验 |
 | tenant_user | Service | 正确：TenantService、配额检查、BusinessException |
 | tenant_user | Controller | 正确：parent_resource、@action_*、paginated(page_size=query.size) |

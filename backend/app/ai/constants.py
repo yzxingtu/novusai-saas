@@ -23,50 +23,11 @@ def action_rate_key(tenant_id: int, action_name: str) -> str:
 
 
 # ============================================
-# Schema Provider Cache / Schema Provider 缓存
-# ============================================
-
-# Key pattern: ai:schema:{tenant_id}
-# Caches tenant DB schema info for Text-to-SQL
-# 缓存企业的数据库 Schema 信息，供 Text-to-SQL 使用
-SCHEMA_CACHE_KEY_PREFIX = "ai:schema:"
-SCHEMA_CACHE_TTL = 3600  # Schema cache 1 hour / Schema 缓存 1 小时缓存
-
-
-def schema_cache_key(tenant_id: int) -> str:
-    """构建 Schema 缓存 Redis key / Build Schema cache Redis key"""
-    return f"{SCHEMA_CACHE_KEY_PREFIX}{tenant_id}"
-
-
-# ============================================
-# Text-to-SQL Query Result Cache / Text-to-SQL 查询结果缓存
-# ============================================
-
-# Key pattern: ai:sql_result:{tenant_id}:{query_hash}
-# Caches identical query results to avoid re-execution
-# 缓存相同查询的结果，避免重复执行
-SQL_RESULT_CACHE_KEY_PREFIX = "ai:sql_result:"
-SQL_RESULT_CACHE_TTL = 300  # SQL result cache 5 min / SQL 结果缓存 5 分钟缓存
-
-
-def sql_result_cache_key(tenant_id: int, query_hash: str) -> str:
-    """构建 SQL 查询结果缓存 Redis key / Build SQL result cache Redis key"""
-    return f"{SQL_RESULT_CACHE_KEY_PREFIX}{tenant_id}:{query_hash}"
-
-
-# ============================================
 # Default Limits / 默认限制
 # ============================================
 
 # Default action rate limit (per hour) / Action 默认频率限制（每小时）
 DEFAULT_ACTION_RATE_LIMIT = 100
-
-# Text-to-SQL max rows returned / Text-to-SQL 最大返回行数
-TEXT_TO_SQL_MAX_ROWS = 200
-
-# Text-to-SQL query timeout (seconds) / Text-to-SQL 查询超时（秒）
-TEXT_TO_SQL_TIMEOUT = 30
-
 
 # ============================================
 # Session Memory Scenes (Entry Boundary) / 会话记忆场景（入口边界）
@@ -133,18 +94,8 @@ __all__ = [
     "ACTION_RATE_KEY_PREFIX",
     "ACTION_RATE_LIMIT_TTL",
     "action_rate_key",
-    # Schema cache / Schema 缓存
-    "SCHEMA_CACHE_KEY_PREFIX",
-    "SCHEMA_CACHE_TTL",
-    "schema_cache_key",
-    # SQL result cache / SQL 结果缓存
-    "SQL_RESULT_CACHE_KEY_PREFIX",
-    "SQL_RESULT_CACHE_TTL",
-    "sql_result_cache_key",
     # Default limits / 默认限制
     "DEFAULT_ACTION_RATE_LIMIT",
-    "TEXT_TO_SQL_MAX_ROWS",
-    "TEXT_TO_SQL_TIMEOUT",
     # Session memory scenes / 会话记忆场景
     "MEMORY_ENABLED_SCENE",
     "DEFAULT_MEMORY_SCENE",

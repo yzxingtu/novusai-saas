@@ -166,8 +166,6 @@ function getTypeIcon(type: string): string {
     provider_api_key: 'lucide:key',
     skill: 'lucide:wrench',
     skill_package: 'lucide:package',
-    table_policy: 'lucide:table',
-    table_policy_override: 'lucide:table-2',
     tenant: 'lucide:building-2',
     tenant_admin: 'lucide:user',
     tenant_admin_role: 'lucide:shield-check',

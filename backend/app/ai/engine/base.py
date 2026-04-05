@@ -490,20 +490,6 @@ class BaseEngine(ABC):
         )
 
     @staticmethod
-    def _build_data_operations_hint(tools: list[ToolDefinition]) -> str:
-        """
-        Build a DATA OPERATIONS hint when data_* tools are available.
-        当存在 data_* 工具时构建 DATA OPERATIONS 提示。
-        """
-        data_tools = [t.name for t in tools if t.name.startswith("data_")]
-        if not data_tools:
-            return ""
-        return "\n\n" + render_prompt_contract(
-            "data_operations",
-            data_tools=", ".join(data_tools),
-        )
-
-    @staticmethod
     def _intent_completion_signals(
         family: str,
         *,
@@ -681,7 +667,6 @@ class BaseEngine(ABC):
             "page_ops": "page operations",
             "weather": "weather tools",
             "time_ops": "time tools",
-            "data_ops": "data tools",
             "web_research": "web research tools",
         }
         sequence_lines: list[str] = []
@@ -2009,7 +1994,7 @@ class BaseEngine(ABC):
                 reason=f"capability_denial:{current_policy.family}",
             )
 
-        for family in ("web_research", "weather", "time_ops", "data_ops", "page_ops"):
+        for family in ("web_research", "weather", "time_ops", "page_ops"):
             if not cls._response_denies_family_capability(
                 normalized_text=normalized,
                 family=family,
@@ -2123,7 +2108,6 @@ class BaseEngine(ABC):
         counts = {
             "web_research": 0,
             "weather": 0,
-            "data_ops": 0,
             "page_ops": 0,
         }
         for msg in messages:
