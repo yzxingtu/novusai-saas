@@ -11,7 +11,6 @@ import { IconifyIcon } from '@vben/icons';
 import { useUserStore } from '@vben/stores';
 
 import {
-  Avatar,
   Button,
   Card,
   Form,
@@ -28,8 +27,10 @@ import {
   getAdminInfoApi,
   updateAdminProfileApi,
 } from '#/api/admin/auth';
+import { getAdminIdentityDetailApi } from '#/api/admin/users';
+import { IdentityDisplay } from '#/components/business/identity-display';
 import { $t } from '#/locales';
-import { toAttachmentImageUrl, toAvatarDisplayUrl } from '#/utils/image';
+import { toAvatarDisplayUrl } from '#/utils/image';
 
 defineOptions({ name: 'AdminProfile' });
 
@@ -49,12 +50,26 @@ interface ProfileFormState {
   username: string;
 }
 
+interface AdminProfileIdentityState {
+  isActive: boolean;
+  isLeader: boolean;
+  isOwner: boolean;
+  orgNodeName: string;
+}
+
 const form = ref<ProfileFormState>({
   nickname: '',
   email: '',
   phone: '',
   avatar: '',
   username: '',
+});
+const profileId = ref<number | string>('current-admin');
+const identityState = ref<AdminProfileIdentityState>({
+  isActive: true,
+  isLeader: false,
+  isOwner: false,
+  orgNodeName: '',
 });
 
 const passwordForm = ref({
@@ -66,25 +81,84 @@ const passwordForm = ref({
 const displayName = computed(
   () => form.value.nickname || form.value.username || '-',
 );
-const avatarSrc = computed(() => {
-  const val = form.value.avatar || userStore.userInfo?.avatar || '';
-  return toAttachmentImageUrl(val, { preset: 'avatar' });
-});
-const avatarInitial = computed(() =>
-  (displayName.value || '?').charAt(0).toUpperCase(),
+const showUsernameLine = computed(
+  () => Boolean(form.value.username) && displayName.value !== form.value.username,
 );
+const showSupplementaryInfo = computed(
+  () => showUsernameLine.value || Boolean(form.value.email),
+);
+const identityModel = computed(() => ({
+  avatar: form.value.avatar || undefined,
+  id: profileId.value,
+  isActive: identityState.value.isActive,
+  isLeader: identityState.value.isLeader,
+  isOwner: identityState.value.isOwner,
+  nickname: form.value.nickname || undefined,
+  orgNodeName: identityState.value.orgNodeName || undefined,
+  username: form.value.username || undefined,
+}));
+
+function applyIdentityState(detail?: {
+  is_active?: boolean;
+  is_leader?: boolean;
+  is_owner?: boolean;
+  org_node_name?: null | string;
+}) {
+  identityState.value = {
+    isActive: detail?.is_active ?? true,
+    isLeader: Boolean(detail?.is_leader),
+    isOwner: Boolean(detail?.is_owner),
+    orgNodeName: detail?.org_node_name?.trim() || '',
+  };
+}
+
+function syncUserStoreProfile(updates: {
+  avatar?: string;
+  realName?: string;
+}) {
+  if (!userStore.userInfo) {
+    return;
+  }
+  userStore.setUserInfo({
+    ...userStore.userInfo,
+    ...updates,
+  });
+}
+
+function resolveAvatarOverlayClasses() {
+  return avatarUploading.value
+    ? 'bg-black/40'
+    : 'bg-black/0 group-hover:bg-black/40';
+}
+
+function resolveAvatarIconClasses() {
+  return avatarUploading.value
+    ? 'opacity-100'
+    : 'opacity-0 group-hover:opacity-100';
+}
 
 async function loadProfile() {
   loading.value = true;
   try {
     const info = await getAdminInfoApi();
+    profileId.value = info.id;
+    let detail:
+      | Awaited<ReturnType<typeof getAdminIdentityDetailApi>>
+      | undefined;
+    try {
+      detail = await getAdminIdentityDetailApi(Number(info.id));
+    } catch {
+      detail = undefined;
+    }
+
     form.value = {
-      nickname: info.realName || '',
-      email: info.email || '',
-      phone: '',
-      avatar: info.avatar || '',
-      username: info.username || '',
+      nickname: detail?.nickname || info.realName || '',
+      email: detail?.email || info.email || '',
+      phone: detail?.phone || '',
+      avatar: detail?.avatar || info.avatar || '',
+      username: detail?.username || info.username || '',
     };
+    applyIdentityState(detail);
   } catch {
     message.error($t('admin.profile.messages.loadFailed'));
   } finally {
@@ -101,12 +175,9 @@ async function handleSaveBasic() {
       phone: form.value.phone || null,
     });
 
-    if (userStore.userInfo) {
-      userStore.setUserInfo({
-        ...userStore.userInfo,
-        realName: form.value.nickname || form.value.username,
-      });
-    }
+    syncUserStoreProfile({
+      realName: form.value.nickname || form.value.username,
+    });
 
     message.success($t('admin.profile.messages.updateSuccess'));
   } catch {
@@ -155,12 +226,9 @@ async function handleAvatarUpload(file: File) {
 
     await updateAdminProfileApi({ avatar: attachmentId });
 
-    if (userStore.userInfo) {
-      userStore.setUserInfo({
-        ...userStore.userInfo,
-        avatar: toAvatarDisplayUrl(attachmentId),
-      });
-    }
+    syncUserStoreProfile({
+      avatar: toAvatarDisplayUrl(attachmentId),
+    });
 
     message.success($t('admin.profile.messages.avatarUpdated'));
   } catch {
@@ -198,31 +266,54 @@ onMounted(() => {
         <div
           class="via-primary/3 rounded-xl bg-gradient-to-r from-primary/5 to-transparent p-8"
         >
-          <div class="flex items-center gap-8">
-            <!-- Avatar with upload overlay -->
-            <div class="group relative flex-shrink-0">
+          <div class="flex items-start justify-start">
+            <div class="relative w-full">
+              <IdentityDisplay
+                :avatar-size="96"
+                :model="identityModel"
+                :show-role-badge="false"
+                :show-status-badge="false"
+                :show-user-type-badge="false"
+                class="w-full"
+              >
+                <template #after>
+                  <div
+                    v-if="showSupplementaryInfo"
+                    class="flex w-full flex-col items-start gap-2 text-left"
+                  >
+                    <p
+                      v-if="showUsernameLine"
+                      class="text-sm text-muted-foreground"
+                    >
+                      @{{ form.username }}
+                    </p>
+                    <div
+                      v-if="form.email"
+                      class="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground"
+                    >
+                      <span class="inline-flex items-center gap-1.5">
+                        <IconifyIcon icon="lucide:mail" class="size-4" />
+                        <span class="truncate">{{ form.email }}</span>
+                      </span>
+                    </div>
+                  </div>
+                </template>
+              </IdentityDisplay>
+
               <Upload
                 :show-upload-list="false"
                 :before-upload="beforeAvatarUpload"
                 accept="image/*"
+                class="absolute left-0 top-0"
               >
-                <div class="relative cursor-pointer">
-                  <Avatar
-                    v-if="avatarSrc"
-                    :src="avatarSrc"
-                    :size="96"
-                    class="shadow-lg ring-4 ring-background transition-all group-hover:ring-primary/20"
-                  />
-                  <Avatar
-                    v-else
-                    :size="96"
-                    class="bg-primary/10 text-2xl font-bold text-primary shadow-lg ring-4 ring-background transition-all group-hover:ring-primary/20"
-                  >
-                    {{ avatarInitial }}
-                  </Avatar>
-                  <!-- Upload overlay -->
+                <div class="group relative size-24 cursor-pointer rounded-full">
                   <div
-                    class="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 transition-all group-hover:opacity-100"
+                    class="absolute inset-0 rounded-full transition-all"
+                    :class="resolveAvatarOverlayClasses()"
+                  ></div>
+                  <div
+                    class="absolute inset-0 flex items-center justify-center transition-all"
+                    :class="resolveAvatarIconClasses()"
                   >
                     <Spin v-if="avatarUploading" size="small" />
                     <IconifyIcon
@@ -233,25 +324,6 @@ onMounted(() => {
                   </div>
                 </div>
               </Upload>
-            </div>
-
-            <!-- User info -->
-            <div class="min-w-0 flex-1">
-              <h2 class="mb-1 text-2xl font-bold text-foreground">
-                {{ displayName }}
-              </h2>
-              <p class="mb-3 text-sm text-muted-foreground">
-                @{{ form.username }}
-              </p>
-              <div class="flex flex-wrap items-center gap-4 text-sm">
-                <div
-                  v-if="form.email"
-                  class="flex items-center gap-1.5 text-muted-foreground"
-                >
-                  <IconifyIcon icon="lucide:mail" class="size-4" />
-                  <span>{{ form.email }}</span>
-                </div>
-              </div>
             </div>
           </div>
         </div>

@@ -405,6 +405,7 @@ export interface TenantAdminItem {
 export interface TenantAdminIdentitySelectExtra {
   avatar?: null | string;
   display_name?: null | string;
+  display_role_name?: null | string;
   is_active?: boolean;
   is_leader?: boolean;
   is_owner?: boolean;
@@ -420,6 +421,7 @@ export interface TenantAdminIdentityDetail {
   avatar?: null | string;
   created_at?: null | string;
   display_name?: null | string;
+  display_role_name?: null | string;
   email?: null | string;
   id: number;
   is_active?: boolean;

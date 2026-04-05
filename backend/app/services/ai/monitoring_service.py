@@ -13,6 +13,7 @@ from sqlalchemy import Date, case, cast, exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.configs.service import PLATFORM_TENANT_ID
+from app.core.identity import resolve_identity_display_role_name
 from app.enums.ai import CallStatusEnum
 from app.exceptions import NotFoundException
 from app.models.ai import Agent, AgentConversation, AICallLog, AIModel, AIProvider
@@ -506,6 +507,10 @@ class MonitoringService:
                     org_node_id=row.org_node_id,
                     org_node_name=row.org_node_name,
                     role_name=row.role_name,
+                    display_role_name=resolve_identity_display_role_name(
+                        row.role_name,
+                        row.org_node_name,
+                    ),
                     is_active=row.is_active,
                     is_owner=bool(row.is_super),
                     is_leader=bool(
@@ -561,6 +566,10 @@ class MonitoringService:
                     org_node_id=row.org_node_id,
                     org_node_name=row.org_node_name,
                     role_name=row.role_name,
+                    display_role_name=resolve_identity_display_role_name(
+                        row.role_name,
+                        row.org_node_name,
+                    ),
                     is_active=row.is_active,
                     is_owner=bool(row.is_owner),
                     is_leader=bool(
@@ -614,6 +623,10 @@ class MonitoringService:
                     org_node_id=row.org_node_id,
                     org_node_name=row.org_node_name,
                     role_name=row.role_name,
+                    display_role_name=resolve_identity_display_role_name(
+                        row.role_name,
+                        row.org_node_name,
+                    ),
                     is_active=row.is_active,
                     is_owner=False,
                     is_leader=False,

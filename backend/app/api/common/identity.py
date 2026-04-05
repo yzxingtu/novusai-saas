@@ -6,6 +6,11 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
+
+from app.core.identity import (
+    resolve_identity_display_name,
+    resolve_identity_display_role_name,
+)
 from app.core.response import serialize_datetime_for_api
 
 
@@ -43,7 +48,7 @@ def _build_identity_payload(
     org_node_id = _extract_attribute(org_attr, "id")
     org_node_name = _extract_attribute(org_attr, "name")
 
-    display_name = nickname or username or (f"#{id}" if id not in (None, "") else None)
+    display_name = resolve_identity_display_name(id, nickname, username)
     payload = {
         "id": id,
         "display_name": display_name,
@@ -58,6 +63,10 @@ def _build_identity_payload(
         "user_type": user_type,
         "role_id": role_id,
         "role_name": role_name,
+        "display_role_name": resolve_identity_display_role_name(
+            role_name,
+            org_node_name,
+        ),
         "org_node_id": org_node_id,
         "org_node_name": org_node_name,
         "tenant_id": tenant_id,

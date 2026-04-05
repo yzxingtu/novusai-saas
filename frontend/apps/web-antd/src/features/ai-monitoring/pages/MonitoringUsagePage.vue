@@ -25,10 +25,13 @@ import dayjs from 'dayjs';
 
 import AIPageHeroCard from '#/components/business/ai-page-hero/AIPageHeroCard.vue';
 import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
-import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 import { $t } from '#/locales';
 
 import { getMonitoringUsageDashboard } from '../api';
+import {
+  createMonitoringUsageActorDetailMeta,
+  createMonitoringUsageActorIdentityModel,
+} from '../identity';
 
 type DateRange = [Dayjs, Dayjs];
 
@@ -359,58 +362,6 @@ function breakdownLabel(item: MonitoringUsageBreakdownItem) {
     return $t(`${props.i18nPrefix}.accessChannel.unknown`);
   }
   return item.label || item.key;
-}
-
-function buildUsageActorIdentityModel(item: MonitoringUsageBreakdownItem) {
-  const actor = item.actor;
-  const fallbackLabel = (item.label || item.key || '').trim();
-  if (!actor && !fallbackLabel) {
-    return null;
-  }
-
-  const displayName =
-    actor?.display_name?.trim() ||
-    actor?.nickname?.trim() ||
-    actor?.username?.trim() ||
-    fallbackLabel;
-
-  return {
-    avatar: actor?.avatar,
-    displayName: actor?.display_name || displayName,
-    id: actor?.id ?? item.key,
-    isActive: actor?.is_active,
-    isLeader: actor?.is_leader,
-    isOwner: actor?.is_owner,
-    nickname: displayName,
-    orgNodeId: actor?.org_node_id,
-    orgNodeName: actor?.org_node_name,
-    roleName: actor?.role_name,
-    userType: actor?.type ?? undefined,
-    username:
-      actor?.display_name || actor?.nickname
-        ? undefined
-        : (actor?.username ?? undefined),
-  };
-}
-
-function buildUsageActorMeta(
-  item: MonitoringUsageBreakdownItem,
-): IdentityDetailMeta {
-  const actor = item.actor;
-  return {
-    orgNodeName: actor?.org_node_name,
-    roleName: actor?.role_name,
-    scope: props.scope,
-    subjectType: actor?.type,
-    tenantId: actor?.tenant_id ?? dashboard.value?.tenant_id ?? undefined,
-    tenantName: actor?.tenant_name ?? dashboard.value?.tenant_name,
-    userType: actor?.type,
-    username:
-      actor?.username ||
-      actor?.display_name ||
-      actor?.nickname ||
-      undefined,
-  };
 }
 
 function renderCharts() {
@@ -990,11 +941,17 @@ onBeforeUnmount(() => {
                           <IdentityTrigger
                             v-if="
                               section.key === 'users' &&
-                              buildUsageActorIdentityModel(item)
+                              createMonitoringUsageActorIdentityModel(item)
                             "
                             :avatar-size="32"
-                            :model="buildUsageActorIdentityModel(item)!"
-                            :meta="buildUsageActorMeta(item)"
+                            :model="createMonitoringUsageActorIdentityModel(item)!"
+                            :meta="
+                              createMonitoringUsageActorDetailMeta(item, {
+                                scope,
+                                tenantId: dashboard?.tenant_id,
+                                tenantName: dashboard?.tenant_name,
+                              })
+                            "
                             :context="section.title"
                           />
                           <div
@@ -1100,11 +1057,17 @@ onBeforeUnmount(() => {
                         <IdentityTrigger
                           v-if="
                             section.key === 'users' &&
-                            buildUsageActorIdentityModel(item)
+                            createMonitoringUsageActorIdentityModel(item)
                           "
                           :avatar-size="32"
-                          :model="buildUsageActorIdentityModel(item)!"
-                          :meta="buildUsageActorMeta(item)"
+                          :model="createMonitoringUsageActorIdentityModel(item)!"
+                          :meta="
+                            createMonitoringUsageActorDetailMeta(item, {
+                              scope,
+                              tenantId: dashboard?.tenant_id,
+                              tenantName: dashboard?.tenant_name,
+                            })
+                          "
                           :context="section.title"
                         />
                         <div

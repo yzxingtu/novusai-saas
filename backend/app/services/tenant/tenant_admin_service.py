@@ -11,6 +11,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.base_service import TenantService
+from app.core.identity import (
+    build_identity_select_extra,
+    resolve_identity_display_name,
+)
 from app.core.i18n import _
 from app.core.security import get_password_hash, verify_password
 from app.enums import ErrorCode
@@ -437,23 +441,27 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
         role = getattr(admin, "role", None)
         org_node = getattr(admin, "org_node", None)
         is_leader = bool(org_node and getattr(org_node, "leader_id", None) == admin.id)
-        display_name = admin.nickname or admin.username or f"#{admin.id}"
+        display_name = resolve_identity_display_name(
+            admin.id,
+            admin.nickname,
+            admin.username,
+        )
         return SelectOption(
             label=display_name,
             value=admin.id,
-            extra={
-                "display_name": display_name,
-                "username": admin.username,
-                "nickname": admin.nickname,
-                "avatar": admin.avatar,
-                "org_node_id": admin.org_node_id,
-                "org_node_name": getattr(org_node, "name", None),
-                "role_name": getattr(role, "name", None),
-                "user_type": "tenant_admin",
-                "is_active": admin.is_active,
-                "is_leader": is_leader,
-                "is_owner": admin.is_owner,
-            },
+            extra=build_identity_select_extra(
+                display_name=display_name,
+                username=admin.username,
+                nickname=admin.nickname,
+                avatar=admin.avatar,
+                org_node_id=admin.org_node_id,
+                org_node_name=getattr(org_node, "name", None),
+                role_name=getattr(role, "name", None),
+                user_type="tenant_admin",
+                is_active=admin.is_active,
+                is_leader=is_leader,
+                is_owner=admin.is_owner,
+            ),
             disabled=not admin.is_active,
         )
 

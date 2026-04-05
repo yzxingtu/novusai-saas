@@ -3,7 +3,9 @@ import type { DashboardActivityEntry } from './types';
 
 import { computed } from 'vue';
 
+import { IdentityDisplay } from '#/components/business/identity-display';
 import { formatDate } from '#/utils/common';
+import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
 
 const props = withDefaults(
   defineProps<{
@@ -41,18 +43,30 @@ const wrapperStyle = computed(() =>
         :key="activity.id"
         class="rounded-[22px] border border-border/60 bg-background/80 p-4"
       >
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <div class="flex items-center gap-3">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="flex min-w-0 flex-1 items-start gap-3">
             <span
-              class="inline-flex rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary"
+              class="inline-flex shrink-0 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary"
             >
               {{ activity.method }}
             </span>
-            <span class="text-sm font-medium text-foreground">
-              {{ activity.actor }}
-            </span>
+            <div class="min-w-0 flex-1">
+              <IdentityTrigger
+                v-if="activity.actor.interactive"
+                :avatar-size="34"
+                :meta="activity.actor.meta"
+                :model="activity.actor.model"
+                class="max-w-full"
+              />
+              <IdentityDisplay
+                v-else
+                :avatar-size="34"
+                :model="activity.actor.model"
+                class="max-w-full"
+              />
+            </div>
           </div>
-          <span class="text-xs text-muted-foreground">
+          <span class="shrink-0 pt-1 text-xs text-muted-foreground">
             {{ formatDate(activity.createdAt, 'YYYY-MM-DD HH:mm') }}
           </span>
         </div>

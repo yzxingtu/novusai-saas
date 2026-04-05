@@ -24,6 +24,7 @@ class MonitoringActorInfo(BaseSchema):
     org_node_id: int | None = Field(default=None)
     org_node_name: str | None = Field(default=None)
     role_name: str | None = Field(default=None)
+    display_role_name: str | None = Field(default=None)
     is_active: bool | None = Field(default=None)
     is_owner: bool | None = Field(default=None)
     is_leader: bool | None = Field(default=None)

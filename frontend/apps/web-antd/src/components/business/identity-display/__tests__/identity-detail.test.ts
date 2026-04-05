@@ -1,0 +1,111 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { shouldShowIdentityRole } from '../detail-presentation';
+
+const getAdminIdentityDetailApi = vi.fn();
+const getAdminTenantAdminDetailApi = vi.fn();
+const getAdminTenantUserIdentityDetailApi = vi.fn();
+const getTenantAdminIdentityDetailApi = vi.fn();
+const getTenantUserDetailApi = vi.fn();
+
+vi.mock('#/locales', () => ({
+  $t: (key: string) => key,
+}));
+
+vi.mock('#/api/admin/users', () => ({
+  getAdminIdentityDetailApi,
+}));
+
+vi.mock('#/api/admin/tenant', () => ({
+  getAdminTenantAdminDetailApi,
+}));
+
+vi.mock('#/api/admin/tenant-users', () => ({
+  getAdminTenantUserIdentityDetailApi,
+}));
+
+vi.mock('#/api/tenant/admins', () => ({
+  getTenantAdminIdentityDetailApi,
+}));
+
+vi.mock('#/api/tenant/tenant-users', () => ({
+  getTenantUserDetailApi,
+}));
+
+describe('identity detail contract mapping', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('prefers backend display_role_name when present', async () => {
+    getAdminIdentityDetailApi.mockResolvedValueOnce({
+      avatar: null,
+      created_at: null,
+      display_name: '平台管理员',
+      display_role_name: '平台审核角色',
+      email: null,
+      id: 1,
+      is_active: true,
+      is_leader: false,
+      is_owner: false,
+      is_super: false,
+      last_login_at: null,
+      last_login_ip: null,
+      nickname: '平台管理员',
+      org_node_id: 10,
+      org_node_name: '平台管理组',
+      phone: null,
+      role_id: 5,
+      role_name: '平台审核角色',
+      updated_at: null,
+      user_type: 'admin',
+      username: 'platform_admin',
+    });
+
+    const { loadIdentityDetail } = await import('../identity-detail');
+    const detail = await loadIdentityDetail({
+      id: 1,
+      scope: 'admin',
+      subjectType: 'admin',
+    });
+
+    expect(detail.roleName).toBe('平台审核角色');
+    expect(shouldShowIdentityRole(detail)).toBe(true);
+  });
+
+  it('keeps role hidden when backend suppresses redundant display_role_name', async () => {
+    getAdminIdentityDetailApi.mockResolvedValueOnce({
+      avatar: null,
+      created_at: null,
+      display_name: '平台管理员',
+      display_role_name: null,
+      email: null,
+      id: 2,
+      is_active: true,
+      is_leader: true,
+      is_owner: false,
+      is_super: false,
+      last_login_at: null,
+      last_login_ip: null,
+      nickname: '平台管理员',
+      org_node_id: 11,
+      org_node_name: '平台管理组',
+      phone: null,
+      role_id: 6,
+      role_name: '平台管理组',
+      updated_at: null,
+      user_type: 'admin',
+      username: 'platform_admin_2',
+    });
+
+    const { loadIdentityDetail } = await import('../identity-detail');
+    const detail = await loadIdentityDetail({
+      id: 2,
+      scope: 'admin',
+      subjectType: 'admin',
+    });
+
+    expect(detail.roleName).toBeUndefined();
+    expect(shouldShowIdentityRole(detail)).toBe(false);
+  });
+});

@@ -20,14 +20,16 @@ import {
 } from '#/api/tenant/ai';
 import AIPageHeroCard from '#/components/business/ai-page-hero/AIPageHeroCard.vue';
 import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
-import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 import { createViewDetailPageOperation } from '#/composables';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
 
 import { getMonitoringCallLogList } from '../api';
-import { createMonitoringCallerIdentityModel } from '../identity';
+import {
+  createMonitoringCallerDetailMeta,
+  createMonitoringCallerIdentityModel,
+} from '../identity';
 import MonitoringCallLogDrawer from './MonitoringCallLogDrawer.vue';
 
 const props = defineProps<{
@@ -326,23 +328,13 @@ const { Grid, gridApi } = useCrudPage<MonitoringCallLogInfo>({
   },
 });
 
-function buildCallerMeta(row: MonitoringCallLogInfo): IdentityDetailMeta {
-  return {
+function buildCallerMeta(row: MonitoringCallLogInfo) {
+  return createMonitoringCallerDetailMeta(row, {
     createdAt: row.created_at,
-    username:
-      row.caller_username ||
-      row.caller_display_name ||
-      row.caller_nickname ||
-      row.caller_name ||
-      (row.caller_id ? `#${row.caller_id}` : undefined),
-    orgNodeName: row.caller_org_node_name,
-    roleName: row.caller_role_name,
     scope: props.scope,
-    subjectType: row.caller_type,
-    tenantId: row.tenant_id ?? undefined,
+    tenantId: row.tenant_id,
     tenantName: row.tenant_name,
-    userType: row.caller_type,
-  };
+  });
 }
 </script>
 

@@ -144,6 +144,7 @@ class TestEnrichLogs:
         assert result[0]["caller_org_node_id"] == 88
         assert result[0]["caller_org_node_name"] == "华东一区"
         assert result[0]["caller_role_name"] == "企业超管"
+        assert result[0]["caller_display_role_name"] == "企业超管"
         assert result[0]["caller_is_active"] is True
         assert result[0]["caller_is_leader"] is True
         assert result[0]["caller_is_owner"] is True

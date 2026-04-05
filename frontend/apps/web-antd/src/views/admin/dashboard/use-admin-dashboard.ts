@@ -1,6 +1,8 @@
 import type { AdminDashboardOverview } from '#/api/admin/dashboard';
 import type {
+  DashboardActivityActor,
   DashboardActivityEntry,
+  DashboardActivityIdentitySource,
   DashboardChip,
   DashboardHeroAction,
   DashboardMetricCard,
@@ -8,9 +10,11 @@ import type {
   DashboardSpotlightItem,
   DashboardSummaryPanel,
 } from '#/views/_shared/dashboard/types';
+import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 
 import { computed, onMounted, ref } from 'vue';
 
+import { createIdentityDisplayModel } from '#/components/business/identity-display';
 import { getDashboardOverviewApi } from '#/api/admin/dashboard';
 import { $t } from '#/locales';
 import {
@@ -27,6 +31,74 @@ import {
   getSocketStatusLabel,
   getSocketStatusTone,
 } from '#/views/_shared/dashboard/utils';
+
+type AdminDashboardActivityItem = AdminDashboardOverview['recent_activities'][number] &
+  DashboardActivityIdentitySource;
+
+const DASHBOARD_IDENTITY_TYPES = new Set(['admin', 'tenant_admin', 'tenant_user']);
+
+function resolveActivityRoleName(
+  activity: DashboardActivityIdentitySource,
+): string | undefined {
+  if (Object.prototype.hasOwnProperty.call(activity, 'display_role_name')) {
+    return activity.display_role_name?.trim() || undefined;
+  }
+  return activity.role_name?.trim() || undefined;
+}
+
+function hasActivityActorName(activity: DashboardActivityIdentitySource): boolean {
+  return [activity.display_name, activity.nickname, activity.username].some(
+    (value) => typeof value === 'string' && value.trim().length > 0,
+  );
+}
+
+function buildActivityIdentityMeta(
+  activity: DashboardActivityIdentitySource,
+): IdentityDetailMeta {
+  const normalizedUserType =
+    typeof activity.user_type === 'string' ? activity.user_type.trim() : '';
+  const roleName = resolveActivityRoleName(activity);
+  return {
+    orgNodeName: activity.org_node_name ?? undefined,
+    roleName,
+    scope: 'admin',
+    subjectType: normalizedUserType || undefined,
+    userType: normalizedUserType || undefined,
+    username: activity.username ?? undefined,
+  };
+}
+
+function buildDashboardActivityActor(
+  activity: AdminDashboardActivityItem,
+  systemLabel: string,
+): DashboardActivityActor {
+  const hasActorName = hasActivityActorName(activity);
+  const normalizedUserType =
+    typeof activity.user_type === 'string' ? activity.user_type.trim() : '';
+  const roleName = resolveActivityRoleName(activity);
+
+  return {
+    interactive:
+      typeof activity.user_id === 'number' &&
+      Number.isFinite(activity.user_id) &&
+      DASHBOARD_IDENTITY_TYPES.has(normalizedUserType),
+    meta: buildActivityIdentityMeta(activity),
+    model: createIdentityDisplayModel({
+      avatar: activity.avatar ?? undefined,
+      displayName: hasActorName ? activity.display_name ?? undefined : systemLabel,
+      id: activity.user_id ?? `admin-dashboard-activity-${activity.id}`,
+      isActive: activity.is_active,
+      isLeader: activity.is_leader,
+      isOwner: activity.is_owner,
+      nickname: activity.nickname ?? (!hasActorName ? systemLabel : undefined),
+      orgNodeId: activity.org_node_id ?? undefined,
+      orgNodeName: activity.org_node_name ?? undefined,
+      roleName,
+      userType: normalizedUserType || undefined,
+      username: activity.username ?? undefined,
+    }),
+  };
+}
 
 function createEmptyOverview(): AdminDashboardOverview {
   return {
@@ -85,22 +157,23 @@ export function useAdminDashboard() {
   const storageOverview = computed(() => overview.value.storage_overview);
   const pluginOverview = computed(() => overview.value.plugin_overview);
   const tenantGrowth = computed(() => overview.value.tenant_growth);
-  const activityEntries = computed<DashboardActivityEntry[]>(() =>
-    overview.value.recent_activities.map((activity) => ({
-      actor:
-        activity.nickname ||
-        activity.username ||
-        $t('admin.dashboard.controlTower.systemActor'),
-      createdAt: activity.created_at,
-      detail:
-        [activity.module, activity.action].filter(Boolean).join(' / ') ||
-        $t('admin.dashboard.controlTower.unknownModule'),
-      id: activity.id,
-      method: activity.method,
-      path: activity.path,
-      statusCode: activity.status_code,
-    })),
-  );
+  const activityEntries = computed<DashboardActivityEntry[]>(() => {
+    const systemActorLabel = $t('admin.dashboard.controlTower.systemActor');
+    return overview.value.recent_activities.map((activity) => {
+      const nextActivity = activity as AdminDashboardActivityItem;
+      return {
+        actor: buildDashboardActivityActor(nextActivity, systemActorLabel),
+        createdAt: nextActivity.created_at,
+        detail:
+          [nextActivity.module, nextActivity.action].filter(Boolean).join(' / ') ||
+          $t('admin.dashboard.controlTower.unknownModule'),
+        id: nextActivity.id,
+        method: nextActivity.method,
+        path: nextActivity.path,
+        statusCode: nextActivity.status_code,
+      };
+    });
+  });
 
   async function loadDashboardData(options: { silent?: boolean } = {}) {
     if (!options.silent) {

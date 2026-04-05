@@ -92,6 +92,37 @@ function toOptionalString(value?: null | string): string | undefined {
   return normalized || undefined;
 }
 
+function resolveRawDetailRoleName(
+  detail:
+    | {
+        display_role_name?: null | string;
+        role_name?: null | string;
+      }
+    | {
+        displayRoleName?: null | string;
+        roleName?: null | string;
+      },
+): string | undefined {
+  if (Object.prototype.hasOwnProperty.call(detail, 'display_role_name')) {
+    return toOptionalString(
+      (detail as { display_role_name?: null | string }).display_role_name,
+    );
+  }
+  if (Object.prototype.hasOwnProperty.call(detail, 'displayRoleName')) {
+    return toOptionalString(
+      (detail as { displayRoleName?: null | string }).displayRoleName,
+    );
+  }
+  if (Object.prototype.hasOwnProperty.call(detail, 'role_name')) {
+    return toOptionalString(
+      (detail as { role_name?: null | string }).role_name,
+    );
+  }
+  return Object.prototype.hasOwnProperty.call(detail, 'roleName')
+    ? toOptionalString((detail as { roleName?: null | string }).roleName)
+    : undefined;
+}
+
 export function normalizeIdentitySubjectType(
   subjectType?: null | string,
 ): IdentitySubjectType {
@@ -306,7 +337,7 @@ function mapAdminIdentityDetail(detail: AdminIdentityDetail): Partial<IdentityDe
     orgNodeId: detail.org_node_id,
     orgNodeName: detail.org_node_name,
     phone: detail.phone,
-    roleName: detail.role_name,
+    roleName: resolveRawDetailRoleName(detail),
     updatedAt: detail.updated_at,
     userType: detail.user_type ?? undefined,
     username: detail.username ?? undefined,
@@ -331,7 +362,7 @@ function mapTenantAdminIdentityDetail(
     orgNodeId: detail.org_node_id,
     orgNodeName: detail.org_node_name,
     phone: detail.phone,
-    roleName: detail.role_name,
+    roleName: resolveRawDetailRoleName(detail),
     tenantId: detail.tenant_id,
     updatedAt: detail.updated_at,
     userType: detail.user_type ?? undefined,
@@ -356,7 +387,7 @@ function mapTenantUserIdentityDetail(detail: TenantUserInfo): Partial<IdentityDe
     orgNodeId: detail.orgNodeId,
     orgNodeName: detail.orgNodeName,
     phone: detail.phone,
-    roleName: detail.roleName,
+    roleName: resolveRawDetailRoleName(detail),
     tenantId: detail.tenantId,
     updatedAt: detail.updatedAt,
     userType: detail.userType ?? undefined,

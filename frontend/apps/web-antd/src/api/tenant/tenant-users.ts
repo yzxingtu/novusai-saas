@@ -49,6 +49,7 @@ export interface TenantUserInfoRaw {
   avatar?: string;
   created_at: string;
   display_name?: null | string;
+  display_role_name?: null | string;
   email?: string;
   gender: number;
   id: number;
@@ -75,6 +76,7 @@ export interface TenantUserInfo {
   avatar?: string;
   createdAt: string;
   displayName?: null | string;
+  displayRoleName?: null | string;
   email?: string;
   gender: number;
   id: number;
@@ -98,6 +100,7 @@ export interface TenantUserInfo {
 export interface TenantUserIdentitySelectExtra {
   avatar?: null | string;
   display_name?: null | string;
+  display_role_name?: null | string;
   is_active?: boolean;
   is_leader?: boolean;
   is_owner?: boolean;
@@ -128,6 +131,7 @@ export function transformUserInfo(raw: TenantUserInfoRaw): TenantUserInfo {
     avatar: raw.avatar,
     createdAt: raw.created_at,
     displayName: raw.display_name,
+    displayRoleName: raw.display_role_name,
     email: raw.email,
     gender: raw.gender,
     id: raw.id,

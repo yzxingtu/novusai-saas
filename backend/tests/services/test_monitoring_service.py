@@ -138,6 +138,7 @@ class TestMonitoringScope:
         assert actor.org_node_id == 3
         assert actor.org_node_name == "HQ"
         assert actor.role_name == "Super"
+        assert actor.display_role_name == "Super"
         assert actor.is_active is True
         assert actor.is_owner is True
         assert actor.is_leader is True
@@ -161,6 +162,7 @@ class TestUsageDashboard:
                     nickname="Alice",
                     org_node_name="Sales",
                     role_name="Member",
+                    display_role_name="Member",
                 )
             }
         )
@@ -275,6 +277,7 @@ class TestUsageDashboard:
         assert dashboard.top_users[0].actor.avatar == "12"
         assert dashboard.top_users[0].actor.display_name == "Alice"
         assert dashboard.top_users[0].actor.org_node_name == "Sales"
+        assert dashboard.top_users[0].actor.display_role_name == "Member"
         assert dashboard.top_users[0].actor.type == "tenant_user"
         assert dashboard.top_tenants[0].label == "平台管理端"
 

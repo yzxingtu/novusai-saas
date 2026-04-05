@@ -7,6 +7,7 @@ export type MonitoringScope = 'admin' | 'tenant';
 export interface MonitoringActorInfo {
   avatar?: null | string;
   display_name?: null | string;
+  display_role_name?: null | string;
   id?: null | number;
   is_active?: boolean;
   is_leader?: boolean;
@@ -29,6 +30,7 @@ export interface MonitoringCallLogInfo {
   agent_avatar?: null | string;
   caller_avatar?: null | string;
   caller_display_name?: null | string;
+  caller_display_role_name?: null | string;
   caller_id?: null | number;
   caller_is_active?: boolean;
   caller_is_leader?: boolean;

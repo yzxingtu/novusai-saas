@@ -8,12 +8,15 @@ import { IconifyIcon } from '@vben/icons';
 import { Drawer, Empty, Spin, Tag } from 'ant-design-vue';
 
 import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
-import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
 
 import { getMonitoringCallLogDetail } from '../api';
+import {
+  createMonitoringCallerDetailMeta,
+  createMonitoringCallerIdentityModel,
+} from '../identity';
 
 const props = defineProps<{
   i18nPrefix: string;
@@ -74,36 +77,9 @@ function getInitialLetter(value: null | string | undefined): string {
 }
 
 const detailAgentName = computed(() => detail.value?.agent_name || '-');
-const callerIdentityModel = computed(() => {
-  const data = detail.value;
-  if (!data) {
-    return null;
-  }
-  const callerName = data.caller_name?.trim() || '';
-  const callerNickname = data.caller_nickname?.trim() || '';
-  const callerDisplayName = data.caller_display_name?.trim() || '';
-  const callerUsername = data.caller_username?.trim() || '';
-
-  return {
-    avatar: data.caller_avatar,
-    displayName: callerDisplayName || undefined,
-    id: data.caller_id ?? '-',
-    isActive: data.caller_is_active,
-    isLeader: data.caller_is_leader,
-    isOwner: data.caller_is_owner,
-    nickname:
-      callerNickname ||
-      (callerDisplayName ? undefined : callerName || undefined),
-    orgNodeId: data.caller_org_node_id,
-    orgNodeName: data.caller_org_node_name,
-    roleName: data.caller_role_name,
-  userType: data.caller_type ?? undefined,
-  username:
-    callerDisplayName || callerNickname
-      ? callerUsername || undefined
-      : callerUsername || getCallerDisplayName(data) || undefined,
-};
-});
+const callerIdentityModel = computed(() =>
+  detail.value ? createMonitoringCallerIdentityModel(detail.value) : null,
+);
 
 const callerContextLabel = computed(
   () => $t(`${props.i18nPrefix}.callerName`),
@@ -124,16 +100,6 @@ function getStatusColor(status?: null | string) {
       return 'default';
     }
   }
-}
-
-function getCallerDisplayName(log: MonitoringCallLogInfo): string {
-  return (
-    log.caller_display_name ||
-    log.caller_nickname ||
-    log.caller_username ||
-    log.caller_name ||
-    ''
-  );
 }
 
 const drawerTitle = computed(() =>
@@ -268,29 +234,17 @@ const detailFields = computed(() => {
   return fields;
 });
 
-function buildDrawerCallerMeta(
-  data: MonitoringCallLogInfo | null,
-): IdentityDetailMeta {
+function buildDrawerCallerMeta(data: MonitoringCallLogInfo | null) {
   if (!data) {
     return {};
   }
 
-  return {
+  return createMonitoringCallerDetailMeta(data, {
     createdAt: data.created_at,
-    orgNodeName: data.caller_org_node_name,
-    roleName: data.caller_role_name,
     scope: props.scope,
-    subjectType: data.caller_type,
-    tenantId: data.tenant_id ?? undefined,
+    tenantId: data.tenant_id,
     tenantName: data.tenant_name,
-    userType: data.caller_type,
-    username:
-      data.caller_username ||
-      data.caller_display_name ||
-      data.caller_nickname ||
-      data.caller_name ||
-      (data.caller_id ? `#${data.caller_id}` : undefined),
-  };
+  });
 }
 </script>
 

@@ -12,6 +12,7 @@ from sqlalchemy import Date, case, cast, func, select
 
 from app.configs.service import PLATFORM_TENANT_ID
 from app.core.base_repository import BaseRepository
+from app.core.identity import resolve_identity_display_role_name
 from app.core.logging import LogManager
 from app.enums.ai import CallStatusEnum, UserTypeEnum
 from app.enums.log import UserTypeEnum as LogUserTypeEnum
@@ -340,6 +341,10 @@ class AICallLogRepository(BaseRepository[AICallLog]):
                     "org_node_id": r.org_node_id,
                     "org_node_name": r.org_node_name,
                     "role_name": r.role_name,
+                    "display_role_name": resolve_identity_display_role_name(
+                        r.role_name,
+                        r.org_node_name,
+                    ),
                     "is_active": r.is_active,
                     "is_owner": bool(r.is_owner),
                     "is_leader": bool(r.org_leader_id and r.org_leader_id == r.id),
@@ -390,6 +395,10 @@ class AICallLogRepository(BaseRepository[AICallLog]):
                     "org_node_id": r.org_node_id,
                     "org_node_name": r.org_node_name,
                     "role_name": r.role_name,
+                    "display_role_name": resolve_identity_display_role_name(
+                        r.role_name,
+                        r.org_node_name,
+                    ),
                     "is_active": r.is_active,
                     "is_owner": False,
                     "is_leader": False,
@@ -437,6 +446,10 @@ class AICallLogRepository(BaseRepository[AICallLog]):
                     "org_node_id": r.org_node_id,
                     "org_node_name": r.org_node_name,
                     "role_name": r.role_name,
+                    "display_role_name": resolve_identity_display_role_name(
+                        r.role_name,
+                        r.org_node_name,
+                    ),
                     "is_active": r.is_active,
                     "is_owner": bool(r.is_super),
                     "is_leader": bool(r.org_leader_id and r.org_leader_id == r.id),
@@ -541,6 +554,9 @@ class AICallLogRepository(BaseRepository[AICallLog]):
             )
             d["caller_role_name"] = (
                 caller_identity.get("role_name") if caller_identity else None
+            )
+            d["caller_display_role_name"] = (
+                caller_identity.get("display_role_name") if caller_identity else None
             )
             d["caller_is_active"] = (
                 caller_identity.get("is_active") if caller_identity else None

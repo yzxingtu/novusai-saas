@@ -91,6 +91,29 @@ function resolveBooleanExtra(
   return typeof fallbackValue === 'boolean' ? fallbackValue : undefined;
 }
 
+function hasObjectKey(
+  extra: Record<string, unknown>,
+  key: string,
+): boolean {
+  return Object.prototype.hasOwnProperty.call(extra, key);
+}
+
+function resolveDisplayRoleExtra(
+  extra: Record<string, unknown>,
+): null | string {
+  if (hasObjectKey(extra, 'displayRoleName')) {
+    return typeof extra.displayRoleName === 'string'
+      ? extra.displayRoleName
+      : null;
+  }
+  if (hasObjectKey(extra, 'display_role_name')) {
+    return typeof extra.display_role_name === 'string'
+      ? extra.display_role_name
+      : null;
+  }
+  return resolveStringExtra(extra, 'roleName', 'role_name');
+}
+
 function getIdentity(option: IdentityOptionLike | undefined) {
   if (!option) return null;
   const resolved = resolveIdentityOption(option, resolverConfig.value);
@@ -99,7 +122,7 @@ function getIdentity(option: IdentityOptionLike | undefined) {
       ? (option.extra as Record<string, unknown>)
       : {};
 
-  const roleName = resolveStringExtra(extra, 'roleName', 'role_name');
+  const roleName = resolveDisplayRoleExtra(extra);
   const userType = resolveStringExtra(extra, 'userType', 'user_type');
   const userTypeLabel = resolveStringExtra(
     extra,

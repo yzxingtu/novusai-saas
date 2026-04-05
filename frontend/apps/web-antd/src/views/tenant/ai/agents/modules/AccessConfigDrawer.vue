@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import type { TenantPermissionRoleInfo } from '#/api/tenant/role';
+import type { TenantUserInfo } from '#/api/tenant/tenant-users';
+import type { IdentitySelectOption } from '#/components/business/identity-display';
 
 /**
  * 智能体访问与发布配置抽屉（企业端）
@@ -35,7 +37,14 @@ import {
 } from '#/api/tenant/agents';
 import { getAllTenantPermissionRoleListApi } from '#/api/tenant/role';
 import { getTenantUserRoleListApi } from '#/api/tenant/tenant-user-roles';
-import { getTenantUserListApi } from '#/api/tenant/tenant-users';
+import {
+  getTenantUserDetailApi,
+  getTenantUserIdentitySelectApi,
+} from '#/api/tenant/tenant-users';
+import {
+  IdentityRemoteSelect,
+  normalizeIdentitySelectOption,
+} from '#/components/business/identity-display';
 import { $t } from '#/locales';
 
 defineOptions({ name: 'AccessConfigDrawer' });
@@ -68,8 +77,7 @@ const tenantRoleTreeData = ref<PermissionRoleTreeNode[]>([]);
 const tenantRoleTreeLoading = ref(false);
 const tenantUserRoleOptions = ref<Array<{ label: string; value: number }>>([]);
 const tenantUserRoleLoading = ref(false);
-const tenantUserOptions = ref<Array<{ label: string; value: number }>>([]);
-const tenantUserLoading = ref(false);
+const tenantUserOptionCache = ref<Map<number, IdentitySelectOption>>(new Map());
 
 const accessTypeOptions = computed(() => [
   {
@@ -112,6 +120,57 @@ function roleInfoToTreeData(
   }));
 }
 
+function tenantUserToIdentityOption(
+  user: TenantUserInfo,
+): IdentitySelectOption {
+  const roleName = Object.prototype.hasOwnProperty.call(user, 'displayRoleName')
+    ? user.displayRoleName ?? null
+    : (user.roleName ?? null);
+
+  return normalizeIdentitySelectOption({
+    label: user.nickname || user.displayName || user.username || `#${user.id}`,
+    value: user.id,
+    extra: {
+      avatar: user.avatar || null,
+      displayName: user.displayName || null,
+      isActive: user.isActive,
+      isLeader: user.isLeader,
+      isOwner: user.isOwner,
+      nickname: user.nickname || null,
+      orgNodeId: user.orgNodeId ?? null,
+      orgNodeName: user.orgNodeName || null,
+      roleName,
+      secondaryText: user.username,
+      userType: user.userType || null,
+      username: user.username,
+    },
+  });
+}
+
+function mergeTenantUserOptions(options: IdentitySelectOption[]) {
+  if (options.length === 0) return;
+  const nextCache = new Map(tenantUserOptionCache.value);
+  for (const option of options) {
+    const normalized = normalizeIdentitySelectOption(option);
+    const normalizedValue = Number(normalized.value);
+    if (!Number.isFinite(normalizedValue) || normalizedValue <= 0) {
+      continue;
+    }
+    nextCache.set(normalizedValue, normalized);
+  }
+  tenantUserOptionCache.value = nextCache;
+}
+
+const tenantUserSelectedOptions = computed<IdentitySelectOption[]>(() =>
+  normalizeIdList(pubTenantUserIds.value)
+    .map((id) => tenantUserOptionCache.value.get(id))
+    .filter((option): option is IdentitySelectOption => Boolean(option)),
+);
+
+function handleTenantUserOptionsLoaded(options: IdentitySelectOption[]) {
+  mergeTenantUserOptions(options);
+}
+
 async function loadTenantPermissionRoles() {
   tenantRoleTreeLoading.value = true;
   try {
@@ -139,19 +198,26 @@ async function loadTenantUserRoleOptions() {
   }
 }
 
-async function loadTenantUserOptions() {
-  tenantUserLoading.value = true;
-  try {
-    const res = await getTenantUserListApi({ 'page[size]': 200 });
-    tenantUserOptions.value = res.items.map((u) => ({
-      label: u.nickname || u.username || `ID:${u.id}`,
-      value: u.id,
-    }));
-  } catch {
-    /* interceptor */
-  } finally {
-    tenantUserLoading.value = false;
+async function loadSelectedTenantUserOptions(ids: number[]) {
+  const normalizedIds = normalizeIdList(ids);
+  if (normalizedIds.length === 0) {
+    return;
   }
+
+  const results = await Promise.allSettled(
+    normalizedIds.map((id) => getTenantUserDetailApi(id)),
+  );
+
+  const options = results
+    .filter(
+      (
+        result,
+      ): result is PromiseFulfilledResult<TenantUserInfo> =>
+        result.status === 'fulfilled',
+    )
+    .map((result) => tenantUserToIdentityOption(result.value));
+
+  mergeTenantUserOptions(options);
 }
 
 const [Drawer, drawerApi] = useVbenDrawer({
@@ -192,6 +258,7 @@ async function loadConfigs() {
     pubAccessType.value = pub.access_type || PUB_ALL;
     pubTenantUserRoleIds.value = normalizeIdList(pub.tenant_user_role_ids);
     pubTenantUserIds.value = normalizeIdList(pub.tenant_user_ids);
+    await loadSelectedTenantUserOptions(pubTenantUserIds.value);
   } catch {
     /* interceptor */
   } finally {
@@ -267,7 +334,6 @@ watch(tenantRoleMode, (m) => {
 
 onMounted(() => {
   loadTenantUserRoleOptions();
-  loadTenantUserOptions();
 });
 </script>
 
@@ -362,15 +428,19 @@ onMounted(() => {
             style="width: 100%"
             class="mt-2"
           />
-          <Select
+          <IdentityRemoteSelect
             v-if="pubEnabled && pubAccessType === PUB_USERS"
             v-model:value="pubTenantUserIds"
+            :api="getTenantUserIdentitySelectApi"
             mode="multiple"
-            :options="tenantUserOptions"
+            :click-pagination="true"
+            :immediate="false"
+            :pagination="true"
+            :selected-options="tenantUserSelectedOptions"
             :placeholder="
               $t('tenant.ai.agent.publication.placeholderSpecificUsers')
             "
-            :loading="tenantUserLoading"
+            @options-loaded="handleTenantUserOptionsLoaded"
             allow-clear
             style="width: 100%"
             class="mt-2"

@@ -13,6 +13,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.base_service import TenantService
+from app.core.identity import (
+    build_identity_select_extra,
+    resolve_identity_display_name,
+)
 from app.core.i18n import _
 from app.core.security import get_password_hash
 from app.enums import ErrorCode
@@ -465,25 +469,29 @@ class TenantUserService(TenantService[TenantUser, TenantUserRepository]):
     def _build_identity_select_option(user: TenantUser) -> SelectOption:
         role = getattr(user, "role", None)
         org_node = getattr(user, "org_node", None)
-        display_name = (
-            user.nickname or user.username or user.email or user.phone or f"#{user.id}"
+        display_name = resolve_identity_display_name(
+            user.id,
+            user.nickname,
+            user.username,
+            user.email,
+            user.phone,
         )
         return SelectOption(
             label=display_name,
             value=user.id,
-            extra={
-                "display_name": display_name,
-                "username": user.username,
-                "nickname": user.nickname,
-                "avatar": user.avatar,
-                "org_node_id": user.org_node_id,
-                "org_node_name": getattr(org_node, "name", None),
-                "role_name": getattr(role, "name", None),
-                "user_type": "tenant_user",
-                "is_active": user.is_active,
-                "is_leader": False,
-                "is_owner": False,
-            },
+            extra=build_identity_select_extra(
+                display_name=display_name,
+                username=user.username,
+                nickname=user.nickname,
+                avatar=user.avatar,
+                org_node_id=user.org_node_id,
+                org_node_name=getattr(org_node, "name", None),
+                role_name=getattr(role, "name", None),
+                user_type="tenant_user",
+                is_active=user.is_active,
+                is_leader=False,
+                is_owner=False,
+            ),
             disabled=not user.is_active,
         )
 

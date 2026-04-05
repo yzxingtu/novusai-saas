@@ -17,6 +17,7 @@ from app.api.common.identity import (
 )
 from app.api.tenant.admins import router as tenant_admins_router
 from app.api.tenant.users import router as tenant_users_router
+from app.core.identity import resolve_identity_display_role_name
 from app.services.system.admin_service import AdminService
 from app.services.tenant.tenant_admin_service import TenantAdminService
 
@@ -75,6 +76,7 @@ async def test_admin_identity_select_options_include_rich_extra() -> None:
         "org_node_id": 7,
         "org_node_name": "平台组织",
         "role_name": "平台角色",
+        "display_role_name": "平台角色",
         "user_type": "admin",
         "is_active": True,
         "is_leader": True,
@@ -125,6 +127,7 @@ async def test_tenant_admin_identity_select_options_include_rich_extra() -> None
         "org_node_id": 88,
         "org_node_name": "企业组织",
         "role_name": "企业角色",
+        "display_role_name": "企业角色",
         "user_type": "tenant_admin",
         "is_active": False,
         "is_leader": True,
@@ -199,6 +202,7 @@ def test_identity_detail_helpers_include_expected_flags() -> None:
     assert admin_detail["user_type"] == "admin"
     assert admin_detail["is_leader"] is True
     assert admin_detail["org_node_name"] == "平台组织"
+    assert admin_detail["display_role_name"] == "平台角色"
 
     tenant_admin = SimpleNamespace(
         id=2,
@@ -222,6 +226,7 @@ def test_identity_detail_helpers_include_expected_flags() -> None:
     assert tenant_admin_detail["user_type"] == "tenant_admin"
     assert tenant_admin_detail["is_owner"] is True
     assert tenant_admin_detail["tenant_id"] == 99
+    assert tenant_admin_detail["display_role_name"] == "企业角色"
 
     tenant_user = SimpleNamespace(
         id=3,
@@ -246,3 +251,63 @@ def test_identity_detail_helpers_include_expected_flags() -> None:
     assert tenant_user_detail["user_type"] == "tenant_user"
     assert tenant_user_detail["tenant_id"] == 100
     assert tenant_user_detail["approval_status"] == "approved"
+    assert tenant_user_detail["display_role_name"] == "业务角色"
+
+
+def test_identity_role_presentation_suppresses_architecture_duplicates() -> None:
+    assert resolve_identity_display_role_name("平台管理组", "平台管理组") is None
+    assert resolve_identity_display_role_name(" 平台管理组 ", "平台管理组") is None
+    assert resolve_identity_display_role_name("平台审核角色", "平台管理组") == "平台审核角色"
+
+
+@pytest.mark.asyncio
+async def test_admin_identity_select_suppresses_redundant_role_in_extra() -> None:
+    admin = SimpleNamespace(
+        id=77,
+        username="dup_role_admin",
+        nickname="重复角色管理员",
+        avatar=None,
+        org_node_id=17,
+        is_active=True,
+        is_super=False,
+        role=SimpleNamespace(name="平台管理组"),
+        org_node=SimpleNamespace(name="平台管理组", leader_id=None),
+    )
+    service = object.__new__(AdminService)
+    service.repo = SimpleNamespace(
+        query_identity_select=AsyncMock(return_value=([admin], 1))
+    )
+
+    response = await AdminService.get_identity_select_options(
+        service,
+        search="dup",
+        page=1,
+        page_size=20,
+    )
+
+    assert response.items[0].extra["role_name"] == "平台管理组"
+    assert response.items[0].extra["display_role_name"] is None
+
+
+def test_identity_detail_helpers_suppress_redundant_role_display_name() -> None:
+    now = datetime.now(timezone.utc)
+    admin = SimpleNamespace(
+        id=11,
+        username="arch_admin",
+        nickname="架构管理员",
+        avatar=None,
+        email="arch_admin@example.com",
+        phone=None,
+        is_active=True,
+        org_node=SimpleNamespace(id=18, name="平台管理组", leader_id=11),
+        role=SimpleNamespace(id=19, name="平台管理组"),
+        created_at=now,
+        updated_at=now,
+        last_login_at=now,
+        last_login_ip="127.0.0.1",
+    )
+
+    admin_detail = serialize_admin_identity_detail(admin)
+
+    assert admin_detail["role_name"] == "平台管理组"
+    assert admin_detail["display_role_name"] is None
