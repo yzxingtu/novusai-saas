@@ -36,7 +36,8 @@ import {
   getAdminActionLogListApi,
 } from '#/api/admin/action-logs';
 import { getAdminExecutionDecisionDetailApi } from '#/api/admin/execution-decisions';
-import { IdentityDisplay } from '#/components/business/identity-display';
+import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
+import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 import { createViewDetailPageOperation } from '#/composables';
 import { PLATFORM_TENANT_ID } from '#/constants';
 import { $t } from '#/locales';
@@ -126,6 +127,43 @@ function getOperatorIdentityModel(
         ? undefined
         : log.operator_name,
   });
+}
+
+function buildOperatorMeta(
+  source:
+    | Pick<
+        AdminActionLogDetail,
+        | 'operator_id'
+        | 'operator_name'
+        | 'operator_nickname'
+        | 'operator_display_name'
+        | 'operator_org_node_name'
+        | 'operator_role_name'
+        | 'operator_type'
+        | 'tenant_id'
+        | 'tenant_name'
+        | 'created_at'
+      >
+    | AdminActionLogItem,
+): IdentityDetailMeta {
+  const label =
+    source.operator_display_name ||
+    source.operator_nickname ||
+    source.operator_name ||
+    (source.operator_id ? `#${source.operator_id}` : undefined);
+
+  return {
+    createdAt: 'created_at' in source ? source.created_at : undefined,
+    orgNodeName: source.operator_org_node_name,
+    roleName: source.operator_role_name,
+    scope: 'admin',
+    subjectType: source.operator_type,
+    tenantId: 'tenant_id' in source ? (source.tenant_id ?? undefined) : undefined,
+    tenantName:
+      'tenant_name' in source ? (source.tenant_name ?? undefined) : undefined,
+    userType: source.operator_type,
+    username: label,
+  };
 }
 
 function isIconAvatar(avatar: null | string | undefined): boolean {
@@ -438,9 +476,11 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
         </template>
 
         <template #operator_cell="{ row }">
-          <IdentityDisplay
+          <IdentityTrigger
             :avatar-size="30"
             :model="getOperatorIdentityModel(row)"
+            :meta="buildOperatorMeta(row)"
+            :show-status-badge="false"
           />
         </template>
 
@@ -564,10 +604,12 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
                   <div class="text-xs text-muted-foreground">
                     {{ $t('admin.ai.actionLog.operatorId') }}
                   </div>
-                  <IdentityDisplay
+                  <IdentityTrigger
                     class="mt-2"
                     :avatar-size="24"
                     :model="getOperatorIdentityModel(detailData)"
+                    :meta="buildOperatorMeta(detailData)"
+                    :show-status-badge="false"
                   />
                 </div>
                 <div
@@ -669,10 +711,12 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
                     <Descriptions.Item
                       :label="$t('admin.ai.actionLog.operatorId')"
                     >
-                      <IdentityDisplay
-                        :avatar-size="32"
-                        :model="getOperatorIdentityModel(detailData)"
-                      />
+                    <IdentityTrigger
+                      :avatar-size="32"
+                      :model="getOperatorIdentityModel(detailData)"
+                      :meta="buildOperatorMeta(detailData)"
+                      :show-status-badge="false"
+                    />
                     </Descriptions.Item>
                     <Descriptions.Item
                       :label="$t('admin.ai.actionLog.toolCallId')"

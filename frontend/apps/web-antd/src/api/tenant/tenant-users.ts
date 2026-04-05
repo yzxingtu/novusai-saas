@@ -45,48 +45,59 @@ export interface TenantUserResetPasswordRequest {
 
 /** User info (backend raw format snake_case) / 用户信息（后端原始格式） */
 export interface TenantUserInfoRaw {
-  id: number;
-  tenant_id: number;
-  username: string;
-  email?: string;
-  phone?: string;
-  nickname?: string;
-  avatar?: string;
-  gender: number;
-  is_active: boolean;
   approval_status: string;
+  avatar?: string;
+  created_at: string;
+  display_name?: null | string;
+  email?: string;
+  gender: number;
+  id: number;
+  is_active: boolean;
+  is_leader?: boolean;
+  is_owner?: boolean;
+  last_login_at?: null | string;
+  last_login_ip?: null | string;
+  nickname?: string;
   org_node_id?: null | number;
   org_node_name?: null | string;
+  phone?: string;
   role_id?: null | number;
   role_name?: null | string;
-  last_login_at?: null | string;
-  created_at: string;
+  tenant_id: number;
   updated_at?: null | string;
+  user_type?: null | string;
+  username: string;
 }
 
 /** User info (frontend format camelCase) / 用户信息（前端格式） */
 export interface TenantUserInfo {
-  id: number;
-  tenantId: number;
-  username: string;
-  email?: string;
-  phone?: string;
-  nickname?: string;
-  avatar?: string;
-  gender: number;
-  isActive: boolean;
   approvalStatus: string;
+  avatar?: string;
+  createdAt: string;
+  displayName?: null | string;
+  email?: string;
+  gender: number;
+  id: number;
+  isActive: boolean;
+  isLeader?: boolean;
+  isOwner?: boolean;
+  lastLoginAt?: null | string;
+  lastLoginIp?: null | string;
+  nickname?: string;
   orgNodeId?: null | number;
   orgNodeName?: null | string;
+  phone?: string;
   roleId?: null | number;
   roleName?: null | string;
-  lastLoginAt?: null | string;
-  createdAt: string;
+  tenantId: number;
   updatedAt?: null | string;
+  userType?: null | string;
+  username: string;
 }
 
 export interface TenantUserIdentitySelectExtra {
   avatar?: null | string;
+  display_name?: null | string;
   is_active?: boolean;
   is_leader?: boolean;
   is_owner?: boolean;
@@ -111,25 +122,30 @@ export interface TenantUserListResponse {
 // ============================================================
 
 /** Convert backend snake_case to frontend camelCase / 后端转前端格式 */
-function transformUserInfo(raw: TenantUserInfoRaw): TenantUserInfo {
+export function transformUserInfo(raw: TenantUserInfoRaw): TenantUserInfo {
   return {
-    id: raw.id,
-    tenantId: raw.tenant_id,
-    username: raw.username,
-    email: raw.email,
-    phone: raw.phone,
-    nickname: raw.nickname,
-    avatar: raw.avatar,
-    gender: raw.gender,
-    isActive: raw.is_active,
     approvalStatus: raw.approval_status,
+    avatar: raw.avatar,
+    createdAt: raw.created_at,
+    displayName: raw.display_name,
+    email: raw.email,
+    gender: raw.gender,
+    id: raw.id,
+    isActive: raw.is_active,
+    isLeader: raw.is_leader,
+    isOwner: raw.is_owner,
+    lastLoginAt: raw.last_login_at,
+    lastLoginIp: raw.last_login_ip,
+    nickname: raw.nickname,
     orgNodeId: raw.org_node_id,
     orgNodeName: raw.org_node_name,
+    phone: raw.phone,
     roleId: raw.role_id,
     roleName: raw.role_name,
-    lastLoginAt: raw.last_login_at,
-    createdAt: raw.created_at,
+    tenantId: raw.tenant_id,
     updatedAt: raw.updated_at,
+    userType: raw.user_type,
+    username: raw.username,
   };
 }
 

@@ -10,6 +10,7 @@ from fastapi import APIRouter, Query
 from app.core.deps import ActiveTenantAdmin, DbSession
 from app.core.i18n import _
 from app.core.response import success
+from app.api.common.identity import serialize_tenant_admin_identity_detail
 from app.rbac.decorators import auth_only
 from app.services.tenant.tenant_admin_service import TenantAdminService
 
@@ -37,6 +38,26 @@ async def select_tenant_admins(
         page_size=page_size,
     )
     return success(data=response, message=_("common.success"))
+
+
+@router.get("/{admin_id}", summary="获取企业管理员详情")
+@auth_only
+async def get_tenant_admin_detail(
+    db: DbSession,
+    current_admin: ActiveTenantAdmin,
+    admin_id: int,
+):
+    """
+    获取企业管理员详情 / Get tenant admin identity detail.
+    """
+    admin = await TenantAdminService(
+        db,
+        current_admin.tenant_id,
+    ).get_identity_detail(admin_id)
+    return success(
+        data=serialize_tenant_admin_identity_detail(admin),
+        message=_("common.success"),
+    )
 
 
 __all__ = ["router"]

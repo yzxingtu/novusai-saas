@@ -5,7 +5,7 @@
  */
 import type { adminApi } from '#/api';
 
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -21,7 +21,8 @@ import {
 
 import { useCrudPage } from '#/adapter/vxe-table';
 import { adminApi as admin } from '#/api';
-import { IdentityDisplay } from '#/components/business/identity-display';
+import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
+import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 
@@ -92,6 +93,19 @@ const { Grid, onRefresh } = useCrudPage<OperationLogInfo>({
 function onSelectionChange(rows: OperationLogInfo[]) {
   selectedRows.value = rows;
 }
+
+const identityContextLabel = computed(() =>
+  $t('admin.system.operationLog.title'),
+);
+
+function buildOperationLogMeta(row: OperationLogInfo): IdentityDetailMeta {
+  return {
+    username: row.username,
+    orgNodeName: row.orgNodeName,
+    roleName: row.roleName,
+    userType: row.userType,
+  };
+}
 </script>
 
 <template>
@@ -103,7 +117,7 @@ function onSelectionChange(rows: OperationLogInfo[]) {
       <Grid @selection-change="onSelectionChange">
         <!-- 用户名列（含头像） -->
         <template #username_cell="{ row }">
-          <IdentityDisplay
+          <IdentityTrigger
             :avatar-size="30"
             :model="
               createOperationLogIdentityModel({
@@ -120,6 +134,9 @@ function onSelectionChange(rows: OperationLogInfo[]) {
                 username: row.username,
               })
             "
+            :meta="buildOperationLogMeta(row)"
+            :context="identityContextLabel"
+            :show-status-badge="false"
           />
         </template>
 

@@ -9,6 +9,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+
 from app.core.base_service import TenantService
 from app.core.i18n import _
 from app.core.security import get_password_hash
@@ -394,10 +397,30 @@ class TenantUserService(TenantService[TenantUser, TenantUserRepository]):
             has_more=(page * page_size) < total,
         )
 
+    async def get_identity_detail(self, user_id: int) -> TenantUser:
+        """
+        获取企业用户详情，含角色/组织信息 / Get tenant user detail with role and org.
+        """
+        stmt = (
+            select(self.model)
+            .options(
+                selectinload(self.model.role),
+                selectinload(self.model.org_node),
+            )
+            .where(
+                self.model.id == user_id,
+                self.model.tenant_id == self.tenant_id,
+                self.model.is_deleted.is_(False),
+            )
+        )
+        result = await self.db.execute(stmt)
+        user = result.scalar_one_or_none()
+        if not user:
+            raise NotFoundException(message=_("tenant_user.not_found"))
+        return user
+
     async def _get_tenant_name(self) -> str:
         """获取当前企业名称 / Get current tenant name."""
-        from sqlalchemy import select
-
         from app.models.tenant.tenant import Tenant
 
         result = await self.db.execute(
@@ -463,6 +486,5 @@ class TenantUserService(TenantService[TenantUser, TenantUserRepository]):
             },
             disabled=not user.is_active,
         )
-
 
 __all__ = ["TenantUserService"]

@@ -59,6 +59,8 @@ import { $t } from '#/locales';
 import { usePresenceStore } from '#/store';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 import { showRequestError } from '#/utils/error-helpers';
+import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
+import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 
 import {
   buildOrganizationOptionLabelMap,
@@ -124,6 +126,19 @@ function buildUserIdentityModel(row: TenantUserInfo) {
     nickname: row.nickname || row.username,
     orgNodeName: row.orgNodeName,
     roleName: row.roleName,
+  };
+}
+
+function buildUserIdentityMeta(row: TenantUserInfo): IdentityDetailMeta {
+  return {
+    approvalStatus: row.approvalStatus,
+    email: row.email,
+    orgNodeName: row.orgNodeName,
+    roleName: row.roleName,
+    scope: 'tenant',
+    subjectType: 'tenant_user',
+    userType: 'tenant_user',
+    username: row.username,
   };
 }
 
@@ -993,12 +1008,17 @@ usePageAIOperations({
                       : $t('tenant.system.userArchitecture.offline')
                   "
                 >
-                  <IdentityDisplay
-                    :avatar-size="32"
+                  <IdentityTrigger
                     :model="buildUserIdentityModel(row)"
-                    :online="presenceStore.isOnline('tenant_user', row.id)"
-                    :show-online-status="true"
-                  />
+                    :meta="buildUserIdentityMeta(row)"
+                  >
+                    <IdentityDisplay
+                      :avatar-size="32"
+                      :model="buildUserIdentityModel(row)"
+                      :online="presenceStore.isOnline('tenant_user', row.id)"
+                      :show-online-status="true"
+                    />
+                  </IdentityTrigger>
                 </Tooltip>
               </template>
 

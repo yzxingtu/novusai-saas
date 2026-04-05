@@ -7,7 +7,8 @@ import { IconifyIcon } from '@vben/icons';
 
 import { Drawer, Empty, Spin, Tag } from 'ant-design-vue';
 
-import IdentityDisplay from '#/components/business/identity-display/IdentityDisplay.vue';
+import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
+import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
@@ -96,13 +97,17 @@ const callerIdentityModel = computed(() => {
     orgNodeId: data.caller_org_node_id,
     orgNodeName: data.caller_org_node_name,
     roleName: data.caller_role_name,
-    userType: data.caller_type ?? undefined,
-    username:
-      callerDisplayName || callerNickname
-        ? callerUsername || undefined
-        : callerUsername || getCallerDisplayName(data) || undefined,
-  };
+  userType: data.caller_type ?? undefined,
+  username:
+    callerDisplayName || callerNickname
+      ? callerUsername || undefined
+      : callerUsername || getCallerDisplayName(data) || undefined,
+};
 });
+
+const callerContextLabel = computed(
+  () => $t(`${props.i18nPrefix}.callerName`),
+);
 
 function getStatusColor(status?: null | string) {
   switch (status) {
@@ -262,6 +267,31 @@ const detailFields = computed(() => {
   }
   return fields;
 });
+
+function buildDrawerCallerMeta(
+  data: MonitoringCallLogInfo | null,
+): IdentityDetailMeta {
+  if (!data) {
+    return {};
+  }
+
+  return {
+    createdAt: data.created_at,
+    orgNodeName: data.caller_org_node_name,
+    roleName: data.caller_role_name,
+    scope: props.scope,
+    subjectType: data.caller_type,
+    tenantId: data.tenant_id ?? undefined,
+    tenantName: data.tenant_name,
+    userType: data.caller_type,
+    username:
+      data.caller_username ||
+      data.caller_display_name ||
+      data.caller_nickname ||
+      data.caller_name ||
+      (data.caller_id ? `#${data.caller_id}` : undefined),
+  };
+}
 </script>
 
 <template>
@@ -331,10 +361,12 @@ const detailFields = computed(() => {
                   <span class="mr-2 text-xs text-muted-foreground">{{
                     $t(`${i18nPrefix}.callerName`)
                   }}</span>
-                  <IdentityDisplay
+                  <IdentityTrigger
                     v-if="callerIdentityModel"
                     :avatar-size="28"
                     :model="callerIdentityModel"
+                    :meta="buildDrawerCallerMeta(detail)"
+                    :context="callerContextLabel"
                     :show-status-badge="false"
                   />
                 </div>
@@ -445,10 +477,13 @@ const detailFields = computed(() => {
                 {{ $t(`${i18nPrefix}.callerName`) }}
               </div>
               <div class="mt-2">
-                <IdentityDisplay
+                <IdentityTrigger
                   v-if="callerIdentityModel"
                   :avatar-size="32"
                   :model="callerIdentityModel"
+                  :meta="buildDrawerCallerMeta(detail)"
+                  :context="callerContextLabel"
+                  :show-status-badge="false"
                 />
                 <span v-else class="text-sm text-muted-foreground">-</span>
               </div>

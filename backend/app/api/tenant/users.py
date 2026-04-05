@@ -7,6 +7,7 @@ Provides tenant user CRUD, password reset, status toggle, approval endpoints
 
 from fastapi import Query, Request
 
+from app.api.common.identity import serialize_tenant_user_identity_detail
 from app.core.base_controller import TenantController
 from app.core.deps import ActiveTenantAdmin, DbSession, QueryParams
 from app.core.i18n import _
@@ -38,9 +39,13 @@ from app.services.tenant.tenant_user_service import TenantUserService
 def _serialize_user(user) -> dict:
     """序列化用户信息 / Serialize user info"""
     org_node = getattr(user, "org_node", None)
+    display_name = (
+        user.nickname or user.username or user.email or user.phone or f"#{user.id}"
+    )
     return {
         "id": user.id,
         "tenant_id": user.tenant_id,
+        "display_name": display_name,
         "username": user.username,
         "email": user.email,
         "phone": user.phone,
@@ -54,6 +59,10 @@ def _serialize_user(user) -> dict:
         "org_node_id": getattr(user, "org_node_id", None),
         "org_node_name": getattr(org_node, "name", None),
         "last_login_at": serialize_datetime_for_api(user.last_login_at),
+        "last_login_ip": user.last_login_ip,
+        "is_owner": False,
+        "is_leader": False,
+        "user_type": "tenant_user",
         "created_at": serialize_datetime_for_api(user.created_at),
         "updated_at": serialize_datetime_for_api(user.updated_at),
     }
@@ -131,11 +140,11 @@ class TenantUserController(TenantController):
         ):
             """获取单个企业用户详情 / Get single tenant user details"""
             service = TenantUserService(db, current_admin.tenant_id)
-            user = await service.get_by_id(user_id)
-            if not user:
-                raise NotFoundException(message=_("tenant_user.not_found"))
-
-            return success(data=_serialize_user(user))
+            user = await service.get_identity_detail(user_id)
+            return success(
+                data=serialize_tenant_user_identity_detail(user),
+                message=_("common.success"),
+            )
 
         @router.post("", summary="创建用户")
         @action_create("action.tenant_user.create")

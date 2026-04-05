@@ -24,7 +24,8 @@ import { Button, DatePicker, Empty, Spin } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
 import AIPageHeroCard from '#/components/business/ai-page-hero/AIPageHeroCard.vue';
-import IdentityDisplay from '#/components/business/identity-display/IdentityDisplay.vue';
+import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
+import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 import { $t } from '#/locales';
 
 import { getMonitoringUsageDashboard } from '../api';
@@ -389,6 +390,25 @@ function buildUsageActorIdentityModel(item: MonitoringUsageBreakdownItem) {
       actor?.display_name || actor?.nickname
         ? undefined
         : (actor?.username ?? undefined),
+  };
+}
+
+function buildUsageActorMeta(
+  item: MonitoringUsageBreakdownItem,
+): IdentityDetailMeta {
+  const actor = item.actor;
+  return {
+    orgNodeName: actor?.org_node_name,
+    roleName: actor?.role_name,
+    scope: props.scope,
+    subjectType: actor?.type,
+    tenantName: dashboard.value?.tenant_name,
+    userType: actor?.type,
+    username:
+      actor?.username ||
+      actor?.display_name ||
+      actor?.nickname ||
+      undefined,
   };
 }
 
@@ -966,13 +986,15 @@ onBeforeUnmount(() => {
                     <div class="min-w-0 flex-1">
                       <div class="flex items-start justify-between gap-3">
                         <div class="min-w-0 flex-1">
-                          <IdentityDisplay
+                          <IdentityTrigger
                             v-if="
                               section.key === 'users' &&
                               buildUsageActorIdentityModel(item)
                             "
                             :avatar-size="32"
                             :model="buildUsageActorIdentityModel(item)!"
+                            :meta="buildUsageActorMeta(item)"
+                            :context="section.title"
                           />
                           <div
                             v-else
@@ -1074,13 +1096,15 @@ onBeforeUnmount(() => {
                   <div class="min-w-0 flex-1">
                     <div class="flex items-start justify-between gap-3">
                       <div class="min-w-0 flex-1">
-                        <IdentityDisplay
+                        <IdentityTrigger
                           v-if="
                             section.key === 'users' &&
                             buildUsageActorIdentityModel(item)
                           "
                           :avatar-size="32"
                           :model="buildUsageActorIdentityModel(item)!"
+                          :meta="buildUsageActorMeta(item)"
+                          :context="section.title"
                         />
                         <div
                           v-else

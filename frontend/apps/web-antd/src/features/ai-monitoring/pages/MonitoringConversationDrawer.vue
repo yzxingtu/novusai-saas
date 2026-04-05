@@ -23,10 +23,11 @@ import {
   Tooltip,
 } from 'ant-design-vue';
 
-import IdentityDisplay from '#/components/business/identity-display/IdentityDisplay.vue';
 import { $t } from '#/locales';
 import { formatDate, formatTimeOnly } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
+import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
+import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 
 import { getMonitoringConversationDetail } from '../api';
 
@@ -337,6 +338,20 @@ const actorIdentityModel = computed(() => {
   };
 });
 
+const actorIdentityMeta = computed<IdentityDetailMeta>(() => ({
+  orgNodeName: detail.value?.actor?.org_node_name,
+  roleName: detail.value?.actor?.role_name,
+  scope: props.scope,
+  subjectType: detail.value?.actor?.type,
+  tenantName: detail.value?.tenant_name,
+  userType: detail.value?.actor?.type,
+  username:
+    detail.value?.actor?.username ||
+    detail.value?.actor?.display_name ||
+    detail.value?.actor?.nickname ||
+    undefined,
+}));
+
 function closeDrawer() {
   emits('update:open', false);
 }
@@ -457,9 +472,10 @@ function traceStatusColor(status?: null | string) {
                   v-if="actorIdentityModel"
                   class="min-w-[180px] rounded-xl bg-background/75 px-2 py-2"
                 >
-                  <IdentityDisplay
+                  <IdentityTrigger
                     :avatar-size="32"
                     :model="actorIdentityModel"
+                    :meta="actorIdentityMeta"
                   />
                 </div>
               </div>
@@ -533,10 +549,11 @@ function traceStatusColor(status?: null | string) {
                 {{ $t(`${i18nPrefix}.user`) }}
               </div>
               <div class="monitoring-overview-value">
-                <IdentityDisplay
+                <IdentityTrigger
                   v-if="actorIdentityModel"
                   :avatar-size="24"
                   :model="actorIdentityModel"
+                  :meta="actorIdentityMeta"
                 />
                 <span v-else>-</span>
               </div>

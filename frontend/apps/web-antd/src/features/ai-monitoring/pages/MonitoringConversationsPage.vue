@@ -19,11 +19,12 @@ import {
   getTenantAIProviderSelectApi,
 } from '#/api/tenant/ai';
 import AIPageHeroCard from '#/components/business/ai-page-hero/AIPageHeroCard.vue';
-import IdentityDisplay from '#/components/business/identity-display/IdentityDisplay.vue';
 import { createViewDetailPageOperation } from '#/composables';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
+import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
+import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 
 import { getMonitoringConversationList } from '../api';
 import MonitoringConversationDrawer from './MonitoringConversationDrawer.vue';
@@ -208,6 +209,22 @@ function buildActorIdentityModel(actor?: MonitoringConversationInfo['actor']) {
     orgNodeName: actor.org_node_name,
     roleName: actor.role_name,
     username: actor.display_name || actor.nickname ? undefined : actor.username,
+  };
+}
+
+function buildActorMeta(row: MonitoringConversationInfo): IdentityDetailMeta {
+  return {
+    orgNodeName: row.actor?.org_node_name,
+    roleName: row.actor?.role_name,
+    scope: props.scope,
+    subjectType: row.actor?.type,
+    tenantName: row.tenant_name,
+    userType: row.actor?.type,
+    username:
+      row.actor?.username ||
+      row.actor?.display_name ||
+      row.actor?.nickname ||
+      undefined,
   };
 }
 
@@ -440,10 +457,10 @@ const { Grid, gridApi } = useCrudPage<MonitoringConversationInfo>({
         </template>
 
         <template #actor_cell="{ row }">
-          <IdentityDisplay
+          <IdentityTrigger
             v-if="row.actor"
-            :avatar-size="32"
             :model="buildActorIdentityModel(row.actor)!"
+            :meta="buildActorMeta(row)"
           />
           <span v-else class="text-muted-foreground">-</span>
         </template>

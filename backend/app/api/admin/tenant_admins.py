@@ -25,6 +25,7 @@ from app.rbac.decorators import (
 from app.services.common import AuthService
 from app.services.system import TenantService
 from app.services.tenant import TenantAdminService
+from app.api.common.identity import serialize_tenant_admin_identity_detail
 
 # ==========================================
 # 请求/响应 Schema / Request/Response Schema
@@ -75,14 +76,18 @@ def _raise_http(exc: Exception):
 def _serialize_tenant_admin(tenant_admin) -> dict:
     permission_role = getattr(tenant_admin, "role", None)
     org_node = getattr(tenant_admin, "org_node", None)
+    is_leader = bool(org_node and org_node.leader_id == tenant_admin.id)
     return {
         "id": tenant_admin.id,
+        "tenant_id": tenant_admin.tenant_id,
         "username": tenant_admin.username,
         "email": tenant_admin.email,
         "nickname": tenant_admin.nickname,
         "avatar": tenant_admin.avatar,
         "is_owner": tenant_admin.is_owner,
+        "is_leader": is_leader,
         "is_active": tenant_admin.is_active,
+        "user_type": "tenant_admin",
         "role_name": permission_role.name if permission_role else None,
         "role_id": tenant_admin.role_id,
         "permission_role_name": permission_role.name if permission_role else None,
@@ -92,6 +97,7 @@ def _serialize_tenant_admin(tenant_admin) -> dict:
         "last_login_at": serialize_datetime_for_api(tenant_admin.last_login_at),
         "last_login_ip": tenant_admin.last_login_ip,
         "created_at": serialize_datetime_for_api(tenant_admin.created_at),
+        "updated_at": serialize_datetime_for_api(tenant_admin.updated_at),
     }
 
 
@@ -196,6 +202,26 @@ class AdminTenantAdminController(GlobalController):
                 page_size=page_size,
             )
             return success(data=response, message=_("common.success"))
+
+        @router.get("/{admin_id}", summary="获取企业管理员详情")
+        @action_read("action.tenant_admin.detail")
+        async def get_tenant_admin_detail(
+            request: Request,
+            db: DbSession,
+            admin: ActiveAdmin,
+            tenant_id: int,
+            admin_id: int,
+        ):
+            try:
+                await _verify_tenant(db, tenant_id)
+                service = TenantAdminService(db, tenant_id)
+                tenant_admin = await service.get_identity_detail(admin_id)
+                return success(
+                    data=serialize_tenant_admin_identity_detail(tenant_admin),
+                    message=_("common.success"),
+                )
+            except Exception as exc:
+                _raise_http(exc)
 
         @router.post("", summary="为企业创建管理员")
         @action_create("action.tenant_admin.create")

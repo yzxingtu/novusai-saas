@@ -19,7 +19,8 @@ import {
   getTenantAIProviderSelectApi,
 } from '#/api/tenant/ai';
 import AIPageHeroCard from '#/components/business/ai-page-hero/AIPageHeroCard.vue';
-import IdentityDisplay from '#/components/business/identity-display/IdentityDisplay.vue';
+import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
+import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 import { createViewDetailPageOperation } from '#/composables';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
@@ -163,6 +164,9 @@ const heroChips = computed(() => [
   },
 ]);
 
+const callerContextLabel = computed(
+  () => $t(`${props.i18nPrefix}.callerName`),
+);
 function viewDetail(row: MonitoringCallLogInfo) {
   detailId.value = row.id;
   detailOpen.value = true;
@@ -321,6 +325,25 @@ const { Grid, gridApi } = useCrudPage<MonitoringCallLogInfo>({
     ],
   },
 });
+
+function buildCallerMeta(row: MonitoringCallLogInfo): IdentityDetailMeta {
+  return {
+    createdAt: row.created_at,
+    username:
+      row.caller_username ||
+      row.caller_display_name ||
+      row.caller_nickname ||
+      row.caller_name ||
+      (row.caller_id ? `#${row.caller_id}` : undefined),
+    orgNodeName: row.caller_org_node_name,
+    roleName: row.caller_role_name,
+    scope: props.scope,
+    subjectType: row.caller_type,
+    tenantId: row.tenant_id ?? undefined,
+    tenantName: row.tenant_name,
+    userType: row.caller_type,
+  };
+}
 </script>
 
 <template>
@@ -399,9 +422,11 @@ const { Grid, gridApi } = useCrudPage<MonitoringCallLogInfo>({
           </div>
         </template>
         <template #caller_cell="{ row }">
-          <IdentityDisplay
+          <IdentityTrigger
             :avatar-size="36"
             :model="createMonitoringCallerIdentityModel(row)"
+            :meta="buildCallerMeta(row)"
+            :context="callerContextLabel"
           />
         </template>
         <template #requestType_cell="{ row }">

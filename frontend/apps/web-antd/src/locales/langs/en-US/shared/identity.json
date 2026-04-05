@@ -1,5 +1,44 @@
 {
   "$schema": "https://json.schemastore.org/i18n",
+  "action": {
+    "viewDetail": "View detail"
+  },
+  "approval": {
+    "approved": "Approved",
+    "pending": "Pending",
+    "rejected": "Rejected"
+  },
+  "detail": {
+    "activitySection": "Recent activity",
+    "basicSection": "Identity information",
+    "emptyDescription": "No identity details are available yet",
+    "title": "Identity detail"
+  },
+  "field": {
+    "approvalStatus": "Approval status",
+    "createdAt": "Created at",
+    "email": "Email",
+    "empty": "Not available",
+    "lastLoginAt": "Last login",
+    "lastLoginIp": "Last login IP",
+    "leader": "Leader",
+    "organization": "Architecture",
+    "owner": "Owner",
+    "phone": "Phone",
+    "role": "Role",
+    "status": "Account status",
+    "superAdmin": "Super admin",
+    "tenant": "Tenant",
+    "updatedAt": "Updated at",
+    "userType": "Identity type",
+    "username": "Username"
+  },
   "owner": "Owner",
-  "unassignedArchitecture": "Unassigned Architecture"
+  "unassignedArchitecture": "Unassigned Architecture",
+  "userTypes": {
+    "admin": "Platform admin",
+    "tenantAdmin": "Tenant admin",
+    "tenantUser": "Tenant user",
+    "unknown": "Unknown identity"
+  }
 }

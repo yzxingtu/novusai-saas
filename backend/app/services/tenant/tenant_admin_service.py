@@ -8,6 +8,7 @@ Provides tenant admin business logic (tenant-isolated).
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.core.base_service import TenantService
 from app.core.i18n import _
@@ -370,6 +371,28 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
             has_more=(page * page_size) < total,
         )
 
+    async def get_identity_detail(self, admin_id: int) -> TenantAdmin:
+        """
+        获取企业管理员详情，含角色/组织信息 / Get tenant admin detail with role and org.
+        """
+        stmt = (
+            select(self.model)
+            .options(
+                selectinload(self.model.role),
+                selectinload(self.model.org_node),
+            )
+            .where(
+                self.model.id == admin_id,
+                self.model.tenant_id == self.tenant_id,
+                self.model.is_deleted.is_(False),
+            )
+        )
+        result = await self.db.execute(stmt)
+        admin = result.scalar_one_or_none()
+        if not admin:
+            raise NotFoundException(message=_("tenant_admin.not_found"))
+        return admin
+
     async def _get_tenant_root_node(self) -> TenantOrgNode | None:
         """
         获取企业的组织架构根节点 / Get tenant org root node.
@@ -433,6 +456,5 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
             },
             disabled=not admin.is_active,
         )
-
 
 __all__ = ["TenantAdminService"]

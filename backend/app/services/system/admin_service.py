@@ -8,6 +8,7 @@ Provides platform admin business logic.
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.core.base_service import GlobalService
 from app.core.i18n import _
@@ -331,6 +332,24 @@ class AdminService(GlobalService[Admin, AdminRepository]):
             has_more=(page * page_size) < total,
         )
 
+    async def get_identity_detail(self, admin_id: int) -> Admin:
+        """
+        获取平台管理员详情，含角色/组织信息 / Get platform admin detail with role and org.
+        """
+        stmt = (
+            select(self.model)
+            .options(
+                selectinload(self.model.role),
+                selectinload(self.model.org_node),
+            )
+            .where(self.model.id == admin_id, self.model.is_deleted.is_(False))
+        )
+        result = await self.db.execute(stmt)
+        admin = result.scalar_one_or_none()
+        if not admin:
+            raise NotFoundException(message=_("admin.not_found"))
+        return admin
+
     async def _validate_permission_role(self, role_id: int | None) -> None:
         if role_id is None:
             return
@@ -357,10 +376,12 @@ class AdminService(GlobalService[Admin, AdminRepository]):
         role = getattr(admin, "role", None)
         org_node = getattr(admin, "org_node", None)
         is_leader = bool(org_node and getattr(org_node, "leader_id", None) == admin.id)
+        display_name = admin.nickname or admin.username or f"#{admin.id}"
         return SelectOption(
-            label=admin.nickname or admin.username,
+            label=display_name,
             value=admin.id,
             extra={
+                "display_name": display_name,
                 "username": admin.username,
                 "nickname": admin.nickname,
                 "avatar": admin.avatar,
@@ -374,6 +395,5 @@ class AdminService(GlobalService[Admin, AdminRepository]):
             },
             disabled=not admin.is_active,
         )
-
 
 __all__ = ["AdminService"]

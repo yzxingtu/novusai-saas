@@ -297,25 +297,33 @@ function resolveBadgeToneClass(color?: string): string {
 
 <style scoped>
 .identity-display__content {
+  align-items: flex-start;
   display: flex;
   flex-direction: column;
   gap: 3px;
   min-width: 0;
+  text-align: left;
 }
 
 .identity-display__heading {
   align-items: center;
-  display: flex;
+  display: inline-flex;
   gap: 6px;
+  justify-content: flex-start;
   line-height: 1.1;
+  max-width: 100%;
   min-width: 0;
+  text-align: left;
+  width: auto;
 }
 
 .identity-display__title {
   color: rgb(17 24 39);
-  flex: 1;
+  flex: 0 1 auto;
+  max-width: 100%;
   min-width: 0;
   overflow: hidden;
+  text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -333,6 +341,7 @@ function resolveBadgeToneClass(color?: string): string {
   display: flex;
   flex-shrink: 0;
   gap: 2px;
+  justify-content: flex-start;
 }
 
 .identity-display__indicator {
@@ -421,7 +430,9 @@ function resolveBadgeToneClass(color?: string): string {
 }
 
 .identity-display__org-line {
+  justify-content: flex-start;
   min-height: 20px;
+  text-align: left;
 }
 
 .identity-display__org-chip {
@@ -435,6 +446,7 @@ function resolveBadgeToneClass(color?: string): string {
   max-width: 100%;
   min-width: 0;
   padding: 1px 8px;
+  text-align: left;
 }
 
 .identity-display__org-icon {
@@ -455,6 +467,13 @@ function resolveBadgeToneClass(color?: string): string {
 .identity-display__secondary {
   color: rgb(107 114 128);
   line-height: 1.35;
+  text-align: left;
+}
+
+.identity-display {
+  justify-content: flex-start;
+  text-align: left;
+  width: 100%;
 }
 
 .dark .identity-display__org-chip {

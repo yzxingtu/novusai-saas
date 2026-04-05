@@ -11,7 +11,8 @@ import { IconifyIcon } from '@vben/icons';
 import { Descriptions, DescriptionsItem, Divider, Tag } from 'ant-design-vue';
 
 import { getOperationLogDetailApi } from '#/api/admin/operation-log';
-import { IdentityDisplay } from '#/components/business/identity-display';
+import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
+import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
@@ -37,6 +38,20 @@ const statusCodeType = computed(() => {
   if (!detail.value) return 'default';
   return getStatusColor(detail.value.statusCode);
 });
+
+const identityDetailContext = computed(() =>
+  $t('admin.system.operationLog.detail'),
+);
+
+function buildDetailMeta(value: OperationLogInfo): IdentityDetailMeta {
+  return {
+    username: value.username,
+    orgNodeName: value.orgNodeName,
+    roleName: value.roleName,
+    userType: value.userType,
+    createdAt: value.createdAt,
+  };
+}
 </script>
 
 <template>
@@ -57,7 +72,7 @@ const statusCodeType = computed(() => {
             :label="$t('admin.system.operationLog.username')"
             :span="2"
           >
-            <IdentityDisplay
+            <IdentityTrigger
               :avatar-size="32"
               :model="
                 createOperationLogIdentityModel({
@@ -74,6 +89,9 @@ const statusCodeType = computed(() => {
                   username: detail.username,
                 })
               "
+              :meta="buildDetailMeta(detail)"
+              :context="identityDetailContext"
+              :show-status-badge="false"
             />
           </DescriptionsItem>
         </Descriptions>

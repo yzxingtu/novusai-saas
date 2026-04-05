@@ -12,6 +12,8 @@ import { Button, Popconfirm, Tooltip } from 'ant-design-vue';
 import { IdentityDisplay } from '#/components/business/identity-display';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
+import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
+import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 
 const props = withDefaults(
   defineProps<{
@@ -70,6 +72,17 @@ const memberPrimaryMeta = computed(() => {
   return props.member.email || props.member.username || `#${props.member.id}`;
 });
 
+const identityMeta = computed<IdentityDetailMeta>(() => ({
+  createdAt: props.member.createdAt,
+  email: props.member.email,
+  orgNodeName: props.member.orgNodeName,
+  roleName: props.member.roleName,
+  scope: props.apiPrefix,
+  subjectType: identityModel.value.userType,
+  userType: identityModel.value.userType,
+  username: props.member.username,
+}));
+
 /** Handle remove member / 处理移除成员 */
 function handleRemove() {
   emit('remove', props.member);
@@ -106,34 +119,36 @@ function handleForceLogout() {
     class="member-item flex items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800"
     :class="{ 'opacity-60': !member.isActive }"
   >
-    <IdentityDisplay
-      :model="identityModel"
-      :avatar-size="40"
-      :online="online"
-      :show-online-status="showOnlineStatus"
-      class="flex-1"
-    >
-      <template #after>
-        <div
-          class="flex items-center gap-2 truncate text-xs text-gray-500 dark:text-gray-400"
-        >
-          <span class="truncate">{{ memberPrimaryMeta }}</span>
-          <Tooltip
-            v-if="member.createdAt"
-            :title="
-              $t('shared.memberPanel.item.createdAt', {
-                date: formatDate(member.createdAt),
-              })
-            "
+    <IdentityTrigger :meta="identityMeta" :model="identityModel" class="flex-1">
+      <IdentityDisplay
+        :model="identityModel"
+        :avatar-size="40"
+        :online="online"
+        :show-online-status="showOnlineStatus"
+        class="flex-1"
+      >
+        <template #after>
+          <div
+            class="flex items-center gap-2 truncate text-xs text-gray-500 dark:text-gray-400"
           >
-            <span class="flex items-center gap-0.5 text-xs text-gray-400">
-              <IconifyIcon icon="lucide:calendar" class="h-3 w-3" />
-              {{ formatDate(member.createdAt, 'YYYY-MM-DD') }}
-            </span>
-          </Tooltip>
-        </div>
-      </template>
-    </IdentityDisplay>
+            <span class="truncate">{{ memberPrimaryMeta }}</span>
+            <Tooltip
+              v-if="member.createdAt"
+              :title="
+                $t('shared.memberPanel.item.createdAt', {
+                  date: formatDate(member.createdAt),
+                })
+              "
+            >
+              <span class="flex items-center gap-0.5 text-xs text-gray-400">
+                <IconifyIcon icon="lucide:calendar" class="h-3 w-3" />
+                {{ formatDate(member.createdAt, 'YYYY-MM-DD') }}
+              </span>
+            </Tooltip>
+          </div>
+        </template>
+      </IdentityDisplay>
+    </IdentityTrigger>
 
     <!-- Action buttons / 操作按钮 -->
     <div v-if="showActions && !disabled" class="flex flex-shrink-0 gap-1">

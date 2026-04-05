@@ -18,9 +18,10 @@ import {
 } from 'ant-design-vue';
 
 import { getOperationLogDetailApi } from '#/api/tenant/operation-log';
-import IdentityDisplay from '#/components/business/identity-display/IdentityDisplay.vue';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
+import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
+import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 
 import {
   getMethodColor,
@@ -94,6 +95,15 @@ const userIdentityModel = computed(() => {
     roleName: detail.value.roleName,
   };
 });
+
+const userIdentityMeta = computed<IdentityDetailMeta>(() => ({
+  orgNodeName: detail.value?.orgNodeName,
+  roleName: detail.value?.roleName,
+  scope: 'tenant',
+  subjectType: detail.value?.userType,
+  userType: detail.value?.userType,
+  username: detail.value?.username,
+}));
 </script>
 
 <template>
@@ -115,10 +125,11 @@ const userIdentityModel = computed(() => {
               :label="$t('tenant.system.operationLog.username')"
               :span="2"
             >
-              <IdentityDisplay
+              <IdentityTrigger
                 v-if="userIdentityModel"
                 :avatar-size="32"
                 :model="userIdentityModel"
+                :meta="userIdentityMeta"
               />
             </DescriptionsItem>
           </Descriptions>

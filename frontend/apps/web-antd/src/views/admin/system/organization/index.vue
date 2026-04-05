@@ -45,6 +45,8 @@ import {
   usePageAIOperations,
 } from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
+import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
+import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 
 import { createAdminIdentityModel } from '../../_shared/identity';
 
@@ -119,6 +121,13 @@ const leaderIdentityModel = computed(() =>
       : $t('admin.system.organization.noLeaderHint'),
   }),
 );
+
+const leaderIdentityMeta = computed<IdentityDetailMeta>(() => ({
+  orgNodeName: activeNode.value?.name,
+  scope: 'admin',
+  subjectType: 'admin',
+  username: activeNode.value?.leader?.username,
+}));
 
 function getNodeTypeLabel(type?: string) {
   return type
@@ -636,11 +645,18 @@ usePageAIOperations({
                   size="small"
                 >
                   <div class="flex h-full flex-col justify-between gap-3">
-                    <IdentityDisplay
+                    <IdentityTrigger
                       :avatar-size="40"
                       :model="leaderIdentityModel"
-                      :show-avatar="hasLeader"
-                    />
+                      :meta="leaderIdentityMeta"
+                      :quick-card="hasLeader"
+                    >
+                      <IdentityDisplay
+                        :avatar-size="40"
+                        :model="leaderIdentityModel"
+                        :show-avatar="hasLeader"
+                      />
+                    </IdentityTrigger>
                     <div
                       class="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground"
                     >

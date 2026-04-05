@@ -48,6 +48,8 @@ import {
   usePageAIOperations,
 } from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
+import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
+import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 
 defineOptions({ name: 'TenantOrganization' });
 
@@ -115,6 +117,13 @@ const leaderIdentityModel = computed(() => {
     username: leader.username,
   };
 });
+
+const leaderIdentityMeta = computed<IdentityDetailMeta>(() => ({
+  orgNodeName: activeNode.value?.name,
+  scope: 'tenant',
+  subjectType: 'tenant_admin',
+  username: activeNode.value?.leader?.username,
+}));
 
 const leaderScopeLabel = computed(() =>
   getLeaderScopeLabel(activeNode.value?.dataScope),
@@ -667,10 +676,15 @@ usePageAIOperations({
                       v-if="leaderIdentityModel"
                       class="rounded-xl border border-border/60 bg-background/80 px-3 py-3"
                     >
-                      <IdentityDisplay
+                      <IdentityTrigger
                         :model="leaderIdentityModel"
-                        leader-label=""
-                      />
+                        :meta="leaderIdentityMeta"
+                      >
+                        <IdentityDisplay
+                          :model="leaderIdentityModel"
+                          leader-label=""
+                        />
+                      </IdentityTrigger>
                     </div>
                     <div
                       v-else

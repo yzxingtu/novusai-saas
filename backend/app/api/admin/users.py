@@ -23,6 +23,7 @@ from app.rbac.decorators import (
 )
 from app.services.common import AuthService
 from app.services.system.admin_service import AdminService
+from app.api.common.identity import serialize_admin_identity_detail
 
 
 @permission_resource(
@@ -61,6 +62,22 @@ class AdminUserController(GlobalController):
                 page_size=page_size,
             )
             return success(data=response, message=_("common.success"))
+
+        @router.get("/{user_id}", summary="获取平台管理员详情")
+        @action_read("action.admin_user.detail")
+        async def get_admin_detail(
+            db: DbSession,
+            current_admin: ActiveAdmin,
+            user_id: int,
+        ):
+            """
+            获取平台管理员详情 / Get platform admin detail.
+            """
+            admin = await AdminService(db).get_identity_detail(user_id)
+            return success(
+                data=serialize_admin_identity_detail(admin),
+                message=_("common.success"),
+            )
 
         @router.post("/{user_id}/force-logout", summary="强制下线平台管理员")
         @auth_only

@@ -11,7 +11,8 @@ import { Card, Tag, Tooltip } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
 import { tenantApi as tenant } from '#/api';
-import IdentityDisplay from '#/components/business/identity-display/IdentityDisplay.vue';
+import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
+import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 
 import {
@@ -63,6 +64,17 @@ function buildOperatorIdentityModel(row: OperationLogInfo) {
   };
 }
 
+function buildOperatorMeta(row: OperationLogInfo): IdentityDetailMeta {
+  return {
+    orgNodeName: row.orgNodeName,
+    roleName: row.roleName,
+    scope: 'tenant',
+    subjectType: row.userType,
+    userType: row.userType,
+    username: row.username,
+  };
+}
+
 // User type filter linkage: after selecting type, operator dropdown only shows users of that type / 用户类型筛选联动：选择类型后，操作人下拉只显示对应类型的用户
 function onUserTypeChange(userType: string | undefined) {
   // Clear selected operator (may not belong to the new type) / 清空已选操作人（因为可能不属于新类型）
@@ -104,9 +116,11 @@ const { Grid, gridApi } = useCrudPage<OperationLogInfo>({
       <Grid>
         <!-- 用户名列（含头像 + 用户类型标签） -->
         <template #username_cell="{ row }">
-          <IdentityDisplay
+          <IdentityTrigger
             :avatar-size="32"
             :model="buildOperatorIdentityModel(row)"
+            :meta="buildOperatorMeta(row)"
+            :show-status-badge="false"
           />
         </template>
 

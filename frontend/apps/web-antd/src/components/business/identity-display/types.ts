@@ -1,17 +1,17 @@
 import { $t } from '#/locales';
 
 export interface IdentityDisplayBadge {
-  color?: string;
-  icon?: string;
-  key: string;
-  label: string;
+  readonly color?: string;
+  readonly icon?: string;
+  readonly key: string;
+  readonly label: string;
 }
 
 export type IdentityValue = number | string;
 
 export interface IdentityDisplayModel {
   avatar?: null | string;
-  badges?: IdentityDisplayBadge[];
+  badges?: readonly IdentityDisplayBadge[];
   displayName?: null | string;
   id: IdentityValue;
   isActive?: boolean;
@@ -29,7 +29,7 @@ export interface IdentityDisplayModel {
 }
 
 export interface ResolvedIdentityDisplayModel extends IdentityDisplayModel {
-  badges: IdentityDisplayBadge[];
+  badges: readonly IdentityDisplayBadge[];
   displayName: string;
   nickname: string;
   realName: string;

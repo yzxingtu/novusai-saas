@@ -39,7 +39,6 @@ import {
 } from '#/api/tenant/action-logs';
 import { getExecutionDecisionDetailApi } from '#/api/tenant/execution-decisions';
 import AIPageHeroCard from '#/components/business/ai-page-hero/AIPageHeroCard.vue';
-import IdentityDisplay from '#/components/business/identity-display/IdentityDisplay.vue';
 import {
   createRefreshPageOperation,
   createViewDetailPageOperation,
@@ -51,6 +50,8 @@ import {
   formatRelativeTime,
 } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
+import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
+import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 
 import {
   getExecutionDecisionStatusText,
@@ -177,6 +178,29 @@ function buildOperatorIdentityModel(
       log?.operator_display_name || log?.operator_nickname
         ? undefined
         : (log?.operator_name ?? undefined),
+  };
+}
+
+function buildOperatorMeta(
+  log:
+    | null
+    | (OperatorIdentitySource & {
+        created_at?: null | string;
+      })
+    | undefined,
+): IdentityDetailMeta {
+  return {
+    createdAt: log?.created_at,
+    orgNodeName: log?.operator_org_node_name,
+    roleName: log?.operator_role_name,
+    scope: 'tenant',
+    subjectType: log?.operator_type,
+    userType: log?.operator_type,
+    username:
+      log?.operator_name ||
+      log?.operator_display_name ||
+      log?.operator_nickname ||
+      undefined,
   };
 }
 
@@ -565,9 +589,10 @@ const { Grid, onRefresh } = useCrudPage<ActionLogItem>({
         </template>
 
         <template #operator_cell="{ row }">
-          <IdentityDisplay
+          <IdentityTrigger
             :avatar-size="36"
             :model="buildOperatorIdentityModel(row)"
+            :meta="buildOperatorMeta(row)"
           />
         </template>
 
@@ -688,9 +713,10 @@ const { Grid, onRefresh } = useCrudPage<ActionLogItem>({
                   <div class="text-xs text-muted-foreground">
                     {{ $t('tenant.ai.actionLog.operatorId') }}
                   </div>
-                  <IdentityDisplay
+                  <IdentityTrigger
                     class="mt-2"
                     :model="buildOperatorIdentityModel(detailData)"
+                    :meta="buildOperatorMeta(detailData)"
                   />
                 </article>
               </div>
@@ -807,9 +833,10 @@ const { Grid, onRefresh } = useCrudPage<ActionLogItem>({
                     <Descriptions.Item
                       :label="$t('tenant.ai.actionLog.operatorId')"
                     >
-                      <IdentityDisplay
+                      <IdentityTrigger
                         :avatar-size="24"
                         :model="buildOperatorIdentityModel(detailData)"
+                        :meta="buildOperatorMeta(detailData)"
                       />
                     </Descriptions.Item>
                     <Descriptions.Item

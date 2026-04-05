@@ -31,6 +31,8 @@ import { usePresenceStore } from '#/store';
 import { useAccess } from '#/utils';
 import { formatRelativeTime } from '#/utils/common';
 import { showRequestError } from '#/utils/error-helpers';
+import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
+import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 
 import { createAdminIdentityModel } from '../../../_shared/identity';
 import TenantAdminForm from './TenantAdminForm.vue';
@@ -163,6 +165,21 @@ function getAdminIdentityModel(admin: TenantAdminItem) {
   });
 }
 
+function buildAdminMeta(admin: TenantAdminItem): IdentityDetailMeta {
+  return {
+    email: admin.email,
+    lastLoginAt: admin.last_login_at,
+    orgNodeName: admin.org_node_name,
+    roleName: admin.role_name,
+    scope: 'admin',
+    subjectType: 'tenant_admin',
+    tenantId: props.tenantId,
+    tenantName: props.tenantName,
+    userType: 'tenant_admin',
+    username: admin.username,
+  };
+}
+
 const shown = ref(false);
 
 onMounted(() => {
@@ -211,27 +228,33 @@ onMounted(() => {
             class="flex items-center gap-3 rounded-lg border border-border/50 px-3 py-2 transition-colors hover:bg-accent/30"
             :class="{ 'opacity-50': !admin.is_active }"
           >
-            <IdentityDisplay
-              :avatar-size="36"
+            <IdentityTrigger
+              :meta="buildAdminMeta(admin)"
               :model="getAdminIdentityModel(admin)"
-              :online="isAdminOnline(admin.id)"
-              :show-online-status="true"
               class="min-w-0 flex-1"
             >
-              <template #after>
-                <div
-                  class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground"
-                >
-                  <span v-if="admin.email" class="truncate">
-                    {{ admin.email }}
-                  </span>
-                  <span v-if="admin.last_login_at">
-                    · {{ $t('admin.tenant.adminPanel.lastLogin') }}
-                    {{ formatRelativeTime(admin.last_login_at) }}
-                  </span>
-                </div>
-              </template>
-            </IdentityDisplay>
+              <IdentityDisplay
+                :avatar-size="36"
+                :model="getAdminIdentityModel(admin)"
+                :online="isAdminOnline(admin.id)"
+                :show-online-status="true"
+                class="min-w-0 flex-1"
+              >
+                <template #after>
+                  <div
+                    class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground"
+                  >
+                    <span v-if="admin.email" class="truncate">
+                      {{ admin.email }}
+                    </span>
+                    <span v-if="admin.last_login_at">
+                      · {{ $t('admin.tenant.adminPanel.lastLogin') }}
+                      {{ formatRelativeTime(admin.last_login_at) }}
+                    </span>
+                  </div>
+                </template>
+              </IdentityDisplay>
+            </IdentityTrigger>
 
             <!-- 操作 -->
             <div class="flex flex-shrink-0 items-center gap-2">

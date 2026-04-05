@@ -8,7 +8,15 @@ import pytest
 
 from app.api.admin.organization import _serialize_member
 from app.api.admin.tenant_admins import router as admin_tenant_admins_router
+from app.api.admin.tenant_users import router as admin_tenant_users_router
 from app.api.admin.users import router as admin_users_router
+from app.api.common.identity import (
+    serialize_admin_identity_detail,
+    serialize_tenant_admin_identity_detail,
+    serialize_tenant_user_identity_detail,
+)
+from app.api.tenant.admins import router as tenant_admins_router
+from app.api.tenant.users import router as tenant_users_router
 from app.services.system.admin_service import AdminService
 from app.services.tenant.tenant_admin_service import TenantAdminService
 
@@ -19,6 +27,9 @@ def test_admin_identity_select_routes_registered() -> None:
 
     tenant_paths = {route.path for route in admin_tenant_admins_router.routes}
     assert "/tenants/{tenant_id}/admins/select" in tenant_paths
+
+    admin_tenant_user_paths = {route.path for route in admin_tenant_users_router.routes}
+    assert "/tenants/{tenant_id}/users/select" in admin_tenant_user_paths
 
 
 @pytest.mark.asyncio
@@ -57,6 +68,7 @@ async def test_admin_identity_select_options_include_rich_extra() -> None:
     assert option.value == 42
     assert option.disabled is False
     assert option.extra == {
+        "display_name": "平台管理员",
         "username": "platform_admin",
         "nickname": "平台管理员",
         "avatar": "avatar-1",
@@ -145,3 +157,92 @@ def test_admin_org_member_serialization_includes_role_alignment() -> None:
     assert serialized.permission_role_name == "权限角色"
     assert serialized.org_node_name == "组织节点"
     assert serialized.is_leader is True
+
+
+def test_identity_detail_routes_registered() -> None:
+    admin_paths = {route.path for route in admin_users_router.routes}
+    assert "/users/{user_id}" in admin_paths
+
+    tenant_paths = {route.path for route in admin_tenant_admins_router.routes}
+    assert "/tenants/{tenant_id}/admins/{admin_id}" in tenant_paths
+
+    admin_tenant_user_paths = {route.path for route in admin_tenant_users_router.routes}
+    assert "/tenants/{tenant_id}/users/{user_id}" in admin_tenant_user_paths
+
+    tenant_admin_paths = {route.path for route in tenant_admins_router.routes}
+    assert "/admins/{admin_id}" in tenant_admin_paths
+
+    tenant_user_paths = {route.path for route in tenant_users_router.routes}
+    assert "/users/{user_id}" in tenant_user_paths
+
+
+def test_identity_detail_helpers_include_expected_flags() -> None:
+    now = datetime.now(timezone.utc)
+
+    admin = SimpleNamespace(
+        id=1,
+        username="platform_admin",
+        nickname="平台管理员",
+        avatar="avatar-1",
+        email="admin@example.com",
+        phone="123",
+        is_active=True,
+        org_node=SimpleNamespace(id=10, name="平台组织", leader_id=1),
+        role=SimpleNamespace(id=5, name="平台角色"),
+        created_at=now,
+        updated_at=now,
+        last_login_at=now,
+        last_login_ip="127.0.0.1",
+    )
+    admin_detail = serialize_admin_identity_detail(admin)
+    assert admin_detail["display_name"] == "平台管理员"
+    assert admin_detail["user_type"] == "admin"
+    assert admin_detail["is_leader"] is True
+    assert admin_detail["org_node_name"] == "平台组织"
+
+    tenant_admin = SimpleNamespace(
+        id=2,
+        username="tenant_admin",
+        nickname="企业管理员",
+        avatar="avatar-2",
+        email="ta@example.com",
+        phone="456",
+        tenant_id=99,
+        is_active=False,
+        is_owner=True,
+        org_node=SimpleNamespace(id=20, name="企业组织", leader_id=2),
+        role=SimpleNamespace(id=8, name="企业角色"),
+        created_at=now,
+        updated_at=now,
+        last_login_at=now,
+        last_login_ip="10.0.0.1",
+    )
+    tenant_admin_detail = serialize_tenant_admin_identity_detail(tenant_admin)
+    assert tenant_admin_detail["display_name"] == "企业管理员"
+    assert tenant_admin_detail["user_type"] == "tenant_admin"
+    assert tenant_admin_detail["is_owner"] is True
+    assert tenant_admin_detail["tenant_id"] == 99
+
+    tenant_user = SimpleNamespace(
+        id=3,
+        username="tenant_user",
+        nickname="企业用户",
+        avatar="avatar-3",
+        email="tu@example.com",
+        phone="789",
+        tenant_id=100,
+        is_active=True,
+        approval_status="approved",
+        org_node=SimpleNamespace(id=30, name="业务部门"),
+        role=SimpleNamespace(id=11, name="业务角色"),
+        created_at=now,
+        updated_at=now,
+        last_login_at=now,
+        last_login_ip="192.168.0.1",
+        gender=1,
+    )
+    tenant_user_detail = serialize_tenant_user_identity_detail(tenant_user)
+    assert tenant_user_detail["display_name"] == "企业用户"
+    assert tenant_user_detail["user_type"] == "tenant_user"
+    assert tenant_user_detail["tenant_id"] == 100
+    assert tenant_user_detail["approval_status"] == "approved"
