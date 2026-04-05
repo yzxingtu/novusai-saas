@@ -1,23 +1,19 @@
 import type { Page } from '@playwright/test';
 
-import { createAdminSession } from './session';
+import { createAdminSession, getDevBootstrapSecret } from './session';
 
 const ADMIN_USERNAME =
   process.env.ADMIN_USERNAME || process.env.PLATFORM_ADMIN_USERNAME;
 const ADMIN_PASSWORD =
   process.env.ADMIN_PASSWORD || process.env.PLATFORM_ADMIN_PASSWORD;
-const ADMIN_BASE_URL =
-  (process.env.ADMIN_BASE_URL || 'http://localhost:5666').replace(/\/+$/, '');
 
 export function hasAdminCredentials() {
-  return Boolean(ADMIN_USERNAME && ADMIN_PASSWORD);
+  return Boolean(getDevBootstrapSecret('admin') || (ADMIN_USERNAME && ADMIN_PASSWORD));
 }
 
-function requireAdminCredentials() {
-  if (!hasAdminCredentials()) {
-    throw new Error(
-      'Set ADMIN_USERNAME and ADMIN_PASSWORD to run admin e2e tests.',
-    );
+function getAdminCredentials() {
+  if (!(ADMIN_USERNAME && ADMIN_PASSWORD)) {
+    return null;
   }
   return {
     password: ADMIN_PASSWORD as string,
@@ -25,11 +21,22 @@ function requireAdminCredentials() {
   };
 }
 
+function requireAdminCredentials() {
+  const credentials = getAdminCredentials();
+  if (!credentials) {
+    throw new Error(
+      'Set DEV_ADMIN_BOOTSTRAP_SECRET or ADMIN_USERNAME and ADMIN_PASSWORD to run admin e2e tests.',
+    );
+  }
+  return credentials;
+}
+
 export async function loginAsAdmin(page: Page) {
+  const bootstrapSecret = getDevBootstrapSecret('admin');
+  if (bootstrapSecret) {
+    await createAdminSession(page, getAdminCredentials() ?? undefined);
+    return;
+  }
   const credentials = requireAdminCredentials();
-  await page.goto(`${ADMIN_BASE_URL}/admin/login`);
-  await createAdminSession(page, {
-    password: credentials.password,
-    username: credentials.username,
-  });
+  await createAdminSession(page, credentials);
 }

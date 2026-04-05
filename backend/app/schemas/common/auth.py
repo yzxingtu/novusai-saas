@@ -24,6 +24,16 @@ class RefreshTokenRequest(BaseSchema):
     refresh_token: str = Field(..., description="刷新令牌 / Refresh token")
 
 
+class DevBootstrapRequest(BaseSchema):
+    """开发环境 bootstrap 登录请求 / Development bootstrap auth request."""
+
+    bootstrap_secret: str = Field(
+        ...,
+        min_length=1,
+        description="开发环境 bootstrap 密钥 / Development bootstrap secret",
+    )
+
+
 class ImpersonateTokenRequest(BaseSchema):
     """一键登录 Token 验证请求 / Impersonate token verification request."""
 
@@ -35,5 +45,6 @@ class ImpersonateTokenRequest(BaseSchema):
 __all__ = [
     "TokenResponse",
     "RefreshTokenRequest",
+    "DevBootstrapRequest",
     "ImpersonateTokenRequest",
 ]

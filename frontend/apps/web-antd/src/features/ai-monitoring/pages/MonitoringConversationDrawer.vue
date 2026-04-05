@@ -23,6 +23,7 @@ import {
   Tooltip,
 } from 'ant-design-vue';
 
+import { IdentitySummaryCard } from '#/components/business/identity-display';
 import { $t } from '#/locales';
 import { formatDate, formatTimeOnly } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
@@ -545,19 +546,22 @@ function traceStatusColor(status?: null | string) {
               </div>
             </div>
 
-            <div class="monitoring-overview-item">
-              <div class="monitoring-overview-label">
-                {{ $t(`${i18nPrefix}.user`) }}
-              </div>
-              <div class="monitoring-overview-value">
-                <IdentityTrigger
-                  v-if="actorIdentityModel"
-                  :avatar-size="24"
-                  :model="actorIdentityModel"
-                  :meta="actorIdentityMeta"
-                />
-                <span v-else>-</span>
-              </div>
+            <div
+              v-if="actorIdentityModel"
+              class="monitoring-overview-item md:col-span-2"
+            >
+              <IdentityTrigger
+                :model="actorIdentityModel"
+                :meta="actorIdentityMeta"
+              >
+                <template #default="{ detailRequest }">
+                  <IdentitySummaryCard
+                    :detail-request="detailRequest"
+                    :model="actorIdentityModel"
+                    mode="embedded"
+                  />
+                </template>
+              </IdentityTrigger>
             </div>
 
             <div class="monitoring-overview-item">

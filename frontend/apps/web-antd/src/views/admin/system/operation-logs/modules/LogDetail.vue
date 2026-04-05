@@ -11,6 +11,7 @@ import { IconifyIcon } from '@vben/icons';
 import { Descriptions, DescriptionsItem, Divider, Tag } from 'ant-design-vue';
 
 import { getOperationLogDetailApi } from '#/api/admin/operation-log';
+import { IdentitySummaryCard } from '#/components/business/identity-display';
 import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
 import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 import { useCrudDrawer } from '#/composables';
@@ -67,13 +68,28 @@ function buildDetailMeta(value: OperationLogInfo): IdentityDetailMeta {
           <IconifyIcon icon="lucide:user" class="text-primary" />
           {{ $t('admin.system.operationLog.userInfo') }}
         </div>
-        <Descriptions :column="2" bordered size="small">
-          <DescriptionsItem
-            :label="$t('admin.system.operationLog.username')"
-            :span="2"
-          >
-            <IdentityTrigger
-              :avatar-size="32"
+        <IdentityTrigger
+          :model="
+            createOperationLogIdentityModel({
+              avatar: detail.avatar,
+              displayName: detail.displayName,
+              id: detail.userId ?? detail.id,
+              isActive: detail.isActive,
+              isLeader: detail.isLeader,
+              isOwner: detail.isOwner,
+              nickname: detail.nickname,
+              orgNodeName: detail.orgNodeName,
+              roleName: detail.roleName,
+              userType: detail.userType,
+              username: detail.username,
+            })
+          "
+          :meta="buildDetailMeta(detail)"
+          :context="identityDetailContext"
+        >
+          <template #default="{ detailRequest }">
+            <IdentitySummaryCard
+              :detail-request="detailRequest"
               :model="
                 createOperationLogIdentityModel({
                   avatar: detail.avatar,
@@ -89,12 +105,10 @@ function buildDetailMeta(value: OperationLogInfo): IdentityDetailMeta {
                   username: detail.username,
                 })
               "
-              :meta="buildDetailMeta(detail)"
-              :context="identityDetailContext"
-              :show-status-badge="false"
+              mode="embedded"
             />
-          </DescriptionsItem>
-        </Descriptions>
+          </template>
+        </IdentityTrigger>
       </div>
 
       <Divider class="!my-4" />

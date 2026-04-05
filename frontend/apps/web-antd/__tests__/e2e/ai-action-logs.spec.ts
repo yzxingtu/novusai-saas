@@ -8,7 +8,9 @@ import { hasTenantCredentials, loginAsTenant } from './common/auth';
 const adminTestsEnabled = hasAdminCredentials();
 const tenantTestsEnabled = hasTenantCredentials();
 
-async function assertIdentityInteractions(page: Page) {
+async function assertIdentityAuditInteractions(page: Page) {
+  await expect(page.locator('.vxe-table')).toBeVisible();
+
   const identityTrigger = page.locator('.identity-profile-trigger').first();
   if ((await identityTrigger.count()) === 0) {
     return;
@@ -24,13 +26,13 @@ async function assertIdentityInteractions(page: Page) {
   await expect(page.locator('.ant-drawer [data-section="activity"]')).toBeVisible();
 }
 
-test.describe('Admin Operation Logs smoke', () => {
+test.describe('Admin AI Action Logs smoke', () => {
   test.beforeEach(async ({ page }) => {
     test.skip(!adminTestsEnabled, 'Admin credentials are not configured');
     await loginAsAdmin(page);
   });
 
-  test('renders filters, identity triggers, and detail drawer sections', async ({
+  test('renders the audit list and identity detail interactions', async ({
     page,
   }) => {
     const consoleErrors: string[] = [];
@@ -40,25 +42,21 @@ test.describe('Admin Operation Logs smoke', () => {
       }
     });
 
-    await page.goto('/admin/system/operation-logs');
+    await page.goto('/admin/ai/action-logs');
     await page.waitForLoadState('networkidle');
-    await expect(page.getByText('操作用户').first()).toBeVisible();
-    await expect(page.getByText('模块').first()).toBeVisible();
-    await expect(page.locator('.vxe-table')).toBeVisible();
-
-    await assertIdentityInteractions(page);
-
+    await expect(page.getByText('操作审计').first()).toBeVisible();
+    await assertIdentityAuditInteractions(page);
     expect(consoleErrors).toEqual([]);
   });
 });
 
-test.describe('Tenant Operation Logs smoke', () => {
+test.describe('Tenant AI Action Logs smoke', () => {
   test.beforeEach(async ({ page }) => {
     test.skip(!tenantTestsEnabled, 'Tenant credentials are not configured');
     await loginAsTenant(page);
   });
 
-  test('renders filters, identity triggers, and detail drawer sections', async ({
+  test('renders the audit list and identity detail interactions', async ({
     page,
   }) => {
     const consoleErrors: string[] = [];
@@ -68,15 +66,10 @@ test.describe('Tenant Operation Logs smoke', () => {
       }
     });
 
-    await page.goto('/tenant/system/operation-logs');
+    await page.goto('/tenant/ai/action-logs');
     await page.waitForLoadState('networkidle');
-    await expect(page.getByText('操作用户').first()).toBeVisible();
-    await expect(page.getByText('模块').first()).toBeVisible();
-    await expect(page.locator('.ant-select').first()).toBeVisible();
-    await expect(page.locator('.vxe-table')).toBeVisible();
-
-    await assertIdentityInteractions(page);
-
+    await expect(page.getByText('操作审计').first()).toBeVisible();
+    await assertIdentityAuditInteractions(page);
     expect(consoleErrors).toEqual([]);
   });
 });

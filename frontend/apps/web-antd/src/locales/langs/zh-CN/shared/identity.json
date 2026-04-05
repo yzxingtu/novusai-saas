@@ -1,6 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/i18n",
   "action": {
+    "openDialogAria": "查看人物详情",
     "viewDetail": "查看详情"
   },
   "approval": {
@@ -9,9 +10,11 @@
     "rejected": "已拒绝"
   },
   "detail": {
+    "accountSection": "账号属性",
     "activitySection": "最近活动",
     "basicSection": "身份信息",
     "emptyDescription": "暂无可展示的人物详情",
+    "overviewSection": "身份概览",
     "title": "人物详情"
   },
   "field": {

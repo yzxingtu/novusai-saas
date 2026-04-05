@@ -1,6 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/i18n",
   "action": {
+    "openDialogAria": "Open identity detail",
     "viewDetail": "View detail"
   },
   "approval": {
@@ -9,9 +10,11 @@
     "rejected": "Rejected"
   },
   "detail": {
+    "accountSection": "Account attributes",
     "activitySection": "Recent activity",
     "basicSection": "Identity information",
     "emptyDescription": "No identity details are available yet",
+    "overviewSection": "Identity overview",
     "title": "Identity detail"
   },
   "field": {

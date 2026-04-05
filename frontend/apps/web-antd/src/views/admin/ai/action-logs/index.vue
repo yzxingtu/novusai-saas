@@ -36,6 +36,7 @@ import {
   getAdminActionLogListApi,
 } from '#/api/admin/action-logs';
 import { getAdminExecutionDecisionDetailApi } from '#/api/admin/execution-decisions';
+import { IdentitySummaryCard } from '#/components/business/identity-display';
 import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
 import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 import { createViewDetailPageOperation } from '#/composables';
@@ -598,20 +599,19 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
                     {{ getTenantDisplay(detailData) }}
                   </div>
                 </div>
-                <div
-                  class="rounded-lg border border-dashed border-border bg-background p-3"
+                <IdentityTrigger
+                  class="xl:col-span-2"
+                  :model="getOperatorIdentityModel(detailData)"
+                  :meta="buildOperatorMeta(detailData)"
                 >
-                  <div class="text-xs text-muted-foreground">
-                    {{ $t('admin.ai.actionLog.operatorId') }}
-                  </div>
-                  <IdentityTrigger
-                    class="mt-2"
-                    :avatar-size="24"
-                    :model="getOperatorIdentityModel(detailData)"
-                    :meta="buildOperatorMeta(detailData)"
-                    :show-status-badge="false"
-                  />
-                </div>
+                  <template #default="{ detailRequest }">
+                    <IdentitySummaryCard
+                      :detail-request="detailRequest"
+                      :model="getOperatorIdentityModel(detailData)"
+                      mode="embedded"
+                    />
+                  </template>
+                </IdentityTrigger>
                 <div
                   class="rounded-lg border border-dashed border-border bg-background p-3"
                 >

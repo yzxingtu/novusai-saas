@@ -15,6 +15,13 @@ test.describe('Admin Organization smoke', () => {
   test('keeps organization member actions semantically focused', async ({
     page,
   }) => {
+    const consoleErrors: string[] = [];
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') {
+        consoleErrors.push(msg.text());
+      }
+    });
+
     await page.goto('/admin/system/organization');
     await page.waitForLoadState('networkidle');
     await expect(page.locator('.member-panel')).toBeVisible();
@@ -25,6 +32,18 @@ test.describe('Admin Organization smoke', () => {
     await expect(
       page.getByRole('button', { name: '添加已有账号' }),
     ).toHaveCount(0);
+
+    const identityTrigger = page.locator('.member-panel .identity-profile-trigger').first();
+    if ((await identityTrigger.count()) > 0) {
+      await identityTrigger.hover();
+      await expect(
+        page.locator('.identity-summary-card[data-mode="quick"]').first(),
+      ).toBeVisible();
+      await identityTrigger.click();
+      await expect(page.locator('.ant-drawer [data-section="overview"]')).toBeVisible();
+    }
+
+    expect(consoleErrors).toEqual([]);
   });
 });
 
@@ -35,6 +54,13 @@ test.describe('Tenant Organization smoke', () => {
   });
 
   test('opens tree and member panel placeholders', async ({ page }) => {
+    const consoleErrors: string[] = [];
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') {
+        consoleErrors.push(msg.text());
+      }
+    });
+
     await page.goto('/tenant/system/organization');
     await page.waitForLoadState('networkidle');
     await expect(page.getByText('负责人信息').first()).toBeVisible();
@@ -46,5 +72,17 @@ test.describe('Tenant Organization smoke', () => {
     await expect(
       page.getByRole('button', { name: '添加已有账号' }),
     ).toHaveCount(0);
+
+    const identityTrigger = page.locator('.member-panel .identity-profile-trigger').first();
+    if ((await identityTrigger.count()) > 0) {
+      await identityTrigger.hover();
+      await expect(
+        page.locator('.identity-summary-card[data-mode="quick"]').first(),
+      ).toBeVisible();
+      await identityTrigger.click();
+      await expect(page.locator('.ant-drawer [data-section="overview"]')).toBeVisible();
+    }
+
+    expect(consoleErrors).toEqual([]);
   });
 });

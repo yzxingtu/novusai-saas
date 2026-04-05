@@ -2,34 +2,36 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { shouldShowIdentityRole } from '../detail-presentation';
 
-const getAdminIdentityDetailApi = vi.fn();
-const getAdminTenantAdminDetailApi = vi.fn();
-const getAdminTenantUserIdentityDetailApi = vi.fn();
-const getTenantAdminIdentityDetailApi = vi.fn();
-const getTenantUserDetailApi = vi.fn();
+const apiMocks = vi.hoisted(() => ({
+  getAdminIdentityDetailApi: vi.fn(),
+  getAdminTenantAdminDetailApi: vi.fn(),
+  getAdminTenantUserIdentityDetailApi: vi.fn(),
+  getTenantAdminIdentityDetailApi: vi.fn(),
+  getTenantUserDetailApi: vi.fn(),
+}));
 
 vi.mock('#/locales', () => ({
   $t: (key: string) => key,
 }));
 
 vi.mock('#/api/admin/users', () => ({
-  getAdminIdentityDetailApi,
+  getAdminIdentityDetailApi: apiMocks.getAdminIdentityDetailApi,
 }));
 
 vi.mock('#/api/admin/tenant', () => ({
-  getAdminTenantAdminDetailApi,
+  getAdminTenantAdminDetailApi: apiMocks.getAdminTenantAdminDetailApi,
 }));
 
 vi.mock('#/api/admin/tenant-users', () => ({
-  getAdminTenantUserIdentityDetailApi,
+  getAdminTenantUserIdentityDetailApi: apiMocks.getAdminTenantUserIdentityDetailApi,
 }));
 
 vi.mock('#/api/tenant/admins', () => ({
-  getTenantAdminIdentityDetailApi,
+  getTenantAdminIdentityDetailApi: apiMocks.getTenantAdminIdentityDetailApi,
 }));
 
 vi.mock('#/api/tenant/tenant-users', () => ({
-  getTenantUserDetailApi,
+  getTenantUserDetailApi: apiMocks.getTenantUserDetailApi,
 }));
 
 describe('identity detail contract mapping', () => {
@@ -38,7 +40,7 @@ describe('identity detail contract mapping', () => {
   });
 
   it('prefers backend display_role_name when present', async () => {
-    getAdminIdentityDetailApi.mockResolvedValueOnce({
+    apiMocks.getAdminIdentityDetailApi.mockResolvedValueOnce({
       avatar: null,
       created_at: null,
       display_name: '平台管理员',
@@ -74,7 +76,7 @@ describe('identity detail contract mapping', () => {
   });
 
   it('keeps role hidden when backend suppresses redundant display_role_name', async () => {
-    getAdminIdentityDetailApi.mockResolvedValueOnce({
+    apiMocks.getAdminIdentityDetailApi.mockResolvedValueOnce({
       avatar: null,
       created_at: null,
       display_name: '平台管理员',

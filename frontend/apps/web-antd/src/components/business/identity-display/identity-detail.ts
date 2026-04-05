@@ -177,6 +177,37 @@ export function toIdentityDetailFallback(
   };
 }
 
+export function mergeIdentityDetailFallbacks(
+  ...sources: Array<
+    | IdentityDisplayModel
+    | null
+    | Partial<IdentityDetail>
+    | undefined
+  >
+): Partial<IdentityDetail> | undefined {
+  const merged: Partial<IdentityDetail> = {};
+  let hasValue = false;
+
+  for (const source of sources) {
+    const normalized = toIdentityDetailFallback(source);
+    if (!normalized) {
+      continue;
+    }
+
+    for (const [key, value] of Object.entries(normalized)) {
+      if (value === undefined) {
+        continue;
+      }
+      hasValue = true;
+      Object.assign(merged, {
+        [key]: value,
+      });
+    }
+  }
+
+  return hasValue ? merged : undefined;
+}
+
 function normalizeIdentityDetail(
   request: IdentityDetailRequest,
   detail?: null | Partial<IdentityDetail>,

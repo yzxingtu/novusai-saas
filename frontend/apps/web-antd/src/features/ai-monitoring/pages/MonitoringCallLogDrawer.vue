@@ -7,6 +7,7 @@ import { IconifyIcon } from '@vben/icons';
 
 import { Drawer, Empty, Spin, Tag } from 'ant-design-vue';
 
+import { IdentitySummaryCard } from '#/components/business/identity-display';
 import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
@@ -424,23 +425,28 @@ function buildDrawerCallerMeta(data: MonitoringCallLogInfo | null) {
                 </div>
               </div>
             </div>
+            <IdentityTrigger
+              v-if="callerIdentityModel"
+              :model="callerIdentityModel"
+              :meta="buildDrawerCallerMeta(detail)"
+              :context="callerContextLabel"
+            >
+              <template #default="{ detailRequest }">
+                <IdentitySummaryCard
+                  :detail-request="detailRequest"
+                  :model="callerIdentityModel"
+                  mode="embedded"
+                />
+              </template>
+            </IdentityTrigger>
             <div
+              v-else
               class="rounded-xl border border-border/60 bg-background/70 px-3 py-3"
             >
               <div class="text-xs text-muted-foreground">
                 {{ $t(`${i18nPrefix}.callerName`) }}
               </div>
-              <div class="mt-2">
-                <IdentityTrigger
-                  v-if="callerIdentityModel"
-                  :avatar-size="32"
-                  :model="callerIdentityModel"
-                  :meta="buildDrawerCallerMeta(detail)"
-                  :context="callerContextLabel"
-                  :show-status-badge="false"
-                />
-                <span v-else class="text-sm text-muted-foreground">-</span>
-              </div>
+              <div class="mt-2 text-sm text-muted-foreground">-</div>
             </div>
           </div>
 

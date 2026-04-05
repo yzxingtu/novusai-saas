@@ -72,6 +72,30 @@ an existing entry point before adding low-level wiring:
 4. lower-level page AI composables only when the page cannot fit the standard
    patterns
 
+### Dev-only Bootstrap Credential Contract
+
+- Confirm the backend exposes `POST /admin/auth/dev/bootstrap` and
+  `POST /tenant/auth/dev/bootstrap` only when `APP_ENV=development` and
+  `DEV_BOOTSTRAP_AUTH_ENABLED=true` is set.
+- The bootstrap path must refuse non-loopback/non-local-dev hosts
+  (`localhost`, `127.0.0.1`, `::1`, `*.local`) and require developer-specific
+  secrets defined only in that workstation's `backend/.env`:
+  `DEV_ADMIN_BOOTSTRAP_SECRET`, `DEV_TENANT_BOOTSTRAP_SECRET`. Document
+  placeholders in `.env.example` or guides.
+- Backend-side env config, not request payloads, must choose the bootstrap
+  identities: `DEV_ADMIN_BOOTSTRAP_USERNAME`,
+  `DEV_TENANT_BOOTSTRAP_USERNAME`, and `DEV_TENANT_BOOTSTRAP_TENANT_CODE`.
+- Bootstrap JWTs must expire within the normal session TTL and keep refresh
+  enforcement active—forever tokens are forbidden.
+- Playwright/local frontend helpers should prefer hitting this dev-only bootstrap
+  endpoint when running on a developer workstation, but valid tests must still
+  work through `/auth/login` whenever the flag is absent.
+- For `frontend/apps/web-antd` page verification, the durable validation target
+  should be a checked-in Playwright spec under `__tests__/e2e`; use MCP browser
+  tooling for diagnosis and debugging, not as the default release gate.
+- Track these requirements both in the backend and frontend quality guidelines so
+  every layer understands the same expectations.
+
 ## Step 3: Validate Contracts Before Coding
 
 Checklist:

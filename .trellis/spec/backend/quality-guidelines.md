@@ -77,6 +77,33 @@ Examples:
 - `backend/tests/services/test_attachment_service.py`
 - `backend/tests/services/test_ai_quota_runtime_diagnostics.py`
 
+## Dev-only Bootstrap Credential for Local E2E
+
+- Local bootstrap credentials must only be issuable when
+  `APP_ENV=development` and `DEV_BOOTSTRAP_AUTH_ENABLED=true` is set;
+  production, shared CI, or cloud runners must never call this flow.
+- The backend must refuse bootstrap requests that do not originate from
+  loopback or local-dev hosts (`localhost`, `127.0.0.1`, `::1`, `*.local`) and
+  must validate secrets sourced from each developer's personal `backend/.env`
+  file:
+  `DEV_ADMIN_BOOTSTRAP_SECRET`, `DEV_TENANT_BOOTSTRAP_SECRET`. Track only
+  clearly marked placeholders in `.env.example` so real secrets are never
+  checked in.
+- The backend target identities must come from local config, not request-time
+  free-form user selection. Use `DEV_ADMIN_BOOTSTRAP_USERNAME`,
+  `DEV_TENANT_BOOTSTRAP_USERNAME`, and `DEV_TENANT_BOOTSTRAP_TENANT_CODE`.
+- Bootstrap JWTs must expire and align with existing session TTL/refresh
+  guarantees; never ship a forever token or drop the `exp` claim so these
+  credentials cannot live indefinitely.
+- Playwright/local browser helpers should prefer this dev bootstrap path for
+  local e2e suites through `POST /admin/auth/dev/bootstrap` and
+  `POST /tenant/auth/dev/bootstrap`, yet the legacy `/auth/login` workflow
+  remains the fallback when the bootstrap flag is disabled or the suite runs
+  outside a developer workstation.
+- Document the feature flag, allowlisted hosts, target selectors, and required
+  local secrets in repo guides so every developer can reproduce the handshake
+  without sharing real secrets.
+
 ## Testing Requirements
 
 ### Service changes

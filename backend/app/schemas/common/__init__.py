@@ -6,6 +6,7 @@ Exports schemas shared across all endpoints.
 """
 
 from app.schemas.common.auth import (
+    DevBootstrapRequest,
     ImpersonateTokenRequest,
     RefreshTokenRequest,
     TokenResponse,
@@ -40,6 +41,7 @@ from app.schemas.common.sort import (
 __all__ = [
     "TokenResponse",
     "RefreshTokenRequest",
+    "DevBootstrapRequest",
     "ImpersonateTokenRequest",
     "CaptchaChallengeRequest",
     "CaptchaChallengeResponse",

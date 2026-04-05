@@ -250,6 +250,227 @@ class TestAdminLogin:
         assert result["token_type"] == "bearer"
 
 
+class TestAdminDevBootstrap:
+    """开发环境 admin bootstrap 测试 / Dev bootstrap tests for admin."""
+
+    @pytest.mark.asyncio
+    async def test_dev_bootstrap_success(self, mock_db, monkeypatch):
+        from app.core.config import settings
+        from app.services.common.auth_service import AuthService
+
+        admin = _make_admin()
+        mock_db.execute.return_value = make_scalar_result(admin)
+        service = AuthService(mock_db)
+
+        monkeypatch.setattr(settings, "APP_ENV", "development", raising=False)
+        monkeypatch.setattr(
+            settings, "DEV_BOOTSTRAP_AUTH_ENABLED", True, raising=False
+        )
+        monkeypatch.setattr(
+            settings,
+            "DEV_BOOTSTRAP_ALLOWED_HOSTS",
+            "localhost,127.0.0.1,.local",
+            raising=False,
+        )
+        monkeypatch.setattr(
+            settings, "DEV_ADMIN_BOOTSTRAP_SECRET", "dev-admin-secret", raising=False
+        )
+        monkeypatch.setattr(
+            settings, "DEV_ADMIN_BOOTSTRAP_USERNAME", "admin", raising=False
+        )
+
+        with (
+            patch.object(
+                service._config_service,
+                "get_platform_config",
+                new_callable=AsyncMock,
+                return_value=120,
+            ),
+            patch.object(service, "_record_active_tokens", new_callable=AsyncMock),
+            patch(
+                "app.services.common.auth_service.create_access_token",
+                return_value=("dev_access", "admin_access_jti"),
+            ),
+            patch(
+                "app.services.common.auth_service.create_refresh_token",
+                return_value=("dev_refresh", "admin_refresh_jti"),
+            ),
+        ):
+            result = await service.authenticate_admin_by_dev_bootstrap(
+                "dev-admin-secret",
+                request_host="localhost",
+                client_ip="127.0.0.1",
+            )
+
+        assert result["access_token"] == "dev_access"
+        assert result["refresh_token"] == "dev_refresh"
+        assert admin.last_login_ip == "127.0.0.1"
+
+    @pytest.mark.asyncio
+    async def test_dev_bootstrap_rejects_wrong_secret(self, mock_db, monkeypatch):
+        from app.core.config import settings
+        from app.exceptions import AuthenticationException
+        from app.services.common.auth_service import AuthService
+
+        service = AuthService(mock_db)
+
+        monkeypatch.setattr(settings, "APP_ENV", "development", raising=False)
+        monkeypatch.setattr(
+            settings, "DEV_BOOTSTRAP_AUTH_ENABLED", True, raising=False
+        )
+        monkeypatch.setattr(
+            settings, "DEV_BOOTSTRAP_ALLOWED_HOSTS", "localhost", raising=False
+        )
+        monkeypatch.setattr(
+            settings, "DEV_ADMIN_BOOTSTRAP_SECRET", "dev-admin-secret", raising=False
+        )
+
+        with pytest.raises(AuthenticationException):
+            await service.authenticate_admin_by_dev_bootstrap(
+                "wrong-secret",
+                request_host="localhost",
+            )
+
+    @pytest.mark.asyncio
+    async def test_dev_bootstrap_rejects_non_local_host(self, mock_db, monkeypatch):
+        from app.core.config import settings
+        from app.exceptions import NotFoundException
+        from app.services.common.auth_service import AuthService
+
+        service = AuthService(mock_db)
+
+        monkeypatch.setattr(settings, "APP_ENV", "development", raising=False)
+        monkeypatch.setattr(
+            settings, "DEV_BOOTSTRAP_AUTH_ENABLED", True, raising=False
+        )
+        monkeypatch.setattr(
+            settings, "DEV_BOOTSTRAP_ALLOWED_HOSTS", "localhost,.local", raising=False
+        )
+
+        with pytest.raises(NotFoundException):
+            await service.authenticate_admin_by_dev_bootstrap(
+                "any-secret",
+                request_host="example.com",
+            )
+
+
+class TestTenantAdminDevBootstrap:
+    """开发环境 tenant admin bootstrap 测试 / Dev bootstrap tests for tenant admin."""
+
+    @pytest.mark.asyncio
+    async def test_dev_bootstrap_success(self, mock_db, monkeypatch):
+        from app.core.config import settings
+        from app.services.common.auth_service import AuthService
+
+        tenant = _make_tenant(code="acme")
+        tenant_admin = _make_tenant_admin(username="tenant_admin")
+        mock_db.execute.side_effect = [
+            make_scalar_result(tenant),
+            make_scalar_result(tenant_admin),
+            make_scalar_result(tenant),
+        ]
+        service = AuthService(mock_db)
+
+        monkeypatch.setattr(settings, "APP_ENV", "development", raising=False)
+        monkeypatch.setattr(
+            settings, "DEV_BOOTSTRAP_AUTH_ENABLED", True, raising=False
+        )
+        monkeypatch.setattr(
+            settings, "DEV_BOOTSTRAP_ALLOWED_HOSTS", "localhost,.local", raising=False
+        )
+        monkeypatch.setattr(
+            settings,
+            "DEV_TENANT_BOOTSTRAP_SECRET",
+            "dev-tenant-secret",
+            raising=False,
+        )
+        monkeypatch.setattr(
+            settings,
+            "DEV_TENANT_BOOTSTRAP_USERNAME",
+            "tenant_admin",
+            raising=False,
+        )
+        monkeypatch.setattr(
+            settings,
+            "DEV_TENANT_BOOTSTRAP_TENANT_CODE",
+            "acme",
+            raising=False,
+        )
+
+        with (
+            patch.object(
+                service._config_service,
+                "get_tenant_config",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch.object(
+                service._config_service,
+                "get_platform_config",
+                new_callable=AsyncMock,
+                return_value=120,
+            ),
+            patch.object(service, "_record_active_tokens", new_callable=AsyncMock),
+            patch(
+                "app.services.common.auth_service.create_token_pair",
+                return_value={
+                    "access_token": "tenant_access",
+                    "refresh_token": "tenant_refresh",
+                    "access_jti": "tenant_access_jti",
+                    "refresh_jti": "tenant_refresh_jti",
+                    "token_type": "bearer",
+                },
+            ),
+        ):
+            result = await service.authenticate_tenant_admin_by_dev_bootstrap(
+                "dev-tenant-secret",
+                request_host="acme.app.local",
+                client_ip="127.0.0.1",
+            )
+
+        assert result["access_token"] == "tenant_access"
+        assert result["refresh_token"] == "tenant_refresh"
+        assert tenant_admin.last_login_ip == "127.0.0.1"
+
+    @pytest.mark.asyncio
+    async def test_dev_bootstrap_requires_configured_target(
+        self,
+        mock_db,
+        monkeypatch,
+    ):
+        from app.core.config import settings
+        from app.exceptions import NotFoundException
+        from app.services.common.auth_service import AuthService
+
+        service = AuthService(mock_db)
+
+        monkeypatch.setattr(settings, "APP_ENV", "development", raising=False)
+        monkeypatch.setattr(
+            settings, "DEV_BOOTSTRAP_AUTH_ENABLED", True, raising=False
+        )
+        monkeypatch.setattr(
+            settings, "DEV_BOOTSTRAP_ALLOWED_HOSTS", "localhost,.local", raising=False
+        )
+        monkeypatch.setattr(
+            settings,
+            "DEV_TENANT_BOOTSTRAP_SECRET",
+            "dev-tenant-secret",
+            raising=False,
+        )
+        monkeypatch.setattr(
+            settings, "DEV_TENANT_BOOTSTRAP_USERNAME", "", raising=False
+        )
+        monkeypatch.setattr(
+            settings, "DEV_TENANT_BOOTSTRAP_TENANT_CODE", "", raising=False
+        )
+
+        with pytest.raises(NotFoundException):
+            await service.authenticate_tenant_admin_by_dev_bootstrap(
+                "dev-tenant-secret",
+                request_host="tenant.app.local",
+            )
+
+
 class TestChangePassword:
     """密码修改测试 / Test."""
 

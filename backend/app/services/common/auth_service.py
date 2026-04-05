@@ -113,6 +113,78 @@ class AuthService:
             return value.replace(tzinfo=timezone.utc)
         return value.astimezone(timezone.utc)
 
+    @staticmethod
+    def _normalize_request_host(host: str | None) -> str:
+        """标准化请求 host / Normalize request host."""
+        if not host:
+            return ""
+        normalized = host.strip().lower()
+        if normalized.startswith("[") and normalized.endswith("]"):
+            normalized = normalized[1:-1]
+        return normalized
+
+    @classmethod
+    def _host_matches_rule(cls, host: str, rule: str) -> bool:
+        """匹配 dev bootstrap host 规则 / Match dev bootstrap host rule."""
+        normalized_rule = cls._normalize_request_host(rule)
+        if not host or not normalized_rule:
+            return False
+        if normalized_rule.startswith("."):
+            return host.endswith(normalized_rule)
+        return host == normalized_rule
+
+    def _assert_dev_bootstrap_enabled(
+        self,
+        scope: str,
+        request_host: str | None,
+    ) -> str:
+        """校验 dev bootstrap 入口是否可用 / Validate dev bootstrap gate."""
+        app_env = settings.APP_ENV.strip().lower()
+        normalized_host = self._normalize_request_host(request_host)
+        if app_env != "development":
+            self._log_auth_warning(
+                f"{scope}.dev_bootstrap.denied",
+                reason="app_env_not_development",
+                app_env=app_env,
+            )
+            raise NotFoundException()
+        if not settings.DEV_BOOTSTRAP_AUTH_ENABLED:
+            self._log_auth_warning(
+                f"{scope}.dev_bootstrap.denied",
+                reason="flag_disabled",
+                request_host=normalized_host,
+            )
+            raise NotFoundException()
+        if not any(
+            self._host_matches_rule(normalized_host, rule)
+            for rule in settings.dev_bootstrap_allowed_hosts_list
+        ):
+            self._log_auth_warning(
+                f"{scope}.dev_bootstrap.denied",
+                reason="host_not_allowed",
+                request_host=normalized_host,
+            )
+            raise NotFoundException()
+        return normalized_host
+
+    def _assert_dev_bootstrap_secret(
+        self,
+        *,
+        scope: str,
+        provided_secret: str,
+        expected_secret: str,
+        request_host: str,
+    ) -> None:
+        """校验 dev bootstrap secret / Validate dev bootstrap secret."""
+        if expected_secret and secrets.compare_digest(provided_secret, expected_secret):
+            return
+        self._log_auth_warning(
+            f"{scope}.dev_bootstrap.failed",
+            reason="secret_mismatch",
+            request_host=request_host,
+        )
+        raise AuthenticationException(message=_("auth.credentials_invalid"))
+
     async def _record_active_tokens(
         self,
         user_type: str,
@@ -322,6 +394,108 @@ class AuthService:
             if not (has_letter and has_digit and has_special):
                 raise BusinessException(message=_("auth.password_complexity_high"))
 
+    async def _issue_admin_login_tokens(
+        self,
+        admin: Admin,
+        *,
+        client_ip: str | None = None,
+        log_event: str = "admin.login.success",
+    ) -> dict[str, Any]:
+        """签发平台管理员登录 token / Issue platform admin login tokens."""
+        from datetime import timedelta
+
+        admin.last_login_at = self._utc_now_aware()
+        admin.last_login_ip = client_ip
+
+        session_timeout = await self._config_service.get_platform_config(
+            "session_timeout_minutes", default=120
+        )
+        access_token, access_jti = create_access_token(
+            admin.id,
+            scope=TOKEN_SCOPE_ADMIN,
+            expires_delta=timedelta(minutes=session_timeout),
+        )
+        refresh_token, refresh_jti = create_refresh_token(
+            admin.id, scope=TOKEN_SCOPE_ADMIN
+        )
+
+        await self._record_active_tokens(
+            "admin", str(admin.id), access_jti, refresh_jti
+        )
+
+        self._log_auth_info(
+            log_event,
+            user_id=admin.id,
+            username=admin.username,
+            client_ip=client_ip,
+        )
+
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+        }
+
+    async def _issue_tenant_admin_login_tokens(
+        self,
+        tenant_admin: TenantAdmin,
+        *,
+        tenant_code: str | None = None,
+        client_ip: str | None = None,
+        log_event: str = "tenant_admin.login.success",
+    ) -> dict[str, Any]:
+        """签发企业管理员登录 token / Issue tenant admin login tokens."""
+        tenant_admin.last_login_at = self._utc_now_aware()
+        tenant_admin.last_login_ip = client_ip
+
+        tenant_result = await self.db.execute(
+            select(Tenant).where(Tenant.id == tenant_admin.tenant_id)
+        )
+        tenant = tenant_result.scalar_one_or_none()
+
+        if tenant is None or not tenant.is_active:
+            self._log_auth_warning(
+                log_event.replace(".success", ".failed"),
+                user_id=tenant_admin.id,
+                username=tenant_admin.username,
+                tenant_id=tenant_admin.tenant_id,
+                client_ip=client_ip,
+                reason="tenant_disabled",
+            )
+            raise AuthenticationException(message=_("tenant.disabled"))
+
+        session_timeout = await self._config_service.get_tenant_config(
+            tenant_admin.tenant_id, "tenant_session_timeout", default=None
+        )
+        if not session_timeout:
+            session_timeout = await self._config_service.get_platform_config(
+                "session_timeout_minutes", default=120
+            )
+        _ = session_timeout
+
+        tokens = create_token_pair(
+            tenant_admin.id,
+            scope=TOKEN_SCOPE_TENANT_ADMIN,
+            extra_claims={"tenant_id": tenant_admin.tenant_id},
+        )
+        await self._record_active_tokens(
+            "tenant_admin",
+            str(tenant_admin.id),
+            tokens["access_jti"],
+            tokens["refresh_jti"],
+        )
+
+        self._log_auth_info(
+            log_event,
+            user_id=tenant_admin.id,
+            username=tenant_admin.username,
+            tenant_id=tenant_admin.tenant_id,
+            tenant_code=tenant.code if tenant else tenant_code,
+            client_ip=client_ip,
+        )
+
+        return tokens
+
     # ==================== 平台管理员认证 / Platform admin authentication ====================
 
     async def authenticate_admin(
@@ -448,43 +622,68 @@ class AuthService:
         # 登录成功，重置失败计数 / Success: reset fail counter
         await self._reset_admin_login_failures(admin.id)
 
-        # 更新登录信息 / Update last login fields
-        admin.last_login_at = self._utc_now_aware()
-        admin.last_login_ip = client_ip
-
-        # 生成 Token（应用会话配置）
-        from datetime import timedelta
-
-        session_timeout = await self._config_service.get_platform_config(
-            "session_timeout_minutes", default=120
-        )
-        access_token, access_jti = create_access_token(
-            admin.id,
-            scope=TOKEN_SCOPE_ADMIN,
-            expires_delta=timedelta(minutes=session_timeout),
-        )
-        refresh_token, refresh_jti = create_refresh_token(
-            admin.id, scope=TOKEN_SCOPE_ADMIN
-        )
-
-        await self._record_active_tokens(
-            "admin", str(admin.id), access_jti, refresh_jti
-        )
-
-        self._log_auth_info(
-            "admin.login.success",
-            user_id=admin.id,
-            username=admin.username,
+        return await self._issue_admin_login_tokens(
+            admin,
             client_ip=client_ip,
         )
 
-        tokens = {
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer",
-        }
+    async def authenticate_admin_by_dev_bootstrap(
+        self,
+        bootstrap_secret: str,
+        *,
+        request_host: str | None,
+        client_ip: str | None = None,
+    ) -> dict[str, Any]:
+        """使用 dev bootstrap secret 登录平台管理员 / Authenticate platform admin via dev bootstrap."""
+        normalized_host = self._assert_dev_bootstrap_enabled("admin", request_host)
+        self._assert_dev_bootstrap_secret(
+            scope="admin",
+            provided_secret=bootstrap_secret,
+            expected_secret=settings.DEV_ADMIN_BOOTSTRAP_SECRET,
+            request_host=normalized_host,
+        )
 
-        return tokens
+        identifier = settings.DEV_ADMIN_BOOTSTRAP_USERNAME.strip()
+        if not identifier:
+            self._log_auth_warning(
+                "admin.dev_bootstrap.failed",
+                reason="username_not_configured",
+                request_host=normalized_host,
+            )
+            raise NotFoundException()
+
+        result = await self.db.execute(
+            select(Admin).where(
+                or_(Admin.username == identifier, Admin.email == identifier),
+                Admin.is_deleted.is_(False),
+            )
+        )
+        admin = result.scalar_one_or_none()
+
+        if admin is None:
+            self._log_auth_warning(
+                "admin.dev_bootstrap.failed",
+                identifier=self._mask_identifier(identifier),
+                request_host=normalized_host,
+                reason="user_not_found",
+            )
+            raise AuthenticationException(message=_("auth.credentials_invalid"))
+
+        if not admin.is_active:
+            self._log_auth_warning(
+                "admin.dev_bootstrap.failed",
+                user_id=admin.id,
+                username=admin.username,
+                request_host=normalized_host,
+                reason="account_disabled",
+            )
+            raise AuthenticationException(message=_("auth.account_disabled"))
+
+        return await self._issue_admin_login_tokens(
+            admin,
+            client_ip=client_ip,
+            log_event="admin.dev_bootstrap.success",
+        )
 
     # ==================== 登录安全辅助方法 / Login security helpers ====================
 
@@ -965,60 +1164,100 @@ class AuthService:
                 data={"captcha_required": captcha_required_after},
             )
 
-        # 检查企业状态 / Ensure tenant active
+        # 登录成功，重置失败计数 / Success: reset failures
+        await self._reset_login_failures(tenant_admin.id, "tenant_admin")
+
+        return await self._issue_tenant_admin_login_tokens(
+            tenant_admin,
+            tenant_code=tenant_code,
+            client_ip=client_ip,
+        )
+
+    async def authenticate_tenant_admin_by_dev_bootstrap(
+        self,
+        bootstrap_secret: str,
+        *,
+        request_host: str | None,
+        client_ip: str | None = None,
+    ) -> dict[str, Any]:
+        """使用 dev bootstrap secret 登录企业管理员 / Authenticate tenant admin via dev bootstrap."""
+        normalized_host = self._assert_dev_bootstrap_enabled(
+            "tenant_admin", request_host
+        )
+        self._assert_dev_bootstrap_secret(
+            scope="tenant_admin",
+            provided_secret=bootstrap_secret,
+            expected_secret=settings.DEV_TENANT_BOOTSTRAP_SECRET,
+            request_host=normalized_host,
+        )
+
+        identifier = settings.DEV_TENANT_BOOTSTRAP_USERNAME.strip()
+        tenant_code = settings.DEV_TENANT_BOOTSTRAP_TENANT_CODE.strip()
+        if not identifier or not tenant_code:
+            self._log_auth_warning(
+                "tenant_admin.dev_bootstrap.failed",
+                reason="target_not_configured",
+                has_identifier=bool(identifier),
+                has_tenant_code=bool(tenant_code),
+                request_host=normalized_host,
+            )
+            raise NotFoundException()
+
         tenant_result = await self.db.execute(
-            select(Tenant).where(Tenant.id == tenant_admin.tenant_id)
+            select(Tenant).where(
+                Tenant.code == tenant_code,
+                Tenant.is_deleted.is_(False),
+            )
         )
         tenant = tenant_result.scalar_one_or_none()
-
         if tenant is None or not tenant.is_active:
             self._log_auth_warning(
-                "tenant_admin.login.failed",
-                user_id=tenant_admin.id,
-                username=tenant_admin.username,
-                tenant_id=tenant_admin.tenant_id,
-                client_ip=client_ip,
+                "tenant_admin.dev_bootstrap.failed",
+                tenant_code=tenant_code,
+                request_host=normalized_host,
                 reason="tenant_disabled",
             )
             raise AuthenticationException(message=_("tenant.disabled"))
 
-        # 登录成功，重置失败计数 / Success: reset failures
-        await self._reset_login_failures(tenant_admin.id, "tenant_admin")
-
-        # 更新登录信息 / Update last login
-        tenant_admin.last_login_at = self._utc_now_aware()
-        tenant_admin.last_login_ip = client_ip
-
-        # 生成 Token（优先使用企业会话配置，回退到平台配置） / Session TTL: tenant config then platform
-        session_timeout = await self._config_service.get_tenant_config(
-            tenant_admin.tenant_id, "tenant_session_timeout", default=None
-        )
-        if not session_timeout:
-            session_timeout = await self._config_service.get_platform_config(
-                "session_timeout_minutes", default=120
+        result = await self.db.execute(
+            select(TenantAdmin).where(
+                or_(
+                    TenantAdmin.username == identifier,
+                    TenantAdmin.email == identifier,
+                ),
+                TenantAdmin.tenant_id == tenant.id,
+                TenantAdmin.is_deleted.is_(False),
             )
-        tokens = create_token_pair(
-            tenant_admin.id,
-            scope=TOKEN_SCOPE_TENANT_ADMIN,
-            extra_claims={"tenant_id": tenant_admin.tenant_id},
         )
-        await self._record_active_tokens(
-            "tenant_admin",
-            str(tenant_admin.id),
-            tokens["access_jti"],
-            tokens["refresh_jti"],
-        )
+        tenant_admin = result.scalar_one_or_none()
+        if tenant_admin is None:
+            self._log_auth_warning(
+                "tenant_admin.dev_bootstrap.failed",
+                identifier=self._mask_identifier(identifier),
+                tenant_code=tenant_code,
+                request_host=normalized_host,
+                reason="user_not_found",
+            )
+            raise AuthenticationException(message=_("auth.credentials_invalid"))
 
-        self._log_auth_info(
-            "tenant_admin.login.success",
-            user_id=tenant_admin.id,
-            username=tenant_admin.username,
-            tenant_id=tenant_admin.tenant_id,
-            tenant_code=tenant.code if tenant else tenant_code,
+        if not tenant_admin.is_active:
+            self._log_auth_warning(
+                "tenant_admin.dev_bootstrap.failed",
+                user_id=tenant_admin.id,
+                username=tenant_admin.username,
+                tenant_id=tenant_admin.tenant_id,
+                tenant_code=tenant_code,
+                request_host=normalized_host,
+                reason="account_disabled",
+            )
+            raise AuthenticationException(message=_("auth.account_disabled"))
+
+        return await self._issue_tenant_admin_login_tokens(
+            tenant_admin,
+            tenant_code=tenant_code,
             client_ip=client_ip,
+            log_event="tenant_admin.dev_bootstrap.success",
         )
-
-        return tokens
 
     async def refresh_tenant_admin_token(self, refresh_token: str) -> dict[str, Any]:
         """

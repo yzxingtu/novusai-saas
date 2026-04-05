@@ -10,6 +10,7 @@ export { default as IdentityDetailDrawer } from './IdentityDetailDrawer.vue';
 export { default as IdentityProfileTrigger } from './IdentityProfileTrigger.vue';
 export { default as IdentityQuickCard } from './IdentityQuickCard.vue';
 export { default as IdentityRemoteSelect } from './IdentityRemoteSelect.vue';
+export { default as IdentitySummaryCard } from './IdentitySummaryCard.vue';
 export {
   createIdentityDisplayModel,
   type IdentityDisplayBadge,
@@ -37,6 +38,7 @@ export {
   type IdentityDetailScope,
   type IdentitySubjectType,
   loadIdentityDetail,
+  mergeIdentityDetailFallbacks,
   normalizeIdentitySubjectType,
   registerIdentityDetailFetcher,
   toIdentityDetailFallback,

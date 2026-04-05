@@ -437,7 +437,7 @@
     "scopeTargetCount": "自定义节点数",
     "noLeaderAssigned": "未设置负责人",
     "noLeaderHint": "设置负责人后，可按组织节点统一控制其可见数据范围。",
-    "memberCardDescription": "默认展示当前节点及其下级节点成员，可切换为仅看本节点。",
+    "memberCardDescription": "默认展示当前节点及其下级节点成员。通过「创建账号」添加新成员，通过编辑操作调整归属。",
     "permissionInfo": "权限信息",
     "assignedPermissions": "已分配权限",
     "editPermissionHint": "点击编辑按钮可修改权限分配",

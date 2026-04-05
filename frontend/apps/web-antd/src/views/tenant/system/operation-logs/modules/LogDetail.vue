@@ -18,6 +18,7 @@ import {
 } from 'ant-design-vue';
 
 import { getOperationLogDetailApi } from '#/api/tenant/operation-log';
+import { IdentitySummaryCard } from '#/components/business/identity-display';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
@@ -117,23 +118,23 @@ const userIdentityMeta = computed<IdentityDetailMeta>(() => ({
       <template v-if="detail">
         <!-- 用户信息 -->
         <div class="mb-4">
-          <div class="mb-2 flex items-center gap-2 text-base font-medium">
-            <IconifyIcon icon="lucide:user" class="text-primary" />
-            {{ $t('tenant.system.operationLog.userInfo') }}
-          </div>
-          <Descriptions :column="2" bordered size="small">
-            <DescriptionsItem
-              :label="$t('tenant.system.operationLog.username')"
-              :span="2"
-            >
-              <IdentityTrigger
-                v-if="userIdentityModel"
-                :avatar-size="32"
-                :model="userIdentityModel"
-                :meta="userIdentityMeta"
-              />
-            </DescriptionsItem>
-          </Descriptions>
+        <div class="mb-2 flex items-center gap-2 text-base font-medium">
+          <IconifyIcon icon="lucide:user" class="text-primary" />
+          {{ $t('tenant.system.operationLog.userInfo') }}
+        </div>
+        <IdentityTrigger
+          v-if="userIdentityModel"
+          :model="userIdentityModel"
+          :meta="userIdentityMeta"
+        >
+          <template #default="{ detailRequest }">
+            <IdentitySummaryCard
+              :detail-request="detailRequest"
+              :model="userIdentityModel"
+              mode="embedded"
+            />
+          </template>
+        </IdentityTrigger>
         </div>
 
         <Divider class="!my-4" />

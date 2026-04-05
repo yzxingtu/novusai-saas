@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 
-import { createTenantSession } from './session';
+import { createTenantSession, getDevBootstrapSecret } from './session';
 
 const TENANT_ADMIN_USERNAME = process.env.TENANT_ADMIN_USERNAME;
 const TENANT_ADMIN_PASSWORD = process.env.TENANT_ADMIN_PASSWORD;
@@ -8,15 +8,14 @@ const TENANT_ADMIN_TENANT_CODE = process.env.TENANT_ADMIN_TENANT_CODE;
 
 export function hasTenantCredentials() {
   return Boolean(
-    TENANT_ADMIN_USERNAME && TENANT_ADMIN_PASSWORD && TENANT_ADMIN_TENANT_CODE,
+    getDevBootstrapSecret('tenant') ||
+      (TENANT_ADMIN_USERNAME && TENANT_ADMIN_PASSWORD && TENANT_ADMIN_TENANT_CODE),
   );
 }
 
-function requireTenantCredentials() {
+function getTenantCredentials() {
   if (!hasTenantCredentials()) {
-    throw new Error(
-      'Set TENANT_ADMIN_USERNAME, TENANT_ADMIN_PASSWORD, and TENANT_ADMIN_TENANT_CODE to run tenant e2e tests.',
-    );
+    return null;
   }
   return {
     username: TENANT_ADMIN_USERNAME as string,
@@ -25,11 +24,22 @@ function requireTenantCredentials() {
   };
 }
 
+function requireTenantCredentials() {
+  const credentials = getTenantCredentials();
+  if (!credentials) {
+    throw new Error(
+      'Set DEV_TENANT_BOOTSTRAP_SECRET or TENANT_ADMIN_USERNAME, TENANT_ADMIN_PASSWORD, and TENANT_ADMIN_TENANT_CODE to run tenant e2e tests.',
+    );
+  }
+  return credentials;
+}
+
 export async function loginAsTenant(page: Page) {
+  const bootstrapSecret = getDevBootstrapSecret('tenant');
+  if (bootstrapSecret) {
+    await createTenantSession(page, getTenantCredentials() ?? undefined);
+    return;
+  }
   const credentials = requireTenantCredentials();
-  await createTenantSession(page, {
-    password: credentials.password,
-    tenantCode: credentials.tenantCode as string,
-    username: credentials.username,
-  });
+  await createTenantSession(page, credentials);
 }

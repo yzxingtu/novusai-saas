@@ -59,6 +59,14 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours / 访问令牌过期（分钟）
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     ALGORITHM: str = "HS256"
+    # Dev-only bootstrap auth: long-lived local secret that mints normal short-lived tokens
+    DEV_BOOTSTRAP_AUTH_ENABLED: bool = False
+    DEV_BOOTSTRAP_ALLOWED_HOSTS: str = "localhost,127.0.0.1,::1,.local"
+    DEV_ADMIN_BOOTSTRAP_SECRET: str = ""
+    DEV_ADMIN_BOOTSTRAP_USERNAME: str = ""
+    DEV_TENANT_BOOTSTRAP_SECRET: str = ""
+    DEV_TENANT_BOOTSTRAP_USERNAME: str = ""
+    DEV_TENANT_BOOTSTRAP_TENANT_CODE: str = ""
 
     # ========================================
     # 数据库配置 / Database Configuration
@@ -180,6 +188,17 @@ class Settings(BaseSettings):
         if not self.PLATFORM_DOMAINS:
             return []
         return [d.strip() for d in self.PLATFORM_DOMAINS.split(",") if d.strip()]
+
+    @property
+    def dev_bootstrap_allowed_hosts_list(self) -> list[str]:
+        """解析开发环境 bootstrap host 白名单 / Parse dev bootstrap allowed hosts."""
+        if not self.DEV_BOOTSTRAP_ALLOWED_HOSTS:
+            return []
+        return [
+            host.strip().lower()
+            for host in self.DEV_BOOTSTRAP_ALLOWED_HOSTS.split(",")
+            if host.strip()
+        ]
 
     # ========================================
     # SSL 证书管理 / SSL Certificate Management

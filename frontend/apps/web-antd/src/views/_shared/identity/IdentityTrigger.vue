@@ -51,14 +51,16 @@ const detailRequest = computed(() =>
     :model="model"
     :show-quick-card="quickCard"
   >
-    <IdentityDisplay
-      :avatar-size="avatarSize"
-      :badge-wrap="badgeWrap"
-      :model="model"
-      :show-org-line="showOrgLine"
-      :show-secondary-text="showSecondaryText"
-      :show-status-badge="showStatusBadge"
-      :vertical-align="verticalAlign"
-    />
+    <slot :detail-request="detailRequest" :model="model">
+      <IdentityDisplay
+        :avatar-size="avatarSize"
+        :badge-wrap="badgeWrap"
+        :model="model"
+        :show-org-line="showOrgLine"
+        :show-secondary-text="showSecondaryText"
+        :show-status-badge="showStatusBadge"
+        :vertical-align="verticalAlign"
+      />
+    </slot>
   </IdentityProfileTrigger>
 </template>

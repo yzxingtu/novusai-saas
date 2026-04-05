@@ -39,6 +39,7 @@ import {
 } from '#/api/tenant/action-logs';
 import { getExecutionDecisionDetailApi } from '#/api/tenant/execution-decisions';
 import AIPageHeroCard from '#/components/business/ai-page-hero/AIPageHeroCard.vue';
+import { IdentitySummaryCard } from '#/components/business/identity-display';
 import {
   createRefreshPageOperation,
   createViewDetailPageOperation,
@@ -708,18 +709,18 @@ const { Grid, onRefresh } = useCrudPage<ActionLogItem>({
                   </div>
                 </article>
 
-                <article
-                  class="rounded-xl border border-border/70 bg-background/80 px-3 py-3 shadow-sm"
+                <IdentityTrigger
+                  :model="buildOperatorIdentityModel(detailData)"
+                  :meta="buildOperatorMeta(detailData)"
                 >
-                  <div class="text-xs text-muted-foreground">
-                    {{ $t('tenant.ai.actionLog.operatorId') }}
-                  </div>
-                  <IdentityTrigger
-                    class="mt-2"
-                    :model="buildOperatorIdentityModel(detailData)"
-                    :meta="buildOperatorMeta(detailData)"
-                  />
-                </article>
+                  <template #default="{ detailRequest }">
+                    <IdentitySummaryCard
+                      :detail-request="detailRequest"
+                      :model="buildOperatorIdentityModel(detailData)"
+                      mode="embedded"
+                    />
+                  </template>
+                </IdentityTrigger>
               </div>
 
               <div class="grid grid-cols-2 gap-3 xl:grid-cols-4">

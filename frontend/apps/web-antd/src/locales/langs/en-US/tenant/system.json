@@ -437,7 +437,7 @@
     "scopeTargetCount": "Custom Nodes",
     "noLeaderAssigned": "No leader assigned",
     "noLeaderHint": "Assign a leader to control table visibility through this node.",
-    "memberCardDescription": "Members from the current node and descendants are shown by default. You can switch to the current node only.",
+    "memberCardDescription": "Members from the current node and descendants are shown by default. Use the create button to add accounts and the edit action to adjust membership.",
     "permissionInfo": "Permission Info",
     "assignedPermissions": "Assigned Permissions",
     "editPermissionHint": "Click edit button to modify permission assignment",

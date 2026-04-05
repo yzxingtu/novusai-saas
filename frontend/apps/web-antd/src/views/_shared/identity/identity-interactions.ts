@@ -6,8 +6,8 @@ import type { IdentityDisplayModel } from '#/components/business/identity-displa
 
 import {
   closeIdentityDetailDialog,
+  mergeIdentityDetailFallbacks,
   openIdentityDetailDialog,
-  toIdentityDetailFallback,
   useIdentityDetailDialog,
 } from '#/components/business/identity-display';
 
@@ -53,23 +53,22 @@ export function createIdentityDetailRequest(
 ): IdentityDetailRequest {
   const meta = payload.meta;
   return {
-    fallback: {
-      ...(toIdentityDetailFallback(payload.model) ?? {}),
-      approvalStatus: meta?.approvalStatus ?? undefined,
-      createdAt: meta?.createdAt ?? undefined,
-      email: meta?.email ?? undefined,
-      lastLoginAt: meta?.lastLoginAt ?? undefined,
-      lastLoginIp: meta?.lastLoginIp ?? undefined,
+    fallback: mergeIdentityDetailFallbacks(payload.model, {
+      approvalStatus: meta?.approvalStatus,
+      createdAt: meta?.createdAt,
+      email: meta?.email,
+      lastLoginAt: meta?.lastLoginAt,
+      lastLoginIp: meta?.lastLoginIp,
       orgNodeName: meta?.orgNodeName ?? payload.model.orgNodeName ?? undefined,
-      phone: meta?.phone ?? undefined,
+      phone: meta?.phone,
       roleName: meta?.roleName ?? payload.model.roleName ?? undefined,
       tenantId: meta?.tenantId,
-      tenantName: meta?.tenantName ?? undefined,
-      updatedAt: meta?.updatedAt ?? undefined,
+      tenantName: meta?.tenantName,
+      updatedAt: meta?.updatedAt,
       userType:
         meta?.subjectType ?? meta?.userType ?? payload.model.userType ?? undefined,
       username: meta?.username ?? payload.model.username ?? undefined,
-    },
+    }),
     id: payload.model.id,
     scope: meta?.scope || inferScopeFromLocation(),
     subjectType:

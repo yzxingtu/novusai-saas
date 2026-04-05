@@ -7,12 +7,13 @@ Provides platform admin login, logout, token refresh endpoints.
 
 from fastapi import APIRouter, Request
 
+from app.core.config import settings
 from app.core.deps import ActiveAdmin, DbSession
 from app.core.i18n import _
 from app.core.rate_limit import check_login_rate_limit
 from app.core.response import success
 from app.rbac.decorators import auth_only, public
-from app.schemas.common import RefreshTokenRequest, TokenResponse
+from app.schemas.common import DevBootstrapRequest, RefreshTokenRequest, TokenResponse
 from app.schemas.system import (
     AdminChangePasswordRequest,
     AdminLoginRequest,
@@ -56,6 +57,35 @@ async def admin_login(
         data=TokenResponse(**tokens),
         message=_("auth.login_success"),
     )
+
+
+if settings.APP_ENV.strip().lower() == "development":
+
+    @router.post("/dev/bootstrap", summary="开发环境管理员 Bootstrap 登录")
+    @public
+    async def admin_dev_bootstrap_login(
+        db: DbSession,
+        request: Request,
+        bootstrap_data: DevBootstrapRequest,
+    ):
+        """
+        开发环境 bootstrap 登录 / Development bootstrap login.
+
+        仅在 development 环境注册，仍返回标准 access/refresh token 对。
+        Registered only in development and still returns a standard token pair.
+        """
+        auth_service = AuthService(db)
+        tokens = await auth_service.authenticate_admin_by_dev_bootstrap(
+            bootstrap_secret=bootstrap_data.bootstrap_secret,
+            request_host=request.url.hostname or request.headers.get("host"),
+            client_ip=request.client.host if request.client else None,
+        )
+        await db.commit()
+
+        return success(
+            data=TokenResponse(**tokens),
+            message=_("auth.login_success"),
+        )
 
 
 @router.post("/refresh", summary="刷新 Token")
