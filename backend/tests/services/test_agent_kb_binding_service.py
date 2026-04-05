@@ -251,3 +251,145 @@ async def test_get_agent_kb_bindings_includes_owner_tenant_metadata() -> None:
             "kb_owner_tenant_name": "Tenant B",
         }
     ]
+
+
+@pytest.mark.asyncio
+async def test_serialize_binding_public_includes_owner_tenant_name() -> None:
+    from app.services.ai.agent_kb_binding_service import AgentKBBindingService
+
+    binding = SimpleNamespace(
+        id=1,
+        agent_id=59,
+        knowledge_base_id=101,
+        weight=1.0,
+        enabled=True,
+        sort_order=0,
+        tenant_id=None,
+        knowledge_base=SimpleNamespace(
+            name="Tenant Docs",
+            description="Owned by tenant B",
+            scope="selected_tenants",
+            visibility="private",
+            document_count=4,
+            chunk_strategy="recursive",
+            embedding_model_id=8,
+            embedding_dimensions=1536,
+            owner_tenant_id=9,
+            embedding_model=SimpleNamespace(name="text-embedding"),
+        ),
+    )
+    owner_rows = MagicMock()
+    owner_rows.all.return_value = [(9, "Tenant B")]
+
+    service = AgentKBBindingService.__new__(AgentKBBindingService)
+    service.db = SimpleNamespace(execute=AsyncMock(return_value=owner_rows))
+    service.tenant_id = None
+
+    result = await service.serialize_binding_public(binding)
+
+    assert result["kb_owner_tenant_id"] == 9
+    assert result["kb_owner_tenant_name"] == "Tenant B"
+    assert result["kb_name"] == "Tenant Docs"
+
+
+@pytest.mark.asyncio
+async def test_serialize_bindings_public_reuses_owner_tenant_name_map() -> None:
+    from app.services.ai.agent_kb_binding_service import AgentKBBindingService
+
+    bindings = [
+        SimpleNamespace(
+            id=1,
+            agent_id=59,
+            knowledge_base_id=101,
+            weight=1.0,
+            enabled=True,
+            sort_order=0,
+            tenant_id=None,
+            knowledge_base=SimpleNamespace(
+                name="Tenant Docs",
+                description="Owned by tenant B",
+                scope="selected_tenants",
+                visibility="private",
+                document_count=4,
+                chunk_strategy="recursive",
+                embedding_model_id=8,
+                embedding_dimensions=1536,
+                owner_tenant_id=9,
+                embedding_model=SimpleNamespace(name="text-embedding"),
+            ),
+        ),
+        SimpleNamespace(
+            id=2,
+            agent_id=59,
+            knowledge_base_id=102,
+            weight=0.8,
+            enabled=True,
+            sort_order=1,
+            tenant_id=7,
+            knowledge_base=SimpleNamespace(
+                name="Shared KB",
+                description="Owned by tenant C",
+                scope="selected_tenants",
+                visibility="shared",
+                document_count=6,
+                chunk_strategy="recursive",
+                embedding_model_id=9,
+                embedding_dimensions=1536,
+                owner_tenant_id=11,
+                embedding_model=SimpleNamespace(name="text-embedding-3-large"),
+            ),
+        ),
+    ]
+    owner_rows = MagicMock()
+    owner_rows.all.return_value = [(9, "Tenant B"), (11, "Tenant C")]
+
+    service = AgentKBBindingService.__new__(AgentKBBindingService)
+    service.db = SimpleNamespace(execute=AsyncMock(return_value=owner_rows))
+    service.tenant_id = None
+
+    result = await service.serialize_bindings_public(bindings)
+
+    assert result == [
+        {
+            "id": 1,
+            "agent_id": 59,
+            "knowledge_base_id": 101,
+            "weight": 1.0,
+            "enabled": True,
+            "sort_order": 0,
+            "platform_suppressed": False,
+            "binding_scope": "platform",
+            "kb_name": "Tenant Docs",
+            "kb_description": "Owned by tenant B",
+            "kb_scope": "selected_tenants",
+            "kb_visibility": "private",
+            "kb_document_count": 4,
+            "kb_owner_tenant_id": 9,
+            "kb_owner_tenant_name": "Tenant B",
+            "kb_chunk_strategy": "recursive",
+            "kb_embedding_model_id": 8,
+            "kb_embedding_dimensions": 1536,
+            "kb_embedding_model_name": "text-embedding",
+        },
+        {
+            "id": 2,
+            "agent_id": 59,
+            "knowledge_base_id": 102,
+            "weight": 0.8,
+            "enabled": True,
+            "sort_order": 1,
+            "platform_suppressed": False,
+            "binding_scope": "tenant",
+            "kb_name": "Shared KB",
+            "kb_description": "Owned by tenant C",
+            "kb_scope": "selected_tenants",
+            "kb_visibility": "shared",
+            "kb_document_count": 6,
+            "kb_owner_tenant_id": 11,
+            "kb_owner_tenant_name": "Tenant C",
+            "kb_chunk_strategy": "recursive",
+            "kb_embedding_model_id": 9,
+            "kb_embedding_dimensions": 1536,
+            "kb_embedding_model_name": "text-embedding-3-large",
+        },
+    ]

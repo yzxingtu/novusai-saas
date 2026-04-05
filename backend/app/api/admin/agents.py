@@ -593,7 +593,7 @@ class AdminAgentController(GlobalController):
                 enabled=data.enabled,
             )
             await db.commit()
-            return created(data=kb_service.serialize_binding_public(binding))
+            return created(data=await kb_service.serialize_binding_public(binding))
 
         @router.put(
             "/{agent_id}/knowledge-bases/batch", summary="批量绑定知识库（替换模式）"
@@ -618,9 +618,7 @@ class AdminAgentController(GlobalController):
                 knowledge_base_ids=data.knowledge_base_ids,
             )
             await db.commit()
-            return success(
-                data=[kb_service.serialize_binding_public(b) for b in bindings]
-            )
+            return success(data=await kb_service.serialize_bindings_public(bindings))
 
         @router.put(
             "/{agent_id}/knowledge-bases/{binding_id}", summary="更新知识库绑定配置"
@@ -650,7 +648,7 @@ class AdminAgentController(GlobalController):
                     message=_("agent_kb_binding.error.binding_not_found")
                 )
             await db.commit()
-            return success(data=kb_service.serialize_binding_public(updated))
+            return success(data=await kb_service.serialize_binding_public(updated))
 
         @router.delete(
             "/{agent_id}/knowledge-bases/{knowledge_base_id}", summary="解绑知识库"

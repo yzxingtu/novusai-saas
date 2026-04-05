@@ -228,11 +228,28 @@ class AgentKBBindingService:
 
         return normalized_items
 
-    def serialize_binding_public(
+    async def serialize_binding_public(
         self, binding: AgentKnowledgeBaseBinding
     ) -> dict[str, Any]:
         """单条绑定 API 响应（与列表字段一致）/ Single binding payload for API responses."""
-        return self._binding_to_item(binding)
+        owner_tenant_name_map = await self._load_owner_tenant_name_map([binding])
+        return self._binding_to_item(
+            binding,
+            owner_tenant_name_map=owner_tenant_name_map,
+        )
+
+    async def serialize_bindings_public(
+        self, bindings: list[AgentKnowledgeBaseBinding]
+    ) -> list[dict[str, Any]]:
+        """批量绑定 API 响应（与列表字段一致）/ Batch binding payloads for API responses."""
+        owner_tenant_name_map = await self._load_owner_tenant_name_map(bindings)
+        return [
+            self._binding_to_item(
+                binding,
+                owner_tenant_name_map=owner_tenant_name_map,
+            )
+            for binding in bindings
+        ]
 
     async def _validate_kb_accessible(self, knowledge_base_id: int) -> None:
         """校验知识库是否可访问（存在 + 权限范围内） / Validate KB accessible (exists + in scope)."""

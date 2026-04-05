@@ -75,7 +75,7 @@ async def bind_kb(
         enabled=data.enabled,
     )
     await db.commit()
-    return created(data=kb_service.serialize_binding_public(binding))
+    return created(data=await kb_service.serialize_binding_public(binding))
 
 
 @router.put("/{agent_id}/knowledge-bases/batch", summary="批量绑定知识库（替换模式）")
@@ -100,7 +100,7 @@ async def batch_bind_kbs(
         knowledge_base_ids=data.knowledge_base_ids,
     )
     await db.commit()
-    return success(data=[kb_service.serialize_binding_public(b) for b in bindings])
+    return success(data=await kb_service.serialize_bindings_public(bindings))
 
 
 @router.put("/{agent_id}/knowledge-bases/{binding_id}", summary="更新知识库绑定配置")
@@ -132,7 +132,7 @@ async def update_kb_binding(
         data=data.model_dump(exclude_unset=True),
     )
     await db.commit()
-    return success(data=kb_service.serialize_binding_public(updated))
+    return success(data=await kb_service.serialize_binding_public(updated))
 
 
 @router.delete("/{agent_id}/knowledge-bases/{knowledge_base_id}", summary="解绑知识库")
