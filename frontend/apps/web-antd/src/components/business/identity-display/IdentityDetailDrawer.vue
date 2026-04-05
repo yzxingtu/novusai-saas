@@ -1,15 +1,18 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
-import { Alert, Drawer, Empty, Spin } from 'ant-design-vue';
+import { Alert, Drawer, Empty, Spin, Switch } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 
 import {
   getIdentityApprovalStatusLabel,
-  getIdentityDetailTypeLabel,
   getIdentityStatusLabel,
 } from './identity-detail';
+import {
+  formatIdentityDateTime,
+  shouldShowIdentityRole,
+} from './detail-presentation';
 import IdentityDisplay from './IdentityDisplay.vue';
 import { useIdentityDetailDialog } from './use-identity-detail-dialog';
 
@@ -29,21 +32,24 @@ const open = computed({
 
 const detail = computed(() => identityDetailDialogState.detail);
 
+interface DetailRow {
+  checked?: boolean;
+  key: string;
+  label: string;
+  type?: 'switch' | 'text';
+  value: string;
+}
+
 const basicRows = computed(() => {
   if (!detail.value) {
     return [];
   }
   const current = detail.value;
-  const rows = [
+  const rows: DetailRow[] = [
     {
       key: 'username',
       label: $t('shared.identity.field.username'),
       value: current.username || $t('shared.identity.field.empty'),
-    },
-    {
-      key: 'userType',
-      label: $t('shared.identity.field.userType'),
-      value: getIdentityDetailTypeLabel(current.userType),
     },
     {
       key: 'organization',
@@ -52,13 +58,10 @@ const basicRows = computed(() => {
         current.orgNodeName || $t('shared.identity.unassignedArchitecture'),
     },
     {
-      key: 'role',
-      label: $t('shared.identity.field.role'),
-      value: current.roleName || $t('shared.identity.field.empty'),
-    },
-    {
       key: 'status',
       label: $t('shared.identity.field.status'),
+      checked: current.isActive !== false,
+      type: 'switch',
       value: getIdentityStatusLabel(current.isActive),
     },
     {
@@ -78,6 +81,14 @@ const basicRows = computed(() => {
       key: 'tenant',
       label: $t('shared.identity.field.tenant'),
       value: current.tenantName.trim(),
+    });
+  }
+
+  if (shouldShowIdentityRole(current)) {
+    rows.splice(3, 0, {
+      key: 'role',
+      label: $t('shared.identity.field.role'),
+      value: current.roleName!.trim(),
     });
   }
 
@@ -125,17 +136,17 @@ const activityRows = computed(() => {
     {
       key: 'createdAt',
       label: $t('shared.identity.field.createdAt'),
-      value: current.createdAt || $t('shared.identity.field.empty'),
+      value: formatIdentityDateTime(current.createdAt),
     },
     {
       key: 'updatedAt',
       label: $t('shared.identity.field.updatedAt'),
-      value: current.updatedAt || $t('shared.identity.field.empty'),
+      value: formatIdentityDateTime(current.updatedAt),
     },
     {
       key: 'lastLoginAt',
       label: $t('shared.identity.field.lastLoginAt'),
-      value: current.lastLoginAt || $t('shared.identity.field.empty'),
+      value: formatIdentityDateTime(current.lastLoginAt),
     },
     {
       key: 'lastLoginIp',
@@ -179,7 +190,22 @@ const activityRows = computed(() => {
               class="identity-detail-drawer__row"
             >
               <dt class="identity-detail-drawer__label">{{ item.label }}</dt>
-              <dd class="identity-detail-drawer__value">{{ item.value }}</dd>
+              <dd class="identity-detail-drawer__value">
+                <div
+                  v-if="item.type === 'switch'"
+                  class="identity-detail-drawer__switch-value"
+                >
+                  <Switch
+                    :checked="item.checked"
+                    disabled
+                    size="small"
+                  />
+                  <span>{{ item.value }}</span>
+                </div>
+                <template v-else>
+                  {{ item.value }}
+                </template>
+              </dd>
             </div>
           </dl>
         </section>
@@ -264,6 +290,14 @@ const activityRows = computed(() => {
   margin: 0;
   overflow-wrap: anywhere;
   text-align: left;
+}
+
+.identity-detail-drawer__switch-value {
+  align-items: center;
+  display: inline-flex;
+  gap: 10px;
+  justify-content: flex-start;
+  min-width: 0;
 }
 
 .dark .identity-detail-drawer__section-title,

@@ -442,10 +442,10 @@ function resolveBadgeToneClass(color?: string): string {
 
 .identity-display__org-chip {
   align-items: center;
-  background: rgb(239 246 255 / 0.78);
-  border: 1px solid rgb(191 219 254 / 0.9);
+  background: hsl(var(--primary) / 0.1);
+  border: 1px solid hsl(var(--primary) / 0.22);
   border-radius: 9999px;
-  color: rgb(3 105 161);
+  color: hsl(var(--primary));
   display: inline-flex;
   gap: 4px;
   max-width: 100%;
@@ -480,12 +480,6 @@ function resolveBadgeToneClass(color?: string): string {
   justify-content: flex-start;
   text-align: left;
   width: 100%;
-}
-
-.dark .identity-display__org-chip {
-  background: rgb(8 47 73 / 0.32);
-  border-color: rgb(14 116 144 / 0.38);
-  color: rgb(125 211 252);
 }
 
 .dark .identity-display__secondary {

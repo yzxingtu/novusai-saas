@@ -4,17 +4,17 @@ import type { IdentityDisplayModel } from './types';
 
 import { computed } from 'vue';
 
-import { Button } from 'ant-design-vue';
+import { Button, Switch } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 
 import {
   createIdentityDetailPreview,
   getIdentityApprovalStatusLabel,
-  getIdentityDetailTypeLabel,
   getIdentityStatusLabel,
   toIdentityDetailFallback,
 } from './identity-detail';
+import { shouldShowIdentityRole } from './detail-presentation';
 import IdentityDisplay from './IdentityDisplay.vue';
 import { openIdentityDetailDialog } from './use-identity-detail-dialog';
 
@@ -52,24 +52,16 @@ const metaRows = computed(() => {
       value: detail.username || $t('shared.identity.field.empty'),
     },
     {
-      key: 'type',
-      label: $t('shared.identity.field.userType'),
-      value: getIdentityDetailTypeLabel(detail.userType),
-    },
-    {
       key: 'organization',
       label: $t('shared.identity.field.organization'),
       value:
         detail.orgNodeName || $t('shared.identity.unassignedArchitecture'),
     },
     {
-      key: 'role',
-      label: $t('shared.identity.field.role'),
-      value: detail.roleName || $t('shared.identity.field.empty'),
-    },
-    {
       key: 'status',
       label: $t('shared.identity.field.status'),
+      checked: detail.isActive !== false,
+      type: 'switch' as const,
       value: getIdentityStatusLabel(detail.isActive),
     },
   ];
@@ -79,6 +71,14 @@ const metaRows = computed(() => {
       key: 'tenant',
       label: $t('shared.identity.field.tenant'),
       value: detail.tenantName.trim(),
+    });
+  }
+
+  if (shouldShowIdentityRole(detail)) {
+    rows.splice(3, 0, {
+      key: 'role',
+      label: $t('shared.identity.field.role'),
+      value: detail.roleName!.trim(),
     });
   }
 
@@ -145,7 +145,20 @@ async function handleOpenDetail() {
           {{ item.label }}
         </dt>
         <dd class="identity-quick-card__meta-value">
-          {{ item.value }}
+          <div
+            v-if="item.type === 'switch'"
+            class="identity-quick-card__switch-value"
+          >
+            <Switch
+              :checked="item.checked"
+              disabled
+              size="small"
+            />
+            <span>{{ item.value }}</span>
+          </div>
+          <template v-else>
+            {{ item.value }}
+          </template>
         </dd>
       </div>
     </dl>
@@ -199,6 +212,14 @@ async function handleOpenDetail() {
   min-width: 0;
   overflow-wrap: anywhere;
   text-align: left;
+}
+
+.identity-quick-card__switch-value {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+  justify-content: flex-start;
+  min-width: 0;
 }
 
 .identity-quick-card__actions {
