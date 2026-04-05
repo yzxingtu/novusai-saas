@@ -6,6 +6,9 @@ import type { TenantUserInfo } from '#/api/tenant/tenant-users';
 import {
   getTenantAdminDetailApi as getAdminTenantAdminDetailApi,
 } from '#/api/admin/tenant';
+import {
+  getAdminTenantUserIdentityDetailApi,
+} from '#/api/admin/tenant-users';
 import { getAdminIdentityDetailApi } from '#/api/admin/users';
 import { $t } from '#/locales';
 import {
@@ -379,6 +382,18 @@ function registerBuiltInIdentityDetailFetchers() {
     }
     return mapTenantAdminIdentityDetail(
       await getAdminTenantAdminDetailApi(
+        request.tenantId,
+        Number(request.id),
+      ),
+    );
+  });
+
+  registerIdentityDetailFetcher('admin', 'tenant_user', async (request) => {
+    if (typeof request.tenantId !== 'number') {
+      return null;
+    }
+    return mapTenantUserIdentityDetail(
+      await getAdminTenantUserIdentityDetailApi(
         request.tenantId,
         Number(request.id),
       ),
