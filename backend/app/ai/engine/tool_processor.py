@@ -51,6 +51,32 @@ _READONLY_PAGE_OPERATION_NAMES = frozenset(
 )
 
 
+def is_trusted_auto_read_only_tool_call(
+    func_name: str,
+    arguments: dict[str, Any] | None = None,
+) -> bool:
+    """Readonly tools that can skip consent in trusted_auto mode."""
+    name = (func_name or "").strip()
+    if not name:
+        return False
+    if name in {
+        "get_current_weather",
+        "get_weather_forecast",
+        "get_current_time",
+        "web_search",
+        "fetch_url",
+        "get_page_context",
+        "list_page_operations",
+    }:
+        return True
+    if name.startswith("pageop_"):
+        return name.removeprefix("pageop_") in _READONLY_PAGE_OPERATION_NAMES
+    if name == "invoke_page_operation":
+        op = str((arguments or {}).get("operation_name") or "").strip()
+        return op in _READONLY_PAGE_OPERATION_NAMES
+    return False
+
+
 def _strip_dsml_from_args(s: str) -> str:
     """Remove leaked DSML markers from tool arguments (DeepSeek etc.)."""
     return strip_model_function_call_markup(s)
@@ -281,11 +307,13 @@ class ToolCallProcessor:
         all_tools: list[ToolDefinition] | None = None,
         consent_modes: dict[str, str] | None = None,
         approved_pending_consent_tools: set[str] | None = None,
+        interaction_mode: str = "confirm",
     ):
         self.sandbox = sandbox
         self.tools = tools
         self.all_tools = all_tools or tools
         self.consent_modes = consent_modes or {}
+        self._interaction_mode = str(interaction_mode or "confirm").strip() or "confirm"
         self.approved_pending_consent_tools = {
             str(name).strip()
             for name in (approved_pending_consent_tools or set())
@@ -614,7 +642,11 @@ class ToolCallProcessor:
     # consent_mode Check / consent_mode 检查
     # ========================================
 
-    def check_consent(self, func_name: str) -> str:
+    def check_consent(
+        self,
+        func_name: str,
+        arguments: dict[str, Any] | None = None,
+    ) -> str:
         """
         Check tool's consent_mode. / 检查工具的 consent_mode。
 
@@ -626,6 +658,11 @@ class ToolCallProcessor:
             return consent_mode
         normalized_name = str(func_name or "").strip()
         if normalized_name and normalized_name in self.approved_pending_consent_tools:
+            return "auto"
+        if (
+            self._interaction_mode == "trusted_auto"
+            and is_trusted_auto_read_only_tool_call(func_name, arguments)
+        ):
             return "auto"
         return consent_mode
 
@@ -976,4 +1013,5 @@ class ToolCallProcessor:
 __all__ = [
     "ToolCallProcessor",
     "SingleToolResult",
+    "is_trusted_auto_read_only_tool_call",
 ]

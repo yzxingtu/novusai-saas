@@ -59,3 +59,20 @@ def test_decide_pauses_for_pending_consent_intent() -> None:
     assert decision.target_intent_id == "intent-consent"
     assert decision.metadata["pending_consent"]["tool_name"] == "delete_record"
     assert decision.unfinished_intent_ids == ["intent-consent"]
+
+
+def test_build_partial_output_is_user_friendly_text() -> None:
+    intents = [
+        _intent("intent-weather", "天气", status="completed"),
+        _intent("intent-page", "页面内容", status="pending"),
+    ]
+
+    output = RecoveryManager.build_partial_output(
+        intents,
+        reason="elapsed_budget_exceeded",
+    )
+
+    assert "[PARTIAL EXIT]" not in output
+    assert "Failure kind" not in output
+    assert "天气" in output
+    assert "页面内容" in output

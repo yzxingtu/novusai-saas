@@ -229,6 +229,41 @@ def test_check_consent_treats_approved_pending_consent_as_auto_once() -> None:
     assert processor.check_consent("get_current_weather") == "auto"
 
 
+def test_check_consent_auto_approves_readonly_tool_in_trusted_auto_mode() -> None:
+    processor = ToolCallProcessor(
+        sandbox=None,  # type: ignore[arg-type]
+        tools=[ToolDefinition(name="get_current_weather")],
+        consent_modes={"get_current_weather": "ask"},
+        interaction_mode="trusted_auto",
+    )
+
+    assert processor.check_consent("get_current_weather", {"city": "西安"}) == "auto"
+
+
+def test_check_consent_keeps_write_like_page_operation_on_ask() -> None:
+    processor = ToolCallProcessor(
+        sandbox=None,  # type: ignore[arg-type]
+        tools=[ToolDefinition(name="invoke_page_operation")],
+        consent_modes={"invoke_page_operation": "ask"},
+        interaction_mode="trusted_auto",
+    )
+
+    assert (
+        processor.check_consent(
+            "invoke_page_operation",
+            {"operation_name": "fill_form"},
+        )
+        == "ask"
+    )
+    assert (
+        processor.check_consent(
+            "invoke_page_operation",
+            {"operation_name": "read_visible_rows"},
+        )
+        == "auto"
+    )
+
+
 def test_approved_pending_consent_tool_names_filters_rejected_updates() -> None:
     approved = ToolCallProcessor.approved_pending_consent_tool_names(
         [

@@ -28,10 +28,11 @@ def test_partial_exit_user_output_is_user_focused() -> None:
         provider_failure_kind="tool_timeout",
     )
 
+    # Must not leak internal template markers or English metadata
     assert "[PARTIAL EXIT]" not in output
-    assert output.startswith("We had to pause your request before every part could finish.")
-    assert "Completed work:\nGather weather data；Summarize the page" in output
-    assert "Unfinished work:\nInvestigate remaining details" in output
-    assert "Reason:\nretry_budget_exhausted" in output
-    assert "Failure kind:\ntool_timeout" in output
-    assert "I’m returning the completed portion now" in output
+    assert "Failure kind" not in output
+    assert "Reason:" not in output
+    # Completed / unfinished labels should appear in natural text
+    assert "Gather weather data" in output
+    assert "Summarize the page" in output
+    assert "Investigate remaining details" in output

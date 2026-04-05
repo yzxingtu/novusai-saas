@@ -1,15 +1,19 @@
-We had to pause your request before every part could finish.
+你的本轮执行在完成所有部分之前中断了。
 
-Completed work:
+已完成的部分：
 {{ completed_summary }}
 
-Unfinished work:
+未完成的部分：
 {{ unfinished_summary }}
 
-Reason:
+暂停原因：
 {{ exit_reason }}
 
-Failure kind:
+失败类型：
 {{ failure_kind }}
 
-I’m returning the completed portion now and not pretending the unfinished work is done; let me know if you’d like me to keep going or want any more detail.
+请基于已经完成的结果，直接给用户一条自然、可用的答复。
+如果已经拿到了工具结果，就优先回答这些结果。
+不要展示这些元信息，不要输出“[PARTIAL EXIT]”或任何系统标签。
+不要假装未完成部分已经完成；如果需要提及未完成内容，只用一句自然语言轻描淡写说明即可。
+回复语言保持和用户一致。

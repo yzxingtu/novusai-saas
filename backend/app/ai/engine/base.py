@@ -191,7 +191,7 @@ class BaseEngine(ABC):
         # Auto-inject identity declaration to prevent model from self-identifying as GPT/DeepSeek etc.
         # 自动注入身份声明，防止模型自称 GPT / DeepSeek 等
         if agent_name:
-            identity = _("data_intelligence.identity_declaration").format(
+            identity = _("agent.identity_declaration").format(
                 agent_name=agent_name
             )
             prompt = f"{identity}\n\n{prompt}"
@@ -2564,6 +2564,7 @@ class BaseEngine(ABC):
             input_variables=request.input_variables,
             tool_consent_modes=tool_consent_modes,
             trust_policy_ref=request.trust_policy_ref,
+            interaction_mode=request.interaction_mode,
         )
 
         # 7. ModelRouter multi-model routing (graceful fallback on failure) / ModelRouter 多模型路由（容错失败时自动向后兼容）
@@ -2900,6 +2901,7 @@ class BaseEngine(ABC):
             approved_pending_consent_tools=ToolCallProcessor.approved_pending_consent_tool_names(
                 request.interaction_updates,
             ),
+            interaction_mode=request.interaction_mode,
         )
 
         all_tool_results: list[ToolResult] = []
@@ -3075,7 +3077,7 @@ class BaseEngine(ABC):
                 if not parse_error:
                     _skill_info = processor.get_skill_info(func_name)
                     processor.annotate_tool_call(tc, skill_info=_skill_info)
-                    _consent = processor.check_consent(func_name)
+                    _consent = processor.check_consent(func_name, arguments)
                     if _consent == "reject":
                         messages.append(processor.build_consent_reject_message(tc_id))
                         continue
@@ -3402,21 +3404,52 @@ class BaseEngine(ABC):
         input_variables: dict[str, Any] | None,
         tool_consent_modes: dict[str, str],
         trust_policy_ref: dict[str, Any] | None,
+        interaction_mode: str = "confirm",
     ) -> dict[str, str]:
-        if not tools or not isinstance(trust_policy_ref, dict):
+        is_trusted_auto = (
+            str(interaction_mode or "confirm").strip() == "trusted_auto"
+        )
+        has_policy = isinstance(trust_policy_ref, dict)
+
+        if not is_trusted_auto:
+            # Non-trusted_auto: only apply explicit trust policy
+            if not tools or not has_policy:
+                return tool_consent_modes
+            updated = dict(tool_consent_modes)
+            for tool in tools:
+                current_mode = updated.get(tool.name, "auto")
+                if current_mode != "ask":
+                    continue
+                tool_family = cls._tool_semantic_family(tool, input_variables)
+                if ExecutionTrustPolicyService.allows_tool(
+                    tool_name=tool.name,
+                    tool_family=tool_family,
+                    policy_ref=trust_policy_ref,
+                ):
+                    updated[tool.name] = "auto"
+            return updated
+
+        # trusted_auto: apply trust policy (if present) + readonly whitelist
+        if not tools:
             return tool_consent_modes
+
+        from .tool_processor import is_trusted_auto_read_only_tool_call
 
         updated = dict(tool_consent_modes)
         for tool in tools:
             current_mode = updated.get(tool.name, "auto")
             if current_mode != "ask":
                 continue
-            tool_family = cls._tool_semantic_family(tool, input_variables)
-            if ExecutionTrustPolicyService.allows_tool(
-                tool_name=tool.name,
-                tool_family=tool_family,
-                policy_ref=trust_policy_ref,
-            ):
+            if has_policy:
+                tool_family = cls._tool_semantic_family(tool, input_variables)
+                if ExecutionTrustPolicyService.allows_tool(
+                    tool_name=tool.name,
+                    tool_family=tool_family,
+                    policy_ref=trust_policy_ref,
+                ):
+                    updated[tool.name] = "auto"
+                    continue
+            if is_trusted_auto_read_only_tool_call(tool.name):
                 updated[tool.name] = "auto"
         return updated
 

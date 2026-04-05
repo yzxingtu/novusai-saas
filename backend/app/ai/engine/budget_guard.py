@@ -11,10 +11,10 @@ class BudgetGuard:
         if path == "fast":
             return ExecutionBudget(
                 max_prompt_tokens=4000,
-                max_completion_tokens=1200,
+                max_completion_tokens=2000,
                 max_tool_rounds=2,
-                max_elapsed_ms=25000,
-                max_retry_per_intent=0,
+                max_elapsed_ms=40000,
+                max_retry_per_intent=1,
                 max_candidate_tools=3,
                 max_tool_result_bytes=16000,
             )
@@ -23,7 +23,7 @@ class BudgetGuard:
                 max_prompt_tokens=8000,
                 max_completion_tokens=2000,
                 max_tool_rounds=3,
-                max_elapsed_ms=20000,
+                max_elapsed_ms=45000,
                 max_retry_per_intent=1,
                 max_candidate_tools=5,
                 max_tool_result_bytes=40000,

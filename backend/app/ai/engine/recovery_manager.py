@@ -7,11 +7,26 @@ from typing import Any
 from app.ai.prompt_contracts import render_prompt_contract
 from app.ai.tools.types import ToolResult
 from app.ai.types import ChatMessage
+from app.core.i18n import _
 
 from .types import ExecutionBudget, IntentPlan, ProviderFailureKind, RecoveryDecision
 
 
 class RecoveryManager:
+    @staticmethod
+    def _partial_exit_labels(intents: list[IntentPlan]) -> tuple[list[str], list[str]]:
+        completed = [
+            intent.user_visible_label
+            for intent in intents
+            if intent.status == "completed"
+        ]
+        unfinished = [
+            intent.user_visible_label
+            for intent in intents
+            if intent.status != "completed"
+        ]
+        return completed, unfinished
+
     @staticmethod
     def _successful_tool_names(
         messages: list[ChatMessage],
@@ -271,24 +286,50 @@ class RecoveryManager:
         reason: str,
         provider_failure_kind: ProviderFailureKind = "none",
     ) -> str:
-        completed = [
-            intent.user_visible_label
-            for intent in intents
-            if intent.status == "completed"
-        ]
-        unfinished = [
-            intent.user_visible_label
-            for intent in intents
-            if intent.status != "completed"
-        ]
-        return render_prompt_contract(
-            "partial_exit",
-            completed_summary="；".join(completed) if completed else "无",
-            unfinished_summary="；".join(unfinished) if unfinished else "无",
-            exit_reason=reason,
-            failure_kind=provider_failure_kind
-            if provider_failure_kind != "none"
-            else "orchestration_partial_exit",
+        completed, unfinished = RecoveryManager._partial_exit_labels(intents)
+        completed_summary = "、".join(completed)
+        unfinished_summary = "、".join(unfinished)
+
+        if completed and unfinished:
+            return _(
+                "我先把已经完成的部分整理给你：{completed}。其余部分还没有完成：{unfinished}。如果你愿意，我可以继续处理剩余内容。"
+            ).format(
+                completed=completed_summary,
+                unfinished=unfinished_summary,
+            )
+        if completed:
+            return _("我先整理到这里了：{completed}。").format(
+                completed=completed_summary,
+            )
+        if reason == "elapsed_budget_exceeded":
+            return _("这次处理在整理最终答复前超时了。如果你愿意，我可以继续处理。")
+        if provider_failure_kind != "none":
+            return _("这次处理被暂时中断了，请稍后再试一次。")
+        if unfinished:
+            return _("这次处理还没有完成：{unfinished}。如果你愿意，我可以继续。").format(
+                unfinished=unfinished_summary,
+            )
+        return _("这次处理在完成前中断了。如果你愿意，我可以继续。")
+
+    @staticmethod
+    def build_partial_response_prompt(
+        intents: list[IntentPlan],
+        *,
+        reason: str,
+        provider_failure_kind: ProviderFailureKind = "none",
+    ) -> ChatMessage:
+        completed, unfinished = RecoveryManager._partial_exit_labels(intents)
+        return ChatMessage(
+            role="system",
+            content=render_prompt_contract(
+                "partial_exit",
+                completed_summary="；".join(completed) if completed else "无",
+                unfinished_summary="；".join(unfinished) if unfinished else "无",
+                exit_reason=reason,
+                failure_kind=provider_failure_kind
+                if provider_failure_kind != "none"
+                else "orchestration_partial_exit",
+            ),
         )
 
 

@@ -1940,6 +1940,86 @@ async def test_prepare_execution_applies_execution_trust_policy_to_ask_tools() -
 
 
 @pytest.mark.asyncio
+async def test_prepare_execution_trusted_auto_bypasses_readonly_weather_consent() -> None:
+    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    request = ExecutionRequest(
+        agent_id=1,
+        tenant_id=1,
+        user_id=1,
+        interaction_mode="trusted_auto",
+        trust_policy_ref={
+            "policy_ids": [1],
+            "allowed_tool_names": [],
+            "tool_families": [],
+            "risk_level_cap": "read",
+        },
+        messages=[ChatMessage(role="user", content="帮我查一下西安现在的天气")],
+        input_variables={},
+    )
+    skill_result = SkillResolveResult(
+        tools=[
+            ToolDefinition(name="get_current_weather", description="Current weather"),
+        ],
+        tool_consent_modes={
+            "get_current_weather": "ask",
+        },
+    )
+
+    with (
+        patch(
+            "app.ai.rag_injector.load_agent_kb_bindings",
+            new=AsyncMock(return_value=([], {})),
+        ),
+        patch("app.ai.routing.router.ModelRouter", new=_FakeRouter),
+    ):
+        prep = await engine._prepare_execution(
+            _build_agent(),
+            request,
+            skill_result=skill_result,
+        )
+
+    assert prep.tool_consent_modes["get_current_weather"] == "auto"
+
+
+@pytest.mark.asyncio
+async def test_prepare_execution_trusted_auto_bypasses_readonly_even_without_trust_policy_ref() -> None:
+    """trust_policy_ref=None must not block the readonly whitelist in trusted_auto."""
+    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    request = ExecutionRequest(
+        agent_id=1,
+        tenant_id=1,
+        user_id=1,
+        interaction_mode="trusted_auto",
+        trust_policy_ref=None,  # <-- the key difference
+        messages=[ChatMessage(role="user", content="今天天气怎么样")],
+        input_variables={},
+    )
+    skill_result = SkillResolveResult(
+        tools=[
+            ToolDefinition(name="get_current_weather", description="Current weather"),
+        ],
+        tool_consent_modes={
+            "get_current_weather": "ask",
+        },
+    )
+
+    with (
+        patch(
+            "app.ai.rag_injector.load_agent_kb_bindings",
+            new=AsyncMock(return_value=([], {})),
+        ),
+        patch("app.ai.routing.router.ModelRouter", new=_FakeRouter),
+    ):
+        prep = await engine._prepare_execution(
+            _build_agent(),
+            request,
+            skill_result=skill_result,
+        )
+
+    assert prep.tool_consent_modes["get_current_weather"] == "auto"
+
+
+@pytest.mark.asyncio
 async def test_prepare_execution_does_not_bypass_risk_cap_for_page_ops() -> None:
     engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
     request = ExecutionRequest(
@@ -2066,16 +2146,16 @@ async def test_call_llm_runtime_errors_do_not_fallback_to_legacy() -> None:
     with (
         patch.object(ConversationEngine, "_call_runtime_query_turn", new=runtime_call),
         patch.object(BaseEngine, "_call_llm", new=legacy_call),
+        pytest.raises(RuntimeError, match="runtime-v2 failed"),
     ):
-        with pytest.raises(RuntimeError, match="runtime-v2 failed"):
-            await engine._call_llm(
-                agent=agent,
-                messages=[ChatMessage(role="user", content="继续")],
-                tools=[ToolDefinition(name="get_page_context", description="Read page context")],
-                selected_skill_names=["page_skill"],
-                context_sources=[],
-                conversation_id=9001,
-            )
+        await engine._call_llm(
+            agent=agent,
+            messages=[ChatMessage(role="user", content="继续")],
+            tools=[ToolDefinition(name="get_page_context", description="Read page context")],
+            selected_skill_names=["page_skill"],
+            context_sources=[],
+            conversation_id=9001,
+        )
 
     assert runtime_call.await_count == 1
     assert legacy_call.await_count == 0

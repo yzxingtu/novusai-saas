@@ -205,6 +205,134 @@ class ConversationEngine(BaseEngine):
             )
         return synthesized
 
+    @staticmethod
+    def _can_finalize_partial_with_llm(
+        *,
+        reason: str,
+        state: ExecutionStateMachine,
+        response: ChatResponse | None,
+        tool_results: list[ToolResult],
+    ) -> bool:
+        if reason not in {
+            "prompt_budget_exceeded",
+            "completion_budget_exceeded",
+            "tool_round_budget_exceeded",
+            "elapsed_budget_exceeded",
+            "tool_result_budget_exceeded",
+            "candidate_tool_budget_exceeded",
+        }:
+            return False
+        if any(intent.status == "completed" for intent in state.intent_plan):
+            return True
+        if any(result.success for result in tool_results):
+            return True
+        if response is None:
+            return False
+        return bool(str(response.message.content or "").strip())
+
+    async def _finalize_partial_output(
+        self,
+        *,
+        agent: Agent,
+        request: ExecutionRequest,
+        prep: Any,
+        messages: list[ChatMessage],
+        response: ChatResponse | None,
+        state: ExecutionStateMachine,
+        tool_results: list[ToolResult],
+        reason: str,
+        total_tokens: int,
+        completion_tokens_used: int,
+        selected_skill_names: list[str],
+        context_sources: list[Any],
+    ) -> tuple[str, int, int]:
+        if not self._can_finalize_partial_with_llm(
+            reason=reason,
+            state=state,
+            response=response,
+            tool_results=tool_results,
+        ):
+            return (
+                RecoveryManager.build_partial_output(
+                    state.intent_plan,
+                    reason=reason,
+                    provider_failure_kind=state.provider_failure_kind,
+                ),
+                total_tokens,
+                completion_tokens_used,
+            )
+
+        try:
+            final_response = await self._call_llm(
+                agent=agent,
+                messages=list(messages)
+                + [
+                    RecoveryManager.build_partial_response_prompt(
+                        state.intent_plan,
+                        reason=reason,
+                        provider_failure_kind=state.provider_failure_kind,
+                    )
+                ],
+                tools=None,
+                all_tool_names=[tool.name for tool in (prep.all_tools or [])],
+                tool_use_policy=ToolUsePolicy(
+                    family="none",
+                    mode="none",
+                    allowed_tool_names=[],
+                    retry_on_contract_breach=False,
+                    reason="partial_exit_final_response",
+                ),
+                tenant_id=request.tenant_id,
+                user_id=request.user_id,
+                conversation_id=request.conversation_id,
+                billing_context=request.billing_context,
+                route_result=prep.route_result,
+                log_user_type=log_user_type_for_call_log(request.user_role),
+                selected_skill_names=selected_skill_names,
+                context_sources=context_sources,
+            )
+        except Exception as exc:  # pragma: no cover - defensive fallback
+            logger.warning(
+                "Partial-exit finalization fallback triggered: conversation_id={} reason={} error={}",
+                request.conversation_id,
+                reason,
+                str(exc),
+            )
+            return (
+                RecoveryManager.build_partial_output(
+                    state.intent_plan,
+                    reason=reason,
+                    provider_failure_kind=state.provider_failure_kind,
+                ),
+                total_tokens,
+                completion_tokens_used,
+            )
+        total_tokens += final_response.total_tokens or 0
+        completion_tokens_used += int(
+            final_response.output_tokens
+            if final_response.output_tokens is not None
+            else (final_response.total_tokens or 0)
+        )
+        # Update budget tokens directly; avoid register_completion_tokens()
+        # which would transition state away from partial_exit.
+        if state.budget is not None:
+            state.budget.completion_tokens_used = max(
+                state.budget.completion_tokens_used,
+                int(completion_tokens_used or 0),
+            )
+        final_output = str(final_response.message.content or "").strip()
+        if final_output:
+            return final_output, total_tokens, completion_tokens_used
+        return (
+            RecoveryManager.build_partial_output(
+                state.intent_plan,
+                reason=reason,
+                provider_failure_kind=state.provider_failure_kind,
+            ),
+            total_tokens,
+            completion_tokens_used,
+        )
+
     def _bootstrap_missing_intent_plan(
         self,
         *,
@@ -732,10 +860,21 @@ class ConversationEngine(BaseEngine):
             elif partial:
                 state.transition("partial_exit")
                 completion_reason = decision.reason or "return_partial"
-                output = RecoveryManager.build_partial_output(
-                    state.intent_plan,
-                    reason=completion_reason,
-                    provider_failure_kind=state.provider_failure_kind,
+                output, total_tokens, completion_tokens_used = (
+                    await self._finalize_partial_output(
+                        agent=agent,
+                        request=request,
+                        prep=prep,
+                        messages=messages,
+                        response=response,
+                        state=state,
+                        tool_results=tool_results,
+                        reason=completion_reason,
+                        total_tokens=total_tokens,
+                        completion_tokens_used=completion_tokens_used,
+                        selected_skill_names=runtime_selected_skill_names,
+                        context_sources=runtime_context_sources,
+                    )
                 )
             else:
                 state.transition("completed")

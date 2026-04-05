@@ -305,6 +305,7 @@ class StreamExecutionHandler:
                 approved_pending_consent_tools=ToolCallProcessor.approved_pending_consent_tool_names(
                     self.request.interaction_updates,
                 ),
+                interaction_mode=getattr(self.request, "interaction_mode", "confirm"),
             )
             bundle_selected_skill_names = (
                 list(
@@ -1341,13 +1342,6 @@ class StreamExecutionHandler:
                     from app.ai.tools.types import ToolResult
 
                     err_msg = _("page_operation.error.json_parse_failed")
-                    if func_name and func_name.startswith("data_"):
-                        _consecutive_data_op_failures += 1
-                        err_msg += " " + _("data_intelligence.crud.json_parse_guidance")
-                        if _consecutive_data_op_failures >= 2:
-                            err_msg += " " + _(
-                                "data_intelligence.crud.json_parse_guidance_tip"
-                            )
                     err_result = ToolResult(
                         tool_call_id=tc_id,
                         name=func_name or "unknown",
@@ -1399,7 +1393,7 @@ class StreamExecutionHandler:
                 processor.annotate_tool_call(tc, skill_info=_skill_info)
 
                 # ---- consent_mode pre-check ---- / consent_mode 前置检查
-                _consent = processor.check_consent(func_name)
+                _consent = processor.check_consent(func_name, arguments)
 
                 if _consent == "reject":
                     messages.append(processor.build_consent_reject_message(tc_id))
