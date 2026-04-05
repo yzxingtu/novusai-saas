@@ -598,7 +598,9 @@ class ToolSandbox:
                 if context.page_session_id is not None:
                     self._page_session_id = context.page_session_id
                     if isinstance(self.input_variables, dict):
-                        self.input_variables["page_session_id"] = context.page_session_id
+                        self.input_variables["page_session_id"] = (
+                            context.page_session_id
+                        )
             except Exception:
                 pass
         except asyncio.TimeoutError:

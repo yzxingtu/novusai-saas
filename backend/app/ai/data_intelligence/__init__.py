@@ -9,26 +9,32 @@ from importlib import import_module
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from app.ai.data_intelligence.readonly_executor import QueryResult, ReadOnlyExecutor
-    from app.ai.data_intelligence.result_formatter import FormattedResult, ResultFormatter
+    from app.ai.data_intelligence.readonly_executor import (
+        QueryResult,  # noqa: F401
+        ReadOnlyExecutor,  # noqa: F401
+    )
+    from app.ai.data_intelligence.result_formatter import (
+        FormattedResult,  # noqa: F401
+        ResultFormatter,  # noqa: F401
+    )
     from app.ai.data_intelligence.schema_provider import (
-        ColumnSchema,
-        SchemaProvider,
-        TableSchema,
+        ColumnSchema,  # noqa: F401
+        SchemaProvider,  # noqa: F401
+        TableSchema,  # noqa: F401
     )
     from app.ai.data_intelligence.sql_safety import (
-        SQLSafetyValidator,
-        SQLValidationResult,
-        extract_table_names,
+        SQLSafetyValidator,  # noqa: F401
+        SQLValidationResult,  # noqa: F401
+        extract_table_names,  # noqa: F401
     )
     from app.ai.data_intelligence.tenant_isolation import (
-        TenantIsolationError,
-        TenantIsolationInjector,
+        TenantIsolationError,  # noqa: F401
+        TenantIsolationInjector,  # noqa: F401
     )
     from app.ai.data_intelligence.text_to_sql import (
-        ConversationRound,
-        GeneratedSQL,
-        TextToSQLGenerator,
+        ConversationRound,  # noqa: F401
+        GeneratedSQL,  # noqa: F401
+        TextToSQLGenerator,  # noqa: F401
     )
 
 _EXPORTS: dict[str, tuple[str, str]] = {
@@ -79,7 +85,23 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     ),
 }
 
-__all__ = list(_EXPORTS)
+__all__ = [
+    "ColumnSchema",
+    "TableSchema",
+    "SchemaProvider",
+    "SQLSafetyValidator",
+    "SQLValidationResult",
+    "extract_table_names",
+    "TenantIsolationInjector",
+    "TenantIsolationError",
+    "QueryResult",
+    "ReadOnlyExecutor",
+    "ConversationRound",
+    "GeneratedSQL",
+    "TextToSQLGenerator",
+    "FormattedResult",
+    "ResultFormatter",
+]
 
 
 def __getattr__(name: str) -> Any:

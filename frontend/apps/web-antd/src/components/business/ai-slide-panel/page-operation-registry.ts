@@ -39,6 +39,12 @@
  * ```
  */
 
+import type {
+  PageOperation,
+  PageOperationHandler,
+  PageOperationResult,
+} from './page-operation-types';
+
 import { ref } from 'vue';
 
 import { formStateTracker } from '#/composables/use-form-state-tracker';
@@ -46,11 +52,6 @@ import { $t } from '#/locales';
 
 import { normalizePageKey } from './page-key-utils';
 import { getDefaultPageOperations } from './page-operation-defaults';
-import type {
-  PageOperation,
-  PageOperationHandler,
-  PageOperationResult,
-} from './page-operation-types';
 
 // --- Internal: param schemas, guards, sanitization / 内部：参数 schema、守卫与清洗 ---
 

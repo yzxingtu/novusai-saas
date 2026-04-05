@@ -431,8 +431,47 @@ class PluginContext:
         from app.storage.manager import storage_manager
 
         config_service = ConfigService(self._db)
-        driver_name = await config_service.get_value("storage_driver") or "local"
-        storage_conf = StorageConfig(driver=driver_name)
+        if hasattr(config_service, "get_platform_config"):
+            driver_name = await config_service.get_platform_config(
+                "platform_storage_driver",
+                default="local",
+            )
+            if str(driver_name) == "local":
+                from app.storage import LOCAL_STORAGE_ROOT
+
+                root_path = str(LOCAL_STORAGE_ROOT)
+            else:
+                root_path = await config_service.get_platform_config(
+                    "platform_storage_root_path",
+                    default="plugins",
+                )
+            base_url = await config_service.get_platform_config(
+                "platform_storage_base_url",
+                default=None,
+            )
+            options = await config_service.get_platform_config(
+                "platform_storage_options",
+                default={},
+            )
+        else:
+            driver_name = await config_service.get_value("storage_driver") or "local"
+            root_path = await config_service.get_value("storage_root_path")
+            base_url = await config_service.get_value("storage_base_url")
+            options = await config_service.get_value("storage_options") or {}
+            if not root_path:
+                if str(driver_name) == "local":
+                    from app.storage import LOCAL_STORAGE_ROOT
+
+                    root_path = str(LOCAL_STORAGE_ROOT)
+                else:
+                    root_path = "plugins"
+
+        storage_conf = StorageConfig(
+            driver=str(driver_name),
+            root_path=str(root_path),
+            base_url=base_url,
+            options=options or {},
+        )
         driver = storage_manager.get_driver(storage_conf)
         return _NamespacedStorageProxy(driver, f"plugins/{self.plugin_name}")
 

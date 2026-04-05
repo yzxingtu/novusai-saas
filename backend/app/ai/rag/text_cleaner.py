@@ -194,6 +194,7 @@ def _is_emoji_char(ch: str) -> bool:
         or 0x203C <= code <= 0x2FFF
     )
 
+
 def clean_for_embedding(text: str) -> str:
     """
     Clean text to improve embedding vector quality.

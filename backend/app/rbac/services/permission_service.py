@@ -301,7 +301,9 @@ class PermissionService:
         org_node = await self._get_tenant_org_node(tenant_admin)
         if org_node is not None:
             org_node_perms = {
-                p.code for p in org_node.permissions if p.is_enabled and not p.is_deleted
+                p.code
+                for p in org_node.permissions
+                if p.is_enabled and not p.is_deleted
             }
             return org_node_perms & plan_perms[0]
 
@@ -973,7 +975,7 @@ class PermissionService:
             if first_segment and first_segment not in {"admin", "tenant", "user"}:
                 return first_segment
 
-        action = str(permission.action or "").strip()
+        action = str(getattr(permission, "action", "") or "").strip()
         if action:
             parts = [part for part in action.split(".") if part]
             if len(parts) >= 2:
@@ -1007,7 +1009,7 @@ class PermissionService:
                 for token in _MENU_AI_TOKEN_RE.findall(cleaned.replace("-", " ")):
                     _add(token)
 
-        action = str(permission.action or "").strip()
+        action = str(getattr(permission, "action", "") or "").strip()
         if action:
             for part in action.split("."):
                 cleaned = part.strip()
@@ -1050,12 +1052,12 @@ class PermissionService:
                 [*(ai_config.keywords or []), *keywords]
             )
             capabilities = cls._normalize_menu_ai_strings(ai_config.capabilities or [])
-            category = str(ai_config.category or "").strip() or cls._infer_menu_ai_category(
-                permission
-            )
+            category = str(
+                ai_config.category or ""
+            ).strip() or cls._infer_menu_ai_category(permission)
             description = (
                 str(ai_config.description or "").strip()
-                or str(permission.description or "").strip()
+                or str(getattr(permission, "description", "") or "").strip()
                 or None
             )
             mode = str(ai_config.mode or "").strip() or None
@@ -1065,7 +1067,9 @@ class PermissionService:
         else:
             capabilities = []
             category = cls._infer_menu_ai_category(permission)
-            description = str(permission.description or "").strip() or None
+            description = (
+                str(getattr(permission, "description", "") or "").strip() or None
+            )
             mode = None
             page_context_key = None
             disabled_capabilities = None

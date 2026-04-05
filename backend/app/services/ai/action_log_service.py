@@ -132,8 +132,15 @@ def _default_agent_meta() -> dict[str, Any]:
 def _default_operator_meta() -> dict[str, Any]:
     return {
         "operator_avatar": None,
+        "operator_display_name": None,
         "operator_name": None,
         "operator_nickname": None,
+        "operator_org_node_id": None,
+        "operator_org_node_name": None,
+        "operator_role_name": None,
+        "operator_is_active": None,
+        "operator_is_leader": None,
+        "operator_is_owner": None,
         "operator_type": None,
     }
 
@@ -144,6 +151,35 @@ def _normalize_operator_type(operator_type: str | None) -> str | None:
     if operator_type == "admin":
         return "platform_admin"
     return operator_type
+
+
+def _build_operator_meta(
+    *,
+    operator_type: str,
+    username: str | None,
+    nickname: str | None,
+    avatar: str | None,
+    org_node_id: int | None = None,
+    org_node_name: str | None = None,
+    role_name: str | None = None,
+    is_active: bool | None = None,
+    is_leader: bool | None = None,
+    is_owner: bool | None = None,
+) -> dict[str, Any]:
+    display_name = nickname or username
+    return {
+        "operator_avatar": avatar,
+        "operator_display_name": display_name,
+        "operator_name": username,
+        "operator_nickname": nickname,
+        "operator_org_node_id": org_node_id,
+        "operator_org_node_name": org_node_name,
+        "operator_role_name": role_name,
+        "operator_is_active": is_active,
+        "operator_is_leader": is_leader,
+        "operator_is_owner": is_owner,
+        "operator_type": operator_type,
+    }
 
 
 async def _execute_first(
@@ -174,13 +210,24 @@ def _resolve_operator_meta(
     live_meta: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     live_meta = live_meta or {}
+    operator_name = item.get("operator_name_snapshot") or live_meta.get("operator_name")
+    operator_nickname = item.get("operator_nickname_snapshot") or live_meta.get(
+        "operator_nickname"
+    )
     return {
         "operator_avatar": item.get("operator_avatar_snapshot")
         or live_meta.get("operator_avatar"),
-        "operator_name": item.get("operator_name_snapshot")
-        or live_meta.get("operator_name"),
-        "operator_nickname": item.get("operator_nickname_snapshot")
-        or live_meta.get("operator_nickname"),
+        "operator_display_name": live_meta.get("operator_display_name")
+        or operator_nickname
+        or operator_name,
+        "operator_name": operator_name,
+        "operator_nickname": operator_nickname,
+        "operator_org_node_id": live_meta.get("operator_org_node_id"),
+        "operator_org_node_name": live_meta.get("operator_org_node_name"),
+        "operator_role_name": live_meta.get("operator_role_name"),
+        "operator_is_active": live_meta.get("operator_is_active"),
+        "operator_is_leader": live_meta.get("operator_is_leader"),
+        "operator_is_owner": live_meta.get("operator_is_owner"),
         "operator_type": _normalize_operator_type(item.get("operator_type"))
         or _normalize_operator_type(live_meta.get("operator_type")),
     }
@@ -392,56 +439,140 @@ class AIActionLogService(TenantService[AIActionLog, AIActionLogRepository]):
             for row in result.all()
         }
 
+    @staticmethod
+    def _resolve_operator_live_meta(
+        operator_meta_map: dict[tuple[str, int], dict[str, Any]],
+        operator_type: str | None,
+        operator_id: int | None,
+    ) -> dict[str, Any]:
+        if not operator_id:
+            return {}
+        normalized_type = _normalize_operator_type(operator_type)
+        if normalized_type:
+            return operator_meta_map.get((normalized_type, operator_id), {})
+        return operator_meta_map.get(
+            ("tenant_admin", operator_id), {}
+        ) or operator_meta_map.get(
+            ("tenant_user", operator_id),
+            {},
+        )
+
     async def _load_operator_meta_map(
         self,
-        operator_ids: set[int],
-    ) -> dict[int, dict[str, Any]]:
-        if not operator_ids:
+        operator_refs: set[tuple[str | None, int]],
+    ) -> dict[tuple[str, int], dict[str, Any]]:
+        if not operator_refs:
             return {}
 
-        stmt = select(
-            TenantAdmin.id,
-            TenantAdmin.username,
-            TenantAdmin.nickname,
-            TenantAdmin.avatar,
-        ).where(
-            TenantAdmin.tenant_id == self.tenant_id,
-            TenantAdmin.id.in_(operator_ids),
-            TenantAdmin.is_deleted.is_(False),
-        )
-        result = await self.db.execute(stmt)
-        operator_meta_map = {
-            row.id: {
-                "operator_avatar": row.avatar,
-                "operator_name": row.username,
-                "operator_nickname": row.nickname,
-                "operator_type": "tenant_admin",
-            }
-            for row in result.all()
+        from app.models.auth.tenant_admin_role import TenantAdminRole
+        from app.models.auth.tenant_user_role import TenantUserRole
+        from app.models.org.tenant_org_node import TenantOrgNode
+
+        tenant_admin_ids = {
+            operator_id
+            for operator_type, operator_id in operator_refs
+            if operator_type in {None, "tenant_admin"}
+        }
+        tenant_user_ids = {
+            operator_id
+            for operator_type, operator_id in operator_refs
+            if operator_type in {None, "tenant_user"}
         }
 
-        missing_ids = operator_ids - set(operator_meta_map)
-        if not missing_ids:
-            return operator_meta_map
+        operator_meta_map: dict[tuple[str, int], dict[str, Any]] = {}
 
-        user_stmt = select(
-            TenantUser.id,
-            TenantUser.username,
-            TenantUser.nickname,
-            TenantUser.avatar,
-        ).where(
-            TenantUser.tenant_id == self.tenant_id,
-            TenantUser.id.in_(missing_ids),
-            TenantUser.is_deleted.is_(False),
-        )
-        user_result = await self.db.execute(user_stmt)
-        for row in user_result.all():
-            operator_meta_map[row.id] = {
-                "operator_avatar": row.avatar,
-                "operator_name": row.username,
-                "operator_nickname": row.nickname,
-                "operator_type": "tenant_user",
-            }
+        if tenant_admin_ids:
+            stmt = (
+                select(
+                    TenantAdmin.id,
+                    TenantAdmin.username,
+                    TenantAdmin.nickname,
+                    TenantAdmin.avatar,
+                    TenantAdmin.org_node_id,
+                    TenantAdmin.is_active,
+                    TenantAdmin.is_owner,
+                    TenantAdminRole.name.label("role_name"),
+                    TenantOrgNode.name.label("org_node_name"),
+                    TenantOrgNode.leader_id.label("org_leader_id"),
+                )
+                .select_from(TenantAdmin)
+                .join(
+                    TenantAdminRole,
+                    TenantAdminRole.id == TenantAdmin.role_id,
+                    isouter=True,
+                )
+                .join(
+                    TenantOrgNode,
+                    TenantOrgNode.id == TenantAdmin.org_node_id,
+                    isouter=True,
+                )
+                .where(
+                    TenantAdmin.tenant_id == self.tenant_id,
+                    TenantAdmin.id.in_(tenant_admin_ids),
+                    TenantAdmin.is_deleted.is_(False),
+                )
+            )
+            result = await self.db.execute(stmt)
+            for row in result.all():
+                operator_meta_map[("tenant_admin", row.id)] = _build_operator_meta(
+                    operator_type="tenant_admin",
+                    username=row.username,
+                    nickname=row.nickname,
+                    avatar=row.avatar,
+                    org_node_id=row.org_node_id,
+                    org_node_name=row.org_node_name,
+                    role_name=row.role_name,
+                    is_active=row.is_active,
+                    is_leader=bool(
+                        row.org_leader_id is not None and row.org_leader_id == row.id
+                    ),
+                    is_owner=bool(row.is_owner),
+                )
+
+        if tenant_user_ids:
+            user_stmt = (
+                select(
+                    TenantUser.id,
+                    TenantUser.username,
+                    TenantUser.nickname,
+                    TenantUser.avatar,
+                    TenantUser.org_node_id,
+                    TenantUser.is_active,
+                    TenantUserRole.name.label("role_name"),
+                    TenantOrgNode.name.label("org_node_name"),
+                )
+                .select_from(TenantUser)
+                .join(
+                    TenantUserRole,
+                    TenantUserRole.id == TenantUser.role_id,
+                    isouter=True,
+                )
+                .join(
+                    TenantOrgNode,
+                    TenantOrgNode.id == TenantUser.org_node_id,
+                    isouter=True,
+                )
+                .where(
+                    TenantUser.tenant_id == self.tenant_id,
+                    TenantUser.id.in_(tenant_user_ids),
+                    TenantUser.is_deleted.is_(False),
+                )
+            )
+            user_result = await self.db.execute(user_stmt)
+            for row in user_result.all():
+                operator_meta_map[("tenant_user", row.id)] = _build_operator_meta(
+                    operator_type="tenant_user",
+                    username=row.username,
+                    nickname=row.nickname,
+                    avatar=row.avatar,
+                    org_node_id=row.org_node_id,
+                    org_node_name=row.org_node_name,
+                    role_name=row.role_name,
+                    is_active=row.is_active,
+                    is_leader=False,
+                    is_owner=False,
+                )
+
         return operator_meta_map
 
     async def serialize_log(self, log: AIActionLog) -> dict[str, Any]:
@@ -450,7 +581,14 @@ class AIActionLogService(TenantService[AIActionLog, AIActionLogRepository]):
             {item["agent_id"]} if item.get("agent_id") else set(),
         )
         operator_meta_map = await self._load_operator_meta_map(
-            {item["operator_id"]} if item.get("operator_id") else set(),
+            {
+                (
+                    _normalize_operator_type(item.get("operator_type")),
+                    item["operator_id"],
+                )
+            }
+            if item.get("operator_id")
+            else set(),
         )
         item.update(_default_agent_meta())
         item.update(_default_operator_meta())
@@ -463,7 +601,11 @@ class AIActionLogService(TenantService[AIActionLog, AIActionLogRepository]):
         item.update(
             _resolve_operator_meta(
                 item,
-                operator_meta_map.get(item.get("operator_id"), {}),
+                self._resolve_operator_live_meta(
+                    operator_meta_map,
+                    item.get("operator_type"),
+                    item.get("operator_id"),
+                ),
             ),
         )
         return item
@@ -473,7 +615,11 @@ class AIActionLogService(TenantService[AIActionLog, AIActionLogRepository]):
             {log.agent_id for log in logs if log.agent_id},
         )
         operator_meta_map = await self._load_operator_meta_map(
-            {log.operator_id for log in logs if log.operator_id},
+            {
+                (_normalize_operator_type(log.operator_type), log.operator_id)
+                for log in logs
+                if log.operator_id
+            },
         )
 
         items: list[dict[str, Any]] = []
@@ -487,7 +633,11 @@ class AIActionLogService(TenantService[AIActionLog, AIActionLogRepository]):
             item.update(
                 _resolve_operator_meta(
                     item,
-                    operator_meta_map.get(log.operator_id, {}),
+                    self._resolve_operator_live_meta(
+                        operator_meta_map,
+                        log.operator_type,
+                        log.operator_id,
+                    ),
                 ),
             )
             items.append(item)
@@ -559,92 +709,210 @@ class AdminAIActionLogService(GlobalService[AIActionLog, AdminAIActionLogReposit
             }
         return tenant_meta_map
 
+    @staticmethod
+    def _resolve_operator_live_meta(
+        operator_meta_map: dict[tuple[int, str, int], dict[str, Any]],
+        tenant_id: int,
+        operator_type: str | None,
+        operator_id: int | None,
+    ) -> dict[str, Any]:
+        if not operator_id:
+            return {}
+        normalized_type = _normalize_operator_type(operator_type)
+        if tenant_id == PLATFORM_TENANT_ID:
+            return operator_meta_map.get(
+                (PLATFORM_TENANT_ID, "platform_admin", operator_id),
+                {},
+            )
+        if normalized_type:
+            return operator_meta_map.get((tenant_id, normalized_type, operator_id), {})
+        return operator_meta_map.get(
+            (tenant_id, "tenant_admin", operator_id), {}
+        ) or operator_meta_map.get(
+            (tenant_id, "tenant_user", operator_id),
+            {},
+        )
+
     async def _load_operator_meta_map(
         self,
         logs: list[AIActionLog],
-    ) -> dict[tuple[int, int], dict[str, Any]]:
+    ) -> dict[tuple[int, str, int], dict[str, Any]]:
+        from app.models.auth.admin_role import AdminRole
+        from app.models.auth.tenant_admin_role import TenantAdminRole
+        from app.models.auth.tenant_user_role import TenantUserRole
+        from app.models.org.admin_org_node import AdminOrgNode
+        from app.models.org.tenant_org_node import TenantOrgNode
+
         platform_operator_ids = {
             log.operator_id
             for log in logs
             if (log.tenant_id or PLATFORM_TENANT_ID) == PLATFORM_TENANT_ID
             and log.operator_id
         }
-        tenant_operator_pairs = {
+        tenant_admin_pairs = {
             (log.tenant_id, log.operator_id)
             for log in logs
             if (log.tenant_id or PLATFORM_TENANT_ID) != PLATFORM_TENANT_ID
             and log.tenant_id
             and log.operator_id
+            and _normalize_operator_type(log.operator_type) in {None, "tenant_admin"}
+        }
+        tenant_user_pairs = {
+            (log.tenant_id, log.operator_id)
+            for log in logs
+            if (log.tenant_id or PLATFORM_TENANT_ID) != PLATFORM_TENANT_ID
+            and log.tenant_id
+            and log.operator_id
+            and _normalize_operator_type(log.operator_type) in {None, "tenant_user"}
         }
 
-        operator_meta_map: dict[tuple[int, int], dict[str, Any]] = {}
+        operator_meta_map: dict[tuple[int, str, int], dict[str, Any]] = {}
 
         if platform_operator_ids:
-            stmt = select(
-                Admin.id,
-                Admin.username,
-                Admin.nickname,
-                Admin.avatar,
-            ).where(
-                Admin.id.in_(platform_operator_ids),
-                Admin.is_deleted.is_(False),
+            stmt = (
+                select(
+                    Admin.id,
+                    Admin.username,
+                    Admin.nickname,
+                    Admin.avatar,
+                    Admin.org_node_id,
+                    Admin.is_active,
+                    Admin.is_super,
+                    AdminRole.name.label("role_name"),
+                    AdminOrgNode.name.label("org_node_name"),
+                    AdminOrgNode.leader_id.label("org_leader_id"),
+                )
+                .select_from(Admin)
+                .join(AdminRole, AdminRole.id == Admin.role_id, isouter=True)
+                .join(AdminOrgNode, AdminOrgNode.id == Admin.org_node_id, isouter=True)
+                .where(
+                    Admin.id.in_(platform_operator_ids),
+                    Admin.is_deleted.is_(False),
+                )
             )
             result = await self.db.execute(stmt)
             for row in result.all():
-                operator_meta_map[(PLATFORM_TENANT_ID, row.id)] = {
-                    "operator_avatar": row.avatar,
-                    "operator_name": row.username,
-                    "operator_nickname": row.nickname,
-                    "operator_type": "platform_admin",
-                }
+                operator_meta_map[(PLATFORM_TENANT_ID, "platform_admin", row.id)] = (
+                    _build_operator_meta(
+                        operator_type="platform_admin",
+                        username=row.username,
+                        nickname=row.nickname,
+                        avatar=row.avatar,
+                        org_node_id=row.org_node_id,
+                        org_node_name=row.org_node_name,
+                        role_name=row.role_name,
+                        is_active=row.is_active,
+                        is_leader=bool(
+                            row.org_leader_id is not None
+                            and row.org_leader_id == row.id
+                        ),
+                        is_owner=bool(row.is_super),
+                    )
+                )
 
-        if tenant_operator_pairs:
-            tenant_ids = {tenant_id for tenant_id, _ in tenant_operator_pairs}
-            operator_ids = {operator_id for _, operator_id in tenant_operator_pairs}
+        if tenant_admin_pairs:
+            tenant_ids = {tenant_id for tenant_id, _ in tenant_admin_pairs}
+            operator_ids = {operator_id for _, operator_id in tenant_admin_pairs}
 
-            stmt = select(
-                TenantAdmin.tenant_id,
-                TenantAdmin.id,
-                TenantAdmin.username,
-                TenantAdmin.nickname,
-                TenantAdmin.avatar,
-            ).where(
-                TenantAdmin.tenant_id.in_(tenant_ids),
-                TenantAdmin.id.in_(operator_ids),
-                TenantAdmin.is_deleted.is_(False),
+            stmt = (
+                select(
+                    TenantAdmin.tenant_id,
+                    TenantAdmin.id,
+                    TenantAdmin.username,
+                    TenantAdmin.nickname,
+                    TenantAdmin.avatar,
+                    TenantAdmin.org_node_id,
+                    TenantAdmin.is_active,
+                    TenantAdmin.is_owner,
+                    TenantAdminRole.name.label("role_name"),
+                    TenantOrgNode.name.label("org_node_name"),
+                    TenantOrgNode.leader_id.label("org_leader_id"),
+                )
+                .select_from(TenantAdmin)
+                .join(
+                    TenantAdminRole,
+                    TenantAdminRole.id == TenantAdmin.role_id,
+                    isouter=True,
+                )
+                .join(
+                    TenantOrgNode,
+                    TenantOrgNode.id == TenantAdmin.org_node_id,
+                    isouter=True,
+                )
+                .where(
+                    TenantAdmin.tenant_id.in_(tenant_ids),
+                    TenantAdmin.id.in_(operator_ids),
+                    TenantAdmin.is_deleted.is_(False),
+                )
             )
             result = await self.db.execute(stmt)
             for row in result.all():
-                operator_meta_map[(row.tenant_id, row.id)] = {
-                    "operator_avatar": row.avatar,
-                    "operator_name": row.username,
-                    "operator_nickname": row.nickname,
-                    "operator_type": "tenant_admin",
-                }
+                operator_meta_map[(row.tenant_id, "tenant_admin", row.id)] = (
+                    _build_operator_meta(
+                        operator_type="tenant_admin",
+                        username=row.username,
+                        nickname=row.nickname,
+                        avatar=row.avatar,
+                        org_node_id=row.org_node_id,
+                        org_node_name=row.org_node_name,
+                        role_name=row.role_name,
+                        is_active=row.is_active,
+                        is_leader=bool(
+                            row.org_leader_id is not None
+                            and row.org_leader_id == row.id
+                        ),
+                        is_owner=bool(row.is_owner),
+                    )
+                )
 
-            missing_pairs = tenant_operator_pairs - set(operator_meta_map)
-            if missing_pairs:
-                missing_tenant_ids = {tenant_id for tenant_id, _ in missing_pairs}
-                missing_operator_ids = {operator_id for _, operator_id in missing_pairs}
-                user_stmt = select(
+        if tenant_user_pairs:
+            tenant_ids = {tenant_id for tenant_id, _ in tenant_user_pairs}
+            operator_ids = {operator_id for _, operator_id in tenant_user_pairs}
+            user_stmt = (
+                select(
                     TenantUser.tenant_id,
                     TenantUser.id,
                     TenantUser.username,
                     TenantUser.nickname,
                     TenantUser.avatar,
-                ).where(
-                    TenantUser.tenant_id.in_(missing_tenant_ids),
-                    TenantUser.id.in_(missing_operator_ids),
+                    TenantUser.org_node_id,
+                    TenantUser.is_active,
+                    TenantUserRole.name.label("role_name"),
+                    TenantOrgNode.name.label("org_node_name"),
+                )
+                .select_from(TenantUser)
+                .join(
+                    TenantUserRole,
+                    TenantUserRole.id == TenantUser.role_id,
+                    isouter=True,
+                )
+                .join(
+                    TenantOrgNode,
+                    TenantOrgNode.id == TenantUser.org_node_id,
+                    isouter=True,
+                )
+                .where(
+                    TenantUser.tenant_id.in_(tenant_ids),
+                    TenantUser.id.in_(operator_ids),
                     TenantUser.is_deleted.is_(False),
                 )
-                user_result = await self.db.execute(user_stmt)
-                for row in user_result.all():
-                    operator_meta_map[(row.tenant_id, row.id)] = {
-                        "operator_avatar": row.avatar,
-                        "operator_name": row.username,
-                        "operator_nickname": row.nickname,
-                        "operator_type": "tenant_user",
-                    }
+            )
+            user_result = await self.db.execute(user_stmt)
+            for row in user_result.all():
+                operator_meta_map[(row.tenant_id, "tenant_user", row.id)] = (
+                    _build_operator_meta(
+                        operator_type="tenant_user",
+                        username=row.username,
+                        nickname=row.nickname,
+                        avatar=row.avatar,
+                        org_node_id=row.org_node_id,
+                        org_node_name=row.org_node_name,
+                        role_name=row.role_name,
+                        is_active=row.is_active,
+                        is_leader=False,
+                        is_owner=False,
+                    )
+                )
 
         return operator_meta_map
 
@@ -668,9 +936,11 @@ class AdminAIActionLogService(GlobalService[AIActionLog, AdminAIActionLogReposit
         item.update(
             _resolve_operator_meta(
                 item,
-                operator_meta_map.get(
-                    (tenant_id, item.get("operator_id")),
-                    {},
+                self._resolve_operator_live_meta(
+                    operator_meta_map,
+                    tenant_id,
+                    item.get("operator_type"),
+                    item.get("operator_id"),
                 ),
             ),
         )
@@ -699,7 +969,12 @@ class AdminAIActionLogService(GlobalService[AIActionLog, AdminAIActionLogReposit
             item.update(
                 _resolve_operator_meta(
                     item,
-                    operator_meta_map.get((tenant_id, log.operator_id), {}),
+                    self._resolve_operator_live_meta(
+                        operator_meta_map,
+                        tenant_id,
+                        log.operator_type,
+                        log.operator_id,
+                    ),
                 ),
             )
             items.append(item)

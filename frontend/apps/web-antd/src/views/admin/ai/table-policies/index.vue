@@ -197,257 +197,259 @@ const { Grid, FormDrawer, onRefresh } = useCrudPage<AITablePolicyInfo>({
 
     <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
       <Grid>
-      <!-- 展开行 -->
-      <template #expand_content="{ row }">
-        <div class="grid grid-cols-1 gap-4 px-4 py-3 md:grid-cols-3">
-          <!-- 屏蔽列 -->
-          <div
-            class="rounded-lg border border-red-200/60 bg-red-50/30 p-3 dark:border-red-900/40 dark:bg-red-950/20"
-          >
+        <!-- 展开行 -->
+        <template #expand_content="{ row }">
+          <div class="grid grid-cols-1 gap-4 px-4 py-3 md:grid-cols-3">
+            <!-- 屏蔽列 -->
             <div
-              class="mb-2 text-xs font-semibold uppercase tracking-wide text-red-600 dark:text-red-500"
+              class="rounded-lg border border-red-200/60 bg-red-50/30 p-3 dark:border-red-900/40 dark:bg-red-950/20"
             >
-              {{ $t('admin.ai.tablePolicy.expandBlockedColumns') }}
-              <span class="ml-1 font-normal">
-                ({{ (row.blocked_columns || []).length }})
-              </span>
-            </div>
-            <div
-              v-if="(row.blocked_columns?.length ?? 0) > 0"
-              class="flex flex-wrap gap-1.5"
-            >
-              <Tag
-                v-for="col in row.blocked_columns || []"
-                :key="col"
-                color="red"
-                class="m-0"
+              <div
+                class="mb-2 text-xs font-semibold uppercase tracking-wide text-red-600 dark:text-red-500"
               >
-                {{ col }}
-              </Tag>
-            </div>
-            <div v-else class="text-xs text-muted-foreground">
-              {{ $t('admin.ai.tablePolicy.expandNoData') }}
-            </div>
-          </div>
-          <!-- 只读列 -->
-          <div
-            class="rounded-lg border border-amber-200/60 bg-amber-50/30 p-3 dark:border-amber-900/40 dark:bg-amber-950/20"
-          >
-            <div
-              class="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-500"
-            >
-              {{ $t('admin.ai.tablePolicy.expandReadonlyColumns') }}
-              <span class="ml-1 font-normal">
-                ({{ (row.readonly_columns || []).length }})
-              </span>
-            </div>
-            <div
-              v-if="(row.readonly_columns?.length ?? 0) > 0"
-              class="flex flex-wrap gap-1.5"
-            >
-              <Tag
-                v-for="col in row.readonly_columns || []"
-                :key="col"
-                color="orange"
-                class="m-0"
+                {{ $t('admin.ai.tablePolicy.expandBlockedColumns') }}
+                <span class="ml-1 font-normal">
+                  ({{ (row.blocked_columns || []).length }})
+                </span>
+              </div>
+              <div
+                v-if="(row.blocked_columns?.length ?? 0) > 0"
+                class="flex flex-wrap gap-1.5"
               >
-                {{ col }}
-              </Tag>
-            </div>
-            <div v-else class="text-xs text-muted-foreground">
-              {{ $t('admin.ai.tablePolicy.expandNoData') }}
-            </div>
-          </div>
-          <!-- 已配置列描述 -->
-          <div
-            class="rounded-lg border border-emerald-200/60 bg-emerald-50/30 p-3 dark:border-emerald-900/40 dark:bg-emerald-950/20"
-          >
-            <div
-              class="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-500"
-            >
-              {{ $t('admin.ai.tablePolicy.expandDescribedColumns') }}
-              <span class="ml-1 font-normal">
-                ({{
-                  row.column_descriptions
-                    ? Object.keys(row.column_descriptions).length
-                    : 0
-                }})
-              </span>
-            </div>
-            <div
-              v-if="
-                row.column_descriptions &&
-                Object.keys(row.column_descriptions).length > 0
-              "
-              class="space-y-1"
-            >
-              <Collapse :bordered="false" ghost>
-                <CollapsePanel
-                  :key="1"
-                  :header="
-                    $t('admin.ai.tablePolicy.expandDescribedList', {
-                      count: Object.keys(row.column_descriptions).length,
-                    })
-                  "
+                <Tag
+                  v-for="col in row.blocked_columns || []"
+                  :key="col"
+                  color="red"
+                  class="m-0"
                 >
-                  <div class="max-h-40 space-y-1.5 overflow-y-auto pr-1">
-                    <div
-                      v-for="[colName, desc] in Object.entries(
-                        row.column_descriptions,
-                      )"
-                      :key="colName"
-                      class="flex gap-2 border-b border-border/50 pb-1.5 last:border-0 last:pb-0"
-                    >
-                      <code class="shrink-0 text-xs text-foreground">{{
-                        colName
-                      }}</code>
-                      <span
-                        class="min-w-0 flex-1 break-words text-xs text-muted-foreground"
-                        >{{ desc }}</span
-                      >
-                    </div>
-                  </div>
-                </CollapsePanel>
-              </Collapse>
+                  {{ col }}
+                </Tag>
+              </div>
+              <div v-else class="text-xs text-muted-foreground">
+                {{ $t('admin.ai.tablePolicy.expandNoData') }}
+              </div>
             </div>
-            <div v-else class="text-xs text-muted-foreground">
-              {{ $t('admin.ai.tablePolicy.expandNoData') }}
-            </div>
-          </div>
-        </div>
-      </template>
-
-      <!-- 表名列 -->
-      <template #tableName_cell="{ row }">
-        <div class="flex items-center gap-2.5">
-          <div
-            class="flex size-8 shrink-0 items-center justify-center rounded-lg"
-            :class="row.is_active ? 'bg-primary/10' : 'bg-muted'"
-          >
-            <IconifyIcon
-              icon="lucide:table-2"
-              class="size-4"
-              :class="row.is_active ? 'text-primary' : 'text-muted-foreground'"
-            />
-          </div>
-          <div class="min-w-0 flex-1">
-            <div class="flex items-center gap-1.5">
-              <Tooltip :title="row.description || undefined">
-                <code class="text-sm font-semibold text-foreground">
-                  {{ row.table_name }}
-                </code>
-              </Tooltip>
-              <Tooltip
-                v-if="!declaredTables.has(row.table_name)"
-                :title="$t('admin.ai.tablePolicy.notDeclaredWarning')"
-              >
-                <IconifyIcon
-                  icon="lucide:alert-triangle"
-                  class="ml-1 size-3.5 text-amber-500"
-                />
-              </Tooltip>
-            </div>
+            <!-- 只读列 -->
             <div
-              class="flex items-center gap-1.5 text-xs text-muted-foreground"
+              class="rounded-lg border border-amber-200/60 bg-amber-50/30 p-3 dark:border-amber-900/40 dark:bg-amber-950/20"
             >
-              <span>{{ row.label }}</span>
-              <span v-if="row.permission_code" class="text-[10px] opacity-60">
-                · {{ row.permission_code }}
-              </span>
+              <div
+                class="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-500"
+              >
+                {{ $t('admin.ai.tablePolicy.expandReadonlyColumns') }}
+                <span class="ml-1 font-normal">
+                  ({{ (row.readonly_columns || []).length }})
+                </span>
+              </div>
+              <div
+                v-if="(row.readonly_columns?.length ?? 0) > 0"
+                class="flex flex-wrap gap-1.5"
+              >
+                <Tag
+                  v-for="col in row.readonly_columns || []"
+                  :key="col"
+                  color="orange"
+                  class="m-0"
+                >
+                  {{ col }}
+                </Tag>
+              </div>
+              <div v-else class="text-xs text-muted-foreground">
+                {{ $t('admin.ai.tablePolicy.expandNoData') }}
+              </div>
+            </div>
+            <!-- 已配置列描述 -->
+            <div
+              class="rounded-lg border border-emerald-200/60 bg-emerald-50/30 p-3 dark:border-emerald-900/40 dark:bg-emerald-950/20"
+            >
+              <div
+                class="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-500"
+              >
+                {{ $t('admin.ai.tablePolicy.expandDescribedColumns') }}
+                <span class="ml-1 font-normal">
+                  ({{
+                    row.column_descriptions
+                      ? Object.keys(row.column_descriptions).length
+                      : 0
+                  }})
+                </span>
+              </div>
+              <div
+                v-if="
+                  row.column_descriptions &&
+                  Object.keys(row.column_descriptions).length > 0
+                "
+                class="space-y-1"
+              >
+                <Collapse :bordered="false" ghost>
+                  <CollapsePanel
+                    :key="1"
+                    :header="
+                      $t('admin.ai.tablePolicy.expandDescribedList', {
+                        count: Object.keys(row.column_descriptions).length,
+                      })
+                    "
+                  >
+                    <div class="max-h-40 space-y-1.5 overflow-y-auto pr-1">
+                      <div
+                        v-for="[colName, desc] in Object.entries(
+                          row.column_descriptions,
+                        )"
+                        :key="colName"
+                        class="flex gap-2 border-b border-border/50 pb-1.5 last:border-0 last:pb-0"
+                      >
+                        <code class="shrink-0 text-xs text-foreground">{{
+                          colName
+                        }}</code>
+                        <span
+                          class="min-w-0 flex-1 break-words text-xs text-muted-foreground"
+                          >{{ desc }}</span
+                        >
+                      </div>
+                    </div>
+                  </CollapsePanel>
+                </Collapse>
+              </div>
+              <div v-else class="text-xs text-muted-foreground">
+                {{ $t('admin.ai.tablePolicy.expandNoData') }}
+              </div>
             </div>
           </div>
-        </div>
-      </template>
+        </template>
 
-      <!-- CRUD 权限列 -->
-      <template #crud_cell="{ row }">
-        <div class="flex items-center justify-center gap-1.5">
-          <Tooltip :title="$t('admin.ai.tablePolicy.allowRead')">
-            <button
-              v-access:code="['ai_table_policy:update']"
-              class="inline-flex size-7 items-center justify-center rounded-md text-xs font-semibold transition-all hover:scale-105"
-              :class="
-                row.allow_read
-                  ? 'border border-green-500/30 bg-green-500/15 text-green-600'
-                  : 'border border-border bg-muted text-muted-foreground'
-              "
-              @click="onToggleCrud(row, 'allow_read')"
+        <!-- 表名列 -->
+        <template #tableName_cell="{ row }">
+          <div class="flex items-center gap-2.5">
+            <div
+              class="flex size-8 shrink-0 items-center justify-center rounded-lg"
+              :class="row.is_active ? 'bg-primary/10' : 'bg-muted'"
             >
-              R
-            </button>
-          </Tooltip>
-          <Tooltip :title="$t('admin.ai.tablePolicy.allowCreate')">
-            <button
-              v-access:code="['ai_table_policy:update']"
-              class="inline-flex size-7 items-center justify-center rounded-md text-xs font-semibold transition-all hover:scale-105"
-              :class="
-                row.allow_create
-                  ? 'border border-blue-500/30 bg-blue-500/15 text-blue-600'
-                  : 'border border-border bg-muted text-muted-foreground'
-              "
-              @click="onToggleCrud(row, 'allow_create')"
-            >
-              C
-            </button>
-          </Tooltip>
-          <Tooltip :title="$t('admin.ai.tablePolicy.allowUpdate')">
-            <button
-              v-access:code="['ai_table_policy:update']"
-              class="inline-flex size-7 items-center justify-center rounded-md text-xs font-semibold transition-all hover:scale-105"
-              :class="
-                row.allow_update
-                  ? 'border border-orange-500/30 bg-orange-500/15 text-orange-600'
-                  : 'border border-border bg-muted text-muted-foreground'
-              "
-              @click="onToggleCrud(row, 'allow_update')"
-            >
-              U
-            </button>
-          </Tooltip>
-          <Tooltip :title="$t('admin.ai.tablePolicy.allowDelete')">
-            <button
-              v-access:code="['ai_table_policy:update']"
-              class="inline-flex size-7 items-center justify-center rounded-md text-xs font-semibold transition-all hover:scale-105"
-              :class="
-                row.allow_delete
-                  ? 'border border-red-500/30 bg-red-500/15 text-red-600'
-                  : 'border border-border bg-muted text-muted-foreground'
-              "
-              @click="onToggleCrud(row, 'allow_delete')"
-            >
-              D
-            </button>
-          </Tooltip>
-        </div>
-      </template>
+              <IconifyIcon
+                icon="lucide:table-2"
+                class="size-4"
+                :class="
+                  row.is_active ? 'text-primary' : 'text-muted-foreground'
+                "
+              />
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-1.5">
+                <Tooltip :title="row.description || undefined">
+                  <code class="text-sm font-semibold text-foreground">
+                    {{ row.table_name }}
+                  </code>
+                </Tooltip>
+                <Tooltip
+                  v-if="!declaredTables.has(row.table_name)"
+                  :title="$t('admin.ai.tablePolicy.notDeclaredWarning')"
+                >
+                  <IconifyIcon
+                    icon="lucide:alert-triangle"
+                    class="ml-1 size-3.5 text-amber-500"
+                  />
+                </Tooltip>
+              </div>
+              <div
+                class="flex items-center gap-1.5 text-xs text-muted-foreground"
+              >
+                <span>{{ row.label }}</span>
+                <span v-if="row.permission_code" class="text-[10px] opacity-60">
+                  · {{ row.permission_code }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </template>
 
-      <!-- 启用状态列 -->
-      <template #isActive_cell="{ row }">
-        <Switch
-          v-access:code="['ai_table_policy:update']"
-          :checked="row.is_active"
-          size="small"
-          @change="() => onToggleActive(row)"
-        />
-      </template>
+        <!-- CRUD 权限列 -->
+        <template #crud_cell="{ row }">
+          <div class="flex items-center justify-center gap-1.5">
+            <Tooltip :title="$t('admin.ai.tablePolicy.allowRead')">
+              <button
+                v-access:code="['ai_table_policy:update']"
+                class="inline-flex size-7 items-center justify-center rounded-md text-xs font-semibold transition-all hover:scale-105"
+                :class="
+                  row.allow_read
+                    ? 'border border-green-500/30 bg-green-500/15 text-green-600'
+                    : 'border border-border bg-muted text-muted-foreground'
+                "
+                @click="onToggleCrud(row, 'allow_read')"
+              >
+                R
+              </button>
+            </Tooltip>
+            <Tooltip :title="$t('admin.ai.tablePolicy.allowCreate')">
+              <button
+                v-access:code="['ai_table_policy:update']"
+                class="inline-flex size-7 items-center justify-center rounded-md text-xs font-semibold transition-all hover:scale-105"
+                :class="
+                  row.allow_create
+                    ? 'border border-blue-500/30 bg-blue-500/15 text-blue-600'
+                    : 'border border-border bg-muted text-muted-foreground'
+                "
+                @click="onToggleCrud(row, 'allow_create')"
+              >
+                C
+              </button>
+            </Tooltip>
+            <Tooltip :title="$t('admin.ai.tablePolicy.allowUpdate')">
+              <button
+                v-access:code="['ai_table_policy:update']"
+                class="inline-flex size-7 items-center justify-center rounded-md text-xs font-semibold transition-all hover:scale-105"
+                :class="
+                  row.allow_update
+                    ? 'border border-orange-500/30 bg-orange-500/15 text-orange-600'
+                    : 'border border-border bg-muted text-muted-foreground'
+                "
+                @click="onToggleCrud(row, 'allow_update')"
+              >
+                U
+              </button>
+            </Tooltip>
+            <Tooltip :title="$t('admin.ai.tablePolicy.allowDelete')">
+              <button
+                v-access:code="['ai_table_policy:update']"
+                class="inline-flex size-7 items-center justify-center rounded-md text-xs font-semibold transition-all hover:scale-105"
+                :class="
+                  row.allow_delete
+                    ? 'border border-red-500/30 bg-red-500/15 text-red-600'
+                    : 'border border-border bg-muted text-muted-foreground'
+                "
+                @click="onToggleCrud(row, 'allow_delete')"
+              >
+                D
+              </button>
+            </Tooltip>
+          </div>
+        </template>
 
-      <!-- 右侧工具栏：同步按钮 -->
-      <template #toolbar-tools>
-        <Tooltip :title="$t('admin.ai.tablePolicy.sync')">
-          <button
+        <!-- 启用状态列 -->
+        <template #isActive_cell="{ row }">
+          <Switch
             v-access:code="['ai_table_policy:update']"
-            class="ml-2 flex size-8 items-center justify-center rounded-lg border border-border/60 bg-background text-muted-foreground transition-all hover:border-primary/30 hover:text-primary"
-            :disabled="syncing"
-            @click="onSync"
-          >
-            <IconifyIcon
-              icon="lucide:refresh-cw"
-              class="size-3.5"
-              :class="syncing && 'animate-spin'"
-            />
-          </button>
-        </Tooltip>
-      </template>
+            :checked="row.is_active"
+            size="small"
+            @change="() => onToggleActive(row)"
+          />
+        </template>
+
+        <!-- 右侧工具栏：同步按钮 -->
+        <template #toolbar-tools>
+          <Tooltip :title="$t('admin.ai.tablePolicy.sync')">
+            <button
+              v-access:code="['ai_table_policy:update']"
+              class="ml-2 flex size-8 items-center justify-center rounded-lg border border-border/60 bg-background text-muted-foreground transition-all hover:border-primary/30 hover:text-primary"
+              :disabled="syncing"
+              @click="onSync"
+            >
+              <IconifyIcon
+                icon="lucide:refresh-cw"
+                class="size-3.5"
+                :class="syncing && 'animate-spin'"
+              />
+            </button>
+          </Tooltip>
+        </template>
       </Grid>
     </Card>
   </Page>

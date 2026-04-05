@@ -46,7 +46,7 @@ sys.modules.setdefault("redis.asyncio.client", redis_asyncio_client_module)
 sys.modules.setdefault("redis.exceptions", redis_exceptions_module)
 
 from app.ai.prompt_contracts import render_prompt_contract
-from app.ai.engine.conversation import ConversationEngine
+from app.ai.engine.conversation import ConversationEngine, _StreamRuntimeContext
 from app.ai.engine.types import ExecutionRequest
 from app.ai.skills.resolver import SkillResolver, SkillResolveResult, resolve_for_agent
 from app.ai.tools.executors.page_context_executor import (
@@ -183,7 +183,9 @@ def test_page_context_normalize_variables_prefers_explicit_page_context() -> Non
     }
 
 
-def test_page_context_normalize_variables_standardizes_legacy_variables_payload() -> None:
+def test_page_context_normalize_variables_standardizes_legacy_variables_payload() -> (
+    None
+):
     assert PageContext.normalize_variables(
         {
             "foo": "bar",
@@ -244,7 +246,9 @@ def test_agent_route_request_accepts_legacy_page_context_shape() -> None:
 
 
 @pytest.mark.asyncio
-async def test_validate_page_context_size_accepts_payload_within_runtime_limit() -> None:
+async def test_validate_page_context_size_accepts_payload_within_runtime_limit() -> (
+    None
+):
     from app.services.ai.page_context_limits import validate_page_context_size
 
     page_context = {
@@ -321,7 +325,9 @@ async def test_page_context_executor_returns_empty_output_without_context() -> N
 
 
 @pytest.mark.asyncio
-async def test_page_context_executor_second_call_without_page_context_returns_repeated_hint() -> None:
+async def test_page_context_executor_second_call_without_page_context_returns_repeated_hint() -> (
+    None
+):
     """空 variables 时首轮记 turn seen；同轮再次调用返回重复提示，而非再次输出无上下文。"""
     executor = PageContextExecutor()
     ctx = ExecutionContext(tenant_id=1, agent_id=2, variables={})
@@ -363,7 +369,9 @@ async def test_page_context_executor_variables_none_returns_no_context() -> None
 
 
 @pytest.mark.asyncio
-async def test_page_context_executor_prioritizes_mutation_ops_and_submit_workflow() -> None:
+async def test_page_context_executor_prioritizes_mutation_ops_and_submit_workflow() -> (
+    None
+):
     executor = PageContextExecutor()
     result = await executor.execute(
         ToolDefinition(name="get_page_context"),
@@ -386,11 +394,31 @@ async def test_page_context_executor_prioritizes_mutation_ops_and_submit_workflo
                             }
                         },
                         "available_operations": [
-                            {"name": "read_visible_rows", "label": "读取当前可见行", "readonly": True},
-                            {"name": "create_record", "label": "新建记录", "readonly": False},
-                            {"name": "fill_form", "label": "智能填写表单", "readonly": False},
-                            {"name": "submit_form", "label": "提交表单", "readonly": False},
-                            {"name": "validate_form", "label": "校验表单", "readonly": True},
+                            {
+                                "name": "read_visible_rows",
+                                "label": "读取当前可见行",
+                                "readonly": True,
+                            },
+                            {
+                                "name": "create_record",
+                                "label": "新建记录",
+                                "readonly": False,
+                            },
+                            {
+                                "name": "fill_form",
+                                "label": "智能填写表单",
+                                "readonly": False,
+                            },
+                            {
+                                "name": "submit_form",
+                                "label": "提交表单",
+                                "readonly": False,
+                            },
+                            {
+                                "name": "validate_form",
+                                "label": "校验表单",
+                                "readonly": True,
+                            },
                         ],
                     },
                 }
@@ -399,7 +427,10 @@ async def test_page_context_executor_prioritizes_mutation_ops_and_submit_workflo
     )
 
     assert result.success is True
-    assert "Writable Operations Available: create_record, fill_form, submit_form" in result.output
+    assert (
+        "Writable Operations Available: create_record, fill_form, submit_form"
+        in result.output
+    )
     assert "call submit_form" in result.output
     assert "Do not claim the page is read-only" in result.output
     assert "do NOT call get_page_context again" in result.output
@@ -422,7 +453,11 @@ async def test_page_context_executor_returns_page_snapshot() -> None:
                     "page_title": "供应商名称",
                     "page_data": {
                         "available_operations": [
-                            {"name": "read_current_view", "label": "读取当前视图", "readonly": True},
+                            {
+                                "name": "read_current_view",
+                                "label": "读取当前视图",
+                                "readonly": True,
+                            },
                         ],
                     },
                 }
@@ -435,7 +470,9 @@ async def test_page_context_executor_returns_page_snapshot() -> None:
 
 
 @pytest.mark.asyncio
-async def test_agent_chat_service_injects_page_context_into_execution_request(mock_db) -> None:
+async def test_agent_chat_service_injects_page_context_into_execution_request(
+    mock_db,
+) -> None:
     from app.services.ai.agent_chat_service import AgentChatService
 
     agent = MagicMock()
@@ -460,7 +497,9 @@ async def test_agent_chat_service_injects_page_context_into_execution_request(mo
     service._resolve_effective_memory_enabled = AsyncMock(return_value=False)
     service._load_session_memory_context = AsyncMock(return_value="")
     service._persist_session_memory = AsyncMock(return_value=None)
-    service.conversation_svc.get_or_create_for_chat = AsyncMock(return_value=conversation)
+    service.conversation_svc.get_or_create_for_chat = AsyncMock(
+        return_value=conversation
+    )
     service.conversation_svc.load_chat_history = AsyncMock(return_value=[])
     service.conversation_svc.persist_chat_messages = AsyncMock(return_value=([], 0))
     service.conversation_svc.update_stats = AsyncMock(return_value=None)
@@ -469,12 +508,19 @@ async def test_agent_chat_service_injects_page_context_into_execution_request(mo
     dispatcher = MagicMock()
     dispatcher.dispatch = AsyncMock(return_value=result)
 
-    with patch("app.services.ai.agent_chat_service.ExecutionDispatcher", return_value=dispatcher), patch(
-        "app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation",
-        new=AsyncMock(),
-    ), patch(
-        "app.services.ai.agent_chat_service.AgentStatsManager.record_chat",
-        new=AsyncMock(),
+    with (
+        patch(
+            "app.services.ai.agent_chat_service.ExecutionDispatcher",
+            return_value=dispatcher,
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentStatsManager.record_chat",
+            new=AsyncMock(),
+        ),
     ):
         await service.chat(
             agent_id=1,
@@ -578,7 +624,10 @@ async def test_skill_resolver_augments_web_research_builtin_tool_descriptions() 
     descriptions = {tool.name: tool.description for tool in result.tools}
     assert "candidate sources" in descriptions["web_search"]
     assert "fetch_url" in descriptions["web_search"]
-    assert "full content" in descriptions["fetch_url"].lower() or "read" in descriptions["fetch_url"].lower()
+    assert (
+        "full content" in descriptions["fetch_url"].lower()
+        or "read" in descriptions["fetch_url"].lower()
+    )
 
 
 @pytest.mark.asyncio
@@ -609,11 +658,16 @@ async def test_skill_resolver_augments_current_time_builtin_tool_description() -
 
     descriptions = {tool.name: tool.description for tool in result.tools}
     assert "timezone" in descriptions["get_current_time"]
-    assert "date" in descriptions["get_current_time"].lower() or "time" in descriptions["get_current_time"].lower()
+    assert (
+        "date" in descriptions["get_current_time"].lower()
+        or "time" in descriptions["get_current_time"].lower()
+    )
 
 
 @pytest.mark.asyncio
-async def test_resolve_for_agent_with_skill_grant_includes_get_page_context_tool(mock_db) -> None:
+async def test_resolve_for_agent_with_skill_grant_includes_get_page_context_tool(
+    mock_db,
+) -> None:
     agent = types.SimpleNamespace(
         id=7,
         name="Tenant Agent",
@@ -682,7 +736,9 @@ async def test_resolve_for_agent_with_skill_grant_includes_get_page_context_tool
 
 
 @pytest.mark.asyncio
-async def test_resolve_for_agent_admin_grant_applies_capability_override(mock_db) -> None:
+async def test_resolve_for_agent_admin_grant_applies_capability_override(
+    mock_db,
+) -> None:
     agent = types.SimpleNamespace(
         id=8,
         name="Admin Agent",
@@ -749,6 +805,7 @@ async def test_resolve_for_agent_admin_grant_applies_capability_override(mock_db
     openai_tools = to_openai_tools(result.tools)
     assert openai_tools[0]["function"]["name"] == "get_page_context"
 
+
 @pytest.mark.asyncio
 async def test_resolve_for_agent_returns_none_without_skill_grants(mock_db) -> None:
     agent = MagicMock()
@@ -768,17 +825,13 @@ async def test_resolve_for_agent_returns_none_without_skill_grants(mock_db) -> N
 
 @pytest.mark.asyncio
 async def test_conversation_engine_injects_tools_into_gateway() -> None:
-    """skill_result.tools → _prepare_execution → _call_llm → gateway.chat(tools=...) / 说明"""
+    """skill_result.tools → runtime-v2 adapter.chat(tools=...) / 说明"""
     gateway = MagicMock()
-    gateway.chat = AsyncMock(
-        return_value=ChatResponse(
-            message=ChatMessage(role="assistant", content="ok"),
-            total_tokens=8,
-        )
+    gateway.get_provider_and_key = AsyncMock()
+    gateway._merge_model_provider_snapshots = MagicMock(
+        side_effect=lambda billing_context, **_: billing_context
     )
-    engine = ConversationEngine(
-        db=MagicMock(), gateway=gateway, sandbox=MagicMock()
-    )
+    engine = ConversationEngine(db=MagicMock(), gateway=gateway, sandbox=MagicMock())
 
     provider = MagicMock()
     provider.code = "mock-provider"
@@ -787,10 +840,18 @@ async def test_conversation_engine_injects_tools_into_gateway() -> None:
     model.code = "mock-model"
     model.supports_vision = False
 
-    agent = MagicMock(spec=[
-        "id", "name", "system_prompt", "model",
-        "temperature", "max_tokens", "top_p", "rag_config",
-    ])
+    agent = MagicMock(
+        spec=[
+            "id",
+            "name",
+            "system_prompt",
+            "model",
+            "temperature",
+            "max_tokens",
+            "top_p",
+            "rag_config",
+        ]
+    )
     agent.id = 99
     agent.name = "ToolInjectionAgent"
     agent.system_prompt = "You are {{ agent_name }}"
@@ -832,6 +893,41 @@ async def test_conversation_engine_injects_tools_into_gateway() -> None:
     opt_result.skipped = True
     opt_result.total = 1
     opt_result.selected = 1
+    provider.type = "openai_compatible"
+    provider.base_url = "https://api.example.com/v1"
+    provider.config = {}
+    provider.id = 321
+
+    api_key = MagicMock()
+    api_key.decrypt_key.return_value = "sk-test"
+    api_key.increment_usage = MagicMock()
+    gateway.get_provider_and_key = AsyncMock(return_value=(provider, api_key))
+    model.id = 654
+    model.name = "mock-model"
+    model.input_price_per_1k = 0.0
+    model.output_price_per_1k = 0.0
+    adapter = MagicMock()
+    adapter.wire_api = "chat_completions"
+    adapter.chat = AsyncMock(
+        return_value=ChatResponse(
+            message=ChatMessage(role="assistant", content="ok"),
+            total_tokens=8,
+        )
+    )
+    runtime_context = _StreamRuntimeContext(
+        provider=provider,
+        api_key=api_key,
+        ai_model=model,
+        model_code=model.code,
+        is_vision=False,
+        is_audio=False,
+        is_video=False,
+        estimated_input=0,
+        metering_context=None,
+        should_meter_usage=False,
+        should_record_call_log=False,
+        runtime_info={},
+    )
 
     with (
         patch("app.ai.rag_injector.merge_kb_ids", return_value=None),
@@ -852,16 +948,22 @@ async def test_conversation_engine_injects_tools_into_gateway() -> None:
             "app.ai.engine.conversation.TokenCounter.count_messages_tokens",
             return_value=0,
         ),
+        patch(
+            "app.ai.engine.conversation.ConversationEngine._prepare_stream_runtime",
+            new=AsyncMock(return_value=runtime_context),
+        ),
+        patch(
+            "app.ai.engine.conversation.AdapterRegistry.create_adapter",
+            return_value=adapter,
+        ),
     ):
         result = await engine.execute(agent, request, skill_result=skill_result)
 
     assert result.success is False
     assert result.partial is True
-    assert gateway.chat.call_count >= 1
-    first_call = gateway.chat.call_args_list[0]
-    sent_tools = first_call.kwargs.get(
-        "tools", first_call[1].get("tools")
-    )
+    assert adapter.chat.call_count >= 1
+    first_call = adapter.chat.call_args_list[0]
+    sent_tools = first_call.kwargs.get("tools", first_call[1].get("tools"))
     assert sent_tools is not None
     assert sent_tools[0]["function"]["name"] == "get_page_context"
 
@@ -879,7 +981,9 @@ class TestToolOptimizerProtectedTools:
         from app.ai.tools.optimizer import optimize_tools
 
         tools = [
-            ToolDefinition(name="get_page_context", description="Read current page context"),
+            ToolDefinition(
+                name="get_page_context", description="Read current page context"
+            ),
             ToolDefinition(name="tool_a", description="Tool A"),
             ToolDefinition(name="tool_b", description="Tool B"),
             ToolDefinition(name="tool_c", description="Tool C for data query"),
@@ -902,10 +1006,14 @@ class TestToolOptimizerProtectedTools:
         from app.ai.tools.optimizer import optimize_tools
 
         tools = [
-            ToolDefinition(name="get_page_context", description="Read current page context"),
+            ToolDefinition(
+                name="get_page_context", description="Read current page context"
+            ),
         ]
         for i in range(10):
-            tools.append(ToolDefinition(name=f"filler_{i}", description=f"Filler tool {i}"))
+            tools.append(
+                ToolDefinition(name=f"filler_{i}", description=f"Filler tool {i}")
+            )
 
         result = optimize_tools(tools, "random question", max_after_optimization=4)
 
@@ -920,8 +1028,7 @@ class TestToolOptimizerProtectedTools:
         from app.ai.tools.optimizer import optimize_tools
 
         tools = [
-            ToolDefinition(name=f"tool_{i}", description=f"Tool {i}")
-            for i in range(10)
+            ToolDefinition(name=f"tool_{i}", description=f"Tool {i}") for i in range(10)
         ]
 
         result = optimize_tools(tools, "hello", max_after_optimization=5)
@@ -1006,10 +1113,16 @@ class TestToolOptimizerProtectedTools:
             ToolDefinition(name="data_create", description="Create data"),
             ToolDefinition(name="data_update", description="Update data"),
             ToolDefinition(name="data_delete", description="Delete data"),
-            ToolDefinition(name="web_search", description="Web search latest internet pages"),
+            ToolDefinition(
+                name="web_search", description="Web search latest internet pages"
+            ),
             ToolDefinition(name="fetch_url", description="Fetch a web page"),
-            ToolDefinition(name="get_current_weather", description="Get current weather"),
-            ToolDefinition(name="get_weather_forecast", description="Get weather forecast"),
+            ToolDefinition(
+                name="get_current_weather", description="Get current weather"
+            ),
+            ToolDefinition(
+                name="get_weather_forecast", description="Get weather forecast"
+            ),
         ]
 
         result = optimize_tools(
@@ -1031,8 +1144,12 @@ class TestToolOptimizerProtectedTools:
             ToolDefinition(name="data_query", description="Query data"),
             ToolDefinition(name="web_search", description="Search the web"),
             ToolDefinition(name="fetch_url", description="Fetch a webpage"),
-            ToolDefinition(name="get_current_weather", description="Get current weather"),
-            ToolDefinition(name="get_weather_forecast", description="Get weather forecast"),
+            ToolDefinition(
+                name="get_current_weather", description="Get current weather"
+            ),
+            ToolDefinition(
+                name="get_weather_forecast", description="Get weather forecast"
+            ),
             ToolDefinition(name="tool_a", description="Misc tool"),
             ToolDefinition(name="tool_b", description="Misc tool"),
             ToolDefinition(name="tool_c", description="Misc tool"),
@@ -1047,7 +1164,8 @@ class TestToolOptimizerProtectedTools:
         non_protected = [
             tool.name
             for tool in result.tools
-            if tool.name not in {"get_page_context", "invoke_page_operation", "data_query"}
+            if tool.name
+            not in {"get_page_context", "invoke_page_operation", "data_query"}
         ]
         assert set(non_protected[:2]) == {
             "get_current_weather",
@@ -1256,7 +1374,11 @@ class TestPageContextExecutorTruncation:
                     "entity_description": "Rich text editor",
                     "available_operations": [
                         {"name": "get_editor_html", "description": "Get HTML content"},
-                        {"name": "replace_section", "description": "Replace section", "params": {"old_html": {}, "new_html": {}}},
+                        {
+                            "name": "replace_section",
+                            "description": "Replace section",
+                            "params": {"old_html": {}, "new_html": {}},
+                        },
                     ],
                 },
             }
@@ -1300,7 +1422,10 @@ class TestPageContextExecutorTruncation:
                             "readonly": True,
                             "params": {
                                 "keyword": {"type": "string", "required": True},
-                                "status": {"type": "string", "enum": ["active", "paused"]},
+                                "status": {
+                                    "type": "string",
+                                    "enum": ["active", "paused"],
+                                },
                             },
                         }
                     ],
@@ -1320,5 +1445,7 @@ class TestPageContextExecutorTruncation:
         assert "Key Metrics: 请求数=128" in result.output
         assert "Visible Details: 状态=运行中" in result.output
         assert "Visible Text Summary:" in result.output
-        assert "If the latest user turn asks for multiple page operations" in result.output
+        assert (
+            "If the latest user turn asks for multiple page operations" in result.output
+        )
         assert "follow the latest user turn" in result.output

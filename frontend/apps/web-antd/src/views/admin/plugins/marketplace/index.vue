@@ -1,9 +1,10 @@
 <script lang="ts" setup>
+import type { LocationQueryRaw } from 'vue-router';
+
 /**
  * 插件市场 — 与插件管理页同风格的卡片网格
  */
 import type { MarketplacePluginItem } from '#/api/admin/plugin-marketplace';
-import type { LocationQueryRaw } from 'vue-router';
 
 import { onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -21,9 +22,7 @@ import {
   Tag,
 } from 'ant-design-vue';
 
-import {
-  getMarketplaceListApi,
-} from '#/api/admin/plugin-marketplace';
+import { getMarketplaceListApi } from '#/api/admin/plugin-marketplace';
 import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
 
@@ -322,170 +321,172 @@ usePageAIRegistration({
     <!-- ===== 插件卡片网格 ===== -->
     <template v-if="activeCatalog === 'plugins'">
       <Spin :spinning="loading">
-      <div
-        v-if="plugins.length > 0"
-        class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
-      >
         <div
-          v-for="p in plugins"
-          :key="p.slug || p.name"
-          class="group relative cursor-pointer overflow-hidden rounded-2xl border border-border/60 bg-card transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/5"
+          v-if="plugins.length > 0"
+          class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
         >
-          <!-- 顶部状态条 -->
           <div
-            class="h-1 w-full"
-            :class="
-              p.is_installed
-                ? 'bg-gradient-to-r from-emerald-400 to-emerald-500'
-                : 'bg-gradient-to-r from-primary/40 to-primary/60'
-            "
-          ></div>
-
-          <div class="p-5">
-            <!-- 头部：图标 + 名称 + 版本 -->
-            <div class="mb-3.5 flex items-start gap-3.5">
-              <div
-                class="flex size-12 shrink-0 items-center justify-center rounded-xl shadow-sm transition-all duration-200 group-hover:shadow-md"
-                :class="
-                  p.is_installed
-                    ? 'bg-gradient-to-br from-emerald-500/15 to-emerald-500/5'
-                    : 'bg-gradient-to-br from-primary/15 to-primary/5'
-                "
-              >
-                <IconifyIcon
-                  :icon="
-                    p.icon && p.icon.includes(':') ? p.icon : 'lucide:puzzle'
-                  "
-                  class="size-5.5"
-                  :class="p.is_installed ? 'text-emerald-600' : 'text-primary'"
-                />
-              </div>
-              <div class="min-w-0 flex-1">
-                <div class="flex items-center gap-2">
-                  <span
-                    class="truncate text-[15px] font-semibold leading-snug text-foreground"
-                  >
-                    {{ p.display_name || p.name }}
-                  </span>
-                  <Tag
-                    v-if="p.is_installed"
-                    color="success"
-                    class="!m-0 !rounded-md !border-0 !text-[10px]"
-                  >
-                    {{ $t('admin.plugin.marketplace.installed') }}
-                  </Tag>
-                </div>
-                <div
-                  class="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground"
-                >
-                  <span class="font-mono">v{{ p.version }}</span>
-                  <template v-if="p.author">
-                    <span class="text-border">·</span>
-                    <span>{{ p.author }}</span>
-                  </template>
-                </div>
-              </div>
-            </div>
-
-            <!-- 描述 -->
-            <p
-              class="mb-4 line-clamp-2 min-h-[2.25rem] text-[13px] leading-relaxed text-muted-foreground/80"
-            >
-              {{ p.description || '-' }}
-            </p>
-
-            <!-- 标签行 -->
-            <div class="mb-4 flex flex-wrap items-center gap-1.5">
-              <Tag
-                :color="getTierColor(p.tier)"
-                class="!m-0 !rounded-md !border-0 !text-[11px]"
-              >
-                {{ getTierText(p.tier) }}
-              </Tag>
-              <Tag
-                v-for="tag in (p.tags || []).slice(0, 2)"
-                :key="tag"
-                class="!m-0 !rounded-md !border-0 !text-[11px]"
-              >
-                {{ tag }}
-              </Tag>
-            </div>
-
-            <!-- 底部操作栏 -->
+            v-for="p in plugins"
+            :key="p.slug || p.name"
+            class="group relative cursor-pointer overflow-hidden rounded-2xl border border-border/60 bg-card transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/5"
+          >
+            <!-- 顶部状态条 -->
             <div
-              class="flex items-center justify-between border-t border-border/40 pt-3.5"
-              @click.stop
-            >
-              <div
-                class="flex items-center gap-3 text-xs text-muted-foreground"
-              >
-                <span class="flex items-center gap-1">
-                  <IconifyIcon icon="lucide:download" class="size-3.5" />
-                  {{ p.downloads || 0 }}
-                </span>
-                <span v-if="p.rating" class="flex items-center gap-1">
+              class="h-1 w-full"
+              :class="
+                p.is_installed
+                  ? 'bg-gradient-to-r from-emerald-400 to-emerald-500'
+                  : 'bg-gradient-to-r from-primary/40 to-primary/60'
+              "
+            ></div>
+
+            <div class="p-5">
+              <!-- 头部：图标 + 名称 + 版本 -->
+              <div class="mb-3.5 flex items-start gap-3.5">
+                <div
+                  class="flex size-12 shrink-0 items-center justify-center rounded-xl shadow-sm transition-all duration-200 group-hover:shadow-md"
+                  :class="
+                    p.is_installed
+                      ? 'bg-gradient-to-br from-emerald-500/15 to-emerald-500/5'
+                      : 'bg-gradient-to-br from-primary/15 to-primary/5'
+                  "
+                >
                   <IconifyIcon
-                    icon="lucide:star"
-                    class="size-3.5 text-yellow-500"
+                    :icon="
+                      p.icon && p.icon.includes(':') ? p.icon : 'lucide:puzzle'
+                    "
+                    class="size-5.5"
+                    :class="
+                      p.is_installed ? 'text-emerald-600' : 'text-primary'
+                    "
                   />
-                  {{ p.rating }}
+                </div>
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center gap-2">
+                    <span
+                      class="truncate text-[15px] font-semibold leading-snug text-foreground"
+                    >
+                      {{ p.display_name || p.name }}
+                    </span>
+                    <Tag
+                      v-if="p.is_installed"
+                      color="success"
+                      class="!m-0 !rounded-md !border-0 !text-[10px]"
+                    >
+                      {{ $t('admin.plugin.marketplace.installed') }}
+                    </Tag>
+                  </div>
+                  <div
+                    class="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground"
+                  >
+                    <span class="font-mono">v{{ p.version }}</span>
+                    <template v-if="p.author">
+                      <span class="text-border">·</span>
+                      <span>{{ p.author }}</span>
+                    </template>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 描述 -->
+              <p
+                class="mb-4 line-clamp-2 min-h-[2.25rem] text-[13px] leading-relaxed text-muted-foreground/80"
+              >
+                {{ p.description || '-' }}
+              </p>
+
+              <!-- 标签行 -->
+              <div class="mb-4 flex flex-wrap items-center gap-1.5">
+                <Tag
+                  :color="getTierColor(p.tier)"
+                  class="!m-0 !rounded-md !border-0 !text-[11px]"
+                >
+                  {{ getTierText(p.tier) }}
+                </Tag>
+                <Tag
+                  v-for="tag in (p.tags || []).slice(0, 2)"
+                  :key="tag"
+                  class="!m-0 !rounded-md !border-0 !text-[11px]"
+                >
+                  {{ tag }}
+                </Tag>
+              </div>
+
+              <!-- 底部操作栏 -->
+              <div
+                class="flex items-center justify-between border-t border-border/40 pt-3.5"
+                @click.stop
+              >
+                <div
+                  class="flex items-center gap-3 text-xs text-muted-foreground"
+                >
+                  <span class="flex items-center gap-1">
+                    <IconifyIcon icon="lucide:download" class="size-3.5" />
+                    {{ p.downloads || 0 }}
+                  </span>
+                  <span v-if="p.rating" class="flex items-center gap-1">
+                    <IconifyIcon
+                      icon="lucide:star"
+                      class="size-3.5 text-yellow-500"
+                    />
+                    {{ p.rating }}
+                  </span>
+                </div>
+                <Button
+                  v-if="!p.is_installed"
+                  type="primary"
+                  size="small"
+                  class="!rounded-lg !shadow-sm !shadow-primary/20"
+                  @click="handleInstall(p)"
+                >
+                  <IconifyIcon icon="lucide:download" class="mr-1 size-3.5" />
+                  {{ $t('admin.plugin.marketplace.install') }}
+                </Button>
+                <span
+                  v-else
+                  class="flex items-center gap-1 text-xs text-emerald-600"
+                >
+                  <IconifyIcon icon="lucide:circle-check" class="size-3.5" />
+                  v{{ p.installed_version || p.version }}
                 </span>
               </div>
-              <Button
-                v-if="!p.is_installed"
-                type="primary"
-                size="small"
-                class="!rounded-lg !shadow-sm !shadow-primary/20"
-                @click="handleInstall(p)"
-              >
-                <IconifyIcon icon="lucide:download" class="mr-1 size-3.5" />
-                {{ $t('admin.plugin.marketplace.install') }}
-              </Button>
-              <span
-                v-else
-                class="flex items-center gap-1 text-xs text-emerald-600"
-              >
-                <IconifyIcon icon="lucide:circle-check" class="size-3.5" />
-                v{{ p.installed_version || p.version }}
-              </span>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- 分页 -->
-      <div
-        v-if="plugins.length > 0 && total > 24"
-        class="mt-6 flex justify-center"
-      >
-        <Pagination
-          v-model:current="currentPage"
-          :total="total"
-          :page-size="24"
-          show-size-changer
-          @change="loadMarketplace"
-        />
-      </div>
-
-      <!-- 空状态 -->
-      <div
-        v-else-if="plugins.length === 0 && !loading"
-        class="flex flex-col items-center justify-center gap-4 py-24"
-      >
+        <!-- 分页 -->
         <div
-          class="flex size-20 items-center justify-center rounded-2xl bg-muted"
+          v-if="plugins.length > 0 && total > 24"
+          class="mt-6 flex justify-center"
         >
-          <IconifyIcon
-            icon="lucide:store"
-            class="size-10 text-muted-foreground/50"
+          <Pagination
+            v-model:current="currentPage"
+            :total="total"
+            :page-size="24"
+            show-size-changer
+            @change="loadMarketplace"
           />
         </div>
-        <div class="text-center">
-          <p class="text-sm font-medium text-foreground">
-            {{ $t('admin.plugin.marketplace.empty') }}
-          </p>
+
+        <!-- 空状态 -->
+        <div
+          v-else-if="plugins.length === 0 && !loading"
+          class="flex flex-col items-center justify-center gap-4 py-24"
+        >
+          <div
+            class="flex size-20 items-center justify-center rounded-2xl bg-muted"
+          >
+            <IconifyIcon
+              icon="lucide:store"
+              class="size-10 text-muted-foreground/50"
+            />
+          </div>
+          <div class="text-center">
+            <p class="text-sm font-medium text-foreground">
+              {{ $t('admin.plugin.marketplace.empty') }}
+            </p>
+          </div>
         </div>
-      </div>
       </Spin>
     </template>
     <div v-else v-access:code="['plugin_skill_registry:list']">

@@ -46,7 +46,7 @@ class ExecutionStateMachine:
     state_history: list[ExecutionState] = field(default_factory=lambda: ["prepared"])
 
     @classmethod
-    def from_prepared_execution(cls, prep: PreparedExecution) -> "ExecutionStateMachine":
+    def from_prepared_execution(cls, prep: PreparedExecution) -> ExecutionStateMachine:
         raw_intents = list(getattr(prep, "intent_plan", []) or [])
         normalized_intents: list[IntentPlan] = []
         for intent in raw_intents:
@@ -67,7 +67,9 @@ class ExecutionStateMachine:
 
     def sync_elapsed(self) -> None:
         if self.budget is not None:
-            self.budget.elapsed_ms_used = int((time.perf_counter() - self.started_at) * 1000)
+            self.budget.elapsed_ms_used = int(
+                (time.perf_counter() - self.started_at) * 1000
+            )
 
     def transition(self, state: ExecutionState) -> None:
         self.current_state = state
@@ -111,7 +113,9 @@ class ExecutionStateMachine:
         self.transition("recovery")
         self.recovery_history.append(decision)
         if self.budget is not None and decision.target_intent_id:
-            retries = int(self.budget.retries_by_intent.get(decision.target_intent_id, 0) or 0)
+            retries = int(
+                self.budget.retries_by_intent.get(decision.target_intent_id, 0) or 0
+            )
             self.budget.retries_by_intent[decision.target_intent_id] = retries + 1
 
     def register_provider_failure(

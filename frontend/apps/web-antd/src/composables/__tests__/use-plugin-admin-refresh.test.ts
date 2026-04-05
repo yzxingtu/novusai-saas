@@ -63,9 +63,8 @@ describe('plugin admin refresh helpers', () => {
   });
 
   it('refreshes plugin slots and updates admin menus/routes', async () => {
-    const { refreshAdminMenusAndPluginRoutes } = await import(
-      '../use-plugin-admin-refresh'
-    );
+    const { refreshAdminMenusAndPluginRoutes } =
+      await import('../use-plugin-admin-refresh');
 
     mockRefs.generateAccess.mockResolvedValue({
       accessibleMenus: [{ name: 'Plugins' }],
@@ -80,14 +79,15 @@ describe('plugin admin refresh helpers', () => {
       { reloadAssets: true },
     );
     expect(mockRefs.setAccessMenus).toHaveBeenCalledWith([{ name: 'Plugins' }]);
-    expect(mockRefs.setAccessRoutes).toHaveBeenCalledWith([{ path: '/plugins' }]);
+    expect(mockRefs.setAccessRoutes).toHaveBeenCalledWith([
+      { path: '/plugins' },
+    ]);
     expect(mockRefs.setIsAccessChecked).toHaveBeenCalledWith(true);
   });
 
   it('marks access as unchecked when menu regeneration fails', async () => {
-    const { refreshAdminMenusAndPluginRoutes } = await import(
-      '../use-plugin-admin-refresh'
-    );
+    const { refreshAdminMenusAndPluginRoutes } =
+      await import('../use-plugin-admin-refresh');
 
     mockRefs.generateAccess.mockRejectedValue(new Error('failed'));
 

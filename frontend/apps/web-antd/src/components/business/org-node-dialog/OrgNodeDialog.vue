@@ -237,7 +237,8 @@ async function loadNodeDetail() {
     const permissionIds = Array.isArray(
       (detail as { permissionIds?: number[] }).permissionIds,
     )
-      ? (((detail as { permissionIds?: number[] }).permissionIds ?? []) as number[])
+      ? (((detail as { permissionIds?: number[] }).permissionIds ??
+          []) as number[])
       : [];
     formData.value = {
       name: detail.name,

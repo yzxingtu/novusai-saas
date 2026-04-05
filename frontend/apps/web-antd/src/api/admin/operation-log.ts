@@ -2,6 +2,7 @@
  * Operation log API / 操作日志 API
  * Backend: /admin/operation-logs/*
  */
+import type { SelectResponse } from '#/api/shared/types';
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
@@ -17,9 +18,16 @@ export type OperationLogListParams = Record<string, unknown>;
 export interface OperatorItem {
   user_id: number;
   user_type: string;
+  display_name?: null | string;
   username: string;
   nickname?: null | string;
   avatar?: null | string;
+  org_node_id?: null | number;
+  org_node_name?: null | string;
+  role_name?: null | string;
+  is_active?: boolean;
+  is_leader?: boolean;
+  is_owner?: boolean;
 }
 
 /** Operation log info (backend raw snake_case) / 操作日志信息（后端原始） */
@@ -29,8 +37,16 @@ export interface OperationLogInfoRaw {
   tenant_id: null | number;
   user_type: string;
   user_id: null | number;
+  display_name?: null | string;
   username: null | string;
   nickname?: null | string;
+  avatar?: null | string;
+  org_node_id?: null | number;
+  org_node_name?: null | string;
+  role_name?: null | string;
+  is_active?: boolean;
+  is_leader?: boolean;
+  is_owner?: boolean;
   module: string;
   module_label?: string;
   action: string;
@@ -55,8 +71,16 @@ export interface OperationLogInfo {
   tenantId: null | number;
   userType: string;
   userId: null | number;
+  displayName?: null | string;
   username: null | string;
   nickname?: null | string;
+  avatar?: null | string;
+  orgNodeId?: null | number;
+  orgNodeName?: null | string;
+  roleName?: null | string;
+  isActive?: boolean;
+  isLeader?: boolean;
+  isOwner?: boolean;
   module: string;
   moduleLabel?: string;
   action: string;
@@ -94,8 +118,16 @@ function transformOperationLogInfo(raw: OperationLogInfoRaw): OperationLogInfo {
     tenantId: raw.tenant_id,
     userType: raw.user_type,
     userId: raw.user_id,
+    displayName: raw.display_name,
     username: raw.username,
     nickname: raw.nickname,
+    avatar: raw.avatar,
+    orgNodeId: raw.org_node_id,
+    orgNodeName: raw.org_node_name,
+    roleName: raw.role_name,
+    isActive: raw.is_active,
+    isLeader: raw.is_leader,
+    isOwner: raw.is_owner,
     module: raw.module,
     moduleLabel: raw.module_label,
     action: raw.action,
@@ -164,6 +196,30 @@ export async function getOperationLogDetailApi(
  */
 export async function getOperatorsApi(): Promise<OperatorItem[]> {
   return requestClient.get<OperatorItem[]>(`${API_PREFIX}/operators`);
+}
+
+export interface OperationLogOperatorSelectExtra {
+  avatar?: null | string;
+  display_name?: null | string;
+  is_active?: boolean;
+  is_leader?: boolean;
+  is_owner?: boolean;
+  nickname?: null | string;
+  org_node_id?: null | number;
+  org_node_name?: null | string;
+  role_name?: null | string;
+  user_type?: null | string;
+  username?: null | string;
+}
+
+export async function getOperatorsSelectApi(
+  params?: Record<string, unknown>,
+  options?: ApiRequestOptions,
+): Promise<SelectResponse<OperationLogOperatorSelectExtra>> {
+  return requestClient.get<SelectResponse<OperationLogOperatorSelectExtra>>(
+    `${API_PREFIX}/operators`,
+    { params, ...options },
+  );
 }
 
 /**

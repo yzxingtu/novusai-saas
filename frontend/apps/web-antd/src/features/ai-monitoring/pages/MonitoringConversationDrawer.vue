@@ -23,6 +23,7 @@ import {
   Tooltip,
 } from 'ant-design-vue';
 
+import IdentityDisplay from '#/components/business/identity-display/IdentityDisplay.vue';
 import { $t } from '#/locales';
 import { formatDate, formatTimeOnly } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
@@ -72,14 +73,12 @@ watch(
   { immediate: true },
 );
 
-const actorName = computed(() => {
-  return (
-    detail.value?.actor?.display_name ||
-    detail.value?.actor?.nickname ||
-    detail.value?.actor?.username ||
-    '-'
-  );
-});
+function getActorDisplayName(actor?: MonitoringConversationDetail['actor']) {
+  if (!actor) {
+    return '-';
+  }
+  return actor.display_name || actor.nickname || actor.username || '-';
+}
 
 const successfulCallCount = computed(() => {
   return (
@@ -170,18 +169,25 @@ function asStringArray(value: unknown): string[] {
   }
   return value
     .map((item) => asString(item))
-    .filter((item, index, list) => Boolean(item) && list.indexOf(item) === index);
+    .filter(
+      (item, index, list) => Boolean(item) && list.indexOf(item) === index,
+    );
 }
 
 function prettyJson(value: unknown): string {
   return JSON.stringify(value ?? {}, null, 2);
 }
 
-function hasEntries(value: null | Record<string, unknown> | undefined): boolean {
+function hasEntries(
+  value: null | Record<string, unknown> | undefined,
+): boolean {
   return Boolean(value && Object.keys(value).length > 0);
 }
 
-function translateOption(group: string, value: null | string | undefined): string {
+function translateOption(
+  group: string,
+  value: null | string | undefined,
+): string {
   const raw = asString(value);
   if (!raw) {
     return '-';
@@ -203,18 +209,22 @@ const runtimeDiagnostics = computed<MonitoringRuntimeDiagnostics | null>(() => {
     asRecord(detail.value.last_run_summary) ||
     asRecord(metadata?.last_run_summary);
   const merged = {
-    ...(contextDiagnostics || {}),
-    ...(lastRunSummary || {}),
+    ...contextDiagnostics,
+    ...lastRunSummary,
   } as MonitoringRuntimeDiagnostics;
   return hasEntries(merged) ? merged : null;
 });
 
 const intentPlanItems = computed<MonitoringIntentPlanItem[]>(() =>
-  asRecordArray<MonitoringIntentPlanItem>(runtimeDiagnostics.value?.intent_plan),
+  asRecordArray<MonitoringIntentPlanItem>(
+    runtimeDiagnostics.value?.intent_plan,
+  ),
 );
 
 const providerEvents = computed<MonitoringProviderEvent[]>(() =>
-  asRecordArray<MonitoringProviderEvent>(runtimeDiagnostics.value?.provider_events),
+  asRecordArray<MonitoringProviderEvent>(
+    runtimeDiagnostics.value?.provider_events,
+  ),
 );
 
 const retryEvents = computed<MonitoringRetryEvent[]>(() =>
@@ -230,31 +240,34 @@ const diagnosticsSummary = computed(() => {
   if (!diagnostics) {
     return [];
   }
-    const summaryItems = [
-      {
-        key: 'path',
-        label: $t(`${props.i18nPrefix}.executionPath`),
-        value: translateOption('executionPathOptions', diagnostics.execution_path),
-      },
-      {
-        key: 'failure',
-        label: $t(`${props.i18nPrefix}.failureKind`),
-        value: translateOption('failureKindOptions', diagnostics.failure_kind),
-      },
-      {
-        key: 'budget',
-        label: $t(`${props.i18nPrefix}.budgetStatus`),
-        value: translateOption('budgetStatusOptions', diagnostics.budget_status),
-      },
-      {
-        key: 'budgetExitReason',
-        label: $t(`${props.i18nPrefix}.budgetExitReason`),
-        value: asString(diagnostics.budget_exit_reason),
-      },
-      {
-        key: 'providerEvents',
-        label: $t(`${props.i18nPrefix}.providerEvents`),
-        value: formatTokens(providerEvents.value.length),
+  const summaryItems = [
+    {
+      key: 'path',
+      label: $t(`${props.i18nPrefix}.executionPath`),
+      value: translateOption(
+        'executionPathOptions',
+        diagnostics.execution_path,
+      ),
+    },
+    {
+      key: 'failure',
+      label: $t(`${props.i18nPrefix}.failureKind`),
+      value: translateOption('failureKindOptions', diagnostics.failure_kind),
+    },
+    {
+      key: 'budget',
+      label: $t(`${props.i18nPrefix}.budgetStatus`),
+      value: translateOption('budgetStatusOptions', diagnostics.budget_status),
+    },
+    {
+      key: 'budgetExitReason',
+      label: $t(`${props.i18nPrefix}.budgetExitReason`),
+      value: asString(diagnostics.budget_exit_reason),
+    },
+    {
+      key: 'providerEvents',
+      label: $t(`${props.i18nPrefix}.providerEvents`),
+      value: formatTokens(providerEvents.value.length),
     },
     {
       key: 'retryEvents',
@@ -294,6 +307,35 @@ function actorTypeLabel(type?: null | string) {
   const translated = $t(key);
   return translated === key ? type : translated;
 }
+
+const actorIdentityModel = computed(() => {
+  const actor = detail.value?.actor;
+  if (!actor) {
+    return null;
+  }
+
+  return {
+    avatar: actor.avatar,
+    badges: actor.type
+      ? [
+          {
+            color: 'blue',
+            key: `actor-type-${actor.id ?? actor.username ?? 'unknown'}`,
+            label: actorTypeLabel(actor.type),
+          },
+        ]
+      : [],
+    displayName: actor.display_name,
+    id: actor.id ?? '-',
+    isActive: actor.is_active,
+    isLeader: actor.is_leader,
+    isOwner: actor.is_owner,
+    nickname: getActorDisplayName(actor),
+    orgNodeName: actor.org_node_name,
+    roleName: actor.role_name,
+    username: actor.display_name || actor.nickname ? undefined : actor.username,
+  };
+});
 
 function closeDrawer() {
   emits('update:open', false);
@@ -389,7 +431,8 @@ function traceStatusColor(status?: null | string) {
                   >
                     <img
                       v-if="
-                        detail.agent_avatar && !isIconAvatar(detail.agent_avatar)
+                        detail.agent_avatar &&
+                        !isIconAvatar(detail.agent_avatar)
                       "
                       :alt="detailAgentName"
                       :src="toAvatarDisplayUrl(detail.agent_avatar)"
@@ -410,17 +453,19 @@ function traceStatusColor(status?: null | string) {
                   <IconifyIcon class="size-3.5" icon="lucide:building-2" />
                   <span>{{ detail.tenant_name || '-' }}</span>
                 </span>
-                <span class="monitoring-hero__meta-item">
-                  <IconifyIcon class="size-3.5" icon="lucide:user-round" />
-                  <span>{{ actorName }}</span>
-                </span>
+                <div
+                  v-if="actorIdentityModel"
+                  class="min-w-[180px] rounded-xl bg-background/75 px-2 py-2"
+                >
+                  <IdentityDisplay
+                    :avatar-size="32"
+                    :model="actorIdentityModel"
+                  />
+                </div>
               </div>
               <div class="mt-3 flex flex-wrap items-center gap-2">
                 <Tag :color="conversationStatusColor(detail.status)">
                   {{ detail.status }}
-                </Tag>
-                <Tag v-if="detail.actor?.type" color="blue">
-                  {{ actorTypeLabel(detail.actor.type) }}
                 </Tag>
                 <Tag v-if="detail.last_call_at" color="cyan">
                   {{ formatDate(detail.last_call_at) }}
@@ -488,14 +533,12 @@ function traceStatusColor(status?: null | string) {
                 {{ $t(`${i18nPrefix}.user`) }}
               </div>
               <div class="monitoring-overview-value">
-                <div class="flex items-center gap-2">
-                  <Avatar
-                    v-if="detail.actor?.avatar"
-                    :size="24"
-                    :src="toAvatarDisplayUrl(detail.actor.avatar)"
-                  />
-                  <span>{{ actorName }}</span>
-                </div>
+                <IdentityDisplay
+                  v-if="actorIdentityModel"
+                  :avatar-size="24"
+                  :model="actorIdentityModel"
+                />
+                <span v-else>-</span>
               </div>
             </div>
 
@@ -566,7 +609,7 @@ function traceStatusColor(status?: null | string) {
               </article>
             </div>
 
-            <div v-if="diagnosticsDetailRows.length" class="mt-4">
+            <div v-if="diagnosticsDetailRows.length > 0" class="mt-4">
               <div class="monitoring-card__subtitle">
                 {{ $t(`${i18nPrefix}.diagnosticNotes`) }}
               </div>
@@ -622,15 +665,18 @@ function traceStatusColor(status?: null | string) {
                     </div>
                     <div
                       v-if="
-                        asStringArray(intent.required_capabilities).length ||
-                        asStringArray(intent.allowed_tools).length ||
-                        asStringArray(intent.selected_tools).length ||
-                        asStringArray(intent.completed_tools).length
+                        asStringArray(intent.required_capabilities).length >
+                          0 ||
+                        asStringArray(intent.allowed_tools).length > 0 ||
+                        asStringArray(intent.selected_tools).length > 0 ||
+                        asStringArray(intent.completed_tools).length > 0
                       "
                       class="mt-3 space-y-2"
                     >
                       <div
-                        v-if="asStringArray(intent.required_capabilities).length"
+                        v-if="
+                          asStringArray(intent.required_capabilities).length > 0
+                        "
                         class="monitoring-diagnostics-line"
                       >
                         <span class="monitoring-overview-label">
@@ -649,7 +695,7 @@ function traceStatusColor(status?: null | string) {
                         </div>
                       </div>
                       <div
-                        v-if="asStringArray(intent.allowed_tools).length"
+                        v-if="asStringArray(intent.allowed_tools).length > 0"
                         class="monitoring-diagnostics-line"
                       >
                         <span class="monitoring-overview-label">
@@ -666,7 +712,7 @@ function traceStatusColor(status?: null | string) {
                         </div>
                       </div>
                       <div
-                        v-if="asStringArray(intent.selected_tools).length"
+                        v-if="asStringArray(intent.selected_tools).length > 0"
                         class="monitoring-diagnostics-line"
                       >
                         <span class="monitoring-overview-label">
@@ -683,7 +729,7 @@ function traceStatusColor(status?: null | string) {
                         </div>
                       </div>
                       <div
-                        v-if="asStringArray(intent.completed_tools).length"
+                        v-if="asStringArray(intent.completed_tools).length > 0"
                         class="monitoring-diagnostics-line"
                       >
                         <span class="monitoring-overview-label">
@@ -691,7 +737,9 @@ function traceStatusColor(status?: null | string) {
                         </span>
                         <div class="monitoring-tag-list">
                           <Tag
-                            v-for="tool in asStringArray(intent.completed_tools)"
+                            v-for="tool in asStringArray(
+                              intent.completed_tools,
+                            )"
                             :key="tool"
                             color="success"
                           >
@@ -716,7 +764,7 @@ function traceStatusColor(status?: null | string) {
                   {{ $t(`${i18nPrefix}.candidateTools`) }}
                 </div>
                 <div
-                  v-if="candidateToolNames.length"
+                  v-if="candidateToolNames.length > 0"
                   class="monitoring-tag-list mt-3"
                 >
                   <Tag
@@ -749,7 +797,11 @@ function traceStatusColor(status?: null | string) {
                   >
                     <div class="monitoring-diagnostics-intent__head">
                       <Tag color="orange">
-                        {{ formatTagValue(event.kind || event.provider_failure_kind) }}
+                        {{
+                          formatTagValue(
+                            event.kind || event.provider_failure_kind,
+                          )
+                        }}
                       </Tag>
                       <span
                         v-if="event.stage"
@@ -944,19 +996,19 @@ function traceStatusColor(status?: null | string) {
 
 <style scoped>
 .monitoring-hero {
-  border: 1px solid hsl(var(--border) / 0.25);
-  border-radius: 16px;
+  padding: 18px 20px 20px;
   background:
     radial-gradient(
       circle at right top,
-      hsl(var(--primary) / 0.14) 0%,
+      hsl(var(--primary) / 14%) 0%,
       transparent 52%
     ),
     linear-gradient(140deg, hsl(var(--background)) 0%, hsl(var(--card)) 60%);
+  border: 1px solid hsl(var(--border) / 25%);
+  border-radius: 16px;
   box-shadow:
-    inset 0 1px 0 hsl(var(--background) / 0.7),
-    0 16px 24px hsl(var(--foreground) / 0.07);
-  padding: 18px 20px 20px;
+    inset 0 1px 0 hsl(var(--background) / 70%),
+    0 16px 24px hsl(var(--foreground) / 7%);
 }
 
 .monitoring-hero__topline {
@@ -976,70 +1028,70 @@ function traceStatusColor(status?: null | string) {
 }
 
 .monitoring-hero__title {
-  color: hsl(var(--foreground) / 0.96);
   font-size: 20px;
   font-weight: 700;
   line-height: 1.4;
+  color: hsl(var(--foreground) / 96%);
 }
 
 .monitoring-hero__meta {
-  margin-top: 8px;
   display: flex;
   flex-wrap: wrap;
   gap: 10px 14px;
+  margin-top: 8px;
 }
 
 .monitoring-hero__meta-item {
   display: inline-flex;
-  align-items: center;
   gap: 6px;
-  color: hsl(var(--muted-foreground) / 0.96);
+  align-items: center;
   font-size: 12px;
+  color: hsl(var(--muted-foreground) / 96%);
 }
 
 .monitoring-hero__stats {
   display: grid;
-  gap: 10px;
   grid-template-columns: repeat(2, minmax(130px, 1fr));
+  gap: 10px;
   min-width: 300px;
 }
 
 .monitoring-hero__stat {
-  border: 1px solid hsl(var(--border) / 0.24);
-  border-radius: 12px;
-  background: hsl(var(--background) / 0.72);
   padding: 10px 12px;
+  background: hsl(var(--background) / 72%);
+  border: 1px solid hsl(var(--border) / 24%);
+  border-radius: 12px;
 }
 
 .monitoring-hero__stat-label {
   display: inline-flex;
-  align-items: center;
   gap: 6px;
-  color: hsl(var(--muted-foreground) / 0.95);
+  align-items: center;
   font-size: 12px;
+  color: hsl(var(--muted-foreground) / 95%);
 }
 
 .monitoring-hero__stat-value {
   margin-top: 4px;
-  color: hsl(var(--foreground) / 0.98);
   font-family:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
     'Courier New', monospace;
   font-size: 18px;
   font-weight: 700;
+  color: hsl(var(--foreground) / 98%);
 }
 
 .monitoring-card {
-  border: 1px solid hsl(var(--border) / 0.24);
+  background: hsl(var(--card) / 80%);
+  border: 1px solid hsl(var(--border) / 24%);
   border-radius: 14px;
-  background: hsl(var(--card) / 0.8);
-  box-shadow: 0 10px 20px hsl(var(--foreground) / 0.05);
+  box-shadow: 0 10px 20px hsl(var(--foreground) / 5%);
 }
 
 .monitoring-card :deep(.ant-card-head) {
-  border-bottom: 1px solid hsl(var(--border) / 0.16);
   min-height: 54px;
   padding: 0 16px;
+  border-bottom: 1px solid hsl(var(--border) / 16%);
 }
 
 .monitoring-card :deep(.ant-card-head-title) {
@@ -1052,64 +1104,64 @@ function traceStatusColor(status?: null | string) {
 
 .monitoring-card__title {
   display: inline-flex;
-  align-items: center;
   flex-wrap: wrap;
   gap: 8px;
+  align-items: center;
   font-weight: 600;
 }
 
 .monitoring-card__subtitle {
-  color: hsl(var(--foreground) / 0.98);
   font-size: 13px;
   font-weight: 600;
+  color: hsl(var(--foreground) / 98%);
 }
 
 .monitoring-overview-grid {
   display: grid;
-  gap: 10px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .monitoring-overview-item {
-  border: 1px solid hsl(var(--border) / 0.2);
-  border-radius: 10px;
-  background: hsl(var(--background) / 0.88);
   padding: 10px 12px;
+  background: hsl(var(--background) / 88%);
+  border: 1px solid hsl(var(--border) / 20%);
+  border-radius: 10px;
 }
 
 .monitoring-overview-label {
-  color: hsl(var(--muted-foreground) / 0.98);
-  font-size: 12px;
   margin-bottom: 4px;
+  font-size: 12px;
+  color: hsl(var(--muted-foreground) / 98%);
 }
 
 .monitoring-overview-value {
-  color: hsl(var(--foreground) / 0.98);
   font-size: 13px;
   font-weight: 500;
+  color: hsl(var(--foreground) / 98%);
 }
 
 .monitoring-diagnostics-summary {
   display: grid;
-  gap: 10px;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
 }
 
 .monitoring-diagnostics-summary__item,
 .monitoring-diagnostics-panel,
 .monitoring-diagnostics-intent,
 .monitoring-diagnostics-event {
-  border: 1px solid hsl(var(--border) / 0.2);
-  border-radius: 12px;
-  background: hsl(var(--background) / 0.88);
   padding: 12px;
+  background: hsl(var(--background) / 88%);
+  border: 1px solid hsl(var(--border) / 20%);
+  border-radius: 12px;
 }
 
 .monitoring-diagnostics-intent__head {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
   gap: 6px 8px;
+  align-items: center;
 }
 
 .monitoring-diagnostics-line {
@@ -1125,59 +1177,59 @@ function traceStatusColor(status?: null | string) {
 }
 
 .monitoring-diagnostics-json {
+  padding: 10px;
   margin-top: 10px;
   overflow-x: auto;
-  border-radius: 10px;
-  background: hsl(var(--accent) / 0.5);
-  color: hsl(var(--foreground) / 0.96);
   font-size: 12px;
   line-height: 1.5;
-  padding: 10px;
+  color: hsl(var(--foreground) / 96%);
   white-space: pre-wrap;
+  background: hsl(var(--accent) / 50%);
+  border-radius: 10px;
 }
 
 .monitoring-scroll-area {
   max-height: 520px;
-  overflow-y: auto;
   padding-right: 4px;
+  overflow-y: auto;
 }
 
 .monitoring-message-item,
 .monitoring-trace-item {
-  border: 1px solid hsl(var(--border) / 0.2);
-  border-radius: 12px;
-  background: hsl(var(--accent) / 0.65);
   padding: 10px 12px;
+  background: hsl(var(--accent) / 65%);
+  border: 1px solid hsl(var(--border) / 20%);
+  border-radius: 12px;
 }
 
 .monitoring-message-head,
 .monitoring-trace-head {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
   gap: 6px 8px;
+  align-items: center;
 }
 
 .monitoring-message-content {
+  padding: 8px 10px;
   margin-top: 8px;
-  border-radius: 10px;
-  background: hsl(var(--background) / 0.88);
-  border: 1px solid hsl(var(--border) / 0.18);
-  color: hsl(var(--foreground) / 0.98);
   font-size: 13px;
   line-height: 1.55;
-  padding: 8px 10px;
+  color: hsl(var(--foreground) / 98%);
   white-space: pre-wrap;
+  background: hsl(var(--background) / 88%);
+  border: 1px solid hsl(var(--border) / 18%);
+  border-radius: 10px;
 }
 
 .monitoring-trace-meta {
-  margin-top: 6px;
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
   gap: 0 6px;
-  color: hsl(var(--muted-foreground) / 0.95);
+  align-items: center;
+  margin-top: 6px;
   font-size: 12px;
+  color: hsl(var(--muted-foreground) / 95%);
 }
 
 @media (max-width: 1280px) {

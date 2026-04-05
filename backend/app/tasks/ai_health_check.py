@@ -167,9 +167,7 @@ def _check_provider_health(
                     wire_api="responses",
                 )
                 tool_probe_model = effective_request["upstream_model"]
-                tool_probe_reasoning_effort = effective_request.get(
-                    "reasoning_effort"
-                )
+                tool_probe_reasoning_effort = effective_request.get("reasoning_effort")
                 tool_probe_applied_overrides = list(
                     effective_request.get("applied_overrides", []) or []
                 )

@@ -130,7 +130,8 @@ const { Drawer, isEdit, recordId, rowData, openNew, openEdit } =
       };
     },
     afterOpen: () => {
-      const currentRow = (rowData.value as Record<string, unknown> | undefined) || {};
+      const currentRow =
+        (rowData.value as Record<string, unknown> | undefined) || {};
       const sys = !!currentRow.is_system;
       isPluginManagedAgent.value = Boolean(currentRow.source_plugin);
       isSystemAgent.value = sys;
@@ -190,7 +191,8 @@ const title = computed(() => {
 });
 
 const pluginSourceLabel = computed(() => {
-  const currentRow = (rowData.value as Record<string, unknown> | undefined) || {};
+  const currentRow =
+    (rowData.value as Record<string, unknown> | undefined) || {};
   return (
     (currentRow.source_plugin_display_name as string | undefined) ||
     (currentRow.source_plugin as string | undefined) ||
@@ -199,7 +201,8 @@ const pluginSourceLabel = computed(() => {
 });
 
 const pluginSourceDisabled = computed(() => {
-  const currentRow = (rowData.value as Record<string, unknown> | undefined) || {};
+  const currentRow =
+    (rowData.value as Record<string, unknown> | undefined) || {};
   return currentRow.source_plugin_enabled === false;
 });
 

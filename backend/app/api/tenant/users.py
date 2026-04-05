@@ -99,6 +99,28 @@ class TenantUserController(TenantController):
                 page_size=query.size,
             )
 
+        @router.get("/select", summary="获取用户下拉选项")
+        @action_read("action.tenant_user.list")
+        async def select_users(
+            db: DbSession,
+            current_admin: ActiveTenantAdmin,
+            search: str = Query("", description=_("api.param.search")),
+            page: int = Query(1, ge=1, description=_("api.param.page")),
+            page_size: int = Query(
+                20, ge=1, le=100, description=_("api.param.page_size")
+            ),
+        ):
+            """获取企业用户分页下拉选项 / Get paginated tenant user select options."""
+            response = await TenantUserService(
+                db,
+                current_admin.tenant_id,
+            ).get_identity_select_options(
+                search=search,
+                page=page,
+                page_size=page_size,
+            )
+            return success(data=response, message=_("common.success"))
+
         @router.get("/{user_id}", summary="获取用户详情")
         @action_read("action.tenant_user.detail")
         async def get_user(

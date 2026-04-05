@@ -26,6 +26,7 @@ _DEFAULT_GITHUB_URL = "https://raw.githubusercontent.com/novusai/skill-marketpla
 _DEFAULT_CACHE_TTL = 3600
 _CACHE_PREFIX = "skill_registry:"
 
+
 class SkillRegistryService:
     def __init__(self, db) -> None:
         self.db = db

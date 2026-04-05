@@ -7,6 +7,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { usePanelContextBridge } from '../use-panel-context-bridge';
 
 vi.mock('#/locales', () => ({
+  i18n: {
+    global: {
+      locale: {
+        value: 'zh-CN',
+      },
+    },
+  },
   $t: (key: string) => key,
 }));
 
@@ -53,7 +60,7 @@ describe('usePanelContextBridge', () => {
       return nextId ?? null;
     });
     const ensureAgentVarsLoaded = vi.fn();
-    const handleSendMessage = vi.fn(async () => {});
+    const handleSendMessage = vi.fn(async () => true);
     const loadAgents = vi.fn(async () => {});
     const loadConversationMessages = vi.fn(async () => {});
     const loadConversations = vi.fn(async () => {});
@@ -83,7 +90,7 @@ describe('usePanelContextBridge', () => {
             consumePendingAgentId,
             ensureAgentVarsLoaded,
             forceRerouteNextTurn,
-            handleSendMessage: async () => true,
+            handleSendMessage,
             inputMessage,
             loadAgents,
             loadConversationMessages,

@@ -7,7 +7,7 @@ Platform admins view/create/manage admins for specified tenants.
 Uses independent resource code tenant_admin, permissions separated from tenant resource.
 """
 
-from fastapi import HTTPException, Request, status
+from fastapi import HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 
 from app.core.base_controller import GlobalController
@@ -170,6 +170,32 @@ class AdminTenantAdminController(GlobalController):
             )
             admins = list(result.scalars().all())
             return success(data=[_serialize_tenant_admin(ta) for ta in admins])
+
+        @router.get("/select", summary="获取企业管理员下拉选项")
+        @action_read("action.tenant_admin.list")
+        async def select_tenant_admins(
+            request: Request,
+            db: DbSession,
+            admin: ActiveAdmin,
+            tenant_id: int,
+            search: str = Query("", description=_("api.param.search")),
+            page: int = Query(1, ge=1, description=_("api.param.page")),
+            page_size: int = Query(
+                20, ge=1, le=100, description=_("api.param.page_size")
+            ),
+        ):
+            """
+            获取企业管理员分页下拉选项 / Get paginated tenant admin select options.
+            """
+            await _verify_tenant(db, tenant_id)
+            response = await TenantAdminService(
+                db, tenant_id
+            ).get_identity_select_options(
+                search=search,
+                page=page,
+                page_size=page_size,
+            )
+            return success(data=response, message=_("common.success"))
 
         @router.post("", summary="为企业创建管理员")
         @action_create("action.tenant_admin.create")

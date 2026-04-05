@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
 
-import { createPinia, setActivePinia } from 'pinia';
 import { mount } from '@vue/test-utils';
 import { defineComponent, markRaw } from 'vue';
 
+import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { usePluginSlotsStore } from '#/stores/plugin-slots';
@@ -15,7 +15,7 @@ const OpsPanel = defineComponent({
   template: '<div data-testid="ops-panel-body">Ops Panel Body</div>',
 });
 
-describe('PluginFloatingPanels', () => {
+describe('pluginFloatingPanels', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
   });

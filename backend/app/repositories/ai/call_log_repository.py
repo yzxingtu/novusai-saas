@@ -19,6 +19,11 @@ from app.models.ai import AICallLog
 from app.models.ai.agent import Agent
 from app.models.ai.model import AIModel
 from app.models.ai.provider import AIProvider
+from app.models.auth.admin_role import AdminRole
+from app.models.auth.tenant_admin_role import TenantAdminRole
+from app.models.auth.tenant_user_role import TenantUserRole
+from app.models.org.admin_org_node import AdminOrgNode
+from app.models.org.tenant_org_node import TenantOrgNode
 from app.models.system.admin import Admin
 from app.models.tenant.tenant import Tenant
 from app.models.tenant.tenant_admin import TenantAdmin
@@ -26,6 +31,15 @@ from app.models.tenant.tenant_user import TenantUser
 from app.schemas.common.query import FilterRule, QuerySpec
 
 logger = LogManager.get_logger("ai.call_log")
+
+
+def _normalize_optional_int(value: object, *, allow_zero: bool = False) -> int | None:
+    """Accept only real integer identifiers and ignore test doubles / 仅接受真实整数 ID，忽略测试替身。"""
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    if value < 0 or (value == 0 and not allow_zero):
+        return None
+    return value
 
 
 def _normalize_actor_type(
@@ -156,26 +170,40 @@ class AICallLogRepository(BaseRepository[AICallLog]):
             return []
 
         model_ids = {
-            model_id
+            normalized_id
             for item in items
-            for model_id in (item.model_id, item.routed_model_id)
-            if model_id
+            for normalized_id in (
+                _normalize_optional_int(item.model_id),
+                _normalize_optional_int(getattr(item, "routed_model_id", None)),
+            )
+            if normalized_id is not None
         }
         agent_ids = {
-            int(agent_id)
+            normalized_id
             for item in items
-            for agent_id in (
-                item.agent_id,
-                getattr(item, "agent_id_snapshot", None),
+            for normalized_id in (
+                _normalize_optional_int(item.agent_id),
+                _normalize_optional_int(getattr(item, "agent_id_snapshot", None)),
             )
-            if agent_id
+            if normalized_id is not None
         }
-        provider_ids = {i.provider_id for i in items if i.provider_id}
+        provider_ids = {
+            normalized_id
+            for item in items
+            for normalized_id in (_normalize_optional_int(item.provider_id),)
+            if normalized_id is not None
+        }
         tenant_ids = set()
         for item in items:
-            effective_tenant_id = item.billing_tenant_id
+            effective_tenant_id = _normalize_optional_int(
+                item.billing_tenant_id,
+                allow_zero=True,
+            )
             if effective_tenant_id is None and item.tenant_id is not None:
-                effective_tenant_id = item.tenant_id
+                effective_tenant_id = _normalize_optional_int(
+                    item.tenant_id,
+                    allow_zero=True,
+                )
             if effective_tenant_id is not None:
                 tenant_ids.add(effective_tenant_id)
 
@@ -186,7 +214,12 @@ class AICallLogRepository(BaseRepository[AICallLog]):
                     select(AIModel.id, AIModel.name).where(AIModel.id.in_(model_ids))
                 )
             ).all()
-            model_map = {r.id: r.name for r in rows}
+            model_map = {
+                int(row_id): str(row_name)
+                for r in rows
+                if (row_id := getattr(r, "id", None)) is not None
+                and (row_name := getattr(r, "name", None)) is not None
+            }
 
         agent_meta_map: dict[int, dict[str, str | None]] = {}
         if agent_ids:
@@ -216,8 +249,17 @@ class AICallLogRepository(BaseRepository[AICallLog]):
                     )
                 )
             ).all()
-            provider_map = {r.id: r.name for r in rows}
-            provider_icon_map = {r.id: r.icon for r in rows}
+            provider_map = {
+                int(row_id): str(row_name)
+                for r in rows
+                if (row_id := getattr(r, "id", None)) is not None
+                and (row_name := getattr(r, "name", None)) is not None
+            }
+            provider_icon_map = {
+                int(row_id): getattr(r, "icon", None)
+                for r in rows
+                if (row_id := getattr(r, "id", None)) is not None
+            }
 
         tenant_map: dict[int, str] = {}
         if include_tenant_names and tenant_ids:
@@ -226,14 +268,21 @@ class AICallLogRepository(BaseRepository[AICallLog]):
                     select(Tenant.id, Tenant.name).where(Tenant.id.in_(tenant_ids))
                 )
             ).all()
-            tenant_map = {r.id: r.name for r in rows}
+            tenant_map = {
+                int(row_id): str(row_name)
+                for r in rows
+                if (row_id := getattr(r, "id", None)) is not None
+                and (row_name := getattr(r, "name", None)) is not None
+            }
 
         tenant_admin_ids: set[int] = set()
         tenant_user_ids: set[int] = set()
         platform_admin_ids: set[int] = set()
         if include_caller_names:
             for i in items:
-                actor_id = i.actor_user_id or i.user_id
+                actor_id = _normalize_optional_int(i.actor_user_id)
+                if actor_id is None:
+                    actor_id = _normalize_optional_int(i.user_id)
                 actor_type = _normalize_actor_type(i.actor_user_type, i.user_type)
                 if not actor_id or not actor_type:
                     continue
@@ -244,23 +293,58 @@ class AICallLogRepository(BaseRepository[AICallLog]):
                 elif actor_type == "platform_admin":
                     platform_admin_ids.add(actor_id)
 
-        tenant_admin_display: dict[int, str] = {}
+        caller_identity_map: dict[tuple[str, int], dict[str, object]] = {}
         if tenant_admin_ids:
             rows = (
                 await self.db.execute(
                     select(
-                        TenantAdmin.id, TenantAdmin.username, TenantAdmin.nickname
-                    ).where(TenantAdmin.id.in_(tenant_admin_ids))
+                        TenantAdmin.id,
+                        TenantAdmin.username,
+                        TenantAdmin.nickname,
+                        TenantAdmin.avatar,
+                        TenantAdmin.org_node_id,
+                        TenantAdmin.is_active,
+                        TenantAdmin.is_owner,
+                        TenantAdminRole.name.label("role_name"),
+                        TenantOrgNode.name.label("org_node_name"),
+                        TenantOrgNode.leader_id.label("org_leader_id"),
+                    )
+                    .select_from(TenantAdmin)
+                    .join(
+                        TenantAdminRole,
+                        TenantAdminRole.id == TenantAdmin.role_id,
+                        isouter=True,
+                    )
+                    .join(
+                        TenantOrgNode,
+                        TenantOrgNode.id == TenantAdmin.org_node_id,
+                        isouter=True,
+                    )
+                    .where(
+                        TenantAdmin.id.in_(tenant_admin_ids),
+                        TenantAdmin.is_deleted.is_(False),
+                    )
                 )
             ).all()
             for r in rows:
-                tenant_admin_display[r.id] = _display_name(
+                display_name = _display_name(
                     r.nickname,
                     r.username,
                     f"#{r.id}",
                 )
+                caller_identity_map[("tenant_admin", int(r.id))] = {
+                    "display_name": display_name,
+                    "username": r.username,
+                    "nickname": r.nickname,
+                    "avatar": r.avatar,
+                    "org_node_id": r.org_node_id,
+                    "org_node_name": r.org_node_name,
+                    "role_name": r.role_name,
+                    "is_active": r.is_active,
+                    "is_owner": bool(r.is_owner),
+                    "is_leader": bool(r.org_leader_id and r.org_leader_id == r.id),
+                }
 
-        tenant_user_display: dict[int, str] = {}
         if tenant_user_ids:
             rows = (
                 await self.db.execute(
@@ -269,31 +353,94 @@ class AICallLogRepository(BaseRepository[AICallLog]):
                         TenantUser.username,
                         TenantUser.nickname,
                         TenantUser.email,
-                    ).where(TenantUser.id.in_(tenant_user_ids))
-                )
-            ).all()
-            for r in rows:
-                tenant_user_display[r.id] = _display_name(
-                    r.nickname,
-                    r.username,
-                    (r.email or f"#{r.id}"),
-                )
-
-        platform_admin_display: dict[int, str] = {}
-        if platform_admin_ids:
-            rows = (
-                await self.db.execute(
-                    select(Admin.id, Admin.username, Admin.nickname).where(
-                        Admin.id.in_(platform_admin_ids)
+                        TenantUser.avatar,
+                        TenantUser.org_node_id,
+                        TenantUser.is_active,
+                        TenantUserRole.name.label("role_name"),
+                        TenantOrgNode.name.label("org_node_name"),
+                    )
+                    .select_from(TenantUser)
+                    .join(
+                        TenantUserRole,
+                        TenantUserRole.id == TenantUser.role_id,
+                        isouter=True,
+                    )
+                    .join(
+                        TenantOrgNode,
+                        TenantOrgNode.id == TenantUser.org_node_id,
+                        isouter=True,
+                    )
+                    .where(
+                        TenantUser.id.in_(tenant_user_ids),
+                        TenantUser.is_deleted.is_(False),
                     )
                 )
             ).all()
             for r in rows:
-                platform_admin_display[r.id] = _display_name(
+                display_name = _display_name(
+                    r.nickname,
+                    r.username,
+                    (r.email or f"#{r.id}"),
+                )
+                caller_identity_map[("tenant_user", int(r.id))] = {
+                    "display_name": display_name,
+                    "username": r.username,
+                    "nickname": r.nickname,
+                    "avatar": r.avatar,
+                    "org_node_id": r.org_node_id,
+                    "org_node_name": r.org_node_name,
+                    "role_name": r.role_name,
+                    "is_active": r.is_active,
+                    "is_owner": False,
+                    "is_leader": False,
+                }
+
+        if platform_admin_ids:
+            rows = (
+                await self.db.execute(
+                    select(
+                        Admin.id,
+                        Admin.username,
+                        Admin.nickname,
+                        Admin.avatar,
+                        Admin.org_node_id,
+                        Admin.is_active,
+                        Admin.is_super,
+                        AdminRole.name.label("role_name"),
+                        AdminOrgNode.name.label("org_node_name"),
+                        AdminOrgNode.leader_id.label("org_leader_id"),
+                    )
+                    .select_from(Admin)
+                    .join(AdminRole, AdminRole.id == Admin.role_id, isouter=True)
+                    .join(
+                        AdminOrgNode,
+                        AdminOrgNode.id == Admin.org_node_id,
+                        isouter=True,
+                    )
+                    .where(
+                        Admin.id.in_(platform_admin_ids),
+                        Admin.is_deleted.is_(False),
+                    )
+                )
+            ).all()
+            for r in rows:
+                display_name = _display_name(
                     r.nickname,
                     r.username,
                     f"#{r.id}",
                 )
+                caller_identity_map[("platform_admin", int(r.id))] = {
+                    "display_name": display_name,
+                    "username": r.username,
+                    "nickname": r.nickname,
+                    "avatar": r.avatar,
+                    "org_node_id": r.org_node_id,
+                    "org_node_name": r.org_node_name,
+                    "role_name": r.role_name,
+                    "is_active": r.is_active,
+                    "is_owner": bool(r.is_super),
+                    "is_leader": bool(r.org_leader_id and r.org_leader_id == r.id),
+                }
 
         result: list[dict] = []
         for item in items:
@@ -350,19 +497,60 @@ class AICallLogRepository(BaseRepository[AICallLog]):
                 else:
                     d["tenant_name"] = tenant_map.get(effective_tenant_id, "-")
 
+            actor_id = item.actor_user_id or item.user_id
+            actor_type = _normalize_actor_type(item.actor_user_type, item.user_type)
+            caller_identity: dict[str, object] | None = None
             caller = "-"
             if include_caller_names:
-                actor_id = item.actor_user_id or item.user_id
-                actor_type = _normalize_actor_type(item.actor_user_type, item.user_type)
-                if actor_id and actor_type == "tenant_admin":
-                    caller = tenant_admin_display.get(actor_id, f"ID:{actor_id}")
-                elif actor_id and actor_type == "tenant_user":
-                    caller = tenant_user_display.get(actor_id, f"ID:{actor_id}")
-                elif actor_id and actor_type == "platform_admin":
-                    caller = platform_admin_display.get(actor_id, f"ID:{actor_id}")
+                if actor_id and actor_type:
+                    caller_identity = caller_identity_map.get(
+                        (actor_type, int(actor_id))
+                    )
+                    if caller_identity:
+                        caller = str(caller_identity.get("display_name") or "-")
+                    elif actor_type in {
+                        "tenant_admin",
+                        "tenant_user",
+                        "platform_admin",
+                    }:
+                        caller = f"ID:{actor_id}"
+                    else:
+                        caller = _actor_type_fallback_name(actor_type)
                 elif actor_type:
                     caller = _actor_type_fallback_name(actor_type)
             d["caller_name"] = caller
+            d["caller_id"] = actor_id
+            d["caller_type"] = actor_type
+            d["caller_display_name"] = (
+                caller_identity.get("display_name") if caller_identity else None
+            )
+            d["caller_username"] = (
+                caller_identity.get("username") if caller_identity else None
+            )
+            d["caller_nickname"] = (
+                caller_identity.get("nickname") if caller_identity else None
+            )
+            d["caller_avatar"] = (
+                caller_identity.get("avatar") if caller_identity else None
+            )
+            d["caller_org_node_id"] = (
+                caller_identity.get("org_node_id") if caller_identity else None
+            )
+            d["caller_org_node_name"] = (
+                caller_identity.get("org_node_name") if caller_identity else None
+            )
+            d["caller_role_name"] = (
+                caller_identity.get("role_name") if caller_identity else None
+            )
+            d["caller_is_active"] = (
+                caller_identity.get("is_active") if caller_identity else None
+            )
+            d["caller_is_leader"] = (
+                caller_identity.get("is_leader") if caller_identity else None
+            )
+            d["caller_is_owner"] = (
+                caller_identity.get("is_owner") if caller_identity else None
+            )
 
             metadata = (
                 item.request_metadata if isinstance(item.request_metadata, dict) else {}

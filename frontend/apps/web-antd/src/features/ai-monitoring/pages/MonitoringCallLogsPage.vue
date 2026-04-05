@@ -19,12 +19,14 @@ import {
   getTenantAIProviderSelectApi,
 } from '#/api/tenant/ai';
 import AIPageHeroCard from '#/components/business/ai-page-hero/AIPageHeroCard.vue';
+import IdentityDisplay from '#/components/business/identity-display/IdentityDisplay.vue';
 import { createViewDetailPageOperation } from '#/composables';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
 
 import { getMonitoringCallLogList } from '../api';
+import { createMonitoringCallerIdentityModel } from '../identity';
 import MonitoringCallLogDrawer from './MonitoringCallLogDrawer.vue';
 
 const props = defineProps<{
@@ -39,7 +41,9 @@ const props = defineProps<{
 const detailOpen = ref(false);
 const detailId = ref<null | number>(null);
 const providerSelectApi =
-  props.scope === 'admin' ? getAIProviderSelectApi : getTenantAIProviderSelectApi;
+  props.scope === 'admin'
+    ? getAIProviderSelectApi
+    : getTenantAIProviderSelectApi;
 const modelSelectApi =
   props.scope === 'admin' ? getAIModelSelectApi : getTenantAIModelSelectApi;
 const agentSelectApi =
@@ -320,7 +324,10 @@ const { Grid, gridApi } = useCrudPage<MonitoringCallLogInfo>({
 </script>
 
 <template>
-  <Page auto-content-height content-class="monitoring-page flex flex-col gap-4 !p-4">
+  <Page
+    auto-content-height
+    content-class="monitoring-page flex flex-col gap-4 !p-4"
+  >
     <AIPageHeroCard
       :chips="heroChips"
       :description="$t(`${i18nPrefix}.pageDesc`)"
@@ -392,14 +399,10 @@ const { Grid, gridApi } = useCrudPage<MonitoringCallLogInfo>({
           </div>
         </template>
         <template #caller_cell="{ row }">
-          <div class="min-w-0">
-            <div class="truncate text-sm text-foreground">
-              {{ row.caller_name || '-' }}
-            </div>
-            <div class="truncate text-xs text-muted-foreground">
-              {{ row.tenant_name || '-' }}
-            </div>
-          </div>
+          <IdentityDisplay
+            :avatar-size="36"
+            :model="createMonitoringCallerIdentityModel(row)"
+          />
         </template>
         <template #requestType_cell="{ row }">
           <Tag color="blue">

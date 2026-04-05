@@ -141,23 +141,23 @@
   pointer-events: none;
   opacity: 0;
   filter: blur(6px);
-  transform: translateY(-10px) scaleY(0.985);
   clip-path: inset(0 0 100% 0 round 14px);
+  transform: translateY(-10px) scaleY(0.985);
 }
 
 .vxe-grid-search-panel.is-modern-motion.is-visible {
   opacity: 1;
   filter: blur(0);
-  transform: translateY(0) scaleY(1);
   clip-path: inset(0 0 0 0 round 14px);
+  transform: translateY(0) scaleY(1);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .vxe-grid-search-panel {
-    transition: none !important;
     filter: none !important;
-    transform: none !important;
     clip-path: inset(0 0 0 0 round 14px) !important;
+    transform: none !important;
+    transition: none !important;
   }
 }
 

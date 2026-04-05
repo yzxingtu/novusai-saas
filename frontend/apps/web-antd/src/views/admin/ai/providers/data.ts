@@ -109,7 +109,7 @@ function hasVersionSegment(pathname: string): boolean {
   if (tail.length < 2 || !tail.startsWith('v')) {
     return false;
   }
-  return [...tail.slice(1)].every((char) => char >= '0' && char <= '9');
+  return /^\d+$/.test(tail.slice(1));
 }
 
 export function resolveProviderWireApi(

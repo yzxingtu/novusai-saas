@@ -212,7 +212,8 @@ function transformMenuItem(
     if (item.meta.link) meta.link = item.meta.link;
     if (item.meta.ai) {
       const aiMeta: Record<string, unknown> = {};
-      if (item.meta.ai.description) aiMeta.description = item.meta.ai.description;
+      if (item.meta.ai.description)
+        aiMeta.description = item.meta.ai.description;
       if (item.meta.ai.category) aiMeta.category = item.meta.ai.category;
       if (item.meta.ai.keywords) aiMeta.keywords = item.meta.ai.keywords;
       if (item.meta.ai.capabilities) {

@@ -195,7 +195,9 @@ class PluginManagedAgentSyncService:
         return sorted({int(tenant_id) for tenant_id in tenant_ids})
 
     @staticmethod
-    def _normalize_tenant_ids(scope: str | None, tenant_ids: list[int] | None) -> list[int]:
+    def _normalize_tenant_ids(
+        scope: str | None, tenant_ids: list[int] | None
+    ) -> list[int]:
         scope_value = str(scope or "").strip()
         normalized_ids = sorted(
             {

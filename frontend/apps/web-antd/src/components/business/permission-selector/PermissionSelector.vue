@@ -138,7 +138,9 @@ const selectedCount = computed(() => checkedKeys.value.length);
 const expandedKeySet = computed(
   () =>
     new Set(
-      expandedKeys.value.filter((key): key is number => typeof key === 'number'),
+      expandedKeys.value.filter(
+        (key): key is number => typeof key === 'number',
+      ),
     ),
 );
 const selectedPermissionKeySet = computed(
@@ -477,39 +479,39 @@ defineExpose({
             }"
           >
             <div class="permission-node__main">
-            <!-- Permission icon: prefer custom icon, fallback to type-based default / 权限图标 -->
-            <IconifyIcon
-              :icon="resolvePermissionIcon(nodeData)"
-              class="permission-node__type-icon size-4 flex-shrink-0"
-              :class="{
-                'text-primary': nodeData.type === 'menu',
-                'text-success':
-                  nodeData.type === 'button' || nodeData.type === 'operation',
-                'text-warning': nodeData.type === 'api',
-                'opacity-50': nodeData.isInherited,
-              }"
-            />
+              <!-- Permission icon: prefer custom icon, fallback to type-based default / 权限图标 -->
+              <IconifyIcon
+                :icon="resolvePermissionIcon(nodeData)"
+                class="permission-node__type-icon size-4 flex-shrink-0"
+                :class="{
+                  'text-primary': nodeData.type === 'menu',
+                  'text-success':
+                    nodeData.type === 'button' || nodeData.type === 'operation',
+                  'text-warning': nodeData.type === 'api',
+                  'opacity-50': nodeData.isInherited,
+                }"
+              />
 
-            <!-- Permission name / 权限名称 -->
-            <span
-              class="permission-node__title"
-              :class="{
-                'text-muted-foreground': nodeData.isInherited,
-              }"
-            >
-              {{ nodeData.title }}
-            </span>
+              <!-- Permission name / 权限名称 -->
+              <span
+                class="permission-node__title"
+                :class="{
+                  'text-muted-foreground': nodeData.isInherited,
+                }"
+              >
+                {{ nodeData.title }}
+              </span>
 
-            <!-- Permission code / 权限代码 -->
-            <span
-              class="permission-node__code font-mono text-xs"
-              :class="{
-                'text-muted-foreground/50': nodeData.isInherited,
-                'text-muted-foreground': !nodeData.isInherited,
-              }"
-            >
-              {{ nodeData.code }}
-            </span>
+              <!-- Permission code / 权限代码 -->
+              <span
+                class="permission-node__code font-mono text-xs"
+                :class="{
+                  'text-muted-foreground/50': nodeData.isInherited,
+                  'text-muted-foreground': !nodeData.isInherited,
+                }"
+              >
+                {{ nodeData.code }}
+              </span>
             </div>
 
             <!-- Inherited badge / 继承标识 -->
@@ -541,8 +543,8 @@ defineExpose({
     background: transparent;
 
     .ant-tree-treenode {
-      width: 100%;
       align-items: center;
+      width: 100%;
       padding: 1px 0;
       transition: transform 0.25s ease;
     }
@@ -563,9 +565,9 @@ defineExpose({
     }
 
     .ant-tree-switcher {
-      align-self: center;
       display: inline-flex;
       align-items: center;
+      align-self: center;
       justify-content: center;
       width: 18px;
       min-width: 18px;
@@ -627,7 +629,7 @@ defineExpose({
 
     .ant-tree-treenode:hover .permission-node:not(.is-expanded) {
       background-color: hsl(var(--accent));
-      border-color: hsl(var(--border) / 0.7);
+      border-color: hsl(var(--border) / 70%);
     }
   }
 }
@@ -641,8 +643,8 @@ defineExpose({
   line-height: 1;
 
   &.is-leaf {
-    opacity: 0;
     pointer-events: none;
+    opacity: 0;
   }
 
   &.is-expanded {
@@ -655,21 +657,21 @@ defineExpose({
 .permission-switcher__icon {
   display: block;
   font-size: 12px;
-  opacity: 0.78;
   line-height: 1;
+  opacity: 0.78;
   transform: translateY(1px);
   transition: transform 0.25s ease;
 }
 
 .permission-node {
   display: flex;
-  align-items: center;
   gap: 10px;
+  align-items: center;
   min-height: 36px;
   padding: 5px 10px;
+  background: transparent;
   border: 1px solid transparent;
   border-radius: 12px;
-  background: transparent;
   transition:
     background-color 0.25s ease,
     border-color 0.25s ease,
@@ -682,8 +684,8 @@ defineExpose({
 
   &.is-expanded {
     background-color: hsl(var(--accent));
-    border-color: hsl(var(--border) / 0.75);
-    box-shadow: inset 0 0 0 1px hsl(var(--primary) / 0.08);
+    border-color: hsl(var(--border) / 75%);
+    box-shadow: inset 0 0 0 1px hsl(var(--primary) / 8%);
 
     .permission-node__title,
     .permission-node__code {
@@ -696,16 +698,16 @@ defineExpose({
   }
 
   &.is-inherited {
-    background-color: hsl(var(--muted) / 0.55);
-    border-color: hsl(var(--border) / 0.7);
+    background-color: hsl(var(--muted) / 55%);
+    border-color: hsl(var(--border) / 70%);
   }
 }
 
 .permission-node__main {
   display: flex;
   flex: 1;
-  align-items: center;
   gap: 8px;
+  align-items: center;
   min-width: 0;
 }
 
@@ -718,9 +720,9 @@ defineExpose({
 .permission-node__title {
   min-width: 0;
   overflow: hidden;
-  font-weight: 500;
-  font-size: 13px;
   text-overflow: ellipsis;
+  font-size: 13px;
+  font-weight: 500;
   white-space: nowrap;
   transition: color 0.25s ease;
 }
@@ -730,8 +732,8 @@ defineExpose({
   max-width: min(48%, 360px);
   margin-left: auto;
   overflow: hidden;
-  font-size: 11px;
   text-overflow: ellipsis;
+  font-size: 11px;
   white-space: nowrap;
   transition: color 0.25s ease;
 }

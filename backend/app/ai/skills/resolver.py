@@ -154,14 +154,16 @@ def enrich_skill_capability_descriptors_with_tools(
 def _is_runtime_eligible_skill(skill: Any) -> bool:
     if not skill:
         return False
-    if not getattr(skill, "is_active", True) or getattr(skill, "is_deleted", False):
+    if getattr(skill, "is_active", True) is False:
+        return False
+    if getattr(skill, "is_deleted", False) is True:
         return False
     package = getattr(skill, "package", None)
     if package is None:
         return False
     return bool(
-        getattr(package, "is_active", True)
-        and not getattr(package, "is_deleted", False)
+        getattr(package, "is_active", True) is not False
+        and getattr(package, "is_deleted", False) is not True
     )
 
 

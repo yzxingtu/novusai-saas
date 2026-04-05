@@ -249,13 +249,7 @@ class KeywordSearcher:
                 continue
             if ch.isalnum():
                 start = i
-                while (
-                    i < length
-                    and (
-                        query[i].isalnum()
-                        or query[i] in "._-"
-                    )
-                ):
+                while i < length and (query[i].isalnum() or query[i] in "._-"):
                     i += 1
                 segment = query[start:i]
                 if segment:
@@ -271,7 +265,7 @@ class KeywordSearcher:
         length = len(query)
         while i < length:
             ch = query[i]
-            if ch in {"\"", "'"}:
+            if ch in {'"', "'"}:
                 quote = ch
                 start = i + 1
                 i += 1
@@ -599,8 +593,12 @@ class HybridRetriever:
         # Remove retrieval wrappers so recall focuses on the user's core question.
         # 去掉“基于内部知识库回答”等包装语，避免污染检索 query。
         stripped = normalized
-        stripped = cls._strip_candidates(stripped, cls._PREFIX_PHRASES, strip_start=True)
-        stripped = cls._strip_candidates(stripped, cls._SUFFIX_PHRASES, strip_start=False)
+        stripped = cls._strip_candidates(
+            stripped, cls._PREFIX_PHRASES, strip_start=True
+        )
+        stripped = cls._strip_candidates(
+            stripped, cls._SUFFIX_PHRASES, strip_start=False
+        )
         stripped = cls._strip_leading_fillers(stripped)
         stripped = stripped.strip(cls._PUNCTUATION_CHARS)
         return stripped or normalized

@@ -19,8 +19,8 @@ import {
   Tooltip,
 } from 'ant-design-vue';
 
-import { forceLogoutAdminApi } from '#/api/admin/users';
 import { forceLogoutTenantAdminApi } from '#/api/admin/tenant';
+import { forceLogoutAdminApi } from '#/api/admin/users';
 import { getTenantAdminInfoApi } from '#/api/tenant/auth';
 import { $t } from '#/locales';
 import { usePresenceStore } from '#/store';

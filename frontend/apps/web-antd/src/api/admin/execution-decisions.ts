@@ -35,7 +35,9 @@ const PREFIX = '/admin/ai/execution-decisions';
 export async function getAdminExecutionDecisionListApi(
   params?: Record<string, unknown>,
 ): Promise<AdminExecutionDecisionPageResponse> {
-  return requestClient.get<AdminExecutionDecisionPageResponse>(PREFIX, { params });
+  return requestClient.get<AdminExecutionDecisionPageResponse>(PREFIX, {
+    params,
+  });
 }
 
 export async function getAdminExecutionDecisionDetailApi(

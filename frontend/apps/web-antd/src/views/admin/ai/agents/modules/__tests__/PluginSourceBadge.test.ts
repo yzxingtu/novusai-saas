@@ -1,4 +1,5 @@
 import { mount } from '@vue/test-utils';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import PluginSourceBadge from '../PluginSourceBadge.vue';
@@ -6,11 +7,11 @@ import PluginSourceBadge from '../PluginSourceBadge.vue';
 vi.mock('#/locales', () => ({
   $t: (key: string) => {
     switch (key) {
-      case 'admin.ai.skillPackage.sourcePlugin': {
-        return '插件';
-      }
       case 'admin.ai.agent.sourcePluginDisabled': {
         return '来源插件已停用';
+      }
+      case 'admin.ai.skillPackage.sourcePlugin': {
+        return '插件';
       }
       default: {
         return key;
@@ -23,7 +24,7 @@ const tagStub = {
   template: '<span><slot /></span>',
 };
 
-describe('PluginSourceBadge', () => {
+describe('pluginSourceBadge', () => {
   it('renders plugin display name when source plugin exists', () => {
     const wrapper = mount(PluginSourceBadge, {
       props: {

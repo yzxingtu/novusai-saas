@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
 
-import { createPinia, setActivePinia } from 'pinia';
 import { mount } from '@vue/test-utils';
 import { defineComponent, markRaw, nextTick } from 'vue';
 
+import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { usePluginSlotsStore } from '#/stores/plugin-slots';
@@ -44,7 +44,7 @@ const TabPaneStub = defineComponent({
     '<section class="tab-pane-stub"><h3>{{ tab }}</h3><slot /></section>',
 });
 
-describe('PluginSettingsTabs', () => {
+describe('pluginSettingsTabs', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
   });

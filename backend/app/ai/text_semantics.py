@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 _MODEL_FC_BLOCK_START = "<｜DSML｜function_calls>"
@@ -415,18 +416,6 @@ def extract_first_json_array(text: str | None) -> list[Any] | None:
     return None
 
 
-def extract_first_json_array(text: str | None) -> list[Any] | None:
-    raw = text or ""
-    for candidate in iter_json_arrays(raw):
-        try:
-            parsed = json.loads(candidate)
-        except (json.JSONDecodeError, TypeError, ValueError):
-            continue
-        if isinstance(parsed, list):
-            return parsed
-    return None
-
-
 def extract_first_json_object_with_key(
     text: str | None,
     required_key: str,
@@ -516,43 +505,6 @@ def iter_json_arrays(text: str | None) -> list[str]:
     return results
 
 
-def iter_json_arrays(text: str | None) -> list[str]:
-    raw = text or ""
-    results: list[str] = []
-    start: int | None = None
-    depth = 0
-    in_string = False
-    escape_next = False
-
-    for idx, ch in enumerate(raw):
-        if in_string:
-            if escape_next:
-                escape_next = False
-            elif ch == "\\":
-                escape_next = True
-            elif ch == '"':
-                in_string = False
-            continue
-
-        if ch == '"':
-            in_string = True
-            continue
-
-        if ch == "[":
-            if depth == 0:
-                start = idx
-            depth += 1
-            continue
-
-        if ch == "]" and depth > 0:
-            depth -= 1
-            if depth == 0 and start is not None:
-                results.append(raw[start : idx + 1])
-                start = None
-
-    return results
-
-
 def extract_named_field_value(
     text: str | None,
     field_name: str,
@@ -583,7 +535,9 @@ def extract_public_attachment_reference(
         return None, None
 
     parsed = urlparse(
-        text if "://" in text else f"http://_ignored{text if text.startswith('/') else '/' + text}"
+        text
+        if "://" in text
+        else f"http://_ignored{text if text.startswith('/') else '/' + text}"
     )
     parts = [part for part in (parsed.path or "").split("/") if part]
     if len(parts) < 4:
@@ -627,8 +581,10 @@ def slugify_ascii_identifier(
     pieces: list[str] = []
     last_was_sep = False
     for ch in source:
-        if ("a" <= ch <= "z") or ("0" <= ch <= "9") or (
-            not lowercase and ("A" <= ch <= "Z")
+        if (
+            ("a" <= ch <= "z")
+            or ("0" <= ch <= "9")
+            or (not lowercase and ("A" <= ch <= "Z"))
         ):
             pieces.append(ch)
             last_was_sep = False
@@ -937,54 +893,6 @@ def split_last_suffix(
     if not sep or tail.lower() not in suffixes:
         return raw, None
     return head, tail.lower()
-
-
-def parse_index_score_pair(line: str | None) -> tuple[int, float] | None:
-    raw = str(line or "").strip()
-    if not raw:
-        return None
-
-    idx = 0
-    length = len(raw)
-    if raw[idx] in {"[", "("}:
-        idx += 1
-
-    start_idx = idx
-    while idx < length and raw[idx].isdigit():
-        idx += 1
-    if idx == start_idx:
-        return None
-    item_index = int(raw[start_idx:idx])
-
-    while idx < length and raw[idx] in {"]", ")", " ", "\t"}:
-        idx += 1
-    if idx >= length or raw[idx] not in {":", "="}:
-        return None
-    idx += 1
-
-    while idx < length and raw[idx] in {" ", "\t"}:
-        idx += 1
-
-    score_start = idx
-    seen_dot = False
-    while idx < length:
-        ch = raw[idx]
-        if ch.isdigit():
-            idx += 1
-            continue
-        if ch == "." and not seen_dot:
-            seen_dot = True
-            idx += 1
-            continue
-        break
-    if idx == score_start:
-        return None
-
-    try:
-        score = float(raw[score_start:idx])
-    except ValueError:
-        return None
-    return item_index, score
 
 
 def extract_double_brace_placeholders(text: str | None) -> list[str]:

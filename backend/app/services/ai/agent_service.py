@@ -4,8 +4,8 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
 import inspect
+from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -22,7 +22,7 @@ from app.enums.agent import (
     AgentStatusEnum,
 )
 from app.enums.ai import CallAccessChannelEnum
-from app.enums.common import ResourceScopeEnum, UserRoleEnum
+from app.enums.common import AudienceEnum, ResourceScopeEnum, UserRoleEnum
 from app.enums.knowledge_base import RewriteStrategyEnum, SearchModeEnum
 from app.exceptions import BusinessException, NotFoundException
 from app.models.ai.agent import Agent
@@ -135,6 +135,22 @@ def _role_ids_allow(role_ids: list[int] | None, user_role_id: int | None) -> boo
     if user_role_id is None:
         return False
     return user_role_id in role_ids
+
+
+def _audience_allows_role(target_audience: str | None, user_role: str | None) -> bool:
+    """Resolve target_audience visibility semantics before access-rule lookup."""
+    if user_role is None:
+        return True
+    if target_audience == AudienceEnum.ALL.value:
+        return True
+    if target_audience == AudienceEnum.ADMIN_TENANT.value:
+        return user_role in (
+            UserRoleEnum.PLATFORM_ADMIN.value,
+            UserRoleEnum.TENANT_ADMIN.value,
+        )
+    if target_audience == AudienceEnum.ADMIN_ONLY.value:
+        return user_role == UserRoleEnum.PLATFORM_ADMIN.value
+    return True
 
 
 async def _validate_agent_max_tokens_against_model(
@@ -1069,6 +1085,10 @@ class AgentService(TenantService[Agent, AgentRepository]):
         agent = await self.repo.get_by_id(agent_id)
         if not agent:
             raise NotFoundException(message=_("agent.error.not_found"))
+
+        target_audience = getattr(agent, "target_audience", None)
+        if not _audience_allows_role(target_audience, user_role):
+            return False
 
         if user_role == UserRoleEnum.PLATFORM_ADMIN.value:
             access = await self._get_access_repo().get_by_agent_id(agent_id)

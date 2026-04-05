@@ -121,4 +121,3 @@ export function toResetPasswordInfo(member: MemberPanelMember): {
     orgNodeId: member.orgNodeId,
   };
 }
-

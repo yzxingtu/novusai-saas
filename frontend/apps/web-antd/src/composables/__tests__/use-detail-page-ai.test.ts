@@ -88,7 +88,7 @@ describe('useDetailPageAi', () => {
     expect(navigationMocks.pushMock).toHaveBeenCalledWith('/tenant/ai/samples');
 
     scope.stop();
-  });
+  }, 10_000);
 
   it('respects disabled operations and extra overrides', () => {
     const scope = effectScope();

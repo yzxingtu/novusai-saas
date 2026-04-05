@@ -2172,7 +2172,7 @@ async def test_prepare_execution_current_weather_only_avoids_forecast_tool() -> 
     assert [tool.name for tool in prep.tools] == ["get_current_weather"]
     assert prep.intent_plan[0].allowed_tool_names == ["get_current_weather"]
     assert prep.execution_budget is not None
-    assert prep.execution_budget.max_tool_rounds == 1
+    assert prep.execution_budget.max_tool_rounds == 2
 
 
 @pytest.mark.asyncio

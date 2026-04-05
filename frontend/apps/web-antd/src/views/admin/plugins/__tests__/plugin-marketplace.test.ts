@@ -1,5 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { defineComponent, h, reactive } from 'vue';
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import PluginMarketplacePage from '../marketplace/index.vue';
@@ -30,7 +31,7 @@ vi.mock('../data', () => ({
 
 vi.mock('@vben/common-ui', () => ({
   Page: defineComponent({
-    name: 'Page',
+    name: 'MockPage',
     setup(_props, { slots }) {
       return () => h('div', slots.default?.());
     },
@@ -95,7 +96,8 @@ vi.mock('ant-design-vue', () => {
     name: 'AButton',
     emits: ['click'],
     setup(_props, { emit, slots }) {
-      return () => h('button', { onClick: () => emit('click') }, slots.default?.());
+      return () =>
+        h('button', { onClick: () => emit('click') }, slots.default?.());
     },
   });
 
@@ -194,10 +196,15 @@ describe('plugin marketplace page', () => {
 
     const installButton = wrapper
       .findAll('button')
-      .find((button) => button.text().includes('admin.plugin.marketplace.install'));
+      .find((button) =>
+        button.text().includes('admin.plugin.marketplace.install'),
+      );
 
     expect(installButton).toBeTruthy();
-    await installButton!.trigger('click');
+    if (!installButton) {
+      throw new Error('Expected marketplace install button to exist');
+    }
+    await installButton.trigger('click');
 
     expect(mockRefs.openMarketplace).toHaveBeenCalledWith(
       expect.objectContaining({

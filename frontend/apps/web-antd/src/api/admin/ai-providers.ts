@@ -131,8 +131,8 @@ export interface AIHealthStatus {
   tool_calling_healthy?: boolean | null;
   tool_probe_model?: null | string;
   tool_probe_reasoning_effort?: null | string;
-  tool_probe_applied_overrides?: string[] | null;
-  tool_probe_ignored_overrides?: string[] | null;
+  tool_probe_applied_overrides?: null | string[];
+  tool_probe_ignored_overrides?: null | string[];
   tool_probe_ignore_reasons?: null | Record<string, string>;
   tool_probe_error_message?: null | string;
   response_time_ms: number;
@@ -170,8 +170,8 @@ export interface TestAIGatewayResult {
   wire_api?: null | string;
   effective_upstream_model?: null | string;
   effective_reasoning_effort?: null | string;
-  applied_overrides?: string[] | null;
-  ignored_overrides?: string[] | null;
+  applied_overrides?: null | string[];
+  ignored_overrides?: null | string[];
   ignore_reasons?: null | Record<string, string>;
 }
 

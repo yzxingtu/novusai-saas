@@ -42,7 +42,11 @@ describe('useNotificationToast', () => {
       'Toast 3',
     ]);
 
-    toast.removeToast(toast.toasts.value[0]!.id);
+    const firstToast = toast.toasts.value[0];
+    expect(firstToast).toBeDefined();
+    if (!firstToast) return;
+
+    toast.removeToast(firstToast.id);
 
     expect(toast.toasts.value).toHaveLength(3);
     expect(toast.toasts.value.map((item) => item.title)).toContain('Toast 4');
@@ -57,7 +61,7 @@ describe('useNotificationToast', () => {
       title: 'Urgent',
     });
 
-    vi.advanceTimersByTime(10000);
+    vi.advanceTimersByTime(10_000);
     expect(toast.toasts.value.map((item) => item.title)).toEqual(['Urgent']);
   });
 });

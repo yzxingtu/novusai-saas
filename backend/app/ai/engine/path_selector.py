@@ -21,9 +21,15 @@ class PathSelector:
                 "page_read",
             }:
                 return "fast"
-        if len(actionable) <= 2 and len(families) <= 2:
-            if not any(intent.kind in {"page_write", "page_navigation"} for intent in actionable):
-                return "normal"
+        if (
+            len(actionable) <= 2
+            and len(families) <= 2
+            and not any(
+                intent.kind in {"page_write", "page_navigation"}
+                for intent in actionable
+            )
+        ):
+            return "normal"
         return "deep"
 
 

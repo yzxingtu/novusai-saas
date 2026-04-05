@@ -433,9 +433,9 @@ describe('chatMessageItem', () => {
     await wrapper.vm.$nextTick();
     expect(wrapper.text()).toContain('common.globalAiChat.thinking');
     expect(wrapper.text()).toContain('先检查上下文，再决定下一步。');
-    expect(wrapper.get('[data-testid="thinking-body"]').attributes('style')).toContain(
-      'grid-template-rows: 1fr',
-    );
+    expect(
+      wrapper.get('[data-testid="thinking-body"]').attributes('style'),
+    ).toContain('grid-template-rows: 1fr');
   });
 
   it('renders a compact thinking trigger after streaming completes and expands on demand', async () => {
@@ -470,16 +470,16 @@ describe('chatMessageItem', () => {
     expect(wrapper.text()).toContain(
       '先检查上下文，再确认用户意图，然后组织更合适的回答结构。',
     );
-    expect(wrapper.get('[data-testid="thinking-body"]').attributes('style')).toContain(
-      'grid-template-rows: 0fr',
-    );
+    expect(
+      wrapper.get('[data-testid="thinking-body"]').attributes('style'),
+    ).toContain('grid-template-rows: 0fr');
 
     await wrapper.get('[data-testid="thinking-toggle"]').trigger('click');
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.get('[data-testid="thinking-body"]').attributes('style')).toContain(
-      'grid-template-rows: 1fr',
-    );
+    expect(
+      wrapper.get('[data-testid="thinking-body"]').attributes('style'),
+    ).toContain('grid-template-rows: 1fr');
   });
 
   it('renders @ route badge for one-time mention messages', async () => {
@@ -778,17 +778,13 @@ describe('chatMessageItem', () => {
 
     await wrapper.vm.$nextTick();
     const body = wrapper.get('[data-testid="tool-group-body"]');
-    expect(body.attributes('style') ?? '').toContain(
-      'grid-template-rows: 0fr',
-    );
+    expect(body.attributes('style') ?? '').toContain('grid-template-rows: 0fr');
   });
 
   it('tool group card toggles on click', async () => {
     const wrapper = mount(ChatMessageItem, {
       props: {
-        msg: createAssistantMsg([
-          { name: 'web_search', status: 'success' },
-        ]),
+        msg: createAssistantMsg([{ name: 'web_search', status: 'success' }]),
         index: 0,
         compact: true,
       },
@@ -804,23 +800,17 @@ describe('chatMessageItem', () => {
     await wrapper.vm.$nextTick();
 
     const body = wrapper.get('[data-testid="tool-group-body"]');
-    expect(body.attributes('style') ?? '').toContain(
-      'grid-template-rows: 0fr',
-    );
+    expect(body.attributes('style') ?? '').toContain('grid-template-rows: 0fr');
 
     await wrapper.get('[data-testid="tool-group-toggle"]').trigger('click');
     await wrapper.vm.$nextTick();
 
-    expect(body.attributes('style') ?? '').toContain(
-      'grid-template-rows: 1fr',
-    );
+    expect(body.attributes('style') ?? '').toContain('grid-template-rows: 1fr');
 
     await wrapper.get('[data-testid="tool-group-toggle"]').trigger('click');
     await wrapper.vm.$nextTick();
 
-    expect(body.attributes('style') ?? '').toContain(
-      'grid-template-rows: 0fr',
-    );
+    expect(body.attributes('style') ?? '').toContain('grid-template-rows: 0fr');
   });
 
   it('tool group auto-collapses when streaming ends', async () => {
@@ -848,9 +838,7 @@ describe('chatMessageItem', () => {
     await wrapper.vm.$nextTick();
 
     const body = wrapper.get('[data-testid="tool-group-body"]');
-    expect(body.attributes('style') ?? '').toContain(
-      'grid-template-rows: 1fr',
-    );
+    expect(body.attributes('style') ?? '').toContain('grid-template-rows: 1fr');
 
     await wrapper.setProps({
       msg: {
@@ -863,8 +851,6 @@ describe('chatMessageItem', () => {
     });
     await wrapper.vm.$nextTick();
 
-    expect(body.attributes('style') ?? '').toContain(
-      'grid-template-rows: 0fr',
-    );
+    expect(body.attributes('style') ?? '').toContain('grid-template-rows: 0fr');
   });
 });

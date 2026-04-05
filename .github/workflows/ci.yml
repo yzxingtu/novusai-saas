@@ -50,7 +50,6 @@ jobs:
   backend-mypy:
     name: Backend Mypy (informational)
     runs-on: ubuntu-latest
-    continue-on-error: true
     defaults:
       run:
         working-directory: backend
@@ -61,7 +60,12 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -e ".[dev]" 2>/dev/null || pip install -e .
-      - run: mypy app/
+      - name: Run informational mypy
+        run: |
+          mypy app/ || {
+            echo "::warning::Backend mypy reported existing type debt; this job is informational and does not block CI."
+            exit 0
+          }
 
   backend-test:
     name: Backend Tests

@@ -68,7 +68,7 @@ export async function getUserSelectApi(params?: { search?: string }) {
       }
 
       return {
-        items: Array.from(userMap.values()).map((u) => ({
+        items: [...userMap.values()].map((u) => ({
           id: u.id,
           value: u.id,
           label: u.nickname || u.username || String(u.id),

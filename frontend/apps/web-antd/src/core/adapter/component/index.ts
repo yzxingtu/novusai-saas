@@ -38,6 +38,7 @@ import { message, notification } from 'ant-design-vue';
 
 import { ApiSelect } from '#/components/business/api-select';
 import { IconSelector } from '#/components/business/icon-selector';
+import { IdentityRemoteSelect } from '#/components/business/identity-display';
 
 const AutoComplete = defineAsyncComponent(
   () => import('ant-design-vue/es/auto-complete'),
@@ -404,6 +405,7 @@ export type ComponentType =
   | 'Divider'
   | 'IconPicker'
   | 'IconSelector'
+  | 'IdentityRemoteSelect'
   | 'ImageUpload'
   | 'Input'
   | 'InputNumber'
@@ -440,6 +442,7 @@ async function initComponentAdapter() {
       visibleEvent: 'onVisibleChange',
     }),
     ApiSelect,
+    IdentityRemoteSelect,
     ApiTreeSelect: withDefaultPlaceholder(
       {
         ...ApiComponent,

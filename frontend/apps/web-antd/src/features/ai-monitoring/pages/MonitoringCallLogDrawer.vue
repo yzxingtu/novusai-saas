@@ -7,6 +7,7 @@ import { IconifyIcon } from '@vben/icons';
 
 import { Drawer, Empty, Spin, Tag } from 'ant-design-vue';
 
+import IdentityDisplay from '#/components/business/identity-display/IdentityDisplay.vue';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
@@ -72,6 +73,36 @@ function getInitialLetter(value: null | string | undefined): string {
 }
 
 const detailAgentName = computed(() => detail.value?.agent_name || '-');
+const callerIdentityModel = computed(() => {
+  const data = detail.value;
+  if (!data) {
+    return null;
+  }
+  const callerName = data.caller_name?.trim() || '';
+  const callerNickname = data.caller_nickname?.trim() || '';
+  const callerDisplayName = data.caller_display_name?.trim() || '';
+  const callerUsername = data.caller_username?.trim() || '';
+
+  return {
+    avatar: data.caller_avatar,
+    displayName: callerDisplayName || undefined,
+    id: data.caller_id ?? '-',
+    isActive: data.caller_is_active,
+    isLeader: data.caller_is_leader,
+    isOwner: data.caller_is_owner,
+    nickname:
+      callerNickname ||
+      (callerDisplayName ? undefined : callerName || undefined),
+    orgNodeId: data.caller_org_node_id,
+    orgNodeName: data.caller_org_node_name,
+    roleName: data.caller_role_name,
+    userType: data.caller_type ?? undefined,
+    username:
+      callerDisplayName || callerNickname
+        ? callerUsername || undefined
+        : callerUsername || getCallerDisplayName(data) || undefined,
+  };
+});
 
 function getStatusColor(status?: null | string) {
   switch (status) {
@@ -88,6 +119,16 @@ function getStatusColor(status?: null | string) {
       return 'default';
     }
   }
+}
+
+function getCallerDisplayName(log: MonitoringCallLogInfo): string {
+  return (
+    log.caller_display_name ||
+    log.caller_nickname ||
+    log.caller_username ||
+    log.caller_name ||
+    ''
+  );
 }
 
 const drawerTitle = computed(() =>
@@ -134,11 +175,6 @@ const summaryChips = computed(() => {
       key: 'provider',
       label: $t(`${props.i18nPrefix}.providerName`),
       value: detail.value.provider_name || '-',
-    },
-    {
-      key: 'caller',
-      label: $t(`${props.i18nPrefix}.callerName`),
-      value: detail.value.caller_name || '-',
     },
     {
       key: 'requestType',
@@ -212,11 +248,6 @@ const detailFields = computed(() => {
       value: detail.value.provider_name || '-',
     },
     {
-      key: 'callerName',
-      label: $t(`${props.i18nPrefix}.callerName`),
-      value: detail.value.caller_name || '-',
-    },
-    {
       key: 'status',
       label: $t(`${props.i18nPrefix}.status`),
       value: statusText.value,
@@ -266,7 +297,10 @@ const detailFields = computed(() => {
                     class="flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary/10 text-primary"
                   >
                     <img
-                      v-if="detail.agent_avatar && !isIconAvatar(detail.agent_avatar)"
+                      v-if="
+                        detail.agent_avatar &&
+                        !isIconAvatar(detail.agent_avatar)
+                      "
                       :alt="detailAgentName"
                       :src="toAvatarDisplayUrl(detail.agent_avatar)"
                       class="size-full object-cover"
@@ -291,6 +325,19 @@ const detailFields = computed(() => {
                     >#{{ detail.id }}</span
                   >
                 </span>
+                <div
+                  class="inline-flex items-center rounded-2xl border border-border/70 bg-background/90 px-2 py-1"
+                >
+                  <span class="mr-2 text-xs text-muted-foreground">{{
+                    $t(`${i18nPrefix}.callerName`)
+                  }}</span>
+                  <IdentityDisplay
+                    v-if="callerIdentityModel"
+                    :avatar-size="28"
+                    :model="callerIdentityModel"
+                    :show-status-badge="false"
+                  />
+                </div>
                 <span
                   v-for="chip in summaryChips"
                   :key="chip.key"
@@ -389,6 +436,21 @@ const detailFields = computed(() => {
                     #{{ detail.conversation_id }}
                   </div>
                 </div>
+              </div>
+            </div>
+            <div
+              class="rounded-xl border border-border/60 bg-background/70 px-3 py-3"
+            >
+              <div class="text-xs text-muted-foreground">
+                {{ $t(`${i18nPrefix}.callerName`) }}
+              </div>
+              <div class="mt-2">
+                <IdentityDisplay
+                  v-if="callerIdentityModel"
+                  :avatar-size="32"
+                  :model="callerIdentityModel"
+                />
+                <span v-else class="text-sm text-muted-foreground">-</span>
               </div>
             </div>
           </div>

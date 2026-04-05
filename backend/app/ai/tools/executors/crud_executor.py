@@ -65,6 +65,7 @@ _RESOURCE_SCOPES_NEEDING_ASSIGNMENT: frozenset[str] = frozenset(
     }
 )
 
+
 def _validate_table_name(table_name: str) -> str | None:
     """Validate table name is safe, return error message or None. / 校验表名是否安全，返回错误消息或 None。"""
     if not is_safe_sql_identifier(table_name):

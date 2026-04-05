@@ -63,10 +63,16 @@ export interface UsePageSessionReturn {
 export function usePageSession(): UsePageSessionReturn {
   const route = useRoute();
   const resolveCurrentPageKey = () =>
-    resolveRoutePageKey(route, typeof window !== 'undefined' ? window.location.pathname : '');
+    resolveRoutePageKey(
+      route,
+      typeof window === 'undefined' ? '' : window.location.pathname,
+    );
 
   // Reuse current session id when remounted on the same route / 同一路由重挂载时复用当前 session id
-  if (!activePageSessionId.value || lastResolvedPageKey !== resolveCurrentPageKey()) {
+  if (
+    !activePageSessionId.value ||
+    lastResolvedPageKey !== resolveCurrentPageKey()
+  ) {
     activePageSessionId.value = generateUUID();
     lastResolvedPageKey = resolveCurrentPageKey();
   }

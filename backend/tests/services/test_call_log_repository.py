@@ -75,6 +75,125 @@ class TestEnrichLogs:
         assert result[0]["response_data"] == {"model": "deepseek"}
         assert "request_metadata" not in result[0]
 
+    @pytest.mark.asyncio
+    async def test_enrich_logs_includes_rich_caller_identity_for_tenant_admin(
+        self, mock_db
+    ):
+        from app.repositories.ai.call_log_repository import AICallLogRepository
+
+        repo = AICallLogRepository(mock_db)
+        log = make_mock_model(
+            id=2,
+            tenant_id=11,
+            agent_id=None,
+            agent_id_snapshot=None,
+            model_id=None,
+            provider_id=None,
+            routed_model_id=None,
+            request_type="chat",
+            input_tokens=1,
+            output_tokens=2,
+            total_tokens=3,
+            cost=0.02,
+            latency_ms=66,
+            status="success",
+            error_message=None,
+            user_id=None,
+            user_type=None,
+            actor_user_id=9,
+            actor_user_type="tenant_admin",
+            created_at=datetime(2026, 4, 1, 9, 0, 0),
+            updated_at=None,
+            deleted_at=None,
+            request_metadata={},
+        )
+
+        mock_db.execute.return_value = MagicMock(
+            all=MagicMock(
+                return_value=[
+                    SimpleNamespace(
+                        id=9,
+                        username="tenant_admin_9",
+                        nickname="企业管理员A",
+                        avatar="avatar-9",
+                        org_node_id=88,
+                        is_active=True,
+                        is_owner=True,
+                        role_name="企业超管",
+                        org_node_name="华东一区",
+                        org_leader_id=9,
+                    )
+                ]
+            )
+        )
+
+        result = await repo.enrich_logs_to_dicts(
+            [log],
+            include_tenant_names=False,
+            include_caller_names=True,
+            include_payload=False,
+        )
+
+        assert result[0]["caller_id"] == 9
+        assert result[0]["caller_type"] == "tenant_admin"
+        assert result[0]["caller_name"] == "企业管理员A"
+        assert result[0]["caller_display_name"] == "企业管理员A"
+        assert result[0]["caller_username"] == "tenant_admin_9"
+        assert result[0]["caller_nickname"] == "企业管理员A"
+        assert result[0]["caller_avatar"] == "avatar-9"
+        assert result[0]["caller_org_node_id"] == 88
+        assert result[0]["caller_org_node_name"] == "华东一区"
+        assert result[0]["caller_role_name"] == "企业超管"
+        assert result[0]["caller_is_active"] is True
+        assert result[0]["caller_is_leader"] is True
+        assert result[0]["caller_is_owner"] is True
+
+    @pytest.mark.asyncio
+    async def test_enrich_logs_caller_fallback_to_id_when_actor_missing(self, mock_db):
+        from app.repositories.ai.call_log_repository import AICallLogRepository
+
+        repo = AICallLogRepository(mock_db)
+        log = make_mock_model(
+            id=3,
+            tenant_id=11,
+            agent_id=None,
+            agent_id_snapshot=None,
+            model_id=None,
+            provider_id=None,
+            routed_model_id=None,
+            request_type="chat",
+            input_tokens=1,
+            output_tokens=2,
+            total_tokens=3,
+            cost=0.02,
+            latency_ms=66,
+            status="success",
+            error_message=None,
+            user_id=None,
+            user_type=None,
+            actor_user_id=77,
+            actor_user_type="tenant_admin",
+            created_at=datetime(2026, 4, 1, 9, 0, 0),
+            updated_at=None,
+            deleted_at=None,
+            request_metadata={},
+        )
+
+        mock_db.execute.return_value = MagicMock(all=MagicMock(return_value=[]))
+
+        result = await repo.enrich_logs_to_dicts(
+            [log],
+            include_tenant_names=False,
+            include_caller_names=True,
+            include_payload=False,
+        )
+
+        assert result[0]["caller_name"] == "ID:77"
+        assert result[0]["caller_id"] == 77
+        assert result[0]["caller_type"] == "tenant_admin"
+        assert result[0]["caller_display_name"] is None
+        assert result[0]["caller_org_node_name"] is None
+
 
 class TestTenantZeroFilter:
     @pytest.mark.asyncio

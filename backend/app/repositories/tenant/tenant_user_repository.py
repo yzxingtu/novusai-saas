@@ -5,7 +5,8 @@
 Provides tenant business user data access operations (tenant-isolated).
 """
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
+from sqlalchemy.orm import selectinload
 
 from app.core.base_repository import TenantRepository
 from app.models.auth.tenant_user_role import TenantUserRole
@@ -137,6 +138,55 @@ class TenantUserRepository(TenantRepository[TenantUser]):
         )
         result = await self.db.execute(query)
         return result.scalar_one_or_none() is not None
+
+    async def query_identity_select(
+        self,
+        search: str | None = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> tuple[list[TenantUser], int]:
+        """
+        查询企业用户身份选择器数据 / Query tenant user identity select data.
+
+        Returns:
+            (tenant users, total)
+        """
+        conditions = [
+            self.model.tenant_id == self.tenant_id,
+            self.model.is_deleted.is_(False),
+        ]
+
+        if search:
+            escaped_search = str(search).replace("%", r"\%").replace("_", r"\_")
+            pattern = f"%{escaped_search}%"
+            conditions.append(
+                or_(
+                    self.model.username.ilike(pattern, escape="\\"),
+                    self.model.nickname.ilike(pattern, escape="\\"),
+                    self.model.email.ilike(pattern, escape="\\"),
+                    self.model.phone.ilike(pattern, escape="\\"),
+                )
+            )
+
+        count_query = select(func.count(self.model.id)).where(*conditions)
+        total = (await self.db.execute(count_query)).scalar() or 0
+
+        query = (
+            select(self.model)
+            .where(*conditions)
+            .options(
+                selectinload(self.model.role),
+                selectinload(self.model.org_node),
+            )
+            .order_by(
+                self.model.username.asc(),
+                self.model.id.asc(),
+            )
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+        result = await self.db.execute(query)
+        return list(result.scalars().all()), total
 
 
 __all__ = ["TenantUserRepository"]

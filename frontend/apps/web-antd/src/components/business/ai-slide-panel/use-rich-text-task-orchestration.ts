@@ -18,8 +18,8 @@ import type {
 
 import { computed, onUnmounted, ref, watch } from 'vue';
 
-import { getAgentInputVariables } from '#/types/ai-chat';
 import { sourceEditorRegistryVersion } from '#/components/business/rich-text-editor/sourceEditorRegistry';
+import { getAgentInputVariables } from '#/types/ai-chat';
 
 import {
   applyRichTextTaskToEditor,

@@ -50,8 +50,8 @@ def has_frontend_extensions(manifest: Any) -> bool:
         )
     )
     has_runtime_contract = bool(
-        str(((frontend.get("dev") or {}).get("entry") or "")).strip()
-        or str(((frontend.get("release") or {}).get("manifest") or "")).strip()
+        str((frontend.get("dev") or {}).get("entry") or "").strip()
+        or str((frontend.get("release") or {}).get("manifest") or "").strip()
     )
     if has_standard_frontend or has_runtime_contract:
         return True

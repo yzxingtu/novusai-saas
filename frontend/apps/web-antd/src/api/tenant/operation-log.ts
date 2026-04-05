@@ -4,6 +4,7 @@
  */
 import type { ApiRequestOptions } from '#/utils/request';
 
+import { $t } from '#/locales';
 import { requestClient } from '#/utils/request';
 
 // ============================================================
@@ -17,9 +18,61 @@ export type OperationLogListParams = Record<string, unknown>;
 export interface OperatorItem {
   user_id: number;
   user_type: string;
+  display_name?: null | string;
   username: string;
   nickname?: null | string;
   avatar?: null | string;
+  org_node_id?: null | number;
+  org_node_name?: null | string;
+  role_name?: null | string;
+  is_active?: boolean;
+  is_leader?: boolean;
+  is_owner?: boolean;
+}
+
+interface OperatorSelectItemRaw {
+  avatar?: null | string;
+  display_name?: null | string;
+  extra?: null | Record<string, unknown>;
+  label?: null | string;
+  nickname?: null | string;
+  org_node_id?: null | number;
+  org_node_name?: null | string;
+  role_name?: null | string;
+  is_active?: boolean;
+  is_leader?: boolean;
+  is_owner?: boolean;
+  user_id?: null | number;
+  user_type?: null | string;
+  username?: null | string;
+  value?: null | number | string;
+}
+
+export interface OperatorSelectOption {
+  avatar?: null | string;
+  extra?: {
+    avatar?: null | string;
+    displayName?: null | string;
+    isActive?: boolean;
+    isLeader?: boolean;
+    isOwner?: boolean;
+    nickname?: null | string;
+    orgNodeId?: null | number;
+    orgNodeName?: null | string;
+    roleName?: null | string;
+    username?: null | string;
+    userType?: null | string;
+    userTypeLabel?: null | string;
+  };
+  label: string;
+  value: number | string;
+}
+
+interface OperatorSelectResponseRaw {
+  items: OperatorSelectItemRaw[];
+  page: number;
+  page_size: number;
+  total: number;
 }
 
 /** Operation log info (backend raw format snake_case) / 操作日志信息（后端原始格式） */
@@ -29,8 +82,16 @@ export interface OperationLogInfoRaw {
   tenant_id: null | number;
   user_type: string;
   user_id: null | number;
+  display_name?: null | string;
   username: null | string;
   nickname?: null | string;
+  avatar?: null | string;
+  org_node_id?: null | number;
+  org_node_name?: null | string;
+  role_name?: null | string;
+  is_active?: boolean;
+  is_owner?: boolean;
+  is_leader?: boolean;
   module: string;
   module_label?: string;
   action: string;
@@ -54,8 +115,16 @@ export interface OperationLogInfo {
   tenantId: null | number;
   userType: string;
   userId: null | number;
+  displayName?: null | string;
   username: null | string;
   nickname?: null | string;
+  avatar?: null | string;
+  orgNodeId?: null | number;
+  orgNodeName?: null | string;
+  roleName?: null | string;
+  isActive?: boolean;
+  isOwner?: boolean;
+  isLeader?: boolean;
   module: string;
   moduleLabel?: string;
   action: string;
@@ -92,8 +161,16 @@ function transformOperationLogInfo(raw: OperationLogInfoRaw): OperationLogInfo {
     tenantId: raw.tenant_id,
     userType: raw.user_type,
     userId: raw.user_id,
+    displayName: raw.display_name,
     username: raw.username,
     nickname: raw.nickname,
+    avatar: raw.avatar,
+    orgNodeId: raw.org_node_id,
+    orgNodeName: raw.org_node_name,
+    roleName: raw.role_name,
+    isActive: raw.is_active,
+    isOwner: raw.is_owner,
+    isLeader: raw.is_leader,
     module: raw.module,
     moduleLabel: raw.module_label,
     action: raw.action,
@@ -108,6 +185,148 @@ function transformOperationLogInfo(raw: OperationLogInfoRaw): OperationLogInfo {
     ip: raw.ip,
     durationMs: raw.duration_ms,
     createdAt: raw.created_at,
+  };
+}
+
+function resolveStringValue(
+  ...values: Array<null | string | undefined>
+): string | undefined {
+  for (const value of values) {
+    if (typeof value !== 'string') {
+      continue;
+    }
+    const normalized = value.trim();
+    if (normalized) {
+      return normalized;
+    }
+  }
+  return undefined;
+}
+
+function resolveBooleanValue(
+  ...values: Array<boolean | undefined>
+): boolean | undefined {
+  for (const value of values) {
+    if (typeof value === 'boolean') {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function resolveNumberValue(
+  ...values: Array<null | number | undefined>
+): number | undefined {
+  for (const value of values) {
+    if (typeof value === 'number') {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function getOperatorUserTypeLabel(
+  userType: null | string | undefined,
+): null | string {
+  switch (userType) {
+    case 'tenant_admin': {
+      return $t('tenant.system.operationLog.userTypeOptions.tenantAdmin');
+    }
+    case 'tenant_user': {
+      return $t('tenant.system.operationLog.userTypeOptions.tenantUser');
+    }
+    default: {
+      return userType ?? null;
+    }
+  }
+}
+
+function transformOperatorSelectItem(
+  raw: OperatorSelectItemRaw,
+): OperatorSelectOption {
+  const extra = raw.extra ?? {};
+  const username = resolveStringValue(
+    raw.username,
+    typeof extra.username === 'string' ? extra.username : undefined,
+  );
+  const nickname = resolveStringValue(
+    raw.nickname,
+    typeof extra.nickname === 'string' ? extra.nickname : undefined,
+  );
+  const avatar = resolveStringValue(
+    raw.avatar,
+    typeof extra.avatar === 'string' ? extra.avatar : undefined,
+  );
+  const displayName = resolveStringValue(
+    raw.display_name,
+    typeof extra.displayName === 'string' ? extra.displayName : undefined,
+    typeof extra.display_name === 'string' ? extra.display_name : undefined,
+    nickname,
+    username,
+  );
+  const orgNodeName = resolveStringValue(
+    raw.org_node_name,
+    typeof extra.orgNodeName === 'string' ? extra.orgNodeName : undefined,
+    typeof extra.org_node_name === 'string' ? extra.org_node_name : undefined,
+  );
+  const roleName = resolveStringValue(
+    raw.role_name,
+    typeof extra.roleName === 'string' ? extra.roleName : undefined,
+    typeof extra.role_name === 'string' ? extra.role_name : undefined,
+  );
+  const userType = resolveStringValue(
+    raw.user_type,
+    typeof extra.userType === 'string' ? extra.userType : undefined,
+    typeof extra.user_type === 'string' ? extra.user_type : undefined,
+  );
+  const orgNodeId = resolveNumberValue(
+    raw.org_node_id,
+    typeof extra.orgNodeId === 'number' ? extra.orgNodeId : undefined,
+    typeof extra.org_node_id === 'number' ? extra.org_node_id : undefined,
+  );
+  const isActive = resolveBooleanValue(
+    raw.is_active,
+    typeof extra.isActive === 'boolean' ? extra.isActive : undefined,
+    typeof extra.is_active === 'boolean' ? extra.is_active : undefined,
+  );
+  const isLeader = resolveBooleanValue(
+    raw.is_leader,
+    typeof extra.isLeader === 'boolean' ? extra.isLeader : undefined,
+    typeof extra.is_leader === 'boolean' ? extra.is_leader : undefined,
+  );
+  const isOwner = resolveBooleanValue(
+    raw.is_owner,
+    typeof extra.isOwner === 'boolean' ? extra.isOwner : undefined,
+    typeof extra.is_owner === 'boolean' ? extra.is_owner : undefined,
+  );
+  const value = raw.value ?? username ?? raw.user_id ?? raw.label ?? '';
+  const label =
+    displayName ||
+    nickname ||
+    username ||
+    resolveStringValue(raw.label) ||
+    String(value);
+
+  return {
+    ...raw,
+    avatar,
+    label,
+    value,
+    extra: {
+      ...extra,
+      avatar,
+      displayName,
+      isActive,
+      isLeader,
+      isOwner,
+      nickname,
+      orgNodeId,
+      orgNodeName,
+      roleName,
+      userType,
+      userTypeLabel: getOperatorUserTypeLabel(userType),
+      username,
+    },
   };
 }
 
@@ -155,12 +374,20 @@ export async function getOperatorsApi(): Promise<OperatorItem[]> {
 export async function getOperatorsSelectApi(
   params: Record<string, unknown>,
 ): Promise<{
-  items: { label: string; value: string }[];
+  items: OperatorSelectOption[];
   page: number;
   page_size: number;
   total: number;
 }> {
-  return requestClient.get(`${API_PREFIX}/operators`, { params });
+  const response = await requestClient.get<OperatorSelectResponseRaw>(
+    `${API_PREFIX}/operators`,
+    { params },
+  );
+
+  return {
+    ...response,
+    items: response.items.map((item) => transformOperatorSelectItem(item)),
+  };
 }
 
 /**

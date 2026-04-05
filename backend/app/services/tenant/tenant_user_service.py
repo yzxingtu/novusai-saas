@@ -17,6 +17,7 @@ from app.enums.common import ApprovalStatusEnum
 from app.exceptions import BusinessException, NotFoundException
 from app.models.tenant.tenant_user import TenantUser
 from app.repositories.tenant.tenant_user_repository import TenantUserRepository
+from app.schemas.common.select import SelectOption, SelectResponse
 from app.services.common.notification_service import notify
 
 
@@ -370,6 +371,29 @@ class TenantUserService(TenantService[TenantUser, TenantUserRepository]):
             await self._send_approval_notification(user, approved=False)
         return results
 
+    async def get_identity_select_options(
+        self,
+        search: str = "",
+        page: int = 1,
+        page_size: int = 20,
+    ) -> SelectResponse:
+        """
+        获取企业用户分页身份选择器 / Get paginated tenant user identity select options.
+        """
+        users, total = await self.repo.query_identity_select(
+            search=search or None,
+            page=page,
+            page_size=page_size,
+        )
+        items = [self._build_identity_select_option(user) for user in users]
+        return SelectResponse(
+            items=items,
+            total=total,
+            page=page,
+            page_size=page_size,
+            has_more=(page * page_size) < total,
+        )
+
     async def _get_tenant_name(self) -> str:
         """获取当前企业名称 / Get current tenant name."""
         from sqlalchemy import select
@@ -413,6 +437,32 @@ class TenantUserService(TenantService[TenantUser, TenantUserRepository]):
 
         if not await self.repo.org_node_exists(org_node_id):
             raise NotFoundException(message=_("tenant_user.org_node_not_found"))
+
+    @staticmethod
+    def _build_identity_select_option(user: TenantUser) -> SelectOption:
+        role = getattr(user, "role", None)
+        org_node = getattr(user, "org_node", None)
+        display_name = (
+            user.nickname or user.username or user.email or user.phone or f"#{user.id}"
+        )
+        return SelectOption(
+            label=display_name,
+            value=user.id,
+            extra={
+                "display_name": display_name,
+                "username": user.username,
+                "nickname": user.nickname,
+                "avatar": user.avatar,
+                "org_node_id": user.org_node_id,
+                "org_node_name": getattr(org_node, "name", None),
+                "role_name": getattr(role, "name", None),
+                "user_type": "tenant_user",
+                "is_active": user.is_active,
+                "is_leader": False,
+                "is_owner": False,
+            },
+            disabled=not user.is_active,
+        )
 
 
 __all__ = ["TenantUserService"]

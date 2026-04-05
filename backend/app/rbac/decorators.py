@@ -127,7 +127,9 @@ class MenuConfig:
     parent: str | None = None  # Parent menu resource identifier / 父菜单资源标识
     sort_order: int = 0
     hidden: bool = False  # Whether to hide menu (permission control only) / 是否隐藏菜单（仅做权限控制）
-    ai: MenuAIConfig | None = None  # Backend-owned AI menu semantics / 后端拥有的 AI 菜单语义
+    ai: MenuAIConfig | None = (
+        None  # Backend-owned AI menu semantics / 后端拥有的 AI 菜单语义
+    )
 
 
 @dataclass

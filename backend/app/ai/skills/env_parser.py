@@ -30,9 +30,7 @@ logger = LogManager.get_logger("ai.skill.env")
 def _is_valid_env_name(name: str) -> bool:
     if not name or not ("A" <= name[0] <= "Z"):
         return False
-    return all(
-        ("A" <= ch <= "Z") or ("0" <= ch <= "9") or ch == "_" for ch in name
-    )
+    return all(("A" <= ch <= "Z") or ("0" <= ch <= "9") or ch == "_" for ch in name)
 
 
 def _parse_env_assignment(

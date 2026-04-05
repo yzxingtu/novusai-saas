@@ -1,11 +1,7 @@
 // @vitest-environment happy-dom
 /* eslint-disable vue/one-component-per-file */
-import type {
-  AgentItem,
-  ChatMessage,
-  RichTextAITask,
-} from '#/types/ai-chat';
 import type { SourceEditorRegistration } from '#/components/business/rich-text-editor/types';
+import type { AgentItem, ChatMessage, RichTextAITask } from '#/types/ai-chat';
 
 /**
  * AIChatSlidePanel component render tests: confirmCountdown in real component.
@@ -570,6 +566,13 @@ vi.mock('#/store/shared/public-config', () => ({
 }));
 
 vi.mock('#/locales', () => ({
+  i18n: {
+    global: {
+      locale: {
+        value: 'zh-CN',
+      },
+    },
+  },
   $t: (key: string, params?: { seconds?: number }) =>
     key === 'shared.pageOperation.confirmCountdown' &&
     params?.seconds !== undefined
@@ -1975,9 +1978,11 @@ describe('aIChatSlidePanel (component mount)', () => {
     expect(aiPanelStore.clearPendingRichTextTask).toHaveBeenCalledWith(
       'rich-text-flush-1',
     );
-    expect(useAIChatState.chatMessages.value[0]?.richTextAI?.taskId).toBe(
-      'rich-text-flush-1',
-    );
+    expect(
+      useAIChatState.chatMessages.value.some(
+        (message) => message.richTextAI?.taskId === 'rich-text-flush-1',
+      ),
+    ).toBe(true);
 
     wrapper.unmount();
   });

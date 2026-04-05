@@ -11,29 +11,38 @@ import { $t } from '#/locales';
 
 export function getExecutionDecisionTypeText(value?: string): string {
   switch (value) {
-    case 'confirmation':
+    case 'confirmation': {
       return $t('admin.ai.executionDecision.typeOptions.confirmation');
-    case 'consent':
+    }
+    case 'consent': {
       return $t('admin.ai.executionDecision.typeOptions.consent');
-    default:
+    }
+    default: {
       return value || '-';
+    }
   }
 }
 
 export function getExecutionDecisionStatusText(value?: string): string {
   switch (value) {
-    case 'approved':
+    case 'approved': {
       return $t('admin.ai.executionDecision.statusOptions.approved');
-    case 'rejected':
-      return $t('admin.ai.executionDecision.statusOptions.rejected');
-    case 'auto_approved':
+    }
+    case 'auto_approved': {
       return $t('admin.ai.executionDecision.statusOptions.autoApproved');
-    case 'pending':
-      return $t('admin.ai.executionDecision.statusOptions.pending');
-    case 'expired':
+    }
+    case 'expired': {
       return $t('admin.ai.executionDecision.statusOptions.expired');
-    default:
+    }
+    case 'pending': {
+      return $t('admin.ai.executionDecision.statusOptions.pending');
+    }
+    case 'rejected': {
+      return $t('admin.ai.executionDecision.statusOptions.rejected');
+    }
+    default: {
       return value || '-';
+    }
   }
 }
 
@@ -264,7 +273,7 @@ export function useColumns<T = AdminActionLogItem>(
     {
       field: 'operator_name',
       title: $t('admin.ai.actionLog.operatorId'),
-      minWidth: 180,
+      minWidth: 220,
       slots: { default: 'operator_cell' },
     },
     {
@@ -320,13 +329,9 @@ export function useGridFormSchema(): VbenFormSchema[] {
         placeholder: $t('admin.ai.actionLog.placeholder.searchName'),
       },
     ),
-    searchInput(
-      'filter[trace_id][ilike]',
-      $t('admin.ai.actionLog.traceId'),
-      {
-        placeholder: $t('admin.ai.actionLog.placeholder.searchTrace'),
-      },
-    ),
+    searchInput('filter[trace_id][ilike]', $t('admin.ai.actionLog.traceId'), {
+      placeholder: $t('admin.ai.actionLog.placeholder.searchTrace'),
+    }),
     searchInput(
       'filter[tool_call_id][ilike]',
       $t('admin.ai.actionLog.toolCallId'),

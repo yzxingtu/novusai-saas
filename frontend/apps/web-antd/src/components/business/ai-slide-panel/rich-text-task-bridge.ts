@@ -29,8 +29,8 @@ export interface LastAppliedRichTextAction {
 
 export type ApplyRichTextTaskToEditorResult =
   | {
-      kind: 'applied';
       editorRevisionAfterApply: number;
+      kind: 'applied';
       nextTask: RichTextAITask;
     }
   | {
@@ -137,23 +137,26 @@ export function applyRichTextTaskToEditor(
 
   let applied = false;
   switch (target) {
-    case 'append_to_end':
+    case 'append_to_end': {
       applied = sourceEditor.appendToEnd(preparedContent);
       break;
-    case 'insert_after_selection':
+    }
+    case 'insert_after_selection': {
       applied = sourceEditor.insertAfterRange(
         task.selectionSnapshot.from,
         task.selectionSnapshot.to,
         preparedContent,
       );
       break;
-    case 'replace_selection':
+    }
+    case 'replace_selection': {
       applied = sourceEditor.replaceRange(
         task.selectionSnapshot.from,
         task.selectionSnapshot.to,
         preparedContent,
       );
       break;
+    }
   }
 
   if (!applied) {

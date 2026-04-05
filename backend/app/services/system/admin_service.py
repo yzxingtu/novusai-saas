@@ -20,6 +20,7 @@ from app.repositories.system.admin_permission_role_repository import (
     AdminPermissionRoleRepository,
 )
 from app.repositories.system.admin_repository import AdminRepository
+from app.schemas.common.select import SelectOption, SelectResponse
 
 
 class AdminService(GlobalService[Admin, AdminRepository]):
@@ -307,6 +308,29 @@ class AdminService(GlobalService[Admin, AdminRepository]):
             raise NotFoundException(message=_("admin.not_found"))
         return result
 
+    async def get_identity_select_options(
+        self,
+        search: str = "",
+        page: int = 1,
+        page_size: int = 20,
+    ) -> SelectResponse:
+        """
+        获取管理端身份分页选择器 / Get paginated admin identity select options.
+        """
+        admins, total = await self.repo.query_identity_select(
+            search=search or None,
+            page=page,
+            page_size=page_size,
+        )
+        items = [self._build_identity_select_option(admin) for admin in admins]
+        return SelectResponse(
+            items=items,
+            total=total,
+            page=page,
+            page_size=page_size,
+            has_more=(page * page_size) < total,
+        )
+
     async def _validate_permission_role(self, role_id: int | None) -> None:
         if role_id is None:
             return
@@ -327,6 +351,29 @@ class AdminService(GlobalService[Admin, AdminRepository]):
         )
         if result.scalar_one_or_none() is None:
             raise NotFoundException(message=_("role.not_found"))
+
+    @staticmethod
+    def _build_identity_select_option(admin: Admin) -> SelectOption:
+        role = getattr(admin, "role", None)
+        org_node = getattr(admin, "org_node", None)
+        is_leader = bool(org_node and getattr(org_node, "leader_id", None) == admin.id)
+        return SelectOption(
+            label=admin.nickname or admin.username,
+            value=admin.id,
+            extra={
+                "username": admin.username,
+                "nickname": admin.nickname,
+                "avatar": admin.avatar,
+                "org_node_id": admin.org_node_id,
+                "org_node_name": getattr(org_node, "name", None),
+                "role_name": getattr(role, "name", None),
+                "user_type": "admin",
+                "is_active": admin.is_active,
+                "is_leader": is_leader,
+                "is_owner": False,
+            },
+            disabled=not admin.is_active,
+        )
 
 
 __all__ = ["AdminService"]

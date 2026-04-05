@@ -188,7 +188,10 @@ function onToggleDetails() {
             </div>
           </div>
 
-          <div v-if="pageAIStatBadges.length > 0" class="flex flex-wrap gap-1.5">
+          <div
+            v-if="pageAIStatBadges.length > 0"
+            class="flex flex-wrap gap-1.5"
+          >
             <span
               v-for="badge in pageAIStatBadges"
               :key="badge.key"

@@ -9,9 +9,9 @@ import { ref } from 'vue';
 import {
   $t,
   $te,
+  setupI18n as coreSetup,
   i18n,
   loadLocaleMessages,
-  setupI18n as coreSetup,
   loadLocalesMapFromDir,
 } from '@vben/locales';
 import { preferences } from '@vben/preferences';

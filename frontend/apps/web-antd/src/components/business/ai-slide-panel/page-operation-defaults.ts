@@ -25,7 +25,9 @@ import { scanDomSemantics } from './dom-semantic-scanner';
 import { resolvePageContext } from './page-context-registry';
 import { normalizePageKey } from './page-key-utils';
 
-function getAccessibleMenusSafe(): ReturnType<typeof useAccessStore>['accessMenus'] {
+function getAccessibleMenusSafe(): ReturnType<
+  typeof useAccessStore
+>['accessMenus'] {
   try {
     return useAccessStore().accessMenus;
   } catch {
@@ -123,7 +125,8 @@ export function getDefaultPageOperations(pageKey: string): PageOperation[] {
       params: {
         target: {
           type: 'string',
-          description: 'Target menu title, path, breadcrumb, or page key / 目标菜单标题、路径、面包屑或页面 key',
+          description:
+            'Target menu title, path, breadcrumb, or page key / 目标菜单标题、路径、面包屑或页面 key',
           required: true,
         },
       },
@@ -153,20 +156,24 @@ export function getDefaultPageOperations(pageKey: string): PageOperation[] {
         });
 
         if (resolution.kind === 'not_found') {
-          const candidates = searchMenuNavigationEntries(entries, target).slice(0, 5);
+          const candidates = searchMenuNavigationEntries(entries, target).slice(
+            0,
+            5,
+          );
           return {
             success: false,
             message: $t('shared.pageOperation.msg.menuTargetNotFound', {
               target,
             }),
             error_type: 'not_found',
-            data: candidates.length
-              ? {
-                  candidates: candidates.map((entry) =>
-                    serializeMenuNavigationEntry(entry),
-                  ),
-                }
-              : undefined,
+            data:
+              candidates.length > 0
+                ? {
+                    candidates: candidates.map((entry) =>
+                      serializeMenuNavigationEntry(entry),
+                    ),
+                  }
+                : undefined,
           };
         }
 

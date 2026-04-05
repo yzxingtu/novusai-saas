@@ -478,12 +478,22 @@ def _looks_historical_query(query: str) -> bool:
     normalized = _normalize_text(query).lower()
     if not normalized:
         return False
-    if any(term in normalized for term in ("年代", "朝代", "古代", "战时", "世纪", "历史")):
+    if any(
+        term in normalized for term in ("年代", "朝代", "古代", "战时", "世纪", "历史")
+    ):
         return True
 
     tokens = normalized.split()
     for idx, token in enumerate(tokens):
-        if token in {"history", "historical", "era", "ancient", "medieval", "wartime", "dynasty"}:
+        if token in {
+            "history",
+            "historical",
+            "era",
+            "ancient",
+            "medieval",
+            "wartime",
+            "dynasty",
+        }:
             return True
         if token.endswith("s") and token[:-1].isdigit() and len(token[:-1]) >= 3:
             return True

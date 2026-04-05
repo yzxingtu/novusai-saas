@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -29,7 +31,6 @@ def _make_log(**overrides):
 
 
 class TestLogRecord:
-
     @pytest.mark.asyncio
     async def test_create_log_entry(self, mock_db):
         from app.services.system.operation_log_service import OperationLogService
@@ -39,20 +40,21 @@ class TestLogRecord:
         service.repo = AsyncMock()
         service.repo.create = AsyncMock(return_value=_make_log())
 
-        result = await service.repo.create({
-            "admin_id": 1,
-            "username": "admin",
-            "action": "create",
-            "module": "tenant",
-            "path": "/admin/tenants",
-            "method": "POST",
-            "status_code": 200,
-        })
+        result = await service.repo.create(
+            {
+                "admin_id": 1,
+                "username": "admin",
+                "action": "create",
+                "module": "tenant",
+                "path": "/admin/tenants",
+                "method": "POST",
+                "status_code": 200,
+            }
+        )
         assert result.action == "create"
 
 
 class TestLogQuery:
-
     @pytest.mark.asyncio
     async def test_query_returns_list(self, mock_db):
         from app.services.system.operation_log_service import OperationLogService
@@ -80,9 +82,178 @@ class TestLogQuery:
         assert len(items) == 0
         assert total == 0
 
+    @pytest.mark.asyncio
+    async def test_serialize_logs_merges_identity_display_fields(self, mock_db):
+        from app.services.system.operation_log_service import OperationLogService
+
+        service = OperationLogService.__new__(OperationLogService)
+        service.db = mock_db
+        service.repo = AsyncMock()
+        service._load_identity_meta_map = AsyncMock(
+            return_value={
+                ("tenant_admin", 12): {
+                    "display_name": "Alice",
+                    "username": "alice",
+                    "nickname": "Alice",
+                    "avatar": "22",
+                    "org_node_id": 5,
+                    "org_node_name": "Ops",
+                    "role_name": "Owner",
+                    "user_type": "tenant_admin",
+                    "is_active": True,
+                    "is_leader": True,
+                    "is_owner": True,
+                }
+            }
+        )
+
+        log = _make_log(
+            id=9,
+            user_type="tenant_admin",
+            user_id=12,
+            username=None,
+            nickname=None,
+            trace_id=None,
+            resource=None,
+            ip=None,
+            created_at=datetime(2026, 4, 5, 0, 0, tzinfo=timezone.utc),
+        )
+
+        payloads = await service.serialize_logs([log])
+
+        assert payloads[0]["display_name"] == "Alice"
+        assert payloads[0]["username"] == "alice"
+        assert payloads[0]["avatar"] == "22"
+        assert payloads[0]["org_node_name"] == "Ops"
+        assert payloads[0]["role_name"] == "Owner"
+        assert payloads[0]["is_leader"] is True
+        assert payloads[0]["is_owner"] is True
+
+    @pytest.mark.asyncio
+    async def test_get_admin_operators_select_returns_remote_identity_options(
+        self,
+        mock_db,
+    ):
+        from app.services.system.operation_log_service import OperationLogService
+
+        service = OperationLogService.__new__(OperationLogService)
+        service.db = mock_db
+        service.repo = AsyncMock()
+        service._load_identity_meta_map = AsyncMock(
+            return_value={
+                ("admin", 7): {
+                    "display_name": "Alice Zhang",
+                    "username": "alice",
+                    "nickname": "Alice",
+                    "avatar": "22",
+                    "org_node_id": 3,
+                    "org_node_name": "North Hub",
+                    "role_name": "Supervisor",
+                    "is_active": True,
+                    "is_leader": True,
+                    "is_owner": False,
+                }
+            }
+        )
+
+        count_result = MagicMock()
+        count_result.scalar.return_value = 1
+        page_result = MagicMock()
+        page_result.all.return_value = [
+            SimpleNamespace(
+                user_id=7,
+                user_type="admin",
+                username="alice",
+                nickname="Alice",
+            )
+        ]
+        service.db.execute = AsyncMock(side_effect=[count_result, page_result])
+
+        items, total = await service.get_admin_operators_select(
+            search="alice",
+            page=1,
+            page_size=10,
+        )
+
+        assert total == 1
+        assert items == [
+            {
+                "label": "Alice Zhang",
+                "value": "alice",
+                "extra": {
+                    "user_id": 7,
+                    "display_name": "Alice Zhang",
+                    "username": "alice",
+                    "nickname": "Alice",
+                    "avatar": "22",
+                    "org_node_id": 3,
+                    "org_node_name": "North Hub",
+                    "role_name": "Supervisor",
+                    "user_type": "admin",
+                    "is_active": True,
+                    "is_leader": True,
+                    "is_owner": False,
+                },
+                "disabled": False,
+            }
+        ]
+
+    @pytest.mark.asyncio
+    async def test_get_admin_operators_select_returns_identity_option(
+        self,
+        mock_db,
+    ):
+        from app.services.system.operation_log_service import OperationLogService
+
+        service = OperationLogService.__new__(OperationLogService)
+        service.db = mock_db
+        service.repo = AsyncMock()
+        service._load_identity_meta_map = AsyncMock(
+            return_value={
+                ("admin", 7): {
+                    "display_name": "Jane Doe",
+                    "username": "jdoe",
+                    "nickname": "Jane",
+                    "avatar": "avatar-7",
+                    "org_node_id": 3,
+                    "org_node_name": "HQ",
+                    "role_name": "Supervisor",
+                    "is_active": True,
+                    "is_leader": True,
+                    "is_owner": False,
+                }
+            }
+        )
+
+        count_result = MagicMock()
+        count_result.scalar.return_value = 1
+        rows_result = MagicMock()
+        rows_result.all.return_value = [
+            make_mock_model(
+                user_id=7,
+                user_type="admin",
+                username="jdoe",
+                nickname="Jane",
+            )
+        ]
+        service.db.execute = AsyncMock(side_effect=[count_result, rows_result])
+
+        items, total = await service.get_admin_operators_select(
+            search="Jane",
+            page=1,
+            page_size=10,
+        )
+
+        assert total == 1
+        assert items[0]["label"] == "Jane Doe"
+        assert items[0]["value"] == "jdoe"
+        assert items[0]["extra"]["org_node_name"] == "HQ"
+        assert items[0]["extra"]["role_name"] == "Supervisor"
+        assert items[0]["extra"]["is_leader"] is True
+        assert items[0]["disabled"] is False
+
 
 class TestLogFilter:
-
     @pytest.mark.asyncio
     async def test_filter_by_module(self, mock_db):
         from app.services.system.operation_log_service import OperationLogService
@@ -111,7 +282,6 @@ class TestLogFilter:
 
 
 class TestLogCleanup:
-
     @pytest.mark.asyncio
     async def test_cleanup_old_logs(self, mock_db):
         from app.services.system.operation_log_service import OperationLogService

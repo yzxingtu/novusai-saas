@@ -69,7 +69,9 @@ def _reconcile_stale_plugin_error(plugin) -> bool:
     return True
 
 
-def _assert_startup_security_clean(plugin_dir, *, plugin_name: str, action: str) -> None:
+def _assert_startup_security_clean(
+    plugin_dir, *, plugin_name: str, action: str
+) -> None:
     from app.plugins.security_scan import assert_plugin_security_clean
 
     assert_plugin_security_clean(

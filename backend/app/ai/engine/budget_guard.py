@@ -83,7 +83,10 @@ class BudgetGuard:
     ) -> str | None:
         if budget is None:
             return None
-        if budget.max_tool_rounds and int(next_rounds_used or 0) > budget.max_tool_rounds:
+        if (
+            budget.max_tool_rounds
+            and int(next_rounds_used or 0) > budget.max_tool_rounds
+        ):
             return "tool_round_budget_exceeded"
         return budget.first_exceeded_reason()
 
@@ -98,7 +101,9 @@ class BudgetGuard:
             return None
         additional_bytes = 0
         for result in additional_results:
-            output = getattr(result, "output", None) or getattr(result, "error", None) or ""
+            output = (
+                getattr(result, "output", None) or getattr(result, "error", None) or ""
+            )
             additional_bytes += len(str(output).encode("utf-8"))
         if (
             budget.max_tool_result_bytes

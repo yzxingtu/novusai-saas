@@ -6,6 +6,8 @@ import { mount } from '@vue/test-utils';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import StorageDriverSelector from '../StorageDriverSelector.vue';
+
 vi.mock('ant-design-vue', async () => {
   const { defineComponent, h } = await import('vue');
 
@@ -115,8 +117,6 @@ vi.mock('#/locales', () => ({
   $t: (key: string) => key,
 }));
 
-import StorageDriverSelector from '../StorageDriverSelector.vue';
-
 function buildDrivers(): StorageDriverInfo[] {
   return [
     {
@@ -147,7 +147,7 @@ function buildDrivers(): StorageDriverInfo[] {
   ];
 }
 
-describe('StorageDriverSelector', () => {
+describe('storageDriverSelector', () => {
   it('renders builtin, plugin, and unavailable states for host-consumed storage drivers', () => {
     const wrapper = mount(StorageDriverSelector, {
       props: {
@@ -168,16 +168,17 @@ describe('StorageDriverSelector', () => {
     expect(wrapper.get('[data-testid="option-s3"]').text()).toContain(
       'shared.storage.plugin',
     );
-    expect(wrapper.get('[data-testid="option-aliyun-oss"]').attributes()).toMatchObject(
-      {
-        'data-disabled': 'true',
-      },
-    );
+    expect(
+      wrapper.get('[data-testid="option-aliyun-oss"]').attributes(),
+    ).toMatchObject({
+      'data-disabled': 'true',
+    });
     expect(wrapper.get('[data-testid="option-aliyun-oss"]').text()).toContain(
       'shared.storage.unavailable',
     );
     expect(
-      wrapper.get('[data-testid="option-aliyun-oss"] [data-testid="tooltip"]')
+      wrapper
+        .get('[data-testid="option-aliyun-oss"] [data-testid="tooltip"]')
         .attributes()['data-title'],
     ).toBe('shared.storage.pluginNotEnabled');
   });
@@ -192,6 +193,8 @@ describe('StorageDriverSelector', () => {
 
     expect(wrapper.find('[data-testid="option-local"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="option-s3"]').exists()).toBe(true);
-    expect(wrapper.find('[data-testid="option-aliyun-oss"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="option-aliyun-oss"]').exists()).toBe(
+      true,
+    );
   });
 });

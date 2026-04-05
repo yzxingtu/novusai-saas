@@ -1,3 +1,4 @@
+import type { SelectResponse } from '#/api/shared/types';
 /**
  * Tenant management API / 企业管理 API
  * Backend: /admin/tenants/*
@@ -392,11 +393,26 @@ export interface TenantAdminItem {
   avatar: null | string;
   is_owner: boolean;
   is_active: boolean;
+  org_node_id?: null | number;
+  org_node_name?: null | string;
   role_name: null | string;
   role_id: null | number;
   last_login_at: null | string;
   last_login_ip: null | string;
   created_at: null | string;
+}
+
+export interface TenantAdminIdentitySelectExtra {
+  avatar?: null | string;
+  is_active?: boolean;
+  is_leader?: boolean;
+  is_owner?: boolean;
+  nickname?: null | string;
+  org_node_id?: null | number;
+  org_node_name?: null | string;
+  role_name?: null | string;
+  user_type?: null | string;
+  username?: null | string;
 }
 
 /** Create tenant admin request / 创建企业管理员请求 */
@@ -416,6 +432,21 @@ export async function getTenantAdminsApi(
 ): Promise<TenantAdminItem[]> {
   return requestClient.get<TenantAdminItem[]>(
     `${API_PREFIX}/${tenantId}/admins`,
+  );
+}
+
+/**
+ * Get tenant admin identity select options / 获取企业管理员身份下拉
+ * GET /admin/tenants/{tenant_id}/admins/select
+ */
+export async function getTenantAdminIdentitySelectApi(
+  tenantId: number,
+  params?: Record<string, unknown>,
+  options?: ApiRequestOptions,
+): Promise<SelectResponse<TenantAdminIdentitySelectExtra>> {
+  return requestClient.get<SelectResponse<TenantAdminIdentitySelectExtra>>(
+    `${API_PREFIX}/${tenantId}/admins/select`,
+    { params, ...options },
   );
 }
 

@@ -26,9 +26,7 @@ export interface SetupDocumentTitleSyncOptions {
   translate: TranslateFn;
 }
 
-export function buildDocumentTitle(
-  options: BuildDocumentTitleOptions,
-): string {
+export function buildDocumentTitle(options: BuildDocumentTitleOptions): string {
   const routeTitle = resolveRouteMetaTitle(options.meta, {
     hasLocaleKey: options.hasLocaleKey,
     locale: options.locale,
@@ -38,9 +36,7 @@ export function buildDocumentTitle(
   return (routeTitle ? `${routeTitle} - ` : '') + options.appName;
 }
 
-export function setupDocumentTitleSync(
-  options: SetupDocumentTitleSyncOptions,
-) {
+export function setupDocumentTitleSync(options: SetupDocumentTitleSyncOptions) {
   return watch(
     () => {
       const currentRoute = options.router.currentRoute.value;

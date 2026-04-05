@@ -69,9 +69,7 @@ _NAVIGATION_ACTION_TERMS = (
     "new",
 )
 _SPACE_EQUIVALENT_CHARS = frozenset({" ", "\t", "\r", "\n", "/", "_", "-"})
-_PUNCTUATION_CHARS = frozenset(
-    set("()[]{}.,:;!?'\"`~@#$%^&*+=|<>\\")
-)
+_PUNCTUATION_CHARS = frozenset(set("()[]{}.,:;!?'\"`~@#$%^&*+=|<>\\"))
 
 
 def _replace_chars_with_space(text: str, chars: frozenset[str]) -> str:
@@ -301,7 +299,10 @@ def score_navigation_entry(entry: Mapping[str, Any], query: str) -> int:
         if any(compact_variant in haystack for haystack in compact_haystacks):
             best_score = max(best_score, 720)
 
-        if any(_is_compact_subsequence(compact_variant, haystack) for haystack in compact_haystacks):
+        if any(
+            _is_compact_subsequence(compact_variant, haystack)
+            for haystack in compact_haystacks
+        ):
             best_score = max(best_score, 640)
 
         tokens = [token for token in variant.split(" ") if token]
@@ -318,10 +319,7 @@ def search_navigation_entries(
     query: str,
 ) -> list[tuple[Mapping[str, Any], int]]:
     """Return semantic navigation matches sorted by score / 返回按分数排序的语义匹配结果。"""
-    scored = [
-        (entry, score_navigation_entry(entry, query))
-        for entry in entries
-    ]
+    scored = [(entry, score_navigation_entry(entry, query)) for entry in entries]
     return sorted(
         [item for item in scored if item[1] > 0],
         key=lambda item: item[1],

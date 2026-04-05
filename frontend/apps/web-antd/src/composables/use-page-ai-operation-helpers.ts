@@ -3,14 +3,12 @@ import type {
   PageOperationResult,
 } from '#/components/business/ai-slide-panel/page-operation-registry';
 
-import { router } from '#/router';
 import { $t } from '#/locales';
+import { router } from '#/router';
 
 type AnyRecord = Record<string, unknown>;
 type MaybePromise<T> = Promise<T> | T;
-type OperationExecutionResult = MaybePromise<
-  null | PageOperationResult | undefined | void
->;
+type OperationExecutionResult = MaybePromise<unknown>;
 
 type SuccessMessageInput<TArgs extends unknown[] = [unknown]> =
   | ((...args: TArgs) => string)

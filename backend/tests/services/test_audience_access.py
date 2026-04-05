@@ -1,12 +1,13 @@
-"""Unit tests for _audience_allows_role and related audience/access control functions. / 测试
+"""Unit tests for audience helpers and current access-control service behavior. / 测试
 
 Tests:
 1. _audience_allows_role() — all 3×3 combinations + edge cases
-2. check_user_access() — target_audience pre-check + role_ids selection"""
+2. check_user_access() — admin role gating + tenant-user publication selection"""
 
 from __future__ import annotations
 
 import sys
+import types
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -16,7 +17,7 @@ _MOCK_MODULES = [
     "redis", "redis.asyncio", "redis.asyncio.client", "redis.exceptions",
     "redis.asyncio.connection", "redis.commands",
     "celery", "celery.signals", "celery.app", "celery.contrib",
-    "socketio", "socketio.asyncio_server",
+    "socketio.asyncio_server",
     "app.ai.agent_quota", "app.ai.agent_stats", "app.ai.gateway",
     "app.ai.cache", "app.core.redis",
 ]
@@ -25,6 +26,19 @@ for _mod in _MOCK_MODULES:
         _mock = MagicMock()
         _mock.__spec__ = None
         sys.modules[_mod] = _mock
+
+socketio_module = types.ModuleType("socketio")
+socketio_exceptions_module = types.ModuleType("socketio.exceptions")
+
+
+class _SocketConnectionRefusedError(Exception):
+    pass
+
+
+socketio_exceptions_module.ConnectionRefusedError = _SocketConnectionRefusedError
+socketio_module.exceptions = socketio_exceptions_module
+sys.modules.setdefault("socketio", socketio_module)
+sys.modules.setdefault("socketio.exceptions", socketio_exceptions_module)
 
 # Now we can import enums (no heavy deps)
 from app.enums.common import AudienceEnum, UserRoleEnum  # noqa: E402
@@ -131,14 +145,24 @@ class TestCheckUserAccess:
         service.db = mock_db
         service.tenant_id = 1
         service.repo = MagicMock()
+        access_repo = MagicMock()
+        access_repo.get_by_agent_id = AsyncMock(return_value=None)
+        publication_repo = MagicMock()
+        publication_repo.get_by_agent_id = AsyncMock(return_value=None)
+        service._get_access_repo = MagicMock(return_value=access_repo)
+        service._get_publication_repo = MagicMock(return_value=publication_repo)
         return service
 
     @pytest.mark.asyncio
     async def test_target_audience_blocks_tenant_user(self, mock_db, mock_agent):
-        """target_audience=admin_tenant should block tenant_user. / 获取/返回"""
+        """Tenant user without publication should be blocked. / 获取/返回"""
         service = self._make_service(mock_db)
         service.repo.get_by_id = AsyncMock(return_value=mock_agent)
-        mock_agent.target_audience = AudienceEnum.ADMIN_TENANT.value
+        mock_agent.target_audience = AudienceEnum.ALL.value
+        mock_agent.visibility = "private"
+        publication_repo = MagicMock()
+        publication_repo.get_by_agent_id = AsyncMock(return_value=None)
+        service._get_publication_repo = MagicMock(return_value=publication_repo)
 
         result = await service.check_user_access(
             agent_id=1,
@@ -149,11 +173,13 @@ class TestCheckUserAccess:
 
     @pytest.mark.asyncio
     async def test_target_audience_allows_tenant_admin(self, mock_db, mock_agent):
-        """target_audience=admin_tenant should allow tenant_admin. / 获取/返回"""
+        """Tenant admin should be allowed when no role restriction exists. / 获取/返回"""
         service = self._make_service(mock_db)
         service.repo.get_by_id = AsyncMock(return_value=mock_agent)
-        mock_agent.target_audience = AudienceEnum.ADMIN_TENANT.value
-        mock_agent.visibility = "public"
+        mock_agent.visibility = "private"
+        access_repo = MagicMock()
+        access_repo.get_by_agent_id = AsyncMock(return_value=None)
+        service._get_access_repo = MagicMock(return_value=access_repo)
 
         result = await service.check_user_access(
             agent_id=1,
@@ -164,11 +190,16 @@ class TestCheckUserAccess:
 
     @pytest.mark.asyncio
     async def test_public_agent_all_audience_allows_any_user(self, mock_db, mock_agent):
-        """Public agent with target_audience=all allows any user. / 获取/返回"""
+        """Tenant user is allowed when publication is enabled for all users. / 获取/返回"""
         service = self._make_service(mock_db)
         service.repo.get_by_id = AsyncMock(return_value=mock_agent)
         mock_agent.target_audience = AudienceEnum.ALL.value
-        mock_agent.visibility = "public"
+        publication = MagicMock()
+        publication.enabled_for_users = True
+        publication.access_type = "all_users"
+        publication_repo = MagicMock()
+        publication_repo.get_by_agent_id = AsyncMock(return_value=publication)
+        service._get_publication_repo = MagicMock(return_value=publication_repo)
 
         result = await service.check_user_access(
             agent_id=1,
@@ -179,10 +210,19 @@ class TestCheckUserAccess:
 
     @pytest.mark.asyncio
     async def test_admin_only_blocks_everyone_except_platform_admin(self, mock_db, mock_agent):
-        """target_audience=admin_only blocks tenant_admin and tenant_user. / 获取/返回"""
+        """Tenant admin without matching role and tenant user without publication are blocked. / 获取/返回"""
         service = self._make_service(mock_db)
         service.repo.get_by_id = AsyncMock(return_value=mock_agent)
         mock_agent.target_audience = AudienceEnum.ADMIN_ONLY.value
+        mock_agent.visibility = "private"
+        access = MagicMock()
+        access.tenant_role_ids = []
+        access_repo = MagicMock()
+        access_repo.get_by_agent_id = AsyncMock(return_value=access)
+        publication_repo = MagicMock()
+        publication_repo.get_by_agent_id = AsyncMock(return_value=None)
+        service._get_access_repo = MagicMock(return_value=access_repo)
+        service._get_publication_repo = MagicMock(return_value=publication_repo)
 
         result_tenant_admin = await service.check_user_access(
             agent_id=1, user_id=10,
@@ -197,22 +237,21 @@ class TestCheckUserAccess:
 
     @pytest.mark.asyncio
     async def test_private_no_access_record_allows(self, mock_db, mock_agent, mock_access):
-        """Private agent with no access record defaults to allow (all_users). / 说明"""
+        """Tenant user with no publication record is denied. / 说明"""
         service = self._make_service(mock_db)
         service.repo.get_by_id = AsyncMock(return_value=mock_agent)
-        mock_agent.visibility = "private"
         mock_agent.target_audience = AudienceEnum.ALL.value
+        mock_agent.visibility = "private"
 
-        # Mock access repo to return None (no access record)
-        access_repo = MagicMock()
-        access_repo.get_by_agent_id = AsyncMock(return_value=None)
-        service._get_access_repo = MagicMock(return_value=access_repo)
+        publication_repo = MagicMock()
+        publication_repo.get_by_agent_id = AsyncMock(return_value=None)
+        service._get_publication_repo = MagicMock(return_value=publication_repo)
 
         result = await service.check_user_access(
             agent_id=1, user_id=10,
             user_role=UserRoleEnum.TENANT_USER.value,
         )
-        assert result is True
+        assert result is False
 
     @pytest.mark.asyncio
     async def test_tenant_role_ids_null_allows_all(self, mock_db, mock_agent, mock_access):
@@ -244,6 +283,7 @@ class TestCheckUserAccess:
         service = self._make_service(mock_db)
         service.repo.get_by_id = AsyncMock(return_value=mock_agent)
         mock_agent.target_audience = AudienceEnum.ADMIN_TENANT.value
+        mock_agent.visibility = "private"
         mock_access.tenant_role_ids = [5, 10]
 
         access_repo = MagicMock()
@@ -266,6 +306,7 @@ class TestCheckUserAccess:
         service = self._make_service(mock_db)
         service.repo.get_by_id = AsyncMock(return_value=mock_agent)
         mock_agent.target_audience = AudienceEnum.ADMIN_TENANT.value
+        mock_agent.visibility = "private"
         mock_access.tenant_role_ids = [5, 10]
 
         access_repo = MagicMock()

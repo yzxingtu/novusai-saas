@@ -343,6 +343,7 @@ function resolveAiComponent(component: string): AiFieldComponent {
     InputNumber: 'number',
     Select: 'select',
     ApiSelect: 'remote_select',
+    IdentityRemoteSelect: 'remote_select',
     TreeSelect: 'tree_select',
     ApiTreeSelect: 'tree_select',
     Switch: 'switch',
@@ -445,6 +446,7 @@ export function extractFormParams(
     }
     if (
       component === 'ApiSelect' ||
+      component === 'IdentityRemoteSelect' ||
       component === 'Select' ||
       component === 'TreeSelect' ||
       component === 'ApiTreeSelect'
@@ -500,7 +502,10 @@ export function extractFormParams(
 
     // Resolve options / 解析选项
     const staticOptions = extractStaticOptions(props);
-    const isRemote = component === 'ApiSelect' || component === 'ApiTreeSelect';
+    const isRemote =
+      component === 'ApiSelect' ||
+      component === 'ApiTreeSelect' ||
+      component === 'IdentityRemoteSelect';
     let optionsSource: EnhancedFormFieldDescriptor['optionsSource'];
     if (isRemote) {
       optionsSource = 'remote';
@@ -568,7 +573,13 @@ export async function resolveRemoteOptions(
     const fieldName = item.fieldName as string | undefined;
     const component = item.component as string;
     if (!fieldName) continue;
-    if (component !== 'ApiSelect' && component !== 'ApiTreeSelect') continue;
+    if (
+      component !== 'ApiSelect' &&
+      component !== 'ApiTreeSelect' &&
+      component !== 'IdentityRemoteSelect'
+    ) {
+      continue;
+    }
 
     const props = item.componentProps as Record<string, unknown> | undefined;
     const apiFn = props?.api as ((...args: any[]) => Promise<any>) | undefined;
@@ -1023,7 +1034,10 @@ export function createStandardOperations(
   // Fire-and-forget preload / 触发后台预加载
   if (
     rawFormSchema.some(
-      (s) => s.component === 'ApiSelect' || s.component === 'ApiTreeSelect',
+      (s) =>
+        s.component === 'ApiSelect' ||
+        s.component === 'ApiTreeSelect' ||
+        s.component === 'IdentityRemoteSelect',
     )
   ) {
     ensureRemoteOptions();
@@ -2106,7 +2120,10 @@ export function createFormOperations(
   }
   if (
     rawFormSchema.some(
-      (s) => s.component === 'ApiSelect' || s.component === 'ApiTreeSelect',
+      (s) =>
+        s.component === 'ApiSelect' ||
+        s.component === 'ApiTreeSelect' ||
+        s.component === 'IdentityRemoteSelect',
     )
   ) {
     ensureRemoteOptions();

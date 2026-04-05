@@ -9,6 +9,7 @@ import { preferences } from '@vben/preferences';
 import { initStores, useTabbarStore } from '@vben/stores';
 import '@vben/styles';
 import '@vben/styles/antd';
+
 import AntDesignVue from 'ant-design-vue';
 
 import { initComponentAdapter } from '#/adapter/component';

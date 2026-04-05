@@ -18,6 +18,7 @@ import {
 } from 'ant-design-vue';
 
 import { getOperationLogDetailApi } from '#/api/tenant/operation-log';
+import IdentityDisplay from '#/components/business/identity-display/IdentityDisplay.vue';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 
@@ -66,6 +67,33 @@ const statusCodeType = computed(() => {
   if (!detail.value) return 'default';
   return getStatusColor(detail.value.statusCode);
 });
+
+const userIdentityModel = computed(() => {
+  if (!detail.value) {
+    return null;
+  }
+
+  return {
+    avatar: detail.value.avatar,
+    badges: detail.value.userType
+      ? [
+          {
+            color: getUserTypeColor(detail.value.userType),
+            key: `type-${detail.value.id}`,
+            label: getUserTypeLabel(detail.value.userType),
+          },
+        ]
+      : [],
+    displayName: detail.value.displayName,
+    id: detail.value.userId ?? detail.value.id,
+    isActive: detail.value.isActive,
+    isLeader: detail.value.isLeader,
+    isOwner: detail.value.isOwner,
+    nickname: detail.value.nickname || detail.value.username,
+    orgNodeName: detail.value.orgNodeName,
+    roleName: detail.value.roleName,
+  };
+});
 </script>
 
 <template>
@@ -85,15 +113,13 @@ const statusCodeType = computed(() => {
           <Descriptions :column="2" bordered size="small">
             <DescriptionsItem
               :label="$t('tenant.system.operationLog.username')"
+              :span="2"
             >
-              {{ detail.username || '-' }}
-            </DescriptionsItem>
-            <DescriptionsItem
-              :label="$t('tenant.system.operationLog.userType')"
-            >
-              <Tag :color="getUserTypeColor(detail.userType)">
-                {{ getUserTypeLabel(detail.userType) }}
-              </Tag>
+              <IdentityDisplay
+                v-if="userIdentityModel"
+                :avatar-size="32"
+                :model="userIdentityModel"
+              />
             </DescriptionsItem>
           </Descriptions>
         </div>

@@ -32,10 +32,10 @@ export interface SkillRegistryPackageItem {
 }
 
 export function getSkillRegistryListApi(params?: Record<string, unknown>) {
-  return requestClient.get<{ items: SkillRegistryPackageItem[]; total: number }>(
-    BASE_URL,
-    { params },
-  );
+  return requestClient.get<{
+    items: SkillRegistryPackageItem[];
+    total: number;
+  }>(BASE_URL, { params });
 }
 
 export function getSkillRegistryDetailApi(slug: string) {

@@ -7,8 +7,8 @@ interface RouteMetaAI {
   capabilities?: string[];
   category?: string;
   description?: string;
-  disabledCapabilities?: string[] | string;
-  disabledOperations?: string[] | string;
+  disabledCapabilities?: string | string[];
+  disabledOperations?: string | string[];
   keywords?: string[];
   mode?: string;
   pageContextKey?: string;
@@ -95,7 +95,7 @@ interface ResolveMenuNavigationTargetOptions {
 }
 
 const MENU_QUERY_FILLER_RE =
-  /(帮我|请帮我|请|麻烦|我想|想要|我要|能不能|可以帮我|给我|一下|一个|一条|一份|新增|添加|新建|创建|打开|进入|跳转|切到|前往|go to|navigate to|switch to|jump to|open|create|add|new)/g;
+  /帮我|请帮我|请|麻烦|我想|想要|我要|能不能|可以帮我|给我|一下|一个|一条|一份|新增|添加|新建|创建|打开|进入|跳转|切到|前往|go to|navigate to|switch to|jump to|open|create|add|new/g;
 
 function normalizeSearchText(value: string): string {
   return String(value || '')
@@ -193,7 +193,9 @@ function resolveMenuSemanticMetadata(options: {
 }
 
 function stripMenuQueryFillers(value: string): string {
-  return normalizeSearchText(value).replaceAll(MENU_QUERY_FILLER_RE, ' ').trim();
+  return normalizeSearchText(value)
+    .replaceAll(MENU_QUERY_FILLER_RE, ' ')
+    .trim();
 }
 
 function buildSemanticQueryVariants(target: string): string[] {
@@ -227,7 +229,9 @@ function scoreMenuNavigationEntry(
   const breadcrumb = normalizeSearchText(entry.breadcrumb.join(' / '));
   const description = normalizeSearchText(entry.description ?? '');
   const category = normalizeSearchText(entry.category ?? '');
-  const keywords = entry.keywords.map((keyword) => normalizeSearchText(keyword));
+  const keywords = entry.keywords.map((keyword) =>
+    normalizeSearchText(keyword),
+  );
   const capabilities = entry.capabilities.map((capability) =>
     normalizeSearchText(capability),
   );
@@ -245,12 +249,16 @@ function scoreMenuNavigationEntry(
     ...keywords,
     ...capabilities,
   ].filter(Boolean);
-  const compactHaystacks = textualHaystacks.map((item) => compactSearchText(item));
+  const compactHaystacks = textualHaystacks.map((item) =>
+    compactSearchText(item),
+  );
   const compactTitle = compactSearchText(title);
   const compactBreadcrumb = compactSearchText(breadcrumb);
-  const compactKeywords = keywords.map((keyword) => compactSearchText(keyword));
-  const compactCapabilities = capabilities.map((capability) =>
-    compactSearchText(capability),
+  const compactKeywords = new Set(
+    keywords.map((keyword) => compactSearchText(keyword)),
+  );
+  const compactCapabilities = new Set(
+    capabilities.map((capability) => compactSearchText(capability)),
   );
 
   let bestScore = 0;
@@ -287,11 +295,11 @@ function scoreMenuNavigationEntry(
       bestScore = Math.max(bestScore, 910);
       continue;
     }
-    if (compactKeywords.includes(compactVariant)) {
+    if (compactKeywords.has(compactVariant)) {
       bestScore = Math.max(bestScore, 900);
       continue;
     }
-    if (compactCapabilities.includes(compactVariant)) {
+    if (compactCapabilities.has(compactVariant)) {
       bestScore = Math.max(bestScore, 880);
       continue;
     }

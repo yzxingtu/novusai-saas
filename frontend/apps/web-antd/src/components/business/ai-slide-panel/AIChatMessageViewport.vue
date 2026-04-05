@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import type { PendingPageOp } from '#/store/shared/ai-panel';
 import type {
   AgentItem,
   ChatMessage,
@@ -6,7 +7,6 @@ import type {
   RichTextAIApplyTarget,
   RichTextDraftRuntimeState,
 } from '#/types/ai-chat';
-import type { PendingPageOp } from '#/store/shared/ai-panel';
 
 import { IconifyIcon } from '@vben/icons';
 

@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 
-from app.core.base_model import BaseModel, utc_now
+from app.core.base_model import BaseModel
 from app.core.i18n import _
 from app.core.security import decrypt_data, encrypt_data
 from app.enums.common import ResourceScopeEnum

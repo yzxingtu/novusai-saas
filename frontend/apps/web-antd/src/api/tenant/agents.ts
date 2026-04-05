@@ -244,8 +244,7 @@ export async function getTenantAgentSelectApi(
   params?: Record<string, unknown>,
   options?: ApiRequestOptions,
 ): Promise<TenantAgentSelectResponse> {
-  const search =
-    typeof params?.search === 'string' ? params.search.trim() : '';
+  const search = typeof params?.search === 'string' ? params.search.trim() : '';
   const page = Math.max(1, Number(params?.page ?? 1));
   const pageSize = Math.max(1, Number(params?.page_size ?? 10));
 

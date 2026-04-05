@@ -9,10 +9,10 @@ defineOptions({ name: 'PluginSourceBadge' });
 
 const props = withDefaults(
   defineProps<{
+    showDisabledState?: boolean;
     sourcePlugin?: null | string;
     sourcePluginDisplayName?: null | string;
     sourcePluginEnabled?: boolean;
-    showDisabledState?: boolean;
   }>(),
   {
     sourcePlugin: null,

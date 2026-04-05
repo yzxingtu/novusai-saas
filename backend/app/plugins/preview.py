@@ -121,9 +121,7 @@ def _localize_conflict_reason(conflict: dict[str, Any]) -> str:
     key = str(conflict.get("key") or "").strip()
     owner = str(conflict.get("owner") or "system").strip() or "system"
     owner_label = (
-        _("plugin.preview.conflict.system_owner")
-        if owner == "system"
-        else owner
+        _("plugin.preview.conflict.system_owner") if owner == "system" else owner
     )
     template_key = {
         "adapter": "plugin.preview.conflict.adapter",
@@ -492,7 +490,10 @@ async def generate_preview(
         warnings.append(_("plugin.preview.warning.paid_plugin_missing_price"))
     if scan_result.has_warnings:
         warnings.append(
-            _("plugin.preview.warning.security_scan_found", count=len(scan_result.warnings))
+            _(
+                "plugin.preview.warning.security_scan_found",
+                count=len(scan_result.warnings),
+            )
         )
         warnings.extend(scan_result.warnings)
 

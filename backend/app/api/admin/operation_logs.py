@@ -5,7 +5,7 @@
 Provides operation log query, detail, delete endpoints.
 """
 
-from fastapi import Request
+from fastapi import Query, Request
 
 from app.core.base_controller import GlobalController
 from app.core.base_schema import PageResponse
@@ -21,8 +21,6 @@ from app.rbac.decorators import (
 )
 from app.schemas.system.operation_log import (
     OperationLogDeleteRequest,
-    OperationLogListResponse,
-    OperationLogResponse,
     OperatorSelectItem,
 )
 from app.services.system.operation_log_service import OperationLogService
@@ -89,10 +87,11 @@ class AdminOperationLogController(GlobalController):
                 admin=current_admin,
                 spec=spec,
             )
+            serialized_items = await service.serialize_logs(items)
 
             return success(
                 data=PageResponse.create(
-                    items=[OperationLogListResponse.from_model(item) for item in items],
+                    items=serialized_items,
                     total=total,
                     page=spec.page,
                     page_size=spec.size,
@@ -106,15 +105,37 @@ class AdminOperationLogController(GlobalController):
             request: Request,
             db: DbSession,
             current_admin: ActiveAdmin,
+            search: str | None = None,
+            page: int | None = None,
+            page_size: int = Query(10, ge=1, le=100),
         ):
             """
             获取平台端操作日志中的去重操作人列表（含头像） / Get deduplicated operator list from platform logs (with avatar)
 
-            用于搜索下拉选择和列表头像显示 / Used for search dropdown and list avatar display
+            支持两种模式 / Supports two modes:
+            - 分页模式（传 page 参数）：返回 {items, total, page, page_size} 供远程下拉使用
+            - 全量模式（不传 page）：返回完整列表，兼容旧逻辑
 
             权限 / Permission: operation_log:list
             """
             service = OperationLogService(db)
+
+            if page is not None:
+                items, total = await service.get_admin_operators_select(
+                    search=search,
+                    page=page,
+                    page_size=page_size,
+                )
+                return success(
+                    data={
+                        "items": items,
+                        "total": total,
+                        "page": page,
+                        "page_size": page_size,
+                    },
+                    message=_("common.success"),
+                )
+
             operators = await service.get_admin_operators()
             return success(
                 data=[OperatorSelectItem(**op) for op in operators],
@@ -146,7 +167,7 @@ class AdminOperationLogController(GlobalController):
                 )
 
             return success(
-                data=OperationLogResponse.from_model(log),
+                data=await service.serialize_log(log),
                 message=_("common.success"),
             )
 

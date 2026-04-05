@@ -1,10 +1,7 @@
 <script lang="ts" setup>
 import type { MenuRecordRaw } from '@vben/types';
 
-import type {
-  AgentItem,
-  ConversationItem,
-} from '#/types/ai-chat';
+import type { AgentItem, ConversationItem } from '#/types/ai-chat';
 import type { MenuNavigationSearchResult } from '#/utils/menu-navigation';
 
 /**
@@ -126,26 +123,29 @@ watch(menuSearchResults, () => {
   selectedIndex.value = 0;
 });
 
-watch([agentsLoading, filteredAgents, mode], async ([loading, agents, currentMode]) => {
-  if (
-    !pendingMentionSubmit.value ||
-    currentMode !== 'mention' ||
-    loading ||
-    agents.length === 0
-  ) {
-    return;
-  }
+watch(
+  [agentsLoading, filteredAgents, mode],
+  async ([loading, agents, currentMode]) => {
+    if (
+      !pendingMentionSubmit.value ||
+      currentMode !== 'mention' ||
+      loading ||
+      agents.length === 0
+    ) {
+      return;
+    }
 
-  pendingMentionSubmit.value = false;
-  await nextTick();
-  const safeIndex = Number.isFinite(selectedIndex.value)
-    ? selectedIndex.value
-    : 0;
-  const agent = agents[safeIndex] ?? agents[0];
-  if (agent) {
-    submitMentionSelection(agent);
-  }
-});
+    pendingMentionSubmit.value = false;
+    await nextTick();
+    const safeIndex = Number.isFinite(selectedIndex.value)
+      ? selectedIndex.value
+      : 0;
+    const agent = agents[safeIndex] ?? agents[0];
+    if (agent) {
+      submitMentionSelection(agent);
+    }
+  },
+);
 
 onUnmounted(() => {
   if (clickNavigateTimer) clearTimeout(clickNavigateTimer);
@@ -173,15 +173,27 @@ function handleKeydown(e: KeyboardEvent) {
   if (mode.value === 'mention') {
     const list = filteredAgents.value;
     if (list.length === 0) {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        pendingMentionSubmit.value = false;
-        exitMentionMode();
-      } else if (e.key === 'Enter') {
-        e.preventDefault();
-        pendingMentionSubmit.value = agentsLoading.value;
-      } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        e.preventDefault();
+      switch (e.key) {
+        case 'ArrowDown':
+        case 'ArrowUp': {
+          e.preventDefault();
+
+          break;
+        }
+        case 'Enter': {
+          e.preventDefault();
+          pendingMentionSubmit.value = agentsLoading.value;
+
+          break;
+        }
+        case 'Escape': {
+          e.preventDefault();
+          pendingMentionSubmit.value = false;
+          exitMentionMode();
+
+          break;
+        }
+        // No default
       }
       return;
     }

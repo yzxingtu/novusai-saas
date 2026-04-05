@@ -2059,6 +2059,11 @@ export function useAIChat(options: UseAIChatOptions) {
         if (!msg) return;
 
         switch (event.event) {
+          case 'clear_content': {
+            msg.content = '';
+
+            break;
+          }
           case 'optimizing_tools': {
             msg.optimizingTools = {
               total: (event.total as number) || 0,
@@ -2149,11 +2154,6 @@ export function useAIChat(options: UseAIChatOptions) {
               startedAt: Date.now(),
             });
             scrollToBottom();
-
-            break;
-          }
-          case 'clear_content': {
-            msg.content = '';
 
             break;
           }

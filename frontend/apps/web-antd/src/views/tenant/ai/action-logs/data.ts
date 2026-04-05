@@ -10,29 +10,38 @@ import { $t } from '#/locales';
 
 export function getExecutionDecisionTypeText(value?: string): string {
   switch (value) {
-    case 'confirmation':
+    case 'confirmation': {
       return $t('tenant.ai.executionDecision.typeOptions.confirmation');
-    case 'consent':
+    }
+    case 'consent': {
       return $t('tenant.ai.executionDecision.typeOptions.consent');
-    default:
+    }
+    default: {
       return value || '-';
+    }
   }
 }
 
 export function getExecutionDecisionStatusText(value?: string): string {
   switch (value) {
-    case 'approved':
+    case 'approved': {
       return $t('tenant.ai.executionDecision.statusOptions.approved');
-    case 'rejected':
-      return $t('tenant.ai.executionDecision.statusOptions.rejected');
-    case 'auto_approved':
+    }
+    case 'auto_approved': {
       return $t('tenant.ai.executionDecision.statusOptions.autoApproved');
-    case 'pending':
-      return $t('tenant.ai.executionDecision.statusOptions.pending');
-    case 'expired':
+    }
+    case 'expired': {
       return $t('tenant.ai.executionDecision.statusOptions.expired');
-    default:
+    }
+    case 'pending': {
+      return $t('tenant.ai.executionDecision.statusOptions.pending');
+    }
+    case 'rejected': {
+      return $t('tenant.ai.executionDecision.statusOptions.rejected');
+    }
+    default: {
       return value || '-';
+    }
   }
 }
 

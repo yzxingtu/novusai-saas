@@ -5,6 +5,7 @@
 Provides platform admin related operations (e.g. force logout).
 """
 
+from fastapi import Query
 from sqlalchemy import select
 
 from app.core.base_controller import GlobalController
@@ -14,8 +15,14 @@ from app.core.response import success
 from app.enums.rbac import PermissionScope
 from app.exceptions import NotFoundException
 from app.models.system.admin import Admin
-from app.rbac.decorators import action_create, auth_only, permission_resource
+from app.rbac.decorators import (
+    action_create,
+    action_read,
+    auth_only,
+    permission_resource,
+)
 from app.services.common import AuthService
+from app.services.system.admin_service import AdminService
 
 
 @permission_resource(
@@ -33,6 +40,27 @@ class AdminUserController(GlobalController):
 
     def _register_routes(self) -> None:
         router = self.router
+
+        @router.get("/select", summary="获取平台管理员下拉选项")
+        @action_read("action.admin_user.list")
+        async def select_admin_users(
+            db: DbSession,
+            current_admin: ActiveAdmin,
+            search: str = Query("", description=_("api.param.search")),
+            page: int = Query(1, ge=1, description=_("api.param.page")),
+            page_size: int = Query(
+                20, ge=1, le=100, description=_("api.param.page_size")
+            ),
+        ):
+            """
+            获取平台管理员分页下拉选项 / Get paginated platform admin select options.
+            """
+            response = await AdminService(db).get_identity_select_options(
+                search=search,
+                page=page,
+                page_size=page_size,
+            )
+            return success(data=response, message=_("common.success"))
 
         @router.post("/{user_id}/force-logout", summary="强制下线平台管理员")
         @auth_only

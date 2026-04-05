@@ -11,6 +11,10 @@ import {
   normalizePageKey,
   resolveRoutePageKey,
 } from '#/components/business/ai-slide-panel/page-key-utils';
+import {
+  getRegisteredOperationKeys,
+  listPageOperations,
+} from '#/components/business/ai-slide-panel/page-operation-registry';
 import { getActivePageSessionId } from '#/composables/use-page-session';
 import { router } from '#/router';
 import {
@@ -18,13 +22,9 @@ import {
   filterPageOperationsByPolicy,
   normalizePageAIMode,
 } from '#/utils/ai-page-capabilities';
-import {
-  getRegisteredOperationKeys,
-  listPageOperations,
-} from '#/components/business/ai-slide-panel/page-operation-registry';
 
 const NAVIGATION_STABILIZE_MS = 80;
-const NAVIGATION_READY_TIMEOUT_MS = 10000;
+const NAVIGATION_READY_TIMEOUT_MS = 10_000;
 const NAVIGATION_READY_POLL_MS = 100;
 const POST_NAVIGATION_SETTLE_MS = 400;
 const FALLBACK_PAGE_CONTEXT_SOURCES = new Set([
@@ -32,11 +32,11 @@ const FALLBACK_PAGE_CONTEXT_SOURCES = new Set([
   'minimal_fallback',
 ]);
 const DEFAULT_OPERATION_NAMES = new Set([
-  'read_current_view',
-  'read_current_sections',
+  'capture_screenshot',
   'list_available_menus',
   'navigate_menu',
-  'capture_screenshot',
+  'read_current_sections',
+  'read_current_view',
 ]);
 
 export function buildPageDataPreview(
@@ -213,7 +213,7 @@ function buildNavigationResultPayload(
       basePageContext.page_title ||
       resolvedTarget.pageKey,
     page_data: {
-      ...(basePageContext.page_data ?? {}),
+      ...basePageContext.page_data,
       navigation_context: {
         breadcrumb: resolvedTarget.breadcrumb ?? [],
         endpoint: resolvedTarget.endpoint,
@@ -306,9 +306,8 @@ async function waitForNavigationReadiness(
       currentRoute,
       target.pageKey,
     );
-    const targetSpecificOperationsReady = hasPageSpecificOperations(
-      targetOperations,
-    );
+    const targetSpecificOperationsReady =
+      hasPageSpecificOperations(targetOperations);
     const destinationReady =
       isTargetRoute(currentRoute, target) &&
       isAuthoritativeTargetContext(targetPageContext, target.pageKey);
@@ -381,6 +380,13 @@ export async function navigateToPathWithContext(
       target.pageKey,
     );
     const canAutoContinue = hasPageSpecificOperations(currentOperations);
+    let destinationReadyReason = 'destination_not_ready';
+    if (currentPageContext) {
+      destinationReadyReason = canAutoContinue
+        ? 'target_operations_ready'
+        : 'target_operations_not_ready';
+    }
+
     return {
       success: true,
       message: `Navigated to ${target.path}`,
@@ -394,11 +400,7 @@ export async function navigateToPathWithContext(
           {
             canAutoContinue,
             destinationReady: !!currentPageContext,
-            destinationReadyReason: currentPageContext
-              ? canAutoContinue
-                ? 'target_operations_ready'
-                : 'target_operations_not_ready'
-              : 'destination_not_ready',
+            destinationReadyReason,
           },
         ),
       },

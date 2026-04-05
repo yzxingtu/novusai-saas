@@ -20,19 +20,21 @@ const mockRefs = vi.hoisted(() => {
     updateMyPreferences: vi.fn(),
   };
 
-  let registeredHandler: null | ((payload: unknown) => void) = null;
+  let registeredHandler: ((payload: unknown) => void) | null = null;
 
   return {
     get registeredHandler() {
       return registeredHandler;
     },
-    set registeredHandler(value: null | ((payload: unknown) => void)) {
+    set registeredHandler(value: ((payload: unknown) => void) | null) {
       registeredHandler = value;
     },
     sioStore: {
-      registerHandler: vi.fn((_event: string, handler: (payload: unknown) => void) => {
-        registeredHandler = handler;
-      }),
+      registerHandler: vi.fn(
+        (_event: string, handler: (payload: unknown) => void) => {
+          registeredHandler = handler;
+        },
+      ),
       unregisterHandler: vi.fn(),
     },
     userPreferenceStore,
@@ -97,7 +99,9 @@ describe('usePreferenceSync', () => {
     vbenPreferences.app.locale = 'en-US';
     await nextTick();
 
-    expect(mockRefs.userPreferenceStore.updateMyPreferences).not.toHaveBeenCalled();
+    expect(
+      mockRefs.userPreferenceStore.updateMyPreferences,
+    ).not.toHaveBeenCalled();
     sync.cleanup();
   });
 
@@ -110,9 +114,9 @@ describe('usePreferenceSync', () => {
     vbenPreferences.app.locale = 'en-US';
     await nextTick();
 
-    expect(mockRefs.userPreferenceStore.updateMyPreferences).toHaveBeenCalledWith(
-      { locale: 'en-US' },
-    );
+    expect(
+      mockRefs.userPreferenceStore.updateMyPreferences,
+    ).toHaveBeenCalledWith({ locale: 'en-US' });
     sync.cleanup();
   });
 
@@ -128,16 +132,18 @@ describe('usePreferenceSync', () => {
     vbenPreferences.app.locale = 'en-US';
     await nextTick();
 
-    expect(mockRefs.userPreferenceStore.updateMyPreferences).not.toHaveBeenCalled();
+    expect(
+      mockRefs.userPreferenceStore.updateMyPreferences,
+    ).not.toHaveBeenCalled();
 
     nowSpy.mockReturnValue(1000);
     sync.initSnapshot();
     vbenPreferences.theme.mode = 'dark';
     await nextTick();
 
-    expect(mockRefs.userPreferenceStore.updateMyPreferences).toHaveBeenCalledWith(
-      { theme_mode: 'dark' },
-    );
+    expect(
+      mockRefs.userPreferenceStore.updateMyPreferences,
+    ).toHaveBeenCalledWith({ theme_mode: 'dark' });
     nowSpy.mockRestore();
     sync.cleanup();
   });
@@ -151,9 +157,9 @@ describe('usePreferenceSync', () => {
       preferences: { locale: 'en-US' },
     });
 
-    expect(mockRefs.userPreferenceStore.applyServerPreferences).toHaveBeenCalledWith(
-      { locale: 'en-US' },
-    );
+    expect(
+      mockRefs.userPreferenceStore.applyServerPreferences,
+    ).toHaveBeenCalledWith({ locale: 'en-US' });
     sync.cleanup();
   });
 });

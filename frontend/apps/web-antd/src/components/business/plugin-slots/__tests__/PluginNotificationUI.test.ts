@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
 
-import { createPinia, setActivePinia } from 'pinia';
 import { mount } from '@vue/test-utils';
 import { defineComponent, markRaw } from 'vue';
 
+import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { usePluginSlotsStore } from '#/stores/plugin-slots';
@@ -21,7 +21,7 @@ const BuildNotification = defineComponent({
   template: '<div data-testid="plugin-notification">{{ summary }}</div>',
 });
 
-describe('PluginNotificationUI', () => {
+describe('pluginNotificationUI', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
   });

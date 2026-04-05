@@ -1668,9 +1668,7 @@ class AIGateway:
                 ignored_overrides=list(
                     effective_request.get("ignored_overrides", []) or []
                 ),
-                ignore_reasons=dict(
-                    effective_request.get("ignore_reasons", {}) or {}
-                ),
+                ignore_reasons=dict(effective_request.get("ignore_reasons", {}) or {}),
             )
 
     async def get_provider_and_key(

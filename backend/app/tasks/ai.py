@@ -10,7 +10,6 @@ Celery Worker 是同步进程，使用同步 DB Session 直接写入。
 import hashlib
 import json
 
-from app.core.base_model import utc_now
 from app.core.database import sync_session_factory
 from app.core.logging import LogManager
 from app.enums.ai import CallTypeEnum

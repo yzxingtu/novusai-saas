@@ -17,7 +17,11 @@ function mountHarness() {
   );
 
   return wrapper.vm as unknown as {
-    modalState: Array<{ title: string; type: 'drawer' | 'modal'; visible: boolean }>;
+    modalState: Array<{
+      title: string;
+      type: 'drawer' | 'modal';
+      visible: boolean;
+    }>;
     scan: () => void;
   };
 }

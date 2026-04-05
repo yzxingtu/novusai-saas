@@ -461,12 +461,20 @@ async def test_cos_get_info_normalizes_legacy_prefixed_metadata_keys():
 
 
 @pytest.mark.asyncio
-async def test_oss_copy_preserves_public_acl():
+async def test_oss_copy_preserves_public_acl(monkeypatch: pytest.MonkeyPatch):
     """OSS copy must keep public objects public. / OSS 复制公开对象时必须保留 public ACL。"""
     from app.storage.base import StorageVisibility
 
     oss_module = _load_plugin_driver_module("aliyun-oss")
     OssStorageDriver = oss_module.OssStorageDriver
+    monkeypatch.setattr(
+        oss_module,
+        "oss",
+        SimpleNamespace(
+            CopyObjectRequest=lambda **kwargs: SimpleNamespace(**kwargs),
+            exceptions=SimpleNamespace(OperationError=RuntimeError),
+        ),
+    )
 
     driver = object.__new__(OssStorageDriver)
     driver.bucket_name = "bucket"

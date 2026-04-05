@@ -40,10 +40,14 @@ vi.mock('#/components/business/ai-slide-panel/page-key-utils', () => ({
 }));
 
 vi.mock('#/utils/ai-page-capabilities', () => ({
-  normalizeCapabilityKeys: (value?: string | string[]) =>
-    Array.isArray(value) ? value : value ? [value] : [],
-  normalizeOperationNames: (value?: string | string[]) =>
-    Array.isArray(value) ? value : value ? [value] : [],
+  normalizeCapabilityKeys: (value?: string | string[]) => {
+    if (Array.isArray(value)) return value;
+    return value ? [value] : [];
+  },
+  normalizeOperationNames: (value?: string | string[]) => {
+    if (Array.isArray(value)) return value;
+    return value ? [value] : [];
+  },
   normalizePageAIMode: (mode?: string, fallback = 'operate') =>
     mode === 'disabled' || mode === 'context_only' || mode === 'operate'
       ? mode

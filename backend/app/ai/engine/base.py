@@ -31,7 +31,7 @@ from app.ai.events.types import (
     ExecutionFailed,
     ExecutionStarted,
 )
-from app.ai.runtime.types import CapabilityBundle, TurnRecord
+from app.ai.runtime.types import TurnRecord
 from app.services.ai.execution_trust_policy_service import (
     ExecutionTrustPolicyService,
 )
@@ -235,7 +235,7 @@ class BaseEngine(ABC):
     def _inject_runtime_summary(
         messages: list[ChatMessage],
         tools: list[ToolDefinition],
-        input_variables: dict[str, Any] | None = None,
+        _input_variables: dict[str, Any] | None = None,
         continuation_context: ResearchContinuationContext | None = None,
         selected_skill_names: list[str] | None = None,
         context_sources: list[Any] | None = None,
@@ -259,16 +259,20 @@ class BaseEngine(ABC):
 
         allowed_tool_names = [t.name for t in tools]
         summarized_intents = intent_plan or []
-        intent_summary = ", ".join(
-            intent.user_visible_label for intent in summarized_intents[:4]
-        ) or ", ".join(ordered_requested_families or []) or "direct_reply"
+        intent_summary = (
+            ", ".join(intent.user_visible_label for intent in summarized_intents[:4])
+            or ", ".join(ordered_requested_families or [])
+            or "direct_reply"
+        )
         hint = "\n\n" + render_prompt_contract(
             "tool_runtime_summary",
             execution_path=execution_path or "fast",
             intent_summary=intent_summary,
             allowed_tools=", ".join(allowed_tool_names) or "none",
             prompt_budget=(
-                execution_budget.max_prompt_tokens if execution_budget is not None else 0
+                execution_budget.max_prompt_tokens
+                if execution_budget is not None
+                else 0
             ),
             tool_round_budget=(
                 execution_budget.max_tool_rounds if execution_budget is not None else 0
@@ -360,8 +364,8 @@ class BaseEngine(ABC):
         has_data_tools = any(n.startswith("data_") for n in tool_names)
         data_distinction_note = ""
         if has_data_tools:
-            data_distinction_note = (
-                "\n" + render_prompt_contract("page_operations_data_distinction")
+            data_distinction_note = "\n" + render_prompt_contract(
+                "page_operations_data_distinction"
             )
 
         if has_dedicated_page_tools:
@@ -374,9 +378,8 @@ class BaseEngine(ABC):
             other_ops = [name for name in op_names if name not in pageop_tool_ops]
             screenshot_hint = ""
             if "capture_screenshot" in op_names:
-                screenshot_hint = (
-                    "\n"
-                    + render_prompt_contract("page_operations_screenshot_dedicated")
+                screenshot_hint = "\n" + render_prompt_contract(
+                    "page_operations_screenshot_dedicated"
                 )
             dedicated_hint = (
                 f"\nDedicated pageop_* tools available for: {', '.join(dedicated_ops)}"
@@ -405,8 +408,8 @@ class BaseEngine(ABC):
                 )
             editor_flow_hint = ""
             if "get_editor_html" in pageop_tool_ops:
-                editor_flow_hint = (
-                    "\n" + render_prompt_contract("page_operations_editor_flow")
+                editor_flow_hint = "\n" + render_prompt_contract(
+                    "page_operations_editor_flow"
                 )
             return "\n\n" + render_prompt_contract(
                 "page_operations_dedicated",
@@ -456,8 +459,8 @@ class BaseEngine(ABC):
 
         screenshot_guidance = ""
         if "capture_screenshot" in op_names:
-            screenshot_guidance = (
-                "\n" + render_prompt_contract("page_operations_screenshot_fallback")
+            screenshot_guidance = "\n" + render_prompt_contract(
+                "page_operations_screenshot_fallback"
             )
         mutation_ops = [
             str(o.get("name", ""))
@@ -1125,9 +1128,9 @@ class BaseEngine(ABC):
             return
         fam = cls._tool_family_for_name(func_name, input_variables)
         if fam == "web_research":
-            if func_name == "fetch_url":
-                completed_families.add("web_research")
-            elif func_name == "web_search" and not has_fetch_url_in_toolset:
+            if func_name == "fetch_url" or (
+                func_name == "web_search" and not has_fetch_url_in_toolset
+            ):
                 completed_families.add("web_research")
             return
         if fam in ordered_requested_families:
@@ -1304,7 +1307,9 @@ class BaseEngine(ABC):
         ):
             completed.add("page_summary")
 
-        rail_search_seen = any(mentions_rail_ticket(query) for query in successful_queries)
+        rail_search_seen = any(
+            mentions_rail_ticket(query) for query in successful_queries
+        )
         rail_fetch_seen = any(
             any(
                 token in url.lower()
@@ -1480,9 +1485,7 @@ class BaseEngine(ABC):
             )
         unfinished_line = ""
         if unfinished_intents:
-            unfinished_line = (
-                f"Unfinished requested intents: {', '.join(str(item) for item in unfinished_intents)}.\n"
-            )
+            unfinished_line = f"Unfinished requested intents: {', '.join(str(item) for item in unfinished_intents)}.\n"
         completed_line = ""
         if completed_intents:
             completed_line = (
@@ -2460,7 +2463,9 @@ class BaseEngine(ABC):
                 ),
                 None,
             )
-            active_intent_id = active_intent.intent_id if active_intent is not None else None
+            active_intent_id = (
+                active_intent.intent_id if active_intent is not None else None
+            )
             if active_intent is not None:
                 allowed_tool_names = (
                     candidate_tool_names
@@ -2475,7 +2480,9 @@ class BaseEngine(ABC):
                     reason=f"intent:{active_intent.kind}",
                 )
             tool_planner = ToolInvocationPlan(
-                intent=active_intent.kind if active_intent is not None else "direct_reply",
+                intent=active_intent.kind
+                if active_intent is not None
+                else "direct_reply",
                 family=active_intent.family if active_intent is not None else "none",
                 allow_no_tool=not bool(tools),
                 allow_family_continuation=bool(len(actionable_intents) > 1),
@@ -2931,7 +2938,9 @@ class BaseEngine(ABC):
             execution_budget.tool_rounds_used if execution_budget is not None else 0
         )
         tracked_tool_result_bytes = int(
-            execution_budget.tool_result_bytes_used if execution_budget is not None else 0
+            execution_budget.tool_result_bytes_used
+            if execution_budget is not None
+            else 0
         )
 
         def _round_tools_for_followup() -> list[ToolDefinition]:
@@ -3032,7 +3041,11 @@ class BaseEngine(ABC):
                 logger.info(
                     "Truncated assistant tool call batch after navigation op to avoid stale page follow-up calls: {}",
                     [
-                        str((tc.get("function") or {}).get("name") or tc.get("name") or "")
+                        str(
+                            (tc.get("function") or {}).get("name")
+                            or tc.get("name")
+                            or ""
+                        )
                         for tc in tool_calls
                     ],
                 )
@@ -3145,9 +3158,7 @@ class BaseEngine(ABC):
                     )
                     tracked_tool_result_bytes += len(
                         (
-                            single.tool_result.output
-                            or single.tool_result.error
-                            or ""
+                            single.tool_result.output or single.tool_result.error or ""
                         ).encode("utf-8")
                     )
                     if tool_result_budget_reason:
@@ -3203,7 +3214,12 @@ class BaseEngine(ABC):
             if skip_final_call:
                 if _round < round_limit - 1:
                     if BudgetGuard.pre_model_reason(execution_budget):
-                        return None, all_tool_results, total_tokens, completion_tokens_used
+                        return (
+                            None,
+                            all_tool_results,
+                            total_tokens,
+                            completion_tokens_used,
+                        )
                     _append_ordered_progress_hint()
                     round_tools = _round_tools_for_followup()
                     peek_response = await self._call_llm(
@@ -3234,7 +3250,12 @@ class BaseEngine(ABC):
                         completion_tokens=completion_tokens_used,
                         total_tokens=total_tokens,
                     ):
-                        return None, all_tool_results, total_tokens, completion_tokens_used
+                        return (
+                            None,
+                            all_tool_results,
+                            total_tokens,
+                            completion_tokens_used,
+                        )
                     if peek_response.tool_calls:
                         current_response = peek_response
                         continue

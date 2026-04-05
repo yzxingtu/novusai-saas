@@ -43,7 +43,6 @@ from app.plugins.exceptions import (
     PluginDependencyError,
     PluginError,
     PluginInstallError,
-    PluginSecurityError,
 )
 from app.plugins.lifecycle_guards import run_plugin_lifecycle_guards
 from app.plugins.loader import PLUGINS_DIR, PluginLoader
@@ -57,6 +56,7 @@ if TYPE_CHECKING:
     from app.models.system.plugin import Plugin
 
 logger = get_logger(__name__)
+
 
 def _log_lifecycle_action(
     action: str,
@@ -1487,8 +1487,9 @@ class PluginLifecycle:
             if plugin.status == PluginStatusEnum.ENABLED.value:
                 await self._sync_plugin_task_definitions(plugin.name, tasks)
                 mode = "sync_enabled"
-            elif plugin.status == PluginStatusEnum.ERROR.value and is_schedule_refresh_error_message(
-                plugin.error_message
+            elif (
+                plugin.status == PluginStatusEnum.ERROR.value
+                and is_schedule_refresh_error_message(plugin.error_message)
             ):
                 await self._sync_plugin_task_definitions(plugin.name, tasks)
                 mode = "recover_error"

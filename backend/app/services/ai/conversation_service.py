@@ -5,8 +5,8 @@
 Provides conversation list, detail, search, archive, delete and export.
 """
 
-import json
 import inspect
+import json
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 from unittest.mock import Mock
@@ -16,8 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.engine.output_parser import parse_output
 from app.ai.engine.types import ExecutionResult
-from app.ai.tools.types import ToolResult
 from app.ai.text_semantics import extract_public_attachment_reference
+from app.ai.tools.types import ToolResult
 from app.ai.types import ChatMessage
 from app.ai.utils.token_estimator import estimate_tokens
 from app.configs.service import PLATFORM_TENANT_ID
@@ -2263,12 +2263,16 @@ class ConversationService(
                 else {}
             )
         )
-        if not tool_loop_progress and isinstance(metadata.get("tool_loop_progress"), dict):
+        if not tool_loop_progress and isinstance(
+            metadata.get("tool_loop_progress"), dict
+        ):
             tool_loop_progress = dict(metadata.get("tool_loop_progress") or {})
         if not tool_loop_progress and isinstance(
             context_diagnostics.get("tool_loop_progress"), dict
         ):
-            tool_loop_progress = dict(context_diagnostics.get("tool_loop_progress") or {})
+            tool_loop_progress = dict(
+                context_diagnostics.get("tool_loop_progress") or {}
+            )
         if not tool_loop_progress and isinstance(
             last_run_summary.get("tool_loop_progress"), dict
         ):
@@ -2295,12 +2299,15 @@ class ConversationService(
             or context_diagnostics.get("budget")
             or last_run_summary.get("budget")
         )
-        routing = cls._normalize_json_dict(
-            metadata.get("routing")
-            or turn_record_diagnostics.get("routing")
-            or context_diagnostics.get("routing")
-            or last_run_summary.get("routing")
-        ) or {}
+        routing = (
+            cls._normalize_json_dict(
+                metadata.get("routing")
+                or turn_record_diagnostics.get("routing")
+                or context_diagnostics.get("routing")
+                or last_run_summary.get("routing")
+            )
+            or {}
+        )
         candidate_tool_names = cls._normalize_string_list(
             routing.get("candidate_tool_names")
             or metadata.get("candidate_tool_names")
@@ -2308,12 +2315,15 @@ class ConversationService(
             or context_diagnostics.get("candidate_tool_names")
             or last_run_summary.get("candidate_tool_names")
         )
-        recovery = cls._normalize_json_dict(
-            metadata.get("recovery")
-            or turn_record_diagnostics.get("recovery")
-            or context_diagnostics.get("recovery")
-            or last_run_summary.get("recovery")
-        ) or {}
+        recovery = (
+            cls._normalize_json_dict(
+                metadata.get("recovery")
+                or turn_record_diagnostics.get("recovery")
+                or context_diagnostics.get("recovery")
+                or last_run_summary.get("recovery")
+            )
+            or {}
+        )
         retry_events = cls._normalize_retry_events(
             recovery.get("retry_events")
             or metadata.get("retry_events")
@@ -2331,16 +2341,24 @@ class ConversationService(
         failure_kind = cls._to_non_empty_str(
             metadata.get("failure_kind")
             or turn_record_diagnostics.get("failure_kind")
-            or (cls._normalize_json_dict(metadata.get("failures")) or {}).get("failure_kind")
-            or (cls._normalize_json_dict(turn_record_diagnostics.get("failures")) or {}).get("failure_kind")
+            or (cls._normalize_json_dict(metadata.get("failures")) or {}).get(
+                "failure_kind"
+            )
+            or (
+                cls._normalize_json_dict(turn_record_diagnostics.get("failures")) or {}
+            ).get("failure_kind")
             or context_diagnostics.get("failure_kind")
             or last_run_summary.get("failure_kind")
         )
         provider_events = cls._normalize_provider_events(
             metadata.get("provider_events")
-            or (cls._normalize_json_dict(metadata.get("failures")) or {}).get("provider_events")
+            or (cls._normalize_json_dict(metadata.get("failures")) or {}).get(
+                "provider_events"
+            )
             or turn_record_diagnostics.get("provider_events")
-            or (cls._normalize_json_dict(turn_record_diagnostics.get("failures")) or {}).get("provider_events")
+            or (
+                cls._normalize_json_dict(turn_record_diagnostics.get("failures")) or {}
+            ).get("provider_events")
             or context_diagnostics.get("provider_events")
             or last_run_summary.get("provider_events")
         )
@@ -2361,9 +2379,7 @@ class ConversationService(
                 )
             )
         )
-        sync_rescue = (
-            bool(sync_rescue_raw) if sync_rescue_raw is not None else None
-        )
+        sync_rescue = bool(sync_rescue_raw) if sync_rescue_raw is not None else None
         should_record_call_log_raw = (
             turn_record_metadata.get("should_record_call_log")
             if "should_record_call_log" in turn_record_metadata
@@ -2694,9 +2710,7 @@ class ConversationService(
                 "last_tool_name"
             ]
         if turn_meta.get("last_page_key"):
-            effective_context_diagnostics["last_page_key"] = turn_meta[
-                "last_page_key"
-            ]
+            effective_context_diagnostics["last_page_key"] = turn_meta["last_page_key"]
         if turn_meta.get("last_page_op"):
             effective_context_diagnostics["last_page_op"] = turn_meta["last_page_op"]
         if turn_meta.get("interrupted_stage"):
@@ -2762,9 +2776,7 @@ class ConversationService(
         if turn_meta.get("failure_kind"):
             effective_last_run_summary["failure_kind"] = turn_meta["failure_kind"]
         if turn_meta.get("provider_events"):
-            effective_last_run_summary["provider_events"] = turn_meta[
-                "provider_events"
-            ]
+            effective_last_run_summary["provider_events"] = turn_meta["provider_events"]
         if turn_meta.get("contract_breach_type"):
             effective_last_run_summary["contract_breach_type"] = turn_meta[
                 "contract_breach_type"

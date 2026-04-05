@@ -15,17 +15,16 @@ Security guarantees / 安全保证：
 - If table has no tenant_column, execution is rejected / 如果表没有 tenant_column，拒绝执行
 """
 
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 from dataclasses import dataclass
 
+from app.ai.data_intelligence.schema_provider import TableSchema
 from app.ai.data_intelligence.sql_analysis import (
-    SQLTableReference,
     append_outer_where_conditions,
     extract_table_references,
     inject_outer_where_conditions,
 )
-from app.ai.data_intelligence.schema_provider import TableSchema
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.enums.common import UserRoleEnum

@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { useFormSchema } from '../data';
+
 const { useScopeFieldsMock } = vi.hoisted(() => ({
   useScopeFieldsMock: vi.fn(() => []),
 }));
@@ -22,8 +24,6 @@ vi.mock('#/components/business/scope-select/use-scope-fields', () => ({
 vi.mock('#/locales', () => ({
   $t: (key: string) => key,
 }));
-
-import { useFormSchema } from '../data';
 
 describe('admin agent form schema', () => {
   beforeEach(() => {

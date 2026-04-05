@@ -221,8 +221,10 @@ class PageOperationExecutor(BaseToolExecutor):
             if isinstance(result_data, dict)
             else result_data
         )
-        if operation_name == "navigate_menu" and success and isinstance(
-            llm_result_data, dict
+        if (
+            operation_name == "navigate_menu"
+            and success
+            and isinstance(llm_result_data, dict)
         ):
             destination_ready = bool(llm_result_data.get("destination_ready"))
             can_auto_continue = bool(llm_result_data.get("can_auto_continue"))
@@ -243,9 +245,7 @@ class PageOperationExecutor(BaseToolExecutor):
             llm_result_data["_page_ready"] = destination_ready
             llm_result_data["_can_auto_continue"] = can_auto_continue
             if destination_ready_reason:
-                llm_result_data["_destination_ready_reason"] = (
-                    destination_ready_reason
-                )
+                llm_result_data["_destination_ready_reason"] = destination_ready_reason
             page_ctx = llm_result_data.get("page_context")
             if isinstance(page_ctx, dict):
                 page_data = page_ctx.get("page_data")
@@ -259,7 +259,9 @@ class PageOperationExecutor(BaseToolExecutor):
                             if isinstance(op, dict) and op.get("name")
                         ]
                         if op_names:
-                            llm_result_data["_available_operation_names"] = op_names[:10]
+                            llm_result_data["_available_operation_names"] = op_names[
+                                :10
+                            ]
         screenshot_attachment = (
             _extract_screenshot_attachment(llm_result_data)
             if operation_name == "capture_screenshot"
@@ -448,9 +450,7 @@ class PageOperationExecutor(BaseToolExecutor):
                         "page_operation.hint.replace_section"
                     )
                     output += f"\n{hint}\nHTML:\n{html_content}"
-                    output += "\n" + render_prompt_contract(
-                        "page_operation_html_relay"
-                    )
+                    output += "\n" + render_prompt_contract("page_operation_html_relay")
                 # Agent Loop: suggest next step from context_diff / Agent 循环：据 context_diff 提示下一步
                 context_diff = llm_result_data.get("context_diff", {})
                 remaining_empty_fields = llm_result_data.get("remaining_empty_fields")
@@ -506,9 +506,7 @@ class PageOperationExecutor(BaseToolExecutor):
                     available_operation_names = llm_result_data.get(
                         "_available_operation_names", []
                     )
-                    can_auto_continue = bool(
-                        llm_result_data.get("_can_auto_continue")
-                    )
+                    can_auto_continue = bool(llm_result_data.get("_can_auto_continue"))
                     destination_ready = bool(llm_result_data.get("_page_ready"))
                     destination_ready_reason = str(
                         llm_result_data.get("_destination_ready_reason") or ""

@@ -13,8 +13,8 @@ from jose import ExpiredSignatureError, JWTError, jwt
 from pydantic import BaseModel as PydanticBaseModel
 from pydantic import ConfigDict, Field
 
-from app.core.base_model import utc_now
 from app.core.base_controller import GlobalController
+from app.core.base_model import utc_now
 from app.core.config import settings
 from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
@@ -172,9 +172,13 @@ def _decode_install_preview_token(token: str) -> dict:
             algorithms=[settings.ALGORITHM],
         )
     except ExpiredSignatureError as exc:
-        raise ValidationException(message=_("plugin.error.install_preview_expired")) from exc
+        raise ValidationException(
+            message=_("plugin.error.install_preview_expired")
+        ) from exc
     except JWTError as exc:
-        raise ValidationException(message=_("plugin.error.install_preview_invalid")) from exc
+        raise ValidationException(
+            message=_("plugin.error.install_preview_invalid")
+        ) from exc
 
     if payload.get("type") != _INSTALL_PREVIEW_TOKEN_TYPE:
         raise ValidationException(message=_("plugin.error.install_preview_invalid"))
@@ -194,7 +198,10 @@ def _assert_install_preview_token(
 
     if payload.get("source") != source:
         raise ValidationException(message=_("plugin.error.install_preview_invalid"))
-    if marketplace_slug is not None and payload.get("marketplace_slug") != marketplace_slug:
+    if (
+        marketplace_slug is not None
+        and payload.get("marketplace_slug") != marketplace_slug
+    ):
         raise ValidationException(message=_("plugin.error.install_preview_invalid"))
     if admin_id is not None and payload.get("admin_id") not in {None, int(admin_id)}:
         raise ValidationException(message=_("plugin.error.install_preview_invalid"))

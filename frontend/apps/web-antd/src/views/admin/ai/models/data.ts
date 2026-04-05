@@ -28,7 +28,9 @@ const OPENAI_COMPATIBLE_PROVIDER_TYPE = 'openai_compatible' as const;
 export function supportsReasoningEffort(
   modelCode: null | string | undefined,
 ): boolean {
-  const normalizedModelCode = String(modelCode || '').trim().toLowerCase();
+  const normalizedModelCode = String(modelCode || '')
+    .trim()
+    .toLowerCase();
   if (!normalizedModelCode) return false;
   return LEGACY_REASONING_MODEL_PREFIXES.some((prefix) =>
     normalizedModelCode.startsWith(prefix),
@@ -36,9 +38,9 @@ export function supportsReasoningEffort(
 }
 
 export function supportsAdvancedRuntimeParams(options: {
-  providerType?: null | ModelProviderType;
   modelCode?: null | string;
   modelType?: null | string;
+  providerType?: ModelProviderType | null;
 }): boolean {
   return (
     options.providerType === OPENAI_COMPATIBLE_PROVIDER_TYPE &&
@@ -66,11 +68,15 @@ export function getReasoningEffortOptions() {
 export function normalizeReasoningEffort(
   value: null | string | undefined,
 ): null | ReasoningEffort {
-  switch (String(value || '').trim().toLowerCase()) {
-    case 'none':
+  switch (
+    String(value || '')
+      .trim()
+      .toLowerCase()
+  ) {
+    case 'high':
     case 'low':
     case 'medium':
-    case 'high':
+    case 'none':
     case 'xhigh': {
       return String(value).trim().toLowerCase() as ReasoningEffort;
     }
@@ -80,10 +86,12 @@ export function normalizeReasoningEffort(
   }
 }
 
-export function extractLegacyReasoningAlias(modelCode: null | string | undefined): {
+export function extractLegacyReasoningAlias(
+  modelCode: null | string | undefined,
+): null | {
   reasoningEffort: null | ReasoningEffort;
   upstreamModel: string;
-} | null {
+} {
   const normalizedModelCode = String(modelCode || '').trim();
   if (!normalizedModelCode) return null;
 
@@ -92,7 +100,9 @@ export function extractLegacyReasoningAlias(modelCode: null | string | undefined
   const effortSegment = segments.at(-1);
   const baseModel = segments.slice(0, -1).join('-');
   if (
-    !LEGACY_REASONING_MODEL_PREFIXES.some((prefix) => baseModel.startsWith(prefix))
+    !LEGACY_REASONING_MODEL_PREFIXES.some((prefix) =>
+      baseModel.startsWith(prefix),
+    )
   ) {
     return null;
   }
@@ -108,7 +118,7 @@ export function extractLegacyReasoningAlias(modelCode: null | string | undefined
 
 export function getOpenAICompatibleRuntimeOverrides(
   config: AIModelConfig | null | undefined,
-): null | NonNullable<AIModelConfig['runtime_overrides']>['openai_compatible'] {
+): NonNullable<AIModelConfig['runtime_overrides']>['openai_compatible'] | null {
   const runtimeOverrides = config?.runtime_overrides;
   if (!runtimeOverrides || typeof runtimeOverrides !== 'object') {
     return null;
@@ -134,7 +144,9 @@ export function readConfiguredReasoningEffort(
   );
   if (chatEffort) return chatEffort;
 
-  const legacyReasoningEffort = normalizeReasoningEffort(config?.reasoning?.effort);
+  const legacyReasoningEffort = normalizeReasoningEffort(
+    config?.reasoning?.effort,
+  );
   if (legacyReasoningEffort) return legacyReasoningEffort;
 
   return normalizeReasoningEffort(
@@ -145,7 +157,7 @@ export function readConfiguredReasoningEffort(
 export function resolveReasoningEffort(
   config: AIModelConfig | null | undefined,
   modelCode?: null | string,
-  providerType?: null | ModelProviderType,
+  providerType?: ModelProviderType | null,
   modelType?: null | string,
 ): null | ReasoningEffort {
   const normalizedModelCode = resolveModelCodeForForm(config, modelCode);
@@ -167,21 +179,23 @@ export function resolveModelCodeForForm(
   const configEffort = readConfiguredReasoningEffort(config);
   if (configEffort) return String(modelCode || '');
   return (
-    extractLegacyReasoningAlias(modelCode)?.upstreamModel || String(modelCode || '')
+    extractLegacyReasoningAlias(modelCode)?.upstreamModel ||
+    String(modelCode || '')
   );
 }
 
 export function buildModelConfig(
   reasoningEffort: null | string | undefined,
   modelCode?: null | string,
-  providerType?: null | ModelProviderType,
+  providerType?: ModelProviderType | null,
   modelType?: null | string,
   configSnapshot?: AIModelConfig | null,
 ): AIModelConfig | null {
   const normalizedEffort = normalizeReasoningEffort(reasoningEffort);
-  const nextConfig: AIModelConfig = { ...(configSnapshot || {}) };
+  const nextConfig: AIModelConfig = { ...configSnapshot };
   const nextRuntimeOverrides =
-    nextConfig.runtime_overrides && typeof nextConfig.runtime_overrides === 'object'
+    nextConfig.runtime_overrides &&
+    typeof nextConfig.runtime_overrides === 'object'
       ? { ...nextConfig.runtime_overrides }
       : {};
   const nextOpenAIOverrides =
@@ -190,7 +204,8 @@ export function buildModelConfig(
       ? { ...nextRuntimeOverrides.openai_compatible }
       : {};
   const nextResponsesOverrides =
-    nextOpenAIOverrides.responses && typeof nextOpenAIOverrides.responses === 'object'
+    nextOpenAIOverrides.responses &&
+    typeof nextOpenAIOverrides.responses === 'object'
       ? { ...nextOpenAIOverrides.responses }
       : {};
   const nextChatOverrides =
@@ -278,7 +293,9 @@ export function buildModelPayload(
     supports_audio: values.supports_audio ?? false,
     supports_video: values.supports_video ?? false,
     supports_streaming: values.supports_streaming ?? true,
-    max_image_count: values.supports_vision ? values.max_image_count || 5 : null,
+    max_image_count: values.supports_vision
+      ? values.max_image_count || 5
+      : null,
     max_image_size_mb: values.supports_vision
       ? values.max_image_size_mb || 10
       : null,
@@ -297,7 +314,9 @@ export function buildModelPayload(
   };
 }
 
-export function buildModelFormValues(data: AIModelInfo): Record<string, unknown> {
+export function buildModelFormValues(
+  data: AIModelInfo,
+): Record<string, unknown> {
   return {
     name: data.name,
     code: resolveModelCodeForForm(data.config, data.code),
@@ -332,7 +351,7 @@ export function buildModelFormValues(data: AIModelInfo): Record<string, unknown>
 export function buildRemoteModelFormValues(
   modelId: string,
   providerId?: number,
-  providerType?: null | ModelProviderType,
+  providerType?: ModelProviderType | null,
   caps?: null | RemoteModelCapabilities,
 ): Record<string, unknown> {
   const defaults = getFormDefaults();

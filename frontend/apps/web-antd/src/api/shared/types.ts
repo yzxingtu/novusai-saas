@@ -115,6 +115,25 @@ export interface TenantUserInfo extends BaseUserInfo {
   email?: string;
 }
 
+/** Generic remote select option / 通用远程下拉选项 */
+export interface SelectOption<TExtra extends object = Record<string, unknown>> {
+  disabled?: boolean;
+  extra?: null | TExtra;
+  label: string;
+  value: number | string;
+}
+
+/** Generic paginated select response / 通用分页下拉响应 */
+export interface SelectResponse<
+  TExtra extends object = Record<string, unknown>,
+> {
+  has_more?: boolean;
+  items: Array<SelectOption<TExtra>>;
+  page?: number;
+  page_size?: number;
+  total?: number;
+}
+
 /** 偏好 JSON 对象 / Preferences JSON object */
 export type PreferencesData = Record<string, boolean | number | string>;
 

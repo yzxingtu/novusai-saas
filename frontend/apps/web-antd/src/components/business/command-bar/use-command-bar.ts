@@ -21,23 +21,13 @@ import type { Ref } from 'vue';
  */
 import type { MenuRecordRaw } from '@vben/types';
 
-import type {
-  AgentItem,
-  ConversationItem,
-} from '#/types/ai-chat';
+import type { AgentItem, ConversationItem } from '#/types/ai-chat';
 import type {
   MenuNavigationEntry,
   MenuNavigationSearchResult,
 } from '#/utils/menu-navigation';
 
-import {
-  computed,
-  onMounted,
-  onUnmounted,
-  ref,
-  unref,
-  watch,
-} from 'vue';
+import { computed, onMounted, onUnmounted, ref, unref, watch } from 'vue';
 
 import { $t } from '@vben/locales';
 

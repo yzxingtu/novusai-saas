@@ -70,12 +70,20 @@ async def test_tool_call_loop_injects_internal_screenshot_attachment_for_next_ll
     )
 
     llm_messages_seen: list[ChatMessage] = []
+    llm_call_count = 0
+    initial_total_tokens = 3
+    initial_output_tokens = 1
+    followup_total_tokens = 9
+    followup_output_tokens = 4
 
     async def _fake_call_llm(**kwargs):  # noqa: ANN003
+        nonlocal llm_call_count
+        llm_call_count += 1
         llm_messages_seen[:] = list(kwargs["messages"])
         return ChatResponse(
             message=ChatMessage(role="assistant", content="Visual analysis completed."),
-            total_tokens=9,
+            total_tokens=followup_total_tokens,
+            output_tokens=followup_output_tokens,
         )
 
     engine._call_llm = AsyncMock(side_effect=_fake_call_llm)  # type: ignore[method-assign]
@@ -92,7 +100,8 @@ async def test_tool_call_loop_injects_internal_screenshot_attachment_for_next_ll
     ]
     response = ChatResponse(
         message=ChatMessage(role="assistant", content=""),
-        total_tokens=3,
+        total_tokens=initial_total_tokens,
+        output_tokens=initial_output_tokens,
         tool_calls=[
             {
                 "id": "tc-shot",
@@ -107,7 +116,7 @@ async def test_tool_call_loop_injects_internal_screenshot_attachment_for_next_ll
         ],
     )
 
-    final_response, tool_results, total_tokens = await engine._handle_tool_calls(
+    final_response, tool_results, total_tokens, _completion_tokens = await engine._handle_tool_calls(
         agent=SimpleNamespace(id=1),
         messages=messages,
         response=response,
@@ -118,9 +127,14 @@ async def test_tool_call_loop_injects_internal_screenshot_attachment_for_next_ll
 
     assert final_response is not None
     assert final_response.message.content == "Visual analysis completed."
-    assert total_tokens == 12
+    assert total_tokens == (
+        initial_total_tokens + llm_call_count * followup_total_tokens
+    )
     assert len(tool_results) == 1
     assert tool_results[0].attachments == [screenshot_attachment]
+    assert _completion_tokens == (
+        initial_output_tokens + llm_call_count * followup_output_tokens
+    )
 
     internal_user = llm_messages_seen[-1]
     assert internal_user.role == "user"
@@ -148,12 +162,20 @@ async def test_tool_call_loop_executes_tool_after_pending_consent_is_approved() 
     )
 
     llm_messages_seen: list[ChatMessage] = []
+    llm_call_count = 0
+    initial_total_tokens = 3
+    initial_output_tokens = 2
+    followup_total_tokens = 7
+    followup_output_tokens = 5
 
     async def _fake_call_llm(**kwargs):  # noqa: ANN003
+        nonlocal llm_call_count
+        llm_call_count += 1
         llm_messages_seen[:] = list(kwargs["messages"])
         return ChatResponse(
             message=ChatMessage(role="assistant", content="北京当前 25C，晴。"),
-            total_tokens=7,
+            total_tokens=followup_total_tokens,
+            output_tokens=followup_output_tokens,
         )
 
     engine._call_llm = AsyncMock(side_effect=_fake_call_llm)  # type: ignore[method-assign]
@@ -176,7 +198,8 @@ async def test_tool_call_loop_executes_tool_after_pending_consent_is_approved() 
     ]
     response = ChatResponse(
         message=ChatMessage(role="assistant", content=""),
-        total_tokens=3,
+        total_tokens=initial_total_tokens,
+        output_tokens=initial_output_tokens,
         tool_calls=[
             {
                 "id": "tc-weather",
@@ -189,7 +212,7 @@ async def test_tool_call_loop_executes_tool_after_pending_consent_is_approved() 
         ],
     )
 
-    final_response, tool_results, total_tokens = await engine._handle_tool_calls(
+    final_response, tool_results, total_tokens, _completion_tokens = await engine._handle_tool_calls(
         agent=SimpleNamespace(id=1),
         messages=messages,
         response=response,
@@ -201,9 +224,14 @@ async def test_tool_call_loop_executes_tool_after_pending_consent_is_approved() 
 
     assert final_response is not None
     assert final_response.message.content == "北京当前 25C，晴。"
-    assert total_tokens == 10
+    assert total_tokens == (
+        initial_total_tokens + llm_call_count * followup_total_tokens
+    )
     assert len(tool_results) == 1
     assert tool_results[0].name == "get_current_weather"
     sandbox.execute.assert_awaited_once()
     assert llm_messages_seen[-1].role == "tool"
+    assert _completion_tokens == (
+        initial_output_tokens + llm_call_count * followup_output_tokens
+    )
     assert "25" in (llm_messages_seen[-1].content or "")

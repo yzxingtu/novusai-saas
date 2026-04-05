@@ -30,6 +30,7 @@ _ENV = Environment(
     undefined=ChainableUndefined,
 )
 
+
 class PromptContractName(StrEnum):
     """Stable template ids (``resources/*.md``) / 契约模板标识（对应 ``resources/*.md``）。"""
 

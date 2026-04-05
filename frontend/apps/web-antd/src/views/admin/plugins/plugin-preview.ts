@@ -66,7 +66,8 @@ function getInstallManifestDetails(
     return [];
   }
   return raw.filter(
-    (detail): detail is string => typeof detail === 'string' && detail.length > 0,
+    (detail): detail is string =>
+      typeof detail === 'string' && detail.length > 0,
   );
 }
 

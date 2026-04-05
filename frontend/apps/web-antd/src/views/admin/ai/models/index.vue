@@ -138,18 +138,10 @@ function showTestResultDetail(result: {
       'div',
       { class: 'space-y-2 text-sm' },
       items.map(([label, value]) =>
-        h(
-          'div',
-          { class: 'flex flex-col gap-1' },
-          [
-            h(
-              'span',
-              { class: 'text-xs text-muted-foreground' },
-              `${label}:`,
-            ),
-            h('span', { class: 'break-all text-foreground' }, value || '-'),
-          ],
-        ),
+        h('div', { class: 'flex flex-col gap-1' }, [
+          h('span', { class: 'text-xs text-muted-foreground' }, `${label}:`),
+          h('span', { class: 'break-all text-foreground' }, value || '-'),
+        ]),
       ),
     ),
   });

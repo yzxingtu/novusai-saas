@@ -1,8 +1,21 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { defineComponent, h } from 'vue';
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import PluginInstallWizard from '../modules/PluginInstallWizard.vue';
+
+interface MarketplacePluginTarget {
+  display_name: string;
+  name: string;
+  slug: string;
+  version: string;
+}
+
+interface PluginInstallWizardVm {
+  open: () => unknown;
+  openMarketplace: (target: MarketplacePluginTarget) => Promise<unknown>;
+}
 
 const mockRefs = vi.hoisted(() => ({
   installPluginApi: vi.fn(),
@@ -207,7 +220,7 @@ function buildPreviewResponse() {
   };
 }
 
-describe('PluginInstallWizard', () => {
+describe('pluginInstallWizard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRefs.marketplaceConfirmInstallApi.mockResolvedValue({});
@@ -220,8 +233,9 @@ describe('PluginInstallWizard', () => {
 
   it('uses preview token for marketplace install confirmations', async () => {
     const wrapper = mount(PluginInstallWizard);
+    const vm = wrapper.vm as unknown as PluginInstallWizardVm;
 
-    await (wrapper.vm as unknown as { openMarketplace: Function }).openMarketplace({
+    await vm.openMarketplace({
       slug: 'weather-widget',
       name: 'weather-widget',
       display_name: 'Weather Widget',
@@ -245,7 +259,10 @@ describe('PluginInstallWizard', () => {
       );
 
     expect(confirmButton).toBeTruthy();
-    await confirmButton!.trigger('click');
+    if (!confirmButton) {
+      throw new Error('Expected confirm install button to exist');
+    }
+    await confirmButton.trigger('click');
     await flushPromises();
 
     expect(mockRefs.marketplaceConfirmInstallApi).toHaveBeenCalledWith(
@@ -262,8 +279,9 @@ describe('PluginInstallWizard', () => {
 
   it('uses preview token for uploaded plugin installations', async () => {
     const wrapper = mount(PluginInstallWizard);
+    const vm = wrapper.vm as unknown as PluginInstallWizardVm;
 
-    (wrapper.vm as unknown as { open: Function }).open();
+    vm.open();
     await flushPromises();
 
     const uploadButton = wrapper.find('[data-testid="upload-dragger"]');
@@ -279,7 +297,10 @@ describe('PluginInstallWizard', () => {
       );
 
     expect(confirmButton).toBeTruthy();
-    await confirmButton!.trigger('click');
+    if (!confirmButton) {
+      throw new Error('Expected confirm install button to exist');
+    }
+    await confirmButton.trigger('click');
     await flushPromises();
 
     expect(mockRefs.installPluginApi).toHaveBeenCalledTimes(1);
@@ -299,8 +320,9 @@ describe('PluginInstallWizard', () => {
     });
 
     const wrapper = mount(PluginInstallWizard);
+    const vm = wrapper.vm as unknown as PluginInstallWizardVm;
 
-    await (wrapper.vm as unknown as { openMarketplace: Function }).openMarketplace({
+    await vm.openMarketplace({
       slug: 'weather-widget',
       name: 'weather-widget',
       display_name: 'Weather Widget',
@@ -320,6 +342,9 @@ describe('PluginInstallWizard', () => {
       );
 
     expect(confirmButton).toBeTruthy();
-    expect(confirmButton!.attributes('disabled')).toBeDefined();
+    if (!confirmButton) {
+      throw new Error('Expected confirm install button to exist');
+    }
+    expect(confirmButton.attributes('disabled')).toBeDefined();
   });
 });

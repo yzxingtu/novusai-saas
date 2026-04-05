@@ -11,10 +11,10 @@ import {
   Card,
   Empty,
   Input,
+  message,
   Modal,
   Spin,
   Tag,
-  message,
 } from 'ant-design-vue';
 
 import {
@@ -23,8 +23,8 @@ import {
   getSkillRegistryListApi,
   getSkillRegistryUpdatesApi,
   installSkillRegistryPackageApi,
-  previewSkillRegistryUpgradeApi,
   previewSkillRegistryInstallApi,
+  previewSkillRegistryUpgradeApi,
   upgradeSkillRegistryPackageApi,
 } from '#/api/admin/skill-registry';
 import { $t } from '#/locales';
@@ -44,13 +44,15 @@ const activeDetail = ref<null | SkillRegistryPackageItem>(null);
 const updatesBySlug = ref<Record<string, SkillRegistryUpdateItem>>({});
 const batchUpgrading = ref(false);
 const batchResultOpen = ref(false);
-const batchUpgradeResult = ref<null | Awaited<
+const batchUpgradeResult = ref<Awaited<
   ReturnType<typeof batchUpgradeSkillRegistryPackagesApi>
->>(null);
+> | null>(null);
 
 const stats = computed(() => {
   const installed = packages.value.filter((item) => item.is_installed).length;
-  const rated = packages.value.filter((item) => Number(item.rating || 0) > 0).length;
+  const rated = packages.value.filter(
+    (item) => Number(item.rating || 0) > 0,
+  ).length;
   return {
     installed,
     rated,
@@ -186,10 +188,16 @@ onMounted(loadPackages);
 
 <template>
   <div class="space-y-4">
-    <section class="rounded-3xl border border-border bg-background p-4 shadow-sm">
-      <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <section
+      class="rounded-3xl border border-border bg-background p-4 shadow-sm"
+    >
+      <div
+        class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"
+      >
         <div class="space-y-3">
-          <div class="inline-flex items-center gap-2 rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
+          <div
+            class="inline-flex items-center gap-2 rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700"
+          >
             <span class="size-2 rounded-full bg-sky-500"></span>
             {{ $t('admin.ai.skillRegistry.badge') }}
           </div>
@@ -204,26 +212,44 @@ onMounted(loadPackages);
         </div>
         <div class="grid grid-cols-2 gap-2 lg:min-w-[420px] lg:grid-cols-4">
           <div class="rounded-2xl bg-slate-50 p-3">
-            <div class="text-xs text-slate-500">{{ $t('admin.ai.skillRegistry.total') }}</div>
-            <div class="mt-1 text-xl font-semibold text-slate-900">{{ stats.total }}</div>
+            <div class="text-xs text-slate-500">
+              {{ $t('admin.ai.skillRegistry.total') }}
+            </div>
+            <div class="mt-1 text-xl font-semibold text-slate-900">
+              {{ stats.total }}
+            </div>
           </div>
           <div class="rounded-2xl bg-slate-50 p-3">
-            <div class="text-xs text-slate-500">{{ $t('admin.ai.skillRegistry.installed') }}</div>
-            <div class="mt-1 text-xl font-semibold text-slate-900">{{ stats.installed }}</div>
+            <div class="text-xs text-slate-500">
+              {{ $t('admin.ai.skillRegistry.installed') }}
+            </div>
+            <div class="mt-1 text-xl font-semibold text-slate-900">
+              {{ stats.installed }}
+            </div>
           </div>
           <div class="rounded-2xl bg-slate-50 p-3">
-            <div class="text-xs text-slate-500">{{ $t('admin.ai.skillRegistry.rated') }}</div>
-            <div class="mt-1 text-xl font-semibold text-slate-900">{{ stats.rated }}</div>
+            <div class="text-xs text-slate-500">
+              {{ $t('admin.ai.skillRegistry.rated') }}
+            </div>
+            <div class="mt-1 text-xl font-semibold text-slate-900">
+              {{ stats.rated }}
+            </div>
           </div>
           <div class="rounded-2xl bg-slate-50 p-3">
-            <div class="text-xs text-slate-500">{{ $t('admin.plugin.action.upgrade') }}</div>
-            <div class="mt-1 text-xl font-semibold text-slate-900">{{ stats.upgradable }}</div>
+            <div class="text-xs text-slate-500">
+              {{ $t('admin.plugin.action.upgrade') }}
+            </div>
+            <div class="mt-1 text-xl font-semibold text-slate-900">
+              {{ stats.upgradable }}
+            </div>
           </div>
         </div>
       </div>
     </section>
 
-    <section class="rounded-3xl border border-border bg-background p-4 shadow-sm">
+    <section
+      class="rounded-3xl border border-border bg-background p-4 shadow-sm"
+    >
       <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
         <Input
           v-model:value="keyword"
@@ -276,7 +302,9 @@ onMounted(loadPackages);
       </div>
     </section>
 
-    <section class="rounded-3xl border border-border bg-background p-4 shadow-sm">
+    <section
+      class="rounded-3xl border border-border bg-background p-4 shadow-sm"
+    >
       <div v-if="loading" class="flex items-center justify-center py-16">
         <Spin />
       </div>
@@ -297,7 +325,9 @@ onMounted(loadPackages);
                   {{ item.display_name || item.name || item.slug }}
                 </div>
                 <div class="mt-1 text-xs text-slate-500">
-                  {{ item.author || $t('admin.ai.skillRegistry.unknownAuthor') }}
+                  {{
+                    item.author || $t('admin.ai.skillRegistry.unknownAuthor')
+                  }}
                 </div>
               </div>
               <Tag v-if="item.is_installed" color="success">
@@ -309,7 +339,10 @@ onMounted(loadPackages);
             </div>
 
             <p class="min-h-[66px] text-sm leading-6 text-slate-600">
-              {{ item.description || $t('admin.ai.skillRegistry.emptyDescription') }}
+              {{
+                item.description ||
+                $t('admin.ai.skillRegistry.emptyDescription')
+              }}
             </p>
 
             <div class="flex flex-wrap gap-1.5">
@@ -331,11 +364,15 @@ onMounted(loadPackages);
               </div>
               <div>
                 <div>{{ $t('admin.ai.skillRegistry.downloads') }}</div>
-                <div class="mt-1 font-medium text-slate-900">{{ item.downloads || 0 }}</div>
+                <div class="mt-1 font-medium text-slate-900">
+                  {{ item.downloads || 0 }}
+                </div>
               </div>
               <div>
                 <div>{{ $t('admin.ai.skillRegistry.rating') }}</div>
-                <div class="mt-1 font-medium text-slate-900">{{ item.rating || '-' }}</div>
+                <div class="mt-1 font-medium text-slate-900">
+                  {{ item.rating || '-' }}
+                </div>
               </div>
             </div>
 
@@ -348,8 +385,12 @@ onMounted(loadPackages);
                 type="primary"
                 class="flex-1"
                 :disabled="Boolean(item.is_installed) && !item.can_upgrade"
-                :loading="installingSlug === item.slug || upgradingSlug === item.slug"
-                @click="item.can_upgrade ? upgradePackage(item) : installPackage(item)"
+                :loading="
+                  installingSlug === item.slug || upgradingSlug === item.slug
+                "
+                @click="
+                  item.can_upgrade ? upgradePackage(item) : installPackage(item)
+                "
               >
                 {{
                   item.can_upgrade
@@ -368,7 +409,9 @@ onMounted(loadPackages);
 
     <Modal
       v-model:open="detailOpen"
-      :title="activeDetail?.display_name || activeDetail?.name || activeDetail?.slug"
+      :title="
+        activeDetail?.display_name || activeDetail?.name || activeDetail?.slug
+      "
       :footer="null"
       width="880px"
       destroy-on-close
@@ -378,11 +421,16 @@ onMounted(loadPackages);
       </div>
       <div v-else-if="activeDetail" class="space-y-4">
         <p class="text-sm leading-6 text-slate-600">
-          {{ activeDetail.description || $t('admin.ai.skillRegistry.emptyDescription') }}
+          {{
+            activeDetail.description ||
+            $t('admin.ai.skillRegistry.emptyDescription')
+          }}
         </p>
         <div class="grid gap-3 md:grid-cols-3">
           <div class="rounded-2xl bg-slate-50 p-3">
-            <div class="text-xs text-slate-500">{{ $t('admin.ai.skillRegistry.version') }}</div>
+            <div class="text-xs text-slate-500">
+              {{ $t('admin.ai.skillRegistry.version') }}
+            </div>
             <div class="mt-1 text-sm font-medium text-slate-900">
               {{
                 activeDetail.can_upgrade
@@ -392,18 +440,27 @@ onMounted(loadPackages);
             </div>
           </div>
           <div class="rounded-2xl bg-slate-50 p-3">
-            <div class="text-xs text-slate-500">{{ $t('admin.ai.skillRegistry.downloads') }}</div>
-            <div class="mt-1 text-sm font-medium text-slate-900">{{ activeDetail.downloads || 0 }}</div>
+            <div class="text-xs text-slate-500">
+              {{ $t('admin.ai.skillRegistry.downloads') }}
+            </div>
+            <div class="mt-1 text-sm font-medium text-slate-900">
+              {{ activeDetail.downloads || 0 }}
+            </div>
           </div>
           <div class="rounded-2xl bg-slate-50 p-3">
-            <div class="text-xs text-slate-500">{{ $t('admin.ai.skillRegistry.rating') }}</div>
-            <div class="mt-1 text-sm font-medium text-slate-900">{{ activeDetail.rating || '-' }}</div>
+            <div class="text-xs text-slate-500">
+              {{ $t('admin.ai.skillRegistry.rating') }}
+            </div>
+            <div class="mt-1 text-sm font-medium text-slate-900">
+              {{ activeDetail.rating || '-' }}
+            </div>
           </div>
         </div>
         <pre
           v-if="activeDetail.source_url"
           class="overflow-auto rounded-2xl bg-slate-50 p-3 text-xs text-slate-600"
-        >{{ activeDetail.source_url }}</pre>
+          >{{ activeDetail.source_url }}</pre
+        >
         <Tag v-if="activeDetail.source_locked" color="processing">
           {{ $t('admin.ai.skillRegistry.sourceLocked') }}
         </Tag>
@@ -411,7 +468,14 @@ onMounted(loadPackages);
           <h3 class="text-sm font-semibold text-slate-900">
             {{ $t('admin.ai.skillRegistry.readme') }}
           </h3>
-          <pre class="max-h-[320px] overflow-auto rounded-2xl bg-slate-950/95 p-4 text-xs leading-6 text-slate-100">{{ activeDetail.readme || activeDetail.changelog || $t('admin.ai.skillRegistry.noReadme') }}</pre>
+          <pre
+            class="max-h-[320px] overflow-auto rounded-2xl bg-slate-950/95 p-4 text-xs leading-6 text-slate-100"
+            >{{
+              activeDetail.readme ||
+              activeDetail.changelog ||
+              $t('admin.ai.skillRegistry.noReadme')
+            }}</pre
+          >
         </div>
       </div>
     </Modal>
@@ -473,7 +537,9 @@ onMounted(loadPackages);
                     {{ item.latest_version || '-' }}
                   </div>
                 </div>
-                <Tag color="success">{{ $t('admin.plugin.action.upgrade') }}</Tag>
+                <Tag color="success">
+                  {{ $t('admin.plugin.action.upgrade') }}
+                </Tag>
               </div>
             </div>
           </div>

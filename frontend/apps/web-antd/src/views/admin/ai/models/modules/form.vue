@@ -7,7 +7,11 @@
  * 选择供应商后自动拉取远程模型列表，选择后自动填充 name 和 code
  */
 import type { VbenFormSchema } from '#/adapter/form';
-import type { AIModelConfig, AIModelInfo, RemoteModelInfo } from '#/api/admin/ai';
+import type {
+  AIModelConfig,
+  AIModelInfo,
+  RemoteModelInfo,
+} from '#/api/admin/ai';
 
 import { computed, ref, watch } from 'vue';
 
@@ -59,7 +63,9 @@ const { Drawer, isEdit, recordId } = useCrudDrawer<AIModelInfo>({
   transform: (values) => buildModelPayload(values, configSnapshot.value),
   toFormValues: (data) => {
     configSnapshot.value =
-      data.config && typeof data.config === 'object' ? { ...data.config } : null;
+      data.config && typeof data.config === 'object'
+        ? { ...data.config }
+        : null;
     currentProviderId.value = data.provider_id;
     currentProviderType.value = data.provider_type || null;
     if (!data.provider_type && data.provider_id) {
@@ -83,7 +89,7 @@ const remoteModels = ref<RemoteModelInfo[]>([]);
 const remoteLoading = ref(false);
 const selectedRemoteModel = ref<string | undefined>(undefined);
 const currentProviderId = ref<number | undefined>(undefined);
-const currentProviderType = ref<string | null>(null);
+const currentProviderType = ref<null | string>(null);
 
 const remoteModelOptions = computed(() =>
   remoteModels.value.map((m) => ({

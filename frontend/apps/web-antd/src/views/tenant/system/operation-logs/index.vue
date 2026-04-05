@@ -5,16 +5,14 @@
  */
 import type { tenantApi } from '#/api';
 
-import { onMounted, ref } from 'vue';
-
 import { Page, useVbenDrawer } from '@vben/common-ui';
 
-import { Avatar, Card, Tag, Tooltip } from 'ant-design-vue';
+import { Card, Tag, Tooltip } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
 import { tenantApi as tenant } from '#/api';
+import IdentityDisplay from '#/components/business/identity-display/IdentityDisplay.vue';
 import { formatDate, formatRelativeTime } from '#/utils/common';
-import { toAvatarDisplayUrl } from '#/utils/image';
 
 import {
   getMethodColor,
@@ -40,6 +38,29 @@ const [DetailDrawerComp, detailDrawerApi] = useVbenDrawer({
  */
 function onViewDetail(row: OperationLogInfo) {
   detailDrawerApi.setData({ id: row.id }).open();
+}
+
+function buildOperatorIdentityModel(row: OperationLogInfo) {
+  return {
+    avatar: row.avatar,
+    badges: row.userType
+      ? [
+          {
+            color: getUserTypeColor(row.userType),
+            key: `type-${row.id}`,
+            label: getUserTypeLabel(row.userType),
+          },
+        ]
+      : [],
+    displayName: row.displayName,
+    id: row.userId ?? row.id,
+    isActive: row.isActive,
+    isLeader: row.isLeader,
+    isOwner: row.isOwner,
+    nickname: row.nickname || row.username,
+    orgNodeName: row.orgNodeName,
+    roleName: row.roleName,
+  };
 }
 
 // User type filter linkage: after selecting type, operator dropdown only shows users of that type / 用户类型筛选联动：选择类型后，操作人下拉只显示对应类型的用户
@@ -72,26 +93,6 @@ const { Grid, gridApi } = useCrudPage<OperationLogInfo>({
     detail: onViewDetail,
   },
 });
-
-// Avatar map (for table row avatar display) / 头像映射（用于表格行显示头像）
-const avatarMap = ref<Record<number, null | string | undefined>>({});
-
-async function loadAvatarMap() {
-  try {
-    const list = await tenant.getOperatorsApi();
-    const map: Record<number, null | string | undefined> = {};
-    for (const op of list) {
-      if (op.user_id) map[op.user_id] = op.avatar;
-    }
-    avatarMap.value = map;
-  } catch {
-    // ignore / 忽略非关键错误
-  }
-}
-
-onMounted(() => {
-  loadAvatarMap();
-});
 </script>
 
 <template>
@@ -103,39 +104,10 @@ onMounted(() => {
       <Grid>
         <!-- 用户名列（含头像 + 用户类型标签） -->
         <template #username_cell="{ row }">
-          <div class="flex items-center gap-2">
-            <Avatar
-              v-if="row.userId && avatarMap[row.userId]"
-              :src="toAvatarDisplayUrl(avatarMap[row.userId])"
-              :size="28"
-            />
-            <Avatar
-              v-else
-              :size="28"
-              class="flex-shrink-0 bg-primary/10 text-xs text-primary"
-            >
-              {{ (row.nickname || row.username || '?').charAt(0) }}
-            </Avatar>
-            <div class="min-w-0 flex-1">
-              <div class="flex items-center gap-1">
-                <span class="truncate text-sm font-medium text-foreground">
-                  {{ row.nickname || row.username }}
-                </span>
-                <Tag
-                  :color="getUserTypeColor(row.userType)"
-                  class="!m-0 !text-[10px] !leading-tight"
-                >
-                  {{ getUserTypeLabel(row.userType) }}
-                </Tag>
-              </div>
-              <div
-                v-if="row.nickname"
-                class="truncate text-xs text-muted-foreground"
-              >
-                {{ row.username }}
-              </div>
-            </div>
-          </div>
+          <IdentityDisplay
+            :avatar-size="32"
+            :model="buildOperatorIdentityModel(row)"
+          />
         </template>
 
         <!-- 模块列 -->

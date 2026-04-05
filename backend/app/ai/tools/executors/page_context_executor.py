@@ -146,7 +146,9 @@ class PageContextExecutor(BaseToolExecutor):
                 tool_call_id=tool_call_id,
                 name=definition.name,
                 success=True,
-                output=render_prompt_contract("page_context_repeated", page_key=page_key),
+                output=render_prompt_contract(
+                    "page_context_repeated", page_key=page_key
+                ),
                 duration_ms=int((time.perf_counter() - start) * 1000),
             )
 

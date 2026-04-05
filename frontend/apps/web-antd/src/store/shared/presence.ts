@@ -10,6 +10,7 @@ import { reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import { useAccessStore, useTabbarStore, useUserStore } from '@vben/stores';
+
 import { Modal } from 'ant-design-vue';
 import { defineStore } from 'pinia';
 
@@ -23,9 +24,9 @@ import { $t } from '#/locales';
 import { requestClient } from '#/utils/request';
 import { clearPersistedTabbarStorage } from '#/utils/tabbar-storage';
 
-import { TokenStorage } from './token-storage';
 import { useNotificationStore } from './notification';
 import { useSocketIOStore } from './socketio';
+import { TokenStorage } from './token-storage';
 import { useUserPreferenceStore } from './user-preference';
 
 /** Presence detail / 在线状态详情 */

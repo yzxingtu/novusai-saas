@@ -192,9 +192,7 @@ def _scan_file(source: str, filename: str, result: SecurityScanResult) -> None:
     try:
         tree = ast.parse(source, filename=filename)
     except SyntaxError:
-        result.warnings.append(
-            _("plugin.preview.security.syntax_error", file=filename)
-        )
+        result.warnings.append(_("plugin.preview.security.syntax_error", file=filename))
         return
 
     for node in ast.walk(tree):

@@ -15,8 +15,8 @@ import { $t } from '#/locales';
 
 import {
   getFormDefaults,
-  hasLikelyMissingProviderApiVersion,
   hasForbiddenProviderEndpointSuffix,
+  hasLikelyMissingProviderApiVersion,
   isResponsesToolHistoryCompatEnabled,
   normalizeProviderBaseUrlInput,
   resolveProviderWireApi,
@@ -58,7 +58,9 @@ const { Drawer, isEdit } = useCrudDrawer<AIProviderInfo>({
         typeof values.type === 'string' ? values.type : null,
       )
     ) {
-      message.warning($t('admin.ai.provider.validation.baseUrlLikelyMissingVersion'));
+      message.warning(
+        $t('admin.ai.provider.validation.baseUrlLikelyMissingVersion'),
+      );
     }
 
     const effectiveWireApi = resolveProviderWireApi(

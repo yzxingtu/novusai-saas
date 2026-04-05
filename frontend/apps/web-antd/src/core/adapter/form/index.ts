@@ -12,6 +12,7 @@ export {
   dateField,
   dividerField,
   iconField,
+  identityRemoteSelect,
   inputField,
   numberField,
   searchDateRange,
@@ -26,6 +27,7 @@ export {
 // Type exports / 类型导出
 export type {
   ApiSelectOptions,
+  IdentityRemoteSelectOptions,
   SearchDateRangeOptions,
   SearchInputOptions,
   StatusSelectOptions,

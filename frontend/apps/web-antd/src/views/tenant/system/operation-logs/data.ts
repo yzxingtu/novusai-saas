@@ -5,7 +5,11 @@ import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 import type { tenantApi } from '#/api';
 
-import { searchDateRange, searchInput, select } from '#/adapter/form';
+import {
+  identityRemoteSelect,
+  searchDateRange,
+  searchInput,
+} from '#/adapter/form';
 import { getOperatorsSelectApi } from '#/api/tenant/operation-log';
 import { $t } from '#/locales';
 
@@ -198,9 +202,16 @@ export function useGridFormSchema(
   options?: GridFormSchemaOptions,
 ): VbenFormSchema[] {
   return [
-    select('filter[username]', $t('tenant.system.operationLog.username'), {
+    identityRemoteSelect({
+      fieldName: 'filter[username]',
+      label: $t('tenant.system.operationLog.username'),
       api: getOperatorsSelectApi,
+      displayField: 'displayName',
+      displayFallbackFields: ['nickname', 'label', 'username'],
       placeholder: $t('tenant.system.operationLog.placeholder.searchUsername'),
+      componentProps: {
+        showSecondaryText: false,
+      },
     }),
     {
       component: 'Select',

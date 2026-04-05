@@ -25,8 +25,8 @@ from app.ai.prompt_contracts import render_prompt_contract
 from app.ai.routing.router import ModelRouter
 from app.ai.text_semantics import (
     collapse_whitespace,
-    extract_first_json_object_with_key,
     extract_fenced_json_block,
+    extract_first_json_object_with_key,
 )
 from app.configs.service import PLATFORM_TENANT_ID
 from app.core.i18n import _
@@ -686,7 +686,7 @@ class AgentRouterService:
                     return {
                         "agent_id": int(data["agent_id"]),
                         "confidence": float(data.get("confidence", 0.5)),
-                }
+                    }
             except (json.JSONDecodeError, ValueError, TypeError):
                 pass
 
@@ -1004,7 +1004,10 @@ class AgentRouterService:
             for item in raw_operations
             if isinstance(item, dict)
         }
-        return "navigate_menu" in operation_names or "list_available_menus" in operation_names
+        return (
+            "navigate_menu" in operation_names
+            or "list_available_menus" in operation_names
+        )
 
     @classmethod
     def _requires_page_operation_routing(
@@ -1038,7 +1041,10 @@ class AgentRouterService:
         if has_navigation_request:
             return True
 
-        if cls._page_context_supports_navigation(page_context) and has_navigation_request:
+        if (
+            cls._page_context_supports_navigation(page_context)
+            and has_navigation_request
+        ):
             return True
 
         if not has_action_token:

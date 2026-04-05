@@ -12,7 +12,7 @@ import { requestClient } from '#/utils/request';
 
 /** Model type / 模型类型 */
 export type ModelType = 'chat' | 'embedding' | 'image';
-export type ReasoningEffort = 'none' | 'low' | 'medium' | 'high' | 'xhigh';
+export type ReasoningEffort = 'high' | 'low' | 'medium' | 'none' | 'xhigh';
 export type ModelProviderType = 'openai_compatible' | string;
 
 export interface AIModelReasoningConfig {
@@ -79,7 +79,7 @@ export interface AIModelInfo {
   fallback_model_name: null | string;
   tier: null | string;
   provider_name: null | string;
-  provider_type?: null | ModelProviderType;
+  provider_type?: ModelProviderType | null;
   provider_icon?: null | string;
   created_at: string;
   updated_at: string;

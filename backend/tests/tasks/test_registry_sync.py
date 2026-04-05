@@ -311,7 +311,7 @@ class TestSyncLitellmRegistryTask:
     def test_return_fields_present(
         self, mock_get: MagicMock, mock_redis: MagicMock, mock_logger: MagicMock
     ) -> None:
-        """Return dict has model_count, litellm_keys, llmring_added_keys; info log has source/metrics."""
+        """Return dict has model_count, litellm_keys, supplement metrics; info log has source/metrics."""
         litellm_resp = MagicMock()
         litellm_resp.raise_for_status = MagicMock()
         litellm_resp.json.return_value = self._make_litellm_response()
@@ -333,15 +333,17 @@ class TestSyncLitellmRegistryTask:
         assert "model_count" in result
         assert "litellm_keys" in result
         assert "llmring_added_keys" in result
+        assert "dashscope_added_keys" in result
         assert result["model_count"] > 0
         assert result["litellm_keys"] > 0
 
         mock_logger.info.assert_called_once()
         call_args = mock_logger.info.call_args
         assert call_args[0][0] == (
-            "LiteLLM registry synced: source={} models={} litellm_keys={} llmring_added={}"
+            "LiteLLM registry synced: source={} models={} litellm_keys={} llmring_added={} dashscope_added={}"
         )
         assert call_args[0][1] == result["source"]
         assert call_args[0][2] == result["model_count"]
         assert call_args[0][3] == result["litellm_keys"]
         assert call_args[0][4] == result["llmring_added_keys"]
+        assert call_args[0][5] == result["dashscope_added_keys"]

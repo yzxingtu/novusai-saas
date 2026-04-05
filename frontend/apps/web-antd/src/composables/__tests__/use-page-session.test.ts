@@ -29,7 +29,10 @@ describe('usePageSession', () => {
 
   it('generates an initial page session id and refreshes it on route change', async () => {
     vi.stubGlobal('crypto', {
-      randomUUID: vi.fn().mockReturnValueOnce('uuid-1').mockReturnValueOnce('uuid-2'),
+      randomUUID: vi
+        .fn()
+        .mockReturnValueOnce('uuid-1')
+        .mockReturnValueOnce('uuid-2'),
     });
 
     const module = await import('../use-page-session');

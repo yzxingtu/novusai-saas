@@ -3,14 +3,22 @@ Shared SQL analysis helpers for AI runtime guards.
 AI 运行时安全链路共享的 SQL 解析辅助工具。
 """
 
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 from dataclasses import dataclass
-from typing import Iterable
+from collections.abc import Iterable
 
 import sqlparse
-from sqlparse.sql import Function, Identifier, IdentifierList, Parenthesis, Statement, TokenList, Where
-from sqlparse.tokens import Comment, DML, Keyword, Newline, Whitespace
+from sqlparse.sql import (
+    Function,
+    Identifier,
+    IdentifierList,
+    Parenthesis,
+    Statement,
+    TokenList,
+    Where,
+)
+from sqlparse.tokens import DML, Comment, Keyword, Newline, Whitespace
 
 _SOURCE_KEYWORDS = {
     "FROM",
@@ -132,7 +140,11 @@ def extract_table_references(sql: str) -> list[SQLTableReference]:
     def _walk(token_list: TokenList) -> None:
         expect_source = False
         for token in _iter_meaningful_tokens(token_list):
-            normalized = token.normalized.upper() if hasattr(token, "normalized") else str(token).upper()
+            normalized = (
+                token.normalized.upper()
+                if hasattr(token, "normalized")
+                else str(token).upper()
+            )
             if token.ttype in Keyword and normalized in _SOURCE_KEYWORDS:
                 expect_source = True
                 continue
@@ -151,7 +163,9 @@ def extract_table_references(sql: str) -> list[SQLTableReference]:
                     if lowered in cte_names or lowered in _NON_TABLE_NAMES:
                         continue
                     alias = str(identifier.get_alias() or "").strip() or None
-                    schema_name = str(identifier.get_parent_name() or "").strip() or None
+                    schema_name = (
+                        str(identifier.get_parent_name() or "").strip() or None
+                    )
                     key = (
                         schema_name.lower() if schema_name else None,
                         lowered,
@@ -203,7 +217,10 @@ def extract_select_aggregates(sql: str) -> list[str]:
     seen: set[str] = set()
     for expression in expressions:
         function_name, argument = _extract_leading_function_call(expression)
-        if function_name not in {"count", "sum", "avg", "min", "max"} or argument is None:
+        if (
+            function_name not in {"count", "sum", "avg", "min", "max"}
+            or argument is None
+        ):
             continue
         formatted = f"{function_name.upper()}({_normalize_inline_whitespace(argument)})"
         key = formatted.lower()
@@ -214,13 +231,17 @@ def extract_select_aggregates(sql: str) -> list[str]:
     return metrics
 
 
-def extract_group_by_expressions(sql: str, *, max_items: int | None = None) -> list[str]:
+def extract_group_by_expressions(
+    sql: str, *, max_items: int | None = None
+) -> list[str]:
     expressions = _extract_top_level_clause_expressions(
         statement=parse_sql_statement(sql),
         start_keywords={"GROUP BY"},
         stop_keywords=_TRAILING_CLAUSE_KEYWORDS,
     )
-    normalized = [_normalize_inline_whitespace(item) for item in expressions if item.strip()]
+    normalized = [
+        _normalize_inline_whitespace(item) for item in expressions if item.strip()
+    ]
     if max_items is not None and max_items >= 0:
         return normalized[:max_items]
     return normalized
@@ -336,7 +357,9 @@ def _extract_cte_names(statement: Statement) -> set[str]:
         if token.ttype in DML and token.normalized.upper() == "SELECT":
             break
         for identifier in _iter_cte_identifiers(token):
-            name = str(identifier.get_real_name() or identifier.get_name() or "").strip()
+            name = str(
+                identifier.get_real_name() or identifier.get_name() or ""
+            ).strip()
             if name:
                 names.add(name.lower())
     return names
@@ -344,7 +367,11 @@ def _extract_cte_names(statement: Statement) -> set[str]:
 
 def _iter_cte_identifiers(token) -> Iterable[Identifier]:
     if isinstance(token, Identifier):
-        return [token] if any(isinstance(child, Parenthesis) for child in token.tokens) else []
+        return (
+            [token]
+            if any(isinstance(child, Parenthesis) for child in token.tokens)
+            else []
+        )
     if isinstance(token, IdentifierList):
         return [
             identifier
@@ -356,8 +383,7 @@ def _iter_cte_identifiers(token) -> Iterable[Identifier]:
 
 
 def _iter_top_level_meaningful_tokens(statement: Statement):
-    for token in _iter_meaningful_tokens(statement):
-        yield token
+    yield from _iter_meaningful_tokens(statement)
 
 
 def _iter_meaningful_tokens(token_list: TokenList):
@@ -380,7 +406,10 @@ def _find_trailing_clause_start(offsets) -> int | None:
     for token, start, _ in offsets:
         if token.is_whitespace or token.ttype in (Whitespace, Newline):
             continue
-        if token.ttype in Keyword and token.normalized.upper() in _TRAILING_CLAUSE_KEYWORDS:
+        if (
+            token.ttype in Keyword
+            and token.normalized.upper() in _TRAILING_CLAUSE_KEYWORDS
+        ):
             return start
     return None
 
@@ -397,7 +426,11 @@ def _extract_top_level_clause_expressions(
     collecting = False
     parts: list[str] = []
     for token in _iter_top_level_meaningful_tokens(statement):
-        normalized = token.normalized.upper() if hasattr(token, "normalized") else str(token).upper()
+        normalized = (
+            token.normalized.upper()
+            if hasattr(token, "normalized")
+            else str(token).upper()
+        )
         if not collecting:
             if normalized in start_keywords:
                 collecting = True
@@ -490,7 +523,9 @@ def _extract_leading_function_call(expression: str) -> tuple[str | None, str | N
     return function_name, argument
 
 
-def _extract_parenthesized_segment(text: str, start_index: int) -> tuple[str | None, int]:
+def _extract_parenthesized_segment(
+    text: str, start_index: int
+) -> tuple[str | None, int]:
     depth = 0
     content: list[str] = []
     in_single_quote = False

@@ -17,13 +17,21 @@ from .types import ProviderFailureKind
 
 class FailureClassifier:
     @staticmethod
-    def classify_exception(exc: BaseException) -> tuple[ProviderFailureKind, dict[str, Any]]:
+    def classify_exception(
+        exc: BaseException,
+    ) -> tuple[ProviderFailureKind, dict[str, Any]]:
         if isinstance(exc, ProviderTimeoutError):
             return "provider_timeout", {"kind": "provider_timeout", "error": str(exc)}
         if isinstance(exc, ProviderRateLimitError):
-            return "provider_rate_limit", {"kind": "provider_rate_limit", "error": str(exc)}
+            return "provider_rate_limit", {
+                "kind": "provider_rate_limit",
+                "error": str(exc),
+            }
         if isinstance(exc, ProviderConnectionError):
-            return "provider_unavailable", {"kind": "provider_unavailable", "error": str(exc)}
+            return "provider_unavailable", {
+                "kind": "provider_unavailable",
+                "error": str(exc),
+            }
         if isinstance(exc, AIGatewayError):
             status_code = int(getattr(exc, "status_code", 0) or 0)
             if 500 <= status_code < 600:
@@ -42,7 +50,9 @@ class FailureClassifier:
         return "none", {}
 
     @staticmethod
-    def classify_tool_results(tool_results: list[ToolResult]) -> tuple[ProviderFailureKind, list[dict[str, Any]]]:
+    def classify_tool_results(
+        tool_results: list[ToolResult],
+    ) -> tuple[ProviderFailureKind, list[dict[str, Any]]]:
         events: list[dict[str, Any]] = []
         kind: ProviderFailureKind = "none"
         for result in tool_results:

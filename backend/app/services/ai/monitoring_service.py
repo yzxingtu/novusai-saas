@@ -160,7 +160,9 @@ class MonitoringService:
         )
         routing = (
             _CONVERSATION_DIAGNOSTICS._normalize_json_dict(diagnostics.get("routing"))
-            or _CONVERSATION_DIAGNOSTICS._normalize_json_dict(turn_record.get("routing"))
+            or _CONVERSATION_DIAGNOSTICS._normalize_json_dict(
+                turn_record.get("routing")
+            )
             or _CONVERSATION_DIAGNOSTICS._normalize_json_dict(
                 turn_record_diagnostics.get("routing")
             )
@@ -451,6 +453,12 @@ class MonitoringService:
         self,
         refs: set[tuple[str, int]],
     ) -> dict[tuple[str, int], MonitoringActorInfo]:
+        from app.models.auth.admin_role import AdminRole
+        from app.models.auth.tenant_admin_role import TenantAdminRole
+        from app.models.auth.tenant_user_role import TenantUserRole
+        from app.models.org.admin_org_node import AdminOrgNode
+        from app.models.org.tenant_org_node import TenantOrgNode
+
         result: dict[tuple[str, int], MonitoringActorInfo] = {}
         if not refs:
             return result
@@ -463,8 +471,23 @@ class MonitoringService:
             rows = (
                 await self.db.execute(
                     select(
-                        Admin.id, Admin.username, Admin.nickname, Admin.avatar
-                    ).where(
+                        Admin.id,
+                        Admin.username,
+                        Admin.nickname,
+                        Admin.avatar,
+                        Admin.org_node_id,
+                        Admin.is_active,
+                        Admin.is_super,
+                        AdminRole.name.label("role_name"),
+                        AdminOrgNode.name.label("org_node_name"),
+                        AdminOrgNode.leader_id.label("org_leader_id"),
+                    )
+                    .select_from(Admin)
+                    .join(AdminRole, AdminRole.id == Admin.role_id, isouter=True)
+                    .join(
+                        AdminOrgNode, AdminOrgNode.id == Admin.org_node_id, isouter=True
+                    )
+                    .where(
                         Admin.id.in_(admin_ids),
                         Admin.is_deleted.is_(False),
                     )
@@ -478,6 +501,14 @@ class MonitoringService:
                     username=row.username,
                     nickname=row.nickname,
                     avatar=row.avatar,
+                    org_node_id=row.org_node_id,
+                    org_node_name=row.org_node_name,
+                    role_name=row.role_name,
+                    is_active=row.is_active,
+                    is_owner=bool(row.is_super),
+                    is_leader=bool(
+                        row.org_leader_id is not None and row.org_leader_id == row.id
+                    ),
                 )
 
         if tenant_admin_ids:
@@ -488,7 +519,25 @@ class MonitoringService:
                         TenantAdmin.username,
                         TenantAdmin.nickname,
                         TenantAdmin.avatar,
-                    ).where(
+                        TenantAdmin.org_node_id,
+                        TenantAdmin.is_active,
+                        TenantAdmin.is_owner,
+                        TenantAdminRole.name.label("role_name"),
+                        TenantOrgNode.name.label("org_node_name"),
+                        TenantOrgNode.leader_id.label("org_leader_id"),
+                    )
+                    .select_from(TenantAdmin)
+                    .join(
+                        TenantAdminRole,
+                        TenantAdminRole.id == TenantAdmin.role_id,
+                        isouter=True,
+                    )
+                    .join(
+                        TenantOrgNode,
+                        TenantOrgNode.id == TenantAdmin.org_node_id,
+                        isouter=True,
+                    )
+                    .where(
                         TenantAdmin.id.in_(tenant_admin_ids),
                         TenantAdmin.is_deleted.is_(False),
                     )
@@ -502,6 +551,14 @@ class MonitoringService:
                     username=row.username,
                     nickname=row.nickname,
                     avatar=row.avatar,
+                    org_node_id=row.org_node_id,
+                    org_node_name=row.org_node_name,
+                    role_name=row.role_name,
+                    is_active=row.is_active,
+                    is_owner=bool(row.is_owner),
+                    is_leader=bool(
+                        row.org_leader_id is not None and row.org_leader_id == row.id
+                    ),
                 )
 
         if tenant_user_ids:
@@ -512,7 +569,23 @@ class MonitoringService:
                         TenantUser.username,
                         TenantUser.nickname,
                         TenantUser.avatar,
-                    ).where(
+                        TenantUser.org_node_id,
+                        TenantUser.is_active,
+                        TenantUserRole.name.label("role_name"),
+                        TenantOrgNode.name.label("org_node_name"),
+                    )
+                    .select_from(TenantUser)
+                    .join(
+                        TenantUserRole,
+                        TenantUserRole.id == TenantUser.role_id,
+                        isouter=True,
+                    )
+                    .join(
+                        TenantOrgNode,
+                        TenantOrgNode.id == TenantUser.org_node_id,
+                        isouter=True,
+                    )
+                    .where(
                         TenantUser.id.in_(tenant_user_ids),
                         TenantUser.is_deleted.is_(False),
                     )
@@ -526,6 +599,12 @@ class MonitoringService:
                     username=row.username,
                     nickname=row.nickname,
                     avatar=row.avatar,
+                    org_node_id=row.org_node_id,
+                    org_node_name=row.org_node_name,
+                    role_name=row.role_name,
+                    is_active=row.is_active,
+                    is_owner=False,
+                    is_leader=False,
                 )
 
         return result
@@ -622,8 +701,8 @@ class MonitoringService:
         scope: MonitoringScope,
         spec: QuerySpec,
     ):
-        provider_id, model_id, normalized_spec = self._split_conversation_runtime_filters(
-            spec
+        provider_id, model_id, normalized_spec = (
+            self._split_conversation_runtime_filters(spec)
         )
 
         if provider_id is None and model_id is None:
@@ -641,7 +720,9 @@ class MonitoringService:
         )
         allowed_fields = repo.get_allowed_fields(None)
 
-        query = select(AgentConversation).where(*self._scope_conversation_filters(scope))
+        query = select(AgentConversation).where(
+            *self._scope_conversation_filters(scope)
+        )
         if normalized_spec.filters:
             query = repo._apply_filters(query, normalized_spec.filters, allowed_fields)
 
@@ -659,8 +740,12 @@ class MonitoringService:
         query = query.where(exists(select(AICallLog.id).where(*runtime_filters)))
         query = repo._apply_data_permission_if_needed(query)
 
-        total = (await self.db.execute(select(func.count()).select_from(query.subquery()))).scalar() or 0
-        query = repo._apply_sort(query, normalized_spec.sort, repo.get_sortable_fields())
+        total = (
+            await self.db.execute(select(func.count()).select_from(query.subquery()))
+        ).scalar() or 0
+        query = repo._apply_sort(
+            query, normalized_spec.sort, repo.get_sortable_fields()
+        )
         query = query.offset(normalized_spec.offset).limit(normalized_spec.limit)
 
         result = await self.db.execute(query)
@@ -902,6 +987,7 @@ class MonitoringService:
                     if actor_map.get((str(row.actor_type), int(row.actor_id)))
                     else f"{row.actor_type}:{row.actor_id}"
                 ),
+                actor=actor_map.get((str(row.actor_type), int(row.actor_id))),
                 call_count=self._safe_int(row.call_count),
                 total_tokens=self._safe_int(row.total_tokens),
                 total_cost=self._safe_float(row.total_cost),
@@ -1133,14 +1219,17 @@ class MonitoringService:
                     total_tokens=self._safe_int(row.total_tokens),
                     cost=self._safe_float(row.cost),
                     latency_ms=row.latency_ms,
-                    usage_mode=((request_metadata.get("response") or {}).get("usage_mode"))
+                    usage_mode=(
+                        (request_metadata.get("response") or {}).get("usage_mode")
+                    )
                     if isinstance(request_metadata.get("response"), dict)
                     else None,
                     error_message=row.error_message,
                     turn_outcome=trace_diagnostics.get("turn_outcome"),
                     termination_reason=trace_diagnostics.get("termination_reason"),
                     protocol_path=trace_diagnostics.get("protocol_path"),
-                    selected_tool_names=trace_diagnostics.get("selected_tool_names") or [],
+                    selected_tool_names=trace_diagnostics.get("selected_tool_names")
+                    or [],
                     selected_skill_names=trace_diagnostics.get("selected_skill_names")
                     or [],
                     execution_path=trace_diagnostics.get("execution_path"),
@@ -1164,7 +1253,8 @@ class MonitoringService:
                     tool_leak_detected=bool(
                         trace_diagnostics.get("tool_leak_detected")
                     ),
-                    unfinished_intents=trace_diagnostics.get("unfinished_intents") or [],
+                    unfinished_intents=trace_diagnostics.get("unfinished_intents")
+                    or [],
                     leaked_tool_names=trace_diagnostics.get("leaked_tool_names") or [],
                     recovered_via_retry=trace_diagnostics.get("recovered_via_retry"),
                     last_tool_name=trace_diagnostics.get("last_tool_name"),

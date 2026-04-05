@@ -102,6 +102,7 @@ from app.api.admin.tenant_admins import AdminTenantAdminController
 from app.api.admin.tenant_admins import router as tenant_admins_router
 from app.api.admin.tenant_domains import AdminTenantDomainController
 from app.api.admin.tenant_domains import router as tenant_domains_router
+
 # isort: on
 from app.api.admin.users import AdminUserController
 from app.api.admin.users import router as users_router

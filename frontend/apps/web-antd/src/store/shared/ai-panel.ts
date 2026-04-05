@@ -551,7 +551,7 @@ export const useAIPanelStore = defineStore('ai-panel', () => {
   }
 
   function restoreInteractionUpdates(updates: AIInteractionUpdate[]) {
-    if (!updates.length) return;
+    if (updates.length === 0) return;
     pendingInteractionUpdates.value = [
       ...updates.map((item) => ({ ...item })),
       ...pendingInteractionUpdates.value,

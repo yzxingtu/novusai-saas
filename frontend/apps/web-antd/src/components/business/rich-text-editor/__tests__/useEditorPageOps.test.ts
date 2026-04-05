@@ -16,12 +16,16 @@ import {
 
 import { useEditorPageOps } from '../useEditorPageOps';
 
-vi.mock('vue-router', () => ({
-  useRoute: () => ({
-    meta: {},
-    path: '/tenant/editor-demo',
-  }),
-}));
+vi.mock('vue-router', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('vue-router')>();
+  return {
+    ...actual,
+    useRoute: () => ({
+      meta: {},
+      path: '/tenant/editor-demo',
+    }),
+  };
+});
 
 vi.mock('@vben/locales', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@vben/locales')>();

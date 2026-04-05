@@ -6,18 +6,7 @@ Concrete tool executors with lazy exports.
 from __future__ import annotations
 
 from importlib import import_module
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    from app.ai.tools.executors.base import BaseToolExecutor
-    from app.ai.tools.executors.builtin_executor import BuiltinToolExecutor
-    from app.ai.tools.executors.crud_executor import (
-        CreateRecordExecutor,
-        DeleteRecordExecutor,
-        UpdateRecordExecutor,
-    )
-    from app.ai.tools.executors.text_to_sql_executor import TextToSQLExecutor
-    from app.ai.tools.executors.toolkit_executor import ToolkitExecutor
+from typing import Any
 
 _EXPORTS: dict[str, tuple[str, str]] = {
     "BaseToolExecutor": ("app.ai.tools.executors.base", "BaseToolExecutor"),
@@ -44,7 +33,15 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     ),
 }
 
-__all__ = list(_EXPORTS)
+__all__ = [
+    "BaseToolExecutor",
+    "BuiltinToolExecutor",
+    "TextToSQLExecutor",
+    "ToolkitExecutor",
+    "CreateRecordExecutor",
+    "UpdateRecordExecutor",
+    "DeleteRecordExecutor",
+]
 
 
 def __getattr__(name: str) -> Any:

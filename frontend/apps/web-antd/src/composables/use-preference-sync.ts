@@ -118,7 +118,10 @@ export function usePreferenceSync() {
 
   const onGlobalUpdatedRaw = (data: unknown) => {
     void onGlobalUpdated(data as GlobalUpdatedPayload).catch((error) => {
-      console.warn('[PreferenceSync] Failed to apply global preferences:', error);
+      console.warn(
+        '[PreferenceSync] Failed to apply global preferences:',
+        error,
+      );
     });
   };
 

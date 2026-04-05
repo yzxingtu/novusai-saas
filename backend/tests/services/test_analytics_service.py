@@ -98,7 +98,7 @@ class TestCallTrend:
         await service.get_call_trend(tenant_id=0)
 
         stmt = mock_db.execute.await_args.args[0]
-        assert "ai_call_logs.tenant_id" in str(stmt)
+        assert "ai_call_logs.billing_tenant_id" in str(stmt)
 
 
 class TestModelDistribution:

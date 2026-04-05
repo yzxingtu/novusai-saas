@@ -297,12 +297,12 @@ const diagnosticContextSources = computed<ContextSourceDisplayItem[]>(() => {
 });
 const hasTurnDiagnostics = computed(() => {
   return Boolean(
-      diagnosticTurnOutcome.value ||
-      diagnosticTerminationReason.value ||
-      diagnosticProtocolPath.value ||
-      diagnosticSelectedTools.value.length > 0 ||
-      diagnosticSelectedSkills.value.length > 0 ||
-      diagnosticContextSources.value.length > 0,
+    diagnosticTurnOutcome.value ||
+    diagnosticTerminationReason.value ||
+    diagnosticProtocolPath.value ||
+    diagnosticSelectedTools.value.length > 0 ||
+    diagnosticSelectedSkills.value.length > 0 ||
+    diagnosticContextSources.value.length > 0,
   );
 });
 
@@ -317,7 +317,7 @@ const thinkingExpandedMap = ref<Record<number, boolean>>({});
 function isThinkingExpanded(idx: number) {
   return Boolean(
     (props.msg.streaming && props.msg.thinkingContent) ||
-      thinkingExpandedMap.value[idx],
+    thinkingExpandedMap.value[idx],
   );
 }
 
@@ -655,9 +655,6 @@ function getSearchProviderLabel(provider?: string) {
 
 function getSearchStatusLabel(status?: string) {
   switch (status) {
-    case 'success': {
-      return $t('common.globalAiChat.toolSearchStatusSuccess');
-    }
     case 'no_results': {
       return $t('common.globalAiChat.toolSearchStatusNoResults');
     }
@@ -669,6 +666,9 @@ function getSearchStatusLabel(status?: string) {
     }
     case 'source_unavailable': {
       return $t('common.globalAiChat.toolSearchStatusUnavailable');
+    }
+    case 'success': {
+      return $t('common.globalAiChat.toolSearchStatusSuccess');
     }
     default: {
       return status || '';
@@ -991,8 +991,7 @@ watch(
 
 /** Auto-collapse tool group when all tools finish or streaming ends. */
 watch(
-  () =>
-    [hasRunningTool.value, props.msg.streaming, props.index] as const,
+  () => [hasRunningTool.value, props.msg.streaming, props.index] as const,
   ([running, streaming, idx], oldVal) => {
     const wasRunning = oldVal?.[0];
     const wasStreaming = oldVal?.[1];
@@ -1122,7 +1121,7 @@ watch(
             :aria-expanded="isThinkingExpanded(index)"
             data-testid="thinking-toggle"
             type="button"
-            class="thinking-chip flex max-w-full cursor-pointer items-center gap-2 border-0 bg-transparent text-left transition-all duration-200 hover:border-primary/18 hover:text-foreground"
+            class="thinking-chip hover:border-primary/18 flex max-w-full cursor-pointer items-center gap-2 border-0 bg-transparent text-left transition-all duration-200 hover:text-foreground"
             :class="compact ? 'px-2.5 py-1.5' : 'px-3 py-1.5'"
             @click="toggleThinkingExpand(index)"
           >
@@ -1137,8 +1136,8 @@ watch(
               />
             </span>
 
-            <span class="min-w-0 flex flex-1 items-center gap-1.5">
-              <span class="truncate text-xs font-medium text-foreground/84">
+            <span class="flex min-w-0 flex-1 items-center gap-1.5">
+              <span class="text-foreground/84 truncate text-xs font-medium">
                 {{
                   msg.streaming
                     ? $t('common.globalAiChat.thinking')
@@ -1165,7 +1164,9 @@ watch(
               <IconifyIcon
                 icon="lucide:chevron-down"
                 class="size-3.5 transition-transform duration-200"
-                :class="isThinkingExpanded(index) ? 'rotate-180 text-primary/80' : ''"
+                :class="
+                  isThinkingExpanded(index) ? 'rotate-180 text-primary/80' : ''
+                "
               />
             </span>
           </button>
@@ -1187,7 +1188,9 @@ watch(
                     : 'translateY(-6px)',
                 }"
               >
-                <div class="thinking-markdown leading-5.5 text-xs text-muted-foreground/82">
+                <div
+                  class="thinking-markdown leading-5.5 text-muted-foreground/82 text-xs"
+                >
                   <MarkdownRender
                     :content="msg.thinkingContent"
                     :streaming="!!msg.streaming && !msg.content"
@@ -1258,7 +1261,9 @@ watch(
           v-if="hasTurnDiagnostics"
           class="rounded-xl border border-border/30 bg-accent/10"
           :class="
-            compact ? 'mb-1 space-y-1 px-2 py-1.5' : 'mb-2 space-y-1.5 px-3 py-2'
+            compact
+              ? 'mb-1 space-y-1 px-2 py-1.5'
+              : 'mb-2 space-y-1.5 px-3 py-2'
           "
         >
           <div class="flex flex-wrap items-center gap-1.5">
@@ -1523,536 +1528,582 @@ watch(
                 class="tc-timeline relative"
                 :class="compact ? 'px-2 py-1 pl-5' : 'px-2.5 py-1.5 pl-6'"
               >
-          <!-- Timeline vertical line -->
-          <div
-            v-if="msg.toolCalls.length > 1"
-            class="absolute w-px bg-border/40"
-            :class="
-              compact
-                ? 'bottom-1 left-[8px] top-1'
-                : 'bottom-1.5 left-[9px] top-1.5'
-            "
-          ></div>
-
-          <div
-            v-for="toolItem in toolDisplayItems"
-            :key="toolItem.index"
-            class="relative"
-            :class="toolItem.index > 0 ? (compact ? 'mt-0.5' : 'mt-1') : ''"
-          >
-            <!-- Timeline dot -->
-            <div
-              class="absolute z-[1]"
-              :class="compact ? '-left-3 top-[5px]' : '-left-4 top-[7px]'"
-            >
-              <span
-                v-if="toolItem.tc.status === 'running'"
-                class="tc-dot-pulse block rounded-full bg-primary"
-                :class="compact ? 'size-[7px]' : 'size-2'"
-              ></span>
-              <span
-                v-else-if="toolItem.tc.status === 'success'"
-                class="block rounded-full bg-green-500"
-                :class="compact ? 'size-[7px]' : 'size-2'"
-              ></span>
-              <span
-                v-else
-                class="block rounded-full bg-red-500"
-                :class="compact ? 'size-[7px]' : 'size-2'"
-              ></span>
-            </div>
-
-            <!-- Tool call card -->
-            <div
-              class="group/tc overflow-hidden rounded-lg border border-border/20 bg-accent/15 backdrop-blur-sm transition-colors hover:bg-accent/25"
-            >
-              <button
-                type="button"
-                class="flex w-full select-none items-center text-left"
-                :class="[
-                  compact
-                    ? 'gap-1 px-2 py-[3px] text-[11px]'
-                    : 'gap-1.5 px-2.5 py-1 text-xs',
-                  toolItem.hasDetails ? 'cursor-pointer' : 'cursor-default',
-                ]"
-                :data-testid="`tool-call-toggle-${toolItem.index}`"
-                @click="toggleToolExpand(toolItem.tc, toolItem.index)"
-              >
-                <!-- Status pill -->
-                <span
-                  class="inline-flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-px text-[10px] font-medium leading-tight"
+                <!-- Timeline vertical line -->
+                <div
+                  v-if="msg.toolCalls.length > 1"
+                  class="absolute w-px bg-border/40"
                   :class="
-                    toolItem.tc.status === 'running'
-                      ? getToolDisplayState(toolItem.tc) === 'waiting_confirm'
-                        ? 'tc-pill-pulse bg-warning/10 text-warning'
-                        : 'tc-pill-pulse bg-primary/10 text-primary'
-                      : toolItem.tc.status === 'success'
-                        ? 'bg-green-500/10 text-green-600 dark:text-green-400'
-                        : 'bg-red-500/10 text-red-500'
+                    compact
+                      ? 'bottom-1 left-[8px] top-1'
+                      : 'bottom-1.5 left-[9px] top-1.5'
+                  "
+                ></div>
+
+                <div
+                  v-for="toolItem in toolDisplayItems"
+                  :key="toolItem.index"
+                  class="relative"
+                  :class="
+                    toolItem.index > 0 ? (compact ? 'mt-0.5' : 'mt-1') : ''
                   "
                 >
-                  <IconifyIcon
-                    v-if="toolItem.tc.status !== 'running'"
-                    :icon="
-                      toolItem.tc.status === 'success'
-                        ? 'lucide:check'
-                        : 'lucide:x'
-                    "
-                    class="size-2.5"
-                  />
-                  <span
-                    v-else
-                    class="tc-dot-pulse mr-0.5 inline-block size-1.5 rounded-full bg-current"
-                  ></span>
-                  {{
-                    toolItem.tc.status === 'running'
-                      ? getToolDisplayState(toolItem.tc) === 'waiting_confirm'
-                        ? $t('common.globalAiChat.toolWaitingConfirm')
-                        : $t('common.globalAiChat.toolExecuting')
-                      : toolItem.tc.status === 'success'
-                        ? $t('common.globalAiChat.toolStatusOk')
-                        : $t('common.globalAiChat.toolStatusErr')
-                  }}
-                </span>
-
-                <!-- Tool name -->
-                <span class="min-w-0 flex-1 text-muted-foreground">
-                  <span class="block truncate">
-                    <template v-if="toolItem.tc.skillName">
-                      <span class="font-medium text-foreground/60">{{
-                        toolItem.tc.skillName
-                      }}</span>
-                      <span class="mx-0.5 text-muted-foreground/30">›</span>
-                    </template>
-                    <span class="text-foreground/70">{{
-                      toolItem.tc.displayName || toolItem.tc.name
-                    }}</span>
-                    <span
-                      v-if="
-                        toolItem.headlineSummary &&
-                        toolItem.tc.status === 'success'
-                      "
-                      class="ml-1 text-muted-foreground/50"
-                      >— {{ toolItem.headlineSummary }}</span
-                    >
-                  </span>
-                  <span
-                    v-if="toolItem.targetBadges.length > 0"
-                    class="mt-1 flex flex-wrap items-center gap-1"
-                    :class="compact ? 'text-[9px]' : 'text-[10px]'"
-                  >
-                    <span class="text-muted-foreground/45">
-                      {{ $t('common.globalAiChat.toolTouched') }}
-                    </span>
-                    <span
-                      v-for="badge in toolItem.targetBadges"
-                      :key="`${badge.labelKey}-${badge.value}`"
-                      class="inline-flex max-w-full items-center gap-1 rounded-full border border-border/30 bg-background/70 px-1.5 py-px"
-                    >
-                      <span class="shrink-0 text-muted-foreground/55">
-                        {{ $t(badge.labelKey) }}
-                      </span>
-                      <span class="truncate text-foreground/75">{{
-                        badge.value
-                      }}</span>
-                    </span>
-                  </span>
-                </span>
-
-                <!-- Duration -->
-                <span
-                  v-if="toolItem.tc.durationMs"
-                  class="text-[10px] tabular-nums text-muted-foreground/40"
-                >
-                  {{ (toolItem.tc.durationMs / 1000).toFixed(1) }}s
-                </span>
-
-                <!-- Expand chevron -->
-                <IconifyIcon
-                  v-if="toolItem.hasDetails"
-                  icon="lucide:chevron-down"
-                  class="shrink-0 text-muted-foreground/30 transition-transform duration-200"
-                  :class="compact ? 'size-2.5' : 'size-3'"
-                  :style="{
-                    transform: toolItem.expanded
-                      ? 'rotate(180deg)'
-                      : 'rotate(0deg)',
-                  }"
-                />
-              </button>
-
-              <!-- Expanded details -->
-              <div
-                v-if="toolItem.hasDetails"
-                class="grid transition-[grid-template-rows,opacity] duration-200 ease-out"
-                :style="{
-                  gridTemplateRows: toolItem.expanded ? '1fr' : '0fr',
-                  opacity: toolItem.expanded ? 1 : 0,
-                }"
-                :data-testid="`tool-call-details-${toolItem.index}`"
-              >
-                <div class="min-h-0 overflow-hidden border-t border-border/20">
+                  <!-- Timeline dot -->
                   <div
-                    :class="
-                      compact
-                        ? 'px-2 py-1 text-[10px]'
-                        : 'px-2.5 py-1.5 text-[11px]'
-                    "
+                    class="absolute z-[1]"
+                    :class="compact ? '-left-3 top-[5px]' : '-left-4 top-[7px]'"
                   >
-                    <div
-                      v-if="
-                        toolItem.tc.arguments &&
-                        Object.keys(toolItem.tc.arguments).length > 0
-                      "
-                      class="mb-1"
+                    <span
+                      v-if="toolItem.tc.status === 'running'"
+                      class="tc-dot-pulse block rounded-full bg-primary"
+                      :class="compact ? 'size-[7px]' : 'size-2'"
+                    ></span>
+                    <span
+                      v-else-if="toolItem.tc.status === 'success'"
+                      class="block rounded-full bg-green-500"
+                      :class="compact ? 'size-[7px]' : 'size-2'"
+                    ></span>
+                    <span
+                      v-else
+                      class="block rounded-full bg-red-500"
+                      :class="compact ? 'size-[7px]' : 'size-2'"
+                    ></span>
+                  </div>
+
+                  <!-- Tool call card -->
+                  <div
+                    class="group/tc overflow-hidden rounded-lg border border-border/20 bg-accent/15 backdrop-blur-sm transition-colors hover:bg-accent/25"
+                  >
+                    <button
+                      type="button"
+                      class="flex w-full select-none items-center text-left"
+                      :class="[
+                        compact
+                          ? 'gap-1 px-2 py-[3px] text-[11px]'
+                          : 'gap-1.5 px-2.5 py-1 text-xs',
+                        toolItem.hasDetails
+                          ? 'cursor-pointer'
+                          : 'cursor-default',
+                      ]"
+                      :data-testid="`tool-call-toggle-${toolItem.index}`"
+                      @click="toggleToolExpand(toolItem.tc, toolItem.index)"
                     >
-                      <span class="font-medium text-muted-foreground/60">{{
-                        $t('common.globalAiChat.args')
-                      }}</span>
-                      <code
-                        class="ml-1 rounded bg-accent/50 px-1 py-px text-[10px] text-muted-foreground"
+                      <!-- Status pill -->
+                      <span
+                        class="inline-flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-px text-[10px] font-medium leading-tight"
+                        :class="
+                          toolItem.tc.status === 'running'
+                            ? getToolDisplayState(toolItem.tc) ===
+                              'waiting_confirm'
+                              ? 'tc-pill-pulse bg-warning/10 text-warning'
+                              : 'tc-pill-pulse bg-primary/10 text-primary'
+                            : toolItem.tc.status === 'success'
+                              ? 'bg-green-500/10 text-green-600 dark:text-green-400'
+                              : 'bg-red-500/10 text-red-500'
+                        "
                       >
-                        {{ JSON.stringify(toolItem.tc.arguments) }}
-                      </code>
-                    </div>
-                    <div
-                      v-if="toolItem.searchSummary"
-                      class="mb-1 rounded bg-background/70 px-1.5 py-1 text-foreground/80"
-                    >
-                      <div
-                        class="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground"
-                      >
-                        <span class="font-medium">{{
-                          $t('common.globalAiChat.toolSearchResults')
-                        }}</span>
-                        <span v-if="toolItem.searchSummary.provider">
-                          {{ getSearchProviderLabel(toolItem.searchSummary.provider) }}
-                        </span>
-                        <span v-if="toolItem.searchSummary.status">
-                          {{ getSearchStatusLabel(toolItem.searchSummary.status) }}
-                        </span>
-                        <span>
-                          {{ toolItem.searchSummary.resultCount }}
-                        </span>
-                      </div>
-                      <div
-                        v-if="toolItem.searchSummary.failureReason"
-                        class="mt-1 whitespace-pre-wrap break-words text-muted-foreground"
-                      >
-                        {{ toolItem.searchSummary.failureReason }}
-                      </div>
-                      <ul
-                        v-else-if="toolItem.searchSummary.items.length > 0"
-                        class="mt-1 space-y-1"
-                      >
-                        <li
-                          v-for="(searchItem, searchIndex) in toolItem.searchSummary.items"
-                          :key="`${toolItem.index}-${searchIndex}-${searchItem.url}`"
-                          class="rounded border border-border/20 bg-accent/20 px-1.5 py-1"
-                        >
-                          <button
-                            type="button"
-                            class="w-full text-left text-[11px] font-medium text-foreground hover:text-primary"
-                            @click.stop="emit('openUrl', searchItem.url)"
-                          >
-                            {{ searchItem.title }}
-                          </button>
-                          <div class="mt-0.5 break-all text-[10px] text-muted-foreground">
-                            {{ searchItem.url }}
-                          </div>
-                          <div
-                            v-if="searchItem.snippet"
-                            class="mt-0.5 whitespace-pre-wrap break-words text-[10px] text-foreground/75"
-                          >
-                            {{ searchItem.snippet }}
-                          </div>
-                        </li>
-                      </ul>
-                    </div>
-                    <div
-                      v-if="toolItem.structuredOutput.explanation"
-                      class="mb-1 rounded bg-background/70 px-1.5 py-1 text-foreground/80"
-                    >
-                      <span class="font-medium text-muted-foreground/60">{{
-                        $t('common.globalAiChat.toolExplanation')
-                      }}</span>
-                      <div class="mt-0.5 whitespace-pre-wrap break-words">
-                        {{ toolItem.structuredOutput.explanation }}
-                      </div>
-                    </div>
-                    <div
-                      v-if="toolItem.structuredOutput.sql"
-                      class="mb-1 rounded bg-slate-950/95 px-1.5 py-1 font-mono text-[10px] text-slate-100"
-                    >
-                      <div class="flex items-center gap-2">
-                        <span class="font-medium text-slate-300">{{
-                          $t('common.globalAiChat.toolSql')
-                        }}</span>
-                        <button
-                          type="button"
-                          class="inline-flex items-center gap-1 rounded border border-slate-700/80 px-1.5 py-px text-[10px] text-slate-300 transition-colors hover:border-slate-500 hover:text-white"
-                          @click.stop="
-                            emit('copy', toolItem.structuredOutput.sql || '')
+                        <IconifyIcon
+                          v-if="toolItem.tc.status !== 'running'"
+                          :icon="
+                            toolItem.tc.status === 'success'
+                              ? 'lucide:check'
+                              : 'lucide:x'
                           "
-                        >
-                          <IconifyIcon icon="lucide:copy" class="size-2.5" />
-                          {{ $t('common.globalAiChat.copySql') }}
-                        </button>
-                      </div>
-                      <pre
-                        class="mt-0.5 max-h-40 overflow-y-auto whitespace-pre-wrap break-all"
-                        >{{ toolItem.structuredOutput.sql }}</pre
-                      >
-                    </div>
-                    <div
-                      v-if="toolItem.structuredOutput.raw"
-                      class="rounded bg-accent/20 text-muted-foreground"
-                    >
-                      <button
-                        type="button"
-                        class="flex w-full items-center gap-1 px-1.5 py-1 text-left transition-colors hover:bg-accent/30"
-                        @click="toggleToolRawExpand(toolItem.index)"
-                      >
-                        <IconifyIcon
-                          icon="lucide:braces"
-                          class="size-3 shrink-0"
+                          class="size-2.5"
                         />
-                        <span class="flex-1 text-[10px] font-medium">
-                          {{ $t('common.globalAiChat.rawResult') }}
+                        <span
+                          v-else
+                          class="tc-dot-pulse mr-0.5 inline-block size-1.5 rounded-full bg-current"
+                        ></span>
+                        {{
+                          toolItem.tc.status === 'running'
+                            ? getToolDisplayState(toolItem.tc) ===
+                              'waiting_confirm'
+                              ? $t('common.globalAiChat.toolWaitingConfirm')
+                              : $t('common.globalAiChat.toolExecuting')
+                            : toolItem.tc.status === 'success'
+                              ? $t('common.globalAiChat.toolStatusOk')
+                              : $t('common.globalAiChat.toolStatusErr')
+                        }}
+                      </span>
+
+                      <!-- Tool name -->
+                      <span class="min-w-0 flex-1 text-muted-foreground">
+                        <span class="block truncate">
+                          <template v-if="toolItem.tc.skillName">
+                            <span class="font-medium text-foreground/60">{{
+                              toolItem.tc.skillName
+                            }}</span>
+                            <span class="mx-0.5 text-muted-foreground/30"
+                              >›</span
+                            >
+                          </template>
+                          <span class="text-foreground/70">{{
+                            toolItem.tc.displayName || toolItem.tc.name
+                          }}</span>
+                          <span
+                            v-if="
+                              toolItem.headlineSummary &&
+                              toolItem.tc.status === 'success'
+                            "
+                            class="ml-1 text-muted-foreground/50"
+                            >— {{ toolItem.headlineSummary }}</span
+                          >
                         </span>
-                        <IconifyIcon
-                          icon="lucide:chevron-down"
-                          class="size-2.5 transition-transform duration-200"
-                          :style="{
-                            transform: isToolRawExpanded(toolItem.index)
-                              ? 'rotate(180deg)'
-                              : 'rotate(0deg)',
-                          }"
-                        />
-                      </button>
-                      <div
-                        class="grid transition-[grid-template-rows,opacity] duration-200 ease-out"
+                        <span
+                          v-if="toolItem.targetBadges.length > 0"
+                          class="mt-1 flex flex-wrap items-center gap-1"
+                          :class="compact ? 'text-[9px]' : 'text-[10px]'"
+                        >
+                          <span class="text-muted-foreground/45">
+                            {{ $t('common.globalAiChat.toolTouched') }}
+                          </span>
+                          <span
+                            v-for="badge in toolItem.targetBadges"
+                            :key="`${badge.labelKey}-${badge.value}`"
+                            class="inline-flex max-w-full items-center gap-1 rounded-full border border-border/30 bg-background/70 px-1.5 py-px"
+                          >
+                            <span class="shrink-0 text-muted-foreground/55">
+                              {{ $t(badge.labelKey) }}
+                            </span>
+                            <span class="truncate text-foreground/75">{{
+                              badge.value
+                            }}</span>
+                          </span>
+                        </span>
+                      </span>
+
+                      <!-- Duration -->
+                      <span
+                        v-if="toolItem.tc.durationMs"
+                        class="text-[10px] tabular-nums text-muted-foreground/40"
+                      >
+                        {{ (toolItem.tc.durationMs / 1000).toFixed(1) }}s
+                      </span>
+
+                      <!-- Expand chevron -->
+                      <IconifyIcon
+                        v-if="toolItem.hasDetails"
+                        icon="lucide:chevron-down"
+                        class="shrink-0 text-muted-foreground/30 transition-transform duration-200"
+                        :class="compact ? 'size-2.5' : 'size-3'"
                         :style="{
-                          gridTemplateRows: isToolRawExpanded(toolItem.index)
-                            ? '1fr'
-                            : '0fr',
-                          opacity: isToolRawExpanded(toolItem.index) ? 1 : 0,
+                          transform: toolItem.expanded
+                            ? 'rotate(180deg)'
+                            : 'rotate(0deg)',
                         }"
+                      />
+                    </button>
+
+                    <!-- Expanded details -->
+                    <div
+                      v-if="toolItem.hasDetails"
+                      class="grid transition-[grid-template-rows,opacity] duration-200 ease-out"
+                      :style="{
+                        gridTemplateRows: toolItem.expanded ? '1fr' : '0fr',
+                        opacity: toolItem.expanded ? 1 : 0,
+                      }"
+                      :data-testid="`tool-call-details-${toolItem.index}`"
+                    >
+                      <div
+                        class="min-h-0 overflow-hidden border-t border-border/20"
                       >
                         <div
-                          class="min-h-0 overflow-hidden border-t border-border/20"
+                          :class="
+                            compact
+                              ? 'px-2 py-1 text-[10px]'
+                              : 'px-2.5 py-1.5 text-[11px]'
+                          "
                         >
-                          <pre
-                            class="overflow-y-auto whitespace-pre-wrap break-all px-1.5 py-1"
-                            :class="[
-                              compact
-                                ? 'max-h-32 text-[10px]'
-                                : 'max-h-40 text-[11px]',
-                            ]"
-                            >{{ toolItem.structuredOutput.raw }}</pre
+                          <div
+                            v-if="
+                              toolItem.tc.arguments &&
+                              Object.keys(toolItem.tc.arguments).length > 0
+                            "
+                            class="mb-1"
                           >
+                            <span
+                              class="font-medium text-muted-foreground/60"
+                              >{{ $t('common.globalAiChat.args') }}</span
+                            >
+                            <code
+                              class="ml-1 rounded bg-accent/50 px-1 py-px text-[10px] text-muted-foreground"
+                            >
+                              {{ JSON.stringify(toolItem.tc.arguments) }}
+                            </code>
+                          </div>
+                          <div
+                            v-if="toolItem.searchSummary"
+                            class="mb-1 rounded bg-background/70 px-1.5 py-1 text-foreground/80"
+                          >
+                            <div
+                              class="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground"
+                            >
+                              <span class="font-medium">{{
+                                $t('common.globalAiChat.toolSearchResults')
+                              }}</span>
+                              <span v-if="toolItem.searchSummary.provider">
+                                {{
+                                  getSearchProviderLabel(
+                                    toolItem.searchSummary.provider,
+                                  )
+                                }}
+                              </span>
+                              <span v-if="toolItem.searchSummary.status">
+                                {{
+                                  getSearchStatusLabel(
+                                    toolItem.searchSummary.status,
+                                  )
+                                }}
+                              </span>
+                              <span>
+                                {{ toolItem.searchSummary.resultCount }}
+                              </span>
+                            </div>
+                            <div
+                              v-if="toolItem.searchSummary.failureReason"
+                              class="mt-1 whitespace-pre-wrap break-words text-muted-foreground"
+                            >
+                              {{ toolItem.searchSummary.failureReason }}
+                            </div>
+                            <ul
+                              v-else-if="
+                                toolItem.searchSummary.items.length > 0
+                              "
+                              class="mt-1 space-y-1"
+                            >
+                              <li
+                                v-for="(searchItem, searchIndex) in toolItem
+                                  .searchSummary.items"
+                                :key="`${toolItem.index}-${searchIndex}-${searchItem.url}`"
+                                class="rounded border border-border/20 bg-accent/20 px-1.5 py-1"
+                              >
+                                <button
+                                  type="button"
+                                  class="w-full text-left text-[11px] font-medium text-foreground hover:text-primary"
+                                  @click.stop="emit('openUrl', searchItem.url)"
+                                >
+                                  {{ searchItem.title }}
+                                </button>
+                                <div
+                                  class="mt-0.5 break-all text-[10px] text-muted-foreground"
+                                >
+                                  {{ searchItem.url }}
+                                </div>
+                                <div
+                                  v-if="searchItem.snippet"
+                                  class="mt-0.5 whitespace-pre-wrap break-words text-[10px] text-foreground/75"
+                                >
+                                  {{ searchItem.snippet }}
+                                </div>
+                              </li>
+                            </ul>
+                          </div>
+                          <div
+                            v-if="toolItem.structuredOutput.explanation"
+                            class="mb-1 rounded bg-background/70 px-1.5 py-1 text-foreground/80"
+                          >
+                            <span
+                              class="font-medium text-muted-foreground/60"
+                              >{{
+                                $t('common.globalAiChat.toolExplanation')
+                              }}</span
+                            >
+                            <div class="mt-0.5 whitespace-pre-wrap break-words">
+                              {{ toolItem.structuredOutput.explanation }}
+                            </div>
+                          </div>
+                          <div
+                            v-if="toolItem.structuredOutput.sql"
+                            class="mb-1 rounded bg-slate-950/95 px-1.5 py-1 font-mono text-[10px] text-slate-100"
+                          >
+                            <div class="flex items-center gap-2">
+                              <span class="font-medium text-slate-300">{{
+                                $t('common.globalAiChat.toolSql')
+                              }}</span>
+                              <button
+                                type="button"
+                                class="inline-flex items-center gap-1 rounded border border-slate-700/80 px-1.5 py-px text-[10px] text-slate-300 transition-colors hover:border-slate-500 hover:text-white"
+                                @click.stop="
+                                  emit(
+                                    'copy',
+                                    toolItem.structuredOutput.sql || '',
+                                  )
+                                "
+                              >
+                                <IconifyIcon
+                                  icon="lucide:copy"
+                                  class="size-2.5"
+                                />
+                                {{ $t('common.globalAiChat.copySql') }}
+                              </button>
+                            </div>
+                            <pre
+                              class="mt-0.5 max-h-40 overflow-y-auto whitespace-pre-wrap break-all"
+                              >{{ toolItem.structuredOutput.sql }}</pre
+                            >
+                          </div>
+                          <div
+                            v-if="toolItem.structuredOutput.raw"
+                            class="rounded bg-accent/20 text-muted-foreground"
+                          >
+                            <button
+                              type="button"
+                              class="flex w-full items-center gap-1 px-1.5 py-1 text-left transition-colors hover:bg-accent/30"
+                              @click="toggleToolRawExpand(toolItem.index)"
+                            >
+                              <IconifyIcon
+                                icon="lucide:braces"
+                                class="size-3 shrink-0"
+                              />
+                              <span class="flex-1 text-[10px] font-medium">
+                                {{ $t('common.globalAiChat.rawResult') }}
+                              </span>
+                              <IconifyIcon
+                                icon="lucide:chevron-down"
+                                class="size-2.5 transition-transform duration-200"
+                                :style="{
+                                  transform: isToolRawExpanded(toolItem.index)
+                                    ? 'rotate(180deg)'
+                                    : 'rotate(0deg)',
+                                }"
+                              />
+                            </button>
+                            <div
+                              class="grid transition-[grid-template-rows,opacity] duration-200 ease-out"
+                              :style="{
+                                gridTemplateRows: isToolRawExpanded(
+                                  toolItem.index,
+                                )
+                                  ? '1fr'
+                                  : '0fr',
+                                opacity: isToolRawExpanded(toolItem.index)
+                                  ? 1
+                                  : 0,
+                              }"
+                            >
+                              <div
+                                class="min-h-0 overflow-hidden border-t border-border/20"
+                              >
+                                <pre
+                                  class="overflow-y-auto whitespace-pre-wrap break-all px-1.5 py-1"
+                                  :class="[
+                                    compact
+                                      ? 'max-h-32 text-[10px]'
+                                      : 'max-h-40 text-[11px]',
+                                  ]"
+                                  >{{ toolItem.structuredOutput.raw }}</pre
+                                >
+                              </div>
+                            </div>
+                          </div>
+                          <div
+                            v-if="toolItem.tc.error"
+                            class="whitespace-pre-wrap break-all rounded bg-red-50 px-1.5 py-1 text-red-500 dark:bg-red-950/30"
+                          >
+                            {{ toolItem.tc.error }}
+                          </div>
+                          <p
+                            v-if="
+                              toolItem.tc.status === 'error' &&
+                              getPageOpErrorHintKey(toolItem.tc.errorType)
+                            "
+                            class="mt-1 text-[10px] text-muted-foreground"
+                          >
+                            {{
+                              $t(getPageOpErrorHintKey(toolItem.tc.errorType))
+                            }}
+                          </p>
+                          <a
+                            v-if="
+                              toolItem.tc.resultLink &&
+                              toolItem.tc.status === 'success'
+                            "
+                            :href="toolItem.tc.resultLink"
+                            target="_blank"
+                            class="mt-1 inline-flex items-center gap-1 text-[10px] text-primary hover:underline"
+                          >
+                            <IconifyIcon
+                              icon="lucide:external-link"
+                              class="size-2.5"
+                            />
+                            {{ $t('common.globalAiChat.viewResult') }}
+                          </a>
                         </div>
                       </div>
                     </div>
+                  </div>
+                  <!-- Inline confirmation card (for this tool call) / 内联确认卡片（对应本工具调用） -->
+                  <div
+                    v-for="op in (pendingOps || []).filter(
+                      (o) => o.toolCallId === toolItem.tc.id,
+                    )"
+                    :key="op.invokeId"
+                    class="mt-1 overflow-hidden rounded-lg border"
+                    :class="
+                      op.resolved
+                        ? 'border-border/20 bg-accent/10'
+                        : 'border-warning/30 bg-warning/5'
+                    "
+                  >
+                    <!-- Resolved state -->
                     <div
-                      v-if="toolItem.tc.error"
-                      class="whitespace-pre-wrap break-all rounded bg-red-50 px-1.5 py-1 text-red-500 dark:bg-red-950/30"
-                    >
-                      {{ toolItem.tc.error }}
-                    </div>
-                    <p
-                      v-if="
-                        toolItem.tc.status === 'error' &&
-                        getPageOpErrorHintKey(toolItem.tc.errorType)
-                      "
-                      class="mt-1 text-[10px] text-muted-foreground"
-                    >
-                      {{ $t(getPageOpErrorHintKey(toolItem.tc.errorType)) }}
-                    </p>
-                    <a
-                      v-if="
-                        toolItem.tc.resultLink &&
-                        toolItem.tc.status === 'success'
-                      "
-                      :href="toolItem.tc.resultLink"
-                      target="_blank"
-                      class="mt-1 inline-flex items-center gap-1 text-[10px] text-primary hover:underline"
+                      v-if="op.resolved"
+                      class="flex items-center gap-1.5 px-2.5 py-1.5"
+                      :class="compact ? 'text-[10px]' : 'text-[11px]'"
                     >
                       <IconifyIcon
-                        icon="lucide:external-link"
-                        class="size-2.5"
+                        :icon="
+                          op.allowed ? 'lucide:check-circle' : 'lucide:x-circle'
+                        "
+                        class="size-3 shrink-0"
+                        :class="op.allowed ? 'text-green-600' : 'text-red-500'"
                       />
-                      {{ $t('common.globalAiChat.viewResult') }}
-                    </a>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <!-- Inline confirmation card (for this tool call) / 内联确认卡片（对应本工具调用） -->
-            <div
-              v-for="op in (pendingOps || []).filter(
-                (o) => o.toolCallId === toolItem.tc.id,
-              )"
-              :key="op.invokeId"
-              class="mt-1 overflow-hidden rounded-lg border"
-              :class="
-                op.resolved
-                  ? 'border-border/20 bg-accent/10'
-                  : 'border-warning/30 bg-warning/5'
-              "
-            >
-              <!-- Resolved state -->
-              <div
-                v-if="op.resolved"
-                class="flex items-center gap-1.5 px-2.5 py-1.5"
-                :class="compact ? 'text-[10px]' : 'text-[11px]'"
-              >
-                <IconifyIcon
-                  :icon="op.allowed ? 'lucide:check-circle' : 'lucide:x-circle'"
-                  class="size-3 shrink-0"
-                  :class="op.allowed ? 'text-green-600' : 'text-red-500'"
-                />
-                <span class="truncate text-muted-foreground">
-                  <span class="font-medium text-foreground/60">{{
-                    op.operationLabel
-                  }}</span>
-                  <span
-                    v-if="op.operationDescription"
-                    class="ml-1 text-muted-foreground/60"
-                    >{{ op.operationDescription }}</span
-                  >
-                </span>
-                <span
-                  class="ml-auto shrink-0 rounded-full px-1.5 py-px font-medium"
-                  :class="[
-                    compact ? 'text-[9px]' : 'text-[10px]',
-                    op.allowed
-                      ? 'bg-green-50 text-green-600 dark:bg-green-950/30'
-                      : 'bg-red-50 text-red-600 dark:bg-red-950/30',
-                  ]"
-                >
-                  {{
-                    op.allowed
-                      ? $t('shared.pageOperation.confirmOk')
-                      : $t('shared.pageOperation.confirmCancel')
-                  }}
-                </span>
-              </div>
-              <!-- Pending state -->
-              <template v-else>
-                <div
-                  class="flex items-center gap-1.5 px-2.5 py-1.5"
-                  :class="compact ? 'text-[10px]' : 'text-[11px]'"
-                >
-                  <IconifyIcon
-                    icon="lucide:shield-alert"
-                    class="size-3.5 shrink-0 text-warning"
-                  />
-                  <div class="min-w-0 flex-1">
-                    <div class="truncate font-medium text-foreground/80">
-                      {{ op.operationLabel }}
-                    </div>
-                    <div
-                      v-if="op.operationDescription"
-                      class="truncate text-muted-foreground/60"
-                    >
-                      {{ op.operationDescription }}
-                    </div>
-                    <div
-                      class="mt-0.5 text-muted-foreground/50"
-                      :class="compact ? 'text-[9px]' : 'text-[10px]'"
-                    >
-                      {{
-                        $t('shared.pageOperation.confirmCountdown', {
-                          seconds: Math.max(
-                            0,
-                            60 -
-                              Math.floor(
-                                ((countdownNow ?? now) - (op.startedAt || 0)) /
-                                  1000,
-                              ),
-                          ),
-                        })
-                      }}
-                    </div>
-                  </div>
-                  <div class="flex shrink-0 items-center gap-1">
-                    <button
-                      class="inline-flex items-center gap-0.5 rounded-md bg-primary px-2 py-0.5 font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
-                      :class="compact ? 'text-[10px]' : 'text-[11px]'"
-                      @click="aiPanelStore.resolvePageOp(op.invokeId, true)"
-                    >
-                      <IconifyIcon icon="lucide:check" class="size-3" />
-                      {{ $t('shared.pageOperation.confirmOk') }}
-                    </button>
-                    <button
-                      class="inline-flex items-center gap-0.5 rounded-md border border-border/60 px-2 py-0.5 text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive"
-                      :class="compact ? 'text-[10px]' : 'text-[11px]'"
-                      @click="aiPanelStore.resolvePageOp(op.invokeId, false)"
-                    >
-                      <IconifyIcon icon="lucide:x" class="size-3" />
-                      {{ $t('shared.pageOperation.confirmCancel') }}
-                    </button>
-                  </div>
-                </div>
-                <div
-                  v-if="hasPendingOpArgs(op.params)"
-                  class="border-t border-border/20"
-                >
-                  <button
-                    type="button"
-                    class="flex w-full cursor-pointer items-center gap-1 px-2.5 py-0.5 text-left text-muted-foreground/60 transition-colors hover:text-muted-foreground"
-                    :class="compact ? 'text-[9px]' : 'text-[10px]'"
-                    @click="togglePendingOpExpand(op.invokeId)"
-                  >
-                    <IconifyIcon icon="lucide:code" class="size-2.5" />
-                    {{ $t('common.globalAiChat.args') }}
-                    <IconifyIcon
-                      icon="lucide:chevron-down"
-                      class="size-2.5 transition-transform duration-200"
-                      :style="{
-                        transform: isPendingOpExpanded(op.invokeId)
-                          ? 'rotate(180deg)'
-                          : 'rotate(0deg)',
-                      }"
-                    />
-                  </button>
-                  <div
-                    class="grid transition-[grid-template-rows,opacity] duration-200 ease-out"
-                    :style="{
-                      gridTemplateRows: isPendingOpExpanded(op.invokeId)
-                        ? '1fr'
-                        : '0fr',
-                      opacity: isPendingOpExpanded(op.invokeId) ? 1 : 0,
-                    }"
-                  >
-                    <div
-                      class="min-h-0 overflow-hidden border-t border-border/20"
-                    >
-                      <div class="px-2.5 py-1">
-                        <pre
-                          class="max-h-24 overflow-y-auto whitespace-pre-wrap rounded bg-accent/40 px-1.5 py-1 font-mono text-muted-foreground"
-                          :class="compact ? 'text-[9px]' : 'text-[10px]'"
-                          >{{ JSON.stringify(op.params, null, 2) }}</pre
+                      <span class="truncate text-muted-foreground">
+                        <span class="font-medium text-foreground/60">{{
+                          op.operationLabel
+                        }}</span>
+                        <span
+                          v-if="op.operationDescription"
+                          class="ml-1 text-muted-foreground/60"
+                          >{{ op.operationDescription }}</span
                         >
-                      </div>
+                      </span>
+                      <span
+                        class="ml-auto shrink-0 rounded-full px-1.5 py-px font-medium"
+                        :class="[
+                          compact ? 'text-[9px]' : 'text-[10px]',
+                          op.allowed
+                            ? 'bg-green-50 text-green-600 dark:bg-green-950/30'
+                            : 'bg-red-50 text-red-600 dark:bg-red-950/30',
+                        ]"
+                      >
+                        {{
+                          op.allowed
+                            ? $t('shared.pageOperation.confirmOk')
+                            : $t('shared.pageOperation.confirmCancel')
+                        }}
+                      </span>
                     </div>
+                    <!-- Pending state -->
+                    <template v-else>
+                      <div
+                        class="flex items-center gap-1.5 px-2.5 py-1.5"
+                        :class="compact ? 'text-[10px]' : 'text-[11px]'"
+                      >
+                        <IconifyIcon
+                          icon="lucide:shield-alert"
+                          class="size-3.5 shrink-0 text-warning"
+                        />
+                        <div class="min-w-0 flex-1">
+                          <div class="truncate font-medium text-foreground/80">
+                            {{ op.operationLabel }}
+                          </div>
+                          <div
+                            v-if="op.operationDescription"
+                            class="truncate text-muted-foreground/60"
+                          >
+                            {{ op.operationDescription }}
+                          </div>
+                          <div
+                            class="mt-0.5 text-muted-foreground/50"
+                            :class="compact ? 'text-[9px]' : 'text-[10px]'"
+                          >
+                            {{
+                              $t('shared.pageOperation.confirmCountdown', {
+                                seconds: Math.max(
+                                  0,
+                                  60 -
+                                    Math.floor(
+                                      ((countdownNow ?? now) -
+                                        (op.startedAt || 0)) /
+                                        1000,
+                                    ),
+                                ),
+                              })
+                            }}
+                          </div>
+                        </div>
+                        <div class="flex shrink-0 items-center gap-1">
+                          <button
+                            class="inline-flex items-center gap-0.5 rounded-md bg-primary px-2 py-0.5 font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+                            :class="compact ? 'text-[10px]' : 'text-[11px]'"
+                            @click="
+                              aiPanelStore.resolvePageOp(op.invokeId, true)
+                            "
+                          >
+                            <IconifyIcon icon="lucide:check" class="size-3" />
+                            {{ $t('shared.pageOperation.confirmOk') }}
+                          </button>
+                          <button
+                            class="inline-flex items-center gap-0.5 rounded-md border border-border/60 px-2 py-0.5 text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive"
+                            :class="compact ? 'text-[10px]' : 'text-[11px]'"
+                            @click="
+                              aiPanelStore.resolvePageOp(op.invokeId, false)
+                            "
+                          >
+                            <IconifyIcon icon="lucide:x" class="size-3" />
+                            {{ $t('shared.pageOperation.confirmCancel') }}
+                          </button>
+                        </div>
+                      </div>
+                      <div
+                        v-if="hasPendingOpArgs(op.params)"
+                        class="border-t border-border/20"
+                      >
+                        <button
+                          type="button"
+                          class="flex w-full cursor-pointer items-center gap-1 px-2.5 py-0.5 text-left text-muted-foreground/60 transition-colors hover:text-muted-foreground"
+                          :class="compact ? 'text-[9px]' : 'text-[10px]'"
+                          @click="togglePendingOpExpand(op.invokeId)"
+                        >
+                          <IconifyIcon icon="lucide:code" class="size-2.5" />
+                          {{ $t('common.globalAiChat.args') }}
+                          <IconifyIcon
+                            icon="lucide:chevron-down"
+                            class="size-2.5 transition-transform duration-200"
+                            :style="{
+                              transform: isPendingOpExpanded(op.invokeId)
+                                ? 'rotate(180deg)'
+                                : 'rotate(0deg)',
+                            }"
+                          />
+                        </button>
+                        <div
+                          class="grid transition-[grid-template-rows,opacity] duration-200 ease-out"
+                          :style="{
+                            gridTemplateRows: isPendingOpExpanded(op.invokeId)
+                              ? '1fr'
+                              : '0fr',
+                            opacity: isPendingOpExpanded(op.invokeId) ? 1 : 0,
+                          }"
+                        >
+                          <div
+                            class="min-h-0 overflow-hidden border-t border-border/20"
+                          >
+                            <div class="px-2.5 py-1">
+                              <pre
+                                class="max-h-24 overflow-y-auto whitespace-pre-wrap rounded bg-accent/40 px-1.5 py-1 font-mono text-muted-foreground"
+                                :class="compact ? 'text-[9px]' : 'text-[10px]'"
+                                >{{ JSON.stringify(op.params, null, 2) }}</pre
+                              >
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </template>
                   </div>
+                  <!-- Still running hint (8s+) - outside details so always visible / 执行超 8s 的提示 -->
+                  <p
+                    v-if="
+                      toolItem.tc.status === 'running' &&
+                      toolItem.tc.startedAt &&
+                      now - toolItem.tc.startedAt >= 8000
+                    "
+                    class="mt-0.5 pl-1 text-[10px] text-muted-foreground"
+                  >
+                    {{ $t('common.globalAiChat.toolStillRunningHint') }}
+                  </p>
                 </div>
-              </template>
-            </div>
-            <!-- Still running hint (8s+) - outside details so always visible / 执行超 8s 的提示 -->
-            <p
-              v-if="
-                toolItem.tc.status === 'running' &&
-                toolItem.tc.startedAt &&
-                now - toolItem.tc.startedAt >= 8000
-              "
-              class="mt-0.5 pl-1 text-[10px] text-muted-foreground"
-            >
-              {{ $t('common.globalAiChat.toolStillRunningHint') }}
-            </p>
-          </div>
               </div>
             </div>
           </div>
@@ -2747,13 +2798,13 @@ watch(
 
 .thinking-chip {
   width: fit-content;
-  border: 1px solid hsl(var(--border) / 28%);
-  border-radius: 999px;
   background: linear-gradient(
     180deg,
     hsl(var(--background) / 96%),
     hsl(var(--accent) / 42%)
   );
+  border: 1px solid hsl(var(--border) / 28%);
+  border-radius: 999px;
   box-shadow:
     inset 0 1px 0 hsl(var(--background) / 84%),
     0 12px 28px -30px hsl(var(--primary) / 55%);
@@ -2774,13 +2825,13 @@ watch(
 
 .thinking-sheet-card {
   position: relative;
-  border: 1px solid hsl(var(--border) / 18%);
-  border-radius: 18px;
   background: linear-gradient(
     180deg,
     hsl(var(--background) / 95%),
     hsl(var(--accent) / 18%)
   );
+  border: 1px solid hsl(var(--border) / 18%);
+  border-radius: 18px;
   box-shadow:
     inset 0 1px 0 hsl(var(--background) / 82%),
     0 18px 42px -36px hsl(var(--foreground) / 35%);

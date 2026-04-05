@@ -8,6 +8,8 @@
 import type { JSONContent } from '@tiptap/core';
 import type { Dayjs } from 'dayjs';
 
+import type { CodegenDbTableRowItem } from '#/api/admin/codegen';
+
 import { computed, reactive, ref, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
@@ -57,6 +59,13 @@ interface FormItem extends BuilderField {
 type SelectScalarValue = number | string;
 type SelectValue = SelectScalarValue | SelectScalarValue[] | undefined;
 type TreeValue = SelectScalarValue | SelectScalarValue[] | undefined;
+type ApiSelectOptionSource = Record<string, unknown>;
+
+interface ApiSelectResponse {
+  items: ApiSelectOptionSource[];
+  total: number;
+  [key: string]: unknown;
+}
 
 function asBoolean(value: unknown): boolean {
   if (typeof value === 'boolean') {
@@ -426,7 +435,18 @@ function getMockRelationOptions(
 }
 
 /** 关联表真实数据 API（供 ApiSelect 使用） */
-function getRelationApi(f: BuilderField) {
+function toApiSelectOptionSource(
+  item: CodegenDbTableRowItem,
+): ApiSelectOptionSource {
+  return {
+    label: item.label,
+    value: item.value,
+  };
+}
+
+function getRelationApi(
+  f: BuilderField,
+): (params: Record<string, unknown>) => Promise<ApiSelectResponse> {
   const table = asString(f.relation_table);
   const valueField = asString(
     f.relation_value_field || f.relation_value || 'id',
@@ -434,13 +454,18 @@ function getRelationApi(f: BuilderField) {
   const displayField = asString(
     f.relation_display || f.relation_display_field || 'name',
   );
-  return (params: Record<string, unknown>) =>
-    getCodegenDbTableRowsApi(table, {
+  return async (params: Record<string, unknown>) => {
+    const response = await getCodegenDbTableRowsApi(table, {
       value_field: valueField,
       display_field: displayField,
       limit: 200,
       search: (params?.search as string) || undefined,
     });
+    return {
+      ...response,
+      items: response.items.map((item) => toApiSelectOptionSource(item)),
+    };
+  };
 }
 
 /** 关联字段 placeholder */

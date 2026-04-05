@@ -20,6 +20,7 @@ from app.repositories.tenant.tenant_admin_repository import TenantAdminRepositor
 from app.repositories.tenant.tenant_permission_role_repository import (
     TenantPermissionRoleRepository,
 )
+from app.schemas.common.select import SelectOption, SelectResponse
 
 
 class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
@@ -346,6 +347,29 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
             raise NotFoundException(message=_("tenant_admin.not_found"))
         return result
 
+    async def get_identity_select_options(
+        self,
+        search: str = "",
+        page: int = 1,
+        page_size: int = 20,
+    ) -> SelectResponse:
+        """
+        获取企业管理员分页身份选择器 / Get paginated tenant admin identity select options.
+        """
+        admins, total = await self.repo.query_identity_select(
+            search=search or None,
+            page=page,
+            page_size=page_size,
+        )
+        items = [self._build_identity_select_option(admin) for admin in admins]
+        return SelectResponse(
+            items=items,
+            total=total,
+            page=page,
+            page_size=page_size,
+            has_more=(page * page_size) < total,
+        )
+
     async def _get_tenant_root_node(self) -> TenantOrgNode | None:
         """
         获取企业的组织架构根节点 / Get tenant org root node.
@@ -384,6 +408,31 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
         )
         if result.scalar_one_or_none() is None:
             raise NotFoundException(message=_("role.not_found"))
+
+    @staticmethod
+    def _build_identity_select_option(admin: TenantAdmin) -> SelectOption:
+        role = getattr(admin, "role", None)
+        org_node = getattr(admin, "org_node", None)
+        is_leader = bool(org_node and getattr(org_node, "leader_id", None) == admin.id)
+        display_name = admin.nickname or admin.username or f"#{admin.id}"
+        return SelectOption(
+            label=display_name,
+            value=admin.id,
+            extra={
+                "display_name": display_name,
+                "username": admin.username,
+                "nickname": admin.nickname,
+                "avatar": admin.avatar,
+                "org_node_id": admin.org_node_id,
+                "org_node_name": getattr(org_node, "name", None),
+                "role_name": getattr(role, "name", None),
+                "user_type": "tenant_admin",
+                "is_active": admin.is_active,
+                "is_leader": is_leader,
+                "is_owner": admin.is_owner,
+            },
+            disabled=not admin.is_active,
+        )
 
 
 __all__ = ["TenantAdminService"]

@@ -57,6 +57,12 @@ export interface ApiSelectOptions {
   extraField?: string;
   /** Page size, default 10 / 每页数量，默认 10 */
   pageSize?: number;
+  /** Preloaded selected options for remote edit/display flows / 远程编辑回显场景预加载的已选项 */
+  selectedOptions?: Array<{
+    [key: string]: unknown;
+    label: string;
+    value: number | string;
+  }>;
   /** Enable click pagination, default true / 是否启用点击分页，默认 true */
   clickPagination?: boolean;
   /** Extra component props merged into ApiSelect / 额外透传给 ApiSelect 的组件属性 */
@@ -110,6 +116,23 @@ export interface SelectOptions extends Omit<
   fieldName?: string;
 }
 
+export interface IdentityRemoteSelectOptions extends ApiSelectOptions {
+  /** Avatar field name, root or extra-aware / 头像字段名，支持 root/extra */
+  avatarField?: string;
+  /** Preferred display field / 首选显示名字段 */
+  displayField?: string;
+  /** Fallback display fields / 显示名回退字段 */
+  displayFallbackFields?: string[];
+  /** Secondary text field, usually username / 副标题字段，通常为 username */
+  secondaryField?: string;
+  /** Secondary text fallback fields / 副标题回退字段 */
+  secondaryFallbackFields?: string[];
+  /** Architecture tag field, usually org node name / 架构标签字段，通常为组织节点名 */
+  tagField?: string;
+  /** Architecture tag fallback fields / 架构标签回退字段 */
+  tagFallbackFields?: string[];
+}
+
 /**
  * Unified selector (Modern)
  * 统一选择器 (Modern)
@@ -139,12 +162,7 @@ export function select(
   label: string,
   options: SelectOptions = {},
 ): VbenFormSchema {
-  const {
-    api,
-    options: staticOptions,
-    componentProps = {},
-    ...rest
-  } = options;
+  const { api, options: staticOptions, componentProps = {}, ...rest } = options;
 
   // 1. If API provided, use ApiSelect / 如果有 API，使用 ApiSelect
   if (api) {
@@ -169,11 +187,7 @@ export function select(
           }));
   }
 
-  const {
-    required,
-    placeholder,
-    ...restComponentProps
-  } = rest;
+  const { required, placeholder, ...restComponentProps } = rest;
 
   return {
     component: 'Select',
@@ -303,6 +317,7 @@ export function apiSelect(options: ApiSelectOptions): VbenFormSchema {
     params = {},
     extraField,
     pageSize = 10,
+    selectedOptions = [],
     clickPagination = true,
     required = false,
   } = options;
@@ -321,6 +336,7 @@ export function apiSelect(options: ApiSelectOptions): VbenFormSchema {
       pagination: true,
       clickPagination,
       pageSize,
+      selectedOptions,
       ...componentProps,
       ...(extraField
         ? {
@@ -329,6 +345,66 @@ export function apiSelect(options: ApiSelectOptions): VbenFormSchema {
               : `extra.${extraField}`,
           }
         : {}),
+    },
+    fieldName,
+    label,
+    ...(required ? { rules: 'selectRequired' } : {}),
+  };
+}
+
+export function identityRemoteSelect(
+  options: IdentityRemoteSelectOptions,
+): VbenFormSchema {
+  const {
+    api,
+    avatarField = 'avatar',
+    componentProps = {},
+    displayFallbackFields = [
+      'display_name',
+      'displayName',
+      'real_name',
+      'realName',
+      'label',
+      'username',
+    ],
+    displayField = 'nickname',
+    fieldName,
+    label = '',
+    pageSize = 10,
+    params = {},
+    placeholder,
+    required = false,
+    secondaryFallbackFields = ['email'],
+    secondaryField = 'username',
+    selectedOptions = [],
+    tagFallbackFields = ['org_node_name'],
+    tagField = 'orgNodeName',
+    clickPagination = true,
+  } = options;
+
+  return {
+    component: 'IdentityRemoteSelect',
+    componentProps: {
+      allowClear: true,
+      api,
+      avatarField,
+      class: 'w-full',
+      clickPagination,
+      displayFallbackFields,
+      displayField,
+      filterOption: false,
+      pageSize,
+      pagination: true,
+      params,
+      placeholder,
+      resultField: 'items',
+      secondaryFallbackFields,
+      secondaryField,
+      selectedOptions,
+      showSearch: true,
+      tagFallbackFields,
+      tagField,
+      ...componentProps,
     },
     fieldName,
     label,

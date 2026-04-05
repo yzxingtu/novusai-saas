@@ -812,7 +812,9 @@ defineExpose({ open, openAddDomain });
 
               <!-- 验证域名 (待验证才显示) -->
               <Button
-                v-if="domain.verificationStatus === 'pending' && canVerifyDomain"
+                v-if="
+                  domain.verificationStatus === 'pending' && canVerifyDomain
+                "
                 type="link"
                 size="small"
                 @click="onVerifyDomain(domain)"

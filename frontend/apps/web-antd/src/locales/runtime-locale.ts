@@ -15,9 +15,7 @@ export function resolveRuntimeLocale(): string {
   return String(preferences.app.locale || '').trim();
 }
 
-export async function syncRuntimeLocale(
-  locale?: null | string,
-): Promise<void> {
+export async function syncRuntimeLocale(locale?: null | string): Promise<void> {
   const targetLocale =
     String(locale || '').trim() || String(preferences.app.locale || '').trim();
 

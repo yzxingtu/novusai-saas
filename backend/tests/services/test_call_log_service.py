@@ -93,6 +93,24 @@ class TestCallLogList:
         assert len(result) == 1
         assert result[0].status == "error"
 
+    @pytest.mark.asyncio
+    async def test_query_list_with_names_forwards_include_caller_names(self, mock_db):
+        from app.services.ai.call_log_service import CallLogService
+
+        spec = MagicMock()
+        service = CallLogService.__new__(CallLogService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service.repo.query_list_with_names = AsyncMock(return_value=([], 0))
+
+        await service.query_list_with_names(spec, include_caller_names=True)
+
+        service.repo.query_list_with_names.assert_awaited_once_with(
+            spec,
+            include_caller_names=True,
+        )
+
 
 class TestCallLogCreate:
     @pytest.mark.asyncio

@@ -10,6 +10,7 @@ Controllers use @permission_resource to define resource permissions; importing r
 
 from fastapi import APIRouter
 
+from app.api.tenant.admins import router as admins_router
 from app.api.tenant.agent_assignments import router as agent_assignments_router
 from app.api.tenant.agent_chat import TenantAgentChatController
 from app.api.tenant.agent_chat import router as agent_chat_router
@@ -75,6 +76,7 @@ tenant_router.include_router(operation_logs_router)
 tenant_router.include_router(permissions_router)
 tenant_router.include_router(permission_roles_router)
 tenant_router.include_router(organization_router)
+tenant_router.include_router(admins_router)
 tenant_router.include_router(users_router)
 tenant_router.include_router(user_roles_router)
 # AI 网关相关 / AI gateway

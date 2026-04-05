@@ -266,7 +266,9 @@ function getProbeText(passed: boolean | null | undefined): string {
               <span class="text-muted-foreground">{{
                 $t('admin.ai.health.baseConnectivity')
               }}</span>
-              <Tag :color="getProbeBadgeStatus(status.base_connectivity_healthy)">
+              <Tag
+                :color="getProbeBadgeStatus(status.base_connectivity_healthy)"
+              >
                 {{ getProbeText(status.base_connectivity_healthy) }}
               </Tag>
             </div>
@@ -279,7 +281,9 @@ function getProbeText(passed: boolean | null | undefined): string {
               </Tag>
             </div>
             <div
-              v-if="status.tool_probe_model || status.tool_probe_reasoning_effort"
+              v-if="
+                status.tool_probe_model || status.tool_probe_reasoning_effort
+              "
               class="flex flex-col gap-1"
             >
               <span class="text-muted-foreground">{{

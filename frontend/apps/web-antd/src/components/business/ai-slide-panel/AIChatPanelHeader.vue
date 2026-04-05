@@ -7,7 +7,7 @@ import { $t } from '#/locales';
 
 defineOptions({ name: 'AIChatPanelHeader' });
 
-const props = withDefaults(
+withDefaults(
   defineProps<{
     docked?: boolean;
     headerConversationSummary?: string;

@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from starlette.requests import Request
 
+from app.core.i18n import _
 from app.plugins.webhook_dispatcher import _verify_webhook_auth, webhook_dispatcher
 
 
@@ -135,13 +136,15 @@ async def test_webhook_dispatcher_redacts_internal_error_in_production(
         "app.plugins.registry.ExtensionRegistry.get_instance",
         lambda *_args, **_kwargs: _Registry(),
     )
-    monkeypatch.setattr("app.plugins.webhook_dispatcher.settings.DEBUG", False, raising=False)
+    monkeypatch.setattr("app.core.config.settings.DEBUG", False, raising=False)
 
     response = await webhook_dispatcher("demo", "test", request)
 
     assert response.status_code == 500
     payload = json.loads(response.body)
-    assert payload["error"] == "Internal server error"
+    assert payload["code"] == 5000
+    assert payload["message"] == _("common.server_error")
+    assert "sensitive stack details" not in response.body.decode("utf-8")
 
 
 @pytest.mark.asyncio
@@ -169,4 +172,5 @@ async def test_webhook_dispatcher_returns_404_when_runtime_gate_denies_license(
 
     assert response.status_code == 404
     payload = json.loads(response.body)
-    assert "not found or disabled" in payload["error"]
+    assert payload["code"] == 4040
+    assert "not found or disabled" in payload["message"]

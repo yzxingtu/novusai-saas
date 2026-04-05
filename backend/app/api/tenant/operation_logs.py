@@ -14,7 +14,6 @@ from app.core.i18n import _
 from app.core.response import success
 from app.enums.rbac import PermissionScope
 from app.rbac.decorators import MenuConfig, action_read, permission_resource
-from app.schemas.system import OperationLogListResponse, OperationLogResponse
 from app.schemas.system.operation_log import OperatorSelectItem
 from app.services.system import OperationLogService
 
@@ -80,10 +79,11 @@ class TenantOperationLogController(TenantController):
                 tenant_admin=current_admin,
                 spec=spec,
             )
+            serialized_items = await service.serialize_logs(items)
 
             return success(
                 data=PageResponse.create(
-                    items=[OperationLogListResponse.from_model(item) for item in items],
+                    items=serialized_items,
                     total=total,
                     page=spec.page,
                     page_size=spec.size,
@@ -169,7 +169,7 @@ class TenantOperationLogController(TenantController):
                 )
 
             return success(
-                data=OperationLogResponse.from_model(log),
+                data=await service.serialize_log(log),
                 message=_("common.success"),
             )
 

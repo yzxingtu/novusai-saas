@@ -24,6 +24,7 @@ import { Button, DatePicker, Empty, Spin } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
 import AIPageHeroCard from '#/components/business/ai-page-hero/AIPageHeroCard.vue';
+import IdentityDisplay from '#/components/business/identity-display/IdentityDisplay.vue';
 import { $t } from '#/locales';
 
 import { getMonitoringUsageDashboard } from '../api';
@@ -357,6 +358,38 @@ function breakdownLabel(item: MonitoringUsageBreakdownItem) {
     return $t(`${props.i18nPrefix}.accessChannel.unknown`);
   }
   return item.label || item.key;
+}
+
+function buildUsageActorIdentityModel(item: MonitoringUsageBreakdownItem) {
+  const actor = item.actor;
+  const fallbackLabel = (item.label || item.key || '').trim();
+  if (!actor && !fallbackLabel) {
+    return null;
+  }
+
+  const displayName =
+    actor?.display_name?.trim() ||
+    actor?.nickname?.trim() ||
+    actor?.username?.trim() ||
+    fallbackLabel;
+
+  return {
+    avatar: actor?.avatar,
+    displayName: actor?.display_name || displayName,
+    id: actor?.id ?? item.key,
+    isActive: actor?.is_active,
+    isLeader: actor?.is_leader,
+    isOwner: actor?.is_owner,
+    nickname: displayName,
+    orgNodeId: actor?.org_node_id,
+    orgNodeName: actor?.org_node_name,
+    roleName: actor?.role_name,
+    userType: actor?.type ?? undefined,
+    username:
+      actor?.display_name || actor?.nickname
+        ? undefined
+        : (actor?.username ?? undefined),
+  };
 }
 
 function renderCharts() {
@@ -931,9 +964,22 @@ onBeforeUnmount(() => {
                       {{ index + 1 }}
                     </span>
                     <div class="min-w-0 flex-1">
-                      <div class="flex items-center justify-between gap-3">
-                        <div class="truncate font-medium text-foreground">
-                          {{ breakdownLabel(item) }}
+                      <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0 flex-1">
+                          <IdentityDisplay
+                            v-if="
+                              section.key === 'users' &&
+                              buildUsageActorIdentityModel(item)
+                            "
+                            :avatar-size="32"
+                            :model="buildUsageActorIdentityModel(item)!"
+                          />
+                          <div
+                            v-else
+                            class="truncate font-medium text-foreground"
+                          >
+                            {{ breakdownLabel(item) }}
+                          </div>
                         </div>
                         <div class="text-xs text-muted-foreground">
                           {{ formatShare(item.call_count, totalCalls) }}
@@ -1026,9 +1072,22 @@ onBeforeUnmount(() => {
                     {{ index + 1 }}
                   </span>
                   <div class="min-w-0 flex-1">
-                    <div class="flex items-center justify-between gap-3">
-                      <div class="truncate font-medium text-foreground">
-                        {{ breakdownLabel(item) }}
+                    <div class="flex items-start justify-between gap-3">
+                      <div class="min-w-0 flex-1">
+                        <IdentityDisplay
+                          v-if="
+                            section.key === 'users' &&
+                            buildUsageActorIdentityModel(item)
+                          "
+                          :avatar-size="32"
+                          :model="buildUsageActorIdentityModel(item)!"
+                        />
+                        <div
+                          v-else
+                          class="truncate font-medium text-foreground"
+                        >
+                          {{ breakdownLabel(item) }}
+                        </div>
                       </div>
                       <div class="text-xs text-muted-foreground">
                         {{ formatShare(item.call_count, totalCalls) }}
@@ -1076,8 +1135,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .monitoring-usage-page :deep(.monitoring-range-picker.ant-picker) {
-  border-radius: 12px;
   min-height: 32px;
+  border-radius: 12px;
 }
 
 .monitoring-usage-page :deep(.monitoring-range-picker.ant-picker:hover),
@@ -1086,89 +1145,89 @@ onBeforeUnmount(() => {
 }
 
 .monitoring-surface {
-  border: 1px solid hsl(var(--border) / 0.7);
-  background: hsl(var(--card));
-  border-radius: 24px;
+  width: 100%;
   height: auto;
   padding: 14px;
-  width: 100%;
-  box-shadow: 0 10px 30px -24px rgb(15 23 42 / 0.28);
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border) / 70%);
+  border-radius: 24px;
+  box-shadow: 0 10px 30px -24px rgb(15 23 42 / 28%);
 }
 
 .monitoring-surface__eyebrow {
-  color: hsl(var(--muted-foreground));
   font-size: 11px;
   font-weight: 500;
-  letter-spacing: 0.18em;
+  color: hsl(var(--muted-foreground));
   text-transform: uppercase;
+  letter-spacing: 0.18em;
 }
 
 .monitoring-surface__title {
-  color: hsl(var(--foreground));
+  margin-top: 4px;
   font-size: 1.1rem;
   font-weight: 600;
   line-height: 1.3;
-  margin-top: 4px;
+  color: hsl(var(--foreground));
 }
 
 .monitoring-surface__desc {
-  color: hsl(var(--muted-foreground));
+  margin-top: 6px;
   font-size: 0.9rem;
   line-height: 1.5;
-  margin-top: 6px;
+  color: hsl(var(--muted-foreground));
 }
 
 .monitoring-chart-shell {
-  border: 1px solid hsl(var(--border) / 0.55);
-  background: hsl(var(--background) / 0.82);
-  border-radius: 20px;
   padding: 8px 10px;
+  background: hsl(var(--background) / 82%);
+  border: 1px solid hsl(var(--border) / 55%);
+  border-radius: 20px;
 }
 
 .monitoring-list-shell {
   max-height: 360px;
-  overflow-y: auto;
   padding-right: 2px;
+  overflow-y: auto;
 }
 
 .monitoring-chip {
-  align-items: center;
-  background: hsl(var(--background) / 0.88);
-  border: 1px solid hsl(var(--border) / 0.65);
-  border-radius: 9999px;
-  color: hsl(var(--muted-foreground));
   display: inline-flex;
-  font-size: 12px;
+  align-items: center;
   padding: 8px 12px;
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--background) / 88%);
+  border: 1px solid hsl(var(--border) / 65%);
+  border-radius: 9999px;
 }
 
 .monitoring-chip--sky {
-  background: hsl(var(--primary) / 0.08);
-  border-color: hsl(var(--primary) / 0.16);
   color: hsl(var(--primary));
+  background: hsl(var(--primary) / 8%);
+  border-color: hsl(var(--primary) / 16%);
 }
 
 .monitoring-chip--amber {
-  background: hsl(var(--warning) / 0.12);
-  border-color: hsl(var(--warning) / 0.22);
   color: hsl(var(--warning));
+  background: hsl(var(--warning) / 12%);
+  border-color: hsl(var(--warning) / 22%);
 }
 
 .monitoring-chip--violet {
-  background: hsl(var(--primary) / 0.08);
-  border-color: hsl(var(--primary) / 0.16);
   color: hsl(var(--primary));
+  background: hsl(var(--primary) / 8%);
+  border-color: hsl(var(--primary) / 16%);
 }
 
 .monitoring-chip--cyan {
-  background: hsl(var(--success) / 0.1);
-  border-color: hsl(var(--success) / 0.18);
   color: hsl(var(--success));
+  background: hsl(var(--success) / 10%);
+  border-color: hsl(var(--success) / 18%);
 }
 
 .monitoring-chip--rose {
-  background: hsl(var(--destructive) / 0.08);
-  border-color: hsl(var(--destructive) / 0.16);
   color: hsl(var(--destructive));
+  background: hsl(var(--destructive) / 8%);
+  border-color: hsl(var(--destructive) / 16%);
 }
 </style>

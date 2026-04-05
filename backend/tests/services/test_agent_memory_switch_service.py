@@ -16,6 +16,7 @@ def _make_agent(**overrides):
     data = {
         "id": 1,
         "tenant_id": 1,
+        "owner_tenant_id": 1,
         "memory_enabled": True,
         "is_deleted": False,
     }
@@ -84,7 +85,9 @@ async def test_set_memory_disabled_create_and_clear_override(mock_db):
     svc.db = mock_db
     svc.tenant_id = 1
     svc.repo = AsyncMock()
-    svc.repo.get_by_id = AsyncMock(return_value=_make_agent(tenant_id=1))
+    svc.repo.get_by_id = AsyncMock(
+        return_value=_make_agent(tenant_id=1, owner_tenant_id=1)
+    )
     svc.get_memory_config = AsyncMock(return_value={"effective_memory_enabled": False})
 
     override_repo = AsyncMock()

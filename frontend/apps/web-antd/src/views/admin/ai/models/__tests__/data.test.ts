@@ -96,19 +96,13 @@ describe('ai model compatibility helpers', () => {
 
   it('clears overrides when the model type no longer supports advanced runtime params', () => {
     expect(
-      buildModelConfig(
-        'xhigh',
-        'gpt-5.4',
-        'openai_compatible',
-        'embedding',
-        {
-          runtime_overrides: {
-            openai_compatible: {
-              responses: { reasoning: { effort: 'high' } },
-            },
+      buildModelConfig('xhigh', 'gpt-5.4', 'openai_compatible', 'embedding', {
+        runtime_overrides: {
+          openai_compatible: {
+            responses: { reasoning: { effort: 'high' } },
           },
         },
-      ),
+      }),
     ).toBeNull();
   });
 

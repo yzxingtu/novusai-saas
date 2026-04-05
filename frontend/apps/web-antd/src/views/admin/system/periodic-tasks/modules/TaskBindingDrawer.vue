@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { TenantSelectOption } from '#/api/admin/tenant';
+
 import { computed, ref } from 'vue';
 
 import { useVbenDrawer } from '@vben/common-ui';
@@ -43,9 +45,14 @@ type BindingScope =
 type ApiSelectValue = Array<number | string> | number | string | undefined;
 
 type TenantOption = {
-  extra?: null | Record<string, any>;
+  extra?: null | Record<string, unknown>;
   label: string;
   value: number | string;
+};
+
+type TenantOptionResponse = {
+  [key: string]: unknown;
+  items: TenantOption[];
 };
 
 const emitSuccess = () => emit('success');
@@ -98,6 +105,23 @@ function mergeTenantOptions(...groups: TenantOption[][]): TenantOption[] {
   }
 
   return [...tenantMap.values()];
+}
+
+function toTenantOption(option: TenantSelectOption): TenantOption {
+  return {
+    ...option,
+    extra: option.extra ? { ...option.extra } : option.extra,
+  };
+}
+
+async function loadTenantSelectOptions(
+  params: Record<string, unknown>,
+): Promise<TenantOptionResponse> {
+  const response = await getTenantSelectApi(params);
+  return {
+    ...response,
+    items: response.items.map((item) => toTenantOption(item)),
+  };
 }
 
 function buildTenantOptions(
@@ -252,13 +276,7 @@ async function loadData() {
   }
 }
 
-function handleTenantOptionsLoaded(
-  options: Array<{
-    extra?: null | Record<string, any>;
-    label: string;
-    value: number | string;
-  }>,
-) {
+function handleTenantOptionsLoaded(options: TenantOption[]) {
   cachedTenantOptions.value = mergeTenantOptions(
     cachedTenantOptions.value,
     options,
@@ -450,7 +468,7 @@ async function onSave() {
             class="mt-4 w-full"
             mode="multiple"
             :options="cachedTenantOptions"
-            :api="getTenantSelectApi"
+            :api="loadTenantSelectOptions"
             :params="tenantSelectParams"
             result-field="items"
             option-right-field="extra.code"

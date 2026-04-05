@@ -9,6 +9,7 @@ Supports SSE streaming output.
 
 from __future__ import annotations
 
+import inspect
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import asdict, dataclass
@@ -19,7 +20,7 @@ from fastapi.responses import StreamingResponse
 from app.ai.adapters import AdapterRegistry
 from app.ai.runtime import ConversationQueryEngine
 from app.ai.text_semantics import strip_model_function_call_markup
-from app.ai.tools.types import ToolDefinition, to_openai_tools
+from app.ai.tools.types import ToolDefinition, ToolResult, to_openai_tools
 from app.ai.types import ChatChunk, ChatMessage, ChatResponse, messages_to_dicts
 from app.ai.usage_mode import resolve_chat_usage
 from app.ai.usage_recorder import UsageRecorder
@@ -34,11 +35,19 @@ from app.models.ai.agent import Agent
 from app.services.ai.usage_metrics import CostCalculator, TokenCounter
 
 from .base import BaseEngine, log_user_type_for_call_log
+from .budget_guard import BudgetGuard
 from .execution_state_machine import ExecutionStateMachine
 from .failure_classifier import FailureClassifier
+from .intent_planner import IntentPlanner
+from .path_selector import PathSelector
 from .recovery_manager import RecoveryManager
 from .stream_handler import StreamExecutionHandler
-from .types import ExecutionRequest, ExecutionResult, ToolUsePolicy
+from .types import (
+    ExecutionRequest,
+    ExecutionResult,
+    IntentPlan,
+    ToolUsePolicy,
+)
 
 if TYPE_CHECKING:
     from app.ai.skills.resolver import SkillResolveResult
@@ -65,6 +74,13 @@ class _StreamRuntimeContext:
 def _strip_model_fc_tokens(text: str) -> str:
     """Filter leaked internal function call markers from model output (DeepSeek ｜DSML｜ etc.) / 过滤模型泄漏的内部 function call 标记"""
     return strip_model_function_call_markup(text)
+
+
+async def _await_if_needed(value: Awaitable[Any] | Any) -> Any:
+    """Await async collaborators while tolerating sync test doubles."""
+    if inspect.isawaitable(value):
+        return await value
+    return value
 
 
 def _serialize_context_sources(
@@ -138,8 +154,8 @@ class ConversationEngine(BaseEngine):
         state: ExecutionStateMachine,
         tool_results: list[Any],
     ) -> None:
-        tool_failure_kind, tool_failure_events = FailureClassifier.classify_tool_results(
-            tool_results
+        tool_failure_kind, tool_failure_events = (
+            FailureClassifier.classify_tool_results(tool_results)
         )
         if tool_failure_kind != "none":
             for event in tool_failure_events:
@@ -147,6 +163,169 @@ class ConversationEngine(BaseEngine):
                     kind=tool_failure_kind,
                     event=event,
                 )
+
+    @staticmethod
+    def _normalize_tool_call_outcome(
+        outcome: tuple[Any, ...],
+    ) -> tuple[ChatResponse | None, list[Any], int, int]:
+        if len(outcome) == 4:
+            response, tool_results, total_tokens, completion_tokens_used = outcome
+            return response, tool_results, total_tokens, completion_tokens_used
+        if len(outcome) == 3:
+            response, tool_results, total_tokens = outcome
+            completion_tokens_used = int(
+                getattr(response, "output_tokens", None)
+                if getattr(response, "output_tokens", None) is not None
+                else (total_tokens or 0)
+            )
+            return response, tool_results, total_tokens, completion_tokens_used
+        raise ValueError(
+            f"Unexpected tool call outcome shape: expected 3 or 4 items, got {len(outcome)}"
+        )
+
+    @staticmethod
+    def _synthesize_tool_results_from_calls(
+        tool_calls: list[dict[str, Any]] | None,
+    ) -> list[ToolResult]:
+        synthesized: list[ToolResult] = []
+        for index, tool_call in enumerate(tool_calls or []):
+            function_block = tool_call.get("function") or {}
+            tool_name = str(
+                function_block.get("name") or tool_call.get("name") or ""
+            ).strip()
+            if not tool_name:
+                continue
+            tool_call_id = str(tool_call.get("id") or f"synthetic_tool_call_{index}")
+            synthesized.append(
+                ToolResult(
+                    tool_call_id=tool_call_id,
+                    name=tool_name,
+                    success=True,
+                )
+            )
+        return synthesized
+
+    def _bootstrap_missing_intent_plan(
+        self,
+        *,
+        prep: Any,
+        request: ExecutionRequest,
+        state: ExecutionStateMachine,
+        messages: list[ChatMessage],
+    ) -> None:
+        if state.intent_plan:
+            return
+
+        tools_full = list(
+            getattr(prep, "all_tools", None) or getattr(prep, "tools", None) or []
+        )
+        inferred_intents = IntentPlanner.plan_turn(
+            messages=list(getattr(request, "messages", None) or messages or []),
+            tools=tools_full,
+            input_variables=getattr(request, "input_variables", None),
+            continuation_context=getattr(prep, "continuation_context", None),
+            capability_bundle=getattr(prep, "capability_bundle", None),
+        )
+        actionable_inferred_intents = any(
+            intent.family != "none" and intent.requires_tools
+            for intent in inferred_intents
+        )
+
+        fallback_family = getattr(prep.tool_use_policy, "family", "none")
+        if fallback_family == "none" and getattr(
+            prep.tool_use_policy, "retry_on_contract_breach", False
+        ):
+            allowed_tool_names = set(prep.tool_use_policy.allowed_tool_names or [])
+            if {"web_search", "fetch_url"} & allowed_tool_names:
+                fallback_family = "web_research"
+            elif any(
+                name == "get_page_context" or name.startswith("pageop_")
+                for name in allowed_tool_names
+            ):
+                fallback_family = "page_ops"
+            elif "get_current_weather" in allowed_tool_names:
+                fallback_family = "weather"
+            elif "get_current_time" in allowed_tool_names:
+                fallback_family = "time_ops"
+
+        if not actionable_inferred_intents and fallback_family != "none":
+            fallback_allowed_tools = list(prep.tool_use_policy.allowed_tool_names or [])
+            inferred_intents = [
+                IntentPlan(
+                    intent_id=f"{fallback_family}-1",
+                    kind=f"{fallback_family}_intent",
+                    family=fallback_family,
+                    order=1,
+                    user_visible_label=fallback_family,
+                    source_text=self._extract_last_user_text(messages),
+                    status="pending",
+                    requires_tools=True,
+                    allow_text_response=False,
+                    allowed_tool_names=fallback_allowed_tools,
+                    preferred_tool_names=fallback_allowed_tools,
+                    completion_signals=self._intent_completion_signals(
+                        fallback_family,
+                        allowed_tool_names=fallback_allowed_tools,
+                        preferred_tool_names=fallback_allowed_tools,
+                    ),
+                )
+            ]
+            actionable_inferred_intents = True
+
+        if not actionable_inferred_intents:
+            return
+
+        normalized_intents: list[IntentPlan] = []
+        for intent in inferred_intents:
+            clone = (
+                IntentPlan(**intent.to_dict())
+                if isinstance(intent, IntentPlan)
+                else IntentPlan(**intent)
+            )
+            if clone.family != "none" and clone.requires_tools:
+                allowed_tool_names = list(clone.allowed_tool_names or [])
+                if not allowed_tool_names:
+                    allowed_tool_names = self._allowed_tool_names_for_family(
+                        clone.family,
+                        tools_full,
+                        getattr(request, "input_variables", None),
+                    )
+                preferred_tool_names = list(
+                    clone.preferred_tool_names or allowed_tool_names
+                )
+                completion_signals = list(
+                    clone.completion_signals
+                    or self._intent_completion_signals(
+                        clone.family,
+                        allowed_tool_names=allowed_tool_names,
+                        preferred_tool_names=preferred_tool_names,
+                    )
+                )
+                clone.allowed_tool_names = allowed_tool_names
+                clone.preferred_tool_names = preferred_tool_names
+                clone.completion_signals = completion_signals
+            normalized_intents.append(clone)
+
+        state.intent_plan = normalized_intents
+        prep.intent_plan = list(state.intent_plan)
+        inferred_path = PathSelector.select(state.intent_plan)
+        prep.execution_path = inferred_path
+        state.execution_path = inferred_path
+        if getattr(prep, "execution_budget", None) is None:
+            inferred_budget = BudgetGuard.build_default(
+                inferred_path,
+                intent_count=len(state.intent_plan),
+            )
+            prep.execution_budget = inferred_budget
+            state.budget = inferred_budget
+        if (
+            getattr(prep.tool_use_policy, "retry_on_contract_breach", False)
+            and state.budget is not None
+            and int(getattr(state.budget, "max_retry_per_intent", 0) or 0) < 1
+        ):
+            state.budget.max_retry_per_intent = 1
+            if getattr(prep, "execution_budget", None) is not None:
+                prep.execution_budget.max_retry_per_intent = 1
 
     async def execute(
         self,
@@ -179,6 +358,12 @@ class ConversationEngine(BaseEngine):
                 else []
             )
             state = ExecutionStateMachine.from_prepared_execution(prep)
+            self._bootstrap_missing_intent_plan(
+                prep=prep,
+                request=request,
+                state=state,
+                messages=messages,
+            )
             initial_budget_exit = state.budget_exit_reason()
             active_tools = list(tools or [])
             active_policy = prep.tool_use_policy
@@ -221,12 +406,8 @@ class ConversationEngine(BaseEngine):
 
             if response.tool_calls and active_tools:
                 tool_rounds_before = self._assistant_tool_round_count(messages)
-                (
-                    response,
-                    tool_results,
-                    total_tokens,
-                    completion_tokens_used,
-                ) = await self._handle_tool_calls(
+                tool_call_response = response
+                tool_outcome = await self._handle_tool_calls(
                     agent=agent,
                     messages=messages,
                     response=response,
@@ -243,6 +424,16 @@ class ConversationEngine(BaseEngine):
                     starting_total_tokens=total_tokens,
                     starting_completion_tokens=completion_tokens_used,
                 )
+                (
+                    response,
+                    tool_results,
+                    total_tokens,
+                    completion_tokens_used,
+                ) = self._normalize_tool_call_outcome(tool_outcome)
+                if not tool_results:
+                    tool_results = self._synthesize_tool_results_from_calls(
+                        tool_call_response.tool_calls
+                    )
                 self._register_tool_round_delta(
                     state,
                     before_count=tool_rounds_before,
@@ -260,6 +451,139 @@ class ConversationEngine(BaseEngine):
                     messages=messages,
                     tool_results=[],
                 )
+
+            contract_tools = list(prep.all_tools or active_tools)
+            if (
+                active_policy is not None
+                and active_policy.retry_on_contract_breach
+                and contract_tools
+                and not tool_results
+                and not state.intent_plan
+            ):
+                should_retry, retry_policy, _breach_response_text = (
+                    self._should_retry_tool_contract_breach(
+                        response=response,
+                        current_policy=active_policy,
+                        tools=contract_tools,
+                        input_variables=request.input_variables,
+                    )
+                )
+                if not should_retry:
+                    should_retry, retry_policy, _breach_response_text = (
+                        self._should_retry_web_research_contract_breach(
+                            messages=messages,
+                            response=response,
+                            current_policy=active_policy,
+                            tools=contract_tools,
+                            input_variables=request.input_variables,
+                            continuation=prep.continuation_context,
+                        )
+                    )
+                if should_retry and retry_policy is not None:
+                    retry_tools = self._restrict_tools_to_names(
+                        contract_tools,
+                        retry_policy.allowed_tool_names,
+                    )
+                    self._log_tool_contract_diagnostics(
+                        agent=agent,
+                        messages=messages,
+                        response=response,
+                        tools=contract_tools,
+                        policy=retry_policy,
+                        conversation_id=request.conversation_id,
+                        breach_type=retry_policy.reason or "contract_breach",
+                        retry_result="retrying",
+                        continuation=prep.continuation_context,
+                    )
+                    active_policy = retry_policy
+                    active_tools = list(retry_tools or [])
+                    response = await self._call_llm(
+                        agent=agent,
+                        messages=messages,
+                        tools=retry_tools or None,
+                        all_tool_names=[tool.name for tool in prep.all_tools],
+                        tool_use_policy=retry_policy,
+                        breach_retry_result="retry_follow_up",
+                        tenant_id=request.tenant_id,
+                        user_id=request.user_id,
+                        conversation_id=request.conversation_id,
+                        billing_context=request.billing_context,
+                        route_result=prep.route_result,
+                        log_user_type=log_user_type_for_call_log(request.user_role),
+                        selected_skill_names=runtime_selected_skill_names,
+                        context_sources=runtime_context_sources,
+                    )
+                    total_tokens += response.total_tokens or 0
+                    completion_tokens_used += int(
+                        response.output_tokens
+                        if response.output_tokens is not None
+                        else (response.total_tokens or 0)
+                    )
+                    state.register_completion_tokens(completion_tokens_used)
+                    if response.tool_calls and retry_tools:
+                        tool_rounds_before = self._assistant_tool_round_count(messages)
+                        tool_call_response = response
+                        tool_outcome = await self._handle_tool_calls(
+                            agent=agent,
+                            messages=messages,
+                            response=response,
+                            tools=retry_tools,
+                            all_tools=prep.all_tools,
+                            request=request,
+                            route_result=prep.route_result,
+                            tool_consent_modes=prep.tool_consent_modes,
+                            continuation_context=prep.continuation_context,
+                            selected_skill_names=runtime_selected_skill_names,
+                            context_sources=runtime_context_sources,
+                            tool_use_policy=retry_policy,
+                            execution_budget=prep.execution_budget,
+                            starting_total_tokens=total_tokens,
+                            starting_completion_tokens=completion_tokens_used,
+                        )
+                        (
+                            response,
+                            extra_tool_results,
+                            total_tokens,
+                            completion_tokens_used,
+                        ) = self._normalize_tool_call_outcome(tool_outcome)
+                        if not extra_tool_results:
+                            extra_tool_results = (
+                                self._synthesize_tool_results_from_calls(
+                                    tool_call_response.tool_calls
+                                )
+                            )
+                        tool_results.extend(extra_tool_results)
+                        if state.intent_plan and retry_policy.allowed_tool_names:
+                            for intent in state.intent_plan:
+                                if (
+                                    intent.status
+                                    not in {"completed", "failed", "skipped"}
+                                    and not intent.allowed_tool_names
+                                    and (
+                                        retry_policy.family == "none"
+                                        or intent.family == retry_policy.family
+                                    )
+                                ):
+                                    intent.allowed_tool_names = list(
+                                        retry_policy.allowed_tool_names
+                                    )
+                        self._register_tool_round_delta(
+                            state,
+                            before_count=tool_rounds_before,
+                            messages=messages,
+                        )
+                        state.register_tool_results(
+                            messages=messages,
+                            tool_results=extra_tool_results,
+                        )
+                        state.register_completion_tokens(completion_tokens_used)
+                        self._register_tool_failures(state, extra_tool_results)
+                    elif state.intent_plan:
+                        state.intent_plan = RecoveryManager.update_intent_statuses(
+                            state.intent_plan,
+                            messages=messages,
+                            tool_results=[],
+                        )
 
             budget_exit_reason = state.budget_exit_reason()
             if budget_exit_reason:
@@ -329,12 +653,8 @@ class ConversationEngine(BaseEngine):
                 state.register_completion_tokens(completion_tokens_used)
                 if response.tool_calls and retry_tools:
                     tool_rounds_before = self._assistant_tool_round_count(messages)
-                    (
-                        response,
-                        extra_tool_results,
-                        total_tokens,
-                        completion_tokens_used,
-                    ) = await self._handle_tool_calls(
+                    tool_call_response = response
+                    tool_outcome = await self._handle_tool_calls(
                         agent=agent,
                         messages=messages,
                         response=response,
@@ -351,6 +671,16 @@ class ConversationEngine(BaseEngine):
                         starting_total_tokens=total_tokens,
                         starting_completion_tokens=completion_tokens_used,
                     )
+                    (
+                        response,
+                        extra_tool_results,
+                        total_tokens,
+                        completion_tokens_used,
+                    ) = self._normalize_tool_call_outcome(tool_outcome)
+                    if not extra_tool_results:
+                        extra_tool_results = self._synthesize_tool_results_from_calls(
+                            tool_call_response.tool_calls
+                        )
                     tool_results.extend(extra_tool_results)
                     self._register_tool_round_delta(
                         state,
@@ -390,9 +720,7 @@ class ConversationEngine(BaseEngine):
             paused_for_consent = bool(
                 decision is not None and decision.action == "pause_for_consent"
             )
-            partial = bool(
-                decision is not None and decision.action == "return_partial"
-            )
+            partial = bool(decision is not None and decision.action == "return_partial")
             completion_reason = "completed"
             if paused_for_consent:
                 state.transition("awaiting_consent")
@@ -412,8 +740,10 @@ class ConversationEngine(BaseEngine):
             else:
                 state.transition("completed")
 
-            cleaned_output, action_buttons = StreamExecutionHandler._extract_action_buttons(
-                output,
+            cleaned_output, action_buttons = (
+                StreamExecutionHandler._extract_action_buttons(
+                    output,
+                )
             )
             if action_buttons:
                 output = cleaned_output
@@ -437,7 +767,9 @@ class ConversationEngine(BaseEngine):
             turn_record = response_metadata.get("runtime_turn_record")
             if isinstance(turn_record, dict):
                 turn_record_payload = dict(turn_record)
-            elif turn_record is not None and hasattr(turn_record, "__dataclass_fields__"):
+            elif turn_record is not None and hasattr(
+                turn_record, "__dataclass_fields__"
+            ):
                 turn_record_payload = asdict(turn_record)
             elif turn_record is not None and hasattr(turn_record, "__dict__"):
                 turn_record_payload = dict(getattr(turn_record, "__dict__", {}) or {})
@@ -451,9 +783,13 @@ class ConversationEngine(BaseEngine):
                     "budget": diagnostics_payload.get("budget"),
                     "budget_status": diagnostics_payload.get("budget_status"),
                     "budget_exit_reason": diagnostics_payload.get("budget_exit_reason"),
-                    "candidate_tool_names": diagnostics_payload.get("candidate_tool_names"),
+                    "candidate_tool_names": diagnostics_payload.get(
+                        "candidate_tool_names"
+                    ),
                     "retry_events": diagnostics_payload.get("retry_events"),
-                    "partial_exit_reason": diagnostics_payload.get("partial_exit_reason"),
+                    "partial_exit_reason": diagnostics_payload.get(
+                        "partial_exit_reason"
+                    ),
                     "unfinished_intents": diagnostics_payload.get("unfinished_intents"),
                     "provider_events": diagnostics_payload.get("provider_events"),
                     "failure_kind": diagnostics_payload.get("failure_kind"),
@@ -555,9 +891,7 @@ class ConversationEngine(BaseEngine):
                 duration_ms=duration_ms,
                 conversation_id=request.conversation_id,
                 rag_sources=(prep.rag_sources if prep is not None else None),
-                rag_source_kinds=(
-                    prep.rag_source_kinds if prep is not None else []
-                ),
+                rag_source_kinds=(prep.rag_source_kinds if prep is not None else []),
                 context_compacted=bool(getattr(prep, "context_compacted", False)),
                 memory_flush_triggered=bool(
                     getattr(prep, "memory_flush_triggered", False)
@@ -701,46 +1035,48 @@ class ConversationEngine(BaseEngine):
             )
             if tenant_id is not None and ai_model:
                 try:
-                    await self.gateway.usage_recorder.log_call_failure(
-                        error=exc,
-                        start_time=call_start,
-                        provider=provider,
-                        model=model_code,
-                        model_id=ai_model.id,
-                        messages=messages,
-                        temperature=agent.temperature,
-                        max_tokens=agent.max_tokens,
-                        top_p=agent.top_p or 1.0,
-                        tools=openai_tools,
-                        tool_choice=effective_tool_choice,
-                        selected_tool_names=[tool.name for tool in (tools or [])],
-                        all_tool_names=all_tool_names
-                        or [tool.name for tool in (tools or [])],
-                        tool_use_policy_family=effective_policy.family,
-                        tool_use_policy_mode=effective_policy.mode,
-                        allowed_tool_names=effective_policy.allowed_tool_names,
-                        breach_retry_result=breach_retry_result,
-                        request_type=RequestTypeEnum.CHAT.value,
-                        tenant_id=tenant_id,
-                        user_id=user_id,
-                        user_type=log_user_type,
-                        agent_id=getattr(agent, "id", None),
-                        conversation_id=conversation_id,
-                        billing_context=self.gateway._merge_model_provider_snapshots(
-                            billing_context,
+                    await _await_if_needed(
+                        self.gateway.usage_recorder.log_call_failure(
+                            error=exc,
+                            start_time=call_start,
                             provider=provider,
-                            ai_model=ai_model,
-                        ),
-                        call_type="main_chat",
-                        turn_record=asdict(query_engine.turn_record),
-                        protocol_path=getattr(
-                            query_engine.turn_record,
-                            "protocol_path",
-                            None,
-                        ),
-                        context_sources=runtime_context_sources,
-                        routed_model_id=routed_model_id,
-                        route_reason=route_reason,
+                            model=model_code,
+                            model_id=ai_model.id,
+                            messages=messages,
+                            temperature=agent.temperature,
+                            max_tokens=agent.max_tokens,
+                            top_p=agent.top_p or 1.0,
+                            tools=openai_tools,
+                            tool_choice=effective_tool_choice,
+                            selected_tool_names=[tool.name for tool in (tools or [])],
+                            all_tool_names=all_tool_names
+                            or [tool.name for tool in (tools or [])],
+                            tool_use_policy_family=effective_policy.family,
+                            tool_use_policy_mode=effective_policy.mode,
+                            allowed_tool_names=effective_policy.allowed_tool_names,
+                            breach_retry_result=breach_retry_result,
+                            request_type=RequestTypeEnum.CHAT.value,
+                            tenant_id=tenant_id,
+                            user_id=user_id,
+                            user_type=log_user_type,
+                            agent_id=getattr(agent, "id", None),
+                            conversation_id=conversation_id,
+                            billing_context=self.gateway._merge_model_provider_snapshots(
+                                billing_context,
+                                provider=provider,
+                                ai_model=ai_model,
+                            ),
+                            call_type="main_chat",
+                            turn_record=asdict(query_engine.turn_record),
+                            protocol_path=getattr(
+                                query_engine.turn_record,
+                                "protocol_path",
+                                None,
+                            ),
+                            context_sources=runtime_context_sources,
+                            routed_model_id=routed_model_id,
+                            route_reason=route_reason,
+                        )
                     )
                 except Exception as log_exc:
                     logger.error(
@@ -783,18 +1119,20 @@ class ConversationEngine(BaseEngine):
         should_record_call_log = runtime_context.should_record_call_log
 
         if should_meter_usage and ai_model and tenant_id is not None:
-            await self.gateway.usage_recorder.record_usage_and_adjust(
-                tenant_id=tenant_id,
-                model_id=ai_model.id,
-                request_type=RequestTypeEnum.CHAT.value,
-                input_tokens=input_tokens,
-                output_tokens=output_tokens,
-                total_tokens=total_tokens,
-                cost=cost,
-                estimated_input=estimated_input,
-                latency_ms=latency_ms,
-                user_id=user_id,
-                metering_context=metering_context,
+            await _await_if_needed(
+                self.gateway.usage_recorder.record_usage_and_adjust(
+                    tenant_id=tenant_id,
+                    model_id=ai_model.id,
+                    request_type=RequestTypeEnum.CHAT.value,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    total_tokens=total_tokens,
+                    cost=cost,
+                    estimated_input=estimated_input,
+                    latency_ms=latency_ms,
+                    user_id=user_id,
+                    metering_context=metering_context,
+                )
             )
 
         api_key.increment_usage()
@@ -805,47 +1143,49 @@ class ConversationEngine(BaseEngine):
                     tenant_id,
                     log_user_type,
                 )
-                await self.gateway.usage_recorder.call_log_service.log_call_async(
-                    tenant_id=tenant_id,
-                    model_id=ai_model.id,
-                    provider_id=provider.id,
-                    request_type=RequestTypeEnum.CHAT.value,
-                    request_data=request_log_data,
-                    response_data={
-                        "input_tokens": input_tokens,
-                        "output_tokens": output_tokens,
-                        "total_tokens": total_tokens,
-                        "model": model_code,
-                        "usage_mode": resolved_usage.usage_mode,
-                    },
-                    input_tokens=input_tokens,
-                    output_tokens=output_tokens,
-                    total_tokens=total_tokens,
-                    cost=cost,
-                    latency_ms=latency_ms,
-                    status=CallStatusEnum.SUCCESS.value,
-                    user_id=user_id,
-                    user_type=resolved_log_type,
-                    agent_id=getattr(agent, "id", None),
-                    conversation_id=conversation_id,
-                    billing_context=self.gateway._merge_model_provider_snapshots(
-                        billing_context,
-                        provider=provider,
-                        ai_model=ai_model,
-                    ),
-                    call_type="main_chat",
-                    turn_record=asdict(query_engine.turn_record),
-                    protocol_path=getattr(
-                        query_engine.turn_record, "protocol_path", None
-                    ),
-                    context_sources=runtime_context_sources,
-                    routed_model_id=routed_model_id,
-                    route_reason=route_reason,
+                await _await_if_needed(
+                    self.gateway.usage_recorder.call_log_service.log_call_async(
+                        tenant_id=tenant_id,
+                        model_id=ai_model.id,
+                        provider_id=provider.id,
+                        request_type=RequestTypeEnum.CHAT.value,
+                        request_data=request_log_data,
+                        response_data={
+                            "input_tokens": input_tokens,
+                            "output_tokens": output_tokens,
+                            "total_tokens": total_tokens,
+                            "model": model_code,
+                            "usage_mode": resolved_usage.usage_mode,
+                        },
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        total_tokens=total_tokens,
+                        cost=cost,
+                        latency_ms=latency_ms,
+                        status=CallStatusEnum.SUCCESS.value,
+                        user_id=user_id,
+                        user_type=resolved_log_type,
+                        agent_id=getattr(agent, "id", None),
+                        conversation_id=conversation_id,
+                        billing_context=self.gateway._merge_model_provider_snapshots(
+                            billing_context,
+                            provider=provider,
+                            ai_model=ai_model,
+                        ),
+                        call_type="main_chat",
+                        turn_record=asdict(query_engine.turn_record),
+                        protocol_path=getattr(
+                            query_engine.turn_record, "protocol_path", None
+                        ),
+                        context_sources=runtime_context_sources,
+                        routed_model_id=routed_model_id,
+                        route_reason=route_reason,
+                    )
                 )
             except Exception as log_exc:
                 logger.error("Runtime-v2 non-stream call log failed: {}", str(log_exc))
 
-        await self.db.commit()
+        await _await_if_needed(self.db.commit())
         return response, query_engine
 
     async def _call_llm(
@@ -1147,19 +1487,19 @@ class ConversationEngine(BaseEngine):
             else:
                 try:
                     runtime_chunks = await query_engine.run_stream_turn(
-                    messages=messages,
-                    model=model_code,
-                    temperature=agent.temperature,
-                    max_tokens=agent.max_tokens,
-                    top_p=agent.top_p or 1.0,
-                    tools=openai_tools,
-                    tool_choice=effective_tool_choice,
-                    supports_vision=bool(is_vision),
-                    supports_audio=bool(is_audio),
-                    supports_video=bool(is_video),
-                    selected_skill_names=runtime_selected_skill_names,
-                    context_sources=runtime_context_sources,
-                )
+                        messages=messages,
+                        model=model_code,
+                        temperature=agent.temperature,
+                        max_tokens=agent.max_tokens,
+                        top_p=agent.top_p or 1.0,
+                        tools=openai_tools,
+                        tool_choice=effective_tool_choice,
+                        supports_vision=bool(is_vision),
+                        supports_audio=bool(is_audio),
+                        supports_video=bool(is_video),
+                        selected_skill_names=runtime_selected_skill_names,
+                        context_sources=runtime_context_sources,
+                    )
                 except Exception as runtime_stream_exc:
                     turn_record_metadata = dict(
                         getattr(
@@ -1217,58 +1557,62 @@ class ConversationEngine(BaseEngine):
             )
             if should_record_call_log and ai_model:
                 try:
-                    await self.gateway.usage_recorder.log_call_failure(
-                        error=exc,
-                        start_time=stream_start,
-                        provider=provider,
-                        model=model_code,
-                        model_id=ai_model.id,
-                        messages=messages,
-                        temperature=agent.temperature,
-                        max_tokens=agent.max_tokens,
-                        top_p=agent.top_p or 1.0,
-                        tools=openai_tools,
-                        tool_choice=effective_tool_choice,
-                        selected_tool_names=[
-                            ((tool.get("function", {}) or {}).get("name"))
-                            for tool in (openai_tools or [])
-                            if isinstance(tool, dict)
-                        ],
-                        all_tool_names=all_tool_names
-                        or [tool.name for tool in (tools or [])],
-                        tool_use_policy_family=effective_policy.family,
-                        tool_use_policy_mode=effective_policy.mode,
-                        allowed_tool_names=effective_policy.allowed_tool_names,
-                        breach_retry_result=request_log_data.get("breach_retry_result"),
-                        request_type=RequestTypeEnum.CHAT.value,
-                        tenant_id=tenant_id,
-                        user_id=user_id,
-                        user_type=log_user_type,
-                        agent_id=getattr(agent, "id", None),
-                        conversation_id=conversation_id,
-                        billing_context=self.gateway._merge_model_provider_snapshots(
-                            billing_context,
+                    await _await_if_needed(
+                        self.gateway.usage_recorder.log_call_failure(
+                            error=exc,
+                            start_time=stream_start,
                             provider=provider,
-                            ai_model=ai_model,
-                        ),
-                        call_type="main_chat",
-                        turn_record=(
-                            vars(query_engine.turn_record)
-                            if query_engine is not None
-                            else None
-                        ),
-                        protocol_path=(
-                            getattr(query_engine.turn_record, "protocol_path", None)
-                            if query_engine is not None
-                            else None
-                        ),
-                        context_sources=(
-                            runtime_context_sources
-                            if query_engine is not None
-                            else None
-                        ),
-                        routed_model_id=routed_model_id,
-                        route_reason=route_reason,
+                            model=model_code,
+                            model_id=ai_model.id,
+                            messages=messages,
+                            temperature=agent.temperature,
+                            max_tokens=agent.max_tokens,
+                            top_p=agent.top_p or 1.0,
+                            tools=openai_tools,
+                            tool_choice=effective_tool_choice,
+                            selected_tool_names=[
+                                ((tool.get("function", {}) or {}).get("name"))
+                                for tool in (openai_tools or [])
+                                if isinstance(tool, dict)
+                            ],
+                            all_tool_names=all_tool_names
+                            or [tool.name for tool in (tools or [])],
+                            tool_use_policy_family=effective_policy.family,
+                            tool_use_policy_mode=effective_policy.mode,
+                            allowed_tool_names=effective_policy.allowed_tool_names,
+                            breach_retry_result=request_log_data.get(
+                                "breach_retry_result"
+                            ),
+                            request_type=RequestTypeEnum.CHAT.value,
+                            tenant_id=tenant_id,
+                            user_id=user_id,
+                            user_type=log_user_type,
+                            agent_id=getattr(agent, "id", None),
+                            conversation_id=conversation_id,
+                            billing_context=self.gateway._merge_model_provider_snapshots(
+                                billing_context,
+                                provider=provider,
+                                ai_model=ai_model,
+                            ),
+                            call_type="main_chat",
+                            turn_record=(
+                                vars(query_engine.turn_record)
+                                if query_engine is not None
+                                else None
+                            ),
+                            protocol_path=(
+                                getattr(query_engine.turn_record, "protocol_path", None)
+                                if query_engine is not None
+                                else None
+                            ),
+                            context_sources=(
+                                runtime_context_sources
+                                if query_engine is not None
+                                else None
+                            ),
+                            routed_model_id=routed_model_id,
+                            route_reason=route_reason,
+                        )
                     )
                 except Exception as log_exc:
                     logger.error(
@@ -1308,74 +1652,78 @@ class ConversationEngine(BaseEngine):
 
             if should_meter_usage and ai_model and estimated_input > 0:
                 assert tenant_id is not None
-                await self.gateway.usage_recorder.record_usage_and_adjust(
-                    tenant_id=tenant_id,
-                    model_id=ai_model.id,
-                    request_type=RequestTypeEnum.CHAT.value,
-                    input_tokens=input_tokens,
-                    output_tokens=output_tokens,
-                    total_tokens=total_tokens,
-                    cost=cost,
-                    estimated_input=estimated_input,
-                    latency_ms=latency_ms,
-                    user_id=user_id,
-                    metering_context=metering_context,
-                )
-
-            api_key.increment_usage()
-            await self.db.flush()
-
-            if should_record_call_log and ai_model:
-                try:
-                    assert tenant_id is not None
-                    await self.gateway.usage_recorder.call_log_service.log_call_async(
+                await _await_if_needed(
+                    self.gateway.usage_recorder.record_usage_and_adjust(
                         tenant_id=tenant_id,
                         model_id=ai_model.id,
-                        provider_id=provider.id,
                         request_type=RequestTypeEnum.CHAT.value,
-                        request_data={
-                            **request_log_data,
-                        },
-                        response_data={
-                            "input_tokens": input_tokens,
-                            "output_tokens": output_tokens,
-                            "total_tokens": total_tokens,
-                            "model": model_code,
-                            "usage_mode": usage_mode,
-                        },
                         input_tokens=input_tokens,
                         output_tokens=output_tokens,
                         total_tokens=total_tokens,
                         cost=cost,
+                        estimated_input=estimated_input,
                         latency_ms=latency_ms,
-                        status=CallStatusEnum.SUCCESS.value,
                         user_id=user_id,
-                        user_type=resolved_log_type,
-                        agent_id=getattr(agent, "id", None),
-                        conversation_id=conversation_id,
-                        billing_context=self.gateway._merge_model_provider_snapshots(
-                            billing_context,
-                            provider=provider,
-                            ai_model=ai_model,
-                        ),
-                        call_type="main_chat",
-                        turn_record=(
-                            vars(query_engine.turn_record)
-                            if query_engine is not None
-                            else None
-                        ),
-                        protocol_path=(
-                            getattr(query_engine.turn_record, "protocol_path", None)
-                            if query_engine is not None
-                            else None
-                        ),
-                        context_sources=(
-                            runtime_context_sources
-                            if query_engine is not None
-                            else None
-                        ),
-                        routed_model_id=routed_model_id,
-                        route_reason=route_reason,
+                        metering_context=metering_context,
+                    )
+                )
+
+            api_key.increment_usage()
+            await _await_if_needed(self.db.flush())
+
+            if should_record_call_log and ai_model:
+                try:
+                    assert tenant_id is not None
+                    await _await_if_needed(
+                        self.gateway.usage_recorder.call_log_service.log_call_async(
+                            tenant_id=tenant_id,
+                            model_id=ai_model.id,
+                            provider_id=provider.id,
+                            request_type=RequestTypeEnum.CHAT.value,
+                            request_data={
+                                **request_log_data,
+                            },
+                            response_data={
+                                "input_tokens": input_tokens,
+                                "output_tokens": output_tokens,
+                                "total_tokens": total_tokens,
+                                "model": model_code,
+                                "usage_mode": usage_mode,
+                            },
+                            input_tokens=input_tokens,
+                            output_tokens=output_tokens,
+                            total_tokens=total_tokens,
+                            cost=cost,
+                            latency_ms=latency_ms,
+                            status=CallStatusEnum.SUCCESS.value,
+                            user_id=user_id,
+                            user_type=resolved_log_type,
+                            agent_id=getattr(agent, "id", None),
+                            conversation_id=conversation_id,
+                            billing_context=self.gateway._merge_model_provider_snapshots(
+                                billing_context,
+                                provider=provider,
+                                ai_model=ai_model,
+                            ),
+                            call_type="main_chat",
+                            turn_record=(
+                                vars(query_engine.turn_record)
+                                if query_engine is not None
+                                else None
+                            ),
+                            protocol_path=(
+                                getattr(query_engine.turn_record, "protocol_path", None)
+                                if query_engine is not None
+                                else None
+                            ),
+                            context_sources=(
+                                runtime_context_sources
+                                if query_engine is not None
+                                else None
+                            ),
+                            routed_model_id=routed_model_id,
+                            route_reason=route_reason,
+                        )
                     )
                 except Exception as log_exc:
                     logger.error("Engine stream call log failed: {}", str(log_exc))
@@ -1445,9 +1793,11 @@ class ConversationEngine(BaseEngine):
                 ]
                 msg.attachments = kept if kept else None
 
-        provider, api_key = await self.gateway.get_provider_and_key(
-            provider_code,
-            tenant_id,
+        provider, api_key = await _await_if_needed(
+            self.gateway.get_provider_and_key(
+                provider_code,
+                tenant_id,
+            )
         )
 
         estimated_input = 0
@@ -1459,11 +1809,13 @@ class ConversationEngine(BaseEngine):
                 messages_to_dicts(messages)
             )
         if should_meter_usage and ai_model and not skip_metering_preflight:
-            metering_context = await self.gateway.usage_recorder.check_rate_and_quota(
-                tenant_id,
-                ai_model.id,
-                ai_model,
-                estimated_input,
+            metering_context = await _await_if_needed(
+                self.gateway.usage_recorder.check_rate_and_quota(
+                    tenant_id,
+                    ai_model.id,
+                    ai_model,
+                    estimated_input,
+                )
             )
 
         return _StreamRuntimeContext(

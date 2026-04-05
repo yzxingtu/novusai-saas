@@ -36,6 +36,7 @@ import {
   getAdminActionLogListApi,
 } from '#/api/admin/action-logs';
 import { getAdminExecutionDecisionDetailApi } from '#/api/admin/execution-decisions';
+import { IdentityDisplay } from '#/components/business/identity-display';
 import { createViewDetailPageOperation } from '#/composables';
 import { PLATFORM_TENANT_ID } from '#/constants';
 import { $t } from '#/locales';
@@ -46,12 +47,11 @@ import {
 } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
 
+import { createAdminIdentityModel } from '../../_shared/identity';
 import AIPageHeroCard from '../_shared/AIPageHeroCard.vue';
 import {
-  getExecutionDecisionTypeText,
   getExecutionDecisionStatusText,
-} from './data';
-import {
+  getExecutionDecisionTypeText,
   getLevelColor,
   getLevelText,
   getStatusColor,
@@ -86,51 +86,46 @@ function getAgentDisplayName(
   return $t('admin.ai.actionLog.agentUnavailable');
 }
 
-function getOperatorTypeText(operatorType: null | string | undefined): string {
-  switch (operatorType) {
-    case 'admin':
-    case 'platform_admin': {
-      return $t('admin.ai.actionLog.operatorTypes.admin');
-    }
-    case 'tenant_admin': {
-      return $t('admin.ai.actionLog.operatorTypes.tenantAdmin');
-    }
-    case 'tenant_user': {
-      return $t('admin.ai.actionLog.operatorTypes.tenantUser');
-    }
-    default: {
-      return '';
-    }
-  }
-}
-
-function getOperatorDisplayName(
+function getOperatorIdentityModel(
   log: Pick<
     AdminActionLogDetail,
-    'operator_id' | 'operator_name' | 'operator_nickname'
+    | 'operator_avatar'
+    | 'operator_display_name'
+    | 'operator_id'
+    | 'operator_is_active'
+    | 'operator_is_leader'
+    | 'operator_is_owner'
+    | 'operator_name'
+    | 'operator_nickname'
+    | 'operator_org_node_name'
+    | 'operator_role_name'
+    | 'operator_type'
   >,
-): string {
-  return (
+) {
+  const hasOperatorIdentity = Boolean(
+    log.operator_display_name ||
     log.operator_nickname ||
     log.operator_name ||
-    (log.operator_id ? `#${log.operator_id}` : '-')
+    log.operator_id,
   );
-}
 
-function getOperatorSecondaryText(
-  log: Pick<
-    AdminActionLogDetail,
-    'operator_id' | 'operator_name' | 'operator_nickname' | 'operator_type'
-  >,
-): string {
-  if (
-    log.operator_nickname &&
-    log.operator_name &&
-    log.operator_nickname !== log.operator_name
-  ) {
-    return log.operator_name;
-  }
-  return getOperatorTypeText(log.operator_type);
+  return createAdminIdentityModel({
+    avatar: log.operator_avatar,
+    displayName: hasOperatorIdentity ? log.operator_display_name : '-',
+    id: log.operator_id ?? 'unknown-operator',
+    includeTypeBadge: true,
+    isActive: log.operator_is_active,
+    isLeader: log.operator_is_leader,
+    isOwner: log.operator_is_owner,
+    nickname: log.operator_nickname,
+    orgNodeName: log.operator_org_node_name,
+    roleName: log.operator_role_name,
+    userType: log.operator_type,
+    username:
+      log.operator_display_name || log.operator_nickname
+        ? undefined
+        : log.operator_name,
+  });
 }
 
 function isIconAvatar(avatar: null | string | undefined): boolean {
@@ -443,31 +438,10 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
         </template>
 
         <template #operator_cell="{ row }">
-          <div class="flex items-center gap-2">
-            <Avatar
-              v-if="row.operator_avatar"
-              :src="toAvatarDisplayUrl(row.operator_avatar)"
-              :size="28"
-            />
-            <Avatar
-              v-else
-              :size="28"
-              class="flex-shrink-0 bg-primary/10 text-xs text-primary"
-            >
-              {{ getOperatorDisplayName(row).charAt(0) }}
-            </Avatar>
-            <div class="min-w-0 flex-1">
-              <div class="truncate text-sm font-medium text-foreground">
-                {{ getOperatorDisplayName(row) }}
-              </div>
-              <div
-                v-if="getOperatorSecondaryText(row)"
-                class="truncate text-xs text-muted-foreground"
-              >
-                {{ getOperatorSecondaryText(row) }}
-              </div>
-            </div>
-          </div>
+          <IdentityDisplay
+            :avatar-size="30"
+            :model="getOperatorIdentityModel(row)"
+          />
         </template>
 
         <template #duration_cell="{ row }">
@@ -590,9 +564,11 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
                   <div class="text-xs text-muted-foreground">
                     {{ $t('admin.ai.actionLog.operatorId') }}
                   </div>
-                  <div class="mt-2 text-sm font-semibold">
-                    {{ getOperatorDisplayName(detailData) }}
-                  </div>
+                  <IdentityDisplay
+                    class="mt-2"
+                    :avatar-size="24"
+                    :model="getOperatorIdentityModel(detailData)"
+                  />
                 </div>
                 <div
                   class="rounded-lg border border-dashed border-border bg-background p-3"
@@ -685,39 +661,22 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
                     >
                       {{ getTenantDisplay(detailData) }}
                     </Descriptions.Item>
-                    <Descriptions.Item :label="$t('admin.ai.actionLog.traceId')">
+                    <Descriptions.Item
+                      :label="$t('admin.ai.actionLog.traceId')"
+                    >
                       <code>{{ detailData.trace_id || '-' }}</code>
                     </Descriptions.Item>
                     <Descriptions.Item
                       :label="$t('admin.ai.actionLog.operatorId')"
                     >
-                      <div class="flex items-center gap-2">
-                        <Avatar
-                          v-if="detailData.operator_avatar"
-                          :size="24"
-                          :src="toAvatarDisplayUrl(detailData.operator_avatar)"
-                        />
-                        <Avatar
-                          v-else
-                          :size="24"
-                          class="bg-primary/10 text-xs text-primary"
-                        >
-                          {{ getOperatorDisplayName(detailData).charAt(0) }}
-                        </Avatar>
-                        <div class="min-w-0">
-                          <div class="truncate">
-                            {{ getOperatorDisplayName(detailData) }}
-                          </div>
-                          <div
-                            v-if="getOperatorSecondaryText(detailData)"
-                            class="truncate text-xs text-muted-foreground"
-                          >
-                            {{ getOperatorSecondaryText(detailData) }}
-                          </div>
-                        </div>
-                      </div>
+                      <IdentityDisplay
+                        :avatar-size="32"
+                        :model="getOperatorIdentityModel(detailData)"
+                      />
                     </Descriptions.Item>
-                    <Descriptions.Item :label="$t('admin.ai.actionLog.toolCallId')">
+                    <Descriptions.Item
+                      :label="$t('admin.ai.actionLog.toolCallId')"
+                    >
                       <code>{{ detailData.tool_call_id || '-' }}</code>
                     </Descriptions.Item>
                     <Descriptions.Item

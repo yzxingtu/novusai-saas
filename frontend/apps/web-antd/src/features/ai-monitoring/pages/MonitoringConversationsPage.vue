@@ -6,7 +6,7 @@ import { computed, ref } from 'vue';
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import { Avatar, Card, Tag, Tooltip } from 'ant-design-vue';
+import { Card, Tag, Tooltip } from 'ant-design-vue';
 
 import { searchDateRange, searchInput, select } from '#/adapter/form';
 import { useCrudPage } from '#/adapter/vxe-table';
@@ -19,6 +19,7 @@ import {
   getTenantAIProviderSelectApi,
 } from '#/api/tenant/ai';
 import AIPageHeroCard from '#/components/business/ai-page-hero/AIPageHeroCard.vue';
+import IdentityDisplay from '#/components/business/identity-display/IdentityDisplay.vue';
 import { createViewDetailPageOperation } from '#/composables';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
@@ -39,7 +40,9 @@ const props = defineProps<{
 const detailOpen = ref(false);
 const detailId = ref<null | number>(null);
 const providerSelectApi =
-  props.scope === 'admin' ? getAIProviderSelectApi : getTenantAIProviderSelectApi;
+  props.scope === 'admin'
+    ? getAIProviderSelectApi
+    : getTenantAIProviderSelectApi;
 const modelSelectApi =
   props.scope === 'admin' ? getAIModelSelectApi : getTenantAIModelSelectApi;
 const agentSelectApi =
@@ -171,6 +174,41 @@ function actorTypeLabel(type?: null | string) {
   const key = `${props.i18nPrefix}.actorType.${type}`;
   const translated = $t(key);
   return translated === key ? type : translated;
+}
+
+function getActorDisplayName(actor?: MonitoringConversationInfo['actor']) {
+  if (!actor) {
+    return '-';
+  }
+  return actor.display_name || actor.nickname || actor.username || '-';
+}
+
+function buildActorIdentityModel(actor?: MonitoringConversationInfo['actor']) {
+  if (!actor) {
+    return null;
+  }
+
+  return {
+    avatar: actor.avatar,
+    badges: actor.type
+      ? [
+          {
+            color: 'blue',
+            key: `actor-type-${actor.id ?? actor.username ?? 'unknown'}`,
+            label: actorTypeLabel(actor.type),
+          },
+        ]
+      : [],
+    displayName: actor.display_name,
+    id: actor.id ?? '-',
+    isActive: actor.is_active,
+    isLeader: actor.is_leader,
+    isOwner: actor.is_owner,
+    nickname: getActorDisplayName(actor),
+    orgNodeName: actor.org_node_name,
+    roleName: actor.role_name,
+    username: actor.display_name || actor.nickname ? undefined : actor.username,
+  };
 }
 
 function viewDetail(row: MonitoringConversationInfo) {
@@ -331,7 +369,10 @@ const { Grid, gridApi } = useCrudPage<MonitoringConversationInfo>({
 </script>
 
 <template>
-  <Page auto-content-height content-class="monitoring-page flex flex-col gap-4 !p-4">
+  <Page
+    auto-content-height
+    content-class="monitoring-page flex flex-col gap-4 !p-4"
+  >
     <AIPageHeroCard
       :chips="heroChips"
       :description="$t(`${i18nPrefix}.pageDesc`)"
@@ -385,7 +426,9 @@ const { Grid, gridApi } = useCrudPage<MonitoringConversationInfo>({
               {{ row.title || $t(`${i18nPrefix}.untitled`) }}
             </div>
             <div class="truncate text-xs text-muted-foreground">
-              {{ row.last_call_at ? formatRelativeTime(row.last_call_at) : '-' }}
+              {{
+                row.last_call_at ? formatRelativeTime(row.last_call_at) : '-'
+              }}
             </div>
           </div>
         </template>
@@ -397,19 +440,11 @@ const { Grid, gridApi } = useCrudPage<MonitoringConversationInfo>({
         </template>
 
         <template #actor_cell="{ row }">
-          <div v-if="row.actor" class="flex items-center gap-2">
-            <Avatar
-              v-if="row.actor.avatar"
-              :src="toAvatarDisplayUrl(row.actor.avatar)"
-              :size="24"
-            />
-            <span>{{
-              row.actor.display_name || row.actor.username || '-'
-            }}</span>
-            <Tag v-if="row.actor.type" color="blue">
-              {{ actorTypeLabel(row.actor.type) }}
-            </Tag>
-          </div>
+          <IdentityDisplay
+            v-if="row.actor"
+            :avatar-size="32"
+            :model="buildActorIdentityModel(row.actor)!"
+          />
           <span v-else class="text-muted-foreground">-</span>
         </template>
 

@@ -9,11 +9,7 @@ import type { Router, RouteRecordRaw } from 'vue-router';
  * - navigation_only: 允许只读页面导航
  * - operate:      允许页面操作（预留，本轮不实现执行）
  */
-type AIPageMode =
-  | 'context_only'
-  | 'disabled'
-  | 'navigation_only'
-  | 'operate';
+type AIPageMode = 'context_only' | 'disabled' | 'navigation_only' | 'operate';
 
 /**
  * 页面级 AI 元信息

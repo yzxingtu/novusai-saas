@@ -34,7 +34,9 @@ describe('useFileUpload', () => {
   it('rejects files with disallowed extensions', async () => {
     const { useFileUpload } = await import('../use-file-upload');
     mockRefs.isExtensionAllowed.mockReturnValue(false);
-    const file = new File(['demo'], 'virus.exe', { type: 'application/octet-stream' });
+    const file = new File(['demo'], 'virus.exe', {
+      type: 'application/octet-stream',
+    });
 
     const result = useFileUpload().validateFile(file);
 

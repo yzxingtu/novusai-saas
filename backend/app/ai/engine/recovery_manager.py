@@ -109,7 +109,9 @@ class RecoveryManager:
             clone = IntentPlan(**intent.to_dict())
             clone.metadata = dict(clone.metadata or {})
             clone.metadata.pop("pending_consent", None)
-            completion_signals = set(clone.completion_signals or clone.allowed_tool_names)
+            completion_signals = set(
+                clone.completion_signals or clone.allowed_tool_names
+            )
             if clone.family == "none" or not clone.requires_tools:
                 clone.status = "completed"
             elif completion_signals & successful_tool_names:
@@ -133,7 +135,11 @@ class RecoveryManager:
 
     @staticmethod
     def next_unfinished_intents(intents: list[IntentPlan]) -> list[IntentPlan]:
-        return [intent for intent in intents if intent.status not in {"completed", "skipped"}]
+        return [
+            intent
+            for intent in intents
+            if intent.status not in {"completed", "skipped"}
+        ]
 
     @staticmethod
     def _pending_consent_intent(intents: list[IntentPlan]) -> IntentPlan | None:
@@ -150,7 +156,9 @@ class RecoveryManager:
         provider_failure_kind: ProviderFailureKind = "none",
     ) -> RecoveryDecision | None:
         unfinished = RecoveryManager.next_unfinished_intents(intents)
-        completed = [intent.intent_id for intent in intents if intent.status == "completed"]
+        completed = [
+            intent.intent_id for intent in intents if intent.status == "completed"
+        ]
         pending_intent = RecoveryManager._pending_consent_intent(intents)
         if pending_intent:
             pending_meta = (pending_intent.metadata or {}).get("pending_consent")
@@ -167,7 +175,9 @@ class RecoveryManager:
                 provider_failure_kind=provider_failure_kind,
                 metadata=metadata,
             )
-        budget_exit_reason = budget.first_exceeded_reason() if budget is not None else None
+        budget_exit_reason = (
+            budget.first_exceeded_reason() if budget is not None else None
+        )
         if budget_exit_reason:
             return RecoveryDecision(
                 action="return_partial",
@@ -181,7 +191,11 @@ class RecoveryManager:
         if unfinished:
             target = unfinished[0]
             retry_count = int(
-                (budget.retries_by_intent.get(target.intent_id, 0) if budget is not None else 0)
+                (
+                    budget.retries_by_intent.get(target.intent_id, 0)
+                    if budget is not None
+                    else 0
+                )
                 or 0
             )
             if budget is not None and retry_count >= budget.max_retry_per_intent:
@@ -257,14 +271,24 @@ class RecoveryManager:
         reason: str,
         provider_failure_kind: ProviderFailureKind = "none",
     ) -> str:
-        completed = [intent.user_visible_label for intent in intents if intent.status == "completed"]
-        unfinished = [intent.user_visible_label for intent in intents if intent.status != "completed"]
+        completed = [
+            intent.user_visible_label
+            for intent in intents
+            if intent.status == "completed"
+        ]
+        unfinished = [
+            intent.user_visible_label
+            for intent in intents
+            if intent.status != "completed"
+        ]
         return render_prompt_contract(
             "partial_exit",
             completed_summary="；".join(completed) if completed else "无",
             unfinished_summary="；".join(unfinished) if unfinished else "无",
             exit_reason=reason,
-            failure_kind=provider_failure_kind if provider_failure_kind != "none" else "orchestration_partial_exit",
+            failure_kind=provider_failure_kind
+            if provider_failure_kind != "none"
+            else "orchestration_partial_exit",
         )
 
 

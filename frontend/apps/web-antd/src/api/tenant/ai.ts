@@ -174,7 +174,9 @@ export async function getTenantAIModelSelectApi(
   options?: ApiRequestOptions,
 ): Promise<TenantSelectResponse> {
   const search =
-    typeof params?.search === 'string' ? params.search.trim().toLowerCase() : '';
+    typeof params?.search === 'string'
+      ? params.search.trim().toLowerCase()
+      : '';
   const page = Math.max(1, Number(params?.page ?? 1));
   const pageSize = Math.max(1, Number(params?.page_size ?? 10));
   const providerId = Number(params?.provider_id ?? 0) || undefined;
@@ -211,7 +213,9 @@ export async function getTenantAIProviderSelectApi(
   options?: ApiRequestOptions,
 ): Promise<TenantSelectResponse> {
   const search =
-    typeof params?.search === 'string' ? params.search.trim().toLowerCase() : '';
+    typeof params?.search === 'string'
+      ? params.search.trim().toLowerCase()
+      : '';
   const page = Math.max(1, Number(params?.page ?? 1));
   const pageSize = Math.max(1, Number(params?.page_size ?? 10));
 

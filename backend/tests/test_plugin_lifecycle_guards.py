@@ -173,6 +173,11 @@ async def test_runner_bootstraps_storage_billing_lifecycle_rules(monkeypatch):
         "_get_plugin_status_map",
         fake_get_plugin_status_map,
     )
+    monkeypatch.setattr(
+        guard_module,
+        "_get_platform_storage_driver",
+        AsyncMock(return_value="aliyun-oss"),
+    )
 
     result = await run_plugin_lifecycle_guards(
         {

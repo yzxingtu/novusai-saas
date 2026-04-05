@@ -4,20 +4,19 @@
  * Tenant admin expand panel; list admins and online status, create/disable/enable.
  */
 import type { TenantAdminItem } from '#/api/admin/tenant';
+import type { IdentityDisplayBadge } from '#/components/business/identity-display';
 
 import { onMounted, ref } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
 import {
-  Avatar,
   Button,
   Empty,
   message,
   Popconfirm,
   Spin,
   Switch,
-  Tag,
   Tooltip,
 } from 'ant-design-vue';
 
@@ -26,13 +25,14 @@ import {
   getTenantAdminsApi,
   toggleTenantAdminStatusApi,
 } from '#/api/admin/tenant';
+import { IdentityDisplay } from '#/components/business/identity-display';
 import { $t } from '#/locales';
 import { usePresenceStore } from '#/store';
 import { useAccess } from '#/utils';
 import { formatRelativeTime } from '#/utils/common';
 import { showRequestError } from '#/utils/error-helpers';
-import { toAvatarDisplayUrl } from '#/utils/image';
 
+import { createAdminIdentityModel } from '../../../_shared/identity';
 import TenantAdminForm from './TenantAdminForm.vue';
 import TenantAdminResetPwdModal from './TenantAdminResetPwdModal.vue';
 
@@ -133,6 +133,36 @@ function isAdminOnline(adminId: number): boolean {
   return ids ? ids.has(adminId) : false;
 }
 
+function getRoleBadges(
+  roleName: null | string | undefined,
+): IdentityDisplayBadge[] {
+  if (!roleName?.trim()) {
+    return [];
+  }
+
+  return [
+    {
+      color: 'blue',
+      key: `role-${roleName}`,
+      label: roleName,
+    },
+  ];
+}
+
+function getAdminIdentityModel(admin: TenantAdminItem) {
+  return createAdminIdentityModel({
+    avatar: admin.avatar,
+    badges: getRoleBadges(admin.role_name),
+    id: admin.id,
+    isActive: admin.is_active,
+    isOwner: admin.is_owner,
+    nickname: admin.nickname,
+    orgNodeName: admin.org_node_name,
+    roleName: admin.role_name,
+    username: admin.username,
+  });
+}
+
 const shown = ref(false);
 
 onMounted(() => {
@@ -181,69 +211,35 @@ onMounted(() => {
             class="flex items-center gap-3 rounded-lg border border-border/50 px-3 py-2 transition-colors hover:bg-accent/30"
             :class="{ 'opacity-50': !admin.is_active }"
           >
-            <!-- 头像 + 在线指示器 -->
-            <div class="relative flex-shrink-0">
-              <Avatar
-                v-if="admin.avatar"
-                :src="toAvatarDisplayUrl(admin.avatar)"
-                :size="32"
-              />
-              <Avatar v-else :size="32" class="bg-primary text-xs text-white">
-                {{ (admin.nickname || admin.username).charAt(0).toUpperCase() }}
-              </Avatar>
-              <!-- 在线状态圆点（头像右下角） -->
-              <span
-                class="absolute -bottom-0.5 -right-0.5 block size-2.5 rounded-full border-2 border-background"
-                :class="
-                  isAdminOnline(admin.id)
-                    ? 'bg-green-500'
-                    : 'bg-muted-foreground/30'
-                "
-              ></span>
-            </div>
-
-            <!-- 信息 -->
-            <div class="min-w-0 flex-1">
-              <div class="flex items-center gap-1.5">
-                <span class="truncate text-sm font-medium text-foreground">
-                  {{ admin.nickname || admin.username }}
-                </span>
-                <Tag
-                  v-if="admin.is_owner"
-                  color="warning"
-                  class="!m-0 !text-[10px]"
+            <IdentityDisplay
+              :avatar-size="36"
+              :model="getAdminIdentityModel(admin)"
+              :online="isAdminOnline(admin.id)"
+              :show-online-status="true"
+              class="min-w-0 flex-1"
+            >
+              <template #after>
+                <div
+                  class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground"
                 >
-                  {{ $t('admin.tenant.adminPanel.owner') }}
-                </Tag>
-                <Tag
-                  v-if="admin.role_name"
-                  class="!m-0 !border-primary/30 !bg-primary/10 !text-[10px] !text-primary"
-                >
-                  {{ admin.role_name }}
-                </Tag>
-                <Tag
-                  v-if="!admin.is_active"
-                  color="default"
-                  class="!m-0 !text-[10px]"
-                >
-                  {{ $t('admin.common.disabled') }}
-                </Tag>
-              </div>
-              <div
-                class="flex items-center gap-2 text-xs text-muted-foreground"
-              >
-                <span>{{ admin.email }}</span>
-                <span v-if="admin.last_login_at">
-                  · {{ $t('admin.tenant.adminPanel.lastLogin') }}
-                  {{ formatRelativeTime(admin.last_login_at) }}
-                </span>
-              </div>
-            </div>
+                  <span v-if="admin.email" class="truncate">
+                    {{ admin.email }}
+                  </span>
+                  <span v-if="admin.last_login_at">
+                    · {{ $t('admin.tenant.adminPanel.lastLogin') }}
+                    {{ formatRelativeTime(admin.last_login_at) }}
+                  </span>
+                </div>
+              </template>
+            </IdentityDisplay>
 
             <!-- 操作 -->
             <div class="flex flex-shrink-0 items-center gap-2">
               <!-- 编辑按钮 -->
-              <Tooltip v-if="canUpdateTenantAdmin" :title="$t('shared.common.edit')">
+              <Tooltip
+                v-if="canUpdateTenantAdmin"
+                :title="$t('shared.common.edit')"
+              >
                 <Button
                   type="text"
                   size="small"

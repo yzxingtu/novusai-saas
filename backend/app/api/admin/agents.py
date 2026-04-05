@@ -378,9 +378,9 @@ class AdminAgentController(GlobalController):
 
             # 追加已分配的企业 ID 列表 / Append assigned tenant ID list
             if getattr(agent, "source_plugin", None):
-                detail["assigned_tenant_ids"] = (
-                    await plugin_sync_service.get_effective_agent_assignment_ids(agent)
-                )
+                detail[
+                    "assigned_tenant_ids"
+                ] = await plugin_sync_service.get_effective_agent_assignment_ids(agent)
             elif agent.scope in RESOURCE_SCOPES_NEEDING_ASSIGNMENT:
                 repo = ResourceTenantAssignmentRepository(db)
                 detail["assigned_tenant_ids"] = await repo.get_assigned_tenant_ids(

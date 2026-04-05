@@ -927,7 +927,9 @@ usePageAIOperations({
                 v-access:code="['plugin_skill_registry:list']"
                 type="text"
                 size="small"
-                @click="router.push('/admin/plugins/marketplace?catalog=skills')"
+                @click="
+                  router.push('/admin/plugins/marketplace?catalog=skills')
+                "
               >
                 <IconifyIcon
                   icon="lucide:package-search"

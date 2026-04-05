@@ -27,6 +27,7 @@ import {
   getTenantOrganizationNodeDetailApi,
   getTenantOrganizationTreeApi,
 } from '#/api/tenant/organization';
+import IdentityDisplay from '#/components/business/identity-display/IdentityDisplay.vue';
 import { MemberPanel } from '#/components/business/member-panel';
 import { OrgNodeDialog } from '#/components/business/org-node-dialog';
 import {
@@ -92,6 +93,27 @@ const leaderDisplayName = computed(() => {
   const leader = activeNode.value?.leader;
   if (!leader) return '';
   return leader.nickname || leader.real_name || leader.username;
+});
+
+const leaderIdentityModel = computed(() => {
+  const leader = activeNode.value?.leader;
+  if (!leader) {
+    return null;
+  }
+
+  const primary =
+    leader.nickname || leader.real_name || leader.username || `#${leader.id}`;
+
+  return {
+    avatar: leader.avatar,
+    id: leader.id,
+    isLeader: true,
+    nickname: primary,
+    orgNodeName: activeNode.value?.name ?? '',
+    secondaryText:
+      primary === leader.username ? leader.real_name : leader.username,
+    username: leader.username,
+  };
 });
 
 const leaderScopeLabel = computed(() =>
@@ -641,7 +663,19 @@ usePageAIOperations({
                   size="small"
                 >
                   <div class="flex h-full flex-col justify-between gap-3">
-                    <div class="flex items-start gap-3">
+                    <div
+                      v-if="leaderIdentityModel"
+                      class="rounded-xl border border-border/60 bg-background/80 px-3 py-3"
+                    >
+                      <IdentityDisplay
+                        :model="leaderIdentityModel"
+                        leader-label=""
+                      />
+                    </div>
+                    <div
+                      v-else
+                      class="flex items-start gap-3 rounded-xl border border-dashed border-border/60 bg-muted/20 px-3 py-3"
+                    >
                       <div
                         class="flex h-10 w-10 items-center justify-center rounded-xl bg-warning/10 text-warning"
                       >
@@ -650,15 +684,11 @@ usePageAIOperations({
                       <div class="min-w-0 flex-1">
                         <div class="text-sm font-medium">
                           {{
-                            leaderDisplayName ||
                             $t('tenant.system.organization.noLeaderAssigned')
                           }}
                         </div>
                         <div class="mt-1 text-xs text-muted-foreground">
-                          {{
-                            activeNode?.leader?.username ||
-                            $t('tenant.system.organization.noLeaderHint')
-                          }}
+                          {{ $t('tenant.system.organization.noLeaderHint') }}
                         </div>
                       </div>
                     </div>

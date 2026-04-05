@@ -287,6 +287,7 @@ _STOPWORDS_EN = frozenset(
 
 _STOPWORDS = _STOPWORDS_ZH | _STOPWORDS_EN
 
+
 @dataclass
 class OptimizeResult:
     """Tool optimization result / 工具优化结果"""

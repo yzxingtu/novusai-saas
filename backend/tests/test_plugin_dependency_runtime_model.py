@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from app.core.i18n import get_locale, set_locale
 from app.plugins.dependencies import (
     PluginDependencyRequirement,
     build_plugin_dependency_states,
@@ -28,36 +29,41 @@ class _RowsResult:
 def test_plugin_dependency_is_version_satisfied_handles_happy_path() -> None:
     assert plugin_dependency_is_version_satisfied("*", "1.0.0") is True
     assert plugin_dependency_is_version_satisfied(">=1.0.0", "1.5.0") is True
-    assert (
-        plugin_dependency_is_version_satisfied(">=1.0.0,<2.0.0", "2.1.0") is False
-    )
+    assert plugin_dependency_is_version_satisfied(">=1.0.0,<2.0.0", "2.1.0") is False
 
 
 def test_build_plugin_dependency_states_reports_ready_when_satisfied() -> None:
-    states = build_plugin_dependency_states(
-        [
-            PluginDependencyRequirement(
-                plugin="base-plugin",
-                version=">=1.0.0",
-            )
-        ],
-        {
-            "base-plugin": {
-                "name": "base-plugin",
-                "version": "1.5.0",
-                "status": "enabled",
-            }
-        },
-        require_enabled=True,
-    )
+    original_locale = get_locale()
+    set_locale("zh_CN")
+    try:
+        states = build_plugin_dependency_states(
+            [
+                PluginDependencyRequirement(
+                    plugin="base-plugin",
+                    version=">=1.0.0",
+                )
+            ],
+            {
+                "base-plugin": {
+                    "name": "base-plugin",
+                    "version": "1.5.0",
+                    "status": "enabled",
+                }
+            },
+            require_enabled=True,
+        )
+    finally:
+        set_locale(original_locale)
 
     assert len(states) == 1
     assert states[0].state == "ready"
-    assert states[0].message == "base-plugin 1.5.0 satisfies >=1.0.0"
+    assert states[0].message == "插件依赖 base-plugin 当前版本 1.5.0 满足 >=1.0.0"
 
 
 @pytest.mark.asyncio
-async def test_collect_plugin_dependency_states_reports_disabled_and_version_mismatch() -> None:
+async def test_collect_plugin_dependency_states_reports_disabled_and_version_mismatch() -> (
+    None
+):
     db = AsyncMock()
     db.execute = AsyncMock(
         return_value=_RowsResult(
@@ -88,7 +94,9 @@ async def test_collect_plugin_dependency_states_reports_disabled_and_version_mis
 
 
 @pytest.mark.asyncio
-async def test_get_dependents_uses_versioned_plugin_dependencies_for_uninstall() -> None:
+async def test_get_dependents_uses_versioned_plugin_dependencies_for_uninstall() -> (
+    None
+):
     db = AsyncMock()
     db.execute = AsyncMock(
         return_value=_RowsResult(

@@ -81,7 +81,9 @@ def _looks_like_list_item(line: str) -> bool:
     if not stripped:
         return False
     if stripped[0] in {"-", "*", "•"}:
-        return len(stripped) > 1 and stripped[1].isspace() and bool(stripped[2:].strip())
+        return (
+            len(stripped) > 1 and stripped[1].isspace() and bool(stripped[2:].strip())
+        )
 
     idx = 0
     while idx < len(stripped) and stripped[idx].isdigit():
@@ -539,7 +541,9 @@ class SemanticChunker(BaseChunker):
         return chunks
 
     def _split_semantic_units(self, text: str) -> list[str]:
-        blocks = [block.strip() for block in split_on_blank_lines(text) if block.strip()]
+        blocks = [
+            block.strip() for block in split_on_blank_lines(text) if block.strip()
+        ]
         if not blocks:
             return []
 

@@ -100,12 +100,10 @@ def _is_valid_semver(version: str) -> bool:
         allow_leading_zero_numeric=False,
     ):
         return False
-    if metadata_part and not _validate_semver_identifier(
+    return not metadata_part or _validate_semver_identifier(
         metadata_part,
         allow_leading_zero_numeric=True,
-    ):
-        return False
-    return True
+    )
 
 
 class SkillPackageError(Exception):

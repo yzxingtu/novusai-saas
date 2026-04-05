@@ -633,7 +633,11 @@ usePageAIOperations({
 
             <!-- Delete -->
             <Popconfirm
-              v-if="canDeleteDomain && domain.domainType === 'custom' && !domain.isPrimary"
+              v-if="
+                canDeleteDomain &&
+                domain.domainType === 'custom' &&
+                !domain.isPrimary
+              "
               :title="
                 $t('tenant.system.domain.messages.confirmDelete', {
                   domain: domain.domain,
@@ -641,12 +645,7 @@ usePageAIOperations({
               "
               @confirm="onDeleteDomain(domain)"
             >
-              <Button
-                size="small"
-                danger
-                type="text"
-                class="!px-2"
-              >
+              <Button size="small" danger type="text" class="!px-2">
                 <IconifyIcon icon="lucide:trash-2" class="size-4" />
               </Button>
             </Popconfirm>

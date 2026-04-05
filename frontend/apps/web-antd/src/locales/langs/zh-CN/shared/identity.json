@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json.schemastore.org/i18n",
+  "identity": {
+    "owner": "所有者",
+    "unassignedArchitecture": "未分配架构"
+  }
+}

@@ -5,13 +5,12 @@
  */
 import type { adminApi } from '#/api';
 
-import { onMounted, ref } from 'vue';
+import { ref } from 'vue';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
 import {
-  Avatar,
   Button,
   Card,
   message,
@@ -22,11 +21,12 @@ import {
 
 import { useCrudPage } from '#/adapter/vxe-table';
 import { adminApi as admin } from '#/api';
+import { IdentityDisplay } from '#/components/business/identity-display';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
-import { toAvatarDisplayUrl } from '#/utils/image';
 
 import {
+  createOperationLogIdentityModel,
   getMethodColor,
   getStatusColor,
   useColumns,
@@ -71,7 +71,7 @@ async function onBatchDelete() {
 }
 
 // CRUD page (read-only list, no form component needed) / CRUD 页面（只读列表，不需要表单组件）
-const { Grid, gridApi, onRefresh } = useCrudPage<OperationLogInfo>({
+const { Grid, onRefresh } = useCrudPage<OperationLogInfo>({
   api: {
     list: admin.getOperationLogListApi,
     resource: '/admin/operation-logs',
@@ -84,39 +84,6 @@ const { Grid, gridApi, onRefresh } = useCrudPage<OperationLogInfo>({
   customActions: {
     detail: onViewDetail,
   },
-});
-
-// Operator list (avatar + dropdown) / 操作人列表（头像 + 下拉）
-const avatarMap = ref<Record<number, null | string | undefined>>({});
-
-async function loadOperators() {
-  try {
-    const list = await admin.getOperatorsApi();
-    // Build userId → avatar map / 构建 userId → avatar 映射
-    const map: Record<number, null | string | undefined> = {};
-    for (const op of list) {
-      if (op.user_id) map[op.user_id] = op.avatar;
-    }
-    avatarMap.value = map;
-    // Dynamically update search form dropdown options / 动态更新搜索表单下拉选项
-    gridApi.formApi?.updateSchema([
-      {
-        componentProps: {
-          options: list.map((op) => ({
-            label: op.nickname || op.username,
-            value: op.username,
-          })),
-        },
-        fieldName: 'filter[username]',
-      },
-    ]);
-  } catch {
-    // ignore / 忽略非关键错误
-  }
-}
-
-onMounted(() => {
-  loadOperators();
 });
 
 /**
@@ -136,31 +103,24 @@ function onSelectionChange(rows: OperationLogInfo[]) {
       <Grid @selection-change="onSelectionChange">
         <!-- 用户名列（含头像） -->
         <template #username_cell="{ row }">
-          <div class="flex items-center gap-2">
-            <Avatar
-              v-if="row.userId && avatarMap[row.userId]"
-              :src="toAvatarDisplayUrl(avatarMap[row.userId])"
-              :size="28"
-            />
-            <Avatar
-              v-else
-              :size="28"
-              class="flex-shrink-0 bg-primary/10 text-xs text-primary"
-            >
-              {{ (row.nickname || row.username || '?').charAt(0) }}
-            </Avatar>
-            <div class="min-w-0 flex-1">
-              <div class="truncate text-sm font-medium text-foreground">
-                {{ row.nickname || row.username }}
-              </div>
-              <div
-                v-if="row.nickname"
-                class="truncate text-xs text-muted-foreground"
-              >
-                {{ row.username }}
-              </div>
-            </div>
-          </div>
+          <IdentityDisplay
+            :avatar-size="30"
+            :model="
+              createOperationLogIdentityModel({
+                avatar: row.avatar,
+                displayName: row.displayName,
+                id: row.userId ?? row.id,
+                isActive: row.isActive,
+                isLeader: row.isLeader,
+                isOwner: row.isOwner,
+                nickname: row.nickname,
+                orgNodeName: row.orgNodeName,
+                roleName: row.roleName,
+                userType: row.userType,
+                username: row.username,
+              })
+            "
+          />
         </template>
 
         <!-- 模块列 -->

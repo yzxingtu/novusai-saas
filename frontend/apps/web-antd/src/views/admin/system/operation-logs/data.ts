@@ -5,9 +5,16 @@ import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 import type { adminApi } from '#/api';
 
-import { searchDateRange, searchInput } from '#/adapter/form';
+import {
+  identityRemoteSelect,
+  searchDateRange,
+  searchInput,
+} from '#/adapter/form';
 import { checkboxColumn } from '#/adapter/vxe-table';
+import { getOperatorsSelectApi } from '#/api/admin/operation-log';
 import { $t } from '#/locales';
+
+import { createAdminIdentityModel } from '../../_shared/identity';
 
 type OperationLogInfo = adminApi.OperationLogInfo;
 
@@ -56,6 +63,40 @@ export function getMethodColor(method: string | undefined): string {
   }
 }
 
+interface OperationLogIdentityInput {
+  avatar?: null | string;
+  displayName?: null | string;
+  id: null | number | string | undefined;
+  isActive?: boolean;
+  isLeader?: boolean;
+  isOwner?: boolean;
+  nickname?: null | string;
+  orgNodeName?: null | string;
+  roleName?: null | string;
+  userType?: null | string;
+  username?: null | string;
+}
+
+export function createOperationLogIdentityModel(
+  identity: OperationLogIdentityInput,
+) {
+  return createAdminIdentityModel({
+    avatar: identity.avatar,
+    displayName: identity.displayName,
+    id: identity.id ?? identity.username ?? 'operation-log-user',
+    includeTypeBadge: true,
+    isActive: identity.isActive,
+    isLeader: identity.isLeader,
+    isOwner: identity.isOwner,
+    nickname: identity.nickname,
+    orgNodeName: identity.orgNodeName,
+    roleName: identity.roleName,
+    userType: identity.userType,
+    username:
+      identity.displayName || identity.nickname ? undefined : identity.username,
+  });
+}
+
 /**
  * 表格列定义
  */
@@ -67,7 +108,7 @@ export function useColumns<T = OperationLogInfo>(
     {
       field: 'username',
       title: $t('admin.system.operationLog.username'),
-      width: 180,
+      width: 220,
       slots: {
         default: 'username_cell',
       },
@@ -172,19 +213,18 @@ export function useColumns<T = OperationLogInfo>(
  */
 export function useGridFormSchema(): VbenFormSchema[] {
   return [
-    {
-      component: 'Select',
-      componentProps: {
-        allowClear: true,
-        class: 'w-full',
-        options: [],
-        placeholder: $t('admin.system.operationLog.placeholder.searchUsername'),
-        showSearch: true,
-        optionFilterProp: 'label',
-      },
+    identityRemoteSelect({
+      api: getOperatorsSelectApi,
+      displayField: 'display_name',
+      displayFallbackFields: ['nickname', 'label', 'username'],
       fieldName: 'filter[username]',
       label: $t('admin.system.operationLog.username'),
-    },
+      placeholder: $t('admin.system.operationLog.placeholder.searchUsername'),
+      pageSize: 10,
+      componentProps: {
+        showSecondaryText: false,
+      },
+    }),
     searchInput('trace_id', $t('admin.system.operationLog.traceId'), {
       op: 'eq',
       placeholder: $t('admin.system.operationLog.placeholder.searchTraceId'),

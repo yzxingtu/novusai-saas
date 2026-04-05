@@ -24,8 +24,15 @@ export interface ActionLogItem {
   error_message: null | string;
   operator_id: null | number;
   operator_avatar?: null | string;
+  operator_display_name?: null | string;
   operator_name?: null | string;
   operator_nickname?: null | string;
+  operator_org_node_id?: null | number;
+  operator_org_node_name?: null | string;
+  operator_role_name?: null | string;
+  operator_is_active?: boolean;
+  operator_is_leader?: boolean;
+  operator_is_owner?: boolean;
   operator_type?: null | string;
   created_at: string;
 }

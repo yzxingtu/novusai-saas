@@ -1,3 +1,4 @@
+import type { SelectResponse } from '#/api/shared/types';
 /**
  * Tenant user management API / 企业用户管理 API
  * Backend: /tenant/users/* / 对接后端 /tenant/users/* 接口
@@ -84,6 +85,19 @@ export interface TenantUserInfo {
   updatedAt?: null | string;
 }
 
+export interface TenantUserIdentitySelectExtra {
+  avatar?: null | string;
+  is_active?: boolean;
+  is_leader?: boolean;
+  is_owner?: boolean;
+  nickname?: null | string;
+  org_node_id?: null | number;
+  org_node_name?: null | string;
+  role_name?: null | string;
+  user_type?: null | string;
+  username?: null | string;
+}
+
 /** Paginated list response / 分页列表响应 */
 export interface TenantUserListResponse {
   items: TenantUserInfo[];
@@ -146,6 +160,20 @@ export async function getTenantUserListApi(
     page: response.page,
     page_size: response.page_size,
   };
+}
+
+/**
+ * Get tenant user identity select options / 获取企业用户身份下拉
+ * GET /tenant/users/select
+ */
+export async function getTenantUserIdentitySelectApi(
+  params?: Record<string, unknown>,
+  options?: ApiRequestOptions,
+): Promise<SelectResponse<TenantUserIdentitySelectExtra>> {
+  return requestClient.get<SelectResponse<TenantUserIdentitySelectExtra>>(
+    `${API_PREFIX}/select`,
+    { params, ...options },
+  );
 }
 
 /**

@@ -61,7 +61,8 @@ async function open() {
       form.value.github_url = data.marketplace_github_url || '';
       form.value.cache_ttl = Number(data.marketplace_cache_ttl) || 3600;
       form.value.skill_github_url = data.skill_registry_github_url || '';
-      form.value.skill_cache_ttl = Number(data.skill_registry_cache_ttl) || 3600;
+      form.value.skill_cache_ttl =
+        Number(data.skill_registry_cache_ttl) || 3600;
     }
   } catch {
     //
@@ -190,18 +191,23 @@ defineExpose({ open });
             <Tag v-else color="error">
               <IconifyIcon icon="lucide:x" class="mr-0.5 inline size-3" />
               {{
-                testResult.error || $t('admin.plugin.marketplace.connectionFailed')
+                testResult.error ||
+                $t('admin.plugin.marketplace.connectionFailed')
               }}
             </Tag>
           </template>
         </div>
       </FormItem>
 
-      <div class="mb-4 mt-2 border-t border-border/60 pt-4 text-sm font-semibold">
+      <div
+        class="mb-4 mt-2 border-t border-border/60 pt-4 text-sm font-semibold"
+      >
         {{ $t('admin.plugin.marketplace.skillRegistrySettings') }}
       </div>
 
-      <FormItem :label="$t('admin.plugin.marketplace.skillRegistryGithubUrlLabel')">
+      <FormItem
+        :label="$t('admin.plugin.marketplace.skillRegistryGithubUrlLabel')"
+      >
         <Input
           v-model:value="form.skill_github_url"
           :placeholder="

@@ -9,8 +9,8 @@ and field extraction based on output_schema.
 import json
 from typing import Any
 
-from app.core.logging import LogManager
 from app.ai.text_semantics import extract_fenced_json_block, extract_named_field_value
+from app.core.logging import LogManager
 
 logger = LogManager.get_logger("ai.engine.output_parser")
 

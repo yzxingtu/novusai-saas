@@ -75,21 +75,28 @@ describe('page screenshot helpers', () => {
   });
 
   it('resolves upload target by current endpoint type', async () => {
-    const { resolveScreenshotUploadTarget } = await import('../use-page-screenshot');
+    const { resolveScreenshotUploadTarget } =
+      await import('../use-page-screenshot');
 
     mockRefs.resolveEndpointByPath.mockReturnValueOnce('admin');
-    expect(resolveScreenshotUploadTarget('/admin/agents', 'example.com')).toEqual({
+    expect(
+      resolveScreenshotUploadTarget('/admin/agents', 'example.com'),
+    ).toEqual({
       uploadUrl: '/admin/attachments/upload',
       extraData: { tenant_id: '0' },
     });
 
     mockRefs.resolveEndpointByPath.mockReturnValueOnce('tenant');
-    expect(resolveScreenshotUploadTarget('/tenant/agents', 'tenant.example.com')).toEqual({
+    expect(
+      resolveScreenshotUploadTarget('/tenant/agents', 'tenant.example.com'),
+    ).toEqual({
       uploadUrl: '/tenant/attachments/upload',
     });
 
     mockRefs.resolveEndpointByPath.mockReturnValueOnce('user');
-    expect(resolveScreenshotUploadTarget('/ai-chat', 'user.example.com')).toEqual({
+    expect(
+      resolveScreenshotUploadTarget('/ai-chat', 'user.example.com'),
+    ).toEqual({
       uploadUrl: '/api/user/attachments/upload',
     });
   });

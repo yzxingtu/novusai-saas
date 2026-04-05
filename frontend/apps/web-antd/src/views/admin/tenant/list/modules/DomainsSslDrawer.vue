@@ -67,7 +67,9 @@ const canProvisionSsl = hasAccessByCodes(['tenant_domain:ssl_provision']);
 const canRenewSsl = hasAccessByCodes(['tenant_domain:ssl_renew']);
 const canUploadSsl = hasAccessByCodes(['tenant_domain:ssl_upload']);
 const canDeleteSsl = hasAccessByCodes(['tenant_domain:ssl_delete']);
-const canToggleSslAutoRenew = hasAccessByCodes(['tenant_domain:ssl_auto_renew']);
+const canToggleSslAutoRenew = hasAccessByCodes([
+  'tenant_domain:ssl_auto_renew',
+]);
 
 // Drawer / 抽屉
 const [Drawer, drawerApi] = useVbenDrawer({
@@ -344,7 +346,9 @@ defineExpose({ open });
             {{ $t('admin.tenant.domain.ssl.actions.renew') }}
           </Button>
           <Button
-            v-if="(!sslDetail || sslDetail.status !== 'active') && canProvisionSsl"
+            v-if="
+              (!sslDetail || sslDetail.status !== 'active') && canProvisionSsl
+            "
             type="primary"
             size="small"
             :loading="actionLoading"
@@ -353,7 +357,11 @@ defineExpose({ open });
             <IconifyIcon icon="lucide:shield-check" class="mr-1 size-3" />
             {{ $t('admin.tenant.domain.ssl.actions.provision') }}
           </Button>
-          <Button v-if="canUploadSsl" size="small" @click="showUploadForm = !showUploadForm">
+          <Button
+            v-if="canUploadSsl"
+            size="small"
+            @click="showUploadForm = !showUploadForm"
+          >
             <IconifyIcon icon="lucide:upload" class="mr-1 size-3" />
             {{ $t('admin.tenant.domain.ssl.actions.upload') }}
           </Button>
@@ -408,7 +416,11 @@ defineExpose({ open });
               <IconifyIcon icon="lucide:shield-check" class="mr-1 size-3" />
               {{ $t('admin.tenant.domain.ssl.actions.provision') }}
             </Button>
-            <Button v-if="canUploadSsl" size="small" @click="showUploadForm = !showUploadForm">
+            <Button
+              v-if="canUploadSsl"
+              size="small"
+              @click="showUploadForm = !showUploadForm"
+            >
               <IconifyIcon icon="lucide:upload" class="mr-1 size-3" />
               {{ $t('admin.tenant.domain.ssl.actions.upload') }}
             </Button>

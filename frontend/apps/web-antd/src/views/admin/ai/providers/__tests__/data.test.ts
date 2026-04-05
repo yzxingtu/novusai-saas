@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
-  hasLikelyMissingProviderApiVersion,
   hasForbiddenProviderEndpointSuffix,
+  hasLikelyMissingProviderApiVersion,
   normalizeProviderBaseUrlInput,
   resolveProviderWireApi,
 } from '../data';

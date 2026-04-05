@@ -24,6 +24,7 @@ import {
   getOrganizationNodeDetailApi,
   getOrganizationTreeApi,
 } from '#/api/admin/organization';
+import { IdentityDisplay } from '#/components/business/identity-display';
 import { MemberPanel } from '#/components/business/member-panel';
 import { OrgNodeDialog } from '#/components/business/org-node-dialog';
 import {
@@ -44,6 +45,8 @@ import {
   usePageAIOperations,
 } from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
+
+import { createAdminIdentityModel } from '../../_shared/identity';
 
 defineOptions({ name: 'SystemOrganization' });
 
@@ -96,6 +99,25 @@ const leaderScopeLabel = computed(() =>
 
 const leaderScopeDescription = computed(() =>
   getLeaderScopeDescription(activeNode.value?.dataScope),
+);
+
+const hasLeader = computed(() => Boolean(activeNode.value?.leader));
+
+const leaderIdentityModel = computed(() =>
+  createAdminIdentityModel({
+    avatar: activeNode.value?.leader?.avatar,
+    displayName:
+      leaderDisplayName.value ||
+      $t('admin.system.organization.noLeaderAssigned'),
+    id:
+      activeNode.value?.leader?.id ?? `node-${activeNode.value?.id ?? 'none'}`,
+    isLeader: hasLeader.value,
+    nickname: activeNode.value?.leader?.nickname,
+    orgNodeName: activeNode.value?.name,
+    secondaryText: activeNode.value?.leader
+      ? undefined
+      : $t('admin.system.organization.noLeaderHint'),
+  }),
 );
 
 function getNodeTypeLabel(type?: string) {
@@ -614,27 +636,11 @@ usePageAIOperations({
                   size="small"
                 >
                   <div class="flex h-full flex-col justify-between gap-3">
-                    <div class="flex items-start gap-3">
-                      <div
-                        class="flex h-10 w-10 items-center justify-center rounded-xl bg-warning/10 text-warning"
-                      >
-                        <IconifyIcon icon="lucide:crown" class="h-5 w-5" />
-                      </div>
-                      <div class="min-w-0 flex-1">
-                        <div class="text-sm font-medium">
-                          {{
-                            leaderDisplayName ||
-                            $t('admin.system.organization.noLeaderAssigned')
-                          }}
-                        </div>
-                        <div class="mt-1 text-xs text-muted-foreground">
-                          {{
-                            activeNode?.leader?.username ||
-                            $t('admin.system.organization.noLeaderHint')
-                          }}
-                        </div>
-                      </div>
-                    </div>
+                    <IdentityDisplay
+                      :avatar-size="40"
+                      :model="leaderIdentityModel"
+                      :show-avatar="hasLeader"
+                    />
                     <div
                       class="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground"
                     >

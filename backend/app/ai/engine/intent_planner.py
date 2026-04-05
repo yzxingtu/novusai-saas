@@ -24,7 +24,14 @@ _CLAUSE_SEPARATORS = (
     " and then ",
 )
 _WEATHER_TERMS = ("天气", "气温", "温度", "降雨", "湿度", "weather", "temperature")
-_TIME_TERMS = ("现在几点", "当前时间", "今天几号", "当前日期", "time now", "current time")
+_TIME_TERMS = (
+    "现在几点",
+    "当前时间",
+    "今天几号",
+    "当前日期",
+    "time now",
+    "current time",
+)
 _WEB_TERMS = (
     "联网",
     "搜索",
@@ -175,7 +182,9 @@ class IntentPlanner:
 
     @staticmethod
     def _first_position(text: str, candidates: tuple[str, ...]) -> int:
-        positions = [text.find(item) for item in candidates if item and text.find(item) >= 0]
+        positions = [
+            text.find(item) for item in candidates if item and text.find(item) >= 0
+        ]
         return min(positions) if positions else -1
 
     @classmethod
@@ -188,7 +197,11 @@ class IntentPlanner:
         clauses: list[tuple[int, str]] = []
         while idx < len(lowered):
             separator = next(
-                (token for token in _CLAUSE_SEPARATORS if lowered.startswith(token, idx)),
+                (
+                    token
+                    for token in _CLAUSE_SEPARATORS
+                    if lowered.startswith(token, idx)
+                ),
                 None,
             )
             if separator is None:
@@ -236,56 +249,100 @@ class IntentPlanner:
         if "weather" in families:
             position = cls._first_position(lowered, _WEATHER_TERMS)
             if position >= 0:
-                signals.append(_IntentSignal("weather_query", "weather", "weather", offset + position))
+                signals.append(
+                    _IntentSignal(
+                        "weather_query", "weather", "weather", offset + position
+                    )
+                )
 
         if "time_ops" in families:
             position = cls._first_position(lowered, _TIME_TERMS)
             if position >= 0:
-                signals.append(_IntentSignal("time_query", "time_ops", "time", offset + position))
+                signals.append(
+                    _IntentSignal("time_query", "time_ops", "time", offset + position)
+                )
 
         no_web = any(term in lowered for term in _NO_WEB_TERMS)
         if not no_web and "web_research" in families:
             position = cls._first_position(lowered, _WEB_TERMS)
             if position >= 0:
-                label = "rail_search" if any(term in lowered for term in ("高铁票", "火车票", "12306")) else "web_research"
-                signals.append(_IntentSignal("web_research", "web_research", label, offset + position))
+                label = (
+                    "rail_search"
+                    if any(term in lowered for term in ("高铁票", "火车票", "12306"))
+                    else "web_research"
+                )
+                signals.append(
+                    _IntentSignal(
+                        "web_research", "web_research", label, offset + position
+                    )
+                )
 
         if "data_ops" in families and not any(term in lowered for term in _WEB_TERMS):
             position = cls._first_position(lowered, _DATA_TERMS)
             if position >= 0:
-                signals.append(_IntentSignal("data_query", "data_ops", "data_query", offset + position))
+                signals.append(
+                    _IntentSignal(
+                        "data_query", "data_ops", "data_query", offset + position
+                    )
+                )
 
         if page_context_present and "page_ops" in families:
             page_position = cls._first_position(
                 lowered,
-                _PAGE_POINTER_TERMS + _PAGE_READ_TERMS + _PAGE_WRITE_TERMS + _PAGE_NAV_TERMS + _PAGE_CAPABILITY_TERMS,
+                _PAGE_POINTER_TERMS
+                + _PAGE_READ_TERMS
+                + _PAGE_WRITE_TERMS
+                + _PAGE_NAV_TERMS
+                + _PAGE_CAPABILITY_TERMS,
             )
             navigation_request = has_navigation_intent(
                 clause,
-                input_variables.get(PAGE_CONTEXT_KEY) if isinstance(input_variables, dict) else None,
+                input_variables.get(PAGE_CONTEXT_KEY)
+                if isinstance(input_variables, dict)
+                else None,
             )
             if page_position >= 0 or navigation_request:
                 nav_position = cls._first_position(lowered, _PAGE_NAV_TERMS)
                 write_position = cls._first_position(lowered, _PAGE_WRITE_TERMS)
-                read_position = cls._first_position(lowered, _PAGE_READ_TERMS + _PAGE_POINTER_TERMS + _PAGE_CAPABILITY_TERMS)
+                read_position = cls._first_position(
+                    lowered,
+                    _PAGE_READ_TERMS + _PAGE_POINTER_TERMS + _PAGE_CAPABILITY_TERMS,
+                )
                 if navigation_request or nav_position >= 0:
                     signals.append(
                         _IntentSignal(
                             "page_navigation",
                             "page_ops",
                             "page_navigation",
-                            offset + (nav_position if nav_position >= 0 else max(page_position, 0)),
+                            offset
+                            + (
+                                nav_position
+                                if nav_position >= 0
+                                else max(page_position, 0)
+                            ),
                         )
                     )
                 elif write_position >= 0:
-                    signals.append(_IntentSignal("page_write", "page_ops", "page_write", offset + write_position))
+                    signals.append(
+                        _IntentSignal(
+                            "page_write",
+                            "page_ops",
+                            "page_write",
+                            offset + write_position,
+                        )
+                    )
                 else:
                     signals.append(
                         _IntentSignal(
                             "page_read",
                             "page_ops",
                             "page_read",
-                            offset + (read_position if read_position >= 0 else max(page_position, 0)),
+                            offset
+                            + (
+                                read_position
+                                if read_position >= 0
+                                else max(page_position, 0)
+                            ),
                         )
                     )
 
@@ -307,9 +364,14 @@ class IntentPlanner:
             and getattr(continuation_context, "active", False)
             and getattr(continuation_context, "family", None) == "web_research"
             and "web_research" in families
-            and any(term in lowered for term in ("那个链接", "那个网页", "上一个结果", "刚才那个链接"))
+            and any(
+                term in lowered
+                for term in ("那个链接", "那个网页", "上一个结果", "刚才那个链接")
+            )
         ):
-            signals.append(_IntentSignal("web_research", "web_research", "web_research", offset))
+            signals.append(
+                _IntentSignal("web_research", "web_research", "web_research", offset)
+            )
 
         return sorted(signals, key=lambda item: item.position)
 
@@ -355,7 +417,9 @@ class IntentPlanner:
 
         plans: list[IntentPlan] = []
         seen: set[tuple[str, str, int]] = set()
-        for index, signal in enumerate(sorted(detected, key=lambda item: item.position), start=1):
+        for index, signal in enumerate(
+            sorted(detected, key=lambda item: item.position), start=1
+        ):
             key = (signal.kind, signal.family, signal.position)
             if key in seen:
                 continue

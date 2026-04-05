@@ -137,7 +137,7 @@ onMounted(async () => {
             <div
               class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg"
               :class="[
-                row.isActive ? getTaskIconBg(row.taskPath) : 'bg-slate-100',
+                row.isActive ? getTaskIconBg(row.taskPath) : 'bg-accent',
               ]"
             >
               <IconifyIcon
@@ -146,14 +146,14 @@ onMounted(async () => {
                 :class="
                   row.isActive
                     ? getTaskIconColor(row.taskPath)
-                    : 'text-slate-300'
+                    : 'text-muted-foreground/45'
                 "
               />
             </div>
             <div class="min-w-0 flex-1">
               <div class="flex flex-wrap items-center gap-1">
                 <span
-                  class="truncate text-[13px] font-semibold leading-5 text-slate-900"
+                  class="truncate text-[13px] font-semibold leading-5 text-foreground"
                 >
                   {{ row.name }}
                 </span>
@@ -170,7 +170,9 @@ onMounted(async () => {
                 :title="row.description || row.taskPath"
                 placement="topLeft"
               >
-                <div class="mt-1 truncate text-[11px] leading-4 text-slate-400">
+                <div
+                  class="mt-1 truncate text-[11px] leading-4 text-muted-foreground"
+                >
                   {{ row.description || row.taskPath }}
                 </div>
               </Tooltip>
@@ -209,8 +211,8 @@ onMounted(async () => {
               class="line-clamp-1 text-xs leading-5"
               :class="
                 row.bindingRequired && !row.bindingConfigured
-                  ? 'font-medium text-amber-600'
-                  : 'text-slate-500'
+                  ? 'font-medium text-amber-600 dark:text-amber-400'
+                  : 'text-muted-foreground'
               "
             >
               {{ getDistributionCompactText(row) }}
@@ -240,13 +242,13 @@ onMounted(async () => {
               v-if="row.scheduleType === 'cron' && row.cronExpression"
               :title="row.cronExpression"
             >
-              <span class="text-xs text-slate-500">
+              <span class="text-xs text-muted-foreground">
                 {{ getScheduleDisplay(row) }}
               </span>
             </Tooltip>
             <span
               v-else-if="row.scheduleType === 'interval'"
-              class="text-xs text-slate-500"
+              class="text-xs text-muted-foreground"
             >
               {{ getScheduleDisplay(row) }}
             </span>
@@ -266,7 +268,11 @@ onMounted(async () => {
             />
             <span
               class="text-[11px] font-medium"
-              :class="row.isActive ? 'text-emerald-600' : 'text-slate-400'"
+              :class="
+                row.isActive
+                  ? 'text-emerald-600 dark:text-emerald-400'
+                  : 'text-muted-foreground'
+              "
             >
               {{
                 row.isActive
@@ -282,19 +288,19 @@ onMounted(async () => {
             <div class="flex items-center gap-1.5">
               <IconifyIcon
                 icon="lucide:history"
-                class="size-3 shrink-0 text-slate-400"
+                class="size-3 shrink-0 text-muted-foreground"
               />
               <Tooltip v-if="row.lastRunAt" :title="formatDate(row.lastRunAt)">
-                <span class="tabular-nums text-slate-600">
+                <span class="tabular-nums text-foreground/75">
                   {{ formatRelativeTime(row.lastRunAt) }}
                 </span>
               </Tooltip>
-              <span v-else class="text-slate-300">—</span>
+              <span v-else class="text-muted-foreground/45">—</span>
             </div>
             <div class="flex items-center gap-1.5">
               <IconifyIcon
                 icon="lucide:timer"
-                class="size-3 shrink-0 text-slate-400"
+                class="size-3 shrink-0 text-muted-foreground"
               />
               <template v-if="row.nextRunAt">
                 <Tooltip :title="formatDate(row.nextRunAt)">
@@ -302,15 +308,15 @@ onMounted(async () => {
                     class="tabular-nums"
                     :class="
                       new Date(row.nextRunAt).getTime() > Date.now()
-                        ? 'text-emerald-600'
-                        : 'text-amber-600'
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : 'text-amber-600 dark:text-amber-400'
                     "
                   >
                     {{ formatRelativeTime(row.nextRunAt) }}
                   </span>
                 </Tooltip>
               </template>
-              <span v-else class="text-slate-300">—</span>
+              <span v-else class="text-muted-foreground/45">—</span>
             </div>
           </div>
         </template>

@@ -12,16 +12,18 @@ Extends SqlValidator from security.py / 继承并增强 security.py 中的 SqlVa
 - New checks: table whitelist, function blacklist, comment prohibition / 新增检查
 """
 
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 from dataclasses import dataclass, field
 
 from app.ai.data_intelligence.sql_analysis import (
     contains_sql_comments,
     extract_called_functions,
-    extract_table_names as extract_table_names_from_sql,
     find_keyword_sequences,
     starts_with_select_or_cte,
+)
+from app.ai.data_intelligence.sql_analysis import (
+    extract_table_names as extract_table_names_from_sql,
 )
 from app.ai.tools.security import SqlValidator
 from app.core.i18n import _
@@ -108,6 +110,7 @@ _WRITE_OPERATION_SEQUENCES: list[tuple[str, ...]] = [
 ]
 _SYSTEM_SCHEMAS = {"pg_catalog", "information_schema", "pg_toast"}
 
+
 def extract_table_names(sql: str) -> set[str]:
     """
     从 SQL 中提取所有引用的表名 / Extract all referenced table names from SQL.
@@ -164,7 +167,9 @@ class SQLSafetyValidator:
             violations.append(_("data_intelligence.sql.select_only"))
 
         # ---- Check 2: Prohibit dangerous keywords / 检查 2: 禁止危险关键字 ----
-        blocked_keywords = find_keyword_sequences(stripped, _DANGEROUS_KEYWORD_SEQUENCES)
+        blocked_keywords = find_keyword_sequences(
+            stripped, _DANGEROUS_KEYWORD_SEQUENCES
+        )
         if blocked_keywords:
             violations.append(
                 _(

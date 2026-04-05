@@ -203,9 +203,7 @@ class AgentSkillGrantService:
         deduped_skill_ids = list(dict.fromkeys(skill_ids))
         skills = await self.skill_repo.get_by_ids(deduped_skill_ids)
         skill_map = {
-            skill.id: skill
-            for skill in skills
-            if self._skill_runtime_available(skill)
+            skill.id: skill for skill in skills if self._skill_runtime_available(skill)
         }
 
         for skill_id in deduped_skill_ids:

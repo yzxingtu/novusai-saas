@@ -39,15 +39,22 @@ import {
 } from '#/api/tenant/action-logs';
 import { getExecutionDecisionDetailApi } from '#/api/tenant/execution-decisions';
 import AIPageHeroCard from '#/components/business/ai-page-hero/AIPageHeroCard.vue';
+import IdentityDisplay from '#/components/business/identity-display/IdentityDisplay.vue';
 import {
   createRefreshPageOperation,
   createViewDetailPageOperation,
 } from '#/composables';
 import { $t } from '#/locales';
-import { copyToClipboard, formatDate, formatRelativeTime } from '#/utils/common';
+import {
+  copyToClipboard,
+  formatDate,
+  formatRelativeTime,
+} from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
 
 import {
+  getExecutionDecisionStatusText,
+  getExecutionDecisionTypeText,
   getLevelColor,
   getLevelText,
   getStatusColor,
@@ -56,10 +63,6 @@ import {
   getTypeText,
   useColumns,
   useGridFormSchema,
-} from './data';
-import {
-  getExecutionDecisionTypeText,
-  getExecutionDecisionStatusText,
 } from './data';
 
 defineOptions({ name: 'TenantAIActionLogList' });
@@ -71,6 +74,20 @@ interface PayloadEntry {
   key: string;
   kind: PayloadEntryKind;
   valueText: string;
+}
+
+interface OperatorIdentitySource {
+  operator_avatar?: null | string;
+  operator_display_name?: null | string;
+  operator_id?: null | number;
+  operator_is_active?: boolean;
+  operator_is_leader?: boolean;
+  operator_is_owner?: boolean;
+  operator_name?: null | string;
+  operator_nickname?: null | string;
+  operator_org_node_name?: null | string;
+  operator_role_name?: null | string;
+  operator_type?: null | string;
 }
 
 function getAgentDisplayName(
@@ -103,33 +120,64 @@ function getOperatorTypeText(operatorType: null | string | undefined): string {
   }
 }
 
+function getOperatorTypeColor(operatorType: null | string | undefined): string {
+  switch (operatorType) {
+    case 'admin':
+    case 'platform_admin': {
+      return 'gold';
+    }
+    case 'tenant_admin': {
+      return 'blue';
+    }
+    case 'tenant_user': {
+      return 'green';
+    }
+    default: {
+      return 'default';
+    }
+  }
+}
+
 function getOperatorDisplayName(
-  log: Pick<
-    ActionLogDetail,
-    'operator_id' | 'operator_name' | 'operator_nickname'
-  >,
+  log: null | OperatorIdentitySource | undefined,
 ): string {
   return (
-    log.operator_nickname ||
-    log.operator_name ||
-    (log.operator_id ? `#${log.operator_id}` : '-')
+    log?.operator_display_name ||
+    log?.operator_nickname ||
+    log?.operator_name ||
+    (log?.operator_id ? `#${log.operator_id}` : '-')
   );
 }
 
-function getOperatorSecondaryText(
-  log: Pick<
-    ActionLogDetail,
-    'operator_id' | 'operator_name' | 'operator_nickname' | 'operator_type'
-  >,
-): string {
-  if (
-    log.operator_nickname &&
-    log.operator_name &&
-    log.operator_nickname !== log.operator_name
-  ) {
-    return log.operator_name;
-  }
-  return getOperatorTypeText(log.operator_type);
+function buildOperatorIdentityModel(
+  log: null | OperatorIdentitySource | undefined,
+) {
+  const typeText = getOperatorTypeText(log?.operator_type);
+
+  return {
+    avatar: log?.operator_avatar,
+    badges: typeText
+      ? [
+          {
+            color: getOperatorTypeColor(log?.operator_type),
+            key: `operator-type-${log?.operator_id ?? log?.operator_name ?? 'unknown'}`,
+            label: typeText,
+          },
+        ]
+      : [],
+    displayName: log?.operator_display_name,
+    id: log?.operator_id ?? '-',
+    isActive: log?.operator_is_active,
+    isLeader: log?.operator_is_leader,
+    isOwner: log?.operator_is_owner,
+    nickname: getOperatorDisplayName(log),
+    orgNodeName: log?.operator_org_node_name,
+    roleName: log?.operator_role_name,
+    username:
+      log?.operator_display_name || log?.operator_nickname
+        ? undefined
+        : (log?.operator_name ?? undefined),
+  };
 }
 
 function isIconAvatar(avatar: null | string | undefined): boolean {
@@ -517,37 +565,10 @@ const { Grid, onRefresh } = useCrudPage<ActionLogItem>({
         </template>
 
         <template #operator_cell="{ row }">
-          <div class="flex items-center justify-start gap-2 text-left">
-            <div
-              class="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border/60 bg-primary/10 text-primary shadow-sm"
-            >
-              <img
-                v-if="row.operator_avatar && !isIconAvatar(row.operator_avatar)"
-                :alt="getOperatorDisplayName(row)"
-                :src="toAvatarDisplayUrl(row.operator_avatar)"
-                class="size-full object-cover"
-              />
-              <IconifyIcon
-                v-else-if="isIconAvatar(row.operator_avatar)"
-                :icon="String(row.operator_avatar)"
-                class="size-4.5"
-              />
-              <span v-else class="text-sm font-semibold">
-                {{ getInitialLetter(getOperatorDisplayName(row)) }}
-              </span>
-            </div>
-            <div class="min-w-0 flex-1 text-left">
-              <div class="truncate text-sm font-medium text-foreground">
-                {{ getOperatorDisplayName(row) }}
-              </div>
-              <div
-                v-if="getOperatorSecondaryText(row)"
-                class="truncate text-xs text-muted-foreground"
-              >
-                {{ getOperatorSecondaryText(row) }}
-              </div>
-            </div>
-          </div>
+          <IdentityDisplay
+            :avatar-size="36"
+            :model="buildOperatorIdentityModel(row)"
+          />
         </template>
 
         <!-- 耗时列 -->
@@ -646,7 +667,9 @@ const { Grid, onRefresh } = useCrudPage<ActionLogItem>({
                       </span>
                     </div>
                     <div class="min-w-0">
-                      <div class="truncate text-sm font-semibold text-foreground">
+                      <div
+                        class="truncate text-sm font-semibold text-foreground"
+                      >
                         {{ detailAgentLabel }}
                       </div>
                       <div
@@ -665,42 +688,10 @@ const { Grid, onRefresh } = useCrudPage<ActionLogItem>({
                   <div class="text-xs text-muted-foreground">
                     {{ $t('tenant.ai.actionLog.operatorId') }}
                   </div>
-                  <div class="mt-2 flex items-center gap-3">
-                    <div
-                      class="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border/60 bg-primary/10 text-primary"
-                    >
-                      <img
-                        v-if="
-                          detailData.operator_avatar &&
-                          !isIconAvatar(detailData.operator_avatar)
-                        "
-                        :alt="getOperatorDisplayName(detailData)"
-                        :src="toAvatarDisplayUrl(detailData.operator_avatar)"
-                        class="size-full object-cover"
-                      />
-                      <IconifyIcon
-                        v-else-if="isIconAvatar(detailData.operator_avatar)"
-                        :icon="String(detailData.operator_avatar)"
-                        class="size-5"
-                      />
-                      <span v-else class="text-sm font-semibold">
-                        {{
-                          getInitialLetter(getOperatorDisplayName(detailData))
-                        }}
-                      </span>
-                    </div>
-                    <div class="min-w-0">
-                      <div class="truncate text-sm font-semibold text-foreground">
-                        {{ getOperatorDisplayName(detailData) }}
-                      </div>
-                      <div
-                        v-if="getOperatorSecondaryText(detailData)"
-                        class="truncate text-xs text-muted-foreground"
-                      >
-                        {{ getOperatorSecondaryText(detailData) }}
-                      </div>
-                    </div>
-                  </div>
+                  <IdentityDisplay
+                    class="mt-2"
+                    :model="buildOperatorIdentityModel(detailData)"
+                  />
                 </article>
               </div>
 
@@ -816,31 +807,10 @@ const { Grid, onRefresh } = useCrudPage<ActionLogItem>({
                     <Descriptions.Item
                       :label="$t('tenant.ai.actionLog.operatorId')"
                     >
-                      <div class="flex items-center gap-2">
-                        <Avatar
-                          v-if="detailData.operator_avatar"
-                          :size="24"
-                          :src="toAvatarDisplayUrl(detailData.operator_avatar)"
-                        />
-                        <Avatar
-                          v-else
-                          :size="24"
-                          class="bg-primary/10 text-xs text-primary"
-                        >
-                          {{ getOperatorDisplayName(detailData).charAt(0) }}
-                        </Avatar>
-                        <div class="min-w-0">
-                          <div class="truncate">
-                            {{ getOperatorDisplayName(detailData) }}
-                          </div>
-                          <div
-                            v-if="getOperatorSecondaryText(detailData)"
-                            class="truncate text-xs text-muted-foreground"
-                          >
-                            {{ getOperatorSecondaryText(detailData) }}
-                          </div>
-                        </div>
-                      </div>
+                      <IdentityDisplay
+                        :avatar-size="24"
+                        :model="buildOperatorIdentityModel(detailData)"
+                      />
                     </Descriptions.Item>
                     <Descriptions.Item
                       :label="$t('tenant.ai.actionLog.traceId')"

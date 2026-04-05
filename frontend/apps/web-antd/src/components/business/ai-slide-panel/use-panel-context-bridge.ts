@@ -2,10 +2,7 @@ import type { Ref } from 'vue';
 
 import type { PageContextData } from './page-context-registry';
 
-import type {
-  InputVariable,
-  RichTextAITask,
-} from '#/types/ai-chat';
+import type { InputVariable, RichTextAITask } from '#/types/ai-chat';
 
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 

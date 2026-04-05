@@ -105,23 +105,23 @@ export interface PluginInfo {
 }
 
 export type InstallManifestCountKey =
-  | 'skills'
   | 'adapters'
-  | 'storage_drivers'
-  | 'hooks'
-  | 'events'
-  | 'webhooks'
-  | 'tasks'
-  | 'notifications'
-  | 'permissions'
   | 'api_routes'
-  | 'frontend_pages'
-  | 'page_menus'
-  | 'header_widgets'
-  | 'floating_panels'
-  | 'notification_ui'
   | 'dashboard_widgets'
-  | 'settings_tabs';
+  | 'events'
+  | 'floating_panels'
+  | 'frontend_pages'
+  | 'header_widgets'
+  | 'hooks'
+  | 'notification_ui'
+  | 'notifications'
+  | 'page_menus'
+  | 'permissions'
+  | 'settings_tabs'
+  | 'skills'
+  | 'storage_drivers'
+  | 'tasks'
+  | 'webhooks';
 
 export type InstallManifestDetailKey = `${InstallManifestCountKey}_details`;
 

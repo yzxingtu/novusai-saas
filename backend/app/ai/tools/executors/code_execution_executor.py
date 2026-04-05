@@ -390,17 +390,13 @@ class CodeExecutionExecutor(BaseToolExecutor):
                 if isinstance(func, ast.Name):
                     if func.id in {"eval", "exec", "compile", "open"}:
                         blocked_calls.add(func.id)
-                elif isinstance(func, ast.Attribute) and isinstance(
-                    func.value,
-                    ast.Name,
+                elif (
+                    isinstance(func, ast.Attribute)
+                    and isinstance(func.value, ast.Name)
+                    and func.value.id in {"builtins", "__builtins__"}
+                    and func.attr in {"eval", "exec", "compile", "open"}
                 ):
-                    if func.value.id in {"builtins", "__builtins__"} and func.attr in {
-                        "eval",
-                        "exec",
-                        "compile",
-                        "open",
-                    }:
-                        blocked_calls.add(func.attr)
+                    blocked_calls.add(func.attr)
 
         for module_name in sorted(blocked_imports):
             violations.append(f"Blocked import: {module_name}")

@@ -189,7 +189,7 @@ export function useFormSchema(
     }),
     ...useAgentScopeFields({
       scopeDisabled: isSystem ? () => true : false,
-      tenantIdsRequired: pluginManaged ? false : true,
+      tenantIdsRequired: !pluginManaged,
     }),
     {
       ...select('model_id', $t('admin.ai.agent.modelName'), {

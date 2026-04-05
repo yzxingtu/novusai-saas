@@ -61,7 +61,9 @@ const credentials = ref({
 });
 const credentialsVersion = ref(0);
 const { hasAccessByCodes } = useAccess();
-const canReadPlatformStorageDrivers = hasAccessByCodes(['platform_config:read']);
+const canReadPlatformStorageDrivers = hasAccessByCodes([
+  'platform_config:read',
+]);
 const canUpdateTenantStorage = hasAccessByCodes(['tenant:update']);
 
 function open(tenant: { id: number; name: string }) {

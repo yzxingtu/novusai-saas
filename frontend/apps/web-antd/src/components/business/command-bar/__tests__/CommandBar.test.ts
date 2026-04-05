@@ -199,7 +199,7 @@ function findButtonByText(text: string) {
 }
 
 function createDeferred<T>() {
-  let resolve!: (value: T | PromiseLike<T>) => void;
+  let resolve!: (value: PromiseLike<T> | T) => void;
   let reject!: (reason?: unknown) => void;
   const promise = new Promise<T>((res, rej) => {
     resolve = res;
@@ -320,16 +320,18 @@ describe('commandBar', () => {
   it('replays an @mention Enter submission after the agent list finishes loading', async () => {
     aiPanelStore.pinnedAgentId = null;
     aiPanelStore.pinnedAgentName = null;
-    const deferredAgents = createDeferred<{ items: Array<{
-      avatar: null;
-      description: string;
-      id: number;
-      name: string;
-      status: string;
-      suggested_questions: string[];
-      tenant_id: number;
-      welcome_message: string;
-    }> }>();
+    const deferredAgents = createDeferred<{
+      items: Array<{
+        avatar: null;
+        description: string;
+        id: number;
+        name: string;
+        status: string;
+        suggested_questions: string[];
+        tenant_id: number;
+        welcome_message: string;
+      }>;
+    }>();
     mocks.getChatAgentsApi.mockReturnValueOnce(deferredAgents.promise);
 
     const wrapper = await openCommandBar();
@@ -425,7 +427,9 @@ describe('commandBar', () => {
     );
     await flushPromises();
 
-    expect(document.body.querySelector('[data-testid="cmd-input"]')).toBeTruthy();
+    expect(
+      document.body.querySelector('[data-testid="cmd-input"]'),
+    ).toBeTruthy();
 
     wrapper.unmount();
   });

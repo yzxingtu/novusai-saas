@@ -44,6 +44,7 @@ import {
   resetTenantUserPasswordApi,
   toggleTenantUserStatusApi,
 } from '#/api/tenant/tenant-users';
+import IdentityDisplay from '#/components/business/identity-display/IdentityDisplay.vue';
 import {
   buildPageAIFormExtraData,
   createKeywordSearchPageOperation,
@@ -113,6 +114,18 @@ const roleFilterLabel = computed(
     selectedRole.value?.name ||
     $t('tenant.system.userArchitecture.allPermissionRoles'),
 );
+
+function buildUserIdentityModel(row: TenantUserInfo) {
+  return {
+    avatar: row.avatar,
+    displayName: row.nickname || row.username || row.email,
+    id: row.id,
+    isActive: row.isActive,
+    nickname: row.nickname || row.username,
+    orgNodeName: row.orgNodeName,
+    roleName: row.roleName,
+  };
+}
 
 function normalizeNumericFilterValue(value: unknown): null | number {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -973,51 +986,20 @@ usePageAIOperations({
             <MemberFormDrawer @success="onMemberFormSuccess" />
             <MemberGrid :checkbox-config="{ trigger: 'cell', highlight: true }">
               <template #username_cell="{ row }">
-                <div class="flex items-center gap-2">
-                  <div class="relative flex-shrink-0">
-                    <div
-                      class="flex size-8 items-center justify-center rounded-lg"
-                      :class="row.isActive ? 'bg-primary/10' : 'bg-muted'"
-                    >
-                      <IconifyIcon
-                        icon="lucide:user"
-                        class="size-4"
-                        :class="
-                          row.isActive
-                            ? 'text-primary'
-                            : 'text-muted-foreground'
-                        "
-                      />
-                    </div>
-                    <Tooltip
-                      :title="
-                        presenceStore.isOnline('tenant_user', row.id)
-                          ? $t('tenant.system.userArchitecture.online')
-                          : $t('tenant.system.userArchitecture.offline')
-                      "
-                    >
-                      <span
-                        class="absolute -bottom-0.5 -right-0.5 block size-2.5 rounded-full border-2 border-background"
-                        :class="
-                          presenceStore.isOnline('tenant_user', row.id)
-                            ? 'bg-green-500'
-                            : 'bg-muted-foreground/30'
-                        "
-                      ></span>
-                    </Tooltip>
-                  </div>
-                  <div class="flex min-w-0 flex-col">
-                    <span class="truncate font-medium text-foreground">
-                      {{ row.username }}
-                    </span>
-                    <span
-                      v-if="row.nickname"
-                      class="truncate text-xs text-muted-foreground"
-                    >
-                      {{ row.nickname }}
-                    </span>
-                  </div>
-                </div>
+                <Tooltip
+                  :title="
+                    presenceStore.isOnline('tenant_user', row.id)
+                      ? $t('tenant.system.userArchitecture.online')
+                      : $t('tenant.system.userArchitecture.offline')
+                  "
+                >
+                  <IdentityDisplay
+                    :avatar-size="32"
+                    :model="buildUserIdentityModel(row)"
+                    :online="presenceStore.isOnline('tenant_user', row.id)"
+                    :show-online-status="true"
+                  />
+                </Tooltip>
               </template>
 
               <template #approval_cell="{ row }">

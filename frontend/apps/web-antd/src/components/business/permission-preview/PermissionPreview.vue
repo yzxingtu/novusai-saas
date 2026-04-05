@@ -60,7 +60,9 @@ async function loadPermissions() {
       permIds = detail.permissionIds || [];
       permissionTree.value = await admin.getPermissionTreeApi();
     } else if (props.apiPrefix === 'tenant' && props.source === 'org-node') {
-      const detail = await tenant.getTenantOrganizationNodeDetailApi(props.nodeId);
+      const detail = await tenant.getTenantOrganizationNodeDetailApi(
+        props.nodeId,
+      );
       permIds = detail.permissionIds || [];
       permissionTree.value = await tenant.getTenantPermissionTreeApi();
     } else if (props.apiPrefix === 'tenant') {

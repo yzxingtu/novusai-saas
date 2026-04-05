@@ -27,7 +27,12 @@ class _FakeTenantConfigService:
     async def get_platform_configs_by_group(self, group_code: str):
         return self._groups.get(group_code, {})
 
-    async def get_tenant_configs_by_group(self, tenant_id: int, group_code: str):
+    async def get_tenant_configs_by_group(
+        self,
+        tenant_id: int,
+        group_code: str,
+    ):
+        _ = tenant_id
         return self._groups.get(group_code, {})
 
 
@@ -67,8 +72,8 @@ async def test_platform_public_config_reads_domain_group(monkeypatch: pytest.Mon
         _return_page_context_limit,
     )
     monkeypatch.setattr(
-        "app.api.public.platform.settings.platform_domains_list",
-        ["localhost"],
+        "app.api.public.platform.settings.PLATFORM_DOMAINS",
+        "localhost",
         raising=False,
     )
 

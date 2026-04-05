@@ -102,6 +102,7 @@ def _serialize_org_node_detail(org_node) -> AdminOrgNodeDetailResponse:
 
 def _serialize_member(member) -> AdminOrgNodeMemberResponse:
     org_relation = getattr(member, "org_node", None)
+    permission_role = getattr(member, "role", None)
     is_leader = (
         org_relation is not None
         and getattr(org_relation, "leader_id", None) == member.id
@@ -115,8 +116,12 @@ def _serialize_member(member) -> AdminOrgNodeMemberResponse:
         is_active=member.is_active,
         is_leader=is_leader,
         joined_at=member.created_at,
+        role_id=getattr(member, "role_id", None),
+        role_name=getattr(permission_role, "name", None),
         org_node_id=getattr(member, "org_node_id", None),
         org_node_name=getattr(org_relation, "name", None),
+        permission_role_id=getattr(member, "role_id", None),
+        permission_role_name=getattr(permission_role, "name", None),
         created_at=member.created_at,
         updated_at=member.updated_at,
     )

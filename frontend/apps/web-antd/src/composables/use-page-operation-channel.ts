@@ -79,13 +79,11 @@ export interface PageSessionJoinedEvent {
 
 /** Currently joined page_session room (per composable instance) / 当前已加入的 page_session room */
 let currentJoinedRoom = '';
-let lastJoinedSessionAck:
-  | {
-      pageKey: string;
-      pageSessionId: string;
-      receivedAt: number;
-    }
-  | null = null;
+let lastJoinedSessionAck: null | {
+  pageKey: string;
+  pageSessionId: string;
+  receivedAt: number;
+} = null;
 /** Retry rejoin after reconnect/hot-reload races / 连接恢复后补发重入，覆盖热更新竞态 */
 const REJOIN_RETRY_DELAYS_MS = [0, 400, 1200] as const;
 const RECENT_INVOKE_RESULT_TTL_MS = 90_000;
@@ -162,10 +160,7 @@ function clearTrackedInvocations(): void {
   inFlightInvocations.clear();
 }
 
-function rememberPageSessionAck(
-  pageSessionId: string,
-  pageKey: string,
-): void {
+function rememberPageSessionAck(pageSessionId: string, pageKey: string): void {
   lastJoinedSessionAck = {
     pageKey,
     pageSessionId,
@@ -235,7 +230,7 @@ function attachExecutionDecisionData(
   return {
     ...result,
     data: {
-      ...(result.data || {}),
+      ...result.data,
       _execution_decision: decisionMeta,
     },
   };
@@ -329,8 +324,8 @@ export function usePageOperationChannel(): void {
         event.invoke_id,
         attachExecutionDecisionData(
           {
-          success: false,
-          message: $t('shared.pageOperation.msg.confirmationTimedOut'),
+            success: false,
+            message: $t('shared.pageOperation.msg.confirmationTimedOut'),
           },
           {
             auto_approved: false,
@@ -370,8 +365,8 @@ export function usePageOperationChannel(): void {
         event.invoke_id,
         attachExecutionDecisionData(
           {
-          success: false,
-          message: $t('shared.pageOperation.msg.userCancelled'),
+            success: false,
+            message: $t('shared.pageOperation.msg.userCancelled'),
           },
           {
             auto_approved: false,

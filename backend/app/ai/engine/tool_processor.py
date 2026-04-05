@@ -27,9 +27,9 @@ from app.ai.text_semantics import (
 from app.ai.tools.sandbox import ToolSandbox
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.types import ChatMessage
-from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
 from app.core.i18n import _
 from app.core.logging import LogManager
+from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
 
 logger = LogManager.get_logger("ai.engine.tool_processor")
 
@@ -49,6 +49,7 @@ _READONLY_PAGE_OPERATION_NAMES = frozenset(
         "validate_form",
     }
 )
+
 
 def _strip_dsml_from_args(s: str) -> str:
     """Remove leaked DSML markers from tool arguments (DeepSeek etc.)."""
@@ -366,7 +367,7 @@ class ToolCallProcessor:
             cur = int(getattr(sb, "_page_readonly_cache_epoch", 0) or 0)
         except (TypeError, ValueError):
             cur = 0
-        setattr(sb, "_page_readonly_cache_epoch", cur + 1)
+        sb._page_readonly_cache_epoch = cur + 1
 
     def _normalized_readonly_cache_key(
         self,
@@ -378,9 +379,13 @@ class ToolCallProcessor:
         if not name:
             return None
         page_suffix = ""
-        if name in {"get_current_weather", "get_weather_forecast", "get_current_time"}:
-            pass
-        elif name in {"web_search", "fetch_url"}:
+        if name in {
+            "get_current_weather",
+            "get_weather_forecast",
+            "get_current_time",
+            "web_search",
+            "fetch_url",
+        }:
             pass
         elif name == "get_page_context":
             page_suffix = self._page_identity_cache_segment()

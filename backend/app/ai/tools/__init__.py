@@ -6,14 +6,7 @@ Tool execution package with lazy exports to avoid import cycles.
 from __future__ import annotations
 
 from importlib import import_module
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    from app.ai.tools.executors.base import BaseToolExecutor
-    from app.ai.tools.executors.builtin_executor import BuiltinToolExecutor
-    from app.ai.tools.executors.toolkit_executor import ToolkitExecutor
-    from app.ai.tools.sandbox import SandboxConfig, ToolSandbox
-    from app.ai.tools.types import ToolDefinition, ToolParameter, ToolResult
+from typing import Any
 
 _EXPORTS: dict[str, tuple[str, str]] = {
     "ToolParameter": ("app.ai.tools.types", "ToolParameter"),
@@ -29,7 +22,16 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "ToolkitExecutor": ("app.ai.tools.executors.toolkit_executor", "ToolkitExecutor"),
 }
 
-__all__ = list(_EXPORTS)
+__all__ = [
+    "ToolParameter",
+    "ToolDefinition",
+    "ToolResult",
+    "ToolSandbox",
+    "SandboxConfig",
+    "BaseToolExecutor",
+    "BuiltinToolExecutor",
+    "ToolkitExecutor",
+]
 
 
 def __getattr__(name: str) -> Any:

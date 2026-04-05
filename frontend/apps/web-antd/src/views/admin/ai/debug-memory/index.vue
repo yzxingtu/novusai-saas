@@ -1,9 +1,10 @@
 <script lang="ts" setup>
+import type { TableColumnsType } from 'ant-design-vue';
+
 import type {
   AdminMemoryRecordItem,
   AdminProfileSnapshotItem,
 } from '#/api/admin/long-term-memory';
-import type { TableColumnsType } from 'ant-design-vue';
 
 import { computed, onMounted, ref, watch } from 'vue';
 
@@ -43,7 +44,7 @@ const loading = ref(false);
 const loadError = ref('');
 const detailOpen = ref(false);
 const detailLoading = ref(false);
-const detailPayload = ref<Record<string, unknown> | null>(null);
+const detailPayload = ref<null | Record<string, unknown>>(null);
 const detailTitle = ref('');
 
 const records = ref<AdminMemoryRecordItem[]>([]);
@@ -67,7 +68,12 @@ const metrics = computed(() => [
 ]);
 
 const recordColumns = computed<TableColumnsType<AdminMemoryRecordItem>>(() => [
-  { title: $t('admin.ai.memoryDebug.id'), dataIndex: 'id', key: 'id', width: 90 },
+  {
+    title: $t('admin.ai.memoryDebug.id'),
+    dataIndex: 'id',
+    key: 'id',
+    width: 90,
+  },
   {
     title: $t('admin.ai.memoryDebug.scopeType'),
     dataIndex: 'scope_type',
@@ -94,27 +100,34 @@ const recordColumns = computed<TableColumnsType<AdminMemoryRecordItem>>(() => [
   { title: $t('admin.common.operation'), key: 'op', width: 120 },
 ]);
 
-const profileColumns = computed<TableColumnsType<AdminProfileSnapshotItem>>(() => [
-  { title: $t('admin.ai.memoryDebug.id'), dataIndex: 'id', key: 'id', width: 90 },
-  {
-    title: $t('admin.ai.memoryDebug.scopeType'),
-    dataIndex: 'scope_type',
-    key: 'scope_type',
-    width: 180,
-  },
-  {
-    title: $t('admin.ai.memoryDebug.recordCount'),
-    dataIndex: 'record_count',
-    key: 'record_count',
-    width: 120,
-  },
-  {
-    title: $t('admin.ai.memoryDebug.summary'),
-    dataIndex: 'summary',
-    key: 'summary',
-  },
-  { title: $t('admin.common.operation'), key: 'op', width: 120 },
-]);
+const profileColumns = computed<TableColumnsType<AdminProfileSnapshotItem>>(
+  () => [
+    {
+      title: $t('admin.ai.memoryDebug.id'),
+      dataIndex: 'id',
+      key: 'id',
+      width: 90,
+    },
+    {
+      title: $t('admin.ai.memoryDebug.scopeType'),
+      dataIndex: 'scope_type',
+      key: 'scope_type',
+      width: 180,
+    },
+    {
+      title: $t('admin.ai.memoryDebug.recordCount'),
+      dataIndex: 'record_count',
+      key: 'record_count',
+      width: 120,
+    },
+    {
+      title: $t('admin.ai.memoryDebug.summary'),
+      dataIndex: 'summary',
+      key: 'summary',
+    },
+    { title: $t('admin.common.operation'), key: 'op', width: 120 },
+  ],
+);
 
 async function loadCurrentTab() {
   loading.value = true;
@@ -196,16 +209,17 @@ onMounted(async () => {
     />
 
     <Tabs v-model:active-key="activeTab">
-      <Tabs.TabPane key="records" :tab="$t('admin.ai.memoryDebug.tabs.records')" />
-      <Tabs.TabPane key="profiles" :tab="$t('admin.ai.memoryDebug.tabs.profiles')" />
+      <Tabs.TabPane
+        key="records"
+        :tab="$t('admin.ai.memoryDebug.tabs.records')"
+      />
+      <Tabs.TabPane
+        key="profiles"
+        :tab="$t('admin.ai.memoryDebug.tabs.profiles')"
+      />
     </Tabs>
 
-    <Alert
-      v-if="loadError"
-      :message="loadError"
-      show-icon
-      type="error"
-    />
+    <Alert v-if="loadError" :message="loadError" show-icon type="error" />
 
     <div v-if="loading" class="flex items-center justify-center py-16">
       <Spin />
@@ -262,21 +276,14 @@ onMounted(async () => {
       <div v-if="detailLoading" class="flex items-center justify-center py-16">
         <Spin />
       </div>
-      <Descriptions
-        v-else-if="detailPayload"
-        bordered
-        :column="1"
-        size="small"
-      >
+      <Descriptions v-else-if="detailPayload" bordered :column="1" size="small">
         <Descriptions.Item
           v-for="(value, key) in detailPayload"
           :key="String(key)"
           :label="String(key)"
         >
           <pre class="whitespace-pre-wrap break-all">{{
-            typeof value === 'string'
-              ? value
-              : JSON.stringify(value, null, 2)
+            typeof value === 'string' ? value : JSON.stringify(value, null, 2)
           }}</pre>
         </Descriptions.Item>
       </Descriptions>

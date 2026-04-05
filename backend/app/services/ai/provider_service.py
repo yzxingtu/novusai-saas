@@ -8,9 +8,9 @@ Handles AI provider business logic.
 from typing import Any
 from urllib.parse import urlparse
 
-from app.ai.text_semantics import slugify_ascii_identifier
 from sqlalchemy.exc import IntegrityError
 
+from app.ai.text_semantics import slugify_ascii_identifier
 from app.core.base_service import BaseService
 from app.core.i18n import _
 from app.core.logging import LogManager

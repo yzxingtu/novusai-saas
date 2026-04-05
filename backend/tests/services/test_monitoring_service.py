@@ -29,8 +29,9 @@ def _result_with_all(rows):
 
 
 class TestCallTraceDiagnostics:
-
-    def test_extract_call_trace_diagnostics_prefers_turn_record_fields_and_infers_partial(self):
+    def test_extract_call_trace_diagnostics_prefers_turn_record_fields_and_infers_partial(
+        self,
+    ):
         from app.services.ai.monitoring_service import MonitoringService
 
         diagnostics = MonitoringService._extract_call_trace_diagnostics(
@@ -92,7 +93,6 @@ class TestCallTraceDiagnostics:
 
 
 class TestMonitoringScope:
-
     def test_scope_builders_return_expected_flags(self):
         from app.services.ai.monitoring_service import MonitoringService
 
@@ -106,9 +106,44 @@ class TestMonitoringScope:
         assert tenant_scope.is_tenant is True
         assert tenant_scope.tenant_id == 7
 
+    @pytest.mark.asyncio
+    async def test_load_actor_map_includes_identity_rich_fields(self, mock_db):
+        from app.services.ai.monitoring_service import MonitoringService
+
+        service = MonitoringService.__new__(MonitoringService)
+        service.db = mock_db
+        mock_db.execute = AsyncMock(
+            return_value=_result_with_all(
+                [
+                    SimpleNamespace(
+                        id=1,
+                        username="root",
+                        nickname="Root",
+                        avatar="1",
+                        org_node_id=3,
+                        is_active=True,
+                        is_super=True,
+                        role_name="Super",
+                        org_node_name="HQ",
+                        org_leader_id=1,
+                    )
+                ]
+            )
+        )
+
+        actor_map = await service._load_actor_map({("platform_admin", 1)})
+        actor = actor_map[("platform_admin", 1)]
+
+        assert actor.display_name == "Root"
+        assert actor.org_node_id == 3
+        assert actor.org_node_name == "HQ"
+        assert actor.role_name == "Super"
+        assert actor.is_active is True
+        assert actor.is_owner is True
+        assert actor.is_leader is True
+
 
 class TestUsageDashboard:
-
     @pytest.mark.asyncio
     async def test_get_usage_dashboard_builds_admin_breakdowns(self, mock_db):
         from app.configs.service import PLATFORM_TENANT_ID
@@ -119,9 +154,13 @@ class TestUsageDashboard:
         service._load_actor_map = AsyncMock(
             return_value={
                 ("tenant_user", 7): MonitoringActorInfo(
+                    avatar="12",
                     id=7,
                     type="tenant_user",
                     display_name="Alice",
+                    nickname="Alice",
+                    org_node_name="Sales",
+                    role_name="Member",
                 )
             }
         )
@@ -232,10 +271,17 @@ class TestUsageDashboard:
         assert dashboard.access_channel_stats[0].key == "chat"
         assert dashboard.top_agents[0].label == "Support Agent"
         assert dashboard.top_users[0].label == "Alice"
+        assert dashboard.top_users[0].actor is not None
+        assert dashboard.top_users[0].actor.avatar == "12"
+        assert dashboard.top_users[0].actor.display_name == "Alice"
+        assert dashboard.top_users[0].actor.org_node_name == "Sales"
+        assert dashboard.top_users[0].actor.type == "tenant_user"
         assert dashboard.top_tenants[0].label == "平台管理端"
 
     @pytest.mark.asyncio
-    async def test_get_usage_dashboard_loads_tenant_name_for_tenant_scope(self, mock_db):
+    async def test_get_usage_dashboard_loads_tenant_name_for_tenant_scope(
+        self, mock_db
+    ):
         from app.services.ai.monitoring_service import MonitoringService
 
         service = MonitoringService.__new__(MonitoringService)
@@ -264,7 +310,9 @@ class TestUsageDashboard:
             ]
         )
 
-        dashboard = await service.get_usage_dashboard(MonitoringService.tenant_scope(11))
+        dashboard = await service.get_usage_dashboard(
+            MonitoringService.tenant_scope(11)
+        )
 
         assert dashboard.scope == "tenant"
         assert dashboard.tenant_id == 11
@@ -274,7 +322,6 @@ class TestUsageDashboard:
 
 
 class TestConversationQueries:
-
     @pytest.mark.asyncio
     async def test_list_conversations_uses_tenant_service_and_enriches_usage(
         self, mock_db
@@ -494,7 +541,10 @@ class TestConversationQueries:
                                 "failures": {
                                     "failure_kind": "budget_exit",
                                     "provider_events": [
-                                        {"kind": "budget_exit", "reason": "elapsed_budget_exceeded"}
+                                        {
+                                            "kind": "budget_exit",
+                                            "reason": "elapsed_budget_exceeded",
+                                        }
                                     ],
                                 },
                                 "turn_record": {
@@ -535,9 +585,7 @@ class TestConversationQueries:
         assert detail.call_trace[0].turn_record == {
             "execution_path": "deep",
             "last_tool_name": "get_current_weather",
-            "tool_loop_progress": {
-                "budget_exit_reason": "elapsed_budget_exceeded"
-            },
+            "tool_loop_progress": {"budget_exit_reason": "elapsed_budget_exceeded"},
         }
         assert detail.context_diagnostics == {
             "execution_path": "deep",
@@ -576,10 +624,13 @@ class TestConversationQueries:
         service = MonitoringService.__new__(MonitoringService)
         service.db = mock_db
 
-        with patch(
-            "app.services.ai.monitoring_service.ConversationService",
-            return_value=conversation_service,
-        ), pytest.raises(NotFoundException, match="conversation not found"):
+        with (
+            patch(
+                "app.services.ai.monitoring_service.ConversationService",
+                return_value=conversation_service,
+            ),
+            pytest.raises(NotFoundException, match="conversation not found"),
+        ):
             await service.get_conversation_detail(
                 MonitoringService.tenant_scope(11),
                 conversation_id=5,

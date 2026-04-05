@@ -138,9 +138,7 @@ describe('page-navigation', () => {
     expect(result.success).toBe(true);
     expect(result.data?.destination_ready).toBe(false);
     expect(result.data?.can_auto_continue).toBe(false);
-    expect(result.data?.destination_ready_reason).toBe(
-      'destination_not_ready',
-    );
+    expect(result.data?.destination_ready_reason).toBe('destination_not_ready');
   });
 
   it('returns permission_denied when navigation ends on a forbidden route', async () => {

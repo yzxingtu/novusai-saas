@@ -120,10 +120,9 @@ describe('usePageAIRegistration', () => {
       'custom.page',
       expect.any(Function),
     );
-    expect(mockRefs.appendPageOperations).toHaveBeenCalledWith(
-      'custom.page',
-      [{ label: 'Search', name: 'search', readonly: true }],
-    );
+    expect(mockRefs.appendPageOperations).toHaveBeenCalledWith('custom.page', [
+      { label: 'Search', name: 'search', readonly: true },
+    ]);
 
     const resolver = mockRefs.registerPageContextExtras.mock.calls[0]?.[1] as
       | (() => Record<string, unknown>)
@@ -186,10 +185,9 @@ describe('usePageAIRegistration', () => {
     await nextTick();
 
     expect(mockRefs.registerPageContext).not.toHaveBeenCalled();
-    expect(mockRefs.registerPageOperations).toHaveBeenCalledWith(
-      'ops-only',
-      [{ label: 'Refresh', name: 'refresh', readonly: true }],
-    );
+    expect(mockRefs.registerPageOperations).toHaveBeenCalledWith('ops-only', [
+      { label: 'Refresh', name: 'refresh', readonly: true },
+    ]);
     operationScope.stop();
   });
 });

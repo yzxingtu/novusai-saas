@@ -8,7 +8,13 @@ export interface MonitoringActorInfo {
   avatar?: null | string;
   display_name?: null | string;
   id?: null | number;
+  is_active?: boolean;
+  is_leader?: boolean;
+  is_owner?: boolean;
   nickname?: null | string;
+  org_node_id?: null | number;
+  org_node_name?: null | string;
+  role_name?: null | string;
   type?: null | string;
   username?: null | string;
 }
@@ -19,6 +25,18 @@ export interface MonitoringCallLogInfo {
   conversation_id?: null | number;
   agent_id?: null | number;
   agent_avatar?: null | string;
+  caller_avatar?: null | string;
+  caller_display_name?: null | string;
+  caller_id?: null | number;
+  caller_is_active?: boolean;
+  caller_is_leader?: boolean;
+  caller_is_owner?: boolean;
+  caller_nickname?: null | string;
+  caller_org_node_id?: null | number;
+  caller_org_node_name?: null | string;
+  caller_role_name?: null | string;
+  caller_type?: null | string;
+  caller_username?: null | string;
   model_name?: null | string;
   model_id?: null | number;
   provider_name?: null | string;
@@ -158,6 +176,7 @@ export interface MonitoringUsageSummary {
 }
 
 export interface MonitoringUsageBreakdownItem {
+  actor?: MonitoringActorInfo | null;
   call_count: number;
   failed_calls: number;
   key: string;

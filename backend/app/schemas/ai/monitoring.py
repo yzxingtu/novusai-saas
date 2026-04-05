@@ -19,6 +19,12 @@ class MonitoringActorInfo(BaseSchema):
     username: str | None = Field(default=None)
     nickname: str | None = Field(default=None)
     avatar: str | None = Field(default=None)
+    org_node_id: int | None = Field(default=None)
+    org_node_name: str | None = Field(default=None)
+    role_name: str | None = Field(default=None)
+    is_active: bool | None = Field(default=None)
+    is_owner: bool | None = Field(default=None)
+    is_leader: bool | None = Field(default=None)
 
 
 class MonitoringConversationListItem(BaseSchema):
@@ -135,6 +141,7 @@ class MonitoringUsageSeriesPoint(BaseSchema):
 class MonitoringUsageBreakdownItem(BaseSchema):
     key: str
     label: str
+    actor: MonitoringActorInfo | None = None
     call_count: int = 0
     total_tokens: int = 0
     total_cost: float = 0.0

@@ -323,9 +323,7 @@ const heroChips = computed(() => {
           v-for="item in assignments"
           :key="item.feature_code"
           class="rounded-2xl border border-border/70 bg-card/95 px-5 py-4 shadow-sm transition-all duration-200 hover:border-primary/20 hover:shadow-[0_10px_30px_-24px_hsl(var(--primary))]"
-          :class="
-            item.is_active ? '' : 'border-border/50 opacity-60'
-          "
+          :class="item.is_active ? '' : 'border-border/50 opacity-60'"
         >
           <div class="flex flex-wrap items-center gap-4">
             <!-- 功能图标 -->
