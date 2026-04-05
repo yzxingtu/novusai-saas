@@ -123,9 +123,9 @@ describe('identity display', () => {
     expect(wrapper.text()).toContain('#12');
     expect(wrapper.text()).toContain('shared.identity.unassignedArchitecture');
     expect(wrapper.get('[data-testid="avatar"]').text()).toContain('1');
-    expect(wrapper.get('[data-testid="tooltip"]').attributes()['data-title']).toBe(
-      'shared.memberPanel.item.disabled',
-    );
+    expect(
+      wrapper.get('[data-testid="tooltip"]').attributes()['data-title'],
+    ).toBe('shared.memberPanel.item.disabled');
   });
 
   it('renders nickname, icon tooltips, and secondary text', () => {
@@ -194,5 +194,55 @@ describe('identity display', () => {
     });
 
     expect(wrapper.text()).toContain('shared.identity.unassignedRole');
+  });
+
+  it('can hide secondary text and center the avatar block for compact layouts', () => {
+    const wrapper = mount(IdentityDisplay, {
+      props: {
+        model: {
+          id: 23,
+          nickname: '超级管理员',
+          orgNodeName: '平台管理组',
+          secondaryText: 'admin',
+          username: 'admin',
+        },
+        showSecondaryText: false,
+        verticalAlign: 'center',
+      },
+    });
+
+    expect(wrapper.text()).toContain('超级管理员');
+    expect(wrapper.text()).toContain('平台管理组');
+    expect(wrapper.text()).not.toContain('admin');
+    expect(wrapper.classes()).toContain('items-center');
+    expect(wrapper.classes()).not.toContain('items-start');
+  });
+
+  it('keeps badges on one line in compact mode by prioritizing title truncation', () => {
+    const wrapper = mount(IdentityDisplay, {
+      props: {
+        badgeWrap: 'nowrap',
+        model: {
+          badges: [
+            { color: 'gold', key: 'leader', label: 'Leader' },
+            { color: 'gold', key: 'owner', label: 'Owner' },
+            { color: 'blue', key: 'type', label: 'Admin' },
+          ],
+          id: 24,
+          nickname: '超级管理员',
+          orgNodeName: '平台管理组',
+        },
+      },
+    });
+
+    expect(wrapper.find('.identity-display__heading').classes()).toContain(
+      'identity-display__heading--nowrap',
+    );
+    expect(wrapper.find('.identity-display__badge-list').classes()).toContain(
+      'identity-display__badge-list--nowrap',
+    );
+    expect(wrapper.find('.identity-display__title').classes()).toContain(
+      'identity-display__title--nowrap',
+    );
   });
 });

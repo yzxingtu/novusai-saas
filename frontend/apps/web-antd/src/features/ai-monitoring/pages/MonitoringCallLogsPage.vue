@@ -19,11 +19,11 @@ import {
   getTenantAIProviderSelectApi,
 } from '#/api/tenant/ai';
 import AIPageHeroCard from '#/components/business/ai-page-hero/AIPageHeroCard.vue';
-import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
 import { createViewDetailPageOperation } from '#/composables';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
+import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
 
 import { getMonitoringCallLogList } from '../api';
 import {
@@ -40,6 +40,12 @@ const props = defineProps<{
   showTenantColumn?: boolean;
   title: string;
 }>();
+
+const MONITORING_CARD_BODY_STYLE = {
+  height: '100%',
+  padding: '12px',
+};
+const MONITORING_ROW_HEIGHT = 64;
 
 const detailOpen = ref(false);
 const detailId = ref<null | number>(null);
@@ -166,9 +172,7 @@ const heroChips = computed(() => [
   },
 ]);
 
-const callerContextLabel = computed(
-  () => $t(`${props.i18nPrefix}.callerName`),
-);
+const callerContextLabel = computed(() => $t(`${props.i18nPrefix}.callerName`));
 function viewDetail(row: MonitoringCallLogInfo) {
   detailId.value = row.id;
   detailOpen.value = true;
@@ -307,7 +311,7 @@ const { Grid, gridApi } = useCrudPage<MonitoringCallLogInfo>({
   },
   i18nPrefix: props.i18nPrefix,
   defaultSort: '-created_at',
-  rowHeight: 72,
+  rowHeight: MONITORING_ROW_HEIGHT,
   customActions: {
     detail: viewDetail,
   },
@@ -358,17 +362,17 @@ function buildCallerMeta(row: MonitoringCallLogInfo) {
       :scope="scope"
     />
 
-    <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
+    <Card class="flex-1" :body-style="MONITORING_CARD_BODY_STYLE">
       <Grid class="monitoring-grid">
         <template #agent_cell="{ row }">
-          <div class="flex items-center gap-3 py-0.5">
+          <div class="flex items-center gap-2.5">
             <div
-              class="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border/60 bg-primary/10 text-primary shadow-sm"
+              class="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border/60 bg-primary/10 text-primary shadow-sm"
             >
               <IconifyIcon
                 v-if="isIconAvatar(row.agent_avatar)"
                 :icon="String(row.agent_avatar)"
-                class="size-4.5"
+                class="size-4"
               />
               <img
                 v-else-if="row.agent_avatar"
@@ -404,9 +408,9 @@ function buildCallerMeta(row: MonitoringCallLogInfo) {
         <template #provider_cell="{ row }">
           <div class="flex items-center gap-2">
             <span
-              class="inline-flex size-7 shrink-0 items-center justify-center rounded-lg bg-muted/70 text-muted-foreground"
+              class="inline-flex size-6 shrink-0 items-center justify-center rounded-lg bg-muted/70 text-muted-foreground"
             >
-              <IconifyIcon icon="lucide:cpu" class="size-3.5" />
+              <IconifyIcon icon="lucide:cpu" class="size-3" />
             </span>
             <span class="truncate text-sm text-foreground">{{
               row.provider_name || '-'
@@ -415,10 +419,13 @@ function buildCallerMeta(row: MonitoringCallLogInfo) {
         </template>
         <template #caller_cell="{ row }">
           <IdentityTrigger
-            :avatar-size="36"
+            :avatar-size="30"
+            badge-wrap="nowrap"
             :model="createMonitoringCallerIdentityModel(row)"
             :meta="buildCallerMeta(row)"
             :context="callerContextLabel"
+            :show-secondary-text="false"
+            vertical-align="center"
           />
         </template>
         <template #requestType_cell="{ row }">
@@ -458,7 +465,7 @@ function buildCallerMeta(row: MonitoringCallLogInfo) {
 
 <style scoped>
 .monitoring-grid :deep(.vxe-body--row .vxe-cell) {
-  padding-top: 10px;
-  padding-bottom: 10px;
+  padding-top: 6px;
+  padding-bottom: 6px;
 }
 </style>

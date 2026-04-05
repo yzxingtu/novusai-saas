@@ -8,13 +8,13 @@ import { Button, Switch } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 
+import { shouldShowIdentityRole } from './detail-presentation';
 import {
   createIdentityDetailPreview,
   getIdentityApprovalStatusLabel,
   getIdentityStatusLabel,
   toIdentityDetailFallback,
 } from './identity-detail';
-import { shouldShowIdentityRole } from './detail-presentation';
 import IdentityDisplay from './IdentityDisplay.vue';
 import { openIdentityDetailDialog } from './use-identity-detail-dialog';
 
@@ -34,10 +34,10 @@ const props = withDefaults(
 
 const previewDetail = computed<IdentityDetail>(() =>
   createIdentityDetailPreview({
-    ...(props.detailRequest ?? {}),
+    ...props.detailRequest,
     fallback: {
-      ...(toIdentityDetailFallback(props.detailRequest?.fallback) ?? {}),
-      ...(toIdentityDetailFallback(props.model) ?? {}),
+      ...toIdentityDetailFallback(props.detailRequest?.fallback),
+      ...toIdentityDetailFallback(props.model),
     },
     id: props.model.id,
   }),
@@ -54,8 +54,7 @@ const metaRows = computed(() => {
     {
       key: 'organization',
       label: $t('shared.identity.field.organization'),
-      value:
-        detail.orgNodeName || $t('shared.identity.unassignedArchitecture'),
+      value: detail.orgNodeName || $t('shared.identity.unassignedArchitecture'),
     },
     {
       key: 'status',
@@ -117,9 +116,9 @@ const canOpenDetail = computed(
 
 async function handleOpenDetail() {
   await openIdentityDetailDialog({
-    ...(props.detailRequest ?? {}),
+    ...props.detailRequest,
     fallback: {
-      ...(props.detailRequest?.fallback ?? {}),
+      ...props.detailRequest?.fallback,
       ...previewDetail.value,
     },
     id: previewDetail.value.id,
@@ -133,6 +132,7 @@ async function handleOpenDetail() {
       :avatar-size="44"
       :model="previewDetail"
       :show-status-badge="true"
+      vertical-align="center"
     />
 
     <dl class="identity-quick-card__meta-list">
@@ -149,11 +149,7 @@ async function handleOpenDetail() {
             v-if="item.type === 'switch'"
             class="identity-quick-card__switch-value"
           >
-            <Switch
-              :checked="item.checked"
-              disabled
-              size="small"
-            />
+            <Switch :checked="item.checked" disabled size="small" />
             <span>{{ item.value }}</span>
           </div>
           <template v-else>

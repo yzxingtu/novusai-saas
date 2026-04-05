@@ -418,9 +418,6 @@ watch(
             :avatar
             :menus
             :text="userStore.userInfo?.realName"
-            :description="
-              userStore.userInfo?.email || userStore.userInfo?.username
-            "
             :tag-text="userStore.userInfo?.roles?.[0] || ''"
             @logout="handleLogout"
           />

@@ -15,9 +15,9 @@ import { $t } from '#/locales';
 import { toAvatarDisplayUrl } from '#/utils/image';
 
 import {
+  resolveIdentityAvatarText,
   resolveIdentityContextIcon,
   resolveIdentityContextLabel,
-  resolveIdentityAvatarText,
   resolveIdentityDisplayModel,
   resolveIdentityDisplayTitle,
 } from './types';
@@ -27,6 +27,7 @@ defineOptions({ name: 'IdentityDisplay' });
 const props = withDefaults(
   defineProps<{
     avatarSize?: number;
+    badgeWrap?: 'nowrap' | 'wrap';
     disabledLabel?: string;
     leaderLabel?: string;
     model: IdentityDisplayModel;
@@ -37,6 +38,7 @@ const props = withDefaults(
     showOnlineStatus?: boolean;
     showOrgLine?: boolean;
     showRoleBadge?: boolean;
+    showSecondaryText?: boolean;
     showStatusBadge?: boolean;
     showUserTypeBadge?: boolean;
     verticalAlign?: 'center' | 'start';
@@ -52,6 +54,8 @@ const props = withDefaults(
     showOnlineStatus: false,
     showOrgLine: true,
     showRoleBadge: false,
+    badgeWrap: 'wrap',
+    showSecondaryText: true,
     showStatusBadge: true,
     showUserTypeBadge: false,
     verticalAlign: 'start',
@@ -192,18 +196,18 @@ function resolveBadgeToneClass(color?: string): string {
     case 'processing': {
       return 'identity-display__indicator--blue';
     }
+    case 'error':
+    case 'red': {
+      return 'identity-display__indicator--red';
+    }
     case 'gold':
-    case 'warning':
-    case 'orange': {
+    case 'orange':
+    case 'warning': {
       return 'identity-display__indicator--gold';
     }
     case 'green':
     case 'success': {
       return 'identity-display__indicator--green';
-    }
-    case 'error':
-    case 'red': {
-      return 'identity-display__indicator--red';
     }
     case 'purple': {
       return 'identity-display__indicator--purple';
@@ -246,13 +250,32 @@ function resolveBadgeToneClass(color?: string): string {
     </div>
 
     <div class="identity-display__content min-w-0 flex-1">
-      <div class="identity-display__heading">
-        <span class="identity-display__title text-sm font-medium">
+      <div
+        class="identity-display__heading"
+        :class="
+          props.badgeWrap === 'nowrap'
+            ? 'identity-display__heading--nowrap'
+            : 'identity-display__heading--wrap'
+        "
+      >
+        <span
+          class="identity-display__title text-sm font-medium"
+          :class="
+            props.badgeWrap === 'nowrap'
+              ? 'identity-display__title--nowrap'
+              : 'identity-display__title--wrap'
+          "
+        >
           {{ resolvedTitle }}
         </span>
         <div
           v-if="displayBadges.length > 0"
           class="identity-display__badge-list"
+          :class="
+            props.badgeWrap === 'nowrap'
+              ? 'identity-display__badge-list--nowrap'
+              : 'identity-display__badge-list--wrap'
+          "
         >
           <Tooltip
             v-for="badge in displayBadges"
@@ -266,10 +289,7 @@ function resolveBadgeToneClass(color?: string): string {
               :class="resolveBadgeToneClass(badge.color)"
               type="button"
             >
-              <IconifyIcon
-                :icon="resolveBadgeIcon(badge)"
-                class="size-3.5"
-              />
+              <IconifyIcon :icon="resolveBadgeIcon(badge)" class="size-3.5" />
             </button>
           </Tooltip>
         </div>
@@ -290,9 +310,17 @@ function resolveBadgeToneClass(color?: string): string {
         </span>
       </div>
 
-      <div v-if="resolvedSecondaryText || $slots.after" class="min-w-0">
+      <div
+        v-if="
+          (props.showSecondaryText && resolvedSecondaryText) || $slots.after
+        "
+        class="min-w-0"
+      >
         <slot name="after" :model="resolvedModel">
-          <div class="identity-display__secondary truncate text-xs">
+          <div
+            v-if="props.showSecondaryText && resolvedSecondaryText"
+            class="identity-display__secondary truncate text-xs"
+          >
             {{ resolvedSecondaryText }}
           </div>
         </slot>
@@ -314,7 +342,6 @@ function resolveBadgeToneClass(color?: string): string {
 .identity-display__heading {
   align-items: flex-start;
   display: flex;
-  flex-wrap: wrap;
   gap: 4px 6px;
   justify-content: flex-start;
   line-height: 1.15;
@@ -322,6 +349,16 @@ function resolveBadgeToneClass(color?: string): string {
   min-width: 0;
   text-align: left;
   width: 100%;
+}
+
+.identity-display__heading--wrap {
+  flex-wrap: wrap;
+}
+
+.identity-display__heading--nowrap {
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 4px;
 }
 
 .identity-display__title {
@@ -333,6 +370,10 @@ function resolveBadgeToneClass(color?: string): string {
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.identity-display__title--nowrap {
+  flex: 1 1 auto;
 }
 
 .dark .identity-display__title {
@@ -347,12 +388,24 @@ function resolveBadgeToneClass(color?: string): string {
   align-items: flex-start;
   align-self: flex-start;
   display: flex;
-  flex: 0 1 auto;
-  flex-wrap: wrap;
   gap: 2px;
   justify-content: flex-start;
   max-width: 100%;
   min-width: 0;
+}
+
+.identity-display__badge-list--wrap {
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+}
+
+.identity-display__badge-list--nowrap {
+  align-items: center;
+  align-self: center;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  gap: 1px;
+  max-width: none;
 }
 
 .identity-display__indicator {

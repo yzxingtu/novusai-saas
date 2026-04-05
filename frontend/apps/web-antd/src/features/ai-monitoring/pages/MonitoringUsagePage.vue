@@ -24,8 +24,8 @@ import { Button, DatePicker, Empty, Spin } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
 import AIPageHeroCard from '#/components/business/ai-page-hero/AIPageHeroCard.vue';
-import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
 import { $t } from '#/locales';
+import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
 
 import { getMonitoringUsageDashboard } from '../api';
 import {
@@ -943,8 +943,11 @@ onBeforeUnmount(() => {
                               section.key === 'users' &&
                               createMonitoringUsageActorIdentityModel(item)
                             "
-                            :avatar-size="32"
-                            :model="createMonitoringUsageActorIdentityModel(item)!"
+                            :avatar-size="30"
+                            badge-wrap="nowrap"
+                            :model="
+                              createMonitoringUsageActorIdentityModel(item)!
+                            "
                             :meta="
                               createMonitoringUsageActorDetailMeta(item, {
                                 scope,
@@ -953,6 +956,8 @@ onBeforeUnmount(() => {
                               })
                             "
                             :context="section.title"
+                            :show-secondary-text="false"
+                            vertical-align="center"
                           />
                           <div
                             v-else
@@ -1059,8 +1064,11 @@ onBeforeUnmount(() => {
                             section.key === 'users' &&
                             createMonitoringUsageActorIdentityModel(item)
                           "
-                          :avatar-size="32"
-                          :model="createMonitoringUsageActorIdentityModel(item)!"
+                          :avatar-size="30"
+                          badge-wrap="nowrap"
+                          :model="
+                            createMonitoringUsageActorIdentityModel(item)!
+                          "
                           :meta="
                             createMonitoringUsageActorDetailMeta(item, {
                               scope,
@@ -1069,6 +1077,8 @@ onBeforeUnmount(() => {
                             })
                           "
                           :context="section.title"
+                          :show-secondary-text="false"
+                          vertical-align="center"
                         />
                         <div
                           v-else

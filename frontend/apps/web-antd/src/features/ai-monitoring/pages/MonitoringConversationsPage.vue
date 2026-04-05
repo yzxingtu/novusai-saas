@@ -1,6 +1,8 @@
 <script lang="ts" setup>
 import type { MonitoringConversationInfo, MonitoringScope } from '../api';
 
+import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
+
 import { computed, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
@@ -24,7 +26,6 @@ import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
 import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
-import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 
 import { getMonitoringConversationList } from '../api';
 import MonitoringConversationDrawer from './MonitoringConversationDrawer.vue';
@@ -37,6 +38,12 @@ const props = defineProps<{
   showTenantColumn?: boolean;
   title: string;
 }>();
+
+const MONITORING_CARD_BODY_STYLE = {
+  height: '100%',
+  padding: '12px',
+};
+const MONITORING_ROW_HEIGHT = 64;
 
 const detailOpen = ref(false);
 const detailId = ref<null | number>(null);
@@ -364,7 +371,7 @@ const { Grid, gridApi } = useCrudPage<MonitoringConversationInfo>({
   },
   i18nPrefix: props.i18nPrefix,
   defaultSort: '-created_at',
-  rowHeight: 72,
+  rowHeight: MONITORING_ROW_HEIGHT,
   customActions: {
     detail: viewDetail,
   },
@@ -406,17 +413,17 @@ const { Grid, gridApi } = useCrudPage<MonitoringConversationInfo>({
       :scope="scope"
     />
 
-    <Card class="flex-1" :body-style="{ padding: '16px', height: '100%' }">
+    <Card class="flex-1" :body-style="MONITORING_CARD_BODY_STYLE">
       <Grid class="monitoring-grid">
         <template #agent_cell="{ row }">
-          <div class="flex items-center gap-3 py-0.5">
+          <div class="flex items-center gap-2.5">
             <div
-              class="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border/60 bg-primary/10 text-primary shadow-sm"
+              class="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border/60 bg-primary/10 text-primary shadow-sm"
             >
               <IconifyIcon
                 v-if="isIconAvatar(row.agent_avatar)"
                 :icon="String(row.agent_avatar)"
-                class="size-4.5"
+                class="size-4"
               />
               <img
                 v-else-if="row.agent_avatar"
@@ -440,9 +447,11 @@ const { Grid, gridApi } = useCrudPage<MonitoringConversationInfo>({
         </template>
         <template #title_cell="{ row }">
           <div class="min-w-0">
-            <div class="line-clamp-2 text-sm font-medium text-foreground">
-              {{ row.title || $t(`${i18nPrefix}.untitled`) }}
-            </div>
+            <Tooltip :title="row.title || $t(`${i18nPrefix}.untitled`)">
+              <div class="truncate text-sm font-medium text-foreground">
+                {{ row.title || $t(`${i18nPrefix}.untitled`) }}
+              </div>
+            </Tooltip>
             <div class="truncate text-xs text-muted-foreground">
               {{
                 row.last_call_at ? formatRelativeTime(row.last_call_at) : '-'
@@ -460,8 +469,12 @@ const { Grid, gridApi } = useCrudPage<MonitoringConversationInfo>({
         <template #actor_cell="{ row }">
           <IdentityTrigger
             v-if="row.actor"
+            :avatar-size="30"
+            badge-wrap="nowrap"
             :model="buildActorIdentityModel(row.actor)!"
             :meta="buildActorMeta(row)"
+            :show-secondary-text="false"
+            vertical-align="center"
           />
           <span v-else class="text-muted-foreground">-</span>
         </template>
@@ -510,7 +523,7 @@ const { Grid, gridApi } = useCrudPage<MonitoringConversationInfo>({
 
 <style scoped>
 .monitoring-grid :deep(.vxe-body--row .vxe-cell) {
-  padding-top: 10px;
-  padding-bottom: 10px;
+  padding-top: 6px;
+  padding-bottom: 6px;
 }
 </style>
