@@ -497,6 +497,8 @@ class MonitoringService:
                 result[("platform_admin", row.id)] = MonitoringActorInfo(
                     id=row.id,
                     type="platform_admin",
+                    tenant_id=PLATFORM_TENANT_ID,
+                    tenant_name=self.PLATFORM_USAGE_TENANT_NAME,
                     display_name=row.nickname or row.username,
                     username=row.username,
                     nickname=row.nickname,
@@ -516,12 +518,14 @@ class MonitoringService:
                 await self.db.execute(
                     select(
                         TenantAdmin.id,
+                        TenantAdmin.tenant_id,
                         TenantAdmin.username,
                         TenantAdmin.nickname,
                         TenantAdmin.avatar,
                         TenantAdmin.org_node_id,
                         TenantAdmin.is_active,
                         TenantAdmin.is_owner,
+                        Tenant.name.label("tenant_name"),
                         TenantAdminRole.name.label("role_name"),
                         TenantOrgNode.name.label("org_node_name"),
                         TenantOrgNode.leader_id.label("org_leader_id"),
@@ -537,6 +541,7 @@ class MonitoringService:
                         TenantOrgNode.id == TenantAdmin.org_node_id,
                         isouter=True,
                     )
+                    .join(Tenant, Tenant.id == TenantAdmin.tenant_id, isouter=True)
                     .where(
                         TenantAdmin.id.in_(tenant_admin_ids),
                         TenantAdmin.is_deleted.is_(False),
@@ -547,6 +552,8 @@ class MonitoringService:
                 result[("tenant_admin", row.id)] = MonitoringActorInfo(
                     id=row.id,
                     type="tenant_admin",
+                    tenant_id=row.tenant_id,
+                    tenant_name=row.tenant_name,
                     display_name=row.nickname or row.username,
                     username=row.username,
                     nickname=row.nickname,
@@ -566,11 +573,13 @@ class MonitoringService:
                 await self.db.execute(
                     select(
                         TenantUser.id,
+                        TenantUser.tenant_id,
                         TenantUser.username,
                         TenantUser.nickname,
                         TenantUser.avatar,
                         TenantUser.org_node_id,
                         TenantUser.is_active,
+                        Tenant.name.label("tenant_name"),
                         TenantUserRole.name.label("role_name"),
                         TenantOrgNode.name.label("org_node_name"),
                     )
@@ -585,6 +594,7 @@ class MonitoringService:
                         TenantOrgNode.id == TenantUser.org_node_id,
                         isouter=True,
                     )
+                    .join(Tenant, Tenant.id == TenantUser.tenant_id, isouter=True)
                     .where(
                         TenantUser.id.in_(tenant_user_ids),
                         TenantUser.is_deleted.is_(False),
@@ -595,6 +605,8 @@ class MonitoringService:
                 result[("tenant_user", row.id)] = MonitoringActorInfo(
                     id=row.id,
                     type="tenant_user",
+                    tenant_id=row.tenant_id,
+                    tenant_name=row.tenant_name,
                     display_name=row.nickname or row.username,
                     username=row.username,
                     nickname=row.nickname,

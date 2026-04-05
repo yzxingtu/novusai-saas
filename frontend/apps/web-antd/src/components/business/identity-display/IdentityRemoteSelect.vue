@@ -179,17 +179,34 @@ function getIdentity(option: IdentityOptionLike | undefined) {
 }
 
 .identity-remote-select :deep(.ant-select-selection-item) {
-  display: flex;
   align-items: center;
+  display: flex;
   height: auto !important;
+  justify-content: flex-start;
+  max-width: 100%;
+  min-width: 0;
+  text-align: left;
+  width: 100%;
+}
+
+.identity-remote-select :deep(.ant-select-selection-item-content) {
+  min-width: 0;
+  text-align: left;
+  width: 100%;
 }
 
 .identity-remote-select :deep(.ant-select-selection-overflow) {
+  align-items: flex-start;
   gap: 4px;
 }
 
 .identity-remote-select :deep(.ant-select-selection-overflow-item) {
+  align-self: flex-start;
   max-width: 100%;
+}
+
+.identity-remote-select :deep(.ant-select-selection-placeholder) {
+  text-align: left;
 }
 
 .identity-remote-select__tag :deep(.identity-display) {

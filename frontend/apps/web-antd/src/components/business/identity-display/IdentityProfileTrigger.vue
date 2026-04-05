@@ -104,6 +104,7 @@ async function handleClick() {
   cursor: pointer;
   display: inline-flex;
   justify-content: flex-start;
+  min-width: 0;
   padding: 0;
   text-align: left;
   width: 100%;

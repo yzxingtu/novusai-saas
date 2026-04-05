@@ -19,6 +19,8 @@ class MonitoringActorInfo(BaseSchema):
     username: str | None = Field(default=None)
     nickname: str | None = Field(default=None)
     avatar: str | None = Field(default=None)
+    tenant_id: int | None = Field(default=None)
+    tenant_name: str | None = Field(default=None)
     org_node_id: int | None = Field(default=None)
     org_node_name: str | None = Field(default=None)
     role_name: str | None = Field(default=None)

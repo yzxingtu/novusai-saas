@@ -402,7 +402,8 @@ function buildUsageActorMeta(
     roleName: actor?.role_name,
     scope: props.scope,
     subjectType: actor?.type,
-    tenantName: dashboard.value?.tenant_name,
+    tenantId: actor?.tenant_id ?? dashboard.value?.tenant_id ?? undefined,
+    tenantName: actor?.tenant_name ?? dashboard.value?.tenant_name,
     userType: actor?.type,
     username:
       actor?.username ||

@@ -218,7 +218,8 @@ function buildActorMeta(row: MonitoringConversationInfo): IdentityDetailMeta {
     roleName: row.actor?.role_name,
     scope: props.scope,
     subjectType: row.actor?.type,
-    tenantName: row.tenant_name,
+    tenantId: row.actor?.tenant_id ?? row.tenant_id,
+    tenantName: row.actor?.tenant_name ?? row.tenant_name,
     userType: row.actor?.type,
     username:
       row.actor?.username ||

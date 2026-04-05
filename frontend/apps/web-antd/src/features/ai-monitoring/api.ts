@@ -12,6 +12,8 @@ export interface MonitoringActorInfo {
   is_leader?: boolean;
   is_owner?: boolean;
   nickname?: null | string;
+  tenant_id?: null | number;
+  tenant_name?: null | string;
   org_node_id?: null | number;
   org_node_name?: null | string;
   role_name?: null | string;

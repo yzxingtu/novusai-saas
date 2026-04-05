@@ -103,7 +103,6 @@ from app.api.admin.tenant_admins import router as tenant_admins_router
 from app.api.admin.tenant_domains import AdminTenantDomainController
 from app.api.admin.tenant_domains import router as tenant_domains_router
 from app.api.admin.tenant_users import router as tenant_users_router
-from app.api.admin.tenant_users import router as tenant_users_router
 
 # isort: on
 from app.api.admin.users import AdminUserController
@@ -165,8 +164,6 @@ admin_router.include_router(recycle_bin_router)
 admin_router.include_router(ws_router)
 # 企业管理员管理 / Tenant admin management
 admin_router.include_router(tenant_admins_router)
-# 企业用户身份辅助 / Tenant user identity helpers
-admin_router.include_router(tenant_users_router)
 # 企业用户身份辅助 / Tenant user identity helpers
 admin_router.include_router(tenant_users_router)
 # 通知 / Notifications

@@ -213,7 +213,7 @@ function resolveBadgeToneClass(color?: string): string {
 <template>
   <div
     v-bind="$attrs"
-    class="identity-display flex min-w-0 items-center gap-2.5"
+    class="identity-display flex min-w-0 items-start gap-2.5"
   >
     <div v-if="showAvatar" class="relative shrink-0">
       <Avatar
@@ -306,15 +306,16 @@ function resolveBadgeToneClass(color?: string): string {
 }
 
 .identity-display__heading {
-  align-items: center;
-  display: inline-flex;
-  gap: 6px;
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
   justify-content: flex-start;
-  line-height: 1.1;
+  line-height: 1.15;
   max-width: 100%;
   min-width: 0;
   text-align: left;
-  width: auto;
+  width: 100%;
 }
 
 .identity-display__title {
@@ -337,11 +338,15 @@ function resolveBadgeToneClass(color?: string): string {
 }
 
 .identity-display__badge-list {
-  align-items: center;
+  align-items: flex-start;
+  align-self: flex-start;
   display: flex;
-  flex-shrink: 0;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
   gap: 2px;
   justify-content: flex-start;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .identity-display__indicator {
@@ -471,6 +476,7 @@ function resolveBadgeToneClass(color?: string): string {
 }
 
 .identity-display {
+  align-items: flex-start;
   justify-content: flex-start;
   text-align: left;
   width: 100%;

@@ -343,7 +343,8 @@ const actorIdentityMeta = computed<IdentityDetailMeta>(() => ({
   roleName: detail.value?.actor?.role_name,
   scope: props.scope,
   subjectType: detail.value?.actor?.type,
-  tenantName: detail.value?.tenant_name,
+  tenantId: detail.value?.actor?.tenant_id ?? detail.value?.tenant_id,
+  tenantName: detail.value?.actor?.tenant_name ?? detail.value?.tenant_name,
   userType: detail.value?.actor?.type,
   username:
     detail.value?.actor?.username ||
