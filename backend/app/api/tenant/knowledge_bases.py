@@ -19,6 +19,7 @@ from app.api.shared._kb_helpers import (
     enrich_model_names,
     resolve_document_type,
     serialize_search_results,
+    serialize_selectable_knowledge_bases,
 )
 from app.core.base_controller import TenantController
 from app.core.deps import ActiveTenantAdmin, DbSession, QueryParams
@@ -194,16 +195,7 @@ class TenantKnowledgeBaseController(TenantController):
             result = await db.execute(stmt)
             kbs = list(result.scalars().all())
 
-            items = [
-                {
-                    "id": kb.id,
-                    "name": kb.name,
-                    "description": kb.description,
-                    "scope": kb.scope,
-                    "document_count": kb.document_count,
-                }
-                for kb in kbs
-            ]
+            items = await serialize_selectable_knowledge_bases(db, kbs)
             return success(data=items)
 
         @router.get("", summary="获取知识库列表")

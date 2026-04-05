@@ -60,6 +60,58 @@ def enrich_model_names(kb: Any, result: dict[str, Any]) -> None:
             logger.debug("Knowledge base model name resolution failed: {}", exc)
 
 
+async def load_kb_owner_tenant_name_map(
+    db: Any,
+    knowledge_bases: Sequence[Any],
+) -> dict[int, str]:
+    """Load owner tenant display names for a KB collection."""
+    from sqlalchemy import select
+
+    from app.models.tenant.tenant import Tenant
+
+    owner_ids = {
+        int(owner_tenant_id)
+        for kb in knowledge_bases
+        if (owner_tenant_id := getattr(kb, "owner_tenant_id", None)) is not None
+    }
+    if not owner_ids:
+        return {}
+
+    stmt = select(Tenant.id, Tenant.name).where(
+        Tenant.id.in_(owner_ids),
+        Tenant.is_deleted.is_(False),
+    )
+    rows = (await db.execute(stmt)).all()
+    return {int(tenant_id): str(name) for tenant_id, name in rows}
+
+
+async def serialize_selectable_knowledge_bases(
+    db: Any,
+    knowledge_bases: Sequence[Any],
+) -> list[dict[str, Any]]:
+    """Serialize compact selectable KB payloads with owner tenant metadata."""
+    owner_name_map = await load_kb_owner_tenant_name_map(db, knowledge_bases)
+    items: list[dict[str, Any]] = []
+    for kb in knowledge_bases:
+        owner_tenant_id = getattr(kb, "owner_tenant_id", None)
+        items.append(
+            {
+                "id": kb.id,
+                "name": kb.name,
+                "description": kb.description,
+                "scope": kb.scope,
+                "document_count": kb.document_count,
+                "owner_tenant_id": owner_tenant_id,
+                "owner_tenant_name": (
+                    owner_name_map.get(int(owner_tenant_id))
+                    if owner_tenant_id is not None
+                    else None
+                ),
+            }
+        )
+    return items
+
+
 def build_content_hash(content: bytes | str) -> str:
     """Build a stable md5 content hash for KB documents."""
     raw = content.encode("utf-8") if isinstance(content, str) else content

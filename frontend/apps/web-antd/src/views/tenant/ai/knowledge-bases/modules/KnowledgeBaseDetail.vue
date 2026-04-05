@@ -55,7 +55,7 @@ import { $t } from '#/locales';
 import { useSocketIOStore } from '#/store/shared/socketio';
 import { getScopeColor, getScopeText } from '#/utils/scope-helpers';
 
-import { getSearchModeOptions } from '../data';
+import { getSearchModeOptions, isTenantOwnedKnowledgeBase } from '../data';
 
 const emit = defineEmits<{ success: [] }>();
 
@@ -67,11 +67,13 @@ const [Drawer, drawerApi] = useVbenDrawer({
         id: number;
         name: string;
         scope?: string;
+        tenantId?: null | number;
       }>();
       if (data) {
         kbId.value = data.id;
         kbName.value = data.name;
         kbScope.value = data.scope || 'all_tenants';
+        kbOwnerTenantId.value = data.tenantId ?? null;
         loadDocuments();
       }
     } else {
@@ -84,8 +86,11 @@ const [Drawer, drawerApi] = useVbenDrawer({
 const kbId = ref(0);
 const kbName = ref('');
 const kbScope = ref('all_tenants');
+const kbOwnerTenantId = ref<null | number>(null);
 const isDrawerOpen = ref(false);
-const isTenantOwned = computed(() => kbScope.value === 'all_tenants');
+const isTenantOwned = computed(() =>
+  isTenantOwnedKnowledgeBase(kbOwnerTenantId.value),
+);
 const activeTab = ref('documents');
 const socketStore = useSocketIOStore();
 

@@ -31,6 +31,10 @@ logger = LogManager.get_logger("ai.knowledge_base_service")
 # 默认知识库配额 / Default knowledge-base quota
 DEFAULT_MAX_KNOWLEDGE_BASES = 20
 DEFAULT_MAX_DOCUMENTS_PER_KB = 500
+KB_SCOPES_NEEDING_ASSIGNMENT = (
+    ResourceScopeEnum.SELECTED_TENANTS.value,
+    ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
+)
 
 
 class KnowledgeBaseService(TenantService[KnowledgeBase, KnowledgeBaseRepository]):
@@ -420,19 +424,81 @@ class AdminKnowledgeBaseService(
     model = KnowledgeBase
     repository_class = AdminKnowledgeBaseRepository
 
+    def _prepare_admin_payload(
+        self,
+        data: dict[str, Any],
+        *,
+        existing: KnowledgeBase | None = None,
+    ) -> tuple[dict[str, Any], list[int] | None]:
+        """归一化管理端知识库写入载荷 / Normalize admin KB mutation payload."""
+        payload = dict(data)
+        payload.pop("visibility", None)
+
+        tenant_ids = payload.pop("tenant_ids", None)
+        assigned_tenant_ids = payload.pop("assigned_tenant_ids", None)
+        if tenant_ids is None:
+            tenant_ids = assigned_tenant_ids
+
+        normalized_tenant_ids: list[int] | None = None
+        if tenant_ids is not None:
+            normalized_tenant_ids = [int(tid) for tid in tenant_ids]
+
+        incoming_tenant_id = payload.pop("tenant_id", None)
+        if incoming_tenant_id is not None and payload.get("owner_tenant_id") is None:
+            payload["owner_tenant_id"] = incoming_tenant_id
+
+        scope = payload.get("scope", existing.scope if existing else None)
+        if scope is None:
+            scope = ResourceScopeEnum.GLOBAL_SHARED.value
+            payload["scope"] = scope
+
+        # Preserve creator ownership across admin scope changes unless the request
+        # explicitly reassigns or clears owner_tenant_id. This keeps tenant-origin
+        # attribution available for UI display and tenant visibility re-checks.
+        # 管理端调整 scope 时保留创建企业归属；只有显式改 owner_tenant_id 时才覆盖。
+
+        if scope in KB_SCOPES_NEEDING_ASSIGNMENT:
+            if normalized_tenant_ids is not None and len(normalized_tenant_ids) == 0:
+                raise BusinessException(
+                    message=_("knowledge_base.error.binding_required")
+                )
+            if normalized_tenant_ids is None and (
+                existing is None or existing.scope not in KB_SCOPES_NEEDING_ASSIGNMENT
+            ):
+                raise BusinessException(
+                    message=_("knowledge_base.error.binding_required")
+                )
+
+        return payload, normalized_tenant_ids
+
+    async def create_admin_knowledge_base(
+        self,
+        data: dict[str, Any],
+    ) -> tuple[KnowledgeBase, list[int] | None]:
+        """创建管理端知识库并返回分配企业列表 / Create admin KB and return assignment tenant IDs."""
+        payload, tenant_ids = self._prepare_admin_payload(data)
+        kb = await self.create(payload)
+        return kb, tenant_ids
+
+    async def update_admin_knowledge_base(
+        self,
+        id: int,
+        data: dict[str, Any],
+    ) -> tuple[KnowledgeBase, list[int] | None]:
+        """更新管理端知识库并返回分配企业列表 / Update admin KB and return assignment tenant IDs."""
+        kb = await self.get_by_id(id)
+        if not kb:
+            raise NotFoundException(message=_("knowledge_base.error.not_found"))
+
+        payload, tenant_ids = self._prepare_admin_payload(data, existing=kb)
+        updated = await self.update(id, payload)
+        return updated, tenant_ids
+
     async def _before_create(self, data: dict[str, Any]) -> None:
         """创建前校验：scope + owner_tenant_id、名称唯一性 / Before create: scope, owner, name uniqueness."""
         await super()._before_create(data)
 
         scope = data.get("scope", ResourceScopeEnum.GLOBAL_SHARED.value)
-        data.pop("visibility", None)
-        data.pop("assigned_tenant_ids", None)
-        data.pop("tenant_ids", None)
-        if data.get("tenant_id") is not None and data.get("owner_tenant_id") is None:
-            data["owner_tenant_id"] = data.pop("tenant_id")
-        else:
-            data.pop("tenant_id", None)
-
         owner_tid = data.get("owner_tenant_id")
         name = data.get("name")
         if name:
@@ -453,14 +519,6 @@ class AdminKnowledgeBaseService(
             raise NotFoundException(message=_("knowledge_base.error.not_found"))
 
         scope = data.get("scope", kb.scope)
-        data.pop("visibility", None)
-        data.pop("assigned_tenant_ids", None)
-        data.pop("tenant_ids", None)
-        if data.get("tenant_id") is not None and data.get("owner_tenant_id") is None:
-            data["owner_tenant_id"] = data.pop("tenant_id")
-        else:
-            data.pop("tenant_id", None)
-
         owner_tid = data.get("owner_tenant_id", kb.owner_tenant_id)
         name = data.get("name")
         if name:

@@ -8,7 +8,11 @@ from unittest.mock import AsyncMock
 import pytest
 from sqlalchemy import select
 
-from tests.services.conftest import make_mock_model, make_scalar_result, make_scalars_result
+from tests.services.conftest import (
+    make_mock_model,
+    make_scalar_result,
+    make_scalars_result,
+)
 
 
 class TestTenantDashboardService:
@@ -43,7 +47,7 @@ class TestTenantDashboardService:
         assert "JOIN knowledge_bases" in sql
         assert "owner_tenant_id" in sql
 
-    def test_visible_kb_condition_excludes_admin_only_owned_rows(self):
+    def test_visible_kb_condition_requires_assignment_for_partial_scopes(self):
         from app.models.ai.knowledge_base import KnowledgeBase
         from app.services.system.dashboard_service import _visible_kb_condition
 
@@ -51,7 +55,11 @@ class TestTenantDashboardService:
         sql = str(stmt.compile(compile_kwargs={"literal_binds": True}))
 
         assert "knowledge_bases.owner_tenant_id = 7" in sql
-        assert "knowledge_bases.scope != 'admin_only'" in sql
+        assert "knowledge_bases.scope = 'all_tenants'" in sql
+        assert "'selected_tenants'" in sql
+        assert "'admin_and_selected_tenants'" in sql
+        assert "resource_tenant_assignments.resource_type = 'knowledge_base'" in sql
+        assert "knowledge_bases.scope != 'admin_only'" not in sql
 
     @pytest.mark.asyncio
     async def test_get_stats_uses_visible_resource_counters(self, mock_db):

@@ -8,6 +8,7 @@ import contextlib
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from sqlalchemy import select
 
 from tests.services.conftest import make_mock_model, make_scalar_result
 
@@ -192,3 +193,129 @@ class TestAdminKBRepository:
         await repo.update_statistics(1)
 
         assert mock_db.execute.await_count == 3
+
+
+class TestTenantKBVisibility:
+
+    def test_visible_condition_requires_assignment_for_partial_scopes(self):
+        from app.models.ai.knowledge_base import KnowledgeBase
+        from app.repositories.ai.knowledge_base_repository import _kb_visible_condition
+
+        stmt = select(KnowledgeBase.id).where(_kb_visible_condition(7))
+        sql = str(stmt.compile(compile_kwargs={"literal_binds": True}))
+
+        assert "knowledge_bases.owner_tenant_id = 7" in sql
+        assert "knowledge_bases.scope = 'all_tenants'" in sql
+        assert "'global_shared'" in sql
+        assert "'all_tenants'" in sql
+        assert "'selected_tenants'" in sql
+        assert "'admin_and_selected_tenants'" in sql
+        assert "resource_tenant_assignments.resource_type = 'knowledge_base'" in sql
+        assert "knowledge_bases.scope != 'admin_only'" not in sql
+
+
+class TestAdminKBPayloadNormalization:
+
+    def test_prepare_admin_payload_uses_assigned_tenant_ids_alias(self, mock_db):
+        from app.enums.common import ResourceScopeEnum
+        from app.services.ai.knowledge_base_service import AdminKnowledgeBaseService
+
+        service = AdminKnowledgeBaseService.__new__(AdminKnowledgeBaseService)
+        service.db = mock_db
+
+        payload, tenant_ids = service._prepare_admin_payload(
+            {
+                "name": "Scoped KB",
+                "scope": ResourceScopeEnum.SELECTED_TENANTS.value,
+                "assigned_tenant_ids": [3, 9],
+                "owner_tenant_id": 12,
+            }
+        )
+
+        assert tenant_ids == [3, 9]
+        assert payload["scope"] == ResourceScopeEnum.SELECTED_TENANTS.value
+        assert payload["owner_tenant_id"] == 12
+        assert "assigned_tenant_ids" not in payload
+
+    def test_prepare_admin_payload_requires_binding_when_entering_assignment_scope(
+        self, mock_db
+    ):
+        from app.enums.common import ResourceScopeEnum
+        from app.exceptions import BusinessException
+        from app.services.ai.knowledge_base_service import AdminKnowledgeBaseService
+
+        service = AdminKnowledgeBaseService.__new__(AdminKnowledgeBaseService)
+        service.db = mock_db
+
+        with pytest.raises(BusinessException):
+            service._prepare_admin_payload(
+                {
+                    "scope": ResourceScopeEnum.SELECTED_TENANTS.value,
+                },
+                existing=make_mock_model(
+                    id=1,
+                    scope=ResourceScopeEnum.GLOBAL_SHARED.value,
+                    owner_tenant_id=None,
+                ),
+            )
+
+    def test_prepare_admin_payload_keeps_existing_bindings_when_scope_stays_assigned(
+        self, mock_db
+    ):
+        from app.enums.common import ResourceScopeEnum
+        from app.services.ai.knowledge_base_service import AdminKnowledgeBaseService
+
+        service = AdminKnowledgeBaseService.__new__(AdminKnowledgeBaseService)
+        service.db = mock_db
+
+        payload, tenant_ids = service._prepare_admin_payload(
+            {"name": "Renamed KB"},
+            existing=make_mock_model(
+                id=1,
+                scope=ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
+                owner_tenant_id=None,
+            ),
+        )
+
+        assert payload["name"] == "Renamed KB"
+        assert tenant_ids is None
+
+    @pytest.mark.asyncio
+    async def test_update_admin_knowledge_base_preserves_existing_owner_for_assignment_scope(
+        self, mock_db
+    ):
+        from app.enums.common import ResourceScopeEnum
+        from app.services.ai.knowledge_base_service import AdminKnowledgeBaseService
+
+        service = AdminKnowledgeBaseService.__new__(AdminKnowledgeBaseService)
+        service.db = mock_db
+        service.get_by_id = AsyncMock(
+            return_value=make_mock_model(
+                id=1,
+                scope=ResourceScopeEnum.ALL_TENANTS.value,
+                owner_tenant_id=12,
+            )
+        )
+        service.update = AsyncMock(
+            return_value=make_mock_model(
+                id=1,
+                scope=ResourceScopeEnum.SELECTED_TENANTS.value,
+                owner_tenant_id=12,
+            )
+        )
+
+        _, tenant_ids = await service.update_admin_knowledge_base(
+            1,
+            {
+                "scope": ResourceScopeEnum.SELECTED_TENANTS.value,
+                "tenant_ids": [3],
+            },
+        )
+
+        assert tenant_ids == [3]
+        service.update.assert_awaited_once_with(
+            1,
+            {
+                "scope": ResourceScopeEnum.SELECTED_TENANTS.value,
+            },
+        )

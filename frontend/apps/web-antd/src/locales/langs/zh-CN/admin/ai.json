@@ -566,6 +566,8 @@
       "kbEmbeddingModel": "Embedding 模型",
       "kbEmbeddingDimensions": "向量维度",
       "kbChunkStrategy": "分块策略",
+      "kbCreatorTenant": "创建企业",
+      "kbOwnerPlatform": "平台",
       "kbWeightFusionHint": "权重已接入多知识库融合排序，作为先验偏置使用，不会硬性覆盖相关性。",
       "uploadAvatar": "上传头像",
       "removeAvatar": "删除头像",
@@ -725,6 +727,9 @@
       "emptyCandidates": "没有匹配的知识库",
       "emptySelected": "尚未选择知识库",
       "remove": "移除",
+      "creatorLabel": "创建企业",
+      "platformOwner": "平台",
+      "ownerFallback": "企业 #{id}",
       "manageBindings": "管理知识库绑定",
       "selectedCount": "已选 {count} 项"
     },

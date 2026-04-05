@@ -345,6 +345,8 @@ export interface AIAgentKBBindingInfo {
   kb_embedding_model_id: null | number;
   kb_embedding_model_name: null | string;
   kb_embedding_dimensions: null | number;
+  kb_owner_tenant_id: null | number;
+  kb_owner_tenant_name: null | string;
 }
 
 /** Bind KB request / 绑定知识库请求 */

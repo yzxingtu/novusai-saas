@@ -31,7 +31,12 @@ import { formatDate, formatRelativeTime } from '#/utils/common';
 import { formatFileSize } from '#/utils/file';
 import { getScopeColor, getScopeText } from '#/utils/scope-helpers';
 
-import { getKBStatusColor, getKBStatusText, useFormSchema } from './data';
+import {
+  getKBStatusColor,
+  getKBStatusText,
+  isTenantOwnedKnowledgeBase,
+  useFormSchema,
+} from './data';
 import KnowledgeBaseDetail from './modules/KnowledgeBaseDetail.vue';
 import KnowledgeBaseForm from './modules/KnowledgeBaseForm.vue';
 
@@ -41,7 +46,7 @@ const AI_PAGE_KEY = 'tenant.ai.knowledge-bases';
 
 /** Editable/deletable = owned by current tenant (tenant_id is owner_tenant_id synonym) */
 function isTenantManageableKb(row: KnowledgeBaseItem): boolean {
-  return row.tenant_id !== null;
+  return isTenantOwnedKnowledgeBase(row.tenant_id);
 }
 
 // ========== 声明式 CRUD / declarative CRUD ==========
@@ -241,7 +246,12 @@ function onDetail(row: KnowledgeBaseItem) {
 
 function openKnowledgeBaseDetail(row: KnowledgeBaseItem) {
   detailDrawerApi
-    .setData({ id: row.id, name: row.name, scope: row.scope })
+    .setData({
+      id: row.id,
+      name: row.name,
+      scope: row.scope,
+      tenantId: row.tenant_id,
+    })
     .open();
 }
 

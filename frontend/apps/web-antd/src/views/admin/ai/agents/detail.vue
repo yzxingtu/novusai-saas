@@ -588,6 +588,16 @@ function getKbChunkStrategyText(strategy: null | string | undefined): string {
   }
 }
 
+function getKbOwnerText(binding: AIAgentKBBindingInfo): string {
+  if (
+    binding.kb_owner_tenant_id === null ||
+    binding.kb_owner_tenant_id === undefined
+  ) {
+    return $t('admin.ai.agent.detail.kbOwnerPlatform');
+  }
+  return binding.kb_owner_tenant_name || `#${binding.kb_owner_tenant_id}`;
+}
+
 function openKBBindingPicker() {
   kbPickerDrafts.value = kbBindingsToDrafts(kbBindings.value);
   kbPickerOpen.value = true;
@@ -2082,6 +2092,10 @@ useDetailPageAi({
                               {{ b.kb_description }}
                             </p>
                             <div class="mt-1 flex flex-wrap gap-1.5">
+                              <Tag class="!mr-0 !text-[10px]">
+                                {{ $t('admin.ai.agent.detail.kbCreatorTenant') }}:
+                                {{ getKbOwnerText(b) }}
+                              </Tag>
                               <Tag
                                 v-if="b.kb_embedding_model_name"
                                 class="!mr-0 !text-[10px]"

@@ -91,6 +91,21 @@ async def load_agent_kb_bindings(
         kb_ids.append(kid)
         kb_weights[kid] = b.weight
 
+    if kb_ids:
+        from app.repositories.ai.knowledge_base_repository import (
+            AdminKnowledgeBaseRepository,
+            KnowledgeBaseRepository,
+        )
+
+        if tenant_id > 0:
+            kb_repo = KnowledgeBaseRepository(db, tenant_id=tenant_id)
+        else:
+            kb_repo = AdminKnowledgeBaseRepository(db)
+
+        accessible_ids = await kb_repo.filter_accessible_ids(kb_ids)
+        kb_ids = [kid for kid in kb_ids if kid in accessible_ids]
+        kb_weights = {kid: kb_weights[kid] for kid in kb_ids}
+
     if not kb_ids:
         return None, {}
     return kb_ids, kb_weights

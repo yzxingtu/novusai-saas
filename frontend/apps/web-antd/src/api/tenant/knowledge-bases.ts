@@ -13,7 +13,7 @@ import { requestClient } from '#/utils/request';
 /** Knowledge base list item / 知识库列表项 */
 export interface KnowledgeBaseItem {
   id: number;
-  tenant_id: number;
+  tenant_id: null | number;
   name: string;
   description: null | string;
   avatar: null | string;
@@ -316,6 +316,8 @@ export interface SelectableKBItem {
   name: string;
   scope: string;
   description: null | string;
+  owner_tenant_id: null | number;
+  owner_tenant_name: null | string;
 }
 
 /** Get selectable knowledge base list (tenant: own + global) / 获取可选知识库列表 */

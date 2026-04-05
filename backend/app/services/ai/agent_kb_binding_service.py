@@ -4,10 +4,13 @@
 
 from typing import Any
 
+from sqlalchemy import select
+
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.exceptions import BusinessException, NotFoundException
 from app.models.ai.agent_kb_binding import AgentKnowledgeBaseBinding
+from app.models.tenant.tenant import Tenant
 from app.repositories.ai.agent_kb_binding_repository import AgentKBBindingRepository
 from app.repositories.ai.agent_repository import AgentRepository
 from app.services.ai.tenant_platform_kb_suppression_service import (
@@ -47,7 +50,12 @@ class AgentKBBindingService:
             return KnowledgeBaseRepository(self.db, tenant_id=self.tenant_id)
         return AdminKnowledgeBaseRepository(self.db)
 
-    def _binding_to_item(self, binding: AgentKnowledgeBaseBinding) -> dict[str, Any]:
+    def _binding_to_item(
+        self,
+        binding: AgentKnowledgeBaseBinding,
+        *,
+        owner_tenant_name_map: dict[int, str] | None = None,
+    ) -> dict[str, Any]:
         """ORM 绑定行 -> API 字典（含 binding_scope）/ Binding row to API dict."""
         item: dict[str, Any] = {
             "id": binding.id,
@@ -63,6 +71,8 @@ class AgentKBBindingService:
             "kb_scope": None,
             "kb_visibility": None,
             "kb_document_count": None,
+            "kb_owner_tenant_id": None,
+            "kb_owner_tenant_name": None,
         }
         if binding.knowledge_base:
             kb = binding.knowledge_base
@@ -74,6 +84,12 @@ class AgentKBBindingService:
             item["kb_chunk_strategy"] = getattr(kb, "chunk_strategy", None)
             item["kb_embedding_model_id"] = getattr(kb, "embedding_model_id", None)
             item["kb_embedding_dimensions"] = getattr(kb, "embedding_dimensions", None)
+            owner_tenant_id = getattr(kb, "owner_tenant_id", None)
+            item["kb_owner_tenant_id"] = owner_tenant_id
+            if owner_tenant_id is not None:
+                item["kb_owner_tenant_name"] = (owner_tenant_name_map or {}).get(
+                    int(owner_tenant_id)
+                )
             embedding_model = getattr(kb, "embedding_model", None)
             item["kb_embedding_model_name"] = getattr(embedding_model, "name", None)
         else:
@@ -82,6 +98,45 @@ class AgentKBBindingService:
             item["kb_embedding_dimensions"] = None
             item["kb_embedding_model_name"] = None
         return item
+
+    async def _load_owner_tenant_name_map(
+        self,
+        bindings: list[AgentKnowledgeBaseBinding],
+    ) -> dict[int, str]:
+        """批量加载绑定知识库的归属企业名称 / Batch load owner tenant names for bound KBs."""
+        owner_ids = {
+            int(owner_tenant_id)
+            for binding in bindings
+            if (kb := getattr(binding, "knowledge_base", None)) is not None
+            if (owner_tenant_id := getattr(kb, "owner_tenant_id", None)) is not None
+        }
+        if not owner_ids:
+            return {}
+
+        stmt = select(Tenant.id, Tenant.name).where(
+            Tenant.id.in_(owner_ids),
+            Tenant.is_deleted.is_(False),
+        )
+        rows = (await self.db.execute(stmt)).all()
+        return {int(tenant_id): str(name) for tenant_id, name in rows}
+
+    async def _filter_bindings_by_kb_visibility(
+        self,
+        bindings: list[AgentKnowledgeBaseBinding],
+    ) -> list[AgentKnowledgeBaseBinding]:
+        """企业端读取绑定时复验 KB 当前可见性 / Re-check KB visibility when tenant reads bindings."""
+        if self.tenant_id is None or not bindings:
+            return list(bindings)
+
+        kb_repo = await self._get_kb_repo()
+        accessible_ids = await kb_repo.filter_accessible_ids(
+            [binding.knowledge_base_id for binding in bindings]
+        )
+        return [
+            binding
+            for binding in bindings
+            if binding.knowledge_base_id in accessible_ids
+        ]
 
     async def get_agent_kb_bindings(
         self,
@@ -110,9 +165,15 @@ class AgentKBBindingService:
             bindings = await self.binding_repo.get_by_agent_id(agent_id)
             suppressed = set()
 
+        bindings = await self._filter_bindings_by_kb_visibility(bindings)
+        owner_tenant_name_map = await self._load_owner_tenant_name_map(bindings)
+
         items: list[dict[str, Any]] = []
         for b in bindings:
-            item = self._binding_to_item(b)
+            item = self._binding_to_item(
+                b,
+                owner_tenant_name_map=owner_tenant_name_map,
+            )
             if merge_platform_bindings and self.tenant_id is not None:
                 item["platform_suppressed"] = (
                     item["binding_scope"] == "platform"

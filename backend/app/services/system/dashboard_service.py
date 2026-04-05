@@ -12,15 +12,18 @@ B1-B4: Tenant Dashboard 统计
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta, timezone
 from collections.abc import Callable
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from sqlalchemy import and_, case, func, not_, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_model import utc_now
-from app.core.identity import build_identity_select_extra, resolve_identity_display_name
+from app.core.identity import (
+    build_identity_select_extra,
+    resolve_identity_display_name,
+)
 from app.core.logging import LogManager
 from app.enums.common import ResourceScopeEnum
 from app.models.ai.agent import Agent
@@ -88,24 +91,29 @@ def _visible_agent_condition(tenant_id: int):
 
 def _visible_kb_condition(tenant_id: int):
     assigned_subq = assigned_resource_ids_subquery("knowledge_base", tenant_id)
-    platform_visible = or_(
+    tenant_owned_visible = and_(
+        KnowledgeBase.owner_tenant_id == tenant_id,
+        KnowledgeBase.scope == ResourceScopeEnum.ALL_TENANTS.value,
+    )
+    platform_visible = and_(
+        KnowledgeBase.owner_tenant_id.is_(None),
         KnowledgeBase.scope.in_(
             [
                 ResourceScopeEnum.ALL_TENANTS.value,
                 ResourceScopeEnum.GLOBAL_SHARED.value,
             ]
         ),
-        and_(
-            KnowledgeBase.scope.in_(_ASSIGNED_SCOPES),
-            KnowledgeBase.id.in_(assigned_subq),
-        ),
     )
+    assigned_visible = and_(
+        KnowledgeBase.scope.in_(_ASSIGNED_SCOPES),
+        KnowledgeBase.id.in_(assigned_subq),
+    )
+    global_shared_visible = KnowledgeBase.scope == ResourceScopeEnum.GLOBAL_SHARED.value
     return or_(
-        and_(
-            KnowledgeBase.owner_tenant_id == tenant_id,
-            KnowledgeBase.scope != ResourceScopeEnum.ADMIN_ONLY.value,
-        ),
-        and_(KnowledgeBase.owner_tenant_id.is_(None), platform_visible),
+        tenant_owned_visible,
+        platform_visible,
+        global_shared_visible,
+        assigned_visible,
     )
 
 

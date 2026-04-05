@@ -505,6 +505,8 @@ export interface AgentKBBindingInfo {
   kb_embedding_model_id: null | number;
   kb_embedding_model_name: null | string;
   kb_embedding_dimensions: null | number;
+  kb_owner_tenant_id: null | number;
+  kb_owner_tenant_name: null | string;
 }
 
 /** Get agent KB bindings / 获取智能体知识库绑定列表 */

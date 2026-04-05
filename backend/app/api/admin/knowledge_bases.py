@@ -19,6 +19,7 @@ from app.api.shared._kb_helpers import (
     enrich_model_names,
     resolve_document_type,
     serialize_search_results,
+    serialize_selectable_knowledge_bases,
 )
 from app.core.base_controller import GlobalController
 from app.core.base_schema import PageResponse
@@ -179,9 +180,7 @@ class AdminKnowledgeBaseController(GlobalController):
             """
             service = AdminKnowledgeBaseService(db)
             data = body.model_dump(exclude_unset=True)
-            tenant_ids = data.pop("tenant_ids", None)
-            data.pop("assigned_tenant_ids", None)
-            kb = await service.create(data)
+            kb, tenant_ids = await service.create_admin_knowledge_base(data)
 
             # selected_tenants / admin_and_selected_tenants 时同步企业分配 / Sync RTA for assignment scopes
             if kb.scope in SCOPES_NEEDING_ASSIGNMENT and tenant_ids is not None:
@@ -210,14 +209,8 @@ class AdminKnowledgeBaseController(GlobalController):
             权限 / Permission: ai_knowledge_base:update
             """
             service = AdminKnowledgeBaseService(db)
-            kb = await service.get_by_id(kb_id)
-            if not kb:
-                raise NotFoundException(message=_("knowledge_base.error.not_found"))
-
             data = body.model_dump(exclude_unset=True)
-            tenant_ids = data.pop("tenant_ids", None)
-            data.pop("assigned_tenant_ids", None)
-            kb = await service.update(kb_id, data)
+            kb, tenant_ids = await service.update_admin_knowledge_base(kb_id, data)
 
             # 同步企业分配 / Sync tenant assignments
             effective_scope = kb.scope
@@ -299,16 +292,7 @@ class AdminKnowledgeBaseController(GlobalController):
             result = await db.execute(stmt)
             kbs = list(result.scalars().all())
 
-            items = [
-                {
-                    "id": kb.id,
-                    "name": kb.name,
-                    "description": kb.description,
-                    "scope": kb.scope,
-                    "document_count": kb.document_count,
-                }
-                for kb in kbs
-            ]
+            items = await serialize_selectable_knowledge_bases(db, kbs)
             return success(data=items)
 
         @router.get("/stats", summary="获取知识库全局统计")

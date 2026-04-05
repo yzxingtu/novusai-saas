@@ -198,6 +198,10 @@ export function getSearchModeOptions() {
   ];
 }
 
+export function isTenantOwnedKnowledgeBase(tenantId: null | number): boolean {
+  return tenantId !== null;
+}
+
 // ============ 表格列 / table columns ============
 
 export function useColumns<T = KnowledgeBaseItem>(
@@ -274,11 +278,13 @@ export function useColumns<T = KnowledgeBaseItem>(
           },
           {
             code: 'edit',
-            show: (row: KnowledgeBaseItem) => row.tenant_id !== null,
+            show: (row: KnowledgeBaseItem) =>
+              isTenantOwnedKnowledgeBase(row.tenant_id),
           },
           {
             code: 'delete',
-            show: (row: KnowledgeBaseItem) => row.tenant_id !== null,
+            show: (row: KnowledgeBaseItem) =>
+              isTenantOwnedKnowledgeBase(row.tenant_id),
           },
         ],
       },

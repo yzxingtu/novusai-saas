@@ -59,6 +59,8 @@ interface SelectableKnowledgeBaseItem {
   description: null | string;
   id: number;
   name: string;
+  owner_tenant_id: null | number;
+  owner_tenant_name: null | string;
   scope: string;
 }
 
@@ -92,6 +94,16 @@ function cloneDrafts(
   list: AgentKnowledgeBaseBindingDraftItem[],
 ): AgentKnowledgeBaseBindingDraftItem[] {
   return list.map((item) => ({ ...item }));
+}
+
+function getOwnerText(
+  ownerTenantId: null | number | undefined,
+  ownerTenantName: null | string | undefined,
+): string {
+  if (ownerTenantId === null || ownerTenantId === undefined) {
+    return tt('platformOwner');
+  }
+  return ownerTenantName?.trim() || tt('ownerFallback', { id: ownerTenantId });
 }
 
 const debouncedApplySearch = useDebounceFn(() => {
@@ -148,6 +160,8 @@ const filteredCandidates = computed(() => {
     const haystack = [
       item.name,
       item.description ?? '',
+      item.owner_tenant_name ?? '',
+      getOwnerText(item.owner_tenant_id, item.owner_tenant_name),
       item.scope ?? '',
       getScopeText(item.scope),
       String(item.id),
@@ -492,6 +506,15 @@ function onCancel() {
                             <Tag class="!m-0 !text-[11px]">
                               #{{ item.id }}
                             </Tag>
+                            <Tag class="!m-0 !text-[11px]">
+                              {{ tt('creatorLabel') }}:
+                              {{
+                                getOwnerText(
+                                  item.owner_tenant_id,
+                                  item.owner_tenant_name,
+                                )
+                              }}
+                            </Tag>
                           </div>
                           <p
                             v-if="item.description"
@@ -584,6 +607,15 @@ function onCancel() {
                       </Tag>
                       <Tag class="!m-0 !text-[11px]">
                         #{{ draft.knowledge_base_id }}
+                      </Tag>
+                      <Tag class="!m-0 !text-[11px]">
+                        {{ tt('creatorLabel') }}:
+                        {{
+                          getOwnerText(
+                            draft.kb_owner_tenant_id,
+                            draft.kb_owner_tenant_name,
+                          )
+                        }}
                       </Tag>
                     </div>
                     <div

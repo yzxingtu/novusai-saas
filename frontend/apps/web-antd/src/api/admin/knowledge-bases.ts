@@ -368,6 +368,8 @@ export interface SelectableKBItem {
   name: string;
   scope: string;
   description: null | string;
+  owner_tenant_id: null | number;
+  owner_tenant_name: null | string;
 }
 
 export interface AdminSelectableKBParams {
