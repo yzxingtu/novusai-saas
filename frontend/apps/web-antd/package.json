@@ -24,7 +24,8 @@
     "predev": "pnpm --dir ../.. run icons:generate",
     "pretypecheck": "pnpm --dir ../.. run icons:generate",
     "preview": "vite preview",
-    "typecheck": "vue-tsc --noEmit --skipLibCheck"
+    "typecheck": "vue-tsc --noEmit --skipLibCheck",
+    "test:e2e": "playwright test --config=playwright.config.ts"
   },
   "imports": {
     "#/*": "./src/*"

@@ -174,6 +174,7 @@ def log_ai_call_task(
             conversation_id=normalized_conversation_id,
             routed_model_id=normalized_routed_model_id,
             route_reason=route_reason,
+            caller_snapshot=(billing_context or {}).get("caller_snapshot"),
         )
 
         # Create AICallLog record directly (sync write) / 直接创建 AICallLog 记录（同步写入）

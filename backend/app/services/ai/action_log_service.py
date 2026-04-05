@@ -19,6 +19,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.configs.service import PLATFORM_TENANT_ID
 from app.core.base_model import BaseModel
 from app.core.base_service import GlobalService, TenantService
+from app.core.identity_snapshot import (
+    build_identity_snapshot,
+    load_identity_snapshot,
+    normalize_identity_snapshot_user_type,
+    snapshot_has_key,
+    snapshot_value,
+)
 from app.core.response import serialize_datetime_for_api
 from app.enums.agent import ActionLevelEnum, ActionStatusEnum, ActionTypeEnum
 from app.middleware.trace import trace_id_var
@@ -133,6 +140,7 @@ def _default_operator_meta() -> dict[str, Any]:
     return {
         "operator_avatar": None,
         "operator_display_name": None,
+        "operator_display_role_name": None,
         "operator_name": None,
         "operator_nickname": None,
         "operator_org_node_id": None,
@@ -146,11 +154,7 @@ def _default_operator_meta() -> dict[str, Any]:
 
 
 def _normalize_operator_type(operator_type: str | None) -> str | None:
-    if not operator_type:
-        return None
-    if operator_type == "admin":
-        return "platform_admin"
-    return operator_type
+    return normalize_identity_snapshot_user_type(operator_type)
 
 
 def _build_operator_meta(
@@ -166,10 +170,23 @@ def _build_operator_meta(
     is_leader: bool | None = None,
     is_owner: bool | None = None,
 ) -> dict[str, Any]:
-    display_name = nickname or username
+    snapshot = build_identity_snapshot(
+        identity_id=None,
+        user_type=operator_type,
+        username=username,
+        nickname=nickname,
+        avatar=avatar,
+        org_node_id=org_node_id,
+        org_node_name=org_node_name,
+        role_name=role_name,
+        is_active=is_active,
+        is_leader=is_leader,
+        is_owner=is_owner,
+    )
     return {
         "operator_avatar": avatar,
-        "operator_display_name": display_name,
+        "operator_display_name": snapshot.get("display_name"),
+        "operator_display_role_name": snapshot.get("display_role_name"),
         "operator_name": username,
         "operator_nickname": nickname,
         "operator_org_node_id": org_node_id,
@@ -180,7 +197,6 @@ def _build_operator_meta(
         "operator_is_owner": is_owner,
         "operator_type": operator_type,
     }
-
 
 async def _execute_first(
     db: AsyncSession,
@@ -210,25 +226,75 @@ def _resolve_operator_meta(
     live_meta: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     live_meta = live_meta or {}
-    operator_name = item.get("operator_name_snapshot") or live_meta.get("operator_name")
-    operator_nickname = item.get("operator_nickname_snapshot") or live_meta.get(
-        "operator_nickname"
+    snapshot = (
+        item.get("operator_snapshot")
+        if isinstance(item.get("operator_snapshot"), dict)
+        else {}
     )
-    return {
-        "operator_avatar": item.get("operator_avatar_snapshot")
-        or live_meta.get("operator_avatar"),
-        "operator_display_name": live_meta.get("operator_display_name")
+    operator_name = (
+        snapshot_value(snapshot, "username")
+        or item.get("operator_name_snapshot")
+        or live_meta.get("operator_name")
+    )
+    operator_nickname = (
+        snapshot_value(snapshot, "nickname")
+        or item.get("operator_nickname_snapshot")
+        or live_meta.get("operator_nickname")
+    )
+    operator_display_name = (
+        snapshot_value(snapshot, "display_name")
         or operator_nickname
-        or operator_name,
+        or operator_name
+        or live_meta.get("operator_display_name")
+    )
+    if snapshot_has_key(snapshot, "display_role_name"):
+        operator_role_name = snapshot.get("display_role_name")
+    elif snapshot_has_key(snapshot, "role_name"):
+        operator_role_name = snapshot.get("role_name")
+    else:
+        operator_role_name = live_meta.get("operator_role_name")
+    return {
+        "operator_avatar": snapshot_value(
+            snapshot,
+            "avatar",
+            item.get("operator_avatar_snapshot") or live_meta.get("operator_avatar"),
+        ),
+        "operator_display_name": operator_display_name,
         "operator_name": operator_name,
         "operator_nickname": operator_nickname,
-        "operator_org_node_id": live_meta.get("operator_org_node_id"),
-        "operator_org_node_name": live_meta.get("operator_org_node_name"),
-        "operator_role_name": live_meta.get("operator_role_name"),
-        "operator_is_active": live_meta.get("operator_is_active"),
-        "operator_is_leader": live_meta.get("operator_is_leader"),
-        "operator_is_owner": live_meta.get("operator_is_owner"),
-        "operator_type": _normalize_operator_type(item.get("operator_type"))
+        "operator_display_role_name": (
+            snapshot.get("display_role_name")
+            if snapshot_has_key(snapshot, "display_role_name")
+            else live_meta.get("operator_display_role_name")
+        ),
+        "operator_org_node_id": (
+            snapshot.get("org_node_id")
+            if snapshot_has_key(snapshot, "org_node_id")
+            else live_meta.get("operator_org_node_id")
+        ),
+        "operator_org_node_name": (
+            snapshot.get("org_node_name")
+            if snapshot_has_key(snapshot, "org_node_name")
+            else live_meta.get("operator_org_node_name")
+        ),
+        "operator_role_name": operator_role_name,
+        "operator_is_active": (
+            snapshot.get("is_active")
+            if snapshot_has_key(snapshot, "is_active")
+            else live_meta.get("operator_is_active")
+        ),
+        "operator_is_leader": (
+            snapshot.get("is_leader")
+            if snapshot_has_key(snapshot, "is_leader")
+            else live_meta.get("operator_is_leader")
+        ),
+        "operator_is_owner": (
+            snapshot.get("is_owner")
+            if snapshot_has_key(snapshot, "is_owner")
+            else live_meta.get("operator_is_owner")
+        ),
+        "operator_type": normalize_identity_snapshot_user_type(snapshot.get("user_type"))
+        or _normalize_operator_type(item.get("operator_type"))
         or _normalize_operator_type(live_meta.get("operator_type")),
     }
 
@@ -262,81 +328,23 @@ async def _load_operator_snapshot(
 ) -> dict[str, Any]:
     normalized_type = _normalize_operator_type(operator_type)
     if not operator_id:
-        return {
-            "operator_type": normalized_type,
-        }
+        return {"operator_type": normalized_type}
 
-    if normalized_type == "platform_admin" or tenant_id == PLATFORM_TENANT_ID:
-        stmt = select(Admin.username, Admin.nickname, Admin.avatar).where(
-            Admin.id == operator_id,
-            Admin.is_deleted.is_(False),
-        )
-        row = await _execute_first(db, stmt)
-        if row:
-            return {
-                "operator_avatar_snapshot": row.avatar,
-                "operator_name_snapshot": row.username,
-                "operator_nickname_snapshot": row.nickname,
-                "operator_type": "platform_admin",
-            }
-
-    if normalized_type == "tenant_user":
-        stmt = select(
-            TenantUser.username,
-            TenantUser.nickname,
-            TenantUser.avatar,
-        ).where(
-            TenantUser.tenant_id == tenant_id,
-            TenantUser.id == operator_id,
-            TenantUser.is_deleted.is_(False),
-        )
-        row = await _execute_first(db, stmt)
-        if row:
-            return {
-                "operator_avatar_snapshot": row.avatar,
-                "operator_name_snapshot": row.username,
-                "operator_nickname_snapshot": row.nickname,
-                "operator_type": "tenant_user",
-            }
-
-    stmt = select(
-        TenantAdmin.username,
-        TenantAdmin.nickname,
-        TenantAdmin.avatar,
-    ).where(
-        TenantAdmin.tenant_id == tenant_id,
-        TenantAdmin.id == operator_id,
-        TenantAdmin.is_deleted.is_(False),
+    snapshot = await load_identity_snapshot(
+        db,
+        user_type=normalized_type,
+        user_id=operator_id,
+        tenant_id=None if tenant_id == PLATFORM_TENANT_ID else tenant_id,
     )
-    row = await _execute_first(db, stmt)
-    if row:
-        return {
-            "operator_avatar_snapshot": row.avatar,
-            "operator_name_snapshot": row.username,
-            "operator_nickname_snapshot": row.nickname,
-            "operator_type": "tenant_admin",
-        }
-
-    user_stmt = select(
-        TenantUser.username,
-        TenantUser.nickname,
-        TenantUser.avatar,
-    ).where(
-        TenantUser.tenant_id == tenant_id,
-        TenantUser.id == operator_id,
-        TenantUser.is_deleted.is_(False),
-    )
-    user_row = await _execute_first(db, user_stmt)
-    if user_row:
-        return {
-            "operator_avatar_snapshot": user_row.avatar,
-            "operator_name_snapshot": user_row.username,
-            "operator_nickname_snapshot": user_row.nickname,
-            "operator_type": "tenant_user",
-        }
+    if not snapshot:
+        return {"operator_type": normalized_type}
 
     return {
-        "operator_type": normalized_type,
+        "operator_snapshot": snapshot,
+        "operator_type": snapshot.get("user_type") or normalized_type,
+        "operator_name_snapshot": snapshot.get("username"),
+        "operator_nickname_snapshot": snapshot.get("nickname"),
+        "operator_avatar_snapshot": snapshot.get("avatar"),
     }
 
 
@@ -395,6 +403,7 @@ async def write_ai_action_log(
             "operator_nickname_snapshot",
         ),
         operator_avatar_snapshot=operator_snapshot.get("operator_avatar_snapshot"),
+        operator_snapshot=operator_snapshot.get("operator_snapshot"),
         action_name=action_name,
         action_type=action_type,
         action_level=action_level,

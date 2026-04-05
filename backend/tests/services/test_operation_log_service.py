@@ -130,6 +130,68 @@ class TestLogQuery:
         assert payloads[0]["is_owner"] is True
 
     @pytest.mark.asyncio
+    async def test_serialize_logs_prefers_identity_snapshot_over_live_meta(self, mock_db):
+        from app.services.system.operation_log_service import OperationLogService
+
+        service = OperationLogService.__new__(OperationLogService)
+        service.db = mock_db
+        service.repo = AsyncMock()
+        service._load_identity_meta_map = AsyncMock(
+            return_value={
+                ("tenant_admin", 12): {
+                    "display_name": "Current Alice",
+                    "username": "alice_now",
+                    "nickname": "Current Alice",
+                    "avatar": "live-avatar",
+                    "org_node_id": 9,
+                    "org_node_name": "Live Ops",
+                    "role_name": "Live Owner",
+                    "display_role_name": "Live Owner",
+                    "user_type": "tenant_admin",
+                    "is_active": False,
+                    "is_leader": False,
+                    "is_owner": False,
+                }
+            }
+        )
+
+        log = _make_log(
+            id=18,
+            user_type="tenant_admin",
+            user_id=12,
+            username="alice_old",
+            nickname="Alice Old",
+            identity_snapshot={
+                "display_name": "历史 Alice",
+                "username": "alice_old",
+                "nickname": "Alice Old",
+                "avatar": "snapshot-avatar",
+                "org_node_id": 5,
+                "org_node_name": "历史组织",
+                "role_name": "历史角色",
+                "display_role_name": None,
+                "is_active": True,
+                "is_leader": True,
+                "is_owner": True,
+            },
+            trace_id=None,
+            resource=None,
+            ip=None,
+            created_at=datetime(2026, 4, 5, 0, 0, tzinfo=timezone.utc),
+        )
+
+        payloads = await service.serialize_logs([log])
+
+        assert payloads[0]["display_name"] == "历史 Alice"
+        assert payloads[0]["username"] == "alice_old"
+        assert payloads[0]["avatar"] == "snapshot-avatar"
+        assert payloads[0]["org_node_name"] == "历史组织"
+        assert payloads[0]["role_name"] is None
+        assert payloads[0]["is_active"] is True
+        assert payloads[0]["is_leader"] is True
+        assert payloads[0]["is_owner"] is True
+
+    @pytest.mark.asyncio
     async def test_get_admin_operators_select_returns_remote_identity_options(
         self,
         mock_db,

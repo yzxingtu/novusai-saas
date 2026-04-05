@@ -27,6 +27,7 @@ import { usePresenceStore } from '#/store';
 import { showRequestError } from '#/utils/error-helpers';
 
 import AdminFormDrawer from './modules/AdminFormDrawer.vue';
+import AssignDrawer from './modules/AssignDrawer.vue';
 import MemberItem from './modules/MemberItem.vue';
 import ResetPasswordModal from './modules/ResetPasswordModal.vue';
 import { toResetPasswordInfo } from './types';
@@ -81,6 +82,7 @@ const searchText = ref('');
 
 // Component refs / 组件引用
 const adminFormDrawerRef = ref<InstanceType<typeof AdminFormDrawer>>();
+const assignDrawerRef = ref<InstanceType<typeof AssignDrawer>>();
 const resetPasswordModalRef = ref<InstanceType<typeof ResetPasswordModal>>();
 
 // Use composable / 使用 composable
@@ -90,6 +92,7 @@ const {
   operating,
   pagination,
   includeDescendants,
+  addMembers,
   removeMember,
   setLeader,
   refresh,
@@ -145,19 +148,13 @@ const leaderInfo = computed(() => {
   return members.value.find((m) => m.isLeader);
 });
 
-const showOrgNodeTag = computed(() => {
-  if (!includeDescendants.value) return false;
-  const orgNodeKeys = new Set(
-    members.value.map(
-      (member) => `${member.orgNodeId ?? 'none'}:${member.orgNodeName ?? ''}`,
-    ),
-  );
-  return orgNodeKeys.size > 1;
-});
-
 /** Open create member drawer / 打开创建成员抽屉 */
 function handleOpenCreateDrawer() {
-  adminFormDrawerRef.value?.openCreate();
+  adminFormDrawerRef.value?.openCreate({ lockOrgNode: true });
+}
+
+function handleOpenAssignDrawer() {
+  assignDrawerRef.value?.open();
 }
 
 /** Handle edit member / 处理编辑成员 */
@@ -298,27 +295,51 @@ onMounted(() => {
         </Tooltip>
         <Tooltip
           v-if="!allowMembers"
-          :title="$t('shared.memberPanel.nodeNotAllowMembers')"
+          :title="$t('shared.memberPanel.nodeTypeNotAllowMembers')"
         >
-          <Button type="primary" size="small" disabled>
-            <template #icon>
-              <IconifyIcon icon="lucide:user-plus" />
-            </template>
-            {{ $t('shared.memberPanel.addMember') }}
-          </Button>
+          <div class="flex items-center gap-2">
+            <Button type="default" size="small" disabled>
+              <template #icon>
+                <IconifyIcon icon="lucide:user-check" />
+              </template>
+              {{ $t('shared.memberPanel.assignMember') }}
+            </Button>
+            <Button type="primary" size="small" disabled>
+              <template #icon>
+                <IconifyIcon icon="lucide:user-plus" />
+              </template>
+              {{ $t('shared.memberPanel.createMember') }}
+            </Button>
+          </div>
         </Tooltip>
-        <Button
-          v-else
-          type="primary"
-          size="small"
-          :disabled="!nodeId"
-          @click="handleOpenCreateDrawer"
-        >
-          <template #icon>
-            <IconifyIcon icon="lucide:user-plus" />
-          </template>
-          {{ $t('shared.memberPanel.addMember') }}
-        </Button>
+        <div v-else class="flex items-center gap-2">
+          <Tooltip :title="$t('shared.memberPanel.assignTooltip')">
+            <Button
+              type="default"
+              size="small"
+              :disabled="!nodeId"
+              @click="handleOpenAssignDrawer"
+            >
+              <template #icon>
+                <IconifyIcon icon="lucide:user-check" />
+              </template>
+              {{ $t('shared.memberPanel.assignMember') }}
+            </Button>
+          </Tooltip>
+          <Tooltip :title="$t('shared.memberPanel.createTooltip')">
+            <Button
+              type="primary"
+              size="small"
+              :disabled="!nodeId"
+              @click="handleOpenCreateDrawer"
+            >
+              <template #icon>
+                <IconifyIcon icon="lucide:user-plus" />
+              </template>
+              {{ $t('shared.memberPanel.createMember') }}
+            </Button>
+          </Tooltip>
+        </div>
       </div>
     </div>
 
@@ -387,13 +408,12 @@ onMounted(() => {
               <div class="mb-2 text-xs font-medium uppercase text-gray-500">
                 {{ $t('shared.memberPanel.leader') }}
               </div>
-              <MemberItem
-                :api-prefix="apiPrefix"
-                :member="leaderInfo"
-                :is-leader="true"
-                :show-online-status="showOnlineStatus"
-                :show-org-node="showOrgNodeTag"
-                :online="isMemberOnline(leaderInfo.id)"
+                <MemberItem
+                  :api-prefix="apiPrefix"
+                  :member="leaderInfo"
+                  :is-leader="true"
+                  :show-online-status="showOnlineStatus"
+                  :online="isMemberOnline(leaderInfo.id)"
                 @edit="handleEditMember"
                 @force-logout="handleForceLogout"
                 @reset-password="handleResetPassword"
@@ -409,16 +429,15 @@ onMounted(() => {
               </div>
             </template>
             <!-- Other members / 其他成员 -->
-            <MemberItem
-              v-for="member in members.filter((m) =>
-                !searchText && leaderInfo ? m.id !== leaderInfo.id : true,
-              )"
+        <MemberItem
+          v-for="member in members.filter((m) =>
+            !searchText && leaderInfo ? m.id !== leaderInfo.id : true,
+          )"
               :key="member.id"
               :api-prefix="apiPrefix"
               :member="member"
               :is-leader="member.isLeader"
               :show-online-status="showOnlineStatus"
-              :show-org-node="showOrgNodeTag"
               :online="isMemberOnline(member.id)"
               @edit="handleEditMember"
               @force-logout="handleForceLogout"
@@ -475,6 +494,14 @@ onMounted(() => {
       :node-name="nodeName"
       :api-prefix="apiPrefix"
       :org-tree-api="orgTreeApi"
+      @success="handleMemberSuccess"
+    />
+
+    <AssignDrawer
+      ref="assignDrawerRef"
+      :api-prefix="apiPrefix"
+      :node-id="nodeId"
+      :add-members="addMembers"
       @success="handleMemberSuccess"
     />
 

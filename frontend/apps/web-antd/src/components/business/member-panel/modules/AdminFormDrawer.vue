@@ -106,6 +106,7 @@ function beforeAvatarUpload(file: File) {
 const isEdit = ref(false);
 const recordId = ref<number>();
 const sourceOrgNodeId = ref<null | number>(null);
+const lockOrgNode = ref(false);
 
 interface MemberFormValues {
   email?: string;
@@ -254,13 +255,17 @@ const [Drawer, drawerApi] = useVbenDrawer({
   },
 
   async onOpenChange(isOpen) {
-    if (!isOpen) return;
+    if (!isOpen) {
+      lockOrgNode.value = false;
+      return;
+    }
 
     const data = drawerApi.getData() as
-      | (MemberPanelMember & { mode?: string })
+      | (MemberPanelMember & { mode?: string; lockOrgNode?: boolean })
       | undefined;
     isEdit.value = data?.mode === 'edit';
     recordId.value = data?.id;
+    lockOrgNode.value = !isEdit.value && Boolean(data?.lockOrgNode);
     sourceOrgNodeId.value = data?.orgNodeId ?? props.nodeId ?? null;
 
     await formApi.resetForm();
@@ -281,6 +286,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
         nodeId: data?.orgNodeId ?? props.nodeId,
         orgTreeApi: props.orgTreeApi,
         roleOptions,
+        lockOrgNode: lockOrgNode.value,
       }),
     });
 
@@ -319,8 +325,13 @@ const title = computed(() =>
 );
 
 // Open create form / 打开创建表单
-function openCreate() {
-  drawerApi.setData({ mode: 'add' }).open();
+function openCreate(options?: { lockOrgNode?: boolean }) {
+  drawerApi
+    .setData({
+      mode: 'add',
+      lockOrgNode: Boolean(options?.lockOrgNode),
+    })
+    .open();
 }
 
 // Open edit form / 打开编辑表单

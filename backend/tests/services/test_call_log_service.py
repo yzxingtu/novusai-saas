@@ -203,6 +203,62 @@ class TestCallLogCreate:
         assert response_arg["usage"]["total_cost"] == "1.500000"
 
     @pytest.mark.asyncio
+    async def test_log_call_async_injects_caller_snapshot_into_billing_context(
+        self,
+        mock_db,
+    ):
+        from app.services.ai.call_log_service import CallLogService
+
+        service = CallLogService.__new__(CallLogService)
+        service.db = mock_db
+        service.tenant_id = 1
+
+        async def _fake_snapshot(*_args, **_kwargs):
+            return {
+                "display_name": "企业管理员A",
+                "username": "tenant_admin_9",
+                "nickname": "企业管理员A",
+                "avatar": "avatar-9",
+                "org_node_name": "华东一区",
+                "display_role_name": None,
+                "user_type": "tenant_admin",
+                "is_active": True,
+                "is_leader": True,
+                "is_owner": True,
+            }
+
+        with (
+            patch(
+                "app.services.ai.call_log_service.load_identity_snapshot",
+                new=_fake_snapshot,
+            ),
+            patch("app.tasks.ai.log_ai_call_task.delay") as delay_mock,
+        ):
+            await service.log_call_async(
+                tenant_id=1,
+                model_id=2,
+                provider_id=3,
+                request_type="chat",
+                request_data={"messages": []},
+                response_data={"ok": True},
+                input_tokens=0,
+                output_tokens=0,
+                total_tokens=0,
+                cost=0.0,
+                latency_ms=100,
+                status="success",
+                user_id=9,
+                user_type="tenant_admin",
+            )
+
+        assert (
+            delay_mock.call_args.kwargs["billing_context"]["caller_snapshot"][
+                "display_name"
+            ]
+            == "企业管理员A"
+        )
+
+    @pytest.mark.asyncio
     async def test_log_call_async_passes_trace_id_from_context_var(self, mock_db):
         from app.middleware.trace import trace_id_var
         from app.services.ai.call_log_service import CallLogService
@@ -326,6 +382,56 @@ class TestCallLogCreate:
         assert saved_log.request_metadata["request"]["pricing"]["unit_cost"] == "0.125000"
         assert saved_log.request_metadata["response"]["usage"]["total_cost"] == "1.500000"
         assert saved_log.request_metadata["response"]["budget"]["remaining"] == "2.750000"
+
+    @pytest.mark.asyncio
+    async def test_log_call_persists_caller_snapshot_metadata(self, mock_db):
+        from app.services.ai.call_log_service import CallLogService
+
+        service = CallLogService.__new__(CallLogService)
+        service.db = mock_db
+        service.tenant_id = 1
+        mock_db.add = MagicMock()
+        mock_db.flush = AsyncMock()
+
+        async def _fake_snapshot(*_args, **_kwargs):
+            return {
+                "display_name": "企业管理员A",
+                "username": "tenant_admin_9",
+                "nickname": "企业管理员A",
+                "avatar": "avatar-9",
+                "org_node_name": "华东一区",
+                "display_role_name": None,
+                "user_type": "tenant_admin",
+                "is_active": True,
+                "is_leader": True,
+                "is_owner": True,
+            }
+
+        with patch(
+            "app.services.ai.call_log_service.load_identity_snapshot",
+            new=_fake_snapshot,
+        ):
+            call_log = await service.log_call(
+                tenant_id=1,
+                model_id=2,
+                provider_id=3,
+                request_type="chat",
+                request_data={"messages": [{"role": "user", "content": "hi"}]},
+                response_data={"ok": True},
+                input_tokens=10,
+                output_tokens=20,
+                total_tokens=30,
+                cost=0.1,
+                latency_ms=200,
+                status="success",
+                user_id=9,
+                user_type="tenant_admin",
+            )
+
+        saved_log = mock_db.add.call_args.args[0]
+        assert saved_log is call_log
+        assert saved_log.request_metadata["caller_snapshot"]["display_name"] == "企业管理员A"
+        assert saved_log.request_metadata["caller_snapshot"]["org_node_name"] == "华东一区"
 
     def test_generate_request_hash_accepts_decimal_payloads(self):
         from app.services.ai.call_log_service import CallLogService

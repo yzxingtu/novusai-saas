@@ -148,6 +148,13 @@ class AIActionLog(TenantModel):
         comment="操作者头像快照 / Operator avatar snapshot",
     )
 
+    # 操作者扩展身份快照（组织/显示角色/状态等）
+    operator_snapshot: Mapped[dict | None] = mapped_column(
+        JSON,
+        nullable=True,
+        comment="操作者扩展身份快照 / Operator extended identity snapshot",
+    )
+
     # 操作名称（如 web_search、create_order 等）
     action_name: Mapped[str] = mapped_column(
         String(100),

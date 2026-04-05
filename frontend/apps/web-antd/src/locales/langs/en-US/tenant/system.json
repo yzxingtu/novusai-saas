@@ -414,6 +414,7 @@
   "organization": {
     "name": "Organization",
     "title": "Organization Management",
+    "pageDesc": "Visualize and manage your organization tree, leaders, and member assignments.",
     "tree": "Organization",
     "leader": "Leader",
     "memberCount": "Members count",
@@ -424,6 +425,7 @@
     "collapseTree": "Collapse Sidebar",
     "refresh": "Refresh",
     "create": "Create",
+    "addChild": "Add Child Node",
     "empty": "No organization nodes",
     "selectNodeHint": "Please select a node from the left",
     "selectNodeSubHint": "You can view details and manage members after selection",

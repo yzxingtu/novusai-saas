@@ -40,6 +40,8 @@ export function useAdminFormSchema(options: {
   nodeName?: string;
   /** Org tree API (for node selection) / 组织树 API（可选择节点） */
   orgTreeApi?: OrgTreeApi;
+  /** Whether to lock assignment to the current node (create mode) / 是否在新建时锁定组织节点 */
+  lockOrgNode?: boolean;
   /** Permission role options / 权限角色选项 */
   roleOptions?: MemberRoleOption[];
 }): VbenFormSchema[] {
@@ -49,16 +51,18 @@ export function useAdminFormSchema(options: {
     nodeName,
     nodeId,
     orgTreeApi,
+    lockOrgNode = false,
     roleOptions = [],
   } = options;
   let assignmentFields: VbenFormSchema[] = [];
+  const treeApi = lockOrgNode ? undefined : orgTreeApi;
 
-  if (orgTreeApi) {
+  if (treeApi) {
     assignmentFields = [
       {
         component: 'ApiTreeSelect',
         componentProps: {
-          api: orgTreeApi,
+          api: treeApi,
           childrenField: 'children',
           labelField: 'name',
           valueField: 'id',
@@ -84,7 +88,7 @@ export function useAdminFormSchema(options: {
         },
         fieldName: 'org_node_display',
         label: $t('shared.memberPanel.orgNode'),
-        defaultValue: nodeName,
+        defaultValue: nodeName || $t('shared.common.notAssigned'),
         help: $t('shared.memberPanel.orgNodeBound'),
       },
     ];

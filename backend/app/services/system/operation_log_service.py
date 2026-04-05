@@ -14,6 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_service import GlobalService
 from app.core.database import async_session_factory
+from app.core.identity import build_identity_select_extra
+from app.core.identity_snapshot import load_identity_snapshot
 from app.core.logging import LoggerMixin
 from app.models.system.operation_log import OperationLog
 from app.repositories.system.operation_log_repository import OperationLogRepository
@@ -69,6 +71,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         duration_ms: int | None = None,
         nickname: str | None = None,
         trace_id: str | None = None,
+        identity_snapshot: dict[str, Any] | None = None,
     ) -> OperationLog:
         """
         创建操作日志记录 / Create operation log record.
@@ -117,6 +120,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
             "user_agent": user_agent,
             "duration_ms": duration_ms,
             "trace_id": trace_id,
+            "identity_snapshot": identity_snapshot,
         }
 
         return await self.repo.create_log(data)
@@ -336,6 +340,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
     @staticmethod
     def _build_identity_meta(
         *,
+        identity_id: int | None,
         user_type: str,
         username: str | None,
         nickname: str | None,
@@ -347,20 +352,19 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         is_owner: bool | None = None,
         is_leader: bool | None = None,
     ) -> dict[str, Any]:
-        display_name = nickname or username
-        return {
-            "display_name": display_name,
-            "username": username,
-            "nickname": nickname,
-            "avatar": avatar,
-            "org_node_id": org_node_id,
-            "org_node_name": org_node_name,
-            "role_name": role_name,
-            "user_type": user_type,
-            "is_active": is_active,
-            "is_leader": is_leader,
-            "is_owner": is_owner,
-        }
+        return build_identity_select_extra(
+            display_name=nickname or username or (f"#{identity_id}" if identity_id else "-"),
+            username=username,
+            nickname=nickname,
+            avatar=avatar,
+            org_node_id=org_node_id,
+            org_node_name=org_node_name,
+            role_name=role_name,
+            user_type=user_type,
+            is_active=is_active,
+            is_leader=bool(is_leader),
+            is_owner=bool(is_owner),
+        )
 
     async def _load_identity_meta_map(
         self,
@@ -416,6 +420,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
             rows = (await self.db.execute(stmt)).all()
             for row in rows:
                 result[("admin", row.id)] = self._build_identity_meta(
+                    identity_id=row.id,
                     user_type="admin",
                     username=row.username,
                     nickname=row.nickname,
@@ -463,6 +468,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
             rows = (await self.db.execute(stmt)).all()
             for row in rows:
                 result[("tenant_admin", row.id)] = self._build_identity_meta(
+                    identity_id=row.id,
                     user_type="tenant_admin",
                     username=row.username,
                     nickname=row.nickname,
@@ -508,6 +514,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
             rows = (await self.db.execute(stmt)).all()
             for row in rows:
                 result[("tenant_user", row.id)] = self._build_identity_meta(
+                    identity_id=row.id,
                     user_type="tenant_user",
                     username=row.username,
                     nickname=row.nickname,
@@ -953,7 +960,24 @@ async def _write_log_async(log_data: dict[str, Any]) -> None:
     """
     try:
         async with async_session_factory() as db:
-            # 如果 username/nickname 为空但 user_id 存在，查询用户信息
+            if not log_data.get("identity_snapshot"):
+                snapshot = await load_identity_snapshot(
+                    db,
+                    user_type=log_data.get("user_type"),
+                    user_id=log_data.get("user_id"),
+                    tenant_id=log_data.get("tenant_id"),
+                    fallback_username=log_data.get("username"),
+                    fallback_nickname=log_data.get("nickname"),
+                )
+                if snapshot:
+                    log_data["identity_snapshot"] = snapshot
+                    log_data["username"] = log_data.get("username") or snapshot.get(
+                        "username"
+                    )
+                    log_data["nickname"] = log_data.get("nickname") or snapshot.get(
+                        "nickname"
+                    )
+
             if (
                 not log_data.get("username") or not log_data.get("nickname")
             ) and log_data.get("user_id"):
@@ -1063,6 +1087,7 @@ def create_log_async(
     duration_ms: int | None = None,
     nickname: str | None = None,
     trace_id: str | None = None,
+    identity_snapshot: dict[str, Any] | None = None,
 ) -> None:
     """
     异步创建操作日志（不阻塞当前请求）/ Create operation log async (non-blocking).
@@ -1126,6 +1151,7 @@ def create_log_async(
         "user_agent": user_agent,
         "duration_ms": duration_ms,
         "trace_id": trace_id,
+        "identity_snapshot": identity_snapshot,
     }
 
     # 获取当前事件循环并创建任务 / Get running event loop and schedule task

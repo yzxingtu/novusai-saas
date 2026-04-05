@@ -113,6 +113,113 @@ Examples:
 - If Prometheus-style metrics are added, define them beside the owning module
   and guard them defensively.
 
+## Scenario: Immutable Identity Snapshots For Audit And AI Logs
+
+### 1. Scope / Trigger
+
+- Trigger: any change that writes or serializes operator / caller / actor
+  identity in operation logs, AI action logs, AI call logs, or monitoring
+  aggregations.
+- Why this needs code-spec depth: historical audit entries must stay tied to the
+  identity state at write time even after nickname, avatar, org node, or role
+  changes.
+
+### 2. Signatures
+
+- DB columns:
+  - `backend/app/models/system/operation_log.py` -> `OperationLog.identity_snapshot`
+  - `backend/app/models/ai/action_log.py` -> `AIActionLog.operator_snapshot`
+- Snapshot helpers:
+  - `backend/app/core/identity_snapshot.py`
+  - `build_identity_snapshot(...)`
+  - `load_identity_snapshot(db, *, user_type, user_id, tenant_id, fallback_username, fallback_nickname)`
+- Write paths:
+  - `backend/app/services/system/operation_log_service.py`
+  - `backend/app/services/ai/action_log_service.py`
+  - `backend/app/services/ai/call_log_service.py`
+  - `backend/app/tasks/ai.py`
+- Read / aggregation paths:
+  - `backend/app/schemas/system/operation_log.py`
+  - `backend/app/repositories/ai/call_log_repository.py`
+  - `backend/app/services/ai/monitoring_service.py`
+
+### 3. Contracts
+
+- Snapshot payload must prefer immutable display fields:
+  - `display_name`
+  - `username`
+  - `nickname`
+  - `avatar`
+  - `org_node_id`
+  - `org_node_name`
+  - `role_name`
+  - `display_role_name`
+  - `user_type`
+  - `is_active`
+  - `is_owner`
+  - `is_leader`
+- `operation_logs.identity_snapshot` stores the actor snapshot for system audit
+  rows.
+- `ai_action_logs.operator_snapshot` stores the operator snapshot for AI action
+  audit rows.
+- `ai_call_logs.request_metadata.caller_snapshot` stores the caller snapshot for
+  usage / monitoring records.
+- Serialization rule: snapshot-first, live-identity fallback. Read paths must
+  use snapshot values when a snapshot key is present, even if the current user
+  profile has since changed.
+- Fallback rule: if a snapshot is absent, incomplete, or belongs to a deleted
+  actor, use live identity data when available and finally fall back to stored
+  username / nickname / id placeholders.
+
+### 4. Validation & Error Matrix
+
+| Condition | Expected Behavior |
+|---|---|
+| Snapshot column / metadata exists and contains field | Use snapshot value |
+| Snapshot absent but live actor exists | Use live actor data |
+| Snapshot absent and live actor missing | Use stored username / nickname fallback |
+| Actor renamed or moved org after log write | Historical row still shows old snapshot |
+| Async operation log write has `user_id` but no snapshot yet | `load_identity_snapshot()` fills snapshot before insert |
+| AI call written through Celery task | `tasks/ai.py` must pass `caller_snapshot` into `request_metadata` |
+
+### 5. Good/Base/Bad Cases
+
+- Good: `OperationLog.identity_snapshot.org_node_name = "平台管理组"` and the
+  admin later moves elsewhere; the log still renders `平台管理组`.
+- Base: a low-context log row only has `username` / `nickname`; serializer falls
+  back cleanly without throwing.
+- Bad: list / detail code ignores snapshot keys and always joins the current
+  admin / tenant tables, causing history to drift after profile edits.
+
+### 6. Tests Required
+
+- `backend/tests/services/test_operation_log_service.py`
+  - asserts async operation-log writes populate `identity_snapshot`
+  - asserts serializer prefers snapshot display fields
+- `backend/tests/services/test_ai_action_log_service.py`
+  - asserts operator snapshot fields override live operator data on read
+- `backend/tests/services/test_call_log_service.py`
+  - asserts call-log write path keeps `caller_snapshot`
+- `backend/tests/services/test_call_log_repository.py`
+  - asserts repository list/detail uses `caller_snapshot` before live actor joins
+- `backend/tests/services/test_monitoring_service.py`
+  - asserts monitoring actor cards use call-log snapshot-first behavior
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+- Write only `user_id` and fetch nickname / org / role from the current user
+  table every time a log is rendered.
+- Treat missing snapshot as an error instead of falling back safely.
+
+#### Correct
+
+- Capture identity display fields at write time with
+  `build_identity_snapshot()` / `load_identity_snapshot()`.
+- In read paths, check `snapshot_has_key()` / `snapshot_value()` first and only
+  then merge live identity data.
+
 ## Anti-Patterns
 
 - `print()` for debugging in request, task, or plugin code.

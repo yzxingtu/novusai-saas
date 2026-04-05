@@ -15,6 +15,7 @@ from fastapi.encoders import jsonable_encoder
 
 from app.core.base_model import utc_now
 from app.core.base_service import BaseService
+from app.core.identity_snapshot import load_identity_snapshot
 from app.core.logging import LogManager
 from app.core.response import serialize_datetime_for_api
 from app.enums.ai import CallStatusEnum, CallTypeEnum
@@ -627,6 +628,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         conversation_id: int | None,
         routed_model_id: int | None,
         route_reason: str | None,
+        caller_snapshot: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         return cls._make_json_safe(
             {
@@ -638,7 +640,29 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
                 "conversation_id": conversation_id,
                 "routed_model_id": routed_model_id,
                 "route_reason": route_reason,
+                "caller_snapshot": caller_snapshot,
             }
+        )
+
+    async def _build_caller_snapshot(
+        self,
+        *,
+        tenant_id: int,
+        user_id: int | None,
+        user_type: str | None,
+        billing_context: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        actor_user_id = self._normalize_optional_fk_id(
+            billing_context.get("actor_user_id", user_id)
+        )
+        actor_user_type = billing_context.get("actor_user_type", user_type)
+        if not actor_user_id or not actor_user_type:
+            return None
+        return await load_identity_snapshot(
+            self.db,
+            user_type=actor_user_type,
+            user_id=actor_user_id,
+            tenant_id=None if tenant_id == 0 else tenant_id,
         )
 
     async def log_call(
@@ -748,6 +772,14 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         normalized_agent_id = self._normalize_optional_fk_id(agent_id)
         normalized_conversation_id = self._normalize_optional_fk_id(conversation_id)
         normalized_routed_model_id = self._normalize_optional_fk_id(routed_model_id)
+        caller_snapshot = await self._build_caller_snapshot(
+            tenant_id=tenant_id,
+            user_id=normalized_user_id,
+            user_type=user_type,
+            billing_context=billing_context,
+        )
+        if caller_snapshot:
+            billing_context["caller_snapshot"] = caller_snapshot
         request_metadata = self._build_request_metadata_payload(
             request_data=request_payload,
             response_data=response_data,
@@ -756,6 +788,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
             conversation_id=normalized_conversation_id,
             routed_model_id=normalized_routed_model_id,
             route_reason=route_reason,
+            caller_snapshot=caller_snapshot,
         )
         call_log = AICallLog(
             tenant_id=tenant_id,
@@ -930,6 +963,15 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         normalized_agent_id = self._normalize_optional_fk_id(agent_id)
         normalized_conversation_id = self._normalize_optional_fk_id(conversation_id)
         normalized_routed_model_id = self._normalize_optional_fk_id(routed_model_id)
+        billing_context = dict(billing_context or {})
+        caller_snapshot = await self._build_caller_snapshot(
+            tenant_id=tenant_id,
+            user_id=normalized_user_id,
+            user_type=user_type,
+            billing_context=billing_context,
+        )
+        if caller_snapshot:
+            billing_context["caller_snapshot"] = caller_snapshot
         request_payload = self._inject_turn_hints(
             request_data,
             turn_record=turn_record,

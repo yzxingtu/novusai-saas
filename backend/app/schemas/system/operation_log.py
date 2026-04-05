@@ -11,6 +11,7 @@ from typing import Any
 from pydantic import Field
 
 from app.core.base_schema import BaseSchema
+from app.core.identity_snapshot import snapshot_has_key, snapshot_value
 
 
 def _translate_log_field(key: str, prefix: str) -> str | None:
@@ -40,20 +41,67 @@ def _resolve_identity_fields(
 ) -> dict[str, Any]:
     """合并日志快照与实时身份字段 / Merge log snapshot and live identity fields."""
     identity_meta = identity_meta or {}
-    username = getattr(log, "username", None) or identity_meta.get("username")
-    nickname = getattr(log, "nickname", None) or identity_meta.get("nickname")
-    display_name = identity_meta.get("display_name") or nickname or username
+    snapshot = (
+        getattr(log, "identity_snapshot", None)
+        if isinstance(getattr(log, "identity_snapshot", None), dict)
+        else {}
+    )
+    username = (
+        snapshot_value(snapshot, "username")
+        or getattr(log, "username", None)
+        or identity_meta.get("username")
+    )
+    nickname = (
+        snapshot_value(snapshot, "nickname")
+        or getattr(log, "nickname", None)
+        or identity_meta.get("nickname")
+    )
+    display_name = (
+        snapshot_value(snapshot, "display_name")
+        or identity_meta.get("display_name")
+        or nickname
+        or username
+    )
+    if snapshot_has_key(snapshot, "display_role_name"):
+        role_name = snapshot.get("display_role_name")
+    elif snapshot_has_key(snapshot, "role_name"):
+        role_name = snapshot.get("role_name")
+    else:
+        role_name = (
+            identity_meta.get("display_role_name")
+            or identity_meta.get("role_name")
+        )
     return {
         "username": username,
         "nickname": nickname,
         "display_name": display_name,
-        "avatar": identity_meta.get("avatar"),
-        "org_node_id": identity_meta.get("org_node_id"),
-        "org_node_name": identity_meta.get("org_node_name"),
-        "role_name": identity_meta.get("role_name"),
-        "is_active": identity_meta.get("is_active"),
-        "is_owner": identity_meta.get("is_owner"),
-        "is_leader": identity_meta.get("is_leader"),
+        "avatar": snapshot_value(snapshot, "avatar", identity_meta.get("avatar")),
+        "org_node_id": snapshot_value(
+            snapshot,
+            "org_node_id",
+            identity_meta.get("org_node_id"),
+        ),
+        "org_node_name": snapshot_value(
+            snapshot,
+            "org_node_name",
+            identity_meta.get("org_node_name"),
+        ),
+        "role_name": role_name,
+        "is_active": snapshot_value(
+            snapshot,
+            "is_active",
+            identity_meta.get("is_active"),
+        ),
+        "is_owner": snapshot_value(
+            snapshot,
+            "is_owner",
+            identity_meta.get("is_owner"),
+        ),
+        "is_leader": snapshot_value(
+            snapshot,
+            "is_leader",
+            identity_meta.get("is_leader"),
+        ),
     }
 
 

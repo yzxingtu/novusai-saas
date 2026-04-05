@@ -149,6 +149,78 @@ def test_tenant_action_log_serialize_log_enriches_agent_and_operator_metadata():
     assert payload["operator_type"] == "tenant_admin"
 
 
+def test_tenant_action_log_serialize_log_prefers_operator_snapshot_over_live_meta():
+    service = AIActionLogService.__new__(AIActionLogService)
+    service.tenant_id = 9
+
+    async def _agent_meta(_agent_ids):
+        return {}
+
+    async def _operator_meta(_operator_ids):
+        return {
+            ("tenant_admin", 12): {
+                "operator_name": "alice_live",
+                "operator_nickname": "Alice Live",
+                "operator_avatar": "live-avatar",
+                "operator_display_name": "Alice Live",
+                "operator_display_role_name": "当前角色",
+                "operator_org_node_id": 99,
+                "operator_org_node_name": "当前组织",
+                "operator_role_name": "当前角色",
+                "operator_is_active": False,
+                "operator_is_leader": False,
+                "operator_is_owner": False,
+                "operator_type": "tenant_admin",
+            }
+        }
+
+    service._load_agent_meta_map = _agent_meta  # type: ignore[method-assign]
+    service._load_operator_meta_map = _operator_meta  # type: ignore[method-assign]
+
+    log = SimpleNamespace(
+        agent_id=7,
+        operator_id=12,
+        operator_type="tenant_admin",
+        to_dict=lambda: {
+            "id": 1,
+            "tenant_id": 9,
+            "agent_id": 7,
+            "operator_id": 12,
+            "operator_type": "tenant_admin",
+            "operator_snapshot": {
+                "display_name": "历史 Alice",
+                "username": "alice_old",
+                "nickname": "Alice Old",
+                "avatar": "snapshot-avatar",
+                "org_node_id": 5,
+                "org_node_name": "历史组织",
+                "role_name": "历史角色",
+                "display_role_name": None,
+                "is_active": True,
+                "is_leader": True,
+                "is_owner": True,
+                "user_type": "tenant_admin",
+            },
+            "operator_name_snapshot": "alice_old",
+            "operator_nickname_snapshot": "Alice Old",
+            "operator_avatar_snapshot": "snapshot-avatar",
+        },
+    )
+
+    import asyncio
+
+    payload = asyncio.run(service.serialize_log(log))
+
+    assert payload["operator_display_name"] == "历史 Alice"
+    assert payload["operator_name"] == "alice_old"
+    assert payload["operator_avatar"] == "snapshot-avatar"
+    assert payload["operator_org_node_name"] == "历史组织"
+    assert payload["operator_role_name"] is None
+    assert payload["operator_is_active"] is True
+    assert payload["operator_is_leader"] is True
+    assert payload["operator_is_owner"] is True
+
+
 def test_admin_action_log_serialize_log_merges_tenant_agent_and_operator_metadata():
     service = AdminAIActionLogService.__new__(AdminAIActionLogService)
     service._load_tenant_meta_map = _fake_empty_async  # type: ignore[method-assign]
@@ -248,3 +320,59 @@ async def test_write_ai_action_log_persists_trace_id_and_tool_call_id(mock_db):
 
     assert log.trace_id == "trace-123"
     assert log.tool_call_id == "tc_email_1"
+
+
+@pytest.mark.asyncio
+async def test_write_ai_action_log_persists_operator_snapshot(mock_db):
+    async def _empty_agent(*_args, **_kwargs):
+        return {}
+
+    async def _snapshot_operator(*_args, **_kwargs):
+        return {
+            "operator_type": "tenant_admin",
+            "operator_name_snapshot": "alice_old",
+            "operator_nickname_snapshot": "Alice Old",
+            "operator_avatar_snapshot": "snapshot-avatar",
+            "operator_snapshot": {
+                "display_name": "历史 Alice",
+                "username": "alice_old",
+                "nickname": "Alice Old",
+                "avatar": "snapshot-avatar",
+                "org_node_id": 5,
+                "org_node_name": "历史组织",
+                "role_name": "历史角色",
+                "display_role_name": None,
+                "is_active": True,
+                "is_leader": True,
+                "is_owner": True,
+                "user_type": "tenant_admin",
+            },
+        }
+
+    from unittest.mock import patch
+
+    with (
+        patch(
+            "app.services.ai.action_log_service._load_agent_snapshot",
+            new=_empty_agent,
+        ),
+        patch(
+            "app.services.ai.action_log_service._load_operator_snapshot",
+            new=_snapshot_operator,
+        ),
+    ):
+        log = await write_ai_action_log(
+            mock_db,
+            tenant_id=9,
+            agent_id=7,
+            conversation_id=100,
+            operator_id=12,
+            operator_type="tenant_admin",
+            action_name="email_send",
+            action_level="dangerous",
+            request_data={"to": ["alice@example.com"]},
+        )
+
+    assert log.operator_name_snapshot == "alice_old"
+    assert log.operator_snapshot["display_name"] == "历史 Alice"
+    assert log.operator_snapshot["org_node_name"] == "历史组织"

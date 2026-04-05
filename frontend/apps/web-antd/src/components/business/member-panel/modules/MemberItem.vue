@@ -31,8 +31,6 @@ const props = withDefaults(
     showActions?: boolean;
     /** Whether to show online status indicator / 是否显示在线状态指示器 */
     showOnlineStatus?: boolean;
-    /** Whether to show organization node / 是否显示组织节点 */
-    showOrgNode?: boolean;
   }>(),
   {
     apiPrefix: 'admin',
@@ -41,7 +39,6 @@ const props = withDefaults(
     online: false,
     showActions: true,
     showOnlineStatus: false,
-    showOrgNode: false,
   },
 );
 

@@ -93,6 +93,13 @@ class OperationLog(BaseModel):
         String(100), nullable=True, comment="用户昵称"
     )
 
+    # 身份快照（避免昵称/组织/角色变更导致历史展示漂移） / Identity snapshot
+    identity_snapshot: Mapped[dict | None] = mapped_column(
+        JSON,
+        nullable=True,
+        comment="身份快照（显示名/头像/组织/角色等）",
+    )
+
     # ==================== 操作信息 ==================== / Operation details
 
     # 业务模块: auth / permission / role / admin_user / tenant / config / plan / ...

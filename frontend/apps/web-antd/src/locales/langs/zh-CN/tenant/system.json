@@ -414,6 +414,7 @@
   "organization": {
     "name": "组织架构",
     "title": "组织架构管理",
+    "pageDesc": "可视化企业组织树、负责人配置与成员分配情况。",
     "tree": "组织架构",
     "leader": "负责人",
     "memberCount": "成员数量",
@@ -424,6 +425,7 @@
     "collapseTree": "收起侧栏",
     "refresh": "刷新",
     "create": "新建",
+    "addChild": "新建子节点",
     "empty": "暂无组织节点",
     "selectNodeHint": "请在左侧选择一个节点",
     "selectNodeSubHint": "选择后可查看详情和管理成员",

@@ -9,11 +9,12 @@ from datetime import date, datetime, timedelta
 from datetime import timezone as dt_timezone
 from typing import Any
 
-from sqlalchemy import Date, case, cast, exists, func, select
+from sqlalchemy import Date, case, cast, exists, func, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.configs.service import PLATFORM_TENANT_ID
 from app.core.identity import resolve_identity_display_role_name
+from app.core.identity_snapshot import snapshot_has_key, snapshot_value
 from app.enums.ai import CallStatusEnum
 from app.exceptions import NotFoundException
 from app.models.ai import Agent, AgentConversation, AICallLog, AIModel, AIProvider
@@ -449,6 +450,255 @@ class MonitoringService:
         if scope.is_tenant:
             filters.append(AgentConversation.tenant_id == scope.tenant_id)
         return filters
+
+    @staticmethod
+    def _extract_caller_snapshot(request_metadata: Any) -> dict[str, Any]:
+        if not isinstance(request_metadata, dict):
+            return {}
+        snapshot = request_metadata.get("caller_snapshot")
+        if isinstance(snapshot, dict):
+            return dict(snapshot)
+        return {}
+
+    @classmethod
+    def _resolve_snapshot_display_role_name(
+        cls,
+        snapshot: dict[str, Any] | None,
+        live_actor: MonitoringActorInfo | None = None,
+    ) -> str | None:
+        if snapshot_has_key(snapshot, "display_role_name"):
+            return snapshot.get("display_role_name")
+        if snapshot_has_key(snapshot, "role_name") or snapshot_has_key(
+            snapshot,
+            "org_node_name",
+        ):
+            return resolve_identity_display_role_name(
+                snapshot_value(snapshot, "role_name"),
+                snapshot_value(snapshot, "org_node_name"),
+            )
+        return live_actor.display_role_name if live_actor else None
+
+    @classmethod
+    def _build_actor_info_from_snapshot(
+        cls,
+        snapshot: dict[str, Any] | None,
+        *,
+        actor_id: int | None = None,
+        actor_type: str | None = None,
+        tenant_id: int | None = None,
+        tenant_name: str | None = None,
+        live_actor: MonitoringActorInfo | None = None,
+    ) -> MonitoringActorInfo | None:
+        if not snapshot:
+            return live_actor
+
+        resolved_type = snapshot_value(
+            snapshot,
+            "user_type",
+            live_actor.type if live_actor else actor_type,
+        )
+        resolved_tenant_id = (
+            tenant_id
+            if tenant_id is not None
+            else live_actor.tenant_id
+            if live_actor
+            else None
+        )
+        if resolved_tenant_id is None and resolved_type == "platform_admin":
+            resolved_tenant_id = PLATFORM_TENANT_ID
+
+        resolved_tenant_name = (
+            tenant_name
+            if tenant_name is not None
+            else live_actor.tenant_name
+            if live_actor
+            else None
+        )
+        if resolved_tenant_name is None and resolved_type == "platform_admin":
+            resolved_tenant_name = cls.PLATFORM_USAGE_TENANT_NAME
+
+        display_name = snapshot_value(
+            snapshot,
+            "display_name",
+            live_actor.display_name if live_actor else None,
+        )
+        username = snapshot_value(
+            snapshot,
+            "username",
+            live_actor.username if live_actor else None,
+        )
+        nickname = snapshot_value(
+            snapshot,
+            "nickname",
+            live_actor.nickname if live_actor else None,
+        )
+        if not display_name:
+            display_name = nickname or username or (live_actor.display_name if live_actor else None)
+
+        return MonitoringActorInfo(
+            id=snapshot_value(snapshot, "user_id", live_actor.id if live_actor else actor_id),
+            type=resolved_type,
+            display_name=display_name,
+            username=username,
+            nickname=nickname,
+            avatar=snapshot_value(
+                snapshot,
+                "avatar",
+                live_actor.avatar if live_actor else None,
+            ),
+            tenant_id=resolved_tenant_id,
+            tenant_name=resolved_tenant_name,
+            org_node_id=snapshot_value(
+                snapshot,
+                "org_node_id",
+                live_actor.org_node_id if live_actor else None,
+            ),
+            org_node_name=snapshot_value(
+                snapshot,
+                "org_node_name",
+                live_actor.org_node_name if live_actor else None,
+            ),
+            role_name=snapshot_value(
+                snapshot,
+                "role_name",
+                live_actor.role_name if live_actor else None,
+            ),
+            display_role_name=cls._resolve_snapshot_display_role_name(
+                snapshot,
+                live_actor,
+            ),
+            is_active=snapshot_value(
+                snapshot,
+                "is_active",
+                live_actor.is_active if live_actor else None,
+            ),
+            is_owner=snapshot_value(
+                snapshot,
+                "is_owner",
+                live_actor.is_owner if live_actor else None,
+            ),
+            is_leader=snapshot_value(
+                snapshot,
+                "is_leader",
+                live_actor.is_leader if live_actor else None,
+            ),
+        )
+
+    async def _load_actor_snapshot_map(
+        self,
+        scope: MonitoringScope,
+        refs: set[tuple[str, int]],
+        *,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ) -> dict[tuple[str, int], dict[str, Any]]:
+        actor_refs = sorted(
+            {
+                (str(actor_type), int(actor_id))
+                for actor_type, actor_id in refs
+                if actor_type and actor_id
+            }
+        )
+        if not actor_refs:
+            return {}
+
+        filters = [
+            AICallLog.is_deleted.is_(False),
+            AICallLog.actor_user_id.is_not(None),
+            tuple_(AICallLog.actor_user_type, AICallLog.actor_user_id).in_(actor_refs),
+        ]
+        filters.extend(self._date_filters(AICallLog.created_at, start_date, end_date))
+        if scope.is_tenant:
+            filters.append(AICallLog.billing_tenant_id == scope.tenant_id)
+
+        ranked = (
+            select(
+                AICallLog.actor_user_type.label("actor_type"),
+                AICallLog.actor_user_id.label("actor_id"),
+                AICallLog.request_metadata.label("request_metadata"),
+                func.row_number()
+                .over(
+                    partition_by=(
+                        AICallLog.actor_user_type,
+                        AICallLog.actor_user_id,
+                    ),
+                    order_by=AICallLog.created_at.desc(),
+                )
+                .label("rn"),
+            )
+            .where(*filters)
+            .subquery("monitoring_actor_snapshot_ranked")
+        )
+
+        rows = (
+            await self.db.execute(
+                select(
+                    ranked.c.actor_type,
+                    ranked.c.actor_id,
+                    ranked.c.request_metadata,
+                ).where(ranked.c.rn == 1)
+            )
+        ).all()
+
+        return {
+            (str(row.actor_type), int(row.actor_id)): snapshot
+            for row in rows
+            if (snapshot := self._extract_caller_snapshot(row.request_metadata))
+        }
+
+    async def _load_conversation_actor_snapshot_map(
+        self,
+        scope: MonitoringScope,
+        conversation_ids: set[int],
+    ) -> dict[int, dict[str, Any]]:
+        normalized_ids = sorted({int(conversation_id) for conversation_id in conversation_ids if conversation_id})
+        if not normalized_ids:
+            return {}
+
+        filters = [
+            AICallLog.is_deleted.is_(False),
+            AICallLog.conversation_id.in_(normalized_ids),
+        ]
+        if scope.is_tenant:
+            filters.append(AICallLog.billing_tenant_id == scope.tenant_id)
+
+        ranked = (
+            select(
+                AICallLog.conversation_id.label("conversation_id"),
+                AICallLog.actor_user_type.label("actor_type"),
+                AICallLog.actor_user_id.label("actor_id"),
+                AICallLog.request_metadata.label("request_metadata"),
+                func.row_number()
+                .over(
+                    partition_by=AICallLog.conversation_id,
+                    order_by=AICallLog.created_at.desc(),
+                )
+                .label("rn"),
+            )
+            .where(*filters)
+            .subquery("monitoring_conversation_actor_ranked")
+        )
+
+        rows = (
+            await self.db.execute(
+                select(
+                    ranked.c.conversation_id,
+                    ranked.c.actor_type,
+                    ranked.c.actor_id,
+                    ranked.c.request_metadata,
+                ).where(ranked.c.rn == 1)
+            )
+        ).all()
+
+        return {
+            int(row.conversation_id): {
+                "snapshot": self._extract_caller_snapshot(row.request_metadata),
+                "actor_type": str(row.actor_type) if row.actor_type else None,
+                "actor_id": int(row.actor_id) if row.actor_id else None,
+            }
+            for row in rows
+            if row.conversation_id is not None
+        }
 
     async def _load_actor_map(
         self,
@@ -997,22 +1247,35 @@ class MonitoringService:
             .limit(10)
         )
         actor_rows = (await self.db.execute(actor_stmt)).all()
-        actor_map = await self._load_actor_map(
-            {
-                (str(row.actor_type or ""), int(row.actor_id))
-                for row in actor_rows
-                if row.actor_type and row.actor_id
-            }
+        actor_refs = {
+            (str(row.actor_type), int(row.actor_id))
+            for row in actor_rows
+            if row.actor_type and row.actor_id
+        }
+        actor_map = await self._load_actor_map(actor_refs)
+        actor_snapshot_map = await self._load_actor_snapshot_map(
+            scope,
+            actor_refs,
+            start_date=start_date,
+            end_date=end_date,
         )
         top_users = [
             MonitoringUsageBreakdownItem(
                 key=f"{row.actor_type}:{row.actor_id}",
                 label=(
-                    actor_map.get((str(row.actor_type), int(row.actor_id))).display_name
-                    if actor_map.get((str(row.actor_type), int(row.actor_id)))
+                    actor.display_name
+                    if (
+                        actor := self._build_actor_info_from_snapshot(
+                            actor_snapshot_map.get((str(row.actor_type), int(row.actor_id))),
+                            actor_id=int(row.actor_id),
+                            actor_type=str(row.actor_type),
+                            live_actor=actor_map.get((str(row.actor_type), int(row.actor_id))),
+                        )
+                    )
+                    and actor.display_name
                     else f"{row.actor_type}:{row.actor_id}"
                 ),
-                actor=actor_map.get((str(row.actor_type), int(row.actor_id))),
+                actor=actor,
                 call_count=self._safe_int(row.call_count),
                 total_tokens=self._safe_int(row.total_tokens),
                 total_cost=self._safe_float(row.total_cost),
@@ -1106,22 +1369,55 @@ class MonitoringService:
         conversation_ids = {item.id for item in items}
         tenant_ids = {item.tenant_id for item in items if item.tenant_id is not None}
         usage_map = await self._load_conversation_usage_map(scope, conversation_ids)
+        conversation_actor_snapshot_map = await self._load_conversation_actor_snapshot_map(
+            scope,
+            conversation_ids,
+        )
         tenant_names = await self._load_tenant_names(tenant_ids)
-        actor_map = await self._load_actor_map(
+        actor_refs = {
+            (str(item.owner_type), int(item.user_id))
+            for item in items
+            if item.user_id is not None
+            and item.owner_type in {"platform_admin", "tenant_admin", "tenant_user"}
+        }
+        actor_refs.update(
             {
-                (str(item.owner_type or ""), int(item.user_id))
-                for item in items
-                if item.user_id is not None
-                and item.owner_type in {"platform_admin", "tenant_admin", "tenant_user"}
+                (str(snapshot_info.get("actor_type")), int(snapshot_info.get("actor_id")))
+                for snapshot_info in conversation_actor_snapshot_map.values()
+                if snapshot_info.get("actor_type")
+                and snapshot_info.get("actor_id")
             }
         )
+        actor_map = await self._load_actor_map(actor_refs)
 
         result: list[MonitoringConversationListItem] = []
         for item in items:
             usage = usage_map.get(item.id, {})
-            actor = None
-            if item.user_id is not None and item.owner_type:
-                actor = actor_map.get((str(item.owner_type), int(item.user_id)))
+            snapshot_info = conversation_actor_snapshot_map.get(item.id, {})
+            actor_ref = None
+            if snapshot_info.get("actor_type") and snapshot_info.get("actor_id"):
+                actor_ref = (
+                    str(snapshot_info.get("actor_type")),
+                    int(snapshot_info.get("actor_id")),
+                )
+            elif item.user_id is not None and item.owner_type:
+                actor_ref = (str(item.owner_type), int(item.user_id))
+            actor = self._build_actor_info_from_snapshot(
+                snapshot_info.get("snapshot"),
+                actor_id=actor_ref[1] if actor_ref else None,
+                actor_type=actor_ref[0] if actor_ref else None,
+                tenant_id=(
+                    PLATFORM_TENANT_ID
+                    if item.tenant_id == PLATFORM_TENANT_ID
+                    else item.tenant_id
+                ),
+                tenant_name=(
+                    self.PLATFORM_USAGE_TENANT_NAME
+                    if item.tenant_id == PLATFORM_TENANT_ID
+                    else tenant_names.get(item.tenant_id)
+                ),
+                live_actor=actor_map.get(actor_ref) if actor_ref else None,
+            )
             result.append(
                 MonitoringConversationListItem(
                     id=item.id,
@@ -1185,15 +1481,42 @@ class MonitoringService:
         usage = (await self._load_conversation_usage_map(scope, {conversation_id})).get(
             conversation_id, {}
         )
-        actor = None
-        if conversation.user_id is not None and conversation.owner_type:
-            actor = (
-                await self._load_actor_map(
-                    {
-                        (str(conversation.owner_type), int(conversation.user_id)),
-                    }
+        conversation_actor_snapshot_map = await self._load_conversation_actor_snapshot_map(
+            scope,
+            {conversation_id},
+        )
+        snapshot_info = conversation_actor_snapshot_map.get(conversation_id, {})
+        actor_ref = None
+        if snapshot_info.get("actor_type") and snapshot_info.get("actor_id"):
+            actor_ref = (
+                str(snapshot_info.get("actor_type")),
+                int(snapshot_info.get("actor_id")),
+            )
+        elif conversation.user_id is not None and conversation.owner_type:
+            actor_ref = (str(conversation.owner_type), int(conversation.user_id))
+        actor_map = (
+            await self._load_actor_map({actor_ref})
+            if actor_ref
+            else {}
+        )
+        actor = self._build_actor_info_from_snapshot(
+            snapshot_info.get("snapshot"),
+            actor_id=actor_ref[1] if actor_ref else None,
+            actor_type=actor_ref[0] if actor_ref else None,
+            tenant_id=(
+                PLATFORM_TENANT_ID
+                if conversation.tenant_id == PLATFORM_TENANT_ID
+                else conversation.tenant_id
+            ),
+            tenant_name=(
+                self.PLATFORM_USAGE_TENANT_NAME
+                if conversation.tenant_id == PLATFORM_TENANT_ID
+                else (await self._load_tenant_names({conversation.tenant_id})).get(
+                    conversation.tenant_id
                 )
-            ).get((str(conversation.owner_type), int(conversation.user_id)))
+            ),
+            live_actor=actor_map.get(actor_ref) if actor_ref else None,
+        )
 
         trace_filters = [
             AICallLog.is_deleted.is_(False),

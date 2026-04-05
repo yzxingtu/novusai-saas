@@ -195,6 +195,73 @@ class TestEnrichLogs:
         assert result[0]["caller_display_name"] is None
         assert result[0]["caller_org_node_name"] is None
 
+    @pytest.mark.asyncio
+    async def test_enrich_logs_prefers_caller_snapshot_over_live_identity(
+        self,
+        mock_db,
+    ):
+        from app.repositories.ai.call_log_repository import AICallLogRepository
+
+        repo = AICallLogRepository(mock_db)
+        log = make_mock_model(
+            id=4,
+            tenant_id=11,
+            agent_id=None,
+            agent_id_snapshot=None,
+            model_id=None,
+            provider_id=None,
+            routed_model_id=None,
+            request_type="chat",
+            input_tokens=1,
+            output_tokens=2,
+            total_tokens=3,
+            cost=0.02,
+            latency_ms=66,
+            status="success",
+            error_message=None,
+            user_id=None,
+            user_type=None,
+            actor_user_id=9,
+            actor_user_type="tenant_admin",
+            created_at=datetime(2026, 4, 1, 9, 0, 0),
+            updated_at=None,
+            deleted_at=None,
+            request_metadata={
+                "caller_snapshot": {
+                    "user_id": 9,
+                    "user_type": "tenant_admin",
+                    "display_name": "历史 企业管理员A",
+                    "username": "tenant_admin_old",
+                    "nickname": "历史 企业管理员A",
+                    "avatar": "snapshot-avatar",
+                    "org_node_id": 77,
+                    "org_node_name": "历史组织",
+                    "role_name": "历史角色",
+                    "display_role_name": None,
+                    "is_active": True,
+                    "is_owner": False,
+                    "is_leader": True,
+                }
+            },
+        )
+
+        result = await repo.enrich_logs_to_dicts(
+            [log],
+            include_tenant_names=False,
+            include_caller_names=True,
+            include_payload=False,
+        )
+
+        assert result[0]["caller_name"] == "历史 企业管理员A"
+        assert result[0]["caller_display_name"] == "历史 企业管理员A"
+        assert result[0]["caller_username"] == "tenant_admin_old"
+        assert result[0]["caller_avatar"] == "snapshot-avatar"
+        assert result[0]["caller_org_node_name"] == "历史组织"
+        assert result[0]["caller_role_name"] is None
+        assert result[0]["caller_display_role_name"] is None
+        assert result[0]["caller_is_leader"] is True
+        mock_db.execute.assert_not_awaited()
+
 
 class TestTenantZeroFilter:
     @pytest.mark.asyncio

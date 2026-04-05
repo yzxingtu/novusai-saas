@@ -515,7 +515,21 @@ class AuditLogMiddleware:
         if user_info.get("user_id") and "state" in scope:
             state = scope["state"]
             user = getattr(state, "user", None)
-            if user:
+            state_user_id = getattr(user, "id", None) if user else None
+            state_tenant_id = getattr(user, "tenant_id", None) if user else None
+            expected_tenant_id = user_info.get("tenant_id")
+            same_actor = bool(
+                user
+                and state_user_id == user_info.get("user_id")
+                and (
+                    (
+                        expected_tenant_id is None
+                        and state_tenant_id in {None, 0}
+                    )
+                    or state_tenant_id == expected_tenant_id
+                )
+            )
+            if same_actor:
                 if not username and hasattr(user, "username"):
                     username = user.username
                 if not nickname and hasattr(user, "nickname"):

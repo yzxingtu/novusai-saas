@@ -107,6 +107,100 @@ Examples:
 - Confirm plugin matrix coverage when relevant: menu enter, direct URL, hard
   refresh, locale switch, permission loss, and runtime-gated disable paths.
 
+## Scenario: Playwright Authenticated Identity Smoke Coverage
+
+### 1. Scope / Trigger
+
+- Trigger: shared identity display, remote identity selectors, profile identity
+  cards, operation logs, AI call logs, or organization member panels change.
+- Why this needs code-spec depth: these pages are visually sensitive and span
+  admin + tenant surfaces, so browser coverage must avoid captcha / login UI
+  flakiness and validate the actual identity containers instead.
+
+### 2. Signatures
+
+- Config:
+  - `frontend/apps/web-antd/playwright.config.ts`
+- Session helpers:
+  - `frontend/apps/web-antd/__tests__/e2e/common/session.ts`
+  - `frontend/apps/web-antd/__tests__/e2e/common/auth.ts`
+  - `frontend/apps/web-antd/__tests__/e2e/common/admin-auth.ts`
+- Smoke specs:
+  - `frontend/apps/web-antd/__tests__/e2e/admin-dashboard.spec.ts`
+  - `frontend/apps/web-antd/__tests__/e2e/admin-profile.spec.ts`
+  - `frontend/apps/web-antd/__tests__/e2e/tenant-dashboard.spec.ts`
+  - `frontend/apps/web-antd/__tests__/e2e/tenant-profile.spec.ts`
+  - `frontend/apps/web-antd/__tests__/e2e/organization.spec.ts`
+  - `frontend/apps/web-antd/__tests__/e2e/operation-log.spec.ts`
+  - `frontend/apps/web-antd/__tests__/e2e/ai-call-logs.spec.ts`
+
+### 3. Contracts
+
+- Default browser base URL is `http://localhost:5666` unless
+  `E2E_BASE_URL` overrides it.
+- Tenant domain mode is opt-in via `TENANT_E2E_USE_DOMAIN=true`; do not require
+  subdomain routing for ordinary authenticated page smoke coverage.
+- Playwright auth helpers must call backend login APIs directly:
+  - `POST /admin/auth/login`
+  - `POST /tenant/auth/login`
+- Session helpers must seed namespaced localStorage keys instead of dragging UI
+  captcha flows into every smoke test:
+  - `${namespace}_admin_token`
+  - `${namespace}_admin_refresh_token`
+  - `${namespace}_tenant_admin_token`
+  - `${namespace}_tenant_admin_refresh_token`
+- Required env for tenant smoke:
+  - `TENANT_ADMIN_USERNAME`
+  - `TENANT_ADMIN_PASSWORD`
+  - `TENANT_ADMIN_TENANT_CODE`
+- Required env for admin smoke:
+  - `ADMIN_USERNAME` / `PLATFORM_ADMIN_USERNAME`
+  - `ADMIN_PASSWORD` / `PLATFORM_ADMIN_PASSWORD`
+- Identity smoke assertions should target stable page anchors plus
+  `.identity-display`, `.member-panel`, `.monitoring-grid`, or `.vxe-table`
+  instead of brittle label internals.
+
+### 4. Validation & Error Matrix
+
+| Condition | Expected Behavior |
+|---|---|
+| Valid admin credentials | Admin dashboard / profile smoke passes with API-seeded session |
+| Valid tenant credentials + tenant code | Tenant dashboard / profile / organization / logs smoke passes |
+| Missing tenant code | Tenant smoke skips instead of hanging on login UI |
+| Tenant domain env absent | Suite still runs against localhost |
+| Page text shifts from “最近活动” to “近期活动” | Spec should assert the real page anchor, not an outdated copy guess |
+
+### 5. Good/Base/Bad Cases
+
+- Good: seed auth once in `beforeEach`, navigate directly to the protected page,
+  and assert `.identity-display` plus the page's real business anchor.
+- Base: tenant smoke stays on localhost and provides `tenantCode` only to the
+  backend login API.
+- Bad: use drag-slider captcha automation in every browser test, then treat
+  intermittent login failures as page regressions.
+
+### 6. Tests Required
+
+- `pnpm --dir frontend exec vue-tsc --noEmit --skipLibCheck --pretty false -p apps/web-antd/tsconfig.json`
+- `pnpm --dir frontend/apps/web-antd test:e2e -- --grep "Tenant Dashboard smoke|Tenant Profile smoke|Tenant Organization smoke|Tenant Operation Logs smoke|Tenant AI Call Logs smoke"`
+- `pnpm --dir frontend/apps/web-antd test:e2e -- --grep "Admin Dashboard smoke|Admin Profile smoke"`
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+- Make page-smoke coverage depend on solving captcha sliders through the login
+  UI.
+- Assert hidden or stale copy tokens when a stable business section title or
+  shared component already exists.
+
+#### Correct
+
+- Use backend login APIs to create tokens and seed the namespaced browser
+  session before `page.goto(...)`.
+- Assert the shared identity container and the page's real visible anchor text /
+  table shell.
+
 ## Code Review Checklist
 
 Before merge, confirm:

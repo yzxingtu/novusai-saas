@@ -152,6 +152,25 @@ class TestUsageDashboard:
 
         service = MonitoringService.__new__(MonitoringService)
         service.db = mock_db
+        service._load_actor_snapshot_map = AsyncMock(
+            return_value={
+                ("tenant_user", 7): {
+                    "user_id": 7,
+                    "user_type": "tenant_user",
+                    "display_name": "历史 Alice",
+                    "username": "alice_old",
+                    "nickname": "历史 Alice",
+                    "avatar": "snapshot-avatar",
+                    "org_node_id": 55,
+                    "org_node_name": "历史组织",
+                    "role_name": "历史成员",
+                    "display_role_name": "历史成员",
+                    "is_active": True,
+                    "is_owner": False,
+                    "is_leader": False,
+                }
+            }
+        )
         service._load_actor_map = AsyncMock(
             return_value={
                 ("tenant_user", 7): MonitoringActorInfo(
@@ -272,12 +291,12 @@ class TestUsageDashboard:
         assert dashboard.model_stats[0].label == "gpt-4o"
         assert dashboard.access_channel_stats[0].key == "chat"
         assert dashboard.top_agents[0].label == "Support Agent"
-        assert dashboard.top_users[0].label == "Alice"
+        assert dashboard.top_users[0].label == "历史 Alice"
         assert dashboard.top_users[0].actor is not None
-        assert dashboard.top_users[0].actor.avatar == "12"
-        assert dashboard.top_users[0].actor.display_name == "Alice"
-        assert dashboard.top_users[0].actor.org_node_name == "Sales"
-        assert dashboard.top_users[0].actor.display_role_name == "Member"
+        assert dashboard.top_users[0].actor.avatar == "snapshot-avatar"
+        assert dashboard.top_users[0].actor.display_name == "历史 Alice"
+        assert dashboard.top_users[0].actor.org_node_name == "历史组织"
+        assert dashboard.top_users[0].actor.display_role_name == "历史成员"
         assert dashboard.top_users[0].actor.type == "tenant_user"
         assert dashboard.top_tenants[0].label == "平台管理端"
 
@@ -290,6 +309,7 @@ class TestUsageDashboard:
         service = MonitoringService.__new__(MonitoringService)
         service.db = mock_db
         service._load_actor_map = AsyncMock(return_value={})
+        service._load_actor_snapshot_map = AsyncMock(return_value={})
         service._load_tenant_names = AsyncMock(return_value={11: "Tenant A"})
 
         mock_db.execute = AsyncMock(
@@ -362,6 +382,27 @@ class TestConversationQueries:
                 }
             }
         )
+        service._load_conversation_actor_snapshot_map = AsyncMock(
+            return_value={
+                1: {
+                    "snapshot": {
+                        "user_id": 7,
+                        "user_type": "tenant_user",
+                        "display_name": "历史 Alice",
+                        "username": "alice_old",
+                        "nickname": "历史 Alice",
+                        "avatar": "snapshot-avatar",
+                        "org_node_name": "历史组织",
+                        "display_role_name": None,
+                        "is_active": True,
+                        "is_owner": False,
+                        "is_leader": False,
+                    },
+                    "actor_type": "tenant_user",
+                    "actor_id": 7,
+                }
+            }
+        )
         service._load_tenant_names = AsyncMock(return_value={11: "Tenant A"})
         service._load_actor_map = AsyncMock(
             return_value={
@@ -384,7 +425,8 @@ class TestConversationQueries:
 
         assert total == 1
         assert items[0].tenant_name == "Tenant A"
-        assert items[0].actor.display_name == "Alice"
+        assert items[0].actor.display_name == "历史 Alice"
+        assert items[0].actor.org_node_name == "历史组织"
         assert items[0].call_count == 4
         assert items[0].total_tokens == 120
         assert items[0].total_cost == 0.9
@@ -424,6 +466,7 @@ class TestConversationQueries:
         service.db = mock_db
         service._load_conversation_usage_map = AsyncMock(return_value={})
         service._load_tenant_names = AsyncMock(return_value={})
+        service._load_conversation_actor_snapshot_map = AsyncMock(return_value={})
         service._load_actor_map = AsyncMock(return_value={})
 
         with patch(
@@ -506,6 +549,27 @@ class TestConversationQueries:
                 }
             }
         )
+        service._load_conversation_actor_snapshot_map = AsyncMock(
+            return_value={
+                5: {
+                    "snapshot": {
+                        "user_id": 7,
+                        "user_type": "tenant_user",
+                        "display_name": "历史 Alice",
+                        "username": "alice_old",
+                        "nickname": "历史 Alice",
+                        "avatar": "snapshot-avatar",
+                        "org_node_name": "历史组织",
+                        "display_role_name": None,
+                        "is_active": True,
+                        "is_owner": False,
+                        "is_leader": False,
+                    },
+                    "actor_type": "tenant_user",
+                    "actor_id": 7,
+                }
+            }
+        )
         service._load_actor_map = AsyncMock(
             return_value={
                 ("tenant_user", 7): MonitoringActorInfo(
@@ -575,7 +639,8 @@ class TestConversationQueries:
 
         assert detail.id == 5
         assert detail.tenant_name == "Tenant A"
-        assert detail.actor.display_name == "Alice"
+        assert detail.actor.display_name == "历史 Alice"
+        assert detail.actor.org_node_name == "历史组织"
         assert detail.total_tokens == 120
         assert detail.total_cost == 0.9
         assert detail.call_count == 4

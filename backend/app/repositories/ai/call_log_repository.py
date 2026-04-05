@@ -77,6 +77,17 @@ def _display_name(nickname: str | None, username: str | None, fallback: str) -> 
     return fallback
 
 
+def _normalize_caller_snapshot(
+    metadata: object,
+) -> dict[str, object]:
+    if not isinstance(metadata, dict):
+        return {}
+    snapshot = metadata.get("caller_snapshot")
+    if isinstance(snapshot, dict):
+        return snapshot
+    return {}
+
+
 def _datetime_to_iso_utc_str(value: object) -> object:
     """
     与 BaseSchema 一致：DB naive UTC → 带时区 ISO，避免 JSON 输出无后缀时被浏览器当作本地时间解析。
@@ -281,6 +292,11 @@ class AICallLogRepository(BaseRepository[AICallLog]):
         platform_admin_ids: set[int] = set()
         if include_caller_names:
             for i in items:
+                caller_snapshot = _normalize_caller_snapshot(
+                    getattr(i, "request_metadata", None)
+                )
+                if caller_snapshot.get("display_name") or caller_snapshot.get("username"):
+                    continue
                 actor_id = _normalize_optional_int(i.actor_user_id)
                 if actor_id is None:
                     actor_id = _normalize_optional_int(i.user_id)
@@ -499,6 +515,9 @@ class AICallLogRepository(BaseRepository[AICallLog]):
                 "billing_tenant_name_snapshot",
                 None,
             )
+            metadata = (
+                item.request_metadata if isinstance(item.request_metadata, dict) else {}
+            )
             if include_tenant_names:
                 effective_tenant_id = item.billing_tenant_id
                 if effective_tenant_id is None and item.tenant_id is not None:
@@ -515,7 +534,23 @@ class AICallLogRepository(BaseRepository[AICallLog]):
             caller_identity: dict[str, object] | None = None
             caller = "-"
             if include_caller_names:
-                if actor_id and actor_type:
+                caller_snapshot = _normalize_caller_snapshot(metadata)
+                if caller_snapshot:
+                    caller_identity = caller_snapshot
+                    caller = str(
+                        caller_snapshot.get("display_name")
+                        or caller_snapshot.get("username")
+                        or caller_snapshot.get("nickname")
+                        or "-"
+                    )
+                    actor_id = _normalize_optional_int(
+                        caller_snapshot.get("user_id"),
+                        allow_zero=True,
+                    ) or actor_id
+                    actor_type = (
+                        str(caller_snapshot.get("user_type") or "").strip() or actor_type
+                    )
+                elif actor_id and actor_type:
                     caller_identity = caller_identity_map.get(
                         (actor_type, int(actor_id))
                     )
@@ -553,7 +588,13 @@ class AICallLogRepository(BaseRepository[AICallLog]):
                 caller_identity.get("org_node_name") if caller_identity else None
             )
             d["caller_role_name"] = (
-                caller_identity.get("role_name") if caller_identity else None
+                caller_identity.get("display_role_name")
+                if caller_identity
+                and isinstance(caller_identity, dict)
+                and "display_role_name" in caller_identity
+                else caller_identity.get("role_name")
+                if caller_identity
+                else None
             )
             d["caller_display_role_name"] = (
                 caller_identity.get("display_role_name") if caller_identity else None
@@ -568,9 +609,6 @@ class AICallLogRepository(BaseRepository[AICallLog]):
                 caller_identity.get("is_owner") if caller_identity else None
             )
 
-            metadata = (
-                item.request_metadata if isinstance(item.request_metadata, dict) else {}
-            )
             d.pop("request_metadata", None)
             if not d.get("routed_model_id"):
                 d["routed_model_id"] = metadata.get("routed_model_id")
