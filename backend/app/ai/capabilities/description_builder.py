@@ -282,61 +282,6 @@ class CapabilityDescriptionBuilder:
             },
         )
 
-    def format_as_system_prompt_block(
-        self,
-        descriptions: list[CapabilityDescription],
-    ) -> str:
-        """
-        Format capability descriptions as a system prompt block.
-        将能力描述格式化为 system prompt 区块。
-
-        Args:
-            descriptions: List of CapabilityDescription
-
-        Returns:
-            Formatted system prompt block
-        """
-        if not descriptions:
-            return ""
-
-        lines: list[str] = [
-            "",
-            "---",
-            "[CAPABILITIES]",
-            "You have access to the following capabilities:",
-            "",
-        ]
-
-        for desc in descriptions:
-            title = self._extract_descriptor_title(desc)
-            items = self._extract_descriptor_items(desc)
-            if not title or not items:
-                continue
-
-            lines.append(f"## {title}")
-
-            for item in items:
-                lines.append(f"- {item}")
-
-            lines.append("")  # Empty line between categories
-
-        if len(lines) == 5:
-            # No valid descriptions appended
-            return ""
-
-        # Add usage instructions
-        lines.extend(
-            [
-                "When the user asks questions, you should:",
-                "1. Check if any of your skills can help answer the question",
-                "2. Search relevant knowledge bases for information",
-                "3. Use tools proactively instead of saying 'I cannot do that'",
-                "4. If you have page context, use available operations to interact with the page",
-            ]
-        )
-
-        return "\n".join(lines)
-
     # ========================================
     # Helper Methods / 辅助方法
     # ========================================
