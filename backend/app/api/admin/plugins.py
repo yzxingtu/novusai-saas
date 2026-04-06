@@ -2,11 +2,13 @@
 插件管理 Controller（管理端） / Plugin Management Controller (Admin)
 """
 
+import importlib
 import re
 import shutil
 import tempfile
 from datetime import timedelta
 from pathlib import Path
+from typing import Any
 
 from fastapi import File, Form, Response, UploadFile
 from jose import ExpiredSignatureError, JWTError, jwt
@@ -28,6 +30,7 @@ from app.core.response import (
     success,
 )
 from app.enums.rbac import PermissionScope
+from app.exceptions import ServiceUnavailableException
 from app.rbac.decorators import (
     MenuAIConfig,
     MenuConfig,
@@ -45,6 +48,32 @@ logger = LogManager.get_logger("plugin.admin")
 
 _INSTALL_PREVIEW_TOKEN_TYPE = "plugin_install_preview"
 _INSTALL_PREVIEW_TOKEN_EXPIRE_SECONDS = 15 * 60
+
+
+def _is_missing_module(exc: ModuleNotFoundError, module_path: str) -> bool:
+    return bool(exc.name) and (
+        exc.name == module_path or exc.name.startswith(f"{module_path}.")
+    )
+
+
+def _resolve_plugin_audit_service(db: DbSession) -> Any:
+    candidates = [
+        ("app.services.system.plugin_audit_service", "PluginAuditService"),
+        ("app.services.system.extension_audit_service", "PluginAuditService"),
+    ]
+    for module_path, class_name in candidates:
+        try:
+            module = importlib.import_module(module_path)
+        except ModuleNotFoundError as exc:
+            if _is_missing_module(exc, module_path):
+                continue
+            raise
+        service_cls = getattr(module, class_name, None)
+        if service_cls is not None:
+            return service_cls(db)
+    raise ServiceUnavailableException(
+        message=_("plugin.error.audit_service_unavailable")
+    )
 
 
 def _sanitize_slug(slug: str) -> None:
@@ -1854,6 +1883,23 @@ class AdminPluginController(GlobalController):
             return deleted()
 
         # ── 健康 / Health ──
+
+        @self.router.get("/runtime/audit")
+        @action_read("action.plugin.health")
+        async def plugin_runtime_audit(
+            db: DbSession,
+            admin: ActiveAdmin,
+            plugin_id: int | None = None,
+            tenant_id: int | None = None,
+        ):
+            _admin = admin
+            service = _resolve_plugin_audit_service(db)
+            report = await service.build_audit_report(
+                scope="admin",
+                plugin_id=plugin_id,
+                tenant_id=tenant_id,
+            )
+            return success(data=report)
 
         @self.router.get("/{plugin_id}/health")
         @action_read("action.plugin.health")

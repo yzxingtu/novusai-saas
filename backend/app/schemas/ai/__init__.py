@@ -49,12 +49,33 @@ from app.schemas.ai.provider import (
     AIProviderResponse,
     AIProviderUpdate,
 )
+from app.schemas.ai.plugin_runtime_audit import (
+    ExtensionLifecycleAuditReport,
+    ExtensionLifecycleAuditStageResult,
+    ExtensionLifecycleExposedCapability,
+    ExtensionLifecycleRecentFailure,
+)
+from app.schemas.ai.runtime_diagnostics import (
+    ExtensionLifecycleAuditReportSchema,
+    RuntimeCapabilityItem,
+    RuntimeCapabilityManifestSchema,
+    RuntimeCheckItem,
+    RuntimeDoctorReportSchema,
+    RuntimeFailureAggregateItem,
+    RuntimeRootCauseReportSchema,
+    RuntimeSmokeReportSchema,
+    RuntimeSmokeRequest,
+)
 
 __all__ = [
     # Provider / 供应商
     "AIProviderCreate",
     "AIProviderUpdate",
     "AIProviderResponse",
+    "ExtensionLifecycleAuditReport",
+    "ExtensionLifecycleAuditStageResult",
+    "ExtensionLifecycleExposedCapability",
+    "ExtensionLifecycleRecentFailure",
     # Model / 模型
     "AIModelCreate",
     "AIModelUpdate",
@@ -86,4 +107,14 @@ __all__ = [
     "BatchRunCreate",
     "BatchRunResponse",
     "BatchRunProgress",
+    # Runtime diagnostics / 运行时诊断
+    "RuntimeCapabilityItem",
+    "RuntimeCapabilityManifestSchema",
+    "RuntimeCheckItem",
+    "RuntimeFailureAggregateItem",
+    "RuntimeDoctorReportSchema",
+    "RuntimeSmokeRequest",
+    "RuntimeSmokeReportSchema",
+    "RuntimeRootCauseReportSchema",
+    "ExtensionLifecycleAuditReportSchema",
 ]

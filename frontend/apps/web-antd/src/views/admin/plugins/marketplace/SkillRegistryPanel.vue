@@ -17,6 +17,7 @@ import {
   Tag,
 } from 'ant-design-vue';
 
+import { syncOfficialStarterPacksApi } from '#/api/admin/ai-runtime';
 import {
   batchUpgradeSkillRegistryPackagesApi,
   getSkillRegistryDetailApi,
@@ -43,6 +44,7 @@ const detailLoading = ref(false);
 const activeDetail = ref<null | SkillRegistryPackageItem>(null);
 const updatesBySlug = ref<Record<string, SkillRegistryUpdateItem>>({});
 const batchUpgrading = ref(false);
+const starterPackInstalling = ref(false);
 const batchResultOpen = ref(false);
 const batchUpgradeResult = ref<Awaited<
   ReturnType<typeof batchUpgradeSkillRegistryPackagesApi>
@@ -60,6 +62,11 @@ const stats = computed(() => {
     upgradable: Object.keys(updatesBySlug.value).length,
   };
 });
+
+const OFFICIAL_STARTER_PACK_SLUGS = [
+  'novusai-runtime-ops',
+  'novusai-capability-awareness',
+];
 
 async function loadPackages() {
   loading.value = true;
@@ -183,6 +190,48 @@ async function batchUpgradePackages() {
   }
 }
 
+async function installOfficialStarterPacks() {
+  starterPackInstalling.value = true;
+  try {
+    let installedCount = 0;
+    let upgradedCount = 0;
+    try {
+      const syncResult = (await syncOfficialStarterPacksApi()) as {
+        installed?: unknown[];
+        upgraded?: unknown[];
+      };
+      installedCount = Array.isArray(syncResult?.installed)
+        ? syncResult.installed.length
+        : 0;
+      upgradedCount = Array.isArray(syncResult?.upgraded)
+        ? syncResult.upgraded.length
+        : 0;
+    } catch {
+      // Fallback to local install/upgrade flow when sync endpoint is absent or unavailable.
+      await loadPackages();
+      const packageMap = new Map(packages.value.map((item) => [item.slug, item]));
+      for (const slug of OFFICIAL_STARTER_PACK_SLUGS) {
+        const item = packageMap.get(slug);
+        if (item?.can_upgrade) {
+          await upgradeSkillRegistryPackageApi(slug);
+          upgradedCount += 1;
+          continue;
+        }
+        if (!item?.is_installed) {
+          await installSkillRegistryPackageApi(slug);
+          installedCount += 1;
+        }
+      }
+    }
+    await loadPackages();
+    message.success(
+      `Starter packs ready (installed: ${installedCount}, upgraded: ${upgradedCount})`,
+    );
+  } finally {
+    starterPackInstalling.value = false;
+  }
+}
+
 onMounted(loadPackages);
 </script>
 
@@ -288,7 +337,7 @@ onMounted(loadPackages);
           </Button>
         </div>
         <Button class="lg:ml-auto" @click="loadPackages">
-          {{ $t('admin.common.refresh') }}
+          {{ $t('common.refresh') }}
         </Button>
         <Button
           v-if="stats.upgradable > 0"
@@ -298,6 +347,13 @@ onMounted(loadPackages);
           @click="batchUpgradePackages"
         >
           {{ $t('admin.ai.skillRegistry.upgradeAll') }}
+        </Button>
+        <Button
+          v-access:code="['plugin_skill_registry:install']"
+          :loading="starterPackInstalling"
+          @click="installOfficialStarterPacks"
+        >
+          {{ $t('admin.ai.skillRegistry.installOfficialStarterPacks') }}
         </Button>
       </div>
     </section>

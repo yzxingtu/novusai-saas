@@ -5,7 +5,10 @@ AI 供应商健康状态 API (Admin) / AI Provider Health API (Admin)
 Provides provider health check status query endpoints.
 """
 
-from fastapi import Request
+import importlib
+from typing import Any
+
+from fastapi import Body, Query, Request
 from sqlalchemy import select
 
 from app.ai.failover import FailoverService
@@ -14,12 +17,42 @@ from app.core.deps import ActiveAdmin, DbSession
 from app.core.i18n import _
 from app.core.response import success
 from app.enums.rbac import PermissionScope
+from app.exceptions import ServiceUnavailableException
 from app.models.ai.provider import AIProvider
 from app.rbac.decorators import (
     MenuConfig,
+    action_create,
     action_read,
     permission_resource,
 )
+from app.schemas.ai.runtime_diagnostics import RuntimeSmokeRequest
+
+
+def _is_missing_module(exc: ModuleNotFoundError, module_path: str) -> bool:
+    return bool(exc.name) and (
+        exc.name == module_path or exc.name.startswith(f"{module_path}.")
+    )
+
+
+def _resolve_runtime_diagnostics_service(db: DbSession) -> Any:
+    candidates = [
+        ("app.services.ai.runtime_diagnostics_service", "AIRuntimeDiagnosticsService"),
+        ("app.services.ai.runtime_diagnostics", "AIRuntimeDiagnosticsService"),
+        ("app.services.ai.runtime_service", "AIRuntimeDiagnosticsService"),
+    ]
+    for module_path, class_name in candidates:
+        try:
+            module = importlib.import_module(module_path)
+        except ModuleNotFoundError as exc:
+            if _is_missing_module(exc, module_path):
+                continue
+            raise
+        service_cls = getattr(module, class_name, None)
+        if service_cls is not None:
+            return service_cls(db)
+    raise ServiceUnavailableException(
+        message=_("ai.runtime.error.diagnostics_service_unavailable")
+    )
 
 
 @permission_resource(
@@ -98,6 +131,67 @@ class AdminAIHealthController(GlobalController):
                 limit=288,  # 24h * 12 (every 5 min) / 24 小时 × 12 条（每 5 分钟采样）
             )
             return success(data=history, message=_("common.success"))
+
+        @router.get("/runtime/capabilities", summary="获取 AI runtime 能力清单")
+        @action_read("action.ai_health.list")
+        async def get_runtime_capabilities(
+            request: Request,
+            db: DbSession,
+            admin: ActiveAdmin,
+            tenant_id: int | None = Query(None, description="企业 ID"),
+            agent_id: int | None = Query(None, description="智能体 ID"),
+            agent_code: str | None = Query(None, description="智能体代码"),
+        ):
+            _request = request
+            _admin = admin
+            service = _resolve_runtime_diagnostics_service(db)
+            data = await service.get_capabilities(
+                scope="admin",
+                tenant_id=tenant_id,
+                agent_id=agent_id,
+                agent_code=agent_code,
+            )
+            return success(data=data, message=_("common.success"))
+
+        @router.get("/runtime/doctor", summary="运行 AI runtime Doctor 预检")
+        @action_read("action.ai_health.list")
+        async def run_runtime_doctor(
+            request: Request,
+            db: DbSession,
+            admin: ActiveAdmin,
+            tenant_id: int | None = Query(None, description="企业 ID"),
+            agent_id: int | None = Query(None, description="智能体 ID"),
+            agent_code: str | None = Query(None, description="智能体代码"),
+        ):
+            _request = request
+            _admin = admin
+            service = _resolve_runtime_diagnostics_service(db)
+            report = await service.run_doctor(
+                scope="admin",
+                tenant_id=tenant_id,
+                agent_id=agent_id,
+                agent_code=agent_code,
+            )
+            return success(data=report, message=_("common.success"))
+
+        @router.post("/runtime/smoke", summary="运行 Agent Capability Smoke")
+        @action_create("action.ai_health.list")
+        async def run_runtime_smoke(
+            request: Request,
+            db: DbSession,
+            admin: ActiveAdmin,
+            body: RuntimeSmokeRequest = Body(default_factory=RuntimeSmokeRequest),
+        ):
+            _request = request
+            _admin = admin
+            service = _resolve_runtime_diagnostics_service(db)
+            report = await service.run_smoke(
+                scope="admin",
+                tenant_id=body.tenant_id,
+                agent_id=body.agent_id,
+                agent_code=body.agent_code,
+            )
+            return success(data=report, message=_("common.success"))
 
 
 # 导出路由器 / Export router

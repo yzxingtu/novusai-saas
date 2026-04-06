@@ -20,6 +20,12 @@ if TYPE_CHECKING:
         LegacyContextAssemblerAdapter,
         get_context_assembler,
     )
+    from app.ai.runtime.manifest import (
+        AIRuntimeInventoryService,
+        RuntimeCapabilityItem,
+        RuntimeCapabilityManifest,
+        RuntimeCapabilityStatus,
+    )
     from app.ai.runtime.query_engine import ConversationQueryEngine
     from app.ai.runtime.tool_executor import ToolExecutor
     from app.ai.runtime.types import (
@@ -43,6 +49,10 @@ _EXPORT_MAP = {
     "ContextAssemblerState": "app.ai.runtime.context_assembler",
     "LegacyContextAssemblerAdapter": "app.ai.runtime.context_assembler",
     "get_context_assembler": "app.ai.runtime.context_assembler",
+    "AIRuntimeInventoryService": "app.ai.runtime.manifest",
+    "RuntimeCapabilityItem": "app.ai.runtime.manifest",
+    "RuntimeCapabilityManifest": "app.ai.runtime.manifest",
+    "RuntimeCapabilityStatus": "app.ai.runtime.manifest",
     "ConversationQueryEngine": "app.ai.runtime.query_engine",
     "ToolExecutor": "app.ai.runtime.tool_executor",
     "CapabilityBundle": "app.ai.runtime.types",
@@ -75,6 +85,7 @@ __all__ = [
     "CapabilityKind",
     "CapabilityProvider",
     "CapabilityRegistry",
+    "AIRuntimeInventoryService",
     "ContextAssembler",
     "ContextAssemblerState",
     "ContextSource",
@@ -86,5 +97,8 @@ __all__ = [
     "TurnOutcome",
     "TurnRecord",
     "ToolExecutor",
+    "RuntimeCapabilityItem",
+    "RuntimeCapabilityManifest",
+    "RuntimeCapabilityStatus",
     "get_context_assembler",
 ]

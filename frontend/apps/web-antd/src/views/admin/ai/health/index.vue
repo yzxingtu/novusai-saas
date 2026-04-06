@@ -9,9 +9,24 @@ import { computed, ref, watchEffect } from 'vue';
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import { Badge, Button, Card, Empty, Spin, Tag, Tooltip } from 'ant-design-vue';
+import {
+  Badge,
+  Button,
+  Card,
+  Empty,
+  InputNumber,
+  Modal,
+  Spin,
+  Tag,
+  Tooltip,
+} from 'ant-design-vue';
 
 import { getAIHealthStatusApi } from '#/api/admin/ai';
+import {
+  getAIRuntimeCapabilitiesApi,
+  getAIRuntimeDoctorApi,
+  runAIRuntimeSmokeApi,
+} from '#/api/admin/ai-runtime';
 import { useCrudList } from '#/composables';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
@@ -71,6 +86,58 @@ const degradedCount = computed(
 const unavailableCount = computed(
   () => statuses.value.filter((s) => !s.is_available).length,
 );
+
+const runtimeAgentId = ref<null | number>(null);
+const runtimeLoading = ref(false);
+const runtimeResultTitle = ref('');
+const runtimeResultOpen = ref(false);
+const runtimeResultPayload = ref<unknown>(null);
+
+function openRuntimeResult(title: string, payload: unknown) {
+  runtimeResultTitle.value = title;
+  runtimeResultPayload.value = payload;
+  runtimeResultOpen.value = true;
+}
+
+async function runRuntimeDoctor() {
+  runtimeLoading.value = true;
+  try {
+    const result = await getAIRuntimeDoctorApi(
+      runtimeAgentId.value ? { agent_id: runtimeAgentId.value } : undefined,
+    );
+    openRuntimeResult('Runtime Doctor', result);
+  } finally {
+    runtimeLoading.value = false;
+  }
+}
+
+async function runRuntimeSmoke() {
+  runtimeLoading.value = true;
+  try {
+    const result = await runAIRuntimeSmokeApi(
+      runtimeAgentId.value ? { agent_id: runtimeAgentId.value } : undefined,
+    );
+    openRuntimeResult('Runtime Smoke', result);
+  } finally {
+    runtimeLoading.value = false;
+  }
+}
+
+async function runRuntimeCapabilities() {
+  runtimeLoading.value = true;
+  try {
+    const result = await getAIRuntimeCapabilitiesApi(
+      runtimeAgentId.value ? { agent_id: runtimeAgentId.value } : undefined,
+    );
+    openRuntimeResult('Runtime Capabilities', result);
+  } finally {
+    runtimeLoading.value = false;
+  }
+}
+
+function prettyRuntimeResult(value: unknown): string {
+  return JSON.stringify(value ?? {}, null, 2);
+}
 
 // ========== 辅助 / Helpers ==========
 function getStatusColor(status: AIHealthStatus): string {
@@ -147,12 +214,54 @@ function getProbeText(passed: boolean | null | undefined): string {
             {{ $t('admin.ai.health.providers') }}
           </span>
         </div>
-        <Button size="small" @click="loadHealth">
-          <template #icon>
-            <IconifyIcon icon="lucide:refresh-cw" class="size-3.5" />
-          </template>
-          {{ $t('admin.ai.health.refresh') }}
-        </Button>
+        <div class="flex flex-wrap items-center justify-end gap-2">
+          <InputNumber
+            v-model:value="runtimeAgentId"
+            size="small"
+            class="w-[140px]"
+            :min="1"
+            :placeholder="$t('admin.ai.health.agentIdPlaceholder')"
+          />
+          <Button
+            v-access:code="['ai_runtime:list']"
+            size="small"
+            :loading="runtimeLoading"
+            @click="runRuntimeDoctor"
+          >
+            <template #icon>
+              <IconifyIcon icon="lucide:stethoscope" class="size-3.5" />
+            </template>
+            {{ $t('admin.ai.health.runtimeDoctor') }}
+          </Button>
+          <Button
+            v-access:code="['ai_runtime:create']"
+            size="small"
+            :loading="runtimeLoading"
+            @click="runRuntimeSmoke"
+          >
+            <template #icon>
+              <IconifyIcon icon="lucide:flame" class="size-3.5" />
+            </template>
+            {{ $t('admin.ai.health.runtimeSmoke') }}
+          </Button>
+          <Button
+            v-access:code="['ai_runtime:list']"
+            size="small"
+            :loading="runtimeLoading"
+            @click="runRuntimeCapabilities"
+          >
+            <template #icon>
+              <IconifyIcon icon="lucide:scan-search" class="size-3.5" />
+            </template>
+            {{ $t('admin.ai.health.runtimeCapabilities') }}
+          </Button>
+          <Button size="small" @click="loadHealth">
+            <template #icon>
+              <IconifyIcon icon="lucide:refresh-cw" class="size-3.5" />
+            </template>
+            {{ $t('admin.ai.health.refresh') }}
+          </Button>
+        </div>
       </div>
     </section>
 
@@ -324,5 +433,18 @@ function getProbeText(passed: boolean | null | undefined): string {
       </div>
       <Empty v-else class="py-16" :description="$t('admin.ai.health.noData')" />
     </Spin>
+
+    <Modal
+      v-model:open="runtimeResultOpen"
+      :title="runtimeResultTitle"
+      :footer="null"
+      width="920px"
+      destroy-on-close
+    >
+      <pre
+        class="max-h-[560px] overflow-auto rounded-lg border border-border/60 bg-accent/20 p-3 font-mono text-xs leading-5"
+        >{{ prettyRuntimeResult(runtimeResultPayload) }}</pre
+      >
+    </Modal>
   </Page>
 </template>

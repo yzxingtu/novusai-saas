@@ -31,7 +31,9 @@ from app.schemas.ai.skill_package import (
     SkillPackageCreate,
     SkillPackageUpdate,
 )
+from app.schemas.ai.skill_registry import StarterPackSyncRequest
 from app.services.ai.skill_package_service import AdminSkillPackageService
+from app.services.ai.skill_registry_service import SkillRegistryService
 
 logger = LogManager.get_logger("ai")
 
@@ -156,6 +158,37 @@ class AdminSkillPackageController(GlobalController):
                     for p in pkgs
                 ]
             )
+
+        @router.get("/starter-packs", summary="官方 starter packs 目录（技能包入口）")
+        @action_read("action.ai_skill_package.list")
+        async def list_official_starter_packs(
+            request: Request,
+            db: DbSession,
+            admin: ActiveAdmin,
+        ):
+            _ = request, admin
+            data = await SkillRegistryService(db).list_official_starter_packs()
+            return success(data=data)
+
+        @router.post(
+            "/starter-packs/sync",
+            summary="同步/安装官方 starter packs（技能包入口）",
+        )
+        @action_create("action.ai_skill_package.create")
+        async def sync_official_starter_packs(
+            request: Request,
+            db: DbSession,
+            admin: ActiveAdmin,
+            data: StarterPackSyncRequest,
+        ):
+            _ = request, admin
+            result = await SkillRegistryService(db).sync_official_starter_packs(
+                pack_keys=data.pack_keys,
+                install_missing=data.install_missing,
+                upgrade_existing=data.upgrade_existing,
+                dry_run=data.dry_run,
+            )
+            return success(data=result)
 
         @router.get("", summary="全企业技能包列表")
         @action_read("action.ai_skill_package.list")

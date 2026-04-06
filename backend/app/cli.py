@@ -3136,9 +3136,234 @@ def _render_ai_conversation_text(
     return "\n".join(lines)
 
 
+def _normalize_cli_identifier(value: str | None) -> str | None:
+    text = str(value or "").strip()
+    return text or None
+
+
+def _render_ai_runtime_section(title: str, payload: object) -> str:
+    import json
+
+    lines = [title]
+    if isinstance(payload, dict):
+        for key in sorted(payload.keys()):
+            lines.append(f"{key}: {payload.get(key)}")
+        return "\n".join(lines)
+    if isinstance(payload, list):
+        lines.append(json.dumps(payload, ensure_ascii=False, indent=2, default=_json_default))
+        return "\n".join(lines)
+    lines.append(str(payload))
+    return "\n".join(lines)
+
+
+async def _run_ai_runtime_cli_operation(
+    operation: str,
+    *,
+    tenant_id: int | None = None,
+    agent_id: int | None = None,
+    agent_code: str | None = None,
+    trace_id: str | None = None,
+    call_log_id: int | None = None,
+    conversation_id: int | None = None,
+    turn: int | None = None,
+) -> dict:
+    from app.core.database import get_db_context
+    from app.services.ai.runtime_cli_bridge import AIRuntimeCliBridge, RuntimeCliScope
+
+    scope = RuntimeCliScope(
+        tenant_id=tenant_id,
+        agent_id=agent_id,
+        agent_code=agent_code,
+    )
+    async with get_db_context() as db:
+        bridge = AIRuntimeCliBridge(db)
+        if operation == "capabilities":
+            return await bridge.get_capabilities(scope)
+        if operation == "doctor":
+            return await bridge.run_doctor(scope)
+        if operation == "smoke":
+            return await bridge.run_smoke(scope)
+        if operation == "root-cause":
+            return await bridge.run_root_cause(
+                trace_id=trace_id,
+                call_log_id=call_log_id,
+                conversation_id=conversation_id,
+                turn=turn,
+            )
+        if operation == "starter-pack-sync":
+            return await bridge.sync_starter_pack()
+    raise click.ClickException(f"Unsupported AI runtime CLI operation: {operation}")
+
+
 @cli.group("ai", help="AI diagnostics / AI 对话排查")
 def ai_cmd() -> None:
     pass
+
+
+@ai_cmd.command("capabilities")
+@click.option("--tenant-id", type=int, default=None, help="Tenant scope ID")
+@click.option("--agent-id", type=int, default=None, help="Agent ID")
+@click.option("--agent-code", default=None, help="Agent code")
+@click.option("--json", "output_json", is_flag=True, help="Output JSON")
+def ai_capabilities(
+    tenant_id: int | None,
+    agent_id: int | None,
+    agent_code: str | None,
+    output_json: bool,
+) -> None:
+    """Show runtime capabilities snapshot / 查看运行态能力快照。"""
+    os.chdir(_BACKEND_DIR)
+    normalized_agent_code = _normalize_cli_identifier(agent_code)
+    if agent_id is not None and normalized_agent_code:
+        raise click.ClickException("Use either --agent-id or --agent-code, not both.")
+    payload = _run_quietly(
+        True,
+        _run_async,
+        _run_ai_runtime_cli_operation(
+            "capabilities",
+            tenant_id=tenant_id,
+            agent_id=agent_id,
+            agent_code=normalized_agent_code,
+        ),
+    )
+    if output_json:
+        _echo_json(_json_success({"operation": "capabilities", "result": payload}))
+        return
+    click.echo(_render_ai_runtime_section("AI Runtime Capabilities", payload))
+
+
+@ai_cmd.command("doctor")
+@click.option("--tenant-id", type=int, default=None, help="Tenant scope ID")
+@click.option("--agent-id", type=int, default=None, help="Agent ID")
+@click.option("--agent-code", default=None, help="Agent code")
+@click.option("--json", "output_json", is_flag=True, help="Output JSON")
+def ai_doctor(
+    tenant_id: int | None,
+    agent_id: int | None,
+    agent_code: str | None,
+    output_json: bool,
+) -> None:
+    """Run runtime doctor checks / 运行 AI Runtime Doctor 检查。"""
+    os.chdir(_BACKEND_DIR)
+    normalized_agent_code = _normalize_cli_identifier(agent_code)
+    if agent_id is not None and normalized_agent_code:
+        raise click.ClickException("Use either --agent-id or --agent-code, not both.")
+    payload = _run_quietly(
+        True,
+        _run_async,
+        _run_ai_runtime_cli_operation(
+            "doctor",
+            tenant_id=tenant_id,
+            agent_id=agent_id,
+            agent_code=normalized_agent_code,
+        ),
+    )
+    if output_json:
+        _echo_json(_json_success({"operation": "doctor", "result": payload}))
+        return
+    click.echo(_render_ai_runtime_section("AI Runtime Doctor", payload))
+
+
+@ai_cmd.command("smoke")
+@click.option("--tenant-id", type=int, default=None, help="Tenant scope ID")
+@click.option("--agent-id", type=int, default=None, help="Agent ID")
+@click.option("--agent-code", default=None, help="Agent code")
+@click.option("--json", "output_json", is_flag=True, help="Output JSON")
+def ai_smoke(
+    tenant_id: int | None,
+    agent_id: int | None,
+    agent_code: str | None,
+    output_json: bool,
+) -> None:
+    """Run agent capability smoke checks / 运行 agent 能力冒烟检查。"""
+    os.chdir(_BACKEND_DIR)
+    normalized_agent_code = _normalize_cli_identifier(agent_code)
+    if agent_id is not None and normalized_agent_code:
+        raise click.ClickException("Use either --agent-id or --agent-code, not both.")
+    if agent_id is None and not normalized_agent_code:
+        raise click.ClickException("smoke requires --agent-id or --agent-code.")
+    payload = _run_quietly(
+        True,
+        _run_async,
+        _run_ai_runtime_cli_operation(
+            "smoke",
+            tenant_id=tenant_id,
+            agent_id=agent_id,
+            agent_code=normalized_agent_code,
+        ),
+    )
+    if output_json:
+        _echo_json(_json_success({"operation": "smoke", "result": payload}))
+        return
+    click.echo(_render_ai_runtime_section("AI Runtime Smoke", payload))
+
+
+@ai_cmd.command("root-cause")
+@click.option("--trace-id", default=None, help="Trace ID")
+@click.option("--call-log-id", type=int, default=None, help="Call log ID")
+@click.option("--conversation-id", type=int, default=None, help="Conversation ID")
+@click.option("--turn", type=int, default=None, help="Turn number (with --conversation-id)")
+@click.option("--json", "output_json", is_flag=True, help="Output JSON")
+def ai_root_cause(
+    trace_id: str | None,
+    call_log_id: int | None,
+    conversation_id: int | None,
+    turn: int | None,
+    output_json: bool,
+) -> None:
+    """Analyze runtime root cause / 运行时根因分析。"""
+    os.chdir(_BACKEND_DIR)
+    normalized_trace_id = _normalize_cli_identifier(trace_id)
+    selectors = [
+        bool(normalized_trace_id),
+        call_log_id is not None,
+        conversation_id is not None,
+    ]
+    if sum(1 for item in selectors if item) != 1:
+        raise click.ClickException(
+            "Provide exactly one selector: --trace-id OR --call-log-id OR --conversation-id."
+        )
+    if conversation_id is not None and turn is None:
+        raise click.ClickException("--conversation-id requires --turn.")
+    if conversation_id is None and turn is not None:
+        raise click.ClickException("--turn can only be used with --conversation-id.")
+
+    payload = _run_quietly(
+        True,
+        _run_async,
+        _run_ai_runtime_cli_operation(
+            "root-cause",
+            trace_id=normalized_trace_id,
+            call_log_id=call_log_id,
+            conversation_id=conversation_id,
+            turn=turn,
+        ),
+    )
+    if output_json:
+        _echo_json(_json_success({"operation": "root-cause", "result": payload}))
+        return
+    click.echo(_render_ai_runtime_section("AI Runtime Root Cause", payload))
+
+
+@ai_cmd.group("starter-pack", help="Starter pack ops / 官方 starter pack 操作")
+def ai_starter_pack_cmd() -> None:
+    pass
+
+
+@ai_starter_pack_cmd.command("sync")
+@click.option("--json", "output_json", is_flag=True, help="Output JSON")
+def ai_starter_pack_sync(output_json: bool) -> None:
+    """Sync official starter packs / 同步官方 starter pack。"""
+    os.chdir(_BACKEND_DIR)
+    payload = _run_quietly(
+        True,
+        _run_async,
+        _run_ai_runtime_cli_operation("starter-pack-sync"),
+    )
+    if output_json:
+        _echo_json(_json_success({"operation": "starter-pack-sync", "result": payload}))
+        return
+    click.echo(_render_ai_runtime_section("AI Starter Pack Sync", payload))
 
 
 @ai_cmd.group("conversation", help="Inspect AI conversations / 查询 AI 对话")

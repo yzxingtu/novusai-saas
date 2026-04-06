@@ -3,6 +3,7 @@
  * Endpoints require platform admin authentication / 这些接口需要平台管理员认证
  */
 export * from './ai';
+export * from './ai-runtime';
 export * from './attachment';
 export * from './auth';
 

@@ -7,11 +7,12 @@ import { IconifyIcon } from '@vben/icons';
 
 import { Drawer, Empty, Spin, Tag } from 'ant-design-vue';
 
+import { getAIRuntimeRootCauseApi } from '#/api/admin/ai-runtime';
 import { IdentitySummaryCard } from '#/components/business/identity-display';
-import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
+import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
 
 import { getMonitoringCallLogDetail } from '../api';
 import {
@@ -30,23 +31,45 @@ const emits = defineEmits<{ 'update:open': [value: boolean] }>();
 
 const loading = ref(false);
 const detail = ref<MonitoringCallLogInfo | null>(null);
+const rootCauseLoading = ref(false);
+const rootCausePayload = ref<null | Record<string, unknown>>(null);
 
 watch(
   () => [props.open, props.logId] as const,
   async ([open, id]) => {
     if (!open || !id) {
       detail.value = null;
+      rootCausePayload.value = null;
       return;
     }
     loading.value = true;
     try {
       detail.value = await getMonitoringCallLogDetail(props.scope, id);
+      await loadRootCause();
     } finally {
       loading.value = false;
     }
   },
   { immediate: true },
 );
+
+async function loadRootCause() {
+  if (props.scope !== 'admin' || !props.logId) {
+    rootCausePayload.value = null;
+    return;
+  }
+  rootCauseLoading.value = true;
+  try {
+    rootCausePayload.value = (await getAIRuntimeRootCauseApi({
+      call_log_id: props.logId,
+      trace_id: detail.value?.trace_id || undefined,
+    })) as Record<string, unknown>;
+  } catch {
+    rootCausePayload.value = null;
+  } finally {
+    rootCauseLoading.value = false;
+  }
+}
 
 function closeDrawer() {
   emits('update:open', false);
@@ -82,9 +105,7 @@ const callerIdentityModel = computed(() =>
   detail.value ? createMonitoringCallerIdentityModel(detail.value) : null,
 );
 
-const callerContextLabel = computed(
-  () => $t(`${props.i18nPrefix}.callerName`),
-);
+const callerContextLabel = computed(() => $t(`${props.i18nPrefix}.callerName`));
 
 function getStatusColor(status?: null | string) {
   switch (status) {
@@ -461,6 +482,72 @@ function buildDrawerCallerMeta(data: MonitoringCallLogInfo | null) {
                 {{ field.value }}
               </div>
             </div>
+          </div>
+        </section>
+
+        <section
+          v-if="scope === 'admin'"
+          class="mt-4 rounded-2xl border border-border/70 bg-card px-4 py-4 shadow-sm"
+        >
+          <div class="mb-2 flex items-center justify-between gap-2">
+            <div
+              class="flex items-center gap-2 text-sm font-semibold text-foreground"
+            >
+              <IconifyIcon
+                icon="lucide:search-check"
+                class="size-4 text-primary"
+              />
+              <span>Root Cause</span>
+            </div>
+            <button
+              class="rounded-md border border-border/60 px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
+              @click="loadRootCause"
+            >
+              Refresh
+            </button>
+          </div>
+          <div
+            v-if="rootCauseLoading"
+            class="py-3 text-xs text-muted-foreground"
+          >
+            Loading root cause...
+          </div>
+          <template v-else-if="rootCausePayload">
+            <div class="mb-2 grid grid-cols-1 gap-2 md:grid-cols-3">
+              <div
+                class="rounded-lg border border-border/60 bg-background/70 px-3 py-2"
+              >
+                <div class="text-[11px] text-muted-foreground">Status</div>
+                <div class="mt-1 text-sm font-medium text-foreground">
+                  {{ String(rootCausePayload.status || '-') }}
+                </div>
+              </div>
+              <div
+                class="rounded-lg border border-border/60 bg-background/70 px-3 py-2"
+              >
+                <div class="text-[11px] text-muted-foreground">
+                  Failure Layer
+                </div>
+                <div class="mt-1 text-sm font-medium text-foreground">
+                  {{ String(rootCausePayload.failure_layer || '-') }}
+                </div>
+              </div>
+              <div
+                class="rounded-lg border border-border/60 bg-background/70 px-3 py-2"
+              >
+                <div class="text-[11px] text-muted-foreground">Cause Code</div>
+                <div class="mt-1 text-sm font-medium text-foreground">
+                  {{ String(rootCausePayload.cause_code || '-') }}
+                </div>
+              </div>
+            </div>
+            <pre
+              class="max-h-72 overflow-auto rounded-xl border border-border/60 bg-accent/30 p-3 font-mono text-xs leading-5"
+              >{{ pretty(rootCausePayload) }}</pre
+            >
+          </template>
+          <div v-else class="py-3 text-xs text-muted-foreground">
+            Root cause report is unavailable for this call log.
           </div>
         </section>
 

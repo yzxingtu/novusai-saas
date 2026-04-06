@@ -250,8 +250,7 @@ class BaseEngine(ABC):
         tools: list[ToolDefinition],
         _input_variables: dict[str, Any] | None = None,
         continuation_context: ResearchContinuationContext | None = None,
-        selected_skill_names: list[str] | None = None,
-        context_sources: list[Any] | None = None,
+        runtime_capability_summary: dict[str, Any] | None = None,
         ordered_requested_families: list[str] | None = None,
         skip_capability_summary: bool = False,
         intent_plan: list[IntentPlan] | None = None,
@@ -265,11 +264,7 @@ class BaseEngine(ABC):
         if (
             not messages
             or messages[0].role != "system"
-            or (
-                not tools
-                and not (selected_skill_names or [])
-                and not (context_sources or [])
-            )
+            or (not tools and not runtime_capability_summary)
         ):
             return False
 
@@ -306,8 +301,7 @@ class BaseEngine(ABC):
             hint += continuation_hint
         if not skip_capability_summary:
             runtime_capability_hint = BaseEngine._build_runtime_capability_hint(
-                selected_skill_names,
-                context_sources,
+                runtime_capability_summary,
                 include_knowledge_base_hint=include_knowledge_base_hint,
                 include_page_context_hint=include_page_context_hint,
                 include_memory_hint=include_memory_hint,
@@ -327,8 +321,9 @@ class BaseEngine(ABC):
                         if execution_budget is not None
                         else None
                     ),
-                    "skills": list(selected_skill_names or []),
-                    "sources": list(context_sources or []),
+                    "runtime_capability_summary": dict(
+                        runtime_capability_summary or {}
+                    ),
                     "skip_capability_summary": bool(skip_capability_summary),
                     "include_knowledge_base_hint": bool(include_knowledge_base_hint),
                     "include_page_context_hint": bool(include_page_context_hint),
@@ -668,67 +663,40 @@ class BaseEngine(ABC):
 
     @staticmethod
     def _build_runtime_capability_hint(
-        selected_skill_names: list[str] | None,
-        context_sources: list[Any] | None,
+        runtime_capability_summary: dict[str, Any] | None,
         *,
         include_knowledge_base_hint: bool = True,
         include_page_context_hint: bool = True,
         include_memory_hint: bool = True,
     ) -> str:
+        summary = (
+            dict(runtime_capability_summary)
+            if isinstance(runtime_capability_summary, dict)
+            else {}
+        )
         normalized_skill_names: list[str] = []
-        for name in selected_skill_names or []:
+        for name in summary.get("selected_skill_names") or []:
             text = str(name or "").strip()
             if text and text not in normalized_skill_names:
                 normalized_skill_names.append(text)
 
-        normalized_context_sources: list[tuple[str, str]] = []
-        context_source_kinds: list[str] = []
-        for source in context_sources or []:
-            if isinstance(source, dict):
-                kind = str(source.get("kind") or "").strip()
-                name = str(source.get("name") or "").strip()
-                active = bool(source.get("active", True))
-            else:
-                kind = str(getattr(source, "kind", "") or "").strip()
-                name = str(getattr(source, "name", "") or "").strip()
-                active = bool(getattr(source, "active", True))
-            if not active or not kind:
-                continue
-            if kind == "knowledge_base" and not include_knowledge_base_hint:
-                continue
-            if kind == "page_context" and not include_page_context_hint:
-                continue
-            if kind in {"session_memory", "long_term_memory"} and not include_memory_hint:
-                continue
-            normalized_item = (kind, name or kind)
-            if normalized_item not in normalized_context_sources:
-                normalized_context_sources.append(normalized_item)
-            if kind not in context_source_kinds:
-                context_source_kinds.append(kind)
-
-        if not normalized_skill_names and not normalized_context_sources:
+        context_line = str(summary.get("context_line") or "").strip()
+        if not normalized_skill_names and not context_line:
             return ""
-
-        context_line = ", ".join(
-            f"{kind}:{name}" if name and name != kind else kind
-            for kind, name in normalized_context_sources
-        )
         return "\n\n" + render_prompt_contract(
             "turn_capabilities",
             selected_skill_names=", ".join(normalized_skill_names),
             context_line=context_line,
             knowledge_base_hint=(
-                include_knowledge_base_hint and "knowledge_base" in context_source_kinds
+                include_knowledge_base_hint
+                and bool(summary.get("knowledge_base_hint", False))
             ),
             page_context_hint=(
-                include_page_context_hint and "page_context" in context_source_kinds
+                include_page_context_hint
+                and bool(summary.get("page_context_hint", False))
             ),
             memory_hint=(
-                include_memory_hint
-                and (
-                    "session_memory" in context_source_kinds
-                    or "long_term_memory" in context_source_kinds
-                )
+                include_memory_hint and bool(summary.get("memory_hint", False))
             ),
         )
 
@@ -2280,7 +2248,7 @@ class BaseEngine(ABC):
         *,
         agent: Agent,
         messages: list[ChatMessage],
-        response: ChatResponse,
+        response: ChatResponse | None,
         tools: list[ToolDefinition],
         policy: ToolUsePolicy,
         conversation_id: int | None,
@@ -2291,7 +2259,9 @@ class BaseEngine(ABC):
         if not tools:
             return
 
-        response_text = (response.message.content or "").strip()
+        response_text = (
+            (response.message.content or "").strip() if response is not None else ""
+        )
         current_user_text = self._extract_last_user_text(messages)
         target_text = (
             continuation.research_target_text
@@ -2740,14 +2710,17 @@ class BaseEngine(ABC):
             )
 
         # 5. Inject runtime capability awareness / 注入运行时能力感知提示
-        selected_skill_names = (
-            context_assembly.capability_bundle.selected_skill_names
-            if context_assembly.capability_bundle is not None
-            else None
-        )
         context_sources = (
             context_assembly.capability_bundle.context_sources
             if context_assembly.capability_bundle is not None
+            else None
+        )
+        runtime_capability_summary = (
+            dict(context_assembly.diagnostics.get("runtime_capability_summary") or {})
+            if isinstance(
+                context_assembly.diagnostics.get("runtime_capability_summary"),
+                dict,
+            )
             else None
         )
         capability_injection_decision = dict(
@@ -2781,8 +2754,7 @@ class BaseEngine(ABC):
             tools,
             request.input_variables,
             continuation_context=continuation_context,
-            selected_skill_names=selected_skill_names,
-            context_sources=context_sources,
+            runtime_capability_summary=runtime_capability_summary,
             ordered_requested_families=explicit_requested_families,
             skip_capability_summary=skip_capability_summary,
             intent_plan=intent_plan,
@@ -3541,17 +3513,6 @@ class BaseEngine(ABC):
                         ).encode("utf-8")
                     )
                     if tool_result_budget_reason:
-                        if (
-                            tool_result_budget_reason == "elapsed_budget_exceeded"
-                            and _has_successful_tool_results()
-                            and BudgetGuard.pre_model_reason(
-                                execution_budget,
-                                allow_finalization_grace=True,
-                            )
-                            is None
-                        ):
-                            graceful_finalization_pending = True
-                            break
                         return (
                             self._budget_exit_response(total_tokens),
                             all_tool_results,
@@ -3657,41 +3618,31 @@ class BaseEngine(ABC):
                 return None, all_tool_results, total_tokens, completion_tokens_used
 
             # Call LLM again (maintain same routed model as first call) / 再次调用 LLM（保持与第一次调用相同的路由模型）
-            if BudgetGuard.pre_model_reason(
-                execution_budget,
-                allow_finalization_grace=_has_successful_tool_results(),
-            ):
+            if BudgetGuard.pre_model_reason(execution_budget):
                 return (
                     self._budget_exit_response(total_tokens),
                     all_tool_results,
                     total_tokens,
                     completion_tokens_used,
                 )
-            if (
-                execution_budget is not None
-                and execution_budget.finalization_grace_applied
-                and _has_successful_tool_results()
-            ):
-                current_response = await _call_finalization_only_response()
-            else:
-                _append_ordered_progress_hint()
-                round_tools = _round_tools_for_followup()
-                round_policy = _round_policy(round_tools)
-                current_response = await self._call_llm(
-                    agent=agent,
-                    messages=messages,
-                    tools=round_tools,
-                    all_tool_names=[tool.name for tool in (all_tools or tools or [])],
-                    tool_use_policy=round_policy,
-                    tenant_id=request.tenant_id,
-                    user_id=request.user_id,
-                    conversation_id=request.conversation_id,
-                    billing_context=request.billing_context,
-                    route_result=route_result,
-                    log_user_type=log_user_type_for_call_log(request.user_role),
-                    selected_skill_names=selected_skill_names,
-                    context_sources=context_sources,
-                )
+            _append_ordered_progress_hint()
+            round_tools = _round_tools_for_followup()
+            round_policy = _round_policy(round_tools)
+            current_response = await self._call_llm(
+                agent=agent,
+                messages=messages,
+                tools=round_tools,
+                all_tool_names=[tool.name for tool in (all_tools or tools or [])],
+                tool_use_policy=round_policy,
+                tenant_id=request.tenant_id,
+                user_id=request.user_id,
+                conversation_id=request.conversation_id,
+                billing_context=request.billing_context,
+                route_result=route_result,
+                log_user_type=log_user_type_for_call_log(request.user_role),
+                selected_skill_names=selected_skill_names,
+                context_sources=context_sources,
+            )
             total_tokens += current_response.total_tokens or 0
             completion_tokens_used += int(
                 current_response.output_tokens
@@ -3717,24 +3668,18 @@ class BaseEngine(ABC):
                     completion_tokens_used,
                 )
         else:
-            if BudgetGuard.pre_model_reason(
-                execution_budget,
-                allow_finalization_grace=bool(
-                    any(result.success for result in all_tool_results)
-                ),
-            ):
+            if BudgetGuard.pre_model_reason(execution_budget):
                 return (
                     self._budget_exit_response(total_tokens),
                     all_tool_results,
                     total_tokens,
                     completion_tokens_used,
                 )
-            current_response = await _call_finalization_only_response()
-            total_tokens += current_response.total_tokens or 0
-            completion_tokens_used += int(
-                current_response.output_tokens
-                if current_response.output_tokens is not None
-                else (current_response.total_tokens or 0)
+            return (
+                self._budget_exit_response(total_tokens),
+                all_tool_results,
+                total_tokens,
+                completion_tokens_used,
             )
 
         return current_response, all_tool_results, total_tokens, completion_tokens_used

@@ -46,6 +46,9 @@ _EXPORT_MAP = {
     "AIModelService": "app.services.ai.model_service",
     "MonitoringService": "app.services.ai.monitoring_service",
     "AIProviderService": "app.services.ai.provider_service",
+    "RuntimeInventoryService": "app.services.ai.runtime_inventory_service",
+    "RuntimeDiagnosticsService": "app.services.ai.runtime_diagnostics_service",
+    "AIRuntimeDiagnosticsService": "app.services.ai.runtime_diagnostics_service",
     "SessionMemoryService": "app.services.ai.session_memory_service",
     "SkillRegistryService": "app.services.ai.skill_registry_service",
     "SkillService": "app.services.ai.skill_service",
@@ -83,4 +86,7 @@ __all__ = [
     "SkillService",
     "AgentSkillGrantService",
     "SessionMemoryService",
+    "RuntimeInventoryService",
+    "RuntimeDiagnosticsService",
+    "AIRuntimeDiagnosticsService",
 ]

@@ -25,6 +25,30 @@ logger = get_logger(__name__)
 _DEFAULT_GITHUB_URL = "https://raw.githubusercontent.com/novusai/skill-marketplace/main"
 _DEFAULT_CACHE_TTL = 3600
 _CACHE_PREFIX = "skill_registry:"
+_OFFICIAL_STARTER_PACKS: tuple[dict[str, object], ...] = (
+    {
+        "key": "novusai-runtime-ops",
+        "display_name": "NovusAI Runtime Ops",
+        "description": "Operational diagnostics starter pack for AI runtime.",
+        "package_slugs": (
+            "novusai-doctor",
+            "novusai-root-cause",
+            "novusai-smoke",
+            "novusai-plugin-audit",
+        ),
+    },
+    {
+        "key": "novusai-capability-awareness",
+        "display_name": "NovusAI Capability Awareness",
+        "description": "Runtime capability awareness starter pack.",
+        "package_slugs": (
+            "novusai-capabilities",
+            "novusai-kb-status",
+            "novusai-memory-status",
+            "novusai-tool-status",
+        ),
+    },
+)
 
 
 class SkillRegistryService:
@@ -95,6 +119,10 @@ class SkillRegistryService:
             return prefix
         safe = slugify_ascii_identifier(source_url)
         return f"{prefix}:{safe or 'default'}"
+
+    @staticmethod
+    def _starter_pack_definitions() -> list[dict[str, object]]:
+        return [dict(item) for item in _OFFICIAL_STARTER_PACKS]
 
     @staticmethod
     def _version_key(version: str | None) -> tuple:
@@ -648,6 +676,189 @@ class SkillRegistryService:
             "requested": len(selected),
             "upgraded": upgraded,
             "failed": failed,
+        }
+
+    async def list_official_starter_packs(self) -> dict[str, object]:
+        registry_items = await self.fetch_registry()
+        installed = await self._build_installed_map()
+        registry_map: dict[str, dict] = {}
+        for item in registry_items:
+            slug = str(item.get("slug") or item.get("name") or "").strip()
+            if not slug:
+                continue
+            registry_map[slug] = item
+
+        packs: list[dict[str, object]] = []
+        for definition in self._starter_pack_definitions():
+            raw_slugs = definition.get("package_slugs") or ()
+            package_entries: list[dict[str, object]] = []
+            missing_in_catalog = 0
+            installed_count = 0
+            upgradable_count = 0
+            for raw_slug in raw_slugs:
+                slug = str(raw_slug or "").strip()
+                if not slug:
+                    continue
+                detail = registry_map.get(slug) or {}
+                install_info = installed.get(slug) or {}
+                latest_version = str(detail.get("version") or "").strip() or None
+                installed_version = (
+                    str(install_info.get("version") or "").strip() or None
+                )
+                available_in_catalog = slug in registry_map
+                is_installed = slug in installed
+                can_upgrade = self._is_newer_version(latest_version, installed_version)
+                if not available_in_catalog:
+                    missing_in_catalog += 1
+                if is_installed:
+                    installed_count += 1
+                if is_installed and can_upgrade:
+                    upgradable_count += 1
+                package_entries.append(
+                    {
+                        "slug": slug,
+                        "display_name": detail.get("display_name")
+                        or detail.get("name")
+                        or slug,
+                        "description": detail.get("description"),
+                        "available_in_catalog": available_in_catalog,
+                        "is_installed": is_installed,
+                        "installed_version": installed_version,
+                        "latest_version": latest_version,
+                        "can_upgrade": can_upgrade,
+                        "source_locked": bool(install_info.get("source_locked", True))
+                        if is_installed
+                        else None,
+                        "source_url": install_info.get("source_url")
+                        if is_installed
+                        else None,
+                    }
+                )
+            total_packages = len(package_entries)
+            packs.append(
+                {
+                    "key": str(definition.get("key") or ""),
+                    "display_name": str(
+                        definition.get("display_name")
+                        or definition.get("key")
+                        or "starter-pack"
+                    ),
+                    "description": str(definition.get("description") or "").strip()
+                    or None,
+                    "packages": package_entries,
+                    "summary": {
+                        "total": total_packages,
+                        "missing_in_catalog": missing_in_catalog,
+                        "installed": installed_count,
+                        "upgradable": upgradable_count,
+                    },
+                }
+            )
+        return {
+            "packs": packs,
+            "automatic_agent_grant": False,
+            "binding_mode": "manual_agent_skill_grant",
+        }
+
+    async def sync_official_starter_packs(
+        self,
+        *,
+        pack_keys: list[str] | None = None,
+        install_missing: bool = True,
+        upgrade_existing: bool = False,
+        dry_run: bool = False,
+    ) -> dict[str, object]:
+        catalog = await self.list_official_starter_packs()
+        all_packs = list(catalog.get("packs") or [])
+        key_filter = {str(key).strip() for key in (pack_keys or []) if str(key).strip()}
+
+        if key_filter:
+            selected_packs = [
+                pack for pack in all_packs if str(pack.get("key") or "") in key_filter
+            ]
+            missing_keys = sorted(
+                key_filter - {str(pack.get("key") or "") for pack in selected_packs}
+            )
+        else:
+            selected_packs = all_packs
+            missing_keys = []
+
+        installed: list[dict[str, object]] = []
+        upgraded: list[dict[str, object]] = []
+        skipped: list[dict[str, object]] = []
+        failed: list[dict[str, object]] = []
+
+        for pack in selected_packs:
+            pack_key = str(pack.get("key") or "")
+            for package in list(pack.get("packages") or []):
+                slug = str(package.get("slug") or "").strip()
+                if not slug:
+                    continue
+                available_in_catalog = bool(package.get("available_in_catalog"))
+                is_installed = bool(package.get("is_installed"))
+                can_upgrade = bool(package.get("can_upgrade"))
+                if not available_in_catalog:
+                    skipped.append(
+                        {
+                            "pack_key": pack_key,
+                            "slug": slug,
+                            "reason": "missing_in_catalog",
+                        }
+                    )
+                    continue
+                try:
+                    if can_upgrade and upgrade_existing:
+                        if dry_run:
+                            skipped.append(
+                                {
+                                    "pack_key": pack_key,
+                                    "slug": slug,
+                                    "reason": "dry_run_upgrade",
+                                }
+                            )
+                            continue
+                        upgraded.append(await self.upgrade_package(slug))
+                        continue
+                    if (not is_installed) and install_missing:
+                        if dry_run:
+                            skipped.append(
+                                {
+                                    "pack_key": pack_key,
+                                    "slug": slug,
+                                    "reason": "dry_run_install",
+                                }
+                            )
+                            continue
+                        installed.append(await self.install_package(slug))
+                        continue
+                    skipped.append(
+                        {
+                            "pack_key": pack_key,
+                            "slug": slug,
+                            "reason": "already_satisfied",
+                        }
+                    )
+                except Exception as exc:
+                    failed.append(
+                        {
+                            "pack_key": pack_key,
+                            "slug": slug,
+                            "error": str(exc),
+                        }
+                    )
+
+        return {
+            "selected_pack_keys": [str(pack.get("key") or "") for pack in selected_packs],
+            "missing_pack_keys": missing_keys,
+            "install_missing": bool(install_missing),
+            "upgrade_existing": bool(upgrade_existing),
+            "dry_run": bool(dry_run),
+            "installed": installed,
+            "upgraded": upgraded,
+            "skipped": skipped,
+            "failed": failed,
+            "automatic_agent_grant": False,
+            "binding_mode": "manual_agent_skill_grant",
         }
 
 

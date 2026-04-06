@@ -49,6 +49,7 @@ import {
   deletePluginBackupApi,
   getPluginDetailApi,
   getPluginLicenseApi,
+  getPluginLifecycleAuditApi,
   getPluginTenantsApi,
   getPluginVersionsApi,
   listPluginBackupsApi,
@@ -96,6 +97,8 @@ const configJson = ref('');
 const configValues = ref<Record<string, unknown>>({});
 const configSaving = ref(false);
 const upgrading = ref(false);
+const pluginAuditLoading = ref(false);
+const pluginAuditPayload = ref<null | Record<string, unknown>>(null);
 
 const tenantAssignments = ref<PluginTenantAssignmentInfo[]>([]);
 const allTenants = ref<Array<{ id: number; name: string }>>([]);
@@ -232,6 +235,7 @@ async function open(row: PluginInfo) {
   loadTenantAssignments(row.id);
   loadLicense(row.id);
   loadBackups(row.id);
+  loadPluginAudit(row.id);
 }
 
 async function loadDetail(id: number) {
@@ -253,11 +257,29 @@ async function reload() {
   loading.value = true;
   try {
     await loadDetail(plugin.value.id);
+    await loadPluginAudit(plugin.value.id);
   } catch {
     //
   } finally {
     loading.value = false;
   }
+}
+
+async function loadPluginAudit(pluginId: number) {
+  pluginAuditLoading.value = true;
+  try {
+    pluginAuditPayload.value = (await getPluginLifecycleAuditApi({
+      plugin_id: pluginId,
+    })) as Record<string, unknown>;
+  } catch {
+    pluginAuditPayload.value = null;
+  } finally {
+    pluginAuditLoading.value = false;
+  }
+}
+
+function prettyJson(value: unknown): string {
+  return JSON.stringify(value ?? {}, null, 2);
 }
 
 async function loadVersions(id: number) {
@@ -820,6 +842,52 @@ function getPluginMetadataIcon(
           >
             {{ cap }}
           </Tag>
+        </div>
+      </div>
+
+      <div class="mb-6 rounded-lg border border-border/60 p-4">
+        <div class="mb-2 flex items-center justify-between gap-2">
+          <h4 class="text-sm font-medium">Lifecycle Audit</h4>
+          <Button
+            size="small"
+            :loading="pluginAuditLoading"
+            @click="loadPluginAudit(plugin.id)"
+          >
+            <IconifyIcon icon="lucide:refresh-cw" class="mr-1.5 size-3.5" />
+            Refresh
+          </Button>
+        </div>
+        <div v-if="pluginAuditLoading" class="text-xs text-muted-foreground">
+          Loading lifecycle audit...
+        </div>
+        <template v-else-if="pluginAuditPayload">
+          <div class="mb-3 grid grid-cols-1 gap-2 md:grid-cols-2">
+            <div
+              class="rounded-lg border border-border/60 bg-background/70 px-3 py-2"
+            >
+              <div class="text-[11px] text-muted-foreground">Runtime Kind</div>
+              <div class="mt-1 text-sm font-medium text-foreground">
+                {{ String(pluginAuditPayload.runtime_kind || '-') }}
+              </div>
+            </div>
+            <div
+              class="rounded-lg border border-border/60 bg-background/70 px-3 py-2"
+            >
+              <div class="text-[11px] text-muted-foreground">
+                Degraded Reason
+              </div>
+              <div class="mt-1 text-sm font-medium text-foreground">
+                {{ String(pluginAuditPayload.degraded_reason || '-') }}
+              </div>
+            </div>
+          </div>
+          <pre
+            class="max-h-56 overflow-auto rounded-lg border border-border/60 bg-accent/30 p-3 font-mono text-xs leading-5"
+            >{{ prettyJson(pluginAuditPayload) }}</pre
+          >
+        </template>
+        <div v-else class="text-xs text-muted-foreground">
+          Lifecycle audit data is unavailable.
         </div>
       </div>
 

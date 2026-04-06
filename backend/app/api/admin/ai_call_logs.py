@@ -5,6 +5,9 @@ AI 调用日志管理 API (Admin) / AI Call Log API (Admin)
 Provides platform AI call log query and analysis endpoints (platform admin only).
 """
 
+import importlib
+from typing import Any
+
 from datetime import date
 
 from fastapi import Query, Request
@@ -15,7 +18,7 @@ from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.response import serialize_datetime_for_api, success
 from app.enums.rbac import PermissionScope
-from app.exceptions import NotFoundException
+from app.exceptions import NotFoundException, ServiceUnavailableException
 from app.rbac.decorators import (
     MenuConfig,
     action_read,
@@ -23,6 +26,33 @@ from app.rbac.decorators import (
 )
 from app.repositories.ai import AICallLogRepository
 from app.services.ai import CallLogService
+
+
+def _is_missing_module(exc: ModuleNotFoundError, module_path: str) -> bool:
+    return bool(exc.name) and (
+        exc.name == module_path or exc.name.startswith(f"{module_path}.")
+    )
+
+
+def _resolve_runtime_diagnostics_service(db: DbSession) -> Any:
+    candidates = [
+        ("app.services.ai.runtime_diagnostics_service", "AIRuntimeDiagnosticsService"),
+        ("app.services.ai.runtime_diagnostics", "AIRuntimeDiagnosticsService"),
+        ("app.services.ai.runtime_service", "AIRuntimeDiagnosticsService"),
+    ]
+    for module_path, class_name in candidates:
+        try:
+            module = importlib.import_module(module_path)
+        except ModuleNotFoundError as exc:
+            if _is_missing_module(exc, module_path):
+                continue
+            raise
+        service_cls = getattr(module, class_name, None)
+        if service_cls is not None:
+            return service_cls(db)
+    raise ServiceUnavailableException(
+        message=_("ai.runtime.error.diagnostics_service_unavailable")
+    )
 
 
 @permission_resource(
@@ -150,6 +180,29 @@ class AdminAICallLogController(GlobalController):
             )
 
             return success(data=logs, message=_("common.success"))
+
+        @router.get("/root-cause", summary="获取调用失败根因诊断")
+        @action_read("action.ai_call_log.detail")
+        async def get_root_cause(
+            request: Request,
+            db: DbSession,
+            admin: ActiveAdmin,
+            trace_id: str | None = Query(None, description="trace_id"),
+            call_log_id: int | None = Query(None, description="调用日志 ID"),
+            conversation_id: int | None = Query(None, description="对话 ID"),
+            turn: int | None = Query(None, ge=1, description="对话轮次"),
+        ):
+            _request = request
+            _admin = admin
+            service = _resolve_runtime_diagnostics_service(db)
+            report = await service.build_root_cause(
+                scope="admin",
+                trace_id=trace_id,
+                call_log_id=call_log_id,
+                conversation_id=conversation_id,
+                turn=turn,
+            )
+            return success(data=report, message=_("common.success"))
 
         @router.get("/export", summary="导出 AI 调用日志 CSV")
         @action_read("action.ai_call_log.list")

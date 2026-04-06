@@ -204,6 +204,40 @@ export interface PluginHealthInfo {
   enabled_at: null | string;
 }
 
+export interface PluginLifecycleAuditStageResult {
+  stage: string;
+  status: 'available' | 'degraded' | 'not_implemented' | 'unavailable';
+  reason?: null | string;
+  metadata: Record<string, unknown>;
+}
+
+export interface PluginLifecycleRecentFailure {
+  source: string;
+  code: string;
+  message: string;
+  occurred_at?: null | string;
+  metadata: Record<string, unknown>;
+}
+
+export interface PluginLifecycleExposedCapability {
+  name: string;
+  kind: string;
+  status: 'available' | 'degraded' | 'not_implemented' | 'unavailable';
+  reason?: null | string;
+  metadata: Record<string, unknown>;
+  source?: null | string;
+}
+
+export interface PluginLifecycleAuditReport {
+  runtime_kind: 'plugin';
+  target: Record<string, unknown>;
+  stage_results: PluginLifecycleAuditStageResult[];
+  degraded_reason?: null | string;
+  recovery_actions: string[];
+  exposed_capabilities: PluginLifecycleExposedCapability[];
+  recent_failures: PluginLifecycleRecentFailure[];
+}
+
 export interface PluginScheduleRefreshResult {
   mode: string;
   plugin_id: number;
@@ -495,6 +529,19 @@ export function revokePluginLicenseApi(id: number) {
 /** Get plugin health / 获取插件健康状态 */
 export function getPluginHealthApi(id: number) {
   return requestClient.get<PluginHealthInfo>(`${BASE_URL}/${id}/health`);
+}
+
+/** Get plugin lifecycle audit / 获取插件生命周期审计 */
+export function getPluginLifecycleAuditApi(params?: {
+  plugin_id?: number;
+  tenant_id?: number;
+}) {
+  return requestClient.get<PluginLifecycleAuditReport>(
+    `${BASE_URL}/runtime/audit`,
+    {
+      params,
+    },
+  );
 }
 
 // ── Frontend slots / 前端插槽 ──

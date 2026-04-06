@@ -13,6 +13,7 @@ from app.rbac.decorators import (
     action_read,
     permission_resource,
 )
+from app.schemas.ai.skill_registry import StarterPackSyncRequest
 from app.services.ai.skill_registry_service import SkillRegistryService
 
 
@@ -131,6 +132,32 @@ class AdminSkillRegistryController(GlobalController):
         ):
             _ = admin
             result = await SkillRegistryService(db).batch_upgrade(slugs=slugs)
+            return success(data=result)
+
+        @router.get("/starter-packs", summary="官方 starter packs 目录")
+        @action_read("action.plugin_skill_registry.list")
+        async def list_official_starter_packs(
+            db: DbSession,
+            admin: ActiveAdmin,
+        ):
+            _ = admin
+            result = await SkillRegistryService(db).list_official_starter_packs()
+            return success(data=result)
+
+        @router.post("/starter-packs/sync", summary="同步/安装官方 starter packs")
+        @action_create("action.plugin_skill_registry.install")
+        async def sync_official_starter_packs(
+            data: StarterPackSyncRequest,
+            db: DbSession,
+            admin: ActiveAdmin,
+        ):
+            _ = admin
+            result = await SkillRegistryService(db).sync_official_starter_packs(
+                pack_keys=data.pack_keys,
+                install_missing=data.install_missing,
+                upgrade_existing=data.upgrade_existing,
+                dry_run=data.dry_run,
+            )
             return success(data=result)
 
 

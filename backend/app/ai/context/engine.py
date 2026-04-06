@@ -17,11 +17,14 @@ from app.ai.context.long_term_memory import get_long_term_memory_provider
 from app.ai.context.pruning import TransientPruner
 from app.ai.page_locale import page_language_name, resolve_page_locale
 from app.ai.prompt_contracts import render_prompt_contract
+from app.ai.runtime.capabilities import CapabilityContext, CapabilityRegistry
 from app.ai.runtime.context_assembler import (
+    ContextAssembler,
     ContextAssemblerState,
     LegacyContextAssemblerAdapter,
     get_context_assembler,
 )
+from app.ai.runtime.manifest import AIRuntimeInventoryService
 from app.ai.runtime.types import CapabilityBundle
 from app.ai.types import ChatMessage
 from app.ai.utils.token_estimator import estimate_tokens
@@ -136,6 +139,88 @@ class ConversationContextEngine(ContextEngine):
     async def ingest(self, agent: Agent, request: ExecutionRequest) -> None:
         _ = agent, request
 
+    @staticmethod
+    def _intent_plan_flags(
+        intent_plan: list[Any],
+        request: ExecutionRequest | None = None,
+    ) -> dict[str, bool]:
+        normalized_plan = list(intent_plan or [])
+        intent_kinds = {
+            str(getattr(intent, "kind", "") or "").strip()
+            for intent in normalized_plan
+        }
+        all_shortcircuit = bool(normalized_plan) and all(
+            bool(getattr(intent, "shortcircuit", False))
+            for intent in normalized_plan
+        )
+        has_page_intent = any(kind.startswith("page_") for kind in intent_kinds)
+        has_knowledge_intent = "knowledge_query" in intent_kinds
+        has_web_research_intent = (
+            "web_research" in intent_kinds
+            or any(
+                str(getattr(intent, "family", "") or "").strip() == "web_research"
+                for intent in normalized_plan
+            )
+        )
+        allow_memory_even_if_shortcircuit = bool(
+            request is not None
+            and getattr(request, "user_id", None)
+            and (
+                bool(getattr(request, "long_term_memory_enabled", False))
+                or bool(getattr(request, "memory_enabled", False))
+            )
+        )
+        has_memory_intent = allow_memory_even_if_shortcircuit or any(
+            not bool(getattr(intent, "shortcircuit", False))
+            for intent in normalized_plan
+        )
+        return {
+            "all_shortcircuit": all_shortcircuit,
+            "has_page_intent": has_page_intent,
+            "has_knowledge_intent": has_knowledge_intent,
+            "has_web_research_intent": has_web_research_intent,
+            "has_memory_intent": has_memory_intent,
+            "allow_memory_even_if_shortcircuit": allow_memory_even_if_shortcircuit,
+        }
+
+    def _build_provisional_capability_bundle(
+        self,
+        *,
+        agent: Agent,
+        request: ExecutionRequest,
+        skill_result: SkillResolveResult | None,
+        knowledge_base_ids: list[int],
+        requested_knowledge_base_ids: list[int],
+        dropped_knowledge_base_ids: list[int],
+        runtime_model_capabilities: dict[str, Any] | None,
+    ) -> CapabilityBundle:
+        provisional_state = ContextAssemblerState(
+            knowledge_base_ids=list(knowledge_base_ids or []),
+            requested_knowledge_base_ids=list(requested_knowledge_base_ids or []),
+            dropped_knowledge_base_ids=list(dropped_knowledge_base_ids or []),
+            rag_sources=[],
+            rag_source_kinds=[],
+            memory_recalled=False,
+            memory_recall_slice=None,
+            runtime_model_capabilities=runtime_model_capabilities,
+        )
+        capability_context = CapabilityContext(
+            agent=agent,
+            request=request,
+            skill_result=skill_result,
+            state=provisional_state.to_state_dict(),
+        )
+        bundle = CapabilityBundle()
+        fragments = (
+            ContextAssembler._collect_skill_capabilities(capability_context),
+            ContextAssembler._collect_page_context_capabilities(capability_context),
+            ContextAssembler._collect_knowledge_capabilities(capability_context),
+            ContextAssembler._collect_runtime_model_capabilities(capability_context),
+        )
+        for fragment in fragments:
+            CapabilityRegistry._merge_fragment(bundle, fragment)
+        return bundle
+
     async def assemble(
         self,
         agent: Agent,
@@ -178,8 +263,59 @@ class ConversationContextEngine(ContextEngine):
             else []
         )
 
+        try:
+            runtime_model_capabilities = await resolve_runtime_model_capabilities(
+                model=getattr(agent, "model", None),
+            )
+        except Exception as exc:
+            runtime_model_capabilities = {}
+            logger.warning(
+                "Resolve runtime model capabilities degraded during provisional planning: agent_id={} err={}",
+                getattr(agent, "id", None),
+                str(exc),
+            )
+        provisional_bundle = self._build_provisional_capability_bundle(
+            agent=agent,
+            request=request,
+            skill_result=skill_result,
+            knowledge_base_ids=list(merged_kb_ids or []),
+            requested_knowledge_base_ids=requested_kb_ids,
+            dropped_knowledge_base_ids=dropped_kb_ids,
+            runtime_model_capabilities=runtime_model_capabilities,
+        )
+        provisional_continuation_context = (
+            self.base_engine._build_web_research_continuation_context(
+                messages,
+                list(provisional_bundle.tools),
+            )
+        )
+        from app.ai.engine.intent_planner import IntentPlanner
+
+        intent_plan = IntentPlanner.plan_turn(
+            messages=messages,
+            tools=list(provisional_bundle.tools),
+            input_variables=request.input_variables,
+            continuation_context=provisional_continuation_context,
+            capability_bundle=provisional_bundle,
+        )
+        intent_flags = self._intent_plan_flags(intent_plan, request)
+        capability_injection_decision: dict[str, Any] = {
+            "all_shortcircuit": intent_flags["all_shortcircuit"],
+            "skills_injected": False,
+            "kb_injected": False,
+            "memory_injected": False,
+            "page_injected": False,
+            "bypass_reason": (
+                "all_shortcircuit" if intent_flags["all_shortcircuit"] else None
+            ),
+        }
+
         effective_rag_config = agent.rag_config or {}
-        if merged_kb_ids:
+        if (
+            not intent_flags["all_shortcircuit"]
+            and intent_flags["has_knowledge_intent"]
+            and merged_kb_ids
+        ):
             messages, rag_sources = await inject_rag_context(
                 self.db,
                 agent,
@@ -189,6 +325,7 @@ class ConversationContextEngine(ContextEngine):
                 rag_config=effective_rag_config or None,
                 kb_weights=agent_kb_weights,
             )
+            capability_injection_decision["kb_injected"] = True
             if rag_sources:
                 rag_source_kinds.append("formal_kb")
 
@@ -220,9 +357,13 @@ class ConversationContextEngine(ContextEngine):
         capability_awareness_error: str | None = None
         compaction_source_tokens = self._messages_token_estimate(messages)
         existing_snapshot = await self._load_compaction_snapshot(request)
-        web_research_date_anchor = self._build_web_research_date_anchor(
-            messages,
-            skill_result=skill_result,
+        web_research_date_anchor = (
+            self._build_web_research_date_anchor(
+                messages,
+                skill_result=skill_result,
+            )
+            if intent_flags["has_web_research_intent"]
+            else ""
         )
         if web_research_date_anchor:
             self._append_budgeted_addition(
@@ -233,7 +374,11 @@ class ConversationContextEngine(ContextEngine):
                 total_token_limit=context_budget["system_additions_tokens"],
                 budget_usage=budget_usage,
             )
-        page_locale_hint = self._build_page_locale_hint(request)
+        page_locale_hint = (
+            self._build_page_locale_hint(request)
+            if intent_flags["has_page_intent"]
+            else ""
+        )
         if page_locale_hint:
             self._append_budgeted_addition(
                 additions=system_prompt_additions,
@@ -243,6 +388,7 @@ class ConversationContextEngine(ContextEngine):
                 total_token_limit=context_budget["system_additions_tokens"],
                 budget_usage=budget_usage,
             )
+            capability_injection_decision["page_injected"] = True
 
         try:
             capability_settings = await get_tenant_capability_awareness_settings(
@@ -252,7 +398,10 @@ class ConversationContextEngine(ContextEngine):
             dynamic_capability_awareness_enabled = bool(
                 capability_settings.enable_dynamic_capability_awareness
             )
-            if dynamic_capability_awareness_enabled:
+            if (
+                dynamic_capability_awareness_enabled
+                and not intent_flags["all_shortcircuit"]
+            ):
                 capability_builder = CapabilityDescriptionBuilder(
                     style=capability_settings.capability_description_style,
                     max_items_per_category=(
@@ -266,7 +415,7 @@ class ConversationContextEngine(ContextEngine):
                         capability_builder.build_skill_descriptions(skill_result)
                     )
 
-                if merged_kb_ids:
+                if intent_flags["has_knowledge_intent"] and merged_kb_ids:
                     from app.services.ai.agent_kb_binding_service import (
                         AgentKBBindingService,
                     )
@@ -295,41 +444,31 @@ class ConversationContextEngine(ContextEngine):
                     if kb_description:
                         capability_descriptions.append(kb_description)
 
-                page_context = None
-                if isinstance(request.input_variables, dict):
-                    from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
+                if intent_flags["has_page_intent"]:
+                    page_context = None
+                    if isinstance(request.input_variables, dict):
+                        from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
 
-                    page_context = request.input_variables.get(PAGE_CONTEXT_KEY)
-                page_description = capability_builder.build_page_context_description(
-                    page_context
-                )
-                if page_description:
-                    capability_descriptions.append(page_description)
+                        page_context = request.input_variables.get(PAGE_CONTEXT_KEY)
+                    page_description = capability_builder.build_page_context_description(
+                        page_context
+                    )
+                    if page_description:
+                        capability_descriptions.append(page_description)
 
-                memory_description = capability_builder.build_memory_description(
-                    memory_enabled=request.memory_enabled,
-                    long_term_memory_enabled=long_term_memory_enabled,
-                )
-                if memory_description:
-                    capability_descriptions.append(memory_description)
+                if intent_flags["has_memory_intent"]:
+                    memory_description = capability_builder.build_memory_description(
+                        memory_enabled=request.memory_enabled,
+                        long_term_memory_enabled=long_term_memory_enabled,
+                    )
+                    if memory_description:
+                        capability_descriptions.append(memory_description)
 
                 capability_awareness_categories = [
                     category
                     for description in capability_descriptions
                     if (category := _capability_description_category(description))
                 ]
-                capability_block = capability_builder.format_as_system_prompt_block(
-                    capability_descriptions
-                )
-                if capability_block:
-                    self._append_budgeted_addition(
-                        additions=system_prompt_additions,
-                        text=capability_block,
-                        category="capability_block",
-                        per_item_token_limit=context_budget["capability_block_tokens"],
-                        total_token_limit=context_budget["system_additions_tokens"],
-                        budget_usage=budget_usage,
-                    )
         except Exception as exc:
             capability_awareness_error = str(exc)
             logger.warning(
@@ -339,7 +478,7 @@ class ConversationContextEngine(ContextEngine):
                 str(exc),
             )
 
-        if long_term_memory_enabled and request.user_id:
+        if intent_flags["has_memory_intent"] and long_term_memory_enabled and request.user_id:
             current_user_text = self.base_engine._extract_last_user_text(messages)
             if current_user_text:
                 provider = get_long_term_memory_provider(
@@ -363,6 +502,7 @@ class ConversationContextEngine(ContextEngine):
                             budget_usage=budget_usage,
                         )
                         memory_recalled = True
+                        capability_injection_decision["memory_injected"] = True
                         memory_recall_slice = {
                             "count": 0,
                             "profile_snapshot": True,
@@ -386,6 +526,7 @@ class ConversationContextEngine(ContextEngine):
                             budget_usage=budget_usage,
                         )
                         memory_recalled = True
+                        capability_injection_decision["memory_injected"] = True
                         memory_recall_slice = {
                             "count": len(recalled_records),
                             **(
@@ -454,6 +595,10 @@ class ConversationContextEngine(ContextEngine):
             "context_compacted": context_compacted,
             "memory_recalled": memory_recalled,
             "web_research_date_anchor": bool(web_research_date_anchor),
+            "intent_plan": [intent.to_dict() for intent in intent_plan],
+            "allow_memory_even_if_shortcircuit": bool(
+                intent_flags["allow_memory_even_if_shortcircuit"]
+            ),
             "dynamic_capability_awareness_enabled": (
                 dynamic_capability_awareness_enabled
             ),
@@ -472,6 +617,7 @@ class ConversationContextEngine(ContextEngine):
                     estimated_tokens > context_budget["prompt_target_tokens"]
                 ),
             },
+            "capability_injection_decision": capability_injection_decision,
         }
         if capability_awareness_error:
             diagnostics["dynamic_capability_awareness_error"] = (
@@ -479,25 +625,23 @@ class ConversationContextEngine(ContextEngine):
             )
 
         capability_bundle: CapabilityBundle | None = None
+        assembler_state = ContextAssemblerState(
+            knowledge_base_ids=list(merged_kb_ids or []),
+            requested_knowledge_base_ids=requested_kb_ids,
+            dropped_knowledge_base_ids=dropped_kb_ids,
+            rag_sources=list(rag_sources or []),
+            rag_source_kinds=list(rag_source_kinds or []),
+            memory_recalled=memory_recalled,
+            memory_recall_slice=memory_recall_slice,
+            runtime_model_capabilities=runtime_model_capabilities,
+        )
         try:
-            runtime_model_capabilities = await resolve_runtime_model_capabilities(
-                model=getattr(agent, "model", None),
-            )
-            assembler_state = ContextAssemblerState(
-                knowledge_base_ids=list(merged_kb_ids or []),
-                requested_knowledge_base_ids=requested_kb_ids,
-                dropped_knowledge_base_ids=dropped_kb_ids,
-                rag_sources=list(rag_sources or []),
-                rag_source_kinds=list(rag_source_kinds or []),
-                memory_recalled=memory_recalled,
-                memory_recall_slice=memory_recall_slice,
-                runtime_model_capabilities=runtime_model_capabilities,
-            )
             capability_bundle = await self.context_assembler.assemble_bundle(
                 agent=agent,
                 request=request,
                 skill_result=skill_result,
                 state=assembler_state,
+                intent_plan=intent_plan,
             )
             self.context_assembler_adapter.apply_to_skill_result(
                 skill_result=skill_result,
@@ -522,6 +666,24 @@ class ConversationContextEngine(ContextEngine):
                 diagnostics["runtime_model_capabilities"] = dict(
                     runtime_model_capabilities
                 )
+            context_source_kinds = {
+                str(source.kind or "").strip()
+                for source in capability_bundle.context_sources
+                if bool(getattr(source, "active", True))
+            }
+            capability_injection_decision["kb_injected"] = bool(
+                capability_injection_decision["kb_injected"]
+                or "knowledge_base" in context_source_kinds
+            )
+            capability_injection_decision["memory_injected"] = bool(
+                capability_injection_decision["memory_injected"]
+                or "session_memory" in context_source_kinds
+                or "long_term_memory" in context_source_kinds
+            )
+            capability_injection_decision["page_injected"] = bool(
+                capability_injection_decision["page_injected"]
+                or "page_context" in context_source_kinds
+            )
         except Exception as exc:
             diagnostics["capability_bundle_error"] = str(exc)
             logger.warning(
@@ -529,6 +691,24 @@ class ConversationContextEngine(ContextEngine):
                 getattr(agent, "id", None),
                 str(exc),
             )
+        manifest_bundle = capability_bundle or CapabilityBundle()
+        runtime_manifest = AIRuntimeInventoryService.build_manifest(
+            agent=agent,
+            request=request,
+            bundle=manifest_bundle,
+            state=assembler_state,
+            capability_injection_decision=capability_injection_decision,
+        )
+        diagnostics["runtime_capability_manifest"] = runtime_manifest.to_dict()
+        diagnostics["runtime_capability_summary"] = (
+            AIRuntimeInventoryService.build_compact_summary(
+                runtime_manifest,
+                include_knowledge_base_hint=intent_flags["has_knowledge_intent"],
+                include_page_context_hint=intent_flags["has_page_intent"],
+                include_memory_hint=intent_flags["has_memory_intent"],
+            )
+        )
+        diagnostics["capability_injection_decision"] = capability_injection_decision
 
         return ContextAssembly(
             messages=pruned_messages,

@@ -34,6 +34,8 @@ from app.api.admin.ai_providers import AdminAIProviderController
 from app.api.admin.ai_providers import router as ai_providers_router
 from app.api.admin.ai_quotas import AdminAIQuotaController
 from app.api.admin.ai_quotas import router as ai_quotas_router
+from app.api.admin.ai_runtime import AdminAIRuntimeController
+from app.api.admin.ai_runtime import router as ai_runtime_router
 from app.api.admin.ai_usage import AdminAIUsageController
 from app.api.admin.ai_usage import router as ai_usage_router
 from app.api.admin.ai_writing import router as ai_writing_router
@@ -134,6 +136,7 @@ admin_router.include_router(ai_call_logs_router)
 admin_router.include_router(ai_gateway_router)
 admin_router.include_router(ai_usage_router)
 admin_router.include_router(ai_health_router)
+admin_router.include_router(ai_runtime_router)
 admin_router.include_router(ai_quotas_router)
 # 对话管理 / Conversation management
 admin_router.include_router(ai_conversations_router)
@@ -202,6 +205,7 @@ __all__ = [
     "AdminAIGatewayController",
     "AdminAIUsageController",
     "AdminAIHealthController",
+    "AdminAIRuntimeController",
     "AdminAIQuotaController",
     # 对话管理 / Conversation management
     "AdminAIConversationController",
