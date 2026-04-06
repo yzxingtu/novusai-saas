@@ -801,7 +801,6 @@ class BaseEngine(ABC):
         if not tool_calls or not tools or not isinstance(input_variables, dict):
             return None, [], {}
 
-        from app.ai.navigation_semantics import has_navigation_intent
         from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
 
         page_context = input_variables.get(PAGE_CONTEXT_KEY)
@@ -816,16 +815,13 @@ class BaseEngine(ABC):
         if not isinstance(available_operations, list):
             return None, [], {}
 
-        available_operation_names = {
-            str(item.get("name") or "").strip()
-            for item in available_operations
-            if isinstance(item, dict) and item.get("name")
-        }
-        if "navigate_menu" not in available_operation_names:
-            return None, [], {}
-
         user_text = cls._extract_last_user_text(messages)
-        if not has_navigation_intent(user_text, page_context):
+        page_intent_kind = cls._first_page_intent_kind(
+            user_text=user_text,
+            tools=tools,
+            input_variables=input_variables,
+        )
+        if page_intent_kind in {None, "page_summary"}:
             return None, [], {}
 
         round_tool_names = [
@@ -846,13 +842,57 @@ class BaseEngine(ABC):
         if not repeated_page_context and not only_page_context_round:
             return None, [], {}
 
-        preferred_tool_names = [
-            name
-            for name in (
+        recovery_preferences = {
+            "page_navigation": [
                 "pageop_list_available_menus",
                 "pageop_navigate_menu",
                 "invoke_page_operation",
-            )
+            ],
+            "page_search": [
+                "pageop_search",
+                "pageop_clear_search",
+                "pageop_refresh_list",
+            ],
+            "page_pagination": [
+                "pageop_go_to_page",
+                "pageop_prev_page",
+                "pageop_next_page",
+                "pageop_set_page_size",
+            ],
+            "page_row_detail": [
+                "pageop_read_row_detail",
+                "pageop_read_visible_rows",
+            ],
+            "page_form_read": [
+                "pageop_get_form_state",
+                "pageop_get_form_options",
+            ],
+            "page_form_write": [
+                "pageop_create_record",
+                "pageop_edit_record",
+                "pageop_fill_form",
+                "pageop_validate_form",
+                "pageop_submit_form",
+            ],
+            "page_screenshot": [
+                "pageop_capture_screenshot",
+                "invoke_page_operation",
+            ],
+            "page_editor_read": [
+                "pageop_get_editor_html",
+                "pageop_get_editor_text",
+            ],
+            "page_editor_write": [
+                "pageop_replace_content",
+                "pageop_replace_section",
+                "pageop_append_content",
+                "pageop_insert_content",
+                "pageop_update_title",
+            ],
+        }
+        preferred_tool_names = [
+            name
+            for name in recovery_preferences.get(page_intent_kind, [])
             if any(tool.name == name for tool in tools)
         ]
         if not preferred_tool_names:
@@ -870,6 +910,7 @@ class BaseEngine(ABC):
             preferred_tool_names,
             {
                 "reason": recovery_reason,
+                "intent_kind": page_intent_kind,
                 "current_page_key": page_key,
                 "preferred_tool_names": preferred_tool_names,
                 "round_tool_names": round_tool_names,
@@ -1774,6 +1815,26 @@ class BaseEngine(ABC):
         )
 
     @classmethod
+    def _first_page_intent_kind(
+        cls,
+        *,
+        user_text: str,
+        tools: list[ToolDefinition],
+        input_variables: dict[str, Any] | None = None,
+    ) -> str | None:
+        intents = IntentPlanner.plan_turn(
+            messages=[ChatMessage(role="user", content=user_text)],
+            tools=tools,
+            input_variables=input_variables,
+            continuation_context=None,
+            capability_bundle=None,
+        )
+        for intent in intents:
+            if intent.family == "page_ops":
+                return intent.kind
+        return None
+
+    @classmethod
     def _looks_like_generic_page_summary_request(
         cls,
         user_text: str,
@@ -1787,7 +1848,12 @@ class BaseEngine(ABC):
         normalized = (user_text or "").strip()
         if not normalized:
             return False
-        if not mentions_page_summary(normalized):
+        page_intent_kind = cls._first_page_intent_kind(
+            user_text=normalized,
+            tools=tools,
+            input_variables=input_variables,
+        )
+        if page_intent_kind != "page_summary":
             return False
         if mentions_page_detail_operation(normalized):
             return False
@@ -2408,6 +2474,31 @@ class BaseEngine(ABC):
                 intents=intent_plan,
             )
             tools = list(routing.candidate_tools)
+            tools, _ = self._ensure_explicit_family_coverage(
+                selected_tools=tools,
+                all_tools=all_tools,
+                explicit_requested_families=explicit_requested_families,
+                input_variables=request.input_variables,
+            )
+            tools, _ = self._ensure_web_research_tool_pair(
+                selected_tools=tools,
+                all_tools=all_tools,
+                explicit_requested_families=explicit_requested_families,
+                policy=ToolUsePolicy(
+                    family=(
+                        "web_research"
+                        if "web_research" in explicit_requested_families
+                        else "none"
+                    ),
+                    allowed_tool_names=self._allowed_tool_names_for_family(
+                        "web_research",
+                        all_tools,
+                        request.input_variables,
+                    )
+                    if "web_research" in explicit_requested_families
+                    else [],
+                ),
+            )
             candidate_tool_names = [tool.name for tool in tools]
             actionable_intents = [
                 intent
@@ -2429,7 +2520,20 @@ class BaseEngine(ABC):
                 if intent.family == "none" or not intent.requires_tools:
                     intent.status = "completed"
             if not tools and actionable_intents:
-                tools = list(all_tools[: execution_budget.max_candidate_tools])
+                fallback_allowed_names = self._allowed_tool_names_for_families(
+                    explicit_requested_families,
+                    all_tools,
+                    request.input_variables,
+                ) or self._allowed_tool_names_for_family(
+                    actionable_intents[0].family,
+                    all_tools,
+                    request.input_variables,
+                )
+                if execution_budget.max_candidate_tools > 0:
+                    fallback_allowed_names = fallback_allowed_names[
+                        : execution_budget.max_candidate_tools
+                    ]
+                tools = self._restrict_tools_to_names(all_tools, fallback_allowed_names)
                 candidate_tool_names = [tool.name for tool in tools]
                 first_actionable = actionable_intents[0]
                 first_actionable.allowed_tool_names = list(candidate_tool_names)
@@ -2463,6 +2567,22 @@ class BaseEngine(ABC):
                     retry_on_contract_breach=True,
                     reason=f"intent:{active_intent.kind}",
                 )
+                tools, restored_explicit_family = self._restore_explicit_family_tools(
+                    selected_tools=tools,
+                    all_tools=all_tools,
+                    policy=tool_use_policy,
+                )
+                if restored_explicit_family:
+                    candidate_tool_names = [tool.name for tool in tools]
+                    tool_use_policy.allowed_tool_names = (
+                        candidate_tool_names
+                        if len(actionable_intents) > 1
+                        else [
+                            name
+                            for name in tool_use_policy.allowed_tool_names
+                            if name in candidate_tool_names
+                        ]
+                    )
             tool_planner = ToolInvocationPlan(
                 intent=active_intent.kind
                 if active_intent is not None
@@ -2888,6 +3008,19 @@ class BaseEngine(ABC):
             interaction_mode=request.interaction_mode,
         )
 
+        def _sync_sandbox_runtime_model_info(resp: ChatResponse | None) -> None:
+            if self.sandbox is None or not hasattr(
+                self.sandbox, "set_runtime_model_info"
+            ):
+                return
+            metadata = getattr(resp, "metadata", None)
+            runtime_model_info = (
+                metadata.get("runtime_model_info") if isinstance(metadata, dict) else None
+            )
+            self.sandbox.set_runtime_model_info(runtime_model_info)
+
+        _sync_sandbox_runtime_model_info(response)
+
         all_tool_results: list[ToolResult] = []
         total_tokens = (
             int(starting_total_tokens)
@@ -2929,6 +3062,9 @@ class BaseEngine(ABC):
             else 0
         )
 
+        def _has_successful_tool_results() -> bool:
+            return any(result.success for result in all_tool_results)
+
         def _round_tools_for_followup() -> list[ToolDefinition]:
             """Match streaming path: narrow to fetch_url until a fetch attempt exists."""
             nonlocal fetch_gate_message_sent
@@ -2951,6 +3087,84 @@ class BaseEngine(ABC):
             round_tools = self._restrict_tools_to_names(round_tools, forced_tool_names)
             processor.tools = round_tools
             return round_tools
+
+        def _round_policy(round_tools: list[ToolDefinition]) -> ToolUsePolicy:
+            round_tool_names = [tool.name for tool in round_tools]
+            if not round_tool_names:
+                return effective_policy
+            if round_tool_names == list(effective_policy.allowed_tool_names or []):
+                return effective_policy
+            reason_suffix = (
+                "forced_tool_names" if forced_tool_names else "round_tool_subset"
+            )
+            return ToolUsePolicy(
+                family=effective_policy.family,
+                mode=effective_policy.mode,
+                allowed_tool_names=round_tool_names,
+                retry_on_contract_breach=effective_policy.retry_on_contract_breach,
+                reason=(
+                    f"{effective_policy.reason}|{reason_suffix}"
+                    if effective_policy.reason
+                    else reason_suffix
+                ),
+            )
+
+        def _finalization_only_policy() -> ToolUsePolicy:
+            return ToolUsePolicy(
+                family="none",
+                mode="none",
+                allowed_tool_names=[],
+                retry_on_contract_breach=False,
+                reason="partial_exit_final_response",
+            )
+
+        def _sanitize_finalization_only_response(
+            response: ChatResponse,
+        ) -> ChatResponse:
+            unexpected_tool_calls = list(
+                response.tool_calls or response.message.tool_calls or []
+            )
+            if not unexpected_tool_calls:
+                return response
+            logger.warning(
+                "Finalization-only response returned unexpected tool calls; suppressing execution: conversation_id={} tool_names={}",
+                request.conversation_id,
+                [
+                    str(
+                        (tool_call.get("function") or {}).get("name")
+                        or tool_call.get("name")
+                        or ""
+                    )
+                    for tool_call in unexpected_tool_calls
+                    if isinstance(tool_call, dict)
+                ],
+            )
+            metadata = dict(getattr(response, "metadata", {}) or {})
+            metadata["finalization_tool_call_suppressed"] = True
+            return dataclasses.replace(
+                response,
+                message=dataclasses.replace(response.message, tool_calls=None),
+                tool_calls=None,
+                metadata=metadata,
+            )
+
+        async def _call_finalization_only_response() -> ChatResponse:
+            response = await self._call_llm(
+                agent=agent,
+                messages=messages,
+                tools=None,
+                all_tool_names=[],
+                tool_use_policy=_finalization_only_policy(),
+                tenant_id=request.tenant_id,
+                user_id=request.user_id,
+                conversation_id=request.conversation_id,
+                billing_context=request.billing_context,
+                route_result=route_result,
+                log_user_type=log_user_type_for_call_log(request.user_role),
+                selected_skill_names=selected_skill_names,
+                context_sources=context_sources,
+            )
+            return _sanitize_finalization_only_response(response)
 
         def _append_ordered_progress_hint() -> None:
             if len(ordered_requested_families) <= 1:
@@ -2998,6 +3212,10 @@ class BaseEngine(ABC):
         )
 
         for _round in range(round_limit):
+            _sync_sandbox_runtime_model_info(current_response)
+            tool_calls = current_response.tool_calls
+            if not tool_calls:
+                break
             if BudgetGuard.pre_model_reason(execution_budget):
                 return (
                     self._budget_exit_response(total_tokens),
@@ -3016,9 +3234,6 @@ class BaseEngine(ABC):
                     total_tokens,
                     completion_tokens_used,
                 )
-            tool_calls = current_response.tool_calls
-            if not tool_calls:
-                break
             tool_calls, truncated_after_navigation = (
                 self._truncate_tool_calls_after_navigation(tool_calls)
             )
@@ -3047,6 +3262,7 @@ class BaseEngine(ABC):
             )
             follow_up_messages: list[ChatMessage] = []
             round_tool_results: list[ToolResult] = []
+            graceful_finalization_pending = False
 
             # Execute each tool call (using ToolCallProcessor shared logic) / 执行每个工具调用（使用 ToolCallProcessor 共享逻辑）
             # consent_mode pre-check: same semantic as stream path / consent_mode 前置检查：与流式路径语义一致
@@ -3148,6 +3364,17 @@ class BaseEngine(ABC):
                         ).encode("utf-8")
                     )
                     if tool_result_budget_reason:
+                        if (
+                            tool_result_budget_reason == "elapsed_budget_exceeded"
+                            and _has_successful_tool_results()
+                            and BudgetGuard.pre_model_reason(
+                                execution_budget,
+                                allow_finalization_grace=True,
+                            )
+                            is None
+                        ):
+                            graceful_finalization_pending = True
+                            break
                         return (
                             self._budget_exit_response(total_tokens),
                             all_tool_results,
@@ -3162,15 +3389,19 @@ class BaseEngine(ABC):
             if follow_up_messages:
                 messages.extend(follow_up_messages)
 
-            recovery_hint, recovery_tool_names, recovery_diagnostics = (
-                self._build_page_no_progress_recovery(
-                    messages=messages,
-                    tool_calls=tool_calls,
-                    tool_results=round_tool_results,
-                    tools=all_tools or tools_full,
-                    input_variables=request.input_variables,
+            recovery_hint = None
+            recovery_tool_names: list[str] = []
+            recovery_diagnostics: dict[str, Any] = {}
+            if not graceful_finalization_pending:
+                recovery_hint, recovery_tool_names, recovery_diagnostics = (
+                    self._build_page_no_progress_recovery(
+                        messages=messages,
+                        tool_calls=tool_calls,
+                        tool_results=round_tool_results,
+                        tools=all_tools or tools_full,
+                        input_variables=request.input_variables,
+                    )
                 )
-            )
             if recovery_hint:
                 forced_tool_names = recovery_tool_names
                 messages.append(ChatMessage(role="system", content=recovery_hint))
@@ -3208,6 +3439,7 @@ class BaseEngine(ABC):
                         )
                     _append_ordered_progress_hint()
                     round_tools = _round_tools_for_followup()
+                    round_policy = _round_policy(round_tools)
                     peek_response = await self._call_llm(
                         agent=agent,
                         messages=messages,
@@ -3215,7 +3447,7 @@ class BaseEngine(ABC):
                         all_tool_names=[
                             tool.name for tool in (all_tools or tools or [])
                         ],
-                        tool_use_policy=effective_policy,
+                        tool_use_policy=round_policy,
                         tenant_id=request.tenant_id,
                         user_id=request.user_id,
                         conversation_id=request.conversation_id,
@@ -3248,40 +3480,9 @@ class BaseEngine(ABC):
                 return None, all_tool_results, total_tokens, completion_tokens_used
 
             # Call LLM again (maintain same routed model as first call) / 再次调用 LLM（保持与第一次调用相同的路由模型）
-            if BudgetGuard.pre_model_reason(execution_budget):
-                return (
-                    self._budget_exit_response(total_tokens),
-                    all_tool_results,
-                    total_tokens,
-                    completion_tokens_used,
-                )
-            _append_ordered_progress_hint()
-            round_tools = _round_tools_for_followup()
-            current_response = await self._call_llm(
-                agent=agent,
-                messages=messages,
-                tools=round_tools,
-                all_tool_names=[tool.name for tool in (all_tools or tools or [])],
-                tool_use_policy=effective_policy,
-                tenant_id=request.tenant_id,
-                user_id=request.user_id,
-                conversation_id=request.conversation_id,
-                billing_context=request.billing_context,
-                route_result=route_result,
-                log_user_type=log_user_type_for_call_log(request.user_role),
-                selected_skill_names=selected_skill_names,
-                context_sources=context_sources,
-            )
-            total_tokens += current_response.total_tokens or 0
-            completion_tokens_used += int(
-                current_response.output_tokens
-                if current_response.output_tokens is not None
-                else (current_response.total_tokens or 0)
-            )
-            if BudgetGuard.completion_reason(
+            if BudgetGuard.pre_model_reason(
                 execution_budget,
-                completion_tokens=completion_tokens_used,
-                total_tokens=total_tokens,
+                allow_finalization_grace=_has_successful_tool_results(),
             ):
                 return (
                     self._budget_exit_response(total_tokens),
@@ -3289,29 +3490,69 @@ class BaseEngine(ABC):
                     total_tokens,
                     completion_tokens_used,
                 )
-        else:
-            if BudgetGuard.pre_model_reason(execution_budget):
+            if (
+                execution_budget is not None
+                and execution_budget.finalization_grace_applied
+                and _has_successful_tool_results()
+            ):
+                current_response = await _call_finalization_only_response()
+            else:
+                _append_ordered_progress_hint()
+                round_tools = _round_tools_for_followup()
+                round_policy = _round_policy(round_tools)
+                current_response = await self._call_llm(
+                    agent=agent,
+                    messages=messages,
+                    tools=round_tools,
+                    all_tool_names=[tool.name for tool in (all_tools or tools or [])],
+                    tool_use_policy=round_policy,
+                    tenant_id=request.tenant_id,
+                    user_id=request.user_id,
+                    conversation_id=request.conversation_id,
+                    billing_context=request.billing_context,
+                    route_result=route_result,
+                    log_user_type=log_user_type_for_call_log(request.user_role),
+                    selected_skill_names=selected_skill_names,
+                    context_sources=context_sources,
+                )
+            total_tokens += current_response.total_tokens or 0
+            completion_tokens_used += int(
+                current_response.output_tokens
+                if current_response.output_tokens is not None
+                else (current_response.total_tokens or 0)
+            )
+            completion_reason = BudgetGuard.completion_reason(
+                execution_budget,
+                completion_tokens=completion_tokens_used,
+                total_tokens=total_tokens,
+            )
+            if completion_reason:
+                if (
+                    completion_reason == "elapsed_budget_exceeded"
+                    and not current_response.tool_calls
+                    and str(current_response.message.content or "").strip()
+                ):
+                    break
                 return (
                     self._budget_exit_response(total_tokens),
                     all_tool_results,
                     total_tokens,
                     completion_tokens_used,
                 )
-            current_response = await self._call_llm(
-                agent=agent,
-                messages=messages,
-                tools=None,
-                all_tool_names=[],
-                tool_use_policy=effective_policy,
-                tenant_id=request.tenant_id,
-                user_id=request.user_id,
-                conversation_id=request.conversation_id,
-                billing_context=request.billing_context,
-                route_result=route_result,
-                log_user_type=log_user_type_for_call_log(request.user_role),
-                selected_skill_names=selected_skill_names,
-                context_sources=context_sources,
-            )
+        else:
+            if BudgetGuard.pre_model_reason(
+                execution_budget,
+                allow_finalization_grace=bool(
+                    any(result.success for result in all_tool_results)
+                ),
+            ):
+                return (
+                    self._budget_exit_response(total_tokens),
+                    all_tool_results,
+                    total_tokens,
+                    completion_tokens_used,
+                )
+            current_response = await _call_finalization_only_response()
             total_tokens += current_response.total_tokens or 0
             completion_tokens_used += int(
                 current_response.output_tokens

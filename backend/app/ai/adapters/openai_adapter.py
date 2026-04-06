@@ -20,7 +20,14 @@ from openai.types import CreateEmbeddingResponse
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
 from app.ai.adapters.base import BaseAdapter
-from app.ai.exceptions import AIGatewayError, convert_openai_error
+from app.ai.exceptions import (
+    AIGatewayError,
+    ContentFilterError,
+    ModelNotFoundError,
+    ProviderConnectionError,
+    ProviderTimeoutError,
+    convert_openai_error,
+)
 from app.ai.text_semantics import extract_data_url_payload, split_last_suffix
 from app.ai.tools.security import SSRFBlockedError, UrlValidator
 from app.ai.types import (
@@ -33,6 +40,18 @@ from app.ai.types import (
 )
 from app.ai.usage_mode import resolve_chat_usage
 from app.ai.utils.chat_attachment_media import resolve_image_url_for_llm
+from app.ai.web_search.types import (
+    PROVIDER_MODE_NATIVE,
+    STATUS_NO_RESULTS,
+    STATUS_PARSE_ERROR,
+    STATUS_POLICY_FILTERED,
+    STATUS_SUCCESS,
+    STATUS_TIMEOUT,
+    STATUS_UNSUPPORTED,
+    STATUS_UPSTREAM_ERROR,
+    SearchProviderRun,
+    SearchResultItem,
+)
 from app.core.logging import LogManager
 
 logger = LogManager.get_logger("ai")
@@ -103,6 +122,13 @@ _OPENAI_RUNTIME_OVERRIDE_PATHS: dict[str, str] = {
     "legacy_reasoning_effort_camel": "reasoningEffort",
     "legacy_model_code_alias": "legacy_model_code_alias",
 }
+_NATIVE_WEB_SEARCH_MODEL_PREFIXES: tuple[str, ...] = (
+    "gpt-4.1",
+    "gpt-4o",
+    "gpt-5",
+    "o3",
+    "o4",
+)
 
 
 class OpenAIAdapter(BaseAdapter):
@@ -1402,6 +1428,320 @@ class OpenAIAdapter(BaseAdapter):
 
     def _use_responses_api(self) -> bool:
         return self.wire_api == "responses"
+
+    @staticmethod
+    def _native_web_search_field(value: Any, name: str) -> Any:
+        if isinstance(value, dict):
+            return value.get(name)
+        return getattr(value, name, None)
+
+    @staticmethod
+    def _coerce_int(value: Any) -> int | None:
+        try:
+            return int(value) if value is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    @classmethod
+    def _supports_native_web_search_model(cls, model: str) -> bool:
+        normalized = str(model or "").strip().lower()
+        if not normalized:
+            return False
+        return any(
+            normalized.startswith(prefix)
+            for prefix in _NATIVE_WEB_SEARCH_MODEL_PREFIXES
+        )
+
+    @staticmethod
+    def _is_verifiable_native_web_search_url(url: str) -> bool:
+        parsed = urlparse(str(url or "").strip())
+        return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+
+    @staticmethod
+    def _normalize_native_web_search_snippet(
+        text: str,
+        *,
+        title: str,
+        start_index: int | None,
+        end_index: int | None,
+        limit: int = 240,
+    ) -> str:
+        source_text = str(text or "")
+        if start_index is not None and end_index is not None and end_index > start_index:
+            left = max(0, start_index - 100)
+            right = min(len(source_text), end_index + 120)
+            source_text = source_text[left:right]
+        normalized = " ".join(source_text.split())
+        normalized_title = " ".join(str(title or "").split())
+        if normalized_title and normalized.startswith(normalized_title):
+            normalized = normalized[len(normalized_title) :].strip(" -:;,")
+        if len(normalized) > limit:
+            normalized = normalized[:limit].rstrip() + "..."
+        return normalized
+
+    def _extract_native_web_search_items(
+        self,
+        response: Any,
+        *,
+        provider_label: str,
+        backend_key: str,
+        max_results: int,
+    ) -> tuple[list[SearchResultItem], bool]:
+        items: list[SearchResultItem] = []
+        seen_urls: set[str] = set()
+        saw_unverifiable_url = False
+
+        for item in self._native_web_search_field(response, "output") or []:
+            if self._native_web_search_field(item, "type") != "message":
+                continue
+            for content in self._native_web_search_field(item, "content") or []:
+                if self._native_web_search_field(content, "type") != "output_text":
+                    continue
+                text = str(self._native_web_search_field(content, "text") or "")
+                for annotation in (
+                    self._native_web_search_field(content, "annotations") or []
+                ):
+                    if self._native_web_search_field(annotation, "type") != "url_citation":
+                        continue
+                    url = str(self._native_web_search_field(annotation, "url") or "").strip()
+                    if not self._is_verifiable_native_web_search_url(url):
+                        saw_unverifiable_url = True
+                        continue
+                    if url in seen_urls:
+                        continue
+                    title = (
+                        str(self._native_web_search_field(annotation, "title") or "").strip()
+                        or url
+                    )
+                    snippet = self._normalize_native_web_search_snippet(
+                        text,
+                        title=title,
+                        start_index=self._coerce_int(
+                            self._native_web_search_field(annotation, "start_index")
+                        ),
+                        end_index=self._coerce_int(
+                            self._native_web_search_field(annotation, "end_index")
+                        ),
+                    )
+                    items.append(
+                        SearchResultItem(
+                            title=title,
+                            url=url,
+                            snippet=snippet,
+                            source=backend_key,
+                            provider=provider_label,
+                            provider_mode=PROVIDER_MODE_NATIVE,
+                            rank=len(items) + 1,
+                        )
+                    )
+                    seen_urls.add(url)
+                    if len(items) >= max_results:
+                        return items, saw_unverifiable_url
+
+        for item in self._native_web_search_field(response, "output") or []:
+            if self._native_web_search_field(item, "type") != "web_search_call":
+                continue
+            action = self._native_web_search_field(item, "action")
+            for source in self._native_web_search_field(action, "sources") or []:
+                url = str(self._native_web_search_field(source, "url") or "").strip()
+                if not self._is_verifiable_native_web_search_url(url):
+                    saw_unverifiable_url = True
+                    continue
+                if url in seen_urls:
+                    continue
+                title = (urlparse(url).netloc or url).strip()
+                items.append(
+                    SearchResultItem(
+                        title=title,
+                        url=url,
+                        snippet="",
+                        source=backend_key,
+                        provider=provider_label,
+                        provider_mode=PROVIDER_MODE_NATIVE,
+                        rank=len(items) + 1,
+                    )
+                )
+                seen_urls.add(url)
+                if len(items) >= max_results:
+                    return items, saw_unverifiable_url
+
+        return items, saw_unverifiable_url
+
+    def _extract_native_web_search_usage(self, response: Any) -> tuple[int, int, int]:
+        usage = self._native_web_search_field(response, "usage")
+        input_tokens = self._coerce_int(
+            self._native_web_search_field(usage, "input_tokens")
+        ) or 0
+        output_tokens = self._coerce_int(
+            self._native_web_search_field(usage, "output_tokens")
+        ) or 0
+        total_tokens = self._coerce_int(
+            self._native_web_search_field(usage, "total_tokens")
+        )
+        if total_tokens is None:
+            total_tokens = input_tokens + output_tokens
+        return input_tokens, output_tokens, total_tokens
+
+    def _map_native_web_search_error(self, error: Exception) -> str:
+        if isinstance(error, (APITimeoutError, ProviderTimeoutError)):
+            return STATUS_TIMEOUT
+        if isinstance(error, ContentFilterError):
+            return STATUS_POLICY_FILTERED
+        if isinstance(error, ModelNotFoundError):
+            return STATUS_UNSUPPORTED
+        if isinstance(error, ProviderConnectionError):
+            return STATUS_UPSTREAM_ERROR
+
+        status_code = self._extract_status_code(error)
+        message = str(error).lower()
+        if (
+            "unsupported" in message
+            or "not support" in message
+            or "unknown parameter" in message
+            or "invalid tool" in message
+            or ("web_search" in message and "available" in message)
+        ):
+            return STATUS_UNSUPPORTED
+        if (
+            "content_filter" in message
+            or "content policy" in message
+            or "safety" in message
+            or "policy" in message
+        ):
+            return STATUS_POLICY_FILTERED
+        if status_code in {400, 404}:
+            return STATUS_UNSUPPORTED
+        if status_code == 408:
+            return STATUS_TIMEOUT
+        return STATUS_UPSTREAM_ERROR
+
+    def supports_native_web_search(self, model: str) -> bool:
+        return self._use_responses_api() and self._supports_native_web_search_model(
+            model
+        )
+
+    async def native_web_search(
+        self,
+        *,
+        query: str,
+        max_results: int,
+        locale: str | None,
+        timeout_seconds: int,
+        model: str | None = None,
+        provider_label: str | None = None,
+        backend_key: str | None = None,
+    ) -> SearchProviderRun:
+        effective_model = str(model or "").strip()
+        effective_provider = str(provider_label or "openai_compatible")
+        effective_backend_key = backend_key or f"native:{effective_provider}:{effective_model}"
+        if not self.supports_native_web_search(effective_model):
+            return SearchProviderRun(
+                provider=effective_provider,
+                provider_mode=PROVIDER_MODE_NATIVE,
+                backend_key=effective_backend_key,
+                status=STATUS_UNSUPPORTED,
+                items=[],
+                failure_reason="responses api or model family does not support native web search",
+                attempted_backends=[effective_backend_key],
+            )
+
+        instructions = (
+            "Use hosted web search to find candidate source URLs for the user query. "
+            "Return only candidate sources with brief snippets. Do not synthesize facts "
+            "or claim conclusions. Every result must be backed by a verifiable absolute "
+            "http or https URL that can later be fetched."
+        )
+        if locale:
+            instructions += f" Prefer sources suitable for locale {locale} when relevant."
+
+        try:
+            self._log_upstream_request(
+                endpoint_path="responses",
+                model=effective_model,
+                stream=False,
+                wire_api="responses",
+            )
+            response = await self.client.responses.create(
+                model=effective_model,
+                input=query,
+                instructions=instructions,
+                tools=[
+                    {
+                        "type": "web_search",
+                        "search_context_size": "medium",
+                    }
+                ],
+                tool_choice="required",
+                include=["web_search_call.action.sources"],
+                timeout=float(timeout_seconds),
+            )
+            input_tokens, output_tokens, total_tokens = (
+                self._extract_native_web_search_usage(response)
+            )
+            items, saw_unverifiable_url = self._extract_native_web_search_items(
+                response,
+                provider_label=effective_provider,
+                backend_key=effective_backend_key,
+                max_results=max_results,
+            )
+            if items:
+                return SearchProviderRun(
+                    provider=effective_provider,
+                    provider_mode=PROVIDER_MODE_NATIVE,
+                    backend_key=effective_backend_key,
+                    status=STATUS_SUCCESS,
+                    items=items,
+                    attempted_backends=[effective_backend_key],
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    total_tokens=total_tokens,
+                )
+            if saw_unverifiable_url:
+                return SearchProviderRun(
+                    provider=effective_provider,
+                    provider_mode=PROVIDER_MODE_NATIVE,
+                    backend_key=effective_backend_key,
+                    status=STATUS_PARSE_ERROR,
+                    items=[],
+                    failure_reason="native web search returned no verifiable absolute URLs",
+                    attempted_backends=[effective_backend_key],
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    total_tokens=total_tokens,
+                )
+            return SearchProviderRun(
+                provider=effective_provider,
+                provider_mode=PROVIDER_MODE_NATIVE,
+                backend_key=effective_backend_key,
+                status=STATUS_NO_RESULTS,
+                items=[],
+                failure_reason="native web search returned no candidate sources",
+                attempted_backends=[effective_backend_key],
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                total_tokens=total_tokens,
+            )
+        except Exception as exc:
+            self._log_upstream_error(
+                exc,
+                endpoint_path="responses",
+                model=effective_model,
+                wire_api="responses",
+            )
+            converted = exc if isinstance(exc, AIGatewayError) else convert_openai_error(
+                exc,
+                provider_code="openai",
+                model_code=effective_model,
+            )
+            return SearchProviderRun(
+                provider=effective_provider,
+                provider_mode=PROVIDER_MODE_NATIVE,
+                backend_key=effective_backend_key,
+                status=self._map_native_web_search_error(exc),
+                items=[],
+                failure_reason=str(converted),
+                attempted_backends=[effective_backend_key],
+            )
 
     def _payload_looks_like_api_error(self, payload: Any) -> bool:
         """True when upstream returned an error object, not a misrouted success body."""

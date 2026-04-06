@@ -233,6 +233,11 @@ class ExecutionContext:
     page_session_id: str | None = None
     conversation_id: int | None = None
     interaction_mode: str = "confirm"
+    runtime_provider_id: int | None = None
+    runtime_provider_name: str | None = None
+    runtime_model_id: int | None = None
+    runtime_model_name: str | None = None
+    runtime_model_code: str | None = None
 
     @property
     def is_platform_admin(self) -> bool:

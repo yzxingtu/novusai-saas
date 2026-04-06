@@ -17,6 +17,12 @@ from urllib.parse import urlparse
 
 from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.types import ToolDefinition, ToolResult
+from app.ai.web_search.orchestrator import run_web_search as orchestrated_run_web_search
+from app.ai.web_search.types import (
+    STATUS_NO_RESULTS as WS_STATUS_NO_RESULTS,
+    STATUS_SUCCESS as WS_STATUS_SUCCESS,
+    WebSearchExecution as OrchestratedWebSearchExecution,
+)
 from app.core.config import settings
 from app.core.i18n import _
 from app.core.logging import LogManager
@@ -320,26 +326,28 @@ def _build_search_output_text(
 
 
 def _build_search_summary_payload(
-    *,
-    provider: str | None,
-    status: str,
-    items: list[dict[str, str]],
-    failure_reason: str | None = None,
+    execution: OrchestratedWebSearchExecution,
 ) -> dict[str, Any]:
-    return {
-        "provider": provider,
-        "status": status,
+    items = [
+        item.to_summary_item() if hasattr(item, "to_summary_item") else dict(item)
+        for item in execution.items
+    ]
+    meta = execution.meta
+    payload: dict[str, Any] = {
+        "provider": meta.provider,
+        "provider_mode": meta.provider_mode,
+        "provider_chain": list(meta.provider_chain or []),
+        "attempted_backends": list(meta.attempted_backends or []),
+        "selected_backend": meta.selected_backend,
+        "used_fallback": bool(meta.used_fallback),
+        "status": meta.status,
         "result_count": len(items),
-        "items": [
-            {
-                "title": str(item.get("title") or ""),
-                "url": str(item.get("url") or ""),
-                "snippet": str(item.get("snippet") or ""),
-            }
-            for item in items
-        ],
-        **({"failure_reason": failure_reason} if failure_reason else {}),
+        "cache_hit": bool(meta.cache_hit),
+        "items": items,
     }
+    if meta.failure_reason:
+        payload["failure_reason"] = meta.failure_reason
+    return payload
 
 
 def _extract_title_from_html(html: str) -> str:
@@ -803,112 +811,11 @@ async def _run_web_search(
     max_results: int,
     *,
     context: "ExecutionContext | None" = None,
-) -> WebSearchExecution:
-    conv_id = _web_search_conv_id(context)
-    rewritten_query = _normalize_text(_correct_query_year(query))
-    cache_key = (conv_id, rewritten_query.lower()) if conv_id else None
-    if cache_key and cache_key in _SEARCH_QUERY_CACHE:
-        prev = _SEARCH_QUERY_CACHE[cache_key]
-        return WebSearchExecution(
-            output=(
-                prev.output
-                + "\n\n[Note: This exact query was already searched in this conversation; "
-                "use fetch_url on a candidate URL from earlier results instead of repeating web_search.]"
-            ),
-            provider=prev.provider,
-            status=prev.status,
-            items=list(prev.items),
-            failure_reason=None,
-        )
-
-    provider_specs: list[
-        tuple[str, Callable[..., Coroutine[Any, Any, SearchProviderResponse]]]
-    ] = [
-        (_SEARCH_PROVIDER_BAIDU, _search_with_baidu_public),
-        (_SEARCH_PROVIDER_SO360, _search_with_so360_public),
-    ]
-    attempts: list[SearchProviderResponse] = []
-
-    for index, (pname, pfunc) in enumerate(provider_specs):
-        if _provider_is_skipped(conv_id, pname):
-            logger.info(
-                "web_search skip cooled-down provider={} conv_id={} query={}",
-                pname,
-                conv_id,
-                rewritten_query[:80],
-            )
-            continue
-        attempt = await pfunc(rewritten_query, max_results)
-        _record_provider_outcome(conv_id, pname, attempt.status)
-        attempts.append(attempt)
-        logger.info(
-            "web_search source attempt: provider={} status={} query={} result_count={} fallback={}",
-            attempt.provider,
-            attempt.status,
-            rewritten_query[:120],
-            len(attempt.results),
-            index > 0,
-        )
-        if attempt.status == _SEARCH_STATUS_SUCCESS and attempt.results:
-            execution = WebSearchExecution(
-                output=_build_search_output_text(rewritten_query, attempt.results),
-                provider=attempt.provider,
-                status=attempt.status,
-                items=attempt.results,
-            )
-            if cache_key:
-                _SEARCH_QUERY_CACHE[cache_key] = execution
-            return execution
-        if attempt.status == _SEARCH_STATUS_NO_RESULTS:
-            continue
-
-    if not attempts:
-        return WebSearchExecution(
-            output="Search sources temporarily unavailable (search providers cooling down).",
-            provider=None,
-            status=_SEARCH_STATUS_SOURCE_UNAVAILABLE,
-            items=[],
-            failure_reason="all search providers temporarily skipped",
-        )
-
-    non_no_results = [
-        attempt for attempt in attempts if attempt.status != _SEARCH_STATUS_NO_RESULTS
-    ]
-    if attempts and non_no_results == []:
-        return WebSearchExecution(
-            output=f"No results found for: {rewritten_query}",
-            provider=attempts[-1].provider if attempts else None,
-            status=_SEARCH_STATUS_NO_RESULTS,
-            items=[],
-            failure_reason=_build_public_search_failure_reason(attempts),
-        )
-
-    failure_reason = (
-        _build_public_search_failure_reason(attempts)
-        or "all public search sources were unavailable"
-    )
-    if any(attempt.status == _SEARCH_STATUS_LOW_CONFIDENCE for attempt in attempts):
-        return WebSearchExecution(
-            output=f"Search results low confidence: {failure_reason}",
-            provider=attempts[-1].provider if attempts else None,
-            status=_SEARCH_STATUS_LOW_CONFIDENCE,
-            items=[],
-            failure_reason=failure_reason,
-        )
-    if any(attempt.status == _SEARCH_STATUS_PARSER_MISS for attempt in attempts):
-        return WebSearchExecution(
-            output=f"Search parser unavailable: {failure_reason}",
-            provider=attempts[-1].provider if attempts else None,
-            status=_SEARCH_STATUS_PARSER_MISS,
-            items=[],
-            failure_reason=failure_reason,
-        )
-    return WebSearchExecution(
-        output=f"Search source unavailable: {failure_reason}",
-        provider=attempts[-1].provider if attempts else None,
-        status=_SEARCH_STATUS_SOURCE_UNAVAILABLE,
-        items=[],
-        failure_reason=failure_reason,
+) -> OrchestratedWebSearchExecution:
+    return await orchestrated_run_web_search(
+        query,
+        max_results,
+        context=context,
     )
 
 
@@ -1159,12 +1066,9 @@ class BuiltinToolExecutor(BaseToolExecutor):
                     context=context,
                 )
                 duration_ms = int((time.perf_counter() - start) * 1000)
-                is_failure = execution.status in {
-                    _SEARCH_STATUS_SOURCE_BLOCKED,
-                    _SEARCH_STATUS_SOURCE_CHALLENGED,
-                    _SEARCH_STATUS_SOURCE_UNAVAILABLE,
-                    _SEARCH_STATUS_PARSER_MISS,
-                    _SEARCH_STATUS_LOW_CONFIDENCE,
+                is_failure = execution.meta.status not in {
+                    WS_STATUS_SUCCESS,
+                    WS_STATUS_NO_RESULTS,
                 }
                 return ToolResult(
                     tool_call_id=tool_call_id,
@@ -1173,16 +1077,11 @@ class BuiltinToolExecutor(BaseToolExecutor):
                     output="" if is_failure else execution.output,
                     error=execution.output if is_failure else "",
                     summary=(
-                        f"{execution.provider or 'search'}: {len(execution.items)} result(s)"
-                        if execution.status == _SEARCH_STATUS_SUCCESS
-                        else execution.failure_reason
+                        f"{execution.meta.provider or execution.meta.selected_backend or 'search'}: {len(execution.items)} result(s)"
+                        if execution.meta.status in {WS_STATUS_SUCCESS, WS_STATUS_NO_RESULTS}
+                        else execution.meta.failure_reason
                     ),
-                    summary_payload=_build_search_summary_payload(
-                        provider=execution.provider,
-                        status=execution.status,
-                        items=execution.items,
-                        failure_reason=execution.failure_reason,
-                    ),
+                    summary_payload=_build_search_summary_payload(execution),
                     duration_ms=duration_ms,
                 )
 

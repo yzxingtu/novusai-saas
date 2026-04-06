@@ -86,6 +86,43 @@
       "type": "当前仅支持 OpenAI 兼容格式。大多数 AI 服务（包括 Anthropic、Azure）都兼容此格式",
       "isActive": "禁用后该供应商下的所有模型将不可用，已有的 API 调用会失败"
     },
+    "webSearch": {
+      "title": "联网搜索",
+      "enabled": "启用联网搜索",
+      "strategy": "搜索策略",
+      "maxResultsCap": "最大结果数",
+      "nativeTimeoutSeconds": "原生搜索超时（秒）",
+      "publicTimeoutSeconds": "公共搜索超时（秒）",
+      "publicProviders": "公共搜索源",
+      "strategyOptions": {
+        "native_first_fallback_public": "原生优先 + 公共回退"
+      },
+      "publicProviderOptions": {
+        "baidu": "百度",
+        "so360": "360 搜索"
+      },
+      "help": {
+        "enabled": "关闭后将不再暴露联网搜索能力给模型。",
+        "strategy": "当前策略固定为“原生优先，失败后自动回退公共搜索”。",
+        "maxResultsCap": "单次搜索最多返回的候选来源数量（1-10）。",
+        "nativeTimeoutSeconds": "模型原生联网搜索后端超时时间。",
+        "publicTimeoutSeconds": "公共 HTML 搜索后端超时时间。",
+        "publicProviders": "原生不可用或失败时用于回退的公共搜索源。"
+      },
+      "validation": {
+        "maxResultsCap": "最大结果数必须是 1-10 的整数",
+        "nativeTimeoutSeconds": "原生超时必须是 1-120 的整数",
+        "publicTimeoutSeconds": "公共超时必须是 1-120 的整数"
+      },
+      "runtime": {
+        "title": "原生能力状态（只读）",
+        "unknown": "尚未返回运行时能力信息",
+        "nativeSupported": "当前模型支持原生联网搜索（提供商：{provider}）",
+        "fallbackReason": "当前模型不支持原生联网搜索，将自动回退公共搜索（原因：{reason}）",
+        "fallbackDefault": "当前模型不支持原生联网搜索，将自动回退公共搜索",
+        "autoFallbackHint": "即使已选择“原生优先”，运行时仍会自动回退到公共搜索，不影响配置保存。"
+      }
+    },
     "summary": {
       "total": "总供应商",
       "active": "已启用",

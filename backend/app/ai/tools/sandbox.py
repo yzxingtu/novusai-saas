@@ -205,6 +205,7 @@ class ToolSandbox:
         self._toolkit_memory_limit_mb = toolkit_memory_limit_mb
         self._page_session_id = page_session_id
         self._conversation_id = conversation_id
+        self._runtime_model_info: dict[str, Any] | None = None
         self.trust_policy_ref = trust_policy_ref
         self.interaction_mode = interaction_mode
         # Bumped when a non-readonly page tool succeeds; ToolCallProcessor folds into readonly cache keys.
@@ -254,6 +255,18 @@ class ToolSandbox:
     def register_executor(self, tool_type: str, executor: BaseToolExecutor) -> None:
         """Register custom executor / 注册自定义执行器"""
         self._executors[tool_type] = executor
+
+    def set_runtime_model_info(
+        self, runtime_model_info: dict[str, Any] | None
+    ) -> None:
+        """
+        Set runtime provider/model info for subsequent tool executions.
+        为后续工具执行设置运行时 provider/model 信息。
+        """
+        if isinstance(runtime_model_info, dict):
+            self._runtime_model_info = dict(runtime_model_info)
+            return
+        self._runtime_model_info = None
 
     async def execute(
         self,
@@ -537,6 +550,35 @@ class ToolSandbox:
             page_session_id=self._page_session_id,
             conversation_id=self._conversation_id,
             interaction_mode=self.interaction_mode,
+            runtime_provider_id=(
+                self._runtime_model_info.get("provider_id")
+                if isinstance(self._runtime_model_info, dict)
+                else None
+            ),
+            runtime_provider_name=(
+                str(self._runtime_model_info.get("provider_name") or "")
+                if isinstance(self._runtime_model_info, dict)
+                and self._runtime_model_info.get("provider_name")
+                is not None
+                else None
+            ),
+            runtime_model_id=(
+                self._runtime_model_info.get("model_id")
+                if isinstance(self._runtime_model_info, dict)
+                else None
+            ),
+            runtime_model_name=(
+                str(self._runtime_model_info.get("model_name") or "")
+                if isinstance(self._runtime_model_info, dict)
+                and self._runtime_model_info.get("model_name") is not None
+                else None
+            ),
+            runtime_model_code=(
+                str(self._runtime_model_info.get("model_code") or "")
+                if isinstance(self._runtime_model_info, dict)
+                and self._runtime_model_info.get("model_code") is not None
+                else None
+            ),
         )
 
         # 5.5 Executor-level parameter validation / 执行器级参数校验

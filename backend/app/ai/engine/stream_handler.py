@@ -836,6 +836,19 @@ class StreamExecutionHandler:
             if getattr(self.prep, "capability_bundle", None) is not None
             else None
         )
+
+        def _has_successful_tool_results() -> bool:
+            return any(result.success for result in all_tool_results)
+
+        def _finalization_only_policy() -> ToolUsePolicy:
+            return ToolUsePolicy(
+                family="none",
+                mode="none",
+                allowed_tool_names=[],
+                retry_on_contract_breach=False,
+                reason="partial_exit_final_response",
+            )
+
         forced_tool_names: list[str] | None = None
         ordered_requested_families: list[str] = []
         if not self._state.intent_plan:
@@ -999,7 +1012,10 @@ class StreamExecutionHandler:
         round_limit = self._tool_loop_round_limit(tools_full)
 
         for _round in range(round_limit):
-            pre_model_reason = BudgetGuard.pre_model_reason(self._state.budget)
+            pre_model_reason = BudgetGuard.pre_model_reason(
+                self._state.budget,
+                allow_finalization_grace=_has_successful_tool_results(),
+            )
             if pre_model_reason:
                 self._register_budget_exit(pre_model_reason)
                 break
@@ -1014,29 +1030,54 @@ class StreamExecutionHandler:
             self._output = ""
             self._reasoning_output = ""
 
-            if (
-                self.engine._needs_fetch_url_before_summary(messages)
-                and not self._fetch_gate_message_sent
-            ):
-                messages.append(
-                    ChatMessage(
-                        role="system",
-                        content=render_prompt_contract("fetch_url_gate"),
-                    )
-                )
-                self._fetch_gate_message_sent = True
-
-            round_tools = self.engine._apply_fetch_url_only_gate(
-                messages,
-                tools_full,
-                getattr(self.prep, "all_tools", None) or tools_full,
+            force_finalization_only = bool(
+                self._state.budget is not None
+                and self._state.budget.finalization_grace_applied
+                and _has_successful_tool_results()
             )
-            restrict_tools = getattr(self.engine, "_restrict_tools_to_names", None)
-            if callable(restrict_tools):
-                round_tools = restrict_tools(
-                    round_tools,
-                    forced_tool_names,
+
+            if force_finalization_only:
+                round_tools = []
+                round_tool_policy = _finalization_only_policy()
+            else:
+                if (
+                    self.engine._needs_fetch_url_before_summary(messages)
+                    and not self._fetch_gate_message_sent
+                ):
+                    messages.append(
+                        ChatMessage(
+                            role="system",
+                            content=render_prompt_contract("fetch_url_gate"),
+                        )
+                    )
+                    self._fetch_gate_message_sent = True
+
+                round_tools = self.engine._apply_fetch_url_only_gate(
+                    messages,
+                    tools_full,
+                    getattr(self.prep, "all_tools", None) or tools_full,
                 )
+                restrict_tools = getattr(self.engine, "_restrict_tools_to_names", None)
+                if callable(restrict_tools):
+                    round_tools = restrict_tools(
+                        round_tools,
+                        forced_tool_names,
+                    )
+                if round_tools:
+                    round_tool_policy = ToolUsePolicy(
+                        family=round_tool_policy.family,
+                        mode=round_tool_policy.mode,
+                        allowed_tool_names=[tool.name for tool in round_tools],
+                        retry_on_contract_breach=round_tool_policy.retry_on_contract_breach,
+                        reason=(
+                            f"{round_tool_policy.reason}|round_tool_subset"
+                            if round_tool_policy.reason
+                            else "round_tool_subset"
+                        ),
+                    )
+                else:
+                    round_tool_policy = _finalization_only_policy()
+
             processor.tools = round_tools
 
             _req_role = getattr(
@@ -1124,6 +1165,21 @@ class StreamExecutionHandler:
             tc_list, truncated_after_navigation = (
                 self.engine._truncate_tool_calls_after_navigation(tc_list)
             )
+            if force_finalization_only and tc_list:
+                logger.warning(
+                    "Finalization-only stream round returned unexpected tool calls; suppressing execution: conversation_id={} tool_names={}",
+                    self.request.conversation_id,
+                    [
+                        str(
+                            (tool_call.get("function") or {}).get("name")
+                            or tool_call.get("name")
+                            or ""
+                        )
+                        for tool_call in tc_list
+                        if isinstance(tool_call, dict)
+                    ],
+                )
+                tc_list = []
             if completion_reason:
                 self._state.register_completion_tokens(self._completion_tokens_used)
                 self._register_budget_exit(completion_reason)
@@ -1299,6 +1355,11 @@ class StreamExecutionHandler:
             follow_up_messages: list[ChatMessage] = []
 
             round_has_confirmation = False
+            graceful_finalization_pending = False
+
+            sandbox = getattr(self.engine, "sandbox", None)
+            if sandbox is not None and hasattr(sandbox, "set_runtime_model_info"):
+                sandbox.set_runtime_model_info(self._runtime_model_info)
 
             # Execute tools one by one and push SSE events immediately / 逐个执行工具并立即推送 SSE 事件
             for tc in tc_list:
@@ -1525,6 +1586,17 @@ class StreamExecutionHandler:
                 self._register_tool_failures([result])
                 tool_result_budget_reason = self._state.budget_exit_reason()
                 if tool_result_budget_reason:
+                    if (
+                        tool_result_budget_reason == "elapsed_budget_exceeded"
+                        and _has_successful_tool_results()
+                        and BudgetGuard.pre_model_reason(
+                            self._state.budget,
+                            allow_finalization_grace=True,
+                        )
+                        is None
+                    ):
+                        graceful_finalization_pending = True
+                        break
                     self._register_budget_exit(tool_result_budget_reason)
                 self._update_turn_progress(
                     last_tool_name=func_name or None,
@@ -1547,6 +1619,9 @@ class StreamExecutionHandler:
                 and not _page_op_aborted
             ):
                 messages.extend(follow_up_messages)
+
+            if graceful_finalization_pending:
+                continue
 
             recovery_hint, recovery_tool_names, recovery_diagnostics = (
                 self.engine._build_page_no_progress_recovery(

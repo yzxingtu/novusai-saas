@@ -8,10 +8,12 @@ Handles AI provider business logic.
 from typing import Any
 from urllib.parse import urlparse
 
+from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 
 from app.ai.text_semantics import slugify_ascii_identifier
 from app.core.base_service import BaseService
+from app.core.config import settings
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.exceptions import ConflictException, NotFoundException, ValidationException
@@ -19,7 +21,11 @@ from app.models.ai import AIProvider
 from app.repositories.ai import AIProviderRepository
 from app.schemas.ai.provider import (
     AIProviderCreate,
+    AIProviderResponse,
     AIProviderUpdate,
+    AIProviderWebSearchConfig,
+    AIProviderWebSearchRuntime,
+    normalize_provider_web_search_config,
 )
 
 _logger = LogManager.get_logger("ai")
@@ -29,6 +35,7 @@ _FORBIDDEN_OPENAI_COMPATIBLE_BASE_URL_SUFFIXES = (
     "/responses",
     "/chat/completions",
 )
+_SUPPORTED_PUBLIC_WEB_SEARCH_PROVIDERS = {"baidu", "so360"}
 
 
 class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
@@ -151,7 +158,143 @@ class AIProviderService(BaseService[AIProvider, AIProviderRepository]):
                 validated_payload.get("base_url"),
                 provider_type=provider_type,
             )
+        if "config" in validated_payload:
+            validated_payload["config"] = cls._normalize_provider_config(
+                validated_payload.get("config"),
+            )
+        elif existing_provider is None:
+            validated_payload["config"] = cls._normalize_provider_config(None)
         return validated_payload
+
+    @staticmethod
+    def _default_web_search_config() -> AIProviderWebSearchConfig:
+        return AIProviderWebSearchConfig(
+            enabled=bool(settings.WEB_SEARCH_DEFAULT_ENABLED),
+            strategy=str(settings.WEB_SEARCH_DEFAULT_STRATEGY).strip()
+            or "native_first_fallback_public",
+            max_results_cap=int(settings.WEB_SEARCH_DEFAULT_MAX_RESULTS_CAP),
+            native_timeout_seconds=int(
+                settings.WEB_SEARCH_DEFAULT_NATIVE_TIMEOUT_SECONDS
+            ),
+            public_timeout_seconds=int(
+                settings.WEB_SEARCH_DEFAULT_PUBLIC_TIMEOUT_SECONDS
+            ),
+            public_providers=[
+                provider
+                for provider in settings.WEB_SEARCH_DEFAULT_PUBLIC_PROVIDERS
+                if str(provider or "").strip()
+            ]
+            or ["baidu", "so360"],
+        )
+
+    @classmethod
+    def _normalize_provider_config(
+        cls,
+        config: dict[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        if config is None:
+            provider_config: dict[str, Any] = {}
+        elif isinstance(config, dict):
+            provider_config = dict(config)
+        else:
+            raise ValidationException(message="provider config must be an object")
+
+        provider_config.pop("web_search_runtime", None)
+        default_web_search = cls._default_web_search_config()
+        try:
+            normalized_web_search = normalize_provider_web_search_config(
+                provider_config.get("web_search"),
+                defaults=default_web_search,
+            )
+        except ValidationError as exc:
+            raise ValidationException(
+                message=f"Invalid web_search config: {exc}"
+            ) from exc
+
+        # Defensive filtering in case env defaults were customized to unsupported providers.
+        normalized_public_providers = [
+            provider
+            for provider in normalized_web_search.public_providers
+            if provider in _SUPPORTED_PUBLIC_WEB_SEARCH_PROVIDERS
+        ]
+        if not normalized_public_providers:
+            raise ValidationException(
+                message="web_search.public_providers must contain at least one supported provider"
+            )
+        normalized_web_search.public_providers = normalized_public_providers
+
+        provider_config["web_search"] = normalized_web_search.model_dump()
+        return provider_config or None
+
+    @classmethod
+    def build_web_search_runtime_summary(
+        cls,
+        provider: AIProvider,
+    ) -> AIProviderWebSearchRuntime:
+        provider_type = str(getattr(provider, "type", "") or "").strip()
+        provider_config = (
+            dict(getattr(provider, "config", {}) or {})
+            if isinstance(getattr(provider, "config", None), dict)
+            else {}
+        )
+        try:
+            normalized_config = cls._normalize_provider_config(provider_config)
+        except ValidationException:
+            return AIProviderWebSearchRuntime(
+                native_supported=False,
+                native_provider=provider_type or "unknown",
+                reason="provider config.web_search is invalid",
+            )
+        web_search_cfg = (normalized_config or {}).get("web_search") or {}
+        enabled = bool(web_search_cfg.get("enabled", True))
+        strategy = str(web_search_cfg.get("strategy", "") or "")
+        wire_api = str(provider_config.get("wire_api", "") or "").strip().lower()
+
+        if not enabled:
+            return AIProviderWebSearchRuntime(
+                native_supported=False,
+                native_provider=provider_type or "unknown",
+                reason="web_search disabled in provider config",
+            )
+        if strategy != "native_first_fallback_public":
+            return AIProviderWebSearchRuntime(
+                native_supported=False,
+                native_provider=provider_type or "unknown",
+                reason=f"unsupported strategy: {strategy or '(empty)'}",
+            )
+        if provider_type != "openai_compatible":
+            return AIProviderWebSearchRuntime(
+                native_supported=False,
+                native_provider=provider_type or "unknown",
+                reason="provider type has no native web search adapter",
+            )
+        if wire_api != "responses":
+            return AIProviderWebSearchRuntime(
+                native_supported=False,
+                native_provider=provider_type,
+                reason="openai_compatible native web search requires wire_api=responses",
+            )
+        return AIProviderWebSearchRuntime(
+            native_supported=True,
+            native_provider=provider_type,
+            reason="native web search available; runtime still validates model capability and may fallback to public search",
+        )
+
+    @classmethod
+    def to_response_schema(cls, provider: AIProvider) -> AIProviderResponse:
+        try:
+            config_dict = cls._normalize_provider_config(
+                provider.config if isinstance(provider.config, dict) else None
+            )
+        except ValidationException:
+            config_dict = (
+                dict(provider.config) if isinstance(provider.config, dict) else {}
+            )
+        runtime_summary = cls.build_web_search_runtime_summary(provider)
+        payload = AIProviderResponse.model_validate(provider, from_attributes=True)
+        payload.config = config_dict
+        payload.web_search_runtime = runtime_summary
+        return payload
 
     async def create_provider(self, data: AIProviderCreate) -> AIProvider:
         """

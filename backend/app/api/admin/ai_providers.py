@@ -29,7 +29,6 @@ from app.rbac.decorators import (
 )
 from app.schemas.ai.provider import (
     AIProviderCreate,
-    AIProviderResponse,
     AIProviderUpdate,
 )
 from app.schemas.common import ReorderRequest
@@ -141,10 +140,7 @@ class AdminAIProviderController(GlobalController):
 
             return success(
                 data=PageResponse.create(
-                    items=[
-                        AIProviderResponse.model_validate(item, from_attributes=True)
-                        for item in items
-                    ],
+                    items=[service.to_response_schema(item) for item in items],
                     total=total,
                     page=spec.page,
                     page_size=spec.size,
@@ -209,7 +205,7 @@ class AdminAIProviderController(GlobalController):
                 raise NotFoundException(message=_("ai.error.provider_not_found"))
 
             return success(
-                data=AIProviderResponse.model_validate(provider, from_attributes=True),
+                data=service.to_response_schema(provider),
                 message=_("common.success"),
             )
 
@@ -231,7 +227,7 @@ class AdminAIProviderController(GlobalController):
             await db.commit()
 
             return success(
-                data=AIProviderResponse.model_validate(provider, from_attributes=True),
+                data=service.to_response_schema(provider),
                 message=_("ai.provider.created"),
             )
 
@@ -254,7 +250,7 @@ class AdminAIProviderController(GlobalController):
             await db.commit()
 
             return success(
-                data=AIProviderResponse.model_validate(provider, from_attributes=True),
+                data=service.to_response_schema(provider),
                 message=_("ai.provider.updated"),
             )
 
@@ -295,7 +291,7 @@ class AdminAIProviderController(GlobalController):
             await db.commit()
 
             return success(
-                data=AIProviderResponse.model_validate(provider, from_attributes=True),
+                data=service.to_response_schema(provider),
                 message=_("ai.provider.status_updated"),
             )
 

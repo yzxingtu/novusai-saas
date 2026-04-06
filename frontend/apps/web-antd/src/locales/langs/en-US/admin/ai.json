@@ -86,6 +86,43 @@
       "type": "Currently only OpenAI-compatible format is supported. Most AI services (including Anthropic, Azure) are compatible",
       "isActive": "When disabled, all models under this provider become unavailable and existing API calls will fail"
     },
+    "webSearch": {
+      "title": "Web Search",
+      "enabled": "Enable Web Search",
+      "strategy": "Search Strategy",
+      "maxResultsCap": "Max Results",
+      "nativeTimeoutSeconds": "Native Search Timeout (s)",
+      "publicTimeoutSeconds": "Public Search Timeout (s)",
+      "publicProviders": "Public Search Providers",
+      "strategyOptions": {
+        "native_first_fallback_public": "Native First + Public Fallback"
+      },
+      "publicProviderOptions": {
+        "baidu": "Baidu",
+        "so360": "360 Search"
+      },
+      "help": {
+        "enabled": "When disabled, web search tools are no longer exposed to the model.",
+        "strategy": "Current strategy is fixed to native-first with automatic fallback to public search.",
+        "maxResultsCap": "Maximum number of candidate sources returned per search call (1-10).",
+        "nativeTimeoutSeconds": "Timeout for model-native web search backend.",
+        "publicTimeoutSeconds": "Timeout for public HTML search backend.",
+        "publicProviders": "Public providers used when native search is unavailable or fails."
+      },
+      "validation": {
+        "maxResultsCap": "Max results must be an integer between 1 and 10",
+        "nativeTimeoutSeconds": "Native timeout must be an integer between 1 and 120",
+        "publicTimeoutSeconds": "Public timeout must be an integer between 1 and 120"
+      },
+      "runtime": {
+        "title": "Native Capability Status (Read-only)",
+        "unknown": "Runtime capability information is not available yet",
+        "nativeSupported": "Current model supports native web search (provider: {provider})",
+        "fallbackReason": "Current model does not support native web search, automatic fallback to public search is active (reason: {reason})",
+        "fallbackDefault": "Current model does not support native web search, automatic fallback to public search is active",
+        "autoFallbackHint": "Even with native-first strategy saved, runtime will automatically fallback to public search when native capability is unavailable."
+      }
+    },
     "summary": {
       "total": "Total Providers",
       "active": "Active",

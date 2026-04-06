@@ -1,0 +1,672 @@
+"""
+Web search orchestrator and native search provider.
+联网搜索编排器与原生搜索提供器。
+"""
+
+from __future__ import annotations
+
+import time
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+from urllib.parse import urlparse
+
+from app.ai.gateway import AIGateway
+from app.ai.page_locale import resolve_page_locale
+from app.ai.web_search.public_html import (
+    BaseSearchProvider,
+    PublicHtmlSearchProvider,
+    _correct_query_year,
+    _normalize_text,
+)
+from app.ai.web_search.types import (
+    DEFAULT_PUBLIC_PROVIDERS,
+    PROVIDER_MODE_NATIVE,
+    STATUS_NO_RESULTS,
+    STATUS_PARSE_ERROR,
+    STATUS_POLICY_FILTERED,
+    STATUS_SUCCESS,
+    STATUS_TIMEOUT,
+    STATUS_UNSUPPORTED,
+    STATUS_UPSTREAM_ERROR,
+    STRATEGY_NATIVE_FIRST_FALLBACK_PUBLIC,
+    SearchProviderRun,
+    SearchResultItem,
+    WebSearchExecution,
+    WebSearchExecutionMeta,
+)
+from app.core.config import settings
+from app.core.logging import LogManager
+from app.repositories.ai import (
+    AIModelRepository,
+    AIProviderRepository,
+)
+from app.schemas.ai.provider import (
+    AIProviderWebSearchConfig,
+    normalize_provider_web_search_config,
+)
+
+if TYPE_CHECKING:
+    from app.ai.tools.types import ExecutionContext
+    from app.models.ai import AIModel, AIProvider
+
+logger = LogManager.get_logger("ai.web_search")
+
+_DUPLICATE_QUERY_SIGNATURES: set[
+    tuple[int, str, str, str, str, str, int]
+] = set()
+_NATIVE_BACKEND_FAIL_STREAK: dict[tuple[int, str], int] = {}
+_NATIVE_BACKEND_DISABLED: dict[int, set[str]] = {}
+_NATIVE_BACKEND_CACHE: dict[tuple[int, str, str, str, str, int], SearchProviderRun] = {}
+
+_NATIVE_RETRYABLE_FAILURES = {
+    STATUS_TIMEOUT,
+    STATUS_UPSTREAM_ERROR,
+    STATUS_PARSE_ERROR,
+    STATUS_NO_RESULTS,
+    STATUS_POLICY_FILTERED,
+    STATUS_UNSUPPORTED,
+}
+
+_SEARCH_ENGINE_HOSTS = frozenset({"www.baidu.com", "baidu.com", "www.so.com", "so.com"})
+
+
+@dataclass
+class _ResolvedWebSearchConfig:
+    enabled: bool
+    strategy: str
+    max_results_cap: int
+    native_timeout_seconds: int
+    public_timeout_seconds: int
+    public_providers: list[str]
+    provider: "AIProvider | None" = None
+    model: "AIModel | None" = None
+    config_error: str | None = None
+
+
+def _default_web_search_config() -> AIProviderWebSearchConfig:
+    return AIProviderWebSearchConfig(
+        enabled=bool(settings.WEB_SEARCH_DEFAULT_ENABLED),
+        strategy=str(settings.WEB_SEARCH_DEFAULT_STRATEGY).strip()
+        or STRATEGY_NATIVE_FIRST_FALLBACK_PUBLIC,
+        max_results_cap=int(settings.WEB_SEARCH_DEFAULT_MAX_RESULTS_CAP),
+        native_timeout_seconds=int(settings.WEB_SEARCH_DEFAULT_NATIVE_TIMEOUT_SECONDS),
+        public_timeout_seconds=int(settings.WEB_SEARCH_DEFAULT_PUBLIC_TIMEOUT_SECONDS),
+        public_providers=[
+            provider
+            for provider in settings.WEB_SEARCH_DEFAULT_PUBLIC_PROVIDERS
+            if str(provider or "").strip()
+        ]
+        or list(DEFAULT_PUBLIC_PROVIDERS),
+    )
+
+
+def _normalize_provider_web_search_settings(
+    provider_config: dict | None,
+) -> AIProviderWebSearchConfig:
+    raw_web_search = (
+        provider_config.get("web_search")
+        if isinstance(provider_config, dict)
+        else None
+    )
+    return normalize_provider_web_search_config(
+        raw_web_search,
+        defaults=_default_web_search_config(),
+    )
+
+
+def _conv_id(context: "ExecutionContext | None") -> int:
+    if context is None or context.conversation_id is None:
+        return 0
+    return int(context.conversation_id)
+
+
+def _is_verifiable_http_url(url: str) -> bool:
+    try:
+        parsed = urlparse(str(url or "").strip())
+    except Exception:
+        return False
+    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+
+
+def _has_search_wrapper_url(items: list[SearchResultItem]) -> bool:
+    for item in items:
+        try:
+            host = (urlparse(item.url).hostname or "").lower()
+        except Exception:
+            continue
+        if host in _SEARCH_ENGINE_HOSTS or host.endswith(".baidu.com") or host.endswith(
+            ".so.com"
+        ):
+            return True
+    return False
+
+
+def _build_search_output_text(query: str, items: list[SearchResultItem]) -> str:
+    lines = [f"Search results for: {query}\n"]
+    if _has_search_wrapper_url(items):
+        lines.append(
+            "Note: Some URLs below are search-engine redirect links; use fetch_url to load "
+            "the final page content (redirects are followed automatically).\n"
+        )
+    for index, item in enumerate(items, start=1):
+        lines.append(f"{index}. {item.title}")
+        lines.append(f"   URL: {item.url}")
+        if item.snippet:
+            lines.append(f"   {item.snippet}")
+        lines.append("")
+    return "\n".join(lines).rstrip()
+
+
+def _duplicate_query_signature(
+    *,
+    query: str,
+    strategy: str,
+    provider_label: str,
+    model_code: str,
+    locale: str | None,
+    max_results: int,
+    context: "ExecutionContext | None",
+) -> tuple[int, str, str, str, str, str, int]:
+    return (
+        _conv_id(context),
+        _normalize_text(query).lower(),
+        strategy,
+        provider_label,
+        model_code,
+        str(locale or ""),
+        int(max_results),
+    )
+
+
+def _decorate_duplicate_query_output(
+    *,
+    output: str,
+    signature: tuple[int, str, str, str, str, str, int],
+    status: str,
+) -> str:
+    if signature[0] <= 0 or status not in {STATUS_SUCCESS, STATUS_NO_RESULTS}:
+        return output
+    if signature in _DUPLICATE_QUERY_SIGNATURES:
+        return (
+            output
+            + "\n\n[Note: This exact query was already searched in this conversation; "
+            "use fetch_url on a candidate URL from earlier results instead of repeating web_search.]"
+        )
+    _DUPLICATE_QUERY_SIGNATURES.add(signature)
+    return output
+
+
+def _record_native_backend_outcome(conv_id: int, backend_key: str, status: str) -> None:
+    key = (conv_id, backend_key)
+    if status in {STATUS_SUCCESS, STATUS_NO_RESULTS}:
+        _NATIVE_BACKEND_FAIL_STREAK.pop(key, None)
+        if conv_id:
+            _NATIVE_BACKEND_DISABLED.setdefault(conv_id, set()).discard(backend_key)
+        return
+    _NATIVE_BACKEND_FAIL_STREAK[key] = _NATIVE_BACKEND_FAIL_STREAK.get(key, 0) + 1
+    if conv_id and _NATIVE_BACKEND_FAIL_STREAK[key] >= 2:
+        _NATIVE_BACKEND_DISABLED.setdefault(conv_id, set()).add(backend_key)
+        logger.info(
+            "web_search native backend cooling down: backend={} conv_id={} streak={}",
+            backend_key,
+            conv_id,
+            _NATIVE_BACKEND_FAIL_STREAK[key],
+        )
+
+
+def _native_backend_disabled(conv_id: int, backend_key: str) -> bool:
+    return bool(conv_id) and backend_key in _NATIVE_BACKEND_DISABLED.get(conv_id, set())
+
+
+class NativeModelSearchProvider(BaseSearchProvider):
+    async def search(
+        self,
+        *,
+        query: str,
+        max_results: int,
+        locale: str | None,
+        timeout_seconds: int,
+        context: "ExecutionContext | None" = None,
+        strategy: str | None = None,
+        runtime_provider_label: str | None = None,
+        runtime_model_code: str | None = None,
+    ) -> SearchProviderRun:
+        start = time.perf_counter()
+        _ = (runtime_provider_label, runtime_model_code)
+        if context is None or context.db is None:
+            return SearchProviderRun(
+                provider=None,
+                provider_mode=PROVIDER_MODE_NATIVE,
+                backend_key=None,
+                status=STATUS_UNSUPPORTED,
+                items=[],
+                failure_reason="runtime db session unavailable for native web search",
+                latency_ms=int((time.perf_counter() - start) * 1000),
+            )
+
+        runtime_provider_id = getattr(context, "runtime_provider_id", None)
+        runtime_model_id = getattr(context, "runtime_model_id", None)
+        runtime_model_code = str(getattr(context, "runtime_model_code", "") or "").strip()
+        if runtime_provider_id is None or not runtime_model_code:
+            return SearchProviderRun(
+                provider=None,
+                provider_mode=PROVIDER_MODE_NATIVE,
+                backend_key=None,
+                status=STATUS_UNSUPPORTED,
+                items=[],
+                failure_reason="runtime provider/model metadata unavailable",
+                latency_ms=int((time.perf_counter() - start) * 1000),
+            )
+
+        provider_repo = AIProviderRepository(context.db)
+        provider = await provider_repo.get_by_id(int(runtime_provider_id))
+        if provider is None or not provider.is_active:
+            return SearchProviderRun(
+                provider=None,
+                provider_mode=PROVIDER_MODE_NATIVE,
+                backend_key=None,
+                status=STATUS_UNSUPPORTED,
+                items=[],
+                failure_reason="runtime provider unavailable",
+                latency_ms=int((time.perf_counter() - start) * 1000),
+            )
+
+        model = None
+        model_repo = AIModelRepository(context.db)
+        if runtime_model_id is not None:
+            model = await model_repo.get_active_with_provider(int(runtime_model_id))
+        if model is None:
+            model = await model_repo.get_active_by_code_and_provider(
+                runtime_model_code,
+                provider.id,
+            )
+
+        provider_label = str(getattr(provider, "code", "") or provider.type or "provider")
+        model_code = str(getattr(model, "code", None) or runtime_model_code)
+        backend_key = f"native:{provider_label}:{model_code}"
+        conv_id = _conv_id(context)
+        cache_key = (
+            conv_id,
+            backend_key,
+            _normalize_text(query).lower(),
+            str(strategy or "").strip().lower(),
+            str(locale or ""),
+            int(max_results),
+        )
+
+        if cache_key in _NATIVE_BACKEND_CACHE:
+            cached = _NATIVE_BACKEND_CACHE[cache_key]
+            return SearchProviderRun(
+                provider=cached.provider,
+                provider_mode=cached.provider_mode,
+                backend_key=cached.backend_key,
+                status=cached.status,
+                items=list(cached.items),
+                failure_reason=cached.failure_reason,
+                latency_ms=int((time.perf_counter() - start) * 1000),
+                attempted_backends=[backend_key],
+                cache_hit=True,
+            )
+
+        if _native_backend_disabled(conv_id, backend_key):
+            return SearchProviderRun(
+                provider=provider_label,
+                provider_mode=PROVIDER_MODE_NATIVE,
+                backend_key=backend_key,
+                status=STATUS_UPSTREAM_ERROR,
+                items=[],
+                failure_reason="native backend temporarily cooling down",
+                latency_ms=int((time.perf_counter() - start) * 1000),
+                attempted_backends=[],
+            )
+
+        gateway = AIGateway(context.db)
+        native_run = await gateway.native_web_search(
+            provider_code=str(getattr(provider, "code", "") or provider.type or "").strip(),
+            model=model_code,
+            query=query,
+            max_results=max_results,
+            locale=locale,
+            timeout_seconds=timeout_seconds,
+            tenant_id=context.tenant_id,
+            user_id=getattr(context, "user_id", None),
+            agent_id=getattr(context, "agent_id", None),
+            conversation_id=getattr(context, "conversation_id", None),
+            provider_label=provider_label,
+            backend_key=backend_key,
+        )
+        if not native_run.backend_key:
+            native_run.backend_key = backend_key
+        if not native_run.provider:
+            native_run.provider = provider_label
+        if native_run.provider_mode is None:
+            native_run.provider_mode = PROVIDER_MODE_NATIVE
+        if not native_run.attempted_backends:
+            native_run.attempted_backends = [backend_key]
+        native_run.latency_ms = int((time.perf_counter() - start) * 1000)
+        _record_native_backend_outcome(conv_id, backend_key, native_run.status)
+        logger.info(
+            "web_search native attempt: backend={} status={} result_count={} cache_hit={}",
+            backend_key,
+            native_run.status,
+            len(native_run.items),
+            native_run.cache_hit,
+        )
+        if native_run.status in {STATUS_SUCCESS, STATUS_NO_RESULTS}:
+            _NATIVE_BACKEND_CACHE[cache_key] = SearchProviderRun(
+                provider=native_run.provider,
+                provider_mode=native_run.provider_mode,
+                backend_key=native_run.backend_key,
+                status=native_run.status,
+                items=list(native_run.items),
+                failure_reason=native_run.failure_reason,
+                attempted_backends=list(native_run.attempted_backends),
+                input_tokens=native_run.input_tokens,
+                output_tokens=native_run.output_tokens,
+                total_tokens=native_run.total_tokens,
+            )
+        return native_run
+
+
+class WebSearchOrchestrator:
+    async def search(
+        self,
+        *,
+        query: str,
+        max_results: int,
+        context: "ExecutionContext | None" = None,
+    ) -> WebSearchExecution:
+        start = time.perf_counter()
+        rewritten_query = _normalize_text(_correct_query_year(query))
+        resolved_config = await self._resolve_config(context)
+        locale = resolve_page_locale(getattr(context, "variables", None))
+        effective_max_results = min(
+            max(1, int(max_results)),
+            int(resolved_config.max_results_cap),
+        )
+
+        provider_label = str(
+            getattr(resolved_config.provider, "code", "")
+            or getattr(context, "runtime_provider_name", "")
+            or "provider"
+        )
+        model_code = str(
+            getattr(resolved_config.model, "code", "")
+            or getattr(context, "runtime_model_code", "")
+            or ""
+        )
+        duplicate_signature = _duplicate_query_signature(
+            query=rewritten_query,
+            strategy=resolved_config.strategy,
+            provider_label=provider_label,
+            model_code=model_code,
+            locale=locale,
+            max_results=effective_max_results,
+            context=context,
+        )
+
+        if not resolved_config.enabled:
+            return self._build_execution(
+                query=rewritten_query,
+                items=[],
+                meta=WebSearchExecutionMeta(
+                    status=STATUS_UNSUPPORTED,
+                    attempted_backends=[],
+                    selected_backend=None,
+                    used_fallback=False,
+                    failure_reason=(
+                        resolved_config.config_error
+                        or "web_search disabled in provider config"
+                    ),
+                    latency_ms=int((time.perf_counter() - start) * 1000),
+                    provider=None,
+                    provider_mode=None,
+                    provider_chain=[],
+                    cache_hit=False,
+                ),
+                duplicate_signature=duplicate_signature,
+            )
+
+        if resolved_config.strategy != STRATEGY_NATIVE_FIRST_FALLBACK_PUBLIC:
+            return self._build_execution(
+                query=rewritten_query,
+                items=[],
+                meta=WebSearchExecutionMeta(
+                    status=STATUS_UNSUPPORTED,
+                    attempted_backends=[],
+                    selected_backend=None,
+                    used_fallback=False,
+                    failure_reason=f"unsupported web search strategy: {resolved_config.strategy}",
+                    latency_ms=int((time.perf_counter() - start) * 1000),
+                    provider=None,
+                    provider_mode=None,
+                    provider_chain=[],
+                    cache_hit=False,
+                ),
+                duplicate_signature=duplicate_signature,
+            )
+
+        attempted_backends: list[str] = []
+        provider_chain: list[str] = []
+        selected_run: SearchProviderRun | None = None
+        native_run: SearchProviderRun | None = None
+        public_run: SearchProviderRun | None = None
+        used_fallback = False
+
+        native_provider = NativeModelSearchProvider()
+        native_run = await native_provider.search(
+            query=rewritten_query,
+            max_results=effective_max_results,
+            locale=locale,
+            timeout_seconds=resolved_config.native_timeout_seconds,
+            context=context,
+            strategy=resolved_config.strategy,
+            runtime_provider_label=provider_label,
+            runtime_model_code=model_code,
+        )
+        attempted_backends.extend(native_run.attempted_backends)
+        provider_chain.extend(native_run.attempted_backends)
+        if native_run.status == STATUS_SUCCESS and native_run.items:
+            selected_run = native_run
+        else:
+            if native_run.status in _NATIVE_RETRYABLE_FAILURES:
+                used_fallback = True
+                logger.info(
+                    "web_search orchestrator fallback: native_status={} native_backend={} reason={}",
+                    native_run.status,
+                    native_run.backend_key or "",
+                    native_run.failure_reason or "",
+                )
+                public_provider = PublicHtmlSearchProvider(
+                    providers=resolved_config.public_providers,
+                )
+                public_run = await public_provider.search(
+                    query=rewritten_query,
+                    max_results=effective_max_results,
+                    locale=locale,
+                    timeout_seconds=resolved_config.public_timeout_seconds,
+                    context=context,
+                    strategy=resolved_config.strategy,
+                    runtime_provider_label=provider_label,
+                    runtime_model_code=model_code,
+                )
+                attempted_backends.extend(public_run.attempted_backends)
+                provider_chain.extend(public_run.attempted_backends)
+                selected_run = public_run
+            else:
+                selected_run = native_run
+
+        if selected_run is None:
+            selected_run = native_run or SearchProviderRun(
+                provider=None,
+                provider_mode=None,
+                backend_key=None,
+                status=STATUS_UPSTREAM_ERROR,
+                items=[],
+                failure_reason="web_search did not select a backend",
+            )
+
+        failure_reason = selected_run.failure_reason
+        if (
+            failure_reason is None
+            and selected_run.status != STATUS_SUCCESS
+            and native_run is not None
+            and public_run is not None
+        ):
+            reasons = [
+                reason
+                for reason in (
+                    native_run.failure_reason,
+                    public_run.failure_reason,
+                )
+                if reason
+            ]
+            failure_reason = "; ".join(reasons) or None
+
+        meta = WebSearchExecutionMeta(
+            status=selected_run.status,
+            attempted_backends=list(attempted_backends),
+            selected_backend=selected_run.backend_key,
+            used_fallback=used_fallback,
+            failure_reason=failure_reason,
+            latency_ms=int((time.perf_counter() - start) * 1000),
+            provider=selected_run.provider,
+            provider_mode=selected_run.provider_mode,
+            provider_chain=list(provider_chain),
+            cache_hit=bool(selected_run.cache_hit),
+        )
+        return self._build_execution(
+            query=rewritten_query,
+            items=list(selected_run.items),
+            meta=meta,
+            duplicate_signature=duplicate_signature,
+        )
+
+    async def _resolve_config(
+        self,
+        context: "ExecutionContext | None",
+    ) -> _ResolvedWebSearchConfig:
+        defaults = _default_web_search_config()
+        provider = None
+        model = None
+        raw_provider_config: dict | None = None
+        context_db = getattr(context, "db", None) if context is not None else None
+        if context_db is not None:
+            runtime_provider_id = getattr(context, "runtime_provider_id", None)
+            runtime_model_id = getattr(context, "runtime_model_id", None)
+            provider_repo = AIProviderRepository(context_db)
+            model_repo = AIModelRepository(context_db)
+            if runtime_provider_id is not None:
+                provider = await provider_repo.get_by_id(int(runtime_provider_id))
+            if runtime_model_id is not None:
+                model = await model_repo.get_active_with_provider(int(runtime_model_id))
+        if provider is not None and getattr(provider, "config", None) is not None:
+            if isinstance(provider.config, dict):
+                raw_provider_config = dict(provider.config)
+            else:
+                reason = "invalid provider config.web_search: provider config must be an object"
+                logger.warning(
+                    "web_search config normalization failed, disabling runtime web_search: {}",
+                    reason,
+                )
+                return _ResolvedWebSearchConfig(
+                    enabled=False,
+                    strategy=str(defaults.strategy),
+                    max_results_cap=int(defaults.max_results_cap),
+                    native_timeout_seconds=int(defaults.native_timeout_seconds),
+                    public_timeout_seconds=int(defaults.public_timeout_seconds),
+                    public_providers=list(defaults.public_providers),
+                    provider=provider,
+                    model=model,
+                    config_error=reason,
+                )
+
+        if provider is not None and isinstance(raw_provider_config, dict) and "web_search" in raw_provider_config:
+            try:
+                normalized = _normalize_provider_web_search_settings(raw_provider_config)
+            except Exception as exc:  # noqa: BLE001
+                reason = f"invalid provider config.web_search: {exc}"
+                logger.warning(
+                    "web_search config normalization failed, disabling runtime web_search: {}",
+                    exc,
+                )
+                return _ResolvedWebSearchConfig(
+                    enabled=False,
+                    strategy=str(defaults.strategy),
+                    max_results_cap=int(defaults.max_results_cap),
+                    native_timeout_seconds=int(defaults.native_timeout_seconds),
+                    public_timeout_seconds=int(defaults.public_timeout_seconds),
+                    public_providers=list(defaults.public_providers),
+                    provider=provider,
+                    model=model,
+                    config_error=reason,
+                )
+        else:
+            normalized = defaults
+
+        return _ResolvedWebSearchConfig(
+            enabled=bool(normalized.enabled),
+            strategy=str(normalized.strategy),
+            max_results_cap=int(normalized.max_results_cap),
+            native_timeout_seconds=int(normalized.native_timeout_seconds),
+            public_timeout_seconds=int(normalized.public_timeout_seconds),
+            public_providers=[
+                str(provider_name)
+                for provider_name in normalized.public_providers
+                if str(provider_name or "").strip()
+            ]
+            or list(DEFAULT_PUBLIC_PROVIDERS),
+            provider=provider,
+            model=model,
+            config_error=None,
+        )
+
+    @staticmethod
+    def _build_execution(
+        *,
+        query: str,
+        items: list[SearchResultItem],
+        meta: WebSearchExecutionMeta,
+        duplicate_signature: tuple[int, str, str, str, str, str, int],
+    ) -> WebSearchExecution:
+        if meta.status == STATUS_SUCCESS and items:
+            output = _build_search_output_text(query, items)
+        elif meta.status == STATUS_NO_RESULTS:
+            output = f"No results found for: {query}"
+        elif meta.status == STATUS_TIMEOUT:
+            output = f"Search source timed out: {meta.failure_reason or 'timeout'}"
+        elif meta.status == STATUS_PARSE_ERROR:
+            output = (
+                f"Search parser unavailable: {meta.failure_reason or 'search result parsing failed'}"
+            )
+        else:
+            output = (
+                f"Search source unavailable: {meta.failure_reason or 'search unavailable'}"
+            )
+        output = _decorate_duplicate_query_output(
+            output=output,
+            signature=duplicate_signature,
+            status=meta.status,
+        )
+        return WebSearchExecution(output=output, items=items, meta=meta)
+
+
+async def run_web_search(
+    query: str,
+    max_results: int,
+    *,
+    context: "ExecutionContext | None" = None,
+) -> WebSearchExecution:
+    orchestrator = WebSearchOrchestrator()
+    return await orchestrator.search(
+        query=query,
+        max_results=max_results,
+        context=context,
+    )
+
+
+__all__ = [
+    "NativeModelSearchProvider",
+    "WebSearchOrchestrator",
+    "run_web_search",
+]

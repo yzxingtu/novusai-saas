@@ -22,10 +22,14 @@ import { toAttachmentImageUrl } from '#/utils/image';
 import AIGatewayQuickStartHero from '../_shared/AIGatewayQuickStartHero.vue';
 import {
   getFormDefaults,
+  getProviderWebSearchRuntimeSummary,
+  getProviderWebSearchStrategyText,
   getProviderTypeText,
   getProviderWireApiText,
   loadAdapterTypes,
   resolveProviderWireApi,
+  resolveProviderWebSearchConfig,
+  shouldWarnProviderWebSearchAutoFallback,
   useColumns,
   useFormSchema,
   useGridFormSchema,
@@ -45,6 +49,14 @@ function getRowWireApi(row: AIProviderInfo) {
     row.type,
     typeof config?.wire_api === 'string' ? config.wire_api : null,
   );
+}
+
+function getRowWebSearchConfig(row: AIProviderInfo) {
+  const config =
+    row.config && typeof row.config === 'object'
+      ? (row.config as Record<string, unknown>)
+      : null;
+  return resolveProviderWebSearchConfig(config);
 }
 
 // ============================================================
@@ -197,6 +209,40 @@ useAutoTableDragSort(() => gridApi.grid, {
             {{ getProviderWireApiText(getRowWireApi(row)) }}
           </Tag>
           <span v-else class="text-xs text-muted-foreground">-</span>
+        </template>
+
+        <template #webSearch_cell="{ row }">
+          <div class="flex flex-col gap-1 py-1">
+            <div class="flex flex-wrap items-center gap-1">
+              <Tag :color="getRowWebSearchConfig(row).enabled ? 'success' : 'default'">
+                {{
+                  getRowWebSearchConfig(row).enabled
+                    ? $t('admin.common.enabled')
+                    : $t('admin.common.disabled')
+                }}
+              </Tag>
+              <Tag color="processing">
+                {{
+                  getProviderWebSearchStrategyText(
+                    getRowWebSearchConfig(row).strategy,
+                  )
+                }}
+              </Tag>
+            </div>
+            <div class="text-xs text-muted-foreground">
+              {{
+                getProviderWebSearchRuntimeSummary(
+                  row.web_search_runtime || null,
+                )
+              }}
+            </div>
+            <div
+              v-if="shouldWarnProviderWebSearchAutoFallback(row.web_search_runtime)"
+              class="text-xs text-amber-600 dark:text-amber-400"
+            >
+              {{ $t('admin.ai.provider.webSearch.runtime.autoFallbackHint') }}
+            </div>
+          </div>
         </template>
 
         <!-- 模型数列 -->
