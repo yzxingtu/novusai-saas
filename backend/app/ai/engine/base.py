@@ -88,7 +88,6 @@ from .types import (
     IntentPlan,
     PreparedExecution,
     ResearchContinuationContext,
-    ToolInvocationPlan,
     ToolUsePolicy,
 )
 
@@ -100,6 +99,20 @@ _PAGE_NAVIGATION_OPERATION_NAMES = {
     "open_current",
     "open_page",
 }
+_CAPABILITY_REPORTING_QUERY_TERMS = (
+    "这轮有哪些能力",
+    "当前能力",
+    "本轮能力",
+    "你有哪些能力",
+    "你能做什么",
+    "可以做什么",
+    "能力有哪些",
+    "available capabilities",
+    "current capabilities",
+    "capabilities this turn",
+    "what can you do this turn",
+    "what can you do",
+)
 
 
 def log_user_type_for_call_log(user_role: str) -> str:
@@ -244,7 +257,10 @@ class BaseEngine(ABC):
         intent_plan: list[IntentPlan] | None = None,
         execution_path: str | None = None,
         execution_budget: ExecutionBudget | None = None,
-    ) -> None:
+        include_knowledge_base_hint: bool = True,
+        include_page_context_hint: bool = True,
+        include_memory_hint: bool = True,
+    ) -> bool:
         """Inject a one-shot runtime summary into the system prompt."""
         if (
             not messages
@@ -255,10 +271,11 @@ class BaseEngine(ABC):
                 and not (context_sources or [])
             )
         ):
-            return
+            return False
 
         allowed_tool_names = [t.name for t in tools]
         summarized_intents = intent_plan or []
+        capability_summary_injected = False
         intent_summary = (
             ", ".join(intent.user_visible_label for intent in summarized_intents[:4])
             or ", ".join(ordered_requested_families or [])
@@ -291,9 +308,13 @@ class BaseEngine(ABC):
             runtime_capability_hint = BaseEngine._build_runtime_capability_hint(
                 selected_skill_names,
                 context_sources,
+                include_knowledge_base_hint=include_knowledge_base_hint,
+                include_page_context_hint=include_page_context_hint,
+                include_memory_hint=include_memory_hint,
             )
             if runtime_capability_hint:
                 hint += runtime_capability_hint
+                capability_summary_injected = True
 
         signature = hashlib.sha1(
             json.dumps(
@@ -309,6 +330,9 @@ class BaseEngine(ABC):
                     "skills": list(selected_skill_names or []),
                     "sources": list(context_sources or []),
                     "skip_capability_summary": bool(skip_capability_summary),
+                    "include_knowledge_base_hint": bool(include_knowledge_base_hint),
+                    "include_page_context_hint": bool(include_page_context_hint),
+                    "include_memory_hint": bool(include_memory_hint),
                 },
                 ensure_ascii=False,
                 sort_keys=True,
@@ -317,13 +341,14 @@ class BaseEngine(ABC):
         ).hexdigest()
         metadata = dict(messages[0].metadata or {})
         if metadata.get("runtime_summary_signature") == signature:
-            return
+            return capability_summary_injected
         metadata["runtime_summary_signature"] = signature
         messages[0] = ChatMessage(
             role="system",
             content=messages[0].content + hint,
             metadata=metadata,
         )
+        return capability_summary_injected
 
     @staticmethod
     def _build_page_operations_hint(
@@ -490,6 +515,50 @@ class BaseEngine(ABC):
         )
 
     @staticmethod
+    def _deserialize_intent_plan(raw_intent_plan: Any) -> list[IntentPlan]:
+        if not isinstance(raw_intent_plan, list):
+            return []
+        intent_plan: list[IntentPlan] = []
+        for raw_intent in raw_intent_plan:
+            if isinstance(raw_intent, IntentPlan):
+                intent_plan.append(raw_intent)
+                continue
+            if not isinstance(raw_intent, dict):
+                continue
+            try:
+                intent_plan.append(IntentPlan(**raw_intent))
+            except TypeError:
+                continue
+        return intent_plan
+
+    @staticmethod
+    def _intent_plan_gating_flags(intent_plan: list[IntentPlan]) -> dict[str, bool]:
+        normalized_plan = list(intent_plan or [])
+        intent_kinds = {
+            str(intent.kind or "").strip()
+            for intent in normalized_plan
+        }
+        all_shortcircuit = bool(normalized_plan) and all(
+            bool(intent.shortcircuit) for intent in normalized_plan
+        )
+        has_page_intent = any(kind.startswith("page_") for kind in intent_kinds)
+        has_knowledge_intent = "knowledge_query" in intent_kinds
+        has_memory_intent = any(not bool(intent.shortcircuit) for intent in normalized_plan)
+        return {
+            "all_shortcircuit": all_shortcircuit,
+            "has_page_intent": has_page_intent,
+            "has_knowledge_intent": has_knowledge_intent,
+            "has_memory_intent": has_memory_intent,
+        }
+
+    @staticmethod
+    def _is_capability_reporting_query(user_text: str | None) -> bool:
+        normalized = " ".join(str(user_text or "").strip().lower().split())
+        if not normalized:
+            return False
+        return any(term in normalized for term in _CAPABILITY_REPORTING_QUERY_TERMS)
+
+    @staticmethod
     def _intent_completion_signals(
         family: str,
         *,
@@ -601,6 +670,10 @@ class BaseEngine(ABC):
     def _build_runtime_capability_hint(
         selected_skill_names: list[str] | None,
         context_sources: list[Any] | None,
+        *,
+        include_knowledge_base_hint: bool = True,
+        include_page_context_hint: bool = True,
+        include_memory_hint: bool = True,
     ) -> str:
         normalized_skill_names: list[str] = []
         for name in selected_skill_names or []:
@@ -621,6 +694,12 @@ class BaseEngine(ABC):
                 active = bool(getattr(source, "active", True))
             if not active or not kind:
                 continue
+            if kind == "knowledge_base" and not include_knowledge_base_hint:
+                continue
+            if kind == "page_context" and not include_page_context_hint:
+                continue
+            if kind in {"session_memory", "long_term_memory"} and not include_memory_hint:
+                continue
             normalized_item = (kind, name or kind)
             if normalized_item not in normalized_context_sources:
                 normalized_context_sources.append(normalized_item)
@@ -638,11 +717,18 @@ class BaseEngine(ABC):
             "turn_capabilities",
             selected_skill_names=", ".join(normalized_skill_names),
             context_line=context_line,
-            knowledge_base_hint="knowledge_base" in context_source_kinds,
-            page_context_hint="page_context" in context_source_kinds,
+            knowledge_base_hint=(
+                include_knowledge_base_hint and "knowledge_base" in context_source_kinds
+            ),
+            page_context_hint=(
+                include_page_context_hint and "page_context" in context_source_kinds
+            ),
             memory_hint=(
-                "session_memory" in context_source_kinds
-                or "long_term_memory" in context_source_kinds
+                include_memory_hint
+                and (
+                    "session_memory" in context_source_kinds
+                    or "long_term_memory" in context_source_kinds
+                )
             ),
         )
 
@@ -2442,36 +2528,29 @@ class BaseEngine(ABC):
             enhance_tools_with_page_context(all_tools, request.input_variables)
 
         optimize_event: dict[str, Any] | None = None
-        tool_planner: ToolInvocationPlan | None = None
+        tool_planner: dict[str, Any] | None = None
         tool_use_policy = ToolUsePolicy()
-        explicit_requested_families: list[str] = []
-        intent_plan: list[IntentPlan] = []
-        execution_path = "fast"
-        execution_budget: ExecutionBudget | None = None
+        raw_intent_plan = context_assembly.diagnostics.get("intent_plan")
+        intent_plan = self._deserialize_intent_plan(raw_intent_plan)
+        intent_flags = self._intent_plan_gating_flags(intent_plan)
+        explicit_requested_families = self._ordered_requested_families_from_intents(
+            intents=intent_plan,
+        )
+        execution_path = PathSelector.select(intent_plan)
+        execution_budget = BudgetGuard.build_default(
+            execution_path,
+            intent_count=len(intent_plan),
+        )
         active_intent_id: str | None = None
-        if all_tools:
+        candidate_tool_names = [tool.name for tool in tools]
+        if all_tools and intent_plan:
             user_query = self._extract_last_user_text(messages)
-            intent_plan = IntentPlanner.plan_turn(
-                messages=messages,
-                tools=all_tools,
-                input_variables=request.input_variables,
-                continuation_context=continuation_context,
-                capability_bundle=context_assembly.capability_bundle,
-            )
-            execution_path = PathSelector.select(intent_plan)
-            execution_budget = BudgetGuard.build_default(
-                execution_path,
-                intent_count=len(intent_plan),
-            )
             routing = ToolRouter.route(
                 intents=intent_plan,
                 tools=all_tools,
                 budget=execution_budget,
                 input_variables=request.input_variables,
                 user_text=user_query,
-            )
-            explicit_requested_families = self._ordered_requested_families_from_intents(
-                intents=intent_plan,
             )
             tools = list(routing.candidate_tools)
             tools, _ = self._ensure_explicit_family_coverage(
@@ -2583,29 +2662,22 @@ class BaseEngine(ABC):
                             if name in candidate_tool_names
                         ]
                     )
-            tool_planner = ToolInvocationPlan(
-                intent=active_intent.kind
-                if active_intent is not None
-                else "direct_reply",
-                family=active_intent.family if active_intent is not None else "none",
-                allow_no_tool=not bool(tools),
-                allow_family_continuation=bool(len(actionable_intents) > 1),
-                reason="structured_intent_plan",
-                confidence_band="high",
-                execution_path=execution_path,
-                intent_plan=[intent.to_dict() for intent in intent_plan],
-            )
-            BudgetGuard.register_preparation(
-                execution_budget,
-                prompt_tokens=(
-                    int(context_assembly.estimated_tokens)
-                    if context_assembly.estimated_tokens
-                    else sum(
-                        estimate_tokens(message.content or "") for message in messages
-                    )
+            tool_planner = {
+                "intent": (
+                    active_intent.kind
+                    if active_intent is not None
+                    else "direct_reply"
                 ),
-                candidate_tools_count=len(candidate_tool_names),
-            )
+                "family": (
+                    active_intent.family if active_intent is not None else "none"
+                ),
+                "allow_no_tool": not bool(tools),
+                "allow_family_continuation": bool(len(actionable_intents) > 1),
+                "reason": "structured_intent_plan",
+                "confidence_band": "high",
+                "execution_path": execution_path,
+                "intent_plan": [intent.to_dict() for intent in intent_plan],
+            }
             optimize_event = {
                 "total": len(all_tools),
                 "selected": len(tools),
@@ -2632,26 +2704,131 @@ class BaseEngine(ABC):
                 len(all_tools),
                 len(tools),
             )
+        elif intent_plan:
+            tool_planner = {
+                "intent": (
+                    intent_plan[0].kind if intent_plan else "direct_reply"
+                ),
+                "family": intent_plan[0].family if intent_plan else "none",
+                "allow_no_tool": not bool(tools),
+                "allow_family_continuation": bool(
+                    len(
+                        [
+                            intent
+                            for intent in intent_plan
+                            if intent.family != "none" and intent.requires_tools
+                        ]
+                    )
+                    > 1
+                ),
+                "reason": "structured_intent_plan",
+                "confidence_band": "high",
+                "execution_path": execution_path,
+                "intent_plan": [intent.to_dict() for intent in intent_plan],
+            }
+        if execution_budget is not None:
+            BudgetGuard.register_preparation(
+                execution_budget,
+                prompt_tokens=(
+                    int(context_assembly.estimated_tokens)
+                    if context_assembly.estimated_tokens
+                    else sum(
+                        estimate_tokens(message.content or "") for message in messages
+                    )
+                ),
+                candidate_tools_count=len(candidate_tool_names),
+            )
 
         # 5. Inject runtime capability awareness / 注入运行时能力感知提示
-        self._inject_runtime_summary(
+        selected_skill_names = (
+            context_assembly.capability_bundle.selected_skill_names
+            if context_assembly.capability_bundle is not None
+            else None
+        )
+        context_sources = (
+            context_assembly.capability_bundle.context_sources
+            if context_assembly.capability_bundle is not None
+            else None
+        )
+        capability_injection_decision = dict(
+            context_assembly.diagnostics.get("capability_injection_decision") or {}
+        )
+        capability_injection_decision.setdefault(
+            "all_shortcircuit",
+            intent_flags["all_shortcircuit"],
+        )
+        capability_injection_decision.setdefault("skills_injected", False)
+        capability_injection_decision.setdefault("kb_injected", False)
+        capability_injection_decision.setdefault("memory_injected", False)
+        capability_injection_decision.setdefault("page_injected", False)
+        capability_injection_decision.setdefault(
+            "bypass_reason",
+            "all_shortcircuit" if intent_flags["all_shortcircuit"] else None,
+        )
+        force_capability_summary = self._is_capability_reporting_query(
+            self._extract_last_user_text(messages),
+        )
+        skip_capability_summary = bool(
+            context_assembly.diagnostics.get("dynamic_capability_awareness_enabled")
+        ) or (
+            intent_flags["all_shortcircuit"] and not force_capability_summary
+        )
+        context_assembly.diagnostics["capability_reporting_query"] = (
+            force_capability_summary
+        )
+        capability_summary_injected = self._inject_runtime_summary(
             messages,
             tools,
             request.input_variables,
             continuation_context=continuation_context,
-            selected_skill_names=context_assembly.capability_bundle.selected_skill_names
-            if context_assembly.capability_bundle is not None
-            else None,
-            context_sources=context_assembly.capability_bundle.context_sources
-            if context_assembly.capability_bundle is not None
-            else None,
+            selected_skill_names=selected_skill_names,
+            context_sources=context_sources,
             ordered_requested_families=explicit_requested_families,
-            skip_capability_summary=bool(
-                context_assembly.diagnostics.get("dynamic_capability_awareness_enabled")
-            ),
+            skip_capability_summary=skip_capability_summary,
             intent_plan=intent_plan,
             execution_path=execution_path,
             execution_budget=execution_budget,
+            include_knowledge_base_hint=intent_flags["has_knowledge_intent"],
+            include_page_context_hint=intent_flags["has_page_intent"],
+            include_memory_hint=intent_flags["has_memory_intent"],
+        )
+        active_context_source_kinds = {
+            str(source.kind or "").strip()
+            for source in (context_sources or [])
+            if bool(getattr(source, "active", True))
+        }
+        capability_injection_decision["skills_injected"] = bool(
+            capability_summary_injected and "skill" in active_context_source_kinds
+        )
+        capability_injection_decision["kb_injected"] = bool(
+            capability_injection_decision["kb_injected"]
+            or (
+                capability_summary_injected
+                and "knowledge_base" in active_context_source_kinds
+                and intent_flags["has_knowledge_intent"]
+            )
+        )
+        capability_injection_decision["memory_injected"] = bool(
+            capability_injection_decision["memory_injected"]
+            or (
+                capability_summary_injected
+                and (
+                    "session_memory" in active_context_source_kinds
+                    or "long_term_memory" in active_context_source_kinds
+                )
+                and intent_flags["has_memory_intent"]
+            )
+        )
+        capability_injection_decision["page_injected"] = bool(
+            capability_injection_decision["page_injected"]
+            or (
+                capability_summary_injected
+                and "page_context" in active_context_source_kinds
+                and intent_flags["has_page_intent"]
+            )
+        )
+        context_assembly.diagnostics["capability_injection_decision"] = (
+            capability_injection_decision
         )
 
         # 6. Extract consent_modes / 提取 consent_modes
@@ -2745,7 +2922,7 @@ class BaseEngine(ABC):
 
         request.tool_use_policy = dataclasses.replace(tool_use_policy)
         if tool_planner is not None:
-            context_assembly.diagnostics["tool_planner"] = tool_planner.to_dict()
+            context_assembly.diagnostics["tool_planner"] = dict(tool_planner)
         if intent_plan:
             context_assembly.diagnostics["intent_plan"] = [
                 intent.to_dict() for intent in intent_plan
@@ -2773,7 +2950,7 @@ class BaseEngine(ABC):
             memory_recalled=context_assembly.memory_recalled,
             system_prompt_additions=context_assembly.system_prompt_additions,
             diagnostics=context_assembly.diagnostics,
-            tool_planner=tool_planner.to_dict() if tool_planner is not None else None,
+            tool_planner=dict(tool_planner) if tool_planner is not None else None,
             tool_consent_modes=tool_consent_modes,
             capability_bundle=context_assembly.capability_bundle,
             optimize_event=optimize_event,

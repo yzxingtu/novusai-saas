@@ -59,6 +59,8 @@ class IntentPlan:
     requires_tools: bool = True
     allow_text_response: bool = False
     continuation: bool = False
+    shortcircuit: bool = False
+    cached_result: str | None = None
     allowed_tool_names: list[str] = field(default_factory=list)
     preferred_tool_names: list[str] = field(default_factory=list)
     completion_signals: list[str] = field(default_factory=list)
@@ -77,40 +79,14 @@ class IntentPlan:
             "requires_tools": self.requires_tools,
             "allow_text_response": self.allow_text_response,
             "continuation": self.continuation,
+            "shortcircuit": self.shortcircuit,
+            "cached_result": self.cached_result,
             "allowed_tool_names": list(self.allowed_tool_names),
             "preferred_tool_names": list(self.preferred_tool_names),
             "completion_signals": list(self.completion_signals),
             "completed_by_tool_names": list(self.completed_by_tool_names),
             "metadata": dict(self.metadata),
         }
-
-
-@dataclass
-class ToolInvocationPlan:
-    """Legacy-facing projection of the structured intent plan."""
-
-    intent: str = "direct_reply"
-    family: str = "none"
-    allow_no_tool: bool = True
-    allow_family_continuation: bool = False
-    reason: str = "default_no_tool"
-    confidence_band: str = "medium"
-    execution_path: ExecutionPath = "fast"
-    intent_plan: list[dict[str, Any]] | None = None
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "intent": self.intent,
-            "family": self.family,
-            "allow_no_tool": self.allow_no_tool,
-            "allow_family_continuation": self.allow_family_continuation,
-            "reason": self.reason,
-            "confidence_band": self.confidence_band,
-            "execution_path": self.execution_path,
-            "intent_plan": list(self.intent_plan or []),
-        }
-
-
 @dataclass
 class ExecutionBudget:
     """Hard orchestration budget for one turn."""
@@ -122,6 +98,7 @@ class ExecutionBudget:
     max_retry_per_intent: int
     max_candidate_tools: int
     max_tool_result_bytes: int
+    finalization_grace_ms: int = 0
     prompt_tokens_used: int = 0
     completion_tokens_used: int = 0
     tool_rounds_used: int = 0
@@ -129,6 +106,13 @@ class ExecutionBudget:
     tool_result_bytes_used: int = 0
     candidate_tools_count: int = 0
     retries_by_intent: dict[str, int] = field(default_factory=dict)
+    finalization_grace_applied: bool = False
+
+    def apply_finalization_grace(self) -> bool:
+        if self.finalization_grace_ms <= 0 or self.finalization_grace_applied:
+            return False
+        self.finalization_grace_applied = True
+        return True
 
     def first_exceeded_reason(self) -> str | None:
         if self.max_prompt_tokens and self.prompt_tokens_used > self.max_prompt_tokens:
@@ -140,7 +124,10 @@ class ExecutionBudget:
             return "completion_budget_exceeded"
         if self.max_tool_rounds and self.tool_rounds_used > self.max_tool_rounds:
             return "tool_round_budget_exceeded"
-        if self.max_elapsed_ms and self.elapsed_ms_used > self.max_elapsed_ms:
+        effective_max_elapsed_ms = self.max_elapsed_ms + (
+            self.finalization_grace_ms if self.finalization_grace_applied else 0
+        )
+        if effective_max_elapsed_ms and self.elapsed_ms_used > effective_max_elapsed_ms:
             return "elapsed_budget_exceeded"
         if (
             self.max_tool_result_bytes
@@ -167,6 +154,7 @@ class ExecutionBudget:
                 "max_retry_per_intent": self.max_retry_per_intent,
                 "max_candidate_tools": self.max_candidate_tools,
                 "max_tool_result_bytes": self.max_tool_result_bytes,
+                "finalization_grace_ms": self.finalization_grace_ms,
             },
             "usage": {
                 "prompt_tokens_used": self.prompt_tokens_used,
@@ -176,6 +164,7 @@ class ExecutionBudget:
                 "tool_result_bytes_used": self.tool_result_bytes_used,
                 "candidate_tools_count": self.candidate_tools_count,
                 "retries_by_intent": dict(self.retries_by_intent),
+                "finalization_grace_applied": self.finalization_grace_applied,
             },
             "exceeded_reason": exit_reason,
         }
@@ -387,6 +376,5 @@ __all__ = [
     "ProviderFailureKind",
     "RecoveryDecision",
     "ResearchContinuationContext",
-    "ToolInvocationPlan",
     "ToolUsePolicy",
 ]
