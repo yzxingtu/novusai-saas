@@ -562,6 +562,81 @@ class StreamIOAdapter:
                     tool_results=round_tool_results,
                 )
                 self.handler._output = budget_output
+            if any(result.success for result in round_tool_results):
+                finalization_policy = ToolUsePolicy(
+                    family="none",
+                    mode="none",
+                    allowed_tool_names=[],
+                    retry_on_contract_breach=False,
+                    reason="partial_exit_final_response",
+                )
+                finalization_round = await self.call_llm(
+                    messages=messages,
+                    tools=[],
+                    tool_use_policy=finalization_policy,
+                )
+                finalization_response = finalization_round.response
+                total_tokens = starting_total_tokens + int(
+                    finalization_round.total_tokens or 0
+                )
+                completion_tokens_used = starting_completion_tokens + int(
+                    finalization_round.completion_tokens_used or 0
+                )
+                if finalization_response is not None:
+                    unexpected_tool_calls = list(
+                        finalization_response.tool_calls
+                        or finalization_response.message.tool_calls
+                        or []
+                    )
+                    if unexpected_tool_calls:
+                        logger.warning(
+                            "Finalization-only stream round returned unexpected tool calls; suppressing execution: conversation_id={} tool_names={}",
+                            self.handler.request.conversation_id,
+                            [
+                                str(
+                                    (tool_call.get("function") or {}).get("name")
+                                    or tool_call.get("name")
+                                    or ""
+                                )
+                                for tool_call in unexpected_tool_calls
+                                if isinstance(tool_call, dict)
+                            ],
+                        )
+                        metadata = dict(
+                            getattr(finalization_response, "metadata", {}) or {}
+                        )
+                        metadata["finalization_tool_call_suppressed"] = True
+                        finalization_response = ChatResponse(
+                            message=ChatMessage(
+                                role=finalization_response.message.role,
+                                content=finalization_response.message.content or "",
+                                reasoning_content=(
+                                    finalization_response.message.reasoning_content
+                                ),
+                                tool_calls=None,
+                            ),
+                            total_tokens=finalization_response.total_tokens,
+                            output_tokens=finalization_response.output_tokens,
+                            finish_reason="stop",
+                            tool_calls=None,
+                            metadata=metadata,
+                        )
+                        self.handler._clear_before_next_message = False
+                    finalization_output = str(
+                        finalization_response.message.content or ""
+                    ).strip()
+                    if finalization_output:
+                        self.handler._output = finalization_output
+                        self.handler._total_tokens = int(total_tokens or 0)
+                        self.handler._completion_tokens_used = int(
+                            completion_tokens_used or 0
+                        )
+                        return ToolBatchResult(
+                            response=finalization_response,
+                            tool_results=round_tool_results,
+                            total_tokens=total_tokens,
+                            completion_tokens_used=completion_tokens_used,
+                        )
             budget_response = self.handler._build_text_round_response(
                 content=budget_output,
                 reasoning_content=reasoning_content or "",
@@ -610,6 +685,21 @@ class StreamIOAdapter:
             if normalized_response is not None
             else None
         )
+        if getattr(normalized_response, "tool_calls", None) and follow_up_tools:
+            follow_up_batch = await self.handle_tool_calls(
+                response=normalized_response,
+                tools=follow_up_tools,
+                messages=messages,
+                tool_use_policy=follow_up_policy,
+                starting_total_tokens=total_tokens,
+                starting_completion_tokens=completion_tokens_used,
+            )
+            return ToolBatchResult(
+                response=follow_up_batch.response,
+                tool_results=round_tool_results + list(follow_up_batch.tool_results),
+                total_tokens=follow_up_batch.total_tokens,
+                completion_tokens_used=follow_up_batch.completion_tokens_used,
+            )
         continuation_context = getattr(self.handler.prep, "continuation_context", None)
         all_tools = list(self.handler.prep.all_tools or tools or [])
         analyze_breach_fn = getattr(
@@ -1256,8 +1346,9 @@ class StreamExecutionHandler:
                         )
             elif paused_for_consent:
                 output = (
-                    self._last_visible_assistant_content(messages)
+                    str(self._visible_stream_content or "").strip()
                     or str(self._output or "").strip()
+                    or self._last_visible_assistant_content(messages)
                 )
                 self._output = output
             elif output and not skip_final_assistant:
