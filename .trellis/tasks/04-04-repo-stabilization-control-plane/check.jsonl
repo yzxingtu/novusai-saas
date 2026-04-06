@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/guides/index.md", "reason": "Guide index must expose stabilization guide"}
-{"file": ".trellis/tasks/04-04-ai-gateway-provider-compat/task.json", "reason": "Child task contract migrated"}
-{"file": ".trellis/tasks/04-03-page-awareness-navigation-v2/task.json", "reason": "Child task contract migrated"}
-{"file": ".trellis/tasks/04-03-04-03-plugin-system-audit-hardening/task.json", "reason": "Child task contract migrated"}
-{"file": ".trellis/tasks/04-04-permission-tree-fix/task.json", "reason": "Child task contract migrated"}
-{"file": ".trellis/tasks/04-04-tenant-org-permission-assignment/task.json", "reason": "Child task contract migrated"}

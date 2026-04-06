@@ -1,7 +1,0 @@
-{"file": ".trellis/workflow.md", "reason": "Canonical Trellis path and lifecycle rules"}
-{"file": ".trellis/spec/guides/repo-stabilization-workstreams.md", "reason": "Repo-wide dirty-tree stabilization policy"}
-{"file": ".trellis/tasks/04-04-04-04-ai-orchestration-runtime-rebuild/prd.md", "reason": "Verified runtime workstream baseline"}
-{"file": ".trellis/tasks/04-03-page-awareness-navigation-v2/prd.md", "reason": "Page awareness workstream scope"}
-{"file": ".trellis/tasks/04-04-ai-gateway-provider-compat/prd.md", "reason": "Provider compatibility workstream scope"}
-{"file": ".trellis/tasks/04-04-permission-tree-fix/prd.md", "reason": "Permission tree workstream scope"}
-{"file": ".trellis/tasks/04-04-tenant-org-permission-assignment/prd.md", "reason": "Tenant org parity workstream scope"}

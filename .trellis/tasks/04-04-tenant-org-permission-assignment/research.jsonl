@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Cross-layer org/permission alignment checklist"}
-{"file": "backend/app/services/tenant/tenant_org_node_service.py", "reason": "Tenant org node service contract"}
-{"file": "backend/app/services/tenant/tenant_org_authority_service.py", "reason": "Tenant org permission authority logic"}
-{"file": "frontend/apps/web-antd/src/components/business/permission-selector/PermissionSelector.vue", "reason": "Permission assignment UI contract"}
-{"file": "frontend/apps/web-antd/src/views/tenant/system/organization/index.vue", "reason": "Tenant org page integration"}

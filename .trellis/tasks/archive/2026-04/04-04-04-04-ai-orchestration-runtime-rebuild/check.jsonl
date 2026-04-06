@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/guides/trellis-paths.md", "reason": "Trellis verification and path rules"}
-{"file": ".trellis/spec/ai-runtime/execution-state-machine.md", "reason": "Execution lifecycle acceptance rules"}
-{"file": ".trellis/spec/ai-runtime/context-budget.md", "reason": "Budget guard acceptance rules"}
-{"file": ".trellis/spec/ai-runtime/recovery-stop-loss.md", "reason": "Recovery and partial-exit acceptance rules"}
-{"file": ".trellis/spec/ai-runtime/observability.md", "reason": "Diagnostics acceptance rules"}
-{"file": ".trellis/tasks/04-04-ai-gateway-provider-compat/task.json", "reason": "Adjacent provider seam linked through stabilization control plane"}
-{"file": ".trellis/tasks/04-03-page-awareness-navigation-v2/task.json", "reason": "Adjacent page-awareness seam linked through stabilization control plane"}

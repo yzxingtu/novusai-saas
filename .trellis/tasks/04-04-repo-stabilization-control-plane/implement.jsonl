@@ -1,4 +1,0 @@
-{"file": ".trellis/tasks/04-04-repo-stabilization-control-plane/prd.md", "reason": "Umbrella task requirements"}
-{"file": ".trellis/tasks/04-04-repo-stabilization-control-plane/info.md", "reason": "Execution order, freeze rules, and next actions"}
-{"file": ".trellis/tasks/04-04-repo-stabilization-control-plane/ownership-matrix.md", "reason": "Owned file boundaries and merge gates"}
-{"file": ".trellis/tasks/04-04-repo-stabilization-control-plane/task.json", "reason": "Control-plane task contract"}

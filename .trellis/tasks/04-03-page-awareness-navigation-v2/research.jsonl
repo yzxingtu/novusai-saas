@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/ai-runtime/intent-routing.md", "reason": "Page read/navigation/write intent routing rules"}
-{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Cross-layer alignment checklist"}
-{"file": "backend/app/ai/tools/executors/page_operation_executor.py", "reason": "Backend continuation and navigation behavior"}
-{"file": "frontend/apps/web-antd/src/components/business/ai-slide-panel/page-operation-registry.ts", "reason": "Frontend operation registry semantics"}
-{"file": "frontend/apps/web-antd/src/utils/page-navigation.ts", "reason": "Shared page navigation helper behavior"}
