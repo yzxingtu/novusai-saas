@@ -16,6 +16,42 @@ function getApiBaseUrl(): string {
   return '';
 }
 
+/**
+ * Normalize API-relative asset URLs to absolute backend URLs in dev/proxied setups.
+ * 将 API 相对资源地址归一化为后端绝对地址，避免前端 dev server 误接收图片请求。
+ */
+export function toAbsoluteApiUrl(url: null | string | undefined): string {
+  if (typeof url !== 'string') {
+    return '';
+  }
+
+  const normalized = url.trim();
+  if (!normalized) {
+    return '';
+  }
+
+  if (
+    /^(?:blob:|data:|https?:\/\/)/i.test(normalized) ||
+    normalized.startsWith('mailto:') ||
+    normalized.startsWith('tel:')
+  ) {
+    return normalized;
+  }
+
+  if (normalized.startsWith('//')) {
+    const protocol =
+      typeof window !== 'undefined' ? window.location.protocol : 'http:';
+    return `${protocol}${normalized}`;
+  }
+
+  const base = getApiBaseUrl();
+  if (normalized.startsWith('/')) {
+    return base ? `${base}${normalized}` : normalized;
+  }
+
+  return base ? `${base}/${normalized.replace(/^\.?\//, '')}` : normalized;
+}
+
 export type ImagePreset =
   | 'avatar'
   | 'banner'
@@ -177,8 +213,7 @@ export function getAttachmentUrl(
 ): string {
   const signed = attachment.previewUrl || attachment.preview_url;
   if (signed) {
-    const base = getApiBaseUrl();
-    const url = signed.startsWith('http') ? signed : `${base}${signed}`;
+    const url = toAbsoluteApiUrl(signed);
     const extra = new URLSearchParams();
     if (options?.preset) extra.set('p', options.preset);
     if (options?.width) extra.set('w', String(options.width));

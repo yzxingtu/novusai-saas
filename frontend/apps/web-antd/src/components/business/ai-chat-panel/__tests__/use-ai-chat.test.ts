@@ -43,6 +43,7 @@ vi.mock('#/api/shared/ai-chat', () => ({
   getChatConversationMemoryApi: apiMocks.getChatConversationMemoryApi,
   getChatConversationMessagesApi: apiMocks.getChatConversationMessagesApi,
   getGlobalConversationsApi: apiMocks.getGlobalConversationsApi,
+  normalizeChatAttachments: vi.fn((attachments) => attachments),
   sendChatStreamApi: apiMocks.sendChatStreamApi,
   updateChatConversationTitleApi: vi.fn(),
   uploadChatFileApi: vi.fn(),

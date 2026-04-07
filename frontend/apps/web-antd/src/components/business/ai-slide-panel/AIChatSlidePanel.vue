@@ -29,7 +29,7 @@ import {
 
 import { IconifyIcon } from '@vben/icons';
 
-import { Drawer, message, Modal, Spin, Tooltip } from 'ant-design-vue';
+import { Drawer, Image, message, Modal, Spin, Tooltip } from 'ant-design-vue';
 
 import {
   compactChatConversationApi,
@@ -50,6 +50,7 @@ import { normalizePageAIMode } from '#/utils/ai-page-capabilities';
 import { normalizeStarterQuestions } from '#/utils/ai-starter-questions';
 import { getErrorMessage } from '#/utils/error-helpers';
 import { getFileIcon } from '#/utils/file';
+import { toAbsoluteApiUrl } from '#/utils/image';
 
 import AgentVarsModal from './AgentVarsModal.vue';
 import AIChatComposer from './AIChatComposer.vue';
@@ -1218,17 +1219,21 @@ function isLikelyImageUrl(url: string) {
   if (!normalized) return false;
   if (normalized.startsWith('data:image/')) return true;
   if (normalized.startsWith('blob:')) return true;
+  if (/\/api\/public\/attachments\/\d+\/image(?:[?#]|$)/.test(normalized)) {
+    return true;
+  }
   const withoutQuery = normalized.split('?')[0]?.split('#')[0] || normalized;
   return /\.(?:avif|bmp|gif|ico|jpe?g|png|svg|webp)$/i.test(withoutQuery);
 }
 
 function handleOpenUrl(url: string) {
-  if (!url) return;
-  if (isLikelyImageUrl(url)) {
-    openImagePreview(url);
+  const normalizedUrl = toAbsoluteApiUrl(url) || url;
+  if (!normalizedUrl) return;
+  if (isLikelyImageUrl(normalizedUrl)) {
+    openImagePreview(normalizedUrl);
     return;
   }
-  window.open(url, '_blank', 'noopener,noreferrer');
+  window.open(normalizedUrl, '_blank', 'noopener,noreferrer');
 }
 
 // ============ Copy / 复制消息 ============
@@ -1790,21 +1795,16 @@ onUnmounted(() => {
       </div>
     </Drawer>
 
-    <!-- Image preview lightbox -->
-    <Modal
-      v-model:open="previewImageVisible"
-      :footer="null"
-      width="auto"
-      :style="{ maxWidth: '90vw' }"
-      centered
-      destroy-on-close
-    >
-      <img
-        :src="previewImageUrl"
-        alt=""
-        class="max-h-[80vh] max-w-full object-contain"
-      />
-    </Modal>
+    <!-- Hidden Image preview uses antd's built-in zoom/rotate toolbar -->
+    <Image
+      v-if="previewImageUrl"
+      :src="previewImageUrl"
+      :preview="{
+        visible: previewImageVisible,
+        onVisibleChange: (visible: boolean) => (previewImageVisible = visible),
+      }"
+      class="hidden"
+    />
   </Teleport>
 </template>
 

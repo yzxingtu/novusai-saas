@@ -100,6 +100,13 @@ vi.mock('@vben/icons', () => ({
   }),
 }));
 
+vi.mock('#/utils/image', () => ({
+  toAbsoluteApiUrl: (url?: string) =>
+    typeof url === 'string' && url.startsWith('/')
+      ? `http://localhost:8000${url}`
+      : (url ?? ''),
+}));
+
 vi.mock('ant-design-vue', () => {
   const TextArea = defineComponent({
     name: 'TextAreaStub',
@@ -180,6 +187,31 @@ vi.mock('ant-design-vue', () => {
     template: '<div v-if="open" class="modal-stub"><slot /></div>',
   });
 
+  const Image = defineComponent({
+    name: 'ImageStub',
+    props: {
+      preview: {
+        default: false,
+        type: [Boolean, Object],
+      },
+      src: {
+        default: '',
+        type: String,
+      },
+    },
+    template: `
+      <div class="image-stub">
+        <img v-if="src" class="image-inline-stub" :src="src" alt="" />
+        <div
+          v-if="preview && typeof preview === 'object' && preview.visible"
+          class="image-preview-stub"
+        >
+          <img :src="preview.src || src" alt="" />
+        </div>
+      </div>
+    `,
+  });
+
   const Drawer = defineComponent({
     name: 'DrawerStub',
     props: {
@@ -210,6 +242,7 @@ vi.mock('ant-design-vue', () => {
   return {
     Dropdown,
     Drawer,
+    Image,
     Input,
     Menu,
     Modal,
@@ -2245,7 +2278,7 @@ describe('aIChatSlidePanel (component mount)', () => {
       '_blank',
       'noopener,noreferrer',
     );
-    expect(document.body.querySelector('.modal-stub img')).toBeFalsy();
+    expect(document.body.querySelector('.image-preview-stub img')).toBeFalsy();
 
     openSpy.mockRestore();
     wrapper.unmount();
@@ -2279,10 +2312,48 @@ describe('aIChatSlidePanel (component mount)', () => {
     await flushPanel();
 
     expect(openSpy).not.toHaveBeenCalled();
-    const previewImage = document.body.querySelector('.modal-stub img');
+    const previewImage = document.body.querySelector('.image-preview-stub img');
     expect(previewImage).toBeTruthy();
     expect((previewImage as HTMLImageElement).getAttribute('src')).toBe(
       'https://example.com/image.png',
+    );
+
+    openSpy.mockRestore();
+    wrapper.unmount();
+  });
+
+  it('treats attachment image endpoints as previewable images', async () => {
+    const openSpy = vi
+      .spyOn(window, 'open')
+      .mockImplementation(() => null as unknown as Window);
+
+    const wrapper = mount(AIChatSlidePanel, {
+      props: { apiPrefix: '/tenant', uploadUrl: '/upload' },
+      attachTo: document.body,
+      global: {
+        stubs: {
+          AIChatMessageViewport: defineComponent({
+            emits: ['openUrl'],
+            template:
+              '<button data-testid="attachment-image-open-url" @click="$emit(\'openUrl\', \'/api/public/attachments/42/image?exp=1&sign=abc&token=jwt\')">preview</button>',
+          }),
+        },
+      },
+    });
+
+    await flushPanel();
+
+    requireElement(
+      document.body.querySelector('[data-testid="attachment-image-open-url"]'),
+      'Expected attachment image open-url trigger',
+    ).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flushPanel();
+
+    expect(openSpy).not.toHaveBeenCalled();
+    const previewImage = document.body.querySelector('.image-preview-stub img');
+    expect(previewImage).toBeTruthy();
+    expect((previewImage as HTMLImageElement).getAttribute('src')).toBe(
+      'http://localhost:8000/api/public/attachments/42/image?exp=1&sign=abc&token=jwt',
     );
 
     openSpy.mockRestore();

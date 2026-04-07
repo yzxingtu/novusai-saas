@@ -48,6 +48,7 @@ import {
   getChatConversationMemoryApi,
   getChatConversationMessagesApi,
   getGlobalConversationsApi,
+  normalizeChatAttachments,
   sendChatStreamApi,
   updateChatConversationTitleApi,
   uploadChatFileApi,
@@ -809,7 +810,7 @@ export function useAIChat(options: UseAIChatOptions) {
           clientKey: `persisted-user-${i}-${msg.created_at ?? ''}`,
           role: 'user',
           content: msg.content ?? '',
-          attachments: msg.metadata?.attachments,
+          attachments: normalizeChatAttachments(msg.metadata?.attachments),
           ...(msg.created_at ? { created_at: msg.created_at } : {}),
         });
         i++;

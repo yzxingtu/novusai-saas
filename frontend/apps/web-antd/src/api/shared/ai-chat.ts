@@ -14,6 +14,7 @@ import type { ChatAttachment, RagSource } from '#/types/ai-chat';
 import { smartUploadFile as adminSmartUploadFile } from '#/api/admin/attachment';
 import { smartUploadFile as tenantSmartUploadFile } from '#/api/tenant/attachment';
 import { smartUploadFile as userSmartUploadFile } from '#/api/user/attachment';
+import { toAbsoluteApiUrl } from '#/utils/image';
 import { requestClient } from '#/utils/request';
 
 export type { TurnContextSourcePayload, TurnRecordPayload };
@@ -332,6 +333,31 @@ export async function uploadChatFileApi(
   });
 }
 
+export function normalizeChatAttachment(
+  attachment: ChatAttachment,
+): ChatAttachment {
+  const normalizedUrl = toAbsoluteApiUrl(attachment.url) || attachment.url;
+  const normalizedPreview =
+    typeof attachment.preview === 'string'
+      ? toAbsoluteApiUrl(attachment.preview) || attachment.preview
+      : attachment.preview;
+
+  return {
+    ...attachment,
+    url: normalizedUrl,
+    ...(normalizedPreview ? { preview: normalizedPreview } : {}),
+  };
+}
+
+export function normalizeChatAttachments(
+  attachments?: ChatAttachment[] | null,
+): ChatAttachment[] | undefined {
+  if (!Array.isArray(attachments) || attachments.length === 0) {
+    return undefined;
+  }
+  return attachments.map((attachment) => normalizeChatAttachment(attachment));
+}
+
 export function buildChatAttachmentFromUpload(
   file: File,
   upload: FileUploadResponse,
@@ -350,13 +376,13 @@ export function buildChatAttachmentFromUpload(
   const previewUrl =
     upload.attachment.previewUrl || upload.attachment.preview_url || upload.url;
 
-  return {
+  return normalizeChatAttachment({
     attachment_id: upload.attachment.id,
     type,
     url: type === 'image' ? previewUrl : upload.url,
     name: upload.attachment.original_name || file.name,
     mime_type: upload.attachment.mime_type || file.type,
-  };
+  });
 }
 
 // ============ Route Types / 路由请求类型 ============

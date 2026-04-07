@@ -18,6 +18,7 @@ import {
   Card,
   Drawer,
   Empty,
+  Image,
   Spin,
   Tag,
   Timeline,
@@ -27,7 +28,7 @@ import {
 import { IdentitySummaryCard } from '#/components/business/identity-display';
 import { $t } from '#/locales';
 import { formatDate, formatTimeOnly } from '#/utils/common';
-import { toAvatarDisplayUrl } from '#/utils/image';
+import { toAbsoluteApiUrl, toAvatarDisplayUrl } from '#/utils/image';
 import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
 import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 
@@ -167,6 +168,8 @@ function asString(value: unknown): string {
 }
 
 interface MessageAttachment {
+  attachment_id?: number;
+  mime_type?: string;
   name?: string;
   type?: string;
   url?: string;
@@ -179,19 +182,20 @@ function getMessageAttachments(
   if (!meta || typeof meta !== 'object') return [];
   const raw = (meta as Record<string, unknown>).attachments;
   if (!Array.isArray(raw)) return [];
-  return raw.filter(
-    (item): item is MessageAttachment =>
-      Boolean(item) && typeof item === 'object' && !Array.isArray(item),
-  );
+  return raw
+    .filter(
+      (item): item is MessageAttachment =>
+        Boolean(item) && typeof item === 'object' && !Array.isArray(item),
+    )
+    .map((item) => ({
+      ...item,
+      url: toAbsoluteApiUrl(item.url) || item.url,
+    }));
 }
 
 function truncateText(text: unknown, maxLen: number): string {
   const s = typeof text === 'string' ? text : '';
   return s.length > maxLen ? `${s.slice(0, maxLen)}...` : s;
-}
-
-function openInNewTab(url: string) {
-  window.open(url, '_blank');
 }
 
 function asStringArray(value: unknown): string[] {
@@ -954,12 +958,12 @@ function traceStatusColor(status?: null | string) {
                       v-for="(att, ati) in getMessageAttachments(message)"
                       :key="ati"
                     >
-                      <img
-                        v-if="att.type === 'image'"
+                      <Image
+                        v-if="att.type === 'image' && att.url"
                         :src="att.url"
                         :alt="att.name || ''"
                         class="max-h-32 max-w-40 cursor-pointer rounded-lg border border-border/50 object-contain"
-                        @click="att.url && openInNewTab(att.url)"
+                        :preview="{ src: att.url }"
                       />
                       <a
                         v-else
