@@ -335,100 +335,50 @@ class StreamIOAdapter:
         page_op_aborted = False
         page_op_abort_threshold = 3
 
-        for tc in tool_calls:
-            tc_id = tc.get("id", "")
-            func = tc.get("function", {}) if isinstance(tc, dict) else {}
-            func_name = str(func.get("name") or "").strip()
-            raw_args = func.get("arguments", "{}")
-            arguments, parse_error = processor.parse_arguments(raw_args)
-            if parse_error:
-                err_result = ToolResult(
-                    tool_call_id=tc_id,
-                    name=func_name or "unknown",
-                    success=False,
-                    error=_("page_operation.error.json_parse_failed"),
-                    error_type=parse_error,
-                )
-                round_tool_results.append(err_result)
-                await self.handler._emit_runtime_event(
-                    processor.build_tool_call_event(
-                        err_result,
-                        0,
-                        processor.get_skill_info(func_name),
-                        name_override=func_name or err_result.name,
-                    )
-                )
-                messages.append(processor.build_tool_message(err_result, tc_id))
-                is_page_op = func_name == "invoke_page_operation" or (
-                    func_name.startswith("pageop_") if func_name else False
-                )
-                if is_page_op:
-                    page_op_failures += 1
-                    if page_op_failures >= page_op_abort_threshold:
-                        page_op_aborted = True
-                        self.handler._output = (
-                            str(response.message.content or "").strip() + "\n\n"
-                            if str(response.message.content or "").strip()
-                            else ""
-                        ) + _("page_operation.error.multiple_failures_parse")
-                        break
-                continue
-
-            skill_info = processor.get_skill_info(func_name)
-            processor.annotate_tool_call(tc, skill_info=skill_info)
-            consent = processor.check_consent(func_name, arguments)
-            if consent == "reject":
-                messages.append(processor.build_consent_reject_message(tc_id))
-                await self.handler._emit_runtime_event(
-                    processor.build_consent_reject_event(
-                        func_name,
-                        skill_info,
-                    )
-                )
-                continue
-            if consent == "ask":
-                processor.annotate_tool_call(
-                    tc,
-                    pending_consent=processor.build_pending_consent_payload(
-                        func_name,
-                        arguments,
-                        skill_info,
-                    ),
-                )
-                messages.append(
-                    processor.build_consent_ask_message(
+        def _prepare_parallel_readonly_batch() -> list[
+            tuple[dict[str, Any], str, str, dict[str, Any], dict[str, str | None]]
+        ] | None:
+            if len(tool_calls) <= 1:
+                return None
+            prepared: list[
+                tuple[dict[str, Any], str, str, dict[str, Any], dict[str, str | None]]
+            ] = []
+            for tc in tool_calls:
+                tc_id = tc.get("id", "")
+                func = tc.get("function", {}) if isinstance(tc, dict) else {}
+                func_name = str(func.get("name") or "").strip()
+                raw_args = func.get("arguments", "{}")
+                arguments, parse_error = processor.parse_arguments(raw_args)
+                if parse_error or arguments is None:
+                    return None
+                if not processor.is_parallel_safe_tool_call(func_name, arguments):
+                    return None
+                if processor.check_consent(func_name, arguments) in {"reject", "ask"}:
+                    return None
+                prepared.append(
+                    (
+                        tc,
                         tc_id,
                         func_name,
                         arguments,
+                        processor.get_skill_info(func_name),
                     )
                 )
-                await self.handler._emit_runtime_event(
-                    processor.build_consent_ask_event(
-                        func_name,
-                        arguments,
-                        skill_info,
-                    )
-                )
-                round_has_confirmation = True
-                continue
+            return prepared
 
-            await self.handler._emit_runtime_event(
-                processor.build_tool_start_event(
-                    func_name,
-                    arguments,
-                    skill_info,
-                    tool_call_id=tc_id,
-                )
-            )
-            started = time.perf_counter()
-            result, tc_duration = await processor.execute_tool(
-                tc_id,
-                func_name,
-                arguments,
-                conversation_id=self.handler.request.conversation_id or 0,
-            )
-            if tc_duration <= 0:
-                tc_duration = int((time.perf_counter() - started) * 1000)
+        async def _apply_single_result(
+            tc: dict[str, Any],
+            *,
+            tc_id: str,
+            func_name: str,
+            skill_info: dict[str, str | None],
+            result: ToolResult,
+            tc_duration: int,
+            tool_message: ChatMessage | None,
+            follow_up_message: ChatMessage | None,
+        ) -> bool:
+            nonlocal round_has_confirmation, page_op_failures, page_op_aborted
+
             processor.annotate_tool_call(
                 tc,
                 duration_ms=tc_duration,
@@ -444,8 +394,8 @@ class StreamIOAdapter:
                     name_override=func_name,
                 )
             )
-            messages.append(processor.build_tool_message(result, tc_id))
-            follow_up_message = processor.build_attachment_relay_message(result)
+            if tool_message:
+                messages.append(tool_message)
             if follow_up_message:
                 follow_up_messages.append(follow_up_message)
             confirmation_payload = processor.check_confirmation_output(result)
@@ -476,12 +426,163 @@ class StreamIOAdapter:
                             if str(response.message.content or "").strip()
                             else ""
                         ) + _("page_operation.error.multiple_failures_sequence")
-                        break
+                        return True
 
             tool_result_budget_reason = self.handler._state.budget_exit_reason()
             if tool_result_budget_reason:
                 self.handler._register_budget_exit(tool_result_budget_reason)
-                break
+                return True
+            return False
+
+        parallel_batch = _prepare_parallel_readonly_batch()
+        if parallel_batch is not None:
+            for tc, tc_id, func_name, arguments, skill_info in parallel_batch:
+                processor.annotate_tool_call(tc, skill_info=skill_info)
+                await self.handler._emit_runtime_event(
+                    processor.build_tool_start_event(
+                        func_name,
+                        arguments,
+                        skill_info,
+                        tool_call_id=tc_id,
+                    )
+                )
+            singles = await asyncio.gather(
+                *[
+                    processor.process_single(
+                        tc,
+                        conversation_id=self.handler.request.conversation_id or 0,
+                    )
+                    for tc, _tc_id, _func_name, _arguments, _skill_info in parallel_batch
+                ]
+            )
+            for (
+                tc,
+                tc_id,
+                func_name,
+                _arguments,
+                skill_info,
+            ), single in zip(parallel_batch, singles, strict=False):
+                if single.tool_result is None:
+                    continue
+                should_stop = await _apply_single_result(
+                    tc,
+                    tc_id=tc_id,
+                    func_name=func_name,
+                    skill_info=skill_info,
+                    result=single.tool_result,
+                    tc_duration=int(single.duration_ms or 0),
+                    tool_message=single.tool_message,
+                    follow_up_message=single.follow_up_message,
+                )
+                if should_stop:
+                    break
+        else:
+            for tc in tool_calls:
+                tc_id = tc.get("id", "")
+                func = tc.get("function", {}) if isinstance(tc, dict) else {}
+                func_name = str(func.get("name") or "").strip()
+                raw_args = func.get("arguments", "{}")
+                arguments, parse_error = processor.parse_arguments(raw_args)
+                if parse_error:
+                    err_result = ToolResult(
+                        tool_call_id=tc_id,
+                        name=func_name or "unknown",
+                        success=False,
+                        error=_("page_operation.error.json_parse_failed"),
+                        error_type=parse_error,
+                    )
+                    round_tool_results.append(err_result)
+                    await self.handler._emit_runtime_event(
+                        processor.build_tool_call_event(
+                            err_result,
+                            0,
+                            processor.get_skill_info(func_name),
+                            name_override=func_name or err_result.name,
+                        )
+                    )
+                    messages.append(processor.build_tool_message(err_result, tc_id))
+                    is_page_op = func_name == "invoke_page_operation" or (
+                        func_name.startswith("pageop_") if func_name else False
+                    )
+                    if is_page_op:
+                        page_op_failures += 1
+                        if page_op_failures >= page_op_abort_threshold:
+                            page_op_aborted = True
+                            self.handler._output = (
+                                str(response.message.content or "").strip() + "\n\n"
+                                if str(response.message.content or "").strip()
+                                else ""
+                            ) + _("page_operation.error.multiple_failures_parse")
+                            break
+                    continue
+
+                skill_info = processor.get_skill_info(func_name)
+                processor.annotate_tool_call(tc, skill_info=skill_info)
+                consent = processor.check_consent(func_name, arguments)
+                if consent == "reject":
+                    messages.append(processor.build_consent_reject_message(tc_id))
+                    await self.handler._emit_runtime_event(
+                        processor.build_consent_reject_event(
+                            func_name,
+                            skill_info,
+                        )
+                    )
+                    continue
+                if consent == "ask":
+                    processor.annotate_tool_call(
+                        tc,
+                        pending_consent=processor.build_pending_consent_payload(
+                            func_name,
+                            arguments,
+                            skill_info,
+                        ),
+                    )
+                    messages.append(
+                        processor.build_consent_ask_message(
+                            tc_id,
+                            func_name,
+                            arguments,
+                        )
+                    )
+                    await self.handler._emit_runtime_event(
+                        processor.build_consent_ask_event(
+                            func_name,
+                            arguments,
+                            skill_info,
+                        )
+                    )
+                    round_has_confirmation = True
+                    continue
+
+                await self.handler._emit_runtime_event(
+                    processor.build_tool_start_event(
+                        func_name,
+                        arguments,
+                        skill_info,
+                        tool_call_id=tc_id,
+                    )
+                )
+                started = time.perf_counter()
+                result, tc_duration = await processor.execute_tool(
+                    tc_id,
+                    func_name,
+                    arguments,
+                    conversation_id=self.handler.request.conversation_id or 0,
+                )
+                if tc_duration <= 0:
+                    tc_duration = int((time.perf_counter() - started) * 1000)
+                should_stop = await _apply_single_result(
+                    tc,
+                    tc_id=tc_id,
+                    func_name=func_name,
+                    skill_info=skill_info,
+                    result=result,
+                    tc_duration=tc_duration,
+                    tool_message=processor.build_tool_message(result, tc_id),
+                    follow_up_message=processor.build_attachment_relay_message(result),
+                )
+                if should_stop:
+                    break
 
         if follow_up_messages and not round_has_confirmation and not page_op_aborted:
             messages.extend(follow_up_messages)
@@ -542,6 +643,42 @@ class StreamIOAdapter:
         self._ensure_engine_tool_helpers()
         output, final_total_tokens, final_completion_tokens = (
             await ConversationEngine._finalize_partial_output(
+                self.handler.engine,
+                agent=self.handler.agent,
+                request=self.handler.request,
+                prep=self.handler.prep,
+                messages=messages,
+                response=response,
+                state=state,
+                tool_results=tool_results,
+                reason=reason,
+                total_tokens=total_tokens,
+                completion_tokens_used=completion_tokens_used,
+                selected_skill_names=self._selected_skill_names(),
+                context_sources=self._context_sources(),
+            )
+        )
+        stream_local_output = str(self.handler._output or "").strip()
+        if stream_local_output:
+            output = stream_local_output
+        return output, final_total_tokens, final_completion_tokens
+
+    async def finalize_completed_output(
+        self,
+        *,
+        messages: list[ChatMessage],
+        response: ChatResponse | None,
+        state: ExecutionStateMachine,
+        tool_results: list[ToolResult],
+        reason: str,
+        total_tokens: int,
+        completion_tokens_used: int,
+    ) -> tuple[str, int, int]:
+        from .conversation import ConversationEngine
+
+        self._ensure_engine_tool_helpers()
+        output, final_total_tokens, final_completion_tokens = (
+            await ConversationEngine._finalize_completed_output(
                 self.handler.engine,
                 agent=self.handler.agent,
                 request=self.handler.request,
@@ -1122,7 +1259,9 @@ class StreamExecutionHandler:
             paused_for_consent = bool(turn_execution.paused_for_consent)
             partial = bool(turn_execution.partial)
             partial_reply_stream_chunks: list[str] = []
+            completed_reply_stream_chunks: list[str] = []
             completion_reason = turn_execution.completion_reason or "completed"
+            final_output_source = turn_execution.final_output_source
             skip_final_assistant = bool(response_metadata.get("skip_final_assistant"))
             if partial:
                 visible_assistant_output = self._last_visible_assistant_content(
@@ -1171,6 +1310,7 @@ class StreamExecutionHandler:
                 )
                 self._output = output
             elif output and not skip_final_assistant:
+                streamed_output = str(self._visible_stream_content or "").strip()
                 messages.append(
                     ChatMessage(
                         role="assistant",
@@ -1194,9 +1334,12 @@ class StreamExecutionHandler:
                         ),
                     )
                 )
+                if output != streamed_output:
+                    completed_reply_stream_chunks = self._chunk_text_for_streaming(output)
 
             tool_planner = getattr(self.prep, "tool_planner", None)
             diagnostics_payload = self._state.build_diagnostics_payload()
+            diagnostics_payload["final_output_source"] = final_output_source
             result_turn_record = (
                 dict(self._runtime_turn_record)
                 if isinstance(self._runtime_turn_record, dict)
@@ -1312,6 +1455,15 @@ class StreamExecutionHandler:
                 result.turn_record["contract_breach_type"] = diagnostics_payload.get(
                     "contract_breach_type",
                 )
+                result.turn_record["final_output_source"] = diagnostics_payload.get(
+                    "final_output_source",
+                )
+                result.turn_record["post_tool_completion_state"] = (
+                    diagnostics_payload.get("post_tool_completion_state")
+                )
+                result.turn_record["auto_fetch_gate_reason"] = diagnostics_payload.get(
+                    "auto_fetch_gate_reason",
+                )
                 metadata = dict(result.turn_record.get("metadata") or {})
                 metadata["orchestration"] = diagnostics_payload
                 metadata["turn_diagnostics"] = diagnostics_payload
@@ -1319,6 +1471,15 @@ class StreamExecutionHandler:
 
             if partial_reply_stream_chunks:
                 for chunk in partial_reply_stream_chunks:
+                    yield SSEChunkEncoder.encode(
+                        {
+                            "event": "message",
+                            "delta": chunk,
+                        }
+                    )
+
+            if completed_reply_stream_chunks:
+                for chunk in completed_reply_stream_chunks:
                     yield SSEChunkEncoder.encode(
                         {
                             "event": "message",

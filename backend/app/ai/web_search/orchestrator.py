@@ -262,7 +262,7 @@ def _record_native_backend_outcome(conv_id: int, backend_key: str, status: str) 
             _NATIVE_BACKEND_DISABLED.setdefault(conv_id, set()).discard(backend_key)
         return
     _NATIVE_BACKEND_FAIL_STREAK[key] = _NATIVE_BACKEND_FAIL_STREAK.get(key, 0) + 1
-    if conv_id and _NATIVE_BACKEND_FAIL_STREAK[key] >= 2:
+    if conv_id and _NATIVE_BACKEND_FAIL_STREAK[key] >= 3:
         _NATIVE_BACKEND_DISABLED.setdefault(conv_id, set()).add(backend_key)
         logger.info(
             "web_search native backend cooling down: backend={} conv_id={} streak={}",

@@ -30,6 +30,7 @@ from app.ai.types import ChatMessage
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
+
 from .execution_state_machine import get_current_execution_state_machine
 
 logger = LogManager.get_logger("ai.engine.tool_processor")
@@ -329,6 +330,28 @@ class ToolCallProcessor:
     # Core Methods / 核心方法
     # ========================================
 
+    # Readonly tools safe to run concurrently / 可安全并发执行的只读工具
+    _PARALLEL_SAFE_TOOLS: frozenset[str] = frozenset(
+        {
+            "web_search",
+            "fetch_url",
+            "get_current_time",
+            "get_current_weather",
+            "get_weather_forecast",
+            "calculate",
+            "format_json",
+        }
+    )
+
+    @staticmethod
+    def is_parallel_safe_tool_call(
+        func_name: str,
+        arguments: dict[str, Any] | None = None,
+    ) -> bool:
+        """Allow readonly batches to run concurrently."""
+        _ = arguments
+        return str(func_name or "").strip() in ToolCallProcessor._PARALLEL_SAFE_TOOLS
+
     @staticmethod
     def _live_page_session_id(sandbox: ToolSandbox | None, iv: dict[str, Any]) -> str:
         """Prefer sandbox session id (updated after navigation); else variables['page_session_id']."""
@@ -474,6 +497,113 @@ class ToolCallProcessor:
             return self._page_context_cache
         return self._readonly_success_cache
 
+    @staticmethod
+    def _active_intent() -> Any | None:
+        state = get_current_execution_state_machine()
+        if state is None:
+            return None
+        for intent in state.intent_plan:
+            if intent.status in {"completed", "failed", "skipped"}:
+                continue
+            if intent.family == "none" or not intent.requires_tools:
+                continue
+            return intent
+        return None
+
+    @staticmethod
+    def _normalized_url_list(value: Any) -> list[str]:
+        if not isinstance(value, list):
+            return []
+        normalized: list[str] = []
+        for item in value:
+            url = str(item or "").strip()
+            if url and url not in normalized:
+                normalized.append(url)
+        return normalized
+
+    @classmethod
+    def _intent_url_list(cls, intent: Any | None, key: str) -> list[str]:
+        metadata = dict(getattr(intent, "metadata", {}) or {}) if intent is not None else {}
+        return cls._normalized_url_list(metadata.get(key))
+
+    @classmethod
+    def _set_intent_url_list(cls, intent: Any | None, key: str, values: list[str]) -> None:
+        if intent is None:
+            return
+        metadata = dict(getattr(intent, "metadata", {}) or {})
+        metadata[key] = cls._normalized_url_list(values)
+        intent.metadata = metadata
+
+    @classmethod
+    def _mark_fetch_url_attempt(
+        cls,
+        intent: Any | None,
+        url: str,
+        *,
+        blocked: bool = False,
+    ) -> None:
+        normalized_url = str(url or "").strip()
+        if not normalized_url or intent is None:
+            return
+        attempted_urls = cls._intent_url_list(intent, "fetch_url_attempted_urls")
+        if normalized_url not in attempted_urls:
+            attempted_urls.append(normalized_url)
+        cls._set_intent_url_list(intent, "fetch_url_attempted_urls", attempted_urls)
+        if blocked:
+            blocked_urls = cls._intent_url_list(intent, "fetch_url_blocked_urls")
+            if normalized_url not in blocked_urls:
+                blocked_urls.append(normalized_url)
+            cls._set_intent_url_list(intent, "fetch_url_blocked_urls", blocked_urls)
+
+    @staticmethod
+    def _is_blocked_fetch_url_result(result: ToolResult) -> bool:
+        if str(result.error_type or "").strip() == "blocked_url":
+            return True
+        error_text = str(result.error or "").lower()
+        if not error_text:
+            return False
+        return any(marker in error_text for marker in ("http 401", "http 403", "http 429")) or (
+            "page may block automated access" in error_text
+            or "该页面可能被站点拦截" in error_text
+        )
+
+    @classmethod
+    def _resolve_fetch_url_candidates(
+        cls,
+        *,
+        intent: Any | None,
+        requested_url: str,
+    ) -> tuple[str | None, list[str], str]:
+        normalized_requested_url = str(requested_url or "").strip()
+        candidate_urls = cls._intent_url_list(intent, "fetch_url_candidate_urls")
+        if not candidate_urls:
+            return None, [], normalized_requested_url
+
+        attempted_urls = set(cls._intent_url_list(intent, "fetch_url_attempted_urls"))
+        requested_is_candidate = normalized_requested_url in candidate_urls
+        remaining_urls = [url for url in candidate_urls if url not in attempted_urls]
+        selected_url = normalized_requested_url
+        fallback_urls: list[str] = []
+
+        if requested_is_candidate and normalized_requested_url not in attempted_urls:
+            selected_url = normalized_requested_url
+            fallback_urls = [url for url in remaining_urls if url != normalized_requested_url]
+        elif remaining_urls:
+            selected_url = remaining_urls[0]
+            fallback_urls = remaining_urls[1:]
+        elif requested_is_candidate:
+            selected_url = normalized_requested_url
+            fallback_urls = [url for url in candidate_urls if url != normalized_requested_url]
+        else:
+            selected_url = ""
+            fallback_urls = []
+
+        return (
+            selected_url or None,
+            fallback_urls,
+            normalized_requested_url,
+        )
+
     def _try_readonly_cache_hit(
         self,
         func_name: str,
@@ -500,6 +630,46 @@ class ToolCallProcessor:
         if state is not None:
             state.register_cache_hit(kind)
         return replace(cached_result, tool_call_id=tool_call_id, duration_ms=0), cached_ms
+
+    async def _execute_tool_once(
+        self,
+        tc_id: str,
+        func_name: str,
+        arguments: dict[str, Any],
+        conversation_id: int,
+    ) -> tuple[ToolResult, int]:
+        cached = self._try_readonly_cache_hit(
+            func_name,
+            arguments,
+            conversation_id,
+            tc_id,
+        )
+        if cached is not None:
+            result, _prev_ms = cached
+            return result, 0
+
+        tc_start = time.perf_counter()
+        execution_definitions = self.tools
+        if not any(tool.name == func_name for tool in self.tools):
+            execution_definitions = self.all_tools
+        result = await self.sandbox.execute(
+            tool_call_id=tc_id,
+            name=func_name,
+            arguments=arguments,
+            definitions=execution_definitions,
+            conversation_id=conversation_id,
+        )
+        duration_ms = int((time.perf_counter() - tc_start) * 1000)
+        self._bump_page_readonly_cache_epoch_if_needed(func_name, arguments, result)
+        self._store_readonly_cache(
+            func_name,
+            arguments,
+            conversation_id,
+            result,
+            duration_ms,
+            tc_id,
+        )
+        return result, duration_ms
 
     def _store_readonly_cache(
         self,
@@ -573,38 +743,83 @@ class ToolCallProcessor:
         Returns:
             (result, duration_ms)
         """
-        cached = self._try_readonly_cache_hit(
-            func_name,
-            arguments,
-            conversation_id,
-            tc_id,
-        )
-        if cached is not None:
-            result, _prev_ms = cached
-            return result, 0
+        active_intent = self._active_intent()
+        if (
+            func_name == "fetch_url"
+            and active_intent is not None
+            and str(getattr(active_intent, "family", "") or "").strip() == "web_research"
+            and bool(self._intent_url_list(active_intent, "fetch_url_candidate_urls"))
+        ):
+            selected_url, fallback_urls, requested_url = self._resolve_fetch_url_candidates(
+                intent=active_intent,
+                requested_url=str(arguments.get("url") or ""),
+            )
+            if not selected_url:
+                logger.warning(
+                    "fetch_url candidate URLs exhausted: intent_id={} requested_url={}",
+                    getattr(active_intent, "intent_id", None),
+                    requested_url,
+                )
+                return (
+                    ToolResult(
+                        tool_call_id=tc_id,
+                        name=func_name,
+                        success=False,
+                        error=(
+                            "fetch_url must use a candidate URL returned by the previous "
+                            "web_search, but no untried candidate URLs remain."
+                        ),
+                        error_type="search_candidates_exhausted",
+                    ),
+                    0,
+                )
 
-        tc_start = time.perf_counter()
-        execution_definitions = self.tools
-        if not any(tool.name == func_name for tool in self.tools):
-            execution_definitions = self.all_tools
-        result = await self.sandbox.execute(
-            tool_call_id=tc_id,
-            name=func_name,
-            arguments=arguments,
-            definitions=execution_definitions,
-            conversation_id=conversation_id,
-        )
-        duration_ms = int((time.perf_counter() - tc_start) * 1000)
-        self._bump_page_readonly_cache_epoch_if_needed(func_name, arguments, result)
-        self._store_readonly_cache(
+            if requested_url and requested_url != selected_url:
+                logger.info(
+                    "Repairing fetch_url URL to search candidate: intent_id={} requested_url={} selected_url={}",
+                    getattr(active_intent, "intent_id", None),
+                    requested_url,
+                    selected_url,
+                )
+
+            total_duration_ms = 0
+            attempt_urls = [selected_url] + [url for url in fallback_urls if url != selected_url]
+            last_result: ToolResult | None = None
+            for index, attempt_url in enumerate(attempt_urls):
+                attempt_arguments = dict(arguments)
+                attempt_arguments["url"] = attempt_url
+                result, duration_ms = await self._execute_tool_once(
+                    tc_id,
+                    func_name,
+                    attempt_arguments,
+                    conversation_id,
+                )
+                total_duration_ms += duration_ms
+                blocked_result = not result.success and self._is_blocked_fetch_url_result(result)
+                self._mark_fetch_url_attempt(
+                    active_intent,
+                    attempt_url,
+                    blocked=blocked_result,
+                )
+                last_result = result
+                if result.success or not blocked_result:
+                    return result, total_duration_ms
+                if index < len(attempt_urls) - 1:
+                    logger.warning(
+                        "Blocked fetch_url candidate, rotating to next candidate: intent_id={} blocked_url={} next_url={}",
+                        getattr(active_intent, "intent_id", None),
+                        attempt_url,
+                        attempt_urls[index + 1],
+                    )
+            if last_result is not None:
+                return last_result, total_duration_ms
+
+        return await self._execute_tool_once(
+            tc_id,
             func_name,
             arguments,
             conversation_id,
-            result,
-            duration_ms,
-            tc_id,
         )
-        return result, duration_ms
 
     @staticmethod
     def build_tool_message(result: ToolResult, tc_id: str) -> ChatMessage:

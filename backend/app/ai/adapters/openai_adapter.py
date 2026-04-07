@@ -1924,6 +1924,31 @@ class OpenAIAdapter(BaseAdapter):
                 attempted_backends=[effective_backend_key],
             )
 
+        return await self._native_web_search_via_responses(
+                query=query,
+                max_results=max_results,
+                locale=locale,
+                timeout_seconds=timeout_seconds,
+                model=effective_model,
+                provider_label=effective_provider,
+                backend_key=effective_backend_key,
+            )
+
+    async def _native_web_search_via_responses(
+        self,
+        *,
+        query: str,
+        max_results: int,
+        locale: str | None,
+        timeout_seconds: int,
+        model: str,
+        provider_label: str,
+        backend_key: str,
+    ) -> SearchProviderRun:
+        """Native web search via OpenAI Responses API (hosted web_search tool)."""
+        effective_model = model
+        effective_provider = provider_label
+        effective_backend_key = backend_key
         instructions = (
             "Use hosted web search to find candidate source URLs for the user query. "
             "Return only candidate sources with brief snippets. Do not synthesize facts "

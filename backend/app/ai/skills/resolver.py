@@ -272,6 +272,19 @@ class SkillResolver:
             if not _is_runtime_eligible_skill(skill):
                 continue
 
+            # Skip DB-based builtin skills that duplicate baseline runtime builtins
+            # 跳过与基线运行时内置工具重复的数据库内置技能
+            if (
+                str(getattr(skill, "type", "") or "").strip() == "builtin"
+                and str(getattr(skill, "name", "") or "").strip() in _BASELINE_RUNTIME_BUILTINS
+            ):
+                logger.debug(
+                    "Skipping DB builtin skill '{}' (id={}) — covered by baseline runtime builtins",
+                    skill.name,
+                    skill.id,
+                )
+                continue
+
             # Merge config: Skill.config + binding.config_override
             # 合并配置：Skill.config + binding.config_override
             merged_config = dict(skill.config or {})

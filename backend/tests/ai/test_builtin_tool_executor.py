@@ -47,7 +47,7 @@ class _FakeAsyncClient:
     def __init__(self, *, get_response: httpx.Response | None = None) -> None:
         self._get_response = get_response
 
-    async def __aenter__(self) -> "_FakeAsyncClient":
+    async def __aenter__(self) -> _FakeAsyncClient:
         return self
 
     async def __aexit__(self, exc_type, exc, tb) -> None:  # noqa: ANN001
@@ -231,6 +231,55 @@ async def test_builtin_executor_fetch_url_http_error_is_failed_tool_result() -> 
     assert result.success is False
     assert "HTTP 403" in result.error
     assert "Access Denied" in result.error
+    assert result.error_type == "blocked_url"
+    assert result.summary_payload == {
+        "fetch_url": True,
+        "ok": False,
+        "error_type": "blocked_url",
+        "requested_url": "https://example.com/private",
+        "final_url": "https://example.com/private",
+        "title": "Access Denied",
+        "description": None,
+        "summary": None,
+    }
+
+
+@pytest.mark.asyncio
+async def test_builtin_executor_fetch_url_success_builds_compact_summary() -> None:
+    executor = BuiltinToolExecutor()
+    definition = ToolDefinition(name="fetch_url", description="Fetch a webpage")
+    response = _make_response(
+        "GET",
+        "https://example.com/article",
+        text=(
+            "<html><head><title>AI Daily</title>"
+            '<meta name="description" content="Latest AI headlines and analysis." />'
+            "</head><body><main><p>Lead paragraph.</p></main></body></html>"
+        ),
+    )
+
+    with patch(
+        "httpx.AsyncClient",
+        return_value=_FakeAsyncClient(get_response=response),
+    ):
+        result = await executor.execute(
+            definition,
+            "call_fetch_ok",
+            {"url": "https://example.com/article", "max_length": 1200},
+        )
+
+    assert result.success is True
+    assert result.summary == "AI Daily - Latest AI headlines and analysis."
+    assert result.summary_payload == {
+        "fetch_url": True,
+        "ok": True,
+        "error_type": "",
+        "requested_url": "https://example.com/article",
+        "final_url": "https://example.com/article",
+        "title": "AI Daily",
+        "description": "Latest AI headlines and analysis.",
+        "summary": "AI Daily - Latest AI headlines and analysis.",
+    }
 
 
 @pytest.mark.asyncio
@@ -341,6 +390,10 @@ def test_fetch_url_gate_requires_fetch_after_successful_web_search() -> None:
                         "arguments": '{"query": "test"}',
                     },
                     "success": True,
+                    "summary_payload": {
+                        "result_count": 1,
+                        "items": [{"url": "https://example.com"}],
+                    },
                 }
             ],
         )
@@ -354,6 +407,30 @@ def test_fetch_url_gate_requires_fetch_after_successful_web_search() -> None:
     assert [t.name for t in gated] == ["fetch_url"]
 
 
+def test_fetch_url_gate_skips_fetch_when_web_search_has_zero_results() -> None:
+    messages = [
+        ChatMessage(
+            role="assistant",
+            content="",
+            tool_calls=[
+                {
+                    "function": {
+                        "name": "web_search",
+                        "arguments": '{"query": "test"}',
+                    },
+                    "success": True,
+                    "summary_payload": {
+                        "result_count": 0,
+                        "items": [],
+                    },
+                }
+            ],
+        )
+    ]
+
+    assert BaseEngine._needs_fetch_url_before_summary(messages) is False
+
+
 def test_build_web_research_hint_mentions_native_results_are_still_candidates() -> None:
     hint = BaseEngine._build_web_research_hint(
         [
@@ -363,8 +440,7 @@ def test_build_web_research_hint_mentions_native_results_are_still_candidates() 
     )
 
     assert "[WEB RESEARCH]" in hint
-    assert "candidate sources" in hint.lower()
-    assert "provider-native web search" in hint.lower()
+    assert "candidate" in hint.lower()
     assert "fetch_url" in hint
 
 

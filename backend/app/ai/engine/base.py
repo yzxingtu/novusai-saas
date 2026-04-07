@@ -8,6 +8,7 @@ message building, tool parsing, tool call loop, event publishing.
 
 from __future__ import annotations
 
+import asyncio
 import dataclasses
 import hashlib
 import json
@@ -1070,7 +1071,7 @@ class BaseEngine(ABC):
         True when web_search succeeded but fetch_url has not been attempted yet.
         已成功 web_search 且尚未尝试 fetch_url（无论成功与否）时为 True。
         """
-        has_success_search = False
+        has_success_search_with_candidates = False
         fetch_attempted = False
         for msg in messages:
             if msg.role != "assistant" or not msg.tool_calls:
@@ -1079,10 +1080,26 @@ class BaseEngine(ABC):
                 func = tc.get("function") or {}
                 name = str(func.get("name") or tc.get("name") or "").strip()
                 if name == "web_search" and tc.get("success") is True:
-                    has_success_search = True
+                    payload = tc.get("summary_payload")
+                    payload = payload if isinstance(payload, dict) else {}
+                    items = payload.get("items")
+                    candidate_urls = [
+                        str(item.get("url") or "").strip()
+                        for item in items
+                        if isinstance(item, dict) and str(item.get("url") or "").strip()
+                    ] if isinstance(items, list) else []
+                    raw_count = payload.get("result_count")
+                    try:
+                        result_count = int(raw_count) if raw_count is not None else None
+                    except (TypeError, ValueError):
+                        result_count = None
+                    if result_count is None:
+                        result_count = len(candidate_urls)
+                    if result_count > 0 and candidate_urls:
+                        has_success_search_with_candidates = True
                 if name == "fetch_url":
                     fetch_attempted = True
-        return bool(has_success_search and not fetch_attempted)
+        return bool(has_success_search_with_candidates and not fetch_attempted)
 
     @classmethod
     def _apply_fetch_url_only_gate(
@@ -3597,69 +3614,35 @@ class BaseEngine(ABC):
             round_tool_results: list[ToolResult] = []
             graceful_finalization_pending = False
 
-            # Execute each tool call (using ToolCallProcessor shared logic) / 执行每个工具调用（使用 ToolCallProcessor 共享逻辑）
-            # consent_mode pre-check: same semantic as stream path / consent_mode 前置检查：与流式路径语义一致
-            for tc in tool_calls:
-                tc_id = tc.get("id", "")
-                func = tc.get("function", {})
-                func_name = func.get("name", "")
-                raw_args = func.get("arguments", "{}")
-                arguments, parse_error = processor.parse_arguments(raw_args)
+            def _prepare_parallel_readonly_batch() -> list[
+                tuple[dict[str, Any], str, dict[str, str | None]]
+            ] | None:
+                if len(tool_calls) <= 1:
+                    return None
+                prepared: list[tuple[dict[str, Any], str, dict[str, str | None]]] = []
+                for tc in tool_calls:
+                    func = tc.get("function", {})
+                    func_name = str(func.get("name") or "").strip()
+                    raw_args = func.get("arguments", "{}")
+                    arguments, parse_error = processor.parse_arguments(raw_args)
+                    if parse_error or arguments is None:
+                        return None
+                    if not processor.is_parallel_safe_tool_call(func_name, arguments):
+                        return None
+                    if processor.check_consent(func_name, arguments) in {"reject", "ask"}:
+                        return None
+                    prepared.append((tc, func_name, processor.get_skill_info(func_name)))
+                return prepared
 
-                # consent_mode only after args parse ok (else process_single handles errors) / 仅参数解析成功后检查 consent_mode
-                if not parse_error:
-                    _skill_info = processor.get_skill_info(func_name)
-                    processor.annotate_tool_call(tc, skill_info=_skill_info)
-                    _consent = processor.check_consent(func_name, arguments)
-                    if _consent == "reject":
-                        messages.append(processor.build_consent_reject_message(tc_id))
-                        continue
-                    if _consent == "ask":
-                        processor.annotate_tool_call(
-                            tc,
-                            pending_consent=processor.build_pending_consent_payload(
-                                func_name,
-                                arguments,
-                                _skill_info,
-                            ),
-                        )
-                        messages.append(
-                            processor.build_consent_ask_message(
-                                tc_id,
-                                func_name,
-                                arguments,
-                            )
-                        )
-                        return (
-                            ChatResponse(
-                                message=ChatMessage(
-                                    role="assistant",
-                                    content=current_response.message.content or "",
-                                    tool_calls=tool_calls,
-                                    metadata={
-                                        "pending_consent": processor.build_pending_consent_payload(
-                                            func_name,
-                                            arguments,
-                                            _skill_info,
-                                        ),
-                                    },
-                                ),
-                                metadata={
-                                    **dict(
-                                        getattr(current_response, "metadata", {}) or {}
-                                    ),
-                                    "skip_final_assistant": True,
-                                },
-                            ),
-                            all_tool_results,
-                            total_tokens,
-                            completion_tokens_used,
-                        )
+            def _apply_single_result(
+                tc: dict[str, Any],
+                *,
+                func_name: str,
+                skill_info: dict[str, str | None],
+                single: Any,
+            ) -> tuple[ChatResponse | None, list[ToolResult], int, int] | None:
+                nonlocal tracked_tool_result_bytes
 
-                single = await processor.process_single(
-                    tc,
-                    conversation_id=request.conversation_id or 0,
-                )
                 if single.tool_result and single.tool_result.success:
                     self._mark_multi_family_progress(
                         func_name=func_name,
@@ -3676,7 +3659,7 @@ class BaseEngine(ABC):
                         tc,
                         duration_ms=single.duration_ms,
                         result=single.tool_result,
-                        skill_info=processor.get_skill_info(func_name),
+                        skill_info=skill_info,
                     )
                     _conf_data = processor.check_confirmation_output(single.tool_result)
                     if _conf_data:
@@ -3707,6 +3690,106 @@ class BaseEngine(ABC):
                     messages.append(single.tool_message)
                 if single.follow_up_message:
                     follow_up_messages.append(single.follow_up_message)
+                return None
+
+            # Execute each tool call (using ToolCallProcessor shared logic) / 执行每个工具调用（使用 ToolCallProcessor 共享逻辑）
+            # consent_mode pre-check: same semantic as stream path / consent_mode 前置检查：与流式路径语义一致
+            parallel_batch = _prepare_parallel_readonly_batch()
+            if parallel_batch is not None:
+                for tc, _func_name, skill_info in parallel_batch:
+                    processor.annotate_tool_call(tc, skill_info=skill_info)
+                singles = await asyncio.gather(
+                    *[
+                        processor.process_single(
+                            tc,
+                            conversation_id=request.conversation_id or 0,
+                        )
+                        for tc, _func_name, _skill_info in parallel_batch
+                    ]
+                )
+                for (tc, func_name, skill_info), single in zip(
+                    parallel_batch,
+                    singles,
+                    strict=False,
+                ):
+                    budget_exit = _apply_single_result(
+                        tc,
+                        func_name=func_name,
+                        skill_info=skill_info,
+                        single=single,
+                    )
+                    if budget_exit is not None:
+                        return budget_exit
+            else:
+                for tc in tool_calls:
+                    tc_id = tc.get("id", "")
+                    func = tc.get("function", {})
+                    func_name = func.get("name", "")
+                    raw_args = func.get("arguments", "{}")
+                    arguments, parse_error = processor.parse_arguments(raw_args)
+
+                    # consent_mode only after args parse ok (else process_single handles errors) / 仅参数解析成功后检查 consent_mode
+                    if not parse_error:
+                        _skill_info = processor.get_skill_info(func_name)
+                        processor.annotate_tool_call(tc, skill_info=_skill_info)
+                        _consent = processor.check_consent(func_name, arguments)
+                        if _consent == "reject":
+                            messages.append(processor.build_consent_reject_message(tc_id))
+                            continue
+                        if _consent == "ask":
+                            processor.annotate_tool_call(
+                                tc,
+                                pending_consent=processor.build_pending_consent_payload(
+                                    func_name,
+                                    arguments,
+                                    _skill_info,
+                                ),
+                            )
+                            messages.append(
+                                processor.build_consent_ask_message(
+                                    tc_id,
+                                    func_name,
+                                    arguments,
+                                )
+                            )
+                            return (
+                                ChatResponse(
+                                    message=ChatMessage(
+                                        role="assistant",
+                                        content=current_response.message.content or "",
+                                        tool_calls=tool_calls,
+                                        metadata={
+                                            "pending_consent": processor.build_pending_consent_payload(
+                                                func_name,
+                                                arguments,
+                                                _skill_info,
+                                            ),
+                                        },
+                                    ),
+                                    metadata={
+                                        **dict(
+                                            getattr(current_response, "metadata", {}) or {}
+                                        ),
+                                        "skip_final_assistant": True,
+                                    },
+                                ),
+                                all_tool_results,
+                                total_tokens,
+                                completion_tokens_used,
+                            )
+
+                    single = await processor.process_single(
+                        tc,
+                        conversation_id=request.conversation_id or 0,
+                    )
+                    budget_exit = _apply_single_result(
+                        tc,
+                        func_name=str(func_name or ""),
+                        skill_info=processor.get_skill_info(func_name),
+                        single=single,
+                    )
+                    if budget_exit is not None:
+                        return budget_exit
 
             if follow_up_messages:
                 messages.extend(follow_up_messages)
@@ -3851,6 +3934,8 @@ class BaseEngine(ABC):
                     total_tokens,
                     completion_tokens_used,
                 )
+            if not current_response.tool_calls:
+                break
         else:
             if BudgetGuard.pre_model_reason(execution_budget):
                 return (
