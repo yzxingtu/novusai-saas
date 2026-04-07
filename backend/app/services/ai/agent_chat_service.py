@@ -936,7 +936,7 @@ class AgentChatService:
             memory_source=normalized_source,
             memory_enabled=memory_enabled,
             long_term_memory_enabled=bool(
-                ctx_cfg.get("long_term_memory_enabled", False)
+                ctx_cfg.get("long_term_memory_enabled", memory_enabled)
             ),
             trust_policy_ref=resolved_trust_policy_ref,
             interaction_mode=interaction_mode_effective,
@@ -1316,7 +1316,7 @@ class AgentChatService:
             memory_source=normalized_source,
             memory_enabled=memory_enabled,
             long_term_memory_enabled=bool(
-                ctx_cfg.get("long_term_memory_enabled", False)
+                ctx_cfg.get("long_term_memory_enabled", memory_enabled)
             ),
             trust_policy_ref=resolved_trust_policy_ref,
             interaction_mode=interaction_mode_effective,
