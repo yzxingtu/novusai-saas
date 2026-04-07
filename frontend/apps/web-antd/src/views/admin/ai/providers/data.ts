@@ -107,6 +107,10 @@ function readOptionalPositiveInt(value: unknown): number | undefined {
   return value;
 }
 
+function hasOwnField(values: Record<string, unknown>, fieldName: string): boolean {
+  return Object.prototype.hasOwnProperty.call(values, fieldName);
+}
+
 function normalizeVerifiedNativeTarget(
   value: unknown,
 ): null | ProviderWebSearchVerifiedTarget | undefined {
@@ -127,6 +131,35 @@ function normalizeVerifiedNativeTarget(
   if (modelCode !== undefined) normalized.model_code = modelCode;
 
   return Object.keys(normalized).length > 0 ? normalized : undefined;
+}
+
+function buildVerifiedNativeTargetFromFormValues(
+  values: Record<string, unknown>,
+): null | ProviderWebSearchVerifiedTarget | undefined {
+  const hasFlatFields =
+    hasOwnField(values, 'web_search_verified_provider_code') ||
+    hasOwnField(values, 'web_search_verified_model_code') ||
+    hasOwnField(values, 'web_search_verified_provider_id') ||
+    hasOwnField(values, 'web_search_verified_model_id');
+  if (!hasFlatFields) {
+    return normalizeVerifiedNativeTarget(values.web_search_verified_native_target);
+  }
+
+  const target: ProviderWebSearchVerifiedTarget = {};
+  const providerId = readOptionalPositiveInt(values.web_search_verified_provider_id);
+  const providerCode = readOptionalString(
+    values.web_search_verified_provider_code,
+    50,
+  );
+  const modelId = readOptionalPositiveInt(values.web_search_verified_model_id);
+  const modelCode = readOptionalString(values.web_search_verified_model_code, 100);
+
+  if (providerId !== undefined) target.provider_id = providerId;
+  if (providerCode !== undefined) target.provider_code = providerCode;
+  if (modelId !== undefined) target.model_id = modelId;
+  if (modelCode !== undefined) target.model_code = modelCode;
+
+  return Object.keys(target).length > 0 ? target : null;
 }
 
 function mergeProviderWebSearchAdvancedFields(
@@ -202,6 +235,19 @@ export function buildProviderWebSearchConfigFromForm(
   values: Record<string, unknown>,
   existingConfig?: null | ProviderWebSearchConfigWithAdvancedFields,
 ): ProviderWebSearchConfigWithAdvancedFields {
+  const hasExplicitAdvancedFields =
+    hasOwnField(values, 'web_search_allow_unverified_runtime_target') ||
+    hasOwnField(values, 'web_search_verified_provider_code') ||
+    hasOwnField(values, 'web_search_verified_model_code') ||
+    hasOwnField(values, 'web_search_verified_provider_id') ||
+    hasOwnField(values, 'web_search_verified_model_id') ||
+    normalizeVerifiedNativeTarget(values.web_search_verified_native_target) !==
+      undefined;
+  const verifiedTargetFromForm = buildVerifiedNativeTargetFromFormValues(values);
+  const allowUnverifiedFromForm = readOptionalBoolean(
+    values.web_search_allow_unverified_runtime_target,
+  );
+
   return mergeProviderWebSearchAdvancedFields(
     {
       enabled: values.web_search_enabled !== false,
@@ -231,17 +277,10 @@ export function buildProviderWebSearchConfigFromForm(
         values.web_search_public_providers,
       ),
     },
-    normalizeVerifiedNativeTarget(values.web_search_verified_native_target) !==
-      undefined ||
-      readOptionalBoolean(values.web_search_allow_unverified_runtime_target) !==
-        undefined
+    hasExplicitAdvancedFields
       ? {
-          allow_unverified_runtime_target: readOptionalBoolean(
-            values.web_search_allow_unverified_runtime_target,
-          ),
-          verified_native_target: normalizeVerifiedNativeTarget(
-            values.web_search_verified_native_target,
-          ),
+          allow_unverified_runtime_target: allowUnverifiedFromForm ?? false,
+          verified_native_target: verifiedTargetFromForm,
         }
       : existingConfig,
   );
@@ -748,6 +787,58 @@ export function useFormSchema(isEdit = false): VbenFormSchema[] {
       ),
       help: $t('admin.ai.provider.webSearch.help.publicProviders'),
     },
+    {
+      ...switchField(
+        'web_search_allow_unverified_runtime_target',
+        $t('admin.ai.provider.webSearch.allowUnverifiedRuntimeTarget'),
+        {
+          defaultValue: false,
+        },
+      ),
+      dependencies: {
+        triggerFields: ['type', 'web_search_enabled'],
+        show: (values: Record<string, unknown>) =>
+          values.type === 'openai_compatible' &&
+          values.web_search_enabled !== false,
+      },
+      help: $t('admin.ai.provider.webSearch.help.allowUnverifiedRuntimeTarget'),
+    },
+    {
+      ...inputField(
+        'web_search_verified_provider_code',
+        $t('admin.ai.provider.webSearch.verifiedProviderCode'),
+        {
+          placeholder: $t(
+            'admin.ai.provider.webSearch.placeholder.verifiedProviderCode',
+          ),
+        },
+      ),
+      dependencies: {
+        triggerFields: ['type', 'web_search_enabled'],
+        show: (values: Record<string, unknown>) =>
+          values.type === 'openai_compatible' &&
+          values.web_search_enabled !== false,
+      },
+      help: $t('admin.ai.provider.webSearch.help.verifiedProviderCode'),
+    },
+    {
+      ...inputField(
+        'web_search_verified_model_code',
+        $t('admin.ai.provider.webSearch.verifiedModelCode'),
+        {
+          placeholder: $t(
+            'admin.ai.provider.webSearch.placeholder.verifiedModelCode',
+          ),
+        },
+      ),
+      dependencies: {
+        triggerFields: ['type', 'web_search_enabled'],
+        show: (values: Record<string, unknown>) =>
+          values.type === 'openai_compatible' &&
+          values.web_search_enabled !== false,
+      },
+      help: $t('admin.ai.provider.webSearch.help.verifiedModelCode'),
+    },
     textareaField('description', $t('admin.ai.provider.description'), {
       placeholder: $t('admin.ai.provider.placeholder.inputDescription'),
     }),
@@ -781,6 +872,9 @@ export function getFormDefaults(): Record<string, unknown> {
     web_search_public_timeout_seconds:
       WEB_SEARCH_DEFAULTS.public_timeout_seconds,
     web_search_public_providers: [...WEB_SEARCH_DEFAULTS.public_providers],
+    web_search_allow_unverified_runtime_target: false,
+    web_search_verified_provider_code: '',
+    web_search_verified_model_code: '',
     is_active: true,
     sort_order: 0,
   };

@@ -145,6 +145,12 @@ const { Drawer, isEdit } = useCrudDrawer<AIProviderInfo>({
       web_search_native_timeout_seconds: webSearchConfig.native_timeout_seconds,
       web_search_public_timeout_seconds: webSearchConfig.public_timeout_seconds,
       web_search_public_providers: [...webSearchConfig.public_providers],
+      web_search_allow_unverified_runtime_target:
+        webSearchConfig.allow_unverified_runtime_target ?? false,
+      web_search_verified_provider_code:
+        webSearchConfig.verified_native_target?.provider_code || '',
+      web_search_verified_model_code:
+        webSearchConfig.verified_native_target?.model_code || '',
       description: data.description,
       icon: data.icon,
       sort_order: data.sort_order,

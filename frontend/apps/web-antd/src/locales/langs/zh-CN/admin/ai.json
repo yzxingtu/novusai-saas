@@ -94,6 +94,9 @@
       "nativeTimeoutSeconds": "原生搜索超时（秒）",
       "publicTimeoutSeconds": "公共搜索超时（秒）",
       "publicProviders": "公共搜索源",
+      "allowUnverifiedRuntimeTarget": "允许当前运行时直接做原生搜索",
+      "verifiedProviderCode": "显式验证供应商代码",
+      "verifiedModelCode": "显式验证模型代码",
       "strategyOptions": {
         "native_first_fallback_public": "原生优先 + 公共回退"
       },
@@ -107,7 +110,14 @@
         "maxResultsCap": "单次搜索最多返回的候选来源数量（1-10）。",
         "nativeTimeoutSeconds": "模型原生联网搜索后端超时时间。",
         "publicTimeoutSeconds": "公共 HTML 搜索后端超时时间。",
-        "publicProviders": "原生不可用或失败时用于回退的公共搜索源。"
+        "publicProviders": "原生不可用或失败时用于回退的公共搜索源。",
+        "allowUnverifiedRuntimeTarget": "仅当你确认当前 OpenAI 兼容运行时真实支持原生搜索时开启；开启后会跳过 host 信任校验。",
+        "verifiedProviderCode": "可选。填写已验证支持原生搜索的供应商 code，例如 openai。",
+        "verifiedModelCode": "可选。建议与上面的供应商代码配套填写，例如 gpt-5.4。留空会尽量复用当前运行时模型。"
+      },
+      "placeholder": {
+        "verifiedProviderCode": "例如：openai",
+        "verifiedModelCode": "例如：gpt-5.4"
       },
       "validation": {
         "maxResultsCap": "最大结果数必须是 1-10 的整数",
@@ -120,7 +130,7 @@
         "nativeSupported": "当前模型支持原生联网搜索（提供商：{provider}）",
         "fallbackReason": "当前模型不支持原生联网搜索，将自动回退公共搜索（原因：{reason}）",
         "fallbackDefault": "当前模型不支持原生联网搜索，将自动回退公共搜索",
-        "autoFallbackHint": "即使已选择“原生优先”，运行时仍会自动回退到公共搜索，不影响配置保存。"
+        "autoFallbackHint": "如果希望优先走原生搜索，请补齐显式验证 provider/model，或在确认兼容的前提下开启“允许当前运行时直接做原生搜索”。"
       }
     },
     "summary": {

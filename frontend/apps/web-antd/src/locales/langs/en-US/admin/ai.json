@@ -94,6 +94,9 @@
       "nativeTimeoutSeconds": "Native Search Timeout (s)",
       "publicTimeoutSeconds": "Public Search Timeout (s)",
       "publicProviders": "Public Search Providers",
+      "allowUnverifiedRuntimeTarget": "Allow current runtime to use native search directly",
+      "verifiedProviderCode": "Verified provider code",
+      "verifiedModelCode": "Verified model code",
       "strategyOptions": {
         "native_first_fallback_public": "Native First + Public Fallback"
       },
@@ -107,7 +110,14 @@
         "maxResultsCap": "Maximum number of candidate sources returned per search call (1-10).",
         "nativeTimeoutSeconds": "Timeout for model-native web search backend.",
         "publicTimeoutSeconds": "Timeout for public HTML search backend.",
-        "publicProviders": "Public providers used when native search is unavailable or fails."
+        "publicProviders": "Public providers used when native search is unavailable or fails.",
+        "allowUnverifiedRuntimeTarget": "Enable only when you know this OpenAI-compatible runtime really supports native search; this bypasses the host trust gate.",
+        "verifiedProviderCode": "Optional. Provide the code of a provider already verified for native search, for example openai.",
+        "verifiedModelCode": "Optional. Usually pair this with the verified provider code, for example gpt-5.4. Leave blank to reuse the current runtime model when possible."
+      },
+      "placeholder": {
+        "verifiedProviderCode": "For example: openai",
+        "verifiedModelCode": "For example: gpt-5.4"
       },
       "validation": {
         "maxResultsCap": "Max results must be an integer between 1 and 10",
@@ -120,7 +130,7 @@
         "nativeSupported": "Current model supports native web search (provider: {provider})",
         "fallbackReason": "Current model does not support native web search, automatic fallback to public search is active (reason: {reason})",
         "fallbackDefault": "Current model does not support native web search, automatic fallback to public search is active",
-        "autoFallbackHint": "Even with native-first strategy saved, runtime will automatically fallback to public search when native capability is unavailable."
+        "autoFallbackHint": "If you want native search to be preferred, configure an explicit verified provider/model target, or enable the direct runtime override only when the gateway is known to be compatible."
       }
     },
     "summary": {

@@ -188,6 +188,58 @@ describe('provider web_search config contracts', () => {
     });
   });
 
+  it('builds advanced web_search fields directly from flat form inputs', () => {
+    const built = providerData.buildProviderWebSearchConfigFromForm({
+      web_search_enabled: true,
+      web_search_strategy: 'native_first_fallback_public',
+      web_search_max_results_cap: 5,
+      web_search_native_timeout_seconds: 12,
+      web_search_public_timeout_seconds: 9,
+      web_search_public_providers: ['baidu'],
+      web_search_allow_unverified_runtime_target: true,
+      web_search_verified_provider_code: 'openai',
+      web_search_verified_model_code: 'gpt-5.4',
+    });
+
+    expect(built.allow_unverified_runtime_target).toBe(true);
+    expect(built.verified_native_target).toEqual({
+      provider_code: 'openai',
+      model_code: 'gpt-5.4',
+    });
+  });
+
+  it('clears advanced web_search target fields when flat form inputs are blank', () => {
+    const built = providerData.buildProviderWebSearchConfigFromForm(
+      {
+        web_search_enabled: true,
+        web_search_strategy: 'native_first_fallback_public',
+        web_search_max_results_cap: 5,
+        web_search_native_timeout_seconds: 12,
+        web_search_public_timeout_seconds: 9,
+        web_search_public_providers: ['baidu'],
+        web_search_allow_unverified_runtime_target: false,
+        web_search_verified_provider_code: '',
+        web_search_verified_model_code: '',
+      },
+      {
+        enabled: true,
+        strategy: 'native_first_fallback_public',
+        max_results_cap: 8,
+        native_timeout_seconds: 20,
+        public_timeout_seconds: 15,
+        public_providers: ['baidu', 'so360'],
+        allow_unverified_runtime_target: true,
+        verified_native_target: {
+          provider_code: 'openai',
+          model_code: 'gpt-5.4',
+        },
+      },
+    );
+
+    expect(built.allow_unverified_runtime_target).toBe(false);
+    expect(built.verified_native_target).toBeNull();
+  });
+
   it('validates optional runtime web_search helper when it exists', () => {
     const resolveWebSearchRuntimeHint = (
       providerData as Record<string, unknown>
