@@ -310,6 +310,15 @@ class TurnDiagnostics:
         contract_breach_type = TurnDiagnostics._as_text(
             prep_diagnostics.get("contract_breach_type")
         )
+        final_output_source = TurnDiagnostics._as_text(
+            prep_diagnostics.get("final_output_source")
+        )
+        post_tool_completion_state = TurnDiagnostics._as_text(
+            prep_diagnostics.get("post_tool_completion_state")
+        )
+        auto_fetch_gate_reason = TurnDiagnostics._as_text(
+            prep_diagnostics.get("auto_fetch_gate_reason")
+        )
         assistant_claimed_tool_call_without_tool_event = TurnDiagnostics._as_bool(
             prep_diagnostics.get("assistant_claimed_tool_call_without_tool_event"),
             False,
@@ -393,6 +402,9 @@ class TurnDiagnostics:
             "provider_events": list(provider_events),
             "candidate_tool_names": list(candidate_tool_names),
             "contract_breach_type": contract_breach_type,
+            "final_output_source": final_output_source,
+            "post_tool_completion_state": post_tool_completion_state,
+            "auto_fetch_gate_reason": auto_fetch_gate_reason,
             "assistant_claimed_tool_call_without_tool_event": (
                 assistant_claimed_tool_call_without_tool_event
             ),

@@ -121,3 +121,51 @@ def test_update_intent_statuses_caches_partial_result_for_unfinished_search_inte
     assert updated[0].preferred_tool_names == ["fetch_url"]
     assert updated[0].completion_signals == ["fetch_url"]
     assert updated[0].metadata["requires_fetch_url"] is True
+    assert updated[0].metadata["fetch_url_candidate_urls"] == [
+        "https://example.com/ai-news",
+        "https://example.com/openai",
+    ]
+    assert updated[0].metadata["fetch_url_attempted_urls"] == []
+    assert updated[0].metadata["fetch_url_blocked_urls"] == []
+
+
+def test_update_intent_statuses_marks_web_search_zero_results_as_completed() -> None:
+    intents = [
+        IntentPlan(
+            intent_id="intent-1",
+            kind="web_research",
+            family="web_research",
+            order=1,
+            user_visible_label="AI 新闻",
+            source_text="查今天 AI 新闻",
+            status="pending",
+            requires_tools=True,
+            allowed_tool_names=["web_search", "fetch_url"],
+            completion_signals=["fetch_url"],
+        )
+    ]
+
+    updated = RecoveryManager.update_intent_statuses(
+        intents,
+        messages=[],
+        tool_results=[
+            ToolResult(
+                tool_call_id="tool-1",
+                name="web_search",
+                success=True,
+                output="No results found for: AI news",
+                summary_payload={
+                    "status": "no_results",
+                    "result_count": 0,
+                    "items": [],
+                },
+            )
+        ],
+    )
+
+    assert updated[0].status == "completed"
+    assert updated[0].completed_by_tool_names == ["web_search"]
+    assert updated[0].cached_result is not None
+    assert "没有找到" in updated[0].cached_result
+    assert updated[0].metadata.get("requires_fetch_url") is None
+    assert updated[0].metadata["auto_fetch_gate_reason"] == "search_no_results_completed"

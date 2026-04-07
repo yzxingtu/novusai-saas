@@ -175,9 +175,9 @@ class RecoveryManager:
             "page_summary",
         }:
             return False
-        if normalized.isascii() and ("_" in normalized or lowered == normalized):
-            return False
-        return True
+        return not (
+            normalized.isascii() and ("_" in normalized or lowered == normalized)
+        )
 
     @staticmethod
     def _partial_output_label(intent: IntentPlan) -> str:
@@ -219,16 +219,18 @@ class RecoveryManager:
         if not tool_results:
             return None
         candidate_tool_names: list[str] = []
-        for tool_name in (
-            list(intent.completed_by_tool_names or [])
-            + list(intent.completion_signals or [])
-            + list(intent.allowed_tool_names or [])
-        ):
+        prioritized_tool_names = list(intent.completed_by_tool_names or [])
+        if not prioritized_tool_names:
+            prioritized_tool_names = list(intent.completion_signals or []) + list(
+                intent.allowed_tool_names or []
+            )
+        for tool_name in prioritized_tool_names:
             normalized_name = str(tool_name or "").strip()
             if normalized_name and normalized_name not in candidate_tool_names:
                 candidate_tool_names.append(normalized_name)
         if (
-            str(intent.family or "").strip() == "web_research"
+            not intent.completed_by_tool_names
+            and str(intent.family or "").strip() == "web_research"
             and "web_search" not in candidate_tool_names
         ):
             candidate_tool_names.append("web_search")
@@ -338,6 +340,146 @@ class RecoveryManager:
         return False
 
     @staticmethod
+    def _normalized_url_list(value: Any) -> list[str]:
+        if not isinstance(value, list):
+            return []
+        normalized: list[str] = []
+        for item in value:
+            url = str(item or "").strip()
+            if url and url not in normalized:
+                normalized.append(url)
+        return normalized
+
+    @staticmethod
+    def _extract_fetch_url_candidate_urls(
+        tool_results: list[ToolResult] | None,
+    ) -> list[str]:
+        candidate_urls: list[str] = []
+        for result in tool_results or []:
+            if not result.success or str(result.name or "").strip() != "web_search":
+                continue
+            payload = result.summary_payload if isinstance(result.summary_payload, dict) else {}
+            items = payload.get("items")
+            if not isinstance(items, list):
+                continue
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                url = str(item.get("url") or "").strip()
+                if url and url not in candidate_urls:
+                    candidate_urls.append(url)
+        return candidate_urls
+
+    @staticmethod
+    def _sync_fetch_url_candidates(
+        intent: IntentPlan,
+        tool_results: list[ToolResult] | None = None,
+    ) -> None:
+        if str(intent.family or "").strip() != "web_research":
+            return
+        candidate_urls = RecoveryManager._extract_fetch_url_candidate_urls(tool_results)
+        if not candidate_urls:
+            return
+        metadata = dict(intent.metadata or {})
+        existing_urls = RecoveryManager._normalized_url_list(
+            metadata.get("fetch_url_candidate_urls")
+        )
+        merged_urls = list(existing_urls)
+        for url in candidate_urls:
+            if url not in merged_urls:
+                merged_urls.append(url)
+        metadata["fetch_url_candidate_urls"] = merged_urls
+        metadata["fetch_url_attempted_urls"] = RecoveryManager._normalized_url_list(
+            metadata.get("fetch_url_attempted_urls")
+        )
+        metadata["fetch_url_blocked_urls"] = RecoveryManager._normalized_url_list(
+            metadata.get("fetch_url_blocked_urls")
+        )
+        intent.metadata = metadata
+
+    @staticmethod
+    def _latest_successful_tool_result(
+        tool_name: str,
+        tool_results: list[ToolResult] | None = None,
+    ) -> ToolResult | None:
+        normalized_name = str(tool_name or "").strip()
+        if not normalized_name:
+            return None
+        for result in reversed(tool_results or []):
+            if result.success and str(result.name or "").strip() == normalized_name:
+                return result
+        return None
+
+    @staticmethod
+    def _web_search_result_count(tool_results: list[ToolResult] | None = None) -> int | None:
+        result = RecoveryManager._latest_successful_tool_result("web_search", tool_results)
+        if result is None:
+            return None
+        payload = result.summary_payload if isinstance(result.summary_payload, dict) else {}
+        raw_count = payload.get("result_count")
+        try:
+            if raw_count is not None:
+                return max(0, int(raw_count))
+        except (TypeError, ValueError):
+            pass
+        items = payload.get("items")
+        if isinstance(items, list):
+            return len(items)
+        return None
+
+    @staticmethod
+    def _set_auto_fetch_gate_reason(intent: IntentPlan, reason: str) -> None:
+        metadata = dict(intent.metadata or {})
+        metadata["auto_fetch_gate_reason"] = str(reason or "").strip() or None
+        if metadata["auto_fetch_gate_reason"] is None:
+            metadata.pop("auto_fetch_gate_reason", None)
+        intent.metadata = metadata
+
+    @staticmethod
+    def _clear_requires_fetch_url(intent: IntentPlan, *, reason: str) -> None:
+        metadata = dict(intent.metadata or {})
+        metadata.pop("requires_fetch_url", None)
+        metadata["auto_fetch_gate_reason"] = str(reason or "").strip() or None
+        intent.metadata = metadata
+
+    @staticmethod
+    def _web_research_no_result_output(intent: IntentPlan) -> str:
+        label = str(intent.user_visible_label or "").strip()
+        if RecoveryManager._should_prefix_result_with_label(label):
+            return _("关于{label}，我暂时没有找到可直接核实的搜索结果。").format(
+                label=label
+            )
+        return _("我暂时没有找到可直接核实的搜索结果。")
+
+    @staticmethod
+    def _is_completed_web_research_no_result(
+        intent: IntentPlan,
+        *,
+        messages: list[ChatMessage],
+        tool_results: list[ToolResult] | None = None,
+        successful_tool_names: set[str],
+    ) -> bool:
+        if str(intent.family or "").strip() != "web_research":
+            return False
+        if "web_search" not in successful_tool_names:
+            return False
+        candidate_urls = RecoveryManager._normalized_url_list(
+            (intent.metadata or {}).get("fetch_url_candidate_urls")
+        )
+        if candidate_urls:
+            return False
+        if RecoveryManager._tool_attempted(
+            messages,
+            "fetch_url",
+            tool_results=tool_results,
+        ):
+            return False
+        result_count = RecoveryManager._web_search_result_count(tool_results)
+        if result_count is None:
+            return True
+        return result_count <= 0
+
+    @staticmethod
     def _force_fetch_url_after_search(
         intent: IntentPlan,
         *,
@@ -348,6 +490,18 @@ class RecoveryManager:
         if str(intent.family or "").strip() != "web_research":
             return
 
+        RecoveryManager._sync_fetch_url_candidates(intent, tool_results)
+        metadata = dict(intent.metadata or {})
+        candidate_urls = RecoveryManager._normalized_url_list(
+            metadata.get("fetch_url_candidate_urls")
+        )
+        attempted_urls = set(
+            RecoveryManager._normalized_url_list(metadata.get("fetch_url_attempted_urls"))
+        )
+        remaining_candidate_urls = [
+            url for url in candidate_urls if url not in attempted_urls
+        ]
+        web_search_result_count = RecoveryManager._web_search_result_count(tool_results)
         candidate_tool_names = {
             str(name or "").strip()
             for name in (
@@ -360,19 +514,45 @@ class RecoveryManager:
         if "fetch_url" not in candidate_tool_names:
             return
         if "web_search" not in successful_tool_names:
+            RecoveryManager._clear_requires_fetch_url(
+                intent,
+                reason="search_not_successful",
+            )
+            return
+        if web_search_result_count is not None and web_search_result_count <= 0:
+            RecoveryManager._clear_requires_fetch_url(
+                intent,
+                reason="search_no_results",
+            )
+            return
+        if not candidate_urls:
+            RecoveryManager._clear_requires_fetch_url(
+                intent,
+                reason="no_candidate_urls",
+            )
             return
         if RecoveryManager._tool_attempted(
             messages,
             "fetch_url",
             tool_results=tool_results,
         ):
-            intent.metadata.pop("requires_fetch_url", None)
+            RecoveryManager._clear_requires_fetch_url(
+                intent,
+                reason="fetch_already_attempted",
+            )
+            return
+        if not remaining_candidate_urls:
+            RecoveryManager._clear_requires_fetch_url(
+                intent,
+                reason="candidate_urls_exhausted",
+            )
             return
 
         intent.allowed_tool_names = ["fetch_url"]
         intent.preferred_tool_names = ["fetch_url"]
         intent.completion_signals = ["fetch_url"]
         intent.metadata["requires_fetch_url"] = True
+        intent.metadata["auto_fetch_gate_reason"] = "candidate_urls_ready"
 
     @staticmethod
     def _pending_consent_payload_from_tool_calls(
@@ -461,17 +641,41 @@ class RecoveryManager:
             )
             if clone.family == "none" or not clone.requires_tools:
                 clone.status = "completed"
+            elif RecoveryManager._is_completed_web_research_no_result(
+                clone,
+                messages=messages,
+                tool_results=tool_results,
+                successful_tool_names=successful_tool_names,
+            ):
+                clone.status = "completed"
+                clone.completed_by_tool_names = ["web_search"]
+                RecoveryManager._clear_requires_fetch_url(
+                    clone,
+                    reason="search_no_results_completed",
+                )
+                RecoveryManager._cache_intent_result(
+                    clone,
+                    RecoveryManager._web_research_no_result_output(clone),
+                )
             elif completion_signals & successful_tool_names:
                 clone.status = "completed"
                 clone.completed_by_tool_names = sorted(
                     completion_signals & successful_tool_names
                 )
             if clone.status == "completed":
-                cached_result = RecoveryManager._intent_cached_result(clone)
+                cached_result = None
+                if (
+                    str(clone.metadata.get("auto_fetch_gate_reason") or "").strip()
+                    == "search_no_results_completed"
+                ):
+                    cached_result = RecoveryManager._intent_cached_result(clone)
                 if not cached_result:
                     cached_result = RecoveryManager._intent_result_from_tool_results(
-                        clone, tool_results
+                        clone,
+                        tool_results,
                     )
+                if not cached_result:
+                    cached_result = RecoveryManager._intent_cached_result(clone)
                 if cached_result:
                     RecoveryManager._cache_intent_result(clone, cached_result)
             elif clone.status not in {"failed", "skipped"}:
@@ -808,6 +1012,44 @@ class RecoveryManager:
         if provider_failure_kind != "none":
             return _("这次处理被暂时中断了，请稍后再试一次。")
         return _("这次处理在完成前中断了。如果你愿意，我可以继续。")
+
+    @staticmethod
+    def build_completed_output(
+        intents: list[IntentPlan],
+        *,
+        tool_results: list[ToolResult] | None = None,
+        intent_results: dict[str, str] | None = None,
+        reason: str = "completed",
+    ) -> str:
+        _reason = reason
+        completed_results: list[str] = []
+        completed_labels: list[str] = []
+        for intent in intents:
+            if intent.status != "completed":
+                continue
+            intent_result = RecoveryManager._intent_cached_result(
+                intent,
+                intent_results=intent_results,
+            )
+            if not intent_result:
+                intent_result = RecoveryManager._intent_result_from_tool_results(
+                    intent,
+                    tool_results,
+                )
+            if intent_result:
+                if intent_result not in completed_results:
+                    completed_results.append(intent_result)
+                continue
+            display_label = str(intent.user_visible_label or "").strip()
+            if display_label and display_label not in completed_labels:
+                completed_labels.append(display_label)
+        if completed_results:
+            return " ".join(result.strip() for result in completed_results if result.strip())
+        if completed_labels:
+            return _("已根据现有工具结果完成：{completed}。").format(
+                completed="、".join(completed_labels)
+            )
+        return _("我已经根据现有工具结果完成了这次请求。")
 
     @staticmethod
     def build_partial_response_prompt(

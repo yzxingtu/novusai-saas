@@ -58,7 +58,7 @@ _sio_mod.sio = _mock_sio  # emit_force_logout 等使用 sio 直接导入
 sys.modules.setdefault("app.core.socketio_server", _sio_mod)
 
 from app.ai.engine.budget_guard import BudgetGuard  # noqa: E402
-from app.ai.engine.stream_handler import StreamExecutionHandler  # noqa: E402
+from app.ai.engine.stream_handler import StreamExecutionHandler, StreamIOAdapter  # noqa: E402
 from app.ai.engine.types import IntentPlan, ToolUsePolicy  # noqa: E402
 from app.ai.tools.types import ToolDefinition, ToolResult  # noqa: E402
 from app.ai.types import ChatChunk, ChatMessage, ChatResponse  # noqa: E402
@@ -387,6 +387,7 @@ def _build_handler(
         user_id=1,
         conversation_id=9001,
         messages=[ChatMessage(role="user", content="测试流式")],
+        input_variables={},
         interaction_updates=None,
     )
     prep = SimpleNamespace(
@@ -740,18 +741,17 @@ async def test_stream_handler_budget_exit_after_successful_tool_uses_generic_par
         event.get("delta", "") for event in events if event.get("event") == "message"
     )
     await asyncio.sleep(0)
-    assert "整理最终答复前超时了" in message_text
-    assert "可以继续处理" in message_text
+    assert message_text
     assert len(captured) == 1
+    assert captured[0].partial is True
+    assert captured[0].diagnostics["final_output_source"] == "budget_fallback"
     persisted_assistants = [
         message
         for message in captured[0].messages
         if message.get("role") == "assistant" and (message.get("content") or "").strip()
     ]
-    assert any(
-        "整理最终答复前超时了" in (message.get("content") or "")
-        for message in persisted_assistants
-    )
+    assert persisted_assistants
+    assert persisted_assistants[-1].get("content", "").strip() == captured[0].output
 
 
 @pytest.mark.asyncio
@@ -1534,7 +1534,7 @@ async def test_stream_handler_retry_emits_clear_content_before_follow_up_message
         rounds=[
             [
                 ChatChunk(
-                    delta="我现在没有外部互联网搜索工具，只能基于已有知识回答。",
+                    delta="我先补查一下。",
                     finish_reason="stop",
                     total_tokens=10,
                 ),
@@ -1547,8 +1547,8 @@ async def test_stream_handler_retry_emits_clear_content_before_follow_up_message
                             "id": "call_search_retry",
                             "type": "function",
                             "function": {
-                                "name": "web_search",
-                                "arguments": '{"query":"GPT 是什么","max_results":5}',
+                                "name": "query_db",
+                                "arguments": '{"sql":"SELECT 1"}',
                             },
                         },
                     ],
@@ -1558,33 +1558,29 @@ async def test_stream_handler_retry_emits_clear_content_before_follow_up_message
             ],
             [
                 ChatChunk(
-                    delta="GPT 是生成式预训练 Transformer。",
+                    delta="已补救。",
                     finish_reason="stop",
                     total_tokens=18,
                 ),
             ],
         ],
     )
-    tools = [
-        ToolDefinition(name="web_search", description="Search the web"),
-        ToolDefinition(name="fetch_url", description="Fetch url"),
-        ToolDefinition(name="query_records", description="Query data"),
-    ]
+    tools = [ToolDefinition(name="query_db", description="Query data")]
     handler = _build_handler(
         engine,
         tools=tools,
         tool_use_policy=ToolUsePolicy(
-            family="none",
-            mode="auto",
-            allowed_tool_names=[tool.name for tool in tools],
+            family="record_ops",
+            mode="required",
+            allowed_tool_names=["query_db"],
             retry_on_contract_breach=True,
             reason="default_auto",
         ),
         intent_plan=[
             _build_pending_intent(
-                allowed_tool_names=["web_search", "fetch_url"],
-                family="web_research",
-                source_text="GPT 是什么",
+                allowed_tool_names=["query_db"],
+                family="record_ops",
+                source_text="补查数据",
             )
         ],
     )
@@ -1596,10 +1592,7 @@ async def test_stream_handler_retry_emits_clear_content_before_follow_up_message
 
     message_events = [event for event in events if event.get("event") == "message"]
     clear_events = [event for event in events if event.get("event") == "clear_content"]
-    assert (
-        message_events[0]["delta"]
-        == "我现在没有外部互联网搜索工具，只能基于已有知识回答。"
-    )
+    assert message_events[0]["delta"] == "我先补查一下。"
     assert clear_events
     first_clear_idx = events.index(clear_events[0])
     first_message_idx = events.index(message_events[0])
@@ -1607,11 +1600,11 @@ async def test_stream_handler_retry_emits_clear_content_before_follow_up_message
         index
         for index, event in enumerate(events)
         if event.get("event") == "message"
-        and event.get("delta") == "GPT 是生成式预训练 Transformer。"
+        and event.get("delta") == "已补救。"
     )
     assert first_message_idx < first_clear_idx < final_message_idx
     assert any(
-        event.get("event") == "tool_start" and event.get("name") == "web_search"
+        event.get("event") == "tool_start" and event.get("name") == "query_db"
         for event in events
     )
 
@@ -1709,7 +1702,7 @@ async def test_stream_handler_retry_fallback_keeps_non_empty_final_assistant() -
         rounds=[
             [
                 ChatChunk(
-                    delta="我现在没有外部互联网搜索工具，只能基于已有知识回答。",
+                    delta="我先补查一下。",
                     finish_reason="stop",
                     total_tokens=10,
                 ),
@@ -1722,8 +1715,8 @@ async def test_stream_handler_retry_fallback_keeps_non_empty_final_assistant() -
                             "id": "call_search_retry",
                             "type": "function",
                             "function": {
-                                "name": "web_search",
-                                "arguments": '{"query":"runtime v2 rollout","max_results":5}',
+                                "name": "query_db",
+                                "arguments": '{"sql":"SELECT 1"}',
                             },
                         },
                     ],
@@ -1740,24 +1733,21 @@ async def test_stream_handler_retry_fallback_keeps_non_empty_final_assistant() -
             ],
         ],
     )
-    tools = [
-        ToolDefinition(name="web_search", description="Search the web"),
-        ToolDefinition(name="fetch_url", description="Fetch url"),
-    ]
+    tools = [ToolDefinition(name="query_db", description="Query data")]
     handler = _build_handler(
         engine,
         tools=tools,
         tool_use_policy=ToolUsePolicy(
-            family="none",
-            mode="auto",
-            allowed_tool_names=[tool.name for tool in tools],
+            family="record_ops",
+            mode="required",
+            allowed_tool_names=["query_db"],
             retry_on_contract_breach=True,
             reason="default_auto",
         ),
         intent_plan=[
             _build_pending_intent(
-                allowed_tool_names=["web_search", "fetch_url"],
-                family="web_research",
+                allowed_tool_names=["query_db"],
+                family="record_ops",
                 source_text="runtime v2 rollout",
             )
         ],
@@ -1780,12 +1770,205 @@ async def test_stream_handler_retry_fallback_keeps_non_empty_final_assistant() -
     ]
     assert assistant_plain_messages
     assert all(
-        "没有外部互联网搜索工具" not in (message.get("content", "") or "")
+        "我先补查一下" not in (message.get("content", "") or "")
         for message in assistant_plain_messages
     )
     assert (
         assistant_plain_messages[-1].get("content", "").strip()
         == "这是补救后的最终答复。"
+    )
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_streams_completed_tool_evidence_without_post_tool_retry():
+    from app.ai.engine.types import ExecutionResult
+
+    captured: list[ExecutionResult] = []
+    completed = asyncio.Event()
+
+    async def on_complete(result: ExecutionResult) -> None:
+        captured.append(result)
+        completed.set()
+
+    engine = _FakeEngine(
+        rounds=[
+            [
+                ChatChunk(
+                    delta="",
+                    tool_calls=[
+                        {
+                            "id": "call_fetch_retry",
+                            "type": "function",
+                            "function": {
+                                "name": "fetch_url",
+                                "arguments": '{"url":"https://example.com/ai-news","max_length":4000}',
+                            },
+                        }
+                    ],
+                    finish_reason="tool_calls",
+                    total_tokens=10,
+                ),
+            ]
+        ],
+    )
+    engine.sandbox.execute = AsyncMock(  # type: ignore[method-assign]
+        return_value=ToolResult(
+            tool_call_id="call_fetch_retry",
+            name="fetch_url",
+            success=True,
+            output="Content from https://example.com/ai-news\nTitle: AI Daily\nDescription: Latest AI headlines and analysis.\n\nLead paragraph.",
+            summary="AI Daily - Latest AI headlines and analysis.",
+            summary_payload={
+                "fetch_url": True,
+                "ok": True,
+                "error_type": "",
+                "requested_url": "https://example.com/ai-news",
+                "final_url": "https://example.com/ai-news",
+                "title": "AI Daily",
+                "description": "Latest AI headlines and analysis.",
+                "summary": "AI Daily - Latest AI headlines and analysis.",
+            },
+        )
+    )
+    handler = _build_handler(
+        engine,
+        tools=[ToolDefinition(name="fetch_url", description="Fetch url")],
+        tool_use_policy=ToolUsePolicy(
+            family="web_research",
+            mode="required",
+            allowed_tool_names=["fetch_url"],
+            retry_on_contract_breach=False,
+            reason="explicit_web_request",
+        ),
+        intent_plan=[
+            _build_pending_intent(
+                allowed_tool_names=["fetch_url"],
+                family="web_research",
+                source_text="联网查一下今日AI 最新要闻",
+            )
+        ],
+    )
+    handler.on_complete = on_complete
+
+    events: list[dict] = []
+    async for raw in handler.generate():
+        if raw.strip().startswith("data: {"):
+            events.append(_parse_sse_payload(raw))
+
+    await asyncio.wait_for(completed.wait(), timeout=1)
+
+    message_text = "".join(
+        event.get("delta", "") for event in events if event.get("event") == "message"
+    )
+    assert "AI Daily - Latest AI headlines and analysis." in message_text
+    assert not any(event.get("event") == "clear_content" for event in events)
+    assert len(captured) == 1
+    assert captured[0].output == "AI Daily - Latest AI headlines and analysis."
+    assert captured[0].turn_record["final_output_source"] == "tool_evidence_completed"
+    assert captured[0].turn_record["post_tool_completion_state"] == (
+        "tool_evidence_completed"
+    )
+    assert not any(
+        event.kind == "turn.round_started"
+        and event.data.get("round_kind") == "post_tool_follow_up_retry"
+        for event in handler._state.turn_events
+    )
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_no_result_completion_skips_auto_fetch_url():
+    from app.ai.engine.types import ExecutionResult
+
+    captured: list[ExecutionResult] = []
+    completed = asyncio.Event()
+
+    async def on_complete(result: ExecutionResult) -> None:
+        captured.append(result)
+        completed.set()
+
+    engine = _FakeEngine(
+        rounds=[
+            [
+                ChatChunk(
+                    delta="",
+                    tool_calls=[
+                        {
+                            "id": "call_fetch_retry",
+                            "type": "function",
+                            "function": {
+                                "name": "web_search",
+                                "arguments": '{"query":"today ai news","max_results":5}',
+                            },
+                        }
+                    ],
+                    finish_reason="tool_calls",
+                    total_tokens=10,
+                ),
+            ]
+        ],
+    )
+    engine.sandbox.execute = AsyncMock(  # type: ignore[method-assign]
+        return_value=ToolResult(
+            tool_call_id="call_fetch_retry",
+            name="web_search",
+            success=True,
+            output="No results found for: today ai news",
+            summary="baidu_public: 0 result(s)",
+            summary_payload={
+                "provider": "baidu_public",
+                "provider_mode": "public",
+                "provider_chain": ["public:baidu"],
+                "attempted_backends": ["public:baidu"],
+                "selected_backend": "public:baidu",
+                "used_fallback": False,
+                "status": "no_results",
+                "result_count": 0,
+                "cache_hit": False,
+                "items": [],
+            },
+        )
+    )
+    intent = _build_pending_intent(
+        allowed_tool_names=["web_search", "fetch_url"],
+        family="web_research",
+        source_text="联网查一下今日AI 最新要闻",
+    )
+    intent.completion_signals = ["fetch_url"]
+    handler = _build_handler(
+        engine,
+        tools=[
+            ToolDefinition(name="web_search", description="Search the web"),
+            ToolDefinition(name="fetch_url", description="Fetch url"),
+        ],
+        tool_use_policy=ToolUsePolicy(
+            family="web_research",
+            mode="required",
+            allowed_tool_names=["web_search", "fetch_url"],
+            retry_on_contract_breach=False,
+            reason="explicit_web_request",
+        ),
+        intent_plan=[intent],
+    )
+    handler.on_complete = on_complete
+
+    events: list[dict] = []
+    async for raw in handler.generate():
+        if raw.strip().startswith("data: {"):
+            events.append(_parse_sse_payload(raw))
+
+    await asyncio.wait_for(completed.wait(), timeout=1)
+
+    message_text = "".join(
+        event.get("delta", "") for event in events if event.get("event") == "message"
+    )
+    assert message_text
+    assert not any(event.get("event") == "clear_content" for event in events)
+    assert len(captured) == 1
+    assert captured[0].output == message_text
+    assert captured[0].turn_record["final_output_source"] == "tool_evidence_completed"
+    assert captured[0].turn_record["post_tool_completion_state"] == "completed_no_result"
+    assert captured[0].turn_record["auto_fetch_gate_reason"] == (
+        "search_no_results_completed"
     )
 
 
@@ -2099,6 +2282,80 @@ async def test_tool_call_event_includes_summary_payload():
         "metrics": ["COUNT(acl.id)"],
         "filters": ["today"],
     }
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_runs_parallel_safe_web_search_batch_concurrently():
+    class _TrackingSearchSandbox:
+        def __init__(self) -> None:
+            self.active_calls = 0
+            self.max_parallel = 0
+
+        async def execute(
+            self,
+            tool_call_id: str,
+            name: str,
+            arguments: dict,
+            definitions: list,
+            conversation_id: int,
+        ):
+            _ = definitions, conversation_id
+            self.active_calls += 1
+            self.max_parallel = max(self.max_parallel, self.active_calls)
+            await asyncio.sleep(0.02)
+            self.active_calls -= 1
+            return ToolResult(
+                tool_call_id=tool_call_id,
+                name=name,
+                success=True,
+                output=json.dumps({"query": arguments.get("query", "")}),
+            )
+
+    engine = _FakeEngine()
+    engine.sandbox = _TrackingSearchSandbox()
+    handler = _build_handler(
+        engine,
+        tools=[ToolDefinition(name="web_search", description="Search the web")],
+    )
+    adapter = StreamIOAdapter(handler)
+    messages = [ChatMessage(role="user", content="查两条新闻")]
+    response = ChatResponse(
+        message=ChatMessage(role="assistant", content=""),
+        tool_calls=[
+            {
+                "id": "call_search_1",
+                "type": "function",
+                "function": {
+                    "name": "web_search",
+                    "arguments": '{"query":"AI latest news"}',
+                },
+            },
+            {
+                "id": "call_search_2",
+                "type": "function",
+                "function": {
+                    "name": "web_search",
+                    "arguments": '{"query":"OpenAI latest news"}',
+                },
+            },
+        ],
+        total_tokens=12,
+    )
+
+    result = await adapter.handle_tool_calls(
+        response=response,
+        tools=handler.prep.tools,
+        messages=messages,
+        starting_total_tokens=12,
+        starting_completion_tokens=12,
+    )
+
+    assert len(result.tool_results) == 2
+    assert [tool_result.tool_call_id for tool_result in result.tool_results] == [
+        "call_search_1",
+        "call_search_2",
+    ]
+    assert engine.sandbox.max_parallel >= 2
 
 
 @pytest.mark.asyncio

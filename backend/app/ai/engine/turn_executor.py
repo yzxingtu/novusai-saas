@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from app.ai.tools.types import ToolResult
 from app.ai.types import ChatMessage, ChatResponse
@@ -45,6 +45,12 @@ class TurnExecutionResult:
     partial: bool
     paused_for_consent: bool
     completion_reason: str
+    final_output_source: Literal[
+        "assistant",
+        "tool_evidence_completed",
+        "partial_output",
+        "budget_fallback",
+    ]
     action_buttons: list[dict[str, Any]] | None = None
 
 
@@ -70,6 +76,18 @@ class TurnIOAdapter(Protocol):
     ) -> ToolBatchResult: ...
 
     async def finalize_partial_output(
+        self,
+        *,
+        messages: list[ChatMessage],
+        response: ChatResponse | None,
+        state: ExecutionStateMachine,
+        tool_results: list[ToolResult],
+        reason: str,
+        total_tokens: int,
+        completion_tokens_used: int,
+    ) -> tuple[str, int, int]: ...
+
+    async def finalize_completed_output(
         self,
         *,
         messages: list[ChatMessage],
@@ -386,6 +404,46 @@ class TurnExecutor:
         return bool(str(response.message.content or "").strip())
 
     @staticmethod
+    def _latest_auto_fetch_gate_reason(state: ExecutionStateMachine) -> str | None:
+        for intent in reversed(state.intent_plan):
+            metadata = dict(getattr(intent, "metadata", {}) or {})
+            reason = str(metadata.get("auto_fetch_gate_reason") or "").strip()
+            if reason:
+                return reason
+        return None
+
+    @staticmethod
+    def _completed_tool_intent_families(state: ExecutionStateMachine) -> set[str]:
+        families: set[str] = set()
+        for intent in state.intent_plan:
+            if intent.status != "completed" or not intent.requires_tools:
+                continue
+            family = str(intent.family or "").strip()
+            if family:
+                families.add(family)
+        return families
+
+    @staticmethod
+    def _post_tool_completion_state(
+        *,
+        state: ExecutionStateMachine,
+        final_output_source: str,
+        ran_post_tool_follow_up: bool,
+    ) -> str:
+        if final_output_source == "tool_evidence_completed":
+            auto_fetch_gate_reason = TurnExecutor._latest_auto_fetch_gate_reason(state)
+            if auto_fetch_gate_reason == "search_no_results_completed":
+                return "completed_no_result"
+            return "tool_evidence_completed"
+        if final_output_source == "partial_output":
+            return "partial_output"
+        if final_output_source == "budget_fallback":
+            return "budget_fallback"
+        if ran_post_tool_follow_up:
+            return "llm_follow_up"
+        return "assistant"
+
+    @staticmethod
     def _record_contract_breach(
         state: ExecutionStateMachine,
         *,
@@ -577,6 +635,7 @@ class TurnExecutor:
         response: ChatResponse | None = None
         tool_results: list[ToolResult] = []
         decision = None
+        ran_post_tool_follow_up = False
 
         initial_budget_exit = state.budget_exit_reason()
         if initial_budget_exit:
@@ -996,7 +1055,9 @@ class TurnExecutor:
             and TurnExecutor._active_intent(state) is None
             and not TurnExecutor._response_has_visible_content(response)
             and not bool(getattr(response, "tool_calls", None))
+            and "web_research" not in TurnExecutor._completed_tool_intent_families(state)
         ):
+            ran_post_tool_follow_up = True
             response, total_tokens, completion_tokens_used = (
                 await TurnExecutor._run_post_tool_follow_up_round(
                     state=state,
@@ -1021,6 +1082,12 @@ class TurnExecutor:
         )
         partial = bool(decision is not None and decision.action == "return_partial")
         completion_reason = "completed"
+        final_output_source: Literal[
+            "assistant",
+            "tool_evidence_completed",
+            "partial_output",
+            "budget_fallback",
+        ] = "assistant"
         if paused_for_consent:
             state.transition("awaiting_consent")
             completion_reason = decision.reason or "pause_for_consent"
@@ -1031,6 +1098,7 @@ class TurnExecutor:
         elif partial:
             state.transition("partial_exit")
             completion_reason = decision.reason or "return_partial"
+            had_visible_output = bool(str(output or "").strip())
             output, total_tokens, completion_tokens_used = (
                 await io.finalize_partial_output(
                     messages=messages,
@@ -1042,8 +1110,44 @@ class TurnExecutor:
                     completion_tokens_used=completion_tokens_used,
                 )
             )
+            if (
+                not had_visible_output
+                and state.provider_failure_kind == "budget_exit"
+                and str(output or "").strip()
+            ):
+                final_output_source = "budget_fallback"
+            else:
+                final_output_source = "partial_output"
         else:
             state.transition("completed")
+            if not str(output or "").strip() and state.intent_plan:
+                output, total_tokens, completion_tokens_used = (
+                    await io.finalize_completed_output(
+                        messages=messages,
+                        response=response,
+                        state=state,
+                        tool_results=tool_results,
+                        reason=completion_reason,
+                        total_tokens=total_tokens,
+                        completion_tokens_used=completion_tokens_used,
+                    )
+                )
+                if str(output or "").strip():
+                    final_output_source = "tool_evidence_completed"
+
+        state.preparation_diagnostics["final_output_source"] = final_output_source
+        state.preparation_diagnostics["post_tool_completion_state"] = (
+            TurnExecutor._post_tool_completion_state(
+                state=state,
+                final_output_source=final_output_source,
+                ran_post_tool_follow_up=ran_post_tool_follow_up,
+            )
+        )
+        auto_fetch_gate_reason = TurnExecutor._latest_auto_fetch_gate_reason(state)
+        if auto_fetch_gate_reason:
+            state.preparation_diagnostics["auto_fetch_gate_reason"] = (
+                auto_fetch_gate_reason
+            )
 
         return TurnExecutionResult(
             output=str(output or ""),
@@ -1054,6 +1158,7 @@ class TurnExecutor:
             partial=partial,
             paused_for_consent=paused_for_consent,
             completion_reason=completion_reason,
+            final_output_source=final_output_source,
             action_buttons=None,
         )
 

@@ -59,17 +59,19 @@ vi.mock('#/store', () => ({
 }));
 
 describe('chatMessageItem turn diagnostics', () => {
-  it('renders selected skills diagnostics chips for assistant messages', () => {
-    const wrapper = mount(ChatMessageItem, {
+  function mountMessage(
+    msg: Partial<
+      InstanceType<typeof ChatMessageItem>['$props']['msg']
+    > = {},
+  ) {
+    return mount(ChatMessageItem, {
       props: {
         index: 0,
         msg: {
           clientKey: 'assistant-turn-diagnostics',
           content: 'diagnostics',
           role: 'assistant',
-          selectedSkillNames: ['runtime.page_context', 'runtime.route'],
-          selectedToolNames: ['query_records'],
-          turnOutcome: 'success',
+          ...msg,
         },
       },
       global: {
@@ -90,12 +92,57 @@ describe('chatMessageItem turn diagnostics', () => {
         },
       },
     });
+  }
+
+  it('hides turn diagnostics chips for successful assistant turns', () => {
+    const wrapper = mountMessage({
+      selectedSkillNames: ['runtime.page_context', 'runtime.route'],
+      selectedToolNames: ['query_records'],
+      terminationReason: 'completed',
+      turnOutcome: 'success',
+    });
 
     const rendered = wrapper.text();
+    expect(rendered).not.toContain('selected_skills');
+    expect(rendered).not.toContain('runtime.page_context');
+    expect(rendered).not.toContain('selected_tools');
+    expect(rendered).not.toContain('query_records');
+    expect(rendered).not.toContain('turn_outcome');
+    expect(rendered).not.toContain('termination_reason');
+  });
+
+  it('renders turn diagnostics chips for partial assistant turns', () => {
+    const wrapper = mountMessage({
+      partial: true,
+      selectedSkillNames: ['runtime.page_context'],
+      selectedToolNames: ['invoke_page_operation'],
+      terminationReason: 'interrupted',
+      turnOutcome: 'partial',
+    });
+
+    const rendered = wrapper.text();
+    expect(rendered).toContain('turn_outcome');
+    expect(rendered).toContain('partial');
+    expect(rendered).toContain('termination_reason');
+    expect(rendered).toContain('interrupted');
     expect(rendered).toContain('selected_skills');
     expect(rendered).toContain('runtime.page_context');
-    expect(rendered).toContain('runtime.route');
+  });
+
+  it('renders turn diagnostics chips for failed assistant turns', () => {
+    const wrapper = mountMessage({
+      requestFailedRetry: true,
+      selectedToolNames: ['web_search'],
+      terminationReason: 'tool_error',
+      turnOutcome: 'failed',
+    });
+
+    const rendered = wrapper.text();
+    expect(rendered).toContain('turn_outcome');
+    expect(rendered).toContain('failed');
+    expect(rendered).toContain('termination_reason');
+    expect(rendered).toContain('tool_error');
     expect(rendered).toContain('selected_tools');
-    expect(rendered).toContain('query_records');
+    expect(rendered).toContain('web_search');
   });
 });

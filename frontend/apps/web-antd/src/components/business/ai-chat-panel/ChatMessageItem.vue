@@ -228,6 +228,9 @@ function normalizeDiagnosticText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+const BENIGN_TURN_OUTCOMES = new Set(['success']);
+const BENIGN_TERMINATION_REASONS = new Set(['completed', 'stop']);
+
 interface ContextSourceDisplayItem {
   active: boolean;
   key: string;
@@ -304,6 +307,33 @@ const hasTurnDiagnostics = computed(() => {
     diagnosticSelectedSkills.value.length > 0 ||
     diagnosticContextSources.value.length > 0,
   );
+});
+const shouldShowTurnDiagnostics = computed(() => {
+  if (!hasTurnDiagnostics.value) {
+    return false;
+  }
+
+  if (
+    props.msg.partial ||
+    props.msg.interrupted ||
+    props.msg.requestFailedRetry ||
+    props.msg.error
+  ) {
+    return true;
+  }
+
+  const normalizedOutcome = diagnosticTurnOutcome.value.toLowerCase();
+  if (normalizedOutcome) {
+    return !BENIGN_TURN_OUTCOMES.has(normalizedOutcome);
+  }
+
+  const normalizedTerminationReason =
+    diagnosticTerminationReason.value.toLowerCase();
+  if (normalizedTerminationReason) {
+    return !BENIGN_TERMINATION_REASONS.has(normalizedTerminationReason);
+  }
+
+  return false;
 });
 
 const expandedMap = ref<Record<number, boolean>>({});
@@ -1315,7 +1345,7 @@ watch(
         </div>
 
         <div
-          v-if="hasTurnDiagnostics"
+          v-if="shouldShowTurnDiagnostics"
           class="rounded-xl border border-border/30 bg-accent/10"
           :class="
             compact

@@ -2,9 +2,33 @@
 import asyncio
 import json
 
+from app.ai.engine.execution_state_machine import (
+    reset_current_execution_state_machine,
+    set_current_execution_state_machine,
+)
 from app.ai.engine.tool_processor import ToolCallProcessor, _try_repair_json
+from app.ai.engine.types import IntentPlan
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.types import ChatMessage
+
+
+class _FakeExecutionState:
+    def __init__(self, intent_plan: list[IntentPlan]) -> None:
+        self.intent_plan = intent_plan
+        self.readonly_tool_cache: dict[str, tuple[ToolResult, int]] = {}
+        self.page_context_cache: dict[str, tuple[ToolResult, int]] = {}
+        self.search_query_cache: dict[str, tuple[ToolResult, int]] = {}
+        self.cache_hits: list[str] = []
+
+    def cache_for_kind(self, kind: str) -> dict[str, tuple[ToolResult, int]]:
+        if kind == "search_query":
+            return self.search_query_cache
+        if kind == "page_context":
+            return self.page_context_cache
+        return self.readonly_tool_cache
+
+    def register_cache_hit(self, kind: str) -> None:
+        self.cache_hits.append(kind)
 
 
 def test_trailing_comma() -> None:
@@ -215,6 +239,218 @@ def test_execute_tool_uses_all_tools_fallback_for_pending_confirmation_replay() 
         "web_search",
         "get_current_weather",
     ]
+
+
+def test_execute_tool_repairs_fetch_url_to_search_candidate() -> None:
+    class _Sandbox:
+        def __init__(self) -> None:
+            self.calls: list[dict] = []
+
+        async def execute(self, **kwargs):
+            self.calls.append(kwargs)
+            return ToolResult(
+                tool_call_id=kwargs["tool_call_id"],
+                name=kwargs["name"],
+                success=True,
+                output=f"Fetched {kwargs['arguments']['url']}",
+            )
+
+    async def _run() -> tuple[list[dict], ToolResult, IntentPlan]:
+        sandbox = _Sandbox()
+        processor = ToolCallProcessor(
+            sandbox=sandbox,  # type: ignore[arg-type]
+            tools=[ToolDefinition(name="fetch_url")],
+        )
+        intent = IntentPlan(
+            intent_id="intent-web",
+            kind="web_research",
+            family="web_research",
+            order=1,
+            user_visible_label="research",
+            source_text="OpenAI news",
+            allowed_tool_names=["fetch_url"],
+            preferred_tool_names=["fetch_url"],
+            completion_signals=["fetch_url"],
+            metadata={
+                "requires_fetch_url": True,
+                "fetch_url_candidate_urls": [
+                    "https://example.com/ai-news",
+                    "https://example.com/openai",
+                ],
+            },
+        )
+        state = _FakeExecutionState([intent])
+        token = set_current_execution_state_machine(state)
+        try:
+            result, _duration_ms = await processor.execute_tool(
+                "tc_fetch",
+                "fetch_url",
+                {
+                    "url": "https://www.reuters.com/technology/artificial-intelligence/",
+                    "max_length": 5000,
+                },
+                conversation_id=1,
+            )
+        finally:
+            reset_current_execution_state_machine(token)
+        return sandbox.calls, result, intent
+
+    calls, result, intent = asyncio.run(_run())
+
+    assert len(calls) == 1
+    assert calls[0]["arguments"]["url"] == "https://example.com/ai-news"
+    assert result.success is True
+    assert intent.metadata["fetch_url_attempted_urls"] == ["https://example.com/ai-news"]
+    assert intent.metadata.get("fetch_url_blocked_urls") in (None, [])
+
+
+def test_execute_tool_rotates_blocked_fetch_url_candidate() -> None:
+    class _Sandbox:
+        def __init__(self) -> None:
+            self.calls: list[dict] = []
+
+        async def execute(self, **kwargs):
+            self.calls.append(kwargs)
+            url = str(kwargs["arguments"]["url"])
+            if url.endswith("/blocked"):
+                return ToolResult(
+                    tool_call_id=kwargs["tool_call_id"],
+                    name=kwargs["name"],
+                    success=False,
+                    error=(
+                        f"HTTP 403 while fetching {url} "
+                        "This page may block automated access"
+                    ),
+                    error_type="blocked_url",
+                )
+            return ToolResult(
+                tool_call_id=kwargs["tool_call_id"],
+                name=kwargs["name"],
+                success=True,
+                output=f"Fetched {url}",
+            )
+
+    async def _run() -> tuple[list[dict], ToolResult, IntentPlan]:
+        sandbox = _Sandbox()
+        processor = ToolCallProcessor(
+            sandbox=sandbox,  # type: ignore[arg-type]
+            tools=[ToolDefinition(name="fetch_url")],
+        )
+        intent = IntentPlan(
+            intent_id="intent-web",
+            kind="web_research",
+            family="web_research",
+            order=1,
+            user_visible_label="research",
+            source_text="OpenAI news",
+            allowed_tool_names=["fetch_url"],
+            preferred_tool_names=["fetch_url"],
+            completion_signals=["fetch_url"],
+            metadata={
+                "requires_fetch_url": True,
+                "fetch_url_candidate_urls": [
+                    "https://example.com/blocked",
+                    "https://example.com/openai",
+                ],
+            },
+        )
+        state = _FakeExecutionState([intent])
+        token = set_current_execution_state_machine(state)
+        try:
+            result, _duration_ms = await processor.execute_tool(
+                "tc_fetch",
+                "fetch_url",
+                {"url": "https://example.com/blocked", "max_length": 5000},
+                conversation_id=1,
+            )
+        finally:
+            reset_current_execution_state_machine(token)
+        return sandbox.calls, result, intent
+
+    calls, result, intent = asyncio.run(_run())
+
+    assert [call["arguments"]["url"] for call in calls] == [
+        "https://example.com/blocked",
+        "https://example.com/openai",
+    ]
+    assert result.success is True
+    assert result.output == "Fetched https://example.com/openai"
+    assert intent.metadata["fetch_url_attempted_urls"] == [
+        "https://example.com/blocked",
+        "https://example.com/openai",
+    ]
+    assert intent.metadata["fetch_url_blocked_urls"] == ["https://example.com/blocked"]
+
+
+def test_resolve_fetch_url_candidates_does_not_guess_without_candidates() -> None:
+    selected_url, fallback_urls, requested_url = ToolCallProcessor._resolve_fetch_url_candidates(
+        intent=IntentPlan(
+            intent_id="intent-web",
+            kind="web_research",
+            family="web_research",
+            order=1,
+            user_visible_label="research",
+            source_text="OpenAI news",
+            metadata={},
+        ),
+        requested_url="https://example.com/guessed",
+    )
+
+    assert selected_url is None
+    assert fallback_urls == []
+    assert requested_url == "https://example.com/guessed"
+
+
+def test_execute_tool_allows_direct_fetch_url_when_user_explicitly_provides_url() -> None:
+    class _Sandbox:
+        def __init__(self) -> None:
+            self.calls: list[dict] = []
+
+        async def execute(self, **kwargs):
+            self.calls.append(kwargs)
+            return ToolResult(
+                tool_call_id=kwargs["tool_call_id"],
+                name=kwargs["name"],
+                success=True,
+                output=f"Fetched {kwargs['arguments']['url']}",
+            )
+
+    async def _run() -> tuple[list[dict], ToolResult]:
+        sandbox = _Sandbox()
+        processor = ToolCallProcessor(
+            sandbox=sandbox,  # type: ignore[arg-type]
+            tools=[ToolDefinition(name="fetch_url")],
+        )
+        intent = IntentPlan(
+            intent_id="intent-web",
+            kind="web_research",
+            family="web_research",
+            order=1,
+            user_visible_label="research",
+            source_text="Fetch this URL directly",
+            allowed_tool_names=["fetch_url"],
+            preferred_tool_names=["fetch_url"],
+            completion_signals=["fetch_url"],
+            metadata={"requires_fetch_url": False},
+        )
+        state = _FakeExecutionState([intent])
+        token = set_current_execution_state_machine(state)
+        try:
+            result, _duration_ms = await processor.execute_tool(
+                "tc_fetch_direct",
+                "fetch_url",
+                {"url": "https://example.com/direct", "max_length": 5000},
+                conversation_id=1,
+            )
+        finally:
+            reset_current_execution_state_machine(token)
+        return sandbox.calls, result
+
+    calls, result = asyncio.run(_run())
+
+    assert len(calls) == 1
+    assert calls[0]["arguments"]["url"] == "https://example.com/direct"
+    assert result.success is True
 
 
 def test_check_consent_treats_approved_pending_consent_as_auto_once() -> None:

@@ -20,7 +20,11 @@ from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.web_search.orchestrator import run_web_search as orchestrated_run_web_search
 from app.ai.web_search.types import (
     STATUS_NO_RESULTS as WS_STATUS_NO_RESULTS,
+)
+from app.ai.web_search.types import (
     STATUS_SUCCESS as WS_STATUS_SUCCESS,
+)
+from app.ai.web_search.types import (
     WebSearchExecution as OrchestratedWebSearchExecution,
 )
 from app.core.config import settings
@@ -325,6 +329,17 @@ def _build_search_output_text(
     return "\n".join(lines)
 
 
+def _classify_fetch_url_error(error_text: str) -> str:
+    lowered = str(error_text or "").lower()
+    if "request timed out" in lowered:
+        return "timeout"
+    if any(marker in lowered for marker in ("http 401", "http 403", "http 429")):
+        return "blocked_url"
+    if "page may block automated access" in lowered or "该页面可能被站点拦截" in lowered:
+        return "blocked_url"
+    return ""
+
+
 def _build_search_summary_payload(
     execution: OrchestratedWebSearchExecution,
 ) -> dict[str, Any]:
@@ -352,6 +367,91 @@ def _build_search_summary_payload(
     if meta.native_failure_kind:
         payload["native_failure_kind"] = meta.native_failure_kind
     return payload
+
+
+def _build_fetch_summary(output: str, *, max_length: int = 220) -> str | None:
+    lines = [line.strip() for line in str(output or "").splitlines() if line.strip()]
+    if not lines:
+        return None
+
+    title = ""
+    description = ""
+    final_url = ""
+    for line in lines:
+        if not final_url and line.startswith("Content from "):
+            final_url = line.removeprefix("Content from ").rstrip(":").strip()
+        elif not title and line.startswith("Title: "):
+            title = line.removeprefix("Title: ").strip()
+        elif not description and line.startswith("Description: "):
+            description = line.removeprefix("Description: ").strip()
+
+    summary = ""
+    if title and description:
+        summary = f"{title} - {description}"
+    elif title:
+        summary = title
+    elif description:
+        summary = description
+    elif final_url:
+        summary = f"Fetched {final_url}"
+    else:
+        summary = lines[0]
+
+    normalized, _ = _truncate_text(_normalize_text(summary), max_length)
+    return normalized or None
+
+
+def _extract_fetch_summary_payload(
+    *,
+    requested_url: str,
+    output: str | None = None,
+    error: str | None = None,
+) -> dict[str, Any]:
+    requested = str(requested_url or "").strip()
+    final_url = ""
+    title = ""
+    description = ""
+    summary = None
+    error_text = str(error or "").strip()
+    error_type = _classify_fetch_url_error(error_text) if error_text else ""
+
+    lines = [line.strip() for line in str(output or "").splitlines() if line.strip()]
+    for line in lines:
+        if not final_url and line.startswith("Content from "):
+            final_url = line.removeprefix("Content from ").rstrip(":").strip()
+        elif not requested and line.startswith("Redirected from: "):
+            requested = line.removeprefix("Redirected from: ").strip()
+        elif not title and line.startswith("Title: "):
+            title = line.removeprefix("Title: ").strip()
+        elif not description and line.startswith("Description: "):
+            description = line.removeprefix("Description: ").strip()
+
+    if output:
+        summary = _build_fetch_summary(output)
+
+    if not final_url and error_text:
+        for marker in ("while fetching ", "found at ", "URL: "):
+            if marker not in error_text:
+                continue
+            final_url = error_text.split(marker, 1)[1].split(" ", 1)[0].strip(" .)")
+            if final_url:
+                break
+        if "(title:" in error_text and not title:
+            title = error_text.split("(title:", 1)[1].split(")", 1)[0].strip()
+
+    if not requested:
+        requested = final_url
+
+    return {
+        "fetch_url": True,
+        "ok": not error_text,
+        "error_type": error_type,
+        "requested_url": requested or None,
+        "final_url": final_url or None,
+        "title": title or None,
+        "description": description or None,
+        "summary": summary,
+    }
 
 
 def _extract_title_from_html(html: str) -> str:
@@ -1097,20 +1197,32 @@ class BuiltinToolExecutor(BaseToolExecutor):
                 )
                 duration_ms = int((time.perf_counter() - start) * 1000)
                 if not ok:
+                    summary_payload = _extract_fetch_summary_payload(
+                        requested_url=url,
+                        error=payload,
+                    )
                     return ToolResult(
                         tool_call_id=tool_call_id,
                         name=func_name,
                         success=False,
                         error=payload,
                         summary="fetch_url failed",
-                        summary_payload={"fetch_url": True, "ok": False},
+                        summary_payload=summary_payload,
+                        error_type=str(summary_payload.get("error_type") or ""),
                         duration_ms=duration_ms,
                     )
+                summary = _build_fetch_summary(payload)
+                summary_payload = _extract_fetch_summary_payload(
+                    requested_url=url,
+                    output=payload,
+                )
                 return ToolResult(
                     tool_call_id=tool_call_id,
                     name=func_name,
                     success=True,
                     output=payload,
+                    summary=summary,
+                    summary_payload=summary_payload,
                     duration_ms=duration_ms,
                 )
 

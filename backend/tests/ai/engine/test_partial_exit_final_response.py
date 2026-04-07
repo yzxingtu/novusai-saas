@@ -827,6 +827,44 @@ def test_recovery_manager_caches_completed_intent_result_from_tool_output() -> N
     assert updated[0].metadata["cached_result"] == "西安现在多云，气温约 18C。"
 
 
+def test_recovery_manager_prefers_current_completed_tool_result_over_stale_cache() -> None:
+    intents = [
+        IntentPlan(
+            intent_id="intent-web",
+            kind="web_research",
+            family="web_research",
+            order=1,
+            user_visible_label="AI 新闻",
+            source_text="联网查一下今日 AI 最新要闻",
+            status="pending",
+            allowed_tool_names=["fetch_url"],
+            completion_signals=["fetch_url"],
+            cached_result="旧的搜索命中缓存",
+            metadata={"cached_result": "旧的搜索命中缓存"},
+        )
+    ]
+
+    updated = RecoveryManager.update_intent_statuses(
+        intents,
+        messages=[],
+        tool_results=[
+            ToolResult(
+                tool_call_id="tc-fetch",
+                name="fetch_url",
+                success=True,
+                summary=(
+                    "TodayAiNews.com ~ The latest Artificial Intelligence (AI) news - "
+                    "The latest Artificial Intelligence (AI) news, articles, photos, slideshows and videos."
+                ),
+            )
+        ],
+    )
+
+    assert updated[0].status == "completed"
+    assert updated[0].cached_result.startswith("TodayAiNews.com")
+    assert updated[0].cached_result != "旧的搜索命中缓存"
+
+
 def test_recovery_manager_treats_terminal_failure_as_partial_exit_not_retry() -> None:
     intents = [
         IntentPlan(

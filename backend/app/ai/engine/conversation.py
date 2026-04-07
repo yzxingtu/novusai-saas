@@ -220,6 +220,32 @@ class _SyncIOAdapter:
             context_sources=self.context_sources,
         )
 
+    async def finalize_completed_output(
+        self,
+        *,
+        messages: list[ChatMessage],
+        response: ChatResponse | None,
+        state: ExecutionStateMachine,
+        tool_results: list[ToolResult],
+        reason: str,
+        total_tokens: int,
+        completion_tokens_used: int,
+    ) -> tuple[str, int, int]:
+        return await self.engine._finalize_completed_output(
+            agent=self.agent,
+            request=self.request,
+            prep=self.prep,
+            messages=messages,
+            response=response,
+            state=state,
+            tool_results=tool_results,
+            reason=reason,
+            total_tokens=total_tokens,
+            completion_tokens_used=completion_tokens_used,
+            selected_skill_names=self.selected_skill_names,
+            context_sources=self.context_sources,
+        )
+
     def should_retry_tool_contract_breach(
         self,
         *,
@@ -445,6 +471,48 @@ class ConversationEngine(BaseEngine):
             completion_tokens_used,
         )
 
+    async def _finalize_completed_output(
+        self,
+        *,
+        agent: Agent,
+        request: ExecutionRequest,
+        prep: Any,
+        messages: list[ChatMessage],
+        response: ChatResponse | None,
+        state: ExecutionStateMachine,
+        tool_results: list[ToolResult],
+        reason: str,
+        total_tokens: int,
+        completion_tokens_used: int,
+        selected_skill_names: list[str],
+        context_sources: list[Any],
+    ) -> tuple[str, int, int]:
+        _ = (
+            agent,
+            request,
+            prep,
+            messages,
+            reason,
+            selected_skill_names,
+            context_sources,
+        )
+        visible_output = (
+            str(response.message.content or "").strip()
+            if response is not None
+            else ""
+        )
+        if visible_output:
+            return visible_output, total_tokens, completion_tokens_used
+        return (
+            RecoveryManager.build_completed_output(
+                state.intent_plan,
+                tool_results=tool_results,
+                reason=reason,
+            ),
+            total_tokens,
+            completion_tokens_used,
+        )
+
     async def execute(
         self,
         agent: Agent,
@@ -498,6 +566,7 @@ class ConversationEngine(BaseEngine):
             paused_for_consent = turn_execution.paused_for_consent
             partial = turn_execution.partial
             completion_reason = turn_execution.completion_reason
+            final_output_source = turn_execution.final_output_source
 
             cleaned_output, action_buttons = (
                 StreamExecutionHandler._extract_action_buttons(
@@ -539,6 +608,7 @@ class ConversationEngine(BaseEngine):
                 diagnostics_payload["partial_exit_reason"] = (
                     completion_reason or diagnostics_payload.get("partial_exit_reason")
                 )
+            diagnostics_payload["final_output_source"] = final_output_source
             turn_record_payload.update(
                 {
                     "execution_path": prep.execution_path,
@@ -569,6 +639,13 @@ class ConversationEngine(BaseEngine):
                     ),
                     "contract_breach_type": diagnostics_payload.get(
                         "contract_breach_type"
+                    ),
+                    "final_output_source": diagnostics_payload.get("final_output_source"),
+                    "post_tool_completion_state": diagnostics_payload.get(
+                        "post_tool_completion_state"
+                    ),
+                    "auto_fetch_gate_reason": diagnostics_payload.get(
+                        "auto_fetch_gate_reason"
                     ),
                 }
             )

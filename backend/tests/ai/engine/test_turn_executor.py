@@ -7,7 +7,7 @@ import pytest
 
 from app.ai.engine.budget_guard import BudgetGuard
 from app.ai.engine.execution_state_machine import ExecutionStateMachine
-from app.ai.engine.recovery_manager import RecoveryDecision
+from app.ai.engine.recovery_manager import RecoveryDecision, RecoveryManager
 from app.ai.engine.turn_executor import ModelRoundResult, ToolBatchResult, TurnExecutor
 from app.ai.engine.types import IntentPlan, ToolUsePolicy
 from app.ai.tools.types import ToolDefinition, ToolResult
@@ -20,6 +20,7 @@ class _FakeIOAdapter:
         *,
         model_rounds: list[ModelRoundResult],
         tool_batch: ToolBatchResult | None = None,
+        tool_batches: list[ToolBatchResult] | None = None,
         contract_retry: tuple[bool, ToolUsePolicy | None, str] = (False, None, ""),
         post_tool_contract_breach: tuple[
             str | None,
@@ -29,11 +30,13 @@ class _FakeIOAdapter:
     ) -> None:
         self.model_rounds = list(model_rounds)
         self.tool_batch = tool_batch or ToolBatchResult(response=None, tool_results=[])
+        self.tool_batches = list(tool_batches or [])
         self.contract_retry = contract_retry
         self.post_tool_contract_breach = post_tool_contract_breach
         self.call_history: list[dict[str, object]] = []
         self.retry_logs: list[str] = []
         self.finalize_calls: list[dict[str, object]] = []
+        self.finalize_completed_calls: list[dict[str, object]] = []
 
     async def call_llm(self, **kwargs):
         self.call_history.append(dict(kwargs))
@@ -41,20 +44,37 @@ class _FakeIOAdapter:
             raise AssertionError("No model rounds left")
         return self.model_rounds.pop(0)
 
-    async def handle_tool_calls(self, **kwargs):
+    async def handle_tool_calls(self, **_kwargs):
+        if self.tool_batches:
+            return self.tool_batches.pop(0)
         return self.tool_batch
 
     async def finalize_partial_output(self, **kwargs):
         self.finalize_calls.append(dict(kwargs))
         return ("finalized partial output", 23, 23)
 
-    def should_retry_tool_contract_breach(self, **kwargs):
+    async def finalize_completed_output(self, **kwargs):
+        self.finalize_completed_calls.append(dict(kwargs))
+        state = kwargs["state"]
+        tool_results = kwargs["tool_results"]
+        reason = str(kwargs.get("reason") or "completed")
+        return (
+            RecoveryManager.build_completed_output(
+                state.intent_plan,
+                tool_results=tool_results,
+                reason=reason,
+            ),
+            int(kwargs.get("total_tokens") or 0),
+            int(kwargs.get("completion_tokens_used") or 0),
+        )
+
+    def should_retry_tool_contract_breach(self, **_kwargs):
         return self.contract_retry
 
-    def should_retry_web_research_contract_breach(self, **kwargs):
+    def should_retry_web_research_contract_breach(self, **_kwargs):
         return False, None, ""
 
-    def analyze_post_tool_contract_breach(self, **kwargs):
+    def analyze_post_tool_contract_breach(self, **_kwargs):
         return self.post_tool_contract_breach
 
     def restrict_tools_to_names(self, tools, allowed_tool_names):
@@ -496,6 +516,172 @@ async def test_turn_executor_retries_web_research_with_fetch_url_after_search_on
     assert [tool.name for tool in io.call_history[1]["tools"]] == ["fetch_url"]
     assert state.intent_plan[0].allowed_tool_names == ["fetch_url"]
     assert state.intent_plan[0].completion_signals == ["fetch_url"]
+    assert state.intent_plan[0].metadata["fetch_url_candidate_urls"] == [
+        "https://example.com/ai-news"
+    ]
+    assert state.intent_plan[0].metadata["fetch_url_attempted_urls"] == []
+
+
+@pytest.mark.asyncio
+async def test_turn_executor_allows_final_follow_up_after_fetch_candidates_exhausted() -> None:
+    tools = [
+        ToolDefinition(name="web_search", description="Search"),
+        ToolDefinition(name="fetch_url", description="Fetch"),
+    ]
+    intents = [
+        _build_intent(
+            intent_id="intent-web",
+            kind="web_research",
+            family="web_research",
+            allowed_tool_names=["web_search", "fetch_url"],
+        )
+    ]
+    prep = _build_prep(
+        tools=tools,
+        intents=intents,
+        tool_use_policy=ToolUsePolicy(
+            family="web_research",
+            mode="required",
+            allowed_tool_names=["web_search", "fetch_url"],
+            retry_on_contract_breach=False,
+            reason="explicit_web_request",
+        ),
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    io = _FakeIOAdapter(
+        model_rounds=[
+            _assistant_response(
+                "",
+                tool_calls=[
+                    {
+                        "id": "call-web-search",
+                        "type": "function",
+                        "function": {
+                            "name": "web_search",
+                            "arguments": '{"query":"today ai news","max_results":5}',
+                        },
+                    }
+                ],
+            ),
+            _assistant_response(
+                "",
+                tool_calls=[
+                    {
+                        "id": "call-fetch-1",
+                        "type": "function",
+                        "function": {
+                            "name": "fetch_url",
+                            "arguments": '{"url":"https://www.reuters.com/ai","max_length":5000}',
+                        },
+                    },
+                    {
+                        "id": "call-fetch-2",
+                        "type": "function",
+                        "function": {
+                            "name": "fetch_url",
+                            "arguments": '{"url":"https://www.todayainews.com/","max_length":5000}',
+                        },
+                    },
+                    {
+                        "id": "call-fetch-3",
+                        "type": "function",
+                        "function": {
+                            "name": "fetch_url",
+                            "arguments": '{"url":"https://techcrunch.com/ai","max_length":5000}',
+                        },
+                    },
+                ],
+            ),
+            _assistant_response("整理好了：TodayAiNews 提供了今日 AI 新闻概览。"),
+        ],
+        tool_batches=[
+            ToolBatchResult(
+                response=ChatResponse(
+                    message=ChatMessage(role="assistant", content=""),
+                    total_tokens=9,
+                    output_tokens=9,
+                ),
+                tool_results=[
+                    ToolResult(
+                        tool_call_id="call-web-search",
+                        name="web_search",
+                        success=True,
+                        summary_payload={
+                            "items": [
+                                {
+                                    "title": "AI News Daily",
+                                    "url": "https://example.com/ai-news",
+                                },
+                                {
+                                    "title": "TodayAiNews",
+                                    "url": "https://example.com/todayainews",
+                                },
+                            ]
+                        },
+                    )
+                ],
+                total_tokens=9,
+                completion_tokens_used=9,
+            ),
+            ToolBatchResult(
+                response=ChatResponse(
+                    message=ChatMessage(role="assistant", content=""),
+                    total_tokens=12,
+                    output_tokens=12,
+                ),
+                tool_results=[
+                    ToolResult(
+                        tool_call_id="call-fetch-1",
+                        name="fetch_url",
+                        success=True,
+                        summary="AI News Daily - curated AI headlines.",
+                    ),
+                    ToolResult(
+                        tool_call_id="call-fetch-2",
+                        name="fetch_url",
+                        success=True,
+                        summary="TodayAiNews - The latest AI news and articles.",
+                    ),
+                    ToolResult(
+                        tool_call_id="call-fetch-3",
+                        name="fetch_url",
+                        success=False,
+                        error=(
+                            "fetch_url must use a candidate URL returned by the previous "
+                            "web_search, but no untried candidate URLs remain."
+                        ),
+                        error_type="search_candidates_exhausted",
+                    ),
+                ],
+                total_tokens=12,
+                completion_tokens_used=12,
+            ),
+        ],
+    )
+
+    result = await TurnExecutor.run(
+        state=state,
+        io=io,
+        prep=prep,
+        request=SimpleNamespace(
+            input_variables={},
+            conversation_id=1069,
+        ),
+        agent=SimpleNamespace(id=1),
+    )
+
+    assert result.partial is False
+    assert result.output == (
+        "AI News Daily - curated AI headlines.；"
+        "TodayAiNews - The latest AI news and articles."
+    )
+    assert result.final_output_source == "tool_evidence_completed"
+    assert not io.finalize_calls
+    assert state.provider_failure_kind == "none"
+    assert not any(
+        call.get("breach_retry_result") == "normal_follow_up_round"
+        for call in io.call_history
+    )
 
 
 @pytest.mark.asyncio
@@ -627,6 +813,194 @@ async def test_turn_executor_runs_post_tool_follow_up_when_batch_returns_no_fina
         event.kind == "turn.round_started"
         and event.data.get("round_kind") == "normal_follow_up_round"
         for event in state.turn_events
+    )
+
+
+@pytest.mark.asyncio
+async def test_turn_executor_uses_completed_tool_evidence_after_fetch_without_retry() -> None:
+    tools = [ToolDefinition(name="fetch_url", description="Fetch")]
+    intents = [
+        _build_intent(
+            intent_id="intent-web",
+            kind="web_research",
+            family="web_research",
+            allowed_tool_names=["fetch_url"],
+        )
+    ]
+    prep = _build_prep(
+        tools=tools,
+        intents=intents,
+        tool_use_policy=ToolUsePolicy(
+            family="web_research",
+            mode="required",
+            allowed_tool_names=["fetch_url"],
+            retry_on_contract_breach=False,
+            reason="web_research",
+        ),
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    io = _FakeIOAdapter(
+        model_rounds=[
+            _assistant_response(
+                "",
+                tool_calls=[
+                    {
+                        "id": "call_fetch",
+                        "type": "function",
+                        "function": {
+                            "name": "fetch_url",
+                            "arguments": '{"url":"https://example.com/ai-news","max_length":4000}',
+                        },
+                    }
+                ],
+            )
+        ],
+        tool_batch=ToolBatchResult(
+            response=None,
+            tool_results=[
+                ToolResult(
+                    tool_call_id="call_fetch",
+                    name="fetch_url",
+                    success=True,
+                    summary="AI Daily - Latest AI headlines and analysis.",
+                    summary_payload={
+                        "fetch_url": True,
+                        "ok": True,
+                        "requested_url": "https://example.com/ai-news",
+                        "final_url": "https://example.com/ai-news",
+                        "title": "AI Daily",
+                        "description": "Latest AI headlines and analysis.",
+                        "summary": "AI Daily - Latest AI headlines and analysis.",
+                    },
+                )
+            ],
+            total_tokens=8,
+            completion_tokens_used=8,
+        ),
+    )
+
+    result = await TurnExecutor.run(
+        state=state,
+        io=io,
+        prep=prep,
+        request=SimpleNamespace(
+            input_variables={},
+            conversation_id=1071,
+        ),
+        agent=SimpleNamespace(id=1),
+    )
+
+    assert result.output == "AI Daily - Latest AI headlines and analysis."
+    assert result.final_output_source == "tool_evidence_completed"
+    assert len(io.call_history) == 1
+    assert io.finalize_completed_calls
+    assert not any(
+        call.get("breach_retry_result") == "post_tool_follow_up_retry"
+        for call in io.call_history
+    )
+    assert state.preparation_diagnostics["post_tool_completion_state"] == (
+        "tool_evidence_completed"
+    )
+
+
+@pytest.mark.asyncio
+async def test_turn_executor_completes_web_search_no_results_without_auto_fetch() -> None:
+    tools = [
+        ToolDefinition(name="web_search", description="Search"),
+        ToolDefinition(name="fetch_url", description="Fetch"),
+    ]
+    intents = [
+        _build_intent(
+            intent_id="intent-web",
+            kind="web_research",
+            family="web_research",
+            allowed_tool_names=["web_search", "fetch_url"],
+        )
+    ]
+    prep = _build_prep(
+        tools=tools,
+        intents=intents,
+        tool_use_policy=ToolUsePolicy(
+            family="web_research",
+            mode="required",
+            allowed_tool_names=["web_search", "fetch_url"],
+            retry_on_contract_breach=False,
+            reason="web_research",
+        ),
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    io = _FakeIOAdapter(
+        model_rounds=[
+            _assistant_response(
+                "",
+                tool_calls=[
+                    {
+                        "id": "call_search",
+                        "type": "function",
+                        "function": {
+                            "name": "web_search",
+                            "arguments": '{"query":"today ai news","max_results":5}',
+                        },
+                    }
+                ],
+            )
+        ],
+        tool_batch=ToolBatchResult(
+            response=None,
+            tool_results=[
+                ToolResult(
+                    tool_call_id="call_search",
+                    name="web_search",
+                    success=True,
+                    output="No results found for: today ai news",
+                    summary="baidu_public: 0 result(s)",
+                    summary_payload={
+                        "provider": "baidu_public",
+                        "provider_mode": "public",
+                        "provider_chain": ["public:baidu"],
+                        "attempted_backends": ["public:baidu"],
+                        "selected_backend": "public:baidu",
+                        "used_fallback": False,
+                        "status": "no_results",
+                        "result_count": 0,
+                        "cache_hit": False,
+                        "items": [],
+                    },
+                )
+            ],
+            total_tokens=8,
+            completion_tokens_used=8,
+        ),
+    )
+
+    result = await TurnExecutor.run(
+        state=state,
+        io=io,
+        prep=prep,
+        request=SimpleNamespace(
+            input_variables={},
+            conversation_id=1072,
+        ),
+        agent=SimpleNamespace(id=1),
+    )
+
+    assert result.output
+    assert "没有找到" in result.output
+    assert result.final_output_source == "tool_evidence_completed"
+    assert len(io.call_history) == 1
+    assert not any(
+        call.get("breach_retry_result") == "post_tool_follow_up_retry"
+        for call in io.call_history
+    )
+    assert not any(
+        event.kind == "turn.round_started"
+        and event.data.get("round_kind") == "post_tool_follow_up_retry"
+        for event in state.turn_events
+    )
+    assert state.intent_plan[0].status == "completed"
+    assert state.intent_plan[0].metadata.get("requires_fetch_url") is None
+    assert state.intent_plan[0].metadata["auto_fetch_gate_reason"] == (
+        "search_no_results_completed"
     )
 
 

@@ -17,6 +17,17 @@ from .types import ProviderFailureKind
 
 class FailureClassifier:
     @staticmethod
+    def _should_ignore_tool_failure(
+        result: ToolResult,
+        *,
+        successful_fetch_url: bool,
+    ) -> bool:
+        error_type = str(result.error_type or "").strip()
+        if error_type == "search_candidates_exhausted" and successful_fetch_url:
+            return True
+        return False
+
+    @staticmethod
     def classify_exception(
         exc: BaseException,
     ) -> tuple[ProviderFailureKind, dict[str, Any]]:
@@ -55,8 +66,17 @@ class FailureClassifier:
     ) -> tuple[ProviderFailureKind, list[dict[str, Any]]]:
         events: list[dict[str, Any]] = []
         kind: ProviderFailureKind = "none"
+        successful_fetch_url = any(
+            result.success and str(result.name or "").strip() == "fetch_url"
+            for result in tool_results
+        )
         for result in tool_results:
             if result.success:
+                continue
+            if FailureClassifier._should_ignore_tool_failure(
+                result,
+                successful_fetch_url=successful_fetch_url,
+            ):
                 continue
             events.append(
                 {
