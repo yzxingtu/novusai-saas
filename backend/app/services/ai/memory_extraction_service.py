@@ -106,7 +106,7 @@ class MemoryExtractionService:
 
                 return result
         except Exception as exc:
-            logger.debug(
+            logger.warning(
                 "LLM memory extraction failed: tenant={} agent={} err={}",
                 self.tenant_id,
                 agent_id,
