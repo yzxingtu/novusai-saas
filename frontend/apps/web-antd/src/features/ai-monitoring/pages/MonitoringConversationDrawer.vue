@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import type {
   MonitoringConversationDetail,
+  MonitoringConversationMessage,
   MonitoringIntentPlanItem,
   MonitoringProviderEvent,
   MonitoringRetryEvent,

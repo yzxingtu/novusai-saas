@@ -2,7 +2,7 @@
 
 import { mount } from '@vue/test-utils';
 
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import IdentityQuickCard from '../IdentityQuickCard.vue';
 
@@ -10,8 +10,20 @@ const dialogMocks = vi.hoisted(() => ({
   openIdentityDetailDialog: vi.fn(),
 }));
 
+const presenceMocks = vi.hoisted(() => ({
+  ensurePresenceLoaded: vi.fn(),
+  isOnline: vi.fn(),
+}));
+
 vi.mock('#/locales', () => ({
   $t: (key: string) => key,
+}));
+
+vi.mock('#/store', () => ({
+  usePresenceStore: () => ({
+    ensurePresenceLoaded: presenceMocks.ensurePresenceLoaded,
+    isOnline: presenceMocks.isOnline,
+  }),
 }));
 
 vi.mock('#/utils/common', () => ({
@@ -121,6 +133,12 @@ vi.mock('@vben/icons', async () => {
 });
 
 describe('IdentityQuickCard', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    presenceMocks.ensurePresenceLoaded.mockResolvedValue(true);
+    presenceMocks.isOnline.mockReturnValue(false);
+  });
+
   it('renders read-only status chips and fallback preview fields', () => {
     const wrapper = mount(IdentityQuickCard, {
       props: {
@@ -150,6 +168,11 @@ describe('IdentityQuickCard', () => {
     expect(wrapper.text()).toContain('tenant.buyer');
     expect(wrapper.text()).toContain('Nova Tenant');
     expect(wrapper.text()).toContain('buyer@example.com');
+    expect(
+      wrapper.findComponent({ name: 'IdentitySummaryCard' }).props(
+        'showOnlineStatus',
+      ),
+    ).toBe(true);
   });
 
   it('shows the detail action and opens the drawer with merged fallback data', async () => {

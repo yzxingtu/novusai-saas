@@ -9,6 +9,11 @@ import IdentityDetailDrawer from '../IdentityDetailDrawer.vue';
 
 const closeIdentityDetailDialog = vi.fn();
 
+const presenceMocks = vi.hoisted(() => ({
+  ensurePresenceLoaded: vi.fn(),
+  isOnline: vi.fn(),
+}));
+
 const dialogState = reactive({
   detail: null as any,
   error: null as null | string,
@@ -19,6 +24,13 @@ const dialogState = reactive({
 
 vi.mock('#/locales', () => ({
   $t: (key: string) => key,
+}));
+
+vi.mock('#/store', () => ({
+  usePresenceStore: () => ({
+    ensurePresenceLoaded: presenceMocks.ensurePresenceLoaded,
+    isOnline: presenceMocks.isOnline,
+  }),
 }));
 
 vi.mock('#/utils/common', () => ({
@@ -206,6 +218,9 @@ vi.mock('@vben/icons', async () => {
 
 describe('IdentityDetailDrawer', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
+    presenceMocks.ensurePresenceLoaded.mockResolvedValue(true);
+    presenceMocks.isOnline.mockReturnValue(false);
     closeIdentityDetailDialog.mockReset();
     dialogState.detail = null;
     dialogState.error = null;
@@ -249,6 +264,11 @@ describe('IdentityDetailDrawer', () => {
     expect(wrapper.text()).toContain('tenant.buyer');
     expect(wrapper.text()).toContain('Nova Tenant');
     expect(wrapper.find('[data-testid="alert"]').exists()).toBe(true);
+    expect(
+      wrapper.findComponent({ name: 'IdentitySummaryCard' }).props(
+        'showOnlineStatus',
+      ),
+    ).toBe(true);
   });
 
   it('renders the three detail sections in a fixed order', () => {

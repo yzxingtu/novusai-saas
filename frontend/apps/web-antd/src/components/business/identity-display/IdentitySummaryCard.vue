@@ -2,12 +2,13 @@
 import type { IdentityDetail, IdentityDetailRequest } from './identity-detail';
 import type { IdentityDisplayModel } from './types';
 
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
 import { Avatar, Tag } from 'ant-design-vue';
 
+import { usePresenceStore } from '#/store';
 import { toAvatarDisplayUrl } from '#/utils/image';
 
 import {
@@ -21,12 +22,83 @@ import {
 import {
   createIdentityDetailPreview,
   mergeIdentityDetailFallbacks,
+  normalizeIdentitySubjectType,
 } from './identity-detail';
 import {
   resolveIdentityAvatarText,
   resolveIdentityContextIcon,
   resolveIdentityDisplayTitle,
 } from './types';
+
+interface IdentityPresenceTarget {
+  scope: 'admin' | 'tenant';
+  tenantId?: number;
+  userId: number;
+  userType: 'admin' | 'tenant_admin' | 'tenant_user';
+}
+
+function toFiniteNumber(value: unknown): null | number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function resolvePresenceTarget(
+  detail: IdentityDetail,
+  detailRequest?: IdentityDetailRequest | null,
+): IdentityPresenceTarget | null {
+  const scope = detailRequest?.scope;
+  const userId = toFiniteNumber(detail.id);
+  if (!scope || userId === null) {
+    return null;
+  }
+
+  const tenantId = toFiniteNumber(detail.tenantId ?? detailRequest?.tenantId);
+  const subjectType = normalizeIdentitySubjectType(
+    detailRequest?.subjectType ?? detail.userType,
+  );
+
+  if (scope === 'admin') {
+    if (subjectType === 'admin') {
+      return {
+        scope,
+        userId,
+        userType: 'admin',
+      };
+    }
+    if (subjectType === 'tenant_user' && tenantId !== null) {
+      return {
+        scope,
+        tenantId,
+        userId,
+        userType: 'tenant_user',
+      };
+    }
+    if (subjectType === 'tenant_admin' && tenantId !== null) {
+      return {
+        scope,
+        tenantId,
+        userId,
+        userType: 'tenant_admin',
+      };
+    }
+    return null;
+  }
+
+  if (subjectType === 'tenant_admin') {
+    return {
+      scope,
+      userId,
+      userType: 'tenant_admin',
+    };
+  }
+  if (subjectType === 'tenant_user') {
+    return {
+      scope,
+      userId,
+      userType: 'tenant_user',
+    };
+  }
+  return null;
+}
 
 defineOptions({ name: 'IdentitySummaryCard' });
 
@@ -35,14 +107,18 @@ const props = withDefaults(
     detailRequest?: IdentityDetailRequest | null;
     model: IdentityDetail | IdentityDisplayModel;
     mode?: Extract<IdentitySummaryMode, 'embedded' | 'quick'>;
+    showOnlineStatus?: boolean;
     showRows?: boolean;
   }>(),
   {
     detailRequest: null,
     mode: 'embedded',
+    showOnlineStatus: false,
     showRows: true,
   },
 );
+
+const presenceStore = usePresenceStore();
 
 const previewDetail = computed<IdentityDetail>(() =>
   createIdentityDetailPreview({
@@ -91,6 +167,50 @@ const primaryContextValue = computed(() =>
 const primaryContextIcon = computed(() =>
   resolveIdentityContextIcon(previewDetail.value),
 );
+
+const presenceTarget = computed(() =>
+  resolvePresenceTarget(previewDetail.value, props.detailRequest),
+);
+
+const presenceResolved = ref(false);
+let latestPresenceRequestId = 0;
+
+watch(
+  [() => props.showOnlineStatus, presenceTarget],
+  async ([showOnlineStatus, target]) => {
+    const requestId = ++latestPresenceRequestId;
+    presenceResolved.value = false;
+
+    if (!showOnlineStatus || !target) {
+      return;
+    }
+
+    const loaded = await presenceStore.ensurePresenceLoaded(
+      target.userType,
+      target.scope,
+      target.tenantId,
+    );
+    if (requestId !== latestPresenceRequestId) {
+      return;
+    }
+    presenceResolved.value = loaded;
+  },
+  {
+    immediate: true,
+  },
+);
+
+const showPresenceIndicator = computed(
+  () => props.showOnlineStatus && presenceResolved.value && !!presenceTarget.value,
+);
+
+const presenceOnline = computed(() => {
+  const target = presenceTarget.value;
+  if (!target || !presenceResolved.value) {
+    return false;
+  }
+  return presenceStore.isOnline(target.userType, target.userId, target.tenantId);
+});
 </script>
 
 <template>
@@ -117,6 +237,12 @@ const primaryContextIcon = computed(() =>
             {{ avatarText }}
           </template>
         </Avatar>
+        <span
+          v-if="showPresenceIndicator"
+          data-testid="presence-indicator"
+          class="absolute -bottom-0.5 -right-0.5 block size-3 rounded-full border-2 border-background"
+          :class="presenceOnline ? 'bg-green-500' : 'bg-muted-foreground/30'"
+        ></span>
       </div>
 
       <div class="identity-summary-card__main">
@@ -220,6 +346,7 @@ const primaryContextIcon = computed(() =>
 
 .identity-summary-card__avatar-wrap {
   flex: 0 0 auto;
+  position: relative;
 }
 
 .identity-summary-card__avatar {

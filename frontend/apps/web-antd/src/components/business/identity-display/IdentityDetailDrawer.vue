@@ -67,6 +67,7 @@ const sections = computed(() => {
           :detail-request="identityDetailDialogState.request"
           :model="detail"
           mode="embedded"
+          :show-online-status="true"
           :show-rows="false"
         />
 

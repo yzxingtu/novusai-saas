@@ -64,6 +64,7 @@ async function handleOpenDetail() {
       :detail-request="detailRequest"
       :model="model"
       mode="quick"
+      :show-online-status="true"
     />
 
     <div v-if="canOpenDetail" class="identity-quick-card__actions">

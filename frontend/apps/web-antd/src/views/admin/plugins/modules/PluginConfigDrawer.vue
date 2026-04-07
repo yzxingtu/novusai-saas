@@ -10,6 +10,7 @@ import type {
   PluginBackupInfo,
   PluginInfo,
   PluginLicenseInfo,
+  PluginLifecycleAuditReport,
   PluginTenantAssignmentInfo,
   PluginVersionInfo,
 } from '#/api/admin/plugin';
@@ -98,7 +99,7 @@ const configValues = ref<Record<string, unknown>>({});
 const configSaving = ref(false);
 const upgrading = ref(false);
 const pluginAuditLoading = ref(false);
-const pluginAuditPayload = ref<null | Record<string, unknown>>(null);
+const pluginAuditPayload = ref<null | PluginLifecycleAuditReport>(null);
 
 const tenantAssignments = ref<PluginTenantAssignmentInfo[]>([]);
 const allTenants = ref<Array<{ id: number; name: string }>>([]);
@@ -268,9 +269,9 @@ async function reload() {
 async function loadPluginAudit(pluginId: number) {
   pluginAuditLoading.value = true;
   try {
-    pluginAuditPayload.value = (await getPluginLifecycleAuditApi({
+    pluginAuditPayload.value = await getPluginLifecycleAuditApi({
       plugin_id: pluginId,
-    })) as Record<string, unknown>;
+    });
   } catch {
     pluginAuditPayload.value = null;
   } finally {

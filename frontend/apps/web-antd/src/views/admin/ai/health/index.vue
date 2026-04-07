@@ -87,7 +87,7 @@ const unavailableCount = computed(
   () => statuses.value.filter((s) => !s.is_available).length,
 );
 
-const runtimeAgentId = ref<null | number>(null);
+const runtimeAgentId = ref<number>();
 const runtimeLoading = ref(false);
 const runtimeResultTitle = ref('');
 const runtimeResultOpen = ref(false);
@@ -99,12 +99,16 @@ function openRuntimeResult(title: string, payload: unknown) {
   runtimeResultOpen.value = true;
 }
 
+function getRuntimeAgentParams(): undefined | { agent_id: number } {
+  return typeof runtimeAgentId.value === 'number'
+    ? { agent_id: runtimeAgentId.value }
+    : undefined;
+}
+
 async function runRuntimeDoctor() {
   runtimeLoading.value = true;
   try {
-    const result = await getAIRuntimeDoctorApi(
-      runtimeAgentId.value ? { agent_id: runtimeAgentId.value } : undefined,
-    );
+    const result = await getAIRuntimeDoctorApi(getRuntimeAgentParams());
     openRuntimeResult('Runtime Doctor', result);
   } finally {
     runtimeLoading.value = false;
@@ -114,9 +118,7 @@ async function runRuntimeDoctor() {
 async function runRuntimeSmoke() {
   runtimeLoading.value = true;
   try {
-    const result = await runAIRuntimeSmokeApi(
-      runtimeAgentId.value ? { agent_id: runtimeAgentId.value } : undefined,
-    );
+    const result = await runAIRuntimeSmokeApi(getRuntimeAgentParams());
     openRuntimeResult('Runtime Smoke', result);
   } finally {
     runtimeLoading.value = false;
@@ -126,9 +128,7 @@ async function runRuntimeSmoke() {
 async function runRuntimeCapabilities() {
   runtimeLoading.value = true;
   try {
-    const result = await getAIRuntimeCapabilitiesApi(
-      runtimeAgentId.value ? { agent_id: runtimeAgentId.value } : undefined,
-    );
+    const result = await getAIRuntimeCapabilitiesApi(getRuntimeAgentParams());
     openRuntimeResult('Runtime Capabilities', result);
   } finally {
     runtimeLoading.value = false;

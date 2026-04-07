@@ -2734,7 +2734,7 @@ export function useAIChat(options: UseAIChatOptions) {
       if (shouldSyncConversationHistory) {
         if (committedConversationSyncPromise) {
           await committedConversationSyncPromise;
-        } else {
+        } else if (interruptedConversationId !== null) {
           await syncConversationAfterInterrupt(
             interruptedConversationId,
             interruptedHistoryBaseline,

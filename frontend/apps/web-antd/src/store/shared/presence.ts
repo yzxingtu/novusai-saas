@@ -42,6 +42,23 @@ interface PresenceResponse {
   details: Record<string, PresenceDetail>;
 }
 
+type PresenceLoadScope = 'admin' | 'tenant';
+
+interface PresenceLoadTarget {
+  key: string;
+  load: () => Promise<boolean>;
+}
+
+function createPresenceLoadKey(
+  scope: PresenceLoadScope,
+  userType: string,
+  tenantId?: number,
+): string {
+  return typeof tenantId === 'number'
+    ? `${scope}:${userType}:${tenantId}`
+    : `${scope}:${userType}`;
+}
+
 export const usePresenceStore = defineStore('presence', () => {
   const accessStore = useAccessStore();
   const tabbarStore = useTabbarStore();
@@ -65,8 +82,17 @@ export const usePresenceStore = defineStore('presence', () => {
   /** Tenant admin online map (when admin views tenant detail) / 指定企业的管理员在线 */
   const tenantPresenceMap = reactive(new Map<number, Set<number>>());
 
+  /** Tenant user online map (when admin views tenant detail) / 指定企业的业务用户在线 */
+  const tenantUserPresenceMap = reactive(new Map<number, Set<number>>());
+
   /** Whether initialized / 是否已初始化 */
   const initialized = ref(false);
+
+  /** Loaded presence targets / 已完成初始化加载的 presence 目标 */
+  const loadedPresenceKeys = reactive(new Set<string>());
+
+  /** In-flight presence requests / 进行中的 presence 请求 */
+  const pendingPresenceLoads = new Map<string, Promise<boolean>>();
 
   /** Fixed handler reference for symmetric unregister / 固定 handler 引用 */
   const handlePresenceOnline = (data: unknown) => {
@@ -230,6 +256,7 @@ export const usePresenceStore = defineStore('presence', () => {
         for (const id of online_ids) {
           adminOnlineIds.add(id);
         }
+        loadedPresenceKeys.add(createPresenceLoadKey('admin', 'admin'));
 
         break;
       }
@@ -238,6 +265,7 @@ export const usePresenceStore = defineStore('presence', () => {
         for (const id of online_ids) {
           tenantAdminOnlineIds.add(id);
         }
+        loadedPresenceKeys.add(createPresenceLoadKey('tenant', 'tenant_admin'));
 
         break;
       }
@@ -246,6 +274,7 @@ export const usePresenceStore = defineStore('presence', () => {
         for (const id of online_ids) {
           tenantUserOnlineIds.add(id);
         }
+        loadedPresenceKeys.add(createPresenceLoadKey('tenant', 'tenant_user'));
 
         break;
       }
@@ -276,6 +305,10 @@ export const usePresenceStore = defineStore('presence', () => {
       return tenantAdminOnlineIds.has(userId);
     }
     if (userType === 'tenant_user') {
+      if (tenantId !== undefined) {
+        const ids = tenantUserPresenceMap.get(tenantId);
+        return ids ? ids.has(userId) : false;
+      }
       return tenantUserOnlineIds.has(userId);
     }
     return false;
@@ -315,77 +348,170 @@ export const usePresenceStore = defineStore('presence', () => {
   /**
    * Load admin presence / 加载平台管理员在线状态
    */
-  async function loadAdminPresence(): Promise<void> {
+  async function loadAdminPresence(): Promise<boolean> {
     try {
       const data =
         await requestClient.get<PresenceResponse>('/admin/ws/presence');
-      if (data?.online_ids) {
-        adminOnlineIds.clear();
-        for (const id of data.online_ids) {
-          adminOnlineIds.add(id);
-        }
+      adminOnlineIds.clear();
+      for (const id of data?.online_ids ?? []) {
+        adminOnlineIds.add(id);
       }
+      loadedPresenceKeys.add(createPresenceLoadKey('admin', 'admin'));
+      return true;
     } catch {
       console.error('[Presence] Failed to load admin presence');
+      return false;
     }
   }
 
   /**
    * Load tenant admin presence / 加载指定企业的管理员在线状态
    */
-  async function loadTenantPresence(tenantId: number): Promise<void> {
+  async function loadTenantPresence(tenantId: number): Promise<boolean> {
     try {
       const data = await requestClient.get<PresenceResponse>(
         `/admin/ws/presence/tenant/${tenantId}`,
       );
-      if (data?.online_ids) {
-        const ids = new Set<number>();
-        for (const id of data.online_ids) {
-          ids.add(id);
-        }
-        tenantPresenceMap.set(tenantId, ids);
+      const ids = new Set<number>();
+      for (const id of data?.online_ids ?? []) {
+        ids.add(id);
       }
+      tenantPresenceMap.set(tenantId, ids);
+      loadedPresenceKeys.add(
+        createPresenceLoadKey('admin', 'tenant_admin', tenantId),
+      );
+      return true;
     } catch {
       console.error(`[Presence] Failed to load tenant ${tenantId} presence`);
+      return false;
     }
   }
 
   /**
    * Load current tenant admin presence (tenant-side) / 加载当前企业管理员在线状态
    */
-  async function loadCurrentTenantPresence(): Promise<void> {
+  async function loadCurrentTenantPresence(): Promise<boolean> {
     try {
       const data = await requestClient.get<PresenceResponse>(
         '/tenant/ws/presence',
       );
-      if (data?.online_ids) {
-        tenantAdminOnlineIds.clear();
-        for (const id of data.online_ids) {
-          tenantAdminOnlineIds.add(id);
-        }
+      tenantAdminOnlineIds.clear();
+      for (const id of data?.online_ids ?? []) {
+        tenantAdminOnlineIds.add(id);
       }
+      loadedPresenceKeys.add(createPresenceLoadKey('tenant', 'tenant_admin'));
+      return true;
     } catch {
       console.error('[Presence] Failed to load current tenant presence');
+      return false;
     }
   }
 
   /**
    * Load tenant user presence (tenant-side) / 加载当前企业业务用户在线状态
    */
-  async function loadTenantUserPresence(): Promise<void> {
+  async function loadTenantUserPresence(): Promise<boolean> {
     try {
       const data = await requestClient.get<PresenceResponse>(
         '/tenant/ws/presence/users',
       );
-      if (data?.online_ids) {
-        tenantUserOnlineIds.clear();
-        for (const id of data.online_ids) {
-          tenantUserOnlineIds.add(id);
-        }
+      tenantUserOnlineIds.clear();
+      for (const id of data?.online_ids ?? []) {
+        tenantUserOnlineIds.add(id);
       }
+      loadedPresenceKeys.add(createPresenceLoadKey('tenant', 'tenant_user'));
+      return true;
     } catch {
       console.error('[Presence] Failed to load tenant user presence');
+      return false;
     }
+  }
+
+  function resolvePresenceLoadTarget(
+    userType: string,
+    scope: PresenceLoadScope,
+    tenantId?: number,
+  ): null | PresenceLoadTarget {
+    if (scope === 'admin') {
+      if (userType === 'admin') {
+        return {
+          key: createPresenceLoadKey(scope, userType),
+          load: loadAdminPresence,
+        };
+      }
+      if (userType === 'tenant_user' && typeof tenantId === 'number') {
+        return {
+          key: createPresenceLoadKey(scope, userType, tenantId),
+          load: async () => {
+            try {
+              const data = await requestClient.get<PresenceResponse>(
+                `/admin/ws/presence/tenant/${tenantId}/users`,
+              );
+              const ids = new Set<number>();
+              for (const id of data?.online_ids ?? []) {
+                ids.add(id);
+              }
+              tenantUserPresenceMap.set(tenantId, ids);
+              loadedPresenceKeys.add(
+                createPresenceLoadKey('admin', 'tenant_user', tenantId),
+              );
+              return true;
+            } catch {
+              console.error(
+                `[Presence] Failed to load tenant ${tenantId} user presence`,
+              );
+              return false;
+            }
+          },
+        };
+      }
+      if (userType === 'tenant_admin' && typeof tenantId === 'number') {
+        return {
+          key: createPresenceLoadKey(scope, userType, tenantId),
+          load: () => loadTenantPresence(tenantId),
+        };
+      }
+      return null;
+    }
+
+    if (userType === 'tenant_admin') {
+      return {
+        key: createPresenceLoadKey(scope, userType),
+        load: loadCurrentTenantPresence,
+      };
+    }
+    if (userType === 'tenant_user') {
+      return {
+        key: createPresenceLoadKey(scope, userType),
+        load: loadTenantUserPresence,
+      };
+    }
+    return null;
+  }
+
+  async function ensurePresenceLoaded(
+    userType: string,
+    scope: PresenceLoadScope,
+    tenantId?: number,
+  ): Promise<boolean> {
+    const target = resolvePresenceLoadTarget(userType, scope, tenantId);
+    if (!target) {
+      return false;
+    }
+    if (loadedPresenceKeys.has(target.key)) {
+      return true;
+    }
+
+    const pending = pendingPresenceLoads.get(target.key);
+    if (pending) {
+      return pending;
+    }
+
+    const request = target
+      .load()
+      .finally(() => pendingPresenceLoads.delete(target.key));
+    pendingPresenceLoads.set(target.key, request);
+    return request;
   }
 
   // ============================================================
@@ -476,6 +602,9 @@ export const usePresenceStore = defineStore('presence', () => {
     tenantAdminOnlineIds.clear();
     tenantUserOnlineIds.clear();
     tenantPresenceMap.clear();
+    tenantUserPresenceMap.clear();
+    loadedPresenceKeys.clear();
+    pendingPresenceLoads.clear();
     initialized.value = false;
   }
 
@@ -484,6 +613,7 @@ export const usePresenceStore = defineStore('presence', () => {
     tenantAdminOnlineIds,
     tenantUserOnlineIds,
     tenantPresenceMap,
+    tenantUserPresenceMap,
     isOnline,
     getOnlineCount,
     getTenantOnlineIds,
@@ -491,6 +621,7 @@ export const usePresenceStore = defineStore('presence', () => {
     loadTenantPresence,
     loadCurrentTenantPresence,
     loadTenantUserPresence,
+    ensurePresenceLoaded,
     initSocketHandlers,
     $reset,
   };
