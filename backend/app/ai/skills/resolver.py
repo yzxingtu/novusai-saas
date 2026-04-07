@@ -39,6 +39,12 @@ if TYPE_CHECKING:
 
 logger = LogManager.get_logger("ai.skill.resolver")
 
+_BASELINE_RUNTIME_BUILTINS = (
+    "get_current_time",
+    "web_search",
+    "fetch_url",
+)
+
 
 @dataclass
 class SkillResolveResult:
@@ -472,6 +478,151 @@ class SkillResolver:
         if extra in base:
             return base
         return f"{base} {extra}"
+
+    @classmethod
+    def _build_baseline_builtin_tool(
+        cls,
+        tool_name: str,
+    ) -> ToolDefinition | None:
+        normalized = (tool_name or "").strip().lower()
+        tool: ToolDefinition | None = None
+        if normalized == "get_current_time":
+            tool = ToolDefinition(
+                name="get_current_time",
+                description=cls._augment_builtin_tool_description(
+                    "get_current_time",
+                    "Get the current time, date, and weekday in the requested timezone.",
+                ),
+                tool_type=ToolTypeEnum.BUILTIN.value,
+                parameters=[
+                    ToolParameter(
+                        name="timezone_name",
+                        type="string",
+                        description=(
+                            "Optional IANA timezone name like Asia/Shanghai or "
+                            "America/Los_Angeles."
+                        ),
+                        required=False,
+                    ),
+                    ToolParameter(
+                        name="format",
+                        type="string",
+                        description=(
+                            "Optional strftime format string. Defaults to "
+                            "%Y-%m-%d %H:%M:%S."
+                        ),
+                        required=False,
+                    ),
+                ],
+                config={"builtin_type": "get_current_time", "auto_injected": True},
+                enabled=True,
+                timeout=15,
+                source_skill_name="get_current_time",
+                source_skill_type=ToolTypeEnum.BUILTIN.value,
+            )
+        elif normalized == "web_search":
+            tool = ToolDefinition(
+                name="web_search",
+                description=cls._augment_builtin_tool_description(
+                    "web_search",
+                    "Search the web for current information and candidate source URLs.",
+                ),
+                tool_type=ToolTypeEnum.BUILTIN.value,
+                parameters=[
+                    ToolParameter(
+                        name="query",
+                        type="string",
+                        description="Search query to look up on the web.",
+                        required=True,
+                    ),
+                    ToolParameter(
+                        name="max_results",
+                        type="integer",
+                        description="Optional number of results to return. Defaults to 5 and is capped at 10.",
+                        required=False,
+                    ),
+                ],
+                config={"builtin_type": "web_search", "auto_injected": True},
+                enabled=True,
+                timeout=30,
+                source_skill_name="web_search",
+                source_skill_type=ToolTypeEnum.BUILTIN.value,
+            )
+        elif normalized == "fetch_url":
+            tool = ToolDefinition(
+                name="fetch_url",
+                description=cls._augment_builtin_tool_description(
+                    "fetch_url",
+                    "Fetch and read the content of a specific URL.",
+                ),
+                tool_type=ToolTypeEnum.BUILTIN.value,
+                parameters=[
+                    ToolParameter(
+                        name="url",
+                        type="string",
+                        description="Absolute http or https URL to fetch.",
+                        required=True,
+                    ),
+                    ToolParameter(
+                        name="max_length",
+                        type="integer",
+                        description="Optional max characters to return. Defaults to 5000.",
+                        required=False,
+                    ),
+                ],
+                config={"builtin_type": "fetch_url", "auto_injected": True},
+                enabled=True,
+                timeout=30,
+                source_skill_name="fetch_url",
+                source_skill_type=ToolTypeEnum.BUILTIN.value,
+            )
+        if tool is None:
+            return None
+        cls._apply_tool_semantics(tool)
+        return tool
+
+    @classmethod
+    def _inject_baseline_runtime_builtins(
+        cls,
+        result: SkillResolveResult,
+    ) -> None:
+        existing_tool_names = {tool.name for tool in result.tools}
+        existing_descriptor_names = {
+            descriptor.name
+            for descriptor in result.capability_descriptors
+            if descriptor.kind == "prompt_skill"
+        }
+
+        for tool_name in _BASELINE_RUNTIME_BUILTINS:
+            if tool_name in existing_tool_names:
+                continue
+
+            tool = cls._build_baseline_builtin_tool(tool_name)
+            if tool is None:
+                continue
+
+            result.tools.append(tool)
+            result.tool_consent_modes.setdefault(tool.name, "auto")
+            if tool_name not in existing_descriptor_names:
+                result.capability_descriptors.append(
+                    CapabilityDescriptor(
+                        name=tool_name,
+                        kind="prompt_skill",
+                        source="system_baseline_builtin",
+                        description=(
+                            "System baseline builtin injected at runtime for "
+                            "fast-lane time/date queries."
+                        ),
+                        metadata={
+                            "auto_injected": True,
+                            "resolved_tool_names": [tool.name],
+                            "resolved_tool_count": 1,
+                            "has_execution_tools": True,
+                        },
+                    )
+                )
+                existing_descriptor_names.add(tool_name)
+            existing_tool_names.add(tool.name)
 
     def _resolve_builtin(
         self,
@@ -1140,6 +1291,8 @@ async def resolve_for_agent(
         )
         if skill_id in package_name_by_skill:
             tool.source_package_name = package_name_by_skill[skill_id]
+
+    resolver._inject_baseline_runtime_builtins(resolve_result)
 
     if hook_registry.has_hooks(HookPoint.AFTER_SKILL_RESOLVE):
         hook_ctx = await hook_registry.trigger(

@@ -29,8 +29,10 @@ _cache = mod._cache
 _cache_get = mod._cache_get
 _cache_set = mod._cache_set
 _expand_city_queries = mod._expand_city_queries
+_normalize_city_label = mod._normalize_city_label
 _rank_city_candidate = mod._rank_city_candidate
 _NOMINATIM_TIMEOUT = mod._NOMINATIM_TIMEOUT
+_NOMINATIM_ADMIN_RETRY_TIMEOUT = mod._NOMINATIM_ADMIN_RETRY_TIMEOUT
 
 
 # ── WMO Code 映射测试 ──
@@ -76,7 +78,8 @@ class TestWmoCodeMapping:
         assert "ConnectError" in summary
 
     def test_nominatim_timeout_allows_more_headroom(self):
-        assert _NOMINATIM_TIMEOUT == 10.0
+        assert _NOMINATIM_TIMEOUT == 4.0
+        assert _NOMINATIM_ADMIN_RETRY_TIMEOUT == 5.0
 
 
 # ── 缓存测试 / cache tests ──
@@ -191,6 +194,14 @@ class TestSearchCity:
         assert "北京市" in expanded
         assert "Beijing" in expanded
 
+    def test_expand_city_queries_adds_county_fallback_variant(self):
+        expanded = _expand_city_queries("凤凰县")
+        assert expanded[0] == "凤凰县"
+        assert "凤凰" in expanded
+
+    def test_normalize_city_label_trims_county_suffix(self):
+        assert _normalize_city_label("凤凰县") == "凤凰"
+
     @pytest.mark.asyncio
     async def test_search_city_falls_back_to_open_meteo_when_nominatim_empty(self):
         with (
@@ -215,6 +226,119 @@ class TestSearchCity:
 
         assert len(result) == 1
         assert result[0]["name"] == "北京市"
+
+    @pytest.mark.asyncio
+    async def test_search_city_retries_without_county_suffix_when_first_query_is_empty(self):
+        open_meteo_results = AsyncMock(
+            side_effect=[
+                [
+                    {
+                        "name": "凤凰",
+                        "country": "China",
+                        "admin1": "湖南",
+                        "latitude": 27.9483,
+                        "longitude": 109.5996,
+                    }
+                ],
+            ]
+        )
+
+        with (
+            patch.object(mod, "_search_city_nominatim", new=AsyncMock(return_value=[])),
+            patch.object(mod, "_search_city_open_meteo", new=open_meteo_results),
+        ):
+            result = await search_city("凤凰县", count=1)
+
+        assert len(result) == 1
+        assert result[0]["name"] == "凤凰"
+        assert open_meteo_results.await_args_list[0].args == ("凤凰", 1)
+        assert "timeout" in open_meteo_results.await_args_list[0].kwargs
+
+    @pytest.mark.asyncio
+    async def test_search_city_uses_extended_nominatim_timeout_for_precise_admin_query(self):
+        nominatim_results = AsyncMock(
+            return_value=[
+                {
+                    "name": "凤凰县",
+                    "country": "中国",
+                    "admin1": "湖南省",
+                    "latitude": 28.010585,
+                    "longitude": 109.532129,
+                }
+            ]
+        )
+
+        with (
+            patch.object(mod, "_search_city_nominatim", new=nominatim_results),
+            patch.object(mod, "_search_city_open_meteo", new=AsyncMock(return_value=[])),
+        ):
+            result = await search_city("凤凰县", count=1)
+
+        assert len(result) == 1
+        assert result[0]["name"] == "凤凰县"
+        assert nominatim_results.await_args_list[0].args == ("凤凰县", 1)
+        assert nominatim_results.await_args_list[0].kwargs == {
+            "timeout": _NOMINATIM_ADMIN_RETRY_TIMEOUT
+        }
+
+    @pytest.mark.asyncio
+    async def test_search_city_skips_exact_open_meteo_probe_after_precise_admin_timeout(self):
+        open_meteo_results = AsyncMock(
+            return_value=[
+                {
+                    "name": "凤凰",
+                    "country": "China",
+                    "admin1": "湖南",
+                    "latitude": 27.9483,
+                    "longitude": 109.5996,
+                }
+            ]
+        )
+
+        with (
+            patch.object(mod, "_search_city_nominatim", new=AsyncMock(return_value=[])),
+            patch.object(mod, "_search_city_open_meteo", new=open_meteo_results),
+        ):
+            result = await search_city("凤凰县", count=1)
+
+        assert len(result) == 1
+        assert result[0]["name"] == "凤凰"
+        assert open_meteo_results.await_args_list[0].args == ("凤凰", 1)
+
+    @pytest.mark.asyncio
+    async def test_search_city_skips_open_meteo_when_precise_admin_query_hits_nominatim(self):
+        nominatim_results = AsyncMock(
+            return_value=[
+                {
+                    "name": "凤凰县",
+                    "country": "中国",
+                    "admin1": "湖南省",
+                    "latitude": 28.010585,
+                    "longitude": 109.532129,
+                }
+            ]
+        )
+        open_meteo_results = AsyncMock(
+            return_value=[
+                {
+                    "name": "凤凰",
+                    "country": "中国",
+                    "admin1": "山西",
+                    "latitude": 38.9978,
+                    "longitude": 112.29779,
+                }
+            ]
+        )
+
+        with (
+            patch.object(mod, "_search_city_nominatim", new=nominatim_results),
+            patch.object(mod, "_search_city_open_meteo", new=open_meteo_results),
+        ):
+            result = await search_city("凤凰县", count=1)
+
+        assert len(result) == 1
+        assert result[0]["name"] == "凤凰县"
+        open_meteo_results.assert_not_awaited()
 
     def test_rank_city_candidate_prefers_municipality_match(self):
         expanded = _expand_city_queries("北京")

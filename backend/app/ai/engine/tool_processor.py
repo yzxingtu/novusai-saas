@@ -30,6 +30,7 @@ from app.ai.types import ChatMessage
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
+from .execution_state_machine import get_current_execution_state_machine
 
 logger = LogManager.get_logger("ai.engine.tool_processor")
 
@@ -321,6 +322,8 @@ class ToolCallProcessor:
         }
         # Same-turn dedupe for idempotent readonly tools (665-style repeat calls).
         self._readonly_success_cache: dict[str, tuple[ToolResult, int]] = {}
+        self._page_context_cache: dict[str, tuple[ToolResult, int]] = {}
+        self._search_query_cache: dict[str, tuple[ToolResult, int]] = {}
 
     # ========================================
     # Core Methods / 核心方法
@@ -401,6 +404,7 @@ class ToolCallProcessor:
         self,
         func_name: str,
         arguments: dict[str, Any],
+        conversation_id: int | None,
     ) -> str | None:
         """Return cache key for dedupe, or None if tool should never be deduped."""
         name = (func_name or "").strip()
@@ -433,35 +437,92 @@ class ToolCallProcessor:
             payload = json.dumps(arguments, sort_keys=True, ensure_ascii=False)
         except (TypeError, ValueError):
             payload = str(arguments)
-        return f"{name}|{payload}{page_suffix}"
+        conv_segment = f"|cid={int(conversation_id or 0)}"
+        return f"{name}|{payload}{page_suffix}{conv_segment}"
+
+    def _cache_kind_for_tool(self, func_name: str) -> str:
+        name = (func_name or "").strip()
+        if name == "web_search":
+            return "search_query"
+        if name == "get_page_context":
+            return "page_context"
+        return "readonly"
+
+    def _cache_signature(
+        self,
+        func_name: str,
+        arguments: dict[str, Any],
+        conversation_id: int | None,
+    ) -> tuple[str, str] | None:
+        key = self._normalized_readonly_cache_key(
+            func_name,
+            arguments,
+            conversation_id,
+        )
+        if not key:
+            return None
+        kind = self._cache_kind_for_tool(func_name)
+        return kind, key
+
+    def _cache_store_for_kind(self, kind: str) -> dict[str, tuple[ToolResult, int]]:
+        state = get_current_execution_state_machine()
+        if state is not None:
+            return state.cache_for_kind(kind)
+        if kind == "search_query":
+            return self._search_query_cache
+        if kind == "page_context":
+            return self._page_context_cache
+        return self._readonly_success_cache
 
     def _try_readonly_cache_hit(
         self,
         func_name: str,
         arguments: dict[str, Any],
+        conversation_id: int | None,
+        tool_call_id: str,
     ) -> tuple[ToolResult, int] | None:
-        key = self._normalized_readonly_cache_key(func_name, arguments)
-        if not key:
+        signature = self._cache_signature(
+            func_name,
+            arguments,
+            conversation_id,
+        )
+        if not signature:
             return None
-        hit = self._readonly_success_cache.get(key)
+        kind, key = signature
+        cache_store = self._cache_store_for_kind(kind)
+        hit = cache_store.get(key)
         if not hit:
             return None
         cached_result, cached_ms = hit
         if not cached_result.success:
             return None
-        return cached_result, cached_ms
+        state = get_current_execution_state_machine()
+        if state is not None:
+            state.register_cache_hit(kind)
+        return replace(cached_result, tool_call_id=tool_call_id, duration_ms=0), cached_ms
 
     def _store_readonly_cache(
         self,
         func_name: str,
         arguments: dict[str, Any],
+        conversation_id: int | None,
         result: ToolResult,
         duration_ms: int,
+        tool_call_id: str,
     ) -> None:
-        key = self._normalized_readonly_cache_key(func_name, arguments)
-        if not key or not result.success:
+        signature = self._cache_signature(
+            func_name,
+            arguments,
+            conversation_id,
+        )
+        if not signature or not result.success:
             return
-        self._readonly_success_cache[key] = (result, duration_ms)
+        kind, key = signature
+        cache_store = self._cache_store_for_kind(kind)
+        cache_store[key] = (
+            replace(result, tool_call_id=tool_call_id, duration_ms=duration_ms),
+            duration_ms,
+        )
 
     @staticmethod
     def parse_arguments(
@@ -512,10 +573,15 @@ class ToolCallProcessor:
         Returns:
             (result, duration_ms)
         """
-        cached = self._try_readonly_cache_hit(func_name, arguments)
+        cached = self._try_readonly_cache_hit(
+            func_name,
+            arguments,
+            conversation_id,
+            tc_id,
+        )
         if cached is not None:
             result, _prev_ms = cached
-            return replace(result, tool_call_id=tc_id, duration_ms=0), 0
+            return result, 0
 
         tc_start = time.perf_counter()
         execution_definitions = self.tools
@@ -530,7 +596,14 @@ class ToolCallProcessor:
         )
         duration_ms = int((time.perf_counter() - tc_start) * 1000)
         self._bump_page_readonly_cache_epoch_if_needed(func_name, arguments, result)
-        self._store_readonly_cache(func_name, arguments, result, duration_ms)
+        self._store_readonly_cache(
+            func_name,
+            arguments,
+            conversation_id,
+            result,
+            duration_ms,
+            tc_id,
+        )
         return result, duration_ms
 
     @staticmethod

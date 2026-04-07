@@ -295,7 +295,6 @@ export const LUCIDE_ICON_NAMES = [
   "sunrise",
   "superscript",
   "table",
-  "table-2",
   "target",
   "terminal",
   "thermometer",
@@ -630,7 +629,6 @@ export const LUCIDE_ICON_IDS = [
   "lucide:sunrise",
   "lucide:superscript",
   "lucide:table",
-  "lucide:table-2",
   "lucide:target",
   "lucide:terminal",
   "lucide:thermometer",
@@ -1619,9 +1617,6 @@ export const LUCIDE_ICON_SUBSET = {
     },
     "table": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M12 3v18\"/><rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"M3 9h18M3 15h18\"/></g>"
-    },
-    "table-2": {
-      "body": "<path fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18\"/>"
     },
     "target": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><circle cx=\"12\" cy=\"12\" r=\"6\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/></g>"

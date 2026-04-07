@@ -50,8 +50,11 @@ _NOMINATIM_REVERSE_URL = "https://nominatim.openstreetmap.org/reverse"
 _NOMINATIM_HEADERS = {"User-Agent": "NovusAI-WeatherPlugin/1.0"}
 
 # ── 超时 / timeouts ──
-_WEATHER_TIMEOUT = 10.0
-_NOMINATIM_TIMEOUT = 10.0
+_WEATHER_TIMEOUT = 5.0
+_GEOCODING_TIMEOUT = 3.0
+_NOMINATIM_TIMEOUT = 4.0
+_NOMINATIM_ADMIN_RETRY_TIMEOUT = 5.0
+_CITY_LOOKUP_TOTAL_TIMEOUT = 8.0
 
 # ── Nominatim Rate-Limit (1 req/s) / Nominatim 限速 1 次每秒 ──
 _nominatim_lock = asyncio.Lock()
@@ -70,9 +73,9 @@ async def _nominatim_throttle() -> None:
 
 
 def _make_client(timeout: float = _WEATHER_TIMEOUT) -> httpx.AsyncClient:
-    # Keep TLS verification enabled by default for all outbound weather requests.
-    transport = httpx.AsyncHTTPTransport(verify=True)
-    return httpx.AsyncClient(timeout=timeout, transport=transport)
+    # httpx verifies TLS by default; keep the default transport to avoid
+    # environment-specific connection issues while preserving certificate checks.
+    return httpx.AsyncClient(timeout=timeout)
 
 
 # ── 内存缓存 (TTL = 600s) ──
@@ -95,6 +98,30 @@ _CITY_QUERY_ALIASES: dict[str, tuple[str, ...]] = {
 }
 
 _CITY_SUFFIXES = ("市", "区", "县", "州", "省", "自治区", "特别行政区")
+_CITY_LABEL_TRIM_SUFFIXES = (
+    "特别行政区",
+    "自治州",
+    "自治区",
+    "自治县",
+    "省",
+    "市",
+    "县",
+)
+_PRECISE_ADMIN_QUERY_SUFFIXES = (
+    "特别行政区",
+    "自治州",
+    "自治区",
+    "自治县",
+    "林区",
+    "新区",
+    "省",
+    "市",
+    "区",
+    "县",
+    "州",
+    "盟",
+    "旗",
+)
 
 
 def _cache_get(key: str) -> Any | None:
@@ -114,6 +141,27 @@ def _cache_set(key: str, value: Any) -> None:
         sorted_keys = sorted(_cache, key=lambda k: _cache[k][0])
         for k in sorted_keys[:100]:
             _cache.pop(k, None)
+
+
+def _remaining_timeout(deadline: float | None, *, minimum: float = 0.5) -> float | None:
+    if deadline is None:
+        return None
+    remaining = deadline - time.monotonic()
+    if remaining <= minimum:
+        return None
+    return remaining
+
+
+def _bounded_timeout(
+    default_timeout: float,
+    deadline: float | None,
+    *,
+    minimum: float = 0.5,
+) -> float | None:
+    remaining = _remaining_timeout(deadline, minimum=minimum)
+    if remaining is None:
+        return None
+    return max(minimum, min(default_timeout, remaining))
 
 
 def _merge_city_results(
@@ -158,6 +206,10 @@ def _expand_city_queries(name: str) -> list[str]:
             expanded.append(text)
 
     has_cjk = any("\u4e00" <= ch <= "\u9fff" for ch in query)
+    if has_cjk:
+        trimmed = _trim_city_label_suffix(query)
+        if trimmed and trimmed != query and trimmed not in expanded:
+            expanded.append(trimmed)
     if has_cjk and not query.endswith(_CITY_SUFFIXES):
         with_suffix = f"{query}市"
         if with_suffix not in expanded:
@@ -174,9 +226,40 @@ def _expand_city_queries(name: str) -> list[str]:
 def _normalize_city_label(value: str) -> str:
     text = str(value or "").strip().lower()
     text = text.replace(" ", "")
-    if text.endswith("市"):
-        return text[:-1]
+    return _trim_city_label_suffix(text)
+
+
+def _trim_city_label_suffix(value: str) -> str:
+    text = str(value or "").strip()
+    for suffix in _CITY_LABEL_TRIM_SUFFIXES:
+        if text.endswith(suffix) and len(text) > len(suffix):
+            return text[: -len(suffix)].strip()
     return text
+
+
+def _needs_precise_nominatim_retry(value: str) -> bool:
+    text = str(value or "").strip()
+    if not text:
+        return False
+    return any(text.endswith(suffix) for suffix in _PRECISE_ADMIN_QUERY_SUFFIXES)
+
+
+def _sort_city_results(
+    *,
+    original_query: str,
+    expanded_queries: list[str],
+    results: list[dict[str, Any]],
+    count: int,
+) -> list[dict[str, Any]]:
+    return sorted(
+        results,
+        key=lambda item: _rank_city_candidate(
+            original_query=original_query,
+            expanded_queries=expanded_queries,
+            candidate=item,
+        ),
+        reverse=True,
+    )[:count]
 
 
 def _rank_city_candidate(
@@ -464,28 +547,56 @@ async def search_city(name: str, count: int = 5) -> list[dict]:
 
     queries = _expand_city_queries(query)
     merged_results: list[dict[str, Any]] = []
+    deadline = time.monotonic() + _CITY_LOOKUP_TOTAL_TIMEOUT
     try:
         for candidate in queries[:1]:
-            results = await _search_city_nominatim(candidate, count)
+            precise_admin_query = _needs_precise_nominatim_retry(candidate)
+            timeout = _bounded_timeout(
+                _NOMINATIM_ADMIN_RETRY_TIMEOUT
+                if precise_admin_query
+                else _NOMINATIM_TIMEOUT,
+                deadline,
+            )
+            if timeout is None:
+                break
+            results = await _search_city_nominatim(
+                candidate,
+                count,
+                timeout=timeout,
+            )
             merged_results = _merge_city_results(merged_results, results, limit=count)
+            if precise_admin_query and merged_results:
+                merged_results = _sort_city_results(
+                    original_query=query,
+                    expanded_queries=queries,
+                    results=merged_results,
+                    count=count,
+                )
+                _cache_set(cache_key, merged_results)
+                return merged_results
 
-        for candidate in queries:
-            results = await _search_city_open_meteo(candidate, count)
+        open_meteo_queries = (
+            queries[1:] if _needs_precise_nominatim_retry(queries[0]) else queries
+        )
+        for candidate in open_meteo_queries:
+            timeout = _bounded_timeout(_GEOCODING_TIMEOUT, deadline)
+            if timeout is None:
+                break
+            results = await _search_city_open_meteo(candidate, count, timeout=timeout)
             merged_results = _merge_city_results(
                 merged_results,
                 results,
                 limit=max(count * 4, count),
             )
+            if count == 1 and merged_results:
+                break
 
-        merged_results = sorted(
-            merged_results,
-            key=lambda item: _rank_city_candidate(
-                original_query=query,
-                expanded_queries=queries,
-                candidate=item,
-            ),
-            reverse=True,
-        )[:count]
+        merged_results = _sort_city_results(
+            original_query=query,
+            expanded_queries=queries,
+            results=merged_results,
+            count=count,
+        )
 
         _cache_set(cache_key, merged_results)
         return merged_results
@@ -498,15 +609,20 @@ async def search_city(name: str, count: int = 5) -> list[dict]:
         return merged_results
 
 
-async def _search_city_nominatim(name: str, count: int) -> list[dict[str, Any]]:
+async def _search_city_nominatim(
+    name: str,
+    count: int,
+    *,
+    timeout: float = _NOMINATIM_TIMEOUT,
+) -> list[dict[str, Any]]:
     try:
         await _nominatim_throttle()
-        async with _make_client(timeout=_NOMINATIM_TIMEOUT) as client:
+        async with _make_client(timeout=timeout) as client:
             resp = await client.get(
                 _NOMINATIM_SEARCH_URL,
                 params={
                     "q": name,
-                    "format": "json",
+                    "format": "jsonv2",
                     "limit": count,
                     "accept-language": "zh",
                     "addressdetails": 1,
@@ -516,7 +632,11 @@ async def _search_city_nominatim(name: str, count: int) -> list[dict[str, Any]]:
             resp.raise_for_status()
             data = resp.json()
     except httpx.TimeoutException:
-        logger.warning("Nominatim search timeout for query='{}'", name)
+        logger.warning(
+            "Nominatim search timeout for query='{}' timeout={}s",
+            name,
+            timeout,
+        )
         return []
     except Exception as exc:
         logger.warning(
@@ -556,9 +676,14 @@ async def _search_city_nominatim(name: str, count: int) -> list[dict[str, Any]]:
     return results[:count]
 
 
-async def _search_city_open_meteo(name: str, count: int) -> list[dict[str, Any]]:
+async def _search_city_open_meteo(
+    name: str,
+    count: int,
+    *,
+    timeout: float = _GEOCODING_TIMEOUT,
+) -> list[dict[str, Any]]:
     try:
-        async with _make_client() as client:
+        async with _make_client(timeout=timeout) as client:
             resp = await client.get(
                 _GEOCODING_URL,
                 params={

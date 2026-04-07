@@ -721,8 +721,53 @@ class StreamExecutionHandler:
         在发送 `done` 事件前启动后台回调，避免前端收到完成事件后立即断开 SSE，
         导致消息持久化 / 统计 / 记忆提取回调被请求取消一并杀掉。
         """
-        if not self.on_complete or self._on_complete_called:
+        task = self._start_on_complete_task(
+            result,
+            defer_post_done=False,
+        )
+        if task is None:
             return
+
+    @staticmethod
+    def _pop_post_done_callback(
+        extra: dict[str, Any] | None,
+    ) -> Callable[[], Awaitable[None]] | None:
+        if not isinstance(extra, dict):
+            return None
+        callback = extra.pop("__post_done_callback__", None)
+        if callable(callback):
+            return callback
+        return None
+
+    def _schedule_background_callback(
+        self,
+        callback: Callable[[], Awaitable[None]],
+    ) -> None:
+        async def _runner() -> None:
+            try:
+                await callback()
+            except Exception as exc:
+                logger.error("post-done callback error: {}", str(exc), exc_info=True)
+            except BaseException as exc:
+                logger.error(
+                    "post-done callback base exception: type={} error={}",
+                    type(exc).__name__,
+                    str(exc),
+                    exc_info=True,
+                )
+
+        task = asyncio.create_task(_runner())
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+
+    def _start_on_complete_task(
+        self,
+        result: ExecutionResult,
+        *,
+        defer_post_done: bool,
+    ) -> asyncio.Task[dict[str, Any] | None] | None:
+        if not self.on_complete or self._on_complete_called:
+            return None
 
         self._on_complete_called = True
 
@@ -737,7 +782,7 @@ class StreamExecutionHandler:
                 metadata["after_turn_error"] = str(exc)
                 result.turn_record["metadata"] = metadata
 
-        async def _runner() -> None:
+        async def _runner() -> dict[str, Any] | None:
             try:
                 if self.prep.context_engine is not None:
                     try:
@@ -762,7 +807,12 @@ class StreamExecutionHandler:
                             str(ctx_base_exc),
                             exc_info=True,
                         )
-                await self.on_complete(result)
+                extra = await self.on_complete(result)
+                if not defer_post_done:
+                    post_done_callback = self._pop_post_done_callback(extra)
+                    if post_done_callback is not None:
+                        await post_done_callback()
+                return extra if isinstance(extra, dict) else None
             except Exception as cb_exc:
                 logger.error("on_complete callback error: {}", str(cb_exc))
             except BaseException as cb_base_exc:
@@ -772,10 +822,24 @@ class StreamExecutionHandler:
                     str(cb_base_exc),
                     exc_info=True,
                 )
+            return None
 
         task = asyncio.create_task(_runner())
         self._background_tasks.add(task)
         task.add_done_callback(self._background_tasks.discard)
+        return task
+
+    async def _await_on_complete_before_done(
+        self,
+        result: ExecutionResult,
+    ) -> dict[str, Any] | None:
+        task = self._start_on_complete_task(
+            result,
+            defer_post_done=True,
+        )
+        if task is None:
+            return None
+        return await asyncio.shield(task)
 
     def _ensure_runtime_turn_record(self) -> dict[str, Any]:
         if not isinstance(self._runtime_turn_record, dict):
@@ -1217,14 +1281,15 @@ class StreamExecutionHandler:
                         }
                     )
 
-            # Start callback before yielding done so client-side disconnect
-            # cannot prevent persistence from even starting.
-            # 在发送 done 之前启动后台回调，确保客户端断开不会阻止持久化开始。
-            self._schedule_on_complete(result)
+            # Await critical completion work before `done` so the conversation
+            # detail view never races an empty shell against the just-finished stream.
+            # 在发送 done 前等待关键持久化完成，避免详情页短暂看到空会话。
+            on_complete_extra = await self._await_on_complete_before_done(result)
+            post_done_callback = self._pop_post_done_callback(on_complete_extra)
+            if post_done_callback is not None:
+                self._schedule_background_callback(post_done_callback)
 
-            # ---- Send done first so UI unlocks immediately ---- / 先发送 done 以便前端立即解锁
-            # on_complete may trigger slow operations (e.g. memory extraction LLM call);
-            # emitting done before the callback prevents the UI from hanging.
+            # ---- Send done after critical persistence ---- / 关键持久化后再发送 done
             yield SSEChunkEncoder.encode(
                 _trace_payload(
                     {
@@ -1267,6 +1332,7 @@ class StreamExecutionHandler:
                             if isinstance(diagnostics_payload, dict)
                             else None
                         ),
+                        **(on_complete_extra or {}),
                     }
                 )
             )
@@ -1294,7 +1360,6 @@ class StreamExecutionHandler:
                         extra={"conversation_id": self.request.conversation_id},
                     )
                 )
-                yield SSEChunkEncoder.done()
             except Exception as yield_exc:
                 logger.debug(
                     "stream_handler error yield skipped (client disconnected?): {}",
@@ -1356,7 +1421,20 @@ class StreamExecutionHandler:
                     tool_planner=tool_planner,
                     turn_record=self._runtime_turn_record,
                 )
-                self._schedule_on_complete(failed_result)
+                on_complete_extra = await self._await_on_complete_before_done(
+                    failed_result
+                )
+                post_done_callback = self._pop_post_done_callback(on_complete_extra)
+                if post_done_callback is not None:
+                    self._schedule_background_callback(post_done_callback)
+
+            try:
+                yield SSEChunkEncoder.done()
+            except Exception as yield_done_exc:
+                logger.debug(
+                    "stream_handler done yield skipped (client disconnected?): {}",
+                    yield_done_exc,
+                )
 
         except BaseException as exc:
             if executor_task is not None and not executor_task.done():

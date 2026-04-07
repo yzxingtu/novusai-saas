@@ -22,9 +22,13 @@ def _make_skill_grant(skill_name: str, *, enabled: bool = True):
     grant.enabled = enabled
     grant.skill = MagicMock()
     grant.skill.name = skill_name
+    grant.skill.key = None
+    grant.skill.description = ""
     grant.skill.is_active = True
     grant.skill.is_deleted = False
     grant.skill.package = MagicMock()
+    grant.skill.package.name = ""
+    grant.skill.package.description = ""
     grant.skill.package.is_active = True
     grant.skill.package.is_deleted = False
     return grant
@@ -48,6 +52,22 @@ def _make_agent(
         _make_skill_grant(skill_name) for skill_name in (skill_names or [])
     ]
     return agent
+
+
+def _make_descriptor_grant(
+    *,
+    skill_name: str,
+    skill_key: str | None = None,
+    skill_description: str = "",
+    package_name: str = "",
+    package_description: str = "",
+):
+    grant = _make_skill_grant(skill_name)
+    grant.skill.key = skill_key
+    grant.skill.description = skill_description
+    grant.skill.package.name = package_name
+    grant.skill.package.description = package_description
+    return grant
 
 
 def _make_conversation(
@@ -89,6 +109,62 @@ def test_agent_needs_function_calling_ignores_inactive_packages() -> None:
         grant.skill.package.is_active = False
 
     assert AgentRouterService._agent_needs_function_calling(agent) is False
+
+
+def test_agent_supports_families_uses_skill_metadata_descriptors() -> None:
+    agent = _make_agent(
+        agent_id=61,
+        name="Descriptor Agent",
+        supports_vision=False,
+    )
+    agent.skill_grants = [
+        _make_descriptor_grant(
+            skill_name="实时天气查询",
+            skill_key="weather_realtime",
+            skill_description="调用真实天气接口",
+            package_name="天气组件",
+            package_description="提供 weather 和 forecast 能力",
+        ),
+        _make_descriptor_grant(
+            skill_name="web_search",
+            package_name="联网搜索",
+        ),
+        _make_descriptor_grant(
+            skill_name="get_page_context",
+            package_name="页面感知交互",
+        ),
+        _make_descriptor_grant(
+            skill_name="invoke_page_operation",
+            package_name="页面感知交互",
+        ),
+    ]
+
+    assert AgentRouterService._agent_supports_families(
+        agent,
+        ["weather", "web_research", "page_ops"],
+    )
+
+
+def test_agent_supports_families_treats_time_as_runtime_baseline() -> None:
+    agent = _make_agent(
+        agent_id=62,
+        name="Weather Descriptor Agent",
+        supports_vision=False,
+    )
+    agent.skill_grants = [
+        _make_descriptor_grant(
+            skill_name="实时天气查询",
+            skill_key="weather_realtime",
+            skill_description="调用真实天气接口",
+            package_name="天气组件",
+            package_description="提供 weather 和 forecast 能力",
+        ),
+    ]
+
+    assert AgentRouterService._agent_supports_families(
+        agent,
+        ["weather", "time_ops"],
+    )
 
 
 def _semantic_agents_menu_entry() -> dict[str, object]:
@@ -557,6 +633,191 @@ async def test_route_does_not_force_page_operation_pool_for_page_analysis_reques
 
 
 @pytest.mark.asyncio
+async def test_route_keeps_full_candidate_pool_for_mixed_weather_and_page_write_request(
+    mock_db,
+):
+    service = AgentRouterService(mock_db)
+    general_agent = _make_agent(
+        agent_id=15,
+        name="General Agent",
+        supports_vision=False,
+    )
+    page_agent = _make_agent(
+        agent_id=59,
+        name="Page Agent",
+        supports_vision=False,
+        skill_names=["get_page_context", "invoke_page_operation"],
+    )
+    router_agent = MagicMock()
+    router_agent.model_id = 101
+
+    service._list_available_agents = AsyncMock(
+        return_value=[general_agent, page_agent],
+    )
+    service._get_router_agent = AsyncMock(return_value=router_agent)
+    service._call_router = AsyncMock(
+        return_value={"agent_id": 15, "confidence": 0.93},
+    )
+    service._fallback_to_default = AsyncMock()
+
+    result = await service.route(
+        tenant_id=1,
+        message="帮我查一下北京天气，然后在当前页面创建一条测试记录",
+        page_context={
+            "page_key": "admin.ai.quotas",
+            "page_data": {
+                "available_operations": [{"name": "create_record"}],
+            },
+        },
+        user_role=UserRoleEnum.TENANT_ADMIN.value,
+        user_role_id=1,
+        user_id=10,
+    )
+
+    assert result.agent_id == 15
+    routed_candidates = service._call_router.await_args.args[1]
+    assert [agent.id for agent in routed_candidates] == [15, 59]
+    service._fallback_to_default.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_route_keeps_full_candidate_pool_for_mixed_web_and_page_request(
+    mock_db,
+):
+    service = AgentRouterService(mock_db)
+    general_agent = _make_agent(
+        agent_id=15,
+        name="General Agent",
+        supports_vision=False,
+    )
+    page_agent = _make_agent(
+        agent_id=59,
+        name="Page Agent",
+        supports_vision=False,
+        skill_names=["get_page_context", "invoke_page_operation"],
+    )
+    router_agent = MagicMock()
+    router_agent.model_id = 101
+
+    service._list_available_agents = AsyncMock(
+        return_value=[general_agent, page_agent],
+    )
+    service._get_router_agent = AsyncMock(return_value=router_agent)
+    service._call_router = AsyncMock(
+        return_value={"agent_id": 15, "confidence": 0.9},
+    )
+    service._fallback_to_default = AsyncMock()
+
+    result = await service.route(
+        tenant_id=1,
+        message="帮我搜索一下今天的 AI 新闻，再顺便概括一下当前页面都能做什么",
+        page_context={
+            "page_key": "admin.ai.quotas",
+            "page_data": {
+                "available_operations": [{"name": "get_page_context"}],
+            },
+        },
+        user_role=UserRoleEnum.TENANT_ADMIN.value,
+        user_role_id=1,
+        user_id=10,
+    )
+
+    assert result.agent_id == 15
+    routed_candidates = service._call_router.await_args.args[1]
+    assert [agent.id for agent in routed_candidates] == [15, 59]
+    service._fallback_to_default.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_route_prefers_candidate_covering_all_requested_families_for_mixed_turn(
+    mock_db,
+):
+    service = AgentRouterService(mock_db)
+    partial_agent = _make_agent(
+        agent_id=15,
+        name="Search Page Agent",
+        supports_vision=False,
+        skill_names=[
+            "web_search",
+            "fetch_url",
+            "get_page_context",
+            "invoke_page_operation",
+        ],
+    )
+    full_agent = _make_agent(
+        agent_id=61,
+        name="Full Mixed Agent",
+        supports_vision=False,
+        skill_names=[
+            "get_current_weather",
+            "web_search",
+            "fetch_url",
+            "get_page_context",
+            "invoke_page_operation",
+        ],
+    )
+
+    service._list_available_agents = AsyncMock(
+        return_value=[partial_agent, full_agent],
+    )
+    service._get_router_agent = AsyncMock()
+    service._fallback_to_default = AsyncMock()
+
+    result = await service.route(
+        tenant_id=1,
+        message="帮我查一下北京天气，顺便搜索一下今天的热点新闻，再看看当前页面都有什么",
+        page_context={
+            "page_key": "admin.ai.agents",
+            "page_data": {
+                "available_operations": [{"name": "get_page_context"}],
+            },
+        },
+        user_role=UserRoleEnum.TENANT_ADMIN.value,
+        user_role_id=1,
+        user_id=10,
+    )
+
+    assert result.agent_id == 61
+    service._get_router_agent.assert_not_awaited()
+    service._fallback_to_default.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_route_prefers_candidate_covering_weather_and_time_for_mixed_non_page_turn(
+    mock_db,
+):
+    service = AgentRouterService(mock_db)
+    general_agent = _make_agent(
+        agent_id=15,
+        name="General Agent",
+        supports_vision=False,
+    )
+    weather_agent = _make_agent(
+        agent_id=62,
+        name="Weather Agent",
+        supports_vision=False,
+        skill_names=["get_current_weather"],
+    )
+
+    service._list_available_agents = AsyncMock(
+        return_value=[general_agent, weather_agent],
+    )
+    service._get_router_agent = AsyncMock()
+    service._fallback_to_default = AsyncMock()
+
+    result = await service.route(
+        tenant_id=1,
+        message="现在几点了？今天天气怎么样？",
+        user_role=UserRoleEnum.TENANT_ADMIN.value,
+        user_role_id=1,
+        user_id=10,
+    )
+
+    assert result.agent_id == 62
+    service._get_router_agent.assert_not_awaited()
+    service._fallback_to_default.assert_not_awaited()
+
+
 async def test_route_uses_page_operation_candidate_pool_for_fallback(mock_db):
     service = AgentRouterService(mock_db)
     general_agent = _make_agent(
@@ -704,3 +965,78 @@ async def test_fallback_to_default_uses_preferred_pool_when_default_agent_is_out
 
     assert result.agent_id == 59
     assert result.routed_by == ROUTED_BY_PREFERRED_FALLBACK
+
+
+@pytest.mark.asyncio
+async def test_route_prefers_vision_page_agent_for_screenshot_request(mock_db):
+    service = AgentRouterService(mock_db)
+    text_page_agent = _make_agent(
+        agent_id=59,
+        name="Text Page Agent",
+        supports_vision=False,
+        skill_names=["get_page_context", "invoke_page_operation"],
+    )
+    vision_page_agent = _make_agent(
+        agent_id=60,
+        name="Vision Page Agent",
+        supports_vision=True,
+        skill_names=["get_page_context", "invoke_page_operation"],
+    )
+
+    service._list_available_agents = AsyncMock(
+        return_value=[text_page_agent, vision_page_agent],
+    )
+    service._agent_can_handle_images = AsyncMock(
+        side_effect=lambda agent: bool(agent.model.supports_vision)
+    )
+    service._get_router_agent = AsyncMock()
+    service._fallback_to_default = AsyncMock()
+
+    result = await service.route(
+        tenant_id=1,
+        message="请帮我给当前页面截图",
+        page_context={
+            "page_key": "admin.ai.quotas",
+            "page_data": {
+                "available_operations": [{"name": "capture_screenshot"}],
+            },
+        },
+        user_role=UserRoleEnum.TENANT_ADMIN.value,
+        user_role_id=1,
+        user_id=10,
+    )
+
+    assert result.agent_id == 60
+    service._get_router_agent.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_route_rejects_screenshot_request_when_no_vision_page_agent_exists(mock_db):
+    service = AgentRouterService(mock_db)
+    text_page_agent = _make_agent(
+        agent_id=59,
+        name="Text Page Agent",
+        supports_vision=False,
+        skill_names=["get_page_context", "invoke_page_operation"],
+    )
+
+    service._list_available_agents = AsyncMock(return_value=[text_page_agent])
+    service._agent_can_handle_images = AsyncMock(return_value=False)
+    service._fallback_to_default = AsyncMock()
+
+    with pytest.raises(BusinessException):
+        await service.route(
+            tenant_id=1,
+            message="请帮我把当前页面截图发出来",
+            page_context={
+                "page_key": "admin.ai.quotas",
+                "page_data": {
+                    "available_operations": [{"name": "capture_screenshot"}],
+                },
+            },
+            user_role=UserRoleEnum.TENANT_ADMIN.value,
+            user_role_id=1,
+            user_id=10,
+        )
+
+    service._fallback_to_default.assert_not_awaited()

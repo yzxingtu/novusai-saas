@@ -12,6 +12,7 @@ from typing import Any
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai.json_safe import normalize_json_safe
 from app.ai.types import ChatChunk
 from app.core.i18n import _
 from app.core.logging import LogManager
@@ -46,7 +47,10 @@ class SSEChunkEncoder:
             return f"data: {data}\n\n"
 
         # Normal JSON data / 普通 JSON 数据
-        json_str = json.dumps(data, ensure_ascii=False)
+        json_str = json.dumps(
+            normalize_json_safe(data),
+            ensure_ascii=False,
+        )
         return f"data: {json_str}\n\n"
 
     @staticmethod

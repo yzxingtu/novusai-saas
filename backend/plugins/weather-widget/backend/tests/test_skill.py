@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import importlib.util
 import sys
 from pathlib import Path
@@ -188,6 +189,71 @@ class TestWeatherWidgetExecutor:
         assert "22.5" in result.output
         assert "Clear sky" in result.output
         assert result.duration_ms >= 0
+
+    @pytest.mark.asyncio
+    async def test_execute_current_weather_supports_county_name_query(self):
+        mock_open_meteo = MagicMock()
+        mock_open_meteo.search_city = AsyncMock(return_value=[
+            {"name": "凤凰", "latitude": 27.9483, "longitude": 109.5996}
+        ])
+        mock_open_meteo.get_current_weather = AsyncMock(return_value={
+            "temperature": 7.5,
+            "weather_text_en": "Clear sky",
+            "weather_text_zh": "晴",
+            "humidity": 22,
+            "wind_speed": 25.7,
+            "uv_index": 6.0,
+        })
+
+        definition = MagicMock(spec=ToolDefinition)
+        definition.name = "get_current_weather"
+
+        with patch.object(executor_mod, "_get_open_meteo", return_value=mock_open_meteo):
+            result = await self.executor.execute(
+                definition, "call-county", {"city": "凤凰县"}
+            )
+
+        assert result.success is True
+        assert "凤凰" in result.output
+        mock_open_meteo.search_city.assert_called_once_with("凤凰县", count=1)
+
+    @pytest.mark.asyncio
+    async def test_execute_current_weather_falls_back_to_direct_trimmed_lookup_after_exact_timeout(self):
+        mock_open_meteo = MagicMock()
+
+        async def _search_city(name: str, count: int = 1):
+            _ = count
+            if name == "凤凰县":
+                raise asyncio.TimeoutError
+            return []
+
+        mock_open_meteo.search_city = AsyncMock(side_effect=_search_city)
+        mock_open_meteo._trim_city_label_suffix = MagicMock(return_value="凤凰")
+        mock_open_meteo._search_city_open_meteo = AsyncMock(return_value=[
+            {"name": "凤凰", "latitude": 27.9483, "longitude": 109.5996}
+        ])
+        mock_open_meteo.get_current_weather = AsyncMock(return_value={
+            "temperature": 7.5,
+            "weather_text_en": "Clear sky",
+            "weather_text_zh": "晴",
+            "humidity": 22,
+            "wind_speed": 25.7,
+            "uv_index": 6.0,
+        })
+
+        definition = MagicMock(spec=ToolDefinition)
+        definition.name = "get_current_weather"
+        definition.timeout = 15
+
+        with patch.object(executor_mod, "_get_open_meteo", return_value=mock_open_meteo):
+            result = await self.executor.execute(
+                definition, "call-county-timeout", {"city": "凤凰县"}
+            )
+
+        assert result.success is True
+        assert "凤凰" in result.output
+        mock_open_meteo.search_city.assert_awaited_once_with("凤凰县", count=1)
+        mock_open_meteo._search_city_open_meteo.assert_awaited_once_with("凤凰", 1)
 
     # ── execute: get_weather_forecast / 执行：天气预报 ──
 

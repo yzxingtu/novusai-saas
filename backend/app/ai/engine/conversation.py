@@ -1015,7 +1015,11 @@ class ConversationEngine(BaseEngine):
         self,
         agent: Agent,
         request: ExecutionRequest,
-        on_complete: Callable[[ExecutionResult], Awaitable[None]] | None = None,
+        on_complete: Callable[
+            [ExecutionResult],
+            Awaitable[dict[str, Any] | None],
+        ]
+        | None = None,
         skill_result: SkillResolveResult | None = None,
     ) -> StreamingResponse:
         """

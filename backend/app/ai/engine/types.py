@@ -124,11 +124,8 @@ class ExecutionBudget:
             return "completion_budget_exceeded"
         if self.max_tool_rounds and self.tool_rounds_used > self.max_tool_rounds:
             return "tool_round_budget_exceeded"
-        effective_max_elapsed_ms = self.max_elapsed_ms + (
-            self.finalization_grace_ms if self.finalization_grace_applied else 0
-        )
-        if effective_max_elapsed_ms and self.elapsed_ms_used > effective_max_elapsed_ms:
-            return "elapsed_budget_exceeded"
+        # Elapsed time remains diagnostic-only. Cutting off an otherwise valid
+        # turn after tools already finished proved more harmful than helpful.
         if (
             self.max_tool_result_bytes
             and self.tool_result_bytes_used > self.max_tool_result_bytes
