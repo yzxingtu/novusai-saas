@@ -211,6 +211,13 @@ class StreamIOAdapter:
             **kwargs,
         ):
             self._sync_runtime_metadata(getattr(chunk, "metadata", None))
+            # Forward web_search keepalive as SSE event to prevent connection timeout
+            # 转发 web_search keepalive 为 SSE 事件防止连接超时
+            chunk_meta = getattr(chunk, "metadata", None)
+            if isinstance(chunk_meta, dict) and chunk_meta.get("web_search_in_progress"):
+                await self.handler._emit_runtime_event(
+                    {"event": "status", "status": "web_search_in_progress"}
+                )
             if chunk.reasoning_delta:
                 aggregated_reasoning += chunk.reasoning_delta
                 self.handler._reasoning_output = aggregated_reasoning

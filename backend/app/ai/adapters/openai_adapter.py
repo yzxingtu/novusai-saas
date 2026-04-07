@@ -2214,6 +2214,12 @@ class OpenAIAdapter(BaseAdapter):
                     response_id = getattr(response_obj, "id", None) or response_id
                     continue
 
+                # Emit keepalive chunk during native web_search to prevent connection timeout
+                # 原生 web_search 执行期间发送 keepalive chunk 防止连接超时
+                if event_type.startswith("response.web_search_call"):
+                    yield ChatChunk(delta="", metadata={"web_search_in_progress": True})
+                    continue
+
                 if event_type == "response.output_text.delta":
                     delta = getattr(event, "delta", "") or ""
                     if delta:
