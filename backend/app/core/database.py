@@ -90,6 +90,26 @@ async_session_factory = async_sessionmaker(
 )
 
 
+@asynccontextmanager
+async def managed_async_session() -> AsyncGenerator[AsyncSession, None]:
+    """
+    托管异步数据库会话 / Managed async database session.
+
+    请求或上下文正常结束时提交事务；任何异常或取消都会走回滚路径，
+    包括 Ctrl+C 关闭开发服务时抛出的 asyncio.CancelledError。
+    Commit on normal completion; rollback on any exception or cancellation,
+    including asyncio.CancelledError during Ctrl+C shutdown in development.
+    """
+    async with async_session_factory() as session:
+        try:
+            yield session
+            await session.commit()
+        except BaseException:
+            if session.in_transaction():
+                await session.rollback()
+            raise
+
+
 # ============================================
 # 同步数据库引擎（用于 Alembic 迁移） / Sync DB Engine (for Alembic migrations)
 # ============================================
@@ -121,15 +141,8 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         async def get_users(db: AsyncSession = Depends(get_db)):
             ...
     """
-    async with async_session_factory() as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
+    async with managed_async_session() as session:
+        yield session
 
 
 @asynccontextmanager
@@ -141,15 +154,8 @@ async def get_db_context() -> AsyncGenerator[AsyncSession, None]:
         async with get_db_context() as db:
             ...
     """
-    async with async_session_factory() as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
+    async with managed_async_session() as session:
+        yield session
 
 
 # ============================================
@@ -869,6 +875,7 @@ __all__ = [
     "async_session_factory",
     "sync_engine",
     "sync_session_factory",
+    "managed_async_session",
     "get_db",
     "get_db_context",
     "check_database_connection",

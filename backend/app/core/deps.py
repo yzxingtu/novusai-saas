@@ -20,7 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.database import async_session_factory
+from app.core.database import managed_async_session
 from app.core.i18n import _
 from app.core.query_parser import QueryParams, get_query_spec
 from app.core.redis import get_redis
@@ -68,15 +68,8 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     Yields:
         AsyncSession: 异步数据库会话 / Async database session
     """
-    async with async_session_factory() as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
+    async with managed_async_session() as session:
+        yield session
 
 
 # ========================================

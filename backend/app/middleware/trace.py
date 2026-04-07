@@ -8,6 +8,7 @@ Uses pure ASGI instead of BaseHTTPMiddleware to avoid CancelledError cascade on 
 使用纯 ASGI 实现，避免 Ctrl+C 关闭时 BaseHTTPMiddleware 导致的任务取消级联错误。
 """
 
+import asyncio
 import uuid
 from contextvars import ContextVar
 
@@ -98,4 +99,9 @@ class TraceIdMiddleware:
                 message = {**message, "headers": headers_list}
             await send(message)
 
-        await self.app(scope, receive, wrapped_send)
+        try:
+            await self.app(scope, receive, wrapped_send)
+        except asyncio.CancelledError:
+            if scope["type"] == "http":
+                return
+            raise

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import asyncio
 import uuid
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -178,6 +179,70 @@ async def test_trace_middleware_replaces_invalid_utf8_header() -> None:
     assert trace_id
     assert captured["trace_id"] == trace_id
     assert uuid.UUID(trace_id)
+
+
+@pytest.mark.asyncio
+async def test_trace_middleware_swallows_http_cancellation() -> None:
+    async def app(scope, receive, send):
+        _ = (scope, receive, send)
+        raise asyncio.CancelledError()
+
+    middleware = TraceIdMiddleware(app)
+
+    async def receive():
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message):
+        raise AssertionError(f"unexpected send: {message}")
+
+    await middleware(
+        {
+            "type": "http",
+            "http_version": "1.1",
+            "method": "GET",
+            "scheme": "http",
+            "path": "/cancelled",
+            "raw_path": b"/cancelled",
+            "query_string": b"",
+            "headers": [],
+            "client": ("testclient", 50000),
+            "server": ("testserver", 80),
+        },
+        receive,
+        send,
+    )
+
+
+@pytest.mark.asyncio
+async def test_trace_middleware_preserves_websocket_cancellation() -> None:
+    async def app(scope, receive, send):
+        _ = (scope, receive, send)
+        raise asyncio.CancelledError()
+
+    middleware = TraceIdMiddleware(app)
+
+    async def receive():
+        return {"type": "websocket.disconnect", "code": 1000}
+
+    async def send(message):
+        raise AssertionError(f"unexpected send: {message}")
+
+    with pytest.raises(asyncio.CancelledError):
+        await middleware(
+            {
+                "type": "websocket",
+                "scheme": "ws",
+                "path": "/ws",
+                "raw_path": b"/ws",
+                "query_string": b"",
+                "headers": [],
+                "client": ("testclient", 50000),
+                "server": ("testserver", 80),
+                "subprotocols": [],
+            },
+            receive,
+            send,
+        )
 
 
 def test_sse_formatter_error_includes_trace_id_from_context() -> None:
