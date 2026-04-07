@@ -64,7 +64,9 @@ describe('provider connection settings helpers', () => {
   });
 
   it('does not expose wire api for non-openai-compatible providers', () => {
-    expect(providerData.resolveProviderWireApi('anthropic', 'responses')).toBeNull();
+    expect(
+      providerData.resolveProviderWireApi('anthropic', 'responses'),
+    ).toBeNull();
   });
 
   it('warns when an openai-compatible base url looks like it is missing /v1', () => {
@@ -102,9 +104,8 @@ describe('provider web_search config contracts', () => {
   });
 
   it('validates optional web_search normalize helper when it exists', () => {
-    const normalizeWebSearchConfig = (
-      providerData as Record<string, unknown>
-    ).normalizeWebSearchConfig;
+    const normalizeWebSearchConfig = (providerData as Record<string, unknown>)
+      .normalizeWebSearchConfig;
     if (typeof normalizeWebSearchConfig !== 'function') {
       return;
     }
@@ -128,6 +129,65 @@ describe('provider web_search config contracts', () => {
     expect(normalized.public_providers).toEqual(['baidu', 'so360']);
   });
 
+  it('preserves advanced web_search fields when resolving provider config', () => {
+    const resolved = providerData.resolveProviderWebSearchConfig({
+      web_search: {
+        enabled: true,
+        strategy: 'native_first_fallback_public',
+        max_results_cap: 8,
+        native_timeout_seconds: 20,
+        public_timeout_seconds: 15,
+        public_providers: ['baidu', 'so360'],
+        allow_unverified_runtime_target: true,
+        verified_native_target: {
+          provider_code: 'openai',
+          model_code: 'gpt-5.4',
+        },
+      },
+    });
+
+    expect(resolved.allow_unverified_runtime_target).toBe(true);
+    expect(resolved.verified_native_target).toEqual({
+      provider_code: 'openai',
+      model_code: 'gpt-5.4',
+    });
+  });
+
+  it('preserves advanced web_search fields from existing config on form submit rebuild', () => {
+    const built = providerData.buildProviderWebSearchConfigFromForm(
+      {
+        web_search_enabled: true,
+        web_search_strategy: 'native_first_fallback_public',
+        web_search_max_results_cap: 5,
+        web_search_native_timeout_seconds: 12,
+        web_search_public_timeout_seconds: 9,
+        web_search_public_providers: ['baidu'],
+      },
+      {
+        enabled: true,
+        strategy: 'native_first_fallback_public',
+        max_results_cap: 8,
+        native_timeout_seconds: 20,
+        public_timeout_seconds: 15,
+        public_providers: ['baidu', 'so360'],
+        allow_unverified_runtime_target: false,
+        verified_native_target: {
+          provider_id: 10,
+          model_code: 'gpt-5.4',
+        },
+      },
+    );
+
+    expect(built.enabled).toBe(true);
+    expect(built.max_results_cap).toBe(5);
+    expect(built.public_providers).toEqual(['baidu']);
+    expect(built.allow_unverified_runtime_target).toBe(false);
+    expect(built.verified_native_target).toEqual({
+      provider_id: 10,
+      model_code: 'gpt-5.4',
+    });
+  });
+
   it('validates optional runtime web_search helper when it exists', () => {
     const resolveWebSearchRuntimeHint = (
       providerData as Record<string, unknown>
@@ -149,13 +209,10 @@ describe('provider web_search config contracts', () => {
     expect(hint).toBeTruthy();
   });
 
-  it.skip(
-    'draft: should cover config <-> form mapping helper once main branch exports it',
-    () => {
-      // Expected helper candidates for main implementation:
-      // - mapWebSearchConfigToForm(config)
-      // - mapWebSearchFormToConfig(formValues)
-      // Activate this test once those helpers are exported from ../data.
-    },
-  );
+  it.skip('draft: should cover config <-> form mapping helper once main branch exports it', () => {
+    // Expected helper candidates for main implementation:
+    // - mapWebSearchConfigToForm(config)
+    // - mapWebSearchFormToConfig(formValues)
+    // Activate this test once those helpers are exported from ../data.
+  });
 });

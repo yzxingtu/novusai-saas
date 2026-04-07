@@ -15,13 +15,22 @@ export type ProviderType = string;
 export type ProviderWebSearchStrategy = 'native_first_fallback_public';
 export type PublicWebSearchProvider = 'baidu' | 'so360';
 
+export interface ProviderWebSearchVerifiedTarget {
+  model_code?: null | string;
+  model_id?: null | number;
+  provider_code?: null | string;
+  provider_id?: null | number;
+}
+
 export interface ProviderWebSearchConfig {
+  allow_unverified_runtime_target?: boolean;
   enabled: boolean;
   strategy: ProviderWebSearchStrategy;
   max_results_cap: number;
   native_timeout_seconds: number;
   public_timeout_seconds: number;
   public_providers: PublicWebSearchProvider[];
+  verified_native_target?: null | ProviderWebSearchVerifiedTarget;
 }
 
 export interface ProviderWebSearchRuntime {

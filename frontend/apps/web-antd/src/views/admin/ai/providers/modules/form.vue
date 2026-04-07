@@ -2,10 +2,7 @@
 /**
  * AI 供应商新建/编辑表单抽屉
  */
-import type {
-  AIProviderInfo,
-  ProviderWebSearchRuntime,
-} from '#/api/admin/ai';
+import type { AIProviderInfo, ProviderWebSearchRuntime } from '#/api/admin/ai';
 
 import { computed, ref } from 'vue';
 
@@ -99,8 +96,12 @@ const { Drawer, isEdit } = useCrudDrawer<AIProviderInfo>({
       delete nextConfig.responses_tool_history_mode;
     }
 
+    const existingWebSearchConfig = edit
+      ? resolveProviderWebSearchConfig(configSnapshot.value)
+      : undefined;
     nextConfig.web_search = buildProviderWebSearchConfigFromForm(
       values as Record<string, unknown>,
+      existingWebSearchConfig,
     );
 
     const result: Record<string, unknown> = {

@@ -427,6 +427,14 @@ export function useAIChat(options: UseAIChatOptions) {
       attempt++
     ) {
       const res = await getChatConversationMessagesApi(prefix, convId);
+      if (!res || typeof res !== 'object') {
+        if (attempt < INTERRUPTED_HISTORY_SYNC_ATTEMPTS - 1) {
+          await new Promise<void>((resolve) => {
+            setTimeout(resolve, INTERRUPTED_HISTORY_SYNC_RETRY_DELAY_MS);
+          });
+        }
+        continue;
+      }
       if (activeConversationId.value !== convId) {
         return;
       }
@@ -2337,8 +2345,16 @@ export function useAIChat(options: UseAIChatOptions) {
               scrollToBottom();
             } else if (event.event === 'done') {
               didReceiveDoneEvent = true;
+              const doneConversationId = Number(event.conversation_id ?? 0);
+              if (doneConversationId > 0) {
+                streamConversationId = doneConversationId;
+                activeConversationId.value = doneConversationId;
+                activeConversationAgentId.value = targetAgentId;
+                rememberConversationAnchor(doneConversationId, targetAgentId);
+              }
               shouldSyncCommittedConversation =
                 shouldSyncCommittedConversation ||
+                doneConversationId > 0 ||
                 event.persistence_committed === true ||
                 event.persistence_error === true ||
                 event.on_complete_error === true;

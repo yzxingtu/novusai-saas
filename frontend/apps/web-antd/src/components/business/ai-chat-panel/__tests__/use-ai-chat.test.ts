@@ -343,7 +343,9 @@ describe('useAIChat interrupted stream recovery', () => {
         },
       ],
     });
-    apiMocks.sendChatStreamApi.mockRejectedValue(new Error('upstream exploded'));
+    apiMocks.sendChatStreamApi.mockRejectedValue(
+      new Error('upstream exploded'),
+    );
 
     const chat = useAIChat({
       apiPrefix: '/tenant',
@@ -512,85 +514,6 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(chat.chatMessages.value[1]?.content).toBe('partial from backend');
     expect(chat.chatMessages.value[1]?.partial).toBe(true);
     expect(chat.chatMessages.value[1]?.interrupted).toBe(true);
-  });
-
-  it('resyncs committed conversation history immediately after done without waiting for abort cleanup', async () => {
-    apiMocks.getChatConversationMessagesApi.mockResolvedValue({
-      agent_id: 1,
-      interaction_mode_effective: 'confirm',
-      message_list: [
-        {
-          content: '查今天AI新闻',
-          created_at: '2026-04-07T12:00:00Z',
-          role: 'user',
-        },
-        {
-          agent_id: 1,
-          agent_name: 'Agent One',
-          content: '已从服务端同步完成',
-          created_at: '2026-04-07T12:00:01Z',
-          role: 'assistant',
-        },
-      ],
-    });
-
-    apiMocks.sendChatStreamApi.mockImplementation(
-      async (
-        _prefix: string,
-        _agentId: number,
-        _body: Record<string, unknown>,
-        options: {
-          abortController: AbortController;
-          onMessage: (chunk: string) => Promise<void>;
-        },
-      ) => {
-        await options.onMessage(
-          `data: ${JSON.stringify({ event: 'conversation', conversation_id: 42 })}\n`,
-        );
-        await options.onMessage(
-          `data: ${JSON.stringify({ event: 'message', delta: '客户端先收到的内容' })}\n`,
-        );
-        await options.onMessage(
-          `data: ${JSON.stringify({
-            conversation_id: 42,
-            event: 'done',
-            persistence_committed: true,
-            persisted_message_count: 2,
-            total_tokens: 18,
-          })}\n`,
-        );
-        await new Promise<void>((resolve) => {
-          options.abortController.signal.addEventListener(
-            'abort',
-            () => resolve(),
-            { once: true },
-          );
-        });
-      },
-    );
-
-    const chat = useAIChat({
-      apiPrefix: '/tenant',
-      uploadUrl: '/tenant/attachments',
-    });
-
-    await chat.loadAgents();
-    chat.inputMessage.value = '查今天AI新闻';
-
-    const sendPromise = chat.sendMessage();
-    await flushPromises();
-
-    expect(apiMocks.getChatConversationMessagesApi).toHaveBeenCalledTimes(1);
-    expect(chat.chatMessages.value.map((item) => item.content)).toEqual([
-      '查今天AI新闻',
-      '已从服务端同步完成',
-    ]);
-
-    await vi.advanceTimersByTimeAsync(2000);
-    await sendPromise;
-    await flushPromises();
-
-    expect(apiMocks.getChatConversationMessagesApi).toHaveBeenCalledTimes(1);
   });
 
   it('keeps the anchored conversation binding after transient local state loss', async () => {
@@ -876,6 +799,83 @@ describe('useAIChat interrupted stream recovery', () => {
     );
     expect(chat.chatMessages.value.at(-1)?.content).toBe(
       '这里是已持久化的最终答复',
+    );
+    expect(chat.chatMessages.value.at(-1)?.streaming).toBeFalsy();
+  });
+
+  it('refreshes persisted conversation detail after done when conversation id is known even without persistence flags', async () => {
+    apiMocks.getChatConversationMessagesApi.mockResolvedValue({
+      agent_id: 1,
+      interaction_mode_effective: 'confirm',
+      message_list: [
+        {
+          content: '查今天AI新闻',
+          created_at: '2026-04-07T04:38:30Z',
+          role: 'user',
+        },
+        {
+          agent_id: 1,
+          agent_name: 'Agent One',
+          content: '这里是 done 后回拉的持久化答复',
+          created_at: '2026-04-07T04:38:31Z',
+          metadata: {
+            completion_reason: 'completed',
+            protocol_path: 'responses',
+            termination_reason: 'completed',
+            turn_outcome: 'success',
+          },
+          model_name: 'gpt-test',
+          role: 'assistant',
+        },
+      ],
+    });
+    apiMocks.sendChatStreamApi.mockImplementation(
+      async (
+        _prefix: string,
+        _agentId: number,
+        _body: Record<string, unknown>,
+        options: {
+          onMessage: (chunk: string) => Promise<void>;
+        },
+      ) => {
+        await options.onMessage(
+          `data: ${JSON.stringify({
+            event: 'conversation',
+            conversation_id: 43,
+          })}\n`,
+        );
+        await options.onMessage(
+          `data: ${JSON.stringify({
+            event: 'message',
+            delta: '这里是流式中的答复',
+          })}\n`,
+        );
+        await options.onMessage(
+          `data: ${JSON.stringify({
+            event: 'done',
+            conversation_id: 43,
+            total_tokens: 21,
+          })}\n`,
+        );
+      },
+    );
+
+    const chat = useAIChat({
+      apiPrefix: '/tenant',
+      uploadUrl: '/tenant/attachments',
+    });
+
+    await chat.loadAgents();
+    chat.inputMessage.value = '查今天AI新闻';
+    await chat.sendMessage({ routeSource: 'done-conversation-id-sync-test' });
+    await flushPromises();
+
+    expect(apiMocks.getChatConversationMessagesApi).toHaveBeenCalledWith(
+      '/tenant',
+      43,
+    );
+    expect(chat.chatMessages.value.at(-1)?.content).toBe(
+      '这里是 done 后回拉的持久化答复',
     );
     expect(chat.chatMessages.value.at(-1)?.streaming).toBeFalsy();
   });
