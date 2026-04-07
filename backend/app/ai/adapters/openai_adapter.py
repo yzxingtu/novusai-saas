@@ -467,6 +467,52 @@ class OpenAIAdapter(BaseAdapter):
         enriched["model_override_source"] = effective_request.get("override_source")
         return enriched
 
+    @classmethod
+    def _apply_runtime_reasoning_effort_override(
+        cls,
+        effective_request: dict[str, Any],
+        *,
+        reasoning_effort: Any,
+        wire_api: str,
+    ) -> dict[str, Any]:
+        override = cls._normalize_reasoning_effort(reasoning_effort)
+        if override is None:
+            return effective_request
+
+        marker = "runtime_reasoning_effort_override"
+        logical_model_code = str(
+            effective_request.get("logical_model_code")
+            or effective_request.get("upstream_model")
+            or ""
+        )
+        if not cls._supports_reasoning_effort_model(logical_model_code):
+            ignored_overrides = list(effective_request.get("ignored_overrides", []) or [])
+            if marker not in ignored_overrides:
+                ignored_overrides.append(marker)
+            ignore_reasons = dict(effective_request.get("ignore_reasons", {}) or {})
+            ignore_reasons[marker] = "unsupported_model_family"
+            effective_request["ignored_overrides"] = ignored_overrides
+            effective_request["ignore_reasons"] = ignore_reasons
+            return effective_request
+
+        effective_request["reasoning_effort"] = override
+        effective_request["override_source"] = "runtime_call_override"
+        applied_overrides = list(effective_request.get("applied_overrides", []) or [])
+        if marker not in applied_overrides:
+            applied_overrides.append(marker)
+        effective_request["applied_overrides"] = applied_overrides
+
+        normalized_wire_api = cls._normalize_wire_api_value(wire_api)
+        effective_params = dict(effective_request.get("effective_params", {}) or {})
+        if normalized_wire_api == "responses":
+            effective_params["reasoning"] = {"effort": override}
+            effective_params.pop("reasoning_effort", None)
+        else:
+            effective_params["reasoning_effort"] = override
+            effective_params.pop("reasoning", None)
+        effective_request["effective_params"] = effective_params
+        return effective_request
+
     def _get_effective_base_url(self) -> str:
         return (self.base_url or "https://api.openai.com/v1").rstrip("/")
 
@@ -1036,6 +1082,10 @@ class OpenAIAdapter(BaseAdapter):
             runtime_disable_cross_protocol_fallback = bool(
                 kwargs.pop("_runtime_disable_cross_protocol_fallback", False),
             )
+            runtime_reasoning_effort_override = kwargs.pop(
+                "_runtime_reasoning_effort_override",
+                None,
+            )
             runtime_model_config = kwargs.pop("model_config", None)
             if runtime_model_config is None:
                 runtime_model_config = self.config.get("model_config")
@@ -1048,6 +1098,11 @@ class OpenAIAdapter(BaseAdapter):
             effective_request = self.resolve_effective_model_request(
                 model=model,
                 model_config=runtime_model_config,
+                wire_api=active_wire_api,
+            )
+            effective_request = self._apply_runtime_reasoning_effort_override(
+                effective_request,
+                reasoning_effort=runtime_reasoning_effort_override,
                 wire_api=active_wire_api,
             )
             self._log_effective_model_request(
@@ -1189,6 +1244,10 @@ class OpenAIAdapter(BaseAdapter):
             runtime_disable_cross_protocol_fallback = bool(
                 kwargs.pop("_runtime_disable_cross_protocol_fallback", False),
             )
+            runtime_reasoning_effort_override = kwargs.pop(
+                "_runtime_reasoning_effort_override",
+                None,
+            )
             runtime_model_config = kwargs.pop("model_config", None)
             if runtime_model_config is None:
                 runtime_model_config = self.config.get("model_config")
@@ -1201,6 +1260,11 @@ class OpenAIAdapter(BaseAdapter):
             effective_request = self.resolve_effective_model_request(
                 model=model,
                 model_config=runtime_model_config,
+                wire_api=active_wire_api,
+            )
+            effective_request = self._apply_runtime_reasoning_effort_override(
+                effective_request,
+                reasoning_effort=runtime_reasoning_effort_override,
                 wire_api=active_wire_api,
             )
             self._log_effective_model_request(

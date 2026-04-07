@@ -7,7 +7,7 @@ Provides conversation list, detail, search, archive, delete and export.
 
 import inspect
 import json
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timezone
 from typing import TYPE_CHECKING, Any
 from unittest.mock import Mock
 
@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.engine.output_parser import parse_output
 from app.ai.engine.types import ExecutionResult
+from app.ai.json_safe import normalize_json_safe, normalize_json_safe_dict
 from app.ai.text_semantics import extract_public_attachment_reference
 from app.ai.tools.types import ToolResult
 from app.ai.types import ChatMessage
@@ -403,6 +404,11 @@ class ConversationService(
             last_assistant_message = await self._serialize_conversation_message(
                 latest_assistant_message
             )
+        conversation_last_error = self._normalize_json_safe_dict(
+            (conversation.metadata_ or {}).get("last_error")
+            if isinstance(conversation.metadata_, dict)
+            else None
+        )
         compaction_snapshot = await self.get_context_compaction_snapshot(
             conversation.id
         )
@@ -410,18 +416,64 @@ class ConversationService(
             (conversation.metadata_ or {}).get("interaction_mode") or "confirm"
         )
         result["interaction_mode_effective"] = interaction_mode_effective
-        result["context_diagnostics"] = self._build_context_diagnostics_payload(
-            last_assistant_message,
-            compaction_snapshot=compaction_snapshot,
-            interaction_mode_effective=interaction_mode_effective,
-        )
-        result["last_run_summary"] = self._build_last_run_summary_payload(
-            last_assistant_message,
-            interaction_mode_effective=interaction_mode_effective,
-            downgrade_reason=(conversation.metadata_ or {}).get(
-                "interaction_mode_downgrade_reason"
-            ),
-        )
+        if last_assistant_message is not None:
+            result["context_diagnostics"] = self._build_context_diagnostics_payload(
+                last_assistant_message,
+                compaction_snapshot=compaction_snapshot,
+                interaction_mode_effective=interaction_mode_effective,
+            )
+            result["last_run_summary"] = self._build_last_run_summary_payload(
+                last_assistant_message,
+                interaction_mode_effective=interaction_mode_effective,
+                downgrade_reason=(conversation.metadata_ or {}).get(
+                    "interaction_mode_downgrade_reason"
+                ),
+            )
+        else:
+            result["context_diagnostics"] = {
+                "estimated_tokens": None,
+                "context_compacted": False,
+                "compact_summary_present": bool((compaction_snapshot or {}).get("summary")),
+                "memory_recalled": False,
+                "memory_flush_triggered": False,
+                "prune_stats": None,
+                "rag_source_kinds": [],
+                "last_interrupted": bool((conversation_last_error or {}).get("partial")),
+                "interaction_mode_effective": interaction_mode_effective,
+                "turn_outcome": "failed"
+                if conversation_last_error
+                else None,
+                "termination_reason": "stream_execution_error"
+                if conversation_last_error
+                else None,
+                "failure_kind": (conversation_last_error or {}).get("error_type"),
+                "persistence_error": bool(conversation_last_error),
+                "last_error": conversation_last_error,
+            }
+            result["last_run_summary"] = {
+                "completion_reason": "stream_execution_error"
+                if conversation_last_error
+                else None,
+                "created_at": (conversation_last_error or {}).get("timestamp"),
+                "downgrade_reason": (conversation.metadata_ or {}).get(
+                    "interaction_mode_downgrade_reason"
+                ),
+                "interaction_mode_effective": interaction_mode_effective,
+                "interrupted": bool((conversation_last_error or {}).get("partial")),
+                "provider_name": None,
+                "runtime_model_name": None,
+                "turn_outcome": "failed" if conversation_last_error else None,
+                "termination_reason": "stream_execution_error"
+                if conversation_last_error
+                else None,
+                "failure_kind": (conversation_last_error or {}).get("error_type"),
+                "persistence_error": bool(conversation_last_error),
+                "error_message": (conversation_last_error or {}).get(
+                    "friendly_message"
+                ),
+            }
+        if conversation_last_error:
+            result["last_error"] = conversation_last_error
 
         return result
 
@@ -822,15 +874,24 @@ class ConversationService(
                 if not matched:
                     continue
 
+                normalized_metadata = self._normalize_json_safe_dict(metadata) or {}
+                normalized_tool_calls_raw = self._normalize_json_safe(
+                    tool_calls or msg.tool_calls
+                )
+                normalized_tool_calls = (
+                    normalized_tool_calls_raw
+                    if isinstance(normalized_tool_calls_raw, list)
+                    else (tool_calls or msg.tool_calls)
+                )
                 await self.message_repo.update(
                     msg.id,
                     {
-                        "metadata_": metadata,
-                        "tool_calls": tool_calls or msg.tool_calls,
+                        "metadata_": normalized_metadata,
+                        "tool_calls": normalized_tool_calls,
                     },
                 )
-                msg.metadata_ = metadata
-                msg.tool_calls = tool_calls or msg.tool_calls
+                msg.metadata_ = normalized_metadata
+                msg.tool_calls = normalized_tool_calls
                 if msg.id not in seen_ids:
                     updated += 1
                     seen_ids.add(msg.id)
@@ -1939,33 +2000,20 @@ class ConversationService(
 
     @staticmethod
     def _copy_metadata(raw: Any) -> dict[str, Any] | None:
-        return dict(raw) if isinstance(raw, dict) else None
+        return ConversationService._normalize_json_safe_dict(raw)
+
+    @staticmethod
+    def _normalize_json_safe(value: Any) -> Any:
+        return normalize_json_safe(value)
+
+    @staticmethod
+    def _normalize_json_safe_dict(raw: Any) -> dict[str, Any] | None:
+        return normalize_json_safe_dict(raw)
 
     @staticmethod
     def _normalize_turn_record_payload(turn_record: Any) -> dict[str, Any] | None:
         """Normalize runtime turn_record into JSON-safe dict / 将运行时 turn_record 规范化为可落库字典。"""
-        if turn_record is None:
-            return None
-
-        def _normalize_value(value: Any) -> Any:
-            if isinstance(value, dict):
-                return {str(k): _normalize_value(v) for k, v in value.items()}
-            if isinstance(value, list):
-                return [_normalize_value(item) for item in value]
-            if isinstance(value, tuple):
-                return [_normalize_value(item) for item in value]
-            if hasattr(value, "__dict__"):
-                return {
-                    str(k): _normalize_value(v)
-                    for k, v in vars(value).items()
-                    if not str(k).startswith("_")
-                }
-            return value
-
-        payload = _normalize_value(turn_record)
-        if not isinstance(payload, dict):
-            return None
-        return payload
+        return ConversationService._normalize_json_safe_dict(turn_record)
 
     @staticmethod
     def _to_non_empty_str(value: Any) -> str | None:
@@ -2883,10 +2931,10 @@ class ConversationService(
             token_estimate = estimate_tokens(content) if content else 0
 
             # Persist attachments under metadata / 附件写入 metadata
-            metadata = persisted_metadata or None
+            metadata = self._normalize_json_safe_dict(persisted_metadata)
             if attachments:
                 metadata = metadata or {}
-                metadata["attachments"] = attachments
+                metadata["attachments"] = self._normalize_json_safe(attachments)
             # assistant 消息的思考内容（chain-of-thought 模型）存入 metadata / Store reasoning for history display
             if role == "assistant" and reasoning_content and reasoning_content.strip():
                 metadata = metadata or {}
@@ -2990,19 +3038,29 @@ class ConversationService(
                     metadata["memory_recalled"] = True
                 if effective_context_diagnostics:
                     metadata = metadata or {}
-                    metadata["context_diagnostics"] = effective_context_diagnostics
+                    metadata["context_diagnostics"] = self._normalize_json_safe(
+                        effective_context_diagnostics
+                    )
                 if effective_last_run_summary:
                     metadata = metadata or {}
-                    metadata["last_run_summary"] = effective_last_run_summary
+                    metadata["last_run_summary"] = self._normalize_json_safe(
+                        effective_last_run_summary
+                    )
 
             if role == "assistant" and i == turn_target_assistant_idx:
                 metadata = metadata or {}
                 if effective_context_diagnostics:
-                    metadata["context_diagnostics"] = effective_context_diagnostics
+                    metadata["context_diagnostics"] = self._normalize_json_safe(
+                        effective_context_diagnostics
+                    )
                 if effective_last_run_summary:
-                    metadata["last_run_summary"] = effective_last_run_summary
+                    metadata["last_run_summary"] = self._normalize_json_safe(
+                        effective_last_run_summary
+                    )
                 if turn_record_payload:
-                    metadata["turn_record"] = turn_record_payload
+                    metadata["turn_record"] = self._normalize_json_safe(
+                        turn_record_payload
+                    )
                 if turn_outcome:
                     metadata["turn_outcome"] = turn_outcome
                 if turn_termination_reason:
@@ -3011,11 +3069,19 @@ class ConversationService(
                 if turn_protocol_path:
                     metadata["protocol_path"] = turn_protocol_path
                 if turn_selected_tools:
-                    metadata["selected_tool_names"] = turn_selected_tools
+                    metadata["selected_tool_names"] = self._normalize_json_safe(
+                        turn_selected_tools
+                    )
                 if turn_selected_skills:
-                    metadata["selected_skill_names"] = turn_selected_skills
+                    metadata["selected_skill_names"] = self._normalize_json_safe(
+                        turn_selected_skills
+                    )
                 if turn_context_sources:
-                    metadata["context_sources"] = turn_context_sources
+                    metadata["context_sources"] = self._normalize_json_safe(
+                        turn_context_sources
+                    )
+
+            metadata = self._normalize_json_safe_dict(metadata)
 
             # assistant/tool 消息关联 agent_id（user/system 不关联）
             msg_agent_id = agent_id if role in ("assistant", "tool") else None
@@ -3047,6 +3113,67 @@ class ConversationService(
 
         return tool_calls_collected, persisted_count
 
+    async def persist_user_messages(
+        self,
+        *,
+        conversation: AgentConversation,
+        messages: list[ChatMessage],
+    ) -> int:
+        """Persist pre-stream user messages so failed turns still keep user input."""
+
+        user_messages = [
+            message
+            for message in (messages or [])
+            if message.role == "user"
+            and (
+                bool(str(message.content or "").strip())
+                or bool(message.attachments)
+            )
+        ]
+        if not user_messages:
+            return 0
+
+        next_seq = await self.message_repo.get_next_sequence(conversation.id)
+        persisted_count = 0
+
+        for message in user_messages:
+            metadata = None
+            if message.attachments:
+                metadata = {
+                    "attachments": self._normalize_json_safe(message.attachments),
+                    "stream_seeded": True,
+                }
+            else:
+                metadata = {"stream_seeded": True}
+            metadata = self._normalize_json_safe_dict(metadata)
+
+            content = str(message.content or "")
+            await self.message_repo.create(
+                {
+                    "tenant_id": self.tenant_id,
+                    "conversation_id": conversation.id,
+                    "role": MessageRoleEnum.USER.value,
+                    "content": content,
+                    "sequence": next_seq + persisted_count,
+                    "token_count": estimate_tokens(content) if content else 0,
+                    "agent_id": None,
+                    "model_id": None,
+                    "metadata_": metadata,
+                }
+            )
+            persisted_count += 1
+
+        if persisted_count:
+            conversation.message_count = int(conversation.message_count or 0) + int(
+                persisted_count
+            )
+            await self.repo.update(
+                conversation.id,
+                {"message_count": conversation.message_count},
+            )
+
+        return persisted_count
+
     async def mark_memory_updated(self, conversation_id: int) -> None:
         """
         标记最后一条 assistant 消息的 metadata 中 memory_updated = true / Mark last assistant message memory_updated in metadata.
@@ -3062,9 +3189,12 @@ class ConversationService(
         last_msg = messages[-1]
         if last_msg.role != MessageRoleEnum.ASSISTANT.value:
             return
-        metadata = dict(last_msg.metadata_ or {})
+        metadata = self._normalize_json_safe_dict(last_msg.metadata_) or {}
         metadata["memory_updated"] = True
-        await self.message_repo.update(last_msg.id, {"metadata_": metadata})
+        await self.message_repo.update(
+            last_msg.id,
+            {"metadata_": self._normalize_json_safe_dict(metadata) or metadata},
+        )
 
     async def get_context_compaction_snapshot(
         self,

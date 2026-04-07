@@ -39,6 +39,7 @@ def _build_conversation():
         user_id=10,
         owner_type="tenant_admin",
         metadata_={},
+        message_count=0,
     )
 
 
@@ -80,6 +81,7 @@ async def _build_stream_service(mock_db):
         return_value=_build_conversation(),
     )
     service.conversation_svc.load_chat_history = AsyncMock(return_value=[])
+    service.conversation_svc.persist_user_messages = AsyncMock(return_value=1)
     service.conversation_svc.update_last_assistant_interaction_state = AsyncMock(
         return_value=None,
     )
@@ -216,8 +218,24 @@ async def test_stream_chat_defers_new_conversation_commit_until_api_quota_passes
         )
 
     record_conversation.assert_not_awaited()
+    service.conversation_svc.persist_user_messages.assert_not_awaited()
     mock_db.commit.assert_not_awaited()
     engine.stream_execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_seeds_user_messages_before_stream_starts(mock_db):
+    service = await _build_stream_service(mock_db)
+
+    await _capture_on_complete(service, mock_db)
+
+    service.conversation_svc.persist_user_messages.assert_awaited_once()
+    seeded_messages = service.conversation_svc.persist_user_messages.await_args.kwargs[
+        "messages"
+    ]
+    assert len(seeded_messages) == 1
+    assert seeded_messages[0].role == "user"
+    assert seeded_messages[0].content == "通过页面感知能力添加一个测试的智能体"
 
 
 @pytest.mark.asyncio
@@ -235,6 +253,7 @@ async def test_stream_on_complete_persists_error_message_when_failed_without_new
     conversation = _build_conversation()
     cb_conv_svc = MagicMock()
     cb_conv_svc.repo.get_by_id = AsyncMock(return_value=conversation)
+    cb_conv_svc.message_repo.count_by_conversation = AsyncMock(return_value=1)
     cb_conv_svc.message_repo.get_next_sequence = AsyncMock(return_value=2)
     cb_conv_svc.message_repo.create = AsyncMock()
 
@@ -270,12 +289,13 @@ async def test_stream_on_complete_persists_error_message_when_failed_without_new
     ):
         await on_complete(_build_failed_result())
 
-    cb_conv_svc.message_repo.create.assert_awaited_once()
-    payload = cb_conv_svc.message_repo.create.await_args.args[0]
-    assert payload["role"] == "assistant"
-    assert payload["content"] == _("ai.stream.error.service_unavailable")
-    assert payload["metadata_"]["error"] is True
-    assert payload["metadata_"]["error_type"] == "stream_execution_error"
+    assert cb_conv_svc.message_repo.create.await_count == 1
+    error_payload = cb_conv_svc.message_repo.create.await_args_list[0].args[0]
+    assert error_payload["role"] == "assistant"
+    assert error_payload["content"] == _("ai.stream.error.service_unavailable")
+    assert error_payload["metadata_"]["error"] is True
+    assert error_payload["metadata_"]["error_type"] == "stream_execution_error"
+    assert conversation.message_count == 2
     assert cb_db.commit.await_count == 1
 
 
@@ -290,6 +310,7 @@ async def test_stream_on_complete_updates_conversation_last_error_metadata(mock_
     conversation = _build_conversation()
     cb_conv_svc = MagicMock()
     cb_conv_svc.repo.get_by_id = AsyncMock(return_value=conversation)
+    cb_conv_svc.message_repo.count_by_conversation = AsyncMock(return_value=1)
     cb_conv_svc.message_repo.get_next_sequence = AsyncMock(return_value=2)
     cb_conv_svc.message_repo.create = AsyncMock()
 
@@ -343,6 +364,7 @@ async def test_stream_on_complete_preserves_partial_output_in_error_metadata(moc
     conversation = _build_conversation()
     cb_conv_svc = MagicMock()
     cb_conv_svc.repo.get_by_id = AsyncMock(return_value=conversation)
+    cb_conv_svc.message_repo.count_by_conversation = AsyncMock(return_value=1)
     cb_conv_svc.message_repo.get_next_sequence = AsyncMock(return_value=2)
     cb_conv_svc.message_repo.create = AsyncMock()
 
@@ -398,12 +420,14 @@ async def test_stream_on_complete_skips_extra_error_message_when_partial_assista
     cb_conv_svc.repo.get_by_id = AsyncMock(return_value=conversation)
     cb_conv_svc.persist_chat_messages = AsyncMock(return_value=([], 1))
     cb_conv_svc.update_stats = AsyncMock()
+    cb_conv_svc.message_repo.count_by_conversation = AsyncMock(return_value=1)
     cb_conv_svc.message_repo.get_next_sequence = AsyncMock(return_value=2)
     cb_conv_svc.message_repo.create = AsyncMock()
 
     partial_result = _build_failed_result(output="partial text")
     partial_result.messages = [
         {"role": "system", "content": "sys"},
+        {"role": "user", "content": "通过页面感知能力添加一个测试的智能体"},
         {"role": "assistant", "content": "partial text"},
     ]
 
@@ -460,12 +484,14 @@ async def test_stream_on_complete_persists_error_message_when_sanitized_messages
     cb_conv_svc.repo.get_by_id = AsyncMock(return_value=conversation)
     cb_conv_svc.persist_chat_messages = AsyncMock(return_value=([], 0))
     cb_conv_svc.update_stats = AsyncMock()
+    cb_conv_svc.message_repo.count_by_conversation = AsyncMock(return_value=1)
     cb_conv_svc.message_repo.get_next_sequence = AsyncMock(return_value=2)
     cb_conv_svc.message_repo.create = AsyncMock()
 
     partial_result = _build_failed_result(output="partial text")
     partial_result.messages = [
         {"role": "system", "content": "sys"},
+        {"role": "user", "content": "通过页面感知能力添加一个测试的智能体"},
         {"role": "assistant", "content": "", "tool_calls": [{"id": "call_1"}]},
     ]
 
@@ -502,6 +528,147 @@ async def test_stream_on_complete_persists_error_message_when_sanitized_messages
         await on_complete(partial_result)
 
     cb_conv_svc.persist_chat_messages.assert_awaited_once()
-    cb_conv_svc.message_repo.create.assert_awaited_once()
-    payload = cb_conv_svc.message_repo.create.await_args.args[0]
+    assert cb_conv_svc.message_repo.create.await_count == 1
+    payload = cb_conv_svc.message_repo.create.await_args_list[0].args[0]
     assert payload["content"] == _("ai.stream.error.service_unavailable")
+
+
+@pytest.mark.asyncio
+async def test_stream_on_complete_falls_back_to_error_message_when_persistence_raises(
+    mock_db,
+):
+    service = await _build_stream_service(mock_db)
+    on_complete, _hook_registry = await _capture_on_complete(service, mock_db)
+
+    cb_db = AsyncMock()
+    cb_db.commit = AsyncMock()
+    cb_db.rollback = AsyncMock()
+    conversation = _build_conversation()
+    cb_conv_svc = MagicMock()
+    cb_conv_svc.repo.get_by_id = AsyncMock(return_value=conversation)
+    cb_conv_svc.persist_chat_messages = AsyncMock(
+        side_effect=TypeError("Object of type Decimal is not JSON serializable")
+    )
+    cb_conv_svc.update_stats = AsyncMock()
+    cb_conv_svc.message_repo.count_by_conversation = AsyncMock(return_value=1)
+    cb_conv_svc.message_repo.get_next_sequence = AsyncMock(return_value=2)
+    cb_conv_svc.message_repo.create = AsyncMock()
+
+    with (
+        patch(
+            "app.services.ai.agent_chat_service.async_session_factory",
+            return_value=_SessionManager(cb_db),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.ConversationService",
+            return_value=cb_conv_svc,
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentQuotaManager.adjust_usage",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentQuotaManager.record_user_usage",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentStatsManager.record_chat",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.BaseEngine._publish_execution_failed",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.BaseEngine._publish_execution_completed",
+            new=AsyncMock(),
+        ),
+    ):
+        partial_result = _build_failed_result(output="partial text")
+        partial_result.messages = [
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": "通过页面感知能力添加一个测试的智能体"},
+            {"role": "assistant", "content": "partial text"},
+        ]
+        extra = await on_complete(partial_result)
+
+    assert extra == {"persistence_error": True}
+    cb_conv_svc.persist_chat_messages.assert_awaited_once()
+    assert cb_conv_svc.message_repo.create.await_count == 1
+    error_payload = cb_conv_svc.message_repo.create.await_args_list[0].args[0]
+    assert error_payload["metadata_"]["error_type"] == "stream_execution_error"
+    assert (
+        error_payload["metadata_"]["context_diagnostics"]["persistence_error"] is True
+    )
+
+
+@pytest.mark.asyncio
+async def test_stream_on_complete_callback_exception_persists_error_marker(mock_db):
+    from app.core.i18n import _
+
+    service = await _build_stream_service(mock_db)
+    on_complete, _hook_registry = await _capture_on_complete(service, mock_db)
+
+    cb_db = AsyncMock()
+    cb_db.commit = AsyncMock()
+    cb_db.rollback = AsyncMock()
+    conversation = _build_conversation()
+    cb_conv_svc = MagicMock()
+    cb_conv_svc.repo.get_by_id = AsyncMock(return_value=conversation)
+    cb_conv_svc.message_repo.count_by_conversation = AsyncMock(return_value=1)
+    cb_conv_svc.message_repo.get_next_sequence = AsyncMock(return_value=2)
+    cb_conv_svc.message_repo.create = AsyncMock()
+    cb_conv_svc.persist_chat_messages = AsyncMock(return_value=([], 0))
+    cb_conv_svc.update_stats = AsyncMock()
+
+    service._build_context_diagnostics = MagicMock(
+        side_effect=RuntimeError("diagnostics serializer exploded")
+    )
+
+    with (
+        patch(
+            "app.services.ai.agent_chat_service.async_session_factory",
+            return_value=_SessionManager(cb_db),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.ConversationService",
+            return_value=cb_conv_svc,
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentQuotaManager.adjust_usage",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentQuotaManager.record_user_usage",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentStatsManager.record_chat",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.BaseEngine._publish_execution_failed",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.BaseEngine._publish_execution_completed",
+            new=AsyncMock(),
+        ),
+    ):
+        failed_result = _build_failed_result(output="partial text")
+        failed_result.messages = [
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": "通过页面感知能力添加一个测试的智能体"},
+            {"role": "assistant", "content": "partial text"},
+        ]
+        extra = await on_complete(failed_result)
+
+    assert extra == {"on_complete_error": True}
+    assert cb_conv_svc.message_repo.create.await_count == 1
+    payload = cb_conv_svc.message_repo.create.await_args_list[0].args[0]
+    assert payload["content"] == _("ai.stream.error.service_unavailable")
+    assert "last_error" in conversation.metadata_
+    assert (
+        conversation.metadata_["last_error"]["error_type"]
+        == "stream_on_complete_callback_error"
+    )
