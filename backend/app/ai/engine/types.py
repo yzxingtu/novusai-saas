@@ -337,6 +337,15 @@ class ResearchContinuationContext:
     search_query_count: int = 0
     fetched_url_count: int = 0
     research_instruction_texts: list[str] = field(default_factory=list)
+    tool_families: list[str] = field(default_factory=list)
+    page_operation_names: list[str] = field(default_factory=list)
+    page_context_attached: bool = False
+    web_research_pair_complete: bool = False
+    continuation_capable_families: list[str] = field(default_factory=list)
+    last_tool_name: str = ""
+    last_page_key: str = ""
+    last_page_op: str = ""
+    active_intent_kind: str | None = None
 
 
 @dataclass

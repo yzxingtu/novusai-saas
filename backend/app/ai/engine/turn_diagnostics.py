@@ -57,6 +57,24 @@ class TurnDiagnostics:
             return int(default)
 
     @staticmethod
+    def _as_bool(value: Any, default: bool = False) -> bool:
+        if isinstance(value, bool):
+            return value
+        if value is None:
+            return default
+        normalized = str(value).strip().lower()
+        if normalized in {"true", "1", "yes", "y", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "n", "off"}:
+            return False
+        return bool(value)
+
+    @staticmethod
+    def _as_text(value: Any) -> str | None:
+        text = str(value or "").strip()
+        return text or None
+
+    @staticmethod
     def _path_reason(
         *,
         execution_path: str | None,
@@ -270,8 +288,32 @@ class TurnDiagnostics:
         unfinished_intents = [
             intent.intent_id for intent in intents if intent.status != "completed"
         ]
+        active_intent_id = next(
+            (
+                intent.intent_id
+                for intent in intents
+                if intent.status not in {"completed", "failed", "skipped"}
+                and intent.family != "none"
+                and intent.requires_tools
+            ),
+            None,
+        ) or TurnDiagnostics._as_text(
+            TurnDiagnostics._as_dict(preparation_diagnostics).get("active_intent_id")
+        )
         retry_events = TurnDiagnostics.serialize_recovery(recovery_history)
         recovery_chain = TurnDiagnostics.build_recovery_chain(recovery_history)
+        prep_diagnostics = TurnDiagnostics._as_dict(preparation_diagnostics)
+        tool_planner = TurnDiagnostics._as_dict(prep_diagnostics.get("tool_planner"))
+        continuation_source = TurnDiagnostics._as_text(
+            prep_diagnostics.get("continuation_source")
+        )
+        contract_breach_type = TurnDiagnostics._as_text(
+            prep_diagnostics.get("contract_breach_type")
+        )
+        assistant_claimed_tool_call_without_tool_event = TurnDiagnostics._as_bool(
+            prep_diagnostics.get("assistant_claimed_tool_call_without_tool_event"),
+            False,
+        )
         path_decision = TurnDiagnostics.build_path_decision(
             execution_path=execution_path,
             intents=intents,
@@ -309,10 +351,23 @@ class TurnDiagnostics:
                 if provider_failure_kind != "none"
                 else None
             )
+        conversation_outcome = "success"
+        if current_state == "awaiting_consent":
+            conversation_outcome = "awaiting_consent"
+        elif current_state == "partial_exit" or partial_exit_reason:
+            conversation_outcome = "partial"
+        elif current_state == "failed" or provider_failure_kind != "none":
+            conversation_outcome = "failed"
+        elif unfinished_intents and current_state != "completed":
+            conversation_outcome = "partial"
         payload = {
             "execution_path": execution_path,
             "intent_plan": TurnDiagnostics.serialize_intents(intents),
             "unfinished_intents": unfinished_intents,
+            "tool_planner": tool_planner or None,
+            "active_intent_id": active_intent_id,
+            "continuation_source": continuation_source,
+            "conversation_outcome": conversation_outcome,
             "path_decision": path_decision,
             "capability_injection": capability_injection,
             "tool_filtering": tool_filtering,
@@ -337,6 +392,10 @@ class TurnDiagnostics:
             "failure_kind": provider_failure_kind,
             "provider_events": list(provider_events),
             "candidate_tool_names": list(candidate_tool_names),
+            "contract_breach_type": contract_breach_type,
+            "assistant_claimed_tool_call_without_tool_event": (
+                assistant_claimed_tool_call_without_tool_event
+            ),
             "current_state": current_state,
             "state_history": list(state_history or []),
         }

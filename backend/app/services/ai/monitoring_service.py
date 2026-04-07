@@ -160,6 +160,18 @@ class MonitoringService:
             )
             or {}
         )
+        tool_planner = (
+            _CONVERSATION_DIAGNOSTICS._normalize_json_dict(
+                turn_record.get("tool_planner")
+            )
+            or _CONVERSATION_DIAGNOSTICS._normalize_json_dict(
+                diagnostics.get("tool_planner")
+            )
+            or _CONVERSATION_DIAGNOSTICS._normalize_json_dict(
+                turn_record_diagnostics.get("tool_planner")
+            )
+            or {}
+        )
         routing = (
             _CONVERSATION_DIAGNOSTICS._normalize_json_dict(diagnostics.get("routing"))
             or _CONVERSATION_DIAGNOSTICS._normalize_json_dict(
@@ -227,13 +239,21 @@ class MonitoringService:
                 "tool_round_failed",
             }:
                 turn_outcome = "failed"
+        conversation_outcome = _CONVERSATION_DIAGNOSTICS._to_non_empty_str(
+            turn_record.get("conversation_outcome")
+            or diagnostics.get("conversation_outcome")
+            or turn_record_diagnostics.get("conversation_outcome")
+            or turn_outcome
+        )
 
         return {
             "turn_outcome": turn_outcome,
+            "conversation_outcome": conversation_outcome,
             "termination_reason": termination_reason,
             "protocol_path": _CONVERSATION_DIAGNOSTICS._to_non_empty_str(
                 turn_record.get("protocol_path") or diagnostics.get("protocol_path")
             ),
+            "tool_planner": tool_planner or None,
             "selected_tool_names": _CONVERSATION_DIAGNOSTICS._normalize_string_list(
                 turn_record.get("selected_tool_names")
                 or diagnostics.get("selected_tool_names")
@@ -246,6 +266,16 @@ class MonitoringService:
                 turn_record.get("execution_path")
                 or diagnostics.get("execution_path")
                 or turn_record_diagnostics.get("execution_path")
+            ),
+            "active_intent_id": _CONVERSATION_DIAGNOSTICS._to_non_empty_str(
+                turn_record.get("active_intent_id")
+                or diagnostics.get("active_intent_id")
+                or turn_record_diagnostics.get("active_intent_id")
+            ),
+            "continuation_source": _CONVERSATION_DIAGNOSTICS._to_non_empty_str(
+                turn_record.get("continuation_source")
+                or diagnostics.get("continuation_source")
+                or turn_record_diagnostics.get("continuation_source")
             ),
             "intent_plan": _CONVERSATION_DIAGNOSTICS._normalize_intent_plan(
                 turn_record.get("intent_plan")
@@ -331,10 +361,25 @@ class MonitoringService:
             "contract_breach_type": _CONVERSATION_DIAGNOSTICS._to_non_empty_str(
                 turn_record_metadata.get("contract_breach_type")
                 or diagnostics.get("contract_breach_type")
+                or turn_record_diagnostics.get("contract_breach_type")
             ),
             "tool_leak_detected": bool(
                 turn_record_metadata.get("tool_leak_detected")
                 or diagnostics.get("tool_leak_detected")
+            ),
+            "assistant_claimed_tool_call_without_tool_event": bool(
+                turn_record_metadata.get(
+                    "assistant_claimed_tool_call_without_tool_event"
+                )
+                or turn_record.get(
+                    "assistant_claimed_tool_call_without_tool_event"
+                )
+                or diagnostics.get(
+                    "assistant_claimed_tool_call_without_tool_event"
+                )
+                or turn_record_diagnostics.get(
+                    "assistant_claimed_tool_call_without_tool_event"
+                )
             ),
             "unfinished_intents": _CONVERSATION_DIAGNOSTICS._normalize_string_list(
                 turn_record_metadata.get("unfinished_intents")

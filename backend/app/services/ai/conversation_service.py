@@ -1048,10 +1048,14 @@ class ConversationService(
             "turn_outcome": turn_meta.get("turn_outcome"),
             "termination_reason": turn_meta.get("termination_reason"),
             "protocol_path": turn_meta.get("protocol_path"),
+            "tool_planner": turn_meta.get("tool_planner"),
             "selected_tool_names": turn_meta.get("selected_tool_names") or [],
             "selected_skill_names": turn_meta.get("selected_skill_names") or [],
             "context_sources": turn_meta.get("context_sources") or [],
             "execution_path": turn_meta.get("execution_path"),
+            "active_intent_id": turn_meta.get("active_intent_id"),
+            "continuation_source": turn_meta.get("continuation_source"),
+            "conversation_outcome": turn_meta.get("conversation_outcome"),
             "intent_plan": turn_meta.get("intent_plan") or [],
             "budget": turn_meta.get("budget"),
             "budget_status": turn_meta.get("budget_status"),
@@ -1063,6 +1067,9 @@ class ConversationService(
             "provider_events": turn_meta.get("provider_events") or [],
             "contract_breach_type": turn_meta.get("contract_breach_type"),
             "tool_leak_detected": bool(turn_meta.get("tool_leak_detected")),
+            "assistant_claimed_tool_call_without_tool_event": bool(
+                turn_meta.get("assistant_claimed_tool_call_without_tool_event")
+            ),
             "unfinished_intents": turn_meta.get("unfinished_intents") or [],
             "leaked_tool_names": turn_meta.get("leaked_tool_names") or [],
             "recovered_via_retry": turn_meta.get("recovered_via_retry"),
@@ -1119,10 +1126,14 @@ class ConversationService(
             "turn_outcome": turn_meta.get("turn_outcome"),
             "termination_reason": turn_meta.get("termination_reason"),
             "protocol_path": turn_meta.get("protocol_path"),
+            "tool_planner": turn_meta.get("tool_planner"),
             "selected_tool_names": turn_meta.get("selected_tool_names") or [],
             "selected_skill_names": turn_meta.get("selected_skill_names") or [],
             "context_sources": turn_meta.get("context_sources") or [],
             "execution_path": turn_meta.get("execution_path"),
+            "active_intent_id": turn_meta.get("active_intent_id"),
+            "continuation_source": turn_meta.get("continuation_source"),
+            "conversation_outcome": turn_meta.get("conversation_outcome"),
             "intent_plan": turn_meta.get("intent_plan") or [],
             "budget": turn_meta.get("budget"),
             "budget_status": turn_meta.get("budget_status"),
@@ -1134,6 +1145,9 @@ class ConversationService(
             "provider_events": turn_meta.get("provider_events") or [],
             "contract_breach_type": turn_meta.get("contract_breach_type"),
             "tool_leak_detected": bool(turn_meta.get("tool_leak_detected")),
+            "assistant_claimed_tool_call_without_tool_event": bool(
+                turn_meta.get("assistant_claimed_tool_call_without_tool_event")
+            ),
             "unfinished_intents": turn_meta.get("unfinished_intents") or [],
             "leaked_tool_names": turn_meta.get("leaked_tool_names") or [],
             "recovered_via_retry": turn_meta.get("recovered_via_retry"),
@@ -2231,12 +2245,35 @@ class ConversationService(
             or context_diagnostics.get("contract_breach_type")
             or last_run_summary.get("contract_breach_type")
         )
+        tool_planner = cls._normalize_json_dict(
+            (turn_record or {}).get("tool_planner")
+            or metadata.get("tool_planner")
+            or turn_record_diagnostics.get("tool_planner")
+            or context_diagnostics.get("tool_planner")
+            or last_run_summary.get("tool_planner")
+        )
         tool_leak_detected = bool(
             turn_record_metadata.get("tool_leak_detected")
             or metadata.get("tool_leak_detected")
             or turn_record_diagnostics.get("tool_leak_detected")
             or context_diagnostics.get("tool_leak_detected")
             or last_run_summary.get("tool_leak_detected")
+        )
+        assistant_claimed_tool_call_without_tool_event = bool(
+            turn_record_metadata.get("assistant_claimed_tool_call_without_tool_event")
+            or (turn_record or {}).get(
+                "assistant_claimed_tool_call_without_tool_event"
+            )
+            or metadata.get("assistant_claimed_tool_call_without_tool_event")
+            or turn_record_diagnostics.get(
+                "assistant_claimed_tool_call_without_tool_event"
+            )
+            or context_diagnostics.get(
+                "assistant_claimed_tool_call_without_tool_event"
+            )
+            or last_run_summary.get(
+                "assistant_claimed_tool_call_without_tool_event"
+            )
         )
         unfinished_intents = cls._normalize_string_list(
             turn_record_metadata.get("unfinished_intents")
@@ -2332,6 +2369,28 @@ class ConversationService(
             or turn_record_diagnostics.get("execution_path")
             or context_diagnostics.get("execution_path")
             or last_run_summary.get("execution_path")
+        )
+        active_intent_id = cls._to_non_empty_str(
+            (turn_record or {}).get("active_intent_id")
+            or metadata.get("active_intent_id")
+            or turn_record_diagnostics.get("active_intent_id")
+            or context_diagnostics.get("active_intent_id")
+            or last_run_summary.get("active_intent_id")
+        )
+        continuation_source = cls._to_non_empty_str(
+            (turn_record or {}).get("continuation_source")
+            or metadata.get("continuation_source")
+            or turn_record_diagnostics.get("continuation_source")
+            or context_diagnostics.get("continuation_source")
+            or last_run_summary.get("continuation_source")
+        )
+        conversation_outcome = cls._to_non_empty_str(
+            (turn_record or {}).get("conversation_outcome")
+            or metadata.get("conversation_outcome")
+            or turn_record_diagnostics.get("conversation_outcome")
+            or context_diagnostics.get("conversation_outcome")
+            or last_run_summary.get("conversation_outcome")
+            or turn_outcome
         )
         intent_plan = cls._normalize_intent_plan(
             (turn_record or {}).get("intent_plan")
@@ -2470,12 +2529,19 @@ class ConversationService(
             "selected_tool_names": selected_tool_names,
             "selected_skill_names": selected_skill_names,
             "context_sources": context_sources,
+            "tool_planner": tool_planner,
             "contract_breach_type": contract_breach_type,
             "tool_leak_detected": tool_leak_detected,
+            "assistant_claimed_tool_call_without_tool_event": (
+                assistant_claimed_tool_call_without_tool_event
+            ),
             "unfinished_intents": unfinished_intents,
             "leaked_tool_names": leaked_tool_names,
             "recovered_via_retry": recovered_via_retry,
             "execution_path": execution_path,
+            "active_intent_id": active_intent_id,
+            "continuation_source": continuation_source,
+            "conversation_outcome": conversation_outcome,
             "intent_plan": intent_plan,
             "budget": budget,
             "budget_status": budget_status,
@@ -2699,6 +2765,8 @@ class ConversationService(
             )
         if turn_protocol_path:
             effective_context_diagnostics["protocol_path"] = turn_protocol_path
+        if turn_meta.get("tool_planner"):
+            effective_context_diagnostics["tool_planner"] = turn_meta["tool_planner"]
         if turn_selected_tools:
             effective_context_diagnostics["selected_tool_names"] = turn_selected_tools
         if turn_selected_skills:
@@ -2708,6 +2776,18 @@ class ConversationService(
         if turn_meta.get("execution_path"):
             effective_context_diagnostics["execution_path"] = turn_meta[
                 "execution_path"
+            ]
+        if turn_meta.get("active_intent_id"):
+            effective_context_diagnostics["active_intent_id"] = turn_meta[
+                "active_intent_id"
+            ]
+        if turn_meta.get("continuation_source"):
+            effective_context_diagnostics["continuation_source"] = turn_meta[
+                "continuation_source"
+            ]
+        if turn_meta.get("conversation_outcome"):
+            effective_context_diagnostics["conversation_outcome"] = turn_meta[
+                "conversation_outcome"
             ]
         if turn_meta.get("intent_plan"):
             effective_context_diagnostics["intent_plan"] = turn_meta["intent_plan"]
@@ -2741,6 +2821,10 @@ class ConversationService(
             ]
         if turn_meta.get("tool_leak_detected"):
             effective_context_diagnostics["tool_leak_detected"] = True
+        if turn_meta.get("assistant_claimed_tool_call_without_tool_event"):
+            effective_context_diagnostics[
+                "assistant_claimed_tool_call_without_tool_event"
+            ] = True
         if turn_meta.get("unfinished_intents"):
             effective_context_diagnostics["unfinished_intents"] = turn_meta[
                 "unfinished_intents"
@@ -2793,6 +2877,8 @@ class ConversationService(
             )
         if turn_protocol_path:
             effective_last_run_summary["protocol_path"] = turn_protocol_path
+        if turn_meta.get("tool_planner"):
+            effective_last_run_summary["tool_planner"] = turn_meta["tool_planner"]
         if turn_selected_tools:
             effective_last_run_summary["selected_tool_names"] = turn_selected_tools
         if turn_selected_skills:
@@ -2801,6 +2887,18 @@ class ConversationService(
             effective_last_run_summary["context_sources"] = turn_context_sources
         if turn_meta.get("execution_path"):
             effective_last_run_summary["execution_path"] = turn_meta["execution_path"]
+        if turn_meta.get("active_intent_id"):
+            effective_last_run_summary["active_intent_id"] = turn_meta[
+                "active_intent_id"
+            ]
+        if turn_meta.get("continuation_source"):
+            effective_last_run_summary["continuation_source"] = turn_meta[
+                "continuation_source"
+            ]
+        if turn_meta.get("conversation_outcome"):
+            effective_last_run_summary["conversation_outcome"] = turn_meta[
+                "conversation_outcome"
+            ]
         if turn_meta.get("intent_plan"):
             effective_last_run_summary["intent_plan"] = turn_meta["intent_plan"]
         if turn_meta.get("budget"):
@@ -2831,6 +2929,10 @@ class ConversationService(
             ]
         if turn_meta.get("tool_leak_detected"):
             effective_last_run_summary["tool_leak_detected"] = True
+        if turn_meta.get("assistant_claimed_tool_call_without_tool_event"):
+            effective_last_run_summary[
+                "assistant_claimed_tool_call_without_tool_event"
+            ] = True
         if turn_meta.get("unfinished_intents"):
             effective_last_run_summary["unfinished_intents"] = turn_meta[
                 "unfinished_intents"

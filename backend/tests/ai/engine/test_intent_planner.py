@@ -40,6 +40,25 @@ def _plan(
     )
 
 
+def _page_continuation_context(
+    *,
+    current_user_text: str,
+    active_intent_kind: str = "page_summary",
+) -> ResearchContinuationContext:
+    return ResearchContinuationContext(
+        active=True,
+        family="page_ops",
+        origin="continuation",
+        current_user_text=current_user_text,
+        research_target_text="admin.ai.api-keys",
+        recent_successful_tool_names=["get_page_context"],
+        tool_families=["page_ops"],
+        page_context_attached=True,
+        continuation_capable_families=["page_ops"],
+        active_intent_kind=active_intent_kind,
+    )
+
+
 def test_intent_planner_suppresses_web_when_user_explicitly_disables_network() -> None:
     intents = _plan("不要联网，帮我搜一下北京天气")
 
@@ -117,6 +136,39 @@ def test_intent_planner_detects_page_summary_when_page_context_is_present() -> N
     assert [intent.family for intent in intents] == ["page_ops"]
     assert intents[0].kind == "page_summary"
     assert intents[0].shortcircuit is True
+
+
+def test_intent_planner_detects_page_continuation_summary_for_continue_look() -> None:
+    intents = _plan(
+        "继续看",
+        tools=_tools(),
+        input_variables={"page_context": {"page_key": "admin.ai.api-keys"}},
+        continuation=_page_continuation_context(current_user_text="继续看"),
+    )
+
+    assert [intent.family for intent in intents] == ["page_ops"]
+    assert intents[0].kind == "page_summary"
+    assert intents[0].continuation is True
+
+
+def test_intent_planner_detects_page_continuation_screenshot_request() -> None:
+    intents = _plan(
+        "截个图看",
+        tools=_tools(),
+        input_variables={
+            "page_context": {
+                "page_key": "admin.ai.api-keys",
+                "page_data": {
+                    "available_operations": [{"name": "capture_screenshot"}],
+                },
+            }
+        },
+        continuation=_page_continuation_context(current_user_text="截个图看"),
+    )
+
+    assert [intent.family for intent in intents] == ["page_ops"]
+    assert intents[0].kind == "page_screenshot"
+    assert intents[0].continuation is True
 
 
 def test_intent_planner_detects_page_screenshot_request() -> None:

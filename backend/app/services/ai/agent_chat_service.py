@@ -613,6 +613,12 @@ class AgentChatService:
             payload["termination_reason"] = turn_meta["termination_reason"]
         if turn_meta.get("protocol_path"):
             payload["protocol_path"] = turn_meta["protocol_path"]
+        if turn_meta.get("active_intent_id"):
+            payload["active_intent_id"] = turn_meta["active_intent_id"]
+        if turn_meta.get("continuation_source"):
+            payload["continuation_source"] = turn_meta["continuation_source"]
+        if turn_meta.get("conversation_outcome"):
+            payload["conversation_outcome"] = turn_meta["conversation_outcome"]
         if turn_meta.get("selected_tool_names"):
             payload["selected_tool_names"] = turn_meta["selected_tool_names"]
         if turn_meta.get("selected_skill_names"):
@@ -623,6 +629,8 @@ class AgentChatService:
             payload["contract_breach_type"] = turn_meta["contract_breach_type"]
         if turn_meta.get("tool_leak_detected"):
             payload["tool_leak_detected"] = True
+        if turn_meta.get("assistant_claimed_tool_call_without_tool_event"):
+            payload["assistant_claimed_tool_call_without_tool_event"] = True
         if turn_meta.get("unfinished_intents"):
             payload["unfinished_intents"] = turn_meta["unfinished_intents"]
         if turn_meta.get("leaked_tool_names"):
@@ -671,6 +679,12 @@ class AgentChatService:
             payload["turn_outcome"] = turn_meta["turn_outcome"]
         if turn_meta.get("protocol_path"):
             payload["protocol_path"] = turn_meta["protocol_path"]
+        if turn_meta.get("active_intent_id"):
+            payload["active_intent_id"] = turn_meta["active_intent_id"]
+        if turn_meta.get("continuation_source"):
+            payload["continuation_source"] = turn_meta["continuation_source"]
+        if turn_meta.get("conversation_outcome"):
+            payload["conversation_outcome"] = turn_meta["conversation_outcome"]
         if turn_meta.get("selected_tool_names"):
             payload["selected_tool_names"] = turn_meta["selected_tool_names"]
         if turn_meta.get("selected_skill_names"):
@@ -681,6 +695,8 @@ class AgentChatService:
             payload["contract_breach_type"] = turn_meta["contract_breach_type"]
         if turn_meta.get("tool_leak_detected"):
             payload["tool_leak_detected"] = True
+        if turn_meta.get("assistant_claimed_tool_call_without_tool_event"):
+            payload["assistant_claimed_tool_call_without_tool_event"] = True
         if turn_meta.get("unfinished_intents"):
             payload["unfinished_intents"] = turn_meta["unfinished_intents"]
         if turn_meta.get("leaked_tool_names"):

@@ -115,6 +115,11 @@ _TOOL_PLANNING_LEAK_TERMS = (
     "to fulfill the users request",
     "according to workflow",
     "first call ",
+    "calling ",
+    "invoking ",
+    "invoke ",
+    "正在调用",
+    "调用 ",
     "then ",
 )
 _FORBID_INSTRUCTION_TERMS = (
@@ -357,6 +362,13 @@ def extract_textual_tool_call_names(
             f"functions.{alias_key}",
             f"{alias_key}(",
             f"call {alias_key}",
+            f"calling {alias_key}",
+            f"invoking {alias_key}",
+            f"invoke {alias_key}",
+            f"正在调用{alias_key}",
+            f"正在调用 {alias_key}",
+            f"调用{alias_key}",
+            f"调用 {alias_key}",
             f"then {alias_key}",
             f"next {alias_key}",
         )

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import re
 from typing import Any
 
@@ -287,6 +287,39 @@ _PAGE_PAGINATION_TERMS = (
 )
 _PAGE_CAPABILITY_TERMS = ("页面感知能力", "页面能力", "页面操作能力", "页面操作")
 _KNOWLEDGE_TERMS = ("知识库", "文档", "资料", "kb")
+_PAGE_CONTINUE_TERMS = (
+    "继续看",
+    "再看看",
+    "接着看",
+    "继续看看",
+    "再看一下",
+    "接着看看",
+)
+_PAGE_CONTINUE_SCREENSHOT_TERMS = (
+    "截个图看",
+    "截一下图",
+    "给我看截图",
+)
+_PAGE_CONTINUE_DETAIL_TERMS = (
+    "看这个区域",
+    "点进去看",
+    "展开看看",
+    "展开看",
+    "看里面",
+    "点开看",
+    "继续看下去",
+)
+_PAGE_CONTINUE_ACTION_TERMS = (
+    *_PAGE_CONTINUE_TERMS,
+    *_PAGE_CONTINUE_SCREENSHOT_TERMS,
+    *_PAGE_CONTINUE_DETAIL_TERMS,
+    "截图",
+    "截屏",
+    "点进去",
+    "点开",
+    "展开",
+    "看看",
+)
 _WEATHER_LOCATION_SUFFIX_RE = re.compile(
     r"[\u4e00-\u9fff]{2,12}(?:市|区|县|州|省|自治区|特别行政区)"
 )
@@ -339,6 +372,8 @@ class _IntentSignal:
     position: int
     requires_tools: bool = True
     shortcircuit: bool = False
+    continuation: bool = False
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class IntentPlanner:
@@ -389,6 +424,144 @@ class IntentPlanner:
             for tool in tools
             if tool_semantic_family(tool, input_variables) != "none"
         }
+
+    @staticmethod
+    def _continuation_families(continuation_context: Any | None) -> set[str]:
+        if continuation_context is None:
+            return set()
+        families = {
+            str(family or "").strip()
+            for family in getattr(
+                continuation_context,
+                "continuation_capable_families",
+                [],
+            )
+            if str(family or "").strip()
+        }
+        active_family = str(getattr(continuation_context, "family", "") or "").strip()
+        if active_family:
+            families.add(active_family)
+        tool_families = getattr(continuation_context, "tool_families", []) or []
+        families.update(
+            str(family or "").strip()
+            for family in tool_families
+            if str(family or "").strip()
+        )
+        return families
+
+    @staticmethod
+    def _looks_like_short_directive_follow_up(text: str) -> bool:
+        normalized = re.sub(r"\s+", "", str(text or "").strip().lower())
+        if not normalized:
+            return False
+        if "?" in normalized or "？" in normalized:
+            return False
+        if len(normalized) <= 10:
+            return True
+        return len(normalized) <= 18 and len(normalized.split()) <= 6
+
+    @classmethod
+    def _looks_like_page_follow_up(cls, text: str) -> bool:
+        lowered = str(text or "").strip().lower()
+        if not lowered:
+            return False
+        if cls._first_position(lowered, _PAGE_CONTINUE_ACTION_TERMS) >= 0:
+            return True
+        return cls._looks_like_short_directive_follow_up(lowered) and any(
+            token in lowered
+            for token in ("看", "截图", "截屏", "展开", "点", "明细", "详情")
+        )
+
+    @classmethod
+    def _page_continuation_intent_kind(
+        cls,
+        *,
+        clause: str,
+        input_variables: dict[str, Any] | None,
+        continuation_context: Any | None,
+    ) -> str:
+        lowered = clause.lower()
+        if cls._first_position(lowered, _PAGE_CONTINUE_SCREENSHOT_TERMS) >= 0 or (
+            cls._first_position(lowered, _PAGE_SCREENSHOT_TERMS) >= 0
+            and cls._looks_like_page_follow_up(lowered)
+        ):
+            return "page_screenshot"
+        if has_navigation_intent(clause, None) or any(
+            token in lowered for token in ("点进去", "点开", "打开", "进入", "展开")
+        ):
+            return "page_navigation"
+        if cls._first_position(lowered, _PAGE_CONTINUE_DETAIL_TERMS) >= 0 or any(
+            token in lowered for token in ("区域", "明细", "详情")
+        ):
+            page_ops = cls._page_operation_names(input_variables)
+            if {
+                "read_visible_rows",
+                "read_row_detail",
+                "open_row_detail",
+            } & page_ops:
+                return "page_row_detail"
+        active_intent_kind = str(
+            getattr(continuation_context, "active_intent_kind", "") or ""
+        ).strip()
+        if active_intent_kind.startswith("page_") and active_intent_kind not in {
+            "page_form_write",
+            "page_editor_write",
+        }:
+            return active_intent_kind
+        return "page_summary"
+
+    @classmethod
+    def _detect_page_continuation_signal(
+        cls,
+        *,
+        clause: str,
+        offset: int,
+        input_variables: dict[str, Any] | None,
+        continuation_context: Any | None,
+    ) -> _IntentSignal | None:
+        if not cls._has_page_context(input_variables):
+            return None
+        continuation_families = cls._continuation_families(continuation_context)
+        if "page_ops" not in continuation_families:
+            return None
+
+        active_family = str(getattr(continuation_context, "family", "") or "").strip()
+        active_intent_kind = str(
+            getattr(continuation_context, "active_intent_kind", "") or ""
+        ).strip()
+        last_tool_name = str(
+            getattr(continuation_context, "last_tool_name", "") or ""
+        ).strip()
+        prior_page_family = (
+            active_family == "page_ops"
+            or active_intent_kind.startswith("page_")
+            or tool_semantic_family(
+                ToolDefinition(name=last_tool_name, description=""),
+                input_variables,
+            )
+            == "page_ops"
+        )
+        if not prior_page_family:
+            return None
+
+        lowered = clause.lower()
+        if not cls._looks_like_page_follow_up(lowered):
+            return None
+
+        intent_kind = cls._page_continuation_intent_kind(
+            clause=clause,
+            input_variables=input_variables,
+            continuation_context=continuation_context,
+        )
+        return _IntentSignal(
+            kind=intent_kind,
+            family="page_ops",
+            label=intent_kind,
+            position=offset,
+            shortcircuit=(intent_kind == "page_summary"),
+            continuation=True,
+            metadata={"continuation_source": "page_ops"},
+        )
 
     @staticmethod
     def _first_position(text: str, candidates: tuple[str, ...]) -> int:
@@ -702,6 +875,15 @@ class IntentPlanner:
                 )
 
         if cls._has_page_context(input_variables) and "page_ops" in families:
+            page_continuation_signal = cls._detect_page_continuation_signal(
+                clause=clause,
+                offset=offset,
+                input_variables=input_variables,
+                continuation_context=continuation_context,
+            )
+            if page_continuation_signal is not None:
+                signals.append(page_continuation_signal)
+                return sorted(signals, key=lambda item: item.position)
             page_signal = cls._detect_page_signal(
                 clause=clause,
                 offset=offset,
@@ -828,8 +1010,9 @@ class IntentPlanner:
                     source_text=user_text,
                     requires_tools=signal.requires_tools,
                     allow_text_response=allow_text_response,
+                    continuation=signal.continuation,
                     shortcircuit=signal.shortcircuit,
-                    metadata=metadata,
+                    metadata={**metadata, **dict(signal.metadata or {})},
                 )
             )
         return plans

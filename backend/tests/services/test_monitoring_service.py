@@ -91,6 +91,49 @@ class TestCallTraceDiagnostics:
         assert diagnostics["budget_status"] == "exited"
         assert diagnostics["budget_exit_reason"] == "elapsed_budget_exceeded"
 
+    def test_extract_call_trace_diagnostics_exposes_continuation_and_contract_flags(
+        self,
+    ):
+        from app.services.ai.monitoring_service import MonitoringService
+
+        diagnostics = MonitoringService._extract_call_trace_diagnostics(
+            {
+                "turn_diagnostics": {
+                    "tool_planner": {
+                        "intent": "page_summary",
+                        "family": "page_ops",
+                    },
+                    "active_intent_id": "intent-1",
+                    "continuation_source": "page_ops",
+                    "conversation_outcome": "failed",
+                    "assistant_claimed_tool_call_without_tool_event": True,
+                    "turn_record": {
+                        "candidate_tool_names": ["get_page_context"],
+                        "metadata": {
+                            "turn_diagnostics": {
+                                "contract_breach_type": (
+                                    "assistant_claimed_tool_call_without_tool_event"
+                                )
+                            }
+                        },
+                    },
+                }
+            }
+        )
+
+        assert diagnostics["tool_planner"] == {
+            "intent": "page_summary",
+            "family": "page_ops",
+        }
+        assert diagnostics["active_intent_id"] == "intent-1"
+        assert diagnostics["continuation_source"] == "page_ops"
+        assert diagnostics["conversation_outcome"] == "failed"
+        assert diagnostics["candidate_tool_names"] == ["get_page_context"]
+        assert diagnostics["contract_breach_type"] == (
+            "assistant_claimed_tool_call_without_tool_event"
+        )
+        assert diagnostics["assistant_claimed_tool_call_without_tool_event"] is True
+
 
 class TestMonitoringScope:
     def test_scope_builders_return_expected_flags(self):

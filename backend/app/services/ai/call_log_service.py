@@ -507,6 +507,16 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
             or incoming.get("protocol_path")
             or req.get("protocol_path")
         )
+        raw_tool_planner = (
+            (turn_record or {}).get("tool_planner")
+            or incoming.get("tool_planner")
+            or req.get("tool_planner")
+        )
+        tool_planner = (
+            cls._make_json_safe(dict(raw_tool_planner))
+            if isinstance(raw_tool_planner, dict)
+            else None
+        )
         selected_tool_names = cls._normalize_string_list(
             (turn_record or {}).get("selected_tool_names")
             or incoming.get("selected_tool_names")
@@ -563,6 +573,34 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
             or incoming.get("interrupted_stage")
             or req.get("interrupted_stage")
         )
+        active_intent_id = cls._to_non_empty_str(
+            (turn_record or {}).get("active_intent_id")
+            or incoming.get("active_intent_id")
+            or req.get("active_intent_id")
+        )
+        continuation_source = cls._to_non_empty_str(
+            (turn_record or {}).get("continuation_source")
+            or incoming.get("continuation_source")
+            or req.get("continuation_source")
+        )
+        conversation_outcome = cls._to_non_empty_str(
+            (turn_record or {}).get("conversation_outcome")
+            or incoming.get("conversation_outcome")
+            or req.get("conversation_outcome")
+            or turn_outcome
+        )
+        assistant_claimed_tool_call_without_tool_event = cls._pick_first_bool(
+            [
+                turn_record_metadata.get(
+                    "assistant_claimed_tool_call_without_tool_event"
+                ),
+                (turn_record or {}).get(
+                    "assistant_claimed_tool_call_without_tool_event"
+                ),
+                incoming.get("assistant_claimed_tool_call_without_tool_event"),
+                req.get("assistant_claimed_tool_call_without_tool_event"),
+            ]
+        )
         tool_loop_progress = (
             dict((turn_record or {}).get("tool_loop_progress") or {})
             if isinstance((turn_record or {}).get("tool_loop_progress"), dict)
@@ -588,6 +626,7 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
 
         diagnostics: dict[str, Any] = {
             "turn_outcome": turn_outcome,
+            "conversation_outcome": conversation_outcome,
             "termination_reason": termination_reason,
             "selected_tool_names": selected_tool_names,
             "selected_skill_names": selected_skill_names,
@@ -595,6 +634,8 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
         }
         if protocol_path:
             diagnostics["protocol_path"] = protocol_path
+        if tool_planner:
+            diagnostics["tool_planner"] = tool_planner
         if fallback_history:
             diagnostics["fallback_history"] = fallback_history
         if sync_rescue is not None:
@@ -609,6 +650,14 @@ class CallLogService(BaseService[AICallLog, AICallLogRepository]):
             diagnostics["last_page_op"] = last_page_op
         if interrupted_stage:
             diagnostics["interrupted_stage"] = interrupted_stage
+        if active_intent_id:
+            diagnostics["active_intent_id"] = active_intent_id
+        if continuation_source:
+            diagnostics["continuation_source"] = continuation_source
+        if assistant_claimed_tool_call_without_tool_event is not None:
+            diagnostics["assistant_claimed_tool_call_without_tool_event"] = (
+                assistant_claimed_tool_call_without_tool_event
+            )
         if tool_loop_progress:
             diagnostics["tool_loop_progress"] = tool_loop_progress
         if turn_record:

@@ -1148,6 +1148,115 @@ class BaseEngine(ABC):
 
         return _has_page_context(input_variables)
 
+    @staticmethod
+    def _page_operation_names_from_input_variables(
+        input_variables: dict[str, Any] | None,
+    ) -> list[str]:
+        if not isinstance(input_variables, dict):
+            return []
+        from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
+
+        page_context = input_variables.get(PAGE_CONTEXT_KEY)
+        if not isinstance(page_context, dict):
+            return []
+        page_data = page_context.get("page_data")
+        raw_operations = (
+            page_data.get("available_operations")
+            if isinstance(page_data, dict)
+            else page_context.get("available_operations")
+        )
+        if not isinstance(raw_operations, list):
+            return []
+        operation_names: list[str] = []
+        for item in raw_operations:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name") or "").strip()
+            if name and name not in operation_names:
+                operation_names.append(name)
+        return operation_names
+
+    @staticmethod
+    def _stable_unique_text_list(values: list[Any]) -> list[str]:
+        normalized: list[str] = []
+        for value in values:
+            text = str(value or "").strip()
+            if text and text not in normalized:
+                normalized.append(text)
+        return normalized
+
+    @classmethod
+    def _extract_latest_turn_runtime_facts(
+        cls,
+        messages: list[ChatMessage],
+    ) -> dict[str, Any]:
+        facts: dict[str, Any] = {
+            "last_tool_name": "",
+            "last_page_key": "",
+            "last_page_op": "",
+            "active_intent_kind": None,
+        }
+
+        def _candidate_dicts(message: ChatMessage) -> list[dict[str, Any]]:
+            metadata = dict(message.metadata or {}) if isinstance(message.metadata, dict) else {}
+            candidates = [metadata]
+            for key in ("turn_record", "context_diagnostics", "last_run_summary"):
+                value = metadata.get(key)
+                if isinstance(value, dict):
+                    candidates.append(dict(value))
+            turn_record = metadata.get("turn_record")
+            if isinstance(turn_record, dict):
+                turn_record_metadata = turn_record.get("metadata")
+                if isinstance(turn_record_metadata, dict):
+                    candidates.append(dict(turn_record_metadata))
+                    diagnostics = turn_record_metadata.get("turn_diagnostics")
+                    if isinstance(diagnostics, dict):
+                        candidates.append(dict(diagnostics))
+            return candidates
+
+        for message in reversed(messages):
+            if message.role != "assistant":
+                continue
+
+            if not facts["active_intent_kind"]:
+                for candidate in _candidate_dicts(message):
+                    tool_planner = candidate.get("tool_planner")
+                    if isinstance(tool_planner, dict):
+                        intent_kind = str(tool_planner.get("intent") or "").strip()
+                        if intent_kind:
+                            facts["active_intent_kind"] = intent_kind
+                            break
+                    intent_kind = str(candidate.get("active_intent_kind") or "").strip()
+                    if intent_kind:
+                        facts["active_intent_kind"] = intent_kind
+                        break
+
+            for tool_call in reversed(message.tool_calls or []):
+                if tool_call.get("success") is not True:
+                    continue
+                if not facts["last_tool_name"]:
+                    facts["last_tool_name"] = cls._tool_call_name(tool_call)
+                if not facts["last_page_op"]:
+                    facts["last_page_op"] = cls._tool_call_operation_name(tool_call)
+                if not facts["last_page_key"]:
+                    arguments = cls._parse_tool_arguments(
+                        (tool_call.get("function") or {}).get("arguments")
+                    )
+                    facts["last_page_key"] = str(
+                        arguments.get("page_key") or ""
+                    ).strip()
+                if (
+                    facts["last_tool_name"]
+                    and facts["last_page_op"]
+                    and facts["last_page_key"]
+                    and facts["active_intent_kind"]
+                ):
+                    return facts
+            if facts["last_tool_name"] and facts["active_intent_kind"]:
+                return facts
+
+        return facts
+
     @classmethod
     def _tool_family_for_name(
         cls,
@@ -1500,9 +1609,9 @@ class BaseEngine(ABC):
 
         if leaked_tool_names or planning_leak:
             return (
-                "leaked_textual_tool_call",
+                "assistant_claimed_tool_call_without_tool_event",
                 cls._build_post_tool_retry_policy(
-                    breach_type="leaked_textual_tool_call",
+                    breach_type="assistant_claimed_tool_call_without_tool_event",
                     tools=tools,
                     input_variables=input_variables,
                     current_policy=current_policy,
@@ -1511,6 +1620,7 @@ class BaseEngine(ABC):
                 ),
                 {
                     "tool_leak_detected": True,
+                    "assistant_claimed_tool_call_without_tool_event": True,
                     "leaked_tool_names": leaked_tool_names,
                     "requested_intents": requested_intents,
                     "completed_intents": sorted(completed_intents),
@@ -1542,6 +1652,7 @@ class BaseEngine(ABC):
             None,
             {
                 "tool_leak_detected": False,
+                "assistant_claimed_tool_call_without_tool_event": False,
                 "leaked_tool_names": [],
                 "requested_intents": requested_intents,
                 "completed_intents": sorted(completed_intents),
@@ -1559,7 +1670,10 @@ class BaseEngine(ABC):
         unfinished_intents = diagnostics.get("unfinished_intents") or []
         completed_intents = diagnostics.get("completed_intents") or []
         breach_guidance = ""
-        if breach_type == "leaked_textual_tool_call":
+        if breach_type in {
+            "leaked_textual_tool_call",
+            "assistant_claimed_tool_call_without_tool_event",
+        }:
             breach_guidance = (
                 render_prompt_contract("contract_recovery_leak_guidance") + "\n"
             )
@@ -1621,6 +1735,9 @@ class BaseEngine(ABC):
         if breach_type:
             metadata["contract_breach_type"] = breach_type
         metadata["tool_leak_detected"] = bool(diagnostics.get("tool_leak_detected"))
+        metadata["assistant_claimed_tool_call_without_tool_event"] = bool(
+            diagnostics.get("assistant_claimed_tool_call_without_tool_event")
+        )
         metadata["unfinished_intents"] = list(
             diagnostics.get("unfinished_intents") or []
         )
@@ -2361,10 +2478,29 @@ class BaseEngine(ABC):
         cls,
         messages: list[ChatMessage],
         all_tools: list[ToolDefinition],
+        input_variables: dict[str, Any] | None = None,
     ) -> ResearchContinuationContext:
         tool_names = {tool.name for tool in all_tools}
-        if "web_search" not in tool_names:
-            return ResearchContinuationContext()
+        tool_families = [
+            family
+            for family in cls._stable_unique_text_list(
+                [
+                    cls._tool_semantic_family(tool, input_variables)
+                    for tool in all_tools
+                ]
+            )
+            if family != "none"
+        ]
+        page_operation_names = cls._page_operation_names_from_input_variables(
+            input_variables,
+        )
+        page_context_attached = cls._has_page_context(input_variables)
+        web_research_pair_complete = {"web_search", "fetch_url"} <= tool_names
+        continuation_capable_families: list[str] = []
+        if page_context_attached and "page_ops" in tool_families:
+            continuation_capable_families.append("page_ops")
+        if web_research_pair_complete and "web_research" in tool_families:
+            continuation_capable_families.append("web_research")
 
         current_user_text = ""
         prior_messages: list[ChatMessage] = []
@@ -2376,7 +2512,13 @@ class BaseEngine(ABC):
                 break
 
         if not current_user_text:
-            return ResearchContinuationContext()
+            return ResearchContinuationContext(
+                tool_families=tool_families,
+                page_operation_names=page_operation_names,
+                page_context_attached=page_context_attached,
+                web_research_pair_complete=web_research_pair_complete,
+                continuation_capable_families=continuation_capable_families,
+            )
 
         recent_successful_tool_names = cls._extract_recent_successful_tool_names(
             prior_messages,
@@ -2389,21 +2531,48 @@ class BaseEngine(ABC):
             prior_messages,
             current_user_text,
         )
+        last_turn_facts = cls._extract_latest_turn_runtime_facts(prior_messages)
         latest_successful_tool = (
             recent_successful_tool_names[0] if recent_successful_tool_names else ""
         )
-        active = latest_successful_tool in {"web_search", "fetch_url"}
+        last_tool_name = str(last_turn_facts.get("last_tool_name") or "").strip()
+        last_page_key = str(last_turn_facts.get("last_page_key") or "").strip()
+        last_page_op = str(last_turn_facts.get("last_page_op") or "").strip()
+        active_intent_kind = (
+            str(last_turn_facts.get("active_intent_kind") or "").strip() or None
+        )
+        last_tool_family = cls._tool_family_for_name(last_tool_name, input_variables)
+
+        active = False
+        family: str | None = None
+        if (
+            "page_ops" in continuation_capable_families
+            and (
+                last_tool_family == "page_ops"
+                or str(active_intent_kind or "").startswith("page_")
+            )
+        ):
+            active = True
+            family = "page_ops"
+        elif latest_successful_tool in {"web_search", "fetch_url"} and "web_search" in tool_names:
+            active = True
+            family = "web_research"
+
         origin = "continuation" if active else "none"
 
         research_target_text = (
             recent_web_queries[0]
             if recent_web_queries
-            else cls._extract_last_user_text(prior_messages) or current_user_text
+            else (
+                last_page_key
+                if family == "page_ops" and last_page_key
+                else cls._extract_last_user_text(prior_messages) or current_user_text
+            )
         )
 
         return ResearchContinuationContext(
             active=active,
-            family="web_research" if active else None,
+            family=family,
             origin=origin,
             current_user_text=current_user_text,
             research_target_text=research_target_text,
@@ -2412,6 +2581,15 @@ class BaseEngine(ABC):
             search_query_count=len(search_queries),
             fetched_url_count=len(fetched_urls),
             research_instruction_texts=research_instruction_texts,
+            tool_families=tool_families,
+            page_operation_names=page_operation_names,
+            page_context_attached=page_context_attached,
+            web_research_pair_complete=web_research_pair_complete,
+            continuation_capable_families=continuation_capable_families,
+            last_tool_name=last_tool_name,
+            last_page_key=last_page_key,
+            last_page_op=last_page_op,
+            active_intent_kind=active_intent_kind,
         )
 
     # ========================================
@@ -2489,6 +2667,7 @@ class BaseEngine(ABC):
         continuation_context = self._build_web_research_continuation_context(
             messages,
             all_tools,
+            request.input_variables,
         )
 
         # 4.5 Enhance tool schemas with page context (enum/default) / 用页面上下文增强工具 Schema
@@ -2895,6 +3074,11 @@ class BaseEngine(ABC):
         request.tool_use_policy = dataclasses.replace(tool_use_policy)
         if tool_planner is not None:
             context_assembly.diagnostics["tool_planner"] = dict(tool_planner)
+        context_assembly.diagnostics["candidate_tool_names"] = list(candidate_tool_names)
+        context_assembly.diagnostics["active_intent_id"] = active_intent_id
+        context_assembly.diagnostics["continuation_source"] = (
+            continuation_context.family if continuation_context and continuation_context.active else None
+        )
         if intent_plan:
             context_assembly.diagnostics["intent_plan"] = [
                 intent.to_dict() for intent in intent_plan

@@ -610,6 +610,30 @@ class StreamIOAdapter:
             )
         return False, None, ""
 
+    def analyze_post_tool_contract_breach(
+        self,
+        *,
+        messages: list[ChatMessage],
+        response: ChatResponse | None,
+        current_policy: ToolUsePolicy,
+        tools: list[Any],
+        input_variables: dict[str, Any] | None,
+    ) -> tuple[str | None, ToolUsePolicy | None, dict[str, Any]]:
+        analyze_fn = getattr(
+            self.handler.engine,
+            "_analyze_post_tool_contract_breach",
+            None,
+        )
+        if callable(analyze_fn) and response is not None:
+            return analyze_fn(
+                messages=messages,
+                response=response,
+                current_policy=current_policy,
+                tools=tools,
+                input_variables=input_variables,
+            )
+        return None, None, {}
+
     def restrict_tools_to_names(
         self,
         tools: list[Any],
@@ -1268,8 +1292,29 @@ class StreamExecutionHandler:
                 result.turn_record["failure_kind"] = diagnostics_payload.get(
                     "failure_kind",
                 )
+                result.turn_record["tool_planner"] = diagnostics_payload.get(
+                    "tool_planner",
+                )
+                result.turn_record["active_intent_id"] = diagnostics_payload.get(
+                    "active_intent_id",
+                )
+                result.turn_record["continuation_source"] = diagnostics_payload.get(
+                    "continuation_source",
+                )
+                result.turn_record["conversation_outcome"] = diagnostics_payload.get(
+                    "conversation_outcome",
+                )
+                result.turn_record[
+                    "assistant_claimed_tool_call_without_tool_event"
+                ] = diagnostics_payload.get(
+                    "assistant_claimed_tool_call_without_tool_event",
+                )
+                result.turn_record["contract_breach_type"] = diagnostics_payload.get(
+                    "contract_breach_type",
+                )
                 metadata = dict(result.turn_record.get("metadata") or {})
                 metadata["orchestration"] = diagnostics_payload
+                metadata["turn_diagnostics"] = diagnostics_payload
                 result.turn_record["metadata"] = metadata
 
             if partial_reply_stream_chunks:

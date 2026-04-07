@@ -254,6 +254,25 @@ class _SyncIOAdapter:
             continuation=continuation,
         )
 
+    def analyze_post_tool_contract_breach(
+        self,
+        *,
+        messages: list[ChatMessage],
+        response: ChatResponse | None,
+        current_policy: ToolUsePolicy,
+        tools: list[ToolDefinition],
+        input_variables: dict[str, Any] | None,
+    ) -> tuple[str | None, ToolUsePolicy | None, dict[str, Any]]:
+        if response is None:
+            return None, None, {}
+        return self.engine._analyze_post_tool_contract_breach(
+            messages=messages,
+            response=response,
+            current_policy=current_policy,
+            tools=tools,
+            input_variables=input_variables,
+        )
+
     def restrict_tools_to_names(
         self,
         tools: list[ToolDefinition],
@@ -537,6 +556,20 @@ class ConversationEngine(BaseEngine):
                     "unfinished_intents": diagnostics_payload.get("unfinished_intents"),
                     "provider_events": diagnostics_payload.get("provider_events"),
                     "failure_kind": diagnostics_payload.get("failure_kind"),
+                    "tool_planner": diagnostics_payload.get("tool_planner"),
+                    "active_intent_id": diagnostics_payload.get("active_intent_id"),
+                    "continuation_source": diagnostics_payload.get(
+                        "continuation_source"
+                    ),
+                    "conversation_outcome": diagnostics_payload.get(
+                        "conversation_outcome"
+                    ),
+                    "assistant_claimed_tool_call_without_tool_event": diagnostics_payload.get(
+                        "assistant_claimed_tool_call_without_tool_event"
+                    ),
+                    "contract_breach_type": diagnostics_payload.get(
+                        "contract_breach_type"
+                    ),
                 }
             )
             raw_turn_outcome = str(turn_record_payload.get("turn_outcome") or "").strip()
@@ -561,6 +594,7 @@ class ConversationEngine(BaseEngine):
                     turn_record_payload["partial_exit_reason"] = partial_exit_reason
             metadata = dict(turn_record_payload.get("metadata") or {})
             metadata["orchestration"] = diagnostics_payload
+            metadata["turn_diagnostics"] = diagnostics_payload
             turn_record_payload["metadata"] = metadata
 
             result = ExecutionResult(

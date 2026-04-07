@@ -101,6 +101,16 @@ class TurnIOAdapter(Protocol):
         continuation: Any,
     ) -> tuple[bool, ToolUsePolicy | None, str]: ...
 
+    def analyze_post_tool_contract_breach(
+        self,
+        *,
+        messages: list[ChatMessage],
+        response: ChatResponse | None,
+        current_policy: ToolUsePolicy,
+        tools: list[Any],
+        input_variables: dict[str, Any] | None,
+    ) -> tuple[str | None, ToolUsePolicy | None, dict[str, Any]]: ...
+
     def restrict_tools_to_names(
         self,
         tools: list[Any],
@@ -376,6 +386,71 @@ class TurnExecutor:
         return bool(str(response.message.content or "").strip())
 
     @staticmethod
+    def _record_contract_breach(
+        state: ExecutionStateMachine,
+        *,
+        breach_type: str,
+        diagnostics: dict[str, Any],
+    ) -> None:
+        state.preparation_diagnostics["contract_breach_type"] = breach_type
+        if diagnostics.get("unfinished_intents"):
+            state.preparation_diagnostics["unfinished_intents"] = list(
+                diagnostics.get("unfinished_intents") or []
+            )
+        if diagnostics.get("leaked_tool_names"):
+            state.preparation_diagnostics["leaked_tool_names"] = list(
+                diagnostics.get("leaked_tool_names") or []
+            )
+        if diagnostics.get("tool_leak_detected") is not None:
+            state.preparation_diagnostics["tool_leak_detected"] = bool(
+                diagnostics.get("tool_leak_detected")
+            )
+        if diagnostics.get("assistant_claimed_tool_call_without_tool_event") is not None:
+            state.preparation_diagnostics[
+                "assistant_claimed_tool_call_without_tool_event"
+            ] = bool(
+                diagnostics.get("assistant_claimed_tool_call_without_tool_event")
+            )
+
+    @staticmethod
+    def _constrain_retry_policy_to_active_intent(
+        *,
+        retry_policy: ToolUsePolicy,
+        active_intent: Any | None,
+        current_policy: ToolUsePolicy | None,
+    ) -> ToolUsePolicy:
+        if active_intent is None:
+            return retry_policy
+        allowed_tool_names = list(
+            getattr(active_intent, "allowed_tool_names", None)
+            or getattr(current_policy, "allowed_tool_names", None)
+            or retry_policy.allowed_tool_names
+        )
+        family = (
+            str(getattr(active_intent, "family", "") or "").strip()
+            or str(getattr(current_policy, "family", "") or "").strip()
+            or retry_policy.family
+        )
+        return ToolUsePolicy(
+            family=family or retry_policy.family,
+            mode="required",
+            allowed_tool_names=allowed_tool_names,
+            retry_on_contract_breach=False,
+            reason=retry_policy.reason,
+        )
+
+    @staticmethod
+    def _suppress_contract_placeholder_response(
+        response: ChatResponse | None,
+    ) -> ChatResponse | None:
+        if response is None:
+            return None
+        if getattr(response, "tool_calls", None):
+            return response
+        response.message.content = ""
+        return response
+
+    @staticmethod
     async def _run_missing_args_clarification(
         *,
         state: ExecutionStateMachine,
@@ -583,27 +658,57 @@ class TurnExecutor:
             and active_policy.retry_on_contract_breach
             and contract_tools
             and not tool_results
-            and not state.intent_plan
         ):
-            should_retry, retry_policy, _breach_response_text = (
-                io.should_retry_tool_contract_breach(
-                    response=response,
-                    current_policy=active_policy,
-                    tools=contract_tools,
-                    input_variables=request.input_variables,
-                )
-            )
-            if not should_retry:
-                should_retry, retry_policy, _breach_response_text = (
-                    io.should_retry_web_research_contract_breach(
+            should_retry = False
+            retry_policy: ToolUsePolicy | None = None
+            breach_type: str | None = None
+
+            if state.intent_plan:
+                breach_type, retry_policy, breach_diagnostics = (
+                    io.analyze_post_tool_contract_breach(
                         messages=messages,
                         response=response,
                         current_policy=active_policy,
                         tools=contract_tools,
                         input_variables=request.input_variables,
-                        continuation=prep.continuation_context,
                     )
                 )
+                if breach_type:
+                    TurnExecutor._record_contract_breach(
+                        state,
+                        breach_type=breach_type,
+                        diagnostics=breach_diagnostics,
+                    )
+                    response = TurnExecutor._suppress_contract_placeholder_response(
+                        response,
+                    )
+                if retry_policy is not None:
+                    retry_policy = TurnExecutor._constrain_retry_policy_to_active_intent(
+                        retry_policy=retry_policy,
+                        active_intent=active_intent,
+                        current_policy=active_policy,
+                    )
+                    should_retry = True
+            else:
+                should_retry, retry_policy, _breach_response_text = (
+                    io.should_retry_tool_contract_breach(
+                        response=response,
+                        current_policy=active_policy,
+                        tools=contract_tools,
+                        input_variables=request.input_variables,
+                    )
+                )
+                if not should_retry:
+                    should_retry, retry_policy, _breach_response_text = (
+                        io.should_retry_web_research_contract_breach(
+                            messages=messages,
+                            response=response,
+                            current_policy=active_policy,
+                            tools=contract_tools,
+                            input_variables=request.input_variables,
+                            continuation=prep.continuation_context,
+                        )
+                    )
             if should_retry and retry_policy is not None:
                 retry_tools = io.restrict_tools_to_names(
                     contract_tools,
@@ -688,6 +793,9 @@ class TurnExecutor:
                     state.register_completion_tokens(completion_tokens_used)
                     TurnExecutor._register_tool_failures(state, extra_tool_results)
                 elif response is not None:
+                    response = TurnExecutor._suppress_contract_placeholder_response(
+                        response,
+                    )
                     io.log_tool_contract_diagnostics(
                         agent=agent,
                         messages=messages,

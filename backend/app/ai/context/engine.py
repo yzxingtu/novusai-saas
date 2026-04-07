@@ -287,6 +287,7 @@ class ConversationContextEngine(ContextEngine):
             self.base_engine._build_web_research_continuation_context(
                 messages,
                 list(provisional_bundle.tools),
+                request.input_variables,
             )
         )
         from app.ai.engine.intent_planner import IntentPlanner

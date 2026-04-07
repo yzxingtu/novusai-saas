@@ -12,6 +12,8 @@ from typing import Any, Literal
 
 from app.ai.runtime.context_assembler import ContextAssemblerState
 from app.ai.runtime.types import CapabilityBundle
+from app.ai.tools.semantic_defaults import tool_semantic_family
+from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
 
 RuntimeCapabilityStatus = Literal["available", "degraded", "unavailable"]
 
@@ -125,6 +127,67 @@ class AIRuntimeInventoryService:
         )
         return provider, model
 
+    @staticmethod
+    def _page_context_payload(request: Any) -> dict[str, Any]:
+        input_variables = getattr(request, "input_variables", None)
+        if isinstance(input_variables, dict):
+            page_context = input_variables.get(PAGE_CONTEXT_KEY)
+            if isinstance(page_context, dict):
+                return page_context
+        page_context = getattr(request, "page_context", None)
+        return page_context if isinstance(page_context, dict) else {}
+
+    @classmethod
+    def _page_operation_names(cls, request: Any) -> list[str]:
+        page_context = cls._page_context_payload(request)
+        page_data = page_context.get("page_data")
+        raw_operations = (
+            page_data.get("available_operations")
+            if isinstance(page_data, dict)
+            else page_context.get("available_operations")
+        )
+        if not isinstance(raw_operations, list):
+            return []
+        operation_names: list[str] = []
+        for item in raw_operations:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name") or "").strip()
+            if name and name not in operation_names:
+                operation_names.append(name)
+        return operation_names
+
+    @classmethod
+    def _tool_families(cls, bundle: CapabilityBundle, request: Any) -> list[str]:
+        input_variables = (
+            dict(getattr(request, "input_variables", {}) or {})
+            if isinstance(getattr(request, "input_variables", None), dict)
+            else {}
+        )
+        families: list[str] = []
+        for tool in bundle.tools or []:
+            family = str(tool_semantic_family(tool, input_variables) or "").strip()
+            if family and family != "none" and family not in families:
+                families.append(family)
+        return families
+
+    @classmethod
+    def _tool_family_map(cls, bundle: CapabilityBundle, request: Any) -> dict[str, str]:
+        input_variables = (
+            dict(getattr(request, "input_variables", {}) or {})
+            if isinstance(getattr(request, "input_variables", None), dict)
+            else {}
+        )
+        family_map: dict[str, str] = {}
+        for tool in bundle.tools or []:
+            tool_name = str(getattr(tool, "name", "") or "").strip()
+            if not tool_name:
+                continue
+            family = str(tool_semantic_family(tool, input_variables) or "").strip()
+            if family and family != "none":
+                family_map[tool_name] = family
+        return family_map
+
     @classmethod
     def build_manifest(
         cls,
@@ -142,6 +205,10 @@ class AIRuntimeInventoryService:
         )
         selected_tools = cls._stable_unique(list(bundle.selected_tool_names or []))
         selected_skills = cls._stable_unique(list(bundle.selected_skill_names or []))
+        tool_families = cls._tool_families(bundle, request)
+        tool_family_map = cls._tool_family_map(bundle, request)
+        page_operation_names = cls._page_operation_names(request)
+        page_context_attached = bool(cls._page_context_payload(request))
 
         tool_items = [
             RuntimeCapabilityItem(
@@ -152,7 +219,8 @@ class AIRuntimeInventoryService:
                 metadata={
                     "consent_mode": str(
                         (bundle.tool_consent_modes or {}).get(tool_name, "auto")
-                    )
+                    ),
+                    "family": tool_family_map.get(tool_name),
                 },
             )
             for tool_name in selected_tools
@@ -225,7 +293,13 @@ class AIRuntimeInventoryService:
                 kind="context_provider",
                 status="available" if source.get("active") else "degraded",
                 reason=None if source.get("active") else "inactive_page_context_source",
-                metadata=dict(source.get("metadata") or {}),
+                metadata={
+                    **dict(source.get("metadata") or {}),
+                    "page_context_attached": page_context_attached,
+                    "available_operations": [
+                        {"name": name} for name in page_operation_names
+                    ],
+                },
                 source="request.page_context",
             )
             for source in context_sources
@@ -238,6 +312,10 @@ class AIRuntimeInventoryService:
                     kind="context_provider",
                     status="unavailable",
                     reason="page_context_not_attached",
+                    metadata={
+                        "page_context_attached": page_context_attached,
+                        "available_operations": [],
+                    },
                     source="request.page_context",
                 )
             ]
@@ -267,6 +345,11 @@ class AIRuntimeInventoryService:
                 source="tool_registry",
             )
         ]
+        continuation_capable_families: list[str] = []
+        if page_context_attached and "page_ops" in tool_families:
+            continuation_capable_families.append("page_ops")
+        if has_web_search and has_fetch_url and "web_research" in tool_families:
+            continuation_capable_families.append("web_research")
 
         disabled_items: list[RuntimeCapabilityItem] = []
         if dropped_kb_ids:
@@ -355,6 +438,67 @@ class AIRuntimeInventoryService:
             "selected_skill_names": selected_skill_names,
             "context_line": context_line,
             "context_source_kinds": context_source_kinds,
+            "tool_families": cls._stable_unique(
+                [
+                    item.metadata.get("family")
+                    for item in manifest.tools
+                    if item.status == "available"
+                ]
+            ),
+            "page_operation_names": cls._stable_unique(
+                [
+                    operation.get("name")
+                    for item in manifest.page_context
+                    for operation in (
+                        (
+                            item.metadata.get("available_operations")
+                            if isinstance(item.metadata.get("available_operations"), list)
+                            else (
+                                item.metadata.get("page_data", {}) or {}
+                            ).get("available_operations", [])
+                            if isinstance(item.metadata.get("page_data"), dict)
+                            else []
+                        )
+                    )
+                    if isinstance(operation, dict)
+                ]
+            ),
+            "page_context_attached": any(
+                item.status == "available" for item in manifest.page_context
+            ),
+            "web_research_pair_complete": any(
+                item.name == "web_research"
+                and bool(item.metadata.get("has_web_search"))
+                and bool(item.metadata.get("has_fetch_url"))
+                for item in manifest.web_research
+            ),
+            "continuation_capable_families": cls._stable_unique(
+                [
+                    family
+                    for family in (
+                        "page_ops"
+                        if any(item.status == "available" for item in manifest.page_context)
+                        and "page_ops"
+                        in cls._stable_unique(
+                            [
+                                item.metadata.get("family")
+                                for item in manifest.tools
+                                if item.status == "available"
+                            ]
+                        )
+                        else None,
+                        "web_research"
+                        if any(
+                            item.name == "web_research"
+                            and bool(item.metadata.get("has_web_search"))
+                            and bool(item.metadata.get("has_fetch_url"))
+                            for item in manifest.web_research
+                        )
+                        else None,
+                    )
+                    if family
+                ]
+            ),
             "knowledge_base_hint": bool(
                 include_knowledge_base_hint and "knowledge_base" in context_source_kinds
             ),

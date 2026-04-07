@@ -21,10 +21,16 @@ class _FakeIOAdapter:
         model_rounds: list[ModelRoundResult],
         tool_batch: ToolBatchResult | None = None,
         contract_retry: tuple[bool, ToolUsePolicy | None, str] = (False, None, ""),
+        post_tool_contract_breach: tuple[
+            str | None,
+            ToolUsePolicy | None,
+            dict[str, object],
+        ] = (None, None, {}),
     ) -> None:
         self.model_rounds = list(model_rounds)
         self.tool_batch = tool_batch or ToolBatchResult(response=None, tool_results=[])
         self.contract_retry = contract_retry
+        self.post_tool_contract_breach = post_tool_contract_breach
         self.call_history: list[dict[str, object]] = []
         self.retry_logs: list[str] = []
         self.finalize_calls: list[dict[str, object]] = []
@@ -47,6 +53,9 @@ class _FakeIOAdapter:
 
     def should_retry_web_research_contract_breach(self, **kwargs):
         return False, None, ""
+
+    def analyze_post_tool_contract_breach(self, **kwargs):
+        return self.post_tool_contract_breach
 
     def restrict_tools_to_names(self, tools, allowed_tool_names):
         if not allowed_tool_names:
@@ -231,6 +240,107 @@ async def test_turn_executor_marks_contract_retry_round_and_failed_retry() -> No
         and event.data.get("round_kind") == "contract_retry"
         for event in state.turn_events
     )
+
+
+@pytest.mark.asyncio
+async def test_turn_executor_retries_structured_intent_when_assistant_claims_fake_tool_call() -> None:
+    tools = [ToolDefinition(name="get_page_context", description="Read page")]
+    intents = [
+        _build_intent(
+            intent_id="intent-page",
+            kind="page_summary",
+            family="page_ops",
+            allowed_tool_names=["get_page_context"],
+        )
+    ]
+    prep = _build_prep(
+        tools=tools,
+        intents=intents,
+        tool_use_policy=ToolUsePolicy(
+            family="page_ops",
+            mode="required",
+            allowed_tool_names=["get_page_context"],
+            retry_on_contract_breach=True,
+            reason="intent:page_summary",
+        ),
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    io = _FakeIOAdapter(
+        model_rounds=[
+            _assistant_response("Calling get_page_context to continue reviewing."),
+            _assistant_response(
+                "",
+                tool_calls=[
+                    {
+                        "id": "call_page_ctx",
+                        "type": "function",
+                        "function": {
+                            "name": "get_page_context",
+                            "arguments": "{}",
+                        },
+                    }
+                ],
+            ),
+        ],
+        tool_batch=ToolBatchResult(
+            response=ChatResponse(
+                message=ChatMessage(role="assistant", content="我继续查看了页面内容。"),
+                total_tokens=11,
+                output_tokens=11,
+            ),
+            tool_results=[
+                ToolResult(
+                    tool_call_id="call_page_ctx",
+                    name="get_page_context",
+                    success=True,
+                    output="page context payload",
+                )
+            ],
+            total_tokens=11,
+            completion_tokens_used=11,
+        ),
+        post_tool_contract_breach=(
+            "assistant_claimed_tool_call_without_tool_event",
+            ToolUsePolicy(
+                family="page_ops",
+                mode="required",
+                allowed_tool_names=["get_page_context"],
+                retry_on_contract_breach=False,
+                reason="assistant_claimed_tool_call_without_tool_event",
+            ),
+            {
+                "assistant_claimed_tool_call_without_tool_event": True,
+                "unfinished_intents": ["page_summary"],
+            },
+        ),
+    )
+
+    with patch("app.ai.engine.turn_executor.RecoveryManager.decide", return_value=None):
+        result = await TurnExecutor.run(
+            state=state,
+            io=io,
+            prep=prep,
+            request=SimpleNamespace(
+                input_variables={
+                    "page_context": {"page_key": "admin.ai.conversations"},
+                },
+                conversation_id=15,
+            ),
+            agent=SimpleNamespace(id=1),
+        )
+
+    assert result.output == "我继续查看了页面内容。"
+    assert len(io.call_history) == 2
+    assert io.call_history[1]["breach_retry_result"] == "contract_retry"
+    assert [tool.name for tool in io.call_history[1]["tools"]] == ["get_page_context"]
+    assert state.preparation_diagnostics["contract_breach_type"] == (
+        "assistant_claimed_tool_call_without_tool_event"
+    )
+    assert state.preparation_diagnostics[
+        "assistant_claimed_tool_call_without_tool_event"
+    ] is True
+    assert state.preparation_diagnostics["unfinished_intents"] == ["page_summary"]
+    assert io.retry_logs == ["retrying"]
 
 
 @pytest.mark.asyncio
