@@ -64,6 +64,14 @@ class SSEChunkEncoder:
         """
         return "data: [DONE]\n\n"
 
+    @staticmethod
+    def keepalive() -> str:
+        """
+        Generate SSE keep-alive comment to prevent connection timeout.
+        生成 SSE keep-alive 注释，防止连接超时断开。
+        """
+        return ": keepalive\n\n"
+
 
 class SSEStreamingResponse:
     """

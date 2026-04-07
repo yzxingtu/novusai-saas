@@ -1200,6 +1200,8 @@ class StreamExecutionHandler:
                 )
 
             executor_task = asyncio.create_task(self._run_with_turn_executor())
+            _keepalive_counter = 0
+            _KEEPALIVE_INTERVAL = 300  # Send keepalive every 300 * 0.05s = 15s
             while True:
                 if executor_task.done() and self._event_queue.empty():
                     break
@@ -1209,7 +1211,12 @@ class StreamExecutionHandler:
                         timeout=0.05,
                     )
                 except asyncio.TimeoutError:
+                    _keepalive_counter += 1
+                    if _keepalive_counter >= _KEEPALIVE_INTERVAL:
+                        _keepalive_counter = 0
+                        yield SSEChunkEncoder.keepalive()
                     continue
+                _keepalive_counter = 0
                 yield queued_event
 
             turn_execution = await executor_task
