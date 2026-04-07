@@ -2548,22 +2548,34 @@ class OpenAIAdapter(BaseAdapter):
 
     def _convert_tools_for_responses(self, tools: list[dict]) -> list[dict]:
         converted: list[dict] = []
+        has_web_search_function = False
         for tool in tools:
             if tool.get("type") == "function" and isinstance(
                 tool.get("function"), dict
             ):
                 function = tool["function"]
+                func_name = function.get("name", "")
+                # When using Responses API with native web_search support,
+                # replace function-calling web_search with native web_search tool.
+                # 使用 Responses API 且支持原生搜索时，用原生 web_search 替换 function calling 版本。
+                if func_name == "web_search":
+                    has_web_search_function = True
+                    continue  # Skip — will be replaced by native web_search below
                 # Omit strict: many OpenAI-compatible gateways reject or mishandle it / 省略 strict：多数兼容网关不支持或行为不一致
                 converted.append(
                     {
                         "type": "function",
-                        "name": function.get("name", ""),
+                        "name": func_name,
                         "description": function.get("description"),
                         "parameters": function.get("parameters"),
                     }
                 )
                 continue
             converted.append(tool)
+        # Inject native Responses API web_search tool when the function tool was present
+        # 当存在 function calling 的 web_search 时，替换为 Responses API 原生 web_search
+        if has_web_search_function:
+            converted.insert(0, {"type": "web_search", "search_context_size": "medium"})
         return converted
 
     def _responses_tool_history_mode(self) -> str:
