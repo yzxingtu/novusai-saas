@@ -354,7 +354,7 @@ describe('useAIChat interrupted stream recovery', () => {
     await chat.loadConversations();
     chat.inputMessage.value = '查今天AI新闻';
 
-    await chat.sendMessage();
+    await chat.sendMessage({ routeSource: 'stream-failure-recovery-test' });
     await flushPromises();
 
     expect(apiMocks.getGlobalConversationsApi).toHaveBeenCalledTimes(3);
@@ -512,6 +512,85 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(chat.chatMessages.value[1]?.content).toBe('partial from backend');
     expect(chat.chatMessages.value[1]?.partial).toBe(true);
     expect(chat.chatMessages.value[1]?.interrupted).toBe(true);
+  });
+
+  it('resyncs committed conversation history immediately after done without waiting for abort cleanup', async () => {
+    apiMocks.getChatConversationMessagesApi.mockResolvedValue({
+      agent_id: 1,
+      interaction_mode_effective: 'confirm',
+      message_list: [
+        {
+          content: '查今天AI新闻',
+          created_at: '2026-04-07T12:00:00Z',
+          role: 'user',
+        },
+        {
+          agent_id: 1,
+          agent_name: 'Agent One',
+          content: '已从服务端同步完成',
+          created_at: '2026-04-07T12:00:01Z',
+          role: 'assistant',
+        },
+      ],
+    });
+
+    apiMocks.sendChatStreamApi.mockImplementation(
+      async (
+        _prefix: string,
+        _agentId: number,
+        _body: Record<string, unknown>,
+        options: {
+          abortController: AbortController;
+          onMessage: (chunk: string) => Promise<void>;
+        },
+      ) => {
+        await options.onMessage(
+          `data: ${JSON.stringify({ event: 'conversation', conversation_id: 42 })}\n`,
+        );
+        await options.onMessage(
+          `data: ${JSON.stringify({ event: 'message', delta: '客户端先收到的内容' })}\n`,
+        );
+        await options.onMessage(
+          `data: ${JSON.stringify({
+            conversation_id: 42,
+            event: 'done',
+            persistence_committed: true,
+            persisted_message_count: 2,
+            total_tokens: 18,
+          })}\n`,
+        );
+        await new Promise<void>((resolve) => {
+          options.abortController.signal.addEventListener(
+            'abort',
+            () => resolve(),
+            { once: true },
+          );
+        });
+      },
+    );
+
+    const chat = useAIChat({
+      apiPrefix: '/tenant',
+      uploadUrl: '/tenant/attachments',
+    });
+
+    await chat.loadAgents();
+    chat.inputMessage.value = '查今天AI新闻';
+
+    const sendPromise = chat.sendMessage();
+    await flushPromises();
+
+    expect(apiMocks.getChatConversationMessagesApi).toHaveBeenCalledTimes(1);
+    expect(chat.chatMessages.value.map((item) => item.content)).toEqual([
+      '查今天AI新闻',
+      '已从服务端同步完成',
+    ]);
+
+    await vi.advanceTimersByTimeAsync(2000);
+    await sendPromise;
+    await flushPromises();
+
+    expect(apiMocks.getChatConversationMessagesApi).toHaveBeenCalledTimes(1);
   });
 
   it('keeps the anchored conversation binding after transient local state loss', async () => {

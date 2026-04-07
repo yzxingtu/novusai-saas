@@ -2066,6 +2066,7 @@ export function useAIChat(options: UseAIChatOptions) {
     let hasReceivedStreamPayload = false;
     let shouldSyncInterruptedConversation = false;
     let shouldSyncCommittedConversation = false;
+    let committedConversationSyncPromise: null | Promise<void> = null;
     let streamConversationId =
       activeConversationId.value ?? conversationAnchorId;
 
@@ -2090,6 +2091,22 @@ export function useAIChat(options: UseAIChatOptions) {
           }
         }
       }
+    }
+
+    function triggerCommittedConversationSync() {
+      if (
+        committedConversationSyncPromise ||
+        streamConversationId === null ||
+        activeConversationId.value !== streamConversationId
+      ) {
+        return;
+      }
+      committedConversationSyncPromise = syncConversationAfterInterrupt(
+        streamConversationId,
+        interruptedHistoryBaseline,
+      ).finally(() => {
+        committedConversationSyncPromise = null;
+      });
     }
 
     function promoteToolRoundContent() {
@@ -2496,6 +2513,9 @@ export function useAIChat(options: UseAIChatOptions) {
               streaming.value = false;
               sending.value = false;
               loadConversations();
+              if (shouldSyncCommittedConversation) {
+                triggerCommittedConversationSync();
+              }
               if (doneAbortTimer) {
                 clearTimeout(doneAbortTimer);
               }
@@ -2609,7 +2629,7 @@ export function useAIChat(options: UseAIChatOptions) {
             doneAbortTimer = null;
           }
           await parseSSEEvents('\n', sseBuffer, handleSsePayload);
-          loadConversations();
+          await loadConversations();
         },
         onError(error: AppErrorInfo | Error) {
           const appError = normalizeSseTransportError(error, $t);
@@ -2673,12 +2693,14 @@ export function useAIChat(options: UseAIChatOptions) {
       }
 
       let interruptedConversationId = streamConversationId;
+      let recoveredConversationFromHistory = false;
       if (interruptedConversationId === null) {
         const recoveredConversationId = recoverConversationIdFromHistory(
           knownConversationIdsBeforeSend,
           targetAgentId,
         );
         if (recoveredConversationId !== null) {
+          recoveredConversationFromHistory = true;
           interruptedConversationId = recoveredConversationId;
           activeConversationId.value = recoveredConversationId;
           activeConversationAgentId.value = targetAgentId;
@@ -2687,16 +2709,21 @@ export function useAIChat(options: UseAIChatOptions) {
       }
       const shouldSyncConversationHistory =
         interruptedConversationId !== null &&
-        (shouldSyncCommittedConversation ||
+        (recoveredConversationFromHistory ||
+          shouldSyncCommittedConversation ||
           (!didReceiveDoneEvent &&
             (streamLifecycle.abortReason === 'user' ||
               shouldSyncInterruptedConversation ||
               didSseEnd)));
       if (shouldSyncConversationHistory) {
-        await syncConversationAfterInterrupt(
-          interruptedConversationId,
-          interruptedHistoryBaseline,
-        );
+        if (committedConversationSyncPromise) {
+          await committedConversationSyncPromise;
+        } else {
+          await syncConversationAfterInterrupt(
+            interruptedConversationId,
+            interruptedHistoryBaseline,
+          );
+        }
       }
 
       if (_deferredAutoConfirm && pendingInteractionUpdates.value.length > 0) {

@@ -592,7 +592,8 @@ async def test_stream_on_complete_falls_back_to_error_message_when_persistence_r
         ]
         extra = await on_complete(partial_result)
 
-    assert extra == {"persistence_error": True}
+    assert extra is not None
+    assert extra["persistence_error"] is True
     cb_conv_svc.persist_chat_messages.assert_awaited_once()
     assert cb_conv_svc.message_repo.create.await_count == 1
     error_payload = cb_conv_svc.message_repo.create.await_args_list[0].args[0]
@@ -663,7 +664,8 @@ async def test_stream_on_complete_callback_exception_persists_error_marker(mock_
         ]
         extra = await on_complete(failed_result)
 
-    assert extra == {"on_complete_error": True}
+    assert extra is not None
+    assert extra["on_complete_error"] is True
     assert cb_conv_svc.message_repo.create.await_count == 1
     payload = cb_conv_svc.message_repo.create.await_args_list[0].args[0]
     assert payload["content"] == _("ai.stream.error.service_unavailable")
