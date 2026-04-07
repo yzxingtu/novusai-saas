@@ -480,6 +480,7 @@ class AIGateway:
                 "backend_key": effective_backend_key,
             }
         )
+        native_retry_limit = 0
 
         estimated_input = 0
         metering_context = None
@@ -496,15 +497,25 @@ class AIGateway:
             )
 
         async def _run_native_search_with_retry(adapter: Any) -> SearchProviderRun:
-            run = await adapter.native_web_search(
-                query=query,
-                max_results=max_results,
-                locale=locale,
-                timeout_seconds=timeout_seconds,
-                model=model,
-                provider_label=effective_provider_label,
-                backend_key=effective_backend_key,
-            )
+            try:
+                run = await asyncio.wait_for(
+                    adapter.native_web_search(
+                        query=query,
+                        max_results=max_results,
+                        locale=locale,
+                        timeout_seconds=timeout_seconds,
+                        model=model,
+                        provider_label=effective_provider_label,
+                        backend_key=effective_backend_key,
+                    ),
+                    timeout=max(0.1, float(timeout_seconds)),
+                )
+            except asyncio.TimeoutError as exc:
+                raise ProviderTimeoutError(
+                    message=_("ai.error.provider_timeout"),
+                    provider_code=provider.code,
+                    model_code=model,
+                ) from exc
             return self._raise_retryable_native_web_search_failure(
                 run,
                 provider_code=provider.code,
@@ -525,6 +536,7 @@ class AIGateway:
                         tenant_id=tenant_id,
                     ),
                 },
+                max_retries=native_retry_limit,
             )
         except AIGatewayError as exc:
             latency_ms = int((time.time() - start_time) * 1000)
@@ -543,7 +555,7 @@ class AIGateway:
                             "provider_mode": PROVIDER_MODE_NATIVE,
                             "backend_key": effective_backend_key,
                             "result_count": 0,
-                            "_retry_count": MAX_RETRIES,
+                            "_retry_count": native_retry_limit,
                         },
                         input_tokens=0,
                         output_tokens=0,

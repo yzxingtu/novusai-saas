@@ -609,6 +609,9 @@ class ToolSandbox:
 
         # 6. Execute under timeout control (prefer tool-specific timeout, fallback to global) / 超时控制下执行
         tool_timeout = definition.timeout or self.config.timeout_seconds
+        context.tool_timeout_seconds = float(tool_timeout)
+        context.tool_started_monotonic = start
+        context.tool_deadline_monotonic = start + float(tool_timeout)
         try:
             result = await asyncio.wait_for(
                 executor.execute(definition, tool_call_id, arguments, context=context),

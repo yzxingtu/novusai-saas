@@ -412,6 +412,93 @@ async def test_turn_executor_marks_intent_retry_round() -> None:
 
 
 @pytest.mark.asyncio
+async def test_turn_executor_retries_web_research_with_fetch_url_after_search_only_round() -> None:
+    tools = [
+        ToolDefinition(name="web_search", description="Search"),
+        ToolDefinition(name="fetch_url", description="Fetch"),
+    ]
+    intents = [
+        _build_intent(
+            intent_id="intent-web",
+            kind="web_research",
+            family="web_research",
+            allowed_tool_names=["web_search", "fetch_url"],
+        )
+    ]
+    prep = _build_prep(
+        tools=tools,
+        intents=intents,
+        tool_use_policy=ToolUsePolicy(
+            family="web_research",
+            mode="required",
+            allowed_tool_names=["web_search", "fetch_url"],
+            retry_on_contract_breach=False,
+            reason="explicit_web_request",
+        ),
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    io = _FakeIOAdapter(
+        model_rounds=[
+            _assistant_response(
+                "",
+                tool_calls=[
+                    {
+                        "id": "call-web-search",
+                        "type": "function",
+                        "function": {
+                            "name": "web_search",
+                            "arguments": '{"query":"today ai news","max_results":5}',
+                        },
+                    }
+                ],
+            ),
+            _assistant_response("retry uses narrowed tools"),
+        ],
+        tool_batch=ToolBatchResult(
+            response=ChatResponse(
+                message=ChatMessage(role="assistant", content=""),
+                total_tokens=9,
+                output_tokens=9,
+            ),
+            tool_results=[
+                ToolResult(
+                    tool_call_id="call-web-search",
+                    name="web_search",
+                    success=True,
+                    summary_payload={
+                        "items": [
+                            {
+                                "title": "AI News Daily",
+                                "url": "https://example.com/ai-news",
+                            }
+                        ]
+                    },
+                )
+            ],
+            total_tokens=9,
+            completion_tokens_used=9,
+        ),
+    )
+
+    await TurnExecutor.run(
+        state=state,
+        io=io,
+        prep=prep,
+        request=SimpleNamespace(
+            input_variables={},
+            conversation_id=19,
+        ),
+        agent=SimpleNamespace(id=1),
+    )
+
+    assert len(io.call_history) >= 2
+    assert io.call_history[1]["breach_retry_result"] == "intent_retry"
+    assert [tool.name for tool in io.call_history[1]["tools"]] == ["fetch_url"]
+    assert state.intent_plan[0].allowed_tool_names == ["fetch_url"]
+    assert state.intent_plan[0].completion_signals == ["fetch_url"]
+
+
+@pytest.mark.asyncio
 async def test_turn_executor_finalizes_partial_without_budget_finalization_round() -> None:
     tools = [ToolDefinition(name="web_search", description="Search")]
     intents = [

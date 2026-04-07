@@ -81,6 +81,8 @@ _TRUSTED_OPENAI_COMPATIBLE_HOSTS = frozenset(
     }
 )
 _HEALTH_VERIFIED_NATIVE_SEARCH_MAX_AGE = timedelta(hours=24)
+_MIN_STAGE_TIMEOUT_SECONDS = 1
+_SEARCH_TIMEOUT_SAFETY_MARGIN_SECONDS = 0.25
 
 
 @dataclass
@@ -272,6 +274,38 @@ def _record_native_backend_outcome(conv_id: int, backend_key: str, status: str) 
 
 def _native_backend_disabled(conv_id: int, backend_key: str) -> bool:
     return bool(conv_id) and backend_key in _NATIVE_BACKEND_DISABLED.get(conv_id, set())
+
+
+def _remaining_tool_budget_seconds(context: "ExecutionContext | None") -> float | None:
+    if context is None:
+        return None
+    deadline = getattr(context, "tool_deadline_monotonic", None)
+    if deadline is None:
+        return None
+    try:
+        remaining = float(deadline) - time.perf_counter()
+    except (TypeError, ValueError):
+        return None
+    return max(0.0, remaining)
+
+
+def _clamp_stage_timeout_seconds(
+    requested_seconds: int,
+    *,
+    context: "ExecutionContext | None",
+) -> int:
+    requested = max(_MIN_STAGE_TIMEOUT_SECONDS, int(requested_seconds))
+    remaining = _remaining_tool_budget_seconds(context)
+    if remaining is None:
+        return requested
+    bounded = min(
+        float(requested),
+        max(
+            float(_MIN_STAGE_TIMEOUT_SECONDS),
+            remaining - _SEARCH_TIMEOUT_SAFETY_MARGIN_SECONDS,
+        ),
+    )
+    return max(_MIN_STAGE_TIMEOUT_SECONDS, int(bounded))
 
 
 class NativeModelSearchProvider(BaseSearchProvider):
@@ -885,11 +919,15 @@ class WebSearchOrchestrator:
             )
         else:
             native_provider = NativeModelSearchProvider()
+            native_timeout_seconds = _clamp_stage_timeout_seconds(
+                resolved_config.native_timeout_seconds,
+                context=context,
+            )
             native_run = await native_provider.search(
                 query=rewritten_query,
                 max_results=effective_max_results,
                 locale=locale,
-                timeout_seconds=resolved_config.native_timeout_seconds,
+                timeout_seconds=native_timeout_seconds,
                 context=context,
                 strategy=resolved_config.strategy,
                 runtime_provider_label=provider_label,
@@ -940,6 +978,10 @@ class WebSearchOrchestrator:
                     bool(native_run.native_attempted),
                     native_run.failure_reason or "",
                 )
+                public_timeout_seconds = _clamp_stage_timeout_seconds(
+                    resolved_config.public_timeout_seconds,
+                    context=context,
+                )
                 public_provider = PublicHtmlSearchProvider(
                     providers=resolved_config.public_providers,
                 )
@@ -947,7 +989,7 @@ class WebSearchOrchestrator:
                     query=rewritten_query,
                     max_results=effective_max_results,
                     locale=locale,
-                    timeout_seconds=resolved_config.public_timeout_seconds,
+                    timeout_seconds=public_timeout_seconds,
                     context=context,
                     strategy=resolved_config.strategy,
                     runtime_provider_label=provider_label,

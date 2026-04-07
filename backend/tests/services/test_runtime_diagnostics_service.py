@@ -146,3 +146,65 @@ async def test_build_root_cause_reports_fake_tool_call_contract_breach(mock_db):
     assert report["failure_layer"] == "stream_output_contract"
     assert report["cause_code"] == "assistant_claimed_tool_call_without_tool_event"
     assert report["related_ids"]["conversation_message_id"] == 88
+
+
+@pytest.mark.asyncio
+async def test_resolve_conversation_turn_prefers_turn_anchor_assistant_message(mock_db):
+    from app.enums.agent import MessageRoleEnum
+    from app.services.ai.runtime_diagnostics_service import RuntimeDiagnosticsService
+
+    service = RuntimeDiagnosticsService(mock_db)
+    conversation = SimpleNamespace(id=1067)
+    messages = [
+        SimpleNamespace(
+            id=6401,
+            role=MessageRoleEnum.USER.value,
+            content="联网查一下今日AI 最新要闻",
+            metadata_={},
+            tool_calls=[],
+        ),
+        SimpleNamespace(
+            id=6410,
+            role=MessageRoleEnum.ASSISTANT.value,
+            content="先搜索一下",
+            metadata_={},
+            tool_calls=[{"id": "call-1"}],
+        ),
+        SimpleNamespace(
+            id=6420,
+            role=MessageRoleEnum.ASSISTANT.value,
+            content="这次搜索没有完成。",
+            metadata_={
+                "turn_record": {
+                    "turn_outcome": "partial",
+                    "termination_reason": "retry_budget_exhausted",
+                },
+                "last_run_summary": {
+                    "conversation_outcome": "partial",
+                    "failure_kind": "tool_execution_error",
+                    "selected_tool_names": ["web_search", "fetch_url"],
+                    "unfinished_intents": ["intent-1"],
+                },
+            },
+            tool_calls=[],
+        ),
+    ]
+    message_repo = SimpleNamespace(get_by_conversation=AsyncMock(return_value=messages))
+    conversation_service = SimpleNamespace(message_repo=message_repo)
+
+    with patch.object(
+        service_module := __import__(
+            "app.services.ai.runtime_diagnostics_service",
+            fromlist=["ConversationService"],
+        ).ConversationService,
+        "get_service_for_conversation",
+        new=AsyncMock(return_value=(conversation_service, conversation)),
+    ):
+        resolved = await service._resolve_conversation_turn(
+            conversation_id=1067,
+            turn=1,
+        )
+
+    assert resolved["message_id"] == 6420
+    assert resolved["diagnostics"]["conversation_outcome"] == "partial"
+    assert resolved["diagnostics"]["termination_reason"] == "retry_budget_exhausted"

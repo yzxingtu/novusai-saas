@@ -106,6 +106,7 @@ async def test_gateway_native_web_search_records_usage_and_logs_success() -> Non
 
     assert result.status == STATUS_SUCCESS
     gateway.retry_service.execute_with_retry.assert_awaited_once()
+    assert gateway.retry_service.execute_with_retry.await_args.kwargs["max_retries"] == 0
     gateway.usage_recorder.check_rate_and_quota.assert_awaited_once()
     gateway.usage_recorder.record_usage_and_adjust.assert_awaited_once()
     gateway.usage_recorder.call_log_service.log_call_async.assert_awaited_once()
@@ -190,8 +191,10 @@ async def test_gateway_native_web_search_logs_timeout_without_usage_commit() -> 
     assert result.status == STATUS_TIMEOUT
     gateway.usage_recorder.record_usage_and_adjust.assert_not_awaited()
     gateway.usage_recorder.call_log_service.log_call_async.assert_awaited_once()
+    assert gateway.retry_service.execute_with_retry.await_args.kwargs["max_retries"] == 0
     kwargs = gateway.usage_recorder.call_log_service.log_call_async.await_args.kwargs
     assert kwargs["status"] == "timeout"
     assert kwargs["call_type"] == "internal_tool"
+    assert kwargs["response_data"]["_retry_count"] == 0
     api_key.increment_usage.assert_not_called()
     mock_db.commit.assert_not_awaited()

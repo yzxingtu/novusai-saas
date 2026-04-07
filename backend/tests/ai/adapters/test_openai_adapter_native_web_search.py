@@ -25,6 +25,24 @@ class _FakeStatusError(Exception):
         )
 
 
+class _FakeAsyncStream:
+    def __init__(self, events: list[SimpleNamespace]):
+        self._events = list(events)
+
+    def __aiter__(self):
+        self._iter = iter(self._events)
+        return self
+
+    async def __anext__(self):
+        try:
+            return next(self._iter)
+        except StopIteration as exc:
+            raise StopAsyncIteration from exc
+
+    async def aclose(self) -> None:
+        return None
+
+
 def _make_adapter() -> OpenAIAdapter:
     return OpenAIAdapter(
         api_key="test-key",
@@ -185,6 +203,66 @@ async def test_native_web_search_marks_zero_request_responses_as_unsupported() -
         run.failure_reason
         == "provider responses runtime accepted native web search request but did not execute hosted web_search"
     )
+
+
+@pytest.mark.asyncio
+async def test_native_web_search_uses_stream_fallback_when_non_stream_returns_empty_completed_body() -> None:
+    adapter = _make_adapter()
+    empty_response = SimpleNamespace(
+        status="completed",
+        output=[],
+        tool_usage=SimpleNamespace(web_search=SimpleNamespace(num_requests=0)),
+        usage=SimpleNamespace(input_tokens=12, output_tokens=3, total_tokens=15),
+    )
+    stream = _FakeAsyncStream(
+        [
+            SimpleNamespace(type="response.web_search_call.in_progress"),
+            SimpleNamespace(type="response.web_search_call.completed"),
+            SimpleNamespace(
+                type="response.output_text.delta",
+                delta=(
+                    "Source: https://example.com/ai-story "
+                    "Backup: https://backup.example.com/report"
+                ),
+            ),
+            SimpleNamespace(
+                type="response.completed",
+                response=SimpleNamespace(
+                    usage=SimpleNamespace(
+                        input_tokens=20,
+                        output_tokens=10,
+                        total_tokens=30,
+                    )
+                ),
+            ),
+        ]
+    )
+
+    async def _create(*args, **kwargs):
+        if kwargs.get("stream"):
+            return stream
+        return empty_response
+
+    adapter.client = SimpleNamespace(responses=SimpleNamespace(create=_create))
+
+    run = await adapter.native_web_search(
+        query="OpenAI",
+        max_results=5,
+        locale="en",
+        timeout_seconds=20,
+        model="gpt-5.4",
+        provider_label="openai",
+        backend_key="native:openai:gpt-5.4",
+    )
+
+    assert run.status == STATUS_SUCCESS
+    assert [item.url for item in run.items] == [
+        "https://example.com/ai-story",
+        "https://backup.example.com/report",
+    ]
+    assert run.input_tokens == 20
+    assert run.output_tokens == 10
+    assert run.total_tokens == 30
 
 
 @pytest.mark.asyncio

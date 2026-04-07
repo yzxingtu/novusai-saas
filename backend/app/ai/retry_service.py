@@ -56,6 +56,7 @@ class RetryService:
         tenant_id: int | None = None,
         log_key: str = "ai.log.gateway_chat_call",
         adapter_extra: dict[str, Any] | None = None,
+        max_retries: int | None = None,
     ) -> tuple[_T, int, ProviderApiKey]:
         """
         Generic exponential backoff retry.
@@ -80,8 +81,9 @@ class RetryService:
         """
         current_key = api_key
         last_error: AIGatewayError | None = None
+        retry_limit = MAX_RETRIES if max_retries is None else max(0, int(max_retries))
 
-        for attempt in range(MAX_RETRIES + 1):
+        for attempt in range(retry_limit + 1):
             try:
                 extra = dict(adapter_extra or {})
                 adapter = AdapterRegistry.create_adapter(
@@ -125,7 +127,7 @@ class RetryService:
                     )
                     raise
 
-                if attempt >= MAX_RETRIES:
+                if attempt >= retry_limit:
                     logger.error(
                         "Max retries exhausted: provider={} model={} attempts={} error={}",
                         provider.code,

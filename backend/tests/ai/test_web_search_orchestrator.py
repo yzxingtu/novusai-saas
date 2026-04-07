@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -297,6 +299,52 @@ async def test_orchestrator_returns_public_no_results_after_native_timeout() -> 
     assert execution.meta.fallback_reason == "native_timeout"
     assert execution.meta.native_failure_kind == STATUS_TIMEOUT
     assert execution.output == "No results found for: OpenAI"
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_clamps_public_timeout_to_remaining_tool_budget() -> None:
+    orchestrator = WebSearchOrchestrator()
+    native_run = _make_run(
+        status=STATUS_TIMEOUT,
+        provider="openai",
+        provider_mode=PROVIDER_MODE_NATIVE,
+        backend_key="native:openai:gpt-5.4",
+        failure_reason="provider timed out",
+    )
+    public_run = _make_run(
+        status=STATUS_SUCCESS,
+        provider="baidu_public",
+        provider_mode=PROVIDER_MODE_PUBLIC,
+        backend_key="public:baidu",
+        items=[
+            _make_item(
+                provider="baidu_public",
+                provider_mode=PROVIDER_MODE_PUBLIC,
+                source="public:baidu",
+            )
+        ],
+    )
+    context = _make_context()
+    context.tool_deadline_monotonic = time.perf_counter() + 7.4
+
+    with patch.object(
+        NativeModelSearchProvider,
+        "search",
+        AsyncMock(return_value=native_run),
+    ), patch.object(
+        PublicHtmlSearchProvider,
+        "search",
+        AsyncMock(return_value=public_run),
+    ) as public_search:
+        execution = await orchestrator.search(
+            query="OpenAI",
+            max_results=5,
+            context=context,
+        )
+
+    assert execution.meta.status == STATUS_SUCCESS
+    assert public_search.await_args.kwargs["timeout_seconds"] < 15
+    assert public_search.await_args.kwargs["timeout_seconds"] <= 7
 
 
 @pytest.mark.asyncio
@@ -995,3 +1043,63 @@ async def test_public_html_cooldown_does_not_block_other_backends() -> None:
     assert so360_calls == 3
     assert third.status == STATUS_SUCCESS
     assert third.attempted_backends == ["public:so360"]
+
+
+@pytest.mark.asyncio
+async def test_public_html_search_shares_timeout_budget_across_backends() -> None:
+    observed_timeouts: list[tuple[str, float]] = []
+
+    async def fake_baidu(
+        query: str,
+        max_results: int,
+        *,
+        timeout_seconds: int,
+    ):  # noqa: ARG001
+        observed_timeouts.append(("baidu", float(timeout_seconds)))
+        await asyncio.sleep(0.15)
+        return public_html._HtmlSearchAttempt(
+            backend_key="public:baidu",
+            status=STATUS_UPSTREAM_ERROR,
+            items=[],
+            error="timeout",
+        )
+
+    async def fake_so360(
+        query: str,
+        max_results: int,
+        *,
+        timeout_seconds: int,
+    ):  # noqa: ARG001
+        observed_timeouts.append(("so360", float(timeout_seconds)))
+        return public_html._HtmlSearchAttempt(
+            backend_key="public:so360",
+            status=STATUS_UPSTREAM_ERROR,
+            items=[],
+            error="timeout",
+        )
+
+    provider = PublicHtmlSearchProvider(providers=["baidu", "so360"])
+    result = None
+
+    with patch.object(public_html, "_search_with_baidu_public", side_effect=fake_baidu), patch.object(
+        public_html,
+        "_search_with_so360_public",
+        side_effect=fake_so360,
+    ):
+        result = await provider.search(
+            query="OpenAI",
+            max_results=5,
+            locale="zh_CN",
+            timeout_seconds=0.25,
+            context=SimpleNamespace(conversation_id=90),
+            strategy="native_first_fallback_public",
+            runtime_provider_label="openai",
+            runtime_model_code="gpt-5.4",
+        )
+
+    assert result.status == STATUS_UPSTREAM_ERROR
+    assert len(observed_timeouts) == 2
+    assert observed_timeouts[0][0] == "baidu"
+    assert observed_timeouts[1][0] == "so360"
+    assert observed_timeouts[0][1] >= observed_timeouts[1][1]
+    assert observed_timeouts[0][1] <= 0.25

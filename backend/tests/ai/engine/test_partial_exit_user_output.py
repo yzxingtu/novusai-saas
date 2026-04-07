@@ -117,3 +117,7 @@ def test_update_intent_statuses_caches_partial_result_for_unfinished_search_inte
     assert updated[0].status == "pending"
     assert "partial_result" in (updated[0].metadata or {})
     assert "AI News Daily" in updated[0].metadata["partial_result"]
+    assert updated[0].allowed_tool_names == ["fetch_url"]
+    assert updated[0].preferred_tool_names == ["fetch_url"]
+    assert updated[0].completion_signals == ["fetch_url"]
+    assert updated[0].metadata["requires_fetch_url"] is True

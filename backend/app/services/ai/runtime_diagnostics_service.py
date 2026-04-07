@@ -694,6 +694,43 @@ class RuntimeDiagnosticsService:
         )
         return bool(textual_tool_names or (marker_present and tool_names))
 
+    @classmethod
+    def _assistant_message_is_turn_anchor(cls, message: Any) -> bool:
+        metadata = (
+            dict(getattr(message, "metadata_", {}) or {})
+            if isinstance(getattr(message, "metadata_", {}), dict)
+            else {}
+        )
+        if not metadata:
+            return False
+        if any(
+            cls._has_meaningful_value(metadata.get(key))
+            for key in (
+                "turn_record",
+                "context_diagnostics",
+                "last_run_summary",
+                "turn_outcome",
+                "termination_reason",
+                "protocol_path",
+            )
+        ):
+            return True
+        diagnostics = ConversationService._extract_turn_diagnostics_from_metadata(metadata)
+        return any(
+            cls._has_meaningful_value(diagnostics.get(key))
+            for key in (
+                "turn_outcome",
+                "conversation_outcome",
+                "termination_reason",
+                "failure_kind",
+                "unfinished_intents",
+                "candidate_tool_names",
+                "selected_tool_names",
+                "retry_events",
+                "provider_events",
+            )
+        )
+
     async def _resolve_conversation_turn(
         self,
         *,
@@ -710,10 +747,16 @@ class RuntimeDiagnosticsService:
             for message in messages
             if message.role == MessageRoleEnum.ASSISTANT.value
         ]
-        if turn <= 0 or turn > len(assistant_messages):
+        turn_anchor_messages = [
+            message
+            for message in assistant_messages
+            if self._assistant_message_is_turn_anchor(message)
+        ]
+        target_messages = turn_anchor_messages or assistant_messages
+        if turn <= 0 or turn > len(target_messages):
             raise NotFoundException(message="Conversation turn not found")
 
-        target_message = assistant_messages[turn - 1]
+        target_message = target_messages[turn - 1]
         metadata = (
             dict(getattr(target_message, "metadata_", {}) or {})
             if isinstance(getattr(target_message, "metadata_", {}), dict)

@@ -665,6 +665,7 @@ class PublicHtmlSearchProvider(BaseSearchProvider):
         runtime_model_code: str | None = None,
     ) -> SearchProviderRun:
         start = time.perf_counter()
+        deadline = start + max(0.1, float(timeout_seconds))
         rewritten_query = _normalize_text(_correct_query_year(query))
         conv_id = _conv_id(context)
         attempts: list[_HtmlSearchAttempt] = []
@@ -712,10 +713,27 @@ class PublicHtmlSearchProvider(BaseSearchProvider):
 
             attempted_backends.append(backend_key)
             search_func = provider_map[provider_name]
+            remaining_timeout = deadline - time.perf_counter()
+            if remaining_timeout <= 0:
+                attempts.append(
+                    _HtmlSearchAttempt(
+                        backend_key=backend_key,
+                        status=STATUS_TIMEOUT,
+                        items=[],
+                        error="overall timeout budget exhausted",
+                    )
+                )
+                logger.info(
+                    "web_search public budget exhausted: backend={} conv_id={} query={}",
+                    backend_key,
+                    conv_id,
+                    rewritten_query[:120],
+                )
+                break
             attempt = await search_func(
                 rewritten_query,
                 max_results,
-                timeout_seconds=timeout_seconds,
+                timeout_seconds=max(0.1, remaining_timeout),
             )
             attempts.append(attempt)
             _record_backend_outcome(conv_id, backend_key, attempt.status)

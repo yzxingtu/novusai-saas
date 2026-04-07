@@ -227,6 +227,11 @@ class RecoveryManager:
             normalized_name = str(tool_name or "").strip()
             if normalized_name and normalized_name not in candidate_tool_names:
                 candidate_tool_names.append(normalized_name)
+        if (
+            str(intent.family or "").strip() == "web_research"
+            and "web_search" not in candidate_tool_names
+        ):
+            candidate_tool_names.append("web_search")
         if not candidate_tool_names:
             return None
         normalized_results: list[str] = []
@@ -311,6 +316,65 @@ class RecoveryManager:
         return names
 
     @staticmethod
+    def _tool_attempted(
+        messages: list[ChatMessage],
+        tool_name: str,
+        tool_results: list[ToolResult] | None = None,
+    ) -> bool:
+        normalized_name = str(tool_name or "").strip()
+        if not normalized_name:
+            return False
+        for result in tool_results or []:
+            if str(result.name or "").strip() == normalized_name:
+                return True
+        for message in messages:
+            if message.role != "assistant" or not message.tool_calls:
+                continue
+            for tool_call in message.tool_calls:
+                func = tool_call.get("function") or {}
+                name = str(func.get("name") or tool_call.get("name") or "").strip()
+                if name == normalized_name:
+                    return True
+        return False
+
+    @staticmethod
+    def _force_fetch_url_after_search(
+        intent: IntentPlan,
+        *,
+        messages: list[ChatMessage],
+        tool_results: list[ToolResult] | None = None,
+        successful_tool_names: set[str],
+    ) -> None:
+        if str(intent.family or "").strip() != "web_research":
+            return
+
+        candidate_tool_names = {
+            str(name or "").strip()
+            for name in (
+                list(intent.allowed_tool_names or [])
+                + list(intent.preferred_tool_names or [])
+                + list(intent.completion_signals or [])
+            )
+            if str(name or "").strip()
+        }
+        if "fetch_url" not in candidate_tool_names:
+            return
+        if "web_search" not in successful_tool_names:
+            return
+        if RecoveryManager._tool_attempted(
+            messages,
+            "fetch_url",
+            tool_results=tool_results,
+        ):
+            intent.metadata.pop("requires_fetch_url", None)
+            return
+
+        intent.allowed_tool_names = ["fetch_url"]
+        intent.preferred_tool_names = ["fetch_url"]
+        intent.completion_signals = ["fetch_url"]
+        intent.metadata["requires_fetch_url"] = True
+
+    @staticmethod
     def _pending_consent_payload_from_tool_calls(
         tool_calls: list[dict[str, Any]] | None,
     ) -> dict[str, Any] | None:
@@ -386,6 +450,12 @@ class RecoveryManager:
             clone = IntentPlan(**intent.to_dict())
             clone.metadata = dict(clone.metadata or {})
             clone.metadata.pop("pending_consent", None)
+            RecoveryManager._force_fetch_url_after_search(
+                clone,
+                messages=messages,
+                tool_results=tool_results,
+                successful_tool_names=successful_tool_names,
+            )
             completion_signals = set(
                 clone.completion_signals or clone.allowed_tool_names
             )

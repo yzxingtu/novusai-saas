@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 from collections.abc import AsyncIterator
+from types import SimpleNamespace
 from typing import Any
 from urllib.parse import urlparse
 
@@ -1654,6 +1656,211 @@ class OpenAIAdapter(BaseAdapter):
         )
         return int(request_count or 0)
 
+    @staticmethod
+    def _extract_urls_from_native_web_search_text(text: str) -> list[tuple[str, int, int]]:
+        matches: list[tuple[str, int, int]] = []
+        source_text = str(text or "")
+        if not source_text:
+            return matches
+        for match in re.finditer(r"https?://[^\s<>\]\)\"']+", source_text):
+            url = str(match.group(0) or "").rstrip(".,;:!?)]")
+            if not url:
+                continue
+            matches.append((url, match.start(), match.start() + len(url)))
+        return matches
+
+    async def _native_web_search_via_stream(
+        self,
+        *,
+        query: str,
+        max_results: int,
+        locale: str | None,
+        timeout_seconds: int,
+        model: str,
+        provider_label: str,
+        backend_key: str,
+        instructions: str,
+    ) -> SearchProviderRun | None:
+        collected_text_parts: list[str] = []
+        response_usage: Any = None
+        saw_web_search_call = False
+
+        try:
+            stream = await self.client.responses.create(
+                model=model,
+                input=query,
+                instructions=instructions,
+                tools=[
+                    {
+                        "type": "web_search",
+                        "search_context_size": "medium",
+                    }
+                ],
+                tool_choice="required",
+                stream=True,
+                timeout=float(timeout_seconds),
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Native web search stream fallback request failed: provider={} model={} error={}",
+                provider_label,
+                model,
+                str(exc),
+            )
+            return None
+
+        try:
+            async for event in stream:
+                event_type = getattr(event, "type", "") or ""
+                if event_type.startswith("response.web_search_call"):
+                    saw_web_search_call = True
+                    continue
+
+                if event_type == "response.output_text.delta":
+                    delta = getattr(event, "delta", "") or ""
+                    if delta:
+                        collected_text_parts.append(delta)
+                    continue
+
+                if event_type == "response.output_text.done":
+                    text = getattr(event, "text", "") or ""
+                    if text and not collected_text_parts:
+                        collected_text_parts.append(text)
+                    response_usage = getattr(event, "usage", None) or response_usage
+                    continue
+
+                if event_type == "response.output_item.done":
+                    item = getattr(event, "item", None)
+                    item_type = self._native_web_search_field(item, "type")
+                    if item_type == "web_search_call":
+                        saw_web_search_call = True
+                        continue
+                    if item_type != "message":
+                        continue
+                    for content in self._native_web_search_field(item, "content") or []:
+                        if self._native_web_search_field(content, "type") != "output_text":
+                            continue
+                        text = str(self._native_web_search_field(content, "text") or "")
+                        if text and not collected_text_parts:
+                            collected_text_parts.append(text)
+                    continue
+
+                if event_type == "response.completed":
+                    response = getattr(event, "response", None)
+                    response_usage = (
+                        self._native_web_search_field(response, "usage") or response_usage
+                    )
+                    if response is not None and not collected_text_parts:
+                        final_text = self._extract_responses_text(response)
+                        if final_text:
+                            collected_text_parts.append(final_text)
+                    continue
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Native web search stream fallback consumption failed: provider={} model={} error={}",
+                provider_label,
+                model,
+                str(exc),
+            )
+            return None
+        finally:
+            await _aclose_openai_stream(stream)
+
+        if not saw_web_search_call:
+            return None
+
+        final_text = "".join(collected_text_parts).strip()
+        if not final_text:
+            input_tokens, output_tokens, total_tokens = self._extract_native_web_search_usage(
+                SimpleNamespace(usage=response_usage)
+            )
+            return SearchProviderRun(
+                provider=provider_label,
+                provider_mode=PROVIDER_MODE_NATIVE,
+                backend_key=backend_key,
+                status=STATUS_NO_RESULTS,
+                items=[],
+                failure_reason="native web search stream returned no candidate sources",
+                attempted_backends=[backend_key],
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                total_tokens=total_tokens,
+            )
+
+        items: list[SearchResultItem] = []
+        seen_urls: set[str] = set()
+        saw_unverifiable_url = False
+        for url, start_index, end_index in self._extract_urls_from_native_web_search_text(
+            final_text
+        ):
+            if not self._is_verifiable_native_web_search_url(url):
+                saw_unverifiable_url = True
+                continue
+            if url in seen_urls:
+                continue
+            title = (urlparse(url).netloc or url).strip() or url
+            snippet = self._normalize_native_web_search_snippet(
+                final_text,
+                title=title,
+                start_index=start_index,
+                end_index=end_index,
+            )
+            items.append(
+                SearchResultItem(
+                    title=title,
+                    url=url,
+                    snippet=snippet,
+                    source=backend_key,
+                    provider=provider_label,
+                    provider_mode=PROVIDER_MODE_NATIVE,
+                    rank=len(items) + 1,
+                )
+            )
+            seen_urls.add(url)
+            if len(items) >= max_results:
+                break
+
+        input_tokens, output_tokens, total_tokens = self._extract_native_web_search_usage(
+            SimpleNamespace(usage=response_usage)
+        )
+        if items:
+            return SearchProviderRun(
+                provider=provider_label,
+                provider_mode=PROVIDER_MODE_NATIVE,
+                backend_key=backend_key,
+                status=STATUS_SUCCESS,
+                items=items,
+                attempted_backends=[backend_key],
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                total_tokens=total_tokens,
+            )
+        if saw_unverifiable_url:
+            return SearchProviderRun(
+                provider=provider_label,
+                provider_mode=PROVIDER_MODE_NATIVE,
+                backend_key=backend_key,
+                status=STATUS_PARSE_ERROR,
+                items=[],
+                failure_reason="native web search stream returned no verifiable absolute URLs",
+                attempted_backends=[backend_key],
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                total_tokens=total_tokens,
+            )
+        return SearchProviderRun(
+            provider=provider_label,
+            provider_mode=PROVIDER_MODE_NATIVE,
+            backend_key=backend_key,
+            status=STATUS_NO_RESULTS,
+            items=[],
+            failure_reason="native web search stream returned no candidate sources",
+            attempted_backends=[backend_key],
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=total_tokens,
+        )
+
     def _map_native_web_search_error(self, error: Exception) -> str:
         if isinstance(error, (APITimeoutError, ProviderTimeoutError)):
             return STATUS_TIMEOUT
@@ -1783,6 +1990,18 @@ class OpenAIAdapter(BaseAdapter):
                     total_tokens=total_tokens,
                 )
             if request_count <= 0:
+                stream_fallback_run = await self._native_web_search_via_stream(
+                    query=query,
+                    max_results=max_results,
+                    locale=locale,
+                    timeout_seconds=timeout_seconds,
+                    model=effective_model,
+                    provider_label=effective_provider,
+                    backend_key=effective_backend_key,
+                    instructions=instructions,
+                )
+                if stream_fallback_run is not None:
+                    return stream_fallback_run
                 return SearchProviderRun(
                     provider=effective_provider,
                     provider_mode=PROVIDER_MODE_NATIVE,
