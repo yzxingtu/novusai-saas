@@ -106,12 +106,12 @@ def test_intent_planner_splits_666_style_turn_into_stable_ordered_intents() -> N
     assert [intent.kind for intent in intents] == [
         "weather_query",
         "web_research",
-        "page_read",
+        "page_summary",
     ]
     assert [intent.user_visible_label for intent in intents] == [
         "weather",
         "rail_search",
-        "page_read",
+        "page_summary",
     ]
 
 
@@ -143,7 +143,7 @@ def test_intent_planner_keeps_page_follow_up_in_page_family() -> None:
 
 def test_path_selector_routes_fast_normal_and_deep_by_intent_shape() -> None:
     fast = PathSelector.select(
-        [_intent("intent-1", kind="page_read", family="page_ops", order=1)]
+        [_intent("intent-1", kind="page_summary", family="page_ops", order=1)]
     )
     normal = PathSelector.select(
         [
@@ -155,7 +155,7 @@ def test_path_selector_routes_fast_normal_and_deep_by_intent_shape() -> None:
         [
             _intent("intent-1", kind="weather_query", family="weather", order=1),
             _intent("intent-2", kind="web_research", family="web_research", order=2),
-            _intent("intent-3", kind="page_read", family="page_ops", order=3),
+            _intent("intent-3", kind="page_summary", family="page_ops", order=3),
         ]
     )
 
@@ -181,12 +181,12 @@ def test_tool_router_omits_forecast_for_current_weather_only() -> None:
     assert "get_weather_forecast" not in decision.candidate_tool_names()
 
 
-def test_tool_router_caps_mixed_candidates_and_preserves_page_read_focus() -> None:
+def test_tool_router_caps_mixed_candidates_and_preserves_page_summary_focus() -> None:
     budget = BudgetGuard.build_default("deep", intent_count=3)
     intents = [
         _intent("intent-1", kind="weather_query", family="weather", order=1),
         _intent("intent-2", kind="web_research", family="web_research", order=2),
-        _intent("intent-3", kind="page_read", family="page_ops", order=3),
+        _intent("intent-3", kind="page_summary", family="page_ops", order=3),
     ]
 
     decision = ToolRouter.route(
@@ -270,7 +270,7 @@ def test_recovery_manager_retries_only_unfinished_page_intent() -> None:
         ),
         _intent(
             "intent-3",
-            kind="page_read",
+            kind="page_summary",
             family="page_ops",
             order=3,
             status="pending",
@@ -291,14 +291,14 @@ def test_recovery_manager_retries_only_unfinished_page_intent() -> None:
     message = RecoveryManager.build_recovery_message(decision=decision, intents=intents)
     assert message.role == "system"
     assert "Allowed tools for this recovery: get_page_context." in message.content
-    assert "Unfinished requested intents: page_read." in message.content
+    assert "Unfinished requested intents: page_summary." in message.content
 
 
 def test_recovery_manager_returns_partial_when_retry_budget_is_exhausted() -> None:
     intents = [
         _intent(
             "intent-3",
-            kind="page_read",
+            kind="page_summary",
             family="page_ops",
             order=3,
             status="pending",
@@ -375,7 +375,7 @@ def test_execution_state_machine_accumulates_usage_and_emits_turn_diagnostics() 
         ),
         _intent(
             "intent-2",
-            kind="page_read",
+            kind="page_summary",
             family="page_ops",
             order=2,
             allowed_tool_names=["get_page_context"],

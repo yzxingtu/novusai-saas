@@ -83,6 +83,52 @@ class ConversationQueryEngine:
             tool_calls=response.tool_calls or response.message.tool_calls,
         )
 
+    @staticmethod
+    def _partial_failure_reason(exc: BaseException) -> str:
+        known_reasons = {
+            "provider_failure_after_partial_progress",
+            "budget_exit",
+            "tool_timeout",
+            "tool_execution_error",
+            "provider_timeout",
+            "provider_rate_limit",
+            "provider_unavailable",
+            "provider_http_5xx",
+            "provider_bad_response",
+            "server_interrupt",
+            "interrupted",
+            "elapsed_budget_exceeded",
+            "completion_budget_exceeded",
+            "tool_round_budget_exceeded",
+            "retry_budget_exhausted",
+            "prompt_budget_exceeded",
+            "tool_result_budget_exceeded",
+            "candidate_tool_budget_exceeded",
+        }
+        for attr_name in (
+            "partial_exit_reason",
+            "termination_reason",
+            "completion_reason",
+            "provider_failure_kind",
+            "failure_kind",
+            "reason",
+        ):
+            value = getattr(exc, attr_name, None)
+            if not isinstance(value, str):
+                continue
+            normalized = value.strip()
+            if not normalized:
+                continue
+            if normalized in known_reasons:
+                return normalized
+            if " " not in normalized:
+                return normalized
+        if "timeout" in exc.__class__.__name__.lower():
+            return "tool_timeout"
+        if exc.__class__.__name__ in {"CancelledError", "GeneratorExit"}:
+            return "interrupted"
+        return "provider_failure_after_partial_progress"
+
     def _attach_turn_record(
         self, chunk: ChatChunk, protocol_path: ProtocolPath
     ) -> ChatChunk:
@@ -382,7 +428,9 @@ class ConversationQueryEngine:
                 ).__name__
                 if has_meaningful_chunk:
                     self.turn_record.turn_outcome = "partial"
-                    self.turn_record.termination_reason = "error"
+                    self.turn_record.termination_reason = self._partial_failure_reason(
+                        stream_exc.cause
+                    )
                     raise stream_exc.cause from stream_exc
                 if index + 1 < len(protocol_chain):
                     self.turn_record.fallback_history.append(

@@ -8,6 +8,7 @@ legacy execution flow.
 
 from __future__ import annotations
 
+import inspect
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -67,6 +68,7 @@ class ContextAssembler:
         request: Any,
         skill_result: Any | None = None,
         state: ContextAssemblerState | None = None,
+        intent_plan: list[Any] | None = None,
     ) -> CapabilityBundle:
         assembly_state = state or ContextAssemblerState()
         if not assembly_state.runtime_model_capabilities:
@@ -82,17 +84,95 @@ class ContextAssembler:
             skill_result=skill_result,
             state=assembly_state.to_state_dict(),
         )
-        return await self.registry.build_bundle(capability_context)
+        provider_names = self._provider_names_for_intent_plan(
+            intent_plan,
+            request=request,
+        )
+        if provider_names is None:
+            return await self.registry.build_bundle(capability_context)
+        return await self._build_bundle_for_provider_names(
+            capability_context,
+            provider_names,
+        )
 
     @classmethod
     def _build_default_registry(cls) -> CapabilityRegistry:
         registry = CapabilityRegistry()
-        registry.register("skills", cls._collect_skill_capabilities)
-        registry.register("page_context", cls._collect_page_context_capabilities)
-        registry.register("knowledge_base", cls._collect_knowledge_capabilities)
-        registry.register("memory", cls._collect_memory_capabilities)
-        registry.register("runtime_model", cls._collect_runtime_model_capabilities)
+        for name, provider in cls._default_provider_map().items():
+            registry.register(name, provider)
         return registry
+
+    @classmethod
+    def _default_provider_map(cls) -> dict[str, Any]:
+        return {
+            "skills": cls._collect_skill_capabilities,
+            "page_context": cls._collect_page_context_capabilities,
+            "knowledge_base": cls._collect_knowledge_capabilities,
+            "memory": cls._collect_memory_capabilities,
+            "runtime_model": cls._collect_runtime_model_capabilities,
+        }
+
+    @classmethod
+    async def _build_bundle_for_provider_names(
+        cls,
+        context: CapabilityContext,
+        provider_names: list[str],
+    ) -> CapabilityBundle:
+        bundle = CapabilityBundle()
+        provider_map = cls._default_provider_map()
+        for provider_name in provider_names:
+            provider = provider_map.get(provider_name)
+            if provider is None:
+                continue
+            raw_fragment = provider(context)
+            if inspect.isawaitable(raw_fragment):
+                raw_fragment = await raw_fragment
+            if raw_fragment is None:
+                continue
+            CapabilityRegistry._merge_fragment(bundle, raw_fragment)
+        return bundle
+
+    @staticmethod
+    def _provider_names_for_intent_plan(
+        intent_plan: list[Any] | None,
+        *,
+        request: Any | None = None,
+    ) -> list[str] | None:
+        if intent_plan is None:
+            return None
+
+        normalized_plan = list(intent_plan or [])
+        allow_memory_even_if_shortcircuit = bool(
+            request is not None
+            and getattr(request, "user_id", None)
+            and (
+                bool(getattr(request, "long_term_memory_enabled", False))
+                or bool(getattr(request, "memory_enabled", False))
+            )
+        )
+        all_shortcircuit = bool(normalized_plan) and all(
+            bool(getattr(intent, "shortcircuit", False)) for intent in normalized_plan
+        )
+        intent_kinds = {
+            str(getattr(intent, "kind", "") or "").strip()
+            for intent in normalized_plan
+        }
+        has_page_intent = any(kind.startswith("page_") for kind in intent_kinds)
+        has_knowledge_intent = "knowledge_query" in intent_kinds
+        has_memory_intent = allow_memory_even_if_shortcircuit or any(
+            not bool(getattr(intent, "shortcircuit", False))
+            for intent in normalized_plan
+        )
+
+        provider_names = ["skills"]
+        if has_page_intent:
+            provider_names.append("page_context")
+        if not all_shortcircuit and has_knowledge_intent:
+            provider_names.append("knowledge_base")
+        if has_memory_intent:
+            provider_names.append("memory")
+        provider_names.append("runtime_model")
+        return provider_names
 
     @staticmethod
     def _stable_unique_names(values: list[Any]) -> list[str]:

@@ -17,25 +17,28 @@ class BudgetGuard:
                 max_retry_per_intent=1,
                 max_candidate_tools=3,
                 max_tool_result_bytes=16000,
+                finalization_grace_ms=15000,
             )
         if path == "normal":
             return ExecutionBudget(
                 max_prompt_tokens=8000,
                 max_completion_tokens=2000,
                 max_tool_rounds=3,
-                max_elapsed_ms=45000,
+                max_elapsed_ms=60000,
                 max_retry_per_intent=1,
                 max_candidate_tools=5,
                 max_tool_result_bytes=40000,
+                finalization_grace_ms=15000,
             )
         return ExecutionBudget(
             max_prompt_tokens=12000,
             max_completion_tokens=3000,
             max_tool_rounds=min(6, max(2, intent_count * 2)),
-            max_elapsed_ms=45000,
+            max_elapsed_ms=75000,
             max_retry_per_intent=1,
             max_candidate_tools=6,
             max_tool_result_bytes=60000,
+            finalization_grace_ms=15000,
         )
 
     @staticmethod
@@ -49,10 +52,21 @@ class BudgetGuard:
         budget.candidate_tools_count = max(0, int(candidate_tools_count))
 
     @staticmethod
-    def pre_model_reason(budget: ExecutionBudget | None) -> str | None:
+    def pre_model_reason(
+        budget: ExecutionBudget | None,
+        *,
+        allow_finalization_grace: bool = False,
+    ) -> str | None:
         if budget is None:
             return None
-        return budget.first_exceeded_reason()
+        reason = budget.first_exceeded_reason()
+        if (
+            allow_finalization_grace
+            and reason == "elapsed_budget_exceeded"
+            and budget.apply_finalization_grace()
+        ):
+            return budget.first_exceeded_reason()
+        return reason
 
     @staticmethod
     def completion_reason(

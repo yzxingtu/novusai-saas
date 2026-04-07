@@ -23,6 +23,7 @@ from app.ai.navigation_semantics import (
 )
 from app.ai.prompt_contracts import render_prompt_contract
 from app.ai.routing.router import ModelRouter
+from app.ai.tools.semantic_defaults import tool_family_from_name
 from app.ai.text_semantics import (
     collapse_whitespace,
     extract_fenced_json_block,
@@ -75,11 +76,18 @@ PAGE_OPERATION_STRONG_INTENT_TOKENS = (
     "操作当前页面",
     "操作这个页面",
     "操作本页面",
+    "帮我截图当前页面",
+    "帮我截屏当前页面",
+    "帮我编辑当前页面",
+    "帮我填写当前表单",
 )
 PAGE_OPERATION_REFERENCE_TOKENS = (
     "current page",
     "current form",
     "current screen",
+    "current editor",
+    "current list",
+    "current record",
     "this page",
     "this form",
     "当前页面",
@@ -88,11 +96,17 @@ PAGE_OPERATION_REFERENCE_TOKENS = (
     "本页面",
     "当前界面",
     "这个表单",
+    "当前编辑器",
+    "这个编辑器",
+    "当前列表",
+    "这条记录",
 )
 PAGE_OPERATION_ACTION_TOKENS = (
     "apply",
     "add",
+    "append",
     "change",
+    "capture",
     "click",
     "configure",
     "create",
@@ -100,9 +114,13 @@ PAGE_OPERATION_ACTION_TOKENS = (
     "edit",
     "fill",
     "filter",
+    "paginate",
     "open",
+    "read detail",
     "refresh",
+    "replace",
     "save",
+    "screenshot",
     "search",
     "select",
     "set",
@@ -114,6 +132,10 @@ PAGE_OPERATION_ACTION_TOKENS = (
     "go to",
     "jump to",
     "navigate",
+    "上一页",
+    "下一页",
+    "分页",
+    "详情",
     "进入",
     "添加",
     "保存",
@@ -132,7 +154,12 @@ PAGE_OPERATION_ACTION_TOKENS = (
     "跳转",
     "新建",
     "点击",
+    "截图",
+    "截屏",
+    "编辑器",
     "筛选",
+    "追加",
+    "插入",
     "编辑",
     "设置",
     "配置",
@@ -141,19 +168,74 @@ PAGE_OPERATION_TARGET_TOKENS = (
     "button",
     "dialog",
     "drawer",
+    "editor",
     "form",
     "list",
     "menu",
     "modal",
+    "record",
+    "screenshot",
     "tab",
     "按钮",
+    "编辑器",
     "列表",
     "菜单",
+    "记录",
     "表单",
     "页签",
     "弹窗",
     "抽屉",
     "对话框",
+    "截图",
+)
+NON_PAGE_WEATHER_TOKENS = (
+    "天气",
+    "气温",
+    "温度",
+    "weather",
+)
+NON_PAGE_TIME_TOKENS = (
+    "几点",
+    "星期几",
+    "周几",
+    "几号",
+    "current time",
+    "what day is it",
+)
+NON_PAGE_WEB_SEARCH_TOKENS = (
+    "联网",
+    "网上查",
+    "网络搜索",
+    "官网",
+    "链接",
+    "url",
+    "网址",
+    "网页",
+    "web search",
+    "search online",
+    "online search",
+    "fetch",
+    "新闻",
+    "热点",
+    "排行",
+    "高铁票",
+    "火车票",
+    "12306",
+)
+BASELINE_RUNTIME_FAMILIES = frozenset({"time_ops"})
+PAGE_SEARCH_CONTEXT_TOKENS = (
+    "记录",
+    "列表",
+    "表格",
+    "筛选",
+    "过滤",
+    "条件",
+    "结果",
+    "数据",
+    "page",
+    "list",
+    "table",
+    "filter",
 )
 
 
@@ -310,7 +392,10 @@ class AgentRouterService:
             message,
             page_context,
         )
+        mixed_non_page_intent = self._has_non_page_mixed_intent(message)
+        requested_families = self._requested_tool_families(message, page_context)
         page_operation_filtered = False
+        family_coverage_filtered = False
 
         if has_image_attachments:
             vision_candidates = [
@@ -326,12 +411,25 @@ class AgentRouterService:
                 len(candidates),
             )
 
-        if page_operation_routing_required:
+        if page_operation_routing_required and not mixed_non_page_intent:
             page_operation_candidates = [
                 agent
                 for agent in candidates
                 if self._agent_supports_page_operations(agent)
             ]
+            if page_operation_candidates and self._requires_vision_page_operation(
+                message
+            ):
+                vision_page_candidates = [
+                    agent
+                    for agent in page_operation_candidates
+                    if await self._agent_can_handle_images(agent)
+                ]
+                if not vision_page_candidates:
+                    raise BusinessException(
+                        message=_("agent_chat.error.no_vision_agent_available"),
+                    )
+                page_operation_candidates = vision_page_candidates
             if page_operation_candidates:
                 candidates = page_operation_candidates
                 page_operation_filtered = True
@@ -343,11 +441,31 @@ class AgentRouterService:
                 logger.warning(
                     "Agent router: page operation intent detected but no page-operation-capable agent was found; using general candidate pool",
                 )
+        elif page_operation_routing_required and mixed_non_page_intent:
+            logger.info(
+                "Agent router: keeping full candidate pool for mixed page/non-page intent",
+            )
 
-        if page_operation_filtered and len(candidates) == 1:
+        if any(family != "page_ops" for family in requested_families):
+            coverage_candidates = [
+                agent
+                for agent in candidates
+                if self._agent_supports_families(agent, requested_families)
+            ]
+            if coverage_candidates:
+                if len(coverage_candidates) < len(candidates):
+                    family_coverage_filtered = True
+                    logger.info(
+                        "Agent router: narrowed to {} candidates covering requested families {}",
+                        len(coverage_candidates),
+                        requested_families,
+                    )
+                candidates = coverage_candidates
+
+        if (page_operation_filtered or family_coverage_filtered) and len(candidates) == 1:
             agent = candidates[0]
             logger.info(
-                "Agent router: directly selected page-operation-capable agent {} ({})",
+                "Agent router: directly selected preferred agent {} ({})",
                 agent.id,
                 agent.name,
             )
@@ -359,7 +477,9 @@ class AgentRouterService:
             )
 
         valid_ids = {a.id for a in candidates}
-        preferred_fallback_candidates = candidates if page_operation_filtered else None
+        preferred_fallback_candidates = (
+            candidates if (page_operation_filtered or family_coverage_filtered) else None
+        )
 
         # P3: Resolve router agent / 获取 Router 智能体
         router_agent = await self._get_router_agent()
@@ -984,6 +1104,24 @@ class AgentRouterService:
         return isinstance(operations, list) and len(operations) > 0
 
     @staticmethod
+    def _requires_vision_page_operation(message: str) -> bool:
+        normalized_message = collapse_whitespace(message).strip().lower()
+        if not normalized_message:
+            return False
+        return any(
+            token in normalized_message
+            for token in (
+                "截图",
+                "截屏",
+                "屏幕截图",
+                "页面截图",
+                "screenshot",
+                "capture screenshot",
+                "take a screenshot",
+            )
+        )
+
+    @staticmethod
     def _page_context_supports_navigation(
         page_context: dict[str, Any] | None,
     ) -> bool:
@@ -1059,6 +1197,128 @@ class AgentRouterService:
         return any(
             token in normalized_message for token in PAGE_OPERATION_TARGET_TOKENS
         )
+
+    @classmethod
+    def _has_non_page_mixed_intent(
+        cls,
+        message: str,
+    ) -> bool:
+        normalized_message = collapse_whitespace(message).strip().lower()
+        if not normalized_message:
+            return False
+
+        if any(token in normalized_message for token in NON_PAGE_WEATHER_TOKENS):
+            return True
+        if any(token in normalized_message for token in NON_PAGE_TIME_TOKENS):
+            return True
+        if any(token in normalized_message for token in NON_PAGE_WEB_SEARCH_TOKENS):
+            return True
+        if ("搜索" in normalized_message or "搜" in normalized_message) and not any(
+            token in normalized_message for token in PAGE_SEARCH_CONTEXT_TOKENS
+        ):
+            return True
+        return False
+
+    @classmethod
+    def _requested_tool_families(
+        cls,
+        message: str,
+        page_context: dict[str, Any] | None,
+    ) -> list[str]:
+        normalized_message = collapse_whitespace(message).strip().lower()
+        if not normalized_message:
+            return []
+
+        families: list[str] = []
+
+        def add(family: str) -> None:
+            if family not in families:
+                families.append(family)
+
+        if any(token in normalized_message for token in NON_PAGE_WEATHER_TOKENS):
+            add("weather")
+        if any(token in normalized_message for token in NON_PAGE_TIME_TOKENS):
+            add("time_ops")
+        if any(token in normalized_message for token in NON_PAGE_WEB_SEARCH_TOKENS):
+            add("web_research")
+        elif ("搜索" in normalized_message or "搜" in normalized_message) and not any(
+            token in normalized_message for token in PAGE_SEARCH_CONTEXT_TOKENS
+        ):
+            add("web_research")
+
+        if page_context and (
+            cls._requires_page_operation_routing(message, page_context)
+            or any(token in normalized_message for token in PAGE_OPERATION_REFERENCE_TOKENS)
+            or "页面有什么" in normalized_message
+            or "页面都能做什么" in normalized_message
+        ):
+            add("page_ops")
+
+        return families
+
+    @classmethod
+    def _agent_supports_families(
+        cls,
+        agent: Agent | None,
+        families: list[str],
+    ) -> bool:
+        if agent is None or not families:
+            return False
+
+        supported: set[str] = set()
+        supported.update(BASELINE_RUNTIME_FAMILIES)
+        skill_grants = getattr(agent, "skill_grants", None) or []
+        for grant in skill_grants:
+            skill_name = cls._grant_skill_name_if_active(grant)
+            if not skill_name:
+                continue
+
+            descriptors = {
+                str(skill_name).strip().lower(),
+            }
+            skill = getattr(grant, "skill", None)
+            if skill is not None:
+                descriptors.add(str(getattr(skill, "key", "") or "").strip().lower())
+                descriptors.add(
+                    str(getattr(skill, "description", "") or "").strip().lower()
+                )
+                package = getattr(skill, "package", None)
+                if package is not None:
+                    descriptors.add(
+                        str(getattr(package, "name", "") or "").strip().lower()
+                    )
+                    descriptors.add(
+                        str(getattr(package, "description", "") or "").strip().lower()
+                    )
+
+            family = tool_family_from_name(skill_name)
+            if family and family != "none":
+                supported.add(family)
+            if any(
+                token in descriptor
+                for descriptor in descriptors
+                for token in ("天气", "weather", "forecast", "气温", "温度")
+            ):
+                supported.add("weather")
+            if any(
+                token in descriptor
+                for descriptor in descriptors
+                for token in ("时间", "日期", "time tool", "current time", "clock")
+            ):
+                supported.add("time_ops")
+            if any(
+                token in descriptor
+                for descriptor in descriptors
+                for token in ("联网", "搜索", "web", "网页", "fetch url", "url")
+            ):
+                supported.add("web_research")
+            if any(
+                token in descriptor
+                for descriptor in descriptors
+                for token in ("页面", "page", "表单", "page operation", "page context")
+            ):
+                supported.add("page_ops")
+        return all(family in supported for family in families)
 
     async def _agent_can_handle_images(self, agent: Agent | None) -> bool:
         if agent is None:

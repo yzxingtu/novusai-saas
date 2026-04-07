@@ -2,10 +2,7 @@
 /**
  * AI 供应商新建/编辑表单抽屉
  */
-import type {
-  AIProviderInfo,
-  ProviderWebSearchRuntime,
-} from '#/api/admin/ai';
+import type { AIProviderInfo, ProviderWebSearchRuntime } from '#/api/admin/ai';
 
 import { computed, ref } from 'vue';
 
@@ -99,8 +96,12 @@ const { Drawer, isEdit } = useCrudDrawer<AIProviderInfo>({
       delete nextConfig.responses_tool_history_mode;
     }
 
+    const existingWebSearchConfig = edit
+      ? resolveProviderWebSearchConfig(configSnapshot.value)
+      : undefined;
     nextConfig.web_search = buildProviderWebSearchConfigFromForm(
       values as Record<string, unknown>,
+      existingWebSearchConfig,
     );
 
     const result: Record<string, unknown> = {
@@ -144,6 +145,12 @@ const { Drawer, isEdit } = useCrudDrawer<AIProviderInfo>({
       web_search_native_timeout_seconds: webSearchConfig.native_timeout_seconds,
       web_search_public_timeout_seconds: webSearchConfig.public_timeout_seconds,
       web_search_public_providers: [...webSearchConfig.public_providers],
+      web_search_allow_unverified_runtime_target:
+        webSearchConfig.allow_unverified_runtime_target ?? false,
+      web_search_verified_provider_code:
+        webSearchConfig.verified_native_target?.provider_code || '',
+      web_search_verified_model_code:
+        webSearchConfig.verified_native_target?.model_code || '',
       description: data.description,
       icon: data.icon,
       sort_order: data.sort_order,

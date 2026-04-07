@@ -101,6 +101,51 @@ export interface UseAIChatOptions {
   onVariablesMissing?: () => void;
 }
 
+const EMPTY_CONVERSATION_VISIBLE_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+function parseTimestamp(value: null | string | undefined): number | null {
+  if (!value) {
+    return null;
+  }
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+export function shouldDisplayConversationInHistory(
+  conversation: ConversationItem,
+  options: {
+    activeConversationId?: null | number;
+    nowMs?: number;
+  } = {},
+): boolean {
+  const messageCount = Number(conversation.message_count ?? 0);
+  if (messageCount > 0) {
+    return true;
+  }
+
+  if (
+    typeof options.activeConversationId === 'number' &&
+    conversation.id === options.activeConversationId
+  ) {
+    return true;
+  }
+
+  const status = String(conversation.status ?? '').toLowerCase();
+  if (status === 'active') {
+    return true;
+  }
+
+  const referenceTime =
+    parseTimestamp(conversation.updated_at) ??
+    parseTimestamp(conversation.created_at);
+  if (referenceTime === null) {
+    return false;
+  }
+
+  const nowMs = options.nowMs ?? Date.now();
+  return nowMs - referenceTime <= EMPTY_CONVERSATION_VISIBLE_WINDOW_MS;
+}
+
 export function useAIChat(options: UseAIChatOptions) {
   const { validateChatFile, revokePreviewUrls } = useFileUpload();
   const socketIOStore = useSocketIOStore();
@@ -303,10 +348,12 @@ export function useAIChat(options: UseAIChatOptions) {
       if (reqSeq !== conversationsRequestSeq) {
         return;
       }
-      conversations.value = res.items.filter(
-        (conversation) =>
-          (conversation.message_count ?? 0) > 0 ||
-          conversation.id === activeConversationId.value,
+      const nowMs = Date.now();
+      conversations.value = res.items.filter((conversation) =>
+        shouldDisplayConversationInHistory(conversation, {
+          activeConversationId: activeConversationId.value,
+          nowMs,
+        }),
       );
 
       // Auto-load initial conversation (only once) / 仅一次自动加载初始会话
@@ -380,6 +427,14 @@ export function useAIChat(options: UseAIChatOptions) {
       attempt++
     ) {
       const res = await getChatConversationMessagesApi(prefix, convId);
+      if (!res || typeof res !== 'object') {
+        if (attempt < INTERRUPTED_HISTORY_SYNC_ATTEMPTS - 1) {
+          await new Promise<void>((resolve) => {
+            setTimeout(resolve, INTERRUPTED_HISTORY_SYNC_RETRY_DELAY_MS);
+          });
+        }
+        continue;
+      }
       if (activeConversationId.value !== convId) {
         return;
       }
@@ -417,6 +472,23 @@ export function useAIChat(options: UseAIChatOptions) {
     }
 
     applyConversationDetailState(convId, fallbackResponse, fallbackMerged);
+  }
+
+  function recoverConversationIdFromHistory(
+    knownConversationIds: ReadonlySet<number>,
+    targetAgentId: number,
+  ): null | number {
+    const candidates = conversations.value.filter((conversation) => {
+      if (knownConversationIds.has(conversation.id)) {
+        return false;
+      }
+      return Number(conversation.agent_id ?? 0) === targetAgentId;
+    });
+
+    if (candidates.length !== 1) {
+      return null;
+    }
+    return candidates[0]?.id ?? null;
   }
 
   /**
@@ -1993,11 +2065,16 @@ export function useAIChat(options: UseAIChatOptions) {
     activeStreamLifecycle = streamLifecycle;
     const assistantIdx = chatMessages.value.length - 1;
     const interruptedHistoryBaseline = chatMessages.value.length;
+    const knownConversationIdsBeforeSend = new Set(
+      conversations.value.map((conversation) => conversation.id),
+    );
     let doneAbortTimer: null | ReturnType<typeof setTimeout> = null;
     let didReceiveDoneEvent = false;
     let didSseEnd = false;
     let hasReceivedStreamPayload = false;
     let shouldSyncInterruptedConversation = false;
+    let shouldSyncCommittedConversation = false;
+    let committedConversationSyncPromise: null | Promise<void> = null;
     let streamConversationId =
       activeConversationId.value ?? conversationAnchorId;
 
@@ -2022,6 +2099,22 @@ export function useAIChat(options: UseAIChatOptions) {
           }
         }
       }
+    }
+
+    function triggerCommittedConversationSync() {
+      if (
+        committedConversationSyncPromise ||
+        streamConversationId === null ||
+        activeConversationId.value !== streamConversationId
+      ) {
+        return;
+      }
+      committedConversationSyncPromise = syncConversationAfterInterrupt(
+        streamConversationId,
+        interruptedHistoryBaseline,
+      ).finally(() => {
+        committedConversationSyncPromise = null;
+      });
     }
 
     function promoteToolRoundContent() {
@@ -2252,6 +2345,19 @@ export function useAIChat(options: UseAIChatOptions) {
               scrollToBottom();
             } else if (event.event === 'done') {
               didReceiveDoneEvent = true;
+              const doneConversationId = Number(event.conversation_id ?? 0);
+              if (doneConversationId > 0) {
+                streamConversationId = doneConversationId;
+                activeConversationId.value = doneConversationId;
+                activeConversationAgentId.value = targetAgentId;
+                rememberConversationAnchor(doneConversationId, targetAgentId);
+              }
+              shouldSyncCommittedConversation =
+                shouldSyncCommittedConversation ||
+                doneConversationId > 0 ||
+                event.persistence_committed === true ||
+                event.persistence_error === true ||
+                event.on_complete_error === true;
               msg.tokenUsage = (event.total_tokens as number) || 0;
               msg.durationMs = (event.duration_ms as number) || 0;
               msg.contextCompacted = Boolean(event.context_compacted);
@@ -2423,6 +2529,9 @@ export function useAIChat(options: UseAIChatOptions) {
               streaming.value = false;
               sending.value = false;
               loadConversations();
+              if (shouldSyncCommittedConversation) {
+                triggerCommittedConversationSync();
+              }
               if (doneAbortTimer) {
                 clearTimeout(doneAbortTimer);
               }
@@ -2536,7 +2645,7 @@ export function useAIChat(options: UseAIChatOptions) {
             doneAbortTimer = null;
           }
           await parseSSEEvents('\n', sseBuffer, handleSsePayload);
-          loadConversations();
+          await loadConversations();
         },
         onError(error: AppErrorInfo | Error) {
           const appError = normalizeSseTransportError(error, $t);
@@ -2591,18 +2700,46 @@ export function useAIChat(options: UseAIChatOptions) {
       userScrolledUp.value = false;
       finalizeMessage();
 
-      const interruptedConversationId = streamConversationId;
-      const shouldSyncConversationHistory =
-        !didReceiveDoneEvent &&
-        interruptedConversationId !== null &&
-        (streamLifecycle.abortReason === 'user' ||
-          shouldSyncInterruptedConversation ||
-          didSseEnd);
-      if (shouldSyncConversationHistory) {
-        await syncConversationAfterInterrupt(
-          interruptedConversationId,
-          interruptedHistoryBaseline,
+      const shouldReloadConversationList =
+        shouldSyncCommittedConversation ||
+        !didReceiveDoneEvent ||
+        shouldSyncInterruptedConversation;
+      if (shouldReloadConversationList) {
+        await loadConversations();
+      }
+
+      let interruptedConversationId = streamConversationId;
+      let recoveredConversationFromHistory = false;
+      if (interruptedConversationId === null) {
+        const recoveredConversationId = recoverConversationIdFromHistory(
+          knownConversationIdsBeforeSend,
+          targetAgentId,
         );
+        if (recoveredConversationId !== null) {
+          recoveredConversationFromHistory = true;
+          interruptedConversationId = recoveredConversationId;
+          activeConversationId.value = recoveredConversationId;
+          activeConversationAgentId.value = targetAgentId;
+          rememberConversationAnchor(recoveredConversationId, targetAgentId);
+        }
+      }
+      const shouldSyncConversationHistory =
+        interruptedConversationId !== null &&
+        (recoveredConversationFromHistory ||
+          shouldSyncCommittedConversation ||
+          (!didReceiveDoneEvent &&
+            (streamLifecycle.abortReason === 'user' ||
+              shouldSyncInterruptedConversation ||
+              didSseEnd)));
+      if (shouldSyncConversationHistory) {
+        if (committedConversationSyncPromise) {
+          await committedConversationSyncPromise;
+        } else {
+          await syncConversationAfterInterrupt(
+            interruptedConversationId,
+            interruptedHistoryBaseline,
+          );
+        }
       }
 
       if (_deferredAutoConfirm && pendingInteractionUpdates.value.length > 0) {

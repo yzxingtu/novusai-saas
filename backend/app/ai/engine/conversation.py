@@ -38,14 +38,13 @@ from .base import BaseEngine, log_user_type_for_call_log
 from .budget_guard import BudgetGuard
 from .execution_state_machine import ExecutionStateMachine
 from .failure_classifier import FailureClassifier
-from .intent_planner import IntentPlanner
-from .path_selector import PathSelector
+from .model_policy import build_model_request_overrides
 from .recovery_manager import RecoveryManager
 from .stream_handler import StreamExecutionHandler
+from .turn_executor import ModelRoundResult, ToolBatchResult, TurnExecutor
 from .types import (
     ExecutionRequest,
     ExecutionResult,
-    IntentPlan,
     ToolUsePolicy,
 )
 
@@ -109,6 +108,186 @@ def _serialize_context_sources(
             }
         )
     return serialized
+
+
+@dataclass
+class _SyncIOAdapter:
+    engine: ConversationEngine
+    agent: Agent
+    request: ExecutionRequest
+    prep: Any
+    selected_skill_names: list[str]
+    context_sources: list[Any]
+
+    async def call_llm(
+        self,
+        *,
+        messages: list[ChatMessage],
+        tools: list[ToolDefinition] | None,
+        tool_use_policy: ToolUsePolicy,
+        **kwargs: Any,
+    ) -> ModelRoundResult:
+        runtime_call_overrides = build_model_request_overrides(
+            execution_path=getattr(self.prep, "execution_path", None),
+            tools=tools,
+        )
+        response = await self.engine._call_llm(
+            agent=self.agent,
+            messages=messages,
+            tools=tools,
+            all_tool_names=[tool.name for tool in self.prep.all_tools],
+            tool_use_policy=tool_use_policy,
+            tenant_id=self.request.tenant_id,
+            user_id=self.request.user_id,
+            conversation_id=self.request.conversation_id,
+            billing_context=self.request.billing_context,
+            route_result=self.prep.route_result,
+            log_user_type=log_user_type_for_call_log(self.request.user_role),
+            selected_skill_names=self.selected_skill_names,
+            context_sources=self.context_sources,
+            execution_path=getattr(self.prep, "execution_path", None),
+            extra_kwargs=runtime_call_overrides or None,
+            **kwargs,
+        )
+        total_tokens = int(response.total_tokens or 0)
+        completion_tokens_used = int(
+            response.output_tokens
+            if response.output_tokens is not None
+            else total_tokens
+        )
+        return ModelRoundResult(
+            response=response,
+            total_tokens=total_tokens,
+            completion_tokens_used=completion_tokens_used,
+        )
+
+    async def handle_tool_calls(
+        self,
+        *,
+        response: ChatResponse,
+        tools: list[ToolDefinition],
+        messages: list[ChatMessage],
+        **kwargs: Any,
+    ) -> ToolBatchResult:
+        outcome = await self.engine._handle_tool_calls(
+            agent=self.agent,
+            messages=messages,
+            response=response,
+            tools=tools,
+            all_tools=self.prep.all_tools,
+            request=self.request,
+            route_result=self.prep.route_result,
+            tool_consent_modes=self.prep.tool_consent_modes,
+            continuation_context=self.prep.continuation_context,
+            selected_skill_names=self.selected_skill_names,
+            context_sources=self.context_sources,
+            execution_budget=self.prep.execution_budget,
+            **kwargs,
+        )
+        normalized_response, tool_results, total_tokens, completion_tokens_used = (
+            self.engine._normalize_tool_call_outcome(outcome)
+        )
+        return ToolBatchResult(
+            response=normalized_response,
+            tool_results=list(tool_results),
+            total_tokens=total_tokens,
+            completion_tokens_used=completion_tokens_used,
+        )
+
+    async def finalize_partial_output(
+        self,
+        *,
+        messages: list[ChatMessage],
+        response: ChatResponse | None,
+        state: ExecutionStateMachine,
+        tool_results: list[ToolResult],
+        reason: str,
+        total_tokens: int,
+        completion_tokens_used: int,
+    ) -> tuple[str, int, int]:
+        return await self.engine._finalize_partial_output(
+            agent=self.agent,
+            request=self.request,
+            prep=self.prep,
+            messages=messages,
+            response=response,
+            state=state,
+            tool_results=tool_results,
+            reason=reason,
+            total_tokens=total_tokens,
+            completion_tokens_used=completion_tokens_used,
+            selected_skill_names=self.selected_skill_names,
+            context_sources=self.context_sources,
+        )
+
+    def should_retry_tool_contract_breach(
+        self,
+        *,
+        response: ChatResponse | None,
+        current_policy: ToolUsePolicy,
+        tools: list[ToolDefinition],
+        input_variables: dict[str, Any] | None,
+    ) -> tuple[bool, ToolUsePolicy | None, str]:
+        return self.engine._should_retry_tool_contract_breach(
+            response=response,
+            current_policy=current_policy,
+            tools=tools,
+            input_variables=input_variables,
+        )
+
+    def should_retry_web_research_contract_breach(
+        self,
+        *,
+        messages: list[ChatMessage],
+        response: ChatResponse | None,
+        current_policy: ToolUsePolicy,
+        tools: list[ToolDefinition],
+        input_variables: dict[str, Any] | None,
+        continuation: Any,
+    ) -> tuple[bool, ToolUsePolicy | None, str]:
+        return self.engine._should_retry_web_research_contract_breach(
+            messages=messages,
+            response=response,
+            current_policy=current_policy,
+            tools=tools,
+            input_variables=input_variables,
+            continuation=continuation,
+        )
+
+    def restrict_tools_to_names(
+        self,
+        tools: list[ToolDefinition],
+        allowed_tool_names: list[str] | None,
+    ) -> list[ToolDefinition]:
+        return self.engine._restrict_tools_to_names(tools, allowed_tool_names)
+
+    def log_tool_contract_diagnostics(
+        self,
+        *,
+        agent: Agent,
+        messages: list[ChatMessage],
+        response: ChatResponse | None,
+        tools: list[ToolDefinition],
+        policy: ToolUsePolicy,
+        conversation_id: int | None,
+        breach_type: str,
+        retry_result: str,
+        continuation: Any,
+    ) -> None:
+        self.engine._log_tool_contract_diagnostics(
+            agent=agent,
+            messages=messages,
+            response=response,
+            tools=tools,
+            policy=policy,
+            conversation_id=conversation_id,
+            breach_type=breach_type,
+            retry_result=retry_result,
+            continuation=continuation,
+        )
+
+    async def emit_chunk(self, text: str) -> None:
+        _ = text
 
 
 class ConversationEngine(BaseEngine):
@@ -205,31 +384,6 @@ class ConversationEngine(BaseEngine):
             )
         return synthesized
 
-    @staticmethod
-    def _can_finalize_partial_with_llm(
-        *,
-        reason: str,
-        state: ExecutionStateMachine,
-        response: ChatResponse | None,
-        tool_results: list[ToolResult],
-    ) -> bool:
-        if reason not in {
-            "prompt_budget_exceeded",
-            "completion_budget_exceeded",
-            "tool_round_budget_exceeded",
-            "elapsed_budget_exceeded",
-            "tool_result_budget_exceeded",
-            "candidate_tool_budget_exceeded",
-        }:
-            return False
-        if any(intent.status == "completed" for intent in state.intent_plan):
-            return True
-        if any(result.success for result in tool_results):
-            return True
-        if response is None:
-            return False
-        return bool(str(response.message.content or "").strip())
-
     async def _finalize_partial_output(
         self,
         *,
@@ -246,83 +400,22 @@ class ConversationEngine(BaseEngine):
         selected_skill_names: list[str],
         context_sources: list[Any],
     ) -> tuple[str, int, int]:
-        if not self._can_finalize_partial_with_llm(
-            reason=reason,
-            state=state,
-            response=response,
-            tool_results=tool_results,
-        ):
-            return (
-                RecoveryManager.build_partial_output(
-                    state.intent_plan,
-                    reason=reason,
-                    provider_failure_kind=state.provider_failure_kind,
-                ),
-                total_tokens,
-                completion_tokens_used,
-            )
-
-        try:
-            final_response = await self._call_llm(
-                agent=agent,
-                messages=list(messages)
-                + [
-                    RecoveryManager.build_partial_response_prompt(
-                        state.intent_plan,
-                        reason=reason,
-                        provider_failure_kind=state.provider_failure_kind,
-                    )
-                ],
-                tools=None,
-                all_tool_names=[tool.name for tool in (prep.all_tools or [])],
-                tool_use_policy=ToolUsePolicy(
-                    family="none",
-                    mode="none",
-                    allowed_tool_names=[],
-                    retry_on_contract_breach=False,
-                    reason="partial_exit_final_response",
-                ),
-                tenant_id=request.tenant_id,
-                user_id=request.user_id,
-                conversation_id=request.conversation_id,
-                billing_context=request.billing_context,
-                route_result=prep.route_result,
-                log_user_type=log_user_type_for_call_log(request.user_role),
-                selected_skill_names=selected_skill_names,
-                context_sources=context_sources,
-            )
-        except Exception as exc:  # pragma: no cover - defensive fallback
-            logger.warning(
-                "Partial-exit finalization fallback triggered: conversation_id={} reason={} error={}",
-                request.conversation_id,
-                reason,
-                str(exc),
-            )
-            return (
-                RecoveryManager.build_partial_output(
-                    state.intent_plan,
-                    reason=reason,
-                    provider_failure_kind=state.provider_failure_kind,
-                ),
-                total_tokens,
-                completion_tokens_used,
-            )
-        total_tokens += final_response.total_tokens or 0
-        completion_tokens_used += int(
-            final_response.output_tokens
-            if final_response.output_tokens is not None
-            else (final_response.total_tokens or 0)
+        _ = (
+            agent,
+            request,
+            prep,
+            messages,
+            tool_results,
+            selected_skill_names,
+            context_sources,
         )
-        # Update budget tokens directly; avoid register_completion_tokens()
-        # which would transition state away from partial_exit.
-        if state.budget is not None:
-            state.budget.completion_tokens_used = max(
-                state.budget.completion_tokens_used,
-                int(completion_tokens_used or 0),
-            )
-        final_output = str(final_response.message.content or "").strip()
-        if final_output:
-            return final_output, total_tokens, completion_tokens_used
+        visible_output = (
+            str(response.message.content or "").strip()
+            if response is not None
+            else ""
+        )
+        if visible_output:
+            return visible_output, total_tokens, completion_tokens_used
         return (
             RecoveryManager.build_partial_output(
                 state.intent_plan,
@@ -332,128 +425,6 @@ class ConversationEngine(BaseEngine):
             total_tokens,
             completion_tokens_used,
         )
-
-    def _bootstrap_missing_intent_plan(
-        self,
-        *,
-        prep: Any,
-        request: ExecutionRequest,
-        state: ExecutionStateMachine,
-        messages: list[ChatMessage],
-    ) -> None:
-        if state.intent_plan:
-            return
-
-        tools_full = list(
-            getattr(prep, "all_tools", None) or getattr(prep, "tools", None) or []
-        )
-        inferred_intents = IntentPlanner.plan_turn(
-            messages=list(getattr(request, "messages", None) or messages or []),
-            tools=tools_full,
-            input_variables=getattr(request, "input_variables", None),
-            continuation_context=getattr(prep, "continuation_context", None),
-            capability_bundle=getattr(prep, "capability_bundle", None),
-        )
-        actionable_inferred_intents = any(
-            intent.family != "none" and intent.requires_tools
-            for intent in inferred_intents
-        )
-
-        fallback_family = getattr(prep.tool_use_policy, "family", "none")
-        if fallback_family == "none" and getattr(
-            prep.tool_use_policy, "retry_on_contract_breach", False
-        ):
-            allowed_tool_names = set(prep.tool_use_policy.allowed_tool_names or [])
-            if {"web_search", "fetch_url"} & allowed_tool_names:
-                fallback_family = "web_research"
-            elif any(
-                name == "get_page_context" or name.startswith("pageop_")
-                for name in allowed_tool_names
-            ):
-                fallback_family = "page_ops"
-            elif "get_current_weather" in allowed_tool_names:
-                fallback_family = "weather"
-            elif "get_current_time" in allowed_tool_names:
-                fallback_family = "time_ops"
-
-        if not actionable_inferred_intents and fallback_family != "none":
-            fallback_allowed_tools = list(prep.tool_use_policy.allowed_tool_names or [])
-            inferred_intents = [
-                IntentPlan(
-                    intent_id=f"{fallback_family}-1",
-                    kind=f"{fallback_family}_intent",
-                    family=fallback_family,
-                    order=1,
-                    user_visible_label=fallback_family,
-                    source_text=self._extract_last_user_text(messages),
-                    status="pending",
-                    requires_tools=True,
-                    allow_text_response=False,
-                    allowed_tool_names=fallback_allowed_tools,
-                    preferred_tool_names=fallback_allowed_tools,
-                    completion_signals=self._intent_completion_signals(
-                        fallback_family,
-                        allowed_tool_names=fallback_allowed_tools,
-                        preferred_tool_names=fallback_allowed_tools,
-                    ),
-                )
-            ]
-            actionable_inferred_intents = True
-
-        if not actionable_inferred_intents:
-            return
-
-        normalized_intents: list[IntentPlan] = []
-        for intent in inferred_intents:
-            clone = (
-                IntentPlan(**intent.to_dict())
-                if isinstance(intent, IntentPlan)
-                else IntentPlan(**intent)
-            )
-            if clone.family != "none" and clone.requires_tools:
-                allowed_tool_names = list(clone.allowed_tool_names or [])
-                if not allowed_tool_names:
-                    allowed_tool_names = self._allowed_tool_names_for_family(
-                        clone.family,
-                        tools_full,
-                        getattr(request, "input_variables", None),
-                    )
-                preferred_tool_names = list(
-                    clone.preferred_tool_names or allowed_tool_names
-                )
-                completion_signals = list(
-                    clone.completion_signals
-                    or self._intent_completion_signals(
-                        clone.family,
-                        allowed_tool_names=allowed_tool_names,
-                        preferred_tool_names=preferred_tool_names,
-                    )
-                )
-                clone.allowed_tool_names = allowed_tool_names
-                clone.preferred_tool_names = preferred_tool_names
-                clone.completion_signals = completion_signals
-            normalized_intents.append(clone)
-
-        state.intent_plan = normalized_intents
-        prep.intent_plan = list(state.intent_plan)
-        inferred_path = PathSelector.select(state.intent_plan)
-        prep.execution_path = inferred_path
-        state.execution_path = inferred_path
-        if getattr(prep, "execution_budget", None) is None:
-            inferred_budget = BudgetGuard.build_default(
-                inferred_path,
-                intent_count=len(state.intent_plan),
-            )
-            prep.execution_budget = inferred_budget
-            state.budget = inferred_budget
-        if (
-            getattr(prep.tool_use_policy, "retry_on_contract_breach", False)
-            and state.budget is not None
-            and int(getattr(state.budget, "max_retry_per_intent", 0) or 0) < 1
-        ):
-            state.budget.max_retry_per_intent = 1
-            if getattr(prep, "execution_budget", None) is not None:
-                prep.execution_budget.max_retry_per_intent = 1
 
     async def execute(
         self,
@@ -473,7 +444,6 @@ class ConversationEngine(BaseEngine):
         try:
             prep = await self._prepare_execution(agent, request, skill_result)
             messages = prep.messages
-            tools = prep.tools
             rag_sources = prep.rag_sources
             runtime_selected_skill_names = (
                 list(getattr(prep.capability_bundle, "selected_skill_names", []) or [])
@@ -486,398 +456,29 @@ class ConversationEngine(BaseEngine):
                 else []
             )
             state = ExecutionStateMachine.from_prepared_execution(prep)
-            self._bootstrap_missing_intent_plan(
+            sync_io = _SyncIOAdapter(
+                engine=self,
+                agent=agent,
+                request=request,
+                prep=prep,
+                selected_skill_names=runtime_selected_skill_names,
+                context_sources=runtime_context_sources,
+            )
+            turn_execution = await TurnExecutor.run(
+                state=state,
+                io=sync_io,
                 prep=prep,
                 request=request,
-                state=state,
-                messages=messages,
+                agent=agent,
             )
-            initial_budget_exit = state.budget_exit_reason()
-            active_tools = list(tools or [])
-            active_policy = prep.tool_use_policy
-            completion_tokens_used = 0
-
-            if initial_budget_exit:
-                state.register_provider_failure(
-                    kind="budget_exit",
-                    event={"kind": "budget_exit", "reason": initial_budget_exit},
-                )
-                response = ChatResponse(
-                    message=ChatMessage(role="assistant", content=""),
-                    total_tokens=0,
-                    output_tokens=0,
-                )
-                total_tokens = 0
-            else:
-                response = await self._call_llm(
-                    agent=agent,
-                    messages=messages,
-                    tools=tools or None,
-                    all_tool_names=[tool.name for tool in prep.all_tools],
-                    tool_use_policy=prep.tool_use_policy,
-                    tenant_id=request.tenant_id,
-                    user_id=request.user_id,
-                    conversation_id=request.conversation_id,
-                    billing_context=request.billing_context,
-                    route_result=prep.route_result,
-                    log_user_type=log_user_type_for_call_log(request.user_role),
-                    selected_skill_names=runtime_selected_skill_names,
-                    context_sources=runtime_context_sources,
-                )
-                total_tokens = response.total_tokens or 0
-                completion_tokens_used = int(
-                    response.output_tokens
-                    if response.output_tokens is not None
-                    else total_tokens
-                )
-                state.register_completion_tokens(completion_tokens_used)
-
-            if response.tool_calls and active_tools:
-                tool_rounds_before = self._assistant_tool_round_count(messages)
-                tool_call_response = response
-                tool_outcome = await self._handle_tool_calls(
-                    agent=agent,
-                    messages=messages,
-                    response=response,
-                    tools=active_tools,
-                    all_tools=prep.all_tools,
-                    request=request,
-                    route_result=prep.route_result,
-                    tool_consent_modes=prep.tool_consent_modes,
-                    continuation_context=prep.continuation_context,
-                    selected_skill_names=runtime_selected_skill_names,
-                    context_sources=runtime_context_sources,
-                    tool_use_policy=active_policy,
-                    execution_budget=prep.execution_budget,
-                    starting_total_tokens=total_tokens,
-                    starting_completion_tokens=completion_tokens_used,
-                )
-                (
-                    response,
-                    tool_results,
-                    total_tokens,
-                    completion_tokens_used,
-                ) = self._normalize_tool_call_outcome(tool_outcome)
-                if not tool_results:
-                    tool_results = self._synthesize_tool_results_from_calls(
-                        tool_call_response.tool_calls
-                    )
-                self._register_tool_round_delta(
-                    state,
-                    before_count=tool_rounds_before,
-                    messages=messages,
-                )
-                state.register_tool_results(
-                    messages=messages,
-                    tool_results=tool_results,
-                )
-                state.register_completion_tokens(completion_tokens_used)
-                self._register_tool_failures(state, tool_results)
-            elif state.intent_plan:
-                state.intent_plan = RecoveryManager.update_intent_statuses(
-                    state.intent_plan,
-                    messages=messages,
-                    tool_results=[],
-                )
-
-            contract_tools = list(prep.all_tools or active_tools)
-            if (
-                active_policy is not None
-                and active_policy.retry_on_contract_breach
-                and contract_tools
-                and not tool_results
-                and not state.intent_plan
-            ):
-                should_retry, retry_policy, _breach_response_text = (
-                    self._should_retry_tool_contract_breach(
-                        response=response,
-                        current_policy=active_policy,
-                        tools=contract_tools,
-                        input_variables=request.input_variables,
-                    )
-                )
-                if not should_retry:
-                    should_retry, retry_policy, _breach_response_text = (
-                        self._should_retry_web_research_contract_breach(
-                            messages=messages,
-                            response=response,
-                            current_policy=active_policy,
-                            tools=contract_tools,
-                            input_variables=request.input_variables,
-                            continuation=prep.continuation_context,
-                        )
-                    )
-                if should_retry and retry_policy is not None:
-                    retry_tools = self._restrict_tools_to_names(
-                        contract_tools,
-                        retry_policy.allowed_tool_names,
-                    )
-                    self._log_tool_contract_diagnostics(
-                        agent=agent,
-                        messages=messages,
-                        response=response,
-                        tools=contract_tools,
-                        policy=retry_policy,
-                        conversation_id=request.conversation_id,
-                        breach_type=retry_policy.reason or "contract_breach",
-                        retry_result="retrying",
-                        continuation=prep.continuation_context,
-                    )
-                    active_policy = retry_policy
-                    active_tools = list(retry_tools or [])
-                    response = await self._call_llm(
-                        agent=agent,
-                        messages=messages,
-                        tools=retry_tools or None,
-                        all_tool_names=[tool.name for tool in prep.all_tools],
-                        tool_use_policy=retry_policy,
-                        breach_retry_result="retry_follow_up",
-                        tenant_id=request.tenant_id,
-                        user_id=request.user_id,
-                        conversation_id=request.conversation_id,
-                        billing_context=request.billing_context,
-                        route_result=prep.route_result,
-                        log_user_type=log_user_type_for_call_log(request.user_role),
-                        selected_skill_names=runtime_selected_skill_names,
-                        context_sources=runtime_context_sources,
-                    )
-                    total_tokens += response.total_tokens or 0
-                    completion_tokens_used += int(
-                        response.output_tokens
-                        if response.output_tokens is not None
-                        else (response.total_tokens or 0)
-                    )
-                    state.register_completion_tokens(completion_tokens_used)
-                    if response.tool_calls and retry_tools:
-                        tool_rounds_before = self._assistant_tool_round_count(messages)
-                        tool_call_response = response
-                        tool_outcome = await self._handle_tool_calls(
-                            agent=agent,
-                            messages=messages,
-                            response=response,
-                            tools=retry_tools,
-                            all_tools=prep.all_tools,
-                            request=request,
-                            route_result=prep.route_result,
-                            tool_consent_modes=prep.tool_consent_modes,
-                            continuation_context=prep.continuation_context,
-                            selected_skill_names=runtime_selected_skill_names,
-                            context_sources=runtime_context_sources,
-                            tool_use_policy=retry_policy,
-                            execution_budget=prep.execution_budget,
-                            starting_total_tokens=total_tokens,
-                            starting_completion_tokens=completion_tokens_used,
-                        )
-                        (
-                            response,
-                            extra_tool_results,
-                            total_tokens,
-                            completion_tokens_used,
-                        ) = self._normalize_tool_call_outcome(tool_outcome)
-                        if not extra_tool_results:
-                            extra_tool_results = (
-                                self._synthesize_tool_results_from_calls(
-                                    tool_call_response.tool_calls
-                                )
-                            )
-                        tool_results.extend(extra_tool_results)
-                        if state.intent_plan and retry_policy.allowed_tool_names:
-                            for intent in state.intent_plan:
-                                if (
-                                    intent.status
-                                    not in {"completed", "failed", "skipped"}
-                                    and not intent.allowed_tool_names
-                                    and (
-                                        retry_policy.family == "none"
-                                        or intent.family == retry_policy.family
-                                    )
-                                ):
-                                    intent.allowed_tool_names = list(
-                                        retry_policy.allowed_tool_names
-                                    )
-                        self._register_tool_round_delta(
-                            state,
-                            before_count=tool_rounds_before,
-                            messages=messages,
-                        )
-                        state.register_tool_results(
-                            messages=messages,
-                            tool_results=extra_tool_results,
-                        )
-                        state.register_completion_tokens(completion_tokens_used)
-                        self._register_tool_failures(state, extra_tool_results)
-                    elif state.intent_plan:
-                        state.intent_plan = RecoveryManager.update_intent_statuses(
-                            state.intent_plan,
-                            messages=messages,
-                            tool_results=[],
-                        )
-
-            budget_exit_reason = state.budget_exit_reason()
-            if budget_exit_reason:
-                state.register_provider_failure(
-                    kind="budget_exit",
-                    event={"kind": "budget_exit", "reason": budget_exit_reason},
-                )
-
-            decision = RecoveryManager.decide(
-                state.intent_plan,
-                budget=state.budget,
-                provider_failure_kind=state.provider_failure_kind,
-            )
-            retry_limit = int(
-                getattr(state.budget, "max_retry_per_intent", 0)
-                if state.budget is not None
-                else 0
-            )
-            retry_attempts = 0
-            while (
-                decision is not None
-                and decision.action == "retry_intent"
-                and retry_attempts < retry_limit
-            ):
-                retry_attempts += 1
-                state.register_retry(decision)
-                messages.append(
-                    RecoveryManager.build_recovery_message(
-                        decision=decision,
-                        intents=state.intent_plan,
-                    )
-                )
-                retry_tools = self._restrict_tools_to_names(
-                    prep.all_tools or tools,
-                    decision.allowed_tool_names,
-                )
-                retry_policy = ToolUsePolicy(
-                    family=decision.retry_family or prep.tool_use_policy.family,
-                    mode="required",
-                    allowed_tool_names=decision.allowed_tool_names
-                    or [tool.name for tool in retry_tools],
-                    retry_on_contract_breach=False,
-                    reason=decision.reason,
-                )
-                response = await self._call_llm(
-                    agent=agent,
-                    messages=messages,
-                    tools=retry_tools or None,
-                    all_tool_names=[tool.name for tool in prep.all_tools],
-                    tool_use_policy=retry_policy,
-                    breach_retry_result="intent_retry",
-                    tenant_id=request.tenant_id,
-                    user_id=request.user_id,
-                    conversation_id=request.conversation_id,
-                    billing_context=request.billing_context,
-                    route_result=prep.route_result,
-                    log_user_type=log_user_type_for_call_log(request.user_role),
-                    selected_skill_names=runtime_selected_skill_names,
-                    context_sources=runtime_context_sources,
-                )
-                total_tokens += response.total_tokens or 0
-                completion_tokens_used += int(
-                    response.output_tokens
-                    if response.output_tokens is not None
-                    else (response.total_tokens or 0)
-                )
-                state.register_completion_tokens(completion_tokens_used)
-                if response.tool_calls and retry_tools:
-                    tool_rounds_before = self._assistant_tool_round_count(messages)
-                    tool_call_response = response
-                    tool_outcome = await self._handle_tool_calls(
-                        agent=agent,
-                        messages=messages,
-                        response=response,
-                        tools=retry_tools,
-                        all_tools=prep.all_tools,
-                        request=request,
-                        route_result=prep.route_result,
-                        tool_consent_modes=prep.tool_consent_modes,
-                        continuation_context=prep.continuation_context,
-                        selected_skill_names=runtime_selected_skill_names,
-                        context_sources=runtime_context_sources,
-                        tool_use_policy=retry_policy,
-                        execution_budget=prep.execution_budget,
-                        starting_total_tokens=total_tokens,
-                        starting_completion_tokens=completion_tokens_used,
-                    )
-                    (
-                        response,
-                        extra_tool_results,
-                        total_tokens,
-                        completion_tokens_used,
-                    ) = self._normalize_tool_call_outcome(tool_outcome)
-                    if not extra_tool_results:
-                        extra_tool_results = self._synthesize_tool_results_from_calls(
-                            tool_call_response.tool_calls
-                        )
-                    tool_results.extend(extra_tool_results)
-                    self._register_tool_round_delta(
-                        state,
-                        before_count=tool_rounds_before,
-                        messages=messages,
-                    )
-                    state.register_tool_results(
-                        messages=messages,
-                        tool_results=extra_tool_results,
-                    )
-                    state.register_completion_tokens(completion_tokens_used)
-                    self._register_tool_failures(state, extra_tool_results)
-                elif state.intent_plan:
-                    state.intent_plan = RecoveryManager.update_intent_statuses(
-                        state.intent_plan,
-                        messages=messages,
-                        tool_results=[],
-                    )
-                budget_exit_reason = state.budget_exit_reason()
-                if budget_exit_reason:
-                    state.register_provider_failure(
-                        kind="budget_exit",
-                        event={"kind": "budget_exit", "reason": budget_exit_reason},
-                    )
-                decision = RecoveryManager.decide(
-                    state.intent_plan,
-                    budget=state.budget,
-                    provider_failure_kind=state.provider_failure_kind,
-                )
-
-            output = response.message.content if response is not None else ""
-            if decision is not None and decision.action in {
-                "pause_for_consent",
-                "return_partial",
-            }:
-                state.recovery_history.append(decision)
-            paused_for_consent = bool(
-                decision is not None and decision.action == "pause_for_consent"
-            )
-            partial = bool(decision is not None and decision.action == "return_partial")
-            completion_reason = "completed"
-            if paused_for_consent:
-                state.transition("awaiting_consent")
-                completion_reason = decision.reason or "pause_for_consent"
-                RecoveryManager.ensure_latest_assistant_pending_consent(
-                    messages,
-                    RecoveryManager.pending_consent_payload_from_decision(decision),
-                )
-            elif partial:
-                state.transition("partial_exit")
-                completion_reason = decision.reason or "return_partial"
-                output, total_tokens, completion_tokens_used = (
-                    await self._finalize_partial_output(
-                        agent=agent,
-                        request=request,
-                        prep=prep,
-                        messages=messages,
-                        response=response,
-                        state=state,
-                        tool_results=tool_results,
-                        reason=completion_reason,
-                        total_tokens=total_tokens,
-                        completion_tokens_used=completion_tokens_used,
-                        selected_skill_names=runtime_selected_skill_names,
-                        context_sources=runtime_context_sources,
-                    )
-                )
-            else:
-                state.transition("completed")
+            response = turn_execution.response
+            tool_results = list(turn_execution.tool_results)
+            total_tokens = turn_execution.total_tokens
+            completion_tokens_used = turn_execution.completion_tokens_used
+            output = turn_execution.output
+            paused_for_consent = turn_execution.paused_for_consent
+            partial = turn_execution.partial
+            completion_reason = turn_execution.completion_reason
 
             cleaned_output, action_buttons = (
                 StreamExecutionHandler._extract_action_buttons(
@@ -915,6 +516,10 @@ class ConversationEngine(BaseEngine):
             else:
                 turn_record_payload = {}
             diagnostics_payload = state.build_diagnostics_payload()
+            if partial:
+                diagnostics_payload["partial_exit_reason"] = (
+                    completion_reason or diagnostics_payload.get("partial_exit_reason")
+                )
             turn_record_payload.update(
                 {
                     "execution_path": prep.execution_path,
@@ -934,6 +539,26 @@ class ConversationEngine(BaseEngine):
                     "failure_kind": diagnostics_payload.get("failure_kind"),
                 }
             )
+            raw_turn_outcome = str(turn_record_payload.get("turn_outcome") or "").strip()
+            raw_termination_reason = str(
+                turn_record_payload.get("termination_reason") or ""
+            ).strip()
+            partial_exit_reason = str(
+                diagnostics_payload.get("partial_exit_reason") or ""
+            ).strip()
+            if partial and completion_reason:
+                turn_record_payload["turn_outcome"] = "partial"
+                turn_record_payload["termination_reason"] = completion_reason
+                turn_record_payload["partial_exit_reason"] = (
+                    partial_exit_reason or completion_reason
+                )
+            else:
+                if raw_turn_outcome:
+                    turn_record_payload["turn_outcome"] = raw_turn_outcome
+                if raw_termination_reason:
+                    turn_record_payload["termination_reason"] = raw_termination_reason
+                if partial_exit_reason:
+                    turn_record_payload["partial_exit_reason"] = partial_exit_reason
             metadata = dict(turn_record_payload.get("metadata") or {})
             metadata["orchestration"] = diagnostics_payload
             turn_record_payload["metadata"] = metadata
@@ -1001,6 +626,7 @@ class ConversationEngine(BaseEngine):
             kind, event = FailureClassifier.classify_exception(exc)
             partial_output = ""
             diagnostics_payload: dict[str, Any] | None = None
+            decision = None
             if state is not None and kind != "none":
                 state.transition("failed" if kind != "budget_exit" else "partial_exit")
                 state.register_provider_failure(kind=kind, event=event or None)
@@ -1016,6 +642,11 @@ class ConversationEngine(BaseEngine):
                         reason=decision.reason or "execution_exception",
                         provider_failure_kind=state.provider_failure_kind,
                     )
+            completion_reason = (
+                decision.reason
+                if partial_output and decision is not None and decision.reason
+                else "error"
+            )
             return ExecutionResult(
                 success=False,
                 output=partial_output,
@@ -1026,7 +657,7 @@ class ConversationEngine(BaseEngine):
                     exc=exc,
                 ),
                 partial=bool(partial_output),
-                completion_reason="error",
+                completion_reason=completion_reason,
                 duration_ms=duration_ms,
                 conversation_id=request.conversation_id,
                 rag_sources=(prep.rag_sources if prep is not None else None),
@@ -1071,6 +702,8 @@ class ConversationEngine(BaseEngine):
         log_user_type: str | None,
         selected_skill_names: list[str] | None,
         context_sources: list[Any] | None,
+        execution_path: str | None,
+        extra_kwargs: dict[str, Any] | None,
         skip_metering_preflight: bool,
     ) -> tuple[ChatResponse, ConversationQueryEngine]:
         runtime_context = await self._prepare_stream_runtime(
@@ -1162,6 +795,7 @@ class ConversationEngine(BaseEngine):
                 supports_video=bool(is_video),
                 selected_skill_names=list(selected_skill_names or []),
                 context_sources=runtime_context_sources,
+                extra_kwargs=dict(extra_kwargs or {}),
             )
         except Exception as exc:
             logger.error(
@@ -1343,7 +977,15 @@ class ConversationEngine(BaseEngine):
         log_user_type: str | None = None,
         selected_skill_names: list[str] | None = None,
         context_sources: list[Any] | None = None,
+        execution_path: str | None = None,
+        extra_kwargs: dict[str, Any] | None = None,
     ) -> ChatResponse:
+        runtime_call_overrides = dict(extra_kwargs or {})
+        if not runtime_call_overrides:
+            runtime_call_overrides = build_model_request_overrides(
+                execution_path=execution_path,
+                tools=tools,
+            )
         runtime_response, _runtime_query_engine = await self._call_runtime_query_turn(
             agent=agent,
             messages=messages,
@@ -1359,6 +1001,8 @@ class ConversationEngine(BaseEngine):
             log_user_type=log_user_type,
             selected_skill_names=selected_skill_names,
             context_sources=context_sources,
+            execution_path=execution_path,
+            extra_kwargs=runtime_call_overrides,
             skip_metering_preflight=False,
         )
         return runtime_response
@@ -1371,7 +1015,11 @@ class ConversationEngine(BaseEngine):
         self,
         agent: Agent,
         request: ExecutionRequest,
-        on_complete: Callable[[ExecutionResult], Awaitable[None]] | None = None,
+        on_complete: Callable[
+            [ExecutionResult],
+            Awaitable[dict[str, Any] | None],
+        ]
+        | None = None,
         skill_result: SkillResolveResult | None = None,
     ) -> StreamingResponse:
         """
@@ -1439,6 +1087,7 @@ class ConversationEngine(BaseEngine):
         conversation_id: int | None = None,
         route_result: Any | None = None,
         tools: list[ToolDefinition] | None = None,
+        execution_path: str | None = None,
         user_id: int | None = None,
         log_user_type: str | None = None,
         billing_context: dict[str, Any] | None = None,
@@ -1447,6 +1096,7 @@ class ConversationEngine(BaseEngine):
         selected_skill_names: list[str] | None = None,
         context_sources: list[Any] | None = None,
         tool_use_policy: ToolUsePolicy | None = None,
+        breach_retry_result: str | None = None,
     ) -> AsyncIterator[ChatChunk]:
         """
         Get streaming ChatChunk via adapter (with rate limiting/quota/metering protection).
@@ -1507,6 +1157,10 @@ class ConversationEngine(BaseEngine):
             if openai_tools and effective_policy.mode in {"auto", "required"}
             else None
         )
+        runtime_call_overrides = build_model_request_overrides(
+            execution_path=execution_path,
+            tools=tools,
+        )
         request_log_data = {
             "_stream": True,
             "messages": messages_to_dicts(messages),
@@ -1523,10 +1177,12 @@ class ConversationEngine(BaseEngine):
                 "allowed_tool_names": effective_policy.allowed_tool_names,
             },
         }
+        if breach_retry_result:
+            request_log_data["breach_retry_result"] = breach_retry_result
         if effective_policy.reason.startswith(
             ("capability_denial:", "required_retry:")
         ):
-            request_log_data["breach_retry_result"] = "retry_follow_up"
+            request_log_data["breach_retry_result"] = "contract_retry"
         if (
             openai_tools
             and any(
@@ -1605,6 +1261,7 @@ class ConversationEngine(BaseEngine):
                     supports_video=bool(is_video),
                     selected_skill_names=runtime_selected_skill_names,
                     context_sources=runtime_context_sources,
+                    extra_kwargs=dict(runtime_call_overrides),
                 )
                 total_tokens = response.total_tokens or 0
                 input_tokens = response.input_tokens or 0
@@ -1638,6 +1295,7 @@ class ConversationEngine(BaseEngine):
                         supports_video=bool(is_video),
                         selected_skill_names=runtime_selected_skill_names,
                         context_sources=runtime_context_sources,
+                        extra_kwargs=dict(runtime_call_overrides),
                     )
                 except Exception as runtime_stream_exc:
                     turn_record_metadata = dict(

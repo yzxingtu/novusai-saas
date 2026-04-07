@@ -7,7 +7,11 @@ import pytest
 
 from app.ai.capabilities.description_builder import CapabilityDescriptionBuilder
 from app.ai.context.engine import ConversationContextEngine
-from app.ai.engine.types import ExecutionRequest
+from app.ai.engine.types import (
+    ExecutionRequest,
+    IntentPlan,
+    ResearchContinuationContext,
+)
 from app.ai.runtime.types import CapabilityDescriptor
 from app.ai.skills.resolver import SkillResolveResult
 from app.ai.types import ChatMessage
@@ -39,6 +43,11 @@ class _BaseEngineStub:
         _ = text
         return False
 
+    @staticmethod
+    def _build_web_research_continuation_context(messages, input_variables=None):
+        _ = (messages, input_variables)
+        return ResearchContinuationContext()
+
 
 def _build_agent() -> SimpleNamespace:
     return SimpleNamespace(
@@ -69,6 +78,21 @@ def _build_skill_result(*descriptors: CapabilityDescriptor) -> SkillResolveResul
     return SkillResolveResult(capability_descriptors=list(descriptors))
 
 
+def _build_intent_plan(*kinds: str) -> list[IntentPlan]:
+    return [
+        IntentPlan(
+            intent_id=f"intent-{index}",
+            kind=kind,
+            family="web_research" if kind == "web_research" else "none",
+            order=index,
+            user_visible_label=kind,
+            source_text="test intent",
+            shortcircuit=False,
+        )
+        for index, kind in enumerate(kinds, start=1)
+    ]
+
+
 async def _assemble_context(
     *,
     request: ExecutionRequest,
@@ -76,6 +100,7 @@ async def _assemble_context(
     settings: TenantCapabilityAwarenessSettings,
     kb_ids: list[int] | None = None,
     kb_bindings: list[dict[str, object]] | None = None,
+    intent_plan: list[IntentPlan] | None = None,
 ):
     context_engine = ConversationContextEngine(
         db=object(),
@@ -112,6 +137,10 @@ async def _assemble_context(
             "app.services.ai.agent_kb_binding_service.AgentKBBindingService.get_agent_kb_bindings_with_metadata",
             new=AsyncMock(return_value=kb_bindings or []),
         ),
+        patch(
+            "app.ai.engine.intent_planner.IntentPlanner.plan_turn",
+            return_value=list(intent_plan or []),
+        ),
     ):
         return await context_engine.assemble(
             _build_agent(),
@@ -133,7 +162,7 @@ def _build_mapping_skill_descriptions(*_args, **_kwargs):
 
 
 @pytest.mark.asyncio
-async def test_context_engine_injects_skill_capabilities_block() -> None:
+async def test_context_engine_tracks_skill_capabilities_without_prompt_injection() -> None:
     skill_result = _build_skill_result(
         CapabilityDescriptor(
             name="web_search",
@@ -148,14 +177,19 @@ async def test_context_engine_injects_skill_capabilities_block() -> None:
         request=_build_request(),
         skill_result=skill_result,
         settings=TenantCapabilityAwarenessSettings(),
+        intent_plan=_build_intent_plan("assistant_response"),
     )
 
-    assert "[CAPABILITIES]" in assembly.messages[0].content
-    assert "## Web Research Skills" in assembly.messages[0].content
-    assert "web_search: Search the public web for recent information" in (
-        assembly.messages[0].content
+    assert "[CAPABILITIES]" not in assembly.messages[0].content
+    assert not any(
+        "[CAPABILITIES]" in addition
+        for addition in (assembly.system_prompt_additions or [])
     )
     assert assembly.diagnostics["dynamic_capability_awareness_enabled"] is True
+    assert assembly.diagnostics["dynamic_capability_awareness_categories"] == [
+        "skills"
+    ]
+    assert assembly.diagnostics["selected_skill_names"] == ["web_search"]
 
 
 @pytest.mark.asyncio
@@ -179,14 +213,19 @@ async def test_context_engine_handles_mapping_description_inputs() -> None:
             request=_build_request(),
             skill_result=skill_result,
             settings=TenantCapabilityAwarenessSettings(),
+            intent_plan=_build_intent_plan("assistant_response"),
         )
 
-    assert "## Mapping Skills" in assembly.messages[0].content
-    assert "- mapped_tool: Mapping item" in assembly.messages[0].content
+    assert "[CAPABILITIES]" not in assembly.messages[0].content
+    assert assembly.diagnostics["dynamic_capability_awareness_enabled"] is True
+    assert assembly.diagnostics["dynamic_capability_awareness_categories"] == [
+        "skills"
+    ]
+    assert "dynamic_capability_awareness_error" not in assembly.diagnostics
 
 
 @pytest.mark.asyncio
-async def test_context_engine_injects_knowledge_base_capabilities_block() -> None:
+async def test_context_engine_tracks_knowledge_base_capabilities_without_prompt_injection() -> None:
     assembly = await _assemble_context(
         request=_build_request(),
         skill_result=None,
@@ -200,16 +239,23 @@ async def test_context_engine_injects_knowledge_base_capabilities_block() -> Non
                 "kb_document_count": 12,
             }
         ],
+        intent_plan=_build_intent_plan("knowledge_query"),
     )
 
-    assert "## Knowledge Bases" in assembly.messages[0].content
-    assert "产品文档库: 包含产品手册与 API 文档 (12 documents)" in (
-        assembly.messages[0].content
+    assert "[CAPABILITIES]" not in assembly.messages[0].content
+    assert not any(
+        "[CAPABILITIES]" in addition
+        for addition in (assembly.system_prompt_additions or [])
     )
+    assert assembly.diagnostics["dynamic_capability_awareness_enabled"] is True
+    assert assembly.diagnostics["dynamic_capability_awareness_categories"] == [
+        "knowledge_bases"
+    ]
+    assert "knowledge_base" in assembly.diagnostics["context_source_kinds"]
 
 
 @pytest.mark.asyncio
-async def test_context_engine_injects_skill_and_knowledge_base_capabilities() -> None:
+async def test_context_engine_tracks_skill_and_knowledge_base_capabilities_in_diagnostics() -> None:
     skill_result = _build_skill_result(
         CapabilityDescriptor(
             name="web_search",
@@ -233,18 +279,25 @@ async def test_context_engine_injects_skill_and_knowledge_base_capabilities() ->
                 "kb_document_count": 6,
             }
         ],
+        intent_plan=_build_intent_plan("knowledge_query"),
     )
 
-    assert "## Web Research Skills" in assembly.messages[0].content
-    assert "## Knowledge Bases" in assembly.messages[0].content
-    assert any(
+    assert "[CAPABILITIES]" not in assembly.messages[0].content
+    assert not any(
         "[CAPABILITIES]" in addition
         for addition in (assembly.system_prompt_additions or [])
     )
+    assert assembly.diagnostics["dynamic_capability_awareness_enabled"] is True
+    assert set(assembly.diagnostics["dynamic_capability_awareness_categories"]) == {
+        "skills",
+        "knowledge_bases",
+    }
+    assert assembly.diagnostics["selected_skill_names"] == ["web_search"]
+    assert "knowledge_base" in assembly.diagnostics["context_source_kinds"]
 
 
 @pytest.mark.asyncio
-async def test_context_engine_injects_page_context_capabilities() -> None:
+async def test_context_engine_tracks_page_context_capabilities_without_prompt_injection() -> None:
     request = _build_request(
         input_variables={
             "page_context": {
@@ -282,13 +335,23 @@ async def test_context_engine_injects_page_context_capabilities() -> None:
                 "kb_document_count": 3,
             }
         ],
+        intent_plan=_build_intent_plan("knowledge_query", "page_read"),
     )
 
-    assert "## Current Page Context" in assembly.messages[0].content
-    assert "Current page: 用户管理" in assembly.messages[0].content
-    assert "Available operations: create_user, delete_user" in (
-        assembly.messages[0].content
+    assert "[CAPABILITIES]" not in assembly.messages[0].content
+    assert not any(
+        "[CAPABILITIES]" in addition
+        for addition in (assembly.system_prompt_additions or [])
     )
+    assert assembly.diagnostics["dynamic_capability_awareness_enabled"] is True
+    assert set(assembly.diagnostics["dynamic_capability_awareness_categories"]) == {
+        "skills",
+        "knowledge_bases",
+        "page_context",
+    }
+    assert assembly.diagnostics["selected_skill_names"] == ["web_search"]
+    assert "page_context" in assembly.diagnostics["context_source_kinds"]
+    assert "knowledge_base" in assembly.diagnostics["context_source_kinds"]
 
 
 @pytest.mark.asyncio
@@ -309,6 +372,7 @@ async def test_context_engine_injects_locale_hint_from_page_context() -> None:
         request=request,
         skill_result=None,
         settings=TenantCapabilityAwarenessSettings(),
+        intent_plan=_build_intent_plan("page_read"),
     )
 
     additions = " ".join(assembly.system_prompt_additions or [])
@@ -334,6 +398,7 @@ async def test_context_engine_skips_capability_block_when_disabled() -> None:
         settings=TenantCapabilityAwarenessSettings(
             enable_dynamic_capability_awareness=False,
         ),
+        intent_plan=_build_intent_plan("assistant_response"),
     )
 
     assert "[CAPABILITIES]" not in assembly.messages[0].content

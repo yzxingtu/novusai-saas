@@ -377,6 +377,7 @@ class AIGateway:
                 failure_reason="runtime provider unavailable",
                 latency_ms=int((time.time() - start_time) * 1000),
                 attempted_backends=[effective_backend_key],
+                native_attempted=False,
             )
         except BusinessException as exc:
             return SearchProviderRun(
@@ -388,6 +389,7 @@ class AIGateway:
                 failure_reason=str(exc),
                 latency_ms=int((time.time() - start_time) * 1000),
                 attempted_backends=[effective_backend_key],
+                native_attempted=False,
             )
 
         ai_model = await self._get_model(model, provider.id)
@@ -403,6 +405,7 @@ class AIGateway:
                 failure_reason="runtime model unavailable",
                 latency_ms=int((time.time() - start_time) * 1000),
                 attempted_backends=[effective_backend_key],
+                native_attempted=False,
             )
 
         effective_provider_label = (
@@ -420,6 +423,7 @@ class AIGateway:
                 failure_reason=f"adapter not registered for provider type {provider.type}",
                 latency_ms=int((time.time() - start_time) * 1000),
                 attempted_backends=[effective_backend_key],
+                native_attempted=False,
             )
 
         preflight_adapter = AdapterRegistry.create_adapter(
@@ -442,6 +446,7 @@ class AIGateway:
                 failure_reason="adapter/model does not expose native web search",
                 latency_ms=int((time.time() - start_time) * 1000),
                 attempted_backends=[effective_backend_key],
+                native_attempted=False,
             )
 
         should_meter_usage = self._should_meter_usage(tenant_id)
@@ -570,6 +575,7 @@ class AIGateway:
                 failure_reason=str(exc),
                 latency_ms=latency_ms,
                 attempted_backends=[effective_backend_key],
+                native_attempted=True,
             )
 
         run.provider = run.provider or effective_provider_label
@@ -577,6 +583,7 @@ class AIGateway:
         run.backend_key = run.backend_key or effective_backend_key
         run.attempted_backends = list(run.attempted_backends or [effective_backend_key])
         run.latency_ms = int((time.time() - start_time) * 1000)
+        run.native_attempted = True
 
         cost = CostCalculator.calculate_cost(
             ai_model,

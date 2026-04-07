@@ -158,6 +158,36 @@ async def test_native_web_search_returns_parse_error_when_only_unverifiable_urls
 
 
 @pytest.mark.asyncio
+async def test_native_web_search_marks_zero_request_responses_as_unsupported() -> None:
+    adapter = _make_adapter()
+    response = SimpleNamespace(
+        status="completed",
+        output=[],
+        tool_usage=SimpleNamespace(web_search=SimpleNamespace(num_requests=0)),
+        usage=SimpleNamespace(input_tokens=12, output_tokens=3, total_tokens=15),
+    )
+    adapter.client = SimpleNamespace(
+        responses=SimpleNamespace(create=AsyncMock(return_value=response))
+    )
+
+    run = await adapter.native_web_search(
+        query="OpenAI",
+        max_results=5,
+        locale="en",
+        timeout_seconds=20,
+        model="gpt-5.4",
+        provider_label="openai",
+        backend_key="native:openai:gpt-5.4",
+    )
+
+    assert run.status == STATUS_UNSUPPORTED
+    assert (
+        run.failure_reason
+        == "provider responses runtime accepted native web search request but did not execute hosted web_search"
+    )
+
+
+@pytest.mark.asyncio
 async def test_native_web_search_maps_400_errors_to_unsupported() -> None:
     adapter = _make_adapter()
     adapter.client = SimpleNamespace(

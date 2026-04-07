@@ -323,3 +323,112 @@ async def test_skill_registry_batch_upgrade_aggregates_success_and_failures(mock
     assert result["failed"] == [
         {"slug": "mail-tools", "error": "boom"}
     ]
+
+
+@pytest.mark.asyncio
+async def test_skill_registry_list_official_starter_packs_marks_package_state(
+    mock_db,
+) -> None:
+    service = SkillRegistryService(mock_db)
+    service.fetch_registry = AsyncMock(
+        return_value=[
+            {"slug": "novusai-doctor", "display_name": "Doctor", "version": "1.1.0"},
+            {
+                "slug": "novusai-root-cause",
+                "display_name": "Root Cause",
+                "version": "1.0.0",
+            },
+            {"slug": "novusai-smoke", "display_name": "Smoke", "version": "1.0.0"},
+        ]
+    )
+    service._build_installed_map = AsyncMock(
+        return_value={
+            "novusai-doctor": {
+                "version": "1.0.0",
+                "source_locked": True,
+                "source_url": "https://registry.example",
+            }
+        }
+    )
+
+    result = await service.list_official_starter_packs()
+
+    assert result["automatic_agent_grant"] is False
+    runtime_pack = next(
+        item for item in result["packs"] if item["key"] == "novusai-runtime-ops"
+    )
+    assert runtime_pack["summary"]["total"] == 4
+    assert runtime_pack["summary"]["installed"] == 1
+    assert runtime_pack["summary"]["upgradable"] == 1
+    assert runtime_pack["summary"]["missing_in_catalog"] == 1
+    doctor_entry = next(
+        item for item in runtime_pack["packages"] if item["slug"] == "novusai-doctor"
+    )
+    assert doctor_entry["is_installed"] is True
+    assert doctor_entry["can_upgrade"] is True
+    missing_entry = next(
+        item
+        for item in runtime_pack["packages"]
+        if item["slug"] == "novusai-plugin-audit"
+    )
+    assert missing_entry["available_in_catalog"] is False
+
+
+@pytest.mark.asyncio
+async def test_skill_registry_sync_official_starter_packs_installs_and_upgrades(
+    mock_db,
+) -> None:
+    service = SkillRegistryService(mock_db)
+    service.list_official_starter_packs = AsyncMock(
+        return_value={
+            "packs": [
+                {
+                    "key": "novusai-runtime-ops",
+                    "packages": [
+                        {
+                            "slug": "novusai-doctor",
+                            "available_in_catalog": True,
+                            "is_installed": False,
+                            "can_upgrade": False,
+                        },
+                        {
+                            "slug": "novusai-root-cause",
+                            "available_in_catalog": True,
+                            "is_installed": True,
+                            "can_upgrade": True,
+                        },
+                        {
+                            "slug": "novusai-plugin-audit",
+                            "available_in_catalog": False,
+                            "is_installed": False,
+                            "can_upgrade": False,
+                        },
+                    ],
+                }
+            ]
+        }
+    )
+    service.install_package = AsyncMock(
+        return_value={"registry_slug": "novusai-doctor", "status": "installed"}
+    )
+    service.upgrade_package = AsyncMock(
+        return_value={"registry_slug": "novusai-root-cause", "status": "upgraded"}
+    )
+
+    result = await service.sync_official_starter_packs(
+        pack_keys=["novusai-runtime-ops"],
+        install_missing=True,
+        upgrade_existing=True,
+    )
+
+    service.install_package.assert_awaited_once_with("novusai-doctor")
+    service.upgrade_package.assert_awaited_once_with("novusai-root-cause")
+    assert result["automatic_agent_grant"] is False
+    assert result["missing_pack_keys"] == []
+    assert result["installed"] == [
+        {"registry_slug": "novusai-doctor", "status": "installed"}
+    ]
+    assert result["upgraded"] == [
+        {"registry_slug": "novusai-root-cause", "status": "upgraded"}
+    ]
+    assert {"pack_key": "novusai-runtime-ops", "reason": "missing_in_catalog", "slug": "novusai-plugin-audit"} in result["skipped"]

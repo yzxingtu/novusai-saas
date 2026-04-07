@@ -347,6 +347,10 @@ def _build_search_summary_payload(
     }
     if meta.failure_reason:
         payload["failure_reason"] = meta.failure_reason
+    if meta.fallback_reason:
+        payload["fallback_reason"] = meta.fallback_reason
+    if meta.native_failure_kind:
+        payload["native_failure_kind"] = meta.native_failure_kind
     return payload
 
 

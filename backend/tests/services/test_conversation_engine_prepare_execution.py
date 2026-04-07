@@ -7,7 +7,7 @@ import pytest
 
 from app.ai.context import get_context_engine
 from app.ai.engine.base import BaseEngine
-from app.ai.engine.conversation import ConversationEngine
+from app.ai.engine.conversation import ConversationEngine, _SyncIOAdapter
 from app.ai.engine.types import ExecutionRequest, ToolUsePolicy
 from app.ai.runtime.types import CapabilityDescriptor
 from app.ai.skills.resolver import SkillResolveResult
@@ -215,6 +215,37 @@ async def test_prepare_execution_uses_current_user_text_for_optimizer_before_res
     assert [intent.kind for intent in prep.intent_plan] == ["direct_reply"]
     assert prep.tools == []
     assert prep.tool_use_policy == ToolUsePolicy()
+
+
+@pytest.mark.asyncio
+async def test_prepare_execution_selects_web_tools_for_news_queries() -> None:
+    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    request = ExecutionRequest(
+        agent_id=1,
+        tenant_id=1,
+        user_id=1,
+        messages=[
+            ChatMessage(role="user", content="查今天新闻，给我 3 条来源。"),
+        ],
+        input_variables={},
+    )
+
+    with (
+        patch(
+            "app.ai.rag_injector.load_agent_kb_bindings",
+            new=AsyncMock(return_value=([], {})),
+        ),
+        patch("app.ai.routing.router.ModelRouter", new=_FakeRouter),
+    ):
+        prep = await engine._prepare_execution(
+            _build_agent(),
+            request,
+            skill_result=_build_skill_result(),
+        )
+
+    assert [intent.kind for intent in prep.intent_plan] == ["web_research"]
+    assert {tool.name for tool in prep.tools} >= {"web_search", "fetch_url"}
+    assert prep.tool_use_policy.family == "web_research"
 
 
 @pytest.mark.asyncio
@@ -517,7 +548,7 @@ async def test_prepare_execution_selects_page_ops_for_local_page_content_request
         mode="required",
         allowed_tool_names=["get_page_context"],
         retry_on_contract_breach=True,
-        reason="intent:page_read",
+        reason="intent:page_summary",
     )
 
 
@@ -571,10 +602,10 @@ async def test_prepare_execution_selects_page_ops_for_page_capability_request() 
         )
 
     assert prep.tool_use_policy.family == "page_ops"
-    assert "get_page_context" in prep.tool_use_policy.allowed_tool_names
     assert "pageop_create_record" in prep.tool_use_policy.allowed_tool_names
     assert "pageop_fill_form" in prep.tool_use_policy.allowed_tool_names
     assert "pageop_submit_form" in prep.tool_use_policy.allowed_tool_names
+    assert "get_page_context" not in prep.tool_use_policy.allowed_tool_names
 
 
 @pytest.mark.asyncio
@@ -730,8 +761,16 @@ async def test_prepare_execution_allows_page_and_weather_tools_for_mixed_request
         "get_page_context",
         "get_current_weather",
     ]
-    assert prep.execution_path == "normal"
-    assert [intent.kind for intent in prep.intent_plan] == ["page_read", "weather_query"]
+    assert prep.execution_path == "fast"
+    assert [intent.kind for intent in prep.intent_plan] == ["page_summary", "weather_query"]
+    assert prep.diagnostics["capability_injection_decision"] == {
+        "all_shortcircuit": True,
+        "skills_injected": False,
+        "kb_injected": False,
+        "memory_injected": False,
+        "page_injected": True,
+        "bypass_reason": "all_shortcircuit",
+    }
 
 
 @pytest.mark.asyncio
@@ -1074,7 +1113,15 @@ async def test_prepare_execution_prefers_current_time_tool_for_time_question() -
         reason="intent:time_query",
     )
     assert [tool.name for tool in prep.tools] == ["get_current_time"]
-    assert "[RUNTIME CLOCK]" in prep.messages[0].content
+    assert "[RUNTIME CLOCK]" not in prep.messages[0].content
+    assert prep.diagnostics["capability_injection_decision"] == {
+        "all_shortcircuit": True,
+        "skills_injected": False,
+        "kb_injected": False,
+        "memory_injected": False,
+        "page_injected": False,
+        "bypass_reason": "all_shortcircuit",
+    }
 
 
 @pytest.mark.asyncio
@@ -1444,6 +1491,13 @@ async def test_prepare_execution_injects_long_term_memory_recall_when_enabled() 
         ],
         input_variables={},
     )
+    request.messages = [
+        ChatMessage(
+            role="user",
+            content="search online and keep my preferred writing style",
+        )
+    ]
+    request.messages = [ChatMessage(role="user", content="search online email writing tips")]
     provider = MagicMock()
     provider.profile = AsyncMock(return_value=None)
     provider.recall = AsyncMock(
@@ -1470,7 +1524,7 @@ async def test_prepare_execution_injects_long_term_memory_recall_when_enabled() 
         prep = await engine._prepare_execution(
             agent,
             request,
-            skill_result=SkillResolveResult(tools=[]),
+            skill_result=_build_skill_result(),
         )
 
     assert prep.memory_recalled is True
@@ -1521,7 +1575,7 @@ async def test_prepare_execution_injects_profile_snapshot_before_recall() -> Non
         prep = await engine._prepare_execution(
             agent,
             request,
-            skill_result=SkillResolveResult(tools=[]),
+            skill_result=_build_skill_result(),
         )
 
     assert prep.memory_recalled is True
@@ -1590,7 +1644,7 @@ async def test_prepare_execution_skips_runtime_capability_summary_when_dynamic_a
             skill_result=skill_result,
         )
 
-    assert "[CAPABILITIES]" in prep.messages[0].content
+    assert "[CAPABILITIES]" not in prep.messages[0].content
     assert "[TOOL USAGE RULES]" in prep.messages[0].content
     assert "[CAPABILITY REPORTING]" not in prep.messages[0].content
     assert "[TURN CAPABILITIES]" not in prep.messages[0].content
@@ -2161,6 +2215,50 @@ async def test_call_llm_runtime_errors_do_not_fallback_to_legacy() -> None:
 
 
 @pytest.mark.asyncio
+async def test_sync_io_adapter_fast_text_round_passes_low_reasoning_override() -> None:
+    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    engine._call_llm = AsyncMock(
+        return_value=ChatResponse(
+            message=ChatMessage(role="assistant", content="ok"),
+            total_tokens=3,
+        )
+    )
+    request = ExecutionRequest(
+        agent_id=1,
+        tenant_id=1,
+        user_id=1,
+        user_role="tenant_admin",
+        billing_context={},
+        messages=[ChatMessage(role="user", content="你好")],
+    )
+    sync_adapter = _SyncIOAdapter(
+        engine=engine,
+        agent=_build_agent(),
+        request=request,
+        prep=SimpleNamespace(
+            all_tools=[],
+            route_result=None,
+            execution_path="fast",
+        ),
+        selected_skill_names=[],
+        context_sources=[],
+    )
+
+    await sync_adapter.call_llm(
+        messages=[ChatMessage(role="user", content="你好")],
+        tools=[],
+        tool_use_policy=ToolUsePolicy(),
+    )
+
+    assert engine._call_llm.await_count == 1
+    kwargs = engine._call_llm.await_args.kwargs
+    assert kwargs["execution_path"] == "fast"
+    assert kwargs["extra_kwargs"] == {
+        "_runtime_reasoning_effort_override": "low"
+    }
+
+
+@pytest.mark.asyncio
 async def test_prepare_execution_builds_deep_structured_plan_for_666_style_turn() -> None:
     engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
     request = ExecutionRequest(
@@ -2205,7 +2303,7 @@ async def test_prepare_execution_builds_deep_structured_plan_for_666_style_turn(
     assert [intent.kind for intent in prep.intent_plan] == [
         "weather_query",
         "web_research",
-        "page_read",
+        "page_summary",
     ]
     assert prep.execution_path == "deep"
     assert prep.execution_budget is not None
@@ -2252,10 +2350,18 @@ async def test_prepare_execution_current_weather_only_avoids_forecast_tool() -> 
     assert prep.intent_plan[0].allowed_tool_names == ["get_current_weather"]
     assert prep.execution_budget is not None
     assert prep.execution_budget.max_tool_rounds == 2
+    assert prep.diagnostics["capability_injection_decision"] == {
+        "all_shortcircuit": True,
+        "skills_injected": False,
+        "kb_injected": False,
+        "memory_injected": False,
+        "page_injected": False,
+        "bypass_reason": "all_shortcircuit",
+    }
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_page_read_turn_keeps_page_only_candidates() -> None:
+async def test_prepare_execution_page_summary_turn_keeps_page_only_candidates() -> None:
     engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
     request = ExecutionRequest(
         agent_id=1,
@@ -2284,7 +2390,104 @@ async def test_prepare_execution_page_read_turn_keeps_page_only_candidates() -> 
         )
 
     assert prep.execution_path == "fast"
-    assert [intent.kind for intent in prep.intent_plan] == ["page_read"]
+    assert [intent.kind for intent in prep.intent_plan] == ["page_summary"]
     assert [tool.name for tool in prep.tools] == ["get_page_context"]
     assert prep.intent_plan[0].allowed_tool_names == ["get_page_context"]
     assert prep.tool_use_policy.allowed_tool_names == ["get_page_context"]
+    assert prep.diagnostics["capability_injection_decision"] == {
+        "all_shortcircuit": True,
+        "skills_injected": False,
+        "kb_injected": False,
+        "memory_injected": False,
+        "page_injected": True,
+        "bypass_reason": "all_shortcircuit",
+    }
+
+
+@pytest.mark.asyncio
+async def test_prepare_execution_page_screenshot_keeps_capture_screenshot_tool() -> None:
+    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    request = ExecutionRequest(
+        agent_id=1,
+        tenant_id=1,
+        user_id=1,
+        messages=[ChatMessage(role="user", content="帮我给当前页面截图")],
+        input_variables={
+            "page_context": {
+                "page_key": "admin.ai.dashboard",
+                "page_data": {
+                    "available_operations": [{"name": "capture_screenshot"}],
+                },
+            }
+        },
+    )
+
+    with (
+        patch(
+            "app.ai.rag_injector.load_agent_kb_bindings",
+            new=AsyncMock(return_value=([], {})),
+        ),
+        patch("app.ai.routing.router.ModelRouter", new=_FakeRouter),
+    ):
+        prep = await engine._prepare_execution(
+            _build_agent(),
+            request,
+            skill_result=_build_structured_skill_result(),
+        )
+
+    assert [intent.kind for intent in prep.intent_plan] == ["page_screenshot"]
+    assert [tool.name for tool in prep.tools] == [
+        "pageop_capture_screenshot",
+        "invoke_page_operation",
+    ]
+    assert prep.tool_use_policy.allowed_tool_names == [
+        "pageop_capture_screenshot",
+        "invoke_page_operation",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_prepare_execution_editor_write_keeps_editor_mutation_tools() -> None:
+    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    request = ExecutionRequest(
+        agent_id=1,
+        tenant_id=1,
+        user_id=1,
+        messages=[ChatMessage(role="user", content="帮我替换当前编辑器正文并更新标题")],
+        input_variables={
+            "page_context": {
+                "page_key": "admin.ai.dashboard",
+                "page_data": {
+                    "available_operations": [
+                        {"name": "replace_content"},
+                        {"name": "replace_section"},
+                        {"name": "append_content"},
+                        {"name": "insert_content"},
+                        {"name": "update_title"},
+                    ],
+                },
+            }
+        },
+    )
+
+    with (
+        patch(
+            "app.ai.rag_injector.load_agent_kb_bindings",
+            new=AsyncMock(return_value=([], {})),
+        ),
+        patch("app.ai.routing.router.ModelRouter", new=_FakeRouter),
+    ):
+        prep = await engine._prepare_execution(
+            _build_agent(),
+            request,
+            skill_result=_build_structured_skill_result(),
+        )
+
+    assert [intent.kind for intent in prep.intent_plan] == ["page_editor_write"]
+    assert prep.tool_use_policy.allowed_tool_names == [
+        "pageop_replace_content",
+        "pageop_replace_section",
+        "pageop_append_content",
+        "pageop_insert_content",
+        "pageop_update_title",
+    ]

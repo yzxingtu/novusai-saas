@@ -153,6 +153,40 @@ class _RuntimeQueryEngineFailAfterMeaningfulChunkStub:
         raise RuntimeError("runtime-v2 stream failed after meaningful chunk")
 
 
+class _RuntimeQueryEngineCaptureOverridesStub:
+    created_count = 0
+    run_stream_count = 0
+    last_stream_kwargs: dict | None = None
+
+    def __init__(self, *, adapter, strict_contract: bool = False) -> None:
+        _ = adapter, strict_contract
+        type(self).created_count += 1
+        self.turn_record = SimpleNamespace(
+            turn_outcome="success",
+            termination_reason="completed",
+            protocol_path="responses",
+            selected_tool_names=[],
+            selected_skill_names=[],
+            context_sources=[],
+            fallback_history=[],
+            metadata={},
+        )
+
+    async def run_stream_turn(self, **kwargs):
+        type(self).run_stream_count += 1
+        type(self).last_stream_kwargs = dict(kwargs)
+        return [
+            ChatChunk(
+                delta="fast reply",
+                finish_reason="stop",
+                input_tokens=3,
+                output_tokens=2,
+                total_tokens=5,
+                metadata={},
+            )
+        ]
+
+
 def _build_runtime_context(*, should_record_call_log: bool = False) -> _StreamRuntimeContext:
     provider = SimpleNamespace(
         id=101,
@@ -316,6 +350,54 @@ async def test_runtime_v2_stream_path_uses_query_engine_for_page_tools(mock_db) 
     assert len(adapter.stream_calls) == 0
     runtime_context.api_key.increment_usage.assert_called_once()
     mock_db.flush.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_runtime_v2_fast_text_round_passes_low_reasoning_override(mock_db) -> None:
+    engine = _build_engine(mock_db)
+    adapter = _AdapterStub(delta="unused-adapter")
+    runtime_context = _build_runtime_context(should_record_call_log=False)
+    agent = SimpleNamespace(
+        id=3,
+        model=runtime_context.ai_model,
+        temperature=0.7,
+        max_tokens=256,
+        top_p=1.0,
+    )
+    _RuntimeQueryEngineCaptureOverridesStub.created_count = 0
+    _RuntimeQueryEngineCaptureOverridesStub.run_stream_count = 0
+    _RuntimeQueryEngineCaptureOverridesStub.last_stream_kwargs = None
+
+    with (
+        patch(
+            "app.ai.engine.conversation.AdapterRegistry.create_adapter",
+            return_value=adapter,
+        ),
+        patch(
+            "app.ai.engine.conversation.ConversationQueryEngine",
+            new=_RuntimeQueryEngineCaptureOverridesStub,
+        ),
+    ):
+        chunks = [
+            chunk
+            async for chunk in engine._stream_llm_chunks(
+                agent=agent,
+                messages=[ChatMessage(role="user", content="你好")],
+                tenant_id=1,
+                conversation_id=68,
+                tools=None,
+                execution_path="fast",
+                runtime_context=runtime_context,
+            )
+        ]
+
+    assert _RuntimeQueryEngineCaptureOverridesStub.created_count == 1
+    assert _RuntimeQueryEngineCaptureOverridesStub.run_stream_count == 1
+    assert "".join(chunk.delta for chunk in chunks) == "fast reply"
+    assert _RuntimeQueryEngineCaptureOverridesStub.last_stream_kwargs is not None
+    assert _RuntimeQueryEngineCaptureOverridesStub.last_stream_kwargs[
+        "extra_kwargs"
+    ] == {"_runtime_reasoning_effort_override": "low"}
 
 
 def test_agent_chat_service_context_diagnostics_infers_partial_interrupted_without_turn_record() -> None:

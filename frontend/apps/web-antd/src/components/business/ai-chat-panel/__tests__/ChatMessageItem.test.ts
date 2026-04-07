@@ -692,6 +692,11 @@ describe('chatMessageItem', () => {
             summaryPayload: {
               provider: 'baidu_public',
               status: 'success',
+              selected_backend: 'public:baidu',
+              provider_chain: ['native:provider_1:gpt-5.4', 'public:baidu'],
+              fallback_reason:
+                'native_not_attempted:default_verified_target_unavailable:untrusted_openai_compatible_runtime_target:api.asxs.top',
+              native_failure_kind: 'unsupported',
               result_count: 2,
               items: [
                 {
@@ -740,6 +745,27 @@ describe('chatMessageItem', () => {
     expect(wrapper.text()).toContain(
       'common.globalAiChat.toolSearchStatusSuccess',
     );
+    expect(wrapper.text()).toContain(
+      'common.globalAiChat.toolSearchBackend',
+    );
+    expect(wrapper.text()).toContain('public:baidu');
+    expect(wrapper.text()).toContain(
+      'common.globalAiChat.toolSearchProviderChain',
+    );
+    expect(wrapper.text()).toContain('native:provider_1:gpt-5.4 -> public:baidu');
+    expect(wrapper.text()).toContain(
+      'common.globalAiChat.toolSearchFallbackReason',
+    );
+    expect(wrapper.text()).toContain(
+      'common.globalAiChat.toolSearchFallbackNeedVerifiedNativeTarget',
+    );
+    expect(wrapper.text()).toContain(
+      'native_not_attempted:default_verified_target_unavailable:untrusted_openai_compatible_runtime_target:api.asxs.top',
+    );
+    expect(wrapper.text()).toContain(
+      'common.globalAiChat.toolSearchNativeFailure',
+    );
+    expect(wrapper.text()).toContain('unsupported');
     expect(wrapper.text()).toContain('示例搜索结果一');
     expect(wrapper.text()).toContain('https://example.com/result-1');
     expect(wrapper.text()).toContain('第一条摘要内容');

@@ -5,6 +5,10 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
+from datetime import date, datetime, timezone
+from decimal import Decimal
+from enum import Enum
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -12,6 +16,30 @@ import pytest
 
 from app.ai.tools.types import ToolResult
 from tests.services.conftest import make_mock_model
+
+
+class _MetadataEnum(Enum):
+    READY = "ready"
+
+
+@dataclass
+class _MetadataDataclassPayload:
+    amount: Decimal
+    scheduled_for: date
+
+
+class _PydanticLikePayload:
+    def model_dump(self, mode: str = "python"):
+        return {
+            "score": Decimal("9.5"),
+            "state": _MetadataEnum.READY,
+            "generated_at": datetime(2026, 4, 7, 9, 30, tzinfo=timezone.utc),
+        }
+
+
+class _DictLikePayload:
+    def dict(self):
+        return {"expires_on": date(2026, 4, 8), "attempts": Decimal("2")}
 
 
 def _make_conversation(**overrides):
@@ -44,6 +72,10 @@ def _make_message(**overrides):
     }
     defaults.update(overrides)
     return make_mock_model(**defaults)
+
+
+class _TestStatus(Enum):
+    OK = "ok"
 
 
 class TestGetConversationDetail:
@@ -177,6 +209,43 @@ class TestGetConversationDetail:
         assert detail["context_diagnostics"]["interaction_mode_effective"] == "confirm"
         assert detail["last_run_summary"]["interaction_mode_effective"] == "confirm"
         assert detail["last_run_summary"]["downgrade_reason"] is None
+
+    @pytest.mark.asyncio
+    async def test_conversation_detail_surfaces_last_error_when_no_messages_exist(
+        self, mock_db
+    ):
+        from app.services.ai.conversation_service import ConversationService
+
+        conversation = _make_conversation(message_count=0)
+        conversation.metadata_ = {
+            "interaction_mode": "confirm",
+            "last_error": {
+                "timestamp": "2026-04-07T12:00:00+00:00",
+                "error_type": "stream_execution_error",
+                "friendly_message": "service unavailable",
+                "partial": True,
+            },
+        }
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service.get_accessible_conversation = AsyncMock(return_value=conversation)
+        service._message_repo = MagicMock()
+        service._message_repo.get_by_conversation = AsyncMock(return_value=[])
+        service._message_repo.count_by_conversation = AsyncMock(return_value=0)
+        service._message_repo.get_latest_assistant_message = AsyncMock(return_value=None)
+        mock_db.execute = AsyncMock(
+            return_value=SimpleNamespace(scalars=lambda: [])
+        )
+
+        detail = await service.get_conversation_detail(1, user_id=1)
+
+        assert detail["context_diagnostics"]["failure_kind"] == "stream_execution_error"
+        assert detail["context_diagnostics"]["persistence_error"] is True
+        assert detail["last_run_summary"]["error_message"] == "service unavailable"
+        assert detail["last_error"]["partial"] is True
 
     @pytest.mark.asyncio
     async def test_conversation_detail_surfaces_selected_skills_and_interrupted_signal(
@@ -1210,6 +1279,178 @@ class TestThinkingPersistence:
             is False
         )
         assert assistant_payload["metadata_"]["last_run_summary"] == last_summary
+
+    @pytest.mark.asyncio
+    async def test_persist_chat_messages_normalizes_nested_runtime_metadata_to_json_safe(
+        self, mock_db
+    ):
+        from app.services.ai.conversation_service import ConversationService
+
+        timestamp = datetime(2026, 4, 7, 8, 0, tzinfo=timezone.utc)
+        naive_timestamp = datetime(2026, 4, 7, 8, 30)
+        conversation = _make_conversation(id=906, message_count=0)
+        result = SimpleNamespace(
+            messages=[
+                {"role": "user", "content": "请保存这个结果"},
+                {
+                    "role": "assistant",
+                    "content": "已完成处理",
+                    "tool_calls": None,
+                    "tool_call_id": None,
+                    "attachments": None,
+                    "reasoning_content": None,
+                    "metadata": {
+                        "tool_summary_payload": {
+                            "amount": Decimal("12.50"),
+                            "scheduled_at": timestamp,
+                            "naive_started_at": naive_timestamp,
+                            "status": _MetadataEnum.READY,
+                            "dataclass_payload": _MetadataDataclassPayload(
+                                amount=Decimal("7"),
+                                scheduled_for=date(2026, 4, 9),
+                            ),
+                            "pydantic_payload": _PydanticLikePayload(),
+                            "dict_payload": _DictLikePayload(),
+                        },
+                        "action_buttons": [
+                            {
+                                "label": "提交",
+                                "value": "submit",
+                                "weight": Decimal("1"),
+                            }
+                        ],
+                        "page_operation_payload": {
+                            "page_key": "admin.ai.conversations",
+                            "limit": Decimal("10"),
+                        },
+                    },
+                },
+            ],
+            tool_results=[],
+            partial=False,
+            interrupted=False,
+            completion_reason="",
+            runtime_model_id=None,
+            runtime_model_name=None,
+            runtime_provider_id=None,
+            runtime_provider_name=None,
+        )
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service._message_repo = MagicMock()
+        service._message_repo.get_next_sequence = AsyncMock(return_value=1)
+        service._message_repo.create = AsyncMock()
+
+        await service.persist_chat_messages(
+            conversation=conversation,
+            result=result,
+            history_count=0,
+            agent_id=7,
+            context_diagnostics={
+                "latency_ms": Decimal("1.2"),
+                "captured_at": timestamp,
+            },
+            last_run_summary={
+                "status": _MetadataEnum.READY,
+                "captured_at": naive_timestamp,
+            },
+        )
+
+        assistant_payload = service._message_repo.create.await_args_list[1].args[0]
+        metadata = assistant_payload["metadata_"]
+        tool_summary_payload = metadata["tool_summary_payload"]
+
+        assert tool_summary_payload["amount"] == 12.5
+        assert tool_summary_payload["scheduled_at"] == "2026-04-07T08:00:00+00:00"
+        assert (
+            tool_summary_payload["naive_started_at"] == "2026-04-07T08:30:00+00:00"
+        )
+        assert tool_summary_payload["status"] == "ready"
+        assert tool_summary_payload["dataclass_payload"]["amount"] == 7
+        assert (
+            tool_summary_payload["dataclass_payload"]["scheduled_for"] == "2026-04-09"
+        )
+        assert tool_summary_payload["pydantic_payload"]["score"] == 9.5
+        assert tool_summary_payload["dict_payload"]["attempts"] == 2
+        assert metadata["action_buttons"][0]["weight"] == 1
+        assert metadata["context_diagnostics"]["latency_ms"] == 1.2
+        assert metadata["last_run_summary"]["status"] == "ready"
+
+    @pytest.mark.asyncio
+    async def test_persist_chat_messages_normalizes_json_unsafe_metadata(
+        self, mock_db
+    ):
+        from app.services.ai.conversation_service import ConversationService
+
+        conversation = _make_conversation(id=9001, message_count=0)
+        result = SimpleNamespace(
+            messages=[
+                {"role": "user", "content": "hello"},
+                {
+                    "role": "assistant",
+                    "content": "world",
+                    "tool_calls": None,
+                    "tool_call_id": None,
+                    "attachments": None,
+                    "reasoning_content": None,
+                    "metadata": {
+                        "enum_value": _TestStatus.OK,
+                    },
+                },
+            ],
+            tool_results=[],
+            partial=False,
+            interrupted=False,
+            completion_reason="completed",
+            runtime_model_id=None,
+            runtime_model_name=None,
+            runtime_provider_id=None,
+            runtime_provider_name=None,
+            turn_record={
+                "cost": Decimal("12.34"),
+                "status": _TestStatus.OK,
+                "finished_at": datetime(2026, 4, 7, 12, 0, 0),
+            },
+        )
+
+        context_diag = {
+            "cost": Decimal("1.25"),
+            "status": _TestStatus.OK,
+            "finished_at": datetime(2026, 4, 7, 12, 30, 0),
+        }
+        last_summary = {
+            "amount": Decimal("5.50"),
+            "finished_at": datetime(2026, 4, 7, 13, 0, 0),
+        }
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service._message_repo = MagicMock()
+        service._message_repo.get_next_sequence = AsyncMock(return_value=1)
+        service._message_repo.create = AsyncMock()
+
+        await service.persist_chat_messages(
+            conversation=conversation,
+            result=result,
+            history_count=0,
+            agent_id=7,
+            context_diagnostics=context_diag,
+            last_run_summary=last_summary,
+        )
+
+        assistant_payload = service._message_repo.create.await_args_list[1].args[0]
+        metadata = assistant_payload["metadata_"]
+        assert metadata["context_diagnostics"]["cost"] == 1.25
+        assert metadata["context_diagnostics"]["status"] == "ok"
+        assert metadata["last_run_summary"]["amount"] == 5.5
+        assert metadata["turn_record"]["cost"] == 12.34
+        assert metadata["turn_record"]["status"] == "ok"
+        assert metadata["turn_record"]["finished_at"].startswith("2026-04-07T12:00:00")
 
     @pytest.mark.asyncio
     async def test_persist_chat_messages_persists_turn_record_shadow_diff_metadata(

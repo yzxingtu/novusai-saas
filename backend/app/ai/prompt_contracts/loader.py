@@ -91,7 +91,6 @@ class PromptContractName(StrEnum):
     AGENT_ROUTER_SELECTION = "agent_router_selection"
 
     # --- Capability summary fragments (builder) / 能力摘要片段（构建器用）---
-    CAPABILITIES_BLOCK = "capabilities_block"
     CAPABILITY_PAGE_CURRENT = "capability_page_current"
     CAPABILITY_PAGE_OPERATIONS = "capability_page_operations"
     CAPABILITY_MEMORY_SESSION = "capability_memory_session"
@@ -340,11 +339,6 @@ _PROMPT_CONTRACTS: dict[str, PromptContractSpec] = {
         description="Prompt for selecting the best router agent candidate.",
     ),
     # --- Capability summary fragments (builder) / 能力摘要片段 ---
-    PromptContractName.CAPABILITIES_BLOCK.value: PromptContractSpec(
-        name=PromptContractName.CAPABILITIES_BLOCK,
-        template_name="capabilities_block.md",
-        description="Formatted capability block appended to system prompts.",
-    ),
     PromptContractName.CAPABILITY_PAGE_CURRENT.value: PromptContractSpec(
         name=PromptContractName.CAPABILITY_PAGE_CURRENT,
         template_name="capability_page_current.md",

@@ -75,6 +75,19 @@ class AIProviderWebSearchConfig(BaseModel):
         default_factory=lambda: ["baidu", "so360"],
         min_length=1,
     )
+    allow_unverified_runtime_target: bool = False
+    verified_native_target: "AIProviderWebSearchVerifiedTarget | None" = None
+
+
+class AIProviderWebSearchVerifiedTarget(BaseModel):
+    """Explicitly verified native-search runtime target."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    provider_id: int | None = Field(None, ge=1)
+    provider_code: str | None = Field(None, min_length=1, max_length=50)
+    model_id: int | None = Field(None, ge=1)
+    model_code: str | None = Field(None, min_length=1, max_length=100)
 
 
 class AIProviderWebSearchRuntime(BaseModel):
@@ -121,6 +134,7 @@ __all__ = [
     "AIProviderUpdate",
     "AIProviderResponse",
     "AIProviderWebSearchConfig",
+    "AIProviderWebSearchVerifiedTarget",
     "AIProviderWebSearchRuntime",
     "normalize_provider_web_search_config",
 ]

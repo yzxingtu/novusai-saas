@@ -19,6 +19,7 @@ def _tools_with_weather() -> list[ToolDefinition]:
         *_tools(),
         ToolDefinition(name="get_current_weather", description="Current weather"),
         ToolDefinition(name="get_weather_forecast", description="Forecast"),
+        ToolDefinition(name="get_current_time", description="Current time"),
     ]
 
 
@@ -44,6 +45,7 @@ def test_intent_planner_suppresses_web_when_user_explicitly_disables_network() -
 
     assert [intent.family for intent in intents] == ["weather"]
     assert intents[0].kind == "weather_query"
+    assert intents[0].shortcircuit is True
 
 
 def test_intent_planner_returns_direct_reply_for_smalltalk_after_page_flow() -> None:
@@ -68,6 +70,7 @@ def test_intent_planner_returns_direct_reply_for_smalltalk_after_page_flow() -> 
     assert intents[0].family == "none"
     assert intents[0].kind == "direct_reply"
     assert intents[0].requires_tools is False
+    assert intents[0].shortcircuit is True
 
 
 def test_intent_planner_returns_direct_reply_for_health_phrase_after_web_flow() -> None:
@@ -101,9 +104,10 @@ def test_intent_planner_returns_direct_reply_for_health_phrase_after_web_flow() 
     assert intents[0].family == "none"
     assert intents[0].kind == "direct_reply"
     assert intents[0].requires_tools is False
+    assert intents[0].shortcircuit is True
 
 
-def test_intent_planner_detects_page_read_when_page_context_is_present() -> None:
+def test_intent_planner_detects_page_summary_when_page_context_is_present() -> None:
     intents = _plan(
         "看看本页面的内容然后总结一下",
         tools=_tools(),
@@ -111,7 +115,111 @@ def test_intent_planner_detects_page_read_when_page_context_is_present() -> None
     )
 
     assert [intent.family for intent in intents] == ["page_ops"]
-    assert intents[0].kind == "page_read"
+    assert intents[0].kind == "page_summary"
+    assert intents[0].shortcircuit is True
+
+
+def test_intent_planner_detects_page_screenshot_request() -> None:
+    intents = _plan(
+        "帮我把当前页面截图发出来",
+        tools=_tools(),
+        input_variables={"page_context": {"page_key": "admin.ai.api-keys"}},
+    )
+
+    assert [intent.kind for intent in intents] == ["page_screenshot"]
+
+
+def test_intent_planner_detects_editor_write_request() -> None:
+    intents = _plan(
+        "帮我修改当前编辑器标题并追加一段总结",
+        tools=_tools(),
+        input_variables={"page_context": {"page_key": "admin.ai.knowledge-bases"}},
+    )
+
+    assert [intent.kind for intent in intents] == ["page_editor_write"]
+
+
+def test_intent_planner_detects_page_pagination_request() -> None:
+    intents = _plan(
+        "把列表翻到下一页",
+        tools=_tools(),
+        input_variables={"page_context": {"page_key": "admin.ai.logs"}},
+    )
+
+    assert [intent.kind for intent in intents] == ["page_pagination"]
+
+
+def test_intent_planner_detects_page_row_detail_request() -> None:
+    intents = _plan(
+        "查看这条记录的详情",
+        tools=_tools(),
+        input_variables={"page_context": {"page_key": "admin.ai.logs"}},
+    )
+
+    assert [intent.kind for intent in intents] == ["page_row_detail"]
+
+
+def test_intent_planner_prefers_page_search_over_web_search_inside_page_context() -> None:
+    intents = _plan(
+        "请帮我搜索记录并清空筛选条件",
+        tools=_tools(),
+        input_variables={"page_context": {"page_key": "admin.ai.logs"}},
+    )
+
+    assert [intent.kind for intent in intents] == ["page_search"]
+
+
+def test_intent_planner_keeps_generic_search_as_web_research_inside_page_context() -> None:
+    intents = _plan(
+        "帮我搜索一下2026年中国新能源汽车销量排行",
+        tools=_tools(),
+        input_variables={"page_context": {"page_key": "admin.ai.logs"}},
+    )
+
+    assert [intent.kind for intent in intents] == ["web_research"]
+
+
+def test_intent_planner_splits_shunbian_and_duile_mixed_prompt() -> None:
+    intents = _plan(
+        "帮我查一下北京天气，顺便搜索一下今天的热点新闻，对了这个页面上有什么",
+        tools=_tools_with_weather(),
+        input_variables={"page_context": {"page_key": "admin.ai.agents"}},
+    )
+
+    assert [intent.kind for intent in intents] == [
+        "weather_query",
+        "web_research",
+        "page_summary",
+    ]
+
+
+def test_intent_planner_detects_time_and_weather_as_two_intents() -> None:
+    intents = _plan("帮我看一下北京天气，再告诉我今天星期几和现在几点")
+
+    assert [intent.kind for intent in intents] == ["weather_query", "time_query"]
+    assert [intent.shortcircuit for intent in intents] == [True, True]
+    assert PathSelector.select(intents) == "fast"
+
+
+def test_intent_planner_marks_weather_without_city_for_clarification() -> None:
+    intents = _plan("现在几点了？今天天气怎么样？")
+
+    assert [intent.kind for intent in intents] == ["time_query", "weather_query"]
+    assert intents[1].allow_text_response is True
+    assert intents[1].metadata.get("missing_args") == ["city"]
+
+
+def test_intent_planner_detects_news_queries_as_web_research() -> None:
+    intents = _plan("查今天新闻，给我 3 条来源", tools=_tools())
+
+    assert [intent.kind for intent in intents] == ["web_research"]
+
+
+def test_intent_planner_marks_time_query_as_shortcircuit() -> None:
+    intents = _plan("current time")
+
+    assert [intent.kind for intent in intents] == ["time_query"]
+    assert intents[0].shortcircuit is True
 
 
 def test_intent_planner_ignores_page_phrasing_without_page_context() -> None:
@@ -123,41 +231,4 @@ def test_intent_planner_ignores_page_phrasing_without_page_context() -> None:
     assert len(intents) == 1
     assert intents[0].family == "none"
     assert intents[0].kind == "direct_reply"
-
-
-def test_intent_planner_marks_multi_intent_turn_as_deep_path() -> None:
-    user_text = "请帮我查一下今天北京的天气，然后联网查一下长沙去北京的高铁票，再帮我阅读一下本页面都有什么内容"
-    intents = _plan(
-        user_text,
-        tools=_tools_with_weather(),
-        input_variables={"page_context": {"page_key": "admin.ai.api-keys"}},
-    )
-
-    assert [intent.family for intent in intents] == [
-        "weather",
-        "web_research",
-        "page_ops",
-    ]
-    assert PathSelector.select(intents) == "deep"
-
-
-def test_intent_planner_is_deterministic_for_same_multi_intent_input() -> None:
-    user_text = "请帮我查一下今天北京的天气，然后联网查一下长沙去北京的高铁票，再帮我阅读一下本页面都有什么内容"
-
-    families_runs = []
-    paths = []
-    for _ in range(3):
-        intents = _plan(
-            user_text,
-            tools=_tools_with_weather(),
-            input_variables={"page_context": {"page_key": "admin.ai.api-keys"}},
-        )
-        families_runs.append([intent.family for intent in intents])
-        paths.append(PathSelector.select(intents))
-
-    assert families_runs == [
-        ["weather", "web_research", "page_ops"],
-        ["weather", "web_research", "page_ops"],
-        ["weather", "web_research", "page_ops"],
-    ]
-    assert paths == ["deep", "deep", "deep"]
+    assert intents[0].shortcircuit is True

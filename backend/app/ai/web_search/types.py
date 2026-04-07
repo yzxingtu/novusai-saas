@@ -59,6 +59,7 @@ class SearchProviderRun:
     latency_ms: int = 0
     attempted_backends: list[str] = field(default_factory=list)
     cache_hit: bool = False
+    native_attempted: bool = True
     input_tokens: int = 0
     output_tokens: int = 0
     total_tokens: int = 0
@@ -75,6 +76,8 @@ class WebSearchExecutionMeta:
     provider: str | None = None
     provider_mode: str | None = None
     provider_chain: list[str] = field(default_factory=list)
+    fallback_reason: str | None = None
+    native_failure_kind: str | None = None
     cache_hit: bool = False
 
 

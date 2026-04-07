@@ -19,6 +19,16 @@ TerminationReason = Literal[
     "protocol_fallback",
     "stream_empty_after_fallback",
     "interrupted",
+    "budget_exit",
+    "provider_failure_after_partial_progress",
+    "elapsed_budget_exceeded",
+    "completion_budget_exceeded",
+    "tool_round_budget_exceeded",
+    "retry_budget_exhausted",
+    "prompt_budget_exceeded",
+    "tool_result_budget_exceeded",
+    "candidate_tool_budget_exceeded",
+    "awaiting_user_consent",
     "error",
 ]
 

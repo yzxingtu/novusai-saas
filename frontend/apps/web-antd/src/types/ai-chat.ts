@@ -63,6 +63,7 @@ export interface ConversationItem {
   title: null | string;
   status: string;
   created_at: string;
+  updated_at?: string;
   message_count?: number;
   /** Agent name (enriched by global conversations API) / 智能体名称 */
   agent_name?: null | string;

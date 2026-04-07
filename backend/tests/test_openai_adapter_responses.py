@@ -84,6 +84,34 @@ def _make_chat_completion_response(text: str = "ok"):
 
 
 @pytest.mark.asyncio
+async def test_chat_applies_runtime_reasoning_override_to_responses_request() -> None:
+    adapter = OpenAIAdapter(api_key="test-key", base_url="https://api.example.com")
+    adapter.wire_api = "responses"
+    response_obj = SimpleNamespace(
+        object="response",
+        status="completed",
+        usage=SimpleNamespace(input_tokens=12, output_tokens=8, total_tokens=20),
+        output=[_make_responses_message("hello from responses")],
+        output_text="hello from responses",
+        model_dump=lambda: {"ok": True},
+    )
+    adapter.client = _FakeClient(
+        chat_response=_make_chat_completion_response(),
+        responses_response=response_obj,
+    )
+
+    result = await adapter.chat(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+        _runtime_reasoning_effort_override="low",
+    )
+
+    assert result.metadata["effective_reasoning_effort"] == "low"
+    assert adapter.client.responses.last_kwargs is not None
+    assert adapter.client.responses.last_kwargs["reasoning"]["effort"] == "low"
+
+
+@pytest.mark.asyncio
 async def test_chat_falls_back_to_responses_when_chat_payload_has_no_choices() -> None:
     adapter = OpenAIAdapter(api_key="test-key", base_url="https://api.example.com")
     response_obj = SimpleNamespace(

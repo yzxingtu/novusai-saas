@@ -5,11 +5,16 @@ Web search orchestrator and native search provider.
 
 from __future__ import annotations
 
+import json
 import time
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
+from redis.exceptions import RedisError
+
+from app.ai.failover import HEALTH_KEY_PREFIX
 from app.ai.gateway import AIGateway
 from app.ai.page_locale import resolve_page_locale
 from app.ai.web_search.public_html import (
@@ -36,12 +41,14 @@ from app.ai.web_search.types import (
 )
 from app.core.config import settings
 from app.core.logging import LogManager
+from app.core.redis import get_redis
 from app.repositories.ai import (
     AIModelRepository,
     AIProviderRepository,
 )
 from app.schemas.ai.provider import (
     AIProviderWebSearchConfig,
+    AIProviderWebSearchVerifiedTarget,
     normalize_provider_web_search_config,
 )
 
@@ -68,6 +75,12 @@ _NATIVE_RETRYABLE_FAILURES = {
 }
 
 _SEARCH_ENGINE_HOSTS = frozenset({"www.baidu.com", "baidu.com", "www.so.com", "so.com"})
+_TRUSTED_OPENAI_COMPATIBLE_HOSTS = frozenset(
+    {
+        "api.openai.com",
+    }
+)
+_HEALTH_VERIFIED_NATIVE_SEARCH_MAX_AGE = timedelta(hours=24)
 
 
 @dataclass
@@ -80,7 +93,50 @@ class _ResolvedWebSearchConfig:
     public_providers: list[str]
     provider: "AIProvider | None" = None
     model: "AIModel | None" = None
+    runtime_provider: "AIProvider | None" = None
+    runtime_model: "AIModel | None" = None
+    native_target_source: str | None = None
+    native_target_reason: str | None = None
     config_error: str | None = None
+
+
+def _normalized_hostname(raw_url: str | None) -> str:
+    try:
+        parsed = urlparse(str(raw_url or "").strip())
+    except Exception:
+        return ""
+    return str(parsed.hostname or "").strip().lower()
+
+
+def _is_trusted_openai_compatible_host(hostname: str) -> bool:
+    if not hostname:
+        return False
+    return hostname in _TRUSTED_OPENAI_COMPATIBLE_HOSTS or hostname.endswith(
+        ".openai.azure.com"
+    )
+
+
+def _is_verified_native_runtime_candidate(
+    provider: "AIProvider | None",
+    *,
+    allow_unverified_runtime_target: bool,
+) -> tuple[bool, str]:
+    if provider is None:
+        return False, "runtime_provider_missing"
+    if allow_unverified_runtime_target:
+        return True, "allow_unverified_runtime_target_override"
+    provider_type = str(getattr(provider, "type", "") or "").strip().lower()
+    if provider_type != "openai_compatible":
+        return True, "provider_type_verified_by_default"
+    host = _normalized_hostname(getattr(provider, "base_url", None))
+    if _is_trusted_openai_compatible_host(host):
+        return True, f"trusted_openai_compatible_host:{host}"
+    if not host:
+        return (
+            False,
+            "untrusted_openai_compatible_runtime_target:missing_base_url_host",
+        )
+    return False, f"untrusted_openai_compatible_runtime_target:{host}"
 
 
 def _default_web_search_config() -> AIProviderWebSearchConfig:
@@ -230,6 +286,9 @@ class NativeModelSearchProvider(BaseSearchProvider):
         strategy: str | None = None,
         runtime_provider_label: str | None = None,
         runtime_model_code: str | None = None,
+        provider_id_override: int | None = None,
+        model_id_override: int | None = None,
+        model_code_override: str | None = None,
     ) -> SearchProviderRun:
         start = time.perf_counter()
         _ = (runtime_provider_label, runtime_model_code)
@@ -242,11 +301,24 @@ class NativeModelSearchProvider(BaseSearchProvider):
                 items=[],
                 failure_reason="runtime db session unavailable for native web search",
                 latency_ms=int((time.perf_counter() - start) * 1000),
+                native_attempted=False,
             )
 
-        runtime_provider_id = getattr(context, "runtime_provider_id", None)
-        runtime_model_id = getattr(context, "runtime_model_id", None)
-        runtime_model_code = str(getattr(context, "runtime_model_code", "") or "").strip()
+        runtime_provider_id = (
+            int(provider_id_override)
+            if provider_id_override is not None
+            else getattr(context, "runtime_provider_id", None)
+        )
+        runtime_model_id = (
+            int(model_id_override)
+            if model_id_override is not None
+            else getattr(context, "runtime_model_id", None)
+        )
+        runtime_model_code = str(
+            model_code_override
+            or getattr(context, "runtime_model_code", "")
+            or ""
+        ).strip()
         if runtime_provider_id is None or not runtime_model_code:
             return SearchProviderRun(
                 provider=None,
@@ -256,6 +328,7 @@ class NativeModelSearchProvider(BaseSearchProvider):
                 items=[],
                 failure_reason="runtime provider/model metadata unavailable",
                 latency_ms=int((time.perf_counter() - start) * 1000),
+                native_attempted=False,
             )
 
         provider_repo = AIProviderRepository(context.db)
@@ -269,6 +342,7 @@ class NativeModelSearchProvider(BaseSearchProvider):
                 items=[],
                 failure_reason="runtime provider unavailable",
                 latency_ms=int((time.perf_counter() - start) * 1000),
+                native_attempted=False,
             )
 
         model = None
@@ -306,6 +380,7 @@ class NativeModelSearchProvider(BaseSearchProvider):
                 latency_ms=int((time.perf_counter() - start) * 1000),
                 attempted_backends=[backend_key],
                 cache_hit=True,
+                native_attempted=True,
             )
 
         if _native_backend_disabled(conv_id, backend_key):
@@ -318,6 +393,7 @@ class NativeModelSearchProvider(BaseSearchProvider):
                 failure_reason="native backend temporarily cooling down",
                 latency_ms=int((time.perf_counter() - start) * 1000),
                 attempted_backends=[],
+                native_attempted=False,
             )
 
         gateway = AIGateway(context.db)
@@ -344,6 +420,7 @@ class NativeModelSearchProvider(BaseSearchProvider):
         if not native_run.attempted_backends:
             native_run.attempted_backends = [backend_key]
         native_run.latency_ms = int((time.perf_counter() - start) * 1000)
+        native_run.native_attempted = True
         _record_native_backend_outcome(conv_id, backend_key, native_run.status)
         logger.info(
             "web_search native attempt: backend={} status={} result_count={} cache_hit={}",
@@ -369,6 +446,333 @@ class NativeModelSearchProvider(BaseSearchProvider):
 
 
 class WebSearchOrchestrator:
+    @staticmethod
+    def _normalize_wire_api(wire_api: object) -> str:
+        normalized = str(wire_api or "").strip().lower().replace("-", "_")
+        if normalized in {"responses", "response", "responses_api"}:
+            return "responses"
+        return normalized
+
+    @staticmethod
+    def _parse_health_checked_at(value: object) -> datetime | None:
+        if not isinstance(value, str) or not value.strip():
+            return None
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+
+    @staticmethod
+    async def _is_health_verified_native_candidate(
+        provider: "AIProvider | None",
+        *,
+        model_code: str,
+    ) -> tuple[bool, str]:
+        if provider is None:
+            return False, "provider_health_missing"
+
+        provider_id = int(getattr(provider, "id", 0) or 0)
+        if provider_id <= 0:
+            return False, "provider_health_missing"
+
+        provider_config = (
+            dict(getattr(provider, "config", {}) or {})
+            if isinstance(getattr(provider, "config", None), dict)
+            else {}
+        )
+        wire_api = WebSearchOrchestrator._normalize_wire_api(
+            provider_config.get("wire_api")
+        )
+        if wire_api != "responses":
+            return False, f"provider_health_wire_api_mismatch:{wire_api or 'unknown'}"
+
+        try:
+            redis = await get_redis()
+            raw_payload = await redis.get(
+                HEALTH_KEY_PREFIX.format(provider_id=provider_id)
+            )
+        except (RedisError, RuntimeError, TypeError, ValueError) as exc:
+            return False, f"provider_health_unavailable:{type(exc).__name__}"
+
+        if not raw_payload:
+            return False, "provider_health_missing"
+
+        try:
+            payload = json.loads(raw_payload)
+        except json.JSONDecodeError:
+            return False, "provider_health_invalid_json"
+
+        if not isinstance(payload, dict):
+            return False, "provider_health_invalid_payload"
+        if not bool(payload.get("is_healthy", payload.get("is_available", True))):
+            return False, "provider_health_unhealthy"
+        if payload.get("tool_calling_healthy") is not True:
+            return False, "provider_health_tool_calling_unverified"
+
+        checked_at = WebSearchOrchestrator._parse_health_checked_at(
+            payload.get("checked_at")
+        )
+        if checked_at is None:
+            return False, "provider_health_missing_checked_at"
+        if (
+            datetime.now(timezone.utc) - checked_at
+            > _HEALTH_VERIFIED_NATIVE_SEARCH_MAX_AGE
+        ):
+            return False, "provider_health_stale"
+
+        probe_model = str(payload.get("tool_probe_model") or "").strip()
+        normalized_model_code = str(model_code or "").strip()
+        if probe_model and normalized_model_code and probe_model != normalized_model_code:
+            return False, f"provider_health_model_mismatch:{probe_model}"
+
+        return (
+            True,
+            f"responses_tool_probe_verified:{provider_id}:{probe_model or normalized_model_code or 'unknown'}",
+        )
+
+    @staticmethod
+    async def _verify_native_runtime_candidate(
+        provider: "AIProvider | None",
+        *,
+        model_code: str,
+        allow_unverified_runtime_target: bool,
+    ) -> tuple[bool, str]:
+        is_verified, verify_reason = _is_verified_native_runtime_candidate(
+            provider,
+            allow_unverified_runtime_target=allow_unverified_runtime_target,
+        )
+        if is_verified:
+            return True, verify_reason
+        if provider is None or allow_unverified_runtime_target:
+            return is_verified, verify_reason
+
+        provider_type = str(getattr(provider, "type", "") or "").strip().lower()
+        if provider_type != "openai_compatible":
+            return False, verify_reason
+
+        health_verified, health_reason = (
+            await WebSearchOrchestrator._is_health_verified_native_candidate(
+                provider,
+                model_code=model_code,
+            )
+        )
+        if health_verified:
+            return True, health_reason
+        return False, f"{verify_reason}:{health_reason}"
+
+    @staticmethod
+    async def _load_runtime_provider_and_model(
+        *,
+        context: "ExecutionContext | None",
+        provider_repo: AIProviderRepository,
+        model_repo: AIModelRepository,
+    ) -> tuple["AIProvider | None", "AIModel | None"]:
+        runtime_provider_id = getattr(context, "runtime_provider_id", None)
+        runtime_model_id = getattr(context, "runtime_model_id", None)
+        runtime_model_code = str(getattr(context, "runtime_model_code", "") or "").strip()
+
+        provider = None
+        model = None
+        if runtime_provider_id is not None:
+            provider = await provider_repo.get_by_id(int(runtime_provider_id))
+        if runtime_model_id is not None:
+            model = await model_repo.get_active_with_provider(int(runtime_model_id))
+        if (
+            model is None
+            and provider is not None
+            and runtime_model_code
+        ):
+            model = await model_repo.get_active_by_code_and_provider(
+                runtime_model_code,
+                provider.id,
+            )
+        return provider, model
+
+    @staticmethod
+    async def _resolve_verified_target_from_config(
+        *,
+        target: AIProviderWebSearchVerifiedTarget,
+        provider_repo: AIProviderRepository,
+        model_repo: AIModelRepository,
+        runtime_model: "AIModel | None",
+    ) -> tuple["AIProvider | None", "AIModel | None", str]:
+        provider = None
+        if target.provider_id is not None:
+            provider = await provider_repo.get_by_id(int(target.provider_id))
+        elif target.provider_code:
+            provider = await provider_repo.get_by_code(str(target.provider_code).strip())
+        if provider is None or not provider.is_active:
+            return None, None, "verified_target_provider_unavailable"
+
+        model = None
+        if target.model_id is not None:
+            model = await model_repo.get_active_with_provider(int(target.model_id))
+            if model is not None and int(getattr(model, "provider_id", 0) or 0) != int(
+                provider.id
+            ):
+                model = None
+        if model is None and target.model_code:
+            model = await model_repo.get_active_by_code_and_provider(
+                str(target.model_code).strip(),
+                provider.id,
+            )
+        if model is None and runtime_model is not None:
+            if int(getattr(runtime_model, "provider_id", 0) or 0) == int(provider.id):
+                model = runtime_model
+        if model is None:
+            return provider, None, "verified_target_model_unavailable"
+        return provider, model, "verified_native_target"
+
+    @staticmethod
+    async def _resolve_default_verified_native_target(
+        *,
+        runtime_provider: "AIProvider | None",
+        runtime_model: "AIModel | None",
+        runtime_model_code: str,
+        provider_repo: AIProviderRepository,
+        model_repo: AIModelRepository,
+    ) -> tuple["AIProvider | None", "AIModel | None", str | None, str]:
+        preferred_model_code = str(
+            getattr(runtime_model, "code", "") or runtime_model_code or ""
+        ).strip()
+
+        if runtime_provider is not None and runtime_model is not None:
+            is_verified, verify_reason = await WebSearchOrchestrator._verify_native_runtime_candidate(
+                runtime_provider,
+                model_code=preferred_model_code,
+                allow_unverified_runtime_target=False,
+            )
+            if is_verified:
+                return (
+                    runtime_provider,
+                    runtime_model,
+                    "default_verified_native_target",
+                    verify_reason,
+                )
+            runtime_provider_id = int(getattr(runtime_provider, "id", 0) or 0)
+        else:
+            runtime_provider_id = 0
+
+        if not preferred_model_code:
+            return None, None, None, "default_verified_target_model_code_missing"
+
+        active_providers = await provider_repo.get_active_providers()
+        for provider in active_providers:
+            provider_id = int(getattr(provider, "id", 0) or 0)
+            if provider_id and provider_id == runtime_provider_id:
+                continue
+
+            is_verified, verify_reason = await WebSearchOrchestrator._verify_native_runtime_candidate(
+                provider,
+                model_code=preferred_model_code,
+                allow_unverified_runtime_target=False,
+            )
+            if not is_verified:
+                continue
+
+            model = await model_repo.get_active_by_code_and_provider(
+                preferred_model_code,
+                provider_id,
+            )
+            if model is None:
+                continue
+
+            return (
+                provider,
+                model,
+                "default_verified_native_target",
+                verify_reason,
+            )
+
+        return None, None, None, "default_verified_target_unavailable"
+
+    @staticmethod
+    async def _resolve_verified_native_target(
+        *,
+        normalized_config: AIProviderWebSearchConfig,
+        runtime_provider: "AIProvider | None",
+        runtime_model: "AIModel | None",
+        runtime_model_code: str,
+        provider_repo: AIProviderRepository,
+        model_repo: AIModelRepository,
+    ) -> tuple["AIProvider | None", "AIModel | None", str | None, str]:
+        explicit_target = normalized_config.verified_native_target
+        if explicit_target is not None:
+            provider, model, reason = await WebSearchOrchestrator._resolve_verified_target_from_config(
+                target=explicit_target,
+                provider_repo=provider_repo,
+                model_repo=model_repo,
+                runtime_model=runtime_model,
+            )
+            if provider is not None and model is not None:
+                is_verified, verify_reason = await WebSearchOrchestrator._verify_native_runtime_candidate(
+                    provider,
+                    model_code=str(getattr(model, "code", "") or "").strip(),
+                    allow_unverified_runtime_target=bool(
+                        normalized_config.allow_unverified_runtime_target
+                    ),
+                )
+                if not is_verified:
+                    return (
+                        None,
+                        None,
+                        None,
+                        f"verified_target_rejected:{verify_reason}",
+                    )
+                return provider, model, "verified_native_target", verify_reason
+            return None, None, None, reason
+
+        (
+            default_provider,
+            default_model,
+            default_source,
+            default_reason,
+        ) = await WebSearchOrchestrator._resolve_default_verified_native_target(
+            runtime_provider=runtime_provider,
+            runtime_model=runtime_model,
+            runtime_model_code=runtime_model_code,
+            provider_repo=provider_repo,
+            model_repo=model_repo,
+        )
+        if default_provider is not None and default_model is not None:
+            return default_provider, default_model, default_source, default_reason
+
+        if (
+            bool(normalized_config.allow_unverified_runtime_target)
+            and runtime_provider is not None
+            and runtime_model is not None
+        ):
+            return (
+                runtime_provider,
+                runtime_model,
+                "runtime_unverified_override",
+                "allow_unverified_runtime_target_override",
+            )
+
+        runtime_verify_reason = None
+        if runtime_provider is not None and runtime_model is not None:
+            _, runtime_verify_reason = await WebSearchOrchestrator._verify_native_runtime_candidate(
+                runtime_provider,
+                model_code=str(getattr(runtime_model, "code", "") or runtime_model_code),
+                allow_unverified_runtime_target=False,
+            )
+
+        if runtime_provider is None or runtime_model is None:
+            return None, None, None, default_reason or "runtime_target_missing"
+
+        if runtime_verify_reason:
+            return (
+                None,
+                None,
+                None,
+                f"{default_reason or 'default_verified_target_unavailable'}:{runtime_verify_reason}",
+            )
+
+        return None, None, None, default_reason or "default_verified_target_unavailable"
+
     async def search(
         self,
         *,
@@ -452,29 +856,88 @@ class WebSearchOrchestrator:
         native_run: SearchProviderRun | None = None
         public_run: SearchProviderRun | None = None
         used_fallback = False
+        fallback_reason: str | None = None
+        native_failure_kind: str | None = None
 
-        native_provider = NativeModelSearchProvider()
-        native_run = await native_provider.search(
-            query=rewritten_query,
-            max_results=effective_max_results,
-            locale=locale,
-            timeout_seconds=resolved_config.native_timeout_seconds,
-            context=context,
-            strategy=resolved_config.strategy,
-            runtime_provider_label=provider_label,
-            runtime_model_code=model_code,
+        should_attempt_legacy_native = (
+            resolved_config.provider is None
+            and resolved_config.model is None
+            and resolved_config.native_target_reason
+            == "runtime_db_unavailable_for_verified_target_resolution"
         )
+
+        if (
+            (resolved_config.provider is None or resolved_config.model is None)
+            and not should_attempt_legacy_native
+        ):
+            native_run = SearchProviderRun(
+                provider=provider_label,
+                provider_mode=PROVIDER_MODE_NATIVE,
+                backend_key=None,
+                status=STATUS_UNSUPPORTED,
+                items=[],
+                failure_reason=(
+                    resolved_config.native_target_reason
+                    or "verified native target unavailable"
+                ),
+                attempted_backends=[],
+                native_attempted=False,
+            )
+        else:
+            native_provider = NativeModelSearchProvider()
+            native_run = await native_provider.search(
+                query=rewritten_query,
+                max_results=effective_max_results,
+                locale=locale,
+                timeout_seconds=resolved_config.native_timeout_seconds,
+                context=context,
+                strategy=resolved_config.strategy,
+                runtime_provider_label=provider_label,
+                runtime_model_code=model_code,
+                provider_id_override=(
+                    int(resolved_config.provider.id)
+                    if resolved_config.provider is not None
+                    else None
+                ),
+                model_id_override=(
+                    int(resolved_config.model.id)
+                    if resolved_config.model is not None
+                    else None
+                ),
+                model_code_override=(
+                    str(getattr(resolved_config.model, "code", "") or "")
+                    if resolved_config.model is not None
+                    else None
+                ),
+            )
         attempted_backends.extend(native_run.attempted_backends)
         provider_chain.extend(native_run.attempted_backends)
         if native_run.status == STATUS_SUCCESS and native_run.items:
             selected_run = native_run
         else:
-            if native_run.status in _NATIVE_RETRYABLE_FAILURES:
+            native_failure_kind = native_run.status
+            should_fallback = native_run.status in _NATIVE_RETRYABLE_FAILURES and (
+                bool(native_run.native_attempted)
+                or (
+                    native_run.status == STATUS_UNSUPPORTED
+                    and not bool(native_run.native_attempted)
+                )
+            )
+            if should_fallback:
                 used_fallback = True
+                fallback_reason = (
+                    f"native_{native_run.status}"
+                    if native_run.native_attempted
+                    else (
+                        "native_not_attempted:"
+                        f"{native_run.failure_reason or native_run.status}"
+                    )
+                )
                 logger.info(
-                    "web_search orchestrator fallback: native_status={} native_backend={} reason={}",
+                    "web_search orchestrator fallback: native_status={} native_backend={} native_attempted={} reason={}",
                     native_run.status,
                     native_run.backend_key or "",
+                    bool(native_run.native_attempted),
                     native_run.failure_reason or "",
                 )
                 public_provider = PublicHtmlSearchProvider(
@@ -533,6 +996,8 @@ class WebSearchOrchestrator:
             provider=selected_run.provider,
             provider_mode=selected_run.provider_mode,
             provider_chain=list(provider_chain),
+            fallback_reason=fallback_reason,
+            native_failure_kind=native_failure_kind,
             cache_hit=bool(selected_run.cache_hit),
         )
         return self._build_execution(
@@ -547,22 +1012,29 @@ class WebSearchOrchestrator:
         context: "ExecutionContext | None",
     ) -> _ResolvedWebSearchConfig:
         defaults = _default_web_search_config()
-        provider = None
-        model = None
+        runtime_provider = None
+        runtime_model = None
         raw_provider_config: dict | None = None
         context_db = getattr(context, "db", None) if context is not None else None
+        provider_repo: AIProviderRepository | None = None
+        model_repo: AIModelRepository | None = None
         if context_db is not None:
-            runtime_provider_id = getattr(context, "runtime_provider_id", None)
-            runtime_model_id = getattr(context, "runtime_model_id", None)
             provider_repo = AIProviderRepository(context_db)
             model_repo = AIModelRepository(context_db)
-            if runtime_provider_id is not None:
-                provider = await provider_repo.get_by_id(int(runtime_provider_id))
-            if runtime_model_id is not None:
-                model = await model_repo.get_active_with_provider(int(runtime_model_id))
-        if provider is not None and getattr(provider, "config", None) is not None:
-            if isinstance(provider.config, dict):
-                raw_provider_config = dict(provider.config)
+            runtime_provider, runtime_model = (
+                await self._load_runtime_provider_and_model(
+                    context=context,
+                    provider_repo=provider_repo,
+                    model_repo=model_repo,
+                )
+            )
+
+        if (
+            runtime_provider is not None
+            and getattr(runtime_provider, "config", None) is not None
+        ):
+            if isinstance(runtime_provider.config, dict):
+                raw_provider_config = dict(runtime_provider.config)
             else:
                 reason = "invalid provider config.web_search: provider config must be an object"
                 logger.warning(
@@ -576,12 +1048,19 @@ class WebSearchOrchestrator:
                     native_timeout_seconds=int(defaults.native_timeout_seconds),
                     public_timeout_seconds=int(defaults.public_timeout_seconds),
                     public_providers=list(defaults.public_providers),
-                    provider=provider,
-                    model=model,
+                    provider=runtime_provider,
+                    model=runtime_model,
+                    runtime_provider=runtime_provider,
+                    runtime_model=runtime_model,
+                    native_target_reason=reason,
                     config_error=reason,
                 )
 
-        if provider is not None and isinstance(raw_provider_config, dict) and "web_search" in raw_provider_config:
+        if (
+            runtime_provider is not None
+            and isinstance(raw_provider_config, dict)
+            and "web_search" in raw_provider_config
+        ):
             try:
                 normalized = _normalize_provider_web_search_settings(raw_provider_config)
             except Exception as exc:  # noqa: BLE001
@@ -597,12 +1076,53 @@ class WebSearchOrchestrator:
                     native_timeout_seconds=int(defaults.native_timeout_seconds),
                     public_timeout_seconds=int(defaults.public_timeout_seconds),
                     public_providers=list(defaults.public_providers),
-                    provider=provider,
-                    model=model,
+                    provider=runtime_provider,
+                    model=runtime_model,
+                    runtime_provider=runtime_provider,
+                    runtime_model=runtime_model,
+                    native_target_reason=reason,
                     config_error=reason,
                 )
         else:
             normalized = defaults
+
+        resolved_provider = None
+        resolved_model = None
+        native_target_source = None
+        native_target_reason = "verified_target_resolution_unavailable"
+        if provider_repo is not None and model_repo is not None:
+            (
+                resolved_provider,
+                resolved_model,
+                native_target_source,
+                native_target_reason,
+            ) = await self._resolve_verified_native_target(
+                normalized_config=normalized,
+                runtime_provider=runtime_provider,
+                runtime_model=runtime_model,
+                runtime_model_code=str(
+                    getattr(context, "runtime_model_code", "") or ""
+                ).strip(),
+                provider_repo=provider_repo,
+                model_repo=model_repo,
+            )
+        elif (
+            context_db is None
+            and (
+                context is not None
+                and str(getattr(context, "runtime_model_code", "") or "").strip()
+            )
+        ):
+            native_target_reason = "runtime_db_unavailable_for_verified_target_resolution"
+        elif (
+            context is not None
+            and str(getattr(context, "runtime_model_code", "") or "").strip()
+        ):
+            native_target_reason = "runtime_target_missing"
+        elif runtime_provider is None:
+            native_target_reason = "runtime_target_missing"
+        else:
+            native_target_reason = "runtime_db_unavailable_for_verified_target_resolution"
 
         return _ResolvedWebSearchConfig(
             enabled=bool(normalized.enabled),
@@ -616,8 +1136,12 @@ class WebSearchOrchestrator:
                 if str(provider_name or "").strip()
             ]
             or list(DEFAULT_PUBLIC_PROVIDERS),
-            provider=provider,
-            model=model,
+            provider=resolved_provider,
+            model=resolved_model,
+            runtime_provider=runtime_provider,
+            runtime_model=runtime_model,
+            native_target_source=native_target_source,
+            native_target_reason=native_target_reason,
             config_error=None,
         )
 

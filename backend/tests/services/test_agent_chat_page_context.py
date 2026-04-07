@@ -728,8 +728,12 @@ async def test_resolve_for_agent_with_skill_grant_includes_get_page_context_tool
     result = await resolve_for_agent(mock_db, agent, tenant_id=1)
 
     assert result is not None
-    assert [tool.name for tool in result.tools] == ["get_page_context"]
+    assert [tool.name for tool in result.tools] == [
+        "get_page_context",
+        "get_current_time",
+    ]
     assert result.tool_consent_modes["get_page_context"] == "auto"
+    assert result.tool_consent_modes["get_current_time"] == "auto"
     assert result.tools[0].source_package_name == "页面感知"
     openai_tools = to_openai_tools(result.tools)
     assert openai_tools[0]["function"]["name"] == "get_page_context"
@@ -799,11 +803,145 @@ async def test_resolve_for_agent_admin_grant_applies_capability_override(
     result = await resolve_for_agent(mock_db, agent, tenant_id=None)
 
     assert result is not None
-    assert [tool.name for tool in result.tools] == ["get_page_context"]
+    assert [tool.name for tool in result.tools] == [
+        "get_page_context",
+        "get_current_time",
+    ]
     assert result.tool_consent_modes["get_page_context"] == "reject"
+    assert result.tool_consent_modes["get_current_time"] == "auto"
     assert result.tools[0].source_package_name == "页面感知"
     openai_tools = to_openai_tools(result.tools)
     assert openai_tools[0]["function"]["name"] == "get_page_context"
+
+
+@pytest.mark.asyncio
+async def test_resolve_for_agent_injects_baseline_time_tool_when_missing(
+    mock_db,
+) -> None:
+    agent = types.SimpleNamespace(
+        id=18,
+        name="General Agent",
+        scope=ResourceScopeEnum.ADMIN_ONLY.value,
+        owner_tenant_id=None,
+    )
+
+    package = types.SimpleNamespace(
+        id=318,
+        name="系统核心技能包",
+        is_active=True,
+        is_deleted=False,
+        valves_config=None,
+    )
+    skill = types.SimpleNamespace(
+        id=418,
+        package_id=318,
+        is_active=True,
+        is_deleted=False,
+        config={
+            "builtin_type": "web_search",
+            "tools": [
+                {
+                    "name": "web_search",
+                    "description": "Search the web",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {"type": "string"},
+                        },
+                        "required": ["query"],
+                    },
+                }
+            ],
+        },
+        name="web_search",
+        description="Search the web",
+        type=SkillTypeEnum.BUILTIN.value,
+        timeout=30,
+        package=package,
+    )
+    grant = types.SimpleNamespace(
+        id=518,
+        agent_id=18,
+        skill_id=418,
+        enabled=True,
+        default_consent_mode="auto",
+        capability_consent_overrides=None,
+        config_override=None,
+        skill=skill,
+    )
+
+    mock_db.execute.side_effect = [
+        _make_scalars_result([grant]),
+        _make_iterable_result([]),
+    ]
+
+    result = await resolve_for_agent(mock_db, agent, tenant_id=None)
+
+    assert result is not None
+    assert [tool.name for tool in result.tools] == ["web_search", "get_current_time"]
+    assert result.tool_consent_modes["get_current_time"] == "auto"
+    assert "get_current_time" in result.selected_skill_names
+    assert result.tools[1].config["auto_injected"] is True
+
+
+@pytest.mark.asyncio
+async def test_resolve_for_agent_does_not_duplicate_existing_time_tool(
+    mock_db,
+) -> None:
+    agent = types.SimpleNamespace(
+        id=19,
+        name="Time Agent",
+        scope=ResourceScopeEnum.ADMIN_ONLY.value,
+        owner_tenant_id=None,
+    )
+
+    package = types.SimpleNamespace(
+        id=319,
+        name="系统核心技能包",
+        is_active=True,
+        is_deleted=False,
+        valves_config=None,
+    )
+    skill = types.SimpleNamespace(
+        id=419,
+        package_id=319,
+        is_active=True,
+        is_deleted=False,
+        config={"builtin_type": "get_current_time"},
+        name="get_current_time",
+        description="Get current time",
+        type=SkillTypeEnum.BUILTIN.value,
+        timeout=15,
+        input_schema={
+            "type": "object",
+            "properties": {
+                "timezone_name": {"type": "string"},
+            },
+            "required": [],
+        },
+        package=package,
+    )
+    grant = types.SimpleNamespace(
+        id=519,
+        agent_id=19,
+        skill_id=419,
+        enabled=True,
+        default_consent_mode="auto",
+        capability_consent_overrides=None,
+        config_override=None,
+        skill=skill,
+    )
+
+    mock_db.execute.side_effect = [
+        _make_scalars_result([grant]),
+        _make_iterable_result([]),
+    ]
+
+    result = await resolve_for_agent(mock_db, agent, tenant_id=None)
+
+    assert result is not None
+    assert [tool.name for tool in result.tools] == ["get_current_time"]
+    assert result.selected_skill_names.count("get_current_time") == 1
 
 
 @pytest.mark.asyncio

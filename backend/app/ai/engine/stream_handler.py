@@ -124,6 +124,9 @@ class StreamIOAdapter:
         runtime_model_info = metadata.get("runtime_model_info")
         if isinstance(runtime_model_info, dict):
             self.handler._runtime_model_info = dict(runtime_model_info)
+            sandbox = getattr(self.handler.engine, "sandbox", None)
+            if sandbox is not None and hasattr(sandbox, "set_runtime_model_info"):
+                sandbox.set_runtime_model_info(runtime_model_info)
         raw_turn_record = metadata.get("runtime_turn_record")
         if isinstance(raw_turn_record, dict):
             self.handler._runtime_turn_record = dict(raw_turn_record)
@@ -143,7 +146,6 @@ class StreamIOAdapter:
             "_build_ordered_capability_hint": BaseEngine._build_ordered_capability_hint,
             "_build_page_no_progress_recovery": BaseEngine._build_page_no_progress_recovery,
             "_budget_exit_response": BaseEngine._budget_exit_response,
-            "_can_finalize_partial_with_llm": ConversationEngine._can_finalize_partial_with_llm,
             "_first_incomplete_requested_family": BaseEngine._first_incomplete_requested_family,
             "_mark_multi_family_progress": BaseEngine._mark_multi_family_progress,
             "_messages_have_blocking_pending_interaction": BaseEngine._messages_have_blocking_pending_interaction,
@@ -173,7 +175,8 @@ class StreamIOAdapter:
         completion_tokens_used = 0
         finish_reason = "stop"
 
-        if kwargs.get("breach_retry_result"):
+        round_kind = str(kwargs.get("breach_retry_result") or "").strip()
+        if round_kind in {"contract_retry", "intent_retry"}:
             await self.handler._emit_clear_content_if_needed()
         elif self.handler._clear_before_next_message:
             self.handler._clear_before_next_message = False
@@ -193,6 +196,7 @@ class StreamIOAdapter:
             conversation_id=self.handler.request.conversation_id,
             route_result=self.handler.prep.route_result,
             tools=tools,
+            execution_path=getattr(self.handler.prep, "execution_path", None),
             user_id=getattr(self.handler.request, "user_id", None),
             billing_context=getattr(self.handler.request, "billing_context", None),
             log_user_type=log_user_type_for_call_log(req_role),
@@ -271,42 +275,6 @@ class StreamIOAdapter:
             ),
             tool_calls=finalized_tool_calls or None,
         )
-        breach_retry_result = str(kwargs.get("breach_retry_result") or "").strip()
-        if (
-            breach_retry_result == "intent_retry"
-            and tool_use_policy.mode == "required"
-            and (self.handler.prep.all_tools or tools)
-        ):
-            diag_tools = list(self.handler.prep.all_tools or tools or [])
-            continuation_context = getattr(
-                self.handler.prep,
-                "continuation_context",
-                None,
-            )
-            breach_type = tool_use_policy.reason or "contract_breach"
-            self.log_tool_contract_diagnostics(
-                agent=self.handler.agent,
-                messages=messages,
-                response=response,
-                tools=diag_tools,
-                policy=tool_use_policy,
-                conversation_id=self.handler.request.conversation_id,
-                breach_type=breach_type,
-                retry_result="retrying",
-                continuation=continuation_context,
-            )
-            if not finalized_tool_calls and aggregated_output.strip():
-                self.log_tool_contract_diagnostics(
-                    agent=self.handler.agent,
-                    messages=messages,
-                    response=response,
-                    tools=diag_tools,
-                    policy=tool_use_policy,
-                    conversation_id=self.handler.request.conversation_id,
-                    breach_type=breach_type,
-                    retry_result="failed",
-                    continuation=continuation_context,
-                )
         return ModelRoundResult(
             response=response,
             total_tokens=total_tokens,
@@ -551,292 +519,11 @@ class StreamIOAdapter:
                 completion_tokens_used=starting_completion_tokens,
             )
 
-        if self.handler._state.provider_failure_kind == "budget_exit":
-            budget_output = str(self.handler._output or "").strip()
-            if not budget_output:
-                budget_output = self.handler._build_budget_exit_fallback_output(
-                    tool_results=round_tool_results,
-                )
-                self.handler._output = budget_output
-            if any(result.success for result in round_tool_results):
-                finalization_policy = ToolUsePolicy(
-                    family="none",
-                    mode="none",
-                    allowed_tool_names=[],
-                    retry_on_contract_breach=False,
-                    reason="partial_exit_final_response",
-                )
-                finalization_round = await self.call_llm(
-                    messages=messages,
-                    tools=[],
-                    tool_use_policy=finalization_policy,
-                )
-                finalization_response = finalization_round.response
-                total_tokens = starting_total_tokens + int(
-                    finalization_round.total_tokens or 0
-                )
-                completion_tokens_used = starting_completion_tokens + int(
-                    finalization_round.completion_tokens_used or 0
-                )
-                if finalization_response is not None:
-                    unexpected_tool_calls = list(
-                        finalization_response.tool_calls
-                        or finalization_response.message.tool_calls
-                        or []
-                    )
-                    if unexpected_tool_calls:
-                        logger.warning(
-                            "Finalization-only stream round returned unexpected tool calls; suppressing execution: conversation_id={} tool_names={}",
-                            self.handler.request.conversation_id,
-                            [
-                                str(
-                                    (tool_call.get("function") or {}).get("name")
-                                    or tool_call.get("name")
-                                    or ""
-                                )
-                                for tool_call in unexpected_tool_calls
-                                if isinstance(tool_call, dict)
-                            ],
-                        )
-                        metadata = dict(
-                            getattr(finalization_response, "metadata", {}) or {}
-                        )
-                        metadata["finalization_tool_call_suppressed"] = True
-                        finalization_response = ChatResponse(
-                            message=ChatMessage(
-                                role=finalization_response.message.role,
-                                content=finalization_response.message.content or "",
-                                reasoning_content=(
-                                    finalization_response.message.reasoning_content
-                                ),
-                                tool_calls=None,
-                            ),
-                            total_tokens=finalization_response.total_tokens,
-                            output_tokens=finalization_response.output_tokens,
-                            finish_reason="stop",
-                            tool_calls=None,
-                            metadata=metadata,
-                        )
-                        self.handler._clear_before_next_message = False
-                    finalization_output = str(
-                        finalization_response.message.content or ""
-                    ).strip()
-                    if finalization_output:
-                        self.handler._output = finalization_output
-                        self.handler._total_tokens = int(total_tokens or 0)
-                        self.handler._completion_tokens_used = int(
-                            completion_tokens_used or 0
-                        )
-                        return ToolBatchResult(
-                            response=finalization_response,
-                            tool_results=round_tool_results,
-                            total_tokens=total_tokens,
-                            completion_tokens_used=completion_tokens_used,
-                        )
-            budget_response = self.handler._build_text_round_response(
-                content=budget_output,
-                reasoning_content=reasoning_content or "",
-                total_tokens=starting_total_tokens,
-            )
-            return ToolBatchResult(
-                response=budget_response,
-                tool_results=round_tool_results,
-                total_tokens=starting_total_tokens,
-                completion_tokens_used=starting_completion_tokens,
-            )
-
-        follow_up_tools = self.handler.engine._apply_fetch_url_only_gate(
-            messages,
-            list(tools),
-            self.handler.prep.all_tools or list(tools),
-        )
-        follow_up_policy = current_policy
-        if [tool.name for tool in follow_up_tools] != list(
-            current_policy.allowed_tool_names or []
-        ):
-            follow_up_policy = ToolUsePolicy(
-                family=current_policy.family,
-                mode=current_policy.mode,
-                allowed_tool_names=[tool.name for tool in follow_up_tools],
-                retry_on_contract_breach=current_policy.retry_on_contract_breach,
-                reason=(
-                    f"{current_policy.reason}|round_tool_subset"
-                    if current_policy.reason
-                    else "round_tool_subset"
-                ),
-            )
-
-        follow_up_round = await self.call_llm(
-            messages=messages,
-            tools=follow_up_tools or None,
-            tool_use_policy=follow_up_policy,
-        )
-        normalized_response = follow_up_round.response
-        total_tokens = starting_total_tokens + int(follow_up_round.total_tokens or 0)
-        completion_tokens_used = starting_completion_tokens + int(
-            follow_up_round.completion_tokens_used or 0
-        )
-        self._sync_runtime_metadata(
-            getattr(normalized_response, "metadata", None)
-            if normalized_response is not None
-            else None
-        )
-        if getattr(normalized_response, "tool_calls", None) and follow_up_tools:
-            follow_up_batch = await self.handle_tool_calls(
-                response=normalized_response,
-                tools=follow_up_tools,
-                messages=messages,
-                tool_use_policy=follow_up_policy,
-                starting_total_tokens=total_tokens,
-                starting_completion_tokens=completion_tokens_used,
-            )
-            return ToolBatchResult(
-                response=follow_up_batch.response,
-                tool_results=round_tool_results + list(follow_up_batch.tool_results),
-                total_tokens=follow_up_batch.total_tokens,
-                completion_tokens_used=follow_up_batch.completion_tokens_used,
-            )
-        continuation_context = getattr(self.handler.prep, "continuation_context", None)
-        all_tools = list(self.handler.prep.all_tools or tools or [])
-        analyze_breach_fn = getattr(
-            self.handler.engine,
-            "_analyze_post_tool_contract_breach",
-            None,
-        )
-        breach_type: str | None = None
-        retry_policy: ToolUsePolicy | None = None
-        if normalized_response is not None and callable(analyze_breach_fn):
-            breach_type, retry_policy, _diagnostics = analyze_breach_fn(
-                messages=messages,
-                response=normalized_response,
-                current_policy=follow_up_policy,
-                tools=all_tools,
-                input_variables=getattr(request_proxy, "input_variables", None),
-            )
-            del _diagnostics
-        if retry_policy is None and follow_up_policy.retry_on_contract_breach:
-            should_retry, retry_policy, _breach_response_text = (
-                self.should_retry_tool_contract_breach(
-                    response=normalized_response,
-                    current_policy=follow_up_policy,
-                    tools=all_tools,
-                    input_variables=getattr(request_proxy, "input_variables", None),
-                )
-            )
-            if not should_retry:
-                should_retry, retry_policy, _breach_response_text = (
-                    self.should_retry_web_research_contract_breach(
-                        messages=messages,
-                        response=normalized_response,
-                        current_policy=follow_up_policy,
-                        tools=all_tools,
-                        input_variables=getattr(
-                            request_proxy,
-                            "input_variables",
-                            None,
-                        ),
-                        continuation=continuation_context,
-                    )
-                )
-            if should_retry and retry_policy is not None and not breach_type:
-                breach_type = retry_policy.reason or "contract_breach"
-            del _breach_response_text
-        if retry_policy is not None:
-            retry_breach_type = breach_type or retry_policy.reason or "contract_breach"
-            self.log_tool_contract_diagnostics(
-                agent=self.handler.agent,
-                messages=messages,
-                response=normalized_response,
-                tools=all_tools,
-                policy=retry_policy,
-                conversation_id=self.handler.request.conversation_id,
-                breach_type=retry_breach_type,
-                retry_result="retrying",
-                continuation=continuation_context,
-            )
-            retry_tools = self.restrict_tools_to_names(
-                all_tools,
-                retry_policy.allowed_tool_names,
-            )
-            effective_retry_policy = ToolUsePolicy(
-                family=retry_policy.family,
-                mode=retry_policy.mode,
-                allowed_tool_names=list(retry_policy.allowed_tool_names or []),
-                retry_on_contract_breach=False,
-                reason=retry_policy.reason,
-            )
-            retry_round = await self.call_llm(
-                messages=messages,
-                tools=retry_tools or None,
-                tool_use_policy=effective_retry_policy,
-                breach_retry_result="retry_follow_up",
-            )
-            normalized_response = retry_round.response
-            total_tokens += int(retry_round.total_tokens or 0)
-            completion_tokens_used += int(retry_round.completion_tokens_used or 0)
-            self._sync_runtime_metadata(
-                getattr(normalized_response, "metadata", None)
-                if normalized_response is not None
-                else None
-            )
-            if getattr(normalized_response, "tool_calls", None) and retry_tools:
-                retry_batch = await self.handle_tool_calls(
-                    response=normalized_response,
-                    tools=retry_tools,
-                    messages=messages,
-                    tool_use_policy=effective_retry_policy,
-                    starting_total_tokens=total_tokens,
-                    starting_completion_tokens=completion_tokens_used,
-                )
-                return ToolBatchResult(
-                    response=retry_batch.response,
-                    tool_results=round_tool_results + list(retry_batch.tool_results),
-                    total_tokens=retry_batch.total_tokens,
-                    completion_tokens_used=retry_batch.completion_tokens_used,
-                )
-            if normalized_response is not None and not getattr(
-                normalized_response,
-                "tool_calls",
-                None,
-            ):
-                retry_failed = True
-                if callable(analyze_breach_fn):
-                    next_breach_type, _next_retry_policy, _next_diagnostics = (
-                        analyze_breach_fn(
-                            messages=messages,
-                            response=normalized_response,
-                            current_policy=effective_retry_policy,
-                            tools=all_tools,
-                            input_variables=getattr(
-                                request_proxy,
-                                "input_variables",
-                                None,
-                            ),
-                        )
-                    )
-                    retry_failed = bool(next_breach_type or _next_retry_policy)
-                    del _next_retry_policy, _next_diagnostics
-                    if next_breach_type:
-                        retry_breach_type = next_breach_type
-                if retry_failed:
-                    self.log_tool_contract_diagnostics(
-                        agent=self.handler.agent,
-                        messages=messages,
-                        response=normalized_response,
-                        tools=all_tools,
-                        policy=effective_retry_policy,
-                        conversation_id=self.handler.request.conversation_id,
-                        breach_type=retry_breach_type,
-                        retry_result="failed",
-                        continuation=continuation_context,
-                    )
-        self.handler._total_tokens = int(total_tokens or 0)
-        self.handler._completion_tokens_used = int(completion_tokens_used or 0)
         return ToolBatchResult(
-            response=normalized_response,
+            response=None,
             tool_results=round_tool_results,
-            total_tokens=total_tokens,
-            completion_tokens_used=completion_tokens_used,
+            total_tokens=starting_total_tokens,
+            completion_tokens_used=starting_completion_tokens,
         )
 
     async def finalize_partial_output(
@@ -1034,20 +721,98 @@ class StreamExecutionHandler:
         在发送 `done` 事件前启动后台回调，避免前端收到完成事件后立即断开 SSE，
         导致消息持久化 / 统计 / 记忆提取回调被请求取消一并杀掉。
         """
-        if not self.on_complete or self._on_complete_called:
+        task = self._start_on_complete_task(
+            result,
+            defer_post_done=False,
+        )
+        if task is None:
             return
+
+    @staticmethod
+    def _pop_post_done_callback(
+        extra: dict[str, Any] | None,
+    ) -> Callable[[], Awaitable[None]] | None:
+        if not isinstance(extra, dict):
+            return None
+        callback = extra.pop("__post_done_callback__", None)
+        if callable(callback):
+            return callback
+        return None
+
+    def _schedule_background_callback(
+        self,
+        callback: Callable[[], Awaitable[None]],
+    ) -> None:
+        async def _runner() -> None:
+            try:
+                await callback()
+            except Exception as exc:
+                logger.error("post-done callback error: {}", str(exc), exc_info=True)
+            except BaseException as exc:
+                logger.error(
+                    "post-done callback base exception: type={} error={}",
+                    type(exc).__name__,
+                    str(exc),
+                    exc_info=True,
+                )
+
+        task = asyncio.create_task(_runner())
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+
+    def _start_on_complete_task(
+        self,
+        result: ExecutionResult,
+        *,
+        defer_post_done: bool,
+    ) -> asyncio.Task[dict[str, Any] | None] | None:
+        if not self.on_complete or self._on_complete_called:
+            return None
 
         self._on_complete_called = True
 
-        async def _runner() -> None:
+        def _record_after_turn_failure(exc: BaseException) -> None:
+            diagnostics = dict(getattr(result, "diagnostics", {}) or {})
+            diagnostics["after_turn_failed"] = True
+            diagnostics["after_turn_error"] = str(exc)
+            result.diagnostics = diagnostics
+            if isinstance(result.turn_record, dict):
+                metadata = dict(result.turn_record.get("metadata") or {})
+                metadata["after_turn_failed"] = True
+                metadata["after_turn_error"] = str(exc)
+                result.turn_record["metadata"] = metadata
+
+        async def _runner() -> dict[str, Any] | None:
             try:
                 if self.prep.context_engine is not None:
-                    await self.prep.context_engine.after_turn(
-                        self.agent,
-                        self.request,
-                        result,
-                    )
-                await self.on_complete(result)
+                    try:
+                        await self.prep.context_engine.after_turn(
+                            self.agent,
+                            self.request,
+                            result,
+                        )
+                    except Exception as ctx_exc:
+                        _record_after_turn_failure(ctx_exc)
+                        logger.error(
+                            "context_engine.after_turn error: conversation_id={} error={}",
+                            self.request.conversation_id,
+                            str(ctx_exc),
+                        )
+                    except BaseException as ctx_base_exc:
+                        _record_after_turn_failure(ctx_base_exc)
+                        logger.error(
+                            "context_engine.after_turn base exception: conversation_id={} type={} error={}",
+                            self.request.conversation_id,
+                            type(ctx_base_exc).__name__,
+                            str(ctx_base_exc),
+                            exc_info=True,
+                        )
+                extra = await self.on_complete(result)
+                if not defer_post_done:
+                    post_done_callback = self._pop_post_done_callback(extra)
+                    if post_done_callback is not None:
+                        await post_done_callback()
+                return extra if isinstance(extra, dict) else None
             except Exception as cb_exc:
                 logger.error("on_complete callback error: {}", str(cb_exc))
             except BaseException as cb_base_exc:
@@ -1057,10 +822,24 @@ class StreamExecutionHandler:
                     str(cb_base_exc),
                     exc_info=True,
                 )
+            return None
 
         task = asyncio.create_task(_runner())
         self._background_tasks.add(task)
         task.add_done_callback(self._background_tasks.discard)
+        return task
+
+    async def _await_on_complete_before_done(
+        self,
+        result: ExecutionResult,
+    ) -> dict[str, Any] | None:
+        task = self._start_on_complete_task(
+            result,
+            defer_post_done=True,
+        )
+        if task is None:
+            return None
+        return await asyncio.shield(task)
 
     def _ensure_runtime_turn_record(self) -> dict[str, Any]:
         if not isinstance(self._runtime_turn_record, dict):
@@ -1143,12 +922,32 @@ class StreamExecutionHandler:
         tool_results: list[ToolResult],
     ) -> str:
         locale = resolve_page_locale(getattr(self.request, "input_variables", None))
-        key = (
-            "ai.stream.partial.tool_budget_after_success"
-            if any(result.success for result in tool_results)
-            else "ai.stream.partial.budget_exit"
-        )
-        return _(key, locale=locale)
+        _ = tool_results
+        return _("ai.stream.partial.budget_exit", locale=locale)
+
+    def _resolved_protocol_path(
+        self,
+        *,
+        diagnostics_payload: dict[str, Any] | None = None,
+        turn_record: dict[str, Any] | None = None,
+        response_metadata: dict[str, Any] | None = None,
+    ) -> str:
+        candidates = [
+            (diagnostics_payload or {}).get("protocol_path"),
+            (turn_record or {}).get("protocol_path"),
+            (response_metadata or {}).get("protocol_path"),
+            (self._runtime_turn_record or {}).get("protocol_path")
+            if isinstance(self._runtime_turn_record, dict)
+            else None,
+            (self._runtime_model_info or {}).get("wire_api")
+            if isinstance(self._runtime_model_info, dict)
+            else None,
+        ]
+        for candidate in candidates:
+            value = str(candidate or "").strip()
+            if value:
+                return value
+        return "chat_completions"
 
     async def _run_with_turn_executor(self):
         """Run the shared TurnExecutor with streaming transport hooks."""
@@ -1374,6 +1173,16 @@ class StreamExecutionHandler:
 
             tool_planner = getattr(self.prep, "tool_planner", None)
             diagnostics_payload = self._state.build_diagnostics_payload()
+            result_turn_record = (
+                dict(self._runtime_turn_record)
+                if isinstance(self._runtime_turn_record, dict)
+                else {}
+            )
+            resolved_protocol_path = self._resolved_protocol_path(
+                diagnostics_payload=diagnostics_payload,
+                turn_record=result_turn_record,
+                response_metadata=response_metadata,
+            )
 
             result = ExecutionResult(
                 success=not partial,
@@ -1398,7 +1207,7 @@ class StreamExecutionHandler:
                 memory_recalled=self.prep.memory_recalled,
                 prune_stats=self.prep.prune_stats,
                 tool_planner=tool_planner,
-                turn_record=self._runtime_turn_record,
+                turn_record=result_turn_record,
                 intent_plan=list(self._state.intent_plan),
                 execution_path=getattr(self.prep, "execution_path", None),
                 execution_budget=(
@@ -1425,6 +1234,12 @@ class StreamExecutionHandler:
                     "execution_path",
                     None,
                 )
+                result.turn_record["protocol_path"] = resolved_protocol_path
+                result.turn_record["termination_reason"] = completion_reason
+                if partial:
+                    result.turn_record["turn_outcome"] = "partial"
+                elif not result.turn_record.get("turn_outcome"):
+                    result.turn_record["turn_outcome"] = "success"
                 result.turn_record["intent_plan"] = diagnostics_payload.get(
                     "intent_plan",
                 )
@@ -1466,14 +1281,15 @@ class StreamExecutionHandler:
                         }
                     )
 
-            # Start callback before yielding done so client-side disconnect
-            # cannot prevent persistence from even starting.
-            # 在发送 done 之前启动后台回调，确保客户端断开不会阻止持久化开始。
-            self._schedule_on_complete(result)
+            # Await critical completion work before `done` so the conversation
+            # detail view never races an empty shell against the just-finished stream.
+            # 在发送 done 前等待关键持久化完成，避免详情页短暂看到空会话。
+            on_complete_extra = await self._await_on_complete_before_done(result)
+            post_done_callback = self._pop_post_done_callback(on_complete_extra)
+            if post_done_callback is not None:
+                self._schedule_background_callback(post_done_callback)
 
-            # ---- Send done first so UI unlocks immediately ---- / 先发送 done 以便前端立即解锁
-            # on_complete may trigger slow operations (e.g. memory extraction LLM call);
-            # emitting done before the callback prevents the UI from hanging.
+            # ---- Send done after critical persistence ---- / 关键持久化后再发送 done
             yield SSEChunkEncoder.encode(
                 _trace_payload(
                     {
@@ -1486,6 +1302,37 @@ class StreamExecutionHandler:
                         "memory_recalled": result.memory_recalled,
                         "prune_stats": result.prune_stats,
                         "rag_source_kinds": result.rag_source_kinds,
+                        "turn_record": result.turn_record or diagnostics_payload,
+                        "turn_outcome": (
+                            (
+                                diagnostics_payload.get("turn_outcome")
+                                if isinstance(diagnostics_payload, dict)
+                                and diagnostics_payload.get("turn_outcome")
+                                else (
+                                    (result.turn_record or {}).get("turn_outcome")
+                                    if isinstance(result.turn_record, dict)
+                                    else None
+                                )
+                            )
+                        ),
+                        "termination_reason": result.completion_reason,
+                        "protocol_path": resolved_protocol_path,
+                        "selected_tool_names": (
+                            diagnostics_payload.get("selected_tool_names")
+                            if isinstance(diagnostics_payload, dict)
+                            else None
+                        ),
+                        "selected_skill_names": (
+                            diagnostics_payload.get("selected_skill_names")
+                            if isinstance(diagnostics_payload, dict)
+                            else None
+                        ),
+                        "context_sources": (
+                            diagnostics_payload.get("context_sources")
+                            if isinstance(diagnostics_payload, dict)
+                            else None
+                        ),
+                        **(on_complete_extra or {}),
                     }
                 )
             )
@@ -1513,7 +1360,6 @@ class StreamExecutionHandler:
                         extra={"conversation_id": self.request.conversation_id},
                     )
                 )
-                yield SSEChunkEncoder.done()
             except Exception as yield_exc:
                 logger.debug(
                     "stream_handler error yield skipped (client disconnected?): {}",
@@ -1575,7 +1421,20 @@ class StreamExecutionHandler:
                     tool_planner=tool_planner,
                     turn_record=self._runtime_turn_record,
                 )
-                self._schedule_on_complete(failed_result)
+                on_complete_extra = await self._await_on_complete_before_done(
+                    failed_result
+                )
+                post_done_callback = self._pop_post_done_callback(on_complete_extra)
+                if post_done_callback is not None:
+                    self._schedule_background_callback(post_done_callback)
+
+            try:
+                yield SSEChunkEncoder.done()
+            except Exception as yield_done_exc:
+                logger.debug(
+                    "stream_handler done yield skipped (client disconnected?): {}",
+                    yield_done_exc,
+                )
 
         except BaseException as exc:
             if executor_task is not None and not executor_task.done():
