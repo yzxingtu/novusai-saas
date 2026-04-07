@@ -346,11 +346,15 @@ interface SearchResultItem {
 }
 
 interface SearchSummary {
+  fallbackReason?: string;
   failureReason?: string;
   items: SearchResultItem[];
   provider?: string;
+  providerChain?: string[];
   resultCount: number;
+  selectedBackend?: string;
   status?: string;
+  nativeFailureKind?: string;
 }
 
 interface ToolDisplayItem {
@@ -602,6 +606,13 @@ function toSearchResultItems(value: unknown): SearchResultItem[] {
   return items;
 }
 
+function toStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => (typeof item === 'string' ? item.trim() : ''))
+    .filter((item) => item.length > 0);
+}
+
 function getSearchSummary(
   tc: Pick<NonNullable<ChatMessage['toolCalls']>[number], 'summaryPayload'>,
 ): null | SearchSummary {
@@ -620,23 +631,69 @@ function getSearchSummary(
     typeof summaryPayload.failure_reason === 'string'
       ? summaryPayload.failure_reason.trim()
       : '';
+  const fallbackReason =
+    typeof summaryPayload.fallback_reason === 'string'
+      ? summaryPayload.fallback_reason.trim()
+      : '';
+  const selectedBackend =
+    typeof summaryPayload.selected_backend === 'string'
+      ? summaryPayload.selected_backend.trim()
+      : '';
+  const nativeFailureKind =
+    typeof summaryPayload.native_failure_kind === 'string'
+      ? summaryPayload.native_failure_kind.trim()
+      : '';
+  const providerChain = toStringList(summaryPayload.provider_chain);
   const items = toSearchResultItems(summaryPayload.items);
   const resultCount =
     typeof summaryPayload.result_count === 'number'
       ? summaryPayload.result_count
       : items.length;
 
-  if (!provider && !status && !failureReason && items.length === 0) {
+  if (
+    !provider &&
+    !status &&
+    !failureReason &&
+    !fallbackReason &&
+    !selectedBackend &&
+    !nativeFailureKind &&
+    providerChain.length === 0 &&
+    items.length === 0
+  ) {
     return null;
   }
 
   return {
+    fallbackReason: fallbackReason || undefined,
     provider: provider || undefined,
+    providerChain: providerChain.length > 0 ? providerChain : undefined,
     status: status || undefined,
     resultCount,
     items,
     failureReason: failureReason || undefined,
+    selectedBackend: selectedBackend || undefined,
+    nativeFailureKind: nativeFailureKind || undefined,
   };
+}
+
+function getSearchFallbackNotice(summary: SearchSummary): null | string {
+  const fallbackReason = summary.fallbackReason ?? '';
+  if (!fallbackReason) {
+    return null;
+  }
+  if (
+    fallbackReason.includes('default_verified_target_unavailable') ||
+    fallbackReason.includes('untrusted_openai_compatible_runtime_target')
+  ) {
+    return $t('common.globalAiChat.toolSearchFallbackNeedVerifiedNativeTarget');
+  }
+  if (
+    summary.nativeFailureKind === 'unsupported' &&
+    summary.selectedBackend?.startsWith('public:')
+  ) {
+    return $t('common.globalAiChat.toolSearchFallbackNativeUnsupported');
+  }
+  return null;
 }
 
 function getSearchProviderLabel(provider?: string) {
@@ -1758,6 +1815,66 @@ watch(
                               <span>
                                 {{ toolItem.searchSummary.resultCount }}
                               </span>
+                            </div>
+                            <div
+                              v-if="
+                                getSearchFallbackNotice(
+                                  toolItem.searchSummary,
+                                )
+                              "
+                              class="mt-1 rounded border border-amber-500/20 bg-amber-500/10 px-1.5 py-1 text-[10px] text-amber-700 dark:text-amber-200"
+                            >
+                              {{
+                                getSearchFallbackNotice(
+                                  toolItem.searchSummary,
+                                )
+                              }}
+                            </div>
+                            <div
+                              v-if="
+                                toolItem.searchSummary.selectedBackend ||
+                                toolItem.searchSummary.fallbackReason ||
+                                toolItem.searchSummary.nativeFailureKind ||
+                                toolItem.searchSummary.providerChain?.length
+                              "
+                              class="mt-1 space-y-0.5 text-[10px] text-muted-foreground"
+                            >
+                              <div v-if="toolItem.searchSummary.selectedBackend">
+                                <span class="font-medium">{{
+                                  $t('common.globalAiChat.toolSearchBackend')
+                                }}</span>
+                                <code class="ml-1 break-all">{{
+                                  toolItem.searchSummary.selectedBackend
+                                }}</code>
+                              </div>
+                              <div
+                                v-if="toolItem.searchSummary.providerChain?.length"
+                              >
+                                <span class="font-medium">{{
+                                  $t('common.globalAiChat.toolSearchProviderChain')
+                                }}</span>
+                                <code class="ml-1 break-all">{{
+                                  toolItem.searchSummary.providerChain.join(' -> ')
+                                }}</code>
+                              </div>
+                              <div
+                                v-if="toolItem.searchSummary.nativeFailureKind"
+                              >
+                                <span class="font-medium">{{
+                                  $t('common.globalAiChat.toolSearchNativeFailure')
+                                }}</span>
+                                <code class="ml-1 break-all">{{
+                                  toolItem.searchSummary.nativeFailureKind
+                                }}</code>
+                              </div>
+                              <div v-if="toolItem.searchSummary.fallbackReason">
+                                <span class="font-medium">{{
+                                  $t('common.globalAiChat.toolSearchFallbackReason')
+                                }}</span>
+                                <code class="ml-1 break-all">{{
+                                  toolItem.searchSummary.fallbackReason
+                                }}</code>
+                              </div>
                             </div>
                             <div
                               v-if="toolItem.searchSummary.failureReason"

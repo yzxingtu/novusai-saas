@@ -73,6 +73,13 @@ def _parse_sse_payload(raw: str) -> dict:
 
 
 class _FakeSandbox:
+    def __init__(self) -> None:
+        self.runtime_model_info: dict | None = None
+        self.executed_runtime_model_info: dict | None = None
+
+    def set_runtime_model_info(self, runtime_model_info: dict | None) -> None:
+        self.runtime_model_info = dict(runtime_model_info or {})
+
     async def execute(
         self,
         tool_call_id: str,
@@ -82,6 +89,7 @@ class _FakeSandbox:
         conversation_id: int,
     ) -> ToolResult:
         _ = arguments, definitions, conversation_id
+        self.executed_runtime_model_info = dict(self.runtime_model_info or {})
         return ToolResult(
             tool_call_id=tool_call_id,
             name=name,
@@ -308,6 +316,17 @@ class _FakeEngine:
         return BaseEngine._apply_fetch_url_only_gate(messages, tools, all_tools)
 
 
+class _RecordingStreamEngine(_FakeEngine):
+    def __init__(self, rounds: list[list[ChatChunk]]) -> None:
+        super().__init__(rounds=rounds)
+        self.stream_call_kwargs: list[dict[str, object]] = []
+
+    async def _stream_llm_chunks(self, **kwargs):
+        self.stream_call_kwargs.append(dict(kwargs))
+        async for chunk in super()._stream_llm_chunks(**kwargs):
+            yield chunk
+
+
 class _BrokenStreamEngine(_FakeEngine):
     async def _stream_llm_chunks(self, **kwargs):
         _ = kwargs
@@ -401,6 +420,61 @@ def _build_handler(
     )
 
 
+@pytest.mark.asyncio
+async def test_stream_handler_syncs_runtime_model_info_to_sandbox_before_tool_calls() -> None:
+    runtime_model_info = {
+        "provider_id": 11,
+        "provider_name": "OpenAI",
+        "model_id": 22,
+        "model_name": "GPT-5.4",
+        "model_code": "gpt-5.4",
+    }
+    engine = _FakeEngine(
+        rounds=[
+            [
+                ChatChunk(
+                    delta="",
+                    tool_calls=[
+                        {
+                            "id": "call_search_1",
+                            "type": "function",
+                            "function": {
+                                "name": "web_search",
+                                "arguments": '{"query":"runtime v2 rollout","max_results":5}',
+                            },
+                        }
+                    ],
+                    finish_reason="tool_calls",
+                    total_tokens=12,
+                    metadata={"runtime_model_info": runtime_model_info},
+                )
+            ],
+            [
+                ChatChunk(
+                    delta="done",
+                    finish_reason="stop",
+                    total_tokens=18,
+                    metadata={"runtime_model_info": runtime_model_info},
+                )
+            ],
+        ]
+    )
+    handler = _build_handler(
+        engine,
+        tools=[ToolDefinition(name="web_search", description="Search the web")],
+        tool_use_policy=ToolUsePolicy(
+            family="web_research",
+            mode="required",
+            allowed_tool_names=["web_search"],
+        ),
+    )
+
+    async for _raw in handler.generate():
+        pass
+
+    assert engine.sandbox.executed_runtime_model_info == runtime_model_info
+
+
 def _build_pending_intent(
     *,
     allowed_tool_names: list[str],
@@ -483,6 +557,94 @@ async def test_stream_handler_done_and_on_complete_when_llm_stream_stops_at_fini
 
 
 @pytest.mark.asyncio
+async def test_stream_handler_done_event_merges_on_complete_extra_fields() -> None:
+    async def on_complete(_result) -> dict[str, object]:
+        await asyncio.sleep(0)
+        return {
+            "memory_updated": True,
+            "persistence_committed": True,
+        }
+
+    engine = _FakeEngine(
+        rounds=[
+            [
+                ChatChunk(delta="part", finish_reason="stop", total_tokens=9),
+            ],
+        ],
+    )
+    handler = _build_handler(engine)
+    handler.on_complete = on_complete
+
+    events: list[dict] = []
+    async for raw in handler.generate():
+        if raw.strip().startswith("data: {"):
+            events.append(_parse_sse_payload(raw))
+
+    done_event = next(event for event in events if event.get("event") == "done")
+    assert done_event["memory_updated"] is True
+    assert done_event["persistence_committed"] is True
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_waits_for_on_complete_before_done() -> None:
+    started = asyncio.Event()
+    release = asyncio.Event()
+    events: list[dict] = []
+
+    async def on_complete(_result) -> None:
+        started.set()
+        await release.wait()
+
+    async def _collect(handler: StreamExecutionHandler) -> None:
+        async for raw in handler.generate():
+            if raw.strip().startswith("data: {"):
+                events.append(_parse_sse_payload(raw))
+
+    engine = _FakeEngine(
+        rounds=[[ChatChunk(delta="完成", finish_reason="stop", total_tokens=3)]],
+    )
+    handler = _build_handler(engine)
+    handler.on_complete = on_complete
+
+    task = asyncio.create_task(_collect(handler))
+
+    await asyncio.wait_for(started.wait(), timeout=1)
+    await asyncio.sleep(0.05)
+    assert not any(event.get("event") == "done" for event in events)
+
+    release.set()
+    await asyncio.wait_for(task, timeout=1)
+
+    assert any(event.get("event") == "done" for event in events)
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_done_event_includes_turn_record_fields() -> None:
+    engine = _FakeEngine(
+        rounds=[
+            [
+                ChatChunk(
+                    delta="你好，我已经处理好了。",
+                    finish_reason="stop",
+                    total_tokens=12,
+                )
+            ],
+        ],
+    )
+    handler = _build_handler(engine)
+
+    events: list[dict] = []
+    async for raw in handler.generate():
+        if raw.strip().startswith("data: {"):
+            events.append(_parse_sse_payload(raw))
+
+    done_event = next(event for event in events if event.get("event") == "done")
+    assert isinstance(done_event.get("turn_record"), dict)
+    assert done_event.get("termination_reason") == "completed"
+    assert done_event.get("protocol_path") in {"chat_completions", "responses"}
+
+
+@pytest.mark.asyncio
 async def test_stream_handler_budget_exit_after_tool_round_still_emits_final_message():
     """预算退出在工具轮后仍要保留最终 assistant 文本输出。"""
     engine = _FakeEngine(
@@ -525,8 +687,8 @@ async def test_stream_handler_budget_exit_after_tool_round_still_emits_final_mes
 
 
 @pytest.mark.asyncio
-async def test_stream_handler_budget_exit_after_successful_tool_adds_fallback_reply():
-    """工具已成功执行但预算提前退出时，仍应补一条最终 assistant 回复。"""
+async def test_stream_handler_budget_exit_after_successful_tool_uses_generic_partial_reply():
+    """工具已成功执行但预算提前退出时，仅保留普通 partial 提示。"""
     from app.ai.engine.types import ExecutionResult
 
     captured: list[ExecutionResult] = []
@@ -578,8 +740,8 @@ async def test_stream_handler_budget_exit_after_successful_tool_adds_fallback_re
         event.get("delta", "") for event in events if event.get("event") == "message"
     )
     await asyncio.sleep(0)
-    assert "工具执行" in message_text
-    assert "执行预算" in message_text
+    assert "整理最终答复前超时了" in message_text
+    assert "可以继续处理" in message_text
     assert len(captured) == 1
     persisted_assistants = [
         message
@@ -587,7 +749,8 @@ async def test_stream_handler_budget_exit_after_successful_tool_adds_fallback_re
         if message.get("role") == "assistant" and (message.get("content") or "").strip()
     ]
     assert any(
-        "执行预算" in (message.get("content") or "") for message in persisted_assistants
+        "整理最终答复前超时了" in (message.get("content") or "")
+        for message in persisted_assistants
     )
 
 
@@ -628,6 +791,37 @@ async def test_stream_handler_disconnect_after_done_still_runs_on_complete():
     assert len(captured) == 1
     assert captured[0].success is True
     assert captured[0].output == "完成"
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_after_turn_failure_does_not_block_on_complete():
+    from app.ai.engine.types import ExecutionResult
+
+    captured: list[ExecutionResult] = []
+    completed = asyncio.Event()
+
+    async def on_complete(result: ExecutionResult) -> None:
+        captured.append(result)
+        completed.set()
+
+    engine = _FakeEngine(
+        rounds=[[ChatChunk(delta="完成", finish_reason="stop", total_tokens=3)]],
+    )
+    handler = _build_handler(engine)
+    handler.on_complete = on_complete
+    handler.prep.context_engine = SimpleNamespace(
+        after_turn=AsyncMock(side_effect=RuntimeError("after turn boom"))
+    )
+
+    async for _ in handler.generate():
+        pass
+
+    await asyncio.wait_for(completed.wait(), timeout=1)
+
+    assert len(captured) == 1
+    assert captured[0].output == "完成"
+    assert captured[0].diagnostics["after_turn_failed"] is True
+    assert captured[0].diagnostics["after_turn_error"] == "after turn boom"
 
 
 @pytest.mark.asyncio
@@ -791,7 +985,7 @@ async def test_stream_handler_tool_rounds_keep_real_stream_and_final_answer():
 
 
 @pytest.mark.asyncio
-async def test_stream_handler_retries_summary_without_fetch_before_emitting_message():
+async def test_stream_handler_does_not_recursively_contract_retry_summary_without_fetch():
     engine = _FakeEngine(
         rounds=[
             [
@@ -878,19 +1072,19 @@ async def test_stream_handler_retries_summary_without_fetch_before_emitting_mess
         if raw.strip().startswith("data: {"):
             events.append(_parse_sse_payload(raw))
 
-    _assert_retry_clear_sequence(
-        events,
-        leaked_text="Here is a summary based only on the search snippets",
-        final_text="Based on the fetched page body.",
+    message_text = "".join(
+        event.get("delta", "") for event in events if event.get("event") == "message"
     )
-    assert any(
+    assert "Here is a summary based only on the search snippets" in message_text
+    assert not any(event.get("event") == "clear_content" for event in events)
+    assert not any(
         event.get("event") == "tool_start" and event.get("name") == "fetch_url"
         for event in events
     )
 
 
 @pytest.mark.asyncio
-async def test_stream_handler_retries_leaked_textual_tool_output_after_partial_results():
+async def test_stream_handler_does_not_recursively_contract_retry_after_partial_results():
     engine = _FakeEngine(
         rounds=[
             [
@@ -991,24 +1185,19 @@ async def test_stream_handler_retries_leaked_textual_tool_output_after_partial_r
         if raw.strip().startswith("data: {"):
             events.append(_parse_sse_payload(raw))
 
-    _assert_retry_clear_sequence(
-        events,
-        leaked_text="Search results for: 12306",
-        final_text="今天天气可参考中国气象局页面",
+    message_text = "".join(
+        event.get("delta", "") for event in events if event.get("event") == "message"
     )
-    assert any(
-        event.get("event") == "message"
-        and "admin.dashboard" in str(event.get("delta", ""))
-        for event in events
-    )
-    assert any(
+    assert "Search results for: 12306 北京 高铁票 查询 2026-04-03" in message_text
+    assert not any(event.get("event") == "clear_content" for event in events)
+    assert not any(
         event.get("event") == "tool_start" and event.get("name") == "fetch_url"
         for event in events
     )
 
 
 @pytest.mark.asyncio
-async def test_stream_handler_forces_retry_for_unfinished_multi_intent_after_page_first_round():
+async def test_stream_handler_does_not_recursively_contract_retry_page_first_round():
     engine = _FakeEngine(
         rounds=[
             [
@@ -1122,24 +1311,24 @@ async def test_stream_handler_forces_retry_for_unfinished_multi_intent_after_pag
         if raw.strip().startswith("data: {"):
             events.append(_parse_sse_payload(raw))
 
-    _assert_retry_clear_sequence(
-        events,
-        leaked_text="我先给你一个当前可用信息的汇总",
-        final_text="高铁网等可读候选来源",
+    message_text = "".join(
+        event.get("delta", "") for event in events if event.get("event") == "message"
     )
+    assert "我先给你一个当前可用信息的汇总" in message_text
+    assert not any(event.get("event") == "clear_content" for event in events)
     assert any(
         event.get("event") == "message"
-        and "admin.ai.agents" in str(event.get("delta", ""))
+        and "AI 智能体管理页" in str(event.get("delta", ""))
         for event in events
     )
-    assert any(
+    assert not any(
         event.get("event") == "tool_start" and event.get("name") == "fetch_url"
         for event in events
     )
 
 
 @pytest.mark.asyncio
-async def test_stream_handler_retries_summary_without_fetch_for_page_first_web_request():
+async def test_stream_handler_does_not_recursively_contract_retry_page_first_web_request():
     engine = _FakeEngine(
         rounds=[
             [
@@ -1249,15 +1438,92 @@ async def test_stream_handler_retries_summary_without_fetch_for_page_first_web_r
         if raw.strip().startswith("data: {"):
             events.append(_parse_sse_payload(raw))
 
-    _assert_retry_clear_sequence(
-        events,
-        leaked_text="我先给你整理目前能确认的三部分信息",
-        final_text="真实候选页面",
+    message_text = "".join(
+        event.get("delta", "") for event in events if event.get("event") == "message"
     )
-    assert any(
+    assert "我先给你整理目前能确认的三部分信息" in message_text
+    assert not any(event.get("event") == "clear_content" for event in events)
+    assert not any(
         event.get("event") == "tool_start" and event.get("name") == "fetch_url"
         for event in events
     )
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_marks_normal_follow_up_round_without_recursive_contract_retry():
+    captured = []
+    completed = asyncio.Event()
+
+    async def on_complete(result) -> None:
+        captured.append(result)
+        completed.set()
+
+    engine = _RecordingStreamEngine(
+        rounds=[
+            [
+                ChatChunk(
+                    delta="",
+                    tool_calls=[
+                        {
+                            "id": "call_search",
+                            "type": "function",
+                            "function": {
+                                "name": "web_search",
+                                "arguments": '{"query":"runtime v2 rollout","max_results":5}',
+                            },
+                        }
+                    ],
+                    finish_reason="tool_calls",
+                    total_tokens=10,
+                )
+            ],
+            [
+                ChatChunk(
+                    delta="这里只基于搜索摘要做一个简单总结。",
+                    finish_reason="stop",
+                    total_tokens=14,
+                )
+            ],
+        ]
+    )
+    handler = _build_handler(
+        engine,
+        tools=[
+            ToolDefinition(name="web_search", description="Search the web"),
+            ToolDefinition(name="fetch_url", description="Fetch url"),
+        ],
+        tool_use_policy=ToolUsePolicy(
+            family="web_research",
+            mode="required",
+            allowed_tool_names=["web_search", "fetch_url"],
+            retry_on_contract_breach=True,
+            reason="explicit_web_request",
+        ),
+    )
+    handler.on_complete = on_complete
+
+    events: list[dict] = []
+    async for raw in handler.generate():
+        if raw.strip().startswith("data: {"):
+            events.append(_parse_sse_payload(raw))
+
+    await asyncio.wait_for(completed.wait(), timeout=1)
+
+    assert len(engine.stream_call_kwargs) == 2
+    assert engine.stream_call_kwargs[1].get("breach_retry_result") == (
+        "normal_follow_up_round"
+    )
+    assert not any(
+        call.get("breach_retry_result") == "contract_retry"
+        for call in engine.stream_call_kwargs
+    )
+    assert captured
+    assert any(
+        event.kind == "turn.round_started"
+        and event.data.get("round_kind") == "normal_follow_up_round"
+        for event in handler._state.turn_events
+    )
+    assert not any(event.get("event") == "clear_content" for event in events)
 
 
 @pytest.mark.asyncio
@@ -1940,3 +2206,43 @@ async def test_interrupted_calls_on_complete_with_partial_result():
     assert r.output == "部"
     # Should have messages (prep.messages passed through)
     assert r.messages is not None
+
+
+@pytest.mark.asyncio
+async def test_done_waits_for_on_complete_and_merges_callback_extra():
+    order: list[str] = []
+
+    async def on_complete(_result) -> dict[str, object]:
+        order.append("on_complete_start")
+        await asyncio.sleep(0)
+        order.append("on_complete_done")
+        return {
+            "persistence_committed": True,
+            "persisted_message_count": 2,
+        }
+
+    engine = _FakeEngine(
+        call_llm_responses=[
+            ChatResponse(
+                message=ChatMessage(role="assistant", content="完成"),
+                tool_calls=None,
+                total_tokens=20,
+            ),
+        ],
+    )
+    handler = _build_handler(engine)
+    handler.on_complete = on_complete
+
+    done_payload: dict | None = None
+    async for raw in handler.generate():
+        if not raw.strip().startswith("data: {"):
+            continue
+        payload = _parse_sse_payload(raw)
+        if payload.get("event") == "done":
+            order.append("done")
+            done_payload = payload
+
+    assert order == ["on_complete_start", "on_complete_done", "done"]
+    assert done_payload is not None
+    assert done_payload.get("persistence_committed") is True
+    assert done_payload.get("persisted_message_count") == 2

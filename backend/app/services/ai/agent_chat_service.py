@@ -1676,6 +1676,123 @@ class AgentChatService:
             last_run_summary_payload: dict[str, Any] = {}
             system_count = 0
             error_message_persisted = False
+            tail_result = result
+
+            async def _run_stream_post_persist_tail(
+                final_result: ExecutionResult,
+            ) -> None:
+                try:
+                    try:
+                        await AgentStatsManager.record_chat(
+                            tenant_id=self.tenant_id,
+                            agent_id=agent_id,
+                            tokens=final_result.total_tokens,
+                        )
+                    except Exception as stats_exc:
+                        logger.warning(
+                            "Record agent stats failed: tenant={} agent={} conversation={} err={}",
+                            self.tenant_id,
+                            agent_id,
+                            conversation.id,
+                            str(stats_exc),
+                        )
+
+                    try:
+                        memory_delta = await self._persist_session_memory(
+                            request=request,
+                            message=message,
+                            response=final_result.output or "",
+                            event_id=memory_event_id,
+                        )
+                        if memory_delta:
+                            async with async_session_factory() as mem_db:
+                                try:
+                                    mem_conv_svc = ConversationService(
+                                        mem_db,
+                                        self.tenant_id,
+                                    )
+                                    await mem_conv_svc.mark_memory_updated(
+                                        conversation.id,
+                                    )
+                                    await mem_db.commit()
+                                except Exception:
+                                    await mem_db.rollback()
+                                    raise
+                            extra["memory_updated"] = True
+                    except Exception as mem_exc:
+                        logger.warning(
+                            "Persist stream session memory failed: tenant={} conversation={} err={}",
+                            self.tenant_id,
+                            conversation.id,
+                            str(mem_exc),
+                        )
+
+                    actual_tokens = final_result.total_tokens or 0
+                    await AgentQuotaManager.adjust_usage(
+                        tenant_id=self.tenant_id,
+                        agent_id=agent_id,
+                        estimated_tokens=estimated_tokens,
+                        actual_tokens=actual_tokens,
+                        config=quota_config,
+                    )
+
+                    if user_id and actual_tokens > 0:
+                        await AgentQuotaManager.record_user_usage(
+                            tenant_id=self.tenant_id,
+                            agent_id=agent_id,
+                            user_id=user_id,
+                            tokens=actual_tokens,
+                        )
+
+                    if hook_registry.has_hooks(HookPoint.AFTER_AGENT_CHAT):
+                        hook_ctx = await hook_registry.trigger(
+                            HookPoint.AFTER_AGENT_CHAT,
+                            tenant_id=self.tenant_id,
+                            agent_id=agent_id,
+                            response=final_result.output,
+                            total_tokens=final_result.total_tokens,
+                        )
+                        if (
+                            "response" in hook_ctx
+                            and hook_ctx["response"] != final_result.output
+                        ):
+                            final_result.output = hook_ctx["response"]
+
+                    await hook_registry.trigger(
+                        HookPoint.AFTER_EXECUTE,
+                        tenant_id=self.tenant_id,
+                        agent_id=agent_id,
+                        result=final_result,
+                    )
+
+                    if final_result.success:
+                        await BaseEngine._publish_execution_completed(
+                            request,
+                            agent,
+                            final_result,
+                        )
+                    else:
+                        await BaseEngine._publish_execution_failed(
+                            request,
+                            agent,
+                            final_result.error or "",
+                        )
+                except Exception as tail_exc:
+                    logger.error(
+                        "Stream post-persist tail failed: tenant={} conversation={} err={}",
+                        self.tenant_id,
+                        conversation.id,
+                        str(tail_exc),
+                        exc_info=True,
+                    )
+                finally:
+                    if lock_token:
+                        await AgentConcurrencyLimiter.release(
+                            tenant_id=self.tenant_id,
+                            agent_id=agent_id,
+                            lock_token=lock_token,
+                        )
+
             try:
                 context_diagnostics_payload = self._build_context_diagnostics(
                     result,
@@ -1795,52 +1912,6 @@ class AgentChatService:
                                 )
                         persisted_message_count = max(persisted_message_count, 1)
 
-                    try:
-                        await AgentStatsManager.record_chat(
-                            tenant_id=self.tenant_id,
-                            agent_id=agent_id,
-                            tokens=result.total_tokens,
-                        )
-                    except Exception as stats_exc:
-                        logger.warning(
-                            "Record agent stats failed: tenant={} agent={} conversation={} err={}",
-                            self.tenant_id,
-                            agent_id,
-                            conversation.id,
-                            str(stats_exc),
-                        )
-
-                    # Write session memory after stream / 流式完成后写入会话记忆
-                    try:
-                        memory_delta = await self._persist_session_memory(
-                            request=request,
-                            message=message,
-                            response=result.output or "",
-                            event_id=memory_event_id,
-                        )
-                        if memory_delta:
-                            extra["memory_updated"] = True
-                            async with async_session_factory() as mem_db:
-                                try:
-                                    mem_conv_svc = ConversationService(
-                                        mem_db,
-                                        self.tenant_id,
-                                    )
-                                    await mem_conv_svc.mark_memory_updated(
-                                        conversation.id,
-                                    )
-                                    await mem_db.commit()
-                                except Exception:
-                                    await mem_db.rollback()
-                                    raise
-                    except Exception as mem_exc:
-                        logger.warning(
-                            "Persist stream session memory failed: tenant={} conversation={} err={}",
-                            self.tenant_id,
-                            conversation.id,
-                            str(mem_exc),
-                        )
-
                 # Save error if failed and no assistant persisted / 失败且无 assistant 落库时写入错误
                 # Count user messages in new slice / 统计新片段中 user 条数
                 new_start = system_count + history_count
@@ -1873,59 +1944,8 @@ class AgentChatService:
                         conversation.id,
                         result.error or "Unknown error",
                     )
-
-                # Adjust quota from estimate to actual (match dispatcher) / 配额从预估调整为实际
-                actual_tokens = result.total_tokens or 0
-                await AgentQuotaManager.adjust_usage(
-                    tenant_id=self.tenant_id,
-                    agent_id=agent_id,
-                    estimated_tokens=estimated_tokens,
-                    actual_tokens=actual_tokens,
-                    config=quota_config,
-                )
-
-                # User-level usage record / 用户级用量记录
-                if user_id and actual_tokens > 0:
-                    await AgentQuotaManager.record_user_usage(
-                        tenant_id=self.tenant_id,
-                        agent_id=agent_id,
-                        user_id=user_id,
-                        tokens=actual_tokens,
-                    )
-
-                # AFTER_AGENT_CHAT hook (plugins may alter response) / AFTER_AGENT_CHAT 钩子
-                if hook_registry.has_hooks(HookPoint.AFTER_AGENT_CHAT):
-                    hook_ctx = await hook_registry.trigger(
-                        HookPoint.AFTER_AGENT_CHAT,
-                        tenant_id=self.tenant_id,
-                        agent_id=agent_id,
-                        response=result.output,
-                        total_tokens=result.total_tokens,
-                    )
-                    if "response" in hook_ctx and hook_ctx["response"] != result.output:
-                        result.output = hook_ctx["response"]
-
-                # AFTER_EXECUTE hook / AFTER_EXECUTE 钩子
-                await hook_registry.trigger(
-                    HookPoint.AFTER_EXECUTE,
-                    tenant_id=self.tenant_id,
-                    agent_id=agent_id,
-                    result=result,
-                )
-
-                # Emit execution complete/fail (stream bypasses dispatcher) / 发布执行完成或失败事件
-                if result.success:
-                    await BaseEngine._publish_execution_completed(
-                        request,
-                        agent,
-                        result,
-                    )
-                else:
-                    await BaseEngine._publish_execution_failed(
-                        request,
-                        agent,
-                        result.error or "",
-                    )
+                extra["persistence_committed"] = True
+                extra["persisted_message_count"] = int(persisted_message_count or 0)
             except Exception as on_complete_exc:
                 logger.error(
                     "Stream on_complete callback failed: tenant={} conversation={} err={}",
@@ -1941,6 +1961,7 @@ class AgentChatService:
                         "error": str(on_complete_exc),
                     }
                 )
+                tail_result = fallback_result
                 fallback_error_text = _("ai.stream.error.service_unavailable")
                 if not error_message_persisted:
                     try:
@@ -1990,21 +2011,18 @@ class AgentChatService:
                         },
                     )
                 except Exception as marker_exc:
-                    logger.error(
-                        "Final stream error marker persistence failed: tenant={} conversation={} err={}",
-                        self.tenant_id,
-                        conversation.id,
-                        str(marker_exc),
-                        exc_info=True,
-                    )
-            finally:
-                # Release concurrency lock / 释放并发锁
-                if lock_token:
-                    await AgentConcurrencyLimiter.release(
-                        tenant_id=self.tenant_id,
-                        agent_id=agent_id,
-                        lock_token=lock_token,
-                    )
+                        logger.error(
+                            "Final stream error marker persistence failed: tenant={} conversation={} err={}",
+                            self.tenant_id,
+                            conversation.id,
+                            str(marker_exc),
+                            exc_info=True,
+                        )
+            extra["__post_done_callback__"] = (
+                lambda final_result=tail_result: _run_stream_post_persist_tail(
+                    final_result
+                )
+            )
             return extra or None
 
         if is_image_model:

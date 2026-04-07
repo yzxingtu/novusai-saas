@@ -1646,6 +1646,14 @@ class OpenAIAdapter(BaseAdapter):
             total_tokens = input_tokens + output_tokens
         return input_tokens, output_tokens, total_tokens
 
+    def _extract_native_web_search_request_count(self, response: Any) -> int:
+        tool_usage = self._native_web_search_field(response, "tool_usage")
+        web_search_usage = self._native_web_search_field(tool_usage, "web_search")
+        request_count = self._coerce_int(
+            self._native_web_search_field(web_search_usage, "num_requests")
+        )
+        return int(request_count or 0)
+
     def _map_native_web_search_error(self, error: Exception) -> str:
         if isinstance(error, (APITimeoutError, ProviderTimeoutError)):
             return STATUS_TIMEOUT
@@ -1742,6 +1750,7 @@ class OpenAIAdapter(BaseAdapter):
             input_tokens, output_tokens, total_tokens = (
                 self._extract_native_web_search_usage(response)
             )
+            request_count = self._extract_native_web_search_request_count(response)
             items, saw_unverifiable_url = self._extract_native_web_search_items(
                 response,
                 provider_label=effective_provider,
@@ -1768,6 +1777,22 @@ class OpenAIAdapter(BaseAdapter):
                     status=STATUS_PARSE_ERROR,
                     items=[],
                     failure_reason="native web search returned no verifiable absolute URLs",
+                    attempted_backends=[effective_backend_key],
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    total_tokens=total_tokens,
+                )
+            if request_count <= 0:
+                return SearchProviderRun(
+                    provider=effective_provider,
+                    provider_mode=PROVIDER_MODE_NATIVE,
+                    backend_key=effective_backend_key,
+                    status=STATUS_UNSUPPORTED,
+                    items=[],
+                    failure_reason=(
+                        "provider responses runtime accepted native web search request "
+                        "but did not execute hosted web_search"
+                    ),
                     attempted_backends=[effective_backend_key],
                     input_tokens=input_tokens,
                     output_tokens=output_tokens,

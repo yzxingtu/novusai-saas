@@ -5,7 +5,7 @@ import { flushPromises } from '@vue/test-utils';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useAIChat } from '../use-ai-chat';
+import { shouldDisplayConversationInHistory, useAIChat } from '../use-ai-chat';
 
 const apiMocks = vi.hoisted(() => ({
   getChatAgentKBBindingsApi: vi.fn(),
@@ -250,6 +250,204 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(chat.chatMessages.value[1]?.partial).toBe(true);
     expect(chat.chatMessages.value[1]?.interrupted).toBe(true);
     expect(chat.chatMessages.value[1]?.stoppedByUser).toBeUndefined();
+  });
+
+  it('recovers a newly created conversation from history when the stream fails before conversation event', async () => {
+    apiMocks.getGlobalConversationsApi
+      .mockResolvedValueOnce({
+        items: [
+          {
+            agent_id: 1,
+            agent_name: 'Agent One',
+            created_at: '2024-01-01T00:00:00Z',
+            id: 42,
+            message_count: 2,
+            status: 'active',
+            title: 'Recovered',
+          },
+        ],
+        total: 1,
+      })
+      .mockResolvedValueOnce({
+        items: [
+          {
+            agent_id: 1,
+            agent_name: 'Agent One',
+            created_at: '2026-04-07T12:00:00Z',
+            id: 1044,
+            message_count: 2,
+            status: 'active',
+            title: '查今天AI新闻',
+            updated_at: '2026-04-07T12:00:01Z',
+          },
+          {
+            agent_id: 1,
+            agent_name: 'Agent One',
+            created_at: '2024-01-01T00:00:00Z',
+            id: 42,
+            message_count: 2,
+            status: 'closed',
+            title: 'Recovered',
+          },
+        ],
+        total: 2,
+      })
+      .mockResolvedValueOnce({
+        items: [
+          {
+            agent_id: 1,
+            agent_name: 'Agent One',
+            created_at: '2026-04-07T12:00:00Z',
+            id: 1044,
+            message_count: 2,
+            status: 'active',
+            title: '查今天AI新闻',
+            updated_at: '2026-04-07T12:00:01Z',
+          },
+          {
+            agent_id: 1,
+            agent_name: 'Agent One',
+            created_at: '2024-01-01T00:00:00Z',
+            id: 42,
+            message_count: 2,
+            status: 'closed',
+            title: 'Recovered',
+          },
+        ],
+        total: 2,
+      });
+    apiMocks.getChatConversationMessagesApi.mockResolvedValue({
+      agent_id: 1,
+      context_diagnostics: {
+        failure_kind: 'stream_execution_error',
+        persistence_error: true,
+      },
+      last_run_summary: {
+        error_message: 'service unavailable',
+        turn_outcome: 'failed',
+      },
+      message_list: [
+        {
+          content: '查今天AI新闻',
+          created_at: '2026-04-07T12:00:00Z',
+          role: 'user',
+        },
+        {
+          content: 'service unavailable',
+          created_at: '2026-04-07T12:00:01Z',
+          metadata: {
+            error: true,
+            error_type: 'stream_execution_error',
+          },
+          role: 'assistant',
+        },
+      ],
+    });
+    apiMocks.sendChatStreamApi.mockRejectedValue(new Error('upstream exploded'));
+
+    const chat = useAIChat({
+      apiPrefix: '/tenant',
+      uploadUrl: '/tenant/attachments',
+    });
+
+    await chat.loadAgents();
+    await chat.loadConversations();
+    chat.inputMessage.value = '查今天AI新闻';
+
+    await chat.sendMessage();
+    await flushPromises();
+
+    expect(apiMocks.getGlobalConversationsApi).toHaveBeenCalledTimes(3);
+    expect(apiMocks.getChatConversationMessagesApi).toHaveBeenCalledWith(
+      '/tenant',
+      1044,
+    );
+    expect(chat.activeConversationId.value).toBe(1044);
+    expect(chat.conversations.value.map((item) => item.id)).toEqual([1044, 42]);
+    expect(chat.chatMessages.value.map((item) => item.content)).toEqual([
+      '查今天AI新闻',
+      'service unavailable',
+    ]);
+  });
+
+  it('keeps active and recent empty conversations visible in history list', async () => {
+    vi.setSystemTime(new Date('2026-04-07T12:00:00Z'));
+    apiMocks.getGlobalConversationsApi.mockResolvedValueOnce({
+      items: [
+        {
+          agent_id: 1,
+          created_at: '2026-04-06T12:00:00Z',
+          id: 1001,
+          message_count: 2,
+          status: 'closed',
+          title: 'normal conversation',
+        },
+        {
+          agent_id: 1,
+          created_at: '2026-03-01T12:00:00Z',
+          id: 1002,
+          message_count: 0,
+          status: 'active',
+          title: 'active empty shell',
+        },
+        {
+          agent_id: 1,
+          created_at: '2026-04-07T11:30:00Z',
+          id: 1003,
+          message_count: 0,
+          status: 'closed',
+          title: 'recent empty shell',
+        },
+        {
+          agent_id: 1,
+          created_at: '2026-03-01T12:00:00Z',
+          id: 1004,
+          message_count: 0,
+          status: 'closed',
+          title: 'stale empty shell',
+        },
+      ],
+      total: 4,
+    });
+
+    const chat = useAIChat({
+      apiPrefix: '/tenant',
+      uploadUrl: '/tenant/attachments',
+    });
+    await chat.loadAgents();
+    await chat.loadConversations();
+    await flushPromises();
+
+    expect(chat.conversations.value.map((item) => item.id)).toEqual([
+      1001, 1002, 1003,
+    ]);
+  });
+
+  it('keeps the currently active empty conversation visible', async () => {
+    vi.setSystemTime(new Date('2026-04-07T12:00:00Z'));
+    apiMocks.getGlobalConversationsApi.mockResolvedValueOnce({
+      items: [
+        {
+          agent_id: 1,
+          created_at: '2026-03-01T12:00:00Z',
+          id: 2001,
+          message_count: 0,
+          status: 'closed',
+          title: 'opened empty conversation',
+        },
+      ],
+      total: 1,
+    });
+
+    const chat = useAIChat({
+      apiPrefix: '/tenant',
+      uploadUrl: '/tenant/attachments',
+    });
+    chat.activeConversationId.value = 2001;
+    await chat.loadConversations();
+    await flushPromises();
+
+    expect(chat.conversations.value.map((item) => item.id)).toEqual([2001]);
   });
 
   it('reloads conversation history when the stream ends without a done event', async () => {
@@ -528,6 +726,98 @@ describe('useAIChat interrupted stream recovery', () => {
     await flushPromises();
 
     expect(chat.interactionMode.value).toBe('trusted_auto');
+  });
+
+  it('refreshes persisted conversation detail immediately after done when persistence is committed', async () => {
+    apiMocks.getChatConversationMessagesApi.mockResolvedValue({
+      agent_id: 1,
+      interaction_mode_effective: 'confirm',
+      message_list: [
+        {
+          content: '查今天AI新闻',
+          created_at: '2026-04-07T04:38:30Z',
+          role: 'user',
+        },
+        {
+          agent_id: 1,
+          agent_name: 'Agent One',
+          content: '这里是已持久化的最终答复',
+          created_at: '2026-04-07T04:38:31Z',
+          metadata: {
+            completion_reason: 'completed',
+            protocol_path: 'responses',
+            termination_reason: 'completed',
+            turn_outcome: 'success',
+          },
+          model_name: 'gpt-test',
+          role: 'assistant',
+        },
+      ],
+    });
+    apiMocks.sendChatStreamApi.mockImplementation(
+      async (
+        _prefix: string,
+        _agentId: number,
+        _body: Record<string, unknown>,
+        options: {
+          onMessage: (chunk: string) => Promise<void>;
+        },
+      ) => {
+        await options.onMessage(
+          `data: ${JSON.stringify({ event: 'conversation', conversation_id: 42 })}\n`,
+        );
+        await options.onMessage(
+          `data: ${JSON.stringify({ event: 'message', delta: '这里是流式中的答复' })}\n`,
+        );
+        await options.onMessage(
+          `data: ${JSON.stringify({
+            event: 'done',
+            conversation_id: 42,
+            persistence_committed: true,
+            persisted_message_count: 2,
+            total_tokens: 18,
+          })}\n`,
+        );
+      },
+    );
+
+    const chat = useAIChat({
+      apiPrefix: '/tenant',
+      uploadUrl: '/tenant/attachments',
+    });
+
+    await chat.loadAgents();
+    chat.inputMessage.value = '查今天AI新闻';
+    await chat.sendMessage({ routeSource: 'persistence-commit-test' });
+    await flushPromises();
+
+    expect(apiMocks.getChatConversationMessagesApi).toHaveBeenCalledWith(
+      '/tenant',
+      42,
+    );
+    expect(chat.chatMessages.value.at(-1)?.content).toBe(
+      '这里是已持久化的最终答复',
+    );
+    expect(chat.chatMessages.value.at(-1)?.streaming).toBeFalsy();
+  });
+
+  it('uses updated_at as the recency signal for empty conversations', () => {
+    expect(
+      shouldDisplayConversationInHistory(
+        {
+          agent_id: 1,
+          created_at: '2026-03-01T12:00:00Z',
+          id: 3001,
+          message_count: 0,
+          status: 'closed',
+          title: null,
+          updated_at: '2026-04-07T11:30:00Z',
+        },
+        {
+          nowMs: Date.parse('2026-04-07T12:00:00Z'),
+        },
+      ),
+    ).toBe(true);
   });
 
   it('restores confirm interactionMode from backend conversation detail', async () => {
