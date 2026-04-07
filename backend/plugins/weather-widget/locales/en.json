@@ -2,7 +2,7 @@
   "plugin.weather-widget.name": "Weather Widget",
   "plugin.weather-widget.description": "Header weather widget: real-time weather + animations + city selector + AI skill pack",
   "plugin.weather-widget.skill.weather_widget": "Real-time Weather Query",
-  "plugin.weather-widget.skill.weather_widget.description": "Query real weather data via Open-Meteo API (current + forecast)",
+  "plugin.weather-widget.skill.weather_widget.description": "Query real weather data via no-key public weather services (current + forecast)",
   "plugin.weather-widget.tool.get_current_weather": "Get Current Weather",
   "plugin.weather-widget.tool.get_weather_forecast": "Get Weather Forecast",
   "plugin.weather-widget.ui.temperature": "Temperature",

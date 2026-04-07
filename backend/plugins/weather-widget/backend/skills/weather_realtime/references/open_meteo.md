@@ -1,6 +1,6 @@
-# Open-Meteo Notes
+# Weather Provider Notes
 
-This skill queries Open-Meteo-backed weather data through the plugin executor.
+This skill queries a no-key weather stack backed by MET Norway and Nominatim through the plugin executor.
 
 Primary outputs:
 - current temperature

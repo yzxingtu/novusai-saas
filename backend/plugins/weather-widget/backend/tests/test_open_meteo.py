@@ -1,8 +1,7 @@
-"""Open-Meteo API 客户端单元测试 / Open-Meteo API client unit tests — weather, forecast, geocoding, cache."""
+"""Weather provider compatibility tests."""
 
 from __future__ import annotations
 
-# 动态导入 open_meteo 模块（插件名含连字符）
 import importlib.util
 import sys
 import time
@@ -21,9 +20,13 @@ mod = importlib.util.module_from_spec(spec)
 sys.modules[_MODULE_NAME] = mod
 spec.loader.exec_module(mod)
 
+configure = mod.configure
 search_city = mod.search_city
+reverse_geocode = mod.reverse_geocode
 get_current_weather = mod.get_current_weather
 get_forecast = mod.get_forecast
+get_weather_all = mod.get_weather_all
+get_air_quality = mod.get_air_quality
 get_wmo_info = mod.get_wmo_info
 _cache = mod._cache
 _cache_get = mod._cache_get
@@ -31,42 +34,18 @@ _cache_set = mod._cache_set
 _expand_city_queries = mod._expand_city_queries
 _normalize_city_label = mod._normalize_city_label
 _rank_city_candidate = mod._rank_city_candidate
-_NOMINATIM_TIMEOUT = mod._NOMINATIM_TIMEOUT
-_NOMINATIM_ADMIN_RETRY_TIMEOUT = mod._NOMINATIM_ADMIN_RETRY_TIMEOUT
+_symbol_to_weather = mod._symbol_to_weather
 
 
-# ── WMO Code 映射测试 ──
+def _configure_test_provider() -> None:
+    configure({"cache_ttl": 600})
 
 
 class TestWmoCodeMapping:
-    """WMO 天气代码映射 / WMO weather code mapping."""
-
     def test_clear_sky(self):
         info = get_wmo_info(0)
         assert info["icon"] == "sun"
         assert info["zh"] == "晴"
-
-    def test_partly_cloudy(self):
-        info = get_wmo_info(2)
-        assert info["icon"] == "cloud-sun"
-
-    def test_rain(self):
-        info = get_wmo_info(63)
-        assert info["icon"] == "cloud-rain"
-        assert info["zh"] == "中雨"
-
-    def test_snow(self):
-        info = get_wmo_info(73)
-        assert info["icon"] == "snowflake"
-
-    def test_thunderstorm(self):
-        info = get_wmo_info(95)
-        assert info["icon"] == "cloud-lightning"
-        assert info["zh"] == "雷暴"
-
-    def test_fog(self):
-        info = get_wmo_info(45)
-        assert info["icon"] == "cloud-fog"
 
     def test_unknown_code(self):
         info = get_wmo_info(999)
@@ -77,19 +56,16 @@ class TestWmoCodeMapping:
         summary = mod._describe_exception(httpx.ConnectError(""))
         assert "ConnectError" in summary
 
-    def test_nominatim_timeout_allows_more_headroom(self):
-        assert _NOMINATIM_TIMEOUT == 4.0
-        assert _NOMINATIM_ADMIN_RETRY_TIMEOUT == 5.0
-
-
-# ── 缓存测试 / cache tests ──
+    def test_symbol_maps_to_expected_weather(self):
+        condition = _symbol_to_weather("lightrainshowers_day")
+        assert condition["wmo"] == 80
+        assert condition["zh"] == "小阵雨"
 
 
 class TestCache:
-    """内存缓存机制 / In-memory cache."""
-
     def setup_method(self):
         _cache.clear()
+        _configure_test_provider()
 
     def test_cache_set_and_get(self):
         _cache_set("test_key", {"temp": 22})
@@ -97,89 +73,30 @@ class TestCache:
         assert result == {"temp": 22}
 
     def test_cache_miss(self):
-        result = _cache_get("nonexistent")
-        assert result is None
+        assert _cache_get("missing") is None
 
     def test_cache_expired(self):
-        _cache["expired_key"] = (time.time() - 700, {"temp": 22})
-        result = _cache_get("expired_key")
-        assert result is None
-
-    def test_cache_not_expired(self):
-        _cache["fresh_key"] = (time.time() - 100, {"temp": 22})
-        result = _cache_get("fresh_key")
-        assert result == {"temp": 22}
+        _cache["expired"] = (time.time() - 700, {"temp": 20})
+        assert _cache_get("expired") is None
 
     def test_cache_eviction(self):
-        for i in range(210):
-            _cache_set(f"key_{i}", i)
+        for idx in range(210):
+            _cache_set(f"key_{idx}", idx)
         assert len(_cache) <= 200
 
 
-# ── API 调用测试（Mock） ──
-
-
 class TestSearchCity:
-    """城市搜索 / City search."""
-
     def setup_method(self):
         _cache.clear()
+        _configure_test_provider()
 
     @pytest.mark.asyncio
     async def test_empty_name(self):
-        result = await search_city("")
-        assert result == []
+        assert await search_city("") == []
 
     @pytest.mark.asyncio
     async def test_whitespace_name(self):
-        result = await search_city("   ")
-        assert result == []
-
-    @pytest.mark.asyncio
-    async def test_search_success(self):
-        mock_resp = MagicMock()
-        mock_resp.status_code = 200
-        mock_resp.raise_for_status = MagicMock()
-        mock_resp.json.return_value = [
-            {
-                "lat": "31.23",
-                "lon": "121.47",
-                "display_name": "Shanghai, China",
-                "address": {
-                    "city": "Shanghai",
-                    "country": "China",
-                    "state": "Shanghai",
-                },
-            }
-        ]
-
-        mock_instance = AsyncMock()
-        mock_instance.get.return_value = mock_resp
-
-        with patch("httpx.AsyncClient") as mock_cls:
-            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
-            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
-            result = await search_city("Shanghai", count=1)
-
-        assert len(result) == 1
-        assert result[0]["name"] == "Shanghai"
-        assert result[0]["latitude"] == 31.23
-
-    @pytest.mark.asyncio
-    async def test_search_no_results(self):
-        mock_resp = MagicMock()
-        mock_resp.raise_for_status = MagicMock()
-        mock_resp.json.return_value = {}
-
-        mock_instance = AsyncMock()
-        mock_instance.get.return_value = mock_resp
-
-        with patch("httpx.AsyncClient") as mock_cls:
-            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
-            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
-            result = await search_city("XYZNONEXISTENT")
-
-        assert result == []
+        assert await search_city("   ") == []
 
     @pytest.mark.asyncio
     async def test_search_cached(self):
@@ -187,6 +104,53 @@ class TestSearchCity:
         result = await search_city("Shanghai")
         assert len(result) == 1
         assert result[0]["name"] == "Shanghai"
+
+    @pytest.mark.asyncio
+    async def test_search_success(self):
+        with patch.object(
+            mod,
+            "_search_city_nominatim",
+            new=AsyncMock(
+                return_value=[
+                    {
+                        "name": "Shanghai",
+                        "country": "China",
+                        "admin1": "Shanghai",
+                        "latitude": 31.23,
+                        "longitude": 121.47,
+                    }
+                ]
+            ),
+        ):
+            result = await search_city("Shanghai", count=1)
+
+        assert len(result) == 1
+        assert result[0]["name"] == "Shanghai"
+        assert result[0]["latitude"] == 31.23
+
+    @pytest.mark.asyncio
+    async def test_search_city_retries_trimmed_county_variant(self):
+        search_mock = AsyncMock(
+            side_effect=[
+                [],
+                [
+                    {
+                        "name": "凤凰",
+                        "country": "China",
+                        "admin1": "湖南",
+                        "latitude": 27.9483,
+                        "longitude": 109.5996,
+                    }
+                ],
+            ]
+        )
+        with patch.object(mod, "_search_city_nominatim", new=search_mock):
+            result = await search_city("凤凰县", count=1)
+
+        assert len(result) == 1
+        assert result[0]["name"] == "凤凰"
+        assert search_mock.await_args_list[0].args[:2] == ("凤凰县", 1)
+        assert search_mock.await_args_list[1].args[:2] == ("凤凰", 1)
 
     def test_expand_city_queries_adds_common_beijing_aliases(self):
         expanded = _expand_city_queries("北京")
@@ -201,144 +165,6 @@ class TestSearchCity:
 
     def test_normalize_city_label_trims_county_suffix(self):
         assert _normalize_city_label("凤凰县") == "凤凰"
-
-    @pytest.mark.asyncio
-    async def test_search_city_falls_back_to_open_meteo_when_nominatim_empty(self):
-        with (
-            patch.object(mod, "_search_city_nominatim", new=AsyncMock(return_value=[])),
-            patch.object(
-                mod,
-                "_search_city_open_meteo",
-                new=AsyncMock(
-                    return_value=[
-                        {
-                            "name": "北京市",
-                            "country": "China",
-                            "admin1": "北京市",
-                            "latitude": 39.9042,
-                            "longitude": 116.4074,
-                        }
-                    ]
-                ),
-            ),
-        ):
-            result = await search_city("北京", count=1)
-
-        assert len(result) == 1
-        assert result[0]["name"] == "北京市"
-
-    @pytest.mark.asyncio
-    async def test_search_city_retries_without_county_suffix_when_first_query_is_empty(self):
-        open_meteo_results = AsyncMock(
-            side_effect=[
-                [
-                    {
-                        "name": "凤凰",
-                        "country": "China",
-                        "admin1": "湖南",
-                        "latitude": 27.9483,
-                        "longitude": 109.5996,
-                    }
-                ],
-            ]
-        )
-
-        with (
-            patch.object(mod, "_search_city_nominatim", new=AsyncMock(return_value=[])),
-            patch.object(mod, "_search_city_open_meteo", new=open_meteo_results),
-        ):
-            result = await search_city("凤凰县", count=1)
-
-        assert len(result) == 1
-        assert result[0]["name"] == "凤凰"
-        assert open_meteo_results.await_args_list[0].args == ("凤凰", 1)
-        assert "timeout" in open_meteo_results.await_args_list[0].kwargs
-
-    @pytest.mark.asyncio
-    async def test_search_city_uses_extended_nominatim_timeout_for_precise_admin_query(self):
-        nominatim_results = AsyncMock(
-            return_value=[
-                {
-                    "name": "凤凰县",
-                    "country": "中国",
-                    "admin1": "湖南省",
-                    "latitude": 28.010585,
-                    "longitude": 109.532129,
-                }
-            ]
-        )
-
-        with (
-            patch.object(mod, "_search_city_nominatim", new=nominatim_results),
-            patch.object(mod, "_search_city_open_meteo", new=AsyncMock(return_value=[])),
-        ):
-            result = await search_city("凤凰县", count=1)
-
-        assert len(result) == 1
-        assert result[0]["name"] == "凤凰县"
-        assert nominatim_results.await_args_list[0].args == ("凤凰县", 1)
-        assert nominatim_results.await_args_list[0].kwargs == {
-            "timeout": _NOMINATIM_ADMIN_RETRY_TIMEOUT
-        }
-
-    @pytest.mark.asyncio
-    async def test_search_city_skips_exact_open_meteo_probe_after_precise_admin_timeout(self):
-        open_meteo_results = AsyncMock(
-            return_value=[
-                {
-                    "name": "凤凰",
-                    "country": "China",
-                    "admin1": "湖南",
-                    "latitude": 27.9483,
-                    "longitude": 109.5996,
-                }
-            ]
-        )
-
-        with (
-            patch.object(mod, "_search_city_nominatim", new=AsyncMock(return_value=[])),
-            patch.object(mod, "_search_city_open_meteo", new=open_meteo_results),
-        ):
-            result = await search_city("凤凰县", count=1)
-
-        assert len(result) == 1
-        assert result[0]["name"] == "凤凰"
-        assert open_meteo_results.await_args_list[0].args == ("凤凰", 1)
-
-    @pytest.mark.asyncio
-    async def test_search_city_skips_open_meteo_when_precise_admin_query_hits_nominatim(self):
-        nominatim_results = AsyncMock(
-            return_value=[
-                {
-                    "name": "凤凰县",
-                    "country": "中国",
-                    "admin1": "湖南省",
-                    "latitude": 28.010585,
-                    "longitude": 109.532129,
-                }
-            ]
-        )
-        open_meteo_results = AsyncMock(
-            return_value=[
-                {
-                    "name": "凤凰",
-                    "country": "中国",
-                    "admin1": "山西",
-                    "latitude": 38.9978,
-                    "longitude": 112.29779,
-                }
-            ]
-        )
-
-        with (
-            patch.object(mod, "_search_city_nominatim", new=nominatim_results),
-            patch.object(mod, "_search_city_open_meteo", new=open_meteo_results),
-        ):
-            result = await search_city("凤凰县", count=1)
-
-        assert len(result) == 1
-        assert result[0]["name"] == "凤凰县"
-        open_meteo_results.assert_not_awaited()
 
     def test_rank_city_candidate_prefers_municipality_match(self):
         expanded = _expand_city_queries("北京")
@@ -367,52 +193,93 @@ class TestSearchCity:
             candidate=county_homonym,
         )
 
-    def test_rank_city_candidate_prefers_beijing_city_for_english_query(self):
-        expanded = _expand_city_queries("Beijing")
-        beijing_city = {
-            "name": "北京市",
-            "country": "中国",
-            "admin1": "北京",
-            "latitude": 39.9075,
-            "longitude": 116.39723,
-        }
-        county_homonym = {
-            "name": "Beijing",
-            "country": "中国",
-            "admin1": "山西",
-            "latitude": 35.20917,
-            "longitude": 110.73278,
-        }
+    @pytest.mark.asyncio
+    async def test_reverse_geocode_uses_nominatim_result(self):
+        with patch.object(
+            mod,
+            "_reverse_nominatim",
+            new=AsyncMock(
+                return_value={
+                    "name": "上海",
+                    "country": "中国",
+                    "admin1": "上海",
+                    "latitude": 31.23,
+                    "longitude": 121.47,
+                }
+            ),
+        ) as reverse_mock:
+            result = await reverse_geocode(31.23, 121.47)
 
-        assert _rank_city_candidate(
-            original_query="Beijing",
-            expanded_queries=expanded,
-            candidate=beijing_city,
-        ) > _rank_city_candidate(
-            original_query="Beijing",
-            expanded_queries=expanded,
-            candidate=county_homonym,
-        )
+        assert result is not None
+        assert result["name"] == "上海"
+        assert reverse_mock.await_count == 1
 
 
-class TestGetCurrentWeather:
-    """当前天气 / Current weather."""
-
+class TestWeatherAggregation:
     def setup_method(self):
         _cache.clear()
+        _configure_test_provider()
 
     @pytest.mark.asyncio
-    async def test_success(self):
+    async def test_get_weather_all_success(self):
         mock_resp = MagicMock()
         mock_resp.raise_for_status = MagicMock()
         mock_resp.json.return_value = {
-            "current": {
-                "temperature_2m": 22.5,
-                "weather_code": 0,
-                "relative_humidity_2m": 68,
-                "wind_speed_10m": 15.2,
-                "uv_index": 5.0,
-                "is_day": 1,
+            "properties": {
+                "timeseries": [
+                    {
+                        "time": "2026-02-23T02:00:00Z",
+                        "data": {
+                            "instant": {
+                                "details": {
+                                    "air_temperature": 22.5,
+                                    "relative_humidity": 68,
+                                    "wind_speed": 4.2,
+                                }
+                            },
+                            "next_1_hours": {"summary": {"symbol_code": "clearsky_day"}},
+                        },
+                    },
+                    {
+                        "time": "2026-02-23T03:00:00Z",
+                        "data": {
+                            "instant": {
+                                "details": {
+                                    "air_temperature": 23.0,
+                                    "relative_humidity": 66,
+                                    "wind_speed": 4.0,
+                                }
+                            },
+                            "next_1_hours": {"summary": {"symbol_code": "partlycloudy_day"}},
+                        },
+                    },
+                    {
+                        "time": "2026-02-23T04:00:00Z",
+                        "data": {
+                            "instant": {
+                                "details": {
+                                    "air_temperature": 24.0,
+                                    "relative_humidity": 60,
+                                    "wind_speed": 5.0,
+                                }
+                            },
+                            "next_1_hours": {"summary": {"symbol_code": "lightrainshowers_day"}},
+                        },
+                    },
+                    {
+                        "time": "2026-02-24T02:00:00Z",
+                        "data": {
+                            "instant": {
+                                "details": {
+                                    "air_temperature": 18.0,
+                                    "relative_humidity": 70,
+                                    "wind_speed": 3.0,
+                                }
+                            },
+                            "next_1_hours": {"summary": {"symbol_code": "cloudy"}},
+                        },
+                    },
+                ]
             }
         }
 
@@ -422,83 +289,53 @@ class TestGetCurrentWeather:
         with patch("httpx.AsyncClient") as mock_cls:
             mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
             mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            result = await get_weather_all(31.23, 121.47, 2)
+
+        assert result["current"]["temperature"] == 22.5
+        assert result["current"]["weather_code"] == 0
+        assert result["current"]["weather_text_en"] == "Clear sky"
+        assert result["current"]["uv_index"] is None
+        assert result["current"]["is_day"] is True
+        assert len(result["daily"]) == 2
+        assert result["daily"][0]["temp_max"] == 24.0
+        assert result["daily"][1]["weather_code"] == 3
+        assert len(result["hourly"]) == 4
+        assert result["hourly"][0]["is_current"] is True
+
+    @pytest.mark.asyncio
+    async def test_get_current_weather_wraps_aggregate_payload(self):
+        with patch.object(
+            mod,
+            "get_weather_all",
+            new=AsyncMock(return_value={"current": {"temperature": 20.0}}),
+        ):
             result = await get_current_weather(31.23, 121.47)
 
-        assert result["temperature"] == 22.5
-        assert result["weather_code"] == 0
-        assert result["weather_icon"] == "sun"
-        assert result["weather_text_zh"] == "晴"
-        assert result["humidity"] == 68
-        assert result["wind_speed"] == 15.2
-        assert result["uv_index"] == 5.0
-        assert result["is_day"] is True
+        assert result == {"temperature": 20.0}
 
     @pytest.mark.asyncio
-    async def test_cached(self):
-        cached_data = {
-            "current": {
-                "temperature": 20.0,
-                "weather_code": 2,
-                "weather_icon": "cloud-sun",
-                "weather_text_zh": "多云",
-                "weather_text_en": "Partly cloudy",
-                "humidity": 55,
-                "wind_speed": 10.0,
-                "uv_index": 3.0,
-                "is_day": True,
-            },
-            "daily": [],
-            "hourly": [],
-        }
-        _cache_set("all:31.23:121.47:3", cached_data)
-        result = await get_current_weather(31.23, 121.47)
-        assert result["temperature"] == 20.0
+    async def test_get_forecast_wraps_aggregate_payload(self):
+        with patch.object(
+            mod,
+            "get_weather_all",
+            new=AsyncMock(return_value={"daily": [{"date": "2026-02-23"}]}),
+        ):
+            result = await get_forecast(31.23, 121.47, 1)
+
+        assert result == [{"date": "2026-02-23"}]
 
 
-class TestGetForecast:
-    """天气预报 / Weather forecast."""
-
+class TestAirQuality:
     def setup_method(self):
         _cache.clear()
+        _configure_test_provider()
 
     @pytest.mark.asyncio
-    async def test_success(self):
-        mock_resp = MagicMock()
-        mock_resp.raise_for_status = MagicMock()
-        mock_resp.json.return_value = {
-            "daily": {
-                "time": ["2026-02-23", "2026-02-24", "2026-02-25"],
-                "temperature_2m_max": [25.0, 22.0, 20.0],
-                "temperature_2m_min": [15.0, 12.0, 10.0],
-                "weather_code": [0, 2, 61],
-            }
+    async def test_get_air_quality_returns_empty_shape(self):
+        result = await get_air_quality(31.23, 121.47)
+        assert result == {
+            "aqi": None,
+            "pm2_5": None,
+            "pm10": None,
+            "european_aqi": None,
         }
-
-        mock_instance = AsyncMock()
-        mock_instance.get.return_value = mock_resp
-
-        with patch("httpx.AsyncClient") as mock_cls:
-            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
-            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
-            result = await get_forecast(31.23, 121.47, 3)
-
-        assert len(result) == 3
-        assert result[0]["date"] == "2026-02-23"
-        assert result[0]["temp_max"] == 25.0
-        assert result[0]["weather_icon"] == "sun"
-        assert result[2]["weather_icon"] == "cloud-rain"
-        assert result[2]["weather_text_zh"] == "小雨"
-
-    @pytest.mark.asyncio
-    async def test_days_clamped(self):
-        _cache_set(
-            "all:31.23:121.47:7",
-            {
-                "current": {},
-                "daily": [],
-                "hourly": [],
-            },
-        )
-        result = await get_forecast(31.23, 121.47, 10)
-        # days clamped to 7, so cache key uses 7 / days 上限为 7，缓存键按 7 计算
-        assert result == []

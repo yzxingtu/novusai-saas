@@ -7,9 +7,9 @@ Header navigation weather widget — a full-featured NovusAI plugin example.
 - **Real-time Weather** — Temperature, apparent temperature, weather condition, humidity, wind speed, UV index
 - **24h Hourly Forecast** — Horizontal scrollable hourly temperature + weather icons
 - **3-Day Forecast** — Daily high/low with dynamic temperature-mapped color bars
-- **Air Quality (AQI)** — US AQI, PM2.5, PM10 via Open-Meteo Air Quality API
-- **Auto Location** — Browser Geolocation API + Nominatim reverse geocoding with multi-level fallback
-- **City Search** — Debounced search via Open-Meteo Geocoding, supports Chinese and English
+- **Air Quality (AQI)** — Graceful fallback to `--` when the current no-key stack does not provide AQI
+- **Auto Location** — Browser Geolocation API + Nominatim reverse geocoding
+- **City Search** — Debounced search via Nominatim, supports Chinese and English
 - **Local Storage** — City preference and last successful weather data cached in localStorage
 - **Skeleton Loading** — Shimmer skeleton screen on first load
 - **Windows 11 Fluent Design UI** — Acrylic material, dynamic weather gradients, noise texture, scene decorations
@@ -17,12 +17,11 @@ Header navigation weather widget — a full-featured NovusAI plugin example.
 
 ## API
 
-Based on [Open-Meteo](https://open-meteo.com/) — completely free, no API key required.
+Based on [MET Norway](https://api.met.no/weatherapi/locationforecast/2.0/documentation) and [Nominatim](https://operations.osmfoundation.org/policies/nominatim/) with no API key required.
 
-- Weather data: `api.open-meteo.com/v1/forecast`
-- Air quality: `air-quality-api.open-meteo.com/v1/air-quality`
-- Geocoding: `geocoding-api.open-meteo.com/v1/search`
-- Reverse geocoding: `nominatim.openstreetmap.org/reverse`
+- Weather data: `api.met.no/weatherapi/locationforecast/2.0/compact`
+- Geocoding + reverse lookup: `nominatim.openstreetmap.org/search|reverse`
+- Backend auth: none
 
 ## Extensions
 

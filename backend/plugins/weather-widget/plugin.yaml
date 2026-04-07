@@ -23,8 +23,8 @@ extensions:
         zh-CN: "实时天气查询"
         en: "Real-time Weather Query"
       description:
-        zh-CN: "调用 Open-Meteo API 查询真实天气数据（当前天气 + 多日预报）"
-        en: "Query real weather data via Open-Meteo API (current + forecast)"
+        zh-CN: "调用免 Key 的天气服务查询真实天气数据（当前天气 + 多日预报）"
+        en: "Query real weather data via no-key weather services (current + forecast)"
       entry_point: "skills.weather_resolver"
 
   api:

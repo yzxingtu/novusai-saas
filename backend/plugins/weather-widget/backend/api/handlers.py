@@ -1,4 +1,8 @@
-"""天气 API 路由 / Weather API routes — 供前端天气组件调用，避免 CORS；缓存由 open_meteo 管理。路由: GET /current, /forecast, /hourly, /air-quality, /geocoding, /config"""
+"""天气 API 路由 / Weather API routes.
+
+供前端天气组件调用，避免 CORS；缓存由兼容层 provider 管理。
+路由: GET /current, /forecast, /hourly, /air-quality, /geocoding, /config
+"""
 
 from __future__ import annotations
 
@@ -66,11 +70,27 @@ async def _get_plugin_config(ctx) -> dict:
         return {}
 
 
+def _sanitize_public_config(config: dict) -> dict:
+    public_config = dict(config)
+    public_config.pop("qweather_api_host", None)
+    public_config.pop("qweather_api_key", None)
+    public_config.pop("api_host", None)
+    public_config.pop("api_key", None)
+    return public_config
+
+
+def _configure_provider(provider, config: dict) -> None:
+    configure = getattr(provider, "configure", None)
+    if callable(configure):
+        configure(config)
+
+
 # ── 路由 / routes ──
 
 
 async def get_config(request, ctx) -> dict:
-    config = await _get_plugin_config(ctx)
+    _request = request
+    config = _sanitize_public_config(await _get_plugin_config(ctx))
     if not config.get("default_city"):
         config["default_city"] = "Shanghai"
     return {"config": config}
@@ -82,10 +102,14 @@ async def get_current_weather(request, ctx) -> dict:
         return coords
     latitude, longitude = coords
 
+    plugin_config = await _get_plugin_config(ctx)
+    provider = _get_open_meteo()
+    _configure_provider(provider, plugin_config)
+
     last_exc: Exception | None = None
     for attempt in range(2):
         try:
-            all_data = await _get_open_meteo().get_weather_all(latitude, longitude)
+            all_data = await provider.get_weather_all(latitude, longitude)
             return {"weather": all_data["current"]}
         except Exception as exc:
             last_exc = exc
@@ -114,6 +138,8 @@ async def get_forecast(request, ctx) -> dict:
     latitude, longitude = coords
 
     plugin_config = await _get_plugin_config(ctx)
+    provider = _get_open_meteo()
+    _configure_provider(provider, plugin_config)
     days_str = request.query_params.get("days", "")
     if days_str:
         try:
@@ -126,7 +152,7 @@ async def get_forecast(request, ctx) -> dict:
     last_exc: Exception | None = None
     for attempt in range(2):
         try:
-            all_data = await _get_open_meteo().get_weather_all(latitude, longitude, days)
+            all_data = await provider.get_weather_all(latitude, longitude, days)
             return {"forecast": all_data["daily"]}
         except Exception as exc:
             last_exc = exc
@@ -157,10 +183,14 @@ async def get_hourly(request, ctx) -> dict:
         return coords
     latitude, longitude = coords
 
+    plugin_config = await _get_plugin_config(ctx)
+    provider = _get_open_meteo()
+    _configure_provider(provider, plugin_config)
+
     last_exc: Exception | None = None
     for attempt in range(2):
         try:
-            all_data = await _get_open_meteo().get_weather_all(latitude, longitude)
+            all_data = await provider.get_weather_all(latitude, longitude)
             return {"hourly": all_data["hourly"]}
         except Exception as exc:
             last_exc = exc
@@ -189,8 +219,11 @@ async def get_air_quality(request, ctx) -> dict:
         return coords
     latitude, longitude = coords
 
+    provider = _get_open_meteo()
+    _configure_provider(provider, await _get_plugin_config(ctx))
+
     try:
-        aqi = await _get_open_meteo().get_air_quality(latitude, longitude)
+        aqi = await provider.get_air_quality(latitude, longitude)
         return {"air_quality": aqi}
     except Exception as exc:
         logger.warning(
@@ -208,6 +241,9 @@ async def search_city(request, ctx) -> dict:
     lon = request.query_params.get("lon", "")
     count_str = request.query_params.get("count", "5")
 
+    provider = _get_open_meteo()
+    _configure_provider(provider, await _get_plugin_config(ctx))
+
     if lat and lon:
         try:
             latitude = float(lat)
@@ -215,7 +251,7 @@ async def search_city(request, ctx) -> dict:
         except (ValueError, TypeError):
             return {"error": _("plugin.weather-widget.error.lat_lon_invalid"), "code": 4001}
         try:
-            city = await _get_open_meteo().reverse_geocode(latitude, longitude)
+            city = await provider.reverse_geocode(latitude, longitude)
             return {"cities": [city] if city else []}
         except Exception as exc:
             logger.warning(
@@ -235,7 +271,7 @@ async def search_city(request, ctx) -> dict:
         count = 5
 
     try:
-        cities = await _get_open_meteo().search_city(name, count)
+        cities = await provider.search_city(name, count)
         return {"cities": cities}
     except Exception as exc:
         logger.warning(

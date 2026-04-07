@@ -1,7 +1,7 @@
 /**
  * WMO Weather Code 映射
  *
- * 将 Open-Meteo 返回的 WMO weather_code 映射到 Lucide 图标名和场景类型。
+ * 将插件后端返回的 WMO 风格 weather_code 映射到 Lucide 图标名和场景类型。
  */
 
 export interface WeatherCodeInfo {

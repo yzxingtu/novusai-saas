@@ -1,16 +1,16 @@
 """
-Open-Meteo API 客户端
+MET Norway + Nominatim weather client.
 
-免费天气 API，无需 API Key。
-- 合并请求：一次获取 current + daily + hourly 全量数据
-- 空气质量：独立 API 获取 AQI / PM2.5 / PM10
-- 地理编码：Nominatim（含 rate-limit）+ Open-Meteo 二次反查
+The historical module name is retained for compatibility with the existing
+plugin loader and executor import path.
 """
 
 from __future__ import annotations
 
 import asyncio
 import time
+from collections.abc import Mapping
+from datetime import UTC, datetime, timedelta, timezone
 from typing import Any
 
 import httpx
@@ -21,7 +21,6 @@ logger = get_logger("plugin.weather-widget")
 
 
 def _describe_exception(exc: Exception | None) -> str:
-    """Build a readable exception summary for Loguru-based logs / 为 Loguru 日志构造可读异常摘要。"""
     if exc is None:
         return "unknown error"
 
@@ -40,47 +39,26 @@ def _describe_exception(exc: Exception | None) -> str:
 
     return " <- ".join(parts)
 
-# ── API 端点 / API endpoints ──
-_BASE_URL = "https://api.open-meteo.com/v1/forecast"
-_AQI_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
-_GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search"
 
+_MET_FORECAST_URL = "https://api.met.no/weatherapi/locationforecast/2.0/compact"
 _NOMINATIM_SEARCH_URL = "https://nominatim.openstreetmap.org/search"
 _NOMINATIM_REVERSE_URL = "https://nominatim.openstreetmap.org/reverse"
-_NOMINATIM_HEADERS = {"User-Agent": "NovusAI-WeatherPlugin/1.0"}
+_REQUEST_HEADERS = {
+    "User-Agent": "NovusAI-WeatherPlugin/1.0",
+    "Accept": "application/json",
+}
 
-# ── 超时 / timeouts ──
-_WEATHER_TIMEOUT = 5.0
-_GEOCODING_TIMEOUT = 3.0
+_WEATHER_TIMEOUT = 6.0
+_GEOCODING_TIMEOUT = 4.0
 _NOMINATIM_TIMEOUT = 4.0
-_NOMINATIM_ADMIN_RETRY_TIMEOUT = 5.0
 _CITY_LOOKUP_TOTAL_TIMEOUT = 8.0
 
-# ── Nominatim Rate-Limit (1 req/s) / Nominatim 限速 1 次每秒 ──
+_DEFAULT_CACHE_TTL = 600
+_CACHE_TTL = _DEFAULT_CACHE_TTL
+_cache: dict[str, tuple[float, Any]] = {}
+
 _nominatim_lock = asyncio.Lock()
 _nominatim_last_ts: float = 0.0
-
-
-async def _nominatim_throttle() -> None:
-    """Enforce 1 request/second for Nominatim (OSM usage policy). / 说明"""
-    global _nominatim_last_ts
-    async with _nominatim_lock:
-        now = time.monotonic()
-        gap = 1.0 - (now - _nominatim_last_ts)
-        if gap > 0:
-            await asyncio.sleep(gap)
-        _nominatim_last_ts = time.monotonic()
-
-
-def _make_client(timeout: float = _WEATHER_TIMEOUT) -> httpx.AsyncClient:
-    # httpx verifies TLS by default; keep the default transport to avoid
-    # environment-specific connection issues while preserving certificate checks.
-    return httpx.AsyncClient(timeout=timeout)
-
-
-# ── 内存缓存 (TTL = 600s) ──
-_cache: dict[str, tuple[float, Any]] = {}
-_CACHE_TTL = 600
 
 _CITY_QUERY_ALIASES: dict[str, tuple[str, ...]] = {
     "北京": ("北京市", "Beijing"),
@@ -107,21 +85,89 @@ _CITY_LABEL_TRIM_SUFFIXES = (
     "市",
     "县",
 )
-_PRECISE_ADMIN_QUERY_SUFFIXES = (
-    "特别行政区",
-    "自治州",
-    "自治区",
-    "自治县",
-    "林区",
-    "新区",
-    "省",
-    "市",
-    "区",
-    "县",
-    "州",
-    "盟",
-    "旗",
-)
+
+_SYMBOL_TRANSLATIONS: dict[str, tuple[str, str]] = {
+    "clearsky": ("晴", "Clear sky"),
+    "fair": ("大部晴朗", "Fair"),
+    "partlycloudy": ("多云", "Partly cloudy"),
+    "cloudy": ("阴天", "Cloudy"),
+    "fog": ("雾", "Fog"),
+    "lightrain": ("小雨", "Light rain"),
+    "rain": ("中雨", "Rain"),
+    "heavyrain": ("大雨", "Heavy rain"),
+    "lightsleet": ("小雨夹雪", "Light sleet"),
+    "sleet": ("雨夹雪", "Sleet"),
+    "heavysleet": ("大雨夹雪", "Heavy sleet"),
+    "lightsnow": ("小雪", "Light snow"),
+    "snow": ("中雪", "Snow"),
+    "heavysnow": ("大雪", "Heavy snow"),
+    "rainshowers": ("阵雨", "Rain showers"),
+    "heavyrainshowers": ("强阵雨", "Heavy rain showers"),
+    "lightrainshowers": ("小阵雨", "Light rain showers"),
+    "sleetshowers": ("雨夹雪阵雨", "Sleet showers"),
+    "snowshowers": ("阵雪", "Snow showers"),
+    "heavysnowshowers": ("强阵雪", "Heavy snow showers"),
+    "thunder": ("雷暴", "Thunderstorm"),
+    "rainandthunder": ("雷阵雨", "Rain and thunder"),
+    "heavyrainandthunder": ("强雷阵雨", "Heavy rain and thunder"),
+    "sleetandthunder": ("雷阵雨夹雪", "Sleet and thunder"),
+    "snowandthunder": ("雷阵雪", "Snow and thunder"),
+    "rainshowersandthunder": ("雷阵雨", "Rain showers and thunder"),
+    "sleetshowersandthunder": ("雷阵雨夹雪", "Sleet showers and thunder"),
+    "snowshowersandthunder": ("雷阵雪", "Snow showers and thunder"),
+}
+
+WMO_CODES: dict[int, dict[str, str]] = {
+    0: {"icon": "sun", "zh": "晴", "en": "Clear sky"},
+    1: {"icon": "sun", "zh": "大部晴朗", "en": "Mainly clear"},
+    2: {"icon": "cloud-sun", "zh": "多云", "en": "Partly cloudy"},
+    3: {"icon": "cloud", "zh": "阴天", "en": "Overcast"},
+    45: {"icon": "cloud-fog", "zh": "雾", "en": "Fog"},
+    48: {"icon": "cloud-fog", "zh": "霾", "en": "Haze"},
+    51: {"icon": "cloud-drizzle", "zh": "毛毛雨", "en": "Drizzle"},
+    61: {"icon": "cloud-rain", "zh": "小雨", "en": "Slight rain"},
+    63: {"icon": "cloud-rain", "zh": "中雨", "en": "Moderate rain"},
+    65: {"icon": "cloud-rain", "zh": "大雨", "en": "Heavy rain"},
+    71: {"icon": "snowflake", "zh": "小雪", "en": "Slight snowfall"},
+    73: {"icon": "snowflake", "zh": "中雪", "en": "Moderate snowfall"},
+    75: {"icon": "snowflake", "zh": "大雪", "en": "Heavy snowfall"},
+    77: {"icon": "snowflake", "zh": "雨夹雪", "en": "Sleet"},
+    80: {"icon": "cloud-rain", "zh": "小阵雨", "en": "Slight rain showers"},
+    81: {"icon": "cloud-rain", "zh": "阵雨", "en": "Moderate rain showers"},
+    82: {"icon": "cloud-rain", "zh": "强阵雨", "en": "Violent rain showers"},
+    85: {"icon": "snowflake", "zh": "阵雪", "en": "Snow showers"},
+    95: {"icon": "cloud-lightning", "zh": "雷暴", "en": "Thunderstorm"},
+    96: {"icon": "cloud-lightning", "zh": "强雷暴", "en": "Strong thunderstorm"},
+}
+
+_DEFAULT_WMO = {"icon": "cloud", "zh": "未知", "en": "Unknown"}
+
+_CITY_FIELDS = ("city", "town", "village", "county", "suburb", "state_district", "state")
+
+
+def configure(config: Mapping[str, Any] | None) -> None:
+    global _CACHE_TTL
+    mapping = dict(config or {})
+    _CACHE_TTL = _clamp_int(
+        mapping.get("cache_ttl"),
+        minimum=60,
+        maximum=3600,
+        default=_DEFAULT_CACHE_TTL,
+    )
+
+
+def _clamp_int(
+    value: Any,
+    *,
+    minimum: int,
+    maximum: int,
+    default: int,
+) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return max(minimum, min(maximum, parsed))
 
 
 def _cache_get(key: str) -> Any | None:
@@ -138,9 +184,9 @@ def _cache_get(key: str) -> Any | None:
 def _cache_set(key: str, value: Any) -> None:
     _cache[key] = (time.time(), value)
     if len(_cache) > 200:
-        sorted_keys = sorted(_cache, key=lambda k: _cache[k][0])
-        for k in sorted_keys[:100]:
-            _cache.pop(k, None)
+        sorted_keys = sorted(_cache, key=lambda item: _cache[item][0])
+        for cache_key in sorted_keys[:100]:
+            _cache.pop(cache_key, None)
 
 
 def _remaining_timeout(deadline: float | None, *, minimum: float = 0.5) -> float | None:
@@ -237,13 +283,6 @@ def _trim_city_label_suffix(value: str) -> str:
     return text
 
 
-def _needs_precise_nominatim_retry(value: str) -> bool:
-    text = str(value or "").strip()
-    if not text:
-        return False
-    return any(text.endswith(suffix) for suffix in _PRECISE_ADMIN_QUERY_SUFFIXES)
-
-
 def _sort_city_results(
     *,
     original_query: str,
@@ -302,46 +341,172 @@ def _rank_city_candidate(
     return (score, name)
 
 
-# ── WMO Weather Code 映射 ──
-WMO_CODES: dict[int, dict[str, str]] = {
-    0: {"icon": "sun", "zh": "晴", "en": "Clear sky"},
-    1: {"icon": "sun", "zh": "大部晴朗", "en": "Mainly clear"},
-    2: {"icon": "cloud-sun", "zh": "多云", "en": "Partly cloudy"},
-    3: {"icon": "cloud", "zh": "阴天", "en": "Overcast"},
-    45: {"icon": "cloud-fog", "zh": "雾", "en": "Fog"},
-    48: {"icon": "cloud-fog", "zh": "雾凇", "en": "Rime fog"},
-    51: {"icon": "cloud-drizzle", "zh": "小毛毛雨", "en": "Light drizzle"},
-    53: {"icon": "cloud-drizzle", "zh": "毛毛雨", "en": "Moderate drizzle"},
-    55: {"icon": "cloud-drizzle", "zh": "大毛毛雨", "en": "Dense drizzle"},
-    56: {"icon": "cloud-drizzle", "zh": "冻毛毛雨", "en": "Light freezing drizzle"},
-    57: {"icon": "cloud-drizzle", "zh": "冻雨", "en": "Dense freezing drizzle"},
-    61: {"icon": "cloud-rain", "zh": "小雨", "en": "Slight rain"},
-    63: {"icon": "cloud-rain", "zh": "中雨", "en": "Moderate rain"},
-    65: {"icon": "cloud-rain", "zh": "大雨", "en": "Heavy rain"},
-    66: {"icon": "cloud-rain", "zh": "冻雨", "en": "Light freezing rain"},
-    67: {"icon": "cloud-rain", "zh": "大冻雨", "en": "Heavy freezing rain"},
-    71: {"icon": "snowflake", "zh": "小雪", "en": "Slight snowfall"},
-    73: {"icon": "snowflake", "zh": "中雪", "en": "Moderate snowfall"},
-    75: {"icon": "snowflake", "zh": "大雪", "en": "Heavy snowfall"},
-    77: {"icon": "snowflake", "zh": "雪粒", "en": "Snow grains"},
-    80: {"icon": "cloud-rain", "zh": "小阵雨", "en": "Slight rain showers"},
-    81: {"icon": "cloud-rain", "zh": "阵雨", "en": "Moderate rain showers"},
-    82: {"icon": "cloud-rain", "zh": "大阵雨", "en": "Violent rain showers"},
-    85: {"icon": "snowflake", "zh": "小阵雪", "en": "Slight snow showers"},
-    86: {"icon": "snowflake", "zh": "大阵雪", "en": "Heavy snow showers"},
-    95: {"icon": "cloud-lightning", "zh": "雷暴", "en": "Thunderstorm"},
-    96: {"icon": "cloud-lightning", "zh": "雷暴伴小冰雹", "en": "Thunderstorm with slight hail"},
-    99: {"icon": "cloud-lightning", "zh": "雷暴伴大冰雹", "en": "Thunderstorm with heavy hail"},
-}
-
-_DEFAULT_WMO = {"icon": "cloud", "zh": "未知", "en": "Unknown"}
-
-
 def get_wmo_info(code: int) -> dict[str, str]:
     return WMO_CODES.get(code, _DEFAULT_WMO)
 
 
-# ── 合并天气请求 (current + daily + hourly) ──
+def _make_client(timeout: float) -> httpx.AsyncClient:
+    return httpx.AsyncClient(timeout=timeout, headers=_REQUEST_HEADERS)
+
+
+def _guess_query_language(value: str) -> str:
+    if any("\u4e00" <= ch <= "\u9fff" for ch in str(value or "")):
+        return "zh-CN"
+    return "en"
+
+
+def _coerce_number(value: Any) -> int | float | None:
+    if value in (None, ""):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return int(number) if number.is_integer() else number
+
+
+def _coerce_float(value: Any) -> float | None:
+    number = _coerce_number(value)
+    if number is None:
+        return None
+    return float(number)
+
+
+async def _nominatim_throttle() -> None:
+    global _nominatim_last_ts
+    async with _nominatim_lock:
+        now = time.monotonic()
+        gap = 1.0 - (now - _nominatim_last_ts)
+        if gap > 0:
+            await asyncio.sleep(gap)
+        _nominatim_last_ts = time.monotonic()
+
+
+def _approx_timezone(longitude: float) -> timezone:
+    offset = round(longitude / 15.0)
+    offset = max(-12, min(14, offset))
+    return timezone(timedelta(hours=offset))
+
+
+def _parse_iso_datetime(value: str, *, target_tz: timezone | None = None) -> datetime:
+    normalized = value.replace("Z", "+00:00")
+    dt = datetime.fromisoformat(normalized)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(target_tz or UTC)
+
+
+def _symbol_base(symbol_code: str | None) -> str:
+    symbol = str(symbol_code or "").strip().lower()
+    for suffix in ("_day", "_night", "_polartwilight"):
+        if symbol.endswith(suffix):
+            return symbol[: -len(suffix)]
+    return symbol
+
+
+def _symbol_period(symbol_code: str | None) -> str | None:
+    symbol = str(symbol_code or "").strip().lower()
+    for suffix in ("day", "night", "polartwilight"):
+        token = f"_{suffix}"
+        if symbol.endswith(token):
+            return suffix
+    return None
+
+
+def _symbol_to_weather(symbol_code: str | None) -> dict[str, Any]:
+    base = _symbol_base(symbol_code)
+    zh, en = _SYMBOL_TRANSLATIONS.get(base, ("未知", "Unknown"))
+
+    if "thunder" in base:
+        wmo = 95
+    elif "snowshowers" in base:
+        wmo = 85
+    elif "snow" in base:
+        wmo = 73 if "light" not in base else 71
+        if "heavy" in base:
+            wmo = 75
+    elif "sleetshowers" in base:
+        wmo = 85
+    elif "sleet" in base:
+        wmo = 77
+    elif "rainshowers" in base:
+        if "light" in base:
+            wmo = 80
+        elif "heavy" in base:
+            wmo = 82
+        else:
+            wmo = 81
+    elif "rain" in base:
+        if "light" in base:
+            wmo = 61
+        elif "heavy" in base:
+            wmo = 65
+        else:
+            wmo = 63
+    elif "drizzle" in base:
+        wmo = 51
+    elif "fog" in base:
+        wmo = 45
+    elif base == "partlycloudy":
+        wmo = 2
+    elif base == "fair":
+        wmo = 1
+    elif base == "clearsky":
+        wmo = 0
+    elif base == "cloudy":
+        wmo = 3
+    else:
+        wmo = 3
+
+    return {"wmo": wmo, "zh": zh, "en": en}
+
+
+def _symbol_is_day(symbol_code: str | None, *, local_dt: datetime | None = None) -> bool:
+    period = _symbol_period(symbol_code)
+    if period == "night":
+        return False
+    if period in {"day", "polartwilight"}:
+        return True
+    if local_dt is not None:
+        return 6 <= local_dt.hour < 18
+    return True
+
+
+def _extract_symbol(entry: dict[str, Any]) -> str | None:
+    data = entry.get("data", {}) or {}
+    for key in ("next_1_hours", "next_6_hours", "next_12_hours"):
+        summary = (data.get(key) or {}).get("summary") or {}
+        symbol = summary.get("symbol_code")
+        if symbol:
+            return str(symbol)
+    return None
+
+
+def _to_local_entry(entry: dict[str, Any], *, tz: timezone) -> tuple[datetime, dict[str, Any]]:
+    local_dt = _parse_iso_datetime(str(entry.get("time") or ""), target_tz=tz)
+    return local_dt, entry
+
+
+async def _fetch_met_timeseries(latitude: float, longitude: float) -> list[dict[str, Any]]:
+    cache_key = f"met:{latitude:.2f}:{longitude:.2f}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    async with _make_client(_WEATHER_TIMEOUT) as client:
+        resp = await client.get(
+            _MET_FORECAST_URL,
+            params={"lat": latitude, "lon": longitude},
+        )
+        resp.raise_for_status()
+        payload = resp.json()
+
+    timeseries = ((payload.get("properties") or {}).get("timeseries") or [])
+    if not isinstance(timeseries, list) or not timeseries:
+        raise RuntimeError("MET Norway weather payload is empty")
+
+    _cache_set(cache_key, timeseries)
+    return timeseries
 
 
 async def get_weather_all(
@@ -349,119 +514,103 @@ async def get_weather_all(
     longitude: float,
     days: int = 3,
 ) -> dict[str, Any]:
-    """单次请求获取 current + daily + hourly 全量天气数据 / Single request for current + daily + hourly weather.
-
-    Returns:
-        {
-            "current": { temperature, apparent_temperature, weather_code, humidity,
-                         wind_speed, uv_index, is_day, weather_icon, weather_text_zh/en },
-            "daily": [{ date, temp_max, temp_min, weather_code, sunrise, sunset, ... }],
-            "hourly": [{ time, temperature, weather_code, weather_icon, weather_text_zh/en }],
-        }
-    """
     days = max(1, min(days, 7))
     cache_key = f"all:{latitude:.2f}:{longitude:.2f}:{days}"
     cached = _cache_get(cache_key)
     if cached is not None:
         return cached
 
-    async with _make_client() as client:
-        resp = await client.get(
-            _BASE_URL,
-            params={
-                "latitude": latitude,
-                "longitude": longitude,
-                "current": ",".join([
-                    "temperature_2m",
-                    "apparent_temperature",
-                    "weather_code",
-                    "relative_humidity_2m",
-                    "wind_speed_10m",
-                    "uv_index",
-                    "is_day",
-                ]),
-                "daily": ",".join([
-                    "temperature_2m_max",
-                    "temperature_2m_min",
-                    "weather_code",
-                    "sunrise",
-                    "sunset",
-                ]),
-                "hourly": "temperature_2m,weather_code",
-                "timezone": "auto",
-                "forecast_days": days,
-            },
-        )
-        resp.raise_for_status()
-        data = resp.json()
+    timeseries = await _fetch_met_timeseries(latitude, longitude)
+    tz = _approx_timezone(longitude)
 
-    # parse current / 解析当前天气块
-    cur = data.get("current", {})
-    wcode = cur.get("weather_code", 0)
-    wmo = get_wmo_info(wcode)
+    current_entry = timeseries[0]
+    current_local_dt = _parse_iso_datetime(str(current_entry.get("time") or ""), target_tz=tz)
+    current_details = (((current_entry.get("data") or {}).get("instant") or {}).get("details") or {})
+    current_symbol = _extract_symbol(current_entry)
+    current_condition = _symbol_to_weather(current_symbol)
+    current_wmo = get_wmo_info(int(current_condition["wmo"]))
+
     current_out = {
-        "temperature": cur.get("temperature_2m"),
-        "apparent_temperature": cur.get("apparent_temperature"),
-        "weather_code": wcode,
-        "weather_icon": wmo["icon"],
-        "weather_text_zh": wmo["zh"],
-        "weather_text_en": wmo["en"],
-        "humidity": cur.get("relative_humidity_2m"),
-        "wind_speed": cur.get("wind_speed_10m"),
-        "uv_index": cur.get("uv_index"),
-        "is_day": bool(cur.get("is_day", 1)),
+        "temperature": _coerce_float(current_details.get("air_temperature")),
+        "apparent_temperature": _coerce_float(current_details.get("air_temperature")),
+        "weather_code": int(current_condition["wmo"]),
+        "weather_icon": current_wmo["icon"],
+        "weather_text_zh": str(current_condition["zh"]),
+        "weather_text_en": str(current_condition["en"]),
+        "humidity": _coerce_number(current_details.get("relative_humidity")),
+        "wind_speed": (
+            round(float(current_details["wind_speed"]) * 3.6, 1)
+            if _coerce_float(current_details.get("wind_speed")) is not None
+            else None
+        ),
+        "uv_index": None,
+        "is_day": _symbol_is_day(current_symbol, local_dt=current_local_dt),
     }
 
-    # parse daily / 解析逐日预报
-    daily_raw = data.get("daily", {})
-    dates = daily_raw.get("time", [])
-    daily_out = []
-    for i, date in enumerate(dates):
-        code = (daily_raw.get("weather_code") or [])[i] if i < len(daily_raw.get("weather_code", [])) else 0
-        w = get_wmo_info(code)
-        sunrises = daily_raw.get("sunrise", [])
-        sunsets = daily_raw.get("sunset", [])
-        daily_out.append({
-            "date": date,
-            "temp_max": (daily_raw.get("temperature_2m_max") or [])[i] if i < len(daily_raw.get("temperature_2m_max", [])) else None,
-            "temp_min": (daily_raw.get("temperature_2m_min") or [])[i] if i < len(daily_raw.get("temperature_2m_min", [])) else None,
-            "weather_code": code,
-            "weather_icon": w["icon"],
-            "weather_text_zh": w["zh"],
-            "weather_text_en": w["en"],
-            "sunrise": sunrises[i] if i < len(sunrises) else None,
-            "sunset": sunsets[i] if i < len(sunsets) else None,
-        })
+    hourly_out: list[dict[str, Any]] = []
+    for index, entry in enumerate(timeseries[:24]):
+        local_dt = _parse_iso_datetime(str(entry.get("time") or ""), target_tz=tz)
+        details = (((entry.get("data") or {}).get("instant") or {}).get("details") or {})
+        symbol = _extract_symbol(entry)
+        condition = _symbol_to_weather(symbol)
+        wmo_info = get_wmo_info(int(condition["wmo"]))
+        hourly_out.append(
+            {
+                "time": local_dt.strftime("%H:%M"),
+                "temperature": _coerce_float(details.get("air_temperature")),
+                "weather_code": int(condition["wmo"]),
+                "weather_icon": wmo_info["icon"],
+                "weather_text_zh": str(condition["zh"]),
+                "weather_text_en": str(condition["en"]),
+                "is_current": index == 0,
+            }
+        )
 
-    # parse hourly (next 24 hours from now) / 解析逐小时（自当前起 24 小时）
-    hourly_raw = data.get("hourly", {})
-    h_times = hourly_raw.get("time", [])
-    h_temps = hourly_raw.get("temperature_2m", [])
-    h_codes = hourly_raw.get("weather_code", [])
+    grouped: dict[str, dict[str, Any]] = {}
+    for entry in timeseries[:24 * 8]:
+        local_dt = _parse_iso_datetime(str(entry.get("time") or ""), target_tz=tz)
+        local_date = local_dt.date().isoformat()
+        bucket = grouped.setdefault(
+            local_date,
+            {
+                "date": local_date,
+                "temp_max": None,
+                "temp_min": None,
+                "best_symbol": None,
+                "best_distance": 999,
+            },
+        )
+        details = (((entry.get("data") or {}).get("instant") or {}).get("details") or {})
+        temp = _coerce_float(details.get("air_temperature"))
+        if temp is not None:
+            bucket["temp_max"] = temp if bucket["temp_max"] is None else max(bucket["temp_max"], temp)
+            bucket["temp_min"] = temp if bucket["temp_min"] is None else min(bucket["temp_min"], temp)
 
-    now_iso = cur.get("time", "")
-    now_hour = now_iso[:13] if len(now_iso) >= 13 else ""
-    start_idx = 0
-    for idx, t in enumerate(h_times):
-        if t[:13] >= now_hour:
-            start_idx = idx
-            break
+        symbol = _extract_symbol(entry)
+        if symbol:
+            distance = abs(local_dt.hour - 12)
+            if distance < bucket["best_distance"]:
+                bucket["best_distance"] = distance
+                bucket["best_symbol"] = symbol
 
-    hourly_out = []
-    for j in range(start_idx, min(start_idx + 24, len(h_times))):
-        hcode = h_codes[j] if j < len(h_codes) else 0
-        hw = get_wmo_info(hcode)
-        raw_time = h_times[j]
-        display_time = raw_time[11:16] if len(raw_time) >= 16 else raw_time
-        hourly_out.append({
-            "time": display_time,
-            "temperature": h_temps[j] if j < len(h_temps) else None,
-            "weather_code": hcode,
-            "weather_icon": hw["icon"],
-            "weather_text_zh": hw["zh"],
-            "weather_text_en": hw["en"],
-            "is_current": j == start_idx,
-        })
+    daily_out: list[dict[str, Any]] = []
+    for date_key in sorted(grouped.keys())[:days]:
+        bucket = grouped[date_key]
+        condition = _symbol_to_weather(bucket.get("best_symbol"))
+        wmo_info = get_wmo_info(int(condition["wmo"]))
+        daily_out.append(
+            {
+                "date": bucket["date"],
+                "temp_max": bucket["temp_max"],
+                "temp_min": bucket["temp_min"],
+                "weather_code": int(condition["wmo"]),
+                "weather_icon": wmo_info["icon"],
+                "weather_text_zh": str(condition["zh"]),
+                "weather_text_en": str(condition["en"]),
+                "sunrise": None,
+                "sunset": None,
+            }
+        )
 
     result = {
         "current": current_out,
@@ -470,9 +619,6 @@ async def get_weather_all(
     }
     _cache_set(cache_key, result)
     return result
-
-
-# ── 保留向后兼容的单独接口 (内部复用 get_weather_all) ──
 
 
 async def get_current_weather(latitude: float, longitude: float) -> dict[str, Any]:
@@ -485,128 +631,10 @@ async def get_forecast(latitude: float, longitude: float, days: int = 3) -> list
     return all_data["daily"]
 
 
-# ── 空气质量 / air quality ──
-
-
 async def get_air_quality(latitude: float, longitude: float) -> dict[str, Any]:
-    """获取空气质量数据 (Open-Meteo Air Quality API) / Get air quality (Open-Meteo Air Quality API).
-
-    Returns:
-        {
-            "aqi": 42,       — US AQI（美标指数）
-            "pm2_5": 12.3,
-            "pm10": 25.1,
-            "european_aqi": 35,
-        }
-    """
-    cache_key = f"aqi:{latitude:.2f}:{longitude:.2f}"
-    cached = _cache_get(cache_key)
-    if cached is not None:
-        return cached
-
-    try:
-        async with _make_client() as client:
-            resp = await client.get(
-                _AQI_URL,
-                params={
-                    "latitude": latitude,
-                    "longitude": longitude,
-                    "current": "us_aqi,pm2_5,pm10,european_aqi",
-                },
-            )
-            resp.raise_for_status()
-            data = resp.json()
-
-        current = data.get("current", {})
-        result = {
-            "aqi": current.get("us_aqi"),
-            "pm2_5": current.get("pm2_5"),
-            "pm10": current.get("pm10"),
-            "european_aqi": current.get("european_aqi"),
-        }
-        _cache_set(cache_key, result)
-        return result
-
-    except Exception as exc:
-        logger.warning("Air quality API error: {}", _describe_exception(exc))
-        return {"aqi": None, "pm2_5": None, "pm10": None, "european_aqi": None}
-
-
-# ── 城市搜索 (Nominatim) ──
-
-
-async def search_city(name: str, count: int = 5) -> list[dict]:
-    if not name or not name.strip():
-        return []
-
-    query = name.strip()
-    cache_key = f"geo:{query}:{count}"
-    cached = _cache_get(cache_key)
-    if cached is not None:
-        return cached
-
-    queries = _expand_city_queries(query)
-    merged_results: list[dict[str, Any]] = []
-    deadline = time.monotonic() + _CITY_LOOKUP_TOTAL_TIMEOUT
-    try:
-        for candidate in queries[:1]:
-            precise_admin_query = _needs_precise_nominatim_retry(candidate)
-            timeout = _bounded_timeout(
-                _NOMINATIM_ADMIN_RETRY_TIMEOUT
-                if precise_admin_query
-                else _NOMINATIM_TIMEOUT,
-                deadline,
-            )
-            if timeout is None:
-                break
-            results = await _search_city_nominatim(
-                candidate,
-                count,
-                timeout=timeout,
-            )
-            merged_results = _merge_city_results(merged_results, results, limit=count)
-            if precise_admin_query and merged_results:
-                merged_results = _sort_city_results(
-                    original_query=query,
-                    expanded_queries=queries,
-                    results=merged_results,
-                    count=count,
-                )
-                _cache_set(cache_key, merged_results)
-                return merged_results
-
-        open_meteo_queries = (
-            queries[1:] if _needs_precise_nominatim_retry(queries[0]) else queries
-        )
-        for candidate in open_meteo_queries:
-            timeout = _bounded_timeout(_GEOCODING_TIMEOUT, deadline)
-            if timeout is None:
-                break
-            results = await _search_city_open_meteo(candidate, count, timeout=timeout)
-            merged_results = _merge_city_results(
-                merged_results,
-                results,
-                limit=max(count * 4, count),
-            )
-            if count == 1 and merged_results:
-                break
-
-        merged_results = _sort_city_results(
-            original_query=query,
-            expanded_queries=queries,
-            results=merged_results,
-            count=count,
-        )
-
-        _cache_set(cache_key, merged_results)
-        return merged_results
-    except Exception as exc:
-        logger.warning(
-            "City search error for query='{}': {}",
-            query,
-            _describe_exception(exc),
-        )
-        return merged_results
+    _latitude = latitude
+    _longitude = longitude
+    return {"aqi": None, "pm2_5": None, "pm10": None, "european_aqi": None}
 
 
 async def _search_city_nominatim(
@@ -617,26 +645,21 @@ async def _search_city_nominatim(
 ) -> list[dict[str, Any]]:
     try:
         await _nominatim_throttle()
-        async with _make_client(timeout=timeout) as client:
+        async with _make_client(timeout) as client:
             resp = await client.get(
                 _NOMINATIM_SEARCH_URL,
                 params={
                     "q": name,
                     "format": "jsonv2",
                     "limit": count,
-                    "accept-language": "zh",
+                    "accept-language": _guess_query_language(name),
                     "addressdetails": 1,
                 },
-                headers=_NOMINATIM_HEADERS,
             )
             resp.raise_for_status()
             data = resp.json()
     except httpx.TimeoutException:
-        logger.warning(
-            "Nominatim search timeout for query='{}' timeout={}s",
-            name,
-            timeout,
-        )
+        logger.warning("Nominatim search timeout for query='{}' timeout={}s", name, timeout)
         return []
     except Exception as exc:
         logger.warning(
@@ -680,117 +703,66 @@ async def _search_city_open_meteo(
     name: str,
     count: int,
     *,
-    timeout: float = _GEOCODING_TIMEOUT,
+    timeout: float = _NOMINATIM_TIMEOUT,
 ) -> list[dict[str, Any]]:
-    try:
-        async with _make_client(timeout=timeout) as client:
-            resp = await client.get(
-                _GEOCODING_URL,
-                params={
-                    "name": name,
-                    "count": count,
-                    "language": "zh",
-                    "format": "json",
-                },
-            )
-            resp.raise_for_status()
-            data = resp.json()
-    except Exception as exc:
-        logger.warning(
-            "Open-Meteo geocoding search error for query='{}': {}",
-            name,
-            _describe_exception(exc),
-        )
+    """Compatibility alias retained for the executor fallback path."""
+    return await _search_city_nominatim(name, count, timeout=timeout)
+
+
+async def search_city(name: str, count: int = 5) -> list[dict[str, Any]]:
+    if not name or not name.strip():
         return []
 
-    results = []
-    for item in data.get("results", []) or []:
-        lat = item.get("latitude")
-        lon = item.get("longitude")
-        if lat is None or lon is None:
-            continue
-        city_name = str(item.get("name") or "").strip()
-        if not city_name:
-            continue
-        results.append(
-            {
-                "name": city_name,
-                "country": item.get("country", ""),
-                "admin1": item.get("admin1", ""),
-                "latitude": float(lat),
-                "longitude": float(lon),
-            }
-        )
-    return results[:count]
-
-
-# ── 反向地理编码 / reverse geocoding ──
-
-_CITY_FIELDS = ("city", "town", "village", "county", "suburb", "state_district", "state")
-
-
-async def reverse_geocode(latitude: float, longitude: float) -> dict | None:
-    """坐标 -> 城市名。优先 Nominatim zoom=14，失败回退 Open-Meteo geocoding / Coords to city name (Nominatim then Open-Meteo fallback)."""
-    cache_key = f"rgeo:{latitude:.2f}:{longitude:.2f}"
+    query = name.strip()
+    cache_key = f"geo:{query}:{count}"
     cached = _cache_get(cache_key)
     if cached is not None:
         return cached
 
-    # 1) Nominatim reverse (zoom=14 for better city-level accuracy) / Nominatim 反向，zoom=14 提高城市精度
-    result = await _reverse_nominatim(latitude, longitude)
-    if result:
-        _cache_set(cache_key, result)
-        return result
+    queries = _expand_city_queries(query)
+    merged_results: list[dict[str, Any]] = []
+    deadline = time.monotonic() + _CITY_LOOKUP_TOTAL_TIMEOUT
 
-    # 2) Fallback: Open-Meteo geocoding nearest match / 回退 Open-Meteo 最近城市匹配
-    result = await _reverse_open_meteo(latitude, longitude)
-    if result:
-        _cache_set(cache_key, result)
-        return result
+    for candidate in queries[:3]:
+        timeout = _bounded_timeout(_GEOCODING_TIMEOUT, deadline)
+        if timeout is None:
+            break
+        results = await _search_city_nominatim(candidate, count, timeout=timeout)
+        merged_results = _merge_city_results(
+            merged_results,
+            results,
+            limit=max(count * 4, count),
+        )
+        if count == 1 and merged_results:
+            break
 
-    return None
+    merged_results = _sort_city_results(
+        original_query=query,
+        expanded_queries=queries,
+        results=merged_results,
+        count=count,
+    )
+    _cache_set(cache_key, merged_results)
+    return merged_results
 
 
-async def _reverse_nominatim(latitude: float, longitude: float) -> dict | None:
+async def _reverse_nominatim(latitude: float, longitude: float) -> dict[str, Any] | None:
     try:
         await _nominatim_throttle()
-        async with _make_client(timeout=_NOMINATIM_TIMEOUT) as client:
+        async with _make_client(_NOMINATIM_TIMEOUT) as client:
             resp = await client.get(
                 _NOMINATIM_REVERSE_URL,
                 params={
                     "lat": latitude,
                     "lon": longitude,
-                    "format": "json",
+                    "format": "jsonv2",
                     "zoom": 14,
-                    "accept-language": "zh",
+                    "accept-language": "zh-CN",
+                    "addressdetails": 1,
                 },
-                headers=_NOMINATIM_HEADERS,
             )
             resp.raise_for_status()
             data = resp.json()
-
-        address = data.get("address", {})
-        city_name = None
-        for field in _CITY_FIELDS:
-            if address.get(field):
-                city_name = address[field]
-                break
-
-        if not city_name:
-            display = data.get("display_name", "")
-            if display:
-                city_name = display.split(",")[0].strip()
-
-        if city_name:
-            return {
-                "name": city_name,
-                "country": address.get("country", ""),
-                "admin1": address.get("state", ""),
-                "latitude": latitude,
-                "longitude": longitude,
-            }
-        return None
-
     except Exception as exc:
         logger.warning(
             "Nominatim reverse error for lat={} lon={}: {}",
@@ -800,40 +772,40 @@ async def _reverse_nominatim(latitude: float, longitude: float) -> dict | None:
         )
         return None
 
+    address = data.get("address", {})
+    city_name = None
+    for field in _CITY_FIELDS:
+        if address.get(field):
+            city_name = address[field]
+            break
 
-async def _reverse_open_meteo(latitude: float, longitude: float) -> dict | None:
-    """Fallback: use Open-Meteo geocoding API to find nearest city. / 接口/处理器"""
-    try:
-        async with _make_client() as client:
-            resp = await client.get(
-                _GEOCODING_URL,
-                params={
-                    "latitude": latitude,
-                    "longitude": longitude,
-                    "count": 1,
-                    "language": "zh",
-                },
-            )
-            resp.raise_for_status()
-            data = resp.json()
+    if not city_name:
+        display = data.get("display_name", "")
+        if display:
+            city_name = display.split(",")[0].strip()
 
-        results = data.get("results", [])
-        if results:
-            r = results[0]
-            return {
-                "name": r.get("name", ""),
-                "country": r.get("country", ""),
-                "admin1": r.get("admin1", ""),
-                "latitude": r.get("latitude", latitude),
-                "longitude": r.get("longitude", longitude),
-            }
+    if not city_name:
         return None
 
-    except Exception as exc:
-        logger.warning(
-            "Open-Meteo geocoding fallback error for lat={} lon={}: {}",
-            latitude,
-            longitude,
-            _describe_exception(exc),
-        )
-        return None
+    return {
+        "name": city_name,
+        "country": address.get("country", ""),
+        "admin1": address.get("state", ""),
+        "latitude": latitude,
+        "longitude": longitude,
+    }
+
+
+async def reverse_geocode(latitude: float, longitude: float) -> dict[str, Any] | None:
+    cache_key = f"rgeo:{latitude:.2f}:{longitude:.2f}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    result = await _reverse_nominatim(latitude, longitude)
+    if result:
+        _cache_set(cache_key, result)
+    return result
+
+
+configure({})

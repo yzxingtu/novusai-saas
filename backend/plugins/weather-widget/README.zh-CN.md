@@ -7,9 +7,9 @@
 - **实时天气** — 温度、体感温度、天气状况、湿度、风速、UV 指数
 - **24 小时逐时预报** — 横向滚动小时温度 + 天气图标
 - **3 日预报** — 每日最高/最低温度 + 动态温度色彩映射条
-- **空气质量 (AQI)** — US AQI、PM2.5、PM10，数据来自 Open-Meteo Air Quality API
-- **自动定位** — 浏览器 Geolocation API + Nominatim 反向地理编码（多级 fallback）
-- **城市搜索** — 防抖搜索 + Open-Meteo Geocoding，支持中英文
+- **空气质量 (AQI)** — 当前免 Key 方案不提供 AQI 时优雅降级为 `--`
+- **自动定位** — 浏览器 Geolocation API + Nominatim 反向地理编码
+- **城市搜索** — 防抖搜索 + Nominatim，支持中英文
 - **本地存储** — 城市偏好和上次成功天气数据缓存在 localStorage
 - **骨架屏加载** — 首次加载时显示微光脉冲骨架屏
 - **Windows 11 Fluent Design UI** — 亚克力材质、动态天气渐变、噪点纹理、场景装饰
@@ -17,12 +17,11 @@
 
 ## API
 
-基于 [Open-Meteo](https://open-meteo.com/)，完全免费，无需 API Key。
+基于免 Key 的 [MET Norway](https://api.met.no/weatherapi/locationforecast/2.0/documentation) 和 [Nominatim](https://operations.osmfoundation.org/policies/nominatim/)。
 
-- 天气数据：`api.open-meteo.com/v1/forecast`
-- 空气质量：`air-quality-api.open-meteo.com/v1/air-quality`
-- 地理编码：`geocoding-api.open-meteo.com/v1/search`
-- 反向地理编码：`nominatim.openstreetmap.org/reverse`
+- 天气数据：`api.met.no/weatherapi/locationforecast/2.0/compact`
+- 地理编码和反查：`nominatim.openstreetmap.org/search|reverse`
+- 后端鉴权：不需要
 
 ## 扩展点
 

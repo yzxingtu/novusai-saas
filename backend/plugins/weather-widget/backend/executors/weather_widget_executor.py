@@ -1,6 +1,6 @@
 """实时天气工具执行器 / Description.
 
-调用 Open-Meteo API 获取真实天气数据，支持当前天气和多日预报两个工具。"""
+通过兼容 provider 获取真实天气数据，支持当前天气和多日预报两个工具。"""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 
 def _get_open_meteo():
-    """Load open_meteo module via shared loader / 通过共享加载器加载 open_meteo"""
+    """Load the historical compatibility module via the shared loader."""
     import importlib.util
     import sys
     from pathlib import Path
@@ -35,7 +35,7 @@ def _get_open_meteo():
 
 
 class WeatherWidgetExecutor(BaseToolExecutor):
-    """实时天气执行器（调用 Open-Meteo API） / Realtime weather executor (Open-Meteo API)."""
+    """实时天气执行器 / Realtime weather executor."""
 
     @staticmethod
     def _tool_timeout_seconds(definition: ToolDefinition) -> float:
@@ -107,6 +107,10 @@ class WeatherWidgetExecutor(BaseToolExecutor):
 
         tool_name = definition.name
         tool_timeout = self._tool_timeout_seconds(definition)
+        provider = _get_open_meteo()
+        configure = getattr(provider, "configure", None)
+        if callable(configure):
+            configure(getattr(definition, "config", {}) or {})
 
         try:
             if tool_name == "get_current_weather":

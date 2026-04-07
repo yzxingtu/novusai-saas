@@ -2,7 +2,7 @@
   "plugin.weather-widget.name": "天气组件",
   "plugin.weather-widget.description": "顶部导航天气组件：实时天气 + 动画展示 + 城市选择 + AI 技能包",
   "plugin.weather-widget.skill.weather_widget": "实时天气查询",
-  "plugin.weather-widget.skill.weather_widget.description": "调用 Open-Meteo API 查询真实天气数据（当前天气 + 多日预报）",
+  "plugin.weather-widget.skill.weather_widget.description": "调用免 Key 的公开天气服务查询真实天气数据（当前天气 + 多日预报）",
   "plugin.weather-widget.tool.get_current_weather": "获取当前天气",
   "plugin.weather-widget.tool.get_weather_forecast": "获取天气预报",
   "plugin.weather-widget.ui.temperature": "温度",
