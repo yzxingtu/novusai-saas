@@ -58,7 +58,7 @@ import {
   resolveRoutePageKey,
 } from '#/components/business/ai-slide-panel/page-key-utils';
 import { useFileUpload } from '#/composables/use-file-upload';
-import { waitForPageSessionJoin } from '#/composables/use-page-operation-channel';
+import { waitForPageSessionJoin } from '#/composables/use-ui-action-channel';
 import { CHAT_ACCEPT_ATTRIBUTE } from '#/constants/upload';
 import { $t } from '#/locales';
 import { useSocketIOStore } from '#/store';
@@ -75,6 +75,12 @@ import {
   normalizeSseTransportError,
 } from '#/utils/request';
 
+import {
+  formatDurationSeconds,
+  formatKnowledgeBaseName,
+  formatLocalizedList,
+  formatToolStatusLabel,
+} from './display-formatters';
 import {
   extractLeadingAgentMentionDraft,
   filterKnowledgeBasesByMentionQuery,
@@ -168,9 +174,32 @@ export function useAIChat(options: UseAIChatOptions) {
     });
   }
 
+  function hasInteractivePageContext(pageContext?: null | PageContext): boolean {
+    if (!pageContext?.page_key) {
+      return false;
+    }
+
+    const pageContextRecord = pageContext as unknown as Record<string, unknown>;
+
+    if (
+      typeof pageContextRecord.ui_epoch === 'number' ||
+      Array.isArray(pageContextRecord.surface_stack as unknown[]) ||
+      typeof pageContextRecord.active_surface_id === 'string' ||
+      typeof pageContextRecord.active_form_session_id === 'string'
+    ) {
+      return true;
+    }
+    const suggestedTools = pageContextRecord.suggested_tools;
+    return !!(
+      suggestedTools &&
+      typeof suggestedTools === 'object' &&
+      Array.isArray((suggestedTools as Record<string, unknown>).primary) &&
+      ((suggestedTools as Record<string, unknown>).primary as unknown[]).length > 0
+    );
+  }
+
   function hasPageOperations(pageContext?: null | PageContext): boolean {
-    const availableOperations = pageContext?.page_data?.available_operations;
-    return Array.isArray(availableOperations) && availableOperations.length > 0;
+    return hasInteractivePageContext(pageContext);
   }
 
   function resolveSocketEndpoint(
@@ -189,7 +218,7 @@ export function useAIChat(options: UseAIChatOptions) {
     apiPrefix: string,
     pageContext?: null | PageContext,
   ): Promise<boolean> {
-    if (!hasPageOperations(pageContext) || !options.pageSessionIdGetter) {
+    if (!hasInteractivePageContext(pageContext) || !options.pageSessionIdGetter) {
       return true;
     }
 
@@ -2113,7 +2142,9 @@ export function useAIChat(options: UseAIChatOptions) {
       if (missingVars.length > 0) {
         message.warning(
           $t('user.aiChat.varsModal.fillRequired', {
-            fields: missingVars.map((v) => v.label || v.name).join('、'),
+            fields: formatLocalizedList(
+              missingVars.map((v) => v.label || v.name),
+            ),
           }),
         );
         options.onVariablesMissing?.();
@@ -2566,15 +2597,14 @@ export function useAIChat(options: UseAIChatOptions) {
               selectedKBIds.value = effective;
               if (dropped.length > 0) {
                 const droppedLabels = dropped.map((kid) => {
-                  return (
-                    agentKBBindings.value.find(
-                      (item) => item.knowledge_base_id === kid,
-                    )?.kb_name || `KB#${kid}`
+                  const binding = agentKBBindings.value.find(
+                    (item) => item.knowledge_base_id === kid,
                   );
+                  return formatKnowledgeBaseName(binding?.kb_name, kid);
                 });
                 message.warning(
                   $t('common.globalAiChat.knowledgeBaseSelectionAdjusted', {
-                    dropped: droppedLabels.join('、'),
+                    dropped: formatLocalizedList(droppedLabels),
                   }),
                 );
               }
@@ -3128,7 +3158,8 @@ export function useAIChat(options: UseAIChatOptions) {
 
     for (const attachment of attachments) {
       const typeLabel = getExportAttachmentTypeLabel(attachment.type);
-      const attachmentLabel = attachment.name || attachment.url || '-';
+      const attachmentLabel =
+        attachment.name || attachment.url || $t('common.notSet');
       lines.push(`- ${typeLabel}: ${attachmentLabel}`);
       if (attachment.attachment_id) {
         lines.push(
@@ -3136,7 +3167,9 @@ export function useAIChat(options: UseAIChatOptions) {
         );
       }
       if (attachment.url) {
-        lines.push(`  URL: ${attachment.url}`);
+        lines.push(
+          `  ${$t('common.globalAiChat.exportUrl')}: ${attachment.url}`,
+        );
       }
     }
 
@@ -3163,22 +3196,26 @@ export function useAIChat(options: UseAIChatOptions) {
         lines.push('');
         for (const tc of msg.toolCalls) {
           const duration = tc.durationMs
-            ? ` (${(tc.durationMs / 1000).toFixed(1)}s)`
+            ? ` (${formatDurationSeconds(tc.durationMs)})`
             : '';
           const skill = tc.skillName ? `${tc.skillName} › ` : '';
           lines.push(
-            `> 🔧 ${skill}${tc.displayName || tc.name} — ${tc.status}${duration}`,
+            `> 🔧 ${skill}${tc.displayName || tc.name} — ${formatToolStatusLabel(tc.status)}${duration}`,
           );
           if (tc.arguments && Object.keys(tc.arguments).length > 0) {
-            lines.push(`> **Args:** \`${JSON.stringify(tc.arguments)}\``);
+            lines.push(
+              `> **${$t('common.globalAiChat.exportArgs')}:** \`${JSON.stringify(tc.arguments)}\``,
+            );
           }
           if (tc.output) {
             lines.push(
-              `> **Output:** ${tc.output.slice(0, 500)}${tc.output.length > 500 ? '...' : ''}`,
+              `> **${$t('common.globalAiChat.exportOutput')}:** ${tc.output.slice(0, 500)}${tc.output.length > 500 ? '...' : ''}`,
             );
           }
           if (tc.error) {
-            lines.push(`> **Error:** ${tc.error}`);
+            lines.push(
+              `> **${$t('common.globalAiChat.exportError')}:** ${tc.error}`,
+            );
           }
         }
       }

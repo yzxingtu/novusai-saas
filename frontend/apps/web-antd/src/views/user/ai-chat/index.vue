@@ -29,6 +29,10 @@ import {
 } from 'ant-design-vue';
 
 import ChatMessageItem from '#/components/business/ai-chat-panel/ChatMessageItem.vue';
+import {
+  formatKnowledgeBaseName,
+  formatLocalizedList,
+} from '#/components/business/ai-chat-panel/display-formatters';
 import { useAIChat } from '#/components/business/ai-chat-panel/use-ai-chat';
 import { $t } from '#/locales';
 import { getAgentInputVariables } from '#/types/ai-chat';
@@ -539,9 +543,9 @@ function onVarsConfirm() {
   const missing = required.filter((v) => !varsFormValues[v.name]?.trim());
   if (missing.length > 0) {
     message.warning(
-      `${missing.map((v) => v.label || v.name).join('、')} ${$t(
-        'common.required',
-      )}`,
+      $t('user.aiChat.varsModal.fillRequired', {
+        fields: formatLocalizedList(missing.map((v) => v.label || v.name)),
+      }),
     );
     return;
   }
@@ -1461,7 +1465,9 @@ watch(
               :key="kb.knowledge_base_id"
               class="bg-primary/8 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] leading-tight text-primary/70"
             >
-              {{ kb.kb_name || `KB#${kb.knowledge_base_id}` }}
+              {{
+                formatKnowledgeBaseName(kb.kb_name, kb.knowledge_base_id)
+              }}
             </span>
           </div>
           <div
@@ -1477,8 +1483,11 @@ watch(
               class="inline-flex items-center gap-0.5 rounded-full border border-primary/25 bg-background px-1.5 py-0.5 text-[10px] text-primary"
             >
               {{
-                agentKBBindings.find((b) => b.knowledge_base_id === kid)
-                  ?.kb_name || `KB#${kid}`
+                formatKnowledgeBaseName(
+                  agentKBBindings.find((b) => b.knowledge_base_id === kid)
+                    ?.kb_name,
+                  kid,
+                )
               }}
               <button
                 type="button"
@@ -1559,8 +1568,10 @@ watch(
                       <div class="min-w-0 flex-1">
                         <div class="truncate text-[12px] font-medium">
                           {{
-                            c.binding.kb_name ||
-                            `KB#${c.binding.knowledge_base_id}`
+                            formatKnowledgeBaseName(
+                              c.binding.kb_name,
+                              c.binding.knowledge_base_id,
+                            )
                           }}
                         </div>
                         <div

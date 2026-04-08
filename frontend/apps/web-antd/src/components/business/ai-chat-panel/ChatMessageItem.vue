@@ -25,6 +25,10 @@ import { IconifyIcon } from '@vben/icons';
 import { Button, Modal, Tooltip } from 'ant-design-vue';
 
 import { AgentProfilePopover } from '#/components/business/agent-profile-popover';
+import {
+  formatDurationSeconds,
+  formatKnowledgeBaseName,
+} from '#/components/business/ai-chat-panel/display-formatters';
 import { getPageOpErrorHintKey } from '#/components/business/ai-chat-panel/pageOpErrorHints';
 import RichTextDraftCard from '#/components/business/ai-chat-panel/RichTextDraftCard.vue';
 import { MarkdownRender } from '#/components/business/markdown-render';
@@ -153,11 +157,10 @@ const ragGroups = computed(() => {
   const list = props.msg.ragSources ?? [];
   const groups = new Map<string, { items: RagSource[]; label: string }>();
   for (const s of list) {
-    const label =
-      s.knowledge_base_name ||
-      (s.knowledge_base_id === null || s.knowledge_base_id === undefined
-        ? '—'
-        : `KB#${s.knowledge_base_id}`);
+    const label = formatKnowledgeBaseName(
+      s.knowledge_base_name,
+      s.knowledge_base_id,
+    );
     const key = String(s.knowledge_base_id ?? label);
     if (!groups.has(key)) {
       groups.set(key, { label, items: [] });
@@ -980,6 +983,31 @@ const toolDisplayItems = computed<ToolDisplayItem[]>(() =>
   }),
 );
 
+const RUNTIME_PAGE_TOOL_NAMES = new Set([
+  'capture_screenshot',
+  'clear_search',
+  'create_record',
+  'edit_record',
+  'fill_form',
+  'get_form_options',
+  'get_form_state',
+  'go_to_page',
+  'list_available_menus',
+  'navigate_menu',
+  'next_page',
+  'prev_page',
+  'read_row_detail',
+  'read_visible_rows',
+  'refresh_list',
+  'search',
+  'set_page_size',
+  'submit_form',
+]);
+
+function isRuntimePageToolName(name: string): boolean {
+  return name.startsWith('ui_') || RUNTIME_PAGE_TOOL_NAMES.has(name);
+}
+
 /** Whether this tool call has a pending confirmation (inline) / 该工具调用是否有待确认（内联） */
 function hasPendingForToolCall(tc: {
   id?: string;
@@ -987,7 +1015,7 @@ function hasPendingForToolCall(tc: {
   status: string;
 }): boolean {
   if (tc.status !== 'running') return false;
-  if (tc.name !== 'invoke_page_operation' && !tc.name.startsWith('pageop_'))
+  if (!isRuntimePageToolName(tc.name))
     return false;
   if (!props.pendingOps?.length) return false;
   // Prefer toolCallId match when available / 有 toolCallId 时精确匹配
@@ -1338,7 +1366,11 @@ watch(
                 v-if="msg.error.traceId"
                 class="mt-1 font-mono text-[11px] text-muted-foreground"
               >
-                {{ `${$t('common.http.traceId')}: ${msg.error.traceId}` }}
+                {{
+                  $t('common.globalAiChat.traceIdValue', {
+                    traceId: msg.error.traceId,
+                  })
+                }}
               </p>
               <pre
                 v-if="showDebugError"
@@ -1364,7 +1396,7 @@ watch(
               class="inline-flex items-center gap-1 rounded-full bg-background/80 px-2 py-0.5 text-[11px]"
             >
               <span class="font-mono text-[10px] text-muted-foreground"
-                >turn_outcome</span
+                >{{ $t('common.globalAiChat.diagnosticTurnOutcomeLabel') }}</span
               >
               <span class="font-medium text-foreground">{{
                 diagnosticTurnOutcome
@@ -1375,7 +1407,9 @@ watch(
               class="inline-flex items-center gap-1 rounded-full bg-background/80 px-2 py-0.5 text-[11px]"
             >
               <span class="font-mono text-[10px] text-muted-foreground"
-                >termination_reason</span
+                >{{
+                  $t('common.globalAiChat.diagnosticTerminationReasonLabel')
+                }}</span
               >
               <span class="font-medium text-foreground">{{
                 diagnosticTerminationReason
@@ -1386,7 +1420,7 @@ watch(
               class="inline-flex items-center gap-1 rounded-full bg-background/80 px-2 py-0.5 text-[11px]"
             >
               <span class="font-mono text-[10px] text-muted-foreground"
-                >protocol_path</span
+                >{{ $t('common.globalAiChat.diagnosticProtocolPathLabel') }}</span
               >
               <span class="font-medium text-foreground">{{
                 diagnosticProtocolPath
@@ -1398,7 +1432,7 @@ watch(
             class="flex flex-wrap items-center gap-1.5"
           >
             <span class="font-mono text-[10px] text-muted-foreground"
-              >selected_tools</span
+              >{{ $t('common.globalAiChat.diagnosticSelectedToolsLabel') }}</span
             >
             <span
               v-for="toolName in diagnosticSelectedTools"
@@ -1413,7 +1447,7 @@ watch(
             class="flex flex-wrap items-center gap-1.5"
           >
             <span class="font-mono text-[10px] text-muted-foreground"
-              >selected_skills</span
+              >{{ $t('common.globalAiChat.diagnosticSelectedSkillsLabel') }}</span
             >
             <span
               v-for="skillName in diagnosticSelectedSkills"
@@ -1428,7 +1462,7 @@ watch(
             class="flex flex-wrap items-center gap-1.5"
           >
             <span class="font-mono text-[10px] text-muted-foreground"
-              >context_sources</span
+              >{{ $t('common.globalAiChat.diagnosticContextSourcesLabel') }}</span
             >
             <span
               v-for="source in diagnosticContextSources"
@@ -1769,7 +1803,7 @@ watch(
                         v-if="toolItem.tc.durationMs"
                         class="text-[10px] tabular-nums text-muted-foreground/40"
                       >
-                        {{ (toolItem.tc.durationMs / 1000).toFixed(1) }}s
+                        {{ formatDurationSeconds(toolItem.tc.durationMs) }}
                       </span>
 
                       <!-- Expand chevron -->
@@ -2635,8 +2669,10 @@ watch(
                 >{{ $t('common.globalAiChat.ragKbLabel') }}:</span
               >
               {{
-                ragDetailItem.knowledge_base_name ||
-                `KB#${ragDetailItem.knowledge_base_id}`
+                formatKnowledgeBaseName(
+                  ragDetailItem.knowledge_base_name,
+                  ragDetailItem.knowledge_base_id,
+                )
               }}
             </div>
             <div>
@@ -2715,7 +2751,7 @@ watch(
             >{{ msg.tokenUsage }} {{ $t('common.globalAiChat.tokens') }}</span
           >
           <span v-if="msg.durationMs" class="mr-0.5 tabular-nums"
-            >· {{ (msg.durationMs / 1000).toFixed(1) }}s</span
+            >· {{ formatDurationSeconds(msg.durationMs) }}</span
           >
           <Tooltip
             v-if="msg.memoryUpdated"
