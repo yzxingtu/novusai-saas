@@ -13,7 +13,6 @@
 | Redis | ✓ | localhost:6379/0 |
 | 权限同步 | ✓ | 513 更新、3 禁用 |
 | 配置同步 | ✓ | 12 组、114 项 |
-| 表策略 | ✓ | 59 张表 |
 | Socket.IO | ✓ | Redis manager、ping 25/20 |
 | Celery broker | ✓ | 已连接 |
 | 插件恢复 | ✓ | 4 个（qiniu-kodo, novusdoc, weather-widget, storage-migration） |

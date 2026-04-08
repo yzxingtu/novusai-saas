@@ -27,7 +27,6 @@ description: NovusAI 管理端表格页 Hero 技能。当需要把 admin 列表�
 - 供应商管理
 - API Key 管理
 - 模型管理
-- AI 表策略
 - 健康状态
 
 这类页面可以共享同一组步骤、预计耗时、流程 chips，因为它们本来就在同一条 AI 网关配置路径上。

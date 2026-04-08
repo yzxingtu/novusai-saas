@@ -39,10 +39,10 @@ class Notice(TenantModel):
 
 必须声明 `__filterable__`、`__sortable__`。需要下拉时声明 `__selectable__`。
 
-#### 已退役：`__ai_policy__`
+#### 已退役：旧式 `__ai_policy__` 声明
 
-`__ai_policy__`、AI 表策略和 `data_intelligence` 已于 2026-04 退役。
-新增或维护 Model 时不要再声明 `__ai_policy__`，也不要设计依赖 `/admin/ai/table-policies` 的链路。
+旧式 `__ai_policy__` / `data_intelligence` 链路已于 2026-04 退役。
+新增或维护 Model 时不要再声明 `__ai_policy__`，也不要为已退役的数据查询授权链路添加新依赖。
 
 ### Step 2: Schema (`app/schemas/tenant/notice.py`)
 

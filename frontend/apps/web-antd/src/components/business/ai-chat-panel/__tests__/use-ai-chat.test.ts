@@ -1075,14 +1075,14 @@ describe('useAIChat interrupted stream recovery', () => {
             ],
             pending_consent: {
               arguments: { question: '统计今天调用情况' },
-              skill_name: '平台数据管理',
+              skill_name: '数据查询',
               tool_name: 'query_records',
             },
           },
           role: 'assistant',
           tool_calls: [
             {
-              display_name: '平台数据管理',
+              display_name: '数据查询',
               duration_ms: 120,
               function: {
                 arguments: '{"question":"统计今天调用情况"}',
@@ -1095,7 +1095,7 @@ describe('useAIChat interrupted stream recovery', () => {
                 table: 'ai_call_logs',
               },
               result_link: '/admin/ai/chat',
-              skill_name: '平台数据管理',
+              skill_name: '数据查询',
               success: true,
               summary: '按今天范围统计调用',
               summary_payload: {
@@ -1110,7 +1110,7 @@ describe('useAIChat interrupted stream recovery', () => {
           content: '{"success": true}',
           created_at: '2024-01-01T00:00:02Z',
           metadata: {
-            tool_display_name: '平台数据管理',
+            tool_display_name: '数据查询',
             tool_success: true,
             tool_summary: '按今天范围统计调用',
             tool_summary_payload: {
@@ -1138,7 +1138,7 @@ describe('useAIChat interrupted stream recovery', () => {
     const assistantMessage = chat.chatMessages.value.find(
       (msg) => msg.role === 'assistant',
     );
-    expect(assistantMessage?.toolCalls?.[0]?.displayName).toBe('平台数据管理');
+    expect(assistantMessage?.toolCalls?.[0]?.displayName).toBe('数据查询');
     expect(assistantMessage?.toolCalls?.[0]?.summaryPayload).toEqual({
       filters: ['today'],
       tables: ['ai_call_logs'],

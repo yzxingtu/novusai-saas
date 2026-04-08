@@ -1107,7 +1107,7 @@ class TestThinkingPersistence:
                     name="query_records",
                     success=True,
                     duration_ms=123,
-                    display_name="平台数据管理",
+                    display_name="数据查询",
                     summary="按今天范围统计调用",
                     result_link="/admin/ai/chat",
                     summary_payload={
@@ -1146,7 +1146,7 @@ class TestThinkingPersistence:
         assistant_payload = create_calls[1].args[0]
         tool_payload = create_calls[2].args[0]
 
-        assert assistant_payload["tool_calls"][0]["display_name"] == "平台数据管理"
+        assert assistant_payload["tool_calls"][0]["display_name"] == "数据查询"
         assert assistant_payload["tool_calls"][0]["summary"] == "按今天范围统计调用"
         assert assistant_payload["tool_calls"][0]["summary_payload"] == {
             "filters": ["today"],
