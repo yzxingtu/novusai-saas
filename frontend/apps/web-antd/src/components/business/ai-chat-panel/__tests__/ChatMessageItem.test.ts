@@ -770,17 +770,52 @@ describe('chatMessageItem', () => {
     expect(wrapper.text()).toContain('https://example.com/result-1');
     expect(wrapper.text()).toContain('第一条摘要内容');
 
-    const resultButton = wrapper
-      .findAll('button')
-      .find((button) => button.text().includes('示例搜索结果一'));
-    expect(resultButton).toBeTruthy();
-    if (!resultButton) {
-      throw new Error('Search result button not found');
-    }
-    await resultButton.trigger('click');
-    expect(wrapper.emitted('openUrl')?.[0]).toEqual([
-      'https://example.com/result-1',
-    ]);
+    const resultLink = wrapper.get(
+      '[data-testid="tool-search-result-link-0-0"]',
+    );
+    expect(resultLink.attributes('href')).toBe('https://example.com/result-1');
+    expect(resultLink.attributes('target')).toBe('_blank');
+    expect(resultLink.attributes('rel')).toBe('noopener noreferrer');
+  });
+
+  it('does not display a fake zero result count for native search summaries without counts', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: createAssistantMsg([
+          {
+            name: 'native_web_search',
+            status: 'success',
+            summaryPayload: {
+              provider: 'native_hosted',
+              status: 'success',
+            },
+          },
+        ]),
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: true,
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+    await wrapper.get('[data-testid="tool-call-toggle-0"]').trigger('click');
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain(
+      'common.globalAiChat.toolSearchSourceNative',
+    );
+    expect(wrapper.text()).toContain(
+      'common.globalAiChat.toolSearchStatusSuccess',
+    );
+    expect(wrapper.find('[data-testid="tool-search-result-count"]').exists()).toBe(
+      false,
+    );
   });
 
   it('tool group card collapses when all tools are completed', async () => {

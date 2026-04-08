@@ -381,7 +381,7 @@ interface SearchSummary {
   items: SearchResultItem[];
   provider?: string;
   providerChain?: string[];
-  resultCount: number;
+  resultCount?: number;
   selectedBackend?: string;
   status?: string;
   nativeFailureKind?: string;
@@ -678,7 +678,9 @@ function getSearchSummary(
   const resultCount =
     typeof summaryPayload.result_count === 'number'
       ? summaryPayload.result_count
-      : items.length;
+      : items.length > 0
+        ? items.length
+        : undefined;
 
   if (
     !provider &&
@@ -1845,7 +1847,13 @@ watch(
                                   )
                                 }}
                               </span>
-                              <span>
+                              <span
+                                v-if="
+                                  toolItem.searchSummary.resultCount !==
+                                  undefined
+                                "
+                                data-testid="tool-search-result-count"
+                              >
                                 {{ toolItem.searchSummary.resultCount }}
                               </span>
                             </div>
@@ -1927,18 +1935,24 @@ watch(
                                 :key="`${toolItem.index}-${searchIndex}-${searchItem.url}`"
                                 class="rounded border border-border/20 bg-accent/20 px-1.5 py-1"
                               >
-                                <button
-                                  type="button"
-                                  class="w-full text-left text-[11px] font-medium text-foreground hover:text-primary"
-                                  @click.stop="emit('openUrl', searchItem.url)"
+                                <a
+                                  :href="searchItem.url"
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  class="block hover:text-primary"
+                                  :data-testid="`tool-search-result-link-${toolItem.index}-${searchIndex}`"
                                 >
-                                  {{ searchItem.title }}
-                                </button>
-                                <div
-                                  class="mt-0.5 break-all text-[10px] text-muted-foreground"
-                                >
-                                  {{ searchItem.url }}
-                                </div>
+                                  <div
+                                    class="text-[11px] font-medium text-foreground"
+                                  >
+                                    {{ searchItem.title }}
+                                  </div>
+                                  <div
+                                    class="mt-0.5 break-all text-[10px] text-muted-foreground"
+                                  >
+                                    {{ searchItem.url }}
+                                  </div>
+                                </a>
                                 <div
                                   v-if="searchItem.snippet"
                                   class="mt-0.5 whitespace-pre-wrap break-words text-[10px] text-foreground/75"
@@ -2070,6 +2084,7 @@ watch(
                             "
                             :href="toolItem.tc.resultLink"
                             target="_blank"
+                            rel="noopener noreferrer"
                             class="mt-1 inline-flex items-center gap-1 text-[10px] text-primary hover:underline"
                           >
                             <IconifyIcon
@@ -2290,6 +2305,7 @@ watch(
               "
               :download="img.isBase64 ? 'generated-image.png' : undefined"
               target="_blank"
+              rel="noopener noreferrer"
               class="absolute bottom-2 right-2 flex size-7 items-center justify-center rounded-full bg-black/50 text-white opacity-0 transition-opacity hover:bg-black/70 group-hover/img:opacity-100"
               :title="$t('common.globalAiChat.downloadImage')"
             >
@@ -2787,6 +2803,7 @@ watch(
             v-else
             :href="att.url"
             target="_blank"
+            rel="noopener noreferrer"
             class="flex items-center rounded-lg bg-primary-foreground/10 text-primary-foreground hover:bg-primary-foreground/20"
             :class="
               compact

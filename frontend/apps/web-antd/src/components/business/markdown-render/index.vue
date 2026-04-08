@@ -44,8 +44,18 @@ const props = withDefaults(
   },
 );
 
+const SANITIZE_OPTIONS = {
+  ADD_ATTR: ['target', 'rel'],
+} as const;
+
+type FenceState = null | {
+  character: '`' | '~';
+  length: number;
+};
+
 const STANDALONE_SOURCE_LINK_RE =
   /^(\s*)([-*]\s+)?(.+?)\s*[：:]\s*(https?:\/\/\S+)\s*$/u;
+const FENCED_CODE_BLOCK_RE = /^ {0,3}(`{3,}|~{3,})(.*)$/u;
 // Register common languages / 注册常用语言
 hljs.registerLanguage('javascript', javascript);
 hljs.registerLanguage('js', javascript);
@@ -107,10 +117,42 @@ md.renderer.rules.link_open = function (tokens, idx, options, env, self) {
   return defaultRender(tokens, idx, options, env, self);
 };
 
+function parseFenceState(line: string): FenceState {
+  const marker = line.match(FENCED_CODE_BLOCK_RE)?.[1];
+  if (!marker) {
+    return null;
+  }
+
+  return {
+    character: marker[0] as '`' | '~',
+    length: marker.length,
+  };
+}
+
 function normalizeStandaloneSourceLinks(content: string): string {
+  let activeFence: FenceState = null;
+
   return content
     .split(/\r?\n/)
     .map((line) => {
+      const fenceState = parseFenceState(line);
+      if (fenceState) {
+        if (
+          activeFence &&
+          activeFence.character === fenceState.character &&
+          fenceState.length >= activeFence.length
+        ) {
+          activeFence = null;
+        } else if (!activeFence) {
+          activeFence = fenceState;
+        }
+        return line;
+      }
+
+      if (activeFence || /^( {4,}|\t)/u.test(line)) {
+        return line;
+      }
+
       const match = line.match(STANDALONE_SOURCE_LINK_RE);
       if (!match) {
         return line;
@@ -173,10 +215,11 @@ const renderedHtml = computed(() => {
   if (!props.content) return '';
   try {
     const raw = md.render(normalizeStandaloneSourceLinks(props.content));
-    return DOMPurify.sanitize(raw);
+    return DOMPurify.sanitize(raw, SANITIZE_OPTIONS);
   } catch {
     return DOMPurify.sanitize(
       `<pre style="white-space:pre-wrap;word-break:break-word">${md.utils.escapeHtml(props.content)}</pre>`,
+      SANITIZE_OPTIONS,
     );
   }
 });
