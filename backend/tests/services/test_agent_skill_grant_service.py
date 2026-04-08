@@ -122,6 +122,8 @@ async def test_get_agent_skills_filters_inactive_package_grants(
     service = AgentSkillGrantService.__new__(AgentSkillGrantService)
     service.db = AsyncMock()
     service.tenant_id = 9
+    service.skill_repo = AsyncMock()
+    service.skill_repo.get_by_ids = AsyncMock(return_value=[active_grant.skill])
     service.agent_repo = AsyncMock()
     service.agent_repo.get_by_id = AsyncMock(
         return_value=SimpleNamespace(id=59, owner_tenant_id=9),
@@ -129,7 +131,100 @@ async def test_get_agent_skills_filters_inactive_package_grants(
 
     result = await service.get_agent_skills(agent_id=59)
 
+    service.skill_repo.get_by_ids.assert_awaited_once_with([3, 4])
     assert [item["skill_name"] for item in result] == ["active_skill"]
+
+
+@pytest.mark.asyncio
+async def test_get_agent_skills_filters_tenant_invisible_grants(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.services.ai.agent_skill_grant_service import AgentSkillGrantService
+
+    visible_grant = SimpleNamespace(
+        id=1,
+        agent_id=59,
+        skill_id=3,
+        enabled=True,
+        config_override=None,
+        sort_order=0,
+        default_consent_mode="auto",
+        capability_consent_overrides=None,
+        skill=SimpleNamespace(
+            id=3,
+            name="visible_skill",
+            key="visible_skill",
+            description="visible",
+            type="toolkit",
+            source_type="custom",
+            status="active",
+            package_id=11,
+            is_active=True,
+            is_deleted=False,
+            package=SimpleNamespace(
+                name="visible-package",
+                description="visible",
+                is_system=False,
+                is_active=True,
+                is_deleted=False,
+            ),
+        ),
+    )
+    invisible_grant = SimpleNamespace(
+        id=2,
+        agent_id=59,
+        skill_id=4,
+        enabled=True,
+        config_override=None,
+        sort_order=1,
+        default_consent_mode="auto",
+        capability_consent_overrides=None,
+        skill=SimpleNamespace(
+            id=4,
+            name="invisible_skill",
+            key="invisible_skill",
+            description="invisible",
+            type="toolkit",
+            source_type="custom",
+            status="active",
+            package_id=12,
+            is_active=True,
+            is_deleted=False,
+            package=SimpleNamespace(
+                name="invisible-package",
+                description="invisible",
+                is_system=False,
+                is_active=True,
+                is_deleted=False,
+            ),
+        ),
+    )
+    repo_stub = AsyncMock()
+    repo_stub.get_by_agent_id = AsyncMock(return_value=[visible_grant, invisible_grant])
+    visible_skill_repo = AsyncMock()
+    visible_skill_repo.get_by_ids = AsyncMock(return_value=[visible_grant.skill])
+
+    monkeypatch.setattr(
+        "app.services.ai.agent_skill_grant_service.AgentSkillGrantRepository",
+        lambda db, tenant_id: repo_stub,
+    )
+    monkeypatch.setattr(
+        "app.services.ai.agent_skill_grant_service.SkillRepository",
+        lambda db, tenant_id: visible_skill_repo,
+    )
+
+    service = AgentSkillGrantService.__new__(AgentSkillGrantService)
+    service.db = AsyncMock()
+    service.tenant_id = 9
+    service.agent_repo = AsyncMock()
+    service.agent_repo.get_by_id = AsyncMock(
+        return_value=SimpleNamespace(id=59, owner_tenant_id=9),
+    )
+
+    result = await service.get_agent_skills(agent_id=59)
+
+    visible_skill_repo.get_by_ids.assert_awaited_once_with([3, 4])
+    assert [item["skill_name"] for item in result] == ["visible_skill"]
 
 
 @pytest.mark.asyncio

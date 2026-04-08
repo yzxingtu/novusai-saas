@@ -12,7 +12,7 @@ from app.repositories.ai.agent_repository import AgentRepository
 from app.repositories.ai.agent_skill_grant_repository import (
     AgentSkillGrantRepository,
 )
-from app.repositories.ai.skill_repository import SkillRepository
+from app.repositories.ai.skill_repository import AdminSkillRepository, SkillRepository
 
 logger = LogManager.get_logger("ai")
 
@@ -116,10 +116,24 @@ class AgentSkillGrantService:
         owner_tenant_id = getattr(agent, "owner_tenant_id", self.tenant_id)
         effective_repo = AgentSkillGrantRepository(self.db, owner_tenant_id)
         grants = await effective_repo.get_by_agent_id(agent_id)
+        visible_skill_repo = getattr(self, "skill_repo", None)
+        if owner_tenant_id != self.tenant_id or visible_skill_repo is None:
+            visible_skill_repo = (
+                SkillRepository(self.db, owner_tenant_id)
+                if owner_tenant_id is not None
+                else AdminSkillRepository(self.db)
+            )
+        visible_skills = await visible_skill_repo.get_by_ids(
+            [grant.skill_id for grant in grants]
+        )
+        visible_skill_ids = {
+            skill.id for skill in visible_skills if self._skill_runtime_available(skill)
+        }
         return [
             self._grant_to_item(grant)
             for grant in grants
-            if self._skill_runtime_available(getattr(grant, "skill", None))
+            if grant.skill_id in visible_skill_ids
+            and self._skill_runtime_available(getattr(grant, "skill", None))
         ]
 
     async def bind_skill(

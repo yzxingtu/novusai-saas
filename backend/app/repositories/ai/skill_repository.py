@@ -117,6 +117,91 @@ class SkillRepository(TenantRepository[Skill]):
                 visible.append(instance)
         return visible
 
+    async def query_binding_select(
+        self,
+        *,
+        search: str | None,
+        package_id: int | None,
+        page: int,
+        page_size: int,
+        include_system: bool,
+        only_active: bool,
+    ) -> tuple[list[tuple[Skill, SkillPackage]], int]:
+        """
+        Tenant-aware skill rows for admin agent binding picker.
+        管理端智能体技能绑定选择器：按目标企业可见范围分页返回技能。
+        """
+        page = max(1, page)
+        page_size = max(1, min(100, page_size))
+
+        pkg = SkillPackage
+        sk = Skill
+        join_on = sk.package_id == pkg.id
+
+        conditions = [
+            sk.is_deleted.is_(False),
+            pkg.is_deleted.is_(False),
+            or_(
+                sk.tenant_id == self.tenant_id,
+                sk.tenant_id.is_(None),
+            ),
+            or_(
+                pkg.tenant_id == self.tenant_id,
+                pkg.tenant_id.is_(None),
+            ),
+        ]
+        if only_active:
+            conditions.extend(
+                [
+                    sk.is_active.is_(True),
+                    pkg.is_active.is_(True),
+                ]
+            )
+        if not include_system:
+            conditions.append(sk.is_system.is_(False))
+        if package_id is not None:
+            conditions.append(sk.package_id == package_id)
+
+        raw = (search or "").strip()
+        if raw:
+            term = f"%{raw}%"
+            conditions.append(
+                or_(
+                    sk.name.ilike(term),
+                    sk.key.ilike(term),
+                    sk.description.ilike(term),
+                    pkg.name.ilike(term),
+                )
+            )
+
+        base_joined = (
+            select(sk, pkg).select_from(sk).join(pkg, join_on).where(and_(*conditions))
+        )
+
+        count_stmt = (
+            select(func.count(sk.id))
+            .select_from(sk)
+            .join(pkg, join_on)
+            .where(and_(*conditions))
+        )
+        total = (await self.db.execute(count_stmt)).scalar() or 0
+
+        ordered = (
+            base_joined.order_by(
+                pkg.sort_order.asc(),
+                pkg.created_at.desc(),
+                sk.sort_order.asc(),
+                sk.created_at.desc(),
+                sk.id.asc(),
+            )
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+
+        result = await self.db.execute(ordered)
+        rows = list(result.all())
+        return rows, total
+
     async def get_by_package_id(
         self,
         package_id: int,
@@ -320,7 +405,12 @@ class AdminSkillRepository(BaseRepository[Skill]):
             pkg.is_deleted.is_(False),
         ]
         if only_active:
-            conditions.append(sk.is_active.is_(True))
+            conditions.extend(
+                [
+                    sk.is_active.is_(True),
+                    pkg.is_active.is_(True),
+                ]
+            )
         if not include_system:
             conditions.append(sk.is_system.is_(False))
         if package_id is not None:

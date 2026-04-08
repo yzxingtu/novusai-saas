@@ -109,6 +109,17 @@ export interface AdminSkillBindingSelectResponse {
   total?: number;
 }
 
+/** Admin agent skill binding picker params / 管理端智能体技能绑定选择器参数 */
+export interface AdminSkillBindingSelectParams {
+  agent_id?: number;
+  include_system?: boolean;
+  only_active?: boolean;
+  package_id?: number;
+  page?: number;
+  page_size?: number;
+  search?: string;
+}
+
 // ============================================================
 // API functions / API 接口
 // ============================================================
@@ -124,7 +135,7 @@ export async function getSkillTypesApi(
 
 /** Paginated skills for admin agent binding picker / 管理端智能体技能绑定选择器 */
 export async function getSkillBindingSelectApi(
-  params?: Record<string, unknown>,
+  params?: AdminSkillBindingSelectParams,
   options?: ApiRequestOptions,
 ): Promise<AdminSkillBindingSelectResponse> {
   return requestClient.get<AdminSkillBindingSelectResponse>(

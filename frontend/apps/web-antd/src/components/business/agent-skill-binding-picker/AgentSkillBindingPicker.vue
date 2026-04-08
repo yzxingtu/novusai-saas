@@ -36,10 +36,12 @@ defineOptions({ name: 'AgentSkillBindingPicker' });
 
 const props = withDefaults(
   defineProps<{
+    agentId?: number;
     confirmText?: string;
     title?: string;
   }>(),
   {
+    agentId: undefined,
     confirmText: '',
     title: '',
   },
@@ -213,6 +215,7 @@ async function fetchCandidates(resetPage: boolean) {
   skillsError.value = null;
   try {
     const res = await getSkillBindingSelectApi({
+      agent_id: props.agentId ?? undefined,
       include_system: true,
       only_active: onlyActive.value,
       package_id: filterPackageId.value ?? undefined,

@@ -104,6 +104,11 @@ class AdminSkillController(GlobalController):
             db: DbSession,
             admin: ActiveAdmin,
             search: str = Query("", description=_("api.param.search")),
+            agent_id: int | None = Query(
+                None,
+                ge=1,
+                description="可选：按目标智能体归属企业过滤候选技能 / Optional: filter candidates by target agent owner tenant",
+            ),
             package_id: int | None = Query(
                 None, description="Filter by skill package id"
             ),
@@ -118,6 +123,7 @@ class AdminSkillController(GlobalController):
             """
             service = AdminSkillService(db)
             data = await service.get_binding_select_options(
+                agent_id=agent_id,
                 search=search,
                 package_id=package_id,
                 page=page,

@@ -10,6 +10,7 @@ from app.core.logging import LogManager
 from app.enums.agent import SkillTypeEnum, get_all_skill_types
 from app.exceptions import BusinessException, NotFoundException
 from app.models.ai.skill import Skill
+from app.repositories.ai.agent_repository import AdminAgentRepository
 from app.repositories.ai.skill_repository import AdminSkillRepository, SkillRepository
 
 logger = LogManager.get_logger("ai")
@@ -348,6 +349,7 @@ class AdminSkillService(GlobalService[Skill, AdminSkillRepository]):
     async def get_binding_select_options(
         self,
         *,
+        agent_id: int | None = None,
         search: str = "",
         package_id: int | None = None,
         page: int = 1,
@@ -361,14 +363,42 @@ class AdminSkillService(GlobalService[Skill, AdminSkillRepository]):
         """
         from app.schemas.common.select import SelectOption, SelectResponse
 
-        rows, total = await self.repo.query_admin_binding_select(
-            search=search or None,
-            package_id=package_id,
-            page=page,
-            page_size=page_size,
-            include_system=include_system,
-            only_active=only_active,
-        )
+        if agent_id is not None:
+            agent = await AdminAgentRepository(self.db).get_by_id(agent_id)
+            if not agent:
+                raise NotFoundException(message=_("agent.error.not_found"))
+
+            owner_tenant_id = getattr(agent, "owner_tenant_id", None)
+            if owner_tenant_id is not None:
+                rows, total = await SkillRepository(
+                    self.db,
+                    owner_tenant_id,
+                ).query_binding_select(
+                    search=search or None,
+                    package_id=package_id,
+                    page=page,
+                    page_size=page_size,
+                    include_system=include_system,
+                    only_active=only_active,
+                )
+            else:
+                rows, total = await self.repo.query_admin_binding_select(
+                    search=search or None,
+                    package_id=package_id,
+                    page=page,
+                    page_size=page_size,
+                    include_system=include_system,
+                    only_active=only_active,
+                )
+        else:
+            rows, total = await self.repo.query_admin_binding_select(
+                search=search or None,
+                package_id=package_id,
+                page=page,
+                page_size=page_size,
+                include_system=include_system,
+                only_active=only_active,
+            )
         items: list[SelectOption] = []
         for skill, pack in rows:
             label = skill.name or (skill.key or str(skill.id))

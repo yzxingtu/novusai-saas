@@ -41,7 +41,6 @@ def _make_skill(**overrides):
 
 
 class TestSkillPackageCreate:
-
     @pytest.mark.asyncio
     async def test_duplicate_name_raises(self, mock_db):
         from app.exceptions import BusinessException
@@ -59,7 +58,6 @@ class TestSkillPackageCreate:
 
 
 class TestSkillPackageDelete:
-
     @pytest.mark.asyncio
     async def test_system_package_cannot_delete(self, mock_db):
         from app.exceptions import BusinessException
@@ -77,7 +75,6 @@ class TestSkillPackageDelete:
 
 
 class TestSkillPackageUpdate:
-
     @pytest.mark.asyncio
     async def test_system_package_limited_update(self, mock_db):
         from app.exceptions import BusinessException
@@ -95,7 +92,6 @@ class TestSkillPackageUpdate:
 
 
 class TestSkillCreate:
-
     @pytest.mark.asyncio
     async def test_skill_create_validates_type(self, mock_db):
         from app.services.ai.skill_service import SkillService
@@ -112,7 +108,6 @@ class TestSkillCreate:
 
 
 class TestSkillQuery:
-
     @pytest.mark.asyncio
     async def test_get_active_skills(self, mock_db):
         from app.services.ai.skill_service import SkillService
@@ -129,7 +124,6 @@ class TestSkillQuery:
 
 
 class TestSkillQueryByPackage:
-
     @pytest.mark.asyncio
     async def test_query_by_package(self, mock_db):
         from app.services.ai.skill_service import SkillService
@@ -146,7 +140,6 @@ class TestSkillQueryByPackage:
 
 
 class TestSkillValvesConfig:
-
     @pytest.mark.asyncio
     async def test_update_valves_config(self, mock_db):
         from app.services.ai.skill_service import SkillService
@@ -165,7 +158,6 @@ class TestSkillValvesConfig:
 
 
 class TestAdminSkillPackageResolvedTools:
-
     @pytest.mark.asyncio
     async def test_missing_package_raises_not_found(self, mock_db):
         from app.exceptions import NotFoundException
@@ -185,8 +177,12 @@ class TestAdminSkillPackageResolvedTools:
         from app.ai.tools.types import ToolDefinition, ToolParameter
         from app.services.ai.skill_package_service import AdminSkillPackageService
 
-        package = _make_package(id=7, name="Toolkit Package", source_plugin="weather-widget")
-        skills = [_make_skill(id=11, package_id=7, name="weather_tools", type="toolkit")]
+        package = _make_package(
+            id=7, name="Toolkit Package", source_plugin="weather-widget"
+        )
+        skills = [
+            _make_skill(id=11, package_id=7, name="weather_tools", type="toolkit")
+        ]
 
         service = AdminSkillPackageService.__new__(AdminSkillPackageService)
         service.db = mock_db
@@ -219,7 +215,10 @@ class TestAdminSkillPackageResolvedTools:
         resolver_stub.resolve = AsyncMock(return_value=resolve_result)
 
         with (
-            patch("app.services.ai.skill_service.AdminSkillService", return_value=skill_service_stub),
+            patch(
+                "app.services.ai.skill_service.AdminSkillService",
+                return_value=skill_service_stub,
+            ),
             patch("app.ai.skills.resolver.SkillResolver", return_value=resolver_stub),
         ):
             result = await service.get_resolved_tools(7)
@@ -265,10 +264,115 @@ class TestAdminSkillPackageResolvedTools:
         resolver_stub.resolve = AsyncMock(return_value=SkillResolveResult())
 
         with (
-            patch("app.services.ai.skill_service.AdminSkillService", return_value=skill_service_stub),
+            patch(
+                "app.services.ai.skill_service.AdminSkillService",
+                return_value=skill_service_stub,
+            ),
             patch("app.ai.skills.resolver.SkillResolver", return_value=resolver_stub),
         ):
             result = await service.get_resolved_tools(8)
 
         assert result["tool_count"] == 0
         assert result["tools"] == []
+
+
+class TestAdminSkillBindingSelect:
+    @pytest.mark.asyncio
+    async def test_binding_select_uses_tenant_visible_repo_for_tenant_agent(
+        self, mock_db
+    ):
+        from app.services.ai.skill_service import AdminSkillService
+
+        service = AdminSkillService.__new__(AdminSkillService)
+        service.db = mock_db
+        service.repo = AsyncMock()
+        service.repo.query_admin_binding_select = AsyncMock()
+
+        agent = make_mock_model(id=59, owner_tenant_id=7)
+        skill = _make_skill(id=38, tenant_id=None, name="Cross Tenant Safe Skill")
+        package = _make_package(id=5, tenant_id=None, name="Shared Package")
+
+        agent_repo = AsyncMock()
+        agent_repo.get_by_id = AsyncMock(return_value=agent)
+        tenant_repo = AsyncMock()
+        tenant_repo.query_binding_select = AsyncMock(
+            return_value=([(skill, package)], 1)
+        )
+
+        with (
+            patch(
+                "app.services.ai.skill_service.AdminAgentRepository",
+                return_value=agent_repo,
+            ),
+            patch(
+                "app.services.ai.skill_service.SkillRepository",
+                return_value=tenant_repo,
+            ),
+        ):
+            result = await service.get_binding_select_options(
+                agent_id=59,
+                search="skill",
+                package_id=5,
+                page=2,
+                page_size=10,
+                include_system=True,
+                only_active=True,
+            )
+
+        agent_repo.get_by_id.assert_awaited_once_with(59)
+        tenant_repo.query_binding_select.assert_awaited_once_with(
+            search="skill",
+            package_id=5,
+            page=2,
+            page_size=10,
+            include_system=True,
+            only_active=True,
+        )
+        service.repo.query_admin_binding_select.assert_not_awaited()
+        assert result.total == 1
+        assert result.items[0].value == 38
+        assert result.items[0].extra["package_name"] == "Shared Package"
+
+    @pytest.mark.asyncio
+    async def test_binding_select_keeps_admin_repo_for_platform_agent(self, mock_db):
+        from app.services.ai.skill_service import AdminSkillService
+
+        service = AdminSkillService.__new__(AdminSkillService)
+        service.db = mock_db
+        service.repo = AsyncMock()
+
+        skill = _make_skill(id=51, name="Platform Skill")
+        package = _make_package(id=8, tenant_id=None, name="Platform Package")
+        service.repo.query_admin_binding_select = AsyncMock(
+            return_value=([(skill, package)], 1)
+        )
+
+        agent_repo = AsyncMock()
+        agent_repo.get_by_id = AsyncMock(
+            return_value=make_mock_model(id=77, owner_tenant_id=None)
+        )
+
+        with patch(
+            "app.services.ai.skill_service.AdminAgentRepository",
+            return_value=agent_repo,
+        ):
+            result = await service.get_binding_select_options(
+                agent_id=77,
+                search="platform",
+                package_id=None,
+                page=1,
+                page_size=20,
+                include_system=True,
+                only_active=True,
+            )
+
+        service.repo.query_admin_binding_select.assert_awaited_once_with(
+            search="platform",
+            package_id=None,
+            page=1,
+            page_size=20,
+            include_system=True,
+            only_active=True,
+        )
+        assert result.total == 1
+        assert result.items[0].value == 51

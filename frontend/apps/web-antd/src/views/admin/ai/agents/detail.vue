@@ -1652,6 +1652,7 @@ useDetailPageAi({
               </template>
               <div class="p-5 pt-3">
                 <AgentSkillBindingPicker
+                  :agent-id="agentId"
                   v-model:open="skillPickerOpen"
                   v-model="skillPickerDrafts"
                   @confirm="onSkillBindingPickerConfirm"
