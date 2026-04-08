@@ -13,7 +13,7 @@ import type {
 import type { AgentKnowledgeBaseBindingDraftItem } from '#/components/business/agent-kb-binding-picker';
 import type { InputVariable } from '#/types/ai-chat';
 
-import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
@@ -717,7 +717,7 @@ async function saveQuota() {
 }
 
 // ==================== Routing Config Tab / 路由配置页签 ====================
-const routingState = reactive(createAgentRoutingState());
+const routingState = ref(createAgentRoutingState());
 const routingModelOptions = ref(createEmptyAgentRoutingModelOptions());
 
 async function loadRoutingModelOptions() {
@@ -742,14 +742,14 @@ const tierOptions = [
 function initRouting() {
   if (!agent.value) return;
   applyAgentRoutingConfig(
-    routingState,
+    routingState.value,
     (agent.value.routing_config ?? {}) as Record<string, unknown>,
   );
 }
 
 async function saveRouting() {
   await saveFields({
-    routing_config: buildAgentRoutingPayload(routingState),
+    routing_config: buildAgentRoutingPayload(routingState.value),
   });
 }
 
