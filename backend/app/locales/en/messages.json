@@ -3065,6 +3065,28 @@
       "code_execution_timeout": "Code execution timed out after {timeout}s",
       "code_prohibited_pattern": "Prohibited pattern in code: {pattern}",
       "consent_rejected": "Tool execution blocked by consent policy"
+    },
+    "ui": {
+      "session_required": "An active page session is required before executing a UI tool.",
+      "action": {
+        "unsupported_tool": "Unsupported UI action tool.",
+        "open_surface_target_required": "ui_open_surface requires target_locator, or a locator/title inside surface.",
+        "unavailable": "The backend page-session module cannot execute UI actions right now.",
+        "executed": "UI action '{action}' executed successfully.",
+        "result": "Result: {message}",
+        "diff": "Diff: {diff}",
+        "success_summary": "{action} succeeded",
+        "failed": "UI action '{action}' failed."
+      },
+      "read": {
+        "unsupported_tool": "Unsupported UI read tool.",
+        "unavailable": "UI read is currently unavailable.",
+        "failed": "UI read failed."
+      },
+      "snapshot": {
+        "unavailable": "UI snapshot is currently unavailable.",
+        "failed": "UI snapshot failed."
+      }
     }
   },
   "ai_action_log": {

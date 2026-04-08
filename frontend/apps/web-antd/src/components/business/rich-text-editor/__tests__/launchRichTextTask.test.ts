@@ -22,7 +22,12 @@ vi.mock('#/api/shared/agent-assignments', () => ({
 }));
 
 vi.mock('#/locales', () => ({
-  $t: (key: string) => key,
+  $t: (key: string, params?: Record<string, string>) => {
+    if (!params) {
+      return key;
+    }
+    return `${key}:${Object.values(params).join('|')}`;
+  },
 }));
 
 vi.mock('#/store', () => ({
@@ -108,10 +113,10 @@ describe('launchRichTextTask', () => {
       }),
     );
     expect(mocks.setPendingRichTextTask.mock.calls[0]?.[0]?.message).toContain(
-      'Before selection:\nbefore-block',
+      'common.richTextTask.beforeSelection:before-block',
     );
     expect(mocks.setPendingRichTextTask.mock.calls[0]?.[0]?.message).toContain(
-      'After selection:\nafter-block',
+      'common.richTextTask.afterSelection:after-block',
     );
     expect(mocks.open).toHaveBeenCalledOnce();
   });

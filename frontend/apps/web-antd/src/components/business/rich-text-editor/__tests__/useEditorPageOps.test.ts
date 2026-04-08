@@ -5,27 +5,11 @@ import { computed, effectScope, nextTick, ref, shallowRef } from 'vue';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
-  clearPageContextRegistry,
-  registerPageContext,
-  resolvePageContext,
-} from '#/components/business/ai-slide-panel/page-context-registry';
-import {
-  clearPageOperationRegistry,
-  listPageOperations,
-} from '#/components/business/ai-slide-panel/page-operation-registry';
-
+  clearRichTextRuntimeAdapterRegistry,
+  collectRichTextRuntimeContextData,
+  listRichTextRuntimeOperations,
+} from '../ai/runtime-adapter-registry';
 import { useEditorPageOps } from '../useEditorPageOps';
-
-vi.mock('vue-router', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('vue-router')>();
-  return {
-    ...actual,
-    useRoute: () => ({
-      meta: {},
-      path: '/tenant/editor-demo',
-    }),
-  };
-});
 
 vi.mock('@vben/locales', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@vben/locales')>();
@@ -34,6 +18,10 @@ vi.mock('@vben/locales', async (importOriginal) => {
     $t: (key: string) => key,
   };
 });
+
+vi.mock('#/locales', () => ({
+  $t: (key: string) => key,
+}));
 
 function createEditorStub(): Editor {
   return {
@@ -167,21 +155,10 @@ function createMutableEditorStub() {
 
 describe('useEditorPageOps', () => {
   afterEach(() => {
-    clearPageContextRegistry();
-    clearPageOperationRegistry();
+    clearRichTextRuntimeAdapterRegistry();
   });
 
-  it('appends editor extras without overriding the primary page entity context', () => {
-    registerPageContext('tenant.docs.detail', () => ({
-      page_key: 'tenant.docs.detail',
-      page_title: 'Document Detail',
-      page_data: {
-        entity_description: 'Primary document detail context.',
-        entity_name: 'Document',
-        resource: '/tenant/docs',
-      },
-    }));
-
+  it('registers runtime context and operations for the current page key', () => {
     const scope = effectScope();
     scope.run(() => {
       useEditorPageOps(shallowRef(createEditorStub()), {
@@ -191,23 +168,22 @@ describe('useEditorPageOps', () => {
       });
     });
 
-    const context = resolvePageContext('tenant.docs.detail');
-    expect(context).not.toBeNull();
-    if (!context) {
-      throw new Error('page context not found');
-    }
-    expect(context.page_data?.entity_name).toBe('Document');
-    expect(context.page_data?.resource).toBe('/tenant/docs');
-    expect(String(context.page_data?.entity_description ?? '')).toContain(
-      'Primary document detail context.',
-    );
-    expect(String(context.page_data?.entity_description ?? '')).toContain(
+    const context = collectRichTextRuntimeContextData('tenant.docs.detail');
+    expect(context.entity_name).toBe('common.richTextEditor');
+    expect(String(context.entity_description_append ?? '')).toContain(
       'HTML 富文本编辑器',
     );
-    expect(context.page_data?.has_editor).toBe(true);
-    expect(context.page_data?.editor_editable).toBe(true);
+    expect(context.has_editor).toBe(true);
+    expect(context.editor_editable).toBe(true);
+
+    const names = listRichTextRuntimeOperations('tenant.docs.detail').map(
+      (op) => op.name,
+    );
+    expect(names).toContain('get_editor_html');
+    expect(names).toContain('replace_content');
 
     scope.stop();
+    expect(listRichTextRuntimeOperations('tenant.docs.detail')).toHaveLength(0);
   });
 
   it('only exposes readonly editor operations when editor is not editable', () => {
@@ -220,7 +196,9 @@ describe('useEditorPageOps', () => {
       });
     });
 
-    const names = listPageOperations('tenant.docs.editor').map((op) => op.name);
+    const names = listRichTextRuntimeOperations('tenant.docs.editor').map(
+      (op) => op.name,
+    );
     expect(names).toContain('get_editor_html');
     expect(names).toContain('get_editor_text');
     expect(names).toContain('get_selection');
@@ -243,16 +221,14 @@ describe('useEditorPageOps', () => {
       });
     });
 
-    expect(listPageOperations('tenant.docs.toggle').length).toBeGreaterThan(0);
+    expect(listRichTextRuntimeOperations('tenant.docs.toggle').length).toBeGreaterThan(
+      0,
+    );
 
     enabled.value = false;
     await nextTick();
 
-    const names = listPageOperations('tenant.docs.toggle').map((op) => op.name);
-    expect(names).toContain('read_current_view');
-    expect(names).toContain('read_current_sections');
-    expect(names).not.toContain('get_editor_html');
-    expect(names).not.toContain('replace_content');
+    expect(listRichTextRuntimeOperations('tenant.docs.toggle')).toHaveLength(0);
 
     scope.stop();
   });
@@ -269,7 +245,7 @@ describe('useEditorPageOps', () => {
       });
     });
 
-    const operations = listPageOperations('tenant.docs.mutation');
+    const operations = listRichTextRuntimeOperations('tenant.docs.mutation');
     const insertOp = operations.find((op) => op.name === 'insert_content');
     const appendOp = operations.find((op) => op.name === 'append_content');
 
@@ -309,7 +285,7 @@ describe('useEditorPageOps', () => {
       });
     });
 
-    const operations = listPageOperations('tenant.docs.commands');
+    const operations = listRichTextRuntimeOperations('tenant.docs.commands');
     const formatOp = operations.find((op) => op.name === 'format_text');
     const headingOp = operations.find((op) => op.name === 'set_heading');
     const listOp = operations.find((op) => op.name === 'toggle_list');
@@ -366,3 +342,4 @@ describe('useEditorPageOps', () => {
     scope.stop();
   });
 });
+

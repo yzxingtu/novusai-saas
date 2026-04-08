@@ -5,9 +5,10 @@ import type { RichTextAITask } from '#/types/ai-chat';
 import { message } from 'ant-design-vue';
 
 import { resolveAgentAssignmentApi } from '#/api/shared/agent-assignments';
-import { normalizePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
 import { $t } from '#/locales';
 import { useAIPanelStore } from '#/store';
+
+import { normalizeRuntimePageKey } from './page-key';
 
 interface LaunchRichTextTaskOptions {
   contextTitle?: string;
@@ -63,15 +64,22 @@ function buildTaskMessage(
 ): string {
   const labelKey = FEATURE_TITLES[feature];
   const actionTitle = labelKey ? $t(labelKey) : feature;
+  const selectedText = snapshot.selectedText || $t('common.richTextTask.empty');
   return [
-    `[Rich Text Task] ${actionTitle}`,
-    contextTitle ? `Document title:\n${contextTitle}` : '',
-    `Selected text:\n${snapshot.selectedText || '(empty)'}`,
+    $t('common.richTextTask.title', { title: actionTitle }),
+    contextTitle
+      ? $t('common.richTextTask.documentTitle', { title: contextTitle })
+      : '',
+    $t('common.richTextTask.selectedText', { text: selectedText }),
     snapshot.beforeTextExcerpt
-      ? `Before selection:\n${snapshot.beforeTextExcerpt}`
+      ? $t('common.richTextTask.beforeSelection', {
+          text: snapshot.beforeTextExcerpt,
+        })
       : '',
     snapshot.afterTextExcerpt
-      ? `After selection:\n${snapshot.afterTextExcerpt}`
+      ? $t('common.richTextTask.afterSelection', {
+          text: snapshot.afterTextExcerpt,
+        })
       : '',
   ]
     .filter(Boolean)
@@ -86,7 +94,7 @@ export async function launchRichTextTask({
   contextTitle,
   getRevision,
 }: LaunchRichTextTaskOptions): Promise<boolean> {
-  const normalizedPageKey = normalizePageKey(pageKey);
+  const normalizedPageKey = normalizeRuntimePageKey(pageKey);
   const snapshot = createSelectionSnapshot(
     editor,
     normalizedPageKey,

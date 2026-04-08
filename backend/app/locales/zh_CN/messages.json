@@ -3076,6 +3076,28 @@
       "code_execution_timeout": "代码执行超时（{timeout}秒）",
       "code_prohibited_pattern": "代码中包含禁止的模式: {pattern}",
       "consent_rejected": "该工具已被授权策略禁止执行"
+    },
+    "ui": {
+      "session_required": "执行 UI 工具前需要有效的页面会话。",
+      "action": {
+        "unsupported_tool": "不支持的 UI 操作工具。",
+        "open_surface_target_required": "ui_open_surface 需要提供 target_locator，或在 surface 中提供 locator/title。",
+        "unavailable": "后端页面会话模块暂不可执行 UI 操作。",
+        "executed": "UI 操作 '{action}' 已执行成功。",
+        "result": "结果：{message}",
+        "diff": "变更：{diff}",
+        "success_summary": "{action} 执行成功",
+        "failed": "UI 操作 '{action}' 执行失败。"
+      },
+      "read": {
+        "unsupported_tool": "不支持的 UI 读取工具。",
+        "unavailable": "当前无法读取页面 UI 信息。",
+        "failed": "读取页面 UI 信息失败。"
+      },
+      "snapshot": {
+        "unavailable": "当前无法获取页面 UI 快照。",
+        "failed": "获取页面 UI 快照失败。"
+      }
     }
   },
   "ai_action_log": {
