@@ -21,6 +21,9 @@ class ModelRoundResult:
     response: Any | None
     total_tokens: int = 0
     completion_tokens_used: int = 0
+    # True when the provider ran native web search (Responses API) and the
+    # response text was generated from those inline results.
+    native_search_observed: bool = False
 
 
 @dataclass
@@ -424,6 +427,33 @@ class TurnExecutor:
         return families
 
     @staticmethod
+    def _should_complete_from_budgeted_web_research_evidence(
+        *,
+        state: ExecutionStateMachine,
+        response: ChatResponse | None,
+        tool_results: list[ToolResult],
+        reason: str,
+    ) -> Literal["none", "keep_visible_output", "replace_with_tool_evidence"]:
+        if not RecoveryManager.is_budget_exit_reason(reason):
+            return "none"
+        if "web_research" not in TurnExecutor._completed_tool_intent_families(state):
+            return "none"
+        if RecoveryManager.next_unfinished_intents(state.intent_plan):
+            return "none"
+
+        response_text = str(
+            getattr(getattr(response, "message", None), "content", "") or ""
+        ).strip()
+        if not response_text:
+            return "replace_with_tool_evidence"
+        if RecoveryManager.should_replace_budgeted_web_research_response(
+            response_text=response_text,
+            tool_results=tool_results,
+        ):
+            return "replace_with_tool_evidence"
+        return "keep_visible_output"
+
+    @staticmethod
     def _post_tool_completion_state(
         *,
         state: ExecutionStateMachine,
@@ -477,6 +507,8 @@ class TurnExecutor:
         active_intent: Any | None,
         current_policy: ToolUsePolicy | None,
     ) -> ToolUsePolicy:
+        if str(getattr(retry_policy, "mode", "") or "").strip() == "none":
+            return retry_policy
         if active_intent is None:
             return retry_policy
         allowed_tool_names = list(
@@ -669,6 +701,16 @@ class TurnExecutor:
             total_tokens = int(model_round.total_tokens or 0)
             completion_tokens_used = int(model_round.completion_tokens_used or 0)
             state.register_completion_tokens(completion_tokens_used)
+            # Native Responses API search produced visible content — mark
+            # web_research intents complete so the orchestrator skips retry.
+            if (
+                getattr(model_round, "native_search_observed", False)
+                and TurnExecutor._response_has_visible_content(response)
+                and state.intent_plan
+            ):
+                state.intent_plan = RecoveryManager.complete_native_search_intents(
+                    state.intent_plan
+                )
 
         if getattr(response, "tool_calls", None) and active_tools:
             response, tool_results, total_tokens, completion_tokens_used = (
@@ -721,6 +763,7 @@ class TurnExecutor:
             should_retry = False
             retry_policy: ToolUsePolicy | None = None
             breach_type: str | None = None
+            non_intent_breach_type: str | None = None
 
             if state.intent_plan:
                 breach_type, retry_policy, breach_diagnostics = (
@@ -768,7 +811,17 @@ class TurnExecutor:
                             continuation=prep.continuation_context,
                         )
                     )
+                if should_retry and retry_policy is not None:
+                    non_intent_breach_type = (
+                        retry_policy.reason or "tool_contract_breach"
+                    )
             if should_retry and retry_policy is not None:
+                if non_intent_breach_type:
+                    TurnExecutor._record_contract_breach(
+                        state,
+                        breach_type=non_intent_breach_type,
+                        diagnostics={},
+                    )
                 retry_tools = io.restrict_tools_to_names(
                     contract_tools,
                     retry_policy.allowed_tool_names,
@@ -1051,6 +1104,76 @@ class TurnExecutor:
 
         if (
             decision is None
+            and response is not None
+            and tool_results
+            and not bool(getattr(response, "tool_calls", None))
+        ):
+            should_retry_web_research, web_research_retry_policy, _ = (
+                io.should_retry_web_research_contract_breach(
+                    messages=messages,
+                    response=response,
+                    current_policy=active_policy,
+                    tools=contract_tools,
+                    input_variables=request.input_variables,
+                    continuation=prep.continuation_context,
+                )
+            )
+            if (
+                should_retry_web_research
+                and web_research_retry_policy is not None
+                and web_research_retry_policy.mode == "none"
+                and not web_research_retry_policy.allowed_tool_names
+            ):
+                retry_tools: list[Any] = []
+                TurnExecutor._record_contract_breach(
+                    state,
+                    breach_type=(
+                        web_research_retry_policy.reason
+                        or "web_research_contract_breach"
+                    ),
+                    diagnostics={},
+                )
+                TurnExecutor._emit_round_started(
+                    state,
+                    round_kind="contract_retry",
+                    policy=web_research_retry_policy,
+                    tools=retry_tools,
+                    reason=(
+                        web_research_retry_policy.reason
+                        or "web_research_contract_breach"
+                    ),
+                )
+                io.log_tool_contract_diagnostics(
+                    agent=agent,
+                    messages=messages,
+                    response=response,
+                    tools=contract_tools,
+                    policy=web_research_retry_policy,
+                    conversation_id=request.conversation_id,
+                    breach_type=(
+                        web_research_retry_policy.reason
+                        or "web_research_contract_breach"
+                    ),
+                    retry_result="retrying",
+                    continuation=prep.continuation_context,
+                )
+                active_policy = web_research_retry_policy
+                retry_round = await io.call_llm(
+                    messages=messages,
+                    tools=retry_tools or None,
+                    tool_use_policy=web_research_retry_policy,
+                    breach_retry_result="contract_retry",
+                )
+                response = retry_round.response
+                total_tokens += int(retry_round.total_tokens or 0)
+                completion_tokens_used += int(
+                    retry_round.completion_tokens_used or 0
+                )
+                state.register_completion_tokens(completion_tokens_used)
+                ran_post_tool_follow_up = True
+
+        if (
+            decision is None
             and tool_results
             and TurnExecutor._active_intent(state) is None
             and not TurnExecutor._response_has_visible_content(response)
@@ -1075,12 +1198,37 @@ class TurnExecutor:
                 output_tokens=0,
             )
         output = response.message.content
-        if decision is not None and decision.action in {"pause_for_consent", "return_partial"}:
-            state.recovery_history.append(decision)
         paused_for_consent = bool(
             decision is not None and decision.action == "pause_for_consent"
         )
         partial = bool(decision is not None and decision.action == "return_partial")
+        budgeted_web_research_completion_mode: Literal[
+            "none",
+            "keep_visible_output",
+            "replace_with_tool_evidence",
+        ] = (
+            TurnExecutor._should_complete_from_budgeted_web_research_evidence(
+                state=state,
+                response=response,
+                tool_results=tool_results,
+                reason=decision.reason or "return_partial",
+            )
+            if partial and decision is not None
+            else "none"
+        )
+        promote_budget_partial_to_completed = bool(
+            partial
+            and decision is not None
+            and budgeted_web_research_completion_mode != "none"
+        )
+        replace_budgeted_web_research_output = (
+            budgeted_web_research_completion_mode == "replace_with_tool_evidence"
+        )
+        if decision is not None and (
+            decision.action == "pause_for_consent"
+            or (decision.action == "return_partial" and not promote_budget_partial_to_completed)
+        ):
+            state.recovery_history.append(decision)
         completion_reason = "completed"
         final_output_source: Literal[
             "assistant",
@@ -1095,6 +1243,67 @@ class TurnExecutor:
                 messages,
                 RecoveryManager.pending_consent_payload_from_decision(decision),
             )
+        elif promote_budget_partial_to_completed:
+            partial = False
+            state.transition("completed")
+            state.preparation_diagnostics["budgeted_web_research_completion_mode"] = (
+                budgeted_web_research_completion_mode
+            )
+            if replace_budgeted_web_research_output and response is not None:
+                response.message.content = ""
+            # Budget was exceeded during tool-selection thinking, but tool evidence is
+            # complete.  Attempt one no-tool synthesis call so the user sees a proper
+            # answer instead of raw tool-result text.
+            if replace_budgeted_web_research_output and tool_results:
+                synthesis_policy = ToolUsePolicy(
+                    family="none",
+                    mode="none",
+                    allowed_tool_names=[],
+                    retry_on_contract_breach=False,
+                    reason="budget_exceeded_synthesis",
+                )
+                TurnExecutor._emit_round_started(
+                    state,
+                    round_kind="budget_exceeded_synthesis",
+                    policy=synthesis_policy,
+                    tools=[],
+                    reason="budget_exceeded_synthesis",
+                )
+                synthesis_round = await io.call_llm(
+                    messages=messages,
+                    tools=None,
+                    tool_use_policy=synthesis_policy,
+                    breach_retry_result="budget_exceeded_synthesis",
+                )
+                synthesis_text = str(
+                    getattr(
+                        getattr(synthesis_round.response, "message", None),
+                        "content",
+                        "",
+                    ) or ""
+                ).strip()
+                if synthesis_text:
+                    output = synthesis_text
+                    total_tokens += int(synthesis_round.total_tokens or 0)
+                    completion_tokens_used += int(
+                        synthesis_round.completion_tokens_used or 0
+                    )
+                    state.register_completion_tokens(completion_tokens_used)
+                    final_output_source = "assistant"
+            if not str(output or "").strip():
+                output, total_tokens, completion_tokens_used = (
+                    await io.finalize_completed_output(
+                        messages=messages,
+                        response=response,
+                        state=state,
+                        tool_results=tool_results,
+                        reason=decision.reason or "completed",
+                        total_tokens=total_tokens,
+                        completion_tokens_used=completion_tokens_used,
+                    )
+                )
+                if str(output or "").strip():
+                    final_output_source = "tool_evidence_completed"
         elif partial:
             state.transition("partial_exit")
             completion_reason = decision.reason or "return_partial"

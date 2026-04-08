@@ -30,6 +30,7 @@ from app.ai.exceptions import (
     ProviderTimeoutError,
     convert_openai_error,
 )
+from app.ai.prompt_contracts import render_prompt_contract
 from app.ai.text_semantics import extract_data_url_payload, split_last_suffix
 from app.ai.tools.security import SSRFBlockedError, UrlValidator
 from app.ai.types import (
@@ -1011,7 +1012,7 @@ class OpenAIAdapter(BaseAdapter):
         Stream via chat.completions and rescue empty / broken streams with sync chat.
         使用 chat.completions 流式输出，并在空流或首块前异常时回退到同步 chat。
         """
-        emitted_meaningful_chunk = False
+        emitted_fallback_blocking_chunk = False
         stream_error: Exception | None = None
 
         try:
@@ -1020,15 +1021,15 @@ class OpenAIAdapter(BaseAdapter):
                 model=model,
                 fallback_to_responses=False,
             ):
-                if self._is_meaningful_stream_chunk(chunk):
-                    emitted_meaningful_chunk = True
+                if self._stream_chunk_blocks_fallback(chunk):
+                    emitted_fallback_blocking_chunk = True
                 yield chunk
         except Exception as exc:  # noqa: BLE001
-            if emitted_meaningful_chunk:
+            if emitted_fallback_blocking_chunk:
                 raise
             stream_error = exc
 
-        if emitted_meaningful_chunk:
+        if emitted_fallback_blocking_chunk:
             return
 
         logger.warning(
@@ -1333,13 +1334,13 @@ class OpenAIAdapter(BaseAdapter):
             }
 
             if use_responses_api:
-                responses_stream_emitted_meaningful_chunk = False
+                responses_stream_emitted_fallback_blocking_chunk = False
                 try:
                     async for chunk in self._stream_chat_via_responses(
                         **responses_kwargs,
                     ):
-                        if self._is_meaningful_stream_chunk(chunk):
-                            responses_stream_emitted_meaningful_chunk = True
+                        if self._stream_chunk_blocks_fallback(chunk):
+                            responses_stream_emitted_fallback_blocking_chunk = True
                         chunk.metadata = self._augment_request_metadata(
                             getattr(chunk, "metadata", None),
                             effective_request=effective_request,
@@ -1348,7 +1349,7 @@ class OpenAIAdapter(BaseAdapter):
                     return
                 except Exception as responses_error:
                     if (
-                        not responses_stream_emitted_meaningful_chunk
+                        not responses_stream_emitted_fallback_blocking_chunk
                         and not runtime_disable_cross_protocol_fallback
                         and self._should_fallback_from_responses_error(
                             responses_error,
@@ -1379,9 +1380,9 @@ class OpenAIAdapter(BaseAdapter):
                             )
                             yield chunk
                         return
-                    if responses_stream_emitted_meaningful_chunk:
+                    if responses_stream_emitted_fallback_blocking_chunk:
                         logger.warning(
-                            "Responses stream failed after meaningful chunk; skip cross-protocol fallback: model={} error_type={} error={}",
+                            "Responses stream failed after visible/tool chunk; skip cross-protocol fallback: model={} error_type={} error={}",
                             model,
                             type(responses_error).__name__,
                             str(responses_error),
@@ -1483,12 +1484,10 @@ class OpenAIAdapter(BaseAdapter):
         return self._normalize_wire_api(runtime_force_wire_api)
 
     @staticmethod
-    def _is_meaningful_stream_chunk(chunk: ChatChunk) -> bool:
+    def _stream_chunk_blocks_fallback(chunk: ChatChunk) -> bool:
         if chunk is None:
             return False
         if str(getattr(chunk, "delta", "") or "").strip():
-            return True
-        if str(getattr(chunk, "reasoning_delta", "") or "").strip():
             return True
         return bool(getattr(chunk, "tool_calls", None))
 
@@ -1684,6 +1683,7 @@ class OpenAIAdapter(BaseAdapter):
         collected_text_parts: list[str] = []
         response_usage: Any = None
         saw_web_search_call = False
+        _ = locale
 
         try:
             stream = await self.client.responses.create(
@@ -1949,14 +1949,10 @@ class OpenAIAdapter(BaseAdapter):
         effective_model = model
         effective_provider = provider_label
         effective_backend_key = backend_key
-        instructions = (
-            "Use hosted web search to find candidate source URLs for the user query. "
-            "Return only candidate sources with brief snippets. Do not synthesize facts "
-            "or claim conclusions. Every result must be backed by a verifiable absolute "
-            "http or https URL that can later be fetched."
+        instructions = render_prompt_contract(
+            "hosted_web_search_candidate_instructions",
+            locale=locale,
         )
-        if locale:
-            instructions += f" Prefer sources suitable for locale {locale} when relevant."
 
         try:
             self._log_upstream_request(

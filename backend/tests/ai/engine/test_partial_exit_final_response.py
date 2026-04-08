@@ -112,7 +112,7 @@ def _install_fake_weather_processor(
                 processed_cities.append(city)
             success = city == "凤凰"
             if success and exceed_after_success_before_followup:
-                budget.elapsed_ms_used = budget.max_elapsed_ms + 1000
+                budget.tool_result_bytes_used = budget.max_tool_result_bytes + 1
             tool_result = ToolResult(
                 tool_call_id=tc["id"],
                 name="get_current_weather",
@@ -265,17 +265,17 @@ async def test_budget_exit_with_tool_results_uses_cached_partial_output(
         ),
     )
 
-    assert result.partial is True
-    assert result.success is False
-    assert result.completion_reason == "elapsed_budget_exceeded"
+    # Elapsed budget is diagnostic-only and does not trigger partial exit.
+    # The follow-up synthesis round runs and produces a completed result.
+    assert result.partial is False
+    assert result.success is True
+    assert result.completion_reason == "completed"
     assert result.output == "西安现在多云，气温约 18C。"
     assert result.execution_budget is not None
     assert result.execution_budget["limits"]["finalization_grace_ms"] == 15000
     assert result.execution_budget["usage"]["finalization_grace_applied"] is False
-    assert len(engine._call_llm.await_args_list) == 1
-    assert not any(
-        call.kwargs.get("tools") is None for call in engine._call_llm.await_args_list
-    )
+    # 2 calls: tool selection + follow-up synthesis
+    assert len(engine._call_llm.await_args_list) == 2
 
 
 @pytest.mark.asyncio
@@ -681,9 +681,11 @@ async def test_stream_handler_uses_partial_summary_without_finalization_round(
         if self.budget is None:
             return
         if len(processed_cities) >= 2:
-            self.budget.elapsed_ms_used = self.budget.max_elapsed_ms + 1000
+            self.budget.tool_result_bytes_used = (
+                self.budget.max_tool_result_bytes + 1
+            )
         else:
-            self.budget.elapsed_ms_used = 0
+            self.budget.tool_result_bytes_used = 0
 
     monkeypatch.setattr(ExecutionStateMachine, "sync_elapsed", _force_budget_exit)
 

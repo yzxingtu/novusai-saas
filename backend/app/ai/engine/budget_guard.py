@@ -11,7 +11,7 @@ class BudgetGuard:
         if path == "fast":
             return ExecutionBudget(
                 max_prompt_tokens=4000,
-                max_completion_tokens=2000,
+                max_completion_tokens=3000,
                 max_tool_rounds=2,
                 max_elapsed_ms=40000,
                 max_retry_per_intent=1,
@@ -22,7 +22,7 @@ class BudgetGuard:
         if path == "normal":
             return ExecutionBudget(
                 max_prompt_tokens=8000,
-                max_completion_tokens=2000,
+                max_completion_tokens=4000,
                 max_tool_rounds=3,
                 max_elapsed_ms=60000,
                 max_retry_per_intent=1,
@@ -32,7 +32,7 @@ class BudgetGuard:
             )
         return ExecutionBudget(
             max_prompt_tokens=12000,
-            max_completion_tokens=3000,
+            max_completion_tokens=6000,
             max_tool_rounds=min(6, max(2, intent_count * 2)),
             max_elapsed_ms=75000,
             max_retry_per_intent=1,

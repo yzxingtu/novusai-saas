@@ -478,6 +478,220 @@ async def test_conversation_engine_retries_summary_without_fetch_with_fetch_url(
 
 
 @pytest.mark.asyncio
+async def test_conversation_engine_repairs_title_only_answer_after_fetch() -> None:
+    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    page_title = "湖南中小学将施行春秋假制度-湖南省人民政府门户网站"
+    prep = PreparedExecution(
+        messages=[ChatMessage(role="user", content="你联网查一下 湖南学生放假时间")],
+        tools=[
+            ToolDefinition(name="web_search", description="Search the web"),
+            ToolDefinition(name="fetch_url", description="Fetch url"),
+        ],
+        all_tools=[
+            ToolDefinition(name="web_search", description="Search the web"),
+            ToolDefinition(name="fetch_url", description="Fetch url"),
+        ],
+        continuation_context=SimpleNamespace(
+            active=True,
+            family="web_research",
+            origin="continuation",
+            current_user_text="继续查看正文。",
+            research_target_text="湖南学生放假时间",
+            recent_successful_tool_names=["web_search"],
+            recent_web_queries=["湖南学生放假时间"],
+            search_query_count=1,
+            fetched_url_count=0,
+            research_instruction_texts=["你联网查一下 湖南学生放假时间"],
+        ),
+        tool_use_policy=ToolUsePolicy(
+            family="web_research",
+            mode="required",
+            allowed_tool_names=["web_search", "fetch_url"],
+            retry_on_contract_breach=True,
+            reason="active_continuation:web_research",
+        ),
+        rag_sources=None,
+        tool_consent_modes={},
+        optimize_event=None,
+        route_result=None,
+    )
+    engine._prepare_execution = AsyncMock(return_value=prep)
+
+    first_response = ChatResponse(
+        message=ChatMessage(role="assistant", content=""),
+        tool_calls=[
+            {
+                "id": "call_search",
+                "type": "function",
+                "function": {
+                    "name": "web_search",
+                    "arguments": '{"query":"湖南学生放假时间","max_results":5}',
+                },
+            }
+        ],
+        total_tokens=18,
+    )
+    retry_fetch_response = ChatResponse(
+        message=ChatMessage(role="assistant", content=""),
+        tool_calls=[
+            {
+                "id": "call_fetch",
+                "type": "function",
+                "function": {
+                    "name": "fetch_url",
+                    "arguments": '{"url":"https://searchs.hunan.gov.cn/hnszf/hnyw/zwdt/202603/t20260328_33943174.html","max_length":4000}',
+                },
+            }
+        ],
+        total_tokens=7,
+    )
+    repaired_response = ChatResponse(
+        message=ChatMessage(
+            role="assistant",
+            content=(
+                "湖南义务教育阶段学校已开始统筹推行春秋假制度，春假和秋假通常各安排 2 至 3 天，"
+                "一般放在 4 月至 5 月和 10 月至 11 月，并鼓励与双休日或法定节假日衔接。"
+            ),
+        ),
+        total_tokens=20,
+    )
+    engine._call_llm = AsyncMock(
+        side_effect=[first_response, retry_fetch_response, repaired_response]
+    )
+
+    async def _fake_handle_tool_calls(
+        *,
+        agent,
+        messages,
+        response,
+        **kwargs,
+    ):
+        tools = kwargs["tools"]
+        all_tools = kwargs["all_tools"]
+        messages.append(
+            ChatMessage(
+                role="assistant",
+                content="",
+                tool_calls=[
+                    {
+                        **response.tool_calls[0],
+                        "success": True,
+                    }
+                ],
+            )
+        )
+        messages.append(
+            ChatMessage(
+                role="tool",
+                content="Search results for: 湖南学生放假时间",
+                tool_call_id="call_search",
+            )
+        )
+        retry_policy = ToolUsePolicy(
+            family="web_research",
+            mode="required",
+            allowed_tool_names=["web_search", "fetch_url"],
+            retry_on_contract_breach=False,
+            reason="web_research_summary_without_fetch",
+        )
+        retry_call = await engine._call_llm(
+            agent=agent,
+            messages=messages,
+            tools=tools,
+            all_tool_names=[tool.name for tool in (all_tools or tools or [])],
+            tool_use_policy=retry_policy,
+            breach_retry_result="retry_follow_up",
+        )
+        assert retry_call.tool_calls is not None
+        messages.append(
+            ChatMessage(
+                role="assistant",
+                content="",
+                tool_calls=[
+                    {
+                        **retry_call.tool_calls[0],
+                        "success": True,
+                    }
+                ],
+            )
+        )
+        messages.append(
+            ChatMessage(
+                role="tool",
+                content=(
+                    "Content from https://searchs.hunan.gov.cn/hnszf/hnyw/zwdt/202603/"
+                    "t20260328_33943174.html\n"
+                    f"Title: {page_title}\n"
+                    "湖南中小学生即将迎来春秋假。"
+                ),
+                tool_call_id="call_fetch",
+            )
+        )
+        return (
+            ChatResponse(
+                message=ChatMessage(role="assistant", content=page_title),
+                total_tokens=11,
+            ),
+            [
+                ToolResult(
+                    tool_call_id="call_search",
+                    name="web_search",
+                    success=True,
+                    output="Search results for: 湖南学生放假时间",
+                ),
+                ToolResult(
+                    tool_call_id="call_fetch",
+                    name="fetch_url",
+                    success=True,
+                    output=(
+                        "Content from https://searchs.hunan.gov.cn/hnszf/hnyw/zwdt/202603/"
+                        "t20260328_33943174.html\n"
+                        f"Title: {page_title}\n"
+                        "湖南中小学生即将迎来春秋假。"
+                    ),
+                ),
+            ],
+            36,
+            36,
+        )
+
+    engine._handle_tool_calls = AsyncMock(side_effect=_fake_handle_tool_calls)
+
+    request = ExecutionRequest(
+        agent_id=1,
+        tenant_id=1,
+        user_id=1,
+        messages=[ChatMessage(role="user", content="你联网查一下 湖南学生放假时间")],
+        input_variables={},
+    )
+    agent = SimpleNamespace(id=1)
+
+    result = await engine.execute(agent, request)
+
+    assert result.success is True
+    assert "春假和秋假通常各安排 2 至 3 天" in result.output
+    assert len(engine._call_llm.await_args_list) == 3
+    assert engine._call_llm.await_args_list[2].kwargs["tools"] is None
+    assert engine._call_llm.await_args_list[2].kwargs["tool_use_policy"] == ToolUsePolicy(
+        family="none",
+        mode="none",
+        allowed_tool_names=[],
+        retry_on_contract_breach=False,
+        reason="web_research_title_only_after_fetch",
+    )
+    repair_messages = engine._call_llm.await_args_list[2].kwargs["messages"]
+    assert any(
+        msg.role == "system"
+        and "previous assistant draft did not satisfy the tool-use contract"
+        in (msg.content or "").lower()
+        for msg in repair_messages
+    )
+    assert result.turn_record["contract_breach_type"] == (
+        "web_research_title_only_after_fetch"
+    )
+
+
+@pytest.mark.asyncio
 async def test_conversation_engine_retries_leaked_textual_tool_output_after_partial_web_research() -> None:
     engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
     prep = PreparedExecution(
@@ -942,6 +1156,93 @@ def test_web_research_contract_retry_does_not_override_explicit_weather_policy()
                 family="web_research",
                 current_user_text="今天北京天气怎么样",
                 research_target_text="北京天气",
+            ),
+        )
+    )
+
+    assert should_retry is False
+    assert retry_policy is None
+    assert response_text == ""
+
+
+def test_web_research_title_only_retry_skips_explicit_title_request() -> None:
+    page_title = "湖南中小学将施行春秋假制度-湖南省人民政府门户网站"
+    response = ChatResponse(
+        message=ChatMessage(
+            role="assistant",
+            content=page_title,
+        ),
+    )
+    current_policy = ToolUsePolicy(
+        family="web_research",
+        mode="required",
+        allowed_tool_names=["web_search", "fetch_url"],
+        retry_on_contract_breach=True,
+        reason="active_continuation:web_research",
+    )
+    tools = [
+        ToolDefinition(name="web_search", description="Search the web"),
+        ToolDefinition(name="fetch_url", description="Fetch a webpage"),
+    ]
+
+    should_retry, retry_policy, response_text = (
+        ConversationEngine._should_retry_web_research_contract_breach(
+            messages=[
+                ChatMessage(role="user", content="把这篇网页的标题告诉我"),
+                ChatMessage(
+                    role="assistant",
+                    content="",
+                    tool_calls=[
+                        {
+                            "id": "call_search",
+                            "type": "function",
+                            "function": {
+                                "name": "web_search",
+                                "arguments": '{"query":"湖南中小学将施行春秋假制度","max_results":5}',
+                            },
+                            "success": True,
+                        }
+                    ],
+                ),
+                ChatMessage(
+                    role="tool",
+                    content="Search results for: 湖南中小学将施行春秋假制度",
+                    tool_call_id="call_search",
+                ),
+                ChatMessage(
+                    role="assistant",
+                    content="",
+                    tool_calls=[
+                        {
+                            "id": "call_fetch",
+                            "type": "function",
+                            "function": {
+                                "name": "fetch_url",
+                                "arguments": '{"url":"https://searchs.hunan.gov.cn/example","max_length":4000}',
+                            },
+                            "success": True,
+                        }
+                    ],
+                ),
+                ChatMessage(
+                    role="tool",
+                    content=(
+                        "Content from https://searchs.hunan.gov.cn/example\n"
+                        f"Title: {page_title}\n"
+                        "湖南中小学生即将迎来春秋假。"
+                    ),
+                    tool_call_id="call_fetch",
+                ),
+            ],
+            response=response,
+            current_policy=current_policy,
+            tools=tools,
+            input_variables={},
+            continuation=ResearchContinuationContext(
+                active=True,
+                family="web_research",
+                current_user_text="把这篇网页的标题告诉我",
+                research_target_text="湖南中小学将施行春秋假制度",
             ),
         )
     )

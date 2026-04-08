@@ -657,6 +657,174 @@ export function useAIChat(options: UseAIChatOptions) {
     return normalized.length > 0 ? normalized : undefined;
   }
 
+  const NATIVE_WEB_SEARCH_PROVIDER = 'native_hosted';
+  const NATIVE_WEB_SEARCH_TOOL_NAME = 'native_web_search';
+
+  function normalizeObjectRecord(value: unknown): null | Record<string, unknown> {
+    if (!value || typeof value !== 'object') {
+      return null;
+    }
+    return { ...(value as Record<string, unknown>) };
+  }
+
+  function normalizeObjectRecordList(value: unknown): Record<string, unknown>[] {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+    return value
+      .filter((item): item is Record<string, unknown> => {
+        return !!item && typeof item === 'object';
+      })
+      .map((item) => ({ ...item }));
+  }
+
+  function buildNativeSearchSummaryPayload(
+    status: ToolCallEvent['status'],
+  ): Record<string, unknown> {
+    return {
+      provider: NATIVE_WEB_SEARCH_PROVIDER,
+      ...(status === 'success' ? { status: 'success' } : {}),
+    };
+  }
+
+  function hasConcreteWebSearchToolCall(
+    toolCalls?: ToolCallEvent[],
+  ): boolean {
+    return Boolean(toolCalls?.some((toolCall) => toolCall.name === 'web_search'));
+  }
+
+  function removeNativeSearchToolCall(
+    toolCalls?: ToolCallEvent[],
+  ): undefined | ToolCallEvent[] {
+    if (!toolCalls?.length) {
+      return toolCalls;
+    }
+    const filtered = toolCalls.filter(
+      (toolCall) => toolCall.name !== NATIVE_WEB_SEARCH_TOOL_NAME,
+    );
+    return filtered.length === toolCalls.length ? toolCalls : filtered;
+  }
+
+  function upsertNativeSearchToolCall(
+    toolCalls: undefined | ToolCallEvent[],
+    status: Extract<ToolCallEvent['status'], 'running' | 'success'>,
+  ): ToolCallEvent[] {
+    const nextToolCalls = [...(toolCalls ?? [])];
+    if (hasConcreteWebSearchToolCall(nextToolCalls)) {
+      return nextToolCalls;
+    }
+
+    const existing = nextToolCalls.findLast(
+      (toolCall) => toolCall.name === NATIVE_WEB_SEARCH_TOOL_NAME,
+    );
+    if (existing) {
+      existing.displayName =
+        existing.displayName || $t('common.globalAiChat.toolNativeSearch');
+      existing.status = status;
+      if (status === 'running' && !existing.startedAt) {
+        existing.startedAt = Date.now();
+      }
+      existing.summaryPayload = {
+        ...(existing.summaryPayload ?? {}),
+        ...buildNativeSearchSummaryPayload(status),
+      };
+      return nextToolCalls;
+    }
+
+    nextToolCalls.push({
+      displayName: $t('common.globalAiChat.toolNativeSearch'),
+      name: NATIVE_WEB_SEARCH_TOOL_NAME,
+      startedAt: status === 'running' ? Date.now() : undefined,
+      status,
+      summaryPayload: buildNativeSearchSummaryPayload(status),
+    });
+    return nextToolCalls;
+  }
+
+  function finalizeNativeSearchToolCall(
+    toolCalls: undefined | ToolCallEvent[],
+  ): undefined | ToolCallEvent[] {
+    if (!toolCalls?.length || hasConcreteWebSearchToolCall(toolCalls)) {
+      return toolCalls;
+    }
+    const runningNativeTool = toolCalls.findLast(
+      (toolCall) =>
+        toolCall.name === NATIVE_WEB_SEARCH_TOOL_NAME &&
+        toolCall.status === 'running',
+    );
+    if (!runningNativeTool) {
+      return toolCalls;
+    }
+    return upsertNativeSearchToolCall(toolCalls, 'success');
+  }
+
+  function hasNativeSearchProgressSignal(value: unknown): boolean {
+    const payload = normalizeObjectRecord(value);
+    if (!payload) {
+      return false;
+    }
+    const metadata = normalizeObjectRecord(payload.metadata);
+    if (
+      normalizeStringList(metadata?.stream_progress_kinds).includes(
+        'web_search_in_progress',
+      )
+    ) {
+      return true;
+    }
+    return normalizeObjectRecordList(payload.provider_events).some((item) => {
+      return normalizeOptionalString(item.kind) === 'web_search_in_progress';
+    });
+  }
+
+  function hasNativeSearchCompletionSignal(value: unknown): boolean {
+    const payload = normalizeObjectRecord(value);
+    if (!payload) {
+      return false;
+    }
+
+    if (normalizeOptionalString(payload.auto_fetch_gate_reason) === 'native_search_completed') {
+      return true;
+    }
+
+    const metadata = normalizeObjectRecord(payload.metadata);
+    if (
+      normalizeOptionalString(metadata?.auto_fetch_gate_reason) ===
+      'native_search_completed'
+    ) {
+      return true;
+    }
+
+    return normalizeObjectRecordList(payload.intent_plan).some((item) => {
+      if (
+        normalizeStringList(item.completed_by_tool_names).includes(
+          NATIVE_WEB_SEARCH_TOOL_NAME,
+        )
+      ) {
+        return true;
+      }
+      const itemMetadata = normalizeObjectRecord(item.metadata);
+      return (
+        normalizeOptionalString(itemMetadata?.auto_fetch_gate_reason) ===
+        'native_search_completed'
+      );
+    });
+  }
+
+  function resolveNativeSearchToolStatus(
+    ...sources: unknown[]
+  ): null | Extract<ToolCallEvent['status'], 'running' | 'success'> {
+    let sawProgress = false;
+    for (const source of sources) {
+      if (hasNativeSearchCompletionSignal(source)) {
+        return 'success';
+      }
+      if (hasNativeSearchProgressSignal(source)) {
+        sawProgress = true;
+      }
+    }
+    return sawProgress ? 'running' : null;
+  }
+
   function normalizeContextSources(value: unknown): TurnContextSourcePayload[] {
     if (!Array.isArray(value)) {
       return [];
@@ -832,6 +1000,9 @@ export function useAIChat(options: UseAIChatOptions) {
       let turnSelectedToolNames: string[] = [];
       let turnContextSources: TurnContextSourcePayload[] = [];
       let turnRecordPayload: null | TurnRecordPayload = null;
+      let turnContextDiagnosticsRaw: null | Record<string, unknown> = null;
+      let turnLastRunSummaryRaw: null | Record<string, unknown> = null;
+      let turnRecordRaw: null | Record<string, unknown> = null;
       let turnAgentId: null | number = null;
       let turnAgentName: null | string = null;
       let turnAgentAvatar: null | string = null;
@@ -854,6 +1025,7 @@ export function useAIChat(options: UseAIChatOptions) {
         const cur = current;
 
         if (cur.role === 'assistant') {
+          const assistantMetadata = normalizeObjectRecord(cur.metadata);
           if (cur.created_at) turnCreatedAt = cur.created_at;
           // Capture agent info from the first assistant message in this turn / 本轮首条 assistant 取 agent 信息
           if (turnAgentId === null && cur.agent_id) {
@@ -875,28 +1047,28 @@ export function useAIChat(options: UseAIChatOptions) {
           if (turnModelName === null) {
             turnModelName =
               cur.model_name ??
-              (typeof cur.metadata?.model_name === 'string'
-                ? cur.metadata.model_name
+              (typeof assistantMetadata?.model_name === 'string'
+                ? assistantMetadata.model_name
                 : null);
           }
           if (
             turnRouteSource === null &&
-            typeof cur.metadata?.route_source === 'string'
+            typeof assistantMetadata?.route_source === 'string'
           ) {
-            turnRouteSource = cur.metadata.route_source;
+            turnRouteSource = assistantMetadata.route_source;
           }
-          if (Array.isArray(cur.metadata?.action_buttons)) {
-            turnActionButtons = cur.metadata.action_buttons as ActionButton[];
+          if (Array.isArray(assistantMetadata?.action_buttons)) {
+            turnActionButtons = assistantMetadata.action_buttons as ActionButton[];
           }
-          if (cur.metadata?.action_buttons_used === true) {
+          if (assistantMetadata?.action_buttons_used === true) {
             turnActionButtonsUsed = true;
           }
           if (
             !turnPendingConfirmation &&
-            cur.metadata?.pending_confirmation &&
-            typeof cur.metadata.pending_confirmation === 'object'
+            assistantMetadata?.pending_confirmation &&
+            typeof assistantMetadata.pending_confirmation === 'object'
           ) {
-            const pending = cur.metadata.pending_confirmation as Record<
+            const pending = assistantMetadata.pending_confirmation as Record<
               string,
               unknown
             >;
@@ -909,10 +1081,10 @@ export function useAIChat(options: UseAIChatOptions) {
           }
           if (
             !turnPendingConsent &&
-            cur.metadata?.pending_consent &&
-            typeof cur.metadata.pending_consent === 'object'
+            assistantMetadata?.pending_consent &&
+            typeof assistantMetadata.pending_consent === 'object'
           ) {
-            const pending = cur.metadata.pending_consent as Record<
+            const pending = assistantMetadata.pending_consent as Record<
               string,
               unknown
             >;
@@ -1022,15 +1194,24 @@ export function useAIChat(options: UseAIChatOptions) {
           }
 
           // Check memory_updated flag in metadata / 检查 metadata 记忆更新标记
-          if (cur.metadata?.memory_updated) {
+          if (assistantMetadata?.memory_updated) {
             hasMemoryUpdated = true;
           }
-          const turnRecord = normalizeTurnRecord(cur.metadata?.turn_record);
+          turnContextDiagnosticsRaw =
+            normalizeObjectRecord(assistantMetadata?.context_diagnostics) ??
+            turnContextDiagnosticsRaw;
+          turnLastRunSummaryRaw =
+            normalizeObjectRecord(assistantMetadata?.last_run_summary) ??
+            turnLastRunSummaryRaw;
+          turnRecordRaw =
+            normalizeObjectRecord(assistantMetadata?.turn_record) ??
+            turnRecordRaw;
+          const turnRecord = normalizeTurnRecord(assistantMetadata?.turn_record);
           if (turnRecord) {
             turnRecordPayload = turnRecord;
           }
           const metadataTurnOutcome = normalizeOptionalString(
-            cur.metadata?.turn_outcome,
+            assistantMetadata?.turn_outcome,
           );
           if (!turnOutcome && metadataTurnOutcome) {
             turnOutcome = metadataTurnOutcome;
@@ -1039,7 +1220,7 @@ export function useAIChat(options: UseAIChatOptions) {
             turnOutcome = turnRecord.turn_outcome;
           }
           const metadataTerminationReason = normalizeOptionalString(
-            cur.metadata?.termination_reason,
+            assistantMetadata?.termination_reason,
           );
           if (!turnTerminationReason && metadataTerminationReason) {
             turnTerminationReason = metadataTerminationReason;
@@ -1048,7 +1229,7 @@ export function useAIChat(options: UseAIChatOptions) {
             turnTerminationReason = turnRecord.termination_reason;
           }
           const metadataProtocolPath = normalizeOptionalString(
-            cur.metadata?.protocol_path,
+            assistantMetadata?.protocol_path,
           );
           if (!turnProtocolPath && metadataProtocolPath) {
             turnProtocolPath = metadataProtocolPath;
@@ -1057,7 +1238,7 @@ export function useAIChat(options: UseAIChatOptions) {
             turnProtocolPath = turnRecord.protocol_path;
           }
           const metadataSelectedToolNames = normalizeStringList(
-            cur.metadata?.selected_tool_names,
+            assistantMetadata?.selected_tool_names,
           );
           if (metadataSelectedToolNames.length > 0) {
             turnSelectedToolNames = metadataSelectedToolNames;
@@ -1070,7 +1251,7 @@ export function useAIChat(options: UseAIChatOptions) {
             ];
           }
           const metadataSelectedSkillNames = normalizeStringList(
-            cur.metadata?.selected_skill_names,
+            assistantMetadata?.selected_skill_names,
           );
           if (metadataSelectedSkillNames.length > 0) {
             turnSelectedSkillNames = metadataSelectedSkillNames;
@@ -1083,7 +1264,7 @@ export function useAIChat(options: UseAIChatOptions) {
             ];
           }
           const metadataContextSources = normalizeContextSources(
-            cur.metadata?.context_sources,
+            assistantMetadata?.context_sources,
           );
           if (metadataContextSources.length > 0) {
             turnContextSources = metadataContextSources;
@@ -1093,11 +1274,11 @@ export function useAIChat(options: UseAIChatOptions) {
           ) {
             turnContextSources = [...(turnRecord?.context_sources ?? [])];
           }
-          if (cur.metadata?.partial || turnOutcome === 'partial') {
+          if (assistantMetadata?.partial || turnOutcome === 'partial') {
             hasPartial = true;
           }
           if (
-            cur.metadata?.interrupted ||
+            assistantMetadata?.interrupted ||
             turnTerminationReason === 'interrupted'
           ) {
             hasInterrupted = true;
@@ -1105,15 +1286,15 @@ export function useAIChat(options: UseAIChatOptions) {
           if (hasInterrupted) {
             hasPartial = true;
           }
-          if (cur.metadata?.completion_reason) {
-            turnCompletionReason = cur.metadata.completion_reason;
+          if (assistantMetadata?.completion_reason) {
+            turnCompletionReason = assistantMetadata.completion_reason as string;
           }
           if (!turnCompletionReason && turnTerminationReason) {
             turnCompletionReason = turnTerminationReason;
           }
           const persistedThinking =
-            typeof cur.metadata?.thinking_content === 'string'
-              ? cur.metadata.thinking_content
+            typeof assistantMetadata?.thinking_content === 'string'
+              ? assistantMetadata.thinking_content
               : '';
           if (persistedThinking.trim()) {
             thinkingContentParts.push(persistedThinking.trim());
@@ -1131,7 +1312,7 @@ export function useAIChat(options: UseAIChatOptions) {
               contentParts.push(cur.content);
             }
           }
-          const rs = cur.metadata?.rag_sources;
+          const rs = assistantMetadata?.rag_sources;
           if (Array.isArray(rs) && rs.length > 0) {
             turnRagSources = rs as RagSource[];
           }
@@ -1142,11 +1323,19 @@ export function useAIChat(options: UseAIChatOptions) {
 
       // Only add if we actually processed something / 确有内容再推入助手消息
       if (i > startIdx) {
+        const nativeSearchStatus = resolveNativeSearchToolStatus(
+          turnContextDiagnosticsRaw,
+          turnLastRunSummaryRaw,
+          turnRecordRaw,
+        );
+        const mergedToolCalls = nativeSearchStatus
+          ? upsertNativeSearchToolCall(toolCalls, nativeSearchStatus)
+          : toolCalls;
         const assistantMsg: ChatMessage = {
           clientKey: `persisted-assistant-${startIdx}-${turnCreatedAt ?? ''}`,
           role: 'assistant',
           content: contentParts.join('\n\n'),
-          toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+          toolCalls: mergedToolCalls.length > 0 ? mergedToolCalls : undefined,
           agent_id: turnAgentId,
           agent_name: turnAgentName,
           agent_avatar: turnAgentAvatar,
@@ -2177,6 +2366,9 @@ export function useAIChat(options: UseAIChatOptions) {
           }
           case 'tool_call': {
             promoteToolRoundContent();
+            if (event.name === 'web_search') {
+              msg.toolCalls = removeNativeSearchToolCall(msg.toolCalls);
+            }
             if (!msg.toolCalls) msg.toolCalls = [];
             let existing = msg.toolCalls.findLast(
               (tc) => tc.name === event.name && tc.status === 'running',
@@ -2237,6 +2429,9 @@ export function useAIChat(options: UseAIChatOptions) {
           }
           case 'tool_start': {
             promoteToolRoundContent();
+            if (event.name === 'web_search') {
+              msg.toolCalls = removeNativeSearchToolCall(msg.toolCalls);
+            }
             if (!msg.toolCalls) msg.toolCalls = [];
             msg.toolCalls.push({
               id: event.id as string,
@@ -2291,6 +2486,16 @@ export function useAIChat(options: UseAIChatOptions) {
                   skillType: (event.skill_type as string) || undefined,
                 };
               }
+              scrollToBottom();
+            } else if (
+              event.event === 'status' &&
+              event.status === 'web_search_in_progress'
+            ) {
+              promoteToolRoundContent();
+              msg.toolCalls = upsertNativeSearchToolCall(
+                msg.toolCalls,
+                'running',
+              );
               scrollToBottom();
             } else if (
               event.event === 'knowledge_base_feedback' &&
@@ -2370,6 +2575,7 @@ export function useAIChat(options: UseAIChatOptions) {
               msg.ragSourceKinds = Array.isArray(event.rag_source_kinds)
                 ? (event.rag_source_kinds as string[])
                 : undefined;
+              const turnRecordRaw = normalizeObjectRecord(event.turn_record);
               const turnRecord = normalizeTurnRecord(event.turn_record);
               const turnOutcome =
                 normalizeOptionalString(event.turn_outcome) ??
@@ -2429,6 +2635,15 @@ export function useAIChat(options: UseAIChatOptions) {
               }
               if (selectedToolNames.length > 0) {
                 msg.selectedToolNames = selectedToolNames;
+              }
+              msg.toolCalls = resolveNativeSearchToolStatus(turnRecordRaw)
+                ? upsertNativeSearchToolCall(
+                    msg.toolCalls,
+                    resolveNativeSearchToolStatus(turnRecordRaw) || 'success',
+                  )
+                : msg.toolCalls;
+              if (selectedToolNames.includes('web_search')) {
+                msg.toolCalls = finalizeNativeSearchToolCall(msg.toolCalls);
               }
               if (selectedSkillNames.length > 0) {
                 msg.selectedSkillNames = selectedSkillNames;

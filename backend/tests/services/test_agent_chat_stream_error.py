@@ -68,6 +68,65 @@ def _build_failed_result(
     )
 
 
+def _build_success_result(
+    *,
+    output: str = "查到了，湖南学生暑假时间请以学校通知为准。",
+):
+    return ExecutionResult(
+        success=True,
+        output=output,
+        messages=[
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": "通过页面感知能力添加一个测试的智能体"},
+            {"role": "assistant", "content": output},
+        ],
+        tool_results=[],
+        total_tokens=150,
+        duration_ms=1000,
+        conversation_id=100,
+        runtime_model_name="gpt-5.4",
+        runtime_provider_name="provider_1",
+        error="",
+        partial=False,
+        interrupted=False,
+        completion_reason="protocol_fallback",
+        rag_sources=None,
+        rag_source_kinds=[],
+        context_compacted=False,
+        memory_flush_triggered=False,
+        memory_recalled=False,
+        prune_stats=None,
+        tool_planner=None,
+        turn_record={
+            "turn_outcome": "success",
+            "termination_reason": "protocol_fallback",
+            "protocol_path": "chat_completions",
+            "selected_tool_names": ["web_search"],
+            "selected_skill_names": ["runtime.web_research"],
+            "provider_events": [
+                {
+                    "kind": "web_search_in_progress",
+                    "protocol_path": "responses",
+                    "tool_family": "web_research",
+                }
+            ],
+            "fallback_history": [
+                {
+                    "from_protocol": "responses",
+                    "to_protocol": "chat_completions",
+                    "reason": "stream_exception_before_first_meaningful_chunk:RuntimeError",
+                    "recovered": True,
+                    "metadata": {"recovery_path": "sync_chat_completions"},
+                }
+            ],
+            "metadata": {
+                "stream_failure_reasoning_only_before_visible_output": True,
+                "stream_failure_blocks_fallback": False,
+            },
+        },
+    )
+
+
 async def _build_stream_service(mock_db):
     from app.services.ai.agent_chat_service import AgentChatService
 
@@ -465,6 +524,81 @@ async def test_stream_on_complete_skips_extra_error_message_when_partial_assista
 
     cb_conv_svc.persist_chat_messages.assert_awaited_once()
     cb_conv_svc.message_repo.create.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_stream_on_complete_reasoning_only_rescue_success_skips_error_message(
+    mock_db,
+):
+    service = await _build_stream_service(mock_db)
+    on_complete, _hook_registry = await _capture_on_complete(service, mock_db)
+
+    cb_db = AsyncMock()
+    cb_db.commit = AsyncMock()
+    cb_db.rollback = AsyncMock()
+    conversation = _build_conversation()
+    cb_conv_svc = MagicMock()
+    cb_conv_svc.repo.get_by_id = AsyncMock(return_value=conversation)
+    cb_conv_svc.persist_chat_messages = AsyncMock(return_value=([], 1))
+    cb_conv_svc.update_stats = AsyncMock()
+    cb_conv_svc.message_repo.count_by_conversation = AsyncMock(return_value=1)
+    cb_conv_svc.message_repo.get_next_sequence = AsyncMock(return_value=2)
+    cb_conv_svc.message_repo.create = AsyncMock()
+    publish_failed = AsyncMock()
+    publish_completed = AsyncMock()
+
+    with (
+        patch(
+            "app.services.ai.agent_chat_service.async_session_factory",
+            return_value=_SessionManager(cb_db),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.ConversationService",
+            return_value=cb_conv_svc,
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentQuotaManager.adjust_usage",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentQuotaManager.record_user_usage",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentStatsManager.record_chat",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.BaseEngine._publish_execution_failed",
+            new=publish_failed,
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.BaseEngine._publish_execution_completed",
+            new=publish_completed,
+        ),
+    ):
+        extra = await on_complete(_build_success_result())
+        await extra["__post_done_callback__"]()
+
+    assert extra is not None
+    assert extra["persistence_committed"] is True
+    assert extra["persisted_message_count"] == 1
+    cb_conv_svc.persist_chat_messages.assert_awaited_once()
+    persist_kwargs = cb_conv_svc.persist_chat_messages.await_args.kwargs
+    assert persist_kwargs["context_diagnostics"]["termination_reason"] == (
+        "protocol_fallback"
+    )
+    assert persist_kwargs["context_diagnostics"]["protocol_path"] == (
+        "chat_completions"
+    )
+    assert persist_kwargs["last_run_summary"]["completion_reason"] == (
+        "protocol_fallback"
+    )
+    assert persist_kwargs["last_run_summary"]["protocol_path"] == "chat_completions"
+    cb_conv_svc.message_repo.create.assert_not_awaited()
+    assert "last_error" not in conversation.metadata_
+    publish_completed.assert_awaited_once()
+    publish_failed.assert_not_awaited()
 
 
 @pytest.mark.asyncio

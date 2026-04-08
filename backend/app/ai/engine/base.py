@@ -1066,6 +1066,126 @@ class BaseEngine(ABC):
         return search_queries, fetched_urls
 
     @classmethod
+    def _collect_current_turn_fetch_titles(
+        cls,
+        messages: list[ChatMessage],
+    ) -> list[str]:
+        last_user_index = -1
+        for index, msg in enumerate(messages):
+            if msg.role == "user":
+                last_user_index = index
+
+        turn_messages = messages[last_user_index + 1 :] if last_user_index >= 0 else messages
+        fetch_call_ids: set[str] = set()
+        titles: list[str] = []
+        seen_titles: set[str] = set()
+
+        for msg in turn_messages:
+            if msg.role != "assistant" or not msg.tool_calls:
+                continue
+            for tc in msg.tool_calls:
+                if tc.get("success") is not True:
+                    continue
+                func = tc.get("function") or {}
+                tool_name = str(func.get("name") or tc.get("name") or "").strip()
+                if tool_name != "fetch_url":
+                    continue
+                tool_call_id = str(tc.get("id") or tc.get("tool_call_id") or "").strip()
+                if tool_call_id:
+                    fetch_call_ids.add(tool_call_id)
+
+        for msg in turn_messages:
+            if msg.role != "tool":
+                continue
+            tool_call_id = str(getattr(msg, "tool_call_id", "") or "").strip()
+            if fetch_call_ids:
+                if tool_call_id and tool_call_id not in fetch_call_ids:
+                    continue
+                if not tool_call_id and "Content from " not in str(msg.content or ""):
+                    continue
+
+            title = cls._extract_fetch_title_from_output(msg.content or "")
+            if not title:
+                continue
+            normalized = cls._normalize_web_research_contract_text(title)
+            if not normalized or normalized in seen_titles:
+                continue
+            titles.append(title)
+            seen_titles.add(normalized)
+
+        return titles
+
+    @staticmethod
+    def _extract_fetch_title_from_output(output: str) -> str:
+        for raw_line in str(output or "").splitlines():
+            line = raw_line.strip()
+            if line.startswith("Title: "):
+                return line.removeprefix("Title: ").strip()
+        return ""
+
+    @staticmethod
+    def _normalize_web_research_contract_text(text: str) -> str:
+        value = " ".join(str(text or "").split())
+        if not value:
+            return ""
+        if value.startswith("[") and "](" in value and value.endswith(")"):
+            value = value[1 : value.index("](")].strip()
+        for prefix in (
+            "title:",
+            "标题:",
+            "标题是",
+            "网页标题:",
+            "页面标题:",
+            "source:",
+            "来源:",
+        ):
+            if value.casefold().startswith(prefix.casefold()):
+                value = value[len(prefix) :].strip()
+                break
+        return value.strip(" \t\r\n\"'`[](){}<>.,;:!?。，；：！？、").casefold()
+
+    @staticmethod
+    def _looks_like_explicit_title_request(user_text: str) -> bool:
+        normalized = " ".join(str(user_text or "").casefold().split())
+        if not normalized:
+            return False
+        return any(
+            term in normalized
+            for term in (
+                "标题",
+                "headline",
+                "page title",
+                "article title",
+                "title of",
+                "what is the title",
+            )
+        )
+
+    @classmethod
+    def _is_title_only_fetch_response(
+        cls,
+        *,
+        messages: list[ChatMessage],
+        response_text: str,
+        user_text: str,
+    ) -> bool:
+        if cls._looks_like_explicit_title_request(user_text):
+            return False
+
+        normalized_response = cls._normalize_web_research_contract_text(response_text)
+        if not normalized_response:
+            return False
+
+        fetched_titles = cls._collect_current_turn_fetch_titles(messages)
+        if not fetched_titles:
+            return False
+
+        return any(
+            normalized_response == cls._normalize_web_research_contract_text(title)
+            for title in fetched_titles
+        )
+
+    @classmethod
     def _needs_fetch_url_before_summary(cls, messages: list[ChatMessage]) -> bool:
         """
         True when web_search succeeded but fetch_url has not been attempted yet.
@@ -1664,6 +1784,42 @@ class BaseEngine(ABC):
                 },
             )
 
+        tool_names = {tool.name for tool in tools}
+        if (
+            current_policy.family == "web_research"
+            and {"web_search", "fetch_url"} <= tool_names
+            and cls._is_title_only_fetch_response(
+                messages=messages,
+                response_text=response_text,
+                user_text=user_text,
+            )
+        ):
+            diagnostics = {
+                "tool_leak_detected": False,
+                "assistant_claimed_tool_call_without_tool_event": False,
+                "leaked_tool_names": [],
+                "requested_intents": requested_intents,
+                "completed_intents": ["web_research"],
+                "unfinished_intents": [],
+            }
+            messages.append(
+                cls._build_contract_recovery_system_message(
+                    breach_type="web_research_title_only_after_fetch",
+                    diagnostics=diagnostics,
+                )
+            )
+            return (
+                "web_research_title_only_after_fetch",
+                ToolUsePolicy(
+                    family="none",
+                    mode="none",
+                    allowed_tool_names=[],
+                    retry_on_contract_breach=False,
+                    reason="web_research_title_only_after_fetch",
+                ),
+                diagnostics,
+            )
+
         return (
             None,
             None,
@@ -1693,6 +1849,11 @@ class BaseEngine(ABC):
         }:
             breach_guidance = (
                 render_prompt_contract("contract_recovery_leak_guidance") + "\n"
+            )
+        elif breach_type == "web_research_title_only_after_fetch":
+            breach_guidance = (
+                render_prompt_contract("contract_recovery_web_research_guidance")
+                + "\n"
             )
         unfinished_line = ""
         if unfinished_intents:
@@ -2319,7 +2480,7 @@ class BaseEngine(ABC):
             return False, None, ""
 
         search_queries, fetched_urls = cls._collect_web_research_evidence(messages)
-        if not search_queries or fetched_urls:
+        if not search_queries:
             return False, None, ""
 
         current_user_text = cls._extract_last_user_text(messages)
@@ -2344,15 +2505,43 @@ class BaseEngine(ABC):
         if not web_research_requested:
             return False, None, ""
 
-        retry_policy = cls._build_required_policy_for_family(
-            "web_research",
-            tools,
-            input_variables,
-            reason="web_research_summary_without_fetch",
+        if not fetched_urls:
+            retry_policy = cls._build_required_policy_for_family(
+                "web_research",
+                tools,
+                input_variables,
+                reason="web_research_summary_without_fetch",
+            )
+            if current_policy.reason.startswith("web_research_summary_without_fetch"):
+                retry_policy.retry_on_contract_breach = False
+            return True, retry_policy, response_text
+
+        if current_policy.reason.startswith("web_research_title_only_after_fetch"):
+            return False, None, ""
+        if not cls._is_title_only_fetch_response(
+            messages=messages,
+            response_text=response_text,
+            user_text=current_user_text,
+        ):
+            return False, None, ""
+
+        messages.append(
+            cls._build_contract_recovery_system_message(
+                breach_type="web_research_title_only_after_fetch",
+                diagnostics={},
+            )
         )
-        if current_policy.reason.startswith("web_research_summary_without_fetch"):
-            retry_policy.retry_on_contract_breach = False
-        return True, retry_policy, response_text
+        return (
+            True,
+            ToolUsePolicy(
+                family="none",
+                mode="none",
+                allowed_tool_names=[],
+                retry_on_contract_breach=False,
+                reason="web_research_title_only_after_fetch",
+            ),
+            response_text,
+        )
 
     @classmethod
     def _collect_tool_family_evidence(
@@ -2489,6 +2678,13 @@ class BaseEngine(ABC):
 
         if "fetch_url" in tool_names and search_count > 0 and fetch_count == 0:
             _emit("web_research_summary_without_fetch")
+            return
+        if self._is_title_only_fetch_response(
+            messages=messages,
+            response_text=response_text,
+            user_text=self._extract_last_user_text(messages),
+        ):
+            _emit("web_research_title_only_after_fetch")
 
     @classmethod
     def _build_web_research_continuation_context(

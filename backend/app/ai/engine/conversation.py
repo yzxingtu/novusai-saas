@@ -35,7 +35,6 @@ from app.models.ai.agent import Agent
 from app.services.ai.usage_metrics import CostCalculator, TokenCounter
 
 from .base import BaseEngine, log_user_type_for_call_log
-from .budget_guard import BudgetGuard
 from .execution_state_machine import ExecutionStateMachine
 from .failure_classifier import FailureClassifier
 from .model_policy import build_model_request_overrides
@@ -561,7 +560,6 @@ class ConversationEngine(BaseEngine):
             response = turn_execution.response
             tool_results = list(turn_execution.tool_results)
             total_tokens = turn_execution.total_tokens
-            completion_tokens_used = turn_execution.completion_tokens_used
             output = turn_execution.output
             paused_for_consent = turn_execution.paused_for_consent
             partial = turn_execution.partial
@@ -877,6 +875,7 @@ class ConversationEngine(BaseEngine):
                 "allowed_tool_names": effective_policy.allowed_tool_names,
             },
             "breach_retry_result": breach_retry_result,
+            "execution_path": execution_path,
         }
         routed_model_id = (
             int(getattr(route_result, "model_id", 0) or 0)
@@ -1392,7 +1391,7 @@ class ConversationEngine(BaseEngine):
                     },
                 )
             else:
-                try:
+                async def _legacy_runtime_chunks():
                     runtime_chunks = await query_engine.run_stream_turn(
                         messages=messages,
                         model=model_code,
@@ -1408,35 +1407,30 @@ class ConversationEngine(BaseEngine):
                         context_sources=runtime_context_sources,
                         extra_kwargs=dict(runtime_call_overrides),
                     )
-                except Exception as runtime_stream_exc:
-                    turn_record_metadata = dict(
-                        getattr(
-                            getattr(query_engine, "turn_record", None),
-                            "metadata",
-                            {},
+                    for runtime_chunk in runtime_chunks:
+                        yield runtime_chunk
+
+                try:
+                    runtime_chunk_iter = (
+                        query_engine.iter_stream_turn(
+                            messages=messages,
+                            model=model_code,
+                            temperature=agent.temperature,
+                            max_tokens=agent.max_tokens,
+                            top_p=agent.top_p or 1.0,
+                            tools=openai_tools,
+                            tool_choice=effective_tool_choice,
+                            supports_vision=bool(is_vision),
+                            supports_audio=bool(is_audio),
+                            supports_video=bool(is_video),
+                            selected_skill_names=runtime_selected_skill_names,
+                            context_sources=runtime_context_sources,
+                            extra_kwargs=dict(runtime_call_overrides),
                         )
-                        or {},
+                        if hasattr(query_engine, "iter_stream_turn")
+                        else _legacy_runtime_chunks()
                     )
-                    had_meaningful_chunk_before_error = bool(
-                        turn_record_metadata.get("stream_failure_has_meaningful_chunk"),
-                    )
-                    if had_meaningful_chunk_before_error and query_engine is not None:
-                        request_log_data["runtime_v2_stream_failure_after_chunk"] = True
-                        query_engine.turn_record.metadata[
-                            "runtime_v2_stream_failure_after_chunk"
-                        ] = True
-                    logger.warning(
-                        "Runtime-v2 stream failed: runtime={} agent_id={} conversation_id={} had_meaningful_chunk={} error_type={} error={}",
-                        get_runtime_identity_tag(),
-                        getattr(agent, "id", None),
-                        conversation_id,
-                        had_meaningful_chunk_before_error,
-                        type(runtime_stream_exc).__name__,
-                        str(runtime_stream_exc),
-                    )
-                    raise
-                else:
-                    for chunk in runtime_chunks:
+                    async for chunk in runtime_chunk_iter:
                         if chunk.total_tokens is not None:
                             total_tokens = chunk.total_tokens
                         if chunk.input_tokens is not None:
@@ -1454,6 +1448,41 @@ class ConversationEngine(BaseEngine):
                             query_engine.turn_record,
                         )
                         yield chunk
+                except Exception as runtime_stream_exc:
+                    turn_record_metadata = dict(
+                        getattr(
+                            getattr(query_engine, "turn_record", None),
+                            "metadata",
+                            {},
+                        )
+                        or {},
+                    )
+                    had_fallback_blocking_chunk_before_error = bool(
+                        turn_record_metadata.get(
+                            "stream_failure_blocks_fallback",
+                            turn_record_metadata.get(
+                                "stream_failure_has_meaningful_chunk",
+                            ),
+                        ),
+                    )
+                    if (
+                        had_fallback_blocking_chunk_before_error
+                        and query_engine is not None
+                    ):
+                        request_log_data["runtime_v2_stream_failure_after_chunk"] = True
+                        query_engine.turn_record.metadata[
+                            "runtime_v2_stream_failure_after_chunk"
+                        ] = True
+                    logger.warning(
+                        "Runtime-v2 stream failed: runtime={} agent_id={} conversation_id={} had_fallback_blocking_chunk={} error_type={} error={}",
+                        get_runtime_identity_tag(),
+                        getattr(agent, "id", None),
+                        conversation_id,
+                        had_fallback_blocking_chunk_before_error,
+                        type(runtime_stream_exc).__name__,
+                        str(runtime_stream_exc),
+                    )
+                    raise
         except Exception as exc:
             logger.error(
                 "Engine stream upstream failed: provider={} model={} conversation={} error={}",

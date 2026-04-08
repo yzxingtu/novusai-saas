@@ -8,7 +8,7 @@ import pytest
 from app.ai.adapters.openai_adapter import OpenAIAdapter
 from app.ai.exceptions import ProviderError
 from app.ai.runtime.query_engine import ConversationQueryEngine
-from app.ai.types import ChatMessage
+from app.ai.types import ChatChunk, ChatMessage
 
 
 class _FakeStatusError(Exception):
@@ -663,6 +663,124 @@ async def test_stream_chat_responses_error_after_meaningful_chunk_does_not_fallb
     assert stream.aclose_called is True
 
 
+@pytest.mark.asyncio
+async def test_stream_chat_responses_reasoning_only_then_error_falls_back() -> None:
+    class _FailAfterReasoningResponsesStream:
+        def __init__(self) -> None:
+            self._step = 0
+            self.aclose_called = False
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            if self._step == 0:
+                self._step += 1
+                return SimpleNamespace(
+                    type="response.reasoning_summary_text.delta",
+                    delta="thinking",
+                )
+            raise _FakeStatusError(502, "stream interrupted")
+
+        async def aclose(self) -> None:
+            self.aclose_called = True
+
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+    stream = _FailAfterReasoningResponsesStream()
+    chat_create = AsyncMock(
+        return_value=_FakeChatStream(
+            [
+                _fake_chat_completion_chunk("fallback", None),
+                _fake_chat_completion_chunk("", "stop"),
+            ]
+        ),
+    )
+    adapter.client = SimpleNamespace(
+        responses=SimpleNamespace(create=AsyncMock(return_value=stream)),
+        chat=SimpleNamespace(completions=SimpleNamespace(create=chat_create)),
+    )
+
+    chunks = []
+    async for chunk in adapter.stream_chat(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+        tools=[{"type": "function", "function": {"name": "get_page_context", "parameters": {}}}],
+        tool_choice="required",
+    ):
+        chunks.append(chunk)
+
+    assert [chunk.reasoning_delta for chunk in chunks if chunk.reasoning_delta] == [
+        "thinking"
+    ]
+    assert "".join(chunk.delta for chunk in chunks) == "fallback"
+    assert chat_create.await_count == 1
+    assert stream.aclose_called is True
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_responses_native_web_search_emits_progress_chunk() -> None:
+    class _FakeResponsesStream:
+        def __init__(self, events):
+            self._events = events
+            self.aclose_called = False
+
+        def __aiter__(self):
+            self._iter = iter(self._events)
+            return self
+
+        async def __anext__(self):
+            try:
+                return next(self._iter)
+            except StopIteration as exc:
+                raise StopAsyncIteration from exc
+
+        async def aclose(self) -> None:
+            self.aclose_called = True
+
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+    rs = _FakeResponsesStream(
+        [
+            SimpleNamespace(type="response.web_search_call.in_progress"),
+            SimpleNamespace(type="response.output_text.delta", delta="A"),
+            SimpleNamespace(
+                type="response.output_text.done",
+                text="",
+                usage=SimpleNamespace(input_tokens=2, output_tokens=3, total_tokens=5),
+            ),
+        ]
+    )
+    adapter.client = SimpleNamespace(
+        responses=SimpleNamespace(create=_FakeResponses(rs).create),
+        chat=SimpleNamespace(completions=_FakeChatCompletions(None)),
+    )
+
+    chunks = []
+    async for chunk in adapter.stream_chat(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+    ):
+        chunks.append(chunk)
+
+    progress_idx = next(
+        index
+        for index, chunk in enumerate(chunks)
+        if (chunk.metadata or {}).get("web_search_in_progress")
+    )
+    text_idx = next(index for index, chunk in enumerate(chunks) if chunk.delta == "A")
+
+    assert progress_idx < text_idx
+    assert chunks[-1].finish_reason == "stop"
+    assert rs.aclose_called is True
+
+
 class _RuntimeFakeAdapter:
     def __init__(self, *, wire_api: str = "responses"):
         self.wire_api = wire_api
@@ -682,6 +800,8 @@ class _RuntimeFakeAdapter:
         protocol = "responses" if str(forced).startswith("responses") else "chat_completions"
         self.stream_calls.append({"protocol": protocol, **kwargs})
         for chunk in list(self._stream_behaviors.get(protocol, [])):
+            if isinstance(chunk, Exception):
+                raise chunk
             yield chunk
 
     async def chat(self, **kwargs):
@@ -716,6 +836,295 @@ async def test_runtime_query_engine_required_empty_without_tool_calls_fails() ->
             supports_audio=False,
             supports_video=False,
         )
+
+
+@pytest.mark.asyncio
+async def test_runtime_query_engine_iter_stream_turn_yields_progress_before_final_text() -> None:
+    adapter = _RuntimeFakeAdapter(wire_api="responses")
+    adapter.set_stream(
+        "responses",
+        [
+            ChatChunk(delta="", metadata={"web_search_in_progress": True}),
+            ChatChunk(delta="found it"),
+            ChatChunk(delta="", finish_reason="stop", total_tokens=5),
+        ],
+    )
+    query_engine = ConversationQueryEngine(adapter=adapter, strict_contract=False)
+
+    chunks = [
+        chunk
+        async for chunk in query_engine.iter_stream_turn(
+            messages=[ChatMessage(role="user", content="继续查")],
+            model="gpt-5.4-xhigh",
+            temperature=0.7,
+            max_tokens=None,
+            top_p=1.0,
+            tools=[{"type": "function", "function": {"name": "web_search", "parameters": {}}}],
+            tool_choice="auto",
+            supports_vision=True,
+            supports_audio=False,
+            supports_video=False,
+        )
+    ]
+
+    assert len(chunks) == 3
+    assert (chunks[0].metadata or {}).get("web_search_in_progress") is True
+    assert chunks[1].delta == "found it"
+    assert chunks[2].finish_reason == "stop"
+    assert chunks[2].total_tokens == 5
+    assert query_engine.turn_record.turn_outcome == "success"
+    assert query_engine.turn_record.metadata["stream_progress_event_count"] == 1
+    assert query_engine.turn_record.metadata["stream_progress_kinds"] == [
+        "web_search_in_progress"
+    ]
+    assert query_engine.turn_record.provider_events == [
+        {
+            "kind": "web_search_in_progress",
+            "protocol_path": "responses",
+            "tool_family": "web_research",
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_runtime_query_engine_progress_only_stream_sync_rescue_success() -> None:
+    adapter = _RuntimeFakeAdapter(wire_api="responses")
+    adapter.set_stream(
+        "responses",
+        [
+            ChatChunk(delta="", metadata={"web_search_in_progress": True}),
+            ChatChunk(delta="", finish_reason="stop", total_tokens=4),
+        ],
+    )
+    adapter.set_stream("chat_completions", [])
+    adapter.set_chat(
+        "chat_completions",
+        SimpleNamespace(
+            message=SimpleNamespace(
+                role="assistant",
+                content="rescued after progress",
+                reasoning_content=None,
+                tool_calls=None,
+            ),
+            finish_reason="stop",
+            input_tokens=5,
+            output_tokens=7,
+            total_tokens=12,
+            tool_calls=None,
+            metadata={},
+        ),
+    )
+    query_engine = ConversationQueryEngine(adapter=adapter, strict_contract=False)
+
+    chunks = await query_engine.run_stream_turn(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+        temperature=0.7,
+        max_tokens=None,
+        top_p=1.0,
+        tools=[{"type": "function", "function": {"name": "web_search", "parameters": {}}}],
+        tool_choice="auto",
+        supports_vision=True,
+        supports_audio=False,
+        supports_video=False,
+    )
+
+    assert len(chunks) == 2
+    assert (chunks[0].metadata or {}).get("web_search_in_progress") is True
+    assert chunks[1].delta == "rescued after progress"
+    assert query_engine.turn_record.termination_reason == "protocol_fallback"
+    assert query_engine.turn_record.metadata["sync_rescue"] is True
+    assert query_engine.turn_record.metadata["stream_progress_event_count"] == 1
+    assert query_engine.turn_record.fallback_history[0].reason == (
+        "stream_progress_only_no_meaningful_output"
+    )
+    assert [call["protocol"] for call in adapter.stream_calls] == [
+        "responses",
+        "chat_completions",
+    ]
+    assert [call["protocol"] for call in adapter.chat_calls] == ["chat_completions"]
+
+
+@pytest.mark.asyncio
+async def test_runtime_query_engine_progress_only_does_not_satisfy_required_tool_contract() -> None:
+    adapter = _RuntimeFakeAdapter(wire_api="responses")
+    adapter.set_stream(
+        "responses",
+        [
+            ChatChunk(delta="", metadata={"web_search_in_progress": True}),
+            ChatChunk(delta="", finish_reason="stop", total_tokens=4),
+        ],
+    )
+    query_engine = ConversationQueryEngine(adapter=adapter, strict_contract=True)
+
+    progress_chunks: list[ChatChunk] = []
+    with pytest.raises(RuntimeError, match="required_tool_round_empty_no_tool_calls"):
+        async for chunk in query_engine.iter_stream_turn(
+            messages=[ChatMessage(role="user", content="请调用工具")],
+            model="gpt-5.4-xhigh",
+            temperature=0.7,
+            max_tokens=None,
+            top_p=1.0,
+            tools=[{"type": "function", "function": {"name": "web_search", "parameters": {}}}],
+            tool_choice="required",
+            supports_vision=True,
+            supports_audio=False,
+            supports_video=False,
+        ):
+            progress_chunks.append(chunk)
+
+    assert len(progress_chunks) == 1
+    assert (progress_chunks[0].metadata or {}).get("web_search_in_progress") is True
+    assert query_engine.turn_record.turn_outcome == "tool_round_failed"
+    assert query_engine.turn_record.termination_reason == "tool_round_empty"
+    assert query_engine.turn_record.metadata["stream_progress_event_count"] == 1
+    assert query_engine.turn_record.fallback_history == []
+
+
+@pytest.mark.asyncio
+async def test_runtime_query_engine_progress_only_then_exception_falls_back() -> None:
+    adapter = _RuntimeFakeAdapter(wire_api="responses")
+    adapter.set_stream(
+        "responses",
+        [
+            ChatChunk(delta="", metadata={"web_search_in_progress": True}),
+            RuntimeError("responses stream interrupted"),
+        ],
+    )
+    adapter.set_stream(
+        "chat_completions",
+        [ChatChunk(delta="fallback text", finish_reason="stop", total_tokens=9)],
+    )
+    query_engine = ConversationQueryEngine(adapter=adapter, strict_contract=False)
+
+    chunks = await query_engine.run_stream_turn(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+        temperature=0.7,
+        max_tokens=None,
+        top_p=1.0,
+        tools=[{"type": "function", "function": {"name": "web_search", "parameters": {}}}],
+        tool_choice="auto",
+        supports_vision=True,
+        supports_audio=False,
+        supports_video=False,
+    )
+
+    assert len(chunks) == 2
+    assert (chunks[0].metadata or {}).get("web_search_in_progress") is True
+    assert chunks[1].delta == "fallback text"
+    assert query_engine.turn_record.turn_outcome == "success"
+    assert query_engine.turn_record.termination_reason == "protocol_fallback"
+    assert query_engine.turn_record.fallback_history[0].reason == (
+        "stream_exception_after_progress_before_meaningful_chunk:RuntimeError"
+    )
+    assert [call["protocol"] for call in adapter.stream_calls] == [
+        "responses",
+        "chat_completions",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_runtime_query_engine_reasoning_only_then_exception_falls_back() -> None:
+    adapter = _RuntimeFakeAdapter(wire_api="responses")
+    adapter.set_stream(
+        "responses",
+        [
+            ChatChunk(delta="", reasoning_delta="thinking..."),
+            RuntimeError("responses stream interrupted"),
+        ],
+    )
+    adapter.set_stream(
+        "chat_completions",
+        [ChatChunk(delta="fallback text", finish_reason="stop", total_tokens=9)],
+    )
+    query_engine = ConversationQueryEngine(adapter=adapter, strict_contract=False)
+
+    chunks = await query_engine.run_stream_turn(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+        temperature=0.7,
+        max_tokens=None,
+        top_p=1.0,
+        tools=[{"type": "function", "function": {"name": "web_search", "parameters": {}}}],
+        tool_choice="auto",
+        supports_vision=True,
+        supports_audio=False,
+        supports_video=False,
+    )
+
+    assert len(chunks) == 2
+    assert chunks[0].reasoning_delta == "thinking..."
+    assert chunks[1].delta == "fallback text"
+    assert query_engine.turn_record.turn_outcome == "success"
+    assert query_engine.turn_record.termination_reason == "protocol_fallback"
+    assert (
+        query_engine.turn_record.metadata[
+            "stream_failure_reasoning_only_before_visible_output"
+        ]
+        is True
+    )
+    assert query_engine.turn_record.metadata["stream_failure_blocks_fallback"] is False
+    assert [call["protocol"] for call in adapter.stream_calls] == [
+        "responses",
+        "chat_completions",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_runtime_query_engine_reasoning_only_stream_sync_rescue_success() -> None:
+    adapter = _RuntimeFakeAdapter(wire_api="responses")
+    adapter.set_stream(
+        "responses",
+        [
+            ChatChunk(delta="", reasoning_delta="thinking..."),
+            ChatChunk(delta="", finish_reason="stop", total_tokens=4),
+        ],
+    )
+    adapter.set_stream("chat_completions", [])
+    adapter.set_chat(
+        "chat_completions",
+        SimpleNamespace(
+            message=SimpleNamespace(
+                role="assistant",
+                content="rescued after reasoning",
+                reasoning_content=None,
+                tool_calls=None,
+            ),
+            finish_reason="stop",
+            input_tokens=5,
+            output_tokens=7,
+            total_tokens=12,
+            tool_calls=None,
+            metadata={},
+        ),
+    )
+    query_engine = ConversationQueryEngine(adapter=adapter, strict_contract=False)
+
+    chunks = await query_engine.run_stream_turn(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+        temperature=0.7,
+        max_tokens=None,
+        top_p=1.0,
+        tools=[{"type": "function", "function": {"name": "web_search", "parameters": {}}}],
+        tool_choice="auto",
+        supports_vision=True,
+        supports_audio=False,
+        supports_video=False,
+    )
+
+    assert len(chunks) == 2
+    assert chunks[0].reasoning_delta == "thinking..."
+    assert chunks[1].delta == "rescued after reasoning"
+    assert query_engine.turn_record.turn_outcome == "success"
+    assert query_engine.turn_record.termination_reason == "protocol_fallback"
+    assert query_engine.turn_record.metadata["sync_rescue"] is True
+    assert [call["protocol"] for call in adapter.stream_calls] == [
+        "responses",
+        "chat_completions",
+    ]
+    assert [call["protocol"] for call in adapter.chat_calls] == ["chat_completions"]
 
 
 @pytest.mark.asyncio
@@ -806,6 +1215,68 @@ async def test_runtime_query_engine_chat_turn_records_protocol_fallback_history(
     assert query_engine.turn_record.fallback_history[0].to_protocol == "chat_completions"
     assert query_engine.turn_record.fallback_history[0].reason == "exception:RuntimeError"
     assert response.metadata["runtime_turn_record"] is query_engine.turn_record
+    assert [call["protocol"] for call in adapter.chat_calls] == [
+        "responses",
+        "chat_completions",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_runtime_query_engine_chat_turn_reasoning_only_response_falls_back() -> None:
+    adapter = _RuntimeFakeAdapter(wire_api="responses")
+    adapter.set_chat(
+        "responses",
+        SimpleNamespace(
+            message=SimpleNamespace(
+                role="assistant",
+                content="",
+                reasoning_content="thinking only",
+                tool_calls=None,
+            ),
+            finish_reason="stop",
+            input_tokens=5,
+            output_tokens=4,
+            total_tokens=9,
+            tool_calls=None,
+            metadata={},
+        ),
+    )
+    adapter.set_chat(
+        "chat_completions",
+        SimpleNamespace(
+            message=SimpleNamespace(
+                role="assistant",
+                content="fallback chat result",
+                reasoning_content=None,
+                tool_calls=None,
+            ),
+            finish_reason="stop",
+            input_tokens=9,
+            output_tokens=6,
+            total_tokens=15,
+            tool_calls=None,
+            metadata={},
+        ),
+    )
+    query_engine = ConversationQueryEngine(adapter=adapter, strict_contract=False)
+
+    response = await query_engine.run_chat_turn(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+        temperature=0.7,
+        max_tokens=None,
+        top_p=1.0,
+        tools=[{"type": "function", "function": {"name": "web_search", "parameters": {}}}],
+        tool_choice="auto",
+        supports_vision=True,
+        supports_audio=False,
+        supports_video=False,
+    )
+
+    assert response.message.content == "fallback chat result"
+    assert query_engine.turn_record.turn_outcome == "success"
+    assert query_engine.turn_record.termination_reason == "protocol_fallback"
+    assert query_engine.turn_record.fallback_history[0].reason == "chat_empty_no_output"
     assert [call["protocol"] for call in adapter.chat_calls] == [
         "responses",
         "chat_completions",
@@ -1285,7 +1756,8 @@ async def test_build_responses_request_forwards_required_tool_choice() -> None:
     )
 
     assert request["tool_choice"] == "required"
-    assert request["tools"][0]["name"] == "web_search"
+    assert request["tools"][0]["type"] == "web_search"
+    assert request["tools"][0]["search_context_size"] == "medium"
 
 
 @pytest.mark.asyncio

@@ -964,7 +964,9 @@ describe('useAIChat interrupted stream recovery', () => {
     chat.interactionMode.value = 'trusted_auto';
     chat.inputMessage.value = '查一下';
 
-    const sendPromise = chat.sendMessage();
+    const sendPromise = chat.sendMessage({
+      routeSource: 'native-search-status-test',
+    });
     await vi.advanceTimersByTimeAsync(1000);
     await sendPromise;
     await flushPromises();
@@ -1048,6 +1050,76 @@ describe('useAIChat interrupted stream recovery', () => {
       metrics: ['COUNT(acl.id)'],
       tables: ['ai_call_logs', 'tenants'],
       tool_kind: 'query_records',
+    });
+  });
+
+  it('surfaces native web search progress as a visible tool card', async () => {
+    let releaseDone = () => {};
+    apiMocks.sendChatStreamApi.mockImplementation(
+      async (
+        _prefix: string,
+        _agentId: number,
+        _body: Record<string, unknown>,
+        options: {
+          onMessage: (chunk: string) => Promise<void>;
+        },
+      ) => {
+        await options.onMessage(
+          `data: ${JSON.stringify({ event: 'conversation', conversation_id: 42 })}\n`,
+        );
+        await options.onMessage(
+          `data: ${JSON.stringify({
+            event: 'status',
+            status: 'web_search_in_progress',
+          })}\n`,
+        );
+        await new Promise<void>((resolve) => {
+          releaseDone = resolve;
+        });
+        await options.onMessage(
+          `data: ${JSON.stringify({
+            conversation_id: 42,
+            event: 'done',
+            selected_tool_names: ['web_search', 'fetch_url'],
+            total_tokens: 12,
+            turn_record: {
+              metadata: {
+                stream_progress_kinds: ['web_search_in_progress'],
+              },
+            },
+          })}\n`,
+        );
+      },
+    );
+
+    const chat = useAIChat({
+      apiPrefix: '/tenant',
+      uploadUrl: '/tenant/attachments',
+    });
+
+    await chat.loadAgents();
+    chat.inputMessage.value = '搜索一下';
+
+    const sendPromise = chat.sendMessage();
+    await flushPromises();
+
+    const assistantMessage = chat.chatMessages.value.find(
+      (msg) => msg.role === 'assistant',
+    );
+    expect(assistantMessage?.toolCalls?.[0]).toMatchObject({
+      displayName: 'common.globalAiChat.toolNativeSearch',
+      name: 'native_web_search',
+      status: 'running',
+    });
+
+    releaseDone();
+    await sendPromise;
+    await flushPromises();
+
+    expect(assistantMessage?.toolCalls?.[0]).toMatchObject({
+      displayName: 'common.globalAiChat.toolNativeSearch',
+      name: 'native_web_search',
+      status: 'success',
     });
   });
 
@@ -1147,6 +1219,54 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(assistantMessage?.pendingConfirmation?.table).toBe('ai_call_logs');
     expect(assistantMessage?.pendingConsent?.toolName).toBe('query_records');
     expect(assistantMessage?.actionButtons?.[0]?.label).toBe('查看明细');
+  });
+
+  it('restores native web search cards from persisted turn diagnostics', async () => {
+    apiMocks.getChatConversationMessagesApi.mockResolvedValue({
+      agent_id: 1,
+      message_list: [
+        {
+          content: '搜索一下 长沙市小学生什么时候放暑假',
+          created_at: '2024-01-01T00:00:00Z',
+          role: 'user',
+        },
+        {
+          agent_id: 1,
+          agent_name: 'Agent One',
+          content: '查到了。',
+          created_at: '2024-01-01T00:00:01Z',
+          metadata: {
+            context_diagnostics: {
+              intent_plan: [
+                {
+                  completed_by_tool_names: ['native_web_search'],
+                },
+              ],
+            },
+            selected_tool_names: ['web_search', 'fetch_url'],
+          },
+          role: 'assistant',
+        },
+      ],
+    });
+
+    const chat = useAIChat({
+      apiPrefix: '/tenant',
+      uploadUrl: '/tenant/attachments',
+    });
+
+    await chat.loadAgents();
+    await chat.loadConversationMessages(42);
+    await flushPromises();
+
+    const assistantMessage = chat.chatMessages.value.find(
+      (msg) => msg.role === 'assistant',
+    );
+    expect(assistantMessage?.toolCalls?.[0]).toMatchObject({
+      displayName: 'common.globalAiChat.toolNativeSearch',
+      name: 'native_web_search',
+      status: 'success',
+    });
   });
 
   it('applies knowledge base feedback from SSE to selectedKBIds', async () => {

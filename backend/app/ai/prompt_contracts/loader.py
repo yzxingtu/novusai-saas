@@ -107,6 +107,9 @@ class PromptContractName(StrEnum):
     PAGE_OPERATIONS_MUTATION = "page_operations_mutation"
     PAGE_OPERATIONS_EDITOR_FLOW = "page_operations_editor_flow"
     CONTRACT_RECOVERY_LEAK_GUIDANCE = "contract_recovery_leak_guidance"
+    CONTRACT_RECOVERY_WEB_RESEARCH_GUIDANCE = (
+        "contract_recovery_web_research_guidance"
+    )
 
     # --- Router preambles & repeated page context / 路由前言与重复页面上下文 ---
     AGENT_ROUTER_VISION_PREAMBLE = "agent_router_vision_preamble"
@@ -120,6 +123,9 @@ class PromptContractName(StrEnum):
     BUILTIN_CURRENT_TIME_DESCRIPTION = "builtin_current_time_description"
     EMAIL_TOOL_DESCRIPTION = "email_tool_description"
     EXECUTE_CODE_TOOL_DESCRIPTION = "execute_code_tool_description"
+    HOSTED_WEB_SEARCH_CANDIDATE_INSTRUCTIONS = (
+        "hosted_web_search_candidate_instructions"
+    )
     PAGE_TOOL_EXPANDER_NAVIGATE = "page_tool_expander_navigate"
 
 
@@ -411,6 +417,11 @@ _PROMPT_CONTRACTS: dict[str, PromptContractSpec] = {
         template_name="contract_recovery_leak_guidance.md",
         description="Leak-specific contract recovery guidance.",
     ),
+    PromptContractName.CONTRACT_RECOVERY_WEB_RESEARCH_GUIDANCE.value: PromptContractSpec(
+        name=PromptContractName.CONTRACT_RECOVERY_WEB_RESEARCH_GUIDANCE,
+        template_name="contract_recovery_web_research_guidance.md",
+        description="Web-research-specific contract recovery guidance.",
+    ),
     PromptContractName.AGENT_ROUTER_VISION_PREAMBLE.value: PromptContractSpec(
         name=PromptContractName.AGENT_ROUTER_VISION_PREAMBLE,
         template_name="agent_router_vision_preamble.md",
@@ -456,6 +467,13 @@ _PROMPT_CONTRACTS: dict[str, PromptContractSpec] = {
         name=PromptContractName.EXECUTE_CODE_TOOL_DESCRIPTION,
         template_name="execute_code_tool_description.md",
         description="Description for execute_code tool.",
+    ),
+    PromptContractName.HOSTED_WEB_SEARCH_CANDIDATE_INSTRUCTIONS.value: (
+        PromptContractSpec(
+            name=PromptContractName.HOSTED_WEB_SEARCH_CANDIDATE_INSTRUCTIONS,
+            template_name="hosted_web_search_candidate_instructions.md",
+            description="Instructions for hosted Responses API web search candidates.",
+        )
     ),
     PromptContractName.PAGE_TOOL_EXPANDER_NAVIGATE.value: PromptContractSpec(
         name=PromptContractName.PAGE_TOOL_EXPANDER_NAVIGATE,

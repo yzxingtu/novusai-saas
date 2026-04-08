@@ -164,8 +164,12 @@ async def test_prepare_execution_skips_tools_when_sandbox_is_missing() -> None:
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_uses_current_user_text_for_optimizer_before_research_starts() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+async def test_prepare_execution_uses_current_user_text_for_optimizer_before_research_starts() -> (
+    None
+):
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     request = ExecutionRequest(
         agent_id=1,
         tenant_id=1,
@@ -219,7 +223,9 @@ async def test_prepare_execution_uses_current_user_text_for_optimizer_before_res
 
 @pytest.mark.asyncio
 async def test_prepare_execution_selects_web_tools_for_news_queries() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     request = ExecutionRequest(
         agent_id=1,
         tenant_id=1,
@@ -249,8 +255,12 @@ async def test_prepare_execution_selects_web_tools_for_news_queries() -> None:
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_preserves_active_web_research_state_without_optimizer_bias() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+async def test_prepare_execution_preserves_active_web_research_state_without_optimizer_bias() -> (
+    None
+):
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     request = ExecutionRequest(
         agent_id=1,
         tenant_id=1,
@@ -275,7 +285,9 @@ async def test_prepare_execution_preserves_active_web_research_state_without_opt
                     }
                 ],
             ),
-            ChatMessage(role="tool", content="Search results for: sample topic public info"),
+            ChatMessage(
+                role="tool", content="Search results for: sample topic public info"
+            ),
             ChatMessage(role="assistant", content="Initial notes."),
             ChatMessage(
                 role="user",
@@ -335,7 +347,9 @@ async def test_prepare_execution_preserves_active_web_research_state_without_opt
 
 @pytest.mark.asyncio
 async def test_prepare_execution_keeps_generic_follow_up_in_research_state() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     request = ExecutionRequest(
         agent_id=1,
         tenant_id=1,
@@ -360,7 +374,9 @@ async def test_prepare_execution_keeps_generic_follow_up_in_research_state() -> 
                     }
                 ],
             ),
-            ChatMessage(role="tool", content="Search results for: sample topic public info"),
+            ChatMessage(
+                role="tool", content="Search results for: sample topic public info"
+            ),
             ChatMessage(role="assistant", content="Initial notes."),
             ChatMessage(role="user", content="Continue."),
         ],
@@ -406,8 +422,12 @@ async def test_prepare_execution_keeps_generic_follow_up_in_research_state() -> 
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_does_not_inherit_page_ops_for_generic_follow_up_without_anchor() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+async def test_prepare_execution_does_not_inherit_page_ops_for_generic_follow_up_without_anchor() -> (
+    None
+):
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     request = ExecutionRequest(
         agent_id=1,
         tenant_id=1,
@@ -484,8 +504,12 @@ async def test_prepare_execution_does_not_inherit_page_ops_for_generic_follow_up
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_keeps_page_continuation_runtime_facts_and_diagnostics() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+async def test_prepare_execution_keeps_page_continuation_runtime_facts_and_diagnostics() -> (
+    None
+):
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     request = ExecutionRequest(
         agent_id=1,
         tenant_id=1,
@@ -539,7 +563,11 @@ async def test_prepare_execution_keeps_page_continuation_runtime_facts_and_diagn
     assert prep.continuation_context is not None
     assert prep.continuation_context.active is True
     assert prep.continuation_context.family == "page_ops"
-    assert prep.continuation_context.tool_families == ["weather", "web_research", "page_ops"]
+    assert prep.continuation_context.tool_families == [
+        "weather",
+        "web_research",
+        "page_ops",
+    ]
     assert prep.continuation_context.page_operation_names == ["read_visible_rows"]
     assert prep.continuation_context.page_context_attached is True
     assert prep.continuation_context.web_research_pair_complete is True
@@ -556,8 +584,12 @@ async def test_prepare_execution_keeps_page_continuation_runtime_facts_and_diagn
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_selects_page_ops_for_local_page_content_request() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+async def test_prepare_execution_selects_page_ops_for_local_page_content_request() -> (
+    None
+):
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     request = ExecutionRequest(
         agent_id=59,
         tenant_id=0,
@@ -626,7 +658,9 @@ async def test_prepare_execution_selects_page_ops_for_local_page_content_request
 
 @pytest.mark.asyncio
 async def test_prepare_execution_selects_page_ops_for_page_capability_request() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     request = ExecutionRequest(
         agent_id=59,
         tenant_id=0,
@@ -681,14 +715,20 @@ async def test_prepare_execution_selects_page_ops_for_page_capability_request() 
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_routes_weather_requests_to_weather_family(mock_db) -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+async def test_prepare_execution_routes_weather_requests_to_weather_family(
+    mock_db,
+) -> None:
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     request = ExecutionRequest(
         agent_id=1,
         tenant_id=1,
         user_id=1,
         messages=[
-            ChatMessage(role="user", content="请告诉我今天天气怎么样，并预报下周的走向。"),
+            ChatMessage(
+                role="user", content="请告诉我今天天气怎么样，并预报下周的走向。"
+            ),
         ],
         input_variables={},
     )
@@ -724,8 +764,12 @@ async def test_prepare_execution_routes_weather_requests_to_weather_family(mock_
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_keeps_weather_tools_for_mixed_weather_and_health_turn() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+async def test_prepare_execution_keeps_weather_tools_for_mixed_weather_and_health_turn() -> (
+    None
+):
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     request = ExecutionRequest(
         agent_id=59,
         tenant_id=0,
@@ -749,8 +793,12 @@ async def test_prepare_execution_keeps_weather_tools_for_mixed_weather_and_healt
             ToolDefinition(name="fetch_url", description="Fetch a webpage"),
             ToolDefinition(name="get_page_context", description="Read page context"),
             ToolDefinition(name="invoke_page_operation", description="Operate page"),
-            ToolDefinition(name="get_current_weather", description="Get current weather"),
-            ToolDefinition(name="get_weather_forecast", description="Get weather forecast"),
+            ToolDefinition(
+                name="get_current_weather", description="Get current weather"
+            ),
+            ToolDefinition(
+                name="get_weather_forecast", description="Get weather forecast"
+            ),
             ToolDefinition(name="query_records", description="Query platform data"),
             ToolDefinition(name="create_records", description="Create data"),
             ToolDefinition(name="update_records", description="Update data"),
@@ -777,8 +825,12 @@ async def test_prepare_execution_keeps_weather_tools_for_mixed_weather_and_healt
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_allows_page_and_weather_tools_for_mixed_request() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+async def test_prepare_execution_allows_page_and_weather_tools_for_mixed_request() -> (
+    None
+):
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     request = ExecutionRequest(
         agent_id=59,
         tenant_id=0,
@@ -802,8 +854,12 @@ async def test_prepare_execution_allows_page_and_weather_tools_for_mixed_request
             ToolDefinition(name="fetch_url", description="Fetch a webpage"),
             ToolDefinition(name="get_page_context", description="Read page context"),
             ToolDefinition(name="invoke_page_operation", description="Operate page"),
-            ToolDefinition(name="get_current_weather", description="Get current weather"),
-            ToolDefinition(name="get_weather_forecast", description="Get weather forecast"),
+            ToolDefinition(
+                name="get_current_weather", description="Get current weather"
+            ),
+            ToolDefinition(
+                name="get_weather_forecast", description="Get weather forecast"
+            ),
             ToolDefinition(name="query_records", description="Query platform data"),
             ToolDefinition(name="create_records", description="Create data"),
             ToolDefinition(name="update_records", description="Update data"),
@@ -834,7 +890,10 @@ async def test_prepare_execution_allows_page_and_weather_tools_for_mixed_request
         "get_current_weather",
     ]
     assert prep.execution_path == "fast"
-    assert [intent.kind for intent in prep.intent_plan] == ["page_summary", "weather_query"]
+    assert [intent.kind for intent in prep.intent_plan] == [
+        "page_summary",
+        "weather_query",
+    ]
     assert prep.diagnostics["capability_injection_decision"] == {
         "all_shortcircuit": True,
         "skills_injected": False,
@@ -846,13 +905,19 @@ async def test_prepare_execution_allows_page_and_weather_tools_for_mixed_request
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_allows_page_and_weather_tools_for_mixed_request_with_health_phrase() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+async def test_prepare_execution_allows_page_and_weather_tools_for_mixed_request_with_health_phrase() -> (
+    None
+):
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     request = ExecutionRequest(
         agent_id=59,
         tenant_id=0,
         user_id=1,
-        messages=[ChatMessage(role="user", content="我有点头疼，先看看当前页面，再查北京天气")],
+        messages=[
+            ChatMessage(role="user", content="我有点头疼，先看看当前页面，再查北京天气")
+        ],
         input_variables={
             "page_context": {
                 "page_key": "admin.ai.conversations",
@@ -871,8 +936,12 @@ async def test_prepare_execution_allows_page_and_weather_tools_for_mixed_request
             ToolDefinition(name="fetch_url", description="Fetch a webpage"),
             ToolDefinition(name="get_page_context", description="Read page context"),
             ToolDefinition(name="invoke_page_operation", description="Operate page"),
-            ToolDefinition(name="get_current_weather", description="Get current weather"),
-            ToolDefinition(name="get_weather_forecast", description="Get weather forecast"),
+            ToolDefinition(
+                name="get_current_weather", description="Get current weather"
+            ),
+            ToolDefinition(
+                name="get_weather_forecast", description="Get weather forecast"
+            ),
             ToolDefinition(name="query_records", description="Query platform data"),
             ToolDefinition(name="create_records", description="Create data"),
             ToolDefinition(name="update_records", description="Update data"),
@@ -905,8 +974,12 @@ async def test_prepare_execution_allows_page_and_weather_tools_for_mixed_request
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_restores_secondary_family_when_optimizer_drops_it() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+async def test_prepare_execution_restores_secondary_family_when_optimizer_drops_it() -> (
+    None
+):
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     request = ExecutionRequest(
         agent_id=59,
         tenant_id=0,
@@ -930,8 +1003,12 @@ async def test_prepare_execution_restores_secondary_family_when_optimizer_drops_
             ToolDefinition(name="fetch_url", description="Fetch a webpage"),
             ToolDefinition(name="get_page_context", description="Read page context"),
             ToolDefinition(name="invoke_page_operation", description="Operate page"),
-            ToolDefinition(name="get_current_weather", description="Get current weather"),
-            ToolDefinition(name="get_weather_forecast", description="Get weather forecast"),
+            ToolDefinition(
+                name="get_current_weather", description="Get current weather"
+            ),
+            ToolDefinition(
+                name="get_weather_forecast", description="Get weather forecast"
+            ),
             ToolDefinition(name="query_records", description="Query platform data"),
         ]
     )
@@ -981,8 +1058,12 @@ async def test_prepare_execution_restores_secondary_family_when_optimizer_drops_
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_prefers_web_research_on_first_turn_even_with_page_context() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+async def test_prepare_execution_prefers_web_research_on_first_turn_even_with_page_context() -> (
+    None
+):
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     request = ExecutionRequest(
         agent_id=59,
         tenant_id=0,
@@ -1051,8 +1132,12 @@ async def test_prepare_execution_prefers_web_research_on_first_turn_even_with_pa
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_keeps_non_zero_selected_count_for_explicit_web_request() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+async def test_prepare_execution_keeps_non_zero_selected_count_for_explicit_web_request() -> (
+    None
+):
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     request = ExecutionRequest(
         agent_id=59,
         tenant_id=0,
@@ -1110,8 +1195,12 @@ async def test_prepare_execution_keeps_non_zero_selected_count_for_explicit_web_
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_injects_absolute_date_anchor_for_date_sensitive_web_turn() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+async def test_prepare_execution_injects_absolute_date_anchor_for_date_sensitive_web_turn() -> (
+    None
+):
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     request = ExecutionRequest(
         agent_id=59,
         tenant_id=0,
@@ -1144,7 +1233,9 @@ async def test_prepare_execution_injects_absolute_date_anchor_for_date_sensitive
 
 @pytest.mark.asyncio
 async def test_prepare_execution_prefers_current_time_tool_for_time_question() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     request = ExecutionRequest(
         agent_id=1,
         tenant_id=1,
@@ -1198,7 +1289,9 @@ async def test_prepare_execution_prefers_current_time_tool_for_time_question() -
 
 @pytest.mark.asyncio
 async def test_prepare_execution_exposes_pruning_diagnostics() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     request = ExecutionRequest(
         agent_id=1,
         tenant_id=1,
@@ -1227,7 +1320,9 @@ async def test_prepare_execution_exposes_pruning_diagnostics() -> None:
 @pytest.mark.asyncio
 async def test_prepare_execution_calls_context_engine_compact_after_assemble() -> None:
     """_prepare_execution must invoke ContextEngine.compact() after assemble (lifecycle)."""
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     request = ExecutionRequest(
         agent_id=1,
         tenant_id=1,
@@ -1253,8 +1348,12 @@ async def test_prepare_execution_calls_context_engine_compact_after_assemble() -
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_prunes_only_old_large_tool_results_from_prompt() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+async def test_prepare_execution_prunes_only_old_large_tool_results_from_prompt() -> (
+    None
+):
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     old_tool_payload = "x" * 6000
     request = ExecutionRequest(
         agent_id=1,
@@ -1317,11 +1416,13 @@ async def test_prepare_execution_prunes_only_old_large_tool_results_from_prompt(
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_keeps_pending_confirmation_tool_rounds_intact() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
-    pending_payload = (
-        '{"requires_confirmation": true, "action": "tool_consent", "tool_name": "delete_records"}'
+async def test_prepare_execution_keeps_pending_confirmation_tool_rounds_intact() -> (
+    None
+):
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
     )
+    pending_payload = '{"requires_confirmation": true, "action": "tool_consent", "tool_name": "delete_records"}'
     request = ExecutionRequest(
         agent_id=1,
         tenant_id=1,
@@ -1378,7 +1479,9 @@ async def test_prepare_execution_keeps_pending_confirmation_tool_rounds_intact()
 
 @pytest.mark.asyncio
 async def test_prepare_execution_keeps_small_tool_payloads_unpruned() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     request = ExecutionRequest(
         agent_id=1,
         tenant_id=1,
@@ -1427,13 +1530,20 @@ async def test_prepare_execution_keeps_small_tool_payloads_unpruned() -> None:
         msg for msg in prep.messages if msg.role == "assistant" and msg.tool_calls
     )
     assert assistant_tool_round.tool_calls[0]["summary_payload"] == {"preview": "small"}
-    assert assistant_tool_round.tool_calls[0]["function"]["arguments"] == '{"sql":"select * from demo"}'
+    assert (
+        assistant_tool_round.tool_calls[0]["function"]["arguments"]
+        == '{"sql":"select * from demo"}'
+    )
     assert prep.prune_stats["pruned_tool_call_count"] == 0
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_builds_compaction_snapshot_sidecar_when_threshold_exceeded() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+async def test_prepare_execution_builds_compaction_snapshot_sidecar_when_threshold_exceeded() -> (
+    None
+):
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     agent = _build_agent()
     agent.context_config = {
         "compact_threshold_tokens": 20,
@@ -1446,10 +1556,21 @@ async def test_prepare_execution_builds_compaction_snapshot_sidecar_when_thresho
         user_id=1,
         conversation_id=42,
         messages=[
-            ChatMessage(role="user", content="用户先描述了一个很长很长的背景信息，需要系统记住业务上下文和限制条件。"),
-            ChatMessage(role="assistant", content="助手先给出了较长的解释，说明之前已经执行过一些检索和整理工作。"),
-            ChatMessage(role="user", content="然后用户继续补充了另外一段较长说明，希望后续回答都基于这个背景。"),
-            ChatMessage(role="assistant", content="最近一轮助手回复，应该保留在最近上下文中。"),
+            ChatMessage(
+                role="user",
+                content="用户先描述了一个很长很长的背景信息，需要系统记住业务上下文和限制条件。",
+            ),
+            ChatMessage(
+                role="assistant",
+                content="助手先给出了较长的解释，说明之前已经执行过一些检索和整理工作。",
+            ),
+            ChatMessage(
+                role="user",
+                content="然后用户继续补充了另外一段较长说明，希望后续回答都基于这个背景。",
+            ),
+            ChatMessage(
+                role="assistant", content="最近一轮助手回复，应该保留在最近上下文中。"
+            ),
             ChatMessage(role="user", content="请继续回答。"),
         ],
         input_variables={},
@@ -1506,7 +1627,9 @@ async def test_prepare_execution_builds_compaction_snapshot_sidecar_when_thresho
 
 @pytest.mark.asyncio
 async def test_context_engine_after_turn_refreshes_compaction_snapshot() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     base_engine = engine
     request = ExecutionRequest(
         agent_id=1,
@@ -1530,7 +1653,10 @@ async def test_context_engine_after_turn_refreshes_compaction_snapshot() -> None
         messages=[
             {"role": "system", "content": "You are assistant"},
             {"role": "user", "content": "第一轮用户问题，内容足够长以触发压缩。"},
-            {"role": "assistant", "content": "第一轮助手回答，内容也足够长以触发压缩。"},
+            {
+                "role": "assistant",
+                "content": "第一轮助手回答，内容也足够长以触发压缩。",
+            },
             {"role": "user", "content": "第二轮继续追问，仍然很长。"},
             {"role": "assistant", "content": "第二轮助手回答。"},
         ]
@@ -1548,7 +1674,9 @@ async def test_context_engine_after_turn_refreshes_compaction_snapshot() -> None
 
 @pytest.mark.asyncio
 async def test_prepare_execution_injects_long_term_memory_recall_when_enabled() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     agent = _build_agent()
     agent.context_config = {
         "long_term_memory_enabled": True,
@@ -1569,7 +1697,9 @@ async def test_prepare_execution_injects_long_term_memory_recall_when_enabled() 
             content="search online and keep my preferred writing style",
         )
     ]
-    request.messages = [ChatMessage(role="user", content="search online email writing tips")]
+    request.messages = [
+        ChatMessage(role="user", content="search online email writing tips")
+    ]
     provider = MagicMock()
     provider.profile = AsyncMock(return_value=None)
     provider.recall = AsyncMock(
@@ -1606,7 +1736,9 @@ async def test_prepare_execution_injects_long_term_memory_recall_when_enabled() 
 
 @pytest.mark.asyncio
 async def test_prepare_execution_injects_profile_snapshot_before_recall() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     agent = _build_agent()
     agent.context_config = {
         "long_term_memory_enabled": True,
@@ -1660,8 +1792,12 @@ async def test_prepare_execution_injects_profile_snapshot_before_recall() -> Non
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_skips_runtime_capability_summary_when_dynamic_awareness_enabled() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+async def test_prepare_execution_skips_runtime_capability_summary_when_dynamic_awareness_enabled() -> (
+    None
+):
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     request = ExecutionRequest(
         agent_id=1,
         tenant_id=1,
@@ -1724,8 +1860,12 @@ async def test_prepare_execution_skips_runtime_capability_summary_when_dynamic_a
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_keeps_runtime_capability_summary_when_dynamic_awareness_disabled() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+async def test_prepare_execution_keeps_runtime_capability_summary_when_dynamic_awareness_disabled() -> (
+    None
+):
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     request = ExecutionRequest(
         agent_id=1,
         tenant_id=1,
@@ -1781,8 +1921,12 @@ async def test_prepare_execution_keeps_runtime_capability_summary_when_dynamic_a
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_combined_kb_request_does_not_emit_retired_data_policy() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+async def test_prepare_execution_combined_kb_request_does_not_emit_retired_data_policy() -> (
+    None
+):
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     agent = _build_agent()
     request = ExecutionRequest(
         agent_id=1,
@@ -1852,8 +1996,12 @@ async def test_prepare_execution_combined_kb_request_does_not_emit_retired_data_
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_assembles_pageaware_kb_memory_and_plugin_skill_capabilities() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+async def test_prepare_execution_assembles_pageaware_kb_memory_and_plugin_skill_capabilities() -> (
+    None
+):
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     agent = _build_agent()
     agent.rag_config = {"top_k": 3}
     agent.context_config = {
@@ -1939,7 +2087,9 @@ async def test_prepare_execution_assembles_pageaware_kb_memory_and_plugin_skill_
         "Plugin Research Skill",
         "Plugin Page Skill",
     }
-    context_source_kinds = {source.kind for source in prep.capability_bundle.context_sources}
+    context_source_kinds = {
+        source.kind for source in prep.capability_bundle.context_sources
+    }
     assert context_source_kinds >= {
         "skill",
         "page_context",
@@ -1959,7 +2109,10 @@ async def test_prepare_execution_assembles_pageaware_kb_memory_and_plugin_skill_
         "scope_type": "user_agent",
     }
     assert "[TURN CAPABILITIES]" in prep.messages[0].content
-    assert "Selected skills for this turn: Plugin Research Skill, Plugin Page Skill." in prep.messages[0].content
+    assert (
+        "Selected skills for this turn: Plugin Research Skill, Plugin Page Skill."
+        in prep.messages[0].content
+    )
     assert "Knowledge-base context is available this turn." in prep.messages[0].content
     assert "Page context is available this turn." in prep.messages[0].content
     assert "[LONG-TERM MEMORY RECALL]" in prep.messages[0].content
@@ -1967,8 +2120,12 @@ async def test_prepare_execution_assembles_pageaware_kb_memory_and_plugin_skill_
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_deduplicates_selected_skill_names_in_capability_bundle() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+async def test_prepare_execution_deduplicates_selected_skill_names_in_capability_bundle() -> (
+    None
+):
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     request = ExecutionRequest(
         agent_id=1,
         tenant_id=1,
@@ -2022,7 +2179,9 @@ async def test_prepare_execution_deduplicates_selected_skill_names_in_capability
 
 @pytest.mark.asyncio
 async def test_prepare_execution_applies_execution_trust_policy_to_ask_tools() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     request = ExecutionRequest(
         agent_id=1,
         tenant_id=1,
@@ -2065,8 +2224,12 @@ async def test_prepare_execution_applies_execution_trust_policy_to_ask_tools() -
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_trusted_auto_bypasses_readonly_weather_consent() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+async def test_prepare_execution_trusted_auto_bypasses_readonly_weather_consent() -> (
+    None
+):
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     request = ExecutionRequest(
         agent_id=1,
         tenant_id=1,
@@ -2107,9 +2270,13 @@ async def test_prepare_execution_trusted_auto_bypasses_readonly_weather_consent(
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_trusted_auto_bypasses_readonly_even_without_trust_policy_ref() -> None:
+async def test_prepare_execution_trusted_auto_bypasses_readonly_even_without_trust_policy_ref() -> (
+    None
+):
     """trust_policy_ref=None must not block the readonly whitelist in trusted_auto."""
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     request = ExecutionRequest(
         agent_id=1,
         tenant_id=1,
@@ -2146,7 +2313,9 @@ async def test_prepare_execution_trusted_auto_bypasses_readonly_even_without_tru
 
 @pytest.mark.asyncio
 async def test_prepare_execution_does_not_bypass_risk_cap_for_page_ops() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     request = ExecutionRequest(
         agent_id=1,
         tenant_id=1,
@@ -2194,7 +2363,9 @@ async def test_prepare_execution_does_not_bypass_risk_cap_for_page_ops() -> None
 
 @pytest.mark.asyncio
 async def test_call_llm_routes_non_stream_to_runtime_query_engine_when_active() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     agent = _build_agent()
     runtime_response = ChatResponse(
         message=ChatMessage(role="assistant", content="runtime reply"),
@@ -2235,13 +2406,17 @@ async def test_call_llm_routes_non_stream_to_runtime_query_engine_when_active() 
 
 @pytest.mark.asyncio
 async def test_call_llm_uses_runtime_query_engine_only() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     agent = _build_agent()
     runtime_response = ChatResponse(
         message=ChatMessage(role="assistant", content="runtime reply"),
         total_tokens=7,
     )
-    runtime_engine = SimpleNamespace(turn_record=SimpleNamespace(protocol_path="responses"))
+    runtime_engine = SimpleNamespace(
+        turn_record=SimpleNamespace(protocol_path="responses")
+    )
     runtime_call = AsyncMock(return_value=(runtime_response, runtime_engine))
     legacy_call = AsyncMock()
 
@@ -2263,7 +2438,9 @@ async def test_call_llm_uses_runtime_query_engine_only() -> None:
 
 @pytest.mark.asyncio
 async def test_call_llm_runtime_errors_do_not_fallback_to_legacy() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     agent = _build_agent()
     runtime_call = AsyncMock(side_effect=RuntimeError("runtime-v2 failed"))
     legacy_call = AsyncMock()
@@ -2276,7 +2453,9 @@ async def test_call_llm_runtime_errors_do_not_fallback_to_legacy() -> None:
         await engine._call_llm(
             agent=agent,
             messages=[ChatMessage(role="user", content="继续")],
-            tools=[ToolDefinition(name="get_page_context", description="Read page context")],
+            tools=[
+                ToolDefinition(name="get_page_context", description="Read page context")
+            ],
             selected_skill_names=["page_skill"],
             context_sources=[],
             conversation_id=9001,
@@ -2288,7 +2467,9 @@ async def test_call_llm_runtime_errors_do_not_fallback_to_legacy() -> None:
 
 @pytest.mark.asyncio
 async def test_sync_io_adapter_fast_text_round_passes_low_reasoning_override() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     engine._call_llm = AsyncMock(
         return_value=ChatResponse(
             message=ChatMessage(role="assistant", content="ok"),
@@ -2325,14 +2506,16 @@ async def test_sync_io_adapter_fast_text_round_passes_low_reasoning_override() -
     assert engine._call_llm.await_count == 1
     kwargs = engine._call_llm.await_args.kwargs
     assert kwargs["execution_path"] == "fast"
-    assert kwargs["extra_kwargs"] == {
-        "_runtime_reasoning_effort_override": "low"
-    }
+    assert kwargs["extra_kwargs"] == {"_runtime_reasoning_effort_override": "low"}
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_builds_deep_structured_plan_for_666_style_turn() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+async def test_prepare_execution_builds_deep_structured_plan_for_666_style_turn() -> (
+    None
+):
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     request = ExecutionRequest(
         agent_id=1,
         tenant_id=1,
@@ -2394,7 +2577,9 @@ async def test_prepare_execution_builds_deep_structured_plan_for_666_style_turn(
 
 @pytest.mark.asyncio
 async def test_prepare_execution_current_weather_only_avoids_forecast_tool() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     request = ExecutionRequest(
         agent_id=1,
         tenant_id=1,
@@ -2434,7 +2619,9 @@ async def test_prepare_execution_current_weather_only_avoids_forecast_tool() -> 
 
 @pytest.mark.asyncio
 async def test_prepare_execution_page_summary_turn_keeps_page_only_candidates() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     request = ExecutionRequest(
         agent_id=1,
         tenant_id=1,
@@ -2477,8 +2664,12 @@ async def test_prepare_execution_page_summary_turn_keeps_page_only_candidates() 
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_page_screenshot_keeps_capture_screenshot_tool() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+async def test_prepare_execution_page_screenshot_keeps_capture_screenshot_tool() -> (
+    None
+):
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     request = ExecutionRequest(
         agent_id=1,
         tenant_id=1,
@@ -2520,7 +2711,9 @@ async def test_prepare_execution_page_screenshot_keeps_capture_screenshot_tool()
 
 @pytest.mark.asyncio
 async def test_prepare_execution_editor_write_keeps_editor_mutation_tools() -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     request = ExecutionRequest(
         agent_id=1,
         tenant_id=1,

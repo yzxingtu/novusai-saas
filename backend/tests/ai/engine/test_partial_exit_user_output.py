@@ -169,3 +169,54 @@ def test_update_intent_statuses_marks_web_search_zero_results_as_completed() -> 
     assert "没有找到" in updated[0].cached_result
     assert updated[0].metadata.get("requires_fetch_url") is None
     assert updated[0].metadata["auto_fetch_gate_reason"] == "search_no_results_completed"
+
+
+def test_update_intent_statuses_uses_fetch_body_preview_for_web_research_result() -> None:
+    intents = [
+        IntentPlan(
+            intent_id="intent-web",
+            kind="web_research",
+            family="web_research",
+            order=1,
+            user_visible_label="放假时间",
+            source_text="湖南学生放假时间",
+            status="pending",
+            requires_tools=True,
+            allowed_tool_names=["fetch_url"],
+            completion_signals=["fetch_url"],
+        )
+    ]
+
+    updated = RecoveryManager.update_intent_statuses(
+        intents,
+        messages=[],
+        tool_results=[
+            ToolResult(
+                tool_call_id="tc-fetch",
+                name="fetch_url",
+                success=True,
+                output=(
+                    "Content from https://finance.sina.com.cn/jjxw/2025-06-12/doc-inezupah3848475.shtml\n"
+                    "Title: 放假通知！湖南12地明确！|特殊教育学校_新浪财经_新浪网\n"
+                    "Description: 近日湖南12地公布2025年中小学暑假放假时间长沙根据2024年校历安排，今年暑假从7月6日开始。\n"
+                    "Key sections: 放假通知！湖南12地明确！, VIP课程推荐\n\n"
+                    "放假通知！湖南12地明确！\n"
+                    "湖南12地公布2025年中小学暑假放假时间。\n"
+                    "根据2024年校历安排，今年暑假从7月6日开始。\n"
+                    "2025学年第一学期：2025年9月1日上课，2026年1月31日结束。\n"
+                ),
+                summary="放假通知！湖南12地明确！|特殊教育学校_新浪财经_新浪网",
+                summary_payload={
+                    "fetch_url": True,
+                    "ok": True,
+                    "title": "放假通知！湖南12地明确！|特殊教育学校_新浪财经_新浪网",
+                    "description": "近日湖南12地公布2025年中小学暑假放假时间长沙根据2024年校历安排，今年暑假从7月6日开始。",
+                    "summary": "放假通知！湖南12地明确！|特殊教育学校_新浪财经_新浪网",
+                },
+            )
+        ],
+    )
+
+    assert updated[0].status == "completed"
+    assert "今年暑假从7月6日开始" in updated[0].cached_result
+    assert updated[0].cached_result != "放假通知！湖南12地明确！|特殊教育学校_新浪财经_新浪网"

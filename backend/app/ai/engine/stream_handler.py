@@ -48,7 +48,6 @@ if TYPE_CHECKING:
     from app.models.ai.agent import Agent
 
     from .base import BaseEngine
-    from .tool_processor import ToolCallProcessor
 
 logger = LogManager.get_logger("ai.engine.stream_handler")
 
@@ -128,16 +127,9 @@ class StreamIOAdapter:
             if sandbox is not None and hasattr(sandbox, "set_runtime_model_info"):
                 sandbox.set_runtime_model_info(runtime_model_info)
         raw_turn_record = metadata.get("runtime_turn_record")
-        if isinstance(raw_turn_record, dict):
-            self.handler._runtime_turn_record = dict(raw_turn_record)
-        elif raw_turn_record is not None and hasattr(raw_turn_record, "__dict__"):
-            self.handler._runtime_turn_record = dict(
-                getattr(raw_turn_record, "__dict__", {}) or {}
-            )
+        self.handler._replace_runtime_turn_record(raw_turn_record)
 
     def _ensure_engine_tool_helpers(self) -> None:
-        from .conversation import ConversationEngine
-
         helper_methods = {
             "_analyze_post_tool_contract_breach": BaseEngine._analyze_post_tool_contract_breach,
             "_apply_fetch_url_only_gate": BaseEngine._apply_fetch_url_only_gate,
@@ -174,6 +166,7 @@ class StreamIOAdapter:
         total_tokens = 0
         completion_tokens_used = 0
         finish_reason = "stop"
+        native_search_observed = False
 
         round_kind = str(kwargs.get("breach_retry_result") or "").strip()
         if round_kind in {"contract_retry", "intent_retry"}:
@@ -215,6 +208,7 @@ class StreamIOAdapter:
             # 转发 web_search keepalive 为 SSE 事件防止连接超时
             chunk_meta = getattr(chunk, "metadata", None)
             if isinstance(chunk_meta, dict) and chunk_meta.get("web_search_in_progress"):
+                native_search_observed = True
                 await self.handler._emit_runtime_event(
                     {"event": "status", "status": "web_search_in_progress"}
                 )
@@ -286,6 +280,7 @@ class StreamIOAdapter:
             response=response,
             total_tokens=total_tokens,
             completion_tokens_used=completion_tokens_used,
+            native_search_observed=native_search_observed,
         )
 
     async def handle_tool_calls(
@@ -297,15 +292,11 @@ class StreamIOAdapter:
         **kwargs: Any,
     ) -> ToolBatchResult:
         from app.ai.tools.types import ToolResult
+
         from .tool_processor import ToolCallProcessor
 
         self._ensure_engine_tool_helpers()
         request_proxy = self._request_with_defaults()
-        current_policy = (
-            kwargs.get("tool_use_policy")
-            or request_proxy.tool_use_policy
-            or ToolUsePolicy()
-        )
         processor = ToolCallProcessor(
             sandbox=self.handler.engine.sandbox,
             tools=tools,
@@ -666,7 +657,7 @@ class StreamIOAdapter:
             )
         )
         stream_local_output = str(self.handler._output or "").strip()
-        if stream_local_output:
+        if not str(output or "").strip() and stream_local_output:
             output = stream_local_output
         return output, final_total_tokens, final_completion_tokens
 
@@ -702,7 +693,7 @@ class StreamIOAdapter:
             )
         )
         stream_local_output = str(self.handler._output or "").strip()
-        if stream_local_output:
+        if not str(output or "").strip() and stream_local_output:
             output = stream_local_output
         return output, final_total_tokens, final_completion_tokens
 
@@ -1009,13 +1000,71 @@ class StreamExecutionHandler:
             return None
         return await asyncio.shield(task)
 
+    def _apply_runtime_turn_record_overlays(self) -> None:
+        if not isinstance(self._runtime_turn_record, dict):
+            self._runtime_turn_record = {}
+        if not isinstance(self._runtime_turn_record_overlays, dict):
+            self._runtime_turn_record_overlays = {}
+        if not self._runtime_turn_record_overlays:
+            return
+
+        record = dict(self._runtime_turn_record)
+        for key, value in self._runtime_turn_record_overlays.items():
+            if key == "tool_loop_progress" and isinstance(value, dict):
+                current_progress = (
+                    dict(record.get("tool_loop_progress") or {})
+                    if isinstance(record.get("tool_loop_progress"), dict)
+                    else {}
+                )
+                current_progress.update(value)
+                record[key] = current_progress
+                continue
+            record[key] = value
+        self._runtime_turn_record = record
+
+    def _replace_runtime_turn_record(self, raw_turn_record: Any) -> None:
+        if isinstance(raw_turn_record, dict):
+            self._runtime_turn_record_source = None
+            self._runtime_turn_record = dict(raw_turn_record)
+        elif raw_turn_record is not None and hasattr(raw_turn_record, "__dict__"):
+            self._runtime_turn_record_source = raw_turn_record
+            self._runtime_turn_record = dict(
+                getattr(raw_turn_record, "__dict__", {}) or {}
+            )
+        else:
+            return
+        self._apply_runtime_turn_record_overlays()
+
+    def _refresh_runtime_turn_record(self) -> None:
+        if self._runtime_turn_record_source is not None and hasattr(
+            self._runtime_turn_record_source,
+            "__dict__",
+        ):
+            self._runtime_turn_record = dict(
+                getattr(self._runtime_turn_record_source, "__dict__", {}) or {}
+            )
+        elif not isinstance(self._runtime_turn_record, dict):
+            self._runtime_turn_record = {}
+        self._apply_runtime_turn_record_overlays()
+
     def _ensure_runtime_turn_record(self) -> dict[str, Any]:
+        self._refresh_runtime_turn_record()
         if not isinstance(self._runtime_turn_record, dict):
             self._runtime_turn_record = {}
         return self._runtime_turn_record
 
     def _update_turn_progress(self, **fields: Any) -> None:
         record = self._ensure_runtime_turn_record()
+        if not isinstance(self._runtime_turn_record_overlays, dict):
+            self._runtime_turn_record_overlays = {}
+        overlay_progress = (
+            dict(self._runtime_turn_record_overlays.get("tool_loop_progress") or {})
+            if isinstance(
+                self._runtime_turn_record_overlays.get("tool_loop_progress"),
+                dict,
+            )
+            else {}
+        )
         progress = (
             dict(record.get("tool_loop_progress") or {})
             if isinstance(record.get("tool_loop_progress"), dict)
@@ -1024,12 +1073,18 @@ class StreamExecutionHandler:
         for key, value in fields.items():
             if key == "tool_loop_progress" and isinstance(value, dict):
                 progress.update(value)
+                overlay_progress.update(value)
                 continue
             if value is None:
                 continue
             record[key] = value
+            self._runtime_turn_record_overlays[key] = value
         if progress:
             record["tool_loop_progress"] = progress
+        if overlay_progress:
+            self._runtime_turn_record_overlays["tool_loop_progress"] = (
+                overlay_progress
+            )
 
     def _register_budget_exit(self, reason: str | None) -> None:
         if not reason:
@@ -1155,6 +1210,8 @@ class StreamExecutionHandler:
         self._completion_tokens_used = 0
         self._runtime_model_info: dict[str, Any] | None = None
         self._runtime_turn_record: dict[str, Any] | None = None
+        self._runtime_turn_record_source: Any | None = None
+        self._runtime_turn_record_overlays: dict[str, Any] = {}
         self._on_complete_called = False
         self._visible_stream_content = ""
         self._clear_before_next_message = False
@@ -1240,13 +1297,9 @@ class StreamExecutionHandler:
             runtime_model_info = response_metadata.get("runtime_model_info")
             if isinstance(runtime_model_info, dict):
                 self._runtime_model_info = dict(runtime_model_info)
-            raw_turn_record = response_metadata.get("runtime_turn_record")
-            if isinstance(raw_turn_record, dict):
-                self._runtime_turn_record = dict(raw_turn_record)
-            elif raw_turn_record is not None and hasattr(raw_turn_record, "__dict__"):
-                self._runtime_turn_record = dict(
-                    getattr(raw_turn_record, "__dict__", {}) or {}
-                )
+            self._replace_runtime_turn_record(
+                response_metadata.get("runtime_turn_record"),
+            )
 
             # ---- Parse and send Action Buttons ---- / 解析并发送 Action Buttons
             cleaned_output, action_buttons = self._extract_action_buttons(output)
@@ -1283,12 +1336,13 @@ class StreamExecutionHandler:
                 )
                 streamed_output = str(self._visible_stream_content or "").strip()
                 stream_local_output = str(self._output or "").strip()
-                if visible_assistant_output:
+                finalized_output = str(output or "").strip()
+                if finalized_output:
+                    output = finalized_output
+                elif visible_assistant_output:
                     output = visible_assistant_output
                 elif stream_local_output:
                     output = stream_local_output
-                elif str(output or "").strip():
-                    output = str(output).strip()
                 elif self._state.provider_failure_kind == "budget_exit":
                     output = self._build_budget_exit_fallback_output(
                         tool_results=all_tool_results,
@@ -1354,6 +1408,7 @@ class StreamExecutionHandler:
             tool_planner = getattr(self.prep, "tool_planner", None)
             diagnostics_payload = self._state.build_diagnostics_payload()
             diagnostics_payload["final_output_source"] = final_output_source
+            self._refresh_runtime_turn_record()
             result_turn_record = (
                 dict(self._runtime_turn_record)
                 if isinstance(self._runtime_turn_record, dict)
@@ -1483,6 +1538,17 @@ class StreamExecutionHandler:
                 metadata["turn_diagnostics"] = diagnostics_payload
                 result.turn_record["metadata"] = metadata
 
+            streamed_output = str(self._visible_stream_content or "").strip()
+            should_clear_replayed_output = bool(
+                streamed_output
+                and str(output or "").strip()
+                and str(output or "").strip() != streamed_output
+                and final_output_source in {"tool_evidence_completed", "budget_fallback"}
+                and (partial_reply_stream_chunks or completed_reply_stream_chunks)
+            )
+            if should_clear_replayed_output:
+                yield SSEChunkEncoder.encode({"event": "clear_content"})
+
             if partial_reply_stream_chunks:
                 for chunk in partial_reply_stream_chunks:
                     yield SSEChunkEncoder.encode(
@@ -1524,15 +1590,13 @@ class StreamExecutionHandler:
                         "rag_source_kinds": result.rag_source_kinds,
                         "turn_record": result.turn_record or diagnostics_payload,
                         "turn_outcome": (
-                            (
-                                diagnostics_payload.get("turn_outcome")
-                                if isinstance(diagnostics_payload, dict)
-                                and diagnostics_payload.get("turn_outcome")
-                                else (
-                                    (result.turn_record or {}).get("turn_outcome")
-                                    if isinstance(result.turn_record, dict)
-                                    else None
-                                )
+                            diagnostics_payload.get("turn_outcome")
+                            if isinstance(diagnostics_payload, dict)
+                            and diagnostics_payload.get("turn_outcome")
+                            else (
+                                (result.turn_record or {}).get("turn_outcome")
+                                if isinstance(result.turn_record, dict)
+                                else None
                             )
                         ),
                         "termination_reason": result.completion_reason,
@@ -1606,6 +1670,7 @@ class StreamExecutionHandler:
                         )
                     )
                 tool_planner = getattr(self.prep, "tool_planner", None)
+                self._refresh_runtime_turn_record()
 
                 failed_result = ExecutionResult(
                     success=False,
@@ -1688,6 +1753,7 @@ class StreamExecutionHandler:
                         )
                     )
                 tool_planner = getattr(self.prep, "tool_planner", None)
+                self._refresh_runtime_turn_record()
 
                 interrupted_result = ExecutionResult(
                     success=False,

@@ -728,6 +728,9 @@ function getSearchFallbackNotice(summary: SearchSummary): null | string {
 
 function getSearchProviderLabel(provider?: string) {
   switch (provider) {
+    case 'native_hosted': {
+      return $t('common.globalAiChat.toolSearchSourceNative');
+    }
     case 'baidu_public': {
       return $t('common.globalAiChat.toolSearchSourceBaidu');
     }

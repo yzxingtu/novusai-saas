@@ -212,6 +212,168 @@ class RecoveryManager:
         intent.metadata["partial_result"] = normalized
 
     @staticmethod
+    def _normalize_comparison_text(text: str) -> str:
+        return "".join(ch for ch in str(text or "").casefold() if ch.isalnum())
+
+    @staticmethod
+    def _extract_fetch_url_user_preview(
+        result: ToolResult,
+        *,
+        max_length: int = 500,
+    ) -> str | None:
+        summary_payload = (
+            dict(result.summary_payload)
+            if isinstance(result.summary_payload, dict)
+            else {}
+        )
+        if not summary_payload.get("fetch_url"):
+            return None
+
+        title = str(summary_payload.get("title") or "").strip()
+        description = str(summary_payload.get("description") or "").strip()
+        generic_summary = str(
+            summary_payload.get("summary") or result.summary or ""
+        ).strip()
+        title_has_site_suffix = "|" in title or "_" in title
+        normalized_title = RecoveryManager._normalize_comparison_text(title)
+        normalized_description = RecoveryManager._normalize_comparison_text(description)
+        normalized_summary = RecoveryManager._normalize_comparison_text(generic_summary)
+        summary_truncated = generic_summary.endswith(("...", "…"))
+        description_truncated = description.endswith(("...", "…"))
+
+        useful_lines: list[str] = []
+        for raw_line in str(result.output or "").splitlines():
+            line = raw_line.strip()
+            if not line:
+                continue
+            if line.startswith(
+                (
+                    "Content from ",
+                    "Redirected from: ",
+                    "Title: ",
+                    "Description: ",
+                    "Key sections: ",
+                )
+            ):
+                continue
+            normalized_line = RecoveryManager._normalize_comparison_text(line)
+            if not normalized_line:
+                continue
+            if normalized_title and normalized_line == normalized_title:
+                continue
+            if normalized_description and normalized_line == normalized_description:
+                continue
+            useful_lines.append(line)
+            if len(" ".join(useful_lines)) >= max_length:
+                break
+
+        if (
+            generic_summary
+            and normalized_summary != normalized_title
+            and not summary_truncated
+            and not title_has_site_suffix
+        ):
+            return RecoveryManager._normalize_cached_result(
+                generic_summary,
+                max_length=max_length,
+            )
+        if useful_lines and (
+            summary_truncated or description_truncated or title_has_site_suffix
+        ):
+            preview_parts: list[str] = []
+            if description and description not in useful_lines[:2]:
+                preview_parts.append(description)
+            preview_parts.extend(useful_lines[:2])
+            preview = " ".join(part.strip() for part in preview_parts if part.strip())
+            normalized_preview = RecoveryManager._normalize_comparison_text(preview)
+            if normalized_preview and normalized_preview != normalized_title:
+                return RecoveryManager._normalize_cached_result(
+                    preview,
+                    max_length=max_length,
+                )
+        if title and description and not title_has_site_suffix:
+            return RecoveryManager._normalize_cached_result(
+                f"{title} - {description}",
+                max_length=max_length,
+            )
+        if description:
+            return RecoveryManager._normalize_cached_result(
+                description,
+                max_length=max_length,
+            )
+
+        preview_parts: list[str] = []
+        if description:
+            preview_parts.append(description)
+        if useful_lines:
+            preview_parts.extend(useful_lines[:2])
+
+        preview = " ".join(part.strip() for part in preview_parts if part.strip())
+        normalized_preview = RecoveryManager._normalize_comparison_text(preview)
+        if normalized_preview and normalized_preview != normalized_title:
+            return RecoveryManager._normalize_cached_result(
+                preview,
+                max_length=max_length,
+            )
+        if title:
+            return RecoveryManager._normalize_cached_result(title, max_length=max_length)
+        return None
+
+    @staticmethod
+    def _budgeted_web_research_response_candidates(
+        tool_results: list[ToolResult] | None = None,
+    ) -> list[str]:
+        candidates: list[str] = []
+        for result in tool_results or []:
+            if not result.success or str(result.name or "").strip() != "fetch_url":
+                continue
+            payload = (
+                dict(result.summary_payload)
+                if isinstance(result.summary_payload, dict)
+                else {}
+            )
+            raw_title = str(payload.get("title") or "").strip()
+            description = str(payload.get("description") or "").strip()
+            for candidate in (
+                payload.get("summary"),
+                f"{raw_title} - {description}" if raw_title and description else None,
+                RecoveryManager._extract_fetch_url_user_preview(result),
+                description,
+                result.summary,
+                raw_title,
+            ):
+                normalized = RecoveryManager._normalize_cached_result(candidate)
+                if normalized and normalized not in candidates:
+                    candidates.append(normalized)
+        return candidates
+
+    @staticmethod
+    def should_replace_budgeted_web_research_response(
+        *,
+        response_text: str,
+        tool_results: list[ToolResult] | None = None,
+    ) -> bool:
+        raw_response = str(response_text or "").strip()
+        if not raw_response:
+            return True
+
+        lowered_response = raw_response.casefold()
+        if lowered_response.startswith(("content from ", "title: ", "description: ")):
+            return True
+
+        normalized_response = RecoveryManager._normalize_comparison_text(raw_response)
+        if not normalized_response:
+            return True
+
+        for candidate in RecoveryManager._budgeted_web_research_response_candidates(
+            tool_results
+        ):
+            normalized_candidate = RecoveryManager._normalize_comparison_text(candidate)
+            if normalized_candidate and normalized_response == normalized_candidate:
+                return True
+        return False
+
+    @staticmethod
     def _intent_result_from_tool_results(
         intent: IntentPlan,
         tool_results: list[ToolResult] | None = None,
@@ -241,6 +403,15 @@ class RecoveryManager:
             for result in tool_results:
                 if not result.success or result.name != name:
                     continue
+                if (
+                    str(intent.family or "").strip() == "web_research"
+                    and str(result.name or "").strip() == "fetch_url"
+                ):
+                    preview = RecoveryManager._extract_fetch_url_user_preview(result)
+                    if preview:
+                        if preview not in normalized_results:
+                            normalized_results.append(preview)
+                        continue
                 for candidate in (
                     result.summary_payload,
                     result.summary,
@@ -612,6 +783,26 @@ class RecoveryManager:
                 metadata={"pending_consent": normalized_payload},
             )
         )
+
+    @staticmethod
+    def complete_native_search_intents(intents: list[IntentPlan]) -> list[IntentPlan]:
+        """Mark pending web_research intents as completed when native search
+        (Responses API) produced a visible response, so the orchestrator does not
+        treat them as unfinished and trigger an unnecessary recovery retry."""
+        updated: list[IntentPlan] = []
+        for intent in intents:
+            clone = IntentPlan(**intent.to_dict())
+            if (
+                clone.status == "pending"
+                and str(clone.family or "").strip() == "web_research"
+                and clone.requires_tools
+            ):
+                clone.status = "completed"
+                clone.completed_by_tool_names = ["native_web_search"]
+                clone.metadata = dict(clone.metadata or {})
+                clone.metadata["auto_fetch_gate_reason"] = "native_search_completed"
+            updated.append(clone)
+        return updated
 
     @staticmethod
     def update_intent_statuses(

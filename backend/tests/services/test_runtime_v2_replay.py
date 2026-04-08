@@ -90,19 +90,20 @@ class _RuntimeQueryEngineStub:
             },
         )
 
-    async def run_stream_turn(self, **kwargs):
+    async def iter_stream_turn(self, **kwargs):
         _ = kwargs
         type(self).run_stream_count += 1
-        return [
-            ChatChunk(
-                delta="runtime-v2-path",
-                finish_reason="stop",
-                input_tokens=5,
-                output_tokens=6,
-                total_tokens=11,
-                metadata={},
-            )
-        ]
+        yield ChatChunk(
+            delta="runtime-v2-path",
+            finish_reason="stop",
+            input_tokens=5,
+            output_tokens=6,
+            total_tokens=11,
+            metadata={},
+        )
+
+    async def run_stream_turn(self, **kwargs):
+        return [chunk async for chunk in self.iter_stream_turn(**kwargs)]
 
 
 class _RuntimeQueryEngineFailBeforeMeaningfulChunkStub:
@@ -123,10 +124,14 @@ class _RuntimeQueryEngineFailBeforeMeaningfulChunkStub:
             metadata={"stream_failure_has_meaningful_chunk": False},
         )
 
-    async def run_stream_turn(self, **kwargs):
+    async def iter_stream_turn(self, **kwargs):
         _ = kwargs
         type(self).run_stream_count += 1
         raise RuntimeError("runtime-v2 stream failed before first meaningful chunk")
+        yield ChatChunk(delta="")  # pragma: no cover
+
+    async def run_stream_turn(self, **kwargs):
+        return [chunk async for chunk in self.iter_stream_turn(**kwargs)]
 
 
 class _RuntimeQueryEngineFailAfterMeaningfulChunkStub:
@@ -147,10 +152,46 @@ class _RuntimeQueryEngineFailAfterMeaningfulChunkStub:
             metadata={"stream_failure_has_meaningful_chunk": True},
         )
 
-    async def run_stream_turn(self, **kwargs):
+    async def iter_stream_turn(self, **kwargs):
         _ = kwargs
         type(self).run_stream_count += 1
         raise RuntimeError("runtime-v2 stream failed after meaningful chunk")
+        yield ChatChunk(delta="")  # pragma: no cover
+
+    async def run_stream_turn(self, **kwargs):
+        return [chunk async for chunk in self.iter_stream_turn(**kwargs)]
+
+
+class _RuntimeQueryEngineFailAfterReasoningOnlyStub:
+    created_count = 0
+    run_stream_count = 0
+
+    def __init__(self, *, adapter, strict_contract: bool = False) -> None:
+        _ = adapter, strict_contract
+        type(self).created_count += 1
+        self.turn_record = SimpleNamespace(
+            turn_outcome="failed",
+            termination_reason="error",
+            protocol_path="responses",
+            selected_tool_names=["query_records"],
+            selected_skill_names=[],
+            context_sources=[],
+            fallback_history=[],
+            metadata={
+                "stream_failure_has_meaningful_chunk": True,
+                "stream_failure_blocks_fallback": False,
+                "stream_failure_reasoning_only_before_visible_output": True,
+            },
+        )
+
+    async def iter_stream_turn(self, **kwargs):
+        _ = kwargs
+        type(self).run_stream_count += 1
+        raise RuntimeError("runtime-v2 stream failed after reasoning-only chunk")
+        yield ChatChunk(delta="")  # pragma: no cover
+
+    async def run_stream_turn(self, **kwargs):
+        return [chunk async for chunk in self.iter_stream_turn(**kwargs)]
 
 
 class _RuntimeQueryEngineCaptureOverridesStub:
@@ -172,19 +213,20 @@ class _RuntimeQueryEngineCaptureOverridesStub:
             metadata={},
         )
 
-    async def run_stream_turn(self, **kwargs):
+    async def iter_stream_turn(self, **kwargs):
         type(self).run_stream_count += 1
         type(self).last_stream_kwargs = dict(kwargs)
-        return [
-            ChatChunk(
-                delta="fast reply",
-                finish_reason="stop",
-                input_tokens=3,
-                output_tokens=2,
-                total_tokens=5,
-                metadata={},
-            )
-        ]
+        yield ChatChunk(
+            delta="fast reply",
+            finish_reason="stop",
+            input_tokens=3,
+            output_tokens=2,
+            total_tokens=5,
+            metadata={},
+        )
+
+    async def run_stream_turn(self, **kwargs):
+        return [chunk async for chunk in self.iter_stream_turn(**kwargs)]
 
 
 def _build_runtime_context(*, should_record_call_log: bool = False) -> _StreamRuntimeContext:
@@ -282,6 +324,7 @@ async def test_runtime_v2_active_mode_uses_query_engine(mock_db) -> None:
 
     assert _RuntimeQueryEngineStub.created_count == 1
     assert _RuntimeQueryEngineStub.run_stream_count == 1
+    assert len(chunks) == 1
     assert "".join(chunk.delta for chunk in chunks) == "runtime-v2-path"
     runtime_turn_record_raw = (chunks[0].metadata or {}).get("runtime_turn_record")
     if isinstance(runtime_turn_record_raw, dict):
@@ -345,6 +388,7 @@ async def test_runtime_v2_stream_path_uses_query_engine_for_page_tools(mock_db) 
 
     assert _RuntimeQueryEngineStub.created_count == 1
     assert _RuntimeQueryEngineStub.run_stream_count == 1
+    assert len(chunks) == 1
     assert "".join(chunk.delta for chunk in chunks) == "runtime-v2-path"
     assert (chunks[0].metadata or {}).get("runtime_turn_record") is not None
     assert len(adapter.stream_calls) == 0
@@ -393,6 +437,7 @@ async def test_runtime_v2_fast_text_round_passes_low_reasoning_override(mock_db)
 
     assert _RuntimeQueryEngineCaptureOverridesStub.created_count == 1
     assert _RuntimeQueryEngineCaptureOverridesStub.run_stream_count == 1
+    assert len(chunks) == 1
     assert "".join(chunk.delta for chunk in chunks) == "fast reply"
     assert _RuntimeQueryEngineCaptureOverridesStub.last_stream_kwargs is not None
     assert _RuntimeQueryEngineCaptureOverridesStub.last_stream_kwargs[
@@ -487,20 +532,20 @@ async def test_runtime_v2_stream_failure_before_first_chunk_raises_without_fallb
             "app.ai.engine.conversation.ConversationQueryEngine",
             new=_RuntimeQueryEngineFailBeforeMeaningfulChunkStub,
         ),
-    ):
-        with pytest.raises(
+        pytest.raises(
             RuntimeError,
             match="runtime-v2 stream failed before first meaningful chunk",
+        ),
+    ):
+        async for _ in engine._stream_llm_chunks(
+            agent=agent,
+            messages=[ChatMessage(role="user", content="hello")],
+            tenant_id=1,
+            conversation_id=68,
+            tools=[ToolDefinition(name="query_records", description="Query data")],
+            runtime_context=runtime_context,
         ):
-            async for _ in engine._stream_llm_chunks(
-                agent=agent,
-                messages=[ChatMessage(role="user", content="hello")],
-                tenant_id=1,
-                conversation_id=68,
-                tools=[ToolDefinition(name="query_records", description="Query data")],
-                runtime_context=runtime_context,
-            ):
-                pass
+            pass
 
     assert _RuntimeQueryEngineFailBeforeMeaningfulChunkStub.created_count == 1
     assert _RuntimeQueryEngineFailBeforeMeaningfulChunkStub.run_stream_count == 1
@@ -534,20 +579,20 @@ async def test_runtime_v2_stream_failure_before_first_chunk_does_not_fallback_to
             "app.ai.engine.conversation.ConversationQueryEngine",
             new=_RuntimeQueryEngineFailBeforeMeaningfulChunkStub,
         ),
-    ):
-        with pytest.raises(
+        pytest.raises(
             RuntimeError,
             match="runtime-v2 stream failed before first meaningful chunk",
+        ),
+    ):
+        async for _ in engine._stream_llm_chunks(
+            agent=agent,
+            messages=[ChatMessage(role="user", content="hello")],
+            tenant_id=1,
+            conversation_id=69,
+            tools=[ToolDefinition(name="query_records", description="Query data")],
+            runtime_context=runtime_context,
         ):
-            async for _ in engine._stream_llm_chunks(
-                agent=agent,
-                messages=[ChatMessage(role="user", content="hello")],
-                tenant_id=1,
-                conversation_id=69,
-                tools=[ToolDefinition(name="query_records", description="Query data")],
-                runtime_context=runtime_context,
-            ):
-                pass
+            pass
 
     assert len(adapter.stream_calls) == 0
     assert len(adapter.chat_calls) == 0
@@ -622,21 +667,21 @@ async def test_runtime_v2_stream_failure_with_call_log_enabled_records_failure_l
             "app.ai.engine.conversation.ConversationQueryEngine",
             new=_RuntimeQueryEngineFailBeforeMeaningfulChunkStub,
         ),
-    ):
-        with pytest.raises(
+        pytest.raises(
             RuntimeError,
             match="runtime-v2 stream failed before first meaningful chunk",
+        ),
+    ):
+        async for _ in engine._stream_llm_chunks(
+            agent=agent,
+            messages=[ChatMessage(role="user", content="hello")],
+            tenant_id=1,
+            user_id=12,
+            conversation_id=71,
+            tools=[ToolDefinition(name="query_records", description="Query data")],
+            runtime_context=runtime_context,
         ):
-            async for _ in engine._stream_llm_chunks(
-                agent=agent,
-                messages=[ChatMessage(role="user", content="hello")],
-                tenant_id=1,
-                user_id=12,
-                conversation_id=71,
-                tools=[ToolDefinition(name="query_records", description="Query data")],
-                runtime_context=runtime_context,
-            ):
-                pass
+            pass
 
     assert engine.gateway.usage_recorder.log_call_failure.await_count == 1
     assert engine.gateway.usage_recorder.call_log_service.log_call_async.await_count == 0
@@ -669,20 +714,67 @@ async def test_runtime_v2_stream_failure_after_chunk_records_flag(mock_db) -> No
             "app.ai.engine.conversation.ConversationQueryEngine",
             new=_RuntimeQueryEngineFailAfterMeaningfulChunkStub,
         ),
+        pytest.raises(RuntimeError, match="runtime-v2 stream failed after meaningful chunk"),
     ):
-        with pytest.raises(RuntimeError, match="runtime-v2 stream failed after meaningful chunk"):
-            async for _ in engine._stream_llm_chunks(
-                agent=agent,
-                messages=[ChatMessage(role="user", content="hello after chunk")],
-                tenant_id=1,
-                user_id=13,
-                conversation_id=72,
-                tools=[ToolDefinition(name="query_records", description="Query data")],
-                runtime_context=runtime_context,
-            ):
-                pass
+        async for _ in engine._stream_llm_chunks(
+            agent=agent,
+            messages=[ChatMessage(role="user", content="hello after chunk")],
+            tenant_id=1,
+            user_id=13,
+            conversation_id=72,
+            tools=[ToolDefinition(name="query_records", description="Query data")],
+            runtime_context=runtime_context,
+        ):
+            pass
 
     assert engine.gateway.usage_recorder.log_call_failure.await_count == 1
     failure_kwargs = engine.gateway.usage_recorder.log_call_failure.await_args.kwargs
     metadata = failure_kwargs["turn_record"]["metadata"]
     assert metadata["runtime_v2_stream_failure_after_chunk"] is True
+
+
+@pytest.mark.asyncio
+async def test_runtime_v2_stream_failure_after_reasoning_only_chunk_does_not_set_after_chunk_flag(
+    mock_db,
+) -> None:
+    engine = _build_engine(mock_db)
+    adapter = _AdapterStub()
+    runtime_context = _build_runtime_context(should_record_call_log=True)
+    agent = SimpleNamespace(
+        id=8,
+        model=runtime_context.ai_model,
+        temperature=0.7,
+        max_tokens=256,
+        top_p=1.0,
+    )
+
+    with (
+        patch(
+            "app.ai.engine.conversation.AdapterRegistry.create_adapter",
+            return_value=adapter,
+        ),
+        patch(
+            "app.ai.engine.conversation.ConversationQueryEngine",
+            new=_RuntimeQueryEngineFailAfterReasoningOnlyStub,
+        ),
+        pytest.raises(
+            RuntimeError,
+            match="runtime-v2 stream failed after reasoning-only chunk",
+        ),
+    ):
+        async for _ in engine._stream_llm_chunks(
+            agent=agent,
+            messages=[ChatMessage(role="user", content="hello after reasoning")],
+            tenant_id=1,
+            user_id=14,
+            conversation_id=73,
+            tools=[ToolDefinition(name="query_records", description="Query data")],
+            runtime_context=runtime_context,
+        ):
+            pass
+
+    assert engine.gateway.usage_recorder.log_call_failure.await_count == 1
+    failure_kwargs = engine.gateway.usage_recorder.log_call_failure.await_args.kwargs
+    metadata = failure_kwargs["turn_record"]["metadata"]
+    assert metadata.get("runtime_v2_stream_failure_after_chunk") is not True
+    assert metadata["stream_failure_reasoning_only_before_visible_output"] is True

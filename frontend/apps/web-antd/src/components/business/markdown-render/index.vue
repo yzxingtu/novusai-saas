@@ -43,6 +43,9 @@ const props = withDefaults(
     streaming: false,
   },
 );
+
+const STANDALONE_SOURCE_LINK_RE =
+  /^(\s*)([-*]\s+)?(.+?)\s*[：:]\s*(https?:\/\/\S+)\s*$/u;
 // Register common languages / 注册常用语言
 hljs.registerLanguage('javascript', javascript);
 hljs.registerLanguage('js', javascript);
@@ -98,10 +101,33 @@ const defaultRender =
     return self.renderToken(tokens, idx, options);
   };
 md.renderer.rules.link_open = function (tokens, idx, options, env, self) {
+  tokens[idx]?.attrJoin('class', 'md-inline-link');
   tokens[idx]?.attrSet('target', '_blank');
   tokens[idx]?.attrSet('rel', 'noopener noreferrer');
   return defaultRender(tokens, idx, options, env, self);
 };
+
+function normalizeStandaloneSourceLinks(content: string): string {
+  return content
+    .split(/\r?\n/)
+    .map((line) => {
+      const match = line.match(STANDALONE_SOURCE_LINK_RE);
+      if (!match) {
+        return line;
+      }
+
+      const [, indent = '', bullet = '', rawLabel = '', rawUrl = ''] = match;
+      const label = rawLabel.trim();
+      const url = rawUrl.trim();
+      if (!label || !url) {
+        return line;
+      }
+
+      const prefix = `${indent}${bullet || '- '}`;
+      return `${prefix}[${label}](${url})`;
+    })
+    .join('\n');
+}
 
 /** Build code block HTML with language label and copy button / 构建带语言标签和复制按钮的代码块 HTML */
 function buildCodeBlock(highlighted: string, lang: string): string {
@@ -146,7 +172,7 @@ onBeforeUnmount(() => {
 const renderedHtml = computed(() => {
   if (!props.content) return '';
   try {
-    const raw = md.render(props.content);
+    const raw = md.render(normalizeStandaloneSourceLinks(props.content));
     return DOMPurify.sanitize(raw);
   } catch {
     return DOMPurify.sanitize(
@@ -205,8 +231,29 @@ const renderedHtml = computed(() => {
 }
 
 .markdown-render a {
+  color: hsl(var(--primary) / 92%);
+  font-weight: 500;
+  text-decoration: none;
+  word-break: break-word;
+  border-radius: 6px;
+  box-shadow: inset 0 -1px 0 hsl(var(--primary) / 28%);
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.markdown-render a:hover {
   color: hsl(var(--primary));
-  text-decoration: underline;
+  background: hsl(var(--primary) / 8%);
+  box-shadow: inset 0 -1px 0 hsl(var(--primary) / 45%);
+}
+
+.markdown-render a::after {
+  margin-left: 0.3em;
+  font-size: 0.85em;
+  color: hsl(var(--muted-foreground) / 75%);
+  content: '↗';
 }
 
 /* Code blocks / 代码块 */

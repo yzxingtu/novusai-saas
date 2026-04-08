@@ -55,6 +55,18 @@ class _FakeIOAdapter:
 
     async def finalize_completed_output(self, **kwargs):
         self.finalize_completed_calls.append(dict(kwargs))
+        response = kwargs["response"]
+        visible_output = (
+            str(response.message.content or "").strip()
+            if response is not None
+            else ""
+        )
+        if visible_output:
+            return (
+                visible_output,
+                int(kwargs.get("total_tokens") or 0),
+                int(kwargs.get("completion_tokens_used") or 0),
+            )
         state = kwargs["state"]
         tool_results = kwargs["tool_results"]
         reason = str(kwargs.get("reason") or "completed")
@@ -904,6 +916,333 @@ async def test_turn_executor_uses_completed_tool_evidence_after_fetch_without_re
 
 
 @pytest.mark.asyncio
+async def test_turn_executor_promotes_budgeted_web_research_partial_to_completed() -> None:
+    tools = [ToolDefinition(name="fetch_url", description="Fetch")]
+    intents = [
+        _build_intent(
+            intent_id="intent-web",
+            kind="web_research",
+            family="web_research",
+            allowed_tool_names=["fetch_url"],
+        )
+    ]
+    prep = _build_prep(
+        tools=tools,
+        intents=intents,
+        tool_use_policy=ToolUsePolicy(
+            family="web_research",
+            mode="required",
+            allowed_tool_names=["fetch_url"],
+            retry_on_contract_breach=False,
+            reason="web_research",
+        ),
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    io = _FakeIOAdapter(
+        model_rounds=[
+            _assistant_response(
+                "",
+                tool_calls=[
+                    {
+                        "id": "call_fetch",
+                        "type": "function",
+                        "function": {
+                            "name": "fetch_url",
+                            "arguments": '{"url":"https://finance.sina.com.cn/jjxw/2025-06-12/doc-inezupah3848475.shtml","max_length":12000}',
+                        },
+                    }
+                ],
+            ),
+            # synthesis call after budget-exceeded tool completion
+            _assistant_response(
+                "根据查询结果，湖南12地已公布2025年中小学暑假放假时间。今年暑假从7月6日开始。"
+            ),
+        ],
+        tool_batch=ToolBatchResult(
+            response=ChatResponse(
+                message=ChatMessage(role="assistant", content=""),
+                total_tokens=8,
+                output_tokens=8,
+            ),
+            tool_results=[
+                ToolResult(
+                    tool_call_id="call_fetch",
+                    name="fetch_url",
+                    success=True,
+                    output=(
+                        "Content from https://finance.sina.com.cn/jjxw/2025-06-12/doc-inezupah3848475.shtml\n"
+                        "Title: 放假通知！湖南12地明确！|特殊教育学校_新浪财经_新浪网\n"
+                        "Description: 近日湖南12地公布2025年中小学暑假放假时间长沙根据2024年校历安排，今年暑假从7月6日开始。\n\n"
+                        "放假通知！湖南12地明确！\n"
+                        "湖南12地公布2025年中小学暑假放假时间。\n"
+                        "根据2024年校历安排，今年暑假从7月6日开始。\n"
+                    ),
+                    summary="放假通知！湖南12地明确！|特殊教育学校_新浪财经_新浪网",
+                    summary_payload={
+                        "fetch_url": True,
+                        "ok": True,
+                        "title": "放假通知！湖南12地明确！|特殊教育学校_新浪财经_新浪网",
+                        "description": "近日湖南12地公布2025年中小学暑假放假时间长沙根据2024年校历安排，今年暑假从7月6日开始。",
+                        "summary": "放假通知！湖南12地明确！|特殊教育学校_新浪财经_新浪网",
+                    },
+                )
+            ],
+            total_tokens=8,
+            completion_tokens_used=8,
+        ),
+    )
+
+    with patch(
+        "app.ai.engine.turn_executor.RecoveryManager.decide",
+        return_value=RecoveryDecision(
+            action="return_partial",
+            target_intent_id="intent-web",
+            reason="completion_budget_exceeded",
+            provider_failure_kind="budget_exit",
+        ),
+    ):
+        result = await TurnExecutor.run(
+            state=state,
+            io=io,
+            prep=prep,
+            request=SimpleNamespace(
+                input_variables={},
+                conversation_id=1085,
+            ),
+            agent=SimpleNamespace(id=1),
+        )
+
+    assert result.partial is False
+    assert result.completion_reason == "completed"
+    assert "今年暑假从7月6日开始" in result.output
+    # synthesis succeeded → source is "assistant", not raw tool_evidence
+    assert result.final_output_source == "assistant"
+    assert not io.finalize_completed_calls
+    assert not io.finalize_calls
+
+
+@pytest.mark.asyncio
+async def test_turn_executor_promotes_budgeted_web_research_falls_back_to_tool_evidence_when_synthesis_empty() -> None:
+    """When synthesis call returns empty content, fall back to raw tool evidence."""
+    tools = [ToolDefinition(name="fetch_url", description="Fetch")]
+    intents = [
+        _build_intent(
+            intent_id="intent-web",
+            kind="web_research",
+            family="web_research",
+            allowed_tool_names=["fetch_url"],
+        )
+    ]
+    prep = _build_prep(
+        tools=tools,
+        intents=intents,
+        tool_use_policy=ToolUsePolicy(
+            family="web_research",
+            mode="required",
+            allowed_tool_names=["fetch_url"],
+            retry_on_contract_breach=False,
+            reason="web_research",
+        ),
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    io = _FakeIOAdapter(
+        model_rounds=[
+            _assistant_response(
+                "",
+                tool_calls=[
+                    {
+                        "id": "call_fetch",
+                        "type": "function",
+                        "function": {"name": "fetch_url", "arguments": '{"url":"https://example.com"}'},
+                    }
+                ],
+            ),
+            # synthesis call returns empty content → fallback to tool_evidence
+            _assistant_response(""),
+        ],
+        tool_batch=ToolBatchResult(
+            response=ChatResponse(
+                message=ChatMessage(role="assistant", content=""),
+                total_tokens=8,
+                output_tokens=8,
+            ),
+            tool_results=[
+                ToolResult(
+                    tool_call_id="call_fetch",
+                    name="fetch_url",
+                    success=True,
+                    output="今年暑假从7月6日开始。",
+                )
+            ],
+            total_tokens=8,
+            completion_tokens_used=8,
+        ),
+    )
+
+    with patch(
+        "app.ai.engine.turn_executor.RecoveryManager.decide",
+        return_value=RecoveryDecision(
+            action="return_partial",
+            target_intent_id="intent-web",
+            reason="completion_budget_exceeded",
+            provider_failure_kind="budget_exit",
+        ),
+    ):
+        result = await TurnExecutor.run(
+            state=state,
+            io=io,
+            prep=prep,
+            request=SimpleNamespace(input_variables={}, conversation_id=1085),
+            agent=SimpleNamespace(id=1),
+        )
+
+    assert result.partial is False
+    assert result.completion_reason == "completed"
+    assert result.final_output_source == "tool_evidence_completed"
+    assert io.finalize_completed_calls
+
+
+@pytest.mark.asyncio
+async def test_turn_executor_replaces_budgeted_fetch_preview_with_tool_evidence() -> None:
+    class _VisibleAwareCompletedOutputIOAdapter(_FakeIOAdapter):
+        async def finalize_completed_output(self, **kwargs):
+            self.finalize_completed_calls.append(dict(kwargs))
+            response = kwargs["response"]
+            visible_output = (
+                str(response.message.content or "").strip()
+                if response is not None
+                else ""
+            )
+            if visible_output:
+                return (
+                    visible_output,
+                    int(kwargs.get("total_tokens") or 0),
+                    int(kwargs.get("completion_tokens_used") or 0),
+                )
+            state = kwargs["state"]
+            tool_results = kwargs["tool_results"]
+            reason = str(kwargs.get("reason") or "completed")
+            return (
+                RecoveryManager.build_completed_output(
+                    state.intent_plan,
+                    tool_results=tool_results,
+                    reason=reason,
+                ),
+                int(kwargs.get("total_tokens") or 0),
+                int(kwargs.get("completion_tokens_used") or 0),
+            )
+
+    tools = [ToolDefinition(name="fetch_url", description="Fetch")]
+    intents = [
+        _build_intent(
+            intent_id="intent-web",
+            kind="web_research",
+            family="web_research",
+            allowed_tool_names=["fetch_url"],
+        )
+    ]
+    prep = _build_prep(
+        tools=tools,
+        intents=intents,
+        tool_use_policy=ToolUsePolicy(
+            family="web_research",
+            mode="required",
+            allowed_tool_names=["fetch_url"],
+            retry_on_contract_breach=False,
+            reason="web_research",
+        ),
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    io = _VisibleAwareCompletedOutputIOAdapter(
+        model_rounds=[
+            _assistant_response(
+                "",
+                tool_calls=[
+                    {
+                        "id": "call_fetch",
+                        "type": "function",
+                        "function": {
+                            "name": "fetch_url",
+                            "arguments": '{"url":"https://finance.sina.com.cn/jjxw/2025-06-12/doc-inezupah3848475.shtml","max_length":12000}',
+                        },
+                    }
+                ],
+            ),
+            # synthesis call after budget-exceeded tool completion
+            _assistant_response(
+                "根据查询结果，湖南12地已公布2025年中小学暑假放假时间，今年暑假从7月6日开始。"
+            ),
+        ],
+        tool_batch=ToolBatchResult(
+            response=ChatResponse(
+                message=ChatMessage(
+                    role="assistant",
+                    content=(
+                        "放假通知！湖南12地明确！|特殊教育学校_新浪财经_新浪网 - "
+                        "近日湖南12地公布2025年中小学暑假放假时间长沙根据2024年校历安排，今年暑假从7月6日开始。"
+                    ),
+                ),
+                total_tokens=8,
+                output_tokens=8,
+            ),
+            tool_results=[
+                ToolResult(
+                    tool_call_id="call_fetch",
+                    name="fetch_url",
+                    success=True,
+                    output=(
+                        "Content from https://finance.sina.com.cn/jjxw/2025-06-12/doc-inezupah3848475.shtml\n"
+                        "Title: 放假通知！湖南12地明确！|特殊教育学校_新浪财经_新浪网\n"
+                        "Description: 近日湖南12地公布2025年中小学暑假放假时间长沙根据2024年校历安排，今年暑假从7月6日开始。\n\n"
+                        "放假通知！湖南12地明确！\n"
+                        "湖南12地公布2025年中小学暑假放假时间。\n"
+                        "根据2024年校历安排，今年暑假从7月6日开始。\n"
+                    ),
+                    summary="放假通知！湖南12地明确！|特殊教育学校_新浪财经_新浪网",
+                    summary_payload={
+                        "fetch_url": True,
+                        "ok": True,
+                        "title": "放假通知！湖南12地明确！|特殊教育学校_新浪财经_新浪网",
+                        "description": "近日湖南12地公布2025年中小学暑假放假时间长沙根据2024年校历安排，今年暑假从7月6日开始。",
+                        "summary": "放假通知！湖南12地明确！|特殊教育学校_新浪财经_新浪网",
+                    },
+                )
+            ],
+            total_tokens=8,
+            completion_tokens_used=8,
+        ),
+    )
+
+    with patch(
+        "app.ai.engine.turn_executor.RecoveryManager.decide",
+        return_value=RecoveryDecision(
+            action="return_partial",
+            target_intent_id="intent-web",
+            reason="completion_budget_exceeded",
+            provider_failure_kind="budget_exit",
+        ),
+    ):
+        result = await TurnExecutor.run(
+            state=state,
+            io=io,
+            prep=prep,
+            request=SimpleNamespace(
+                input_variables={},
+                conversation_id=1085,
+            ),
+            agent=SimpleNamespace(id=1),
+        )
+
+    assert result.partial is False
+    assert result.completion_reason == "completed"
+    assert "今年暑假从7月6日开始" in result.output
+    assert "特殊教育学校_新浪财经_新浪网" not in result.output
+    # synthesis succeeded → source is "assistant", preview content replaced
+    assert result.final_output_source == "assistant"
+    assert not io.finalize_completed_calls
+
+
+@pytest.mark.asyncio
 async def test_turn_executor_completes_web_search_no_results_without_auto_fetch() -> None:
     tools = [
         ToolDefinition(name="web_search", description="Search"),
@@ -1054,3 +1393,74 @@ async def test_turn_executor_requests_weather_city_before_tool_retry_when_city_m
     assert io.call_history[0]["tools"] is None
     assert io.call_history[0]["breach_retry_result"] == "intent_retry"
     assert state.intent_plan[0].status == "completed"
+
+
+@pytest.mark.asyncio
+async def test_turn_executor_native_search_marks_web_research_intent_complete() -> None:
+    """When Responses API native search produces visible content, the web_research
+    intent should be marked complete without triggering a recovery retry."""
+    tools = [
+        ToolDefinition(name="web_search", description="Search"),
+        ToolDefinition(name="fetch_url", description="Fetch"),
+    ]
+    intents = [
+        _build_intent(
+            intent_id="intent-1",
+            kind="web_research",
+            family="web_research",
+            allowed_tool_names=["web_search", "fetch_url"],
+        )
+    ]
+    prep = _build_prep(
+        tools=tools,
+        intents=intents,
+        tool_use_policy=ToolUsePolicy(
+            family="web_research",
+            mode="required",
+            allowed_tool_names=["web_search", "fetch_url"],
+            retry_on_contract_breach=False,
+            reason="explicit_web_request",
+        ),
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+
+    # Native search: ModelRoundResult with visible content and native_search_observed=True
+    native_round = ModelRoundResult(
+        response=ChatResponse(
+            message=ChatMessage(
+                role="assistant",
+                content="截至 2026年4月8日，湖南学生放假时间如下：长沙暑假7月12日开始。",
+            ),
+            total_tokens=50,
+            output_tokens=50,
+        ),
+        total_tokens=50,
+        completion_tokens_used=50,
+        native_search_observed=True,
+    )
+
+    class _NativeSearchAdapter(_FakeIOAdapter):
+        async def call_llm(self, **kwargs):
+            self.call_history.append(dict(kwargs))
+            return native_round
+
+    io = _NativeSearchAdapter(model_rounds=[])
+
+    with patch("app.ai.engine.turn_executor.RecoveryManager.decide", wraps=RecoveryManager.decide):
+        result = await TurnExecutor.run(
+            state=state,
+            io=io,
+            prep=prep,
+            request=SimpleNamespace(input_variables={}, conversation_id=1089),
+            agent=SimpleNamespace(id=1),
+        )
+
+    # Intent should be marked completed via native search
+    assert state.intent_plan[0].status == "completed"
+    assert state.intent_plan[0].completed_by_tool_names == ["native_web_search"]
+    # Only 1 LLM call — no recovery retry
+    assert len(io.call_history) == 1
+    # Response is the synthesis from native search
+    assert "长沙暑假7月12日开始" in result.output
+    assert result.partial is False
+    assert result.final_output_source == "assistant"

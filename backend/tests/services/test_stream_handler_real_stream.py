@@ -58,7 +58,11 @@ _sio_mod.sio = _mock_sio  # emit_force_logout 等使用 sio 直接导入
 sys.modules.setdefault("app.core.socketio_server", _sio_mod)
 
 from app.ai.engine.budget_guard import BudgetGuard  # noqa: E402
-from app.ai.engine.stream_handler import StreamExecutionHandler, StreamIOAdapter  # noqa: E402
+from app.ai.engine.stream_handler import (  # noqa: E402
+    StreamExecutionHandler,
+    StreamIOAdapter,
+)
+from app.ai.engine.turn_executor import TurnExecutionResult  # noqa: E402
 from app.ai.engine.types import IntentPlan, ToolUsePolicy  # noqa: E402
 from app.ai.tools.types import ToolDefinition, ToolResult  # noqa: E402
 from app.ai.types import ChatChunk, ChatMessage, ChatResponse  # noqa: E402
@@ -422,6 +426,70 @@ def _build_handler(
 
 
 @pytest.mark.asyncio
+async def test_stream_io_adapter_keeps_finalized_completed_output_over_stream_preview():
+    handler = _build_handler(_FakeEngine())
+    handler._output = "放假通知！湖南12地明确！|特殊教育学校_新浪财经_新浪网"
+    adapter = StreamIOAdapter(handler)
+
+    with patch(
+        "app.ai.engine.conversation.ConversationEngine._finalize_completed_output",
+        AsyncMock(return_value=("根据已获取网页内容，长沙义务教育阶段学校今年暑假从7月6日开始。", 18, 18)),
+    ):
+        output, total_tokens, completion_tokens_used = (
+            await adapter.finalize_completed_output(
+                messages=[],
+                response=ChatResponse(
+                    message=ChatMessage(role="assistant", content=""),
+                    total_tokens=18,
+                    output_tokens=18,
+                ),
+                state=handler._state,
+                tool_results=[],
+                reason="completed",
+                total_tokens=18,
+                completion_tokens_used=18,
+            )
+        )
+
+    assert "长沙义务教育阶段学校今年暑假从7月6日开始" in output
+    assert "特殊教育学校_新浪财经_新浪网" not in output
+    assert total_tokens == 18
+    assert completion_tokens_used == 18
+
+
+@pytest.mark.asyncio
+async def test_stream_io_adapter_keeps_finalized_partial_output_over_stream_preview():
+    handler = _build_handler(_FakeEngine())
+    handler._output = "放假通知！湖南12地明确！|特殊教育学校_新浪财经_新浪网"
+    adapter = StreamIOAdapter(handler)
+
+    with patch(
+        "app.ai.engine.conversation.ConversationEngine._finalize_partial_output",
+        AsyncMock(return_value=("我先把目前能确认的内容给你：长沙义务教育阶段学校今年暑假从7月6日开始。", 18, 18)),
+    ):
+        output, total_tokens, completion_tokens_used = (
+            await adapter.finalize_partial_output(
+                messages=[],
+                response=ChatResponse(
+                    message=ChatMessage(role="assistant", content=""),
+                    total_tokens=18,
+                    output_tokens=18,
+                ),
+                state=handler._state,
+                tool_results=[],
+                reason="completion_budget_exceeded",
+                total_tokens=18,
+                completion_tokens_used=18,
+            )
+        )
+
+    assert "长沙义务教育阶段学校今年暑假从7月6日开始" in output
+    assert "特殊教育学校_新浪财经_新浪网" not in output
+    assert total_tokens == 18
+    assert completion_tokens_used == 18
+
+
+@pytest.mark.asyncio
 async def test_stream_handler_syncs_runtime_model_info_to_sandbox_before_tool_calls() -> None:
     runtime_model_info = {
         "provider_id": 11,
@@ -474,6 +542,95 @@ async def test_stream_handler_syncs_runtime_model_info_to_sandbox_before_tool_ca
         pass
 
     assert engine.sandbox.executed_runtime_model_info == runtime_model_info
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_emits_web_search_progress_status_before_message() -> None:
+    engine = _FakeEngine(
+        rounds=[
+            [
+                ChatChunk(
+                    delta="",
+                    metadata={"web_search_in_progress": True},
+                ),
+                ChatChunk(
+                    delta="查好了",
+                    finish_reason="stop",
+                    total_tokens=8,
+                ),
+            ]
+        ]
+    )
+    handler = _build_handler(
+        engine,
+        tools=[ToolDefinition(name="web_search", description="Search the web")],
+        tool_use_policy=ToolUsePolicy(
+            family="web_research",
+            mode="required",
+            allowed_tool_names=["web_search"],
+        ),
+    )
+
+    events: list[dict] = []
+    async for raw in handler.generate():
+        if raw.strip().startswith("data: {"):
+            events.append(_parse_sse_payload(raw))
+
+    status_idx = next(
+        index
+        for index, event in enumerate(events)
+        if event.get("event") == "status"
+        and event.get("status") == "web_search_in_progress"
+    )
+    message_idx = next(
+        index
+        for index, event in enumerate(events)
+        if event.get("event") == "message" and event.get("delta") == "查好了"
+    )
+    done_idx = next(
+        index for index, event in enumerate(events) if event.get("event") == "done"
+    )
+
+    assert status_idx < message_idx < done_idx
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_refreshes_runtime_turn_record_before_done() -> None:
+    turn_record = SimpleNamespace(
+        turn_outcome="executing",
+        termination_reason="pending",
+        protocol_path="responses",
+        selected_tool_names=[],
+        selected_skill_names=[],
+        context_sources=[],
+        fallback_history=[],
+        provider_events=[],
+        metadata={},
+    )
+
+    class _MutableTurnRecordEngine(_FakeEngine):
+        async def _stream_llm_chunks(self, **kwargs):
+            _ = kwargs
+            yield ChatChunk(
+                delta="完成",
+                finish_reason="stop",
+                total_tokens=6,
+                metadata={"runtime_turn_record": turn_record},
+            )
+            turn_record.turn_outcome = "success"
+            turn_record.termination_reason = "completed"
+            turn_record.metadata = {"stream_progress_event_count": 1}
+
+    handler = _build_handler(_MutableTurnRecordEngine())
+
+    events: list[dict] = []
+    async for raw in handler.generate():
+        if raw.strip().startswith("data: {"):
+            events.append(_parse_sse_payload(raw))
+
+    done_event = next(event for event in events if event.get("event") == "done")
+    assert done_event["turn_record"]["turn_outcome"] == "success"
+    assert done_event["turn_record"]["termination_reason"] == "completed"
 
 
 def _build_pending_intent(
@@ -752,6 +909,121 @@ async def test_stream_handler_budget_exit_after_successful_tool_uses_generic_par
     ]
     assert persisted_assistants
     assert persisted_assistants[-1].get("content", "").strip() == captured[0].output
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_promotes_budgeted_web_research_tool_evidence_to_completed():
+    from app.ai.engine.types import ExecutionResult, RecoveryDecision
+
+    captured: list[ExecutionResult] = []
+    completed = asyncio.Event()
+
+    async def on_complete(result: ExecutionResult) -> None:
+        captured.append(result)
+        completed.set()
+
+    engine = _FakeEngine(
+        rounds=[
+            [
+                ChatChunk(
+                    delta="",
+                    tool_calls=[
+                        {
+                            "id": "call_fetch_budgeted",
+                            "type": "function",
+                            "function": {
+                                "name": "fetch_url",
+                                "arguments": '{"url":"https://finance.sina.com.cn/jjxw/2025-06-12/doc-inezupah3848475.shtml","max_length":12000}',
+                            },
+                        }
+                    ],
+                    finish_reason="tool_calls",
+                    total_tokens=10,
+                ),
+            ],
+            # synthesis round after budget-exceeded tool completion
+            [
+                ChatChunk(
+                    delta="根据查询结果，湖南12地已公布2025年中小学暑假放假时间，今年暑假从7月6日开始。",
+                    finish_reason="stop",
+                    total_tokens=50,
+                ),
+            ],
+        ],
+    )
+    engine.sandbox.execute = AsyncMock(  # type: ignore[method-assign]
+        return_value=ToolResult(
+            tool_call_id="call_fetch_budgeted",
+            name="fetch_url",
+            success=True,
+            output=(
+                "Content from https://finance.sina.com.cn/jjxw/2025-06-12/doc-inezupah3848475.shtml\n"
+                "Title: 放假通知！湖南12地明确！|特殊教育学校_新浪财经_新浪网\n"
+                "Description: 近日湖南12地公布2025年中小学暑假放假时间长沙根据2024年校历安排，今年暑假从7月6日开始。\n\n"
+                "放假通知！湖南12地明确！\n"
+                "湖南12地公布2025年中小学暑假放假时间。\n"
+                "根据2024年校历安排，今年暑假从7月6日开始。\n"
+            ),
+            summary="放假通知！湖南12地明确！|特殊教育学校_新浪财经_新浪网",
+            summary_payload={
+                "fetch_url": True,
+                "ok": True,
+                "title": "放假通知！湖南12地明确！|特殊教育学校_新浪财经_新浪网",
+                "description": "近日湖南12地公布2025年中小学暑假放假时间长沙根据2024年校历安排，今年暑假从7月6日开始。",
+                "summary": "放假通知！湖南12地明确！|特殊教育学校_新浪财经_新浪网",
+            },
+        )
+    )
+    intent = _build_pending_intent(
+        allowed_tool_names=["fetch_url"],
+        family="web_research",
+        source_text="你联网查一下 湖南学生放假时间",
+    )
+    intent.completion_signals = ["fetch_url"]
+    handler = _build_handler(
+        engine,
+        tools=[ToolDefinition(name="fetch_url", description="Fetch url")],
+        tool_use_policy=ToolUsePolicy(
+            family="web_research",
+            mode="required",
+            allowed_tool_names=["fetch_url"],
+            retry_on_contract_breach=False,
+            reason="explicit_web_request",
+        ),
+        intent_plan=[intent],
+    )
+    handler.on_complete = on_complete
+
+    events: list[dict] = []
+    with patch(
+        "app.ai.engine.turn_executor.RecoveryManager.decide",
+        return_value=RecoveryDecision(
+            action="return_partial",
+            target_intent_id="intent_1",
+            reason="completion_budget_exceeded",
+            provider_failure_kind="budget_exit",
+        ),
+    ):
+        async for raw in handler.generate():
+            if raw.strip().startswith("data: {"):
+                events.append(_parse_sse_payload(raw))
+
+    await asyncio.wait_for(completed.wait(), timeout=1)
+
+    message_text = "".join(
+        event.get("delta", "") for event in events if event.get("event") == "message"
+    )
+    done_event = next(event for event in events if event.get("event") == "done")
+
+    assert "今年暑假从7月6日开始" in message_text
+    assert len(captured) == 1
+    assert captured[0].partial is False
+    assert captured[0].completion_reason == "completed"
+    assert captured[0].turn_record["turn_outcome"] == "success"
+    # synthesis succeeded → source is "assistant", not raw tool_evidence
+    assert captured[0].turn_record["final_output_source"] == "assistant"
+    assert done_event["turn_outcome"] == "success"
+    assert done_event["termination_reason"] == "completed"
 
 
 @pytest.mark.asyncio
@@ -1873,6 +2145,77 @@ async def test_stream_handler_streams_completed_tool_evidence_without_post_tool_
         and event.data.get("round_kind") == "post_tool_follow_up_retry"
         for event in handler._state.turn_events
     )
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_clears_preview_before_replaying_tool_evidence_output():
+    from app.ai.engine.types import ExecutionResult
+
+    captured: list[ExecutionResult] = []
+    completed = asyncio.Event()
+
+    async def on_complete(result: ExecutionResult) -> None:
+        captured.append(result)
+        completed.set()
+
+    engine = _FakeEngine()
+    handler = _build_handler(engine)
+    handler.on_complete = on_complete
+
+    async def _fake_run_with_turn_executor() -> TurnExecutionResult:
+        handler._visible_stream_content = (
+            "放假通知！湖南12地明确！|特殊教育学校_新浪财经_新浪网 - "
+            "近日湖南12地公布2025年中小学暑假放假时间长沙根据2024年校历安排，今年暑假从7月6日开始。"
+        )
+        handler._output = handler._visible_stream_content
+        handler._runtime_turn_record = {
+            "turn_outcome": "success",
+            "protocol_path": "responses",
+        }
+        handler._state.preparation_diagnostics["final_output_source"] = (
+            "tool_evidence_completed"
+        )
+        return TurnExecutionResult(
+            output="根据已获取网页内容，长沙义务教育阶段学校今年暑假从7月6日开始。",
+            total_tokens=18,
+            completion_tokens_used=18,
+            tool_results=[],
+            response=ChatResponse(
+                message=ChatMessage(role="assistant", content=""),
+                total_tokens=18,
+                output_tokens=18,
+            ),
+            partial=False,
+            paused_for_consent=False,
+            completion_reason="completed",
+            final_output_source="tool_evidence_completed",
+            action_buttons=None,
+        )
+
+    handler._run_with_turn_executor = _fake_run_with_turn_executor  # type: ignore[method-assign]
+
+    events: list[dict] = []
+    async for raw in handler.generate():
+        if raw.strip().startswith("data: {"):
+            events.append(_parse_sse_payload(raw))
+
+    await asyncio.wait_for(completed.wait(), timeout=1)
+
+    clear_indexes = [
+        idx for idx, event in enumerate(events) if event.get("event") == "clear_content"
+    ]
+    message_indexes = [
+        idx for idx, event in enumerate(events) if event.get("event") == "message"
+    ]
+    assert clear_indexes
+    assert message_indexes
+    assert clear_indexes[0] < message_indexes[0]
+    message_text = "".join(
+        event.get("delta", "") for event in events if event.get("event") == "message"
+    )
+    assert "长沙义务教育阶段学校今年暑假从7月6日开始" in message_text
+    assert len(captured) == 1
+    assert captured[0].output == message_text
 
 
 @pytest.mark.asyncio
