@@ -30,17 +30,21 @@ def _make_response(
     method: str,
     url: str,
     *,
+    content: bytes | None = None,
     status_code: int = 200,
     text: str = "",
     content_type: str = "text/html; charset=utf-8",
 ) -> httpx.Response:
     request = httpx.Request(method, url)
-    return httpx.Response(
-        status_code,
-        text=text,
-        headers={"content-type": content_type},
-        request=request,
-    )
+    kwargs = {
+        "headers": {"content-type": content_type},
+        "request": request,
+    }
+    if content is not None:
+        kwargs["content"] = content
+    else:
+        kwargs["text"] = text
+    return httpx.Response(status_code, **kwargs)
 
 
 class _FakeAsyncClient:
@@ -205,6 +209,45 @@ async def test_fetch_url_extracts_main_content_and_omits_navigation_noise() -> N
     assert "Second important paragraph with useful details." in result
     assert "Home Pricing Docs" not in result
     assert "Footer links" not in result
+
+
+@pytest.mark.asyncio
+async def test_fetch_url_decodes_gb2312_html_when_header_omits_charset() -> None:
+    html = """
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="gb2312" />
+        <title>怀化24小时天气查询</title>
+      </head>
+      <body>
+        <main>
+          <p>湿度：58%</p>
+          <p>气压：984 hPa</p>
+        </main>
+      </body>
+    </html>
+    """.strip()
+    response = _make_response(
+        "GET",
+        "https://example.com/huaihua-weather",
+        content=html.encode("gb2312"),
+        content_type="text/html",
+    )
+
+    with patch(
+        "httpx.AsyncClient",
+        return_value=_FakeAsyncClient(get_response=response),
+    ):
+        result = await BuiltinToolExecutor._fetch_url(
+            "https://example.com/huaihua-weather",
+            1200,
+        )
+
+    assert "Title: 怀化24小时天气查询" in result
+    assert "湿度：58%" in result
+    assert "气压：984 hPa" in result
+    assert "����" not in result
 
 
 @pytest.mark.asyncio

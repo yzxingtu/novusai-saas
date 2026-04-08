@@ -8,6 +8,7 @@ Provides safe built-in functions (datetime, math, etc.) without external calls.
 import ast
 import json
 import operator
+import re
 import time
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
@@ -466,6 +467,76 @@ def _extract_title_from_html(html: str) -> str:
     if end < 0:
         return ""
     return _normalize_text((html or "")[start + 1 : end])
+
+
+def _extract_declared_charset(content_type: str) -> str:
+    match = re.search(
+        r"charset\s*=\s*[\"']?\s*([a-zA-Z0-9._-]+)",
+        str(content_type or ""),
+        re.IGNORECASE,
+    )
+    return str(match.group(1) or "").strip() if match else ""
+
+
+def _extract_meta_charset(raw_bytes: bytes) -> str:
+    if not raw_bytes:
+        return ""
+    head = raw_bytes[:4096].decode("latin1", errors="ignore")
+    patterns = (
+        r"<meta[^>]+charset\s*=\s*[\"']?\s*([a-zA-Z0-9._-]+)",
+        r"<meta[^>]+content\s*=\s*[\"'][^\"']*charset=([a-zA-Z0-9._-]+)",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, head, re.IGNORECASE)
+        if match:
+            return str(match.group(1) or "").strip()
+    return ""
+
+
+def _detect_best_effort_charset(raw_bytes: bytes) -> str:
+    if not raw_bytes:
+        return ""
+    try:
+        import charset_normalizer
+
+        match = charset_normalizer.from_bytes(raw_bytes).best()
+    except Exception:
+        return ""
+    return str(getattr(match, "encoding", "") or "").strip()
+
+
+def _decode_fetch_response_text(resp: Any, *, content_type: str) -> str:
+    raw_bytes = bytes(getattr(resp, "content", b"") or b"")
+    if not raw_bytes:
+        return str(getattr(resp, "text", "") or "")
+
+    is_html = "html" in str(content_type or "").lower() or b"<html" in raw_bytes[:1024].lower()
+    candidate_encodings: list[str] = []
+    seen: set[str] = set()
+
+    def _append_candidate(encoding: str) -> None:
+        normalized = str(encoding or "").strip()
+        if not normalized:
+            return
+        lowered = normalized.lower()
+        if lowered in seen:
+            return
+        seen.add(lowered)
+        candidate_encodings.append(normalized)
+
+    _append_candidate(_extract_declared_charset(content_type))
+    if is_html:
+        _append_candidate(_extract_meta_charset(raw_bytes))
+    _append_candidate(_detect_best_effort_charset(raw_bytes))
+    _append_candidate("utf-8")
+
+    for encoding in candidate_encodings:
+        try:
+            return raw_bytes.decode(encoding)
+        except (LookupError, UnicodeDecodeError):
+            continue
+
+    return raw_bytes.decode("utf-8", errors="replace")
 
 
 def _html_may_contain_search_results(html: str) -> bool:
@@ -1380,7 +1451,7 @@ class BuiltinToolExecutor(BaseToolExecutor):
 
             final_url = str(resp.url)
             content_type = (resp.headers.get("content-type") or "").lower()
-            raw_text = resp.text or ""
+            raw_text = _decode_fetch_response_text(resp, content_type=content_type)
 
             if resp.status_code >= 400:
                 page = _extract_readable_page(raw_text) if raw_text else {}
