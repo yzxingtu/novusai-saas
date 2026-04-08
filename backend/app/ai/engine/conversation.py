@@ -500,6 +500,9 @@ class ConversationEngine(BaseEngine):
             if response is not None
             else ""
         )
+        contract_breach_type = str(
+            (state.preparation_diagnostics or {}).get("contract_breach_type") or ""
+        ).strip()
         if visible_output:
             return visible_output, total_tokens, completion_tokens_used
         return (
@@ -507,6 +510,7 @@ class ConversationEngine(BaseEngine):
                 state.intent_plan,
                 tool_results=tool_results,
                 reason=reason,
+                contract_breach_type=contract_breach_type or None,
             ),
             total_tokens,
             completion_tokens_used,

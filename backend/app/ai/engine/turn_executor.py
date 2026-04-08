@@ -1350,7 +1350,21 @@ class TurnExecutor:
                     )
                 )
                 if str(output or "").strip():
-                    final_output_source = "tool_evidence_completed"
+                    if (
+                        str(
+                            state.preparation_diagnostics.get(
+                                "contract_breach_type"
+                            )
+                            or ""
+                        ).strip()
+                        and not RecoveryManager.has_completed_output_evidence(
+                            state.intent_plan,
+                            tool_results=tool_results,
+                        )
+                    ):
+                        final_output_source = "partial_output"
+                    else:
+                        final_output_source = "tool_evidence_completed"
 
         state.preparation_diagnostics["final_output_source"] = final_output_source
         state.preparation_diagnostics["post_tool_completion_state"] = (

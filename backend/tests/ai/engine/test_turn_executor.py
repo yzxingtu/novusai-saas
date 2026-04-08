@@ -75,6 +75,12 @@ class _FakeIOAdapter:
                 state.intent_plan,
                 tool_results=tool_results,
                 reason=reason,
+                contract_breach_type=(
+                    str(
+                        state.preparation_diagnostics.get("contract_breach_type") or ""
+                    ).strip()
+                    or None
+                ),
             ),
             int(kwargs.get("total_tokens") or 0),
             int(kwargs.get("completion_tokens_used") or 0),
@@ -373,6 +379,96 @@ async def test_turn_executor_retries_structured_intent_when_assistant_claims_fak
     ] is True
     assert state.preparation_diagnostics["unfinished_intents"] == ["page_summary"]
     assert io.retry_logs == ["retrying"]
+
+
+@pytest.mark.asyncio
+async def test_turn_executor_contract_breach_without_evidence_avoids_completed_placeholder() -> None:
+    tools = [
+        ToolDefinition(name="web_search", description="Search"),
+        ToolDefinition(name="fetch_url", description="Fetch"),
+    ]
+    intents = [
+        _build_intent(
+            intent_id="intent-weather",
+            kind="weather_web_research",
+            family="web_research",
+            allowed_tool_names=["web_search", "fetch_url"],
+        ),
+        _build_intent(
+            intent_id="intent-web",
+            kind="web_research",
+            family="web_research",
+            allowed_tool_names=["web_search", "fetch_url"],
+        ),
+    ]
+    prep = _build_prep(
+        tools=tools,
+        intents=intents,
+        tool_use_policy=ToolUsePolicy(
+            family="web_research",
+            mode="required",
+            allowed_tool_names=["web_search", "fetch_url"],
+            retry_on_contract_breach=True,
+            reason="weather_lookup",
+        ),
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    first_round = ModelRoundResult(
+        response=ChatResponse(
+            message=ChatMessage(
+                role="assistant",
+                content="我先联网查一下怀化天气，再给你总结。",
+            ),
+            total_tokens=9,
+            output_tokens=9,
+        ),
+        total_tokens=9,
+        completion_tokens_used=9,
+        native_search_observed=True,
+    )
+    io = _FakeIOAdapter(
+        model_rounds=[
+            first_round,
+            _assistant_response(""),
+        ],
+        post_tool_contract_breach=(
+            "unfinished_multi_intent_reply",
+            ToolUsePolicy(
+                family="web_research",
+                mode="required",
+                allowed_tool_names=["web_search", "fetch_url"],
+                retry_on_contract_breach=False,
+                reason="unfinished_multi_intent_reply",
+            ),
+            {
+                "unfinished_intents": ["weather_web_research", "web_research"],
+            },
+        ),
+    )
+
+    result = await TurnExecutor.run(
+        state=state,
+        io=io,
+        prep=prep,
+        request=SimpleNamespace(
+            input_variables={},
+            conversation_id=1103,
+        ),
+        agent=SimpleNamespace(id=1),
+    )
+
+    assert result.output == "这次处理没有成功生成最终答复，请再试一次。"
+    assert "已根据现有工具结果完成" not in result.output
+    assert result.final_output_source == "partial_output"
+    assert len(io.call_history) == 2
+    assert io.call_history[1]["breach_retry_result"] == "contract_retry"
+    assert io.finalize_completed_calls
+    assert state.preparation_diagnostics["contract_breach_type"] == (
+        "unfinished_multi_intent_reply"
+    )
+    assert state.preparation_diagnostics["post_tool_completion_state"] == (
+        "partial_output"
+    )
 
 
 @pytest.mark.asyncio

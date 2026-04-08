@@ -1219,14 +1219,12 @@ class RecoveryManager:
         return _("这次处理在完成前中断了。如果你愿意，我可以继续。")
 
     @staticmethod
-    def build_completed_output(
+    def _collect_completed_output_parts(
         intents: list[IntentPlan],
         *,
         tool_results: list[ToolResult] | None = None,
         intent_results: dict[str, str] | None = None,
-        reason: str = "completed",
-    ) -> str:
-        _reason = reason
+    ) -> tuple[list[str], list[str]]:
         completed_results: list[str] = []
         completed_labels: list[str] = []
         for intent in intents:
@@ -1248,8 +1246,41 @@ class RecoveryManager:
             display_label = str(intent.user_visible_label or "").strip()
             if display_label and display_label not in completed_labels:
                 completed_labels.append(display_label)
+        return completed_results, completed_labels
+
+    @staticmethod
+    def has_completed_output_evidence(
+        intents: list[IntentPlan],
+        *,
+        tool_results: list[ToolResult] | None = None,
+        intent_results: dict[str, str] | None = None,
+    ) -> bool:
+        completed_results, _completed_labels = RecoveryManager._collect_completed_output_parts(
+            intents,
+            tool_results=tool_results,
+            intent_results=intent_results,
+        )
+        return bool(completed_results)
+
+    @staticmethod
+    def build_completed_output(
+        intents: list[IntentPlan],
+        *,
+        tool_results: list[ToolResult] | None = None,
+        intent_results: dict[str, str] | None = None,
+        reason: str = "completed",
+        contract_breach_type: str | None = None,
+    ) -> str:
+        _reason = reason
+        completed_results, completed_labels = RecoveryManager._collect_completed_output_parts(
+            intents,
+            tool_results=tool_results,
+            intent_results=intent_results,
+        )
         if completed_results:
             return " ".join(result.strip() for result in completed_results if result.strip())
+        if str(contract_breach_type or "").strip():
+            return _("这次处理没有成功生成最终答复，请再试一次。")
         if completed_labels:
             return _("已根据现有工具结果完成：{completed}。").format(
                 completed="、".join(completed_labels)
