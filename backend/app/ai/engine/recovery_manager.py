@@ -84,9 +84,18 @@ class RecoveryManager:
                 value.get("temperature") or value.get("temp") or ""
             ).strip()
             if city and (condition or temperature):
-                parts = [f"{city}现在{condition}" if condition else city]
+                parts = [
+                    _("{city}现在{condition}").format(
+                        city=city,
+                        condition=condition,
+                    )
+                    if condition
+                    else city
+                ]
                 if temperature:
-                    parts.append(f"气温约 {temperature}")
+                    parts.append(
+                        _("气温约 {temperature}").format(temperature=temperature)
+                    )
                 return "，".join(part for part in parts if part) + "。"
 
             for key in (
@@ -1309,8 +1318,8 @@ class RecoveryManager:
             role="system",
             content=render_prompt_contract(
                 "partial_exit",
-                completed_summary="；".join(completed) if completed else "无",
-                unfinished_summary="；".join(unfinished) if unfinished else "无",
+                completed_summary="；".join(completed) if completed else _("无"),
+                unfinished_summary="；".join(unfinished) if unfinished else _("无"),
                 exit_reason=reason,
                 failure_kind=provider_failure_kind
                 if provider_failure_kind != "none"

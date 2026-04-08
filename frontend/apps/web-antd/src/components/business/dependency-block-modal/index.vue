@@ -205,7 +205,7 @@ function onNavigateToDependency(type: string) {
 const title = computed(() => {
   if (isBlocked.value) {
     return resourceName.value
-      ? `${$t('common.dependency.title')}「${resourceName.value}」`
+      ? $t('common.dependency.titleWithName', { name: resourceName.value })
       : $t('common.dependency.title');
   }
   return $t('common.dependency.confirmDeleteTitle', {

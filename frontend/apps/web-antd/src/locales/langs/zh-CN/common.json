@@ -619,6 +619,7 @@
   },
   "dependency": {
     "title": "无法删除",
+    "titleWithName": "无法删除「{name}」",
     "confirmDeleteTitle": "确定要删除「{name}」？",
     "blocked": "以下资源仍在使用该记录：",
     "description": "请先删除或迁移上述资源后再删除此记录",

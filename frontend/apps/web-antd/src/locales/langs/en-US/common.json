@@ -619,6 +619,7 @@
   },
   "dependency": {
     "title": "Cannot Delete",
+    "titleWithName": "Cannot delete \"{name}\"",
     "confirmDeleteTitle": "Delete \"{name}\"?",
     "blocked": "The following resources are still using this record:",
     "description": "Please delete or migrate the above resources before deleting this record",
