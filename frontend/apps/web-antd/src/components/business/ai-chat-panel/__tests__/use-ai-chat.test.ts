@@ -1055,6 +1055,32 @@ describe('useAIChat interrupted stream recovery', () => {
 
   it('surfaces native web search progress as a visible tool card', async () => {
     let releaseDone = () => {};
+    apiMocks.getChatConversationMessagesApi.mockResolvedValue({
+      agent_id: 1,
+      message_list: [
+        {
+          content: '搜索一下',
+          created_at: '2024-01-01T00:00:00Z',
+          role: 'user',
+        },
+        {
+          agent_id: 1,
+          agent_name: 'Agent One',
+          content: '',
+          created_at: '2024-01-01T00:00:01Z',
+          metadata: {
+            turn_record: {
+              auto_fetch_gate_reason: 'native_search_completed',
+              metadata: {
+                stream_progress_kinds: ['web_search_in_progress'],
+              },
+            },
+          },
+          model_name: 'gpt-test',
+          role: 'assistant',
+        },
+      ],
+    });
     apiMocks.sendChatStreamApi.mockImplementation(
       async (
         _prefix: string,
@@ -1083,6 +1109,7 @@ describe('useAIChat interrupted stream recovery', () => {
             selected_tool_names: ['web_search', 'fetch_url'],
             total_tokens: 12,
             turn_record: {
+              auto_fetch_gate_reason: 'native_search_completed',
               metadata: {
                 stream_progress_kinds: ['web_search_in_progress'],
               },
@@ -1100,7 +1127,9 @@ describe('useAIChat interrupted stream recovery', () => {
     await chat.loadAgents();
     chat.inputMessage.value = '搜索一下';
 
-    const sendPromise = chat.sendMessage();
+    const sendPromise = chat.sendMessage({
+      routeSource: 'native-search-status-test',
+    });
     await flushPromises();
 
     const assistantMessage = chat.chatMessages.value.find(
@@ -1266,6 +1295,53 @@ describe('useAIChat interrupted stream recovery', () => {
       displayName: 'common.globalAiChat.toolNativeSearch',
       name: 'native_web_search',
       status: 'success',
+    });
+  });
+
+  it('marks persisted native web search progress cards as error when the turn ended early', async () => {
+    apiMocks.getChatConversationMessagesApi.mockResolvedValue({
+      agent_id: 1,
+      message_list: [
+        {
+          content: '搜索一下 长沙市小学生什么时候放暑假',
+          created_at: '2024-01-01T00:00:00Z',
+          role: 'user',
+        },
+        {
+          agent_id: 1,
+          agent_name: 'Agent One',
+          content: '先帮你查找了一部分信息。',
+          created_at: '2024-01-01T00:00:01Z',
+          metadata: {
+            turn_record: {
+              metadata: {
+                stream_progress_kinds: ['web_search_in_progress'],
+              },
+              termination_reason: 'interrupted',
+              turn_outcome: 'partial',
+            },
+          },
+          role: 'assistant',
+        },
+      ],
+    });
+
+    const chat = useAIChat({
+      apiPrefix: '/tenant',
+      uploadUrl: '/tenant/attachments',
+    });
+
+    await chat.loadAgents();
+    await chat.loadConversationMessages(42);
+    await flushPromises();
+
+    const assistantMessage = chat.chatMessages.value.find(
+      (msg) => msg.role === 'assistant',
+    );
+    expect(assistantMessage?.toolCalls?.[0]).toMatchObject({
+      displayName: 'common.globalAiChat.toolNativeSearch',
+      name: 'native_web_search',
+      status: 'error',
     });
   });
 

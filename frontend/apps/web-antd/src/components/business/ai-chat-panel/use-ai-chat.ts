@@ -758,6 +758,31 @@ export function useAIChat(options: UseAIChatOptions) {
     return upsertNativeSearchToolCall(toolCalls, 'success');
   }
 
+  function markNativeSearchToolCallError(
+    toolCalls: undefined | ToolCallEvent[],
+  ): undefined | ToolCallEvent[] {
+    if (!toolCalls?.length || hasConcreteWebSearchToolCall(toolCalls)) {
+      return toolCalls;
+    }
+    const runningNativeTool = toolCalls.findLast(
+      (toolCall) =>
+        toolCall.name === NATIVE_WEB_SEARCH_TOOL_NAME &&
+        toolCall.status === 'running',
+    );
+    if (!runningNativeTool) {
+      return toolCalls;
+    }
+
+    runningNativeTool.displayName =
+      runningNativeTool.displayName || $t('common.globalAiChat.toolNativeSearch');
+    runningNativeTool.status = 'error';
+    runningNativeTool.summaryPayload = {
+      ...(runningNativeTool.summaryPayload ?? {}),
+      provider: NATIVE_WEB_SEARCH_PROVIDER,
+    };
+    return toolCalls;
+  }
+
   function hasNativeSearchProgressSignal(value: unknown): boolean {
     const payload = normalizeObjectRecord(value);
     if (!payload) {
@@ -1328,9 +1353,28 @@ export function useAIChat(options: UseAIChatOptions) {
           turnLastRunSummaryRaw,
           turnRecordRaw,
         );
-        const mergedToolCalls = nativeSearchStatus
+        let mergedToolCalls = nativeSearchStatus
           ? upsertNativeSearchToolCall(toolCalls, nativeSearchStatus)
           : toolCalls;
+        const hasPendingNativeSearchTool = mergedToolCalls.some(
+          (toolCall) =>
+            toolCall.name === NATIVE_WEB_SEARCH_TOOL_NAME &&
+            toolCall.status === 'running',
+        );
+        if (hasPendingNativeSearchTool) {
+          const shouldFinalizeNativeSearchAsSuccess =
+            turnSelectedToolNames.includes('web_search') ||
+            (!hasPartial &&
+              !hasInterrupted &&
+              !isTurnFailure(
+                turnOutcome,
+                turnTerminationReason ?? turnCompletionReason,
+              ));
+          mergedToolCalls =
+            (shouldFinalizeNativeSearchAsSuccess
+              ? finalizeNativeSearchToolCall(mergedToolCalls)
+              : markNativeSearchToolCallError(mergedToolCalls)) ?? [];
+        }
         const assistantMsg: ChatMessage = {
           clientKey: `persisted-assistant-${startIdx}-${turnCreatedAt ?? ''}`,
           role: 'assistant',

@@ -573,7 +573,7 @@ async def test_stream_handler_uses_partial_summary_without_finalization_round(
             processed_cities.append(city)
             success = city == "凤凰"
             if success:
-                budget.elapsed_ms_used = budget.max_elapsed_ms + 1000
+                budget.tool_result_bytes_used = budget.max_tool_result_bytes + 1
             result = ToolResult(
                 tool_call_id=tc_id,
                 name="get_current_weather",
@@ -721,17 +721,19 @@ async def test_stream_handler_uses_partial_summary_without_finalization_round(
 
     monkeypatch.setattr(engine, "_stream_llm_chunks", _fake_stream_llm_chunks)
 
+    captured: dict[str, object] = {}
+
+    async def _capture_on_complete(result):
+        captured.setdefault("result", result)
+
     handler = StreamExecutionHandler(
         engine=engine,
         agent=_make_agent(),
         request=request,
         prep=prep,
         start_time=0,
-        on_complete=None,
+        on_complete=_capture_on_complete,
     )
-
-    captured: dict[str, object] = {}
-    handler._schedule_on_complete = lambda result: captured.setdefault("result", result)
 
     async for _ in handler.generate():
         pass
