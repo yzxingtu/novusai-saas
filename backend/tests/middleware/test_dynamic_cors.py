@@ -54,6 +54,21 @@ def _build_app():
 
 
 class TestDynamicCORSMiddleware:
+    def test_allows_explicit_origin_from_settings(self, monkeypatch):
+        monkeypatch.setattr(
+            settings,
+            "CORS_ORIGINS",
+            '["http://192.168.31.129:5666"]',
+            raising=False,
+        )
+        client = TestClient(_build_app())
+        origin = "http://192.168.31.129:5666"
+
+        resp = client.get("/ok", headers={"Origin": origin})
+
+        assert resp.status_code == 200
+        assert resp.headers["Access-Control-Allow-Origin"] == origin
+
     def test_allows_tenant_subdomain_origin(self):
         client = TestClient(_build_app())
         origin = f"https://demo{settings.TENANT_DOMAIN_SUFFIX}"

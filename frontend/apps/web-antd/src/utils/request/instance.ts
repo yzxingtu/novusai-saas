@@ -15,7 +15,6 @@ import type { ApiEndpoint, RefreshTokenResultRaw } from './types';
  *
  * @module utils/request/instance
  */
-import { useAppConfig } from '@vben/hooks';
 import { $t } from '@vben/locales';
 import { preferences } from '@vben/preferences';
 import { useAccessStore } from '@vben/stores';
@@ -30,6 +29,7 @@ import {
 } from '#/constants/endpoints';
 import { resolveRuntimeLocale } from '#/locales/runtime-locale';
 import { TokenStorage } from '#/store/shared/token-storage';
+import { getAppApiUrl } from '#/utils/api-url';
 
 import {
   createAuthInterceptor,
@@ -46,29 +46,7 @@ import { RequestClient } from './request-client';
 // Configuration / 配置
 // ============================================================
 
-const { apiURL: rawApiURL } = useAppConfig(
-  import.meta.env,
-  import.meta.env.PROD,
-);
-
-/**
- * In dev mode, replace 127.0.0.1 with current page hostname,
- * ensuring API requests carry the correct Host header (tenant domain isolation relies on Host header).
- * Example: as.dakkii.cn:5666 → API sends to as.dakkii.cn:8000
- * Dev 模式下使用当前页面 hostname 替代 127.0.0.1，
- * 确保 API 请求携带正确的 Host header（企业域名隔离依赖 Host header）。
- * 例如：as.dakkii.cn:5666 → API 发送到 as.dakkii.cn:8000
- */
-const apiURL = (() => {
-  if (import.meta.env.PROD) return rawApiURL;
-  try {
-    const parsed = new URL(rawApiURL);
-    parsed.hostname = window.location.hostname;
-    return parsed.toString().replace(/\/+$/, '');
-  } catch {
-    return rawApiURL;
-  }
-})();
+const apiURL = getAppApiUrl();
 
 /** Refresh Token URL mapping / 刷新 Token URL 映射 */
 const REFRESH_TOKEN_URLS: Record<ApiEndpoint, string> = {

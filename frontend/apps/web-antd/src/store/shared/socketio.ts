@@ -10,12 +10,11 @@ import type { SocketIOStatus } from '#/composables/use-socketio';
 
 import { computed, ref, watch } from 'vue';
 
-import { useAppConfig } from '@vben/hooks';
-
 import { defineStore } from 'pinia';
 
 import { useSocketIO } from '#/composables/use-socketio';
 import { getEndpointFromPath } from '#/utils';
+import { getAppApiUrl } from '#/utils/api-url';
 
 import { TokenStorage } from './token-storage';
 
@@ -89,14 +88,13 @@ export const useSocketIOStore = defineStore('socketio', () => {
     currentEndpoint.value = ep;
 
     // Create new connection (use backend API URL; dev env can't use window.location.origin) / 创建新连接
-    const { apiURL } = useAppConfig(import.meta.env, import.meta.env.PROD);
     // Use getter function to read TokenStorage in real-time, ensuring Socket.IO gets the latest token after refresh / 实时读取 Token
     const tokenGetter = () =>
       TokenStorage.getToken(ep as 'admin' | 'tenant' | 'user') || '';
     sioInstance = useSocketIO({
       namespace: ns,
       token: tokenGetter,
-      serverUrl: apiURL,
+      serverUrl: getAppApiUrl(),
       autoConnect: true,
     });
 

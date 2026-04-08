@@ -5,11 +5,10 @@
  * Document ID: 258 / 文档 ID: 258
  */
 
-import { useAppConfig } from '@vben/hooks';
-
-const { apiURL } = useAppConfig(import.meta.env, import.meta.env.PROD);
+import { getAppApiUrl } from './api-url';
 
 function getApiBaseUrl(): string {
+  const apiURL = getAppApiUrl();
   if (apiURL && /^https?:\/\//.test(apiURL)) {
     return apiURL.replace(/\/+$/, '');
   }

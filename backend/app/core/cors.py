@@ -37,8 +37,34 @@ def _normalize_origin_host(value: str | None) -> str:
     return (parsed.hostname or raw.split(":")[0]).strip().lower()
 
 
+def _normalize_origin(value: str | None) -> str:
+    if not value:
+        return ""
+    raw = str(value).strip()
+    if not raw:
+        return ""
+    parsed = urlparse(raw if "://" in raw else f"https://{raw}")
+    scheme = parsed.scheme.strip().lower()
+    host = (parsed.hostname or "").strip().lower()
+    if scheme not in {"http", "https"} or not host:
+        return ""
+
+    default_port = 80 if scheme == "http" else 443
+    port = parsed.port
+    if port in {None, default_port}:
+        return f"{scheme}://{host}"
+    return f"{scheme}://{host}:{port}"
+
+
 def _is_local_debug_origin(host: str) -> bool:
     return bool(settings.DEBUG and host in _DEV_LOCAL_HOSTS)
+
+
+def _is_explicit_origin_allowed(origin: str) -> bool:
+    allowed_origins = {
+        _normalize_origin(item) for item in settings.cors_origins_list
+    }
+    return origin in allowed_origins
 
 
 def _is_platform_origin(host: str) -> bool:
@@ -82,7 +108,10 @@ def is_origin_allowed_sync(origin: str | None, _environ=None) -> bool:
     if parsed.scheme not in {"http", "https"}:
         return False
 
+    normalized_origin = _normalize_origin(origin)
     host = _normalize_origin_host(origin)
+    if normalized_origin and _is_explicit_origin_allowed(normalized_origin):
+        return True
     if not host:
         return False
     if _is_local_debug_origin(host):

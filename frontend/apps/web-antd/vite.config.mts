@@ -1,11 +1,31 @@
 import { fileURLToPath } from 'node:url';
 
 import { defineConfig } from '@vben/vite-config';
+import { loadEnv } from 'vite';
 
 // @ts-ignore — dual vite versions in monorepo cause Plugin type mismatch
 import { novusPluginsLoader } from './build/vite-plugin-novus-plugins';
 
-export default defineConfig(async () => {
+const DEFAULT_PROXY_TARGET = 'http://127.0.0.1:8000';
+
+function resolveProxyTarget(rawApiUrl?: string): string {
+  const normalized = rawApiUrl?.trim();
+  if (!normalized) {
+    return DEFAULT_PROXY_TARGET;
+  }
+
+  try {
+    const parsed = new URL(normalized);
+    if (!/^https?:$/.test(parsed.protocol)) {
+      return DEFAULT_PROXY_TARGET;
+    }
+    return parsed.origin;
+  } catch {
+    return DEFAULT_PROXY_TARGET;
+  }
+}
+
+export default defineConfig(async ({ mode }) => {
   const pluginsDir = fileURLToPath(
     new URL('../../../backend/plugins', import.meta.url),
   );
@@ -50,6 +70,8 @@ export default defineConfig(async () => {
       ),
     ),
   };
+  const env = loadEnv(mode, process.cwd(), '');
+  const pluginProxyTarget = resolveProxyTarget(env.VITE_GLOB_API_URL);
 
   return {
     application: {},
@@ -75,15 +97,15 @@ export default defineConfig(async () => {
         proxy: {
           '/plugin-assets': {
             changeOrigin: true,
-            target: 'http://127.0.0.1:8000',
+            target: pluginProxyTarget,
           },
           '/plugin-public-assets': {
             changeOrigin: true,
-            target: 'http://127.0.0.1:8000',
+            target: pluginProxyTarget,
           },
           '/plugin-icons': {
             changeOrigin: true,
-            target: 'http://127.0.0.1:8000',
+            target: pluginProxyTarget,
           },
         },
       },

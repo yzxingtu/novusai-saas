@@ -5,6 +5,7 @@
 Manages application configuration using pydantic-settings, supports environment variables and .env files.
 """
 
+import json
 from functools import lru_cache
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -51,6 +52,9 @@ class Settings(BaseSettings):
     # 后端自访问基础 URL（用于 LLM 多模态拉取本系统相对附件路径；生产填公网或内网网关地址）
     # Base URL for server-side HTTP fetch of relative attachment paths (LLM vision); set in production
     APP_INTERNAL_BASE_URL: str = "http://127.0.0.1:8000"
+    # 允许跨域的前端 Origin（支持 JSON 数组或逗号分隔）
+    # Allowed frontend CORS origins (supports JSON array or comma-separated values)
+    CORS_ORIGINS: str = ""
 
     # ========================================
     # 安全配置 / Security Configuration
@@ -194,6 +198,22 @@ class Settings(BaseSettings):
         if not self.PLATFORM_DOMAINS:
             return []
         return [d.strip() for d in self.PLATFORM_DOMAINS.split(",") if d.strip()]
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        """解析允许跨域的 Origin 列表 / Parse allowed CORS origins list."""
+        raw = self.CORS_ORIGINS.strip()
+        if not raw:
+            return []
+
+        values: list[object]
+        try:
+            parsed = json.loads(raw)
+            values = parsed if isinstance(parsed, list) else [parsed]
+        except json.JSONDecodeError:
+            values = raw.split(",")
+
+        return [str(item).strip() for item in values if str(item).strip()]
 
     @property
     def dev_bootstrap_allowed_hosts_list(self) -> list[str]:
