@@ -66,7 +66,6 @@ const working = ref<AgentSkillBindingDraftItem[]>([]);
 const searchInput = ref('');
 const searchKeyword = ref('');
 const filterPackageId = ref<number | undefined>(undefined);
-const onlyActive = ref(true);
 const page = ref(1);
 const pageSize = ref(20);
 const total = ref(0);
@@ -118,7 +117,6 @@ watch(open, (v) => {
     searchInput.value = '';
     searchKeyword.value = '';
     filterPackageId.value = undefined;
-    onlyActive.value = true;
     page.value = 1;
     void nextTick(() => {
       void fetchCandidates(true);
@@ -202,8 +200,7 @@ const visiblePackageCount = computed(() => groupedCandidates.value.length);
 const hasActiveFilters = computed(() =>
   Boolean(
     searchKeyword.value ||
-    (filterPackageId.value !== null && filterPackageId.value !== undefined) ||
-    !onlyActive.value,
+    (filterPackageId.value !== null && filterPackageId.value !== undefined),
   ),
 );
 
@@ -217,7 +214,7 @@ async function fetchCandidates(resetPage: boolean) {
     const res = await getSkillBindingSelectApi({
       agent_id: props.agentId ?? undefined,
       include_system: true,
-      only_active: onlyActive.value,
+      only_active: true,
       package_id: filterPackageId.value ?? undefined,
       page: page.value,
       page_size: pageSize.value,
@@ -330,10 +327,6 @@ function getSourceTagMeta(sourcePlugin: null | string, isSystem: boolean) {
   return null;
 }
 
-watch(onlyActive, () => {
-  void fetchCandidates(true);
-});
-
 watch(filterPackageId, () => {
   void fetchCandidates(true);
 });
@@ -402,9 +395,7 @@ watch(pageSize, () => {
           </div>
         </div>
 
-        <div
-          class="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_240px_auto_auto]"
-        >
+        <div class="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_240px_auto]">
           <Input.Search
             v-model:value="searchInput"
             allow-clear
@@ -444,13 +435,6 @@ watch(pageSize, () => {
               </div>
             </template>
           </Select>
-          <label
-            class="flex min-h-11 items-center justify-center rounded-xl border border-border/70 bg-background px-3 text-sm text-foreground"
-          >
-            <Checkbox v-model:checked="onlyActive">
-              {{ $t('admin.ai.agent.skillPicker.onlyActive') }}
-            </Checkbox>
-          </label>
           <Button size="large" @click="refreshCandidates">
             <template #icon>
               <IconifyIcon icon="lucide:refresh-cw" class="size-4" />

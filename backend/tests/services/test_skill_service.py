@@ -376,3 +376,40 @@ class TestAdminSkillBindingSelect:
         )
         assert result.total == 1
         assert result.items[0].value == 51
+
+    @pytest.mark.asyncio
+    async def test_binding_select_forces_active_candidates_even_if_flag_disabled(
+        self, mock_db
+    ):
+        from app.services.ai.skill_service import AdminSkillService
+
+        service = AdminSkillService.__new__(AdminSkillService)
+        service.db = mock_db
+        service.repo = AsyncMock()
+
+        skill = _make_skill(id=88, name="Always Active Candidate")
+        package = _make_package(id=18, tenant_id=None, name="Platform Package")
+        service.repo.query_admin_binding_select = AsyncMock(
+            return_value=([(skill, package)], 1)
+        )
+
+        result = await service.get_binding_select_options(
+            agent_id=None,
+            search="active",
+            package_id=None,
+            page=1,
+            page_size=20,
+            include_system=True,
+            only_active=False,
+        )
+
+        service.repo.query_admin_binding_select.assert_awaited_once_with(
+            search="active",
+            package_id=None,
+            page=1,
+            page_size=20,
+            include_system=True,
+            only_active=True,
+        )
+        assert result.total == 1
+        assert result.items[0].value == 88

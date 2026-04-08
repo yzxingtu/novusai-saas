@@ -360,8 +360,14 @@ class AdminSkillService(GlobalService[Skill, AdminSkillRepository]):
         """
         Admin agent skill binding picker: paginated skills + package metadata.
         管理端智能体技能绑定选择器分页数据。
+
+        Binding picker candidates must remain bindable at save time, so this
+        API always returns active skills/packages even if a caller still passes
+        `only_active=False` for backward compatibility.
         """
         from app.schemas.common.select import SelectOption, SelectResponse
+
+        effective_only_active = True
 
         if agent_id is not None:
             agent = await AdminAgentRepository(self.db).get_by_id(agent_id)
@@ -379,7 +385,7 @@ class AdminSkillService(GlobalService[Skill, AdminSkillRepository]):
                     page=page,
                     page_size=page_size,
                     include_system=include_system,
-                    only_active=only_active,
+                    only_active=effective_only_active,
                 )
             else:
                 rows, total = await self.repo.query_admin_binding_select(
@@ -388,7 +394,7 @@ class AdminSkillService(GlobalService[Skill, AdminSkillRepository]):
                     page=page,
                     page_size=page_size,
                     include_system=include_system,
-                    only_active=only_active,
+                    only_active=effective_only_active,
                 )
         else:
             rows, total = await self.repo.query_admin_binding_select(
@@ -397,7 +403,7 @@ class AdminSkillService(GlobalService[Skill, AdminSkillRepository]):
                 page=page,
                 page_size=page_size,
                 include_system=include_system,
-                only_active=only_active,
+                only_active=effective_only_active,
             )
         items: list[SelectOption] = []
         for skill, pack in rows:
