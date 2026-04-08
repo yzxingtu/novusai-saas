@@ -82,13 +82,12 @@ class TestBeforeCreate:
         with patch(
             "app.services.ai.agent_service.AIModelRepository",
             return_value=model_repo,
-        ):
-            with pytest.raises(BusinessException) as exc_info:
-                await _validate_agent_max_tokens_against_model(
-                    mock_db,
-                    model_id=7,
-                    max_tokens=8192,
-                )
+        ), pytest.raises(BusinessException) as exc_info:
+            await _validate_agent_max_tokens_against_model(
+                mock_db,
+                model_id=7,
+                max_tokens=8192,
+            )
 
         assert "4096" in str(exc_info.value)
 
@@ -124,6 +123,20 @@ class TestAgentQuery:
 
 
 class TestPublishAgent:
+    def test_get_version_repo_uses_platform_tenant_for_platform_agents(self, mock_db):
+        from app.configs.service import PLATFORM_TENANT_ID
+        from app.services.ai.agent_service import AgentService
+
+        service = AgentService.__new__(AgentService)
+        service.db = mock_db
+        service.tenant_id = None
+
+        with patch(
+            "app.services.ai.agent_service.AgentVersionRepository",
+        ) as repo_cls:
+            service._get_version_repo()
+
+        repo_cls.assert_called_once_with(mock_db, PLATFORM_TENANT_ID)
 
     @pytest.mark.asyncio
     async def test_service_has_publish(self, mock_db):
@@ -192,6 +205,38 @@ class TestPublishAgent:
         assert created_payload["context_config"] == {"max_history_messages": 12}
         assert created_payload["output_schema"] == [{"name": "answer"}]
         assert created_payload["skill_grant_snapshot"] == []
+
+    @pytest.mark.asyncio
+    async def test_publish_platform_agent_uses_platform_tenant_in_version_snapshot(
+        self, mock_db
+    ):
+        from app.configs.service import PLATFORM_TENANT_ID
+        from app.services.ai.agent_service import AgentService
+
+        agent = _make_agent(owner_tenant_id=None)
+        updated = _make_agent(status="published", published_version=1)
+
+        version_repo = AsyncMock()
+        version_repo.get_latest_version_number = AsyncMock(return_value=0)
+        version_repo.create = AsyncMock()
+
+        service = AgentService.__new__(AgentService)
+        service.db = mock_db
+        service.tenant_id = None
+        service.repo = AsyncMock()
+        service.repo.get_by_id = AsyncMock(return_value=agent)
+        service.repo.update = AsyncMock(return_value=updated)
+        service._get_version_repo = MagicMock(return_value=version_repo)
+        service._snapshot_skill_grants = AsyncMock(return_value=[])
+
+        await service.publish_agent(
+            agent_id=agent.id,
+            change_log="platform publish",
+            created_by=1,
+        )
+
+        created_payload = version_repo.create.await_args.args[0]
+        assert created_payload["tenant_id"] == PLATFORM_TENANT_ID
 
 
 class TestCascadeConversationMemoryCleanup:

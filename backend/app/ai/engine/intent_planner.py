@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import re
+from dataclasses import dataclass, field
 from typing import Any
 
 from app.ai.navigation_semantics import has_navigation_intent
@@ -287,6 +287,54 @@ _PAGE_PAGINATION_TERMS = (
 )
 _PAGE_CAPABILITY_TERMS = ("页面感知能力", "页面能力", "页面操作能力", "页面操作")
 _KNOWLEDGE_TERMS = ("知识库", "文档", "资料", "kb")
+_KNOWLEDGE_DEFINITION_PATTERNS = (
+    re.compile(
+        r"^(?:请|请问|帮我|麻烦|麻烦你|想知道|我想知道|告诉我|给我|能不能|可以)?(?P<subject>.+?)(?:是什么|是啥|是谁|是做什么的|做什么的|是干什么的)[？?]?$",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"^(?:请|请问|帮我|麻烦|麻烦你|想知道|我想知道|告诉我|给我|能不能|可以)?(?:介绍一下|介绍下|讲讲|说说|科普一下|说明一下)(?P<subject>.+?)[？?]?$",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"^(?:what is|who is|tell me about)\s+(?P<subject>.+?)[？?]?$",
+        re.IGNORECASE,
+    ),
+)
+_KNOWLEDGE_GENERIC_SUBJECTS = (
+    "这",
+    "这个",
+    "那个",
+    "它",
+    "他",
+    "她",
+    "ta",
+    "this",
+    "that",
+    "it",
+    "这玩意",
+    "这个东西",
+    "那个东西",
+)
+_KNOWLEDGE_COURTESY_PREFIXES = (
+    "请问",
+    "请",
+    "帮我",
+    "麻烦你",
+    "麻烦",
+    "我想知道",
+    "想知道",
+    "告诉我",
+    "给我",
+)
+_KNOWLEDGE_FILLER_SUFFIXES = (
+    "一下",
+    "下",
+    "呢",
+    "呀",
+    "啊",
+    "吧",
+)
 _PAGE_CONTINUE_TERMS = (
     "继续看",
     "再看看",
@@ -323,9 +371,7 @@ _PAGE_CONTINUE_ACTION_TERMS = (
 _WEATHER_LOCATION_SUFFIX_RE = re.compile(
     r"[\u4e00-\u9fff]{2,12}(?:市|区|县|州|省|自治区|特别行政区)"
 )
-_WEATHER_ENGLISH_LOCATION_RE = re.compile(
-    r"\b(?:in|for)\s+([a-z][a-z\s-]{1,40})\b"
-)
+_WEATHER_ENGLISH_LOCATION_RE = re.compile(r"\b(?:in|for)\s+([a-z][a-z\s-]{1,40})\b")
 _COMMON_WEATHER_LOCATIONS = (
     "北京",
     "上海",
@@ -584,19 +630,23 @@ class IntentPlanner:
             return True
         if "搜索" not in lowered and "搜" not in lowered and "查找" not in lowered:
             return False
-        has_page_reference = cls._first_position(
-            lowered,
-            _PAGE_POINTER_TERMS + _PAGE_SEARCH_QUALIFIER_TERMS,
-        ) >= 0
+        has_page_reference = (
+            cls._first_position(
+                lowered,
+                _PAGE_POINTER_TERMS + _PAGE_SEARCH_QUALIFIER_TERMS,
+            )
+            >= 0
+        )
         return has_page_reference
 
     @classmethod
     def _generic_web_search_position(cls, lowered: str) -> int:
         if cls._looks_like_page_search_request(lowered):
             return -1
-        if any(term in lowered for term in ("天气", "气温", "温度", "weather")) and not any(
-            token in lowered
-            for token in (*_WEB_NOUN_TERMS, "官网", "链接", "网址")
+        if any(
+            term in lowered for term in ("天气", "气温", "温度", "weather")
+        ) and not any(
+            token in lowered for token in (*_WEB_NOUN_TERMS, "官网", "链接", "网址")
         ):
             return -1
         return cls._first_position(lowered, _GENERIC_WEB_SEARCH_TERMS)
@@ -659,6 +709,50 @@ class IntentPlanner:
             if kind == "knowledge_base":
                 return True
         return False
+
+    @classmethod
+    def _normalize_knowledge_subject(cls, subject: str) -> str:
+        normalized = re.sub(
+            r"\s+",
+            " ",
+            str(subject or "").strip(" \t\r\n，,。！？?；;：:"),
+        )
+        if not normalized:
+            return ""
+        changed = True
+        while changed and normalized:
+            changed = False
+            for prefix in _KNOWLEDGE_COURTESY_PREFIXES:
+                if normalized.startswith(prefix):
+                    normalized = normalized[len(prefix) :].strip()
+                    changed = True
+            for suffix in _KNOWLEDGE_FILLER_SUFFIXES:
+                if normalized.endswith(suffix):
+                    normalized = normalized[: -len(suffix)].strip()
+                    changed = True
+        return normalized
+
+    @classmethod
+    def _definition_like_knowledge_query_position(cls, clause: str) -> int:
+        text = re.sub(r"\s+", " ", str(clause or "").strip())
+        if not text:
+            return -1
+        lowered = text.lower()
+        for pattern in _KNOWLEDGE_DEFINITION_PATTERNS:
+            match = pattern.match(text)
+            if not match:
+                continue
+            subject = cls._normalize_knowledge_subject(match.group("subject"))
+            subject_lowered = subject.lower()
+            if (
+                not subject_lowered
+                or len(subject_lowered) <= 1
+                or subject_lowered in _KNOWLEDGE_GENERIC_SUBJECTS
+            ):
+                continue
+            position = lowered.find(subject_lowered)
+            return position if position >= 0 else 0
+        return -1
 
     @classmethod
     def _detect_page_signal(
@@ -751,7 +845,16 @@ class IntentPlanner:
         editor_write_position = cls._first_position(lowered, _PAGE_EDITOR_WRITE_TERMS)
         if editor_anchor >= 0 and any(
             token in lowered
-            for token in ("修改", "改写", "优化", "润色", "追加", "插入", "标题", "正文")
+            for token in (
+                "修改",
+                "改写",
+                "优化",
+                "润色",
+                "追加",
+                "插入",
+                "标题",
+                "正文",
+            )
         ):
             editor_write_position = (
                 editor_anchor
@@ -916,6 +1019,8 @@ class IntentPlanner:
 
         if cls._has_bound_kb(capability_bundle):
             position = cls._first_position(lowered, _KNOWLEDGE_TERMS)
+            if position < 0 and not signals:
+                position = cls._definition_like_knowledge_query_position(clause)
             if position >= 0:
                 signals.append(
                     _IntentSignal(

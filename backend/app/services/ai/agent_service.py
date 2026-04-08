@@ -222,9 +222,17 @@ class AgentService(TenantService[Agent, AgentRepository]):
     model = Agent
     repository_class = AgentRepository
 
+    def _resolve_version_tenant_id(self) -> int:
+        """Resolve version snapshot tenant scope / 解析版本快照使用的租户范围。"""
+        return (
+            self.tenant_id
+            if self.tenant_id is not None
+            else PLATFORM_TENANT_ID
+        )
+
     def _get_version_repo(self) -> AgentVersionRepository:
         """获取版本 Repository / Get version repository."""
-        return AgentVersionRepository(self.db, self.tenant_id)
+        return AgentVersionRepository(self.db, self._resolve_version_tenant_id())
 
     async def _snapshot_skill_grants(self, agent_id: int) -> list[dict[str, Any]]:
         """快照当前 Agent 的技能授权列表（用于版本发布） / Snapshot agent skill grants (for version publish)."""
@@ -710,10 +718,11 @@ class AgentService(TenantService[Agent, AgentRepository]):
         new_version = latest_version + 1
 
         # 创建版本快照 / Create version snapshot
+        version_tenant_id = self._resolve_version_tenant_id()
         version_data: dict[str, Any] = {
             "agent_id": agent_id,
             "version": new_version,
-            "tenant_id": self.tenant_id,
+            "tenant_id": version_tenant_id,
             "change_log": change_log,
             "created_by": created_by,
         }
@@ -739,7 +748,7 @@ class AgentService(TenantService[Agent, AgentRepository]):
         logger.info(
             "Agent published: agent_id={} tenant_id={} version={}",
             agent_id,
-            self.tenant_id,
+            version_tenant_id,
             new_version,
         )
 

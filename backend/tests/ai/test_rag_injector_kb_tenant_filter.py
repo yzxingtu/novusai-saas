@@ -73,3 +73,42 @@ async def test_load_agent_kb_bindings_filters_inaccessible_kbs_for_tenant():
 
     assert kb_ids == [202]
     assert kb_weights == {202: 0.6}
+
+
+@pytest.mark.asyncio
+async def test_load_agent_kb_bindings_allows_none_tenant_for_admin_scope():
+    bindings = [
+        SimpleNamespace(knowledge_base_id=101, tenant_id=None, weight=1.0),
+    ]
+
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = bindings
+
+    db = AsyncMock()
+    db.execute = AsyncMock(return_value=result)
+
+    class DummyAdminRepo:
+        def __init__(self, db):
+            self.db = db
+
+        async def filter_accessible_ids(self, kb_ids):
+            assert kb_ids == [101]
+            return {101}
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(
+            "app.services.ai.tenant_platform_kb_suppression_service.load_suppressed_platform_kb_ids",
+            AsyncMock(return_value={999}),
+        )
+        mp.setattr(
+            "app.repositories.ai.knowledge_base_repository.AdminKnowledgeBaseRepository",
+            DummyAdminRepo,
+        )
+        kb_ids, kb_weights = await load_agent_kb_bindings(
+            db,
+            agent_id=42,
+            tenant_id=None,
+        )
+
+    assert kb_ids == [101]
+    assert kb_weights == {101: 1.0}

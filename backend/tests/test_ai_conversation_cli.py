@@ -248,6 +248,68 @@ def test_ai_conversation_show_json_success(monkeypatch) -> None:
     assert '"get_page_context"' in result.output
 
 
+def test_ai_conversation_show_json_accepts_trace_id_reference(monkeypatch) -> None:
+    from app.cli import cli
+
+    async def _fake_resolve(conversation_ref: str) -> int:
+        assert conversation_ref == "9d819b44-f831-4e42-b550-6520d192ae54"
+        return 563
+
+    async def _fake_load(
+        conversation_id: int,
+        *,
+        tail: int,
+        keyword: str | None,
+        keyword_limit: int,
+    ) -> dict:
+        assert conversation_id == 563
+        assert tail == 8
+        assert keyword is None
+        assert keyword_limit == 20
+        return _sample_snapshot()
+
+    monkeypatch.setattr("app.cli._resolve_ai_conversation_reference", _fake_resolve)
+    monkeypatch.setattr("app.cli._load_ai_conversation_snapshot", _fake_load)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["ai", "conversation", "show", "9d819b44-f831-4e42-b550-6520d192ae54", "--json"],
+    )
+
+    assert result.exit_code == 0
+    assert '"id": 563' in result.output
+
+
+def test_ai_conversation_show_json_reports_non_conversation_trace_hint(monkeypatch) -> None:
+    from app.cli import cli
+    from app.exceptions import BusinessException
+
+    async def _fake_resolve(conversation_ref: str) -> int:
+        raise BusinessException(
+            message="Trace exists but is not linked to an AI conversation. Use `novusai trace show <trace_id>` instead.",
+            data={
+                "code": "trace_not_linked_to_conversation",
+                "trace_id": conversation_ref,
+                "suggested_command": f"novusai trace show {conversation_ref}",
+                "operation": "POST /admin/ai/agents/63/publish",
+            },
+        )
+
+    monkeypatch.setattr("app.cli._resolve_ai_conversation_reference", _fake_resolve)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["ai", "conversation", "show", "ae80b0c3-d043-4c09-8aff-1b8533b5b1c3", "--json"],
+    )
+
+    assert result.exit_code == 1
+    assert '"code": "trace_not_linked_to_conversation"' in result.output
+    assert '"operation": "POST /admin/ai/agents/63/publish"' in result.output
+    assert '"suggested_command": "novusai trace show ae80b0c3-d043-4c09-8aff-1b8533b5b1c3"' in result.output
+
+
 def test_ai_conversation_show_json_surfaces_nested_assistant_diagnostics(monkeypatch) -> None:
     from app.cli import cli
 
@@ -400,3 +462,23 @@ def test_ai_conversation_show_text_handles_nested_datetimes(monkeypatch) -> None
 
     assert result.exit_code == 0
     assert "seen_at" in result.output
+
+
+def test_ai_root_cause_json_handles_missing_call_log(monkeypatch) -> None:
+    from app.cli import cli
+    from app.exceptions import NotFoundException
+
+    async def _fake_operation(*args, **kwargs):
+        raise NotFoundException(message="AI call log not found")
+
+    monkeypatch.setattr("app.cli._run_ai_runtime_cli_operation", _fake_operation)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["ai", "root-cause", "--trace-id", "ae80b0c3-d043-4c09-8aff-1b8533b5b1c3", "--json"],
+    )
+
+    assert result.exit_code == 1
+    assert '"code": "ai_root_cause_not_found"' in result.output
+    assert '"message": "AI call log not found"' in result.output

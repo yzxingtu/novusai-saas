@@ -3141,6 +3141,101 @@ def _normalize_cli_identifier(value: str | None) -> str | None:
     return text or None
 
 
+async def _resolve_ai_conversation_reference(conversation_ref: str) -> int:
+    """Resolve CLI conversation reference to numeric ID / 将 CLI 会话引用解析为数字 ID。"""
+    normalized = _normalize_cli_identifier(conversation_ref)
+    from app.core.i18n import _
+    from app.exceptions import BusinessException, NotFoundException
+
+    if not normalized:
+        raise NotFoundException(message=_("agent_chat.error.conversation_not_found"))
+    if normalized and normalized.isdigit():
+        return int(normalized)
+
+    from sqlalchemy import select
+
+    from app.core.database import get_db_context
+    from app.models.ai.call_log import AICallLog
+    from app.models.system.operation_log import OperationLog
+    from app.services.system.trace_lookup_service import TraceLookupService
+
+    trace_operation: dict | None = None
+    async with get_db_context() as db:
+        result = await db.execute(
+            select(AICallLog.conversation_id)
+            .where(
+                AICallLog.trace_id == normalized,
+                AICallLog.conversation_id.is_not(None),
+                AICallLog.is_deleted.is_(False),
+            )
+            .order_by(AICallLog.created_at.desc(), AICallLog.id.desc())
+            .limit(1)
+        )
+        conversation_id = result.scalar_one_or_none()
+        if conversation_id is None:
+            operation_result = await db.execute(
+                select(
+                    OperationLog.method,
+                    OperationLog.path,
+                    OperationLog.module,
+                    OperationLog.action,
+                )
+                .where(OperationLog.trace_id == normalized)
+                .order_by(OperationLog.created_at.desc(), OperationLog.id.desc())
+                .limit(1)
+            )
+            operation_row = operation_result.first()
+            if operation_row is not None:
+                trace_operation = {
+                    "method": _normalize_cli_optional_string(operation_row.method),
+                    "path": _normalize_cli_optional_string(operation_row.path),
+                    "module": _normalize_cli_optional_string(operation_row.module),
+                    "action": _normalize_cli_optional_string(operation_row.action),
+                }
+    if conversation_id is not None:
+        return int(conversation_id)
+
+    trace_lookup = TraceLookupService(
+        db=None,
+        log_dir=(_BACKEND_DIR / settings.LOG_DIR),
+    )
+    trace_lookup_result = await trace_lookup.lookup(
+        normalized,
+        source="logs",
+        context=0,
+        max_blocks=1,
+        since_hours=72,
+        redact=True,
+    )
+    if trace_operation is not None or trace_lookup_result.log_matches:
+        operation_desc = "unknown operation"
+        if trace_operation is not None:
+            operation_desc = " ".join(
+                part
+                for part in [
+                    trace_operation.get("method"),
+                    trace_operation.get("path"),
+                ]
+                if part
+            ) or (
+                trace_operation.get("action")
+                or trace_operation.get("module")
+                or operation_desc
+            )
+        raise BusinessException(
+            message=_(
+                "Trace exists but is not linked to an AI conversation. Use `novusai trace show <trace_id>` instead."
+            ),
+            data={
+                "code": "trace_not_linked_to_conversation",
+                "trace_id": normalized,
+                "suggested_command": f"novusai trace show {normalized}",
+                "operation": operation_desc,
+            },
+        )
+    raise NotFoundException(message=_("agent_chat.error.conversation_not_found"))
+
+
 def _render_ai_runtime_section(title: str, payload: object) -> str:
     import json
 
@@ -3314,6 +3409,8 @@ def ai_root_cause(
     """Analyze runtime root cause / 运行时根因分析。"""
     os.chdir(_BACKEND_DIR)
     normalized_trace_id = _normalize_cli_identifier(trace_id)
+    from app.exceptions import AppException, NotFoundException
+
     selectors = [
         bool(normalized_trace_id),
         call_log_id is not None,
@@ -3328,17 +3425,36 @@ def ai_root_cause(
     if conversation_id is None and turn is not None:
         raise click.ClickException("--turn can only be used with --conversation-id.")
 
-    payload = _run_quietly(
-        True,
-        _run_async,
-        _run_ai_runtime_cli_operation(
-            "root-cause",
-            trace_id=normalized_trace_id,
-            call_log_id=call_log_id,
-            conversation_id=conversation_id,
-            turn=turn,
-        ),
-    )
+    try:
+        payload = _run_quietly(
+            True,
+            _run_async,
+            _run_ai_runtime_cli_operation(
+                "root-cause",
+                trace_id=normalized_trace_id,
+                call_log_id=call_log_id,
+                conversation_id=conversation_id,
+                turn=turn,
+            ),
+        )
+    except NotFoundException as e:
+        if output_json:
+            _echo_json(_json_error(e.message, code="ai_root_cause_not_found"))
+        else:
+            click.echo(f"Error: {e.message}", err=True)
+        sys.exit(1)
+    except AppException as e:
+        if output_json:
+            _echo_json(
+                _json_error(
+                    e.message,
+                    code="ai_root_cause_failed",
+                    data=e.data if isinstance(e.data, dict) else None,
+                )
+            )
+        else:
+            click.echo(f"Error: {e.message}", err=True)
+        sys.exit(1)
     if output_json:
         _echo_json(_json_success({"operation": "root-cause", "result": payload}))
         return
@@ -3372,7 +3488,7 @@ def ai_conversation_cmd() -> None:
 
 
 @ai_conversation_cmd.command("show")
-@click.argument("conversation_id", type=int)
+@click.argument("conversation_ref", type=str)
 @click.option(
     "--tail",
     type=click.IntRange(1, 200),
@@ -3405,7 +3521,7 @@ def ai_conversation_cmd() -> None:
     help="Do not truncate long message content in text mode",
 )
 def ai_conversation_show(
-    conversation_id: int,
+    conversation_ref: str,
     tail: int,
     keyword: str | None,
     keyword_limit: int,
@@ -3414,14 +3530,19 @@ def ai_conversation_show(
     compact_json: bool,
     full_content: bool,
 ) -> None:
-    """Show AI conversation detail by ID / 按对话 ID 查看 AI 对话详情。"""
+    """Show AI conversation detail by ID or trace ID / 按对话 ID 或 trace ID 查看 AI 对话详情。"""
     os.chdir(_BACKEND_DIR)
     _ensure_utf8_stdio()
     render_json = output_json or compact_json
 
-    from app.exceptions import AppException, NotFoundException
+    from app.exceptions import AppException, BusinessException, NotFoundException
 
     try:
+        conversation_id = _run_quietly(
+            True,
+            _run_async,
+            _resolve_ai_conversation_reference(conversation_ref),
+        )
         snapshot = _run_quietly(
             True,
             _run_async,
@@ -3437,6 +3558,31 @@ def ai_conversation_show(
             _echo_json(_json_error(e.message, code="conversation_not_found"))
         else:
             click.echo(f"Error: {e.message}", err=True)
+        sys.exit(1)
+    except BusinessException as e:
+        error_data = dict(e.data) if isinstance(e.data, dict) else None
+        error_code = (
+            str(error_data.pop("code"))
+            if error_data and isinstance(error_data.get("code"), str)
+            else "ai_conversation_show_failed"
+        )
+        if render_json:
+            _echo_json(
+                _json_error(
+                    e.message,
+                    code=error_code,
+                    data=error_data,
+                )
+            )
+        else:
+            click.echo(f"Error: {e.message}", err=True)
+            if error_data and error_data.get("operation"):
+                click.echo(f"Operation: {error_data['operation']}", err=True)
+            if error_data and error_data.get("suggested_command"):
+                click.echo(
+                    f"Hint: {error_data['suggested_command']}",
+                    err=True,
+                )
         sys.exit(1)
     except AppException as e:
         if render_json:

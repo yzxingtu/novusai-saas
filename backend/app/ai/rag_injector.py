@@ -41,7 +41,7 @@ def merge_kb_ids(
 async def load_agent_kb_bindings(
     db: AsyncSession,
     agent_id: int,
-    tenant_id: int,
+    tenant_id: int | None,
 ) -> tuple[list[int] | None, dict[int, float]]:
     """
     Load enabled bindings from AgentKnowledgeBaseBinding junction table.
@@ -57,16 +57,20 @@ async def load_agent_kb_bindings(
 
     from app.models.ai.agent_kb_binding import AgentKnowledgeBaseBinding
 
+    normalized_tenant_id = int(tenant_id) if tenant_id is not None else None
+    tenant_filters = [AgentKnowledgeBaseBinding.tenant_id.is_(None)]
+    if normalized_tenant_id is not None:
+        tenant_filters.append(
+            AgentKnowledgeBaseBinding.tenant_id == normalized_tenant_id
+        )
+
     stmt = (
         select(AgentKnowledgeBaseBinding)
         .where(
             AgentKnowledgeBaseBinding.agent_id == agent_id,
             AgentKnowledgeBaseBinding.enabled.is_(True),
             AgentKnowledgeBaseBinding.is_deleted.is_(False),
-            or_(
-                AgentKnowledgeBaseBinding.tenant_id.is_(None),
-                AgentKnowledgeBaseBinding.tenant_id == tenant_id,
-            ),
+            or_(*tenant_filters),
         )
         .order_by(AgentKnowledgeBaseBinding.sort_order)
     )
@@ -80,7 +84,13 @@ async def load_agent_kb_bindings(
         load_suppressed_platform_kb_ids,
     )
 
-    suppressed = await load_suppressed_platform_kb_ids(db, tenant_id, agent_id)
+    suppressed: set[int] = set()
+    if normalized_tenant_id and normalized_tenant_id > 0:
+        suppressed = await load_suppressed_platform_kb_ids(
+            db,
+            normalized_tenant_id,
+            agent_id,
+        )
 
     kb_ids: list[int] = []
     kb_weights: dict[int, float] = {}
@@ -97,8 +107,8 @@ async def load_agent_kb_bindings(
             KnowledgeBaseRepository,
         )
 
-        if tenant_id > 0:
-            kb_repo = KnowledgeBaseRepository(db, tenant_id=tenant_id)
+        if normalized_tenant_id and normalized_tenant_id > 0:
+            kb_repo = KnowledgeBaseRepository(db, tenant_id=normalized_tenant_id)
         else:
             kb_repo = AdminKnowledgeBaseRepository(db)
 

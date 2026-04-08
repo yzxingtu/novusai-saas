@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 from app.ai.engine.intent_planner import IntentPlanner
 from app.ai.engine.path_selector import PathSelector
 from app.ai.engine.types import ResearchContinuationContext
@@ -30,13 +32,14 @@ def _plan(
     input_variables: dict | None = None,
     messages: list[ChatMessage] | None = None,
     continuation: ResearchContinuationContext | None = None,
+    capability_bundle: object | None = None,
 ) -> list:
     return IntentPlanner.plan_turn(
         messages=messages or [ChatMessage(role="user", content=user_text)],
         tools=tools or _tools_with_weather(),
         input_variables=input_variables or {},
         continuation_context=continuation,
-        capability_bundle=None,
+        capability_bundle=capability_bundle,
     )
 
 
@@ -57,6 +60,10 @@ def _page_continuation_context(
         continuation_capable_families=["page_ops"],
         active_intent_kind=active_intent_kind,
     )
+
+
+def _kb_capability_bundle() -> SimpleNamespace:
+    return SimpleNamespace(context_sources=[{"kind": "knowledge_base"}])
 
 
 def test_intent_planner_suppresses_web_when_user_explicitly_disables_network() -> None:
@@ -111,9 +118,7 @@ def test_intent_planner_returns_direct_reply_for_health_phrase_after_web_flow() 
             ChatMessage(
                 role="assistant",
                 content="",
-                tool_calls=[
-                    {"success": True, "function": {"name": "web_search"}}
-                ],
+                tool_calls=[{"success": True, "function": {"name": "web_search"}}],
             ),
             ChatMessage(role="user", content="我肚子疼"),
         ],
@@ -211,7 +216,9 @@ def test_intent_planner_detects_page_row_detail_request() -> None:
     assert [intent.kind for intent in intents] == ["page_row_detail"]
 
 
-def test_intent_planner_prefers_page_search_over_web_search_inside_page_context() -> None:
+def test_intent_planner_prefers_page_search_over_web_search_inside_page_context() -> (
+    None
+):
     intents = _plan(
         "请帮我搜索记录并清空筛选条件",
         tools=_tools(),
@@ -221,7 +228,9 @@ def test_intent_planner_prefers_page_search_over_web_search_inside_page_context(
     assert [intent.kind for intent in intents] == ["page_search"]
 
 
-def test_intent_planner_keeps_generic_search_as_web_research_inside_page_context() -> None:
+def test_intent_planner_keeps_generic_search_as_web_research_inside_page_context() -> (
+    None
+):
     intents = _plan(
         "帮我搜索一下2026年中国新能源汽车销量排行",
         tools=_tools(),
@@ -265,6 +274,32 @@ def test_intent_planner_detects_news_queries_as_web_research() -> None:
     intents = _plan("查今天新闻，给我 3 条来源", tools=_tools())
 
     assert [intent.kind for intent in intents] == ["web_research"]
+
+
+def test_intent_planner_detects_definition_query_as_knowledge_when_bound_kb_present() -> (
+    None
+):
+    intents = _plan(
+        "NovusAI 是什么？",
+        tools=_tools(),
+        capability_bundle=_kb_capability_bundle(),
+    )
+
+    assert [intent.kind for intent in intents] == ["knowledge_query"]
+    assert intents[0].shortcircuit is False
+
+
+def test_intent_planner_keeps_pronoun_only_definition_as_direct_reply_even_with_bound_kb() -> (
+    None
+):
+    intents = _plan(
+        "这是什么？",
+        tools=_tools(),
+        capability_bundle=_kb_capability_bundle(),
+    )
+
+    assert [intent.kind for intent in intents] == ["direct_reply"]
+    assert intents[0].shortcircuit is True
 
 
 def test_intent_planner_marks_time_query_as_shortcircuit() -> None:
