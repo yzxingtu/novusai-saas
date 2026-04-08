@@ -637,6 +637,33 @@ class SkillResolver:
                 existing_descriptor_names.add(tool_name)
             existing_tool_names.add(tool.name)
 
+    @classmethod
+    def _build_time_only_runtime_result(cls) -> SkillResolveResult:
+        result = SkillResolveResult()
+        tool = cls._build_baseline_builtin_tool("get_current_time")
+        if tool is None:
+            return result
+        result.tools.append(tool)
+        result.tool_consent_modes[tool.name] = "auto"
+        result.capability_descriptors.append(
+            CapabilityDescriptor(
+                name="get_current_time",
+                kind="prompt_skill",
+                source="system_baseline_builtin",
+                description=(
+                    "System baseline builtin injected at runtime for "
+                    "fast-lane time/date queries."
+                ),
+                metadata={
+                    "auto_injected": True,
+                    "resolved_tool_names": [tool.name],
+                    "resolved_tool_count": 1,
+                    "has_execution_tools": True,
+                },
+            )
+        )
+        return result
+
     def _resolve_builtin(
         self,
         skill: Skill,
@@ -1182,8 +1209,8 @@ async def resolve_for_agent(
                    预留的调用方角色上下文（为兼容性保留）。
 
     Returns:
-        SkillResolveResult or None (when no bindings) /
-        SkillResolveResult 或 None（无绑定时）
+        SkillResolveResult or None (when bindings are filtered out as ineligible) /
+        SkillResolveResult 或 None（绑定被过滤为运行时不可用时）
 
     Raises:
         sqlalchemy.exc.SQLAlchemyError: DB connection/query exception (no longer silently swallowed) /
@@ -1238,7 +1265,7 @@ async def resolve_for_agent(
         raise
 
     if not grants:
-        return None
+        return SkillResolver._build_time_only_runtime_result()
 
     skills: list[SkillModel] = []
     skill_config_overrides: dict[int, dict[str, Any]] = {}

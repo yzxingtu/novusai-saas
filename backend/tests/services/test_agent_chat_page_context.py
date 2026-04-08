@@ -945,7 +945,7 @@ async def test_resolve_for_agent_does_not_duplicate_existing_time_tool(
 
 
 @pytest.mark.asyncio
-async def test_resolve_for_agent_returns_none_without_skill_grants(mock_db) -> None:
+async def test_resolve_for_agent_injects_time_tool_without_skill_grants(mock_db) -> None:
     agent = MagicMock()
     agent.id = 9
     agent.name = "No Skills"
@@ -955,7 +955,10 @@ async def test_resolve_for_agent_returns_none_without_skill_grants(mock_db) -> N
 
     result = await resolve_for_agent(mock_db, agent, tenant_id=1)
 
-    assert result is None
+    assert result is not None
+    assert [tool.name for tool in result.tools] == ["get_current_time"]
+    assert result.tool_consent_modes["get_current_time"] == "auto"
+    assert "get_current_time" in result.selected_skill_names
 
 
 # ── ConversationEngine 工具注入集成测试 ──

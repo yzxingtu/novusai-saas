@@ -1203,6 +1203,7 @@ class ToolCallProcessor:
         func_name: str,
         arguments: dict[str, Any],
         skill_info: dict[str, str | None] | None = None,
+        interaction_mode_effective: str | None = None,
     ) -> dict[str, Any]:
         """Build consent ask SSE event / 构建 consent 询问的 SSE 事件"""
         event: dict[str, Any] = {
@@ -1210,6 +1211,8 @@ class ToolCallProcessor:
             "name": func_name,
             "arguments": arguments,
         }
+        if interaction_mode_effective:
+            event["interaction_mode_effective"] = interaction_mode_effective
         if skill_info:
             event.update(skill_info)
         return event

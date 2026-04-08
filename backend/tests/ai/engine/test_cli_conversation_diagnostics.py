@@ -159,6 +159,19 @@ def test_cli_compact_diagnostics_builder_and_text_renderer_surface_key_orchestra
                 "fetch_url",
                 "get_page_context",
             ],
+            "tool_planner": {
+                "intent": "weather_query",
+                "family": "weather",
+            },
+            "path_decision": {
+                "path": "deep",
+                "reason": "multi_intent",
+            },
+            "tool_filtering": {
+                "all_tools_count": 4,
+                "candidate_tools_count": 3,
+                "filtering_reason": "optimizer",
+            },
             "intent_plan": [
                 {
                     "intent_id": "intent-1",
@@ -230,14 +243,53 @@ def test_cli_compact_diagnostics_builder_and_text_renderer_surface_key_orchestra
     assert compact["budget_exit_reason"] == "elapsed_budget_exceeded"
     assert compact["intent_plan"][2]["status"] == "pending"
     assert compact["retry_events"][0]["target_intent_id"] == "intent-3"
+    assert compact["tool_planner"]["intent"] == "weather_query"
+    assert compact["path_decision"]["path"] == "deep"
+    assert compact["tool_filtering"]["candidate_tools_count"] == 3
     assert compact["provider_events"] == [
         {"kind": "provider_http_5xx", "status_code": 503}
     ]
     assert "Conversation #666 diagnostics" in text
     assert "execution_path=deep" in text
+    assert "selected_tools=get_current_weather, web_search, fetch_url" in text
+    assert "candidate_tools=get_current_weather, web_search, fetch_url, get_page_context" in text
+    assert "tool_planner=" in text
+    assert "path_decision=" in text
+    assert "tool_filtering=" in text
     assert "unfinished_intents=intent-3" in text
     assert "provider_events=" in text
     assert "budget=" in text
+
+
+def test_cli_diagnostics_text_surfaces_empty_selected_and_candidate_tools() -> None:
+    snapshot = {
+        "conversation": {"id": 667},
+        "diagnostics": {
+            "source": "assistant_turn_record",
+            "turn_outcome": "success",
+            "termination_reason": "completed",
+            "protocol_path": "responses",
+            "execution_path": "fast",
+            "selected_tool_names": [],
+            "candidate_tool_names": [],
+            "selected_skill_names": ["get_current_time", "web_search"],
+            "tool_planner": {
+                "intent": "direct_reply",
+                "family": "none",
+            },
+            "budget": {
+                "status": "ok",
+                "usage": {"tool_rounds_used": 0, "candidate_tools_count": 0},
+            },
+        },
+    }
+
+    text = _render_ai_conversation_diagnostics_text(snapshot)
+
+    assert "selected_tools=[]" in text
+    assert "candidate_tools=[]" in text
+    assert "tool_planner=" in text
+    assert "budget_usage=" in text
 
 
 def test_extract_turn_diagnostics_preserves_provider_failure_after_partial_progress() -> None:

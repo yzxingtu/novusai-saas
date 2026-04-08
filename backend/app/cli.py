@@ -2538,6 +2538,27 @@ def _hydrate_ai_conversation_snapshot(snapshot: dict) -> dict:
         assistant_summary_tool_planner.get("execution_path"),
         latest_call_log_diagnostics.get("execution_path"),
     )
+    diagnostics["tool_planner"] = _first_dict(
+        diagnostics.get("tool_planner"),
+        assistant_tool_planner,
+        assistant_context_tool_planner,
+        assistant_summary_tool_planner,
+        latest_call_log_diagnostics.get("tool_planner"),
+    )
+    diagnostics["path_decision"] = _first_dict(
+        diagnostics.get("path_decision"),
+        assistant_metadata.get("path_decision"),
+        assistant_context_diagnostics.get("path_decision"),
+        assistant_last_run_summary.get("path_decision"),
+        latest_call_log_diagnostics.get("path_decision"),
+    )
+    diagnostics["tool_filtering"] = _first_dict(
+        diagnostics.get("tool_filtering"),
+        assistant_metadata.get("tool_filtering"),
+        assistant_context_diagnostics.get("tool_filtering"),
+        assistant_last_run_summary.get("tool_filtering"),
+        latest_call_log_diagnostics.get("tool_filtering"),
+    )
     diagnostics["intent_plan"] = (
         _normalize_cli_intent_plan(diagnostics.get("intent_plan"))
         or _normalize_cli_intent_plan(assistant_metadata.get("intent_plan"))
@@ -2660,6 +2681,20 @@ def _hydrate_ai_conversation_snapshot(snapshot: dict) -> dict:
             latest_call_log_diagnostics.get("unfinished_intents")
         )
     )
+    diagnostics["turn_events"] = next(
+        (
+            list(value)
+            for value in (
+                diagnostics.get("turn_events"),
+                assistant_metadata.get("turn_events"),
+                assistant_context_diagnostics.get("turn_events"),
+                assistant_last_run_summary.get("turn_events"),
+                latest_call_log_diagnostics.get("turn_events"),
+            )
+            if isinstance(value, list) and value
+        ),
+        [],
+    )
     diagnostics["last_assistant_textual_tool_call_names"] = (
         _normalize_cli_string_list(
             diagnostics.get("last_assistant_textual_tool_call_names")
@@ -2762,6 +2797,9 @@ def _build_ai_conversation_compact_diagnostics(snapshot: dict) -> dict:
         "candidate_tool_names": _normalize_cli_string_list(
             diagnostics.get("candidate_tool_names")
         ),
+        "tool_planner": _normalize_cli_dict(diagnostics.get("tool_planner")),
+        "path_decision": _normalize_cli_dict(diagnostics.get("path_decision")),
+        "tool_filtering": _normalize_cli_dict(diagnostics.get("tool_filtering")),
         "intent_plan": intent_plan,
         "unfinished_intents": _normalize_cli_string_list(
             diagnostics.get("unfinished_intents")
@@ -2771,6 +2809,11 @@ def _build_ai_conversation_compact_diagnostics(snapshot: dict) -> dict:
         "failure_kind": diagnostics.get("failure_kind"),
         "provider_events": provider_events,
         "budget": budget or None,
+        "budget_usage": (
+            _normalize_cli_dict((budget or {}).get("usage"))
+            if isinstance(budget, dict)
+            else {}
+        ),
         "budget_status": diagnostics.get("budget_status"),
         "budget_exit_reason": diagnostics.get("budget_exit_reason"),
         "contract_breach_type": diagnostics.get("contract_breach_type"),
@@ -2780,6 +2823,7 @@ def _build_ai_conversation_compact_diagnostics(snapshot: dict) -> dict:
         "last_page_key": diagnostics.get("last_page_key"),
         "last_page_op": diagnostics.get("last_page_op"),
         "interrupted_stage": diagnostics.get("interrupted_stage"),
+        "turn_event_count": len(diagnostics.get("turn_events") or []),
     }
 
 
@@ -2802,16 +2846,29 @@ def _render_ai_conversation_diagnostics_text(snapshot: dict) -> str:
         ),
     ]
     selected_tools = _normalize_cli_string_list(compact.get("selected_tool_names"))
-    if selected_tools:
-        lines.append("selected_tools={}".format(", ".join(selected_tools)))
+    lines.append(
+        "selected_tools={}".format(", ".join(selected_tools) if selected_tools else "[]")
+    )
     selected_skills = _normalize_cli_string_list(compact.get("selected_skill_names"))
     if selected_skills:
         lines.append("selected_skills={}".format(", ".join(selected_skills)))
     candidate_tool_names = _normalize_cli_string_list(
         compact.get("candidate_tool_names")
     )
-    if candidate_tool_names:
-        lines.append("candidate_tools={}".format(", ".join(candidate_tool_names)))
+    lines.append(
+        "candidate_tools={}".format(
+            ", ".join(candidate_tool_names) if candidate_tool_names else "[]"
+        )
+    )
+    tool_planner = _normalize_cli_dict(compact.get("tool_planner"))
+    if tool_planner:
+        lines.append(f"tool_planner={_compact_json_text(tool_planner)}")
+    path_decision = _normalize_cli_dict(compact.get("path_decision"))
+    if path_decision:
+        lines.append(f"path_decision={_compact_json_text(path_decision)}")
+    tool_filtering = _normalize_cli_dict(compact.get("tool_filtering"))
+    if tool_filtering:
+        lines.append(f"tool_filtering={_compact_json_text(tool_filtering)}")
     intent_plan = _normalize_cli_intent_plan(compact.get("intent_plan"))
     if intent_plan:
         lines.append(
@@ -2840,6 +2897,11 @@ def _render_ai_conversation_diagnostics_text(snapshot: dict) -> str:
     budget = _normalize_cli_dict(compact.get("budget"))
     if budget:
         lines.append(f"budget={_compact_json_text(budget)}")
+    budget_usage = _normalize_cli_dict(compact.get("budget_usage"))
+    if budget_usage:
+        lines.append(f"budget_usage={_compact_json_text(budget_usage)}")
+    if compact.get("turn_event_count"):
+        lines.append(f"turn_event_count={compact.get('turn_event_count')}")
     return "\n".join(lines)
 
 

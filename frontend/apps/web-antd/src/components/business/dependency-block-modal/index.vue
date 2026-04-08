@@ -17,6 +17,9 @@ import { IconifyIcon } from '@vben/icons';
 import { Button, Modal, Tag } from 'ant-design-vue';
 
 import { $t } from '#/locales';
+import { router } from '#/router';
+
+import { resolveDependencyPagePath } from './dependency-page-map';
 
 defineOptions({ name: 'DependencyBlockModal' });
 
@@ -180,6 +183,25 @@ function getTypeIcon(type: string): string {
   return iconMap[type] || 'lucide:box';
 }
 
+function getDependencyHandlePath(type: string): null | string {
+  return resolveDependencyPagePath(type);
+}
+
+function getDependencyHandleText(type: string): string {
+  return $t('common.dependency.goToHandle', {
+    name: getModelLabel(type),
+  });
+}
+
+function onNavigateToDependency(type: string) {
+  const path = getDependencyHandlePath(type);
+  if (!path) {
+    return;
+  }
+  onModalClose();
+  void router.push(path);
+}
+
 const title = computed(() => {
   if (isBlocked.value) {
     return resourceName.value
@@ -288,6 +310,20 @@ defineExpose({ close: onCancel, openBlocked, openPreview });
               })
             }}
           </div>
+        </div>
+
+        <div
+          v-if="isBlocked && getDependencyHandlePath(group.dep.type)"
+          class="mt-3 pl-6"
+        >
+          <Button
+            type="link"
+            size="small"
+            class="px-0"
+            @click="onNavigateToDependency(group.dep.type)"
+          >
+            {{ getDependencyHandleText(group.dep.type) }}
+          </Button>
         </div>
       </div>
     </div>

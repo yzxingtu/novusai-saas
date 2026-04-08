@@ -108,6 +108,43 @@ def test_classify_root_cause_marks_page_continuation_false_direct_reply(mock_db)
     assert confidence == 0.94
 
 
+def test_classify_root_cause_marks_time_query_false_direct_reply(mock_db):
+    from app.services.ai.runtime_diagnostics_service import RuntimeDiagnosticsService
+
+    service = RuntimeDiagnosticsService(mock_db)
+    failure_layer, cause_code, summary, first_fix, confidence = (
+        service._classify_root_cause(
+            call_log=_call_log(),
+            diagnostics={
+                "conversation_outcome": "success",
+                "tool_planner": {
+                    "intent": "direct_reply",
+                    "family": "none",
+                    "intent_plan": [
+                        {
+                            "intent_id": "intent-1",
+                            "kind": "direct_reply",
+                            "family": "none",
+                            "source_text": "现在是几点",
+                            "status": "completed",
+                        }
+                    ],
+                },
+                "selected_tool_names": [],
+                "candidate_tool_names": [],
+                "selected_skill_names": ["get_current_time", "web_search"],
+            },
+            conversation_turn={"message_id": 109},
+        )
+    )
+
+    assert failure_layer == "post_processing"
+    assert cause_code == "planner_false_direct_reply"
+    assert "direct_reply" in summary
+    assert first_fix is not None
+    assert confidence == 0.93
+
+
 @pytest.mark.asyncio
 async def test_build_root_cause_reports_fake_tool_call_contract_breach(mock_db):
     from app.services.ai.runtime_diagnostics_service import RuntimeDiagnosticsService

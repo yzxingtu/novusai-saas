@@ -2219,6 +2219,110 @@ async def test_stream_handler_clears_preview_before_replaying_tool_evidence_outp
 
 
 @pytest.mark.asyncio
+async def test_stream_handler_preserves_streamed_output_when_final_text_is_truncated_prefix():
+    from app.ai.engine.types import ExecutionResult
+
+    captured: list[ExecutionResult] = []
+    completed = asyncio.Event()
+
+    async def on_complete(result: ExecutionResult) -> None:
+        captured.append(result)
+        completed.set()
+
+    engine = _FakeEngine()
+    handler = _build_handler(engine)
+    handler.on_complete = on_complete
+
+    streamed_output = "第一段。第二段。第三段。"
+
+    async def _fake_run_with_turn_executor() -> TurnExecutionResult:
+        handler._visible_stream_content = streamed_output
+        handler._output = streamed_output
+        handler._runtime_turn_record = {
+            "turn_outcome": "success",
+            "protocol_path": "responses",
+        }
+        handler._state.preparation_diagnostics["final_output_source"] = "assistant"
+        return TurnExecutionResult(
+            output="第一段。第二段。",
+            total_tokens=18,
+            completion_tokens_used=18,
+            tool_results=[],
+            response=ChatResponse(
+                message=ChatMessage(role="assistant", content="第一段。第二段。"),
+                total_tokens=18,
+                output_tokens=18,
+            ),
+            partial=False,
+            paused_for_consent=False,
+            completion_reason="completed",
+            final_output_source="assistant",
+            action_buttons=None,
+        )
+
+    handler._run_with_turn_executor = _fake_run_with_turn_executor  # type: ignore[method-assign]
+
+    async for _ in handler.generate():
+        pass
+
+    await asyncio.wait_for(completed.wait(), timeout=1)
+
+    assert len(captured) == 1
+    assert captured[0].output == streamed_output
+
+
+@pytest.mark.asyncio
+async def test_stream_handler_keeps_finalized_output_when_shorter_text_is_not_prefix():
+    from app.ai.engine.types import ExecutionResult
+
+    captured: list[ExecutionResult] = []
+    completed = asyncio.Event()
+
+    async def on_complete(result: ExecutionResult) -> None:
+        captured.append(result)
+        completed.set()
+
+    engine = _FakeEngine()
+    handler = _build_handler(engine)
+    handler.on_complete = on_complete
+
+    async def _fake_run_with_turn_executor() -> TurnExecutionResult:
+        handler._visible_stream_content = "草稿里提到旧信息，先不要持久化。"
+        handler._output = handler._visible_stream_content
+        handler._runtime_turn_record = {
+            "turn_outcome": "success",
+            "protocol_path": "responses",
+        }
+        handler._state.preparation_diagnostics["final_output_source"] = "assistant"
+        return TurnExecutionResult(
+            output="最终答案已经纠正。",
+            total_tokens=18,
+            completion_tokens_used=18,
+            tool_results=[],
+            response=ChatResponse(
+                message=ChatMessage(role="assistant", content="最终答案已经纠正。"),
+                total_tokens=18,
+                output_tokens=18,
+            ),
+            partial=False,
+            paused_for_consent=False,
+            completion_reason="completed",
+            final_output_source="assistant",
+            action_buttons=None,
+        )
+
+    handler._run_with_turn_executor = _fake_run_with_turn_executor  # type: ignore[method-assign]
+
+    async for _ in handler.generate():
+        pass
+
+    await asyncio.wait_for(completed.wait(), timeout=1)
+
+    assert len(captured) == 1
+    assert captured[0].output == "最终答案已经纠正。"
+
+
+@pytest.mark.asyncio
 async def test_stream_handler_no_result_completion_skips_auto_fetch_url():
     from app.ai.engine.types import ExecutionResult
 

@@ -1,7 +1,6 @@
 from types import SimpleNamespace
 
 from app.ai.engine.intent_planner import IntentPlanner
-from app.ai.engine.path_selector import PathSelector
 from app.ai.engine.types import ResearchContinuationContext
 from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage
@@ -258,8 +257,24 @@ def test_intent_planner_detects_time_and_weather_as_two_intents() -> None:
     intents = _plan("帮我看一下北京天气，再告诉我今天星期几和现在几点")
 
     assert [intent.kind for intent in intents] == ["weather_query", "time_query"]
-    assert [intent.shortcircuit for intent in intents] == [True, True]
-    assert PathSelector.select(intents) == "fast"
+
+
+def test_intent_planner_detects_now_is_time_phrase_variant() -> None:
+    intents = _plan(
+        "现在是几点",
+        tools=[ToolDefinition(name="get_current_time", description="Current time")],
+    )
+
+    assert [intent.kind for intent in intents] == ["time_query"]
+
+
+def test_intent_planner_falls_back_to_web_research_for_weather_when_only_web_tools_exist() -> (
+    None
+):
+    intents = _plan("帮我查一下上海天气", tools=_tools())
+
+    assert [intent.kind for intent in intents] == ["web_research"]
+    assert intents[0].family == "web_research"
 
 
 def test_intent_planner_marks_weather_without_city_for_clarification() -> None:

@@ -273,6 +273,14 @@ class TurnExecutor:
     ) -> list[ToolResult]:
         synthesized: list[ToolResult] = []
         for index, tool_call in enumerate(tool_calls or []):
+            pending_consent = tool_call.get("pending_consent")
+            if isinstance(pending_consent, dict) and not pending_consent.get("resolved"):
+                continue
+            pending_confirmation = tool_call.get("pending_confirmation")
+            if isinstance(pending_confirmation, dict) and not pending_confirmation.get(
+                "resolved"
+            ):
+                continue
             function_block = tool_call.get("function") or {}
             tool_name = str(
                 function_block.get("name") or tool_call.get("name") or ""

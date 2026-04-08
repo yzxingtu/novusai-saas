@@ -547,6 +547,10 @@ class StreamIOAdapter:
                             func_name,
                             arguments,
                             skill_info,
+                            interaction_mode_effective=str(
+                                getattr(processor, "_interaction_mode", "") or ""
+                            ).strip()
+                            or None,
                         )
                     )
                     round_has_confirmation = True
@@ -1139,6 +1143,23 @@ class StreamExecutionHandler:
                 return content
         return ""
 
+    @staticmethod
+    def _should_preserve_streamed_assistant_output(
+        *,
+        final_output_source: str | None,
+        streamed_output: str,
+        finalized_output: str,
+    ) -> bool:
+        if final_output_source != "assistant":
+            return False
+        if not streamed_output or not finalized_output:
+            return False
+        if streamed_output == finalized_output:
+            return False
+        if len(streamed_output) <= len(finalized_output):
+            return False
+        return streamed_output.startswith(finalized_output)
+
     def _build_budget_exit_fallback_output(
         self,
         *,
@@ -1379,6 +1400,15 @@ class StreamExecutionHandler:
                 self._output = output
             elif output and not skip_final_assistant:
                 streamed_output = str(self._visible_stream_content or "").strip()
+                finalized_output = str(output or "").strip()
+                if self._should_preserve_streamed_assistant_output(
+                    final_output_source=final_output_source,
+                    streamed_output=streamed_output,
+                    finalized_output=finalized_output,
+                ):
+                    output = streamed_output
+                    if response is not None and getattr(response, "message", None) is not None:
+                        response.message.content = streamed_output
                 messages.append(
                     ChatMessage(
                         role="assistant",

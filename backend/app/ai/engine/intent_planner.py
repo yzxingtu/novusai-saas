@@ -35,7 +35,13 @@ _CLAUSE_SEPARATORS = (
 _WEATHER_TERMS = ("天气", "气温", "温度", "降雨", "湿度", "weather", "temperature")
 _TIME_TERMS = (
     "现在几点",
+    "现在是几点",
+    "现在时间",
     "当前时间",
+    "北京时间",
+    "现在的北京时间",
+    "北京时间几点",
+    "北京时间是几点",
     "今天几号",
     "当前日期",
     "今天星期几",
@@ -46,6 +52,8 @@ _TIME_TERMS = (
     "几号",
     "time now",
     "current time",
+    "beijing time",
+    "beijing time now",
     "what day is it",
     "what date is it",
 )
@@ -950,16 +958,16 @@ class IntentPlanner:
         lowered = clause.lower()
         families = cls._tool_families(tools, input_variables)
         signals: list[_IntentSignal] = []
+        weather_position = cls._first_position(lowered, _WEATHER_TERMS)
 
         if "weather" in families:
-            position = cls._first_position(lowered, _WEATHER_TERMS)
-            if position >= 0:
+            if weather_position >= 0:
                 signals.append(
                     _IntentSignal(
                         "weather_query",
                         "weather",
                         "weather",
-                        offset + position,
+                        offset + weather_position,
                         shortcircuit=True,
                     )
                 )
@@ -997,6 +1005,15 @@ class IntentPlanner:
 
         no_web = any(term in lowered for term in _NO_WEB_TERMS)
         if not no_web and "web_research" in families:
+            if weather_position >= 0 and "weather" not in families:
+                signals.append(
+                    _IntentSignal(
+                        "web_research",
+                        "web_research",
+                        "weather_web_research",
+                        offset + weather_position,
+                    )
+                )
             position = cls._first_position(lowered, _WEB_TERMS)
             if position < 0:
                 position = cls._news_like_web_search_position(lowered)

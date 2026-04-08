@@ -891,6 +891,110 @@ class RuntimeDiagnosticsService:
         )
 
     @staticmethod
+    def _planner_source_text(diagnostics: dict[str, Any]) -> str:
+        tool_planner = diagnostics.get("tool_planner")
+        if not isinstance(tool_planner, dict):
+            return ""
+        intent_plan = tool_planner.get("intent_plan")
+        if not isinstance(intent_plan, list):
+            return ""
+        for item in intent_plan:
+            if not isinstance(item, dict):
+                continue
+            source_text = str(item.get("source_text") or "").strip()
+            if source_text:
+                return source_text
+        return ""
+
+    @staticmethod
+    def _has_false_direct_reply_signal(diagnostics: dict[str, Any]) -> bool:
+        tool_planner = (
+            dict(diagnostics.get("tool_planner") or {})
+            if isinstance(diagnostics.get("tool_planner"), dict)
+            else {}
+        )
+        if str(tool_planner.get("intent") or "").strip() != "direct_reply":
+            return False
+        selected_tool_names = {
+            str(name or "").strip()
+            for name in diagnostics.get("selected_tool_names") or []
+            if str(name or "").strip()
+        }
+        candidate_tool_names = {
+            str(name or "").strip()
+            for name in diagnostics.get("candidate_tool_names") or []
+            if str(name or "").strip()
+        }
+        if selected_tool_names or candidate_tool_names:
+            return False
+
+        selected_skill_names = {
+            str(name or "").strip()
+            for name in diagnostics.get("selected_skill_names") or []
+            if str(name or "").strip()
+        }
+        if not selected_skill_names:
+            return False
+
+        source_text = RuntimeDiagnosticsService._planner_source_text(diagnostics).lower()
+        if not source_text:
+            return False
+
+        looks_like_time = any(
+            token in source_text
+            for token in (
+                "现在几点",
+                "现在是几点",
+                "当前时间",
+                "北京时间",
+                "current time",
+                "beijing time",
+                "星期几",
+                "周几",
+                "几号",
+            )
+        )
+        looks_like_weather = any(
+            token in source_text
+            for token in ("天气", "气温", "温度", "降雨", "湿度", "weather")
+        )
+        looks_like_web = any(
+            token in source_text
+            for token in (
+                "联网",
+                "搜索",
+                "搜一下",
+                "搜一搜",
+                "官网",
+                "链接",
+                "网址",
+                "web search",
+                "search online",
+                "fetch",
+                "新闻",
+                "热点",
+                "排行",
+            )
+        )
+        has_time_capability = any(
+            token in " ".join(selected_skill_names).lower()
+            for token in ("get_current_time", "time", "时间")
+        )
+        has_weather_capability = any(
+            token in " ".join(selected_skill_names).lower()
+            for token in ("weather", "天气")
+        )
+        has_web_capability = any(
+            token in " ".join(selected_skill_names).lower()
+            for token in ("web_search", "fetch_url", "search", "搜索")
+        )
+        return bool(
+            (looks_like_time and has_time_capability)
+            or (looks_like_weather and (has_weather_capability or has_web_capability))
+            or (looks_like_web and has_web_capability)
+        )
+
+    @staticmethod
     def _resolve_root_cause_status(
         *,
         call_log: AICallLog | None,
@@ -910,6 +1014,8 @@ class RuntimeDiagnosticsService:
         if str(diagnostics.get("contract_breach_type") or "").strip():
             return "failed"
         if diagnostics.get("unfinished_intents"):
+            return "failed"
+        if RuntimeDiagnosticsService._has_false_direct_reply_signal(diagnostics):
             return "failed"
         if call_log is None:
             return "success"
@@ -961,6 +1067,34 @@ class RuntimeDiagnosticsService:
             diagnostics.get("assistant_claimed_tool_call_without_tool_event")
         )
         research_like = self._is_research_like_diagnostics(diagnostics)
+        false_direct_reply = self._has_false_direct_reply_signal(diagnostics)
+
+        if assistant_claimed_tool_call_without_tool_event:
+            return (
+                "stream_output_contract",
+                "assistant_claimed_tool_call_without_tool_event",
+                "The assistant claimed it was calling a tool, but no real tool event or tool message followed.",
+                "Start with the turn executor contract-breach path and keep the active intent family/tool scope pinned during the recovery retry.",
+                0.97,
+            )
+
+        if false_direct_reply:
+            return (
+                "post_processing",
+                "planner_false_direct_reply",
+                "The planner collapsed a tool-eligible current-information request into direct_reply even though matching runtime capabilities were available.",
+                "Fix explicit time/weather/web intent detection before allowing direct_reply short-circuit.",
+                0.93,
+            )
+
+        if continuation_source == "page_ops" and planner_intent == "direct_reply":
+            return (
+                "post_processing",
+                "planner_false_direct_reply",
+                "A page continuation turn was misplanned as direct_reply even though page context and page tools were still available.",
+                "Fix the intent planner so page continuation stays in the page_ops family before any direct_reply fallback is allowed.",
+                0.94,
+            )
 
         if (
             call_log is not None
@@ -976,24 +1110,6 @@ class RuntimeDiagnosticsService:
                 "The call completed successfully and no blocking failure signal was found.",
                 None,
                 0.98,
-            )
-
-        if assistant_claimed_tool_call_without_tool_event:
-            return (
-                "stream_output_contract",
-                "assistant_claimed_tool_call_without_tool_event",
-                "The assistant claimed it was calling a tool, but no real tool event or tool message followed.",
-                "Start with the turn executor contract-breach path and keep the active intent family/tool scope pinned during the recovery retry.",
-                0.97,
-            )
-
-        if continuation_source == "page_ops" and planner_intent == "direct_reply":
-            return (
-                "post_processing",
-                "planner_false_direct_reply",
-                "A page continuation turn was misplanned as direct_reply even though page context and page tools were still available.",
-                "Fix the intent planner so page continuation stays in the page_ops family before any direct_reply fallback is allowed.",
-                0.94,
             )
 
         if (

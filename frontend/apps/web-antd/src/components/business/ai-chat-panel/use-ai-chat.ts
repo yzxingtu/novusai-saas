@@ -2502,7 +2502,16 @@ export function useAIChat(options: UseAIChatOptions) {
               };
             } else if (event.event === 'tool_consent_request') {
               promoteToolRoundContent();
-              if (interactionMode.value === 'trusted_auto') {
+              const effectiveInteractionMode =
+                normalizeOptionalString(event.interaction_mode_effective) ??
+                interactionMode.value;
+              if (
+                effectiveInteractionMode === 'confirm' ||
+                effectiveInteractionMode === 'trusted_auto'
+              ) {
+                interactionMode.value = effectiveInteractionMode;
+              }
+              if (effectiveInteractionMode === 'trusted_auto') {
                 msg.pendingConsent = {
                   toolName: (event.name as string) || '',
                   arguments: event.arguments as

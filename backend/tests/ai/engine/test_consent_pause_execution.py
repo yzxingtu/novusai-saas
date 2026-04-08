@@ -180,11 +180,10 @@ def test_stream_pauses_for_consent(monkeypatch):
         request=request,
         prep=prep,
         start_time=0,
-        on_complete=None,
+        on_complete=lambda result: _capture_stream_result(captured, result),
     )
 
     captured: dict[str, object] = {}
-    handler._schedule_on_complete = lambda result: captured.setdefault("result", result)
 
     asyncio.run(_drain_async_generator(handler.generate()))
     result = captured["result"]
@@ -200,3 +199,53 @@ def test_stream_pauses_for_consent(monkeypatch):
         for msg in result.messages
     )
     assert result.output == "Need your consent"
+
+
+async def _capture_stream_result(
+    captured: dict[str, object],
+    result,
+):
+    captured.setdefault("result", result)
+    return None
+
+
+def test_update_intent_statuses_keeps_pending_consent_ahead_of_completed():
+    intent = IntentPlan(
+        intent_id="intent-weather",
+        kind="weather_query",
+        family="weather",
+        order=1,
+        user_visible_label="weather",
+        source_text="帮我查天气",
+        requires_tools=True,
+        completion_signals=["get_current_weather"],
+        allowed_tool_names=["get_current_weather"],
+    )
+
+    messages = [
+        ChatMessage(
+            role="assistant",
+            content="",
+            tool_calls=[
+                {
+                    "id": "call-weather-1",
+                    "function": {"name": "get_current_weather", "arguments": "{}"},
+                    "pending_consent": {
+                        "tool_name": "get_current_weather",
+                        "arguments": {"city": "上海"},
+                    },
+                }
+            ],
+        )
+    ]
+
+    updated = RecoveryManager.update_intent_statuses(
+        [intent],
+        messages=messages,
+        tool_results=[],
+    )
+
+    assert updated[0].status == "awaiting_consent"
+    assert updated[0].completed_by_tool_names == []
+    assert updated[0].cached_result is None
+    assert updated[0].metadata["pending_consent"]["tool_name"] == "get_current_weather"

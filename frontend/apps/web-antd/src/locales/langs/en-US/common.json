@@ -632,6 +632,7 @@
     "cascadeSoft": "{count} record(s) will be moved to recycle bin",
     "cascadeDelete": "{count} record(s) will be permanently deleted",
     "nullify": "{count} record(s) will have their association removed",
+    "goToHandle": "Go to {name} to resolve",
     "itemCount": "{count} items",
     "moreItems": "{count} more...",
     "model": {

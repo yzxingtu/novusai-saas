@@ -815,6 +815,11 @@ class RecoveryManager:
             RecoveryManager._successful_tool_names(messages, tool_results)
         )
         pending_payload = RecoveryManager._extract_pending_consent_payload(messages)
+        pending_tool_name = (
+            str((pending_payload or {}).get("tool_name") or "").strip()
+            if isinstance(pending_payload, dict)
+            else ""
+        )
         pending_consent_assigned = False
         updated: list[IntentPlan] = []
         for intent in intents:
@@ -883,10 +888,19 @@ class RecoveryManager:
             if (
                 pending_payload
                 and not pending_consent_assigned
-                and clone.status not in {"completed", "failed", "skipped"}
                 and clone.requires_tools
+                and clone.status not in {"failed", "skipped"}
+                and (
+                    clone.status != "completed"
+                    or (
+                        pending_tool_name
+                        and pending_tool_name in completion_signals
+                    )
+                )
             ):
                 clone.status = "awaiting_consent"
+                clone.cached_result = None
+                clone.completed_by_tool_names = []
                 clone.metadata["pending_consent"] = dict(pending_payload)
                 pending_consent_assigned = True
             updated.append(clone)

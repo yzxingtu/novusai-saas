@@ -632,6 +632,7 @@
     "cascadeSoft": "{count} 条记录将进入回收站",
     "cascadeDelete": "{count} 条记录将被永久删除",
     "nullify": "{count} 条记录的关联将被解除",
+    "goToHandle": "前往「{name}」页面处理",
     "itemCount": "{count} 条",
     "moreItems": "还有 {count} 条...",
     "model": {
