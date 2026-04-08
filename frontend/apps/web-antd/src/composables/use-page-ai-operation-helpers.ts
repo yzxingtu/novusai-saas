@@ -326,9 +326,7 @@ export function createRefreshPageOperation(
   return createSimplePageOperation({
     name: options.name ?? 'refresh_list',
     label: options.label ?? $t('shared.pageOperation.refreshList'),
-    description:
-      options.description ??
-      'Reload the current page data / 重新加载当前页面数据',
+    description: options.description ?? $t('shared.pageOperation.desc.refreshList'),
     readonly: true,
     successMessage: options.successMessage,
     action: async () => {
@@ -343,8 +341,7 @@ export function createSavePageOperation(
   return createSimplePageOperation({
     name: options.name ?? 'save_changes',
     label: options.label ?? $t('shared.pageOperation.save'),
-    description:
-      options.description ?? 'Save the current changes / 保存当前更改',
+    description: options.description ?? $t('shared.pageOperation.desc.saveChanges'),
     readonly: false,
     successMessage: options.successMessage,
     action: async () => {
@@ -359,7 +356,7 @@ export function createCreateRecordPageOperation(
   return createSimplePageOperation({
     name: options.name ?? 'create_record',
     label: options.label ?? $t('shared.pageOperation.createRecord'),
-    description: options.description ?? 'Open the create form / 打开新建表单',
+    description: options.description ?? $t('shared.pageOperation.desc.openCreateForm'),
     readonly: false,
     successMessage:
       options.successMessage ??
@@ -376,13 +373,12 @@ export function createKeywordSearchPageOperation(
   return createParameterizedPageOperation<{ keyword?: string }>({
     name: options.name ?? 'search',
     label: options.label ?? $t('shared.pageOperation.search'),
-    description: options.description ?? 'Search by keyword / 按关键词搜索',
+    description: options.description ?? $t('shared.pageOperation.desc.searchByKeyword'),
     readonly: true,
     params: {
       keyword: {
         type: 'string',
-        description:
-          options.keywordDescription ?? 'Keyword used for search / 搜索关键词',
+        description: options.keywordDescription ?? $t('shared.pageOperation.param.keyword'),
       },
     },
     successMessage: (params) =>
@@ -412,9 +408,7 @@ export function createStructuredSearchPageOperation<
   return createParameterizedPageOperation<TParams>({
     name: options.name ?? 'search',
     label: options.label ?? $t('shared.pageOperation.search'),
-    description:
-      options.description ??
-      'Search with structured filters / 使用结构化条件搜索',
+    description: options.description ?? $t('shared.pageOperation.desc.structuredSearch'),
     readonly: true,
     params: options.params,
     successMessage: (params) =>
@@ -439,8 +433,7 @@ export function createPrefilledCreatePageOperation<
     name: options.name ?? 'create_record',
     label: options.label ?? $t('shared.pageOperation.createRecord'),
     description:
-      options.description ??
-      'Open a create form with optional defaults / 打开带预填值的新建表单',
+      options.description ?? $t('shared.pageOperation.desc.openCreateWithDefaults'),
     readonly: false,
     params: options.params,
     successMessage: (params) =>
@@ -468,8 +461,7 @@ export function createOpenPageOperation(
   return createSimplePageOperation({
     name: options.name ?? 'open_page',
     label: options.label ?? $t('shared.pageOperation.navigateTo'),
-    description:
-      options.description ?? 'Open a page or dialog / 打开页面或弹窗',
+    description: options.description ?? $t('shared.pageOperation.desc.openPage'),
     readonly: true,
     successMessage: options.successMessage,
     action: async () => {
@@ -490,7 +482,7 @@ export function createOpenCurrentPageOperation(
     name: options.name ?? 'open_current',
     label: options.label ?? $t('shared.pageOperation.viewDetail'),
     description:
-      options.description ?? 'Open the current selection / 打开当前选中项',
+      options.description ?? $t('shared.pageOperation.desc.openCurrentSelection'),
     readonly: true,
     successMessage: options.successMessage,
     action: async () => {
@@ -514,7 +506,7 @@ export function createOpenRecordPageOperation<
   return {
     name: options.name,
     label: options.label ?? $t('shared.pageOperation.viewDetail'),
-    description: options.description ?? 'Open a record by ID / 按 ID 打开记录',
+    description: options.description ?? $t('shared.pageOperation.desc.openRecordById'),
     readonly: options.readonly ?? true,
     params: options.params,
     handler: async (rawParams) => {
@@ -584,12 +576,12 @@ export function createViewDetailPageOperation(
     label: options.label ?? $t('shared.pageOperation.viewDetail'),
     description:
       options.description ??
-      'Open the detail view by record ID / 按记录 ID 打开详情视图',
+      $t('shared.pageOperation.desc.openDetailByRecordId'),
     readonly: true,
     params: {
       id: {
         type: 'number',
-        description: options.idDescription ?? 'Record ID / 记录 ID',
+        description: options.idDescription ?? $t('shared.pageOperation.param.recordId'),
         required: true,
       },
     },

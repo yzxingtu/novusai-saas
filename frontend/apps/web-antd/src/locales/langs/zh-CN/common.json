@@ -173,6 +173,7 @@
   "horizontalRule": "分割线",
   "image": "图片",
   "attachment": "附件",
+  "attachmentInlineText": "附件：{name}（{size}）",
   "table": "表格",
   "wordCount": "字数",
   "editorPlaceholder": "输入内容...",
@@ -299,6 +300,7 @@
     "manageLink": "为选区设置或取消链接。action 可为 set（需要 href）或 unset。",
     "insertTable": "插入表格。rows 和 cols 为可选参数，默认均为 3。"
   },
+  "editorRuntimeDescription": "HTML 富文本编辑器。正文摘要在 document_body_text；完整内容用 get_editor_html 获取。\ncontent 参数默认要求 HTML（如 <h1>标题</h1><p>正文</p>）；传 content_format=\"markdown\" 可送 Markdown。\n【局部编辑】先 get_editor_html 获取完整 HTML，再用 replace_section(old_html=\"旧片段\", new_html=\"新片段\") 只替换目标章节。\n长文档时 get_editor_html 返回可能被截断，请用返回内容中的短且唯一的 HTML 片段作为 replace_section 的 old_html，勿用整篇作为 old_html。\n【全文替换】仅当需要重写整篇文章时才用 replace_content。\n【追加/插入】append_content 在末尾追加，insert_content 在光标处插入。",
   "editorParam": {
     "content": "编辑器内容",
     "contentFormat": "内容格式：html 或 markdown",
@@ -311,6 +313,7 @@
     "tableRows": "行数",
     "tableCols": "列数"
   },
+  "linkPromptTitle": "请输入链接 URL",
   "richTextEditor": "富文本编辑器",
   "sourceCode": "源码模式",
   "wysiwyg": "可视化编辑",
@@ -345,6 +348,11 @@
   "saveFailed": "保存失败",
   "loadFailed": "加载失败",
   "saveSuccess": "保存成功",
+  "fileSize": {
+    "bytes": "{count} B",
+    "kilobytes": "{count} KB",
+    "megabytes": "{count} MB"
+  },
   "uploadValidation": {
     "extensionNotAllowed": "不支持 .{extension} 格式的文件",
     "fileTooLarge": "文件大小超过限制（最大 {max} MB）",
@@ -640,7 +648,31 @@
     "pageAiDiagCompressionOn": "压缩：已触发 page_context 预算压缩",
     "pageAiDiagCompressionOff": "压缩：未触发 page_context 预算压缩",
     "pageAiPreviewMore": "更多能力",
-    "pageAiNoOperations": "AI 可感知当前页面上下文"
+    "pageAiNoOperations": "AI 可感知当前页面上下文",
+    "toolLabel": {
+      "ui_click": "点击元素",
+      "ui_fill_form": "填写表单",
+      "ui_get_form_state": "读取表单状态",
+      "ui_get_snapshot": "获取页面快照",
+      "ui_list_interactables": "列出可交互元素",
+      "ui_open_surface": "打开界面层",
+      "ui_read_region": "读取界面区域",
+      "ui_read_table": "读取表格数据",
+      "ui_set_field": "设置字段值",
+      "ui_submit_form": "提交表单"
+    },
+    "toolDesc": {
+      "ui_click": "点击一个可交互元素。",
+      "ui_fill_form": "批量填写当前表单中的多个字段。",
+      "ui_get_form_state": "读取当前表单会话状态和字段值。",
+      "ui_get_snapshot": "读取当前页面的 UI 快照。",
+      "ui_list_interactables": "列出当前页面可用的可交互控件。",
+      "ui_open_surface": "打开抽屉、弹窗或下拉层等界面区域。",
+      "ui_read_region": "读取指定界面区域中的结构化文本。",
+      "ui_read_table": "读取表格区域中的行数据。",
+      "ui_set_field": "设置单个表单字段的值。",
+      "ui_submit_form": "提交当前表单会话。"
+    }
   },
   "recycleBin": {
     "title": "回收站",

@@ -1309,7 +1309,7 @@ export function createStandardOperations(
       params: {
         id: {
           type: 'string',
-          description: 'Record id / 记录主键',
+          description: $t('shared.pageOperation.param.recordId'),
           required: true,
         },
       },
@@ -1402,7 +1402,7 @@ export function createStandardOperations(
       params: {
         page: {
           type: 'number',
-          description: 'Target page number / 目标页码',
+          description: $t('shared.pageOperation.param.targetPageNumber'),
           required: true,
         },
       },
@@ -1445,7 +1445,7 @@ export function createStandardOperations(
       params: {
         page_size: {
           type: 'number',
-          description: 'Rows per page / 每页行数',
+          description: $t('shared.pageOperation.param.rowsPerPage'),
           required: true,
         },
       },
@@ -1557,7 +1557,7 @@ export function createStandardOperations(
     const editOpParams: Record<string, unknown> = {
       id: {
         type: 'number',
-        description: 'Record ID to edit / 要编辑的记录 ID',
+        description: $t('shared.pageOperation.param.editRecordId'),
         required: true,
       },
       ...createOpParams,
@@ -1680,7 +1680,7 @@ export function createStandardOperations(
       params: {
         id: {
           type: 'number',
-          description: 'Record ID to delete / 要删除的记录 ID',
+          description: $t('shared.pageOperation.param.deleteRecordId'),
           required: true,
         },
       },
@@ -1720,7 +1720,7 @@ export function createStandardOperations(
       params: {
         id: {
           type: 'number',
-          description: 'Record ID / 记录 ID',
+          description: $t('shared.pageOperation.param.recordId'),
           required: true,
         },
       },
@@ -1981,12 +1981,16 @@ export function createStandardOperations(
       operations.push({
         name: 'get_form_options',
         label: $t('shared.pageOperation.getFormOptions'),
-        description: `Get available options for remote select fields. Required params shape: {"field_name":"<field>"}; available remote fields: ${remoteFields.join(', ')} / 获取远程下拉字段的可选项。必传参数格式：{"field_name":"<字段名>"}；可用字段：${remoteFields.join(', ')}`,
+        description: $t('shared.pageOperation.desc.getFormOptions', {
+          fields: remoteFields.join(', '),
+        }),
         readonly: true,
         params: {
           field_name: {
             type: 'string',
-            description: `Exact field key to get options for. One of: ${remoteFields.join(', ')} / 要获取选项的精确字段名`,
+            description: $t('shared.pageOperation.param.exactFieldName', {
+              fields: remoteFields.join(', '),
+            }),
             required: true,
           },
         },
@@ -2134,8 +2138,7 @@ export function createFormOperations(
     {
       name: 'get_form_state',
       label: $t('shared.pageOperation.getFormState'),
-      description:
-        'Get the current form state: open/closed, field values, dirty fields, validation errors. Call after opening a form. / 获取当前表单状态：打开/关闭、字段值、脏字段、验证错误。在打开表单后调用。',
+      description: $t('shared.pageOperation.desc.getFormState'),
       readonly: true,
       handler: async () => {
         const state = await formStateTracker.getStateWithFallback(pageKey);
@@ -2160,8 +2163,7 @@ export function createFormOperations(
     {
       name: 'fill_form',
       label: $t('shared.pageOperation.fillForm'),
-      description:
-        'Fill form fields with provided values. Form must be open first (use create_record or edit_record). Supports all field types: input, select, switch, date, remote_select. / 用提供的值填充表单字段。需先打开表单。支持所有字段类型。',
+      description: $t('shared.pageOperation.desc.fillForm'),
       readonly: false,
       params:
         Object.keys(createOpParams).length > 0 ? createOpParams : undefined,
@@ -2242,8 +2244,7 @@ export function createFormOperations(
     {
       name: 'validate_form',
       label: $t('shared.pageOperation.validateForm'),
-      description:
-        'Trigger form validation and return errors. / 触发表单校验并返回错误信息。',
+      description: $t('shared.pageOperation.desc.validateForm'),
       readonly: true,
       handler: async () => {
         if (!formStateTracker.isOpenWithFallback(pageKey)) {
@@ -2280,8 +2281,7 @@ export function createFormOperations(
     {
       name: 'submit_form',
       label: $t('shared.pageOperation.submitForm'),
-      description:
-        'Validate and submit the currently open form. The form must be filled first. / 校验并提交当前打开的表单。需先填充表单。',
+      description: $t('shared.pageOperation.desc.submitForm'),
       readonly: false,
       handler: async () => {
         if (!formStateTracker.isOpenWithFallback(pageKey)) {
@@ -2338,12 +2338,16 @@ export function createFormOperations(
     operations.push({
       name: 'get_form_options',
       label: $t('shared.pageOperation.getFormOptions'),
-      description: `Get available options for remote select fields. Required params shape: {"field_name":"<field>"}; available remote fields: ${remoteFields.join(', ')} / 获取远程下拉字段的可选项。必传参数格式：{"field_name":"<字段名>"}；可用字段：${remoteFields.join(', ')}`,
+      description: $t('shared.pageOperation.desc.getFormOptions', {
+        fields: remoteFields.join(', '),
+      }),
       readonly: true,
       params: {
         field_name: {
           type: 'string',
-          description: `Exact field key to get options for. One of: ${remoteFields.join(', ')} / 要获取选项的精确字段名`,
+          description: $t('shared.pageOperation.param.exactFieldName', {
+            fields: remoteFields.join(', '),
+          }),
           required: true,
         },
       },

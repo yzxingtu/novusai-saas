@@ -1057,6 +1057,12 @@
     "noResponseData": "No response payload",
     "noErrorData": "No error details for this execution",
     "noDetailData": "No detail data available",
+    "desc": {
+      "openDetailById": "Open the action log detail drawer by ID"
+    },
+    "param": {
+      "actionLogId": "Action log ID"
+    },
     "placeholder": {
       "searchName": "Search action name",
       "searchTrace": "Search trace ID",
@@ -1221,6 +1227,7 @@
       "toggleSuccess": "Package status updated",
       "confirmEnable": "Confirm enable this package?",
       "confirmDisable": "Confirm disable this package?",
+      "selectPackageFirst": "Please select a skill package first",
       "uploadSuccess": "Skill package uploaded successfully",
       "uploading": "Uploading...",
       "exportSuccess": "Skill package exported, JSON downloaded",

@@ -109,7 +109,7 @@ async function runRuntimeDoctor() {
   runtimeLoading.value = true;
   try {
     const result = await getAIRuntimeDoctorApi(getRuntimeAgentParams());
-    openRuntimeResult('Runtime Doctor', result);
+    openRuntimeResult($t('admin.ai.health.runtimeDoctor'), result);
   } finally {
     runtimeLoading.value = false;
   }
@@ -119,7 +119,7 @@ async function runRuntimeSmoke() {
   runtimeLoading.value = true;
   try {
     const result = await runAIRuntimeSmokeApi(getRuntimeAgentParams());
-    openRuntimeResult('Runtime Smoke', result);
+    openRuntimeResult($t('admin.ai.health.runtimeSmoke'), result);
   } finally {
     runtimeLoading.value = false;
   }
@@ -129,7 +129,7 @@ async function runRuntimeCapabilities() {
   runtimeLoading.value = true;
   try {
     const result = await getAIRuntimeCapabilitiesApi(getRuntimeAgentParams());
-    openRuntimeResult('Runtime Capabilities', result);
+    openRuntimeResult($t('admin.ai.health.runtimeCapabilities'), result);
   } finally {
     runtimeLoading.value = false;
   }

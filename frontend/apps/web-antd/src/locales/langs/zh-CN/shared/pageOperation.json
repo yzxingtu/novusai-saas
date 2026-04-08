@@ -57,6 +57,7 @@
 
   "createApiKey": "创建 API Key",
   "createSkillPackage": "创建技能包",
+  "save": "保存",
 
   "navigateTo": "跳转到页面",
   "navigateMenu": "跳转到菜单",
@@ -95,7 +96,26 @@
     "getFormState": "获取当前表单状态：打开/关闭、字段值、脏字段、验证错误。在打开表单后调用。",
     "fillForm": "用提供的值填充表单字段。需先打开表单。支持所有字段类型。",
     "validateForm": "触发表单校验并返回错误信息。",
-    "submitForm": "校验并提交当前打开的表单。需先填充表单。"
+    "submitForm": "校验并提交当前打开的表单。需先填充表单。",
+    "saveChanges": "保存当前更改",
+    "openCreateForm": "打开新建表单",
+    "searchByKeyword": "按关键词搜索",
+    "structuredSearch": "按结构化条件搜索",
+    "openCreateWithDefaults": "打开带预填值的新建表单",
+    "openPage": "打开页面或弹窗",
+    "openCurrentSelection": "打开当前选中项",
+    "openRecordById": "按 ID 打开记录",
+    "openDetailByRecordId": "按记录 ID 打开详情视图",
+    "getFormOptions": "获取远程下拉字段的可选项。必传参数格式：{\"field_name\":\"<字段名>\"}；可用字段：{fields}"
+  },
+  "param": {
+    "keyword": "搜索关键词",
+    "recordId": "记录 ID",
+    "editRecordId": "要编辑的记录 ID",
+    "deleteRecordId": "要删除的记录 ID",
+    "targetPageNumber": "目标页码",
+    "rowsPerPage": "每页行数",
+    "exactFieldName": "要获取选项的精确字段名，可选：{fields}"
   },
 
   "msg": {
@@ -123,6 +143,7 @@
     "recordNotFound": "记录 id={id} 未找到",
     "recycleBinOpened": "回收站已打开",
     "formApiNotAvailable": "表单 API 不可用",
+    "noCurrentSelection": "当前没有可打开的选中项",
     "setFormValuesFailed": "设置表单值失败",
     "detailRefreshed": "详情已刷新",
     "detailOpened": "已打开记录 {id} 的详情",

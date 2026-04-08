@@ -170,8 +170,8 @@ describe('useEditorPageOps', () => {
 
     const context = collectRichTextRuntimeContextData('tenant.docs.detail');
     expect(context.entity_name).toBe('common.richTextEditor');
-    expect(String(context.entity_description_append ?? '')).toContain(
-      'HTML 富文本编辑器',
+    expect(context.entity_description_append).toBe(
+      'common.editorRuntimeDescription',
     );
     expect(context.has_editor).toBe(true);
     expect(context.editor_editable).toBe(true);
@@ -342,4 +342,3 @@ describe('useEditorPageOps', () => {
     scope.stop();
   });
 });
-

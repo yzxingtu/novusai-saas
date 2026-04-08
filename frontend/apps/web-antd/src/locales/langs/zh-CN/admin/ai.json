@@ -1058,6 +1058,12 @@
     "noResponseData": "暂无响应数据",
     "noErrorData": "本次执行没有错误信息",
     "noDetailData": "暂无详情数据",
+    "desc": {
+      "openDetailById": "按 ID 打开操作日志详情抽屉"
+    },
+    "param": {
+      "actionLogId": "操作日志 ID"
+    },
     "placeholder": {
       "searchName": "搜索操作名称",
       "searchTrace": "搜索 Trace ID",
@@ -1119,8 +1125,8 @@
     "providers": "个供应商",
     "refresh": "刷新",
     "agentIdPlaceholder": "Agent ID（可选）",
-    "runtimeDoctor": "运行时 Doctor",
-    "runtimeSmoke": "运行时 Smoke",
+    "runtimeDoctor": "运行时巡检",
+    "runtimeSmoke": "运行时冒烟",
     "runtimeCapabilities": "运行时能力",
     "responseTime": "响应时间",
     "failures": "连续失败",
@@ -1222,6 +1228,7 @@
       "toggleSuccess": "技能包状态已更新",
       "confirmEnable": "确认启用此技能包？",
       "confirmDisable": "确认禁用此技能包？",
+      "selectPackageFirst": "请先选择一个技能包",
       "uploadSuccess": "技能包上传成功",
       "uploading": "正在上传...",
       "exportSuccess": "技能包导出成功，JSON 已下载",

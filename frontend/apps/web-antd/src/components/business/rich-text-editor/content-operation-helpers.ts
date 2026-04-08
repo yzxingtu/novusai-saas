@@ -1,6 +1,7 @@
 import type { PageOperationResult } from '#/components/business/ai-slide-panel/page-operation-registry';
 
 import { createParameterizedPageOperation } from '#/composables/use-page-ai-operation-helpers';
+import { $t } from '#/locales';
 
 const CONTENT_FORMATS = ['html', 'markdown'] as const;
 type EditorContentFormat = (typeof CONTENT_FORMATS)[number];
@@ -55,15 +56,14 @@ export function buildEditorContentParams(
   return {
     [fieldName]: {
       type: 'string',
-      description: options.fieldDescription ?? 'Editor content / 编辑器内容',
+      description: options.fieldDescription ?? $t('common.editorParam.content'),
       required: true,
     },
     [formatFieldName]: {
       type: 'string',
       enum: [...CONTENT_FORMATS],
       description:
-        options.formatDescription ??
-        'Content format: html or markdown / 内容格式：html 或 markdown',
+        options.formatDescription ?? $t('common.editorParam.contentFormat'),
     },
   };
 }

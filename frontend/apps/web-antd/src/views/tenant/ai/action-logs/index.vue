@@ -489,17 +489,15 @@ const { Grid, onRefresh } = useCrudPage<ActionLogItem>({
     }),
     extra: [
       createRefreshPageOperation({
-        description:
-          'Reload the action log list and summary / 重新加载操作日志列表与摘要',
+        description: $t('tenant.ai.actionLog.desc.refreshListAndSummary'),
         action: async () => {
           await Promise.resolve(onRefresh());
           await loadStats();
         },
       }),
       createViewDetailPageOperation({
-        description:
-          'Open the action log detail drawer by ID / 按 ID 打开操作日志详情抽屉',
-        idDescription: 'Action log ID / 操作日志 ID',
+        description: $t('tenant.ai.actionLog.desc.openDetailById'),
+        idDescription: $t('tenant.ai.actionLog.param.actionLogId'),
         openDetail: async (id) => {
           await openDetailById(id);
         },

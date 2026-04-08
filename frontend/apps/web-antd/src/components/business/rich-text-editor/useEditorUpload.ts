@@ -237,7 +237,10 @@ export function triggerAttachmentUpload(editor: Editor) {
               {
                 type: 'text',
                 marks: [{ type: 'link', attrs: { href: info.url } }],
-                text: `📎 ${info.name} (${formatFileSize(info.size)})`,
+                text: $t('common.attachmentInlineText', {
+                  name: info.name,
+                  size: formatFileSize(info.size),
+                }),
               },
             ],
           })
@@ -249,7 +252,15 @@ export function triggerAttachmentUpload(editor: Editor) {
 }
 
 function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes < 1024) {
+    return $t('common.fileSize.bytes', { count: bytes });
+  }
+  if (bytes < 1024 * 1024) {
+    return $t('common.fileSize.kilobytes', {
+      count: (bytes / 1024).toFixed(1),
+    });
+  }
+  return $t('common.fileSize.megabytes', {
+    count: (bytes / (1024 * 1024)).toFixed(1),
+  });
 }

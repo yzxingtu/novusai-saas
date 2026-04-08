@@ -79,6 +79,13 @@ function normalizeExecutionResult<TParams extends AnyRecord>(input: {
     return input.result;
   }
 
+  if (typeof input.result === 'string' && input.result.trim()) {
+    return {
+      success: true,
+      message: input.result.trim(),
+    };
+  }
+
   return {
     success: true,
     message: resolveMessage(
@@ -129,4 +136,3 @@ export function createSimpleRuntimeOperation(
     params: undefined,
   });
 }
-

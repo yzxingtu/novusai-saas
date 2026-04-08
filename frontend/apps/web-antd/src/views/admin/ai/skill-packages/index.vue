@@ -472,7 +472,7 @@ function openSkillCreateDrawer(overrides: Record<string, unknown> = {}) {
   if (!selectedPackageId.value) {
     return {
       success: false,
-      message: 'Please select a skill package first / 请先选择一个技能包',
+      message: $t('admin.ai.skillPackage.messages.selectPackageFirst'),
     };
   }
 

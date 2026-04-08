@@ -158,10 +158,11 @@ export function createEditorContentMutationOperation(
         return result as RichTextRuntimeOperationResult;
       }
 
-      return {
-        success: true,
-        message: String(result ?? ''),
-      };
+      if (typeof result === 'string' && result.trim()) {
+        return result.trim();
+      }
+
+      return undefined;
     },
   });
 }

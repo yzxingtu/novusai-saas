@@ -174,14 +174,6 @@ function getTextAlignLabel(
   return $t(keyMap[align]);
 }
 
-const EDITOR_CONTEXT_DESCRIPTION =
-  'HTML 富文本编辑器。正文摘要在 document_body_text；完整内容用 get_editor_html 获取。\n' +
-  'content 参数默认要求 HTML（如 <h1>标题</h1><p>正文</p>）；传 content_format="markdown" 可送 Markdown。\n' +
-  '【局部编辑】先 get_editor_html 获取完整 HTML，再用 replace_section(old_html="旧片段", new_html="新片段") 只替换目标章节。\n' +
-  '长文档时 get_editor_html 返回可能被截断，请用返回内容中的短且唯一的 HTML 片段作为 replace_section 的 old_html，勿用整篇作为 old_html。\n' +
-  '【全文替换】仅当需要重写整篇文章时才用 replace_content。\n' +
-  '【追加/插入】append_content 在末尾追加，insert_content 在光标处插入。';
-
 export interface EditorPageOpsOptions {
   editable?: MaybeRefOrGetter<boolean>;
   enabled?: MaybeRefOrGetter<boolean>;
@@ -225,7 +217,7 @@ export function useEditorPageOps(
         return {
           title: $t('common.richTextEditor'),
           entity_name: $t('common.richTextEditor'),
-          entity_description_append: EDITOR_CONTEXT_DESCRIPTION,
+          entity_description_append: $t('common.editorRuntimeDescription'),
           document_body_length: fullText.length,
           document_body_text: fullText.slice(0, DOCUMENT_BODY_EXCERPT_LEN),
           editor_editable: toValue(options.editable) !== false,

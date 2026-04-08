@@ -57,6 +57,7 @@
 
   "createApiKey": "Create API Key",
   "createSkillPackage": "Create Skill Package",
+  "save": "Save",
 
   "navigateTo": "Navigate To",
   "navigateMenu": "Navigate To Menu",
@@ -95,7 +96,26 @@
     "getFormState": "Get the current form state: open/closed, field values, dirty fields, validation errors. Call after opening a form.",
     "fillForm": "Fill form fields with provided values. Form must be open first. Supports all field types.",
     "validateForm": "Trigger form validation and return errors.",
-    "submitForm": "Validate and submit the currently open form. The form must be filled first."
+    "submitForm": "Validate and submit the currently open form. The form must be filled first.",
+    "saveChanges": "Save the current changes",
+    "openCreateForm": "Open the create form",
+    "searchByKeyword": "Search by keyword",
+    "structuredSearch": "Search with structured filters",
+    "openCreateWithDefaults": "Open a create form with optional defaults",
+    "openPage": "Open a page or dialog",
+    "openCurrentSelection": "Open the current selection",
+    "openRecordById": "Open a record by ID",
+    "openDetailByRecordId": "Open the detail view by record ID",
+    "getFormOptions": "Get available options for remote select fields. Required params shape: {\"field_name\":\"<field>\"}; available remote fields: {fields}"
+  },
+  "param": {
+    "keyword": "Keyword used for search",
+    "recordId": "Record ID",
+    "editRecordId": "Record ID to edit",
+    "deleteRecordId": "Record ID to delete",
+    "targetPageNumber": "Target page number",
+    "rowsPerPage": "Rows per page",
+    "exactFieldName": "Exact field key to get options for. One of: {fields}"
   },
 
   "msg": {
@@ -123,6 +143,7 @@
     "recordNotFound": "Record id={id} not found",
     "recycleBinOpened": "Recycle bin opened",
     "formApiNotAvailable": "Form API not available",
+    "noCurrentSelection": "There is no current selection to open",
     "setFormValuesFailed": "Failed to set form values",
     "detailRefreshed": "Detail refreshed",
     "detailOpened": "Opened detail for record {id}",

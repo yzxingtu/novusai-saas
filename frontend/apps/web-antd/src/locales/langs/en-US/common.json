@@ -174,6 +174,7 @@
   "horizontalRule": "Horizontal Rule",
   "image": "Image",
   "attachment": "Attachment",
+  "attachmentInlineText": "Attachment: {name} ({size})",
   "table": "Table",
   "wordCount": "Words",
   "editorPlaceholder": "Start typing...",
@@ -300,6 +301,7 @@
     "manageLink": "Set or unset link on selection. action: set (requires href) or unset.",
     "insertTable": "Insert a table. Optional rows (default 3), cols (default 3)."
   },
+  "editorRuntimeDescription": "HTML rich-text editor. The body excerpt is in document_body_text; use get_editor_html for the full content.\nThe content parameter expects HTML by default (for example <h1>Title</h1><p>Body</p>); pass content_format=\"markdown\" to send Markdown.\nFor partial edits, call get_editor_html first, then use replace_section(old_html=\"old fragment\", new_html=\"new fragment\") to replace only the target section.\nFor long documents, get_editor_html may return truncated output. Use a short, unique HTML fragment from that output as replace_section.old_html, not the whole document.\nUse replace_content only when rewriting the entire document.\nUse append_content to add at the end and insert_content to insert at the cursor.",
   "editorParam": {
     "content": "Editor content",
     "contentFormat": "Content format: html or markdown",
@@ -312,6 +314,7 @@
     "tableRows": "Number of rows",
     "tableCols": "Number of columns"
   },
+  "linkPromptTitle": "Enter link URL",
   "richTextEditor": "Rich Text Editor",
   "sourceCode": "Source Code",
   "wysiwyg": "WYSIWYG",
@@ -345,6 +348,11 @@
   "saveFailed": "Save failed",
   "loadFailed": "Load failed",
   "saveSuccess": "Saved successfully",
+  "fileSize": {
+    "bytes": "{count} B",
+    "kilobytes": "{count} KB",
+    "megabytes": "{count} MB"
+  },
   "uploadValidation": {
     "extensionNotAllowed": "File type .{extension} is not allowed",
     "fileTooLarge": "File size exceeds the limit ({max} MB)",
@@ -640,7 +648,31 @@
     "pageAiDiagCompressionOn": "Compression: page_context budget compaction applied",
     "pageAiDiagCompressionOff": "Compression: page_context budget compaction not applied",
     "pageAiPreviewMore": "More skills",
-    "pageAiNoOperations": "AI can perceive current page context"
+    "pageAiNoOperations": "AI can perceive current page context",
+    "toolLabel": {
+      "ui_click": "Click",
+      "ui_fill_form": "Fill Form",
+      "ui_get_form_state": "Get Form State",
+      "ui_get_snapshot": "Get Snapshot",
+      "ui_list_interactables": "List Interactables",
+      "ui_open_surface": "Open Surface",
+      "ui_read_region": "Read Region",
+      "ui_read_table": "Read Table",
+      "ui_set_field": "Set Field",
+      "ui_submit_form": "Submit Form"
+    },
+    "toolDesc": {
+      "ui_click": "Trigger a click on an interactable element.",
+      "ui_fill_form": "Fill multiple form fields in the current form session.",
+      "ui_get_form_state": "Read the current form session state and field values.",
+      "ui_get_snapshot": "Read the current UI snapshot for the active page.",
+      "ui_list_interactables": "List interactable controls available on the current page.",
+      "ui_open_surface": "Open a UI surface such as a drawer, modal, or dropdown.",
+      "ui_read_region": "Read structured text from a specific UI region.",
+      "ui_read_table": "Read rows from a table region.",
+      "ui_set_field": "Set a single form field value.",
+      "ui_submit_form": "Submit the current form session."
+    }
   },
   "recycleBin": {
     "title": "Recycle Bin",

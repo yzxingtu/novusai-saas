@@ -370,9 +370,8 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
     entityDescription: $t('admin.ai.actionLog.pageDesc'),
     extra: [
       createViewDetailPageOperation({
-        description:
-          'Open the action log detail drawer by ID / 按 ID 打开操作日志详情抽屉',
-        idDescription: 'Action log ID / 操作日志 ID',
+        description: $t('admin.ai.actionLog.desc.openDetailById'),
+        idDescription: $t('admin.ai.actionLog.param.actionLogId'),
         openDetail: async (id) => {
           await openDetailById(id);
         },

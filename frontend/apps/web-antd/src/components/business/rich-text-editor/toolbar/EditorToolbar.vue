@@ -41,7 +41,7 @@ function onInsertLink() {
   const previousUrl = props.editor?.getAttributes('link').href;
   // Keep the lightweight native prompt here for editor link insertion.
   // eslint-disable-next-line no-alert
-  const url = window.prompt('URL', previousUrl);
+  const url = window.prompt($t('common.linkPromptTitle'), previousUrl);
   if (url === null) return;
   if (url === '') {
     props.editor?.chain().focus().extendMarkRange('link').unsetLink().run();
@@ -268,9 +268,7 @@ function onInsertLink() {
     <ToolbarButton
       icon="lucide:code-xml"
       :title="
-        sourceMode
-          ? $t('common.wysiwyg') || 'WYSIWYG'
-          : $t('common.sourceCode') || 'HTML'
+        sourceMode ? $t('common.wysiwyg') : $t('common.sourceCode')
       "
       :active="sourceMode"
       @click="emit('toggleSource')"

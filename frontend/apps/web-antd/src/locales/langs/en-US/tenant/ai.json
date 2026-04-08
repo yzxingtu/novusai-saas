@@ -757,6 +757,13 @@
     "noResponseData": "No response payload",
     "noErrorData": "No error details for this execution",
     "noDetailData": "No detail data available",
+    "desc": {
+      "refreshListAndSummary": "Reload the action log list and summary",
+      "openDetailById": "Open the action log detail drawer by ID"
+    },
+    "param": {
+      "actionLogId": "Action log ID"
+    },
     "stats": {
       "title": "Audit Statistics",
       "totalActions": "Total Actions",
