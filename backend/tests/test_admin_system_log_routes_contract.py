@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -33,7 +34,10 @@ def _build_test_app(mock_db, system_logs_module) -> FastAPI:
     async def inject_permissions(request, call_next):
         request.state.user_permissions = {
             "system_log:stats",
+            "system_log:categories",
+            "system_log:files",
             "system_log:read",
+            "system_log:download",
             "system_log:delete",
         }
         return await call_next(request)
@@ -81,6 +85,30 @@ def _read_demo_file(*_args, **_kwargs):
     )
 
 
+def _category_item(**overrides):
+    defaults = {
+        "code": "app",
+        "name": "Application",
+        "description": "Application logs",
+        "file_count": 2,
+        "total_size": 900,
+    }
+    defaults.update(overrides)
+    return SimpleNamespace(**defaults)
+
+
+def _file_item(**overrides):
+    defaults = {
+        "name": "app.log",
+        "category": "app",
+        "size": 512,
+        "modified_at": datetime(2026, 4, 11, 7, 0, 0),
+        "is_current": True,
+    }
+    defaults.update(overrides)
+    return SimpleNamespace(**defaults)
+
+
 def test_system_log_stats_route_returns_success_envelope(monkeypatch) -> None:
     from app.services.system import SystemLogService
 
@@ -103,6 +131,54 @@ def test_system_log_stats_route_returns_success_envelope(monkeypatch) -> None:
     assert payload["code"] == 0
     assert payload["data"]["total_files"] == 3
     assert payload["data"]["categories"][0]["code"] == "app"
+
+
+def test_system_log_categories_route_returns_items(monkeypatch) -> None:
+    from app.services.system import SystemLogService
+
+    system_logs_module = _load_system_logs_module()
+    monkeypatch.setattr(system_logs_module.AdminSystemLogController, "_instance", None)
+    monkeypatch.setattr(system_logs_module.AdminSystemLogController, "_router", None)
+    monkeypatch.setattr(
+        SystemLogService,
+        "list_categories",
+        lambda _self: [_category_item()],
+    )
+
+    app = _build_test_app(SimpleNamespace(), system_logs_module)
+
+    with TestClient(app) as client:
+        response = client.get("/system-logs/categories")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["code"] == 0
+    assert payload["data"][0]["code"] == "app"
+    assert payload["data"][0]["file_count"] == 2
+
+
+def test_system_log_files_route_returns_items(monkeypatch) -> None:
+    from app.services.system import SystemLogService
+
+    system_logs_module = _load_system_logs_module()
+    monkeypatch.setattr(system_logs_module.AdminSystemLogController, "_instance", None)
+    monkeypatch.setattr(system_logs_module.AdminSystemLogController, "_router", None)
+    monkeypatch.setattr(
+        SystemLogService,
+        "list_log_files",
+        lambda _self, category=None: [_file_item(category=category or "app")],
+    )
+
+    app = _build_test_app(SimpleNamespace(), system_logs_module)
+
+    with TestClient(app) as client:
+        response = client.get("/system-logs/files?category=app")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["code"] == 0
+    assert payload["data"][0]["name"] == "app.log"
+    assert payload["data"][0]["category"] == "app"
 
 
 def test_system_log_read_route_returns_404_when_file_missing(monkeypatch) -> None:
@@ -179,3 +255,29 @@ def test_system_log_read_route_returns_log_payload(monkeypatch) -> None:
     assert payload["code"] == 0
     assert payload["data"]["lines"] == ["line-1", "line-2"]
     assert payload["data"]["total_lines"] == 2
+
+
+def test_system_log_download_route_returns_file_response(monkeypatch) -> None:
+    from app.services.system import SystemLogService
+
+    system_logs_module = _load_system_logs_module()
+    monkeypatch.setattr(system_logs_module.AdminSystemLogController, "_instance", None)
+    monkeypatch.setattr(system_logs_module.AdminSystemLogController, "_router", None)
+    log_dir = Path("E:/git_clone/novusai-saas-yudi/.codex-temp/pytest-temp/system-logs")
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / "download.log"
+    log_file.write_text("download-demo", encoding="utf-8")
+
+    monkeypatch.setattr(
+        SystemLogService,
+        "get_log_file_path",
+        lambda _self, filename: Path(log_file) if filename == "download.log" else None,
+    )
+
+    app = _build_test_app(SimpleNamespace(), system_logs_module)
+
+    with TestClient(app) as client:
+        response = client.get("/system-logs/files/download.log/download")
+
+    assert response.status_code == 200
+    assert "download.log" in response.headers["content-disposition"]
