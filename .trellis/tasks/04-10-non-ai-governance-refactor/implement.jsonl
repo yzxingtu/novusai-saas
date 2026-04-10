@@ -14,4 +14,5 @@
 {"file": ".trellis/spec/guides/plugin-runtime-playbook.md", "reason": "Codify plugin lifecycle runtime recommended split as facade + mixin/parts with landed reference sizes"}
 {"file": "backend/tests/api/test_public_attachments_endpoints.py", "reason": "Add public attachment endpoint black-box regression coverage for /access self-redirect guard and /image processed redirect contract"}
 {"file": "backend/tests/services/test_plugin_read_model_service.py", "reason": "Add plugin admin read-model regression sentinels that force BaseService->PluginRepository facade query_list/get_by_id paths"}
+{"file": "backend/tests/test_admin_plugin_read_routes_contract.py", "reason": "Add admin plugin route sentinels that keep /plugins list/detail traversing PluginReadModelService facade and paginated/success transport contracts"}
 {"file": ".trellis/tasks/04-10-non-ai-governance-refactor/info.md", "reason": "Record post-refactor regression hardening commits and environment-specific pytest temp/cache workaround"}

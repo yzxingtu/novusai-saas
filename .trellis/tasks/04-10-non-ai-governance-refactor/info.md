@@ -69,6 +69,12 @@
   - 强制经过 `PluginReadModelService -> PluginService -> BaseService -> PluginRepository(BaseRepository)`
   - 覆盖 `build_admin_plugin_list()` 与 `build_admin_plugin_detail()` 的
     `query_list/get_by_id` facade 路径
+- 插件管理端 route 读路径哨兵已新增：
+  - `backend/tests/test_admin_plugin_read_routes_contract.py`
+  - 覆盖 `GET /plugins` 与 `GET /plugins/{id}`
+  - 强制经过 `AdminPluginController -> PluginReadModelService`
+  - 与 service 级哨兵组合后，形成 `route + read-model + base-service/repository facade`
+    的双层保护
 
 ## 验证补充
 
