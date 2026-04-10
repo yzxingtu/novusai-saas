@@ -222,3 +222,159 @@ def test_public_access_endpoint_streams_local_preview_and_records_download(
     assert response.headers["content-disposition"] == "inline"
     record_download.assert_awaited_once_with(attachment_record)
     get_download_response.assert_awaited_once_with(attachment_record, preview=True)
+
+
+def test_public_image_endpoint_redirects_to_original_when_processing_disabled(
+    monkeypatch,
+) -> None:
+    from app.configs.service import ConfigService
+    from app.services.common import ImageProcessService
+    from app.services.tenant.attachment_download_service import (
+        AttachmentDownloadService,
+    )
+
+    attachment_record = SimpleNamespace(
+        id=39,
+        tenant_id=5,
+        driver="s3",
+        path="images/original.png",
+    )
+
+    async def fake_get_platform_config(self, key: str, default=None):
+        assert key == "platform_image_process_rate_limit"
+        return default
+
+    async def fake_get_attachment(self, attachment_id: int):
+        assert attachment_id == 39
+        return attachment_record
+
+    async def fake_validate_access(self, attachment_arg, token):
+        assert attachment_arg is attachment_record
+        assert token is None
+
+    async def fake_is_enabled(self):
+        return False
+
+    get_redirect_url = AsyncMock(return_value="https://cdn.example.com/original.png")
+
+    monkeypatch.setattr(
+        ConfigService,
+        "get_platform_config",
+        fake_get_platform_config,
+    )
+    monkeypatch.setattr(
+        AttachmentDownloadService,
+        "get_attachment",
+        fake_get_attachment,
+    )
+    monkeypatch.setattr(
+        AttachmentDownloadService,
+        "validate_access",
+        fake_validate_access,
+    )
+    monkeypatch.setattr(ImageProcessService, "is_enabled", fake_is_enabled)
+    monkeypatch.setattr(
+        AttachmentDownloadService,
+        "get_redirect_url",
+        get_redirect_url,
+    )
+
+    attachments_api._image_rate_buckets.clear()
+    attachments_api._last_eviction = 0.0
+
+    app = _build_test_app(AsyncMock())
+
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/public/attachments/39/image?w=320",
+            follow_redirects=False,
+        )
+
+    assert response.status_code == 307
+    assert response.headers["location"] == "https://cdn.example.com/original.png"
+    get_redirect_url.assert_awaited_once_with(
+        attachment_record,
+        expires=3600,
+        preview=True,
+    )
+
+
+def test_public_image_endpoint_redirects_to_original_when_params_are_empty(
+    monkeypatch,
+) -> None:
+    from app.configs.service import ConfigService
+    from app.services.common import ImageProcessService
+    from app.services.tenant.attachment_download_service import (
+        AttachmentDownloadService,
+    )
+
+    attachment_record = SimpleNamespace(
+        id=40,
+        tenant_id=5,
+        driver="s3",
+        path="images/original.png",
+    )
+    params = SimpleNamespace(is_empty=lambda: True)
+
+    async def fake_get_platform_config(self, key: str, default=None):
+        assert key == "platform_image_process_rate_limit"
+        return default
+
+    async def fake_get_attachment(self, attachment_id: int):
+        assert attachment_id == 40
+        return attachment_record
+
+    async def fake_validate_access(self, attachment_arg, token):
+        assert attachment_arg is attachment_record
+        assert token is None
+
+    async def fake_is_enabled(self):
+        return True
+
+    async def fake_parse_params(self, **kwargs):
+        assert kwargs["width"] is None
+        return params
+
+    get_redirect_url = AsyncMock(return_value="https://cdn.example.com/original-empty.png")
+
+    monkeypatch.setattr(
+        ConfigService,
+        "get_platform_config",
+        fake_get_platform_config,
+    )
+    monkeypatch.setattr(
+        AttachmentDownloadService,
+        "get_attachment",
+        fake_get_attachment,
+    )
+    monkeypatch.setattr(
+        AttachmentDownloadService,
+        "validate_access",
+        fake_validate_access,
+    )
+    monkeypatch.setattr(ImageProcessService, "is_enabled", fake_is_enabled)
+    monkeypatch.setattr(ImageProcessService, "parse_params", fake_parse_params)
+    monkeypatch.setattr(
+        AttachmentDownloadService,
+        "get_redirect_url",
+        get_redirect_url,
+    )
+
+    attachments_api._image_rate_buckets.clear()
+    attachments_api._last_eviction = 0.0
+
+    app = _build_test_app(AsyncMock())
+
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/public/attachments/40/image",
+            follow_redirects=False,
+        )
+
+    assert response.status_code == 307
+    assert response.headers["location"] == "https://cdn.example.com/original-empty.png"
+    get_redirect_url.assert_awaited_once_with(
+        attachment_record,
+        expires=3600,
+        preview=True,
+    )
