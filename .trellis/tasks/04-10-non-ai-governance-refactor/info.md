@@ -85,7 +85,10 @@
 - 系统日志管理端 route 合约哨兵已新增：
   - `backend/tests/test_admin_system_log_routes_contract.py`
   - 覆盖 `GET /system-logs/stats`
+  - 覆盖 `GET /system-logs/categories`
+  - 覆盖 `GET /system-logs/files`
   - 覆盖 `GET /system-logs/files/{filename}/content` 的 success / 404
+  - 覆盖 `GET /system-logs/files/{filename}/download`
   - 覆盖 `DELETE /system-logs/files/{filename}` 的当前日志 fail-close 400
   - 主要用于补齐 system-log UI 强依赖的 transport contract，避免前端吞错时后端回归失去可见性
 
