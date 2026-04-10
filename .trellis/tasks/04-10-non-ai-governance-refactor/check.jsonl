@@ -15,4 +15,5 @@
 {"file": "backend/tests/services/test_plugin_read_model_service.py", "reason": "Verify admin plugin read-model flows still traverse BaseService/BaseRepository facade without silent query/get_by_id regressions"}
 {"file": "backend/tests/test_admin_plugin_read_routes_contract.py", "reason": "Verify /admin/plugins list/detail transport layer still exercises PluginReadModelService facade and returns stable envelopes after facade refactors"}
 {"file": "backend/tests/test_admin_operation_log_routes_contract.py", "reason": "Verify /admin/operation-logs/{id} still exercises OperationLogService/BaseService facade and returns stable success envelope after repository refactors"}
+{"file": "backend/tests/test_admin_system_log_routes_contract.py", "reason": "Verify /admin/system-logs stats/read/delete still return stable success and fail-close contracts after controller/service refactors"}
 {"file": ".trellis/tasks/04-10-non-ai-governance-refactor/info.md", "reason": "Verify post-refactor regression hardening notes capture new commits, coverage gaps closed, and pytest temp/cache caveat"}

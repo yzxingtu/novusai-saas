@@ -16,4 +16,5 @@
 {"file": "backend/tests/services/test_plugin_read_model_service.py", "reason": "Add plugin admin read-model regression sentinels that force BaseService->PluginRepository facade query_list/get_by_id paths"}
 {"file": "backend/tests/test_admin_plugin_read_routes_contract.py", "reason": "Add admin plugin route sentinels that keep /plugins list/detail traversing PluginReadModelService facade and paginated/success transport contracts"}
 {"file": "backend/tests/test_admin_operation_log_routes_contract.py", "reason": "Add admin operation-log route sentinel that keeps detail reads traversing OperationLogService/BaseService/OperationLogRepository facade chain"}
+{"file": "backend/tests/test_admin_system_log_routes_contract.py", "reason": "Add admin system-log route sentinels for stats/read/delete contracts so UI-facing success and fail-close behavior stay stable"}
 {"file": ".trellis/tasks/04-10-non-ai-governance-refactor/info.md", "reason": "Record post-refactor regression hardening commits and environment-specific pytest temp/cache workaround"}

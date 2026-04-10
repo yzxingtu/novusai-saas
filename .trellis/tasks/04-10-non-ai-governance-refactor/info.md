@@ -80,6 +80,12 @@
   - 覆盖 `GET /operation-logs/{id}`
   - 强制经过 `AdminOperationLogController -> OperationLogService -> BaseService -> OperationLogRepository`
   - 用于补齐 operation-log 现有 mock-heavy service 测试之外的 transport/facade 保护
+- 系统日志管理端 route 合约哨兵已新增：
+  - `backend/tests/test_admin_system_log_routes_contract.py`
+  - 覆盖 `GET /system-logs/stats`
+  - 覆盖 `GET /system-logs/files/{filename}/content` 的 success / 404
+  - 覆盖 `DELETE /system-logs/files/{filename}` 的当前日志 fail-close 400
+  - 主要用于补齐 system-log UI 强依赖的 transport contract，避免前端吞错时后端回归失去可见性
 
 ## 验证补充
 
