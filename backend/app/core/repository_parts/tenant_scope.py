@@ -21,9 +21,11 @@ class TenantScopeMixin(Generic[ModelType]):
     model: type[ModelType]
     tenant_id: int | None
 
-    def _build_data_permission_condition(self): ...
+    def _build_data_permission_condition(self):
+        return super()._build_data_permission_condition()
 
-    def _apply_data_permission_if_needed(self, query): ...
+    def _apply_data_permission_if_needed(self, query):
+        return super()._apply_data_permission_if_needed(query)
 
     def _tenant_scope_field_name(self) -> str:
         if hasattr(self.model, "owner_tenant_id"):

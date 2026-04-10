@@ -7,7 +7,7 @@ from `app.core.repository_parts.*` mixins.
 
 from __future__ import annotations
 
-from typing import Generic
+from typing import Any, Generic
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -42,6 +42,46 @@ class BaseRepository(
 
     def __init__(self, db: AsyncSession):
         self.db = db
+
+    def get_allowed_fields(self, scope: str | None = None):
+        return RepositoryFilteringMixin.get_allowed_fields(self, scope)
+
+    def get_sortable_fields(self):
+        return RepositoryFilteringMixin.get_sortable_fields(self)
+
+    def _apply_filters(self, query, rules, allowed_fields):
+        return RepositoryFilteringMixin._apply_filters(
+            self,
+            query,
+            rules,
+            allowed_fields,
+        )
+
+    def _apply_sort(self, query, sorts, allowed_fields):
+        return RepositoryFilteringMixin._apply_sort(
+            self,
+            query,
+            sorts,
+            allowed_fields,
+        )
+
+    def _apply_data_permission_if_needed(self, query):
+        return RepositoryFilteringMixin._apply_data_permission_if_needed(
+            self,
+            query,
+        )
+
+    def _build_data_permission_condition(self):
+        return RepositoryFilteringMixin._build_data_permission_condition(self)
+
+    def _apply_data_permission_create_defaults(
+        self,
+        data: dict[str, Any],
+    ) -> dict[str, Any]:
+        return RepositoryFilteringMixin._apply_data_permission_create_defaults(
+            self,
+            data,
+        )
 
 
 class TenantRepository(TenantScopeMixin[ModelType], BaseRepository[ModelType]):
