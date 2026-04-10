@@ -14,4 +14,5 @@
 {"file": "backend/tests/api/test_public_attachments_endpoints.py", "reason": "Verify public attachment endpoint contracts remain protected after repository facade and storage-resolution changes"}
 {"file": "backend/tests/services/test_plugin_read_model_service.py", "reason": "Verify admin plugin read-model flows still traverse BaseService/BaseRepository facade without silent query/get_by_id regressions"}
 {"file": "backend/tests/test_admin_plugin_read_routes_contract.py", "reason": "Verify /admin/plugins list/detail transport layer still exercises PluginReadModelService facade and returns stable envelopes after facade refactors"}
+{"file": "backend/tests/test_admin_operation_log_routes_contract.py", "reason": "Verify /admin/operation-logs/{id} still exercises OperationLogService/BaseService facade and returns stable success envelope after repository refactors"}
 {"file": ".trellis/tasks/04-10-non-ai-governance-refactor/info.md", "reason": "Verify post-refactor regression hardening notes capture new commits, coverage gaps closed, and pytest temp/cache caveat"}

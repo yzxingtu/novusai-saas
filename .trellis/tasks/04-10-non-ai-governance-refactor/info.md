@@ -75,6 +75,11 @@
   - 强制经过 `AdminPluginController -> PluginReadModelService`
   - 与 service 级哨兵组合后，形成 `route + read-model + base-service/repository facade`
     的双层保护
+- 操作日志管理端 route 读路径哨兵已新增：
+  - `backend/tests/test_admin_operation_log_routes_contract.py`
+  - 覆盖 `GET /operation-logs/{id}`
+  - 强制经过 `AdminOperationLogController -> OperationLogService -> BaseService -> OperationLogRepository`
+  - 用于补齐 operation-log 现有 mock-heavy service 测试之外的 transport/facade 保护
 
 ## 验证补充
 
