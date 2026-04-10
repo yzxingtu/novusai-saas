@@ -54,6 +54,37 @@
 - `.trellis/` 为本地治理目录，可能不会进入常规 git 追踪；需要明确把补充的
   规范同步写入受版本控制的入口文件时机。
 
+## 回归补强
+
+- 仓储 facade 热修已通过提交 `8c9e6865f` 固化：
+  - `backend/app/core/base_repository.py`
+  - `backend/app/core/repository_parts/tenant_scope.py`
+  - `backend/tests/core/test_base_repository_facade.py`
+- 附件公开访问链路黑盒回归已通过提交 `6c54aae78` 固化：
+  - `backend/tests/api/test_public_attachments_endpoints.py`
+  - 覆盖 `/api/public/attachments/{id}/image` 公开 happy path
+  - 覆盖 `/api/public/attachments/{id}/access` 云端自跳转 fail-close 404
+- 插件管理端读路径 facade 哨兵已通过提交 `2860846a4` 固化：
+  - `backend/tests/services/test_plugin_read_model_service.py`
+  - 强制经过 `PluginReadModelService -> PluginService -> BaseService -> PluginRepository(BaseRepository)`
+  - 覆盖 `build_admin_plugin_list()` 与 `build_admin_plugin_detail()` 的
+    `query_list/get_by_id` facade 路径
+
+## 验证补充
+
+- 非 AI 宽回归已通过：
+  - control-plane 主链：`38 passed`
+  - plugin 平台后端：仓库内 `TMP/TEMP` 下 `56 passed, 4 skipped`
+  - codegen 后端：仓库内 `TMP/TEMP` 下 `114 passed`
+  - 附件/operation-log/仓储哨兵：定向集合通过
+- 当前环境存在两个与业务逻辑无关的测试噪音：
+  - 系统 `Temp` 目录权限会导致部分 `pytest_asyncio` fixture 初始化失败
+  - `backend/.pytest_cache` 目录存在 `WinError 5` 写权限告警
+- 当前本地执行约定：
+  - 宽回归优先把 `TMP`、`TEMP` 指向
+    `E:/git_clone/novusai-saas-yudi/.codex-temp/pytest-temp`
+  - `.pytest_cache` 告警可记录但不视为业务失败
+
 ## 本轮残余审计图
 
 - `agent-1 / control-plane-and-core-foundation`

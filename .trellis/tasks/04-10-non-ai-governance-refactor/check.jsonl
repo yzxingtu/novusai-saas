@@ -11,3 +11,6 @@
 {"file": ".trellis/tasks/04-10-non-ai-governance-refactor/ownership-matrix.md", "reason": "Verify plugin-platform ownership includes lifecycle_orchestrator.py and facade+mixin/parts note"}
 {"file": ".trellis/spec/backend/index.md", "reason": "Verify backend index explicitly anchors facade+mixin/parts and controller no-direct-query guard"}
 {"file": ".trellis/spec/frontend/index.md", "reason": "Verify frontend index elevates page business-manager violation to merge blocker"}
+{"file": "backend/tests/api/test_public_attachments_endpoints.py", "reason": "Verify public attachment endpoint contracts remain protected after repository facade and storage-resolution changes"}
+{"file": "backend/tests/services/test_plugin_read_model_service.py", "reason": "Verify admin plugin read-model flows still traverse BaseService/BaseRepository facade without silent query/get_by_id regressions"}
+{"file": ".trellis/tasks/04-10-non-ai-governance-refactor/info.md", "reason": "Verify post-refactor regression hardening notes capture new commits, coverage gaps closed, and pytest temp/cache caveat"}
