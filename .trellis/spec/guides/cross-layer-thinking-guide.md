@@ -36,11 +36,14 @@ For each layer pair, answer:
   chat or embedding methods directly. Runtime capability truth is
   `AgentSkillGrant`, not package visibility alone. Do not revive deprecated
   `ToolRegistry` or `tool_bindings` style paths. Fixed LLM-facing prompt text
-  (system blocks, router prompts, tool descriptions, retry guidance, page-op
+  (system blocks, router prompts, tool descriptions, retry guidance, UI runtime
   workflow guidance) must live in `backend/app/ai/prompt_contracts/resources/`,
   not inline in Python execution code.
 - **Frontend ↔ API**: Does the page use `useCrudPage`/`useCrudList` for schema-driven search/form config? Does it rely on attachments or downloads (smartUploadFile + requestClient.download)? Reference `frontend/apps/web-antd/src/composables/use-crud-list.ts`, `frontend/apps/web-antd/src/api/admin/attachment.ts`.
 - **API ↔ Service**: Do controllers only delegate to services (TenantController/GlobalController pattern)? Do services honor RBAC (`@permission_resource`, `@permission_action`) and logging conventions (`get_logger`, success wrappers)? See `backend/app/core/base_controller.py`, `.cursor/rules/rbac-and-data-permission.md`.
+- **Controller boundary guard**: Does any touched `app/api/**` module introduce
+  direct DB query assembly (`db.execute`, `session.execute`, inline `select`)?
+  If yes, stop and move that logic to service/repository/query-service seams.
 - **Service ↔ Repository/Model**: Are queries centralized in repositories with tenant filters? Do models expose `__filterable__`, `__sortable__`, and specify `__delete_deps__` when needed? See `backend/app/repositories/tenant/tenant_domain_tenant_repository.py`, `backend/app/models/tenant/tenant_domain.py`.
 - **RBAC/Data permission truth**: Is access control staying in the established
   backend mechanisms? Controllers need `@permission_resource(..., parent_resource=...)`;
@@ -55,22 +58,31 @@ For each layer pair, answer:
   use `sync_plugin_permissions(plugin.name)` and keep menu/page/runtime gating
   aligned?
 - **Domain/Permissions ↔ Frontend**: Are domains resolved via `detectDomainType()` and public config store? Are user pages under `UserLayout` with `/api/user/*` and shared `/auth/*` contracts intact? See `.cursor/rules/user-endpoint-and-domain-isolation.md`, `frontend/apps/web-antd/src/store/shared/public-config.ts`.
+- **Frontend boundary guard**: Is the page kept as shell + sections while heavy
+  business orchestration lives in composables/shared helpers, rather than one
+  SFC acting as a business manager?
 - **Tenant product boundary**: If the work touches tenant AI, recycle bin, or
   capability exposure, does it keep the intended product boundary intact? Tenant
   surfaces may consume platform-provided capabilities and read catalog data, but
   they must not silently gain platform-only CRUD or the admin total recycle bin.
 - **Trace/Monitoring**: Do errors/logs include trace_id and use `novusai trace show` instrumentation? See `.cursor/rules/trace-and-monitoring.md`, `backend/app/tasks/ai.py`.
+- **CLI/runtime governance**: If CLI or ops scripts are touched, is public
+  entrypoint kept thin with stable command names/options, and is heavy logic
+  split into focused command/runtime modules?
+- **Plugin lifecycle/runtime governance**: If plugin platform files are touched,
+  is shape kept as `facade + mixin/parts` with compatibility preserved
+  (reference: `lifecycle.py(432)` + `lifecycle_orchestrator.py(833)`)?
 
-### Frontend Page-AI Priority Order
+### Frontend UI Runtime Priority Order
 
-When the work involves page AI or page operations, check whether the page fits
-an existing entry point before adding low-level wiring:
+When the work involves page context, page operations, or UI runtime tools,
+check whether the page fits an existing entry point before adding low-level
+wiring:
 
 1. `useCrudPage`
-2. `useCrudList`
-3. `useDetailPageAi`
-4. lower-level page AI composables only when the page cannot fit the standard
-   patterns
+2. `useCrudList` (+ shared runtime helpers such as `use-ai-operations.ts` when
+   the page needs protocol-aligned metadata or form/session hooks)
+3. thin `page_context` + UI Runtime `ui_*` tools path for non-CRUD pages
 
 ### Dev-only Bootstrap Credential Contract
 
@@ -115,6 +127,15 @@ Checklist:
 7. If tenant AI/package flows are involved, did you keep tenant package views as
    catalog/read-only surfaces rather than runtime authority or package-binding
    truth?
+8. If controller files changed, did you explicitly confirm no new controller
+   direct-query path was introduced?
+9. If frontend page/component files changed, did you explicitly confirm the page
+   is not acting as a cross-domain business orchestrator?
+10. If CLI/platform governance files changed, did you confirm `thin facade +
+    focused parts` with compatibility preserved?
+11. If plugin lifecycle/runtime files changed, did you confirm
+    `facade + mixin/parts` and avoid re-converging orchestration into one giant
+    module?
 
 If the answer is no, stop and gather the missing contract before coding.
 
@@ -124,7 +145,10 @@ If the answer is no, stop and gather the missing contract before coding.
 - Verify trace_id surfaces via `showRequestError` or backend `build_public_error_text`.
 - If uploads/files changed, ensure downloads still call `requestClient.download` + `downloadBlob`.
 - If plugins or permissions changed, confirm `/permissions/menus`, `/plugins/slots`, and `v-access` flows match the manifest contract.
-- If AI agents changed, ensure page AI operations still register with `appendPageOperations` and share `AI_PAGE_KEY`.
+- If AI agents changed, ensure frontend still exposes a thin `page_context`
+  contract, `ui_*` runtime actions, and shared runtime helpers through
+  `useCrudList`/`useCrudPage` without reviving legacy `ai.*` or `ai.extra`
+  option bags.
 - If quota/rate-limit behavior changed, confirm runtime interception behavior,
   not only CRUD or diagnostics UI.
 - If tenant/user routing changed, confirm `router/guard.ts` and

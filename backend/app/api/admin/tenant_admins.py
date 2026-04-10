@@ -10,6 +10,7 @@ Uses independent resource code tenant_admin, permissions separated from tenant r
 from fastapi import HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 
+from app.api.common.identity import serialize_tenant_admin_identity_detail
 from app.core.base_controller import GlobalController
 from app.core.deps import ActiveAdmin, DbSession
 from app.core.i18n import _
@@ -25,7 +26,6 @@ from app.rbac.decorators import (
 from app.services.common import AuthService
 from app.services.system import TenantService
 from app.services.tenant import TenantAdminService
-from app.api.common.identity import serialize_tenant_admin_identity_detail
 
 # ==========================================
 # 请求/响应 Schema / Request/Response Schema
@@ -101,6 +101,13 @@ def _serialize_tenant_admin(tenant_admin) -> dict:
     }
 
 
+def _get_tenant_admin_service(
+    db: DbSession,
+    tenant_id: int,
+) -> TenantAdminService:
+    return TenantAdminService(db, tenant_id)
+
+
 # ==========================================
 # Controller / 控制器
 # ==========================================
@@ -156,25 +163,8 @@ class AdminTenantAdminController(GlobalController):
             Returns admin basic info, role name, and online status related fields.
             """
             await _verify_tenant(db, tenant_id)
-
-            from sqlalchemy import select
-            from sqlalchemy.orm import selectinload
-
-            from app.models import TenantAdmin
-
-            result = await db.execute(
-                select(TenantAdmin)
-                .where(
-                    TenantAdmin.tenant_id == tenant_id,
-                    TenantAdmin.is_deleted.is_(False),
-                )
-                .options(
-                    selectinload(TenantAdmin.role),
-                    selectinload(TenantAdmin.org_node),
-                )
-                .order_by(TenantAdmin.is_owner.desc(), TenantAdmin.created_at.asc())
-            )
-            admins = list(result.scalars().all())
+            service = _get_tenant_admin_service(db, tenant_id)
+            admins = await service.list_identity_details()
             return success(data=[_serialize_tenant_admin(ta) for ta in admins])
 
         @router.get("/select", summary="获取企业管理员下拉选项")
@@ -275,25 +265,8 @@ class AdminTenantAdminController(GlobalController):
             At least one field must have a value.
             """
             await _verify_tenant(db, tenant_id)
-
-            from sqlalchemy import select
-            from sqlalchemy.orm import selectinload
-
-            from app.models import TenantAdmin
-
-            result = await db.execute(
-                select(TenantAdmin).where(
-                    TenantAdmin.id == admin_id,
-                    TenantAdmin.tenant_id == tenant_id,
-                    TenantAdmin.is_deleted.is_(False),
-                )
-            )
-            tenant_admin = result.scalar_one_or_none()
-            if not tenant_admin:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=_("tenant_admin.not_found"),
-                )
+            service = _get_tenant_admin_service(db, tenant_id)
+            tenant_admin = await service.get_identity_detail(admin_id)
 
             if (
                 data.is_active is not None
@@ -305,7 +278,6 @@ class AdminTenantAdminController(GlobalController):
                     detail=_("tenant_admin.cannot_disable_owner"),
                 )
 
-            service = TenantAdminService(db, tenant_id)
             update_data = data.model_dump(
                 exclude_unset=True,
                 exclude={"password"},
@@ -317,25 +289,7 @@ class AdminTenantAdminController(GlobalController):
                 if update_data:
                     await service.update_admin(admin_id, update_data)
 
-                refreshed = await db.execute(
-                    select(TenantAdmin)
-                    .where(
-                        TenantAdmin.id == admin_id,
-                        TenantAdmin.tenant_id == tenant_id,
-                        TenantAdmin.is_deleted.is_(False),
-                    )
-                    .options(
-                        selectinload(TenantAdmin.role),
-                        selectinload(TenantAdmin.org_node),
-                    )
-                )
-                updated_admin = refreshed.scalar_one_or_none()
-                if updated_admin is None:
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail=_("tenant_admin.not_found"),
-                    )
-
+                updated_admin = await service.get_identity_detail(admin_id)
                 await db.flush()
                 return success(data=_serialize_tenant_admin(updated_admin))
             except Exception as exc:
@@ -358,24 +312,8 @@ class AdminTenantAdminController(GlobalController):
             Cannot disable tenant owner (is_owner=True).
             """
             await _verify_tenant(db, tenant_id)
-
-            from sqlalchemy import select
-
-            from app.models import TenantAdmin
-
-            result = await db.execute(
-                select(TenantAdmin).where(
-                    TenantAdmin.id == admin_id,
-                    TenantAdmin.tenant_id == tenant_id,
-                    TenantAdmin.is_deleted.is_(False),
-                )
-            )
-            tenant_admin = result.scalar_one_or_none()
-            if not tenant_admin:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=_("tenant_admin.not_found"),
-                )
+            service = _get_tenant_admin_service(db, tenant_id)
+            tenant_admin = await service.get_identity_detail(admin_id)
 
             if tenant_admin.is_owner and not data.is_active:
                 raise HTTPException(
@@ -383,7 +321,7 @@ class AdminTenantAdminController(GlobalController):
                     detail=_("tenant_admin.cannot_disable_owner"),
                 )
 
-            tenant_admin.is_active = data.is_active
+            tenant_admin = await service.toggle_status(admin_id, data.is_active)
             await db.flush()
 
             return success(
@@ -407,27 +345,11 @@ class AdminTenantAdminController(GlobalController):
             吊销其所有 Token 并通知前端跳转登录页。
             """
             await _verify_tenant(db, tenant_id)
-
-            from sqlalchemy import select
-
-            from app.models import TenantAdmin
-
-            result = await db.execute(
-                select(TenantAdmin).where(
-                    TenantAdmin.id == admin_id,
-                    TenantAdmin.tenant_id == tenant_id,
-                    TenantAdmin.is_deleted.is_(False),
-                )
-            )
-            tenant_admin = result.scalar_one_or_none()
-            if not tenant_admin:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=_("tenant_admin.not_found"),
-                )
+            service = _get_tenant_admin_service(db, tenant_id)
+            tenant_admin = await service.get_identity_detail(admin_id)
 
             auth_service = AuthService(db)
-            await auth_service.force_logout(
+            await auth_service.token_sessions.force_logout(
                 user_type="tenant_admin",
                 user_id=admin_id,
                 tenant_id=tenant_id,

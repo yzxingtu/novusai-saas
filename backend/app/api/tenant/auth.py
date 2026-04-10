@@ -43,6 +43,17 @@ _audit_helper = _ImpersonateAuditLogger()
 router = APIRouter(prefix="/auth", tags=["企业管理员认证"])
 
 
+def _client_ip(request: Request) -> str | None:
+    return request.client.host if request.client else None
+
+
+def _resolve_tenant_id_from_context(request: Request) -> int | None:
+    tenant_ctx = get_tenant_context(request)
+    if tenant_ctx and tenant_ctx.is_resolved:
+        return tenant_ctx.tenant_id
+    return None
+
+
 @router.post("/login", summary="企业管理员登录")
 @public
 async def tenant_admin_login(
@@ -60,19 +71,12 @@ async def tenant_admin_login(
     if rate_limited:
         return rate_limited
     auth_service = AuthService(db)
-
-    # 从域名中间件获取 tenant_ctx 作为回退 / Get tenant_ctx from domain middleware as fallback
-    tenant_ctx = get_tenant_context(request)
-    tenant_id_from_ctx = (
-        tenant_ctx.tenant_id if tenant_ctx and tenant_ctx.is_resolved else None
-    )
-
-    tokens = await auth_service.authenticate_tenant_admin(
+    tokens = await auth_service.tenant_admin_auth.authenticate(
         username=login_data.username,
         password=login_data.password,
         tenant_code=login_data.tenant_code,
-        tenant_id_from_ctx=tenant_id_from_ctx,
-        client_ip=request.client.host if request.client else None,
+        tenant_id_from_ctx=_resolve_tenant_id_from_context(request),
+        client_ip=_client_ip(request),
         captcha_challenge_id=login_data.captcha_challenge_id,
         captcha_solution=login_data.captcha_solution,
         captcha_provider_code=login_data.captcha_provider_code,
@@ -101,10 +105,10 @@ if settings.APP_ENV.strip().lower() == "development":
         Registered only in development and still returns a standard token pair.
         """
         auth_service = AuthService(db)
-        tokens = await auth_service.authenticate_tenant_admin_by_dev_bootstrap(
+        tokens = await auth_service.tenant_admin_auth.authenticate_by_dev_bootstrap(
             bootstrap_secret=bootstrap_data.bootstrap_secret,
             request_host=request.url.hostname or request.headers.get("host"),
-            client_ip=request.client.host if request.client else None,
+            client_ip=_client_ip(request),
         )
         await db.commit()
 
@@ -124,7 +128,9 @@ async def refresh_token(
     使用 Refresh Token 获取新的 Token 对 / Use refresh token to get new token pair
     """
     auth_service = AuthService(db)
-    tokens = await auth_service.refresh_tenant_admin_token(refresh_data.refresh_token)
+    tokens = await auth_service.tenant_admin_auth.refresh_token(
+        refresh_data.refresh_token
+    )
 
     return success(
         data=TokenResponse(**tokens),
@@ -147,7 +153,7 @@ async def tenant_admin_logout(
     if auth_header.startswith("Bearer "):
         token = auth_header[7:]
         auth_service = AuthService(db)
-        await auth_service.revoke_on_logout(
+        await auth_service.token_sessions.revoke_on_logout(
             token, "tenant_admin", str(current_admin.id)
         )
     return success(
@@ -167,25 +173,12 @@ async def get_current_tenant_admin_info(
     响应中包含 has_plan 字段，前端据此判断是否显示“未分配套餐”提示。
     Response includes has_plan field for frontend to determine whether to show "no plan assigned" prompt.
     """
-    from sqlalchemy import select as sa_select
-    from sqlalchemy.orm import selectinload
-
-    from app.models.tenant.tenant import Tenant
-
-    result = await db.execute(
-        sa_select(Tenant)
-        .where(Tenant.id == current_admin.tenant_id)
-        .options(selectinload(Tenant.tenant_plan))
-    )
-    tenant = result.scalar_one_or_none()
-    has_plan = tenant is not None and tenant.plan_id is not None
-    plan_name = None
-    if has_plan and tenant and tenant.tenant_plan:
-        plan_name = tenant.tenant_plan.name
+    auth_service = AuthService(db)
+    profile_flags = await auth_service.tenant_admin_auth.get_profile_flags(current_admin)
 
     resp = TenantAdminResponse.model_validate(current_admin, from_attributes=True)
-    resp.has_plan = has_plan
-    resp.plan_name = plan_name
+    resp.has_plan = bool(profile_flags["has_plan"])
+    resp.plan_name = profile_flags["plan_name"]
     return success(data=resp, message=_("common.success"))
 
 
@@ -200,8 +193,7 @@ async def change_password(
     修改当前企业管理员密码 / Change current tenant admin password
     """
     auth_service = AuthService(db)
-
-    await auth_service.change_tenant_admin_password(
+    await auth_service.tenant_admin_auth.change_password(
         tenant_admin=current_admin,
         old_password=password_data.old_password,
         new_password=password_data.new_password,
@@ -229,22 +221,13 @@ async def update_profile(
     if not update_fields:
         return success(message=_("common.success"))
 
-    for field, value in update_fields.items():
-        setattr(current_admin, field, value)
-
-    try:
-        await db.commit()
-    except Exception as e:
-        await db.rollback()
-        if "unique" in str(e).lower() and "email" in str(e).lower():
-            from app.exceptions import BusinessException
-
-            raise BusinessException(message=_("auth.email_already_exists")) from e
-        raise
-
-    await db.refresh(current_admin)
-
-    resp = TenantAdminResponse.model_validate(current_admin, from_attributes=True)
+    auth_service = AuthService(db)
+    tenant_admin = await auth_service.tenant_admin_auth.update_profile(
+        tenant_admin=current_admin,
+        profile_data=update_fields,
+    )
+    await db.commit()
+    resp = TenantAdminResponse.model_validate(tenant_admin, from_attributes=True)
     return success(data=resp, message=_("auth.profile_updated"))
 
 
@@ -262,8 +245,7 @@ async def impersonate_login(
     - 返回标准的 access_token 和 refresh_token / Returns standard access_token and refresh_token
     """
     auth_service = AuthService(db)
-
-    tokens, audit_info = await auth_service.impersonate_tenant_admin(
+    tokens, audit_info = await auth_service.tenant_admin_auth.impersonate(
         impersonate_token=data.impersonate_token,
     )
 
@@ -278,7 +260,7 @@ async def impersonate_login(
         audit_info["target_tenant_code"],
         audit_info["tenant_owner_id"],
         audit_info["target_role_id"],
-        request.client.host if request.client else None,
+        _client_ip(request),
     )
 
     return success(

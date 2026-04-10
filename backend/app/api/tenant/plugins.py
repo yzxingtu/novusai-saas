@@ -15,7 +15,7 @@ from app.core.deps import ActiveTenantAdmin, DbSession
 from app.core.logging import get_logger
 from app.core.response import success
 from app.rbac.decorators import auth_only
-from app.rbac.services import PermissionService
+from app.services.system.plugin_read_model_service import PluginReadModelService
 
 logger = get_logger(__name__)
 
@@ -38,61 +38,9 @@ async def list_available_plugins(
     - admin_only → 企业端不可见 / not visible on tenant side
     - 当前用户若没有任何可见前端入口权限，则插件不返回 / plugin stays hidden when the current user has no visible frontend surfaces
     """
-    from sqlalchemy import select
-
-    from app.api.shared._plugin_slot_filter import (
-        collect_plugin_names_from_grouped_slots,
-        filter_grouped_plugin_slots_by_permission_codes,
-    )
-    from app.enums.plugin import PluginStatusEnum
-    from app.models.system.plugin import Plugin
-    from app.plugins.registry import ExtensionRegistry
-    from app.services.system.plugin_service import PluginService
-
-    tenant_id = tenant_admin.tenant_id
-    visible_names = await PluginService(db).get_tenant_visible_plugin_names(tenant_id)
-    permission_codes = await PermissionService(db).get_tenant_admin_permissions(
+    items = await PluginReadModelService(db).list_tenant_visible_plugin_items(
         tenant_admin
     )
-
-    registry = ExtensionRegistry.get_instance()
-    grouped = registry.get_frontend_slots_grouped(scope="tenant")
-    grouped = {
-        slot_key: [slot for slot in slots if slot.get("plugin_name") in visible_names]
-        for slot_key, slots in grouped.items()
-    }
-    grouped = filter_grouped_plugin_slots_by_permission_codes(
-        grouped,
-        permission_codes,
-    )
-    current_user_visible_names = collect_plugin_names_from_grouped_slots(grouped)
-
-    # 查询所有已启用的插件 / Query all enabled plugins
-    result = await db.execute(
-        select(Plugin).where(
-            Plugin.status == PluginStatusEnum.ENABLED.value,
-            Plugin.is_deleted.is_(False),
-        )
-    )
-    all_enabled = list(result.scalars().all())
-
-    visible_plugins = [
-        plugin
-        for plugin in all_enabled
-        if plugin.name in visible_names and plugin.name in current_user_visible_names
-    ]
-
-    items = []
-    for p in visible_plugins:
-        data = p.to_dict()
-        # 脱敏配置 / Mask sensitive config
-        manifest_data = data.get("manifest") or {}
-        config_schema = manifest_data.get("config_schema")
-        if config_schema and data.get("config"):
-            from app.plugins.crypto import mask_plugin_config
-
-            data["config"] = mask_plugin_config(data["config"], config_schema)
-        items.append(data)
 
     return success(
         data={
@@ -129,30 +77,6 @@ async def get_plugin_slots(
       "notification_ui": [...]
     }
     """
-    from app.api.shared._plugin_slot_filter import (
-        filter_grouped_plugin_slots_by_permission_codes,
+    return success(
+        data=await PluginReadModelService(db).build_tenant_visible_slots(tenant_admin)
     )
-    from app.plugins.registry import ExtensionRegistry
-    from app.services.system.plugin_service import PluginService
-
-    visible_names = await PluginService(db).get_tenant_visible_plugin_names(
-        tenant_admin.tenant_id
-    )
-    permission_codes = await PermissionService(db).get_tenant_admin_permissions(
-        tenant_admin
-    )
-
-    registry = ExtensionRegistry.get_instance()
-    grouped = registry.get_frontend_slots_grouped(scope="tenant")
-
-    # 按可见插件名过滤各插槽 / Filter slots by visible plugin names
-    filtered = {
-        slot_key: [s for s in slots if s.get("plugin_name") in visible_names]
-        for slot_key, slots in grouped.items()
-    }
-    filtered = filter_grouped_plugin_slots_by_permission_codes(
-        filtered,
-        permission_codes,
-    )
-
-    return success(data=filtered)

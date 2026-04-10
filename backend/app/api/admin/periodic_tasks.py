@@ -6,19 +6,13 @@ Provides periodic task CRUD, enable/disable, manual trigger endpoints.
 """
 
 from fastapi import Path, Request
-from sqlalchemy import select
 
 from app.core.base_controller import GlobalController
 from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
 from app.core.recycle_bin import register_admin_recycle_bin_routes
 from app.core.response import created, deleted, paginated, success
-from app.enums.common import ResourceScopeEnum
-from app.enums.plugin import PluginStatusEnum
 from app.enums.rbac import PermissionScope
-from app.models.system.plugin import Plugin
-from app.plugins.loader import PluginLoader
-from app.plugins.preview import resolve_i18n
 from app.rbac.decorators import (
     MenuConfig,
     action_create,
@@ -31,11 +25,14 @@ from app.schemas.system import (
     PeriodicTaskBindingResponse,
     PeriodicTaskBindingSyncRequest,
     PeriodicTaskCreateRequest,
-    PeriodicTaskResponse,
     PeriodicTaskToggleRequest,
     PeriodicTaskUpdateRequest,
 )
 from app.services.system import TaskBindingService, TaskDefinitionService
+from app.services.system.periodic_task_query_service import (
+    PeriodicTaskPluginStateService,
+    PeriodicTaskPresentationService,
+)
 
 
 @permission_resource(
@@ -59,137 +56,7 @@ class AdminPeriodicTaskController(GlobalController):
     prefix = "/periodic-tasks"
     tags = ["Periodic Task Management"]
     service_class = TaskDefinitionService
-
-    @staticmethod
-    def _extract_plugin_name(definition) -> str | None:
-        for raw in (
-            getattr(definition, "code", None),
-            getattr(definition, "handler_path", None),
-            getattr(definition, "name", None),
-        ):
-            value = str(raw or "").strip()
-            if not value.startswith("plugin."):
-                continue
-            parts = value.split(".")
-            if len(parts) >= 3:
-                return parts[1]
-        return None
-
-    @staticmethod
-    async def _resolve_plugin_enabled_map(
-        db: DbSession,
-        definitions: list,
-    ) -> dict[str, bool]:
-        plugin_names = sorted(
-            {
-                plugin_name
-                for item in definitions
-                if (
-                    plugin_name := AdminPeriodicTaskController._extract_plugin_name(
-                        item
-                    )
-                )
-            }
-        )
-        if not plugin_names:
-            return {}
-
-        result = await db.execute(
-            select(Plugin.name, Plugin.status).where(
-                Plugin.name.in_(plugin_names),
-                Plugin.is_deleted.is_(False),
-            )
-        )
-        return {
-            name: status == PluginStatusEnum.ENABLED.value
-            for name, status in result.all()
-        }
-
-    @staticmethod
-    def _resolve_plugin_task_i18n(
-        definition,
-        manifest_cache: dict[str, object] | None = None,
-    ) -> tuple[str | None, str]:
-        task_code = str(
-            getattr(definition, "code", "") or getattr(definition, "name", "")
-        )
-        handler_path = str(getattr(definition, "handler_path", "") or "")
-        is_plugin_like = (
-            getattr(definition, "definition_type", None) == "plugin"
-            or task_code.startswith("plugin.")
-            or handler_path.startswith("plugin.")
-        )
-        if not is_plugin_like:
-            return definition.description, definition.name
-
-        if not task_code.startswith("plugin.") and handler_path.startswith("plugin."):
-            task_code = handler_path
-        parts = task_code.split(".")
-        if len(parts) < 3 or parts[0] != "plugin":
-            return definition.description, definition.name
-
-        plugin_name = parts[1]
-        task_name = ".".join(parts[2:])
-        manifest_map = manifest_cache if manifest_cache is not None else {}
-        manifest = manifest_map.get(plugin_name)
-
-        if manifest is None:
-            try:
-                manifest = PluginLoader().load_manifest(plugin_name)
-            except Exception:
-                manifest = False
-            manifest_map[plugin_name] = manifest
-
-        if not manifest:
-            return definition.description, definition.name
-
-        locale = getattr(definition, "_locale", None)
-        if not locale:
-            from app.core.i18n import get_locale
-
-            locale = get_locale()
-
-        task_ext = next(
-            (item for item in manifest.extensions.tasks if item.name == task_name),
-            None,
-        )
-        if task_ext is None:
-            return definition.description, definition.name
-
-        display_name = resolve_i18n(task_ext.display_name, locale) or definition.name
-        description = (
-            resolve_i18n(task_ext.description, locale) or definition.description
-        )
-        return description, display_name
-
-    @staticmethod
-    def _binding_semantics(
-        scope: str | None, binding_count: int
-    ) -> dict[str, bool | str]:
-        selected_scopes = {
-            ResourceScopeEnum.SELECTED_TENANTS.value,
-            ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
-        }
-        if scope in selected_scopes:
-            return {
-                "binding_required": True,
-                "binding_configured": binding_count > 0,
-                "tenant_access_mode": "selected",
-            }
-        if scope in (
-            ResourceScopeEnum.ALL_TENANTS.value,
-            ResourceScopeEnum.GLOBAL_SHARED.value,
-        ):
-            return {
-                "binding_required": False,
-                "binding_configured": True,
-                "tenant_access_mode": "all",
-            }
-        return {
-            "binding_required": False,
-            "binding_configured": True,
-            "tenant_access_mode": "none",
-        }
+    _presentation = PeriodicTaskPresentationService()
 
     @staticmethod
     def _resolve_binding_target_scope(
@@ -198,76 +65,11 @@ class AdminPeriodicTaskController(GlobalController):
         requested_scope: str | None,
         tenant_ids: list[int],
     ) -> str:
-        explicit_scopes = {
-            ResourceScopeEnum.SELECTED_TENANTS.value,
-            ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value,
-        }
-        if requested_scope:
-            return requested_scope
-        if current_scope in explicit_scopes:
-            return str(current_scope)
-        if tenant_ids:
-            return ResourceScopeEnum.ADMIN_AND_SELECTED_TENANTS.value
-        return current_scope or ResourceScopeEnum.ADMIN_ONLY.value
-
-    @staticmethod
-    def _serialize_definition(
-        definition,
-        *,
-        assigned_tenant_names: list[str] | None = None,
-        assigned_tenant_ids: list[int] | None = None,
-        binding_count: int = 0,
-        binding_summary: str | None = None,
-        manifest_cache: dict[str, object] | None = None,
-        plugin_enabled_map: dict[str, bool] | None = None,
-    ) -> dict:
-        semantics = AdminPeriodicTaskController._binding_semantics(
-            definition.scope,
-            binding_count,
+        return PeriodicTaskPresentationService.resolve_binding_target_scope(
+            current_scope=current_scope,
+            requested_scope=requested_scope,
+            tenant_ids=tenant_ids,
         )
-        plugin_name = AdminPeriodicTaskController._extract_plugin_name(definition)
-        description, display_name = (
-            AdminPeriodicTaskController._resolve_plugin_task_i18n(
-                definition,
-                manifest_cache=manifest_cache,
-            )
-        )
-        return PeriodicTaskResponse(
-            id=definition.id,
-            name=display_name,
-            definition_type=definition.definition_type,
-            task_path=definition.handler_path,
-            schedule_type=definition.default_schedule_type,
-            cron_expression=definition.default_cron_expression,
-            interval_seconds=definition.default_interval_seconds,
-            is_active=definition.is_enabled,
-            last_run_at=definition.last_run_at,
-            next_run_at=definition.next_run_at,
-            description=description,
-            plugin_name=plugin_name,
-            plugin_enabled=(
-                plugin_enabled_map.get(plugin_name, True)
-                if plugin_name and plugin_enabled_map is not None
-                else True
-            ),
-            scope=definition.scope,
-            owner_tenant_id=definition.owner_tenant_id,
-            assigned_tenant_ids=assigned_tenant_ids or [],
-            assigned_tenant_names=assigned_tenant_names or [],
-            binding_count=binding_count,
-            binding_summary=binding_summary,
-            binding_required=bool(semantics["binding_required"]),
-            binding_configured=bool(semantics["binding_configured"]),
-            tenant_access_mode=str(semantics["tenant_access_mode"]),
-            is_locked=not definition.is_deletable,
-            is_editable=definition.is_editable,
-            max_retries=definition.max_retries,
-            retry_delay=definition.retry_delay,
-            timeout=definition.timeout,
-            notify_on_failure=definition.notify_on_failure,
-            notify_emails=definition.notify_emails,
-            created_at=definition.created_at,
-        ).model_dump()
 
     def _register_routes(self) -> None:
         router = self.router
@@ -290,25 +92,21 @@ class AdminPeriodicTaskController(GlobalController):
             service = self.get_service(db)
             items, total = await service.query_list(query)
             binding_service = TaskBindingService(db)
+            plugin_state_service = PeriodicTaskPluginStateService(db)
             manifest_cache: dict[str, object] = {}
-            plugin_enabled_map = await self._resolve_plugin_enabled_map(db, items)
+            plugin_enabled_map = await plugin_state_service.resolve_enabled_map(
+                plugin_names=self._presentation.collect_plugin_names(items)
+            )
             binding_summary = await binding_service.get_definition_binding_summary(
                 [item.id for item in items]
             )
-            # Fill next_run_at when null for Cron/Interval tasks (e.g. pre-seeded tasks)
-            # 当 next_run_at 为空时，为 Cron/Interval 任务计算下次执行时间
-            for item in items:
-                if item.next_run_at is None and item.is_enabled:
-                    next_run = TaskDefinitionService._compute_next_run(
-                        item.default_schedule_type,
-                        item.default_cron_expression,
-                        item.default_interval_seconds,
-                    )
-                    if next_run:
-                        item.next_run_at = next_run
+            self._presentation.patch_missing_next_run(
+                items,
+                compute_next_run=TaskDefinitionService._compute_next_run,
+            )
             return paginated(
                 items=[
-                    self._serialize_definition(
+                    self._presentation.serialize_definition(
                         item,
                         assigned_tenant_ids=binding_summary.get(item.id, {}).get(
                             "assigned_tenant_ids", []
@@ -380,7 +178,7 @@ class AdminPeriodicTaskController(GlobalController):
             )
             binding_info = binding_summary.get(task.id, {})
             return created(
-                data=self._serialize_definition(
+                data=self._presentation.serialize_definition(
                     task,
                     assigned_tenant_ids=binding_info.get("assigned_tenant_ids", []),
                     assigned_tenant_names=binding_info.get("assigned_tenant_names", []),
@@ -405,13 +203,16 @@ class AdminPeriodicTaskController(GlobalController):
                 raise NotFoundException(message=_("periodic_task.error.not_found"))
 
             binding_service = TaskBindingService(db)
-            plugin_enabled_map = await self._resolve_plugin_enabled_map(db, [task])
+            plugin_state_service = PeriodicTaskPluginStateService(db)
+            plugin_enabled_map = await plugin_state_service.resolve_enabled_map(
+                plugin_names=self._presentation.collect_plugin_names([task])
+            )
             binding_summary = await binding_service.get_definition_binding_summary(
                 [task.id]
             )
             binding_info = binding_summary.get(task.id, {})
             return success(
-                data=self._serialize_definition(
+                data=self._presentation.serialize_definition(
                     task,
                     assigned_tenant_ids=binding_info.get("assigned_tenant_ids", []),
                     assigned_tenant_names=binding_info.get("assigned_tenant_names", []),
@@ -463,7 +264,7 @@ class AdminPeriodicTaskController(GlobalController):
                 raise NotFoundException(message=_("periodic_task.error.not_found"))
 
             binding_service = TaskBindingService(db)
-            target_scope = self._resolve_binding_target_scope(
+            target_scope = self._presentation.resolve_binding_target_scope(
                 current_scope=task.scope,
                 requested_scope=body.scope,
                 tenant_ids=body.tenant_ids,
@@ -546,13 +347,16 @@ class AdminPeriodicTaskController(GlobalController):
                 )
                 task = await service.get_by_id(task_id)
             binding_service = TaskBindingService(db)
-            plugin_enabled_map = await self._resolve_plugin_enabled_map(db, [task])
+            plugin_state_service = PeriodicTaskPluginStateService(db)
+            plugin_enabled_map = await plugin_state_service.resolve_enabled_map(
+                plugin_names=self._presentation.collect_plugin_names([task])
+            )
             binding_summary = await binding_service.get_definition_binding_summary(
                 [task.id]
             )
             binding_info = binding_summary.get(task.id, {})
             return success(
-                data=self._serialize_definition(
+                data=self._presentation.serialize_definition(
                     task,
                     assigned_tenant_ids=binding_info.get("assigned_tenant_ids", []),
                     assigned_tenant_names=binding_info.get("assigned_tenant_names", []),
@@ -586,13 +390,16 @@ class AdminPeriodicTaskController(GlobalController):
             service = self.get_service(db)
             task = await service.toggle_active(task_id, body.is_active)
             binding_service = TaskBindingService(db)
-            plugin_enabled_map = await self._resolve_plugin_enabled_map(db, [task])
+            plugin_state_service = PeriodicTaskPluginStateService(db)
+            plugin_enabled_map = await plugin_state_service.resolve_enabled_map(
+                plugin_names=self._presentation.collect_plugin_names([task])
+            )
             binding_summary = await binding_service.get_definition_binding_summary(
                 [task.id]
             )
             binding_info = binding_summary.get(task.id, {})
             return success(
-                data=self._serialize_definition(
+                data=self._presentation.serialize_definition(
                     task,
                     assigned_tenant_ids=binding_info.get("assigned_tenant_ids", []),
                     assigned_tenant_names=binding_info.get("assigned_tenant_names", []),

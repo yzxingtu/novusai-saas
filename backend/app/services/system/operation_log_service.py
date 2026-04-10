@@ -36,6 +36,515 @@ if TYPE_CHECKING:
     from app.models.tenant.tenant_admin import TenantAdmin
 
 
+class _OperationLogIdentityFacade:
+    """Identity enrichment and serialization helpers for operation logs."""
+
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+    @staticmethod
+    def identity_ref(
+        user_type: str | None,
+        user_id: int | None,
+    ) -> tuple[str, int] | None:
+        if not user_type or not user_id:
+            return None
+        return str(user_type), int(user_id)
+
+    @staticmethod
+    def build_identity_meta(
+        *,
+        identity_id: int | None,
+        user_type: str,
+        username: str | None,
+        nickname: str | None,
+        avatar: str | None,
+        org_node_id: int | None = None,
+        org_node_name: str | None = None,
+        role_name: str | None = None,
+        is_active: bool | None = None,
+        is_owner: bool | None = None,
+        is_leader: bool | None = None,
+    ) -> dict[str, Any]:
+        return build_identity_select_extra(
+            display_name=nickname
+            or username
+            or (f"#{identity_id}" if identity_id else "-"),
+            username=username,
+            nickname=nickname,
+            avatar=avatar,
+            org_node_id=org_node_id,
+            org_node_name=org_node_name,
+            role_name=role_name,
+            user_type=user_type,
+            is_active=is_active,
+            is_leader=bool(is_leader),
+            is_owner=bool(is_owner),
+        )
+
+    async def load_identity_meta_map(
+        self,
+        refs: set[tuple[str, int]],
+    ) -> dict[tuple[str, int], dict[str, Any]]:
+        if not refs:
+            return {}
+
+        from app.models.auth.admin_role import AdminRole
+        from app.models.auth.tenant_admin_role import TenantAdminRole
+        from app.models.auth.tenant_user_role import TenantUserRole
+        from app.models.org.admin_org_node import AdminOrgNode
+        from app.models.org.tenant_org_node import TenantOrgNode
+        from app.models.system.admin import Admin as AdminModel
+        from app.models.tenant.tenant_admin import TenantAdmin as TenantAdminModel
+        from app.models.tenant.tenant_user import TenantUser as TenantUserModel
+
+        result: dict[tuple[str, int], dict[str, Any]] = {}
+        admin_ids = {user_id for user_type, user_id in refs if user_type == "admin"}
+        tenant_admin_ids = {
+            user_id for user_type, user_id in refs if user_type == "tenant_admin"
+        }
+        tenant_user_ids = {
+            user_id for user_type, user_id in refs if user_type == "tenant_user"
+        }
+
+        if admin_ids:
+            stmt = (
+                select(
+                    AdminModel.id,
+                    AdminModel.username,
+                    AdminModel.nickname,
+                    AdminModel.avatar,
+                    AdminModel.org_node_id,
+                    AdminModel.is_active,
+                    AdminModel.is_super,
+                    AdminRole.name.label("role_name"),
+                    AdminOrgNode.name.label("org_node_name"),
+                    AdminOrgNode.leader_id.label("org_leader_id"),
+                )
+                .select_from(AdminModel)
+                .join(AdminRole, AdminRole.id == AdminModel.role_id, isouter=True)
+                .join(
+                    AdminOrgNode,
+                    AdminOrgNode.id == AdminModel.org_node_id,
+                    isouter=True,
+                )
+                .where(
+                    AdminModel.id.in_(admin_ids),
+                    AdminModel.is_deleted.is_(False),
+                )
+            )
+            rows = (await self.db.execute(stmt)).all()
+            for row in rows:
+                result[("admin", row.id)] = self.build_identity_meta(
+                    identity_id=row.id,
+                    user_type="admin",
+                    username=row.username,
+                    nickname=row.nickname,
+                    avatar=row.avatar,
+                    org_node_id=row.org_node_id,
+                    org_node_name=row.org_node_name,
+                    role_name=row.role_name,
+                    is_active=row.is_active,
+                    is_owner=bool(row.is_super),
+                    is_leader=bool(
+                        row.org_leader_id is not None and row.org_leader_id == row.id
+                    ),
+                )
+
+        if tenant_admin_ids:
+            stmt = (
+                select(
+                    TenantAdminModel.id,
+                    TenantAdminModel.username,
+                    TenantAdminModel.nickname,
+                    TenantAdminModel.avatar,
+                    TenantAdminModel.org_node_id,
+                    TenantAdminModel.is_active,
+                    TenantAdminModel.is_owner,
+                    TenantAdminRole.name.label("role_name"),
+                    TenantOrgNode.name.label("org_node_name"),
+                    TenantOrgNode.leader_id.label("org_leader_id"),
+                )
+                .select_from(TenantAdminModel)
+                .join(
+                    TenantAdminRole,
+                    TenantAdminRole.id == TenantAdminModel.role_id,
+                    isouter=True,
+                )
+                .join(
+                    TenantOrgNode,
+                    TenantOrgNode.id == TenantAdminModel.org_node_id,
+                    isouter=True,
+                )
+                .where(
+                    TenantAdminModel.id.in_(tenant_admin_ids),
+                    TenantAdminModel.is_deleted.is_(False),
+                )
+            )
+            rows = (await self.db.execute(stmt)).all()
+            for row in rows:
+                result[("tenant_admin", row.id)] = self.build_identity_meta(
+                    identity_id=row.id,
+                    user_type="tenant_admin",
+                    username=row.username,
+                    nickname=row.nickname,
+                    avatar=row.avatar,
+                    org_node_id=row.org_node_id,
+                    org_node_name=row.org_node_name,
+                    role_name=row.role_name,
+                    is_active=row.is_active,
+                    is_owner=bool(row.is_owner),
+                    is_leader=bool(
+                        row.org_leader_id is not None and row.org_leader_id == row.id
+                    ),
+                )
+
+        if tenant_user_ids:
+            stmt = (
+                select(
+                    TenantUserModel.id,
+                    TenantUserModel.username,
+                    TenantUserModel.nickname,
+                    TenantUserModel.avatar,
+                    TenantUserModel.org_node_id,
+                    TenantUserModel.is_active,
+                    TenantUserRole.name.label("role_name"),
+                    TenantOrgNode.name.label("org_node_name"),
+                )
+                .select_from(TenantUserModel)
+                .join(
+                    TenantUserRole,
+                    TenantUserRole.id == TenantUserModel.role_id,
+                    isouter=True,
+                )
+                .join(
+                    TenantOrgNode,
+                    TenantOrgNode.id == TenantUserModel.org_node_id,
+                    isouter=True,
+                )
+                .where(
+                    TenantUserModel.id.in_(tenant_user_ids),
+                    TenantUserModel.is_deleted.is_(False),
+                )
+            )
+            rows = (await self.db.execute(stmt)).all()
+            for row in rows:
+                result[("tenant_user", row.id)] = self.build_identity_meta(
+                    identity_id=row.id,
+                    user_type="tenant_user",
+                    username=row.username,
+                    nickname=row.nickname,
+                    avatar=row.avatar,
+                    org_node_id=row.org_node_id,
+                    org_node_name=row.org_node_name,
+                    role_name=row.role_name,
+                    is_active=row.is_active,
+                    is_owner=False,
+                    is_leader=False,
+                )
+
+        return result
+
+    @staticmethod
+    def serialize_operator_row(
+        row: Any,
+        identity_meta: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        identity_meta = identity_meta or {}
+        username = row.username or identity_meta.get("username") or ""
+        nickname = row.nickname or identity_meta.get("nickname")
+        display_name = identity_meta.get("display_name") or nickname or username or None
+        return {
+            "user_id": row.user_id,
+            "user_type": row.user_type,
+            "display_name": display_name,
+            "username": username,
+            "nickname": nickname,
+            "avatar": identity_meta.get("avatar"),
+            "org_node_id": identity_meta.get("org_node_id"),
+            "org_node_name": identity_meta.get("org_node_name"),
+            "role_name": identity_meta.get("role_name"),
+            "is_active": identity_meta.get("is_active"),
+            "is_owner": identity_meta.get("is_owner"),
+            "is_leader": identity_meta.get("is_leader"),
+        }
+
+
+class _OperationLogOperatorFacade:
+    """Operator query surface for admin/tenant operation log dropdowns."""
+
+    def __init__(self, db: AsyncSession, identity: _OperationLogIdentityFacade):
+        self.db = db
+        self.identity = identity
+
+    async def get_admin_operators(self) -> list[dict]:
+        distinct_q = (
+            select(
+                OperationLog.user_id,
+                OperationLog.user_type,
+                func.max(OperationLog.username).label("username"),
+                func.max(OperationLog.nickname).label("nickname"),
+            )
+            .where(
+                OperationLog.is_deleted.is_(False),
+                OperationLog.user_id.isnot(None),
+                OperationLog.tenant_id.is_(None),
+            )
+            .group_by(
+                OperationLog.user_id,
+                OperationLog.user_type,
+            )
+        )
+        result = await self.db.execute(distinct_q)
+        rows = result.all()
+        if not rows:
+            return []
+
+        identity_meta_map = await self.identity.load_identity_meta_map(
+            {
+                ref
+                for row in rows
+                if (
+                    ref := self.identity.identity_ref(row.user_type, row.user_id)
+                ) is not None
+            }
+        )
+
+        return [
+            self.identity.serialize_operator_row(
+                row,
+                identity_meta_map.get(
+                    self.identity.identity_ref(row.user_type, row.user_id), {}
+                ),
+            )
+            for row in rows
+        ]
+
+    async def get_admin_operators_select(
+        self,
+        search: str | None = None,
+        page: int = 1,
+        page_size: int = 10,
+    ) -> tuple[list[dict], int]:
+        from sqlalchemy import or_
+
+        base_q = (
+            select(
+                OperationLog.user_id,
+                OperationLog.user_type,
+                func.max(OperationLog.username).label("username"),
+                func.max(OperationLog.nickname).label("nickname"),
+            )
+            .where(
+                OperationLog.is_deleted.is_(False),
+                OperationLog.user_id.isnot(None),
+                OperationLog.tenant_id.is_(None),
+            )
+            .group_by(
+                OperationLog.user_id,
+                OperationLog.user_type,
+            )
+        )
+
+        if search:
+            base_q = base_q.having(
+                or_(
+                    func.max(OperationLog.username).ilike(f"%{search}%"),
+                    func.max(OperationLog.nickname).ilike(f"%{search}%"),
+                )
+            )
+
+        count_subq = base_q.subquery()
+        count_q = select(func.count()).select_from(count_subq)
+        total = (await self.db.execute(count_q)).scalar() or 0
+
+        offset = (page - 1) * page_size
+        paginated_q = base_q.offset(offset).limit(page_size)
+        result = await self.db.execute(paginated_q)
+        rows = result.all()
+
+        identity_meta_map = await self.identity.load_identity_meta_map(
+            {
+                ref
+                for row in rows
+                if (
+                    ref := self.identity.identity_ref(row.user_type, row.user_id)
+                ) is not None
+            }
+        )
+
+        items = []
+        for row in rows:
+            operator = self.identity.serialize_operator_row(
+                row,
+                identity_meta_map.get(
+                    self.identity.identity_ref(row.user_type, row.user_id), {}
+                ),
+            )
+            display_name = operator["display_name"] or operator["username"] or ""
+            items.append(
+                {
+                    "label": display_name,
+                    "value": operator["username"] or "",
+                    "extra": {
+                        "user_id": operator["user_id"],
+                        "display_name": operator["display_name"],
+                        "username": operator["username"],
+                        "nickname": operator["nickname"],
+                        "avatar": operator["avatar"],
+                        "org_node_id": operator["org_node_id"],
+                        "org_node_name": operator["org_node_name"],
+                        "role_name": operator["role_name"],
+                        "user_type": operator["user_type"],
+                        "is_active": operator["is_active"],
+                        "is_leader": operator["is_leader"],
+                        "is_owner": operator["is_owner"],
+                    },
+                    "disabled": operator["is_active"] is False,
+                }
+            )
+
+        return items, total
+
+    async def get_tenant_operators(self, tenant_id: int) -> list[dict]:
+        distinct_q = (
+            select(
+                OperationLog.user_id,
+                OperationLog.user_type,
+                func.max(OperationLog.username).label("username"),
+                func.max(OperationLog.nickname).label("nickname"),
+            )
+            .where(
+                OperationLog.is_deleted.is_(False),
+                OperationLog.user_id.isnot(None),
+                OperationLog.tenant_id == tenant_id,
+            )
+            .group_by(
+                OperationLog.user_id,
+                OperationLog.user_type,
+            )
+        )
+        result = await self.db.execute(distinct_q)
+        rows = result.all()
+        if not rows:
+            return []
+
+        identity_meta_map = await self.identity.load_identity_meta_map(
+            {
+                ref
+                for row in rows
+                if (
+                    ref := self.identity.identity_ref(row.user_type, row.user_id)
+                ) is not None
+            }
+        )
+
+        return [
+            self.identity.serialize_operator_row(
+                row,
+                identity_meta_map.get(
+                    self.identity.identity_ref(row.user_type, row.user_id), {}
+                ),
+            )
+            for row in rows
+        ]
+
+    async def get_tenant_operators_select(
+        self,
+        tenant_id: int,
+        search: str | None = None,
+        user_type: str | None = None,
+        page: int = 1,
+        page_size: int = 10,
+    ) -> tuple[list[dict], int]:
+        from sqlalchemy import or_
+
+        from app.core.i18n import _
+
+        base_q = (
+            select(
+                OperationLog.user_id,
+                OperationLog.user_type,
+                func.max(OperationLog.username).label("username"),
+                func.max(OperationLog.nickname).label("nickname"),
+            )
+            .where(
+                OperationLog.is_deleted.is_(False),
+                OperationLog.user_id.isnot(None),
+                OperationLog.tenant_id == tenant_id,
+            )
+            .group_by(
+                OperationLog.user_id,
+                OperationLog.user_type,
+            )
+        )
+        if user_type:
+            base_q = base_q.where(OperationLog.user_type == user_type)
+        if search:
+            base_q = base_q.having(
+                or_(
+                    func.max(OperationLog.username).ilike(f"%{search}%"),
+                    func.max(OperationLog.nickname).ilike(f"%{search}%"),
+                )
+            )
+
+        count_subq = base_q.subquery()
+        count_q = select(func.count()).select_from(count_subq)
+        total = (await self.db.execute(count_q)).scalar() or 0
+
+        offset = (page - 1) * page_size
+        paginated_q = base_q.offset(offset).limit(page_size)
+        result = await self.db.execute(paginated_q)
+        rows = result.all()
+
+        identity_meta_map = await self.identity.load_identity_meta_map(
+            {
+                ref
+                for row in rows
+                if (
+                    ref := self.identity.identity_ref(row.user_type, row.user_id)
+                ) is not None
+            }
+        )
+
+        items = []
+        for row in rows:
+            operator = self.identity.serialize_operator_row(
+                row,
+                identity_meta_map.get(
+                    self.identity.identity_ref(row.user_type, row.user_id), {}
+                ),
+            )
+            display_name = operator["display_name"] or ""
+            username = operator["username"] or ""
+            ut = row.user_type
+            user_type_label = _("enum.user_type." + ut) if ut else ""
+            items.append(
+                {
+                    "label": f"{display_name} ({user_type_label})"
+                    if user_type_label
+                    else display_name,
+                    "value": username or "",
+                    "extra": {
+                        "user_id": operator["user_id"],
+                        "display_name": operator["display_name"],
+                        "username": operator["username"],
+                        "nickname": operator["nickname"],
+                        "avatar": operator["avatar"],
+                        "org_node_id": operator["org_node_id"],
+                        "org_node_name": operator["org_node_name"],
+                        "role_name": operator["role_name"],
+                        "user_type": operator["user_type"],
+                        "is_active": operator["is_active"],
+                        "is_leader": operator["is_leader"],
+                        "is_owner": operator["is_owner"],
+                    },
+                    "disabled": operator["is_active"] is False,
+                }
+            )
+        return items, total
+
+
 class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
     """
     操作日志服务 / Operation log service.
@@ -49,6 +558,14 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
 
     model = OperationLog
     repository_class = OperationLogRepository
+
+    def __init__(self, db: AsyncSession):
+        super().__init__(db)
+        self._identity_facade = _OperationLogIdentityFacade(db)
+        self._operator_facade = _OperationLogOperatorFacade(
+            db,
+            self._identity_facade,
+        )
 
     async def create_log(
         self,
@@ -300,8 +817,10 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         """序列化单条日志并补齐身份展示字段 / Serialize single log with identity fields."""
         from app.schemas.system.operation_log import OperationLogResponse
 
-        ref = self._identity_ref(log.user_type, log.user_id)
-        identity_meta_map = await self._load_identity_meta_map({ref} if ref else set())
+        ref = self._identity_facade.identity_ref(log.user_type, log.user_id)
+        identity_meta_map = await self._identity_facade.load_identity_meta_map(
+            {ref} if ref else set()
+        )
         return OperationLogResponse.from_model(
             log,
             identity_meta=identity_meta_map.get(ref, {}),
@@ -314,244 +833,22 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         refs = {
             ref
             for log in logs
-            if (ref := self._identity_ref(log.user_type, log.user_id)) is not None
+            if (
+                ref := self._identity_facade.identity_ref(log.user_type, log.user_id)
+            )
+            is not None
         }
-        identity_meta_map = await self._load_identity_meta_map(refs)
+        identity_meta_map = await self._identity_facade.load_identity_meta_map(refs)
         return [
             OperationLogListResponse.from_model(
                 log,
                 identity_meta=identity_meta_map.get(
-                    self._identity_ref(log.user_type, log.user_id),
+                    self._identity_facade.identity_ref(log.user_type, log.user_id),
                     {},
                 ),
             ).model_dump(mode="python")
             for log in logs
         ]
-
-    @staticmethod
-    def _identity_ref(
-        user_type: str | None,
-        user_id: int | None,
-    ) -> tuple[str, int] | None:
-        if not user_type or not user_id:
-            return None
-        return str(user_type), int(user_id)
-
-    @staticmethod
-    def _build_identity_meta(
-        *,
-        identity_id: int | None,
-        user_type: str,
-        username: str | None,
-        nickname: str | None,
-        avatar: str | None,
-        org_node_id: int | None = None,
-        org_node_name: str | None = None,
-        role_name: str | None = None,
-        is_active: bool | None = None,
-        is_owner: bool | None = None,
-        is_leader: bool | None = None,
-    ) -> dict[str, Any]:
-        return build_identity_select_extra(
-            display_name=nickname or username or (f"#{identity_id}" if identity_id else "-"),
-            username=username,
-            nickname=nickname,
-            avatar=avatar,
-            org_node_id=org_node_id,
-            org_node_name=org_node_name,
-            role_name=role_name,
-            user_type=user_type,
-            is_active=is_active,
-            is_leader=bool(is_leader),
-            is_owner=bool(is_owner),
-        )
-
-    async def _load_identity_meta_map(
-        self,
-        refs: set[tuple[str, int]],
-    ) -> dict[tuple[str, int], dict[str, Any]]:
-        if not refs:
-            return {}
-
-        from app.models.auth.admin_role import AdminRole
-        from app.models.auth.tenant_admin_role import TenantAdminRole
-        from app.models.auth.tenant_user_role import TenantUserRole
-        from app.models.org.admin_org_node import AdminOrgNode
-        from app.models.org.tenant_org_node import TenantOrgNode
-        from app.models.system.admin import Admin as AdminModel
-        from app.models.tenant.tenant_admin import TenantAdmin as TenantAdminModel
-        from app.models.tenant.tenant_user import TenantUser as TenantUserModel
-
-        result: dict[tuple[str, int], dict[str, Any]] = {}
-        admin_ids = {user_id for user_type, user_id in refs if user_type == "admin"}
-        tenant_admin_ids = {
-            user_id for user_type, user_id in refs if user_type == "tenant_admin"
-        }
-        tenant_user_ids = {
-            user_id for user_type, user_id in refs if user_type == "tenant_user"
-        }
-
-        if admin_ids:
-            stmt = (
-                select(
-                    AdminModel.id,
-                    AdminModel.username,
-                    AdminModel.nickname,
-                    AdminModel.avatar,
-                    AdminModel.org_node_id,
-                    AdminModel.is_active,
-                    AdminModel.is_super,
-                    AdminRole.name.label("role_name"),
-                    AdminOrgNode.name.label("org_node_name"),
-                    AdminOrgNode.leader_id.label("org_leader_id"),
-                )
-                .select_from(AdminModel)
-                .join(AdminRole, AdminRole.id == AdminModel.role_id, isouter=True)
-                .join(
-                    AdminOrgNode,
-                    AdminOrgNode.id == AdminModel.org_node_id,
-                    isouter=True,
-                )
-                .where(
-                    AdminModel.id.in_(admin_ids),
-                    AdminModel.is_deleted.is_(False),
-                )
-            )
-            rows = (await self.db.execute(stmt)).all()
-            for row in rows:
-                result[("admin", row.id)] = self._build_identity_meta(
-                    identity_id=row.id,
-                    user_type="admin",
-                    username=row.username,
-                    nickname=row.nickname,
-                    avatar=row.avatar,
-                    org_node_id=row.org_node_id,
-                    org_node_name=row.org_node_name,
-                    role_name=row.role_name,
-                    is_active=row.is_active,
-                    is_owner=bool(row.is_super),
-                    is_leader=bool(
-                        row.org_leader_id is not None and row.org_leader_id == row.id
-                    ),
-                )
-
-        if tenant_admin_ids:
-            stmt = (
-                select(
-                    TenantAdminModel.id,
-                    TenantAdminModel.username,
-                    TenantAdminModel.nickname,
-                    TenantAdminModel.avatar,
-                    TenantAdminModel.org_node_id,
-                    TenantAdminModel.is_active,
-                    TenantAdminModel.is_owner,
-                    TenantAdminRole.name.label("role_name"),
-                    TenantOrgNode.name.label("org_node_name"),
-                    TenantOrgNode.leader_id.label("org_leader_id"),
-                )
-                .select_from(TenantAdminModel)
-                .join(
-                    TenantAdminRole,
-                    TenantAdminRole.id == TenantAdminModel.role_id,
-                    isouter=True,
-                )
-                .join(
-                    TenantOrgNode,
-                    TenantOrgNode.id == TenantAdminModel.org_node_id,
-                    isouter=True,
-                )
-                .where(
-                    TenantAdminModel.id.in_(tenant_admin_ids),
-                    TenantAdminModel.is_deleted.is_(False),
-                )
-            )
-            rows = (await self.db.execute(stmt)).all()
-            for row in rows:
-                result[("tenant_admin", row.id)] = self._build_identity_meta(
-                    identity_id=row.id,
-                    user_type="tenant_admin",
-                    username=row.username,
-                    nickname=row.nickname,
-                    avatar=row.avatar,
-                    org_node_id=row.org_node_id,
-                    org_node_name=row.org_node_name,
-                    role_name=row.role_name,
-                    is_active=row.is_active,
-                    is_owner=bool(row.is_owner),
-                    is_leader=bool(
-                        row.org_leader_id is not None and row.org_leader_id == row.id
-                    ),
-                )
-
-        if tenant_user_ids:
-            stmt = (
-                select(
-                    TenantUserModel.id,
-                    TenantUserModel.username,
-                    TenantUserModel.nickname,
-                    TenantUserModel.avatar,
-                    TenantUserModel.org_node_id,
-                    TenantUserModel.is_active,
-                    TenantUserRole.name.label("role_name"),
-                    TenantOrgNode.name.label("org_node_name"),
-                )
-                .select_from(TenantUserModel)
-                .join(
-                    TenantUserRole,
-                    TenantUserRole.id == TenantUserModel.role_id,
-                    isouter=True,
-                )
-                .join(
-                    TenantOrgNode,
-                    TenantOrgNode.id == TenantUserModel.org_node_id,
-                    isouter=True,
-                )
-                .where(
-                    TenantUserModel.id.in_(tenant_user_ids),
-                    TenantUserModel.is_deleted.is_(False),
-                )
-            )
-            rows = (await self.db.execute(stmt)).all()
-            for row in rows:
-                result[("tenant_user", row.id)] = self._build_identity_meta(
-                    identity_id=row.id,
-                    user_type="tenant_user",
-                    username=row.username,
-                    nickname=row.nickname,
-                    avatar=row.avatar,
-                    org_node_id=row.org_node_id,
-                    org_node_name=row.org_node_name,
-                    role_name=row.role_name,
-                    is_active=row.is_active,
-                    is_owner=False,
-                    is_leader=False,
-                )
-
-        return result
-
-    @staticmethod
-    def _serialize_operator_row(
-        row: Any,
-        identity_meta: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        identity_meta = identity_meta or {}
-        username = row.username or identity_meta.get("username") or ""
-        nickname = row.nickname or identity_meta.get("nickname")
-        display_name = identity_meta.get("display_name") or nickname or username or None
-        return {
-            "user_id": row.user_id,
-            "user_type": row.user_type,
-            "display_name": display_name,
-            "username": username,
-            "nickname": nickname,
-            "avatar": identity_meta.get("avatar"),
-            "org_node_id": identity_meta.get("org_node_id"),
-            "org_node_name": identity_meta.get("org_node_name"),
-            "role_name": identity_meta.get("role_name"),
-            "is_active": identity_meta.get("is_active"),
-            "is_owner": identity_meta.get("is_owner"),
-            "is_leader": identity_meta.get("is_leader"),
-        }
 
     async def get_admin_operators(self) -> list[dict]:
         """
@@ -560,47 +857,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         Returns:
             操作人列表 [{user_id, user_type, username, nickname, avatar}]
         """
-        # 按 user_id + user_type 去重，取最新的 username/nickname
-        distinct_q = (
-            select(
-                OperationLog.user_id,
-                OperationLog.user_type,
-                func.max(OperationLog.username).label("username"),
-                func.max(OperationLog.nickname).label("nickname"),
-            )
-            .where(
-                OperationLog.is_deleted.is_(False),
-                OperationLog.user_id.isnot(None),
-                OperationLog.tenant_id.is_(None),
-            )
-            .group_by(
-                OperationLog.user_id,
-                OperationLog.user_type,
-            )
-        )
-        result = await self.db.execute(distinct_q)
-        rows = result.all()
-
-        if not rows:
-            return []
-
-        identity_meta_map = await self._load_identity_meta_map(
-            {
-                ref
-                for row in rows
-                if (ref := self._identity_ref(row.user_type, row.user_id)) is not None
-            }
-        )
-
-        return [
-            self._serialize_operator_row(
-                row,
-                identity_meta_map.get(
-                    self._identity_ref(row.user_type, row.user_id), {}
-                ),
-            )
-            for row in rows
-        ]
+        return await self._operator_facade.get_admin_operators()
 
     async def get_admin_operators_select(
         self,
@@ -613,85 +870,11 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
 
         返回 label/value + extra 结构，供远程身份选择器使用。
         """
-        from sqlalchemy import or_
-
-        # 基础查询：按 user_id + user_type 去重
-        base_q = (
-            select(
-                OperationLog.user_id,
-                OperationLog.user_type,
-                func.max(OperationLog.username).label("username"),
-                func.max(OperationLog.nickname).label("nickname"),
-            )
-            .where(
-                OperationLog.is_deleted.is_(False),
-                OperationLog.user_id.isnot(None),
-                OperationLog.tenant_id.is_(None),
-            )
-            .group_by(
-                OperationLog.user_id,
-                OperationLog.user_type,
-            )
+        return await self._operator_facade.get_admin_operators_select(
+            search=search,
+            page=page,
+            page_size=page_size,
         )
-
-        if search:
-            base_q = base_q.having(
-                or_(
-                    func.max(OperationLog.username).ilike(f"%{search}%"),
-                    func.max(OperationLog.nickname).ilike(f"%{search}%"),
-                )
-            )
-
-        count_subq = base_q.subquery()
-        count_q = select(func.count()).select_from(count_subq)
-        total = (await self.db.execute(count_q)).scalar() or 0
-
-        offset = (page - 1) * page_size
-        paginated_q = base_q.offset(offset).limit(page_size)
-
-        result = await self.db.execute(paginated_q)
-        rows = result.all()
-
-        identity_meta_map = await self._load_identity_meta_map(
-            {
-                ref
-                for row in rows
-                if (ref := self._identity_ref(row.user_type, row.user_id)) is not None
-            }
-        )
-
-        items = []
-        for row in rows:
-            operator = self._serialize_operator_row(
-                row,
-                identity_meta_map.get(
-                    self._identity_ref(row.user_type, row.user_id), {}
-                ),
-            )
-            display_name = operator["display_name"] or operator["username"] or ""
-            items.append(
-                {
-                    "label": display_name,
-                    "value": operator["username"] or "",
-                    "extra": {
-                        "user_id": operator["user_id"],
-                        "display_name": operator["display_name"],
-                        "username": operator["username"],
-                        "nickname": operator["nickname"],
-                        "avatar": operator["avatar"],
-                        "org_node_id": operator["org_node_id"],
-                        "org_node_name": operator["org_node_name"],
-                        "role_name": operator["role_name"],
-                        "user_type": operator["user_type"],
-                        "is_active": operator["is_active"],
-                        "is_leader": operator["is_leader"],
-                        "is_owner": operator["is_owner"],
-                    },
-                    "disabled": operator["is_active"] is False,
-                }
-            )
-
-        return items, total
 
     async def get_tenant_operators(self, tenant_id: int) -> list[dict]:
         """
@@ -703,47 +886,7 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         Returns:
             操作人列表
         """
-        # 按 user_id + user_type 去重，取最新的 username/nickname
-        distinct_q = (
-            select(
-                OperationLog.user_id,
-                OperationLog.user_type,
-                func.max(OperationLog.username).label("username"),
-                func.max(OperationLog.nickname).label("nickname"),
-            )
-            .where(
-                OperationLog.is_deleted.is_(False),
-                OperationLog.user_id.isnot(None),
-                OperationLog.tenant_id == tenant_id,
-            )
-            .group_by(
-                OperationLog.user_id,
-                OperationLog.user_type,
-            )
-        )
-        result = await self.db.execute(distinct_q)
-        rows = result.all()
-
-        if not rows:
-            return []
-
-        identity_meta_map = await self._load_identity_meta_map(
-            {
-                ref
-                for row in rows
-                if (ref := self._identity_ref(row.user_type, row.user_id)) is not None
-            }
-        )
-
-        return [
-            self._serialize_operator_row(
-                row,
-                identity_meta_map.get(
-                    self._identity_ref(row.user_type, row.user_id), {}
-                ),
-            )
-            for row in rows
-        ]
+        return await self._operator_facade.get_tenant_operators(tenant_id)
 
     async def get_tenant_operators_select(
         self,
@@ -768,100 +911,13 @@ class OperationLogService(GlobalService[OperationLog, OperationLogRepository]):
         Returns:
             (items, total) 元组
         """
-        from sqlalchemy import or_
-
-        from app.core.i18n import _
-
-        # 基础查询：按 user_id + user_type 去重
-        base_q = (
-            select(
-                OperationLog.user_id,
-                OperationLog.user_type,
-                func.max(OperationLog.username).label("username"),
-                func.max(OperationLog.nickname).label("nickname"),
-            )
-            .where(
-                OperationLog.is_deleted.is_(False),
-                OperationLog.user_id.isnot(None),
-                OperationLog.tenant_id == tenant_id,
-            )
-            .group_by(
-                OperationLog.user_id,
-                OperationLog.user_type,
-            )
+        return await self._operator_facade.get_tenant_operators_select(
+            tenant_id=tenant_id,
+            search=search,
+            user_type=user_type,
+            page=page,
+            page_size=page_size,
         )
-
-        # 按用户类型过滤 / Filter by user type
-        if user_type:
-            base_q = base_q.where(OperationLog.user_type == user_type)
-
-        # 搜索 username/nickname
-        if search:
-            base_q = base_q.having(
-                or_(
-                    func.max(OperationLog.username).ilike(f"%{search}%"),
-                    func.max(OperationLog.nickname).ilike(f"%{search}%"),
-                )
-            )
-
-        # 统计总数 / Count total
-        count_subq = base_q.subquery()
-        count_q = select(func.count()).select_from(count_subq)
-        total = (await self.db.execute(count_q)).scalar() or 0
-
-        # 分页 / Pagination
-        offset = (page - 1) * page_size
-        paginated_q = base_q.offset(offset).limit(page_size)
-
-        result = await self.db.execute(paginated_q)
-        rows = result.all()
-
-        identity_meta_map = await self._load_identity_meta_map(
-            {
-                ref
-                for row in rows
-                if (ref := self._identity_ref(row.user_type, row.user_id)) is not None
-            }
-        )
-
-        # 构建 label/value 格式
-        items = []
-        for row in rows:
-            operator = self._serialize_operator_row(
-                row,
-                identity_meta_map.get(
-                    self._identity_ref(row.user_type, row.user_id), {}
-                ),
-            )
-            display_name = operator["display_name"] or ""
-            username = operator["username"] or ""
-            ut = row.user_type
-            user_type_label = _("enum.user_type." + ut) if ut else ""
-            items.append(
-                {
-                    "label": f"{display_name} ({user_type_label})"
-                    if user_type_label
-                    else display_name,
-                    "value": username or "",
-                    "extra": {
-                        "user_id": operator["user_id"],
-                        "display_name": operator["display_name"],
-                        "username": operator["username"],
-                        "nickname": operator["nickname"],
-                        "avatar": operator["avatar"],
-                        "org_node_id": operator["org_node_id"],
-                        "org_node_name": operator["org_node_name"],
-                        "role_name": operator["role_name"],
-                        "user_type": operator["user_type"],
-                        "is_active": operator["is_active"],
-                        "is_leader": operator["is_leader"],
-                        "is_owner": operator["is_owner"],
-                    },
-                    "disabled": operator["is_active"] is False,
-                }
-            )
-
-        return items, total
 
     async def _get_subordinate_admin_ids(self, admin: "Admin") -> list[int]:
         """

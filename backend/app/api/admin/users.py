@@ -6,15 +6,13 @@ Provides platform admin related operations (e.g. force logout).
 """
 
 from fastapi import Query
-from sqlalchemy import select
 
+from app.api.common.identity import serialize_admin_identity_detail
 from app.core.base_controller import GlobalController
 from app.core.deps import ActiveAdmin, DbSession
 from app.core.i18n import _
 from app.core.response import success
 from app.enums.rbac import PermissionScope
-from app.exceptions import NotFoundException
-from app.models.system.admin import Admin
 from app.rbac.decorators import (
     action_create,
     action_read,
@@ -23,7 +21,6 @@ from app.rbac.decorators import (
 )
 from app.services.common import AuthService
 from app.services.system.admin_service import AdminService
-from app.api.common.identity import serialize_admin_identity_detail
 
 
 @permission_resource(
@@ -91,18 +88,10 @@ class AdminUserController(GlobalController):
             强制下线指定平台管理员 / Force logout platform admin
             吊销其所有 Token 并通知前端跳转登录页。
             """
-            result = await db.execute(
-                select(Admin).where(
-                    Admin.id == user_id,
-                    Admin.is_deleted.is_(False),
-                )
-            )
-            admin = result.scalar_one_or_none()
-            if not admin:
-                raise NotFoundException(message=_("admin.not_found"))
+            admin = await AdminService(db).get_identity_detail(user_id)
 
             auth_service = AuthService(db)
-            await auth_service.force_logout(
+            await auth_service.token_sessions.force_logout(
                 user_type="admin",
                 user_id=user_id,
                 tenant_id=None,

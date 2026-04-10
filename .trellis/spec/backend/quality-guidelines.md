@@ -1,0 +1,235 @@
+# Quality Guidelines
+
+> Backend changes are not done when the code compiles. They are done when the
+> relevant tests, contracts, and operational checks are covered.
+
+## Overview
+
+Required commands from `backend/`:
+
+```bash
+python scripts/check_prompt_contracts.py
+pytest
+ruff check .
+ruff format .
+```
+
+Primary references:
+
+- `backend/pyproject.toml`
+- `README.md`
+
+## Forbidden Patterns
+
+- Controller logic that performs business decisions or direct DB queries.
+- Service logic that manually reconstructs repository behavior.
+- Modules that mix transport, business policy, persistence, and background-task
+  concerns without a clear boundary.
+- Controllers or services that bypass their normal contract and reach into
+  lower-layer internals just to ship a shortcut.
+- New controller-level SQL/ORM query assembly (`db.execute`, `session.execute`,
+  ad-hoc `select(...)`) in `backend/app/api/**`.
+- `except Exception: pass` or `continue`.
+- New raw `@celery_app.task` or `@shared_task` in business task modules.
+- New migration SQL using interpolated identifiers.
+- Shipping backend work without the tests that already exist for the touched
+  subsystem.
+- Reintroducing deprecated AI runtime paths such as `ToolRegistry` or
+  `tool_bindings`.
+- Reintroducing fixed LLM-facing prompt text directly in Python under
+  `app/ai` or `app/services/ai` instead of using the shared prompt contract
+  resources.
+
+## Required Patterns
+
+- New or substantially changed services should have unit tests in
+  `backend/tests/services/`.
+- Keep each controller/service/repository/runtime helper focused on one
+  dominant responsibility; if unrelated reasons trigger edits in the same
+  module, split the module before adding more branching.
+- If a backend file is oversized because it mixes multiple stable change axes,
+  prefer `facade + internal package/modules` over keeping one giant file or
+  introducing an untyped miscellaneous helper bucket.
+- Oversized backend CLI or maintenance scripts follow the same rule: keep the
+  public `cmd_*` / parser entrypoint thin, move scaffold templates or other
+  large static payloads into dedicated resource modules, and keep command names,
+  flags, and test-visible helper contracts compatible.
+- For governance refactors, prefer `facade + parts` over a mega helper:
+  backend facade keeps stable import/route/CLI contract, parts modules own
+  concrete responsibilities (query, orchestration, runtime, cleanup).
+- For plugin lifecycle/runtime governance, prefer `facade + mixin/parts`:
+  facade keeps compatibility exports and assembly, while orchestrator parts own
+  lifecycle execution paths. Current reference shape:
+  `lifecycle.py(432)` + `lifecycle_orchestrator.py(833)`.
+- Plugin platform and codegen backend changes should follow responsibility seams
+  explicitly (`runtime registry/lifecycle`, `read model`, `cleanup`, `generator`,
+  `config manager`, `transport adapter`) rather than one mixed service.
+- Shared backend helpers should expose narrow contracts so callers do not need
+  repository/query/runtime internals to use them correctly.
+- AI runtime or routing changes that touch model-facing instruction text should
+  pass `python scripts/check_prompt_contracts.py` and add or update prompt
+  contract resources instead of hardcoding new strings inline.
+- Tests must not depend on a real database, Redis, network, or third-party API.
+- Reuse fixtures and mock factories from `backend/tests/services/conftest.py`.
+- Many service tests instantiate services with `__new__` and inject `db`,
+  `tenant_id`, and `repo` manually; follow that existing pattern.
+- Async service tests should use `pytest.mark.asyncio`.
+- For uploads, quotas, traces, plugins, and domain isolation, include at least
+  one real-path validation step in addition to unit tests.
+- New RBAC-aware controllers should update `@permission_resource`,
+  `parent_resource`, and the matching `messages.json` action translations in the
+  same change.
+- Controller-level `db.execute(...)`, `session.execute(...)`, or ad-hoc ORM
+  query construction is a design smell by default. Move that query into the
+  owning service, repository, or a dedicated query helper unless the module is a
+  true low-level infrastructure endpoint.
+- For menu-less RBAC controllers that mount actions via `parent_resource`,
+  ensure the parent menu controller is imported first in
+  `backend/app/api/{scope}/__init__.py`; otherwise synced permissions will get
+  `parent_id=null` and appear as orphan/root operations in `/permissions`.
+- Secondary permission-tree consumers (for example
+  `/admin/plans/available-permissions`) must reuse the shared
+  `PermissionService` translation and parent-fill helpers instead of re-rolling
+  fallback logic, or plugin titles can degrade to `title` and ancestor menus can
+  disappear.
+- Tenant organization nodes that support direct permission assignment must
+  enforce the leader-only rule at the API layer: only the current node leader
+  or an ancestor organization leader may submit `permission_ids`; non-leaders
+  may view but must not mutate assignments.
+- Plugin permission changes should continue to use
+  `sync_plugin_permissions(plugin.name)` instead of broad ad-hoc refreshes.
+- Row-level permission changes should be validated through the repository/base
+  filtering path, not only through service mocks.
+- New code comments, docstrings, `TODO`, or `FIXME` notes should follow the
+  repo's bilingual comment convention when comments are necessary.
+
+Examples:
+
+- `backend/tests/services/conftest.py`
+- `backend/tests/services/test_attachment_service.py`
+- `backend/tests/services/test_ai_quota_runtime_diagnostics.py`
+
+## Dev-only Bootstrap Credential for Local E2E
+
+- Local bootstrap credentials must only be issuable when
+  `APP_ENV=development` and `DEV_BOOTSTRAP_AUTH_ENABLED=true` is set;
+  production, shared CI, or cloud runners must never call this flow.
+- The backend must refuse bootstrap requests that do not originate from
+  loopback or local-dev hosts (`localhost`, `127.0.0.1`, `::1`, `*.local`) and
+  must validate secrets sourced from each developer's personal `backend/.env`
+  file:
+  `DEV_ADMIN_BOOTSTRAP_SECRET`, `DEV_TENANT_BOOTSTRAP_SECRET`. Track only
+  clearly marked placeholders in `.env.example` so real secrets are never
+  checked in.
+- The backend target identities must come from local config, not request-time
+  free-form user selection. Use `DEV_ADMIN_BOOTSTRAP_USERNAME`,
+  `DEV_TENANT_BOOTSTRAP_USERNAME`, and `DEV_TENANT_BOOTSTRAP_TENANT_CODE`.
+- Bootstrap JWTs must expire and align with existing session TTL/refresh
+  guarantees; never ship a forever token or drop the `exp` claim so these
+  credentials cannot live indefinitely.
+- Playwright/local browser helpers should prefer this dev bootstrap path for
+  local e2e suites through `POST /admin/auth/dev/bootstrap` and
+  `POST /tenant/auth/dev/bootstrap`, yet the legacy `/auth/login` workflow
+  remains the fallback when the bootstrap flag is disabled or the suite runs
+  outside a developer workstation.
+- Document the feature flag, allowlisted hosts, target selectors, and required
+  local secrets in repo guides so every developer can reproduce the handshake
+  without sharing real secrets.
+
+## Testing Requirements
+
+### Service changes
+
+- Cover happy path, boundary conditions, and failure branches.
+- Prefer multiple focused cases over one oversized integration test.
+
+### Upload, visibility, and storage work
+
+- Run targeted attachment/storage tests.
+- Validate visibility-sensitive behavior, not only upload success.
+- Prefer browser validation with chrome-devtools first; use Playwright when file
+  upload or multi-tab behavior makes it necessary.
+
+Examples:
+
+- `backend/tests/services/test_attachment_service.py`
+- `backend/tests/test_storage_plugins.py`
+
+### Trace, error, and logging work
+
+- Verify user-visible errors preserve `trace_id`.
+- Verify `novusai trace show <trace_id>` remains a usable operator entrypoint.
+- If the change affects frontend-visible failures, confirm the UI still shows
+  one coherent error path rather than duplicate toasts.
+- For AI streaming fallback fixes, validate both "upstream fails before first
+  chunk" and "stream returns no meaningful chunk" scenarios so the user never
+  receives a silent empty assistant turn.
+
+### AI quota, rate limit, or AI logging work
+
+- Do not stop after lint or type checks.
+- Validate runtime behavior, queue consumption, and diagnostics fields where
+  relevant.
+- When AI call logging or task signatures change, verify the worker is running
+  the new code and consuming the `ai_gateway` queue.
+- If the UI depends on those logs or limits, validate the full operator path,
+  not just the backend return payload.
+- For datetime-bearing APIs, verify hand-built dict payloads do not leak naive
+  UTC strings such as `2026-04-03T19:00:41` without `+00:00`. Browser clients
+  will parse those as local time and drift by the timezone offset.
+
+### Recycle bin and route-order work
+
+- For recycle-bin-enabled modules, validate the module recycle bin flow and the
+  surface-specific route behavior.
+- If a controller has dynamic `/{id}` style routes, confirm recycle-bin routes
+  are registered early enough to avoid path-parameter collisions.
+
+## Code Review Checklist
+
+Before merge, confirm:
+
+- The code lives in the correct layer.
+- The changed modules remain high-cohesion and low-coupling; no new sideways
+  dependency or boundary bypass was introduced.
+- Any oversized backend file was reduced by responsibility boundary, not by
+  arbitrary textual chunking.
+- Tenant vs global scope is correct.
+- Admin, tenant, and user surface boundaries remain intact.
+- i18n, permission, menu, trace, migration, and tests are updated together when
+  required.
+- Controllers are thin and services carry business logic.
+- Repositories own data access.
+- Any new model is exported and migration-registered.
+- Any new task is registered with `@register_task` and reachable by the worker.
+- Any API response that bypasses `BaseSchema` still serializes datetimes through
+  the shared UTC-safe path instead of direct `.isoformat()` on ORM values.
+
+## Governance Refactor Acceptance Gates
+
+When a change claims backend governance/file-splitting completion, reviewers must
+see all of the following:
+
+- Controller query boundary check:
+  no new direct DB query assembly in touched `backend/app/api/**` modules.
+  Any exception requires explicit infrastructure-endpoint waiver in task docs.
+- Facade compatibility check:
+  public route names, CLI command names/options, and import-visible helpers stay
+  backward compatible unless migration notes are explicitly recorded.
+- Split-seam check:
+  refactor uses responsibility seams (facade + mixin/parts), not arbitrary
+  line-count chunking or a new miscellaneous helper sink.
+- Workstream ownership check:
+  touched files align with `.trellis` ownership matrix for the active umbrella task.
+
+## Real Examples To Follow
+
+- Service/unit-test style:
+  - `backend/tests/services/test_attachment_service.py`
+  - `backend/tests/services/test_agent_service.py`
+- Trace/log aware task implementation:
+  - `backend/app/tasks/ai.py`
+- Layered tenant CRUD:
+  - `backend/app/api/tenant/domains.py`
+  - `backend/app/services/system/tenant_domain_service.py`
+  - `backend/app/repositories/tenant/tenant_domain_tenant_repository.py`

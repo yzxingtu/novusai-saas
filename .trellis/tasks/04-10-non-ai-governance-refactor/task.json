@@ -1,0 +1,42 @@
+{
+  "id": "non-ai-governance-refactor",
+  "name": "non-ai-governance-refactor",
+  "title": "Non-AI governance refactor umbrella",
+  "description": "",
+  "status": "active",
+  "dev_type": "fullstack",
+  "scope": null,
+  "priority": "P0",
+  "creator": "yudi",
+  "assignee": "yudi",
+  "createdAt": "2026-04-10",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "execution_path": "deep",
+  "required_artifacts": [
+    "prd.md",
+    "info.md"
+  ],
+  "context_files": [
+    "implement.jsonl",
+    "check.jsonl"
+  ],
+  "verification_mode": "command",
+  "commit": "a31ce1cf4",
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "04-10-non-ai-control-plane-and-core-foundation",
+    "04-10-non-ai-auth-rbac-and-org-boundary",
+    "04-10-non-ai-plugin-platform-backend",
+    "04-10-non-ai-codegen-fullstack",
+    "04-10-non-ai-frontend-shared-ops-pages",
+    "04-10-non-ai-bundled-plugins-and-surface-contracts"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

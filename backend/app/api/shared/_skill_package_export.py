@@ -14,7 +14,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.base_model import utc_now
@@ -24,6 +23,11 @@ from app.core.response import serialize_datetime_for_api
 from app.exceptions import BusinessException
 from app.models.ai.skill import Skill
 from app.models.ai.skill_package import SkillPackage
+from app.repositories.ai.skill_package_repository import (
+    AdminSkillPackageRepository,
+    SkillPackageRepository,
+)
+from app.repositories.ai.skill_repository import AdminSkillRepository
 
 logger = LogManager.get_logger("ai")
 
@@ -74,15 +78,7 @@ async def export_skill_package(
         导出数据字典 / Export data dictionary
     """
     # 查询包内所有技能 / Query all skills in package
-    result = await db.execute(
-        select(Skill)
-        .where(
-            Skill.package_id == pkg.id,
-            Skill.is_deleted.is_(False),
-        )
-        .order_by(Skill.sort_order),
-    )
-    skills = result.scalars().all()
+    skills = await AdminSkillRepository(db).get_by_package_id(pkg.id)
 
     # 构建技能包信息 / Build package info
     package_info: dict[str, Any] = {}
@@ -141,19 +137,15 @@ async def import_skill_package(
 
     pkg_name = package_info["name"]
 
-    name_conditions = [
-        SkillPackage.name == pkg_name,
-        SkillPackage.is_deleted.is_(False),
-    ]
     if target_tenant_id is not None:
-        name_conditions.append(SkillPackage.tenant_id == target_tenant_id)
+        existing_pkg = await SkillPackageRepository(
+            db,
+            target_tenant_id,
+        ).get_by_name(pkg_name)
     else:
-        name_conditions.append(SkillPackage.tenant_id.is_(None))
-
-    existing = await db.execute(
-        select(SkillPackage).where(*name_conditions),
-    )
-    existing_pkg = existing.scalar_one_or_none()
+        existing_pkg = await AdminSkillPackageRepository(db).get_by_name_global(
+            pkg_name
+        )
 
     if existing_pkg:
         if conflict_mode == "skip":

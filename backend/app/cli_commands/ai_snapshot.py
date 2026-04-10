@@ -1,0 +1,1257 @@
+"""AI conversation data loading and hydration helpers."""
+
+from __future__ import annotations
+
+from app.cli_commands import state as S
+from app.cli_commands.ai_norm import (
+    _compact_json_text,
+    _extract_turn_diagnostics_from_call_log_metadata,
+    _normalize_cli_bool,
+    _normalize_cli_call_log_row,
+    _normalize_cli_context_sources,
+    _normalize_cli_dict,
+    _normalize_cli_fallback_history,
+    _normalize_cli_intent_plan,
+    _normalize_cli_optional_string,
+    _normalize_cli_provider_events,
+    _normalize_cli_retry_events,
+    _normalize_cli_string_list,
+)
+
+_BACKEND_DIR = S._BACKEND_DIR
+settings = S.settings
+
+async def _load_ai_conversation_snapshot(
+    conversation_id: int,
+    *,
+    tail: int,
+    keyword: str | None,
+    keyword_limit: int,
+) -> dict:
+    from sqlalchemy import and_, select
+
+    from app.ai.engine.base import BaseEngine
+    from app.core.database import get_db_context
+    from app.models.ai.call_log import AICallLog
+    from app.models.ai.conversation_message import ConversationMessage
+    from app.services.ai.conversation_service import ConversationService
+
+    async with get_db_context() as db:
+        service, conversation = await ConversationService.get_service_for_conversation(
+            db,
+            conversation_id,
+        )
+        total_messages = await service.message_repo.count_by_conversation(
+            conversation_id,
+        )
+        skip = max(total_messages - tail, 0)
+        detail = await service.get_conversation_detail(
+            conversation_id,
+            message_skip=skip,
+            message_limit=tail,
+        )
+
+        keyword_hits: list[dict] = []
+        if keyword:
+            escaped = keyword.replace("%", "\\%").replace("_", "\\_")
+            stmt = (
+                select(ConversationMessage)
+                .where(
+                    and_(
+                        ConversationMessage.tenant_id == conversation.tenant_id,
+                        ConversationMessage.conversation_id == conversation_id,
+                        ConversationMessage.is_deleted.is_(False),
+                        ConversationMessage.content.ilike(f"%{escaped}%"),
+                    )
+                )
+                .order_by(ConversationMessage.sequence.asc())
+                .limit(keyword_limit)
+            )
+            matched_rows = (await db.execute(stmt)).scalars().all()
+            keyword_hits = [
+                {
+                    "id": row.id,
+                    "sequence": row.sequence,
+                    "role": row.role,
+                    "created_at": ConversationService._format_dt(row.created_at),
+                    "content": row.content or "",
+                }
+                for row in matched_rows
+            ]
+
+        call_log_stmt = (
+            select(AICallLog)
+            .where(
+                AICallLog.conversation_id == conversation_id,
+                AICallLog.call_type == "main_chat",
+                AICallLog.is_deleted.is_(False),
+            )
+            .order_by(AICallLog.created_at.desc())
+            .limit(3)
+        )
+        call_logs = (await db.execute(call_log_stmt)).scalars().all()
+
+        recent_messages = detail.get("message_list") or []
+        last_assistant = next(
+            (
+                item
+                for item in reversed(recent_messages)
+                if item.get("role") == "assistant"
+            ),
+            None,
+        )
+        last_assistant_text = str((last_assistant or {}).get("content") or "")
+        leaked_tool_names = BaseEngine._extract_textual_tool_call_names(
+            last_assistant_text,
+            [],
+        )
+        assistant_metadata = (
+            dict((last_assistant or {}).get("metadata") or {})
+            if isinstance((last_assistant or {}).get("metadata"), dict)
+            else {}
+        )
+        assistant_context_diagnostics = (
+            dict(assistant_metadata.get("context_diagnostics") or {})
+            if isinstance(assistant_metadata.get("context_diagnostics"), dict)
+            else {}
+        )
+        assistant_last_run_summary = (
+            dict(assistant_metadata.get("last_run_summary") or {})
+            if isinstance(assistant_metadata.get("last_run_summary"), dict)
+            else {}
+        )
+        assistant_tool_planner = (
+            dict(assistant_metadata.get("tool_planner") or {})
+            if isinstance(assistant_metadata.get("tool_planner"), dict)
+            else {}
+        )
+        assistant_context_tool_planner = (
+            dict(assistant_context_diagnostics.get("tool_planner") or {})
+            if isinstance(assistant_context_diagnostics.get("tool_planner"), dict)
+            else {}
+        )
+        assistant_summary_tool_planner = (
+            dict(assistant_last_run_summary.get("tool_planner") or {})
+            if isinstance(assistant_last_run_summary.get("tool_planner"), dict)
+            else {}
+        )
+        detail_context_diagnostics = (
+            dict(detail.get("context_diagnostics") or {})
+            if isinstance(detail.get("context_diagnostics"), dict)
+            else {}
+        )
+        detail_last_run_summary = (
+            dict(detail.get("last_run_summary") or {})
+            if isinstance(detail.get("last_run_summary"), dict)
+            else {}
+        )
+        detail_context_tool_planner = (
+            dict(detail_context_diagnostics.get("tool_planner") or {})
+            if isinstance(detail_context_diagnostics.get("tool_planner"), dict)
+            else {}
+        )
+        detail_summary_tool_planner = (
+            dict(detail_last_run_summary.get("tool_planner") or {})
+            if isinstance(detail_last_run_summary.get("tool_planner"), dict)
+            else {}
+        )
+        latest_call_log_diagnostics = {}
+        for row in call_logs:
+            request_metadata = (
+                row.request_metadata if isinstance(row.request_metadata, dict) else {}
+            )
+            diagnostics_from_log = _extract_turn_diagnostics_from_call_log_metadata(
+                request_metadata
+            )
+            if diagnostics_from_log:
+                latest_call_log_diagnostics = diagnostics_from_log
+                break
+        assistant_turn_record = (
+            dict(assistant_metadata.get("turn_record") or {})
+            if isinstance(assistant_metadata.get("turn_record"), dict)
+            else {}
+        )
+        call_log_turn_record = (
+            dict(latest_call_log_diagnostics.get("turn_record") or {})
+            if isinstance(latest_call_log_diagnostics.get("turn_record"), dict)
+            else {}
+        )
+        turn_record = assistant_turn_record or call_log_turn_record
+        turn_outcome = _normalize_cli_optional_string(
+            turn_record.get("turn_outcome")
+            or assistant_metadata.get("turn_outcome")
+            or assistant_context_diagnostics.get("turn_outcome")
+            or assistant_last_run_summary.get("turn_outcome")
+            or detail_context_diagnostics.get("turn_outcome")
+            or detail_last_run_summary.get("turn_outcome")
+            or latest_call_log_diagnostics.get("turn_outcome")
+        )
+        termination_reason = _normalize_cli_optional_string(
+            turn_record.get("termination_reason")
+            or assistant_metadata.get("termination_reason")
+            or assistant_context_diagnostics.get("termination_reason")
+            or assistant_last_run_summary.get("termination_reason")
+            or assistant_last_run_summary.get("completion_reason")
+            or detail_context_diagnostics.get("termination_reason")
+            or detail_last_run_summary.get("termination_reason")
+            or detail_last_run_summary.get("completion_reason")
+            or assistant_metadata.get("completion_reason")
+            or latest_call_log_diagnostics.get("termination_reason")
+        )
+        protocol_path = _normalize_cli_optional_string(
+            turn_record.get("protocol_path")
+            or assistant_metadata.get("protocol_path")
+            or assistant_context_diagnostics.get("protocol_path")
+            or assistant_last_run_summary.get("protocol_path")
+            or detail_context_diagnostics.get("protocol_path")
+            or detail_last_run_summary.get("protocol_path")
+            or latest_call_log_diagnostics.get("protocol_path")
+        )
+
+        selected_tool_names = (
+            _normalize_cli_string_list(turn_record.get("selected_tool_names"))
+            or _normalize_cli_string_list(assistant_metadata.get("selected_tool_names"))
+            or _normalize_cli_string_list(
+                assistant_context_diagnostics.get("selected_tool_names")
+            )
+            or _normalize_cli_string_list(
+                assistant_last_run_summary.get("selected_tool_names")
+            )
+            or _normalize_cli_string_list(
+                detail_context_diagnostics.get("selected_tool_names")
+            )
+            or _normalize_cli_string_list(
+                detail_last_run_summary.get("selected_tool_names")
+            )
+            or _normalize_cli_string_list(
+                latest_call_log_diagnostics.get("selected_tool_names")
+            )
+        )
+        selected_skill_names = (
+            _normalize_cli_string_list(turn_record.get("selected_skill_names"))
+            or _normalize_cli_string_list(
+                assistant_metadata.get("selected_skill_names")
+            )
+            or _normalize_cli_string_list(
+                assistant_context_diagnostics.get("selected_skill_names")
+            )
+            or _normalize_cli_string_list(
+                assistant_last_run_summary.get("selected_skill_names")
+            )
+            or _normalize_cli_string_list(
+                detail_context_diagnostics.get("selected_skill_names")
+            )
+            or _normalize_cli_string_list(
+                detail_last_run_summary.get("selected_skill_names")
+            )
+            or _normalize_cli_string_list(
+                latest_call_log_diagnostics.get("selected_skill_names")
+            )
+        )
+        context_sources = (
+            _normalize_cli_context_sources(turn_record.get("context_sources"))
+            or _normalize_cli_context_sources(assistant_metadata.get("context_sources"))
+            or _normalize_cli_context_sources(
+                assistant_context_diagnostics.get("context_sources")
+            )
+            or _normalize_cli_context_sources(
+                assistant_last_run_summary.get("context_sources")
+            )
+            or _normalize_cli_context_sources(
+                detail_context_diagnostics.get("context_sources")
+            )
+            or _normalize_cli_context_sources(
+                detail_last_run_summary.get("context_sources")
+            )
+            or _normalize_cli_context_sources(
+                latest_call_log_diagnostics.get("context_sources")
+            )
+        )
+        fallback_history = (
+            _normalize_cli_fallback_history(turn_record.get("fallback_history"))
+            or _normalize_cli_fallback_history(
+                assistant_metadata.get("fallback_history")
+            )
+            or _normalize_cli_fallback_history(
+                assistant_context_diagnostics.get("fallback_history")
+            )
+            or _normalize_cli_fallback_history(
+                assistant_last_run_summary.get("fallback_history")
+            )
+            or _normalize_cli_fallback_history(
+                detail_context_diagnostics.get("fallback_history")
+            )
+            or _normalize_cli_fallback_history(
+                detail_last_run_summary.get("fallback_history")
+            )
+            or _normalize_cli_fallback_history(
+                latest_call_log_diagnostics.get("fallback_history")
+            )
+        )
+        sync_rescue = next(
+            (
+                parsed
+                for parsed in (
+                    _normalize_cli_bool(
+                        (turn_record.get("metadata") or {}).get("sync_rescue")
+                        if isinstance(turn_record.get("metadata"), dict)
+                        else None
+                    ),
+                    _normalize_cli_bool(turn_record.get("sync_rescue")),
+                    _normalize_cli_bool(assistant_metadata.get("sync_rescue")),
+                    _normalize_cli_bool(
+                        assistant_context_diagnostics.get("sync_rescue")
+                    ),
+                    _normalize_cli_bool(assistant_last_run_summary.get("sync_rescue")),
+                    _normalize_cli_bool(detail_context_diagnostics.get("sync_rescue")),
+                    _normalize_cli_bool(detail_last_run_summary.get("sync_rescue")),
+                    _normalize_cli_bool(latest_call_log_diagnostics.get("sync_rescue")),
+                )
+                if parsed is not None
+            ),
+            None,
+        )
+        should_record_call_log = next(
+            (
+                parsed
+                for parsed in (
+                    _normalize_cli_bool(
+                        (turn_record.get("metadata") or {}).get(
+                            "should_record_call_log"
+                        )
+                        if isinstance(turn_record.get("metadata"), dict)
+                        else None
+                    ),
+                    _normalize_cli_bool(turn_record.get("should_record_call_log")),
+                    _normalize_cli_bool(
+                        assistant_context_diagnostics.get("should_record_call_log")
+                    ),
+                    _normalize_cli_bool(
+                        assistant_last_run_summary.get("should_record_call_log")
+                    ),
+                    _normalize_cli_bool(
+                        detail_context_diagnostics.get("should_record_call_log")
+                    ),
+                    _normalize_cli_bool(
+                        detail_last_run_summary.get("should_record_call_log")
+                    ),
+                    _normalize_cli_bool(
+                        latest_call_log_diagnostics.get("should_record_call_log")
+                    ),
+                )
+                if parsed is not None
+            ),
+            None,
+        )
+        contract_breach_type = (
+            _normalize_cli_optional_string(
+                (turn_record.get("metadata") or {}).get("contract_breach_type")
+                if isinstance(turn_record.get("metadata"), dict)
+                else None
+            )
+            or _normalize_cli_optional_string(
+                assistant_context_diagnostics.get("contract_breach_type")
+            )
+            or _normalize_cli_optional_string(
+                assistant_last_run_summary.get("contract_breach_type")
+            )
+            or _normalize_cli_optional_string(
+                detail_context_diagnostics.get("contract_breach_type")
+            )
+            or _normalize_cli_optional_string(
+                detail_last_run_summary.get("contract_breach_type")
+            )
+            or _normalize_cli_optional_string(
+                latest_call_log_diagnostics.get("contract_breach_type")
+            )
+        )
+        tool_leak_detected = bool(
+            (
+                (turn_record.get("metadata") or {}).get("tool_leak_detected")
+                if isinstance(turn_record.get("metadata"), dict)
+                else False
+            )
+            or assistant_context_diagnostics.get("tool_leak_detected")
+            or assistant_last_run_summary.get("tool_leak_detected")
+            or detail_context_diagnostics.get("tool_leak_detected")
+            or detail_last_run_summary.get("tool_leak_detected")
+            or latest_call_log_diagnostics.get("tool_leak_detected")
+        )
+        unfinished_intents = (
+            _normalize_cli_string_list(
+                (turn_record.get("metadata") or {}).get("unfinished_intents")
+                if isinstance(turn_record.get("metadata"), dict)
+                else None
+            )
+            or _normalize_cli_string_list(
+                assistant_context_diagnostics.get("unfinished_intents")
+            )
+            or _normalize_cli_string_list(
+                assistant_last_run_summary.get("unfinished_intents")
+            )
+            or _normalize_cli_string_list(
+                detail_context_diagnostics.get("unfinished_intents")
+            )
+            or _normalize_cli_string_list(
+                detail_last_run_summary.get("unfinished_intents")
+            )
+            or _normalize_cli_string_list(
+                latest_call_log_diagnostics.get("unfinished_intents")
+            )
+        )
+        leaked_tool_names = (
+            _normalize_cli_string_list(
+                (turn_record.get("metadata") or {}).get("leaked_tool_names")
+                if isinstance(turn_record.get("metadata"), dict)
+                else None
+            )
+            or _normalize_cli_string_list(
+                assistant_context_diagnostics.get("leaked_tool_names")
+            )
+            or _normalize_cli_string_list(
+                assistant_last_run_summary.get("leaked_tool_names")
+            )
+            or _normalize_cli_string_list(
+                detail_context_diagnostics.get("leaked_tool_names")
+            )
+            or _normalize_cli_string_list(
+                detail_last_run_summary.get("leaked_tool_names")
+            )
+            or _normalize_cli_string_list(
+                latest_call_log_diagnostics.get("leaked_tool_names")
+            )
+            or leaked_tool_names
+        )
+        recovered_via_retry = next(
+            (
+                parsed
+                for parsed in (
+                    _normalize_cli_bool(
+                        (turn_record.get("metadata") or {}).get("recovered_via_retry")
+                        if isinstance(turn_record.get("metadata"), dict)
+                        else None
+                    ),
+                    _normalize_cli_bool(
+                        assistant_context_diagnostics.get("recovered_via_retry")
+                    ),
+                    _normalize_cli_bool(
+                        assistant_last_run_summary.get("recovered_via_retry")
+                    ),
+                    _normalize_cli_bool(
+                        detail_context_diagnostics.get("recovered_via_retry")
+                    ),
+                    _normalize_cli_bool(
+                        detail_last_run_summary.get("recovered_via_retry")
+                    ),
+                    _normalize_cli_bool(
+                        latest_call_log_diagnostics.get("recovered_via_retry")
+                    ),
+                )
+                if parsed is not None
+            ),
+            None,
+        )
+        execution_path = _normalize_cli_optional_string(
+            turn_record.get("execution_path")
+            or assistant_metadata.get("execution_path")
+            or assistant_context_diagnostics.get("execution_path")
+            or assistant_last_run_summary.get("execution_path")
+            or assistant_tool_planner.get("execution_path")
+            or assistant_context_tool_planner.get("execution_path")
+            or assistant_summary_tool_planner.get("execution_path")
+            or detail_context_diagnostics.get("execution_path")
+            or detail_last_run_summary.get("execution_path")
+            or detail_context_tool_planner.get("execution_path")
+            or detail_summary_tool_planner.get("execution_path")
+            or latest_call_log_diagnostics.get("execution_path")
+        )
+        intent_plan = (
+            _normalize_cli_intent_plan(turn_record.get("intent_plan"))
+            or _normalize_cli_intent_plan(assistant_metadata.get("intent_plan"))
+            or _normalize_cli_intent_plan(
+                assistant_context_diagnostics.get("intent_plan")
+            )
+            or _normalize_cli_intent_plan(assistant_last_run_summary.get("intent_plan"))
+            or _normalize_cli_intent_plan(assistant_tool_planner.get("intent_plan"))
+            or _normalize_cli_intent_plan(
+                assistant_context_tool_planner.get("intent_plan")
+            )
+            or _normalize_cli_intent_plan(
+                assistant_summary_tool_planner.get("intent_plan")
+            )
+            or _normalize_cli_intent_plan(detail_context_diagnostics.get("intent_plan"))
+            or _normalize_cli_intent_plan(detail_last_run_summary.get("intent_plan"))
+            or _normalize_cli_intent_plan(
+                detail_context_tool_planner.get("intent_plan")
+            )
+            or _normalize_cli_intent_plan(
+                detail_summary_tool_planner.get("intent_plan")
+            )
+            or _normalize_cli_intent_plan(
+                latest_call_log_diagnostics.get("intent_plan")
+            )
+        )
+        budget = (
+            _normalize_cli_dict(turn_record.get("budget"))
+            or _normalize_cli_dict(assistant_metadata.get("budget"))
+            or _normalize_cli_dict(assistant_context_diagnostics.get("budget"))
+            or _normalize_cli_dict(assistant_last_run_summary.get("budget"))
+            or _normalize_cli_dict(detail_context_diagnostics.get("budget"))
+            or _normalize_cli_dict(detail_last_run_summary.get("budget"))
+            or _normalize_cli_dict(latest_call_log_diagnostics.get("budget"))
+        )
+        budget_status = (
+            str(
+                (budget or {}).get("status")
+                or assistant_context_diagnostics.get("budget_status")
+                or assistant_last_run_summary.get("budget_status")
+                or detail_context_diagnostics.get("budget_status")
+                or detail_last_run_summary.get("budget_status")
+                or latest_call_log_diagnostics.get("budget_status")
+                or ""
+            ).strip()
+            or None
+        )
+        budget_exit_reason = (
+            str(
+                (budget or {}).get("exit_reason")
+                or assistant_context_diagnostics.get("budget_exit_reason")
+                or assistant_last_run_summary.get("budget_exit_reason")
+                or (
+                    (assistant_context_diagnostics.get("tool_loop_progress") or {}).get(
+                        "budget_exit_reason"
+                    )
+                    if isinstance(
+                        assistant_context_diagnostics.get("tool_loop_progress"), dict
+                    )
+                    else None
+                )
+                or (
+                    (assistant_last_run_summary.get("tool_loop_progress") or {}).get(
+                        "budget_exit_reason"
+                    )
+                    if isinstance(
+                        assistant_last_run_summary.get("tool_loop_progress"), dict
+                    )
+                    else None
+                )
+                or detail_context_diagnostics.get("budget_exit_reason")
+                or detail_last_run_summary.get("budget_exit_reason")
+                or (
+                    (detail_context_diagnostics.get("tool_loop_progress") or {}).get(
+                        "budget_exit_reason"
+                    )
+                    if isinstance(
+                        detail_context_diagnostics.get("tool_loop_progress"), dict
+                    )
+                    else None
+                )
+                or (
+                    (detail_last_run_summary.get("tool_loop_progress") or {}).get(
+                        "budget_exit_reason"
+                    )
+                    if isinstance(
+                        detail_last_run_summary.get("tool_loop_progress"), dict
+                    )
+                    else None
+                )
+                or latest_call_log_diagnostics.get("budget_exit_reason")
+                or (
+                    termination_reason
+                    if str(termination_reason or "").endswith("_budget_exceeded")
+                    else ""
+                )
+                or ""
+            ).strip()
+            or None
+        )
+        candidate_tool_names = (
+            _normalize_cli_string_list(turn_record.get("candidate_tool_names"))
+            or _normalize_cli_string_list(
+                assistant_metadata.get("candidate_tool_names")
+            )
+            or _normalize_cli_string_list(
+                assistant_context_diagnostics.get("candidate_tool_names")
+            )
+            or _normalize_cli_string_list(
+                assistant_last_run_summary.get("candidate_tool_names")
+            )
+            or _normalize_cli_string_list(
+                detail_context_diagnostics.get("candidate_tool_names")
+            )
+            or _normalize_cli_string_list(
+                detail_last_run_summary.get("candidate_tool_names")
+            )
+            or _normalize_cli_string_list(
+                latest_call_log_diagnostics.get("candidate_tool_names")
+            )
+        )
+        retry_events = (
+            _normalize_cli_retry_events(turn_record.get("retry_events"))
+            or _normalize_cli_retry_events(assistant_metadata.get("retry_events"))
+            or _normalize_cli_retry_events(
+                assistant_context_diagnostics.get("retry_events")
+            )
+            or _normalize_cli_retry_events(
+                assistant_last_run_summary.get("retry_events")
+            )
+            or _normalize_cli_retry_events(
+                detail_context_diagnostics.get("retry_events")
+            )
+            or _normalize_cli_retry_events(detail_last_run_summary.get("retry_events"))
+            or _normalize_cli_retry_events(
+                latest_call_log_diagnostics.get("retry_events")
+            )
+        )
+        partial_exit_reason = (
+            str(
+                turn_record.get("partial_exit_reason")
+                or assistant_metadata.get("partial_exit_reason")
+                or assistant_context_diagnostics.get("partial_exit_reason")
+                or assistant_last_run_summary.get("partial_exit_reason")
+                or budget_exit_reason
+                or detail_context_diagnostics.get("partial_exit_reason")
+                or detail_last_run_summary.get("partial_exit_reason")
+                or latest_call_log_diagnostics.get("partial_exit_reason")
+                or ""
+            ).strip()
+            or None
+        )
+        failure_kind = (
+            str(
+                turn_record.get("failure_kind")
+                or assistant_metadata.get("failure_kind")
+                or assistant_context_diagnostics.get("failure_kind")
+                or assistant_last_run_summary.get("failure_kind")
+                or detail_context_diagnostics.get("failure_kind")
+                or detail_last_run_summary.get("failure_kind")
+                or latest_call_log_diagnostics.get("failure_kind")
+                or ""
+            ).strip()
+            or None
+        )
+        provider_events = (
+            _normalize_cli_provider_events(turn_record.get("provider_events"))
+            or _normalize_cli_provider_events(assistant_metadata.get("provider_events"))
+            or _normalize_cli_provider_events(
+                assistant_context_diagnostics.get("provider_events")
+            )
+            or _normalize_cli_provider_events(
+                assistant_last_run_summary.get("provider_events")
+            )
+            or _normalize_cli_provider_events(
+                detail_context_diagnostics.get("provider_events")
+            )
+            or _normalize_cli_provider_events(
+                detail_last_run_summary.get("provider_events")
+            )
+            or _normalize_cli_provider_events(
+                latest_call_log_diagnostics.get("provider_events")
+            )
+        )
+        last_tool_name = (
+            str(
+                turn_record.get("last_tool_name")
+                or assistant_metadata.get("last_tool_name")
+                or assistant_context_diagnostics.get("last_tool_name")
+                or assistant_last_run_summary.get("last_tool_name")
+                or detail_context_diagnostics.get("last_tool_name")
+                or detail_last_run_summary.get("last_tool_name")
+                or latest_call_log_diagnostics.get("last_tool_name")
+                or ""
+            ).strip()
+            or None
+        )
+        last_page_key = (
+            str(
+                turn_record.get("last_page_key")
+                or assistant_metadata.get("last_page_key")
+                or assistant_context_diagnostics.get("last_page_key")
+                or assistant_last_run_summary.get("last_page_key")
+                or detail_context_diagnostics.get("last_page_key")
+                or detail_last_run_summary.get("last_page_key")
+                or latest_call_log_diagnostics.get("last_page_key")
+                or ""
+            ).strip()
+            or None
+        )
+        last_page_op = (
+            str(
+                turn_record.get("last_page_op")
+                or assistant_metadata.get("last_page_op")
+                or assistant_context_diagnostics.get("last_page_op")
+                or assistant_last_run_summary.get("last_page_op")
+                or detail_context_diagnostics.get("last_page_op")
+                or detail_last_run_summary.get("last_page_op")
+                or latest_call_log_diagnostics.get("last_page_op")
+                or ""
+            ).strip()
+            or None
+        )
+        interrupted_stage = (
+            str(
+                turn_record.get("interrupted_stage")
+                or assistant_metadata.get("interrupted_stage")
+                or assistant_context_diagnostics.get("interrupted_stage")
+                or assistant_last_run_summary.get("interrupted_stage")
+                or detail_context_diagnostics.get("interrupted_stage")
+                or detail_last_run_summary.get("interrupted_stage")
+                or latest_call_log_diagnostics.get("interrupted_stage")
+                or ""
+            ).strip()
+            or None
+        )
+        tool_loop_progress = (
+            _normalize_cli_dict(turn_record.get("tool_loop_progress"))
+            if isinstance(turn_record.get("tool_loop_progress"), dict)
+            else (
+                _normalize_cli_dict(
+                    assistant_context_diagnostics.get("tool_loop_progress")
+                )
+                if isinstance(
+                    assistant_context_diagnostics.get("tool_loop_progress"), dict
+                )
+                else (
+                    _normalize_cli_dict(
+                        assistant_last_run_summary.get("tool_loop_progress")
+                    )
+                    if isinstance(
+                        assistant_last_run_summary.get("tool_loop_progress"), dict
+                    )
+                    else (
+                        _normalize_cli_dict(
+                            detail_context_diagnostics.get("tool_loop_progress")
+                        )
+                        if isinstance(
+                            detail_context_diagnostics.get("tool_loop_progress"), dict
+                        )
+                        else (
+                            _normalize_cli_dict(
+                                detail_last_run_summary.get("tool_loop_progress")
+                            )
+                            if isinstance(
+                                detail_last_run_summary.get("tool_loop_progress"), dict
+                            )
+                            else (
+                                _normalize_cli_dict(
+                                    latest_call_log_diagnostics.get(
+                                        "tool_loop_progress"
+                                    )
+                                )
+                                if isinstance(
+                                    latest_call_log_diagnostics.get(
+                                        "tool_loop_progress"
+                                    ),
+                                    dict,
+                                )
+                                else {}
+                            )
+                        )
+                    )
+                )
+            )
+        )
+
+        recent_call_logs: list[dict] = []
+        for row in call_logs:
+            request_metadata = (
+                row.request_metadata if isinstance(row.request_metadata, dict) else {}
+            )
+            row_diagnostics = _extract_turn_diagnostics_from_call_log_metadata(
+                request_metadata
+            )
+            recent_call_logs.append(
+                _normalize_cli_call_log_row(
+                    {
+                        "id": row.id,
+                        "created_at": ConversationService._format_dt(row.created_at),
+                        "status": row.status,
+                        "call_type": row.call_type,
+                        "provider_id": row.provider_id,
+                        "provider_name": row.provider_name_snapshot,
+                        "model_id": row.model_id,
+                        "model_name": row.model_name_snapshot,
+                        "input_tokens": row.input_tokens,
+                        "output_tokens": row.output_tokens,
+                        "total_tokens": row.total_tokens,
+                        "latency_ms": row.latency_ms,
+                        "error_message": row.error_message,
+                        "turn_outcome": row_diagnostics.get("turn_outcome"),
+                        "termination_reason": row_diagnostics.get("termination_reason"),
+                        "protocol_path": row_diagnostics.get("protocol_path"),
+                        "selected_tool_names": row_diagnostics.get(
+                            "selected_tool_names"
+                        ),
+                        "selected_skill_names": row_diagnostics.get(
+                            "selected_skill_names"
+                        ),
+                        "execution_path": row_diagnostics.get("execution_path"),
+                        "failure_kind": row_diagnostics.get("failure_kind"),
+                        "fallback_history": row_diagnostics.get("fallback_history"),
+                        "provider_events": row_diagnostics.get("provider_events"),
+                        "budget": row_diagnostics.get("budget"),
+                        "budget_status": row_diagnostics.get("budget_status"),
+                        "budget_exit_reason": row_diagnostics.get("budget_exit_reason"),
+                        "intent_plan": row_diagnostics.get("intent_plan"),
+                        "retry_events": row_diagnostics.get("retry_events"),
+                        "partial_exit_reason": row_diagnostics.get(
+                            "partial_exit_reason"
+                        ),
+                        "sync_rescue": row_diagnostics.get("sync_rescue"),
+                        "contract_breach_type": row_diagnostics.get(
+                            "contract_breach_type"
+                        ),
+                        "last_tool_name": row_diagnostics.get("last_tool_name"),
+                        "last_page_key": row_diagnostics.get("last_page_key"),
+                        "last_page_op": row_diagnostics.get("last_page_op"),
+                        "interrupted_stage": row_diagnostics.get("interrupted_stage"),
+                        "tool_loop_progress": row_diagnostics.get("tool_loop_progress"),
+                        "turn_record": row_diagnostics.get("turn_record"),
+                    }
+                )
+            )
+
+        return {
+            "conversation": {
+                "id": detail.get("id", conversation_id),
+                "tenant_id": detail.get("tenant_id", conversation.tenant_id),
+                "agent_id": detail.get("agent_id", conversation.agent_id),
+                "agent_name": detail.get("agent_name"),
+                "user_id": detail.get("user_id", conversation.user_id),
+                "owner_type": detail.get("owner_type", conversation.owner_type),
+                "status": detail.get("status", conversation.status),
+                "title": detail.get("title", conversation.title),
+                "message_count": total_messages,
+                "token_count": detail.get("token_count", conversation.token_count),
+                "cost": float(detail.get("cost", conversation.cost or 0) or 0),
+                "created_at": detail.get(
+                    "created_at",
+                    ConversationService._format_dt(conversation.created_at),
+                ),
+                "updated_at": detail.get(
+                    "updated_at",
+                    ConversationService._format_dt(conversation.updated_at),
+                ),
+            },
+            "recent_messages": recent_messages,
+            "keyword": keyword,
+            "keyword_hits": keyword_hits,
+            "recent_call_logs": recent_call_logs,
+            "diagnostics": {
+                "last_assistant_looks_like_textual_tool_call": bool(leaked_tool_names),
+                "last_assistant_textual_tool_call_names": leaked_tool_names,
+                "last_assistant_message_id": (last_assistant or {}).get("id"),
+                "last_assistant_sequence": (last_assistant or {}).get("sequence"),
+                "contract_breach_type": contract_breach_type,
+                "tool_leak_detected": tool_leak_detected,
+                "unfinished_intents": unfinished_intents,
+                "recovered_via_retry": recovered_via_retry,
+                "execution_path": execution_path,
+                "intent_plan": intent_plan,
+                "budget": budget or None,
+                "budget_status": budget_status,
+                "budget_exit_reason": budget_exit_reason,
+                "candidate_tool_names": candidate_tool_names,
+                "retry_events": retry_events,
+                "partial_exit_reason": partial_exit_reason,
+                "failure_kind": failure_kind,
+                "provider_events": provider_events,
+                "turn_outcome": turn_outcome,
+                "termination_reason": termination_reason,
+                "protocol_path": protocol_path,
+                "selected_tool_names": selected_tool_names,
+                "selected_skill_names": selected_skill_names,
+                "context_sources": context_sources,
+                "fallback_history": fallback_history,
+                "sync_rescue": sync_rescue,
+                "should_record_call_log": should_record_call_log,
+                "last_tool_name": last_tool_name,
+                "last_page_key": last_page_key,
+                "last_page_op": last_page_op,
+                "interrupted_stage": interrupted_stage,
+                "tool_loop_progress": tool_loop_progress,
+                "turn_record": turn_record or None,
+                "source": (
+                    "assistant_turn_record"
+                    if assistant_turn_record
+                    else (
+                        "call_log_turn_record"
+                        if call_log_turn_record
+                        else (
+                            "assistant_metadata"
+                            if assistant_metadata
+                            else (
+                                "conversation_detail"
+                                if detail_context_diagnostics or detail_last_run_summary
+                                else (
+                                    "call_log"
+                                    if latest_call_log_diagnostics
+                                    else "none"
+                                )
+                            )
+                        )
+                    )
+                ),
+            },
+        }
+
+
+def _hydrate_ai_conversation_snapshot(snapshot: dict) -> dict:
+    if not isinstance(snapshot, dict):
+        return {}
+
+    hydrated = dict(snapshot)
+    diagnostics = (
+        dict(hydrated.get("diagnostics") or {})
+        if isinstance(hydrated.get("diagnostics"), dict)
+        else {}
+    )
+    recent_messages = (
+        hydrated.get("recent_messages") or hydrated.get("message_list") or []
+    )
+    if not isinstance(recent_messages, list):
+        recent_messages = []
+    last_assistant = next(
+        (
+            item
+            for item in reversed(recent_messages)
+            if isinstance(item, dict) and item.get("role") == "assistant"
+        ),
+        None,
+    )
+    assistant_metadata = (
+        dict((last_assistant or {}).get("metadata") or {})
+        if isinstance((last_assistant or {}).get("metadata"), dict)
+        else {}
+    )
+    assistant_context_diagnostics = (
+        dict(assistant_metadata.get("context_diagnostics") or {})
+        if isinstance(assistant_metadata.get("context_diagnostics"), dict)
+        else {}
+    )
+    assistant_last_run_summary = (
+        dict(assistant_metadata.get("last_run_summary") or {})
+        if isinstance(assistant_metadata.get("last_run_summary"), dict)
+        else {}
+    )
+    assistant_tool_planner = (
+        dict(assistant_metadata.get("tool_planner") or {})
+        if isinstance(assistant_metadata.get("tool_planner"), dict)
+        else {}
+    )
+    assistant_context_tool_planner = (
+        dict(assistant_context_diagnostics.get("tool_planner") or {})
+        if isinstance(assistant_context_diagnostics.get("tool_planner"), dict)
+        else {}
+    )
+    assistant_summary_tool_planner = (
+        dict(assistant_last_run_summary.get("tool_planner") or {})
+        if isinstance(assistant_last_run_summary.get("tool_planner"), dict)
+        else {}
+    )
+    assistant_turn_record = (
+        dict(assistant_metadata.get("turn_record") or {})
+        if isinstance(assistant_metadata.get("turn_record"), dict)
+        else {}
+    )
+    recent_call_logs = hydrated.get("recent_call_logs") or []
+    if not isinstance(recent_call_logs, list):
+        recent_call_logs = []
+    recent_call_logs = [
+        normalized
+        for normalized in (
+            _normalize_cli_call_log_row(item) for item in recent_call_logs
+        )
+        if normalized
+    ]
+    hydrated["recent_call_logs"] = recent_call_logs
+    latest_call_log_diagnostics = next(
+        (
+            dict(item)
+            for item in recent_call_logs
+            if isinstance(item, dict)
+            and any(
+                item.get(key)
+                for key in (
+                    "turn_outcome",
+                    "termination_reason",
+                    "execution_path",
+                    "budget_exit_reason",
+                    "partial_exit_reason",
+                    "tool_loop_progress",
+                )
+            )
+        ),
+        {},
+    )
+    call_log_turn_record = (
+        dict(latest_call_log_diagnostics.get("turn_record") or {})
+        if isinstance(latest_call_log_diagnostics.get("turn_record"), dict)
+        else {}
+    )
+
+    def _first_string(*values: object) -> str | None:
+        for value in values:
+            text = _normalize_cli_optional_string(value)
+            if text:
+                return text
+        return None
+
+    def _first_dict(*values: object) -> dict:
+        for value in values:
+            if isinstance(value, dict) and value:
+                return _normalize_cli_dict(value)
+        return {}
+
+    diagnostics["last_assistant_message_id"] = diagnostics.get(
+        "last_assistant_message_id"
+    ) or (last_assistant or {}).get("id")
+    diagnostics["last_assistant_sequence"] = diagnostics.get(
+        "last_assistant_sequence"
+    ) or (last_assistant or {}).get("sequence")
+    diagnostics["turn_record"] = (
+        _first_dict(
+            diagnostics.get("turn_record"),
+            assistant_turn_record,
+            call_log_turn_record,
+        )
+        or None
+    )
+    diagnostics["execution_path"] = _first_string(
+        diagnostics.get("execution_path"),
+        assistant_metadata.get("execution_path"),
+        assistant_context_diagnostics.get("execution_path"),
+        assistant_last_run_summary.get("execution_path"),
+        assistant_tool_planner.get("execution_path"),
+        assistant_context_tool_planner.get("execution_path"),
+        assistant_summary_tool_planner.get("execution_path"),
+        latest_call_log_diagnostics.get("execution_path"),
+    )
+    diagnostics["tool_planner"] = _first_dict(
+        diagnostics.get("tool_planner"),
+        assistant_tool_planner,
+        assistant_context_tool_planner,
+        assistant_summary_tool_planner,
+        latest_call_log_diagnostics.get("tool_planner"),
+    )
+    diagnostics["path_decision"] = _first_dict(
+        diagnostics.get("path_decision"),
+        assistant_metadata.get("path_decision"),
+        assistant_context_diagnostics.get("path_decision"),
+        assistant_last_run_summary.get("path_decision"),
+        latest_call_log_diagnostics.get("path_decision"),
+    )
+    diagnostics["tool_filtering"] = _first_dict(
+        diagnostics.get("tool_filtering"),
+        assistant_metadata.get("tool_filtering"),
+        assistant_context_diagnostics.get("tool_filtering"),
+        assistant_last_run_summary.get("tool_filtering"),
+        latest_call_log_diagnostics.get("tool_filtering"),
+    )
+    diagnostics["intent_plan"] = (
+        _normalize_cli_intent_plan(diagnostics.get("intent_plan"))
+        or _normalize_cli_intent_plan(assistant_metadata.get("intent_plan"))
+        or _normalize_cli_intent_plan(assistant_context_diagnostics.get("intent_plan"))
+        or _normalize_cli_intent_plan(assistant_last_run_summary.get("intent_plan"))
+        or _normalize_cli_intent_plan(assistant_tool_planner.get("intent_plan"))
+        or _normalize_cli_intent_plan(assistant_context_tool_planner.get("intent_plan"))
+        or _normalize_cli_intent_plan(assistant_summary_tool_planner.get("intent_plan"))
+        or _normalize_cli_intent_plan(latest_call_log_diagnostics.get("intent_plan"))
+    )
+    diagnostics["budget"] = (
+        _normalize_cli_dict(diagnostics.get("budget"))
+        or _normalize_cli_dict(assistant_metadata.get("budget"))
+        or _normalize_cli_dict(assistant_context_diagnostics.get("budget"))
+        or _normalize_cli_dict(assistant_last_run_summary.get("budget"))
+        or _normalize_cli_dict(latest_call_log_diagnostics.get("budget"))
+        or None
+    )
+    diagnostics["budget_status"] = _first_string(
+        diagnostics.get("budget_status"),
+        (diagnostics.get("budget") or {}).get("status")
+        if isinstance(diagnostics.get("budget"), dict)
+        else None,
+        assistant_context_diagnostics.get("budget_status"),
+        assistant_last_run_summary.get("budget_status"),
+        latest_call_log_diagnostics.get("budget_status"),
+    )
+    diagnostics["turn_outcome"] = _first_string(
+        diagnostics.get("turn_outcome"),
+        assistant_metadata.get("turn_outcome"),
+        assistant_context_diagnostics.get("turn_outcome"),
+        assistant_last_run_summary.get("turn_outcome"),
+        latest_call_log_diagnostics.get("turn_outcome"),
+    )
+    diagnostics["termination_reason"] = _first_string(
+        diagnostics.get("termination_reason"),
+        assistant_metadata.get("termination_reason"),
+        assistant_context_diagnostics.get("termination_reason"),
+        assistant_last_run_summary.get("termination_reason"),
+        assistant_last_run_summary.get("completion_reason"),
+        assistant_metadata.get("completion_reason"),
+        latest_call_log_diagnostics.get("termination_reason"),
+    )
+    diagnostics["budget_exit_reason"] = _first_string(
+        diagnostics.get("budget_exit_reason"),
+        (diagnostics.get("budget") or {}).get("exit_reason")
+        if isinstance(diagnostics.get("budget"), dict)
+        else None,
+        assistant_context_diagnostics.get("budget_exit_reason"),
+        assistant_last_run_summary.get("budget_exit_reason"),
+        (assistant_context_diagnostics.get("tool_loop_progress") or {}).get(
+            "budget_exit_reason"
+        )
+        if isinstance(assistant_context_diagnostics.get("tool_loop_progress"), dict)
+        else None,
+        (assistant_last_run_summary.get("tool_loop_progress") or {}).get(
+            "budget_exit_reason"
+        )
+        if isinstance(assistant_last_run_summary.get("tool_loop_progress"), dict)
+        else None,
+        latest_call_log_diagnostics.get("budget_exit_reason"),
+        diagnostics.get("termination_reason")
+        if str(diagnostics.get("termination_reason") or "").endswith("_budget_exceeded")
+        else None,
+    )
+    diagnostics["partial_exit_reason"] = _first_string(
+        diagnostics.get("partial_exit_reason"),
+        assistant_metadata.get("partial_exit_reason"),
+        assistant_context_diagnostics.get("partial_exit_reason"),
+        assistant_last_run_summary.get("partial_exit_reason"),
+        latest_call_log_diagnostics.get("partial_exit_reason"),
+        diagnostics.get("budget_exit_reason"),
+    )
+    diagnostics["tool_loop_progress"] = _first_dict(
+        diagnostics.get("tool_loop_progress"),
+        assistant_context_diagnostics.get("tool_loop_progress"),
+        assistant_last_run_summary.get("tool_loop_progress"),
+        latest_call_log_diagnostics.get("tool_loop_progress"),
+    )
+    diagnostics["contract_breach_type"] = _first_string(
+        diagnostics.get("contract_breach_type"),
+        (diagnostics.get("turn_record") or {})
+        .get("metadata", {})
+        .get("contract_breach_type")
+        if isinstance((diagnostics.get("turn_record") or {}).get("metadata"), dict)
+        else None,
+        assistant_context_diagnostics.get("contract_breach_type"),
+        assistant_last_run_summary.get("contract_breach_type"),
+        latest_call_log_diagnostics.get("contract_breach_type"),
+    )
+    diagnostics["tool_leak_detected"] = bool(
+        diagnostics.get("tool_leak_detected")
+        or (
+            (diagnostics.get("turn_record") or {})
+            .get("metadata", {})
+            .get("tool_leak_detected")
+            if isinstance((diagnostics.get("turn_record") or {}).get("metadata"), dict)
+            else False
+        )
+        or assistant_context_diagnostics.get("tool_leak_detected")
+        or assistant_last_run_summary.get("tool_leak_detected")
+        or latest_call_log_diagnostics.get("tool_leak_detected")
+    )
+    diagnostics["unfinished_intents"] = (
+        _normalize_cli_string_list(diagnostics.get("unfinished_intents"))
+        or _normalize_cli_string_list(
+            (diagnostics.get("turn_record") or {})
+            .get("metadata", {})
+            .get("unfinished_intents")
+            if isinstance((diagnostics.get("turn_record") or {}).get("metadata"), dict)
+            else None
+        )
+        or _normalize_cli_string_list(
+            assistant_context_diagnostics.get("unfinished_intents")
+        )
+        or _normalize_cli_string_list(
+            assistant_last_run_summary.get("unfinished_intents")
+        )
+        or _normalize_cli_string_list(
+            latest_call_log_diagnostics.get("unfinished_intents")
+        )
+    )
+    diagnostics["turn_events"] = next(
+        (
+            list(value)
+            for value in (
+                diagnostics.get("turn_events"),
+                assistant_metadata.get("turn_events"),
+                assistant_context_diagnostics.get("turn_events"),
+                assistant_last_run_summary.get("turn_events"),
+                latest_call_log_diagnostics.get("turn_events"),
+            )
+            if isinstance(value, list) and value
+        ),
+        [],
+    )
+    diagnostics["last_assistant_textual_tool_call_names"] = (
+        _normalize_cli_string_list(
+            diagnostics.get("last_assistant_textual_tool_call_names")
+        )
+        or _normalize_cli_string_list(
+            (diagnostics.get("turn_record") or {})
+            .get("metadata", {})
+            .get("leaked_tool_names")
+            if isinstance((diagnostics.get("turn_record") or {}).get("metadata"), dict)
+            else None
+        )
+        or _normalize_cli_string_list(
+            assistant_context_diagnostics.get("leaked_tool_names")
+        )
+        or _normalize_cli_string_list(
+            assistant_last_run_summary.get("leaked_tool_names")
+        )
+        or _normalize_cli_string_list(
+            latest_call_log_diagnostics.get("leaked_tool_names")
+        )
+    )
+    diagnostics["last_assistant_looks_like_textual_tool_call"] = bool(
+        diagnostics.get("last_assistant_looks_like_textual_tool_call")
+        or diagnostics.get("tool_leak_detected")
+        or diagnostics.get("last_assistant_textual_tool_call_names")
+    )
+    diagnostics["recovered_via_retry"] = next(
+        (
+            parsed
+            for parsed in (
+                _normalize_cli_bool(diagnostics.get("recovered_via_retry")),
+                _normalize_cli_bool(
+                    (diagnostics.get("turn_record") or {})
+                    .get("metadata", {})
+                    .get("recovered_via_retry")
+                    if isinstance(
+                        (diagnostics.get("turn_record") or {}).get("metadata"), dict
+                    )
+                    else None
+                ),
+                _normalize_cli_bool(
+                    assistant_context_diagnostics.get("recovered_via_retry")
+                ),
+                _normalize_cli_bool(
+                    assistant_last_run_summary.get("recovered_via_retry")
+                ),
+                _normalize_cli_bool(
+                    latest_call_log_diagnostics.get("recovered_via_retry")
+                ),
+            )
+            if parsed is not None
+        ),
+        None,
+    )
+    diagnostics["last_page_key"] = _first_string(
+        diagnostics.get("last_page_key"),
+        assistant_metadata.get("last_page_key"),
+        assistant_context_diagnostics.get("last_page_key"),
+        assistant_last_run_summary.get("last_page_key"),
+        latest_call_log_diagnostics.get("last_page_key"),
+    )
+    diagnostics["source"] = _first_string(
+        diagnostics.get("source"),
+        "assistant_turn_record" if assistant_turn_record else None,
+        "call_log_turn_record" if call_log_turn_record else None,
+        "assistant_metadata" if assistant_metadata else None,
+        "call_log" if latest_call_log_diagnostics else None,
+        "none",
+    )
+    hydrated["diagnostics"] = diagnostics
+    return hydrated

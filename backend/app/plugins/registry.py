@@ -17,45 +17,103 @@ from typing import Any
 from starlette.middleware import Middleware
 
 from app.core.logging import get_logger
+from app.plugins.registry_read_layer import RegistryReadLayer
+from app.plugins.registry_runtime_extensions import RegistryRuntimeExtensionsMixin
 
 logger = get_logger(__name__)
 
 _PLUGIN_MENU_ACTION_MAX_LEN = 50
 
-# Shared event loop (for running async plugin tasks in Celery worker) / 共享事件循环（Celery worker 中运行异步插件任务用）
-_bg_loop = None
-_bg_thread = None
-_bg_lock = (
-    None  # Lazy init to avoid creating thread objects at module import / 延迟初始化
-)
+class _RegistryRuntimeBridge:
+    """Runtime-only bridge: async consumer execution + middleware projection."""
 
+    _bg_loop = None
+    _bg_thread = None
+    _bg_lock: threading.Lock | None = None
 
-def _get_bg_lock():
-    """Get global lock (lazy init, thread-safe) / 获取全局锁（懒初始化，线程安全）"""
-    global _bg_lock
-    if _bg_lock is None:
-        _bg_lock = threading.Lock()
-    return _bg_lock
+    @classmethod
+    def _get_lock(cls) -> threading.Lock:
+        if cls._bg_lock is None:
+            cls._bg_lock = threading.Lock()
+        return cls._bg_lock
 
+    @classmethod
+    def run_async(cls, coro):
+        import asyncio
 
-def _run_async(coro):
-    """Run coroutine in shared background event loop (avoid creating/destroying loop each time)
-    / 在共享后台事件循环中运行协程"""
-    import asyncio
+        with cls._get_lock():
+            if cls._bg_loop is None or cls._bg_loop.is_closed():
+                cls._bg_loop = asyncio.new_event_loop()
+                cls._bg_thread = threading.Thread(
+                    target=cls._bg_loop.run_forever,
+                    daemon=True,
+                    name="plugin-task-loop",
+                )
+                cls._bg_thread.start()
+            loop = cls._bg_loop
+        future = asyncio.run_coroutine_threadsafe(coro, loop)
+        return future.result(timeout=300)
 
-    global _bg_loop, _bg_thread
-    with _get_bg_lock():
-        if _bg_loop is None or _bg_loop.is_closed():
-            _bg_loop = asyncio.new_event_loop()
-            _bg_thread = threading.Thread(
-                target=_bg_loop.run_forever,
-                daemon=True,
-                name="plugin-task-loop",
+    @staticmethod
+    def iter_runtime_middlewares(
+        plugin_middlewares: dict[str, list[dict[str, Any]]],
+    ) -> list[dict[str, Any]]:
+        entries: list[dict[str, Any]] = []
+        for middlewares in plugin_middlewares.values():
+            entries.extend(middlewares)
+        entries.sort(key=lambda item: -int(item.get("priority", 50)))
+        return entries
+
+    @staticmethod
+    def rebuild_runtime_middleware_stack(fastapi_app: Any) -> None:
+        build_stack = getattr(fastapi_app, "build_middleware_stack", None)
+        if callable(build_stack):
+            fastapi_app.middleware_stack = build_stack()
+
+    @classmethod
+    def sync_runtime_middlewares(
+        cls,
+        plugin_middlewares: dict[str, list[dict[str, Any]]],
+        *,
+        removed_runtime_middleware: Middleware | None = None,
+    ) -> bool:
+        try:
+            from app.main import app as fastapi_app
+        except Exception as exc:
+            logger.warning(
+                "Plugin middleware runtime sync skipped: failed to import app: {}",
+                exc,
             )
-            _bg_thread.start()
-        loop = _bg_loop
-    future = asyncio.run_coroutine_threadsafe(coro, loop)
-    return future.result(timeout=300)
+            return False
+
+        user_middleware = getattr(fastapi_app, "user_middleware", None)
+        if not isinstance(user_middleware, list):
+            logger.warning(
+                "Plugin middleware runtime sync skipped: app.user_middleware unavailable"
+            )
+            return False
+
+        managed_ids = {
+            id(runtime_middleware)
+            for entry in cls.iter_runtime_middlewares(plugin_middlewares)
+            if (runtime_middleware := entry.get("runtime_middleware")) is not None
+        }
+        if removed_runtime_middleware is not None:
+            managed_ids.add(id(removed_runtime_middleware))
+
+        preserved = [
+            middleware
+            for middleware in list(user_middleware)
+            if id(middleware) not in managed_ids
+        ]
+        runtime_middlewares = [
+            entry["runtime_middleware"]
+            for entry in cls.iter_runtime_middlewares(plugin_middlewares)
+            if entry.get("runtime_middleware") is not None
+        ]
+        fastapi_app.user_middleware = runtime_middlewares + preserved
+        cls.rebuild_runtime_middleware_stack(fastapi_app)
+        return True
 
 
 def _build_plugin_menu_action(scope_prefix: str, safe_name: str, name: str) -> str:
@@ -98,7 +156,7 @@ class RegisteredExtension:
     ref: Any = None
 
 
-class ExtensionRegistry:
+class ExtensionRegistry(RegistryRuntimeExtensionsMixin):
     """
     Extension point registry (singleton).
     / 扩展点注册中心（单例）
@@ -152,6 +210,10 @@ class ExtensionRegistry:
         self._plugin_menu_titles: dict[str, dict[str, dict[str, str]]] = {}
         # permission i18n fallback: plugin_name -> {i18n_key: {"zh-CN": "...", "en": "..."}} / 权限 i18n 回退
         self._plugin_permission_titles: dict[str, dict[str, dict[str, str]]] = {}
+        self.read_layer = RegistryReadLayer(
+            self,
+            select_i18n_value=_select_i18n_value,
+        )
 
     @classmethod
     def get_instance(cls) -> ExtensionRegistry:
@@ -179,6 +241,30 @@ class ExtensionRegistry:
         self._registry[plugin_name].append(
             RegisteredExtension(plugin_name, ext_type, key, ref)
         )
+
+    def _cleanup_plugin_runtime_state(self, plugin_name: str) -> None:
+        """Cleanup plugin-scoped in-memory extension families."""
+        self._plugin_webhooks.pop(plugin_name, None)
+        self._plugin_frontend_slots.pop(plugin_name, None)
+        self._plugin_consumers.pop(plugin_name, None)
+        self._plugin_custom_extensions.pop(plugin_name, None)
+        self._plugin_middlewares.pop(plugin_name, None)
+        self._plugin_menus.pop(plugin_name, None)
+        self._plugin_menu_titles.pop(plugin_name, None)
+
+    @staticmethod
+    def _cleanup_plugin_event_bus(plugin_name: str) -> None:
+        """Cleanup plugin event-bus subscriptions with safe fallback."""
+        try:
+            from app.plugins.event_bus import get_plugin_event_bus
+
+            get_plugin_event_bus().unsubscribe_all(plugin_name)
+        except Exception as exc:
+            logger.warning(
+                "Failed to cleanup PluginEventBus for {}: {}",
+                plugin_name,
+                exc,
+            )
 
     # ── 1. Adapter / 适配器 ──
 
@@ -424,7 +510,7 @@ class ExtensionRegistry:
 
                 @functools.wraps(handler)
                 def _sync_wrapper(*args: Any, **kwargs: Any) -> Any:
-                    return _run_async(handler(*args, **kwargs))
+                    return _RegistryRuntimeBridge.run_async(handler(*args, **kwargs))
 
                 celery_app.task(name=celery_task_name, queue=queue)(_sync_wrapper)
             else:
@@ -801,55 +887,10 @@ class ExtensionRegistry:
         return result
 
     def resolve_plugin_menu_title(self, i18n_key: str) -> str | None:
-        """
-        Resolve plugin menu title by i18n key, using current request locale.
-        / 根据 i18n key 解析插件菜单标题，使用当前请求语言。
-
-        Falls back across locale aliases (zh-CN -> zh_CN, en-US -> en).
-        Returns None if no matching title found.
-        """
-        from app.core.i18n import get_locale
-
-        locale = get_locale()
-
-        for titles_map in self._plugin_menu_titles.values():
-            if i18n_key in titles_map:
-                locale_titles = titles_map[i18n_key]
-                return _select_i18n_value(locale_titles, locale)
-        return None
+        return self.read_layer.resolve_plugin_menu_title(i18n_key)
 
     def resolve_plugin_permission_title(self, i18n_key: str) -> str | None:
-        """
-        Resolve plugin permission title by i18n key, using current request locale.
-        / 根据 i18n key 解析插件权限标题，使用当前请求语言。
-        """
-        from app.core.i18n import _, get_locale
-
-        locale = get_locale()
-        if ".permission." not in i18n_key:
-            return None
-
-        parts = i18n_key.split(".")
-        if len(parts) < 4 or parts[1] != "permission":
-            return None
-
-        base_key = ".".join(parts[:-1])
-        action = parts[-1]
-
-        for titles_map in self._plugin_permission_titles.values():
-            if base_key not in titles_map:
-                continue
-            base_title = _select_i18n_value(titles_map[base_key], locale)
-            if not base_title:
-                return None
-            action_key = f"rbac.action.{action}"
-            action_title = _(action_key)
-            if action_title == action_key:
-                action_title = (
-                    action.replace("_", " ").replace("-", " ").strip().title()
-                )
-            return f"{base_title} - {action_title}"
-        return None
+        return self.read_layer.resolve_plugin_permission_title(i18n_key)
 
     # ── 11. Socket.IO Namespace / Socket.IO 命名空间 ──
 
@@ -1033,33 +1074,8 @@ class ExtensionRegistry:
                         plugin_name,
                         exc,
                     )
-        # Clean up webhook dict / 清理 webhook 字典
-        self._plugin_webhooks.pop(plugin_name, None)
-
-        # Clean up frontend slots / 清理前端插槽
-        self._plugin_frontend_slots.pop(plugin_name, None)
-        # Clean up consumers / 清理消费者
-        self._plugin_consumers.pop(plugin_name, None)
-        # Clean up custom extensions / 清理自定义扩展
-        self._plugin_custom_extensions.pop(plugin_name, None)
-        # Clean up middlewares / 清理中间件
-        self._plugin_middlewares.pop(plugin_name, None)
-        # Clean up menus / 清理菜单
-        self._plugin_menus.pop(plugin_name, None)
-        # Clean up menu i18n fallback cache / 清理菜单 i18n 回退缓存
-        self._plugin_menu_titles.pop(plugin_name, None)
-
-        # Clean up PluginEventBus subscriptions / 清理 PluginEventBus 订阅
-        try:
-            from app.plugins.event_bus import get_plugin_event_bus
-
-            get_plugin_event_bus().unsubscribe_all(plugin_name)
-        except Exception as exc:
-            logger.warning(
-                "Failed to cleanup PluginEventBus for {}: {}",
-                plugin_name,
-                exc,
-            )
+        self._cleanup_plugin_runtime_state(plugin_name)
+        self._cleanup_plugin_event_bus(plugin_name)
 
         logger.info("Unregistered {} extensions for plugin {}", count, plugin_name)
         return count
@@ -1088,459 +1104,7 @@ class ExtensionRegistry:
         return removed
 
     def get_conflicts(self, manifest: Any) -> list[dict[str, str]]:
-        """
-        Detect conflicts between plugin extensions and already-registered extensions.
-        / 检测插件扩展与已注册扩展的冲突。
-
-        Returns:
-            Conflict list [{"type": "adapter", "key": "xxx", "plugin": "yyy"}, ...]
-            / 冲突列表
-        """
-        conflicts: list[dict[str, str]] = []
-        extensions = getattr(manifest, "extensions", None)
-        if not extensions:
-            return conflicts
-
-        # Check adapter conflicts / 检查适配器冲突
-        for adapter in getattr(extensions, "adapters", []):
-            from app.ai.adapters import AdapterRegistry
-
-            if AdapterRegistry.get_adapter(adapter.provider_code):
-                # Find which plugin registered it / 找到是哪个插件注册的
-                owner = self._find_owner("adapter", adapter.provider_code)
-                conflicts.append(
-                    {
-                        "type": "adapter",
-                        "key": adapter.provider_code,
-                        "owner": owner or "system",
-                    }
-                )
-
-        # Check skill conflicts (match by plugin_name, consistent with register_skill key) / 检查技能冲突
-        # / 检查技能冲突
-        plugin_name = getattr(manifest, "name", "")
-        if plugin_name and plugin_name in self._plugin_skill_resolvers:
-            owner = self._find_owner("skill", plugin_name)
-            if owner and owner != plugin_name:
-                conflicts.append(
-                    {
-                        "type": "skill",
-                        "key": plugin_name,
-                        "owner": owner,
-                    }
-                )
-
-        # Check storage driver conflicts / 检查存储驱动冲突
-        for driver in getattr(extensions, "storage_drivers", []):
-            from app.storage.manager import storage_manager
-
-            if storage_manager.has_driver(driver.code):
-                owner = self._find_owner("storage", driver.code)
-                conflicts.append(
-                    {
-                        "type": "storage",
-                        "key": driver.code,
-                        "owner": owner or "system",
-                    }
-                )
-
-        return conflicts
+        return self.read_layer.get_conflicts(manifest)
 
     def _find_owner(self, ext_type: str, key: str) -> str | None:
-        """Find the owning plugin of an extension / 查找某个扩展的所属插件"""
-        for plugin_name, extensions in self._registry.items():
-            for ext in extensions:
-                if ext.ext_type == ext_type and ext.key == key:
-                    return plugin_name
-        return None
-
-    # ── 13. Consumer / 消费者 ──
-
-    def register_consumer(
-        self,
-        plugin_name: str,
-        consumer_name: str,
-        handler: Callable,
-        queue: str = "default",
-        max_retries: int = 3,
-        retry_delay: int = 60,
-    ) -> None:
-        """
-        Register plugin message queue consumer (Celery task, no scheduling).
-        / 注册插件消息队列消费者（Celery task，无调度）。
-
-        Unlike register_task (with Celery Beat scheduling), consumer only registers
-        a Celery task without adding to beat_schedule, triggered by queue messages.
-        / 区别于 register_task，consumer 仅注册 Celery task，由队列消息触发。
-        """
-        from app.celery_app import celery_app
-
-        celery_task_name = f"plugin.{plugin_name}.{consumer_name}"
-
-        if celery_task_name not in celery_app.tasks:
-            import asyncio
-            import functools
-
-            if asyncio.iscoroutinefunction(handler):
-
-                @functools.wraps(handler)
-                def _sync_wrapper(*args: Any, **kwargs: Any) -> Any:
-                    return _run_async(handler(*args, **kwargs))
-
-                celery_app.task(
-                    name=celery_task_name,
-                    queue=queue,
-                    max_retries=max_retries,
-                    default_retry_delay=retry_delay,
-                )(_sync_wrapper)
-            else:
-                celery_app.task(
-                    name=celery_task_name,
-                    queue=queue,
-                    max_retries=max_retries,
-                    default_retry_delay=retry_delay,
-                )(handler)
-
-        consumer_info: dict[str, Any] = {
-            "name": consumer_name,
-            "celery_task_name": celery_task_name,
-            "queue": queue,
-        }
-        self._plugin_consumers.setdefault(plugin_name, []).append(consumer_info)
-        self._track(plugin_name, "consumer", celery_task_name, consumer_info)
-        logger.info(
-            "Plugin {} registered consumer: {} (queue={})",
-            plugin_name,
-            consumer_name,
-            queue,
-        )
-
-    def _unregister_consumer(self, ext: RegisteredExtension) -> None:
-        """Consumer unregistration (Celery task cannot be hot-unloaded, only cleans up tracking records)
-        / 消费者反注册（仅清理追踪记录）"""
-        plugin_name = ext.plugin_name
-        celery_task_name = ext.key
-        if plugin_name in self._plugin_consumers:
-            self._plugin_consumers[plugin_name] = [
-                c
-                for c in self._plugin_consumers[plugin_name]
-                if c.get("celery_task_name") != celery_task_name
-            ]
-        logger.info(
-            "Plugin consumer unregistered (Celery task remains until restart): {}",
-            celery_task_name,
-        )
-
-    # ── 14. Middleware / 中间件 ──
-
-    def _iter_runtime_plugin_middlewares(self) -> list[dict[str, Any]]:
-        """Iterate plugin middlewares in runtime order. / 按运行时顺序遍历插件中间件。"""
-        entries: list[dict[str, Any]] = []
-        for plugin_middlewares in self._plugin_middlewares.values():
-            entries.extend(plugin_middlewares)
-
-        # Higher priority middleware stays at the outer layer; stable sort preserves
-        # registration order for equal priorities.
-        # / priority 越高越靠外层；相同 priority 保持注册顺序。
-        entries.sort(key=lambda item: -int(item.get("priority", 50)))
-        return entries
-
-    def _rebuild_runtime_middleware_stack(self, fastapi_app: Any) -> None:
-        """Rebuild runtime middleware stack after list mutation. / 在列表变更后重建运行时中间件栈。"""
-        build_stack = getattr(fastapi_app, "build_middleware_stack", None)
-        if callable(build_stack):
-            fastapi_app.middleware_stack = build_stack()
-
-    def _sync_runtime_plugin_middlewares(
-        self,
-        *,
-        removed_runtime_middleware: Middleware | None = None,
-    ) -> bool:
-        """Project plugin middlewares into FastAPI runtime. / 将插件中间件投影到 FastAPI 运行时。"""
-        try:
-            from app.main import app as fastapi_app
-        except Exception as exc:
-            logger.warning(
-                "Plugin middleware runtime sync skipped: failed to import app: {}",
-                exc,
-            )
-            return False
-
-        user_middleware = getattr(fastapi_app, "user_middleware", None)
-        if not isinstance(user_middleware, list):
-            logger.warning(
-                "Plugin middleware runtime sync skipped: app.user_middleware unavailable"
-            )
-            return False
-
-        managed_ids = {
-            id(runtime_middleware)
-            for entry in self._iter_runtime_plugin_middlewares()
-            if (runtime_middleware := entry.get("runtime_middleware")) is not None
-        }
-        if removed_runtime_middleware is not None:
-            managed_ids.add(id(removed_runtime_middleware))
-
-        preserved_user_middleware = [
-            middleware
-            for middleware in list(user_middleware)
-            if id(middleware) not in managed_ids
-        ]
-        runtime_plugin_middlewares = [
-            entry["runtime_middleware"]
-            for entry in self._iter_runtime_plugin_middlewares()
-            if entry.get("runtime_middleware") is not None
-        ]
-
-        fastapi_app.user_middleware = (
-            runtime_plugin_middlewares + preserved_user_middleware
-        )
-        self._rebuild_runtime_middleware_stack(fastapi_app)
-        return True
-
-    def register_middleware(
-        self,
-        plugin_name: str,
-        name: str,
-        middleware_cls: type,
-        priority: int = 50,
-    ) -> None:
-        """
-        Register plugin ASGI middleware.
-        / 注册插件 ASGI 中间件。
-
-        Higher priority middleware is injected to the outer layer of the request chain.
-        Registration and removal rebuild the runtime stack so enable/disable works after startup.
-        / priority 越高越靠外层；启用/停用时会重建运行时中间件栈，应用启动后也能生效。
-        """
-        entry: dict[str, Any] = {
-            "plugin_name": plugin_name,
-            "name": name,
-            "cls": middleware_cls,
-            "priority": priority,
-            "runtime_middleware": Middleware(middleware_cls),
-        }
-        self._plugin_middlewares.setdefault(plugin_name, []).append(entry)
-        self._track(plugin_name, "middleware", f"{plugin_name}:{name}", entry)
-
-        if self._sync_runtime_plugin_middlewares():
-            logger.info(
-                "Plugin {} registered middleware: {} (priority={})",
-                plugin_name,
-                name,
-                priority,
-            )
-        else:
-            logger.warning(
-                "Plugin {}: middleware {} registered in registry, but runtime sync skipped",
-                plugin_name,
-                name,
-            )
-
-    def _unregister_middleware(self, ext: RegisteredExtension) -> None:
-        """Remove middleware registration and rebuild runtime stack.
-        / 移除中间件注册并重建运行时中间件栈。"""
-        plugin_name = ext.plugin_name
-        name = ext.key.split(":", 1)[-1]
-        removed_runtime_middleware = (
-            ext.ref.get("runtime_middleware") if isinstance(ext.ref, dict) else None
-        )
-        if plugin_name in self._plugin_middlewares:
-            self._plugin_middlewares[plugin_name] = [
-                m
-                for m in self._plugin_middlewares[plugin_name]
-                if m is not ext.ref and m.get("name") != name
-            ]
-            if not self._plugin_middlewares[plugin_name]:
-                self._plugin_middlewares.pop(plugin_name, None)
-
-        if self._sync_runtime_plugin_middlewares(
-            removed_runtime_middleware=removed_runtime_middleware
-        ):
-            logger.info("Plugin middleware unregistered from runtime: {}", ext.key)
-        else:
-            logger.info(
-                "Plugin middleware unregistered from registry only: {}", ext.key
-            )
-
-    def get_plugin_middlewares(
-        self, plugin_name: str | None = None
-    ) -> list[dict[str, Any]]:
-        """Get plugin middleware list (sorted by priority ascending) / 获取插件中间件列表"""
-        result: list[dict[str, Any]] = []
-        plugins_iter = (
-            [plugin_name] if plugin_name else list(self._plugin_middlewares.keys())
-        )
-        for pname in plugins_iter:
-            result.extend(self._plugin_middlewares.get(pname, []))
-        result.sort(key=lambda x: x.get("priority", 50))
-        return result
-
-    # ── 15. Custom Extension / 自定义扩展 ──
-
-    def register_custom(
-        self,
-        plugin_name: str,
-        ext_type: str,
-        name: str,
-        data: dict[str, Any] | None = None,
-        description: str = "",
-    ) -> None:
-        """
-        Register generic custom extension point.
-        / 注册通用自定义扩展点。
-
-        Metadata is stored in the in-memory registry; other plugins or the platform
-        can query via `get_custom_extensions(ext_type)`.
-        / 元数据存入内存注册表。
-        """
-        entry: dict[str, Any] = {
-            "plugin_name": plugin_name,
-            "type": ext_type,
-            "name": name,
-            "data": data or {},
-            "description": description,
-        }
-        key = f"{ext_type}:{name}"
-        customs = self._plugin_custom_extensions.setdefault(plugin_name, [])
-        # upsert / 插入或更新（同 key 覆盖）
-        self._plugin_custom_extensions[plugin_name] = [
-            c for c in customs if f"{c['type']}:{c['name']}" != key
-        ]
-        self._plugin_custom_extensions[plugin_name].append(entry)
-        self._track(plugin_name, "custom", key, entry)
-        logger.info(
-            "Plugin {} registered custom extension: {}/{}",
-            plugin_name,
-            ext_type,
-            name,
-        )
-
-    def _unregister_custom(self, ext: RegisteredExtension) -> None:
-        """Remove custom extension registration / 移除自定义扩展注册"""
-        plugin_name = ext.plugin_name
-        key = ext.key
-        if isinstance(ext.ref, dict) and ext.ref.get("type") == "captcha_provider":
-            from app.captcha.registry import registry as captcha_registry
-
-            provider_code = str(
-                (ext.ref.get("data") or {}).get("provider_code")
-                or ext.ref.get("name")
-                or "",
-            ).strip()
-            if provider_code:
-                captcha_registry.unregister(provider_code)
-
-        if plugin_name in self._plugin_custom_extensions:
-            self._plugin_custom_extensions[plugin_name] = [
-                c
-                for c in self._plugin_custom_extensions[plugin_name]
-                if f"{c['type']}:{c['name']}" != key
-            ]
-
-    def get_custom_extensions(
-        self,
-        ext_type: str | None = None,
-        plugin_name: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """Get custom extension list.
-        / 获取自定义扩展列表。
-
-        Args:
-            ext_type: Filter extension type (None = all) / 过滤扩展类型
-            plugin_name: Filter plugin (None = all) / 过滤插件
-        """
-        result: list[dict[str, Any]] = []
-        plugins_iter = (
-            [plugin_name]
-            if plugin_name
-            else list(self._plugin_custom_extensions.keys())
-        )
-        for pname in plugins_iter:
-            for ext in self._plugin_custom_extensions.get(pname, []):
-                if ext_type and ext.get("type") != ext_type:
-                    continue
-                result.append(ext)
-        return result
-
-    def get_plugin_tenant_menu_policy(self, plugin_name: str) -> dict[str, Any]:
-        """
-        Get tenant menu grant policy declared by plugin custom extensions.
-        / 读取插件 custom extension 声明的 tenant 菜单授权策略。
-
-        Contract:
-        - ext.type must be `tenant_menu_policy`
-        - ext.data.grant_mode supports:
-          - auto_all_active_plans (default)
-          - manual_entitlement
-        """
-        default_policy: dict[str, Any] = {
-            "plugin_name": plugin_name,
-            "grant_mode": "auto_all_active_plans",
-            "source": "default",
-            "extension_name": "",
-        }
-        extensions = self.get_custom_extensions(
-            ext_type="tenant_menu_policy",
-            plugin_name=plugin_name,
-        )
-        if not extensions:
-            return default_policy
-
-        # Prefer the first valid declaration, preserve backward compatibility.
-        # / 取第一个合法声明，保持向后兼容。
-        for ext in extensions:
-            data = ext.get("data") if isinstance(ext.get("data"), dict) else {}
-            raw_mode = str(data.get("grant_mode") or "").strip().lower()
-            if raw_mode in {"auto_all_active_plans", "manual_entitlement"}:
-                return {
-                    "plugin_name": plugin_name,
-                    "grant_mode": raw_mode,
-                    "source": "custom_extension",
-                    "extension_name": str(ext.get("name") or ""),
-                }
-        return default_policy
-
-    def get_frontend_slots_grouped(
-        self,
-        scope: str | None = None,
-    ) -> dict[str, list[dict[str, Any]]]:
-        """
-        Get frontend slot data grouped by type.
-        / 获取按类型分组的前端插槽数据。
-
-        For Controller to return directly, avoiding grouping+sorting logic in Controller.
-        / 供 Controller 直接返回。
-
-        Args:
-            scope: "admin" / "tenant" / None = all / 全部
-
-        Returns:
-            {"header_widgets": [...], "dashboard_widgets": [...], ...}
-        """
-        from app.enums.plugin import FrontendSlotTypeEnum
-
-        _TYPE_TO_KEY: dict[str, str] = {
-            FrontendSlotTypeEnum.HEADER_WIDGET.value: "header_widgets",
-            FrontendSlotTypeEnum.DASHBOARD_WIDGET.value: "dashboard_widgets",
-            FrontendSlotTypeEnum.SETTINGS_TAB.value: "settings_tabs",
-            FrontendSlotTypeEnum.FLOATING_PANEL.value: "floating_panels",
-            FrontendSlotTypeEnum.STANDALONE_PAGE.value: "pages",
-            FrontendSlotTypeEnum.NOTIFICATION_UI.value: "notification_ui",
-        }
-
-        result: dict[str, list[dict[str, Any]]] = {k: [] for k in _TYPE_TO_KEY.values()}
-
-        for slot in self.get_frontend_slots(scope=scope):
-            key = _TYPE_TO_KEY.get(slot.get("slot_type", ""))
-            if key:
-                result[key].append(slot)
-
-        # All slot types sorted by sort_order ascending for consistent frontend rendering order / 所有插槽类型统一按 sort_order 升序排序
-        for slots in result.values():
-            slots.sort(key=lambda x: x.get("sort_order", 100))
-        return result
-
-    def get_registered_count(self, plugin_name: str) -> int:
-        """Get the number of registered extensions for a plugin / 获取某插件已注册的扩展数量"""
-        return len(self._registry.get(plugin_name, []))
+        return self.read_layer.find_owner(ext_type, key)

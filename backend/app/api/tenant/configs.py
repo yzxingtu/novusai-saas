@@ -7,13 +7,7 @@ Provides tenant-level configuration management endpoints (tenant admin only)
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from fastapi import Body, Request
-from sqlalchemy import select as sa_select
-
-if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.shared._captcha_helpers import inject_captcha_provider_options
 from app.api.shared._storage_helpers import (
@@ -29,7 +23,6 @@ from app.enums.config import ConfigScope
 from app.enums.error_code import ErrorCode
 from app.enums.rbac import PermissionScope
 from app.exceptions import BusinessException, NotFoundException
-from app.models.auth.tenant_user_role import TenantUserRole
 from app.rbac.decorators import (
     MenuConfig,
     action_read,
@@ -43,6 +36,7 @@ from app.schemas.system.config import (
     ConfigUpdateRequest,
     DisplayRuleSchema,
 )
+from app.services.tenant.tenant_role_option_service import TenantRoleOptionService
 
 # 密钥类字段名关键词，匹配到的值做脱敏处理 / Sensitive field name keywords, matched values are masked
 _SENSITIVE_KEYWORDS = {"secret", "key", "password", "token"}
@@ -75,43 +69,35 @@ def _mask_sensitive_options(options: dict) -> dict:
     return masked
 
 
-async def _inject_role_options(
-    db: AsyncSession,
+async def _load_group_with_runtime_options(
+    config_service: ConfigService,
+    role_query_service: TenantRoleOptionService,
     tenant_id: int,
-    configs: list[dict],
-) -> None:
-    """
-    为 user_default_role_id 配置项动态注入当前企业的角色选项 / Inject tenant role options for user_default_role_id.
+    group_code: str,
+) -> dict | None:
+    """Load tenant config group and inject runtime-only options for response."""
+    groups_with_configs = await config_service.get_groups_with_configs(
+        scope=ConfigScope.ALL_TENANTS,
+        tenant_id=tenant_id,
+    )
 
-    在静态的「不分配角色」选项之后，追加企业的所有活跃角色。
-    Appends all active tenant roles after the static "no role" option.
-    """
-    for cfg in configs:
-        if cfg["key"] != "user_default_role_id":
-            continue
-        from app.services.tenant.tenant_user_role_display import (
-            localized_tenant_user_role_name_and_description,
-        )
+    target_group = next(
+        (group for group in groups_with_configs if group["code"] == group_code),
+        None,
+    )
+    if target_group is None:
+        return None
 
-        result = await db.execute(
-            sa_select(TenantUserRole.id, TenantUserRole.name, TenantUserRole.code)
-            .where(
-                TenantUserRole.tenant_id == tenant_id,
-                TenantUserRole.is_active.is_(True),
-                TenantUserRole.is_deleted.is_(False),
-            )
-            .order_by(TenantUserRole.sort_order, TenantUserRole.id)
-        )
-        roles = result.all()
-        for row in roles:
-            rid, rname, rcode = row[0], row[1], row[2]
-            label, _ = localized_tenant_user_role_name_and_description(
-                rcode,
-                rname,
-                None,
-            )
-            cfg["options"].append({"value": rid, "label": label})
-        break
+    await role_query_service.inject_role_options_for_user_default_role(
+        tenant_id=tenant_id,
+        configs=target_group["configs"],
+    )
+    inject_captcha_provider_options(
+        target_group["configs"],
+        required_endpoints={"tenant", "user"},
+        unavailable_label_key="config.tenant.captcha_provider.unavailable_option",
+    )
+    return target_group
 
 
 def _translate_config_item(config: dict) -> ConfigItemResponse:
@@ -273,33 +259,19 @@ class TenantConfigController(TenantController):
 
             # 获取配置值 / Get config values
             config_service = ConfigService(db)
-            groups_with_configs = await config_service.get_groups_with_configs(
-                scope=ConfigScope.ALL_TENANTS,
+            role_query_service = TenantRoleOptionService(db)
+            target_group = await _load_group_with_runtime_options(
+                config_service=config_service,
+                role_query_service=role_query_service,
                 tenant_id=current_admin.tenant_id,
+                group_code=group_code,
             )
-
-            # 找到目标分组 / Find target group
-            target_group = None
-            for g in groups_with_configs:
-                if g["code"] == group_code:
-                    target_group = g
-                    break
 
             if not target_group:
                 raise NotFoundException(
                     message=_("config.group_not_found"),
                     code=ErrorCode.CONFIG_GROUP_NOT_FOUND,
                 )
-
-            # 动态注入角色选项 / Dynamically inject role options
-            await _inject_role_options(
-                db, current_admin.tenant_id, target_group["configs"]
-            )
-            inject_captcha_provider_options(
-                target_group["configs"],
-                required_endpoints={"tenant", "user"},
-                unavailable_label_key="config.tenant.captcha_provider.unavailable_option",
-            )
 
             # 转换响应 / Convert response
             configs = [_translate_config_item(c) for c in target_group["configs"]]
@@ -363,27 +335,13 @@ class TenantConfigController(TenantController):
             await db.commit()
 
             # 返回更新后的配置 / Return updated configs
-            groups_with_configs = await config_service.get_groups_with_configs(
-                scope=ConfigScope.ALL_TENANTS,
+            role_query_service = TenantRoleOptionService(db)
+            target_group = await _load_group_with_runtime_options(
+                config_service=config_service,
+                role_query_service=role_query_service,
                 tenant_id=current_admin.tenant_id,
+                group_code=group_code,
             )
-
-            target_group = None
-            for g in groups_with_configs:
-                if g["code"] == group_code:
-                    target_group = g
-                    break
-
-            # 动态注入角色选项 / Dynamically inject role options
-            if target_group:
-                await _inject_role_options(
-                    db, current_admin.tenant_id, target_group["configs"]
-                )
-                inject_captcha_provider_options(
-                    target_group["configs"],
-                    required_endpoints={"tenant", "user"},
-                    unavailable_label_key="config.tenant.captcha_provider.unavailable_option",
-                )
 
             configs = (
                 [_translate_config_item(c) for c in target_group["configs"]]

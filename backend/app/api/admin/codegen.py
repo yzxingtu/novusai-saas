@@ -114,6 +114,26 @@ class AdminCodegenController(GlobalController):
             delete_reason_message=guard.message,
         )
 
+    @staticmethod
+    def _service(db: DbSession) -> CodegenService:
+        return CodegenService(db)
+
+    @staticmethod
+    def _execution(db: DbSession):
+        return CodegenService(db).execution
+
+    @staticmethod
+    def _workbench(db: DbSession):
+        return CodegenService(db).workbench
+
+    @staticmethod
+    def _versioning(db: DbSession):
+        return CodegenService(db).versioning
+
+    @staticmethod
+    def _introspection(db: DbSession):
+        return CodegenService(db).introspection
+
     def _register_routes(self) -> None:
         """注册路由 / Register routes"""
         router = self.router

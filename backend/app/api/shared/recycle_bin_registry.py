@@ -7,12 +7,9 @@ from __future__ import annotations
 import importlib
 from typing import Any, Literal
 
-from sqlalchemy import select
-
 from app.core.i18n import _
 from app.enums.common import DeleteLevelEnum, RecycleStageEnum
 from app.exceptions import ValidationException
-from app.models.tenant.tenant import Tenant
 
 RecycleBinSide = Literal["admin", "tenant"]
 
@@ -350,10 +347,9 @@ async def serialize_deleted_items(
     if not tenant_ids:
         return result
 
-    rows = await db.execute(
-        select(Tenant.id, Tenant.name).where(Tenant.id.in_(list(tenant_ids)))
-    )
-    name_map = {row[0]: row[1] for row in rows.all()}
+    from app.services.system.recycle_bin_query_service import RecycleBinQueryService
+
+    name_map = await RecycleBinQueryService(db).get_tenant_name_map(list(tenant_ids))
     for row in result:
         tenant_id = row.get("tenant_id")
         if tenant_id is not None:
@@ -400,20 +396,15 @@ async def list_global_deleted_ids(
     aggregate_all_levels: bool = False,
 ) -> list[int]:
     model_cls = get_model(module_code)
-    stmt = select(model_cls.id).where(
-        model_cls.is_deleted.is_(True),
-        model_cls.recycle_stage == RecycleStageEnum.GLOBAL.value,
-    )
-
-    if not aggregate_all_levels:
-        stmt = stmt.where(model_cls.delete_level == get_delete_scope(side))
-
     tenant_field = get_tenant_field_name(model_cls)
-    if side == "tenant" and tenant_id is not None and tenant_field:
-        stmt = stmt.where(getattr(model_cls, tenant_field) == tenant_id)
+    from app.services.system.recycle_bin_query_service import RecycleBinQueryService
 
-    result = await db.execute(stmt.order_by(model_cls.id))
-    return list(result.scalars().all())
+    return await RecycleBinQueryService(db).list_global_deleted_ids(
+        model_cls=model_cls,
+        delete_scope=None if aggregate_all_levels else get_delete_scope(side),
+        tenant_field=tenant_field if side == "tenant" else None,
+        tenant_id=tenant_id if side == "tenant" else None,
+    )
 
 
 __all__ = [

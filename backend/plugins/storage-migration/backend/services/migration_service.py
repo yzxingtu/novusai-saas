@@ -7,9 +7,9 @@ DB record updates, pause/resume, retry, rollback, and source cleanup safety.
 from __future__ import annotations
 
 import asyncio
-import json
+import importlib.util
 from datetime import datetime
-from io import BytesIO
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import func, select, text, update
@@ -17,17 +17,53 @@ from sqlalchemy import func, select, text, update
 from app.core.base_model import utc_now
 from app.core.logging import LogManager
 from app.models.tenant.attachment import Attachment
-from app.services.common.storage_config_resolver import (
-    StorageConfigResolver,
-    infer_attachment_storage_scope,
-    merge_attachment_storage_snapshot,
-    strip_internal_attachment_meta,
-)
-from app.storage.base import StorageConfig, StorageVisibility
+from app.services.common.storage_config_resolver import StorageConfigResolver
+from app.storage.base import StorageConfig
 from app.storage.manager import storage_manager
+
+try:
+    from .migration_helpers import (
+        deserialize_json_field,
+        execute_single_file_migration,
+        json_dumps,
+        normalize_scope,
+        scopes_overlap,
+    )
+    from .migration_impact_analyzer import MigrationImpactAnalyzer
+except ImportError:
+    _services_dir = Path(__file__).resolve().parent
+
+    def _load_local_service_module(module_name: str, file_name: str) -> Any:
+        spec = importlib.util.spec_from_file_location(
+            module_name,
+            _services_dir / file_name,
+        )
+        if spec is None or spec.loader is None:
+            raise ImportError(f"Unable to load {file_name}")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    _helpers = _load_local_service_module(
+        "storage_migration_runtime_helpers",
+        "migration_helpers.py",
+    )
+    deserialize_json_field = _helpers.deserialize_json_field
+    execute_single_file_migration = _helpers.execute_single_file_migration
+    json_dumps = _helpers.json_dumps
+    normalize_scope = _helpers.normalize_scope
+    scopes_overlap = _helpers.scopes_overlap
+
+    _impact_module = _load_local_service_module(
+        "storage_migration_runtime_impact_analyzer",
+        "migration_impact_analyzer.py",
+    )
+    MigrationImpactAnalyzer = _impact_module.MigrationImpactAnalyzer
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
+
+__all__ = ["MigrationImpactAnalyzer", "StorageMigrationService"]
 
 logger = LogManager.get_logger("storage")
 
@@ -39,140 +75,6 @@ _running_migrations: dict[int, asyncio.Task[None]] = {}
 _pause_events: dict[int, asyncio.Event] = {}
 _cancel_flags: set[int] = set()
 _UNSET = object()
-
-
-def _normalize_scope(scope: str) -> str:
-    normalized = str(scope or "all").strip()
-    if not normalized or normalized == "all":
-        return "all"
-    if not normalized.startswith("tenant:"):
-        raise ValueError("scope must be 'all' or 'tenant:{id}'")
-
-    tenant_part = normalized.split(":", 1)[1].strip()
-    tenant_id = int(tenant_part)
-    if tenant_id <= 0:
-        raise ValueError("tenant scope id must be a positive integer")
-    return f"tenant:{tenant_id}"
-
-
-def _scopes_overlap(left: str, right: str) -> bool:
-    if left == "all" or right == "all":
-        return True
-    return left == right
-
-
-def _deserialize_json_field(value: Any) -> Any:
-    if value is None or isinstance(value, (dict, list)):
-        return value
-    if isinstance(value, str):
-        raw = value.strip()
-        if not raw:
-            return None
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError:
-            return value
-    return value
-
-
-def _json_dumps(obj: Any) -> str | None:
-    if obj is None:
-        return None
-    return json.dumps(obj, ensure_ascii=False, default=str)
-
-
-class MigrationImpactAnalyzer:
-    """Analyze impact before switching storage driver."""
-
-    def __init__(self, db: AsyncSession):
-        self._db = db
-
-    async def analyze(
-        self,
-        source_driver: str,
-        target_driver: str,
-        scope: str = "all",
-    ) -> dict[str, Any]:
-        if source_driver == target_driver:
-            raise ValueError("Source and target drivers must be different")
-
-        scope = _normalize_scope(scope)
-        conditions = [
-            Attachment.driver == source_driver,
-            Attachment.is_deleted.is_(False),
-        ]
-
-        if scope.startswith("tenant:"):
-            tenant_id = int(scope.split(":", 1)[1])
-            conditions.append(Attachment.tenant_id == tenant_id)
-
-        total_q = select(
-            func.count(Attachment.id).label("total_files"),
-            func.coalesce(func.sum(Attachment.size), 0).label("total_size_bytes"),
-        ).where(*conditions)
-        total_result = await self._db.execute(total_q)
-        total_row = total_result.one()
-
-        visibility_q = (
-            select(
-                Attachment.visibility,
-                func.count(Attachment.id).label("count"),
-                func.coalesce(func.sum(Attachment.size), 0).label("size_bytes"),
-            )
-            .where(*conditions)
-            .group_by(Attachment.visibility)
-        )
-        visibility_result = await self._db.execute(visibility_q)
-
-        private_files = 0
-        private_size = 0
-        public_files = 0
-        public_size = 0
-        for row in visibility_result.all():
-            if row.visibility == StorageVisibility.PRIVATE:
-                private_files = row.count
-                private_size = row.size_bytes
-            elif row.visibility == StorageVisibility.PUBLIC:
-                public_files = row.count
-                public_size = row.size_bytes
-
-        tenant_breakdown: list[dict[str, Any]] = []
-        if scope == "all":
-            tenant_q = (
-                select(
-                    Attachment.tenant_id,
-                    func.count(Attachment.id).label("count"),
-                    func.coalesce(func.sum(Attachment.size), 0).label("size_bytes"),
-                )
-                .where(*conditions)
-                .group_by(Attachment.tenant_id)
-                .order_by(func.count(Attachment.id).desc())
-                .limit(20)
-            )
-            tenant_result = await self._db.execute(tenant_q)
-            tenant_breakdown = [
-                {
-                    "tenant_id": row.tenant_id,
-                    "file_count": row.count,
-                    "size_bytes": int(row.size_bytes),
-                }
-                for row in tenant_result.all()
-            ]
-
-        return {
-            "source_driver": source_driver,
-            "target_driver": target_driver,
-            "source_available": storage_manager.has_driver(source_driver),
-            "target_available": storage_manager.has_driver(target_driver),
-            "total_files": total_row.total_files,
-            "total_size_bytes": int(total_row.total_size_bytes),
-            "private_files": private_files,
-            "private_size_bytes": int(private_size),
-            "public_files": public_files,
-            "public_size_bytes": int(public_size),
-            "tenant_breakdown": tenant_breakdown,
-            "scope": scope,
-        }
 
 
 class StorageMigrationService:
@@ -187,8 +89,8 @@ class StorageMigrationService:
     def _normalize_task_row(self, row: dict[str, Any]) -> dict[str, Any]:
         normalized = dict(row)
         for field in TASK_JSON_FIELDS:
-            normalized[field] = _deserialize_json_field(normalized.get(field))
-        normalized["scope"] = _normalize_scope(str(normalized.get("scope") or "all"))
+            normalized[field] = deserialize_json_field(normalized.get(field))
+        normalized["scope"] = normalize_scope(str(normalized.get("scope") or "all"))
         normalized["source_cleanup_deleted_files"] = int(
             normalized.get("source_cleanup_deleted_files") or 0
         )
@@ -200,7 +102,7 @@ class StorageMigrationService:
     def _normalize_log_row(self, row: dict[str, Any]) -> dict[str, Any]:
         normalized = dict(row)
         for field in LOG_JSON_FIELDS:
-            normalized[field] = _deserialize_json_field(normalized.get(field))
+            normalized[field] = deserialize_json_field(normalized.get(field))
         return normalized
 
     async def create_task(
@@ -212,7 +114,7 @@ class StorageMigrationService:
         created_by: int,
     ) -> dict[str, Any]:
         try:
-            scope = _normalize_scope(scope)
+            scope = normalize_scope(scope)
         except ValueError as exc:
             return {"error": str(exc)}
 
@@ -339,8 +241,8 @@ class StorageMigrationService:
                 "total_files": total_files,
                 "total_bytes": int(total_bytes),
                 "concurrency": concurrency,
-                "source_snapshot": _json_dumps(source_snapshot),
-                "target_snapshot": _json_dumps(target_snapshot),
+                "source_snapshot": json_dumps(source_snapshot),
+                "target_snapshot": json_dumps(target_snapshot),
                 "created_by": created_by,
                 "now": now,
             },
@@ -409,7 +311,7 @@ class StorageMigrationService:
                         "status": "pending",
                         "old_driver": row.driver,
                         "old_base_url": row.base_url or "",
-                        "old_meta": _json_dumps(row.meta),
+                        "old_meta": json_dumps(row.meta),
                     }
                     for row in rows
                 ],
@@ -717,7 +619,7 @@ class StorageMigrationService:
                 .values(
                     driver=log_row["old_driver"],
                     base_url=log_row["old_base_url"],
-                    meta=_deserialize_json_field(log_row["old_meta"]),
+                    meta=deserialize_json_field(log_row["old_meta"]),
                 )
             )
             reverted += 1
@@ -1008,119 +910,21 @@ class StorageMigrationService:
         target_base_url: str,
         target_storage_config: StorageConfig,
     ) -> bool:
-        target_written = False
-
-        try:
-            attachment_meta_q = select(
-                Attachment.visibility,
-                Attachment.mime_type,
-                Attachment.meta,
-                Attachment.tenant_id,
-            ).where(Attachment.id == attachment_id)
-            attachment_meta_result = await db.execute(attachment_meta_q)
-            attachment_meta = attachment_meta_result.one_or_none()
-            if attachment_meta is None:
-                raise RuntimeError(
-                    f"Attachment {attachment_id} not found during storage migration"
-                )
-
-            visibility = StorageVisibility(
-                attachment_meta.visibility or StorageVisibility.PRIVATE.value
-            )
-            metadata = attachment_meta.meta if isinstance(attachment_meta.meta, dict) else None
-            object_metadata = strip_internal_attachment_meta(metadata)
-            storage_scope = (
-                infer_attachment_storage_scope(
-                    metadata,
-                    file_path,
-                    attachment_meta.tenant_id,
-                )
-                or "platform"
-            )
-            updated_meta = merge_attachment_storage_snapshot(
-                metadata,
-                target_storage_config,
-                storage_scope,
-            )
-
-            content = await source_driver.get(file_path)  # type: ignore[union-attr]
-            file_data = BytesIO(content) if isinstance(content, (bytes, bytearray)) else content
-
-            await target_driver.put(  # type: ignore[union-attr]
-                path=file_path,
-                content=file_data,
-                mime_type=attachment_meta.mime_type,
-                visibility=visibility,
-                metadata=object_metadata,
-            )
-            target_written = True
-
-            await db.execute(
-                update(Attachment)
-                .where(Attachment.id == attachment_id)
-                .values(
-                    driver=target_driver_name,
-                    base_url=target_base_url,
-                    meta=updated_meta,
-                )
-            )
-
-            await db.execute(
-                text(
-                    f"""
-                    UPDATE {self.LOG_TABLE}
-                    SET status = 'success',
-                        new_driver = :driver,
-                        new_base_url = :base_url,
-                        migrated_at = :now,
-                        error_message = NULL
-                    WHERE id = :id
-                    """
-                ),
-                {
-                    "id": log_id,
-                    "driver": target_driver_name,
-                    "base_url": target_base_url,
-                    "now": utc_now(),
-                },
-            )
-            await db.commit()
-            return True
-
-        except Exception as exc:
-            logger.warning("Failed to migrate file %s (log=%d): %s", file_path, log_id, exc)
-
-            try:
-                await db.rollback()
-            except Exception:
-                pass
-
-            if target_written:
-                try:
-                    await target_driver.delete(file_path)  # type: ignore[union-attr]
-                except Exception as cleanup_exc:
-                    logger.warning(
-                        "Failed to cleanup partially written target file %s: %s",
-                        file_path,
-                        cleanup_exc,
-                    )
-
-            try:
-                await db.execute(
-                    text(
-                        f"""
-                        UPDATE {self.LOG_TABLE}
-                        SET status = 'failed',
-                            error_message = :error
-                        WHERE id = :id
-                        """
-                    ),
-                    {"id": log_id, "error": str(exc)[:500]},
-                )
-                await db.commit()
-            except Exception:
-                pass
-            return False
+        return await execute_single_file_migration(
+            attachment_model=Attachment,
+            db=db,
+            file_path=file_path,
+            log_id=log_id,
+            log_table=self.LOG_TABLE,
+            attachment_id=attachment_id,
+            source_driver=source_driver,
+            target_driver=target_driver,
+            target_driver_name=target_driver_name,
+            target_base_url=target_base_url,
+            target_storage_config=target_storage_config,
+            now_factory=utc_now,
+            logger=logger,
+        )
 
     async def _update_task_status(
         self,
@@ -1169,8 +973,8 @@ class StorageMigrationService:
         selected_drivers = {source_driver, target_driver}
         for row in result.mappings().all():
             current = dict(row)
-            current_scope = _normalize_scope(str(current.get("scope") or "all"))
-            if not _scopes_overlap(scope, current_scope):
+            current_scope = normalize_scope(str(current.get("scope") or "all"))
+            if not scopes_overlap(scope, current_scope):
                 continue
 
             current_drivers = {
@@ -1189,7 +993,7 @@ class StorageMigrationService:
         driver_name: str,
         scope: str,
     ) -> StorageConfig:
-        resolved_snapshot = _deserialize_json_field(snapshot)
+        resolved_snapshot = deserialize_json_field(snapshot)
         if isinstance(resolved_snapshot, dict) and resolved_snapshot.get("driver") == driver_name:
             return StorageConfig(
                 driver=resolved_snapshot["driver"],
@@ -1208,7 +1012,7 @@ class StorageMigrationService:
         driver_name: str,
         scope: str,
     ) -> StorageConfig:
-        scope = _normalize_scope(scope)
+        scope = normalize_scope(scope)
         tenant_id = 0
         if scope.startswith("tenant:"):
             tenant_id = int(scope.split(":", 1)[1])

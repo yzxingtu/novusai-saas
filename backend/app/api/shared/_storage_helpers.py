@@ -7,10 +7,9 @@ Shared by admin and tenant configuration controllers.
 Query known plugin storage drivers from the database.
 """
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.system.plugin import Plugin
+from app.services.system.plugin_read_model_service import PluginReadModelService
 
 
 async def get_known_plugin_storage_drivers(db: AsyncSession) -> list[dict]:
@@ -24,31 +23,4 @@ async def get_known_plugin_storage_drivers(db: AsyncSession) -> list[dict]:
         name, display_name, plugin_name, plugin_status
     for StorageManager.get_all_driver_info_list() to merge and display.
     """
-    stmt = select(Plugin).where(
-        Plugin.is_deleted.is_(False),
-    )
-    result = await db.execute(stmt)
-    plugins = result.scalars().all()
-
-    drivers: list[dict] = []
-    for p in plugins:
-        manifest = p.manifest or {}
-        extensions = manifest.get("extensions", {})
-        for sd in extensions.get("storage_drivers", []):
-            code = sd.get("code", "")
-            if not code:
-                continue
-            display = sd.get("display_name", {})
-            if isinstance(display, dict):
-                display_str = display.get("zh-CN") or display.get("en") or code
-            else:
-                display_str = str(display) if display else code
-            drivers.append(
-                {
-                    "name": code,
-                    "display_name": display_str,
-                    "plugin_name": p.name,
-                    "plugin_status": p.status,
-                }
-            )
-    return drivers
+    return await PluginReadModelService(db).get_known_storage_drivers()

@@ -1,0 +1,466 @@
+"""AI CLI normalization and diagnostics extraction helpers."""
+
+from __future__ import annotations
+
+from app.cli_commands import state as S
+
+_json_default = S._json_default
+
+def _truncate_cli_block(
+    value: object,
+    *,
+    max_chars: int = 600,
+    full_content: bool = False,
+) -> str:
+    text = str(value or "")
+    if full_content or len(text) <= max_chars:
+        return text
+    return f"{text[: max_chars - 3]}..."
+
+
+def _indent_cli_block(text: str, prefix: str = "    ") -> str:
+    lines = (text or "").splitlines() or [""]
+    return "\n".join(f"{prefix}{line}" for line in lines)
+
+
+def _compact_json_text(value: object) -> str:
+    import json
+
+    return json.dumps(
+        value,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        default=_json_default,
+    )
+
+
+def _normalize_cli_string_list(raw_value: object) -> list[str]:
+    if not isinstance(raw_value, list):
+        return []
+    out: list[str] = []
+    for item in raw_value:
+        text = _normalize_cli_optional_string(item) or ""
+        if text and text not in out:
+            out.append(text)
+    return out
+
+
+def _normalize_cli_context_sources(raw_value: object) -> list[dict]:
+    if not isinstance(raw_value, list):
+        return []
+    normalized: list[dict] = []
+    for item in raw_value:
+        if not isinstance(item, dict):
+            continue
+        kind = _normalize_cli_optional_string(item.get("kind"))
+        name = _normalize_cli_optional_string(item.get("name"))
+        if not (kind or name):
+            continue
+        normalized.append(
+            {
+                "kind": kind,
+                "name": name,
+                "active": bool(item.get("active", True)),
+                "metadata": _normalize_cli_dict(item.get("metadata")),
+            }
+        )
+    return normalized
+
+
+def _normalize_cli_fallback_history(raw_value: object) -> list[dict]:
+    if not isinstance(raw_value, list):
+        return []
+    normalized: list[dict] = []
+    for item in raw_value:
+        if not isinstance(item, dict):
+            continue
+        from_protocol = _normalize_cli_optional_string(item.get("from_protocol"))
+        to_protocol = _normalize_cli_optional_string(item.get("to_protocol"))
+        reason = _normalize_cli_optional_string(item.get("reason"))
+        if not (from_protocol or to_protocol or reason):
+            continue
+        normalized.append(
+            {
+                "from_protocol": from_protocol,
+                "to_protocol": to_protocol,
+                "reason": reason,
+                "recovered": bool(item.get("recovered", False)),
+                "metadata": _normalize_cli_dict(item.get("metadata")),
+            }
+        )
+    return normalized
+
+
+def _normalize_cli_bool(raw_value: object) -> bool | None:
+    if isinstance(raw_value, bool):
+        return raw_value
+    if raw_value is None:
+        return None
+    normalized = str(raw_value).strip().lower()
+    if normalized in {"true", "1", "yes", "y", "on"}:
+        return True
+    if normalized in {"false", "0", "no", "n", "off"}:
+        return False
+    return None
+
+
+def _normalize_cli_optional_string(raw_value: object) -> str | None:
+    if raw_value is None:
+        return None
+    text = str(raw_value).strip()
+    if not text:
+        return None
+    if text.lower() in {"none", "null", "undefined"}:
+        return None
+    return text
+
+
+def _normalize_cli_json_value(raw_value: object) -> object:
+    if isinstance(raw_value, dict):
+        return {
+            str(key): _normalize_cli_json_value(raw_value[key])
+            for key in raw_value
+            if isinstance(key, str) or key is not None
+        }
+    if isinstance(raw_value, list):
+        return [_normalize_cli_json_value(item) for item in raw_value]
+    if isinstance(raw_value, tuple):
+        return [_normalize_cli_json_value(item) for item in raw_value]
+    if isinstance(raw_value, str):
+        return _normalize_cli_optional_string(raw_value)
+    return raw_value
+
+
+def _normalize_cli_dict(raw_value: object) -> dict:
+    if not isinstance(raw_value, dict):
+        return {}
+    normalized = _normalize_cli_json_value(raw_value)
+    return normalized if isinstance(normalized, dict) else {}
+
+
+def _normalize_cli_intent_plan(raw_value: object) -> list[dict]:
+    if not isinstance(raw_value, list):
+        return []
+    normalized: list[dict] = []
+    for item in raw_value:
+        payload = _normalize_cli_dict(item)
+        if not payload:
+            continue
+        normalized.append(
+            {
+                "intent_id": _normalize_cli_optional_string(payload.get("intent_id")),
+                "kind": _normalize_cli_optional_string(payload.get("kind")),
+                "family": _normalize_cli_optional_string(payload.get("family")),
+                "order": int(payload.get("order") or 0) or None,
+                "user_visible_label": _normalize_cli_optional_string(
+                    payload.get("user_visible_label")
+                ),
+                "status": _normalize_cli_optional_string(payload.get("status")),
+                "allowed_tool_names": _normalize_cli_string_list(
+                    payload.get("allowed_tool_names")
+                ),
+                "completed_by_tool_names": _normalize_cli_string_list(
+                    payload.get("completed_by_tool_names")
+                ),
+                "failure_reason": _normalize_cli_optional_string(
+                    payload.get("failure_reason")
+                ),
+            }
+        )
+    return normalized
+
+
+def _normalize_cli_retry_events(raw_value: object) -> list[dict]:
+    if not isinstance(raw_value, list):
+        return []
+    normalized: list[dict] = []
+    for item in raw_value:
+        payload = _normalize_cli_dict(item)
+        if not payload:
+            continue
+        normalized.append(
+            {
+                "action": _normalize_cli_optional_string(payload.get("action")),
+                "target_intent_id": _normalize_cli_optional_string(
+                    payload.get("target_intent_id")
+                ),
+                "retry_family": _normalize_cli_optional_string(
+                    payload.get("retry_family")
+                ),
+                "allowed_tool_names": _normalize_cli_string_list(
+                    payload.get("allowed_tool_names")
+                ),
+                "completed_intent_ids": _normalize_cli_string_list(
+                    payload.get("completed_intent_ids")
+                ),
+                "unfinished_intent_ids": _normalize_cli_string_list(
+                    payload.get("unfinished_intent_ids")
+                ),
+                "reason": _normalize_cli_optional_string(payload.get("reason")),
+                "provider_failure_kind": _normalize_cli_optional_string(
+                    payload.get("provider_failure_kind")
+                ),
+                "metadata": _normalize_cli_dict(payload.get("metadata")),
+            }
+        )
+    return normalized
+
+
+def _normalize_cli_provider_events(raw_value: object) -> list[dict]:
+    if not isinstance(raw_value, list):
+        return []
+    normalized: list[dict] = []
+    for item in raw_value:
+        payload = _normalize_cli_dict(item)
+        if not payload:
+            continue
+        normalized.append(payload)
+    return normalized
+
+
+def _normalize_cli_call_log_row(raw_value: object) -> dict:
+    payload = _normalize_cli_dict(raw_value)
+    if not payload:
+        return {}
+    payload["turn_outcome"] = _normalize_cli_optional_string(
+        payload.get("turn_outcome")
+    )
+    payload["termination_reason"] = _normalize_cli_optional_string(
+        payload.get("termination_reason")
+    )
+    payload["protocol_path"] = _normalize_cli_optional_string(
+        payload.get("protocol_path")
+    )
+    payload["selected_tool_names"] = _normalize_cli_string_list(
+        payload.get("selected_tool_names")
+    )
+    payload["selected_skill_names"] = _normalize_cli_string_list(
+        payload.get("selected_skill_names")
+    )
+    payload["execution_path"] = _normalize_cli_optional_string(
+        payload.get("execution_path")
+    )
+    payload["failure_kind"] = _normalize_cli_optional_string(
+        payload.get("failure_kind")
+    )
+    payload["fallback_history"] = _normalize_cli_fallback_history(
+        payload.get("fallback_history")
+    )
+    payload["provider_events"] = _normalize_cli_provider_events(
+        payload.get("provider_events")
+    )
+    payload["budget"] = _normalize_cli_dict(payload.get("budget"))
+    payload["budget_status"] = _normalize_cli_optional_string(
+        payload.get("budget_status")
+    )
+    payload["budget_exit_reason"] = _normalize_cli_optional_string(
+        payload.get("budget_exit_reason")
+    )
+    payload["intent_plan"] = _normalize_cli_intent_plan(payload.get("intent_plan"))
+    payload["retry_events"] = _normalize_cli_retry_events(payload.get("retry_events"))
+    payload["partial_exit_reason"] = _normalize_cli_optional_string(
+        payload.get("partial_exit_reason")
+    )
+    payload["sync_rescue"] = _normalize_cli_bool(payload.get("sync_rescue"))
+    payload["contract_breach_type"] = _normalize_cli_optional_string(
+        payload.get("contract_breach_type")
+    )
+    payload["tool_leak_detected"] = bool(payload.get("tool_leak_detected"))
+    payload["unfinished_intents"] = _normalize_cli_string_list(
+        payload.get("unfinished_intents")
+    )
+    payload["leaked_tool_names"] = _normalize_cli_string_list(
+        payload.get("leaked_tool_names")
+    )
+    payload["recovered_via_retry"] = _normalize_cli_bool(
+        payload.get("recovered_via_retry")
+    )
+    payload["last_tool_name"] = _normalize_cli_optional_string(
+        payload.get("last_tool_name")
+    )
+    payload["last_page_key"] = _normalize_cli_optional_string(
+        payload.get("last_page_key")
+    )
+    payload["last_page_op"] = _normalize_cli_optional_string(
+        payload.get("last_page_op")
+    )
+    payload["interrupted_stage"] = _normalize_cli_optional_string(
+        payload.get("interrupted_stage")
+    )
+    payload["tool_loop_progress"] = (
+        _normalize_cli_dict(payload.get("tool_loop_progress"))
+        if isinstance(payload.get("tool_loop_progress"), dict)
+        else {}
+    )
+    payload["turn_record"] = (
+        _normalize_cli_dict(payload.get("turn_record"))
+        if isinstance(payload.get("turn_record"), dict)
+        else None
+    )
+    return payload
+
+
+def _extract_turn_diagnostics_from_call_log_metadata(metadata: object) -> dict:
+    if not isinstance(metadata, dict):
+        return {}
+    diagnostics = metadata.get("turn_diagnostics")
+    if not isinstance(diagnostics, dict):
+        diagnostics = {}
+    turn_record = diagnostics.get("turn_record")
+    if not isinstance(turn_record, dict):
+        turn_record = metadata.get("request", {}).get("turn_record")
+        if not isinstance(turn_record, dict):
+            turn_record = {}
+    turn_record_metadata = (
+        dict(turn_record.get("metadata") or {})
+        if isinstance(turn_record.get("metadata"), dict)
+        else {}
+    )
+    turn_record_diagnostics = _normalize_cli_dict(
+        turn_record_metadata.get("turn_diagnostics")
+    )
+    routing = _normalize_cli_dict(
+        diagnostics.get("routing") or turn_record_diagnostics.get("routing")
+    )
+    recovery = _normalize_cli_dict(
+        diagnostics.get("recovery") or turn_record_diagnostics.get("recovery")
+    )
+    failures = _normalize_cli_dict(
+        diagnostics.get("failures") or turn_record_diagnostics.get("failures")
+    )
+    budget = _normalize_cli_dict(diagnostics.get("budget"))
+    return {
+        "turn_outcome": _normalize_cli_optional_string(
+            turn_record.get("turn_outcome") or diagnostics.get("turn_outcome")
+        ),
+        "termination_reason": _normalize_cli_optional_string(
+            turn_record.get("termination_reason")
+            or diagnostics.get("termination_reason")
+        ),
+        "protocol_path": _normalize_cli_optional_string(
+            turn_record.get("protocol_path") or diagnostics.get("protocol_path")
+        ),
+        "selected_tool_names": _normalize_cli_string_list(
+            turn_record.get("selected_tool_names")
+            or diagnostics.get("selected_tool_names")
+        ),
+        "selected_skill_names": _normalize_cli_string_list(
+            turn_record.get("selected_skill_names")
+            or diagnostics.get("selected_skill_names")
+        ),
+        "execution_path": _normalize_cli_optional_string(
+            diagnostics.get("execution_path")
+            or turn_record_diagnostics.get("execution_path")
+        ),
+        "intent_plan": _normalize_cli_intent_plan(
+            diagnostics.get("intent_plan") or turn_record_diagnostics.get("intent_plan")
+        ),
+        "budget": budget,
+        "budget_status": _normalize_cli_optional_string(
+            budget.get("status") or diagnostics.get("budget_status")
+        ),
+        "budget_exit_reason": _normalize_cli_optional_string(
+            budget.get("exit_reason") or diagnostics.get("budget_exit_reason")
+        ),
+        "candidate_tool_names": _normalize_cli_string_list(
+            routing.get("candidate_tool_names")
+            or diagnostics.get("candidate_tool_names")
+        ),
+        "context_sources": _normalize_cli_context_sources(
+            turn_record.get("context_sources") or diagnostics.get("context_sources")
+        ),
+        "fallback_history": _normalize_cli_fallback_history(
+            turn_record.get("fallback_history") or diagnostics.get("fallback_history")
+        ),
+        "retry_events": _normalize_cli_retry_events(
+            recovery.get("retry_events") or diagnostics.get("retry_events")
+        ),
+        "partial_exit_reason": _normalize_cli_optional_string(
+            recovery.get("partial_exit_reason")
+            or diagnostics.get("partial_exit_reason")
+        ),
+        "failure_kind": _normalize_cli_optional_string(
+            failures.get("failure_kind") or diagnostics.get("failure_kind")
+        ),
+        "provider_events": _normalize_cli_provider_events(
+            failures.get("provider_events") or diagnostics.get("provider_events")
+        ),
+        "sync_rescue": next(
+            (
+                parsed
+                for parsed in (
+                    _normalize_cli_bool(turn_record_metadata.get("sync_rescue")),
+                    _normalize_cli_bool(turn_record.get("sync_rescue")),
+                    _normalize_cli_bool(diagnostics.get("sync_rescue")),
+                )
+                if parsed is not None
+            ),
+            None,
+        ),
+        "should_record_call_log": next(
+            (
+                parsed
+                for parsed in (
+                    _normalize_cli_bool(
+                        turn_record_metadata.get("should_record_call_log")
+                    ),
+                    _normalize_cli_bool(turn_record.get("should_record_call_log")),
+                    _normalize_cli_bool(diagnostics.get("should_record_call_log")),
+                )
+                if parsed is not None
+            ),
+            None,
+        ),
+        "contract_breach_type": _normalize_cli_optional_string(
+            turn_record_metadata.get("contract_breach_type")
+            or diagnostics.get("contract_breach_type")
+        ),
+        "tool_leak_detected": bool(
+            turn_record_metadata.get("tool_leak_detected")
+            or diagnostics.get("tool_leak_detected")
+        ),
+        "unfinished_intents": _normalize_cli_string_list(
+            turn_record_metadata.get("unfinished_intents")
+            or recovery.get("unfinished_intents")
+            or diagnostics.get("unfinished_intents")
+        ),
+        "leaked_tool_names": _normalize_cli_string_list(
+            turn_record_metadata.get("leaked_tool_names")
+            or diagnostics.get("leaked_tool_names")
+        ),
+        "recovered_via_retry": next(
+            (
+                parsed
+                for parsed in (
+                    _normalize_cli_bool(
+                        turn_record_metadata.get("recovered_via_retry")
+                    ),
+                    _normalize_cli_bool(diagnostics.get("recovered_via_retry")),
+                )
+                if parsed is not None
+            ),
+            None,
+        ),
+        "last_tool_name": _normalize_cli_optional_string(
+            turn_record.get("last_tool_name") or diagnostics.get("last_tool_name")
+        ),
+        "last_page_key": _normalize_cli_optional_string(
+            turn_record.get("last_page_key") or diagnostics.get("last_page_key")
+        ),
+        "last_page_op": _normalize_cli_optional_string(
+            turn_record.get("last_page_op") or diagnostics.get("last_page_op")
+        ),
+        "interrupted_stage": _normalize_cli_optional_string(
+            turn_record.get("interrupted_stage") or diagnostics.get("interrupted_stage")
+        ),
+        "tool_loop_progress": (
+            _normalize_cli_dict(turn_record.get("tool_loop_progress"))
+            if isinstance(turn_record.get("tool_loop_progress"), dict)
+            else (
+                _normalize_cli_dict(diagnostics.get("tool_loop_progress"))
+                if isinstance(diagnostics.get("tool_loop_progress"), dict)
+                else {}
+            )
+        ),
+        "turn_record": _normalize_cli_dict(turn_record) or None,
+    }

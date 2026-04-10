@@ -16,8 +16,8 @@ from app.api.admin.plugins import (
 )
 from app.core.i18n import _, set_locale
 from app.exceptions.base import ValidationException
-from app.plugins.preview import InstallPreview
 from app.plugins.exceptions import PluginInstallError
+from app.plugins.preview import InstallPreview
 
 
 def _get_endpoint(path: str, method: str):
@@ -115,7 +115,10 @@ async def test_marketplace_preview_install_returns_preview_token(
         )
     )
 
-    monkeypatch.setattr("app.plugins.marketplace.MarketplaceClient", lambda db: client)
+    monkeypatch.setattr(
+        "app.plugins.marketplace.MarketplaceClient",
+        lambda _db: client,
+    )
     monkeypatch.setattr(
         "app.plugins.package_security.extract_plugin_zip_safely",
         lambda _zip_path, _extract_dir: plugin_dir,
@@ -165,7 +168,10 @@ async def test_marketplace_confirm_install_rejects_stale_preview_token(
         ),
         download_plugin=AsyncMock(),
     )
-    monkeypatch.setattr("app.plugins.marketplace.MarketplaceClient", lambda db: client)
+    monkeypatch.setattr(
+        "app.plugins.marketplace.MarketplaceClient",
+        lambda _db: client,
+    )
 
     endpoint = _get_endpoint("/plugins/marketplace/{slug}/confirm-install", "POST")
     preview_token = _create_install_preview_token(

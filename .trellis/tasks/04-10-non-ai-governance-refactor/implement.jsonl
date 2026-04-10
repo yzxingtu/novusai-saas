@@ -1,0 +1,14 @@
+{"file": ".trellis/tasks/04-10-non-ai-governance-refactor/prd.md", "reason": "Umbrella scope, requirements, and acceptance criteria"}
+{"file": ".trellis/tasks/04-10-non-ai-governance-refactor/info.md", "reason": "Execution mode, contract rules, and .trellis backfill requirements"}
+{"file": ".trellis/tasks/04-10-non-ai-governance-refactor/ownership-matrix.md", "reason": "Authoritative workstream ownership and merge order"}
+{"file": ".trellis/spec/guides/repo-stabilization-workstreams.md", "reason": "Canonical stabilization and ownership rules"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend boundary rules for controller/service/repository"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend shell/composable/shared-layer boundary rules"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backfill executable gates for no-controller-query and facade+parts acceptance"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Backfill executable gates for page-shell split and anti business-manager SFC"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Backfill reusable split seams for plugin platform and codegen chains"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Backfill cross-layer boundary checks for controller/query and page orchestration"}
+{"file": ".trellis/spec/guides/plugin-runtime-playbook.md", "reason": "Backfill plugin host/frontend split seams with compatibility constraints"}
+{"file": ".trellis/tasks/04-10-non-ai-governance-refactor/info.md", "reason": "Record landed plugin lifecycle split evidence: lifecycle.py(432) + lifecycle_orchestrator.py(833)"}
+{"file": ".trellis/tasks/04-10-non-ai-governance-refactor/ownership-matrix.md", "reason": "Register lifecycle_orchestrator.py under plugin-platform workstream and note facade+mixin/parts"}
+{"file": ".trellis/spec/guides/plugin-runtime-playbook.md", "reason": "Codify plugin lifecycle runtime recommended split as facade + mixin/parts with landed reference sizes"}

@@ -1,0 +1,13 @@
+{"file": ".trellis/tasks/04-10-non-ai-governance-refactor/ownership-matrix.md", "reason": "Verify no cross-workstream file ownership drift"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backend acceptance and no-controller-query rules"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend shell/composable split and validation rules"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "High cohesion and low coupling review checklist"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Verify thin facade + parts and controller transport-only boundaries are codified"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Verify page-shell and anti business-manager constraints are codified"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify boundary checklist now includes controller-query and page-orchestration gates"}
+{"file": ".trellis/spec/guides/plugin-runtime-playbook.md", "reason": "Verify plugin host/frontend split seams and compatibility constraints are explicit"}
+{"file": ".trellis/spec/guides/repo-stabilization-workstreams.md", "reason": "Verify umbrella acceptance includes plugin/codegen seam map and governance gates"}
+{"file": ".trellis/tasks/04-10-non-ai-governance-refactor/info.md", "reason": "Verify umbrella notes capture landed lifecycle split evidence (432/833) and no stale fake-split wording"}
+{"file": ".trellis/tasks/04-10-non-ai-governance-refactor/ownership-matrix.md", "reason": "Verify plugin-platform ownership includes lifecycle_orchestrator.py and facade+mixin/parts note"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Verify backend index explicitly anchors facade+mixin/parts and controller no-direct-query guard"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Verify frontend index elevates page business-manager violation to merge blocker"}
