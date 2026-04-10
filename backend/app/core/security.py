@@ -79,6 +79,7 @@ def create_refresh_token(
     subject: str | int,
     scope: str,
     expires_delta: timedelta | None = None,
+    extra_claims: dict[str, Any] | None = None,
 ) -> tuple[str, str]:
     """
     创建 Refresh Token / Create refresh token
@@ -87,6 +88,7 @@ def create_refresh_token(
         subject: Token 主体（通常是用户 ID） / Token subject (usually user ID)
         scope: Token 作用域（用户类型），必须为 TOKEN_SCOPE_* 常量之一 / Token scope (user type)
         expires_delta: 过期时间增量 / Expiration time delta
+        extra_claims: 额外的 claims / Additional claims
 
     Returns:
         (token, jti) 元组 / Tuple of (token, jti)
@@ -105,6 +107,9 @@ def create_refresh_token(
         "type": TOKEN_TYPE_REFRESH,
         "jti": jti,
     }
+
+    if extra_claims:
+        to_encode.update(extra_claims)
 
     token = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return token, jti

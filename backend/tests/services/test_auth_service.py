@@ -814,3 +814,23 @@ class TestRealTokenGeneration:
 
         pair = create_token_pair(subject=1, scope=TOKEN_SCOPE_ADMIN)
         assert pair["access_token"] != pair["refresh_token"]
+
+    def test_refresh_token_accepts_extra_claims(self):
+        from jose import jwt
+
+        from app.core.config import settings
+        from app.core.security import TOKEN_SCOPE_ADMIN, create_refresh_token
+
+        token, _jti = create_refresh_token(
+            subject=1,
+            scope=TOKEN_SCOPE_ADMIN,
+            extra_claims={"tenant_id": 42},
+        )
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+        )
+
+        assert payload["tenant_id"] == 42
+        assert payload["type"] == "refresh"
