@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 from fastapi import FastAPI
+from fastapi.responses import Response
 from fastapi.testclient import TestClient
 
 from app.api.public import attachments as attachments_api
@@ -156,3 +157,68 @@ def test_public_access_endpoint_returns_404_when_cloud_redirect_falls_back_to_ap
     payload = response.json()
     assert payload["code"] == 4040
     assert payload["message"] == "File storage config unavailable"
+
+
+def test_public_access_endpoint_streams_local_preview_and_records_download(
+    monkeypatch,
+) -> None:
+    from app.services.tenant.attachment_download_service import (
+        AttachmentDownloadService,
+    )
+
+    attachment_record = SimpleNamespace(
+        id=19,
+        tenant_id=7,
+        driver="local",
+        path="uploads/demo.txt",
+    )
+    record_download = AsyncMock()
+    get_download_response = AsyncMock(
+        return_value=Response(
+            content=b"demo",
+            media_type="text/plain",
+            headers={"Content-Disposition": "inline"},
+        )
+    )
+
+    async def fake_get_attachment(self, attachment_id: int):
+        assert attachment_id == 19
+        return attachment_record
+
+    async def fake_validate_access(self, attachment_arg, token):
+        assert attachment_arg is attachment_record
+        assert token is None
+
+    monkeypatch.setattr(
+        AttachmentDownloadService,
+        "get_attachment",
+        fake_get_attachment,
+    )
+    monkeypatch.setattr(
+        AttachmentDownloadService,
+        "validate_access",
+        fake_validate_access,
+    )
+    monkeypatch.setattr(
+        AttachmentDownloadService,
+        "record_download",
+        record_download,
+    )
+    monkeypatch.setattr(
+        AttachmentDownloadService,
+        "get_download_response",
+        get_download_response,
+    )
+
+    app = _build_test_app(AsyncMock())
+
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/public/attachments/19/access?preview=true",
+            follow_redirects=False,
+        )
+
+    assert response.status_code == 200
+    assert response.headers["content-disposition"] == "inline"
+    record_download.assert_awaited_once_with(attachment_record)
+    get_download_response.assert_awaited_once_with(attachment_record, preview=True)
