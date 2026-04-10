@@ -11,63 +11,48 @@ import type {
   ProviderRuntimeStorageSnapshot,
   ProviderValidation,
   ReconciliationChargeRow,
-  ReconciliationProviderPlan,
-  ReconciliationRequestedScope,
-  ReconciliationRunChargeFilters,
   ReconciliationRunChargeListResponse,
-  ReconciliationProviderSummary,
   ReconciliationRun,
   ReconciliationRunDetailResponse,
-  ReconciliationSourceRecord,
   TenantSelectOption,
 } from '../../types';
 import { computed, onMounted, reactive, ref } from 'vue';
 import { Page } from '@vben/common-ui';
-import {
-  Alert,
-  Button,
-  Card,
-  Descriptions,
-  Empty,
-  Form,
-  FormItem,
-  Input,
-  Modal,
-  Select,
-  Space,
-  Spin,
-  Statistic,
-  Switch,
-  Table,
-  Tag,
-  message,
-} from 'ant-design-vue';
-import { $t, downloadBlob } from '@novus/plugin-shared';
+import { Spin, message } from 'ant-design-vue';
+import { $t } from '@novus/plugin-shared';
 import {
   createBindingApi,
-  exportReconciliationRunChargesCsvApi,
   getOverviewApi,
-  getReconciliationRunChargesApi,
-  getReconciliationRunApi,
   getTenantSelectOptionsApi,
   listBindingsApi,
   listProviderProfilesApi,
   listReconciliationRunsApi,
-  runReconciliationApi,
-  runQiniuMonthlySettlementApi,
   saveProviderProfilesApi,
   updateBindingApi,
   validateBindingApi,
   validateProviderProfileApi,
 } from '../../api/admin';
-
+import {
+  formatBytes as formatBytesText,
+  formatTimestamp as formatTimestampText,
+  runRequestedScope as parseRunRequestedScope,
+  scopeProviderCodes as listScopeProviderCodes,
+  scopeProviderPlans as listScopeProviderPlans,
+  selectedRunScopePayload as buildSelectedRunScopePayload,
+  selectedRunScopeSummary as buildSelectedRunScopeSummary,
+  sourceAllocationAudit as readSourceAllocationAudit,
+  sourceAllocationSummary as summarizeSourceAllocation,
+} from './reconciliation-helpers';
+import { useStorageBillingAdminRunActions } from './use-storage-billing-admin-run-actions';
+import { useReconciliationRunDetail } from './use-reconciliation-run-detail';
+import AdminBindingModal from './components/AdminBindingModal.vue';
+import AdminBindingsCard from './components/AdminBindingsCard.vue';
+import AdminOverviewHero from './components/AdminOverviewHero.vue';
+import AdminProvidersCard from './components/AdminProvidersCard.vue';
+import AdminRunsCard from './components/AdminRunsCard.vue';
 defineOptions({ name: 'StorageBillingAdminPage' });
 
-type ProviderField =
-  | 'account_identifier'
-  | 'bill_source'
-  | 'profile_code';
-
+type ProviderField = 'account_identifier' | 'bill_source' | 'profile_code';
 type BindingFormState = {
   account_identifier: string;
   billing_mode: BillingMode;
@@ -79,24 +64,6 @@ type BindingFormState = {
   tag_key: string;
   tag_value: string;
   tenant_id: null | number;
-};
-
-type AllocationSummary = {
-  ambiguous_items: number;
-  matched_items: number;
-  unmatched_items: number;
-  written_charge_rows: number;
-};
-
-type AllocationAudit = {
-  ambiguous_item_samples: unknown[];
-  unmatched_item_samples: unknown[];
-};
-
-type ChargeFilterBadge = {
-  key: string;
-  label: string;
-  value: string;
 };
 
 const providers: ProviderCode[] = ['qiniu-kodo', 'aliyun-oss', 'tencent-cos'];
@@ -138,15 +105,6 @@ const qiniuMonthStatus = computed(() => {
 });
 const selectedRunCharges = ref<ReconciliationChargeRow[]>([]);
 const selectedRunChargeResponse = ref<null | ReconciliationRunChargeListResponse>(null);
-const runChargeFilters = reactive<{
-  provider_code: string;
-  source_id: null | number;
-  tenant_id: string;
-}>({
-  provider_code: '',
-  source_id: null,
-  tenant_id: '',
-});
 
 const profiles = reactive<Record<ProviderCode, ProviderProfile>>(emptyProfiles());
 const validations = reactive<Record<ProviderCode, ProviderValidation>>(emptyValidations());
@@ -223,86 +181,6 @@ const currentScopeOptions = computed(() =>
 );
 const modalTitle = computed(() => editingId.value === null ? $t('plugin.storage-billing.admin.bindingModal.createTitle') : $t('plugin.storage-billing.admin.bindingModal.editTitle'));
 const modalOkText = computed(() => editingId.value === null ? $t('plugin.storage-billing.admin.bindingModal.submitCreate') : $t('plugin.storage-billing.admin.bindingModal.submitUpdate'));
-const selectedRun = computed(() => selectedRunDetail.value?.run ?? null);
-const selectedRunProviderResults = computed<ReconciliationProviderSummary[]>(() => {
-  const providers = selectedRun.value?.summary?.providers;
-  return Array.isArray(providers) ? providers : [];
-});
-const auditedSources = computed(() =>
-  (selectedRunDetail.value?.sources ?? []).filter((source) => hasAuditSamples(source)),
-);
-const overviewRuns = computed(() => overview.value?.ledger_snapshot.latest_runs ?? []);
-const sourceById = computed(() => {
-  const lookup = new Map<number, ReconciliationSourceRecord>();
-  for (const source of selectedRunDetail.value?.sources ?? []) {
-    lookup.set(source.id, source);
-  }
-  return lookup;
-});
-const runChargeProviderOptions = computed(() =>
-  Array.from(
-    new Set(
-      (selectedRunDetail.value?.sources ?? [])
-        .map((source) => source.provider_code)
-        .filter((code) => Boolean(code)),
-    ),
-  ).map((code) => ({
-    label: providerLabelFromAny(code),
-    value: code,
-  })),
-);
-const runChargeSourceOptions = computed(() =>
-  (selectedRunDetail.value?.sources ?? []).map((source) => ({
-    label: `${providerLabelFromAny(source.provider_code)} · ${
-      source.source_ref || source.source_key || `#${source.id}`
-    }`,
-    value: source.id,
-  })),
-);
-const runChargeActiveFilters = computed<ChargeFilterBadge[]>(() => {
-  const filters = selectedRunChargeResponse.value?.filters;
-  if (!filters || typeof filters !== 'object') {
-    return [];
-  }
-  return Object.entries(filters).flatMap(([key, rawValue]) => {
-    if (rawValue === undefined || rawValue === null || rawValue === '') {
-      return [];
-    }
-    if (key === 'provider_code' && typeof rawValue === 'string') {
-      return [{
-        key,
-        label: $t('plugin.storage-billing.admin.runs.charges.filterProvider'),
-        value: providerLabelFromAny(rawValue),
-      }];
-    }
-    if (key === 'source_id') {
-      const sourceId = normalizeNumber(rawValue);
-      if (sourceId === null) {
-        return [];
-      }
-      return [{
-        key,
-        label: $t('plugin.storage-billing.admin.runs.charges.filterSource'),
-        value: sourceById.value.get(sourceId)?.source_ref || `#${sourceId}`,
-      }];
-    }
-    if (key === 'tenant_id') {
-      const tenantId = normalizeNumber(rawValue);
-      return tenantId === null
-        ? []
-        : [{
-            key,
-            label: $t('plugin.storage-billing.admin.runs.charges.filterTenant'),
-            value: `#${tenantId}`,
-          }];
-    }
-    return [{
-      key,
-      label: key,
-      value: String(rawValue),
-    }];
-  });
-});
 
 type SharedAccessApi = {
   getAccessCodes?: () => string[];
@@ -382,6 +260,23 @@ function providerLabel(code: ProviderCode): string {
 function providerLabelFromAny(code: string): string {
   return providers.includes(code as ProviderCode) ? providerLabel(code as ProviderCode) : code || '-';
 }
+
+const {
+  auditedSources,
+  currentRunChargeFilters,
+  resetRunChargeFiltersState,
+  runChargeActiveFilters,
+  runChargeFilters,
+  runChargeProviderOptions,
+  runChargeSourceOptions,
+  selectedRun,
+  selectedRunProviderResults,
+  sourceLabelFromCharge,
+} = useReconciliationRunDetail({
+  providerLabelFromAny,
+  selectedRunChargeResponse,
+  selectedRunDetail,
+});
 
 function fieldLabel(field: ProviderField): string {
   return $t(`plugin.storage-billing.admin.field.${field}`);
@@ -647,37 +542,15 @@ function scopeValue(record: BindingRecord): string {
   return record.scope_value;
 }
 
-function currentRunChargeFilters(): ReconciliationRunChargeFilters {
-  const tenantId = Number(runChargeFilters.tenant_id.trim());
-  return {
-    provider_code: runChargeFilters.provider_code || undefined,
-    source_id: runChargeFilters.source_id ?? undefined,
-    tenant_id: Number.isFinite(tenantId) && tenantId > 0 ? tenantId : undefined,
-  };
-}
-
-function resetRunChargeFiltersState(): void {
-  runChargeFilters.provider_code = '';
-  runChargeFilters.source_id = null;
-  runChargeFilters.tenant_id = '';
-}
-
-function formatTimestamp(value: null | string): string {
-  if (!value) return '-';
-  return value.replace('T', ' ').replace('Z', '');
-}
-
-function formatBytes(value: number): string {
-  if (!value) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let amount = value;
-  let index = 0;
-  while (amount >= 1024 && index < units.length - 1) {
-    amount /= 1024;
-    index += 1;
-  }
-  return `${amount >= 10 || index === 0 ? amount.toFixed(0) : amount.toFixed(2)} ${units[index]}`;
-}
+const formatTimestamp = formatTimestampText;
+const formatBytes = (value: null | number | undefined): string =>
+  formatBytesText(value ?? 0);
+const sourceAllocationSummary = summarizeSourceAllocation;
+const sourceAllocationAudit = readSourceAllocationAudit;
+const runRequestedScope = parseRunRequestedScope;
+const scopeProviderCodes = listScopeProviderCodes;
+const scopeProviderPlans = listScopeProviderPlans;
+const selectedRunScopePayload = buildSelectedRunScopePayload;
 
 function chargeBasisLabel(basis: string): string {
   const key = `plugin.storage-billing.common.chargeBasis.${basis}`;
@@ -689,150 +562,8 @@ function runProviderSummaries(run: ReconciliationRun): ReconciliationProviderSum
   return Array.isArray(run.summary?.providers) ? run.summary.providers : [];
 }
 
-function sourceLabelFromCharge(charge: ReconciliationChargeRow): string {
-  const sourceId = Number(charge.source_id ?? 0);
-  if (!sourceId) return '-';
-  const source = sourceById.value.get(sourceId);
-  if (!source) return `#${sourceId}`;
-  return source.source_ref || source.source_key || `#${sourceId}`;
-}
-
-function sourceAllocationSummary(source: ReconciliationSourceRecord): AllocationSummary {
-  const raw = source.raw_payload_json?.allocation_summary;
-  const payload = typeof raw === 'object' && raw !== null ? raw as Partial<AllocationSummary> : {};
-  return {
-    matched_items: Number(payload.matched_items ?? 0),
-    unmatched_items: Number(payload.unmatched_items ?? 0),
-    ambiguous_items: Number(payload.ambiguous_items ?? 0),
-    written_charge_rows: Number(payload.written_charge_rows ?? 0),
-  };
-}
-
-function sourceAllocationAudit(source: ReconciliationSourceRecord): AllocationAudit {
-  const raw = source.raw_payload_json?.allocation_audit;
-  const payload = typeof raw === 'object' && raw !== null ? raw as Partial<AllocationAudit> : {};
-  return {
-    unmatched_item_samples: Array.isArray(payload.unmatched_item_samples) ? payload.unmatched_item_samples : [],
-    ambiguous_item_samples: Array.isArray(payload.ambiguous_item_samples) ? payload.ambiguous_item_samples : [],
-  };
-}
-
-function hasAuditSamples(source: ReconciliationSourceRecord): boolean {
-  const audit = sourceAllocationAudit(source);
-  return audit.unmatched_item_samples.length > 0 || audit.ambiguous_item_samples.length > 0;
-}
-
-function normalizeNumber(value: unknown): null | number {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value;
-  }
-  if (typeof value === 'string' && value.trim()) {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return null;
-}
-
-function runRequestedScope(run: ReconciliationRun): ReconciliationRequestedScope {
-  return typeof run.requested_scope === 'object' && run.requested_scope !== null
-    ? run.requested_scope as ReconciliationRequestedScope
-    : {};
-}
-
-function stringifyScopeValue(value: unknown): string | null {
-  if (value === null || value === undefined) return null;
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    return trimmed || null;
-  }
-  if (typeof value === 'number' || typeof value === 'boolean') {
-    return String(value);
-  }
-  return null;
-}
-
-function scopeProviderCodes(scope: ReconciliationRequestedScope): string[] {
-  const raw = scope.provider_codes;
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .map((item) => stringifyScopeValue(item))
-    .filter((item): item is string => Boolean(item));
-}
-
-function scopeProviderPlans(scope: ReconciliationRequestedScope): ReconciliationProviderPlan[] {
-  const raw = scope.provider_plans;
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .map((item) => {
-      if (typeof item !== 'object' || item === null) return null;
-      const payload = item as Record<string, unknown>;
-      const providerCode = stringifyScopeValue(payload.provider_code);
-      const billingDate = stringifyScopeValue(payload.billing_date);
-      if (!providerCode || !billingDate) return null;
-      return {
-        billing_date: billingDate,
-        cron: stringifyScopeValue(payload.cron) ?? undefined,
-        local_time: stringifyScopeValue(payload.local_time) ?? undefined,
-        official_billing_lag_days: normalizeNumber(payload.official_billing_lag_days),
-        official_target_rule: stringifyScopeValue(payload.official_target_rule) ?? undefined,
-        provider_code: providerCode,
-      };
-    })
-    .filter((item): item is ReconciliationProviderPlan => Boolean(item));
-}
-
-function scopeProviderPlanSummary(scope: ReconciliationRequestedScope): string[] {
-  return scopeProviderPlans(scope)
-    .map((plan) => {
-      const label = providerLabelFromAny(plan.provider_code);
-      if (plan.official_target_rule) {
-        return `${label} ${plan.official_target_rule} (${plan.billing_date})`;
-      }
-      return `${label} (${plan.billing_date})`;
-    });
-}
-
 function selectedRunScopeSummary(run: ReconciliationRun): string {
-  const scope = runRequestedScope(run);
-  const parts: string[] = [];
-  const job = stringifyScopeValue(scope.job);
-  const billingDate = stringifyScopeValue(scope.billing_date);
-  const billingMonth = stringifyScopeValue(scope.billing_month);
-  const targetRule = stringifyScopeValue(scope.official_target_rule);
-  const lagDays = stringifyScopeValue(scope.official_billing_lag_days);
-  const scheduledProvider = stringifyScopeValue(scope.scheduled_provider_code);
-  const providerCodes = scopeProviderCodes(scope);
-  const providerPlans = scopeProviderPlanSummary(scope);
-
-  if (job) {
-    parts.push(`job=${job}`);
-  }
-  if (billingDate) {
-    parts.push(`billing_date=${billingDate}`);
-  }
-  if (billingMonth) {
-    parts.push(`billing_month=${billingMonth}`);
-  }
-  if (scheduledProvider) {
-    parts.push(`scheduled_provider=${providerLabelFromAny(scheduledProvider)}`);
-  }
-  if (providerCodes.length) {
-    parts.push(`providers=${providerCodes.map((code) => providerLabelFromAny(code)).join(', ')}`);
-  }
-  if (targetRule) {
-    parts.push(`rule=${targetRule}`);
-  }
-  if (lagDays) {
-    parts.push(`lag=${lagDays}`);
-  }
-  if (providerPlans.length) {
-    parts.push(`plans=${providerPlans.join(' / ')}`);
-  }
-  return parts.join(' | ') || '-';
-}
-
-function selectedRunScopePayload(run: ReconciliationRun): string {
-  return JSON.stringify(runRequestedScope(run), null, 2);
+  return buildSelectedRunScopeSummary(run, providerLabelFromAny);
 }
 
 function resetForm(): void {
@@ -901,25 +632,6 @@ async function syncSelectedRun(nextRuns: ReconciliationRun[]): Promise<void> {
   await loadRunDetail(nextRun.id);
 }
 
-async function loadRunCharges(runId: number): Promise<void> {
-  if (!canViewAdmin.value) {
-    selectedRunChargeResponse.value = null;
-    selectedRunCharges.value = [];
-    return;
-  }
-  runChargeLoading.value = true;
-  try {
-    const runCharges = await getReconciliationRunChargesApi(
-      runId,
-      currentRunChargeFilters(),
-    );
-    selectedRunChargeResponse.value = runCharges;
-    selectedRunCharges.value = runCharges.items ?? [];
-  } finally {
-    runChargeLoading.value = false;
-  }
-}
-
 async function loadAll(): Promise<void> {
   if (!canViewAdmin.value) {
     overview.value = null;
@@ -964,60 +676,34 @@ async function loadAll(): Promise<void> {
   }
 }
 
-async function loadRunDetail(runId: number): Promise<void> {
-  if (!canViewAdmin.value) return;
-  runDetailLoading.value = true;
-  selectedRunId.value = runId;
-  resetRunChargeFiltersState();
-  try {
-    const [runDetail, runCharges] = await Promise.all([
-      getReconciliationRunApi(runId),
-      getReconciliationRunChargesApi(runId),
-    ]);
-    selectedRunDetail.value = runDetail;
-    selectedRunChargeResponse.value = runCharges;
-    selectedRunCharges.value = runCharges.items ?? [];
-  } finally {
-    runDetailLoading.value = false;
-  }
-}
-
-async function applyRunChargeFilters(): Promise<void> {
-  if (!selectedRunId.value || !canViewAdmin.value) return;
-  await loadRunCharges(selectedRunId.value);
-}
-
-async function resetRunChargeFilters(): Promise<void> {
-  if (!canViewAdmin.value || !selectedRunId.value) {
-    resetRunChargeFiltersState();
-    selectedRunChargeResponse.value = null;
-    selectedRunCharges.value = [];
-    return;
-  }
-  resetRunChargeFiltersState();
-  await loadRunCharges(selectedRunId.value);
-}
-
-async function exportCurrentRunCharges(): Promise<void> {
-  if (!selectedRunId.value || !canViewAdmin.value) return;
-  runChargeExporting.value = true;
-  try {
-    const blob = await exportReconciliationRunChargesCsvApi(
-      selectedRunId.value,
-      currentRunChargeFilters(),
-    );
-    const datePart = selectedRun.value?.billing_date || 'unknown';
-    downloadBlob(
-      blob,
-      { filename: `storage-billing-run-${selectedRunId.value}-${datePart}.csv` },
-    );
-    message.success($t('plugin.storage-billing.admin.messages.exportSuccess'));
-  } catch {
-    message.error($t('plugin.storage-billing.admin.messages.requestFailed'));
-  } finally {
-    runChargeExporting.value = false;
-  }
-}
+const {
+  applyRunChargeFilters,
+  exportCurrentRunCharges,
+  loadRunDetail,
+  resetRunChargeFilters,
+  triggerQiniuMonthlyRun,
+  triggerRun,
+} = useStorageBillingAdminRunActions({
+  canReconcileAdmin,
+  canViewAdmin,
+  currentRunChargeFilters,
+  loadAll,
+  manualBillingDate,
+  manualBillingDateError,
+  manualProviderCodes,
+  providerLabel,
+  qiniuBillingMonth,
+  qiniuMonthValid,
+  resetRunChargeFiltersState,
+  runChargeExporting,
+  runChargeLoading,
+  runDetailLoading,
+  selectedRun,
+  selectedRunChargeResponse,
+  selectedRunCharges,
+  selectedRunDetail,
+  selectedRunId,
+});
 
 async function saveProfiles(): Promise<void> {
   if (!canConfigureAdmin.value) return;
@@ -1095,524 +781,136 @@ async function revalidateBinding(record: BindingRecord): Promise<void> {
   await loadAll();
 }
 
-function triggerRun(): void {
-  if (!canReconcileAdmin.value) return;
-  if (manualBillingDateError.value) {
-    message.error(manualBillingDateError.value);
-    return;
-  }
-
-  const payload: { billing_date?: string; provider_codes?: string[] } = {};
-  if (manualBillingDate.value) {
-    payload.billing_date = manualBillingDate.value;
-  }
-  if (manualProviderCodes.value.length) {
-    payload.provider_codes = [...manualProviderCodes.value];
-  }
-
-  const providerSummary = manualProviderCodes.value.length
-    ? manualProviderCodes.value.map((code) => providerLabel(code)).join(' / ')
-    : $t('plugin.storage-billing.admin.actions.providerAll');
-  const billingDateSummary = manualBillingDate.value || $t('plugin.storage-billing.admin.actions.dailyAuto');
-
-  Modal.confirm({
-    title: $t('plugin.storage-billing.admin.actions.triggerRun'),
-    content: `${$t('plugin.storage-billing.admin.actions.triggerRunHint')} (${billingDateSummary} / ${providerSummary})`,
-    onOk: async () => {
-      const result = await runReconciliationApi(payload);
-      message.success($t('plugin.storage-billing.admin.messages.runTriggered'));
-      await loadAll();
-      const runId = Number((result.run as Record<string, unknown>)?.id ?? 0);
-      if (runId > 0) {
-        await loadRunDetail(runId);
-      }
-    },
-  });
-}
-
-function triggerQiniuMonthlyRun(): void {
-  if (!canReconcileAdmin.value) return;
-  if (!qiniuMonthValid.value) {
-    message.error($t('plugin.storage-billing.admin.actions.qiniuMonthlyInvalid'));
-    return;
-  }
-
-  Modal.confirm({
-    title: $t('plugin.storage-billing.admin.actions.triggerQiniuMonthly'),
-    content: `${$t('plugin.storage-billing.admin.actions.triggerQiniuMonthlyHint')} (${qiniuBillingMonth.value || '-'})`,
-    onOk: async () => {
-      const result = await runQiniuMonthlySettlementApi({ billing_month: qiniuBillingMonth.value });
-      message.success($t('plugin.storage-billing.admin.messages.runTriggered'));
-      await loadAll();
-      const runId = Number((result.run as Record<string, unknown>)?.id ?? 0);
-      if (runId > 0) {
-        await loadRunDetail(runId);
-      }
-    },
-  });
-}
-
 onMounted(() => void loadAll());
 </script>
 
 <template>
   <Page class="storage-billing-admin">
     <Spin :spinning="loading || saving">
-      <div class="hero">
-        <div>
-          <div class="badge">{{ $t('plugin.storage-billing.admin.hero.badge') }}</div>
-          <h1>{{ $t('plugin.storage-billing.admin.page.title') }}</h1>
-          <p>{{ $t('plugin.storage-billing.admin.page.subtitle') }}</p>
-        </div>
-        <div class="hero-actions">
-          <Space wrap class="toolbar-group">
-            <Button @click="loadAll">{{ $t('plugin.storage-billing.admin.actions.refresh') }}</Button>
-            <Button v-if="canConfigureAdmin" :disabled="!hasVisibleProviders" type="primary" @click="saveProfiles">{{ $t('plugin.storage-billing.admin.providers.save') }}</Button>
-          </Space>
-          <div class="toolbar-stack">
-            <Space wrap class="toolbar-group">
-              <Input
-                v-model:value="manualBillingDate"
-                class="toolbar-field"
-                :placeholder="$t('plugin.storage-billing.admin.actions.dailyPlaceholder')"
-                :status="manualBillingDateStatus"
-              />
-              <Select
-                v-model:value="manualProviderCodes"
-                class="toolbar-field toolbar-field-wide"
-                mode="multiple"
-                :options="manualRunProviderOptions"
-                :placeholder="$t('plugin.storage-billing.admin.actions.providerPlaceholder')"
-              />
-              <Button v-if="canReconcileAdmin" :disabled="!hasVisibleProviders" @click="triggerRun">{{ $t('plugin.storage-billing.admin.actions.triggerRun') }}</Button>
-            </Space>
-            <div class="toolbar-help" :class="{ 'toolbar-help-error': manualBillingDateError }">
-              {{ manualRunHelpText }}
-            </div>
-          </div>
-          <div v-if="qiniuVisible" class="toolbar-stack">
-            <Space wrap class="toolbar-group">
-              <Input
-                v-model:value="qiniuBillingMonth"
-                class="toolbar-field"
-                :placeholder="$t('plugin.storage-billing.admin.actions.qiniuMonthlyPlaceholder')"
-                :status="qiniuMonthStatus"
-              />
-              <Button v-if="canReconcileAdmin" @click="triggerQiniuMonthlyRun">{{ $t('plugin.storage-billing.admin.actions.triggerQiniuMonthly') }}</Button>
-            </Space>
-            <div class="toolbar-help" :class="{ 'toolbar-help-error': qiniuMonthError }">
-              {{ qiniuMonthError || $t('plugin.storage-billing.admin.actions.triggerQiniuMonthlyHint') }}
-            </div>
-          </div>
-          <div v-if="!hasVisibleProviders" class="toolbar-help toolbar-help-error">
-            {{ $t('plugin.storage-billing.admin.providers.noActiveDriver') }}
-          </div>
-        </div>
-      </div>
-
-      <div class="stats">
-        <Card><Statistic :title="$t('plugin.storage-billing.admin.overview.billableDrivers')" :value="overview?.billable_drivers.length ?? 0" /></Card>
-        <Card><Statistic :title="$t('plugin.storage-billing.admin.overview.enabledDrivers')" :value="overview?.host_snapshot.enabled_storage_drivers.length ?? 0" /></Card>
-        <Card><Statistic :title="$t('plugin.storage-billing.admin.overview.bindingTotal')" :value="overview?.ledger_snapshot.binding_total ?? 0" /></Card>
-        <Card><Statistic :title="$t('plugin.storage-billing.admin.overview.statementTotal')" :value="overview?.ledger_snapshot.statement_total ?? 0" /></Card>
-      </div>
-
-      <Alert
-        class="block"
-        :message="$t('plugin.storage-billing.admin.hero.lag')"
-        :description="`${overview?.reconciliation_schedule.local_time ?? '03:00'} / ${reconciliationScheduleSummary} / ${overview?.mode ?? '-'}`"
-        show-icon
-        type="info"
+      <AdminOverviewHero
+        :can-configure-admin="canConfigureAdmin"
+        :can-reconcile-admin="canReconcileAdmin"
+        :has-visible-providers="hasVisibleProviders"
+        :load-all="loadAll"
+        :manual-billing-date="manualBillingDate"
+        :manual-billing-date-error="manualBillingDateError"
+        :manual-billing-date-status="manualBillingDateStatus"
+        :manual-provider-codes="manualProviderCodes"
+        :manual-run-help-text="manualRunHelpText"
+        :manual-run-provider-options="manualRunProviderOptions"
+        :overview="overview"
+        :qiniu-billing-month="qiniuBillingMonth"
+        :qiniu-month-error="qiniuMonthError"
+        :qiniu-month-status="qiniuMonthStatus"
+        :qiniu-visible="qiniuVisible"
+        :reconciliation-schedule-summary="reconciliationScheduleSummary"
+        :save-profiles="saveProfiles"
+        :trigger-qiniu-monthly-run="triggerQiniuMonthlyRun"
+        :trigger-run="triggerRun"
+        @update:manual-billing-date="manualBillingDate = $event"
+        @update:manual-provider-codes="manualProviderCodes = $event"
+        @update:qiniu-billing-month="qiniuBillingMonth = $event"
       />
 
-      <Card :title="$t('plugin.storage-billing.admin.providers.title')" class="block">
-        <div class="section-subtitle">{{ $t('plugin.storage-billing.admin.providers.subtitle') }}</div>
-        <Alert
-          v-if="!hasVisibleProviders"
-          class="block"
-          :message="$t('plugin.storage-billing.admin.providers.noActiveDriver')"
-          type="warning"
-          show-icon
-        />
-        <div v-else class="providers">
-          <Card v-for="code in visibleProviderCodes" :key="code">
-            <template #title>
-              <Space wrap>
-                <span>{{ providerLabel(code) }}</span>
-                <Tag :color="statusColor(validations[code].status)">{{ prettyStatus(validations[code].status) }}</Tag>
-                <Tag v-for="tag in providerCapabilityTags(code)" :key="`${code}-${tag}`" color="blue">{{ tag }}</Tag>
-              </Space>
-            </template>
-            <Alert
-              v-if="profiles[code].capability_message"
-              class="block"
-              :message="providerLabel(code)"
-              :description="profiles[code].capability_message"
-              type="info"
-              show-icon
-            />
-            <Alert
-              v-if="profileWarnings(code)"
-              class="block"
-              :message="providerLabel(code)"
-              :description="profileWarnings(code)"
-              :type="validations[code].errors.length ? 'error' : 'warning'"
-              show-icon
-            />
-            <div class="capability-grid">
-              <div class="capability-item">
-                <span class="capability-label">{{ $t('plugin.storage-billing.admin.providers.capabilities.mode') }}</span>
-                <strong>{{ capabilityModeLabel(providerCapabilitySummary(code).settlement_mode) || '-' }}</strong>
-              </div>
-              <div class="capability-item">
-                <span class="capability-label">{{ $t('plugin.storage-billing.admin.providers.capabilities.cycle') }}</span>
-                <strong>{{ capabilityCycleLabel(providerCapabilitySummary(code).settlement_cycle) || '-' }}</strong>
-              </div>
-              <div class="capability-item">
-                <span class="capability-label">{{ $t('plugin.storage-billing.admin.providers.capabilities.targetRule') }}</span>
-                <strong>{{ capabilityTargetRuleLabel(providerCapabilitySummary(code).official_target_rule) }}</strong>
-              </div>
-              <div class="capability-item">
-                <span class="capability-label">{{ $t('plugin.storage-billing.admin.providers.capabilities.lagDays') }}</span>
-                <strong>{{ providerCapabilitySummary(code).official_billing_lag_days ?? '-' }}</strong>
-              </div>
-              <div class="capability-item capability-item-wide">
-                <span class="capability-label">{{ $t('plugin.storage-billing.admin.providers.capabilities.periodTypes') }}</span>
-                <strong>
-                  {{
-                    providerCapabilitySummary(code).supported_period_types
-                      .map((item) => capabilityPeriodLabel(item) || item)
-                      .join(' / ') || '-'
-                  }}
-                </strong>
-              </div>
-              <div class="capability-item capability-item-wide">
-                <span class="capability-label">{{ $t('plugin.storage-billing.admin.providers.capabilities.recommendedScopes') }}</span>
-                <strong>
-                  {{
-                    providerCapabilitySummary(code).recommended_scope_types
-                      .map((item) => $t(`plugin.storage-billing.admin.bindings.scope.${item}`))
-                      .join(' / ') || '-'
-                  }}
-                </strong>
-              </div>
-            </div>
-            <Descriptions :column="2" class="provider-runtime" size="small">
-              <Descriptions.Item :label="$t('plugin.storage-billing.admin.providers.runtime.configSource')">
-                {{ $t('plugin.storage-billing.admin.providers.runtime.source.platform_storage') }}
-              </Descriptions.Item>
-              <Descriptions.Item :label="$t('plugin.storage-billing.admin.providers.runtime.currentDriver')">
-                {{ providerLabelFromAny(providerStorageContext(code).current_driver || '-') }}
-              </Descriptions.Item>
-              <Descriptions.Item :label="$t('plugin.storage-billing.admin.providers.runtime.driverMatch')">
-                <Tag :color="providerStorageMatch(code) ? 'success' : 'error'">
-                  {{
-                    $t(
-                      providerStorageMatch(code)
-                        ? 'plugin.storage-billing.admin.providers.runtime.match'
-                        : 'plugin.storage-billing.admin.providers.runtime.mismatch',
-                    )
-                  }}
-                </Tag>
-              </Descriptions.Item>
-              <Descriptions.Item :label="$t('plugin.storage-billing.admin.providers.runtime.credentialStatus')">
-                <Tag :color="providerStorageReady(code) ? 'success' : 'warning'">
-                  {{
-                    $t(
-                      providerStorageReady(code)
-                        ? 'plugin.storage-billing.admin.providers.runtime.configured'
-                        : 'plugin.storage-billing.admin.providers.runtime.missing',
-                    )
-                  }}
-                </Tag>
-              </Descriptions.Item>
-              <Descriptions.Item :label="$t('plugin.storage-billing.admin.providers.runtime.bucket')">
-                {{ providerRuntimeValue(providerStorageContext(code).bucket_name) }}
-              </Descriptions.Item>
-              <Descriptions.Item :label="$t('plugin.storage-billing.admin.providers.runtime.baseUrl')">
-                {{ providerRuntimeValue(providerStorageContext(code).base_url) }}
-              </Descriptions.Item>
-              <Descriptions.Item :label="$t('plugin.storage-billing.admin.providers.runtime.region')">
-                {{ providerRuntimeValue(providerStorageContext(code).region) }}
-              </Descriptions.Item>
-              <Descriptions.Item :label="$t('plugin.storage-billing.admin.providers.runtime.endpoint')">
-                {{ providerRuntimeValue(providerStorageContext(code).endpoint) }}
-              </Descriptions.Item>
-              <Descriptions.Item :label="$t('plugin.storage-billing.admin.providers.runtime.prefix')">
-                {{ providerRuntimeValue(providerStorageContext(code).prefix) }}
-              </Descriptions.Item>
-              <Descriptions.Item :label="$t('plugin.storage-billing.admin.providers.runtime.rootPath')">
-                {{ providerRuntimeValue(providerStorageContext(code).root_path) }}
-              </Descriptions.Item>
-            </Descriptions>
-            <Form layout="vertical">
-              <FormItem :label="$t('plugin.storage-billing.admin.field.enabled')"><Switch v-model:checked="profiles[code].enabled" /></FormItem>
-              <FormItem v-for="field in profileFields[code]" :key="field" :label="fieldLabel(field)">
-                <template #extra>
-                  <Space wrap>
-                    <Tag :color="(validations[code].required_fields ?? []).includes(field) ? 'error' : 'default'">
-                      {{
-                        (validations[code].required_fields ?? []).includes(field)
-                          ? $t('plugin.storage-billing.admin.providers.required')
-                          : $t('plugin.storage-billing.admin.providers.optional')
-                      }}
-                    </Tag>
-                  </Space>
-                </template>
-                <Select v-if="field === 'bill_source'" v-model:value="profiles[code][field]" :options="billSourceOptions(code)" />
-                <Input
-                  v-else
-                  v-model:value="profiles[code][field]"
-                  type="text"
-                />
-              </FormItem>
-            </Form>
-            <div v-if="canConfigureAdmin" class="actions"><Button @click="validateProvider(code)">{{ $t('plugin.storage-billing.admin.providers.validate') }}</Button></div>
-          </Card>
-        </div>
-      </Card>
+      <AdminProvidersCard
+        :bill-source-options="billSourceOptions"
+        :can-configure-admin="canConfigureAdmin"
+        :capability-cycle-label="capabilityCycleLabel"
+        :capability-mode-label="capabilityModeLabel"
+        :capability-period-label="capabilityPeriodLabel"
+        :capability-target-rule-label="capabilityTargetRuleLabel"
+        :field-label="fieldLabel"
+        :has-visible-providers="hasVisibleProviders"
+        :pretty-status="prettyStatus"
+        :profile-fields="profileFields"
+        :profile-warnings="profileWarnings"
+        :profiles="profiles"
+        :provider-capability-summary="providerCapabilitySummary"
+        :provider-capability-tags="providerCapabilityTags"
+        :provider-label="providerLabel"
+        :provider-label-from-any="providerLabelFromAny"
+        :provider-runtime-value="providerRuntimeValue"
+        :provider-storage-context="providerStorageContext"
+        :provider-storage-match="providerStorageMatch"
+        :provider-storage-ready="providerStorageReady"
+        :status-color="statusColor"
+        :validate-provider="validateProvider"
+        :validations="validations"
+        :visible-provider-codes="visibleProviderCodes"
+      />
 
-      <Card :title="$t('plugin.storage-billing.admin.bindings.title')" class="block">
-        <template #extra><Button v-if="canConfigureAdmin" :disabled="!hasVisibleProviders" type="primary" @click="openCreate">{{ $t('plugin.storage-billing.admin.bindings.add') }}</Button></template>
-        <div class="section-subtitle">{{ $t('plugin.storage-billing.admin.bindings.subtitle') }}</div>
-        <Table :columns="bindingColumns" :data-source="bindings" :locale="{ emptyText: $t('plugin.storage-billing.admin.bindings.empty') }" :pagination="false" row-key="id">
-          <template #bodyCell="{ column, record }">
-            <template v-if="column.key === 'tenant'">#{{ record.tenant_id }}</template>
-            <template v-else-if="column.key === 'provider'">{{ providerLabel(record.provider_code) }}</template>
-            <template v-else-if="column.key === 'mode'">{{ $t(`plugin.storage-billing.admin.bindings.mode.${record.billing_mode}`) }}</template>
-            <template v-else-if="column.key === 'scope'"><Space wrap><Tag color="blue">{{ $t(`plugin.storage-billing.admin.bindings.scope.${record.scope_type}`) }}</Tag><span>{{ scopeValue(record) }}</span></Space></template>
-            <template v-else-if="column.key === 'status'"><Tag :color="statusColor(record.validation_status)">{{ prettyStatus(record.validation_status) }}</Tag></template>
-            <template v-else-if="column.key === 'message'"><span class="muted">{{ record.validation_message || '-' }}</span></template>
-            <template v-else-if="column.key === 'actions'"><Space v-if="canConfigureAdmin" wrap><Button size="small" @click="openEdit(record)">{{ $t('plugin.storage-billing.admin.bindings.edit') }}</Button><Button size="small" @click="revalidateBinding(record)">{{ $t('plugin.storage-billing.admin.bindings.revalidate') }}</Button></Space></template>
-          </template>
-        </Table>
-        <div v-if="!bindings.length" class="empty"><Empty :description="$t('plugin.storage-billing.admin.bindings.empty')" /></div>
-      </Card>
+      <AdminBindingsCard
+        :binding-columns="bindingColumns"
+        :bindings="bindings"
+        :can-configure-admin="canConfigureAdmin"
+        :has-visible-providers="hasVisibleProviders"
+        :open-create="openCreate"
+        :open-edit="openEdit"
+        :pretty-status="prettyStatus"
+        :provider-label="providerLabel"
+        :revalidate-binding="revalidateBinding"
+        :scope-value="scopeValue"
+        :status-color="statusColor"
+      />
 
-      <Card :title="$t('plugin.storage-billing.admin.runs.title')" class="block">
-        <div class="section-subtitle">{{ $t('plugin.storage-billing.admin.runs.subtitle') }}</div>
-        <Table :columns="runColumns" :data-source="runs" :locale="{ emptyText: $t('plugin.storage-billing.admin.runs.empty') }" :pagination="false" row-key="id">
-          <template #bodyCell="{ column, record }">
-            <template v-if="column.key === 'billing_date'">{{ record.period_label || record.billing_date }}</template>
-            <template v-else-if="column.key === 'status'"><Tag :color="statusColor(record.status)">{{ prettyStatus(record.status) }}</Tag></template>
-            <template v-else-if="column.key === 'trigger_type'">{{ record.trigger_type }}</template>
-            <template v-else-if="column.key === 'providers'">
-              <Space wrap>
-                <Tag v-for="provider in runProviderSummaries(record)" :key="`${record.id}-${provider.provider_code}`" :color="statusColor(provider.source_status)">
-                  {{ providerLabelFromAny(provider.provider_code) }} · {{ provider.matched_items ?? 0 }}/{{ provider.charge_item_count ?? 0 }}
-                </Tag>
-              </Space>
-            </template>
-            <template v-else-if="column.key === 'finished_at'">{{ formatTimestamp(record.completed_at) }}</template>
-            <template v-else-if="column.key === 'actions'">
-              <Button v-if="canViewAdmin" size="small" @click="loadRunDetail(record.id)">{{ $t('plugin.storage-billing.admin.runs.view') }}</Button>
-            </template>
-          </template>
-        </Table>
-        <div v-if="!runs.length" class="empty"><Empty :description="$t('plugin.storage-billing.admin.runs.empty')" /></div>
+      <AdminRunsCard
+        :apply-run-charge-filters="applyRunChargeFilters"
+        :audited-sources="auditedSources"
+        :can-view-admin="canViewAdmin"
+        :capability-target-rule-label="capabilityTargetRuleLabel"
+        :charge-basis-label="chargeBasisLabel"
+        :charge-columns="chargeColumns"
+        :export-current-run-charges="exportCurrentRunCharges"
+        :format-bytes="formatBytes"
+        :format-timestamp="formatTimestamp"
+        :load-run-detail="loadRunDetail"
+        :pretty-status="prettyStatus"
+        :provider-label-from-any="providerLabelFromAny"
+        :reset-run-charge-filters="resetRunChargeFilters"
+        :run-charge-active-filters="runChargeActiveFilters"
+        :run-charge-exporting="runChargeExporting"
+        :run-charge-filters="runChargeFilters"
+        :run-charge-loading="runChargeLoading"
+        :run-charge-provider-options="runChargeProviderOptions"
+        :run-charge-source-options="runChargeSourceOptions"
+        :run-columns="runColumns"
+        :run-detail-loading="runDetailLoading"
+        :run-provider-summaries="runProviderSummaries"
+        :run-requested-scope="runRequestedScope"
+        :runs="runs"
+        :scope-provider-codes="scopeProviderCodes"
+        :scope-provider-plans="scopeProviderPlans"
+        :selected-run="selectedRun"
+        :selected-run-charge-response="selectedRunChargeResponse"
+        :selected-run-charges="selectedRunCharges"
+        :selected-run-detail="selectedRunDetail"
+        :selected-run-provider-results="selectedRunProviderResults"
+        :selected-run-scope-payload="selectedRunScopePayload"
+        :selected-run-scope-summary="selectedRunScopeSummary"
+        :source-allocation-audit="sourceAllocationAudit"
+        :source-allocation-summary="sourceAllocationSummary"
+        :source-columns="sourceColumns"
+        :source-label-from-charge="sourceLabelFromCharge"
+        :status-color="statusColor"
+      />
 
-        <Card v-if="selectedRun" class="run-detail" size="small">
-          <template #title>{{ $t('plugin.storage-billing.admin.runs.detailTitle') }} · {{ selectedRun.period_label || selectedRun.billing_date }}</template>
-          <template #extra>
-            <Button
-              v-if="canViewAdmin"
-              :loading="runChargeExporting"
-              size="small"
-              @click="exportCurrentRunCharges"
-            >
-              {{ $t('plugin.storage-billing.admin.runs.charges.export') }}
-            </Button>
-          </template>
-          <Spin :spinning="runDetailLoading">
-            <Descriptions :column="3" size="small">
-              <Descriptions.Item :label="$t('plugin.storage-billing.admin.runs.detail.status')">
-                <Tag :color="statusColor(selectedRun.status)">{{ prettyStatus(selectedRun.status) }}</Tag>
-              </Descriptions.Item>
-              <Descriptions.Item :label="$t('plugin.storage-billing.admin.runs.detail.trigger')">{{ selectedRun.trigger_type }}</Descriptions.Item>
-              <Descriptions.Item :label="$t('plugin.storage-billing.admin.runs.detail.statementCount')">{{ selectedRun.summary.statement_count ?? 0 }}</Descriptions.Item>
-              <Descriptions.Item :label="$t('plugin.storage-billing.admin.runs.detail.requestedScope')" :span="3">
-                <div class="run-scope-summary">{{ selectedRunScopeSummary(selectedRun) }}</div>
-                <Space v-if="scopeProviderCodes(runRequestedScope(selectedRun)).length" wrap class="run-scope-tags">
-                  <Tag
-                    v-for="providerCode in scopeProviderCodes(runRequestedScope(selectedRun))"
-                    :key="`scope-provider-${providerCode}`"
-                    color="blue"
-                  >
-                    {{ providerLabelFromAny(providerCode) }}
-                  </Tag>
-                </Space>
-                <div v-if="scopeProviderPlans(runRequestedScope(selectedRun)).length" class="run-plan-list">
-                  <div
-                    v-for="plan in scopeProviderPlans(runRequestedScope(selectedRun))"
-                    :key="`plan-${plan.provider_code}-${plan.billing_date}`"
-                    class="run-plan-card"
-                  >
-                    <Space wrap>
-                      <Tag color="blue">{{ providerLabelFromAny(plan.provider_code) }}</Tag>
-                      <Tag color="processing">{{ plan.billing_date }}</Tag>
-                      <Tag>{{ capabilityTargetRuleLabel(plan.official_target_rule) }}</Tag>
-                      <Tag>{{ $t('plugin.storage-billing.admin.runs.detail.lagDays') }} {{ plan.official_billing_lag_days ?? '-' }}</Tag>
-                    </Space>
-                  </div>
-                </div>
-                <details class="run-scope-details">
-                  <summary>{{ $t('plugin.storage-billing.admin.runs.detail.scopeToggle') }}</summary>
-                  <pre>{{ selectedRunScopePayload(selectedRun) }}</pre>
-                </details>
-              </Descriptions.Item>
-            </Descriptions>
-
-            <div v-if="selectedRunProviderResults.length" class="run-provider-results">
-              <div
-                v-for="provider in selectedRunProviderResults"
-                :key="`provider-result-${provider.provider_code}`"
-                class="run-provider-card"
-              >
-                <Space wrap>
-                  <Tag :color="statusColor(provider.source_status)">
-                    {{ providerLabelFromAny(provider.provider_code) }}
-                  </Tag>
-                  <Tag>{{ prettyStatus(provider.source_status) }}</Tag>
-                  <Tag>{{ $t('plugin.storage-billing.admin.runs.audit.matched') }} {{ provider.matched_items ?? 0 }}</Tag>
-                  <Tag>{{ $t('plugin.storage-billing.admin.runs.detail.chargeItems') }} {{ provider.charge_item_count ?? 0 }}</Tag>
-                  <Tag>{{ $t('plugin.storage-billing.admin.runs.detail.writtenRows') }} {{ provider.written_charge_rows ?? 0 }}</Tag>
-                </Space>
-              </div>
-            </div>
-
-            <Table :columns="sourceColumns" :data-source="selectedRunDetail?.sources ?? []" :locale="{ emptyText: $t('plugin.storage-billing.admin.runs.sources.empty') }" :pagination="false" row-key="id">
-              <template #bodyCell="{ column, record }">
-                <template v-if="column.key === 'provider'">
-                  <Space direction="vertical" size="small">
-                    <span>{{ providerLabelFromAny(record.provider_code) }}</span>
-                    <span class="muted">{{ record.source_ref || record.source_key }}</span>
-                  </Space>
-                </template>
-                <template v-else-if="column.key === 'status'">
-                  <Tag :color="statusColor(record.source_status)">{{ prettyStatus(record.source_status) }}</Tag>
-                </template>
-                <template v-else-if="column.key === 'amount'">{{ record.amount_total }} {{ record.currency }}</template>
-                <template v-else-if="column.key === 'usage'">{{ formatBytes(record.usage_bytes) }}</template>
-                <template v-else-if="column.key === 'allocation'">
-                  <Space wrap>
-                    <Tag color="success">{{ $t('plugin.storage-billing.admin.runs.audit.matched') }} {{ sourceAllocationSummary(record).matched_items }}</Tag>
-                    <Tag color="warning">{{ $t('plugin.storage-billing.admin.runs.audit.unmatched') }} {{ sourceAllocationSummary(record).unmatched_items }}</Tag>
-                    <Tag color="error">{{ $t('plugin.storage-billing.admin.runs.audit.ambiguous') }} {{ sourceAllocationSummary(record).ambiguous_items }}</Tag>
-                  </Space>
-                </template>
-                <template v-else-if="column.key === 'error'">
-                  <span class="muted">{{ record.error_message || '-' }}</span>
-                </template>
-              </template>
-            </Table>
-
-            <Card class="run-charge-card" size="small">
-              <template #title>{{ $t('plugin.storage-billing.admin.runs.charges.title') }}</template>
-              <div class="section-subtitle">{{ $t('plugin.storage-billing.admin.runs.charges.subtitle') }}</div>
-              <Space wrap class="run-charge-summary">
-                <Tag color="blue">{{ $t('plugin.storage-billing.admin.runs.charges.rowTotal') }} {{ selectedRunChargeResponse?.total ?? selectedRunCharges.length }}</Tag>
-                <Tag color="cyan">{{ $t('plugin.storage-billing.admin.runs.charges.sourceTotal') }} {{ selectedRunChargeResponse?.source_total ?? (selectedRunDetail?.sources?.length ?? 0) }}</Tag>
-                <Tag v-if="!runChargeActiveFilters.length" color="default">{{ $t('plugin.storage-billing.admin.runs.charges.filterNone') }}</Tag>
-                <Tag v-for="filter in runChargeActiveFilters" :key="`charge-filter-${filter.key}`" color="processing">
-                  {{ filter.label }}: {{ filter.value }}
-                </Tag>
-              </Space>
-              <Space wrap class="run-charge-toolbar">
-                <Select
-                  v-model:value="runChargeFilters.provider_code"
-                  allow-clear
-                  class="toolbar-field"
-                  :options="runChargeProviderOptions"
-                  :placeholder="$t('plugin.storage-billing.admin.runs.charges.filterProvider')"
-                />
-                <Select
-                  v-model:value="runChargeFilters.source_id"
-                  allow-clear
-                  class="toolbar-field toolbar-source"
-                  :options="runChargeSourceOptions"
-                  :placeholder="$t('plugin.storage-billing.admin.runs.charges.filterSource')"
-                />
-                <Input
-                  v-model:value="runChargeFilters.tenant_id"
-                  class="toolbar-field"
-                  :placeholder="$t('plugin.storage-billing.admin.runs.charges.filterTenant')"
-                />
-                <Button @click="applyRunChargeFilters">
-                  {{ $t('plugin.storage-billing.admin.runs.charges.applyFilters') }}
-                </Button>
-                <Button @click="resetRunChargeFilters">
-                  {{ $t('plugin.storage-billing.admin.runs.charges.resetFilters') }}
-                </Button>
-              </Space>
-              <Spin :spinning="runChargeLoading">
-                <Table
-                  :columns="chargeColumns"
-                  :data-source="selectedRunCharges"
-                  :locale="{ emptyText: $t('plugin.storage-billing.admin.runs.charges.empty') }"
-                  :pagination="false"
-                  row-key="id"
-                  size="small"
-                >
-                  <template #bodyCell="{ column, record }">
-                    <template v-if="column.key === 'billing_date'">{{ record.period_label || record.billing_date }}</template>
-                    <template v-else-if="column.key === 'tenant_id'">#{{ record.tenant_id }}</template>
-                    <template v-else-if="column.key === 'provider'">{{ providerLabelFromAny(record.provider_code) }}</template>
-                    <template v-else-if="column.key === 'source'">{{ sourceLabelFromCharge(record) }}</template>
-                    <template v-else-if="column.key === 'charge_basis'">{{ chargeBasisLabel(record.charge_basis) }}</template>
-                    <template v-else-if="column.key === 'usage_bytes'">{{ formatBytes(record.usage_bytes) }}</template>
-                    <template v-else-if="column.key === 'amount_total'">{{ record.amount_total }}</template>
-                    <template v-else-if="column.key === 'currency'">{{ record.currency }}</template>
-                  </template>
-                </Table>
-              </Spin>
-            </Card>
-
-            <div v-if="auditedSources.length" class="audit-list">
-              <div v-for="source in auditedSources" :key="`audit-${source.id}`" class="audit-card">
-                <div class="audit-head">
-                  <Space wrap>
-                    <Tag color="blue">{{ providerLabelFromAny(source.provider_code) }}</Tag>
-                    <Tag :color="statusColor(source.source_status)">{{ prettyStatus(source.source_status) }}</Tag>
-                  </Space>
-                </div>
-                <div class="audit-summary">
-                  <Tag color="warning">{{ $t('plugin.storage-billing.admin.runs.audit.unmatchedSamples') }} {{ sourceAllocationAudit(source).unmatched_item_samples.length }}</Tag>
-                  <Tag color="error">{{ $t('plugin.storage-billing.admin.runs.audit.ambiguousSamples') }} {{ sourceAllocationAudit(source).ambiguous_item_samples.length }}</Tag>
-                </div>
-                <details class="audit-details">
-                  <summary>{{ $t('plugin.storage-billing.admin.runs.audit.toggle') }}</summary>
-                  <pre>{{ JSON.stringify(source.raw_payload_json, null, 2) }}</pre>
-                </details>
-              </div>
-            </div>
-          </Spin>
-        </Card>
-      </Card>
-
-      <Modal v-model:open="bindingOpen" :confirm-loading="bindingLoading" :title="modalTitle" :ok-text="modalOkText" @ok="submitBinding" @cancel="resetForm">
-        <Form layout="vertical">
-          <FormItem :label="$t('plugin.storage-billing.admin.bindingForm.tenant')"><Select v-model:value="form.tenant_id" :options="tenants" :filter-option="false" show-search @search="searchTenants" /></FormItem>
-          <FormItem :label="$t('plugin.storage-billing.admin.bindingForm.provider')"><Select v-model:value="form.provider_code" :disabled="providerOptions.length <= 1" :options="providerOptions" @change="handleProviderChange" /></FormItem>
-          <Alert
-            v-if="form.provider_code === 'qiniu-kodo'"
-            class="block"
-            :message="$t('plugin.storage-billing.admin.bindingForm.qiniuRestrictionTitle')"
-            :description="$t('plugin.storage-billing.admin.bindingForm.qiniuRestrictionDesc')"
-            show-icon
-            type="info"
-          />
-          <FormItem :label="$t('plugin.storage-billing.admin.bindingForm.mode')"><Select v-model:value="form.billing_mode" :options="currentModeOptions" /></FormItem>
-          <FormItem :label="$t('plugin.storage-billing.admin.bindingForm.scopeType')"><Select v-model:value="form.scope_type" :options="currentScopeOptions" @change="clearScopeFields" /></FormItem>
-          <FormItem v-if="form.scope_type === 'bucket'" :label="$t('plugin.storage-billing.admin.bindingForm.bucketName')"><Input v-model:value="form.bucket_name" :placeholder="$t('plugin.storage-billing.admin.bindingForm.scopePlaceholder.bucket')" /></FormItem>
-          <FormItem v-if="form.scope_type === 'domain'" :label="$t('plugin.storage-billing.admin.bindingForm.domainName')"><Input v-model:value="form.domain_name" :placeholder="$t('plugin.storage-billing.admin.bindingForm.scopePlaceholder.domain')" /></FormItem>
-          <FormItem v-if="form.scope_type === 'account'" :label="$t('plugin.storage-billing.admin.bindingForm.accountIdentifier')"><Input v-model:value="form.account_identifier" :placeholder="$t('plugin.storage-billing.admin.bindingForm.scopePlaceholder.account')" /></FormItem>
-          <template v-if="form.scope_type === 'tag'">
-            <FormItem :label="$t('plugin.storage-billing.admin.bindingForm.tagKey')"><Input v-model:value="form.tag_key" :placeholder="$t('plugin.storage-billing.admin.bindingForm.scopePlaceholder.tagKey')" /></FormItem>
-            <FormItem :label="$t('plugin.storage-billing.admin.bindingForm.tagValue')"><Input v-model:value="form.tag_value" :placeholder="$t('plugin.storage-billing.admin.bindingForm.scopePlaceholder.tagValue')" /></FormItem>
-          </template>
-          <FormItem :label="$t('plugin.storage-billing.admin.bindingForm.isActive')"><Switch v-model:checked="form.is_active" /></FormItem>
-        </Form>
-      </Modal>
+      <AdminBindingModal
+        :binding-loading="bindingLoading"
+        :clear-scope-fields="clearScopeFields"
+        :current-mode-options="currentModeOptions"
+        :current-scope-options="currentScopeOptions"
+        :form="form"
+        :handle-provider-change="handleProviderChange"
+        :modal-ok-text="modalOkText"
+        :modal-title="modalTitle"
+        :open="bindingOpen"
+        :provider-options="providerOptions"
+        :reset-form="resetForm"
+        :search-tenants="searchTenants"
+        :submit-binding="submitBinding"
+        :tenants="tenants"
+        @update:open="bindingOpen = $event"
+      />
     </Spin>
   </Page>
 </template>

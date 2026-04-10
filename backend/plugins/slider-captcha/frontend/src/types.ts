@@ -11,6 +11,12 @@ export interface SliderCaptchaResult {
   provider: string;
 }
 
+export type SliderCaptchaStatusKey =
+  | "default"
+  | "loading"
+  | "retry"
+  | "success";
+
 export interface SliderPieceGeometry {
   circle_radius: number;
   origin_x: number;

@@ -1,9 +1,10 @@
 import { nextTick, ref } from "vue";
 
-import { renderSliderAssets } from "./render-slider-assets";
+import { renderCaptchaToCanvas } from "./slider-captcha-canvas-renderer";
 
 import type {
   SliderCaptchaRequestClient,
+  SliderCaptchaStatusKey,
   SliderChallengePayload,
   SliderChallengeResponsePayload,
 } from "./types";
@@ -33,37 +34,11 @@ export function useSliderCaptchaChallenge(
   const challengeId = ref("");
   const challenge = ref<null | SliderChallengePayload>(null);
   const loading = ref(false);
-  const statusKey = ref<"default" | "loading" | "retry" | "success">("default");
+  const statusKey = ref<SliderCaptchaStatusKey>("default");
   const detectedTargetLeft = ref<null | number>(null);
 
   let challengeRequestToken = 0;
   let renderToken = 0;
-
-  /**
-   * Teleport + Transition 下首帧 nextTick 时 ref 可能仍未挂载；多帧等待避免静默跳过绘制。
-   */
-  async function resolveBoardCanvases(): Promise<{
-    boardCanvas: HTMLCanvasElement;
-    pieceCanvas: HTMLCanvasElement;
-  }> {
-    let boardCanvas = options.boardCanvasRef.value;
-    let pieceCanvas = options.pieceCanvasRef.value;
-    if (boardCanvas && pieceCanvas) {
-      return { boardCanvas, pieceCanvas };
-    }
-    await nextTick();
-    for (let i = 0; i < 12; i += 1) {
-      await new Promise<void>((resolve) => {
-        requestAnimationFrame(() => resolve());
-      });
-      boardCanvas = options.boardCanvasRef.value;
-      pieceCanvas = options.pieceCanvasRef.value;
-      if (boardCanvas && pieceCanvas) {
-        return { boardCanvas, pieceCanvas };
-      }
-    }
-    throw new Error("captcha_canvas_not_ready");
-  }
 
   function resetChallengeState(): void {
     options.releaseDrag();
@@ -85,14 +60,11 @@ export function useSliderCaptchaChallenge(
       return;
     }
 
-    const { boardCanvas, pieceCanvas } = await resolveBoardCanvases();
-
     const currentToken = ++renderToken;
-    const targetLeft = await renderSliderAssets(
-      payload,
-      boardCanvas,
-      pieceCanvas,
-    );
+    const targetLeft = await renderCaptchaToCanvas(payload, {
+      boardCanvasRef: options.boardCanvasRef,
+      pieceCanvasRef: options.pieceCanvasRef,
+    });
     if (currentToken !== renderToken) {
       return;
     }
