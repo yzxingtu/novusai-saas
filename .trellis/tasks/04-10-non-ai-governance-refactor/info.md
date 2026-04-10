@@ -78,6 +78,8 @@
 - 操作日志管理端 route 读路径哨兵已新增：
   - `backend/tests/test_admin_operation_log_routes_contract.py`
   - 覆盖 `GET /operation-logs/{id}`
+  - 覆盖 `GET /operation-logs`
+  - 覆盖 `GET /operation-logs/operators?page=...`
   - 强制经过 `AdminOperationLogController -> OperationLogService -> BaseService -> OperationLogRepository`
   - 用于补齐 operation-log 现有 mock-heavy service 测试之外的 transport/facade 保护
 - 系统日志管理端 route 合约哨兵已新增：
