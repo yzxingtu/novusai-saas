@@ -665,19 +665,21 @@ class ConversationEngine(BaseEngine):
                 if partial_output and decision is not None and decision.reason
                 else "error"
             )
-            return ExecutionResult(
+            return build_execution_result(
                 success=False,
                 output=partial_output,
                 messages=self._messages_to_dicts(messages) if messages else [],
                 tool_results=tool_results,
+                total_tokens=0,
+                duration_ms=duration_ms,
+                conversation_id=request.conversation_id,
+                runtime_model_info=None,
                 error=build_public_error_text(
                     message=_("common.server_error"),
                     exc=exc,
                 ),
                 partial=bool(partial_output),
                 completion_reason=completion_reason,
-                duration_ms=duration_ms,
-                conversation_id=request.conversation_id,
                 rag_sources=(prep.rag_sources if prep is not None else None),
                 rag_source_kinds=(prep.rag_source_kinds if prep is not None else []),
                 context_compacted=bool(getattr(prep, "context_compacted", False)),

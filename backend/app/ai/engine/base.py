@@ -56,6 +56,7 @@ from .llm_call_helpers import (
 from .llm_call_helpers import (
     prepare_llm_gateway_call as _prepare_llm_gateway_call_impl,
 )
+from .llm_call_orchestrator import execute_llm_call
 from .page_flow_recovery_helpers import (
     build_page_no_progress_recovery_default as _build_page_no_progress_recovery_default_impl,
 )
@@ -595,11 +596,14 @@ class BaseEngine(ABC):
             tools: Tool definition list / 工具定义列表
             tenant_id: Tenant ID / 企业 ID
             user_id: User ID / 用户 ID
-            route_result: ModelRouter route result (None uses agent's original model) / ModelRouter 路由结果
+        route_result: ModelRouter route result (None uses agent's original model) / ModelRouter 路由结果
         """
         del selected_skill_names, context_sources
-        prepared_call = await self._prepare_llm_gateway_call(
+        return await execute_llm_call(
             db=self.db,
+            gateway=self.gateway,
+            logger=logger,
+            runtime_tag=get_runtime_identity_tag(),
             agent=agent,
             messages=messages,
             tools=tools,
@@ -612,26 +616,8 @@ class BaseEngine(ABC):
             billing_context=billing_context,
             route_result=route_result,
             log_user_type=log_user_type,
-        )
-
-        logger.info(
-            "LLM call entry: runtime={} agent_id={} conversation_id={} provider={} model={} family={} mode={} allowed_tool_names={} tool_count={}",
-            get_runtime_identity_tag(),
-            getattr(agent, "id", None),
-            conversation_id,
-            prepared_call.llm_call_context.provider_code,
-            prepared_call.llm_call_context.model_code,
-            prepared_call.effective_policy.family,
-            prepared_call.effective_policy.mode,
-            prepared_call.effective_policy.allowed_tool_names,
-            len(tools or []),
-        )
-        response = await self.gateway.chat(
-            **prepared_call.gateway_kwargs,
-        )
-        return self._apply_llm_response_metadata(
-            response,
-            llm_call_context=prepared_call.llm_call_context,
+            prepare_llm_gateway_call=self._prepare_llm_gateway_call,
+            apply_llm_response_metadata=self._apply_llm_response_metadata,
         )
 
     def _log_tool_contract_diagnostics(

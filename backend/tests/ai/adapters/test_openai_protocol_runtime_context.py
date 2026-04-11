@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 from app.ai.adapters.openai_compatible.protocol_runtime_context import (
     prepare_protocol_execution_context,
 )
+from app.ai.exceptions import ProviderError
 
 
 class _RuntimeContextAdapterStub:
@@ -76,3 +79,30 @@ def test_prepare_protocol_execution_context_pops_runtime_flags_and_applies_defau
     assert context["kwargs"]["tenant_id"] == 9
     assert context["kwargs"]["timeout"] == 20.0
     assert "_runtime_force_wire_api" not in context["kwargs"]
+
+
+@pytest.mark.parametrize(
+    "runtime_flag",
+    [
+        "_runtime_disable_cross_protocol_fallback",
+        "_runtime_disable_sync_rescue",
+    ],
+)
+def test_prepare_protocol_execution_context_rejects_disabled_runtime_guards(
+    runtime_flag: str,
+) -> None:
+    adapter = _RuntimeContextAdapterStub()
+
+    with pytest.raises(ProviderError) as exc_info:
+        prepare_protocol_execution_context(
+            adapter=adapter,
+            wire_api="responses",
+            model="gpt-5.4",
+            stream=False,
+            kwargs={
+                runtime_flag: False,
+            },
+            default_stream_timeout_seconds=20.0,
+        )
+
+    assert exc_info.value.error_code == "invalid_runtime_guard"

@@ -115,6 +115,25 @@ def test_build_execution_result_uses_projection_and_runtime_model_info() -> None
     assert result.diagnostics["final_output_source"] == "assistant"
 
 
+def test_build_execution_result_accepts_explicit_diagnostics_without_projection() -> None:
+    result = build_execution_result(
+        success=False,
+        output="",
+        messages=[],
+        tool_results=[],
+        total_tokens=0,
+        duration_ms=12,
+        conversation_id=None,
+        runtime_model_info=None,
+        error="error",
+        completion_reason="error",
+        diagnostics={"failure_kind": "provider_timeout"},
+    )
+
+    assert result.diagnostics == {"failure_kind": "provider_timeout"}
+    assert result.turn_record is None
+
+
 @pytest.mark.asyncio
 async def test_conversation_engine_execute_projects_turn_result_with_shared_helper() -> None:
     engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())

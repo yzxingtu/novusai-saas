@@ -663,8 +663,26 @@ def build_terminal_result(
 ) -> ExecutionResult:
     view = ensure_stream_generation_view(handler)
     view.refresh_runtime_turn_record()
+    diagnostics_payload = view.build_diagnostics_payload()
+    final_output_source = diagnostics_payload.get("final_output_source")
+    result_turn_record, resolved_protocol_path = _build_result_turn_record(
+        handler,
+        diagnostics_payload=diagnostics_payload,
+        response_metadata={},
+    )
+    turn_projection = build_turn_projection(
+        raw_turn_record=result_turn_record,
+        diagnostics_payload=diagnostics_payload,
+        execution_path=view.execution_path,
+        completion_reason=completion_reason,
+        partial=True,
+        final_output_source=final_output_source,
+        protocol_path=resolved_protocol_path,
+        default_turn_outcome="failed",
+        force_completion_reason_in_turn_record=True,
+    )
 
-    result = ExecutionResult(
+    return build_execution_result(
         success=False,
         output=output,
         messages=view.messages_to_dicts(messages),
@@ -672,10 +690,7 @@ def build_terminal_result(
         total_tokens=total_tokens,
         duration_ms=duration_ms,
         conversation_id=view.request.conversation_id,
-        runtime_model_id=(view.runtime_model_info or {}).get("model_id"),
-        runtime_model_name=(view.runtime_model_info or {}).get("model_name"),
-        runtime_provider_id=(view.runtime_model_info or {}).get("provider_id"),
-        runtime_provider_name=(view.runtime_model_info or {}).get("provider_name"),
+        runtime_model_info=view.runtime_model_info,
         error=error,
         partial=True,
         interrupted=interrupted,
@@ -687,12 +702,18 @@ def build_terminal_result(
         memory_recalled=view.memory_recalled,
         prune_stats=view.prune_stats,
         tool_planner=view.tool_planner,
-        turn_record=view.runtime_turn_record,
+        turn_projection=turn_projection,
+        intent_plan=view.intent_plan,
+        execution_path=view.execution_path,
+        execution_budget=view.budget_snapshot,
+        recovery_history=view.recovery_history_dicts,
+        provider_failure_kind=(
+            view.provider_failure_kind or "none"
+            if include_provider_state
+            else "none"
+        ),
+        provider_events=(view.provider_events if include_provider_state else None),
     )
-    if include_provider_state:
-        result.provider_failure_kind = view.provider_failure_kind
-        result.provider_events = view.provider_events
-    return result
 
 
 __all__ = [

@@ -99,10 +99,10 @@ async def build_legacy_entrypoint_plan(
     runtime_kwargs = dict(kwargs)
     runtime_force_wire_api = runtime_kwargs.get("_runtime_force_wire_api")
     runtime_disable_cross_protocol_fallback = bool(
-        runtime_kwargs.get("_runtime_disable_cross_protocol_fallback", False)
+        runtime_kwargs.pop("_runtime_disable_cross_protocol_fallback", False)
     )
     runtime_disable_sync_rescue = bool(
-        runtime_kwargs.get("_runtime_disable_sync_rescue", False)
+        runtime_kwargs.pop("_runtime_disable_sync_rescue", False)
     )
     raw_context = adapter._prepare_protocol_execution_context(
         wire_api=runtime_force_wire_api,

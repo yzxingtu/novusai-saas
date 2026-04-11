@@ -145,11 +145,17 @@ def build_execution_result(
     recovery_history: list[dict[str, Any]] | None = None,
     provider_failure_kind: str = "none",
     provider_events: list[dict[str, Any]] | None = None,
+    diagnostics: dict[str, Any] | None = None,
 ) -> ExecutionResult:
     """Assemble a stable ExecutionResult from pre-projected terminal artifacts."""
 
     runtime_info = (
         dict(runtime_model_info or {}) if isinstance(runtime_model_info, dict) else {}
+    )
+    diagnostics_payload = (
+        turn_projection.diagnostics
+        if turn_projection is not None
+        else (dict(diagnostics) if diagnostics is not None else None)
     )
     result = ExecutionResult(
         success=success,
@@ -180,9 +186,7 @@ def build_execution_result(
         recovery_history=list(recovery_history or []),
         provider_failure_kind=provider_failure_kind,
         provider_events=list(provider_events or []),
-        diagnostics=(
-            turn_projection.diagnostics if turn_projection is not None else None
-        ),
+        diagnostics=diagnostics_payload,
     )
     if interrupted:
         result.interrupted = True
