@@ -169,6 +169,17 @@
   - slider-captcha 已收成 `shell + controller + copy + shared helper`，`SliderCaptcha.vue` 降到约 222 行
   - 两个 bundled plugin 都保持原组件导出路径、plugin manifest/runtime gate 与 frontend slot 契约不变
 
+## Optional Hardening（本轮补强）
+
+- `backend/tests/test_admin_user_routes_contract.py`
+  - admin 用户路由合约：`/users/select`、`/users/{id}`、`/users/{id}/force-logout` 均保持 controller -> service 委托路径。
+- `backend/tests/test_recycle_bin_registry.py`
+  - 回收站 registry 合约：admin module codes、side 校验、delete scope 映射保持稳定。
+- `backend/tests/codegen/test_codegen_service.py`
+  - codegen validate 解析异常时必须做安全文案 sanitize，避免路径/Traceback 泄漏。
+- `frontend/apps/web-antd/src/views/admin/system/system-logs/__tests__/use-system-logs.test.ts`
+  - system-logs composable 合约：日志行解析、刷新保持选中项、分页追加、搜索计数稳定。
+
 ## 验证补充
 
 - 非 AI 宽回归已通过：

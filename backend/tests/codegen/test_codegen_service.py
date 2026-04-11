@@ -17,6 +17,7 @@ import pytest
 from app.codegen.file_writer import WriteResult
 from app.codegen.generator import GeneratedFile, GenerateResult
 from app.codegen.manifest import ManifestManager
+from app.core.i18n import _
 from app.exceptions import ConflictException
 from app.services.system.codegen_service import CodegenService, GenerateOutput
 
@@ -36,6 +37,25 @@ def test_generate_output_structure() -> None:
     assert output.table_name == "test_items"
     assert output.config_id == 42
     assert output.result.success is True
+
+
+def test_validate_sanitizes_parse_error_with_paths(monkeypatch) -> None:
+    """validate 遇到包含路径/Traceback 的异常时应返回安全文案。"""
+    from app.services.system.codegen_service_parts import execution_mixin
+
+    def _boom(_self, _cfg):
+        raise ValueError("Traceback (most recent call last): /tmp/bad.py")
+
+    monkeypatch.setattr(execution_mixin.ConfigParser, "parse", _boom)
+
+    svc = CodegenService.create_standalone()
+    result = svc.validate({"resource": "demo"})
+
+    assert result["valid"] is False
+    assert result["errors"][0]["message"] == _("codegen.validation.parse_error")
+    serialized = json.dumps(result["errors"])
+    assert "Traceback" not in serialized
+    assert "/tmp/bad.py" not in serialized
 
 
 @pytest.mark.anyio

@@ -57,3 +57,7 @@
 {"file": "backend/tests/test_tenant_config_routes_contract.py", "reason": "Verify tenant config controller stays transport-only and delegates group/storage flows to TenantConfigWorkflowService"}
 {"file": "backend/tests/test_admin_tenant_workflow_routes_contract.py", "reason": "Verify admin tenant storage and impersonation routes stay transport-only after workflow extraction"}
 {"file": "backend/tests/test_admin_tenant_admin_routes_contract.py", "reason": "Verify admin tenant-admin controller delegates to TenantAdminWorkflowService and keeps transport contract stable"}
+{"file": "backend/tests/test_admin_user_routes_contract.py", "reason": "Verify admin user routes keep controller-to-service delegation for select/detail/force-logout"}
+{"file": "backend/tests/test_recycle_bin_registry.py", "reason": "Verify recycle-bin registry contract stays stable for module codes, side validation, and delete scope mapping"}
+{"file": "backend/tests/codegen/test_codegen_service.py", "reason": "Verify codegen validate sanitize guard prevents path/Traceback leakage"}
+{"file": "frontend/apps/web-antd/src/views/admin/system/system-logs/__tests__/use-system-logs.test.ts", "reason": "Verify system-logs composable contract stays stable for parsing, selection refresh, pagination append, and search count"}

@@ -65,3 +65,7 @@
 {"file": "backend/tests/services/test_tenant_admin_workflow_services.py", "reason": "Add service unit tests for extracted tenant config/storage/impersonation workflow services"}
 {"file": "backend/app/services/system/tenant_admin_workflow_service.py", "reason": "Move admin tenant-admin controller workflows and serialization glue into a dedicated workflow service"}
 {"file": "backend/tests/test_admin_tenant_admin_routes_contract.py", "reason": "Add route contract sentinel for admin tenant-admin endpoints delegating to the workflow service"}
+{"file": "backend/tests/test_admin_user_routes_contract.py", "reason": "Optional hardening: add admin user route contract coverage for select/detail/force-logout delegation"}
+{"file": "backend/tests/test_recycle_bin_registry.py", "reason": "Optional hardening: add recycle-bin registry contract checks for module codes, side validation, and delete scope mapping"}
+{"file": "backend/tests/codegen/test_codegen_service.py", "reason": "Optional hardening: add validate sanitize test to suppress path/Traceback leakage"}
+{"file": "frontend/apps/web-antd/src/views/admin/system/system-logs/__tests__/use-system-logs.test.ts", "reason": "Optional hardening: add system-logs composable contract coverage for parsing, refresh selection, pagination append, and search count"}
