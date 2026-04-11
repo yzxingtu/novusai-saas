@@ -213,6 +213,9 @@
   - `ruff check backend/app/api/tenant/configs.py backend/app/api/admin/tenants.py backend/app/services/tenant/tenant_config_workflow_service.py backend/app/services/system/tenant_storage_admin_service.py backend/app/services/system/tenant_impersonation_service.py backend/app/services/system/tenant_service.py backend/app/services/tenant/tenant_admin_service.py backend/tests/test_tenant_config_routes_contract.py backend/tests/test_admin_tenant_workflow_routes_contract.py backend/tests/services/test_tenant_admin_workflow_services.py`
   - `python -m pytest backend/tests/services/test_tenant_admin_workflow_services.py backend/tests/test_tenant_config_routes_contract.py backend/tests/test_admin_tenant_workflow_routes_contract.py -q -p no:cacheprovider`
   - 结果：`10 passed`；`tenant/configs.py` 与 `admin/tenants.py` 的 controller-local workflow 已下沉到 `tenant_config_workflow_service.py`、`tenant_storage_admin_service.py`、`tenant_impersonation_service.py`，并补齐 route + service 双层哨兵
+  - `ruff check backend/app/api/admin/tenant_admins.py backend/app/services/system/tenant_admin_workflow_service.py backend/tests/test_admin_tenant_admin_routes_contract.py backend/tests/services/test_tenant_admin_workflow_services.py`
+  - `python -m pytest backend/tests/test_admin_tenant_admin_routes_contract.py backend/tests/services/test_tenant_admin_workflow_services.py -q -p no:cacheprovider`
+  - 结果：`7 passed`；`admin/tenant_admins.py` 的 controller-local workflow/序列化胶水已下沉到 `tenant_admin_workflow_service.py`，并补齐 route + service 双层哨兵
 
 ## 本轮已确认收口的 facade
 
@@ -232,6 +235,7 @@
 - 下列文件当前已经属于“薄 shell / workflow seam”状态，不再作为主要拆分热点：
   - `backend/app/api/tenant/configs.py`
   - `backend/app/api/admin/tenants.py`
+  - `backend/app/api/admin/tenant_admins.py`
   - `frontend/apps/web-antd/src/views/admin/system/codegen/modules/FieldPropertyPanel.vue`
 - 后续如需继续演进，优先修改对应 workflow service、section components 或 typed contracts，不回头把 presenter / storage / impersonation / field-section 逻辑塞回 controller 或页面壳层。
 
@@ -245,7 +249,7 @@
   - `backend/app/services/common/auth_service.py` 已继续下沉 façade 类到 `auth_domains/facades.py`，主 service 主要保留 domain 委托与兼容方法。
   - `backend/app/rbac/services/permission_service.py` 已继续下沉到 `permission_domains/checks.py`、`query.py`、`tenant_admin.py`，主 service 已收成 façade。
   - `tenant/configs.py`、`admin/tenants.py` 的 controller-local workflow 已下沉到专门 service，并补齐 route + service 双层哨兵。
-  - `admin/tenant_admins.py` 仍保留少量 controller-file-local serializer / tenant verify glue，但不涉及 controller 直查库，已从本轮 blocker 退化为后续可选整洁化项。
+  - `admin/tenant_admins.py` 已把 controller-local workflow/serializer/tenant 校验胶水下沉到 `tenant_admin_workflow_service.py`，并补齐 route + service 哨兵。
 - `agent-3 / plugin-platform-backend`
   - `backend/app/plugins/lifecycle.py` 已压到 432 行，作为 facade/mixin 汇聚层使用。
   - `backend/app/plugins/lifecycle_orchestrator.py` 已压到 833 行，承接生命周期编排主逻辑（parts）。

@@ -61,3 +61,5 @@
 {"file": "backend/tests/test_tenant_config_routes_contract.py", "reason": "Add route contract sentinel for tenant config controller delegation to TenantConfigWorkflowService"}
 {"file": "backend/tests/test_admin_tenant_workflow_routes_contract.py", "reason": "Add route contract sentinel for admin tenant storage/impersonation workflows"}
 {"file": "backend/tests/services/test_tenant_admin_workflow_services.py", "reason": "Add service unit tests for extracted tenant config/storage/impersonation workflow services"}
+{"file": "backend/app/services/system/tenant_admin_workflow_service.py", "reason": "Move admin tenant-admin controller workflows and serialization glue into a dedicated workflow service"}
+{"file": "backend/tests/test_admin_tenant_admin_routes_contract.py", "reason": "Add route contract sentinel for admin tenant-admin endpoints delegating to the workflow service"}

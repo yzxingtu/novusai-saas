@@ -56,3 +56,4 @@
 {"file": "backend/tests/services/test_tenant_admin_workflow_services.py", "reason": "Verify extracted tenant config/storage/impersonation workflow services keep validation, commit, and token issuance rules stable"}
 {"file": "backend/tests/test_tenant_config_routes_contract.py", "reason": "Verify tenant config controller stays transport-only and delegates group/storage flows to TenantConfigWorkflowService"}
 {"file": "backend/tests/test_admin_tenant_workflow_routes_contract.py", "reason": "Verify admin tenant storage and impersonation routes stay transport-only after workflow extraction"}
+{"file": "backend/tests/test_admin_tenant_admin_routes_contract.py", "reason": "Verify admin tenant-admin controller delegates to TenantAdminWorkflowService and keeps transport contract stable"}

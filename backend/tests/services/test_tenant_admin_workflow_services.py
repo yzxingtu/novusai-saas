@@ -10,6 +10,9 @@ from app.enums.error_code import ErrorCode
 from app.exceptions import BusinessException
 from app.schemas.system import TenantImpersonateResponse
 from app.services.system import tenant_impersonation_service as impersonation_module
+from app.services.system.tenant_admin_workflow_service import (
+    TenantAdminWorkflowService,
+)
 from app.services.system.tenant_impersonation_service import (
     TenantImpersonationService,
 )
@@ -20,6 +23,63 @@ from app.services.tenant import tenant_config_workflow_service as workflow_modul
 from app.services.tenant.tenant_config_workflow_service import (
     TenantConfigWorkflowService,
 )
+
+
+@pytest.mark.asyncio
+async def test_tenant_admin_workflow_rejects_owner_disable(monkeypatch) -> None:
+    service = TenantAdminWorkflowService.__new__(TenantAdminWorkflowService)
+    service._db = SimpleNamespace(flush=AsyncMock())
+    service._tenant_service = SimpleNamespace(get_by_id=AsyncMock(return_value=object()))
+    service._auth_service = SimpleNamespace()
+
+    tenant_admin_service = SimpleNamespace(
+        get_identity_detail=AsyncMock(
+            return_value=SimpleNamespace(is_owner=True)
+        )
+    )
+    service._get_tenant_admin_service = lambda _tenant_id: tenant_admin_service
+
+    with pytest.raises(Exception) as exc_info:
+        await service.update_tenant_admin(
+            tenant_id=3,
+            admin_id=7,
+            data=SimpleNamespace(
+                is_active=False,
+                password=None,
+                model_dump=lambda **_kwargs: {"is_active": False},
+            ),
+        )
+
+    assert "不能禁用企业所有者" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_tenant_admin_workflow_force_logout_delegates(monkeypatch) -> None:
+    service = TenantAdminWorkflowService.__new__(TenantAdminWorkflowService)
+    service._db = SimpleNamespace()
+    service._tenant_service = SimpleNamespace(get_by_id=AsyncMock(return_value=object()))
+    service._auth_service = SimpleNamespace(
+        token_sessions=SimpleNamespace(force_logout=AsyncMock())
+    )
+
+    tenant_admin_service = SimpleNamespace(
+        get_identity_detail=AsyncMock(
+            return_value=SimpleNamespace(username="alice")
+        )
+    )
+    service._get_tenant_admin_service = lambda _tenant_id: tenant_admin_service
+
+    message = await service.force_logout_tenant_admin(
+        tenant_id=5,
+        admin_id=9,
+    )
+
+    assert "alice" in message
+    service._auth_service.token_sessions.force_logout.assert_awaited_once_with(
+        user_type="tenant_admin",
+        user_id=9,
+        tenant_id=5,
+    )
 
 
 @pytest.mark.asyncio

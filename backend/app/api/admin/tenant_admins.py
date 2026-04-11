@@ -7,25 +7,23 @@ Platform admins view/create/manage admins for specified tenants.
 Uses independent resource code tenant_admin, permissions separated from tenant resource.
 """
 
-from fastapi import HTTPException, Query, Request, status
+from fastapi import Query, Request
 from pydantic import BaseModel, Field
 
-from app.api.common.identity import serialize_tenant_admin_identity_detail
 from app.core.base_controller import GlobalController
 from app.core.deps import ActiveAdmin, DbSession
 from app.core.i18n import _
-from app.core.response import created, serialize_datetime_for_api, success
+from app.core.response import created, success
 from app.enums.rbac import PermissionScope
-from app.exceptions import BusinessException, NotFoundException
 from app.rbac.decorators import (
     action_create,
     action_read,
     action_update,
     permission_resource,
 )
-from app.services.common import AuthService
-from app.services.system import TenantService
-from app.services.tenant import TenantAdminService
+from app.services.system.tenant_admin_workflow_service import (
+    TenantAdminWorkflowService,
+)
 
 # ==========================================
 # 请求/响应 Schema / Request/Response Schema
@@ -59,55 +57,6 @@ class TenantAdminStatusRequest(BaseModel):
     is_active: bool
 
 
-def _raise_http(exc: Exception):
-    if isinstance(exc, NotFoundException):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc.message),
-        )
-    if isinstance(exc, BusinessException):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc.message),
-        )
-    raise exc
-
-
-def _serialize_tenant_admin(tenant_admin) -> dict:
-    permission_role = getattr(tenant_admin, "role", None)
-    org_node = getattr(tenant_admin, "org_node", None)
-    is_leader = bool(org_node and org_node.leader_id == tenant_admin.id)
-    return {
-        "id": tenant_admin.id,
-        "tenant_id": tenant_admin.tenant_id,
-        "username": tenant_admin.username,
-        "email": tenant_admin.email,
-        "nickname": tenant_admin.nickname,
-        "avatar": tenant_admin.avatar,
-        "is_owner": tenant_admin.is_owner,
-        "is_leader": is_leader,
-        "is_active": tenant_admin.is_active,
-        "user_type": "tenant_admin",
-        "role_name": permission_role.name if permission_role else None,
-        "role_id": tenant_admin.role_id,
-        "permission_role_name": permission_role.name if permission_role else None,
-        "permission_role_id": tenant_admin.role_id,
-        "org_node_name": org_node.name if org_node else None,
-        "org_node_id": tenant_admin.org_node_id,
-        "last_login_at": serialize_datetime_for_api(tenant_admin.last_login_at),
-        "last_login_ip": tenant_admin.last_login_ip,
-        "created_at": serialize_datetime_for_api(tenant_admin.created_at),
-        "updated_at": serialize_datetime_for_api(tenant_admin.updated_at),
-    }
-
-
-def _get_tenant_admin_service(
-    db: DbSession,
-    tenant_id: int,
-) -> TenantAdminService:
-    return TenantAdminService(db, tenant_id)
-
-
 # ==========================================
 # Controller / 控制器
 # ==========================================
@@ -137,17 +86,6 @@ class AdminTenantAdminController(GlobalController):
         """注册路由 / Register routes"""
         router = self.router
 
-        async def _verify_tenant(db: DbSession, tenant_id: int):
-            """验证企业存在 / Verify tenant exists"""
-            tenant_service = TenantService(db)
-            tenant = await tenant_service.get_by_id(tenant_id)
-            if tenant is None:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=_("tenant.not_found"),
-                )
-            return tenant
-
         @router.get("", summary="获取企业管理员列表")
         @action_read("action.tenant_admin.list")
         async def list_tenant_admins(
@@ -162,10 +100,8 @@ class AdminTenantAdminController(GlobalController):
             返回管理员基本信息、角色名、在线状态相关字段。
             Returns admin basic info, role name, and online status related fields.
             """
-            await _verify_tenant(db, tenant_id)
-            service = _get_tenant_admin_service(db, tenant_id)
-            admins = await service.list_identity_details()
-            return success(data=[_serialize_tenant_admin(ta) for ta in admins])
+            workflow = TenantAdminWorkflowService(db)
+            return success(data=await workflow.list_tenant_admins(tenant_id=tenant_id))
 
         @router.get("/select", summary="获取企业管理员下拉选项")
         @action_read("action.tenant_admin.list")
@@ -183,10 +119,9 @@ class AdminTenantAdminController(GlobalController):
             """
             获取企业管理员分页下拉选项 / Get paginated tenant admin select options.
             """
-            await _verify_tenant(db, tenant_id)
-            response = await TenantAdminService(
-                db, tenant_id
-            ).get_identity_select_options(
+            workflow = TenantAdminWorkflowService(db)
+            response = await workflow.select_tenant_admins(
+                tenant_id=tenant_id,
                 search=search,
                 page=page,
                 page_size=page_size,
@@ -202,16 +137,15 @@ class AdminTenantAdminController(GlobalController):
             tenant_id: int,
             admin_id: int,
         ):
-            try:
-                await _verify_tenant(db, tenant_id)
-                service = TenantAdminService(db, tenant_id)
-                tenant_admin = await service.get_identity_detail(admin_id)
-                return success(
-                    data=serialize_tenant_admin_identity_detail(tenant_admin),
-                    message=_("common.success"),
-                )
-            except Exception as exc:
-                _raise_http(exc)
+            workflow = TenantAdminWorkflowService(db)
+            tenant_admin = await workflow.get_tenant_admin_detail(
+                tenant_id=tenant_id,
+                admin_id=admin_id,
+            )
+            return success(
+                data=tenant_admin,
+                message=_("common.success"),
+            )
 
         @router.post("", summary="为企业创建管理员")
         @action_create("action.tenant_admin.create")
@@ -228,23 +162,12 @@ class AdminTenantAdminController(GlobalController):
             - 自动设置 tenant_id 和 is_owner=False / Auto-set tenant_id and is_owner=False
             - 验证用户名/邮箱在该企业内唯一 / Validate username/email uniqueness within the tenant
             """
-            await _verify_tenant(db, tenant_id)
-            service = TenantAdminService(db, tenant_id)
-            try:
-                new_admin = await service.create_admin(
-                    username=data.username,
-                    email=data.email,
-                    password=data.password,
-                    nickname=data.nickname,
-                    is_active=True,
-                    is_owner=False,
-                    role_id=data.role_id,
-                    org_node_id=data.org_node_id,
-                )
-                await db.flush()
-                return created(data=_serialize_tenant_admin(new_admin))
-            except Exception as exc:
-                _raise_http(exc)
+            workflow = TenantAdminWorkflowService(db)
+            new_admin = await workflow.create_tenant_admin(
+                tenant_id=tenant_id,
+                data=data,
+            )
+            return created(data=new_admin)
 
         @router.put("/{admin_id}", summary="更新企业管理员")
         @action_update("action.tenant_admin.update")
@@ -264,36 +187,13 @@ class AdminTenantAdminController(GlobalController):
             至少需要一个字段有值。
             At least one field must have a value.
             """
-            await _verify_tenant(db, tenant_id)
-            service = _get_tenant_admin_service(db, tenant_id)
-            tenant_admin = await service.get_identity_detail(admin_id)
-
-            if (
-                data.is_active is not None
-                and tenant_admin.is_owner
-                and not data.is_active
-            ):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=_("tenant_admin.cannot_disable_owner"),
-                )
-
-            update_data = data.model_dump(
-                exclude_unset=True,
-                exclude={"password"},
+            workflow = TenantAdminWorkflowService(db)
+            updated_admin = await workflow.update_tenant_admin(
+                tenant_id=tenant_id,
+                admin_id=admin_id,
+                data=data,
             )
-
-            try:
-                if data.password is not None:
-                    await service.reset_password(admin_id, data.password)
-                if update_data:
-                    await service.update_admin(admin_id, update_data)
-
-                updated_admin = await service.get_identity_detail(admin_id)
-                await db.flush()
-                return success(data=_serialize_tenant_admin(updated_admin))
-            except Exception as exc:
-                _raise_http(exc)
+            return success(data=updated_admin)
 
         @router.put("/{admin_id}/status", summary="切换管理员状态")
         @action_update("action.tenant_admin.update")
@@ -311,25 +211,13 @@ class AdminTenantAdminController(GlobalController):
             不可禁用企业所有者（is_owner=True）。
             Cannot disable tenant owner (is_owner=True).
             """
-            await _verify_tenant(db, tenant_id)
-            service = _get_tenant_admin_service(db, tenant_id)
-            tenant_admin = await service.get_identity_detail(admin_id)
-
-            if tenant_admin.is_owner and not data.is_active:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=_("tenant_admin.cannot_disable_owner"),
-                )
-
-            tenant_admin = await service.toggle_status(admin_id, data.is_active)
-            await db.flush()
-
-            return success(
-                data={
-                    "id": tenant_admin.id,
-                    "is_active": tenant_admin.is_active,
-                }
+            workflow = TenantAdminWorkflowService(db)
+            response = await workflow.toggle_admin_status(
+                tenant_id=tenant_id,
+                admin_id=admin_id,
+                is_active=data.is_active,
             )
+            return success(data=response)
 
         @router.post("/{admin_id}/force-logout", summary="强制下线企业管理员")
         @action_create("action.tenant_admin.force_logout")
@@ -344,19 +232,12 @@ class AdminTenantAdminController(GlobalController):
             强制下线指定企业管理员 / Force logout tenant admin
             吊销其所有 Token 并通知前端跳转登录页。
             """
-            await _verify_tenant(db, tenant_id)
-            service = _get_tenant_admin_service(db, tenant_id)
-            tenant_admin = await service.get_identity_detail(admin_id)
-
-            auth_service = AuthService(db)
-            await auth_service.token_sessions.force_logout(
-                user_type="tenant_admin",
-                user_id=admin_id,
+            workflow = TenantAdminWorkflowService(db)
+            message = await workflow.force_logout_tenant_admin(
                 tenant_id=tenant_id,
+                admin_id=admin_id,
             )
-            return success(
-                message=_("auth.force_logout_success", name=tenant_admin.username),
-            )
+            return success(message=message)
 
 
 # 创建 router（GlobalController 自动注册路由） / Create router (GlobalController auto-registers routes)

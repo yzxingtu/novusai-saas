@@ -32,6 +32,9 @@ if TYPE_CHECKING:
     from app.services.system.task_log_service import TaskLogService
     from app.services.system.task_manager_service import TaskManagerService
     from app.services.system.task_run_service import TaskRunService
+    from app.services.system.tenant_admin_workflow_service import (
+        TenantAdminWorkflowService,
+    )
     from app.services.system.tenant_domain_service import (
         TenantDomainService,
         TenantDomainTenantService,
@@ -60,6 +63,7 @@ __all__ = [
     "TaskLogService",
     "TaskManagerService",
     "TaskRunService",
+    "TenantAdminWorkflowService",
     "TenantDomainService",
     "TenantDomainTenantService",
     "TenantService",
@@ -85,6 +89,7 @@ _LAZY_EXPORTS = {
     "TaskLogService": "app.services.system.task_log_service",
     "TaskManagerService": "app.services.system.task_manager_service",
     "TaskRunService": "app.services.system.task_run_service",
+    "TenantAdminWorkflowService": "app.services.system.tenant_admin_workflow_service",
     "TenantDomainService": "app.services.system.tenant_domain_service",
     "TenantDomainTenantService": "app.services.system.tenant_domain_service",
     "TenantService": "app.services.system.tenant_service",
