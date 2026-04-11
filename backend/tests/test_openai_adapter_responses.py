@@ -652,6 +652,17 @@ def test_invalid_protocol_token_in_allowed_wire_apis_raises_provider_error() -> 
         )
 
 
+def test_invalid_top_level_wire_api_raises_provider_error() -> None:
+    with pytest.raises(ProviderError, match="Invalid provider wire API in wire_api"):
+        OpenAIAdapter(
+            api_key="test-key",
+            base_url="https://api.example.com",
+            provider_config={
+                "wire_api": "chat_completionz",
+            },
+        )
+
+
 def test_invalid_protocol_token_in_fallback_map_raises_provider_error() -> None:
     with pytest.raises(ProviderError, match="Invalid provider protocol contract wire API"):
         OpenAIAdapter(

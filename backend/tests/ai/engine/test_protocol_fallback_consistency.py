@@ -291,6 +291,32 @@ def test_protocol_planner_preserves_one_way_fallback_contract() -> None:
     ) == ["chat_completions"]
 
 
+def test_protocol_planner_keeps_legacy_fallback_when_contract_missing() -> None:
+    adapter = SimpleNamespace(wire_api="responses")
+
+    assert ProtocolPlanner.build_protocol_chain("responses", adapter=adapter) == [
+        "responses",
+        "chat_completions",
+    ]
+
+
+def test_protocol_planner_requires_explicit_fallback_map_for_contracts() -> None:
+    capabilities = SimpleNamespace(
+        allowed_wire_apis=("responses", "chat_completions"),
+        allowed_cross_protocol_fallbacks={},
+        allow_adapter_cross_protocol_fallback=True,
+        primary_wire_api="responses",
+    )
+    adapter = SimpleNamespace(
+        wire_api="responses",
+        protocol_capabilities=capabilities,
+    )
+
+    assert ProtocolPlanner.build_protocol_chain("responses", adapter=adapter) == [
+        "responses"
+    ]
+
+
 def test_turn_command_freezes_each_runtime_protocol_step_with_guard_flags() -> None:
     adapter = SimpleNamespace(
         wire_api="responses",

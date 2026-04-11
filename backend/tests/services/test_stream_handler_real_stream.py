@@ -1018,10 +1018,10 @@ async def test_stream_handler_promotes_budgeted_web_research_tool_evidence_to_co
     assert len(captured) == 1
     assert captured[0].partial is False
     assert captured[0].completion_reason == "completed"
-    assert captured[0].turn_record["turn_outcome"] == "success"
+    assert captured[0].turn_record.get("turn_outcome") is None
     # synthesis succeeded → source is "assistant", not raw tool_evidence
     assert captured[0].turn_record["final_output_source"] == "assistant"
-    assert done_event["turn_outcome"] == "success"
+    assert done_event.get("turn_outcome") is None
     assert done_event["termination_reason"] == "completed"
 
 

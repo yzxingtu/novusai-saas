@@ -44,7 +44,14 @@ class ProtocolPlanner:
                 if protocol not in allowed:
                     allowed.append(protocol)
         if not allowed:
-            allowed = ["responses", "chat_completions"] if preferred == "responses" else ["chat_completions"]
+            if capabilities is None:
+                allowed = (
+                    ["responses", "chat_completions"]
+                    if preferred == "responses"
+                    else ["chat_completions"]
+                )
+            else:
+                allowed = [preferred]
         if preferred not in allowed:
             allowed.insert(0, preferred)
         return allowed
@@ -57,7 +64,7 @@ class ProtocolPlanner:
         adapter: Any | None = None,
     ) -> list[ProtocolPath]:
         if adapter is None:
-            return ["responses", "chat_completions"] if preferred == "responses" else ["chat_completions"]
+            return [preferred]
 
         allowed = cls._resolve_allowed_protocols(adapter, preferred)
         capabilities = getattr(adapter, "protocol_capabilities", None)
@@ -76,14 +83,9 @@ class ProtocolPlanner:
                     protocol = cls._normalize_protocol_path(value)
                     if protocol != preferred and protocol in allowed and protocol not in chain:
                         chain.append(protocol)
-            if len(chain) > 1:
-                return chain
+            return chain if len(chain) > 1 else [preferred]
 
-        if capabilities is not None and getattr(
-            capabilities,
-            "allow_adapter_cross_protocol_fallback",
-            None,
-        ) is False:
+        if capabilities is not None:
             return [preferred]
 
         chain = [preferred]

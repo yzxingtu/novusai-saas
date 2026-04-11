@@ -50,6 +50,9 @@ from .contract_diagnostics_helpers import (
 from .contract_diagnostics_helpers import (
     merge_contract_diagnostics_into_turn_record as _merge_contract_diagnostics_into_turn_record_impl,
 )
+from .intent_plan_accessors import (
+    attach_intent_plan_to_input_variables as _attach_intent_plan_to_input_variables_impl,
+)
 from .llm_call_helpers import (
     apply_llm_response_metadata as _apply_llm_response_metadata_impl,
 )
@@ -105,11 +108,9 @@ from .system_prompt_helpers import (
 from .system_prompt_helpers import (
     is_capability_reporting_query as _is_capability_reporting_query_impl,
 )
-from .tool_call_loop_runtime import (
-    ToolCallLoopCallbacks,
-    ToolCallLoopRuntime,
-    run_tool_call_loop,
-)
+from .tool_call_loop_callbacks_factory import build_tool_call_loop_callbacks
+from .tool_call_loop_policy import ToolCallLoopPolicy
+from .tool_call_loop_runtime import ToolCallLoopRuntime, run_tool_call_loop
 from .tool_contract_retry_helpers import (
     analyze_post_tool_contract_breach as _analyze_post_tool_contract_breach_impl,
 )
@@ -436,6 +437,9 @@ class BaseEngine(ABC):
         _extract_recent_research_instruction_texts_impl
     )
     _truncate_preview = staticmethod(truncate_preview)
+    _attach_intent_plan_to_input_variables = staticmethod(
+        _attach_intent_plan_to_input_variables_impl
+    )
     _has_page_context = staticmethod(_has_page_context_impl)
     _page_operation_names_from_input_variables = staticmethod(
         _page_operation_names_from_input_variables_impl
@@ -555,7 +559,7 @@ class BaseEngine(ABC):
         Returns:
             PreparedExecution context / PreparedExecution 上下文
         """
-        return await _prepare_execution_with_defaults_impl(
+        prep = await _prepare_execution_with_defaults_impl(
             db=self.db,
             base_engine=self,
             sandbox=self.sandbox,
@@ -564,6 +568,11 @@ class BaseEngine(ABC):
             skill_result=skill_result,
             render_contract=render_prompt_contract,
         )
+        self._attach_intent_plan_to_input_variables(
+            request.input_variables,
+            prep.intent_plan,
+        )
+        return prep
 
     # ========================================
     # LLM Call / LLM 调用
@@ -750,11 +759,7 @@ class BaseEngine(ABC):
             starting_total_tokens=starting_total_tokens,
             starting_completion_tokens=starting_completion_tokens,
         )
-        callbacks = ToolCallLoopCallbacks(
-            ordered_requested_families_from_intents=self._ordered_requested_families_from_intents,
-            truncate_tool_calls_after_navigation=self._truncate_tool_calls_after_navigation,
-            mark_multi_family_progress=self._mark_multi_family_progress,
-            budget_exit_response=self._budget_exit_response,
+        policy = ToolCallLoopPolicy(
             build_page_no_progress_recovery=self._build_page_no_progress_recovery,
             messages_have_blocking_pending_interaction=self._messages_have_blocking_pending_interaction,
             first_incomplete_requested_family=self._first_incomplete_requested_family,
@@ -763,6 +768,13 @@ class BaseEngine(ABC):
             needs_fetch_url_before_summary=self._needs_fetch_url_before_summary,
             apply_fetch_url_only_gate=self._apply_fetch_url_only_gate,
             restrict_tools_to_names=self._restrict_tools_to_names,
+        )
+        callbacks = build_tool_call_loop_callbacks(
+            policy=policy,
+            ordered_requested_families_from_intents=self._ordered_requested_families_from_intents,
+            truncate_tool_calls_after_navigation=self._truncate_tool_calls_after_navigation,
+            mark_multi_family_progress=self._mark_multi_family_progress,
+            budget_exit_response=self._budget_exit_response,
             call_followup_llm=_call_followup_llm,
         )
         return await run_tool_call_loop(runtime=runtime, callbacks=callbacks)

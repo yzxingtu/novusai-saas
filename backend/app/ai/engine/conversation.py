@@ -49,6 +49,7 @@ from .conversation_runtime_preflight import (
 )
 from .execution_state_machine import ExecutionStateMachine
 from .failure_classifier import FailureClassifier
+from .final_output_policy import resolve_skip_final_assistant
 from .model_policy import build_model_request_overrides
 from .recovery_manager import RecoveryManager
 from .stream_handler import StreamExecutionHandler
@@ -563,7 +564,12 @@ class ConversationEngine(BaseEngine):
             if action_buttons:
                 output = cleaned_output
 
-            if output and not paused_for_consent:
+            response_metadata = dict(getattr(response, "metadata", {}) or {})
+            skip_final_assistant = resolve_skip_final_assistant(
+                response_metadata=response_metadata,
+                paused_for_consent=paused_for_consent,
+            )
+            if output and not skip_final_assistant:
                 messages.append(
                     ChatMessage(
                         role="assistant",
@@ -577,7 +583,6 @@ class ConversationEngine(BaseEngine):
                 )
 
             duration_ms = int((time.perf_counter() - start) * 1000)
-            response_metadata = dict(getattr(response, "metadata", {}) or {})
             turn_projection = build_turn_projection(
                 raw_turn_record=response_metadata.get("runtime_turn_record"),
                 diagnostics_payload=state.build_diagnostics_payload(),
@@ -665,6 +670,14 @@ class ConversationEngine(BaseEngine):
                 if partial_output and decision is not None and decision.reason
                 else "error"
             )
+            turn_projection = build_turn_projection(
+                raw_turn_record=None,
+                diagnostics_payload=diagnostics_payload or {},
+                execution_path=(prep.execution_path if prep is not None else None),
+                completion_reason=completion_reason,
+                partial=bool(partial_output),
+                final_output_source=("assistant" if partial_output else None),
+            )
             return build_execution_result(
                 success=False,
                 output=partial_output,
@@ -689,6 +702,7 @@ class ConversationEngine(BaseEngine):
                 memory_recalled=bool(getattr(prep, "memory_recalled", False)),
                 prune_stats=getattr(prep, "prune_stats", None),
                 tool_planner=getattr(prep, "tool_planner", None),
+                turn_projection=turn_projection,
                 intent_plan=list(state.intent_plan) if state is not None else [],
                 execution_path=(prep.execution_path if prep is not None else None),
                 execution_budget=(
@@ -702,7 +716,6 @@ class ConversationEngine(BaseEngine):
                 ],
                 provider_failure_kind=kind,
                 provider_events=[event] if event else [],
-                diagnostics=diagnostics_payload,
             )
 
     async def _call_runtime_query_turn(

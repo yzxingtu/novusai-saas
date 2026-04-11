@@ -35,6 +35,7 @@ from app.core.logging import LogManager
 from app.core.runtime_identity import get_runtime_identity_tag
 
 from .base_helpers import truncate_preview as _truncate_preview_impl
+from .intent_plan_accessors import resolve_intent_plan_from_input_variables
 from .intent_planner import IntentPlanner
 from .turn_research_helpers import (
     collect_web_research_evidence,
@@ -204,13 +205,15 @@ def detect_requested_turn_intents(
     if not normalized:
         return []
 
-    planned = IntentPlanner.plan_turn(
-        messages=[ChatMessage(role="user", content=normalized)],
-        tools=tools,
-        input_variables=input_variables,
-        continuation_context=None,
-        capability_bundle=None,
-    )
+    planned = resolve_intent_plan_from_input_variables(input_variables)
+    if not planned:
+        planned = IntentPlanner.plan_turn(
+            messages=[ChatMessage(role="user", content=normalized)],
+            tools=tools,
+            input_variables=input_variables,
+            continuation_context=None,
+            capability_bundle=None,
+        )
     intents: list[str] = []
 
     def _push(intent_name: str) -> None:
@@ -542,13 +545,15 @@ def first_page_intent_kind(
     tools: list[ToolDefinition],
     input_variables: dict[str, Any] | None = None,
 ) -> str | None:
-    intents = IntentPlanner.plan_turn(
-        messages=[ChatMessage(role="user", content=user_text)],
-        tools=tools,
-        input_variables=input_variables,
-        continuation_context=None,
-        capability_bundle=None,
-    )
+    intents = resolve_intent_plan_from_input_variables(input_variables)
+    if not intents:
+        intents = IntentPlanner.plan_turn(
+            messages=[ChatMessage(role="user", content=user_text)],
+            tools=tools,
+            input_variables=input_variables,
+            continuation_context=None,
+            capability_bundle=None,
+        )
     for intent in intents:
         if intent.family == "page_ops":
             return intent.kind

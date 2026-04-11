@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sys
 import types
+from dataclasses import dataclass
 from importlib import import_module
 from pathlib import Path
 from types import SimpleNamespace
@@ -16,10 +17,12 @@ if "app.ai.engine" not in sys.modules:
 stream_generation_support = import_module("app.ai.engine.stream_generation_support")
 stream_generation_view = import_module("app.ai.engine.stream_generation_view")
 _build_replay_events = stream_generation_support._build_replay_events
+_build_result_turn_record = stream_generation_support._build_result_turn_record
 _resolve_done_turn_outcome = stream_generation_support._resolve_done_turn_outcome
 build_initial_events = stream_generation_support.build_initial_events
 reset_stream_state = stream_generation_support.reset_stream_state
 StreamGenerationView = stream_generation_view.StreamGenerationView
+build_stream_generation_view = stream_generation_view.build_stream_generation_view
 
 
 def _decode_sse(payload: str) -> dict:
@@ -67,7 +70,7 @@ def test_build_initial_events_accepts_explicit_generation_view_seam() -> None:
         ),
     )
     handler = SimpleNamespace(
-        _stream_generation_view=lambda: StreamGenerationView(delegate),
+        _stream_generation_view=lambda: build_stream_generation_view(delegate),
     )
 
     events = build_initial_events(
@@ -115,7 +118,7 @@ def test_reset_stream_state_uses_explicit_generation_view_seam() -> None:
         _next_runtime_context="stale",
     )
     handler = SimpleNamespace(
-        _stream_generation_view=lambda: StreamGenerationView(delegate),
+        _stream_generation_view=lambda: build_stream_generation_view(delegate),
     )
 
     reset_stream_state(handler)
@@ -143,3 +146,33 @@ def test_resolve_done_turn_outcome_prefers_diagnostics_payload() -> None:
         diagnostics_payload={},
         turn_record={"turn_outcome": "success"},
     ) == "success"
+
+
+def test_build_result_turn_record_preserves_non_dict_payload() -> None:
+    @dataclass(slots=True)
+    class _TurnRecord:
+        turn_outcome: str
+        termination_reason: str
+        protocol_path: str
+
+    raw_turn_record = _TurnRecord(
+        turn_outcome="success",
+        termination_reason="completed",
+        protocol_path="responses",
+    )
+    handler = SimpleNamespace(
+        _runtime_turn_record=raw_turn_record,
+        _runtime_turn_record_source=None,
+        _runtime_turn_record_overlays={},
+    )
+
+    result_turn_record, resolved_protocol_path = _build_result_turn_record(
+        handler,
+        diagnostics_payload={},
+        response_metadata={},
+    )
+
+    assert result_turn_record["turn_outcome"] == "success"
+    assert result_turn_record["termination_reason"] == "completed"
+    assert result_turn_record["protocol_path"] == "responses"
+    assert resolved_protocol_path == "responses"

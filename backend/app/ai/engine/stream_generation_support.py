@@ -14,7 +14,9 @@ from app.ai.types import ChatMessage
 from .conversation_result_projector import (
     build_execution_result,
     build_turn_projection,
+    coerce_turn_record_payload,
 )
+from .final_output_policy import resolve_skip_final_assistant
 from .recovery_manager import RecoveryManager
 from .stream_error_utils import trace_payload as _trace_payload
 from .stream_generation_view import ensure_stream_generation_view
@@ -34,8 +36,15 @@ class StreamFinalizationArtifacts:
     replay_events: list[str] = field(default_factory=list)
 
 
+def _resolve_generation_view(handler: Any) -> Any:
+    explicit = getattr(handler, "_stream_generation_view", None)
+    if callable(explicit):
+        return explicit()
+    return ensure_stream_generation_view(handler)
+
+
 def reset_stream_state(handler: Any) -> None:
-    ensure_stream_generation_view(handler).reset_runtime_state()
+    _resolve_generation_view(handler).reset_runtime_state()
 
 
 def build_initial_events(
@@ -43,7 +52,7 @@ def build_initial_events(
     *,
     optimize_event: Any,
 ) -> list[str]:
-    view = ensure_stream_generation_view(handler)
+    view = _resolve_generation_view(handler)
     request = view.request
     events: list[str] = []
 
@@ -101,7 +110,7 @@ async def drain_runtime_events(
     wait_timeout: float = 0.05,
     keepalive_interval_ticks: int = 300,
 ) -> AsyncIterator[str]:
-    queue = ensure_stream_generation_view(handler).event_queue
+    queue = _resolve_generation_view(handler).event_queue
     keepalive_counter = 0
     while True:
         if executor_task.done() and queue.empty():
@@ -127,7 +136,7 @@ def sync_response_runtime_metadata(
     *,
     response: Any,
 ) -> dict[str, Any]:
-    view = ensure_stream_generation_view(handler)
+    view = _resolve_generation_view(handler)
     response_metadata = (
         dict(getattr(response, "metadata", {}) or {})
         if response is not None
@@ -194,7 +203,7 @@ def _append_output_if_missing(
     skip_final_assistant: bool = False,
     reasoning_content: str | None = None,
 ) -> None:
-    view = ensure_stream_generation_view(handler)
+    view = _resolve_generation_view(handler)
     if not output or skip_final_assistant:
         return
     current_turn_has_output = view.current_turn_has_finalized_output(
@@ -222,7 +231,7 @@ def _finalize_partial_output(
     action_buttons: list[dict[str, str]] | None,
     completion_reason: str,
 ) -> tuple[str, list[str]]:
-    view = ensure_stream_generation_view(handler)
+    view = _resolve_generation_view(handler)
     current_turn_messages = messages[turn_start_message_index:]
     visible_assistant_output = view.last_visible_assistant_content(current_turn_messages)
     streamed_output = view.visible_stream_content.strip()
@@ -349,13 +358,19 @@ def _build_result_turn_record(
     diagnostics_payload: dict[str, Any],
     response_metadata: dict[str, Any],
 ) -> tuple[dict[str, Any], str]:
-    view = ensure_stream_generation_view(handler)
+    view = _resolve_generation_view(handler)
+    raw_turn_record = view.runtime_turn_record
     view.refresh_runtime_turn_record()
-    result_turn_record = (
-        dict(view.runtime_turn_record)
-        if isinstance(view.runtime_turn_record, dict)
-        else {}
-    )
+    refreshed_turn_record = coerce_turn_record_payload(view.runtime_turn_record)
+    if raw_turn_record is not None:
+        raw_payload = coerce_turn_record_payload(raw_turn_record)
+        if raw_payload:
+            raw_payload.update(refreshed_turn_record)
+            result_turn_record = raw_payload
+        else:
+            result_turn_record = refreshed_turn_record
+    else:
+        result_turn_record = refreshed_turn_record
     resolved_protocol_path = view.resolved_protocol_path(
         diagnostics_payload=diagnostics_payload,
         turn_record=result_turn_record,
@@ -384,7 +399,7 @@ def _build_replay_events(
     partial_reply_stream_chunks: list[str],
     completed_reply_stream_chunks: list[str],
 ) -> list[str]:
-    streamed_output = ensure_stream_generation_view(handler).visible_stream_content.strip()
+    streamed_output = _resolve_generation_view(handler).visible_stream_content.strip()
     should_clear_replayed_output = _should_clear_replayed_output(
         streamed_output=streamed_output,
         finalized_output=str(output or "").strip(),
@@ -439,7 +454,7 @@ def finalize_successful_turn(
     turn_execution: TurnExecutionResult,
     logger: Any,
 ) -> StreamFinalizationArtifacts:
-    view = ensure_stream_generation_view(handler)
+    view = _resolve_generation_view(handler)
     output = turn_execution.output
     total_tokens = turn_execution.total_tokens
     tool_results = list(turn_execution.tool_results)
@@ -474,7 +489,10 @@ def finalize_successful_turn(
     paused_for_consent = bool(turn_execution.paused_for_consent)
     completion_reason = turn_execution.completion_reason or "completed"
     final_output_source = turn_execution.final_output_source
-    skip_final_assistant = bool(response_metadata.get("skip_final_assistant"))
+    skip_final_assistant = resolve_skip_final_assistant(
+        response_metadata=response_metadata,
+        paused_for_consent=paused_for_consent,
+    )
     partial_reply_stream_chunks: list[str] = []
     completed_reply_stream_chunks: list[str] = []
 
@@ -521,8 +539,6 @@ def finalize_successful_turn(
         partial=partial,
         final_output_source=final_output_source,
         protocol_path=resolved_protocol_path,
-        default_turn_outcome="success",
-        force_completion_reason_in_turn_record=True,
     )
     diagnostics_payload = turn_projection.diagnostics
 
@@ -588,7 +604,7 @@ def build_done_event(
     artifacts: StreamFinalizationArtifacts,
     on_complete_extra: dict[str, Any] | None,
 ) -> str:
-    view = ensure_stream_generation_view(handler)
+    view = _resolve_generation_view(handler)
     return SSEChunkEncoder.encode(
         _trace_payload(
             {
@@ -661,7 +677,7 @@ def build_terminal_result(
     interrupted: bool,
     include_provider_state: bool,
 ) -> ExecutionResult:
-    view = ensure_stream_generation_view(handler)
+    view = _resolve_generation_view(handler)
     view.refresh_runtime_turn_record()
     diagnostics_payload = view.build_diagnostics_payload()
     final_output_source = diagnostics_payload.get("final_output_source")
@@ -678,8 +694,6 @@ def build_terminal_result(
         partial=True,
         final_output_source=final_output_source,
         protocol_path=resolved_protocol_path,
-        default_turn_outcome="failed",
-        force_completion_reason_in_turn_record=True,
     )
 
     return build_execution_result(

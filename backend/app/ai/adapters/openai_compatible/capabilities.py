@@ -28,17 +28,25 @@ def normalize_wire_api(value: Any) -> str:
     mapped = _WIRE_API_ALIASES.get(normalized)
     if mapped in _VALID_WIRE_APIS:
         return mapped
-    return "chat_completions"
+    raise ProviderError(
+        message=f"Invalid provider wire API token: {value}",
+        provider_code="openai_compatible",
+        error_code="invalid_protocol_contract",
+    )
 
 
-def _normalize_wire_api_optional(value: Any) -> str | None:
+def _normalize_configured_wire_api(value: Any) -> str | None:
     normalized = str(value or "").strip().lower().replace("-", "_")
     if not normalized:
         return None
     mapped = _WIRE_API_ALIASES.get(normalized)
     if mapped in _VALID_WIRE_APIS:
         return mapped
-    return None
+    raise ProviderError(
+        message=f"Invalid provider wire API in wire_api: {value}",
+        provider_code="openai_compatible",
+        error_code="invalid_protocol_contract",
+    )
 
 
 def _normalize_contract_wire_api(value: Any, *, field_name: str) -> str | None:
@@ -57,6 +65,12 @@ def _normalize_contract_wire_api(value: Any, *, field_name: str) -> str | None:
         error_code="invalid_protocol_contract",
     )
 
+
+def _normalize_runtime_wire_api(value: Any) -> str | None:
+    return _normalize_contract_wire_api(
+        value,
+        field_name="runtime_force_wire_api",
+    )
 
 def _normalize_wire_api_list(value: Any) -> tuple[str, ...]:
     if not isinstance(value, list):
@@ -129,7 +143,7 @@ def _resolve_primary_wire_api(
     if contract_primary is not None:
         return contract_primary
 
-    configured = _normalize_wire_api_optional(configured_wire_api)
+    configured = _normalize_configured_wire_api(configured_wire_api)
     contract_wire_apis = _merge_wire_api_sets(
         explicit_allowed_wire_apis,
         tuple(
@@ -209,22 +223,9 @@ class OpenAIProtocolCapabilities:
         if raw_allow_cross is None:
             allow_adapter_cross_protocol_fallback = bool(
                 allowed_cross_protocol_fallbacks,
-            ) or len(allowed_wire_apis) > 1
+            )
         else:
             allow_adapter_cross_protocol_fallback = bool(raw_allow_cross)
-        if (
-            allow_adapter_cross_protocol_fallback
-            and not allowed_cross_protocol_fallbacks
-            and len(allowed_wire_apis) > 1
-        ):
-            allowed_cross_protocol_fallbacks = {
-                from_wire_api: tuple(
-                    wire_api
-                    for wire_api in allowed_wire_apis
-                    if wire_api != from_wire_api
-                )
-                for from_wire_api in allowed_wire_apis
-            }
         if len(allowed_wire_apis) <= 1 and not allowed_cross_protocol_fallbacks:
             allow_adapter_cross_protocol_fallback = False
 
@@ -250,15 +251,25 @@ class OpenAIProtocolCapabilities:
         normalized_to = normalize_wire_api(to_wire_api)
         if normalized_from == normalized_to:
             return True
-        return normalized_to in self.allowed_cross_protocol_fallbacks.get(
+        explicit_targets = self.allowed_cross_protocol_fallbacks.get(
             normalized_from,
             (),
         )
+        if explicit_targets:
+            return normalized_to in explicit_targets
+        if not self.allowed_cross_protocol_fallbacks:
+            return (
+                normalized_from in self.allowed_wire_apis
+                and normalized_to in self.allowed_wire_apis
+            )
+        return False
 
     def resolve_runtime_wire_api(self, runtime_force_wire_api: Any) -> str:
         if runtime_force_wire_api is None:
             return self.primary_wire_api
-        requested = normalize_wire_api(runtime_force_wire_api)
+        requested = _normalize_runtime_wire_api(runtime_force_wire_api)
+        if requested is None:
+            return self.primary_wire_api
         if self.supports_wire_api(requested):
             return requested
         raise ProviderError(
