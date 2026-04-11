@@ -11,6 +11,9 @@
   - 审核并接线
   - 统一验证
   - 回填 `.trellis`
+- `.trellis/tasks/04-10-non-ai-governance-refactor/**` 与 `.trellis/spec/**`
+  属于 umbrella control-plane 写集，不挂到任何业务 workstream；只允许主代理
+  或专门的 docs worker 更新。
 
 ## 并行规则
 
@@ -18,6 +21,8 @@
 - 不允许在他人 owned file 中顺手改“相邻逻辑”。
 - 所有跨工作流 contract 只能通过 facade 或主代理冻结的模块导出。
 - AI 相关代码只允许保留薄兼容入口，不允许顺手重构 AI 内核。
+- `.trellis` task/spec backfill 视为独立写集；业务 worker 不得把 task/spec
+  更新塞进自己的业务写集里一并处理。
 
 ## 目录与兼容策略
 
@@ -51,8 +56,8 @@
 - 当前工作树已有大量 AI 相关未提交改动，非 AI 重构必须严格避开这些已有
   改动的写集。
 - `backend/app/cli.py` 是混合文件，非 AI 部分拆出时必须保持 AI 子命令兼容。
-- `.trellis/` 为本地治理目录，可能不会进入常规 git 追踪；需要明确把补充的
-  规范同步写入受版本控制的入口文件时机。
+- `.trellis/` 更新必须和实际落地结果同批提交；不允许把 ownership/spec 只留
+  在本地聊天记录或未暂存的工作树里。
 
 ## 回归补强
 
@@ -91,6 +96,57 @@
   - 覆盖 `GET /system-logs/files/{filename}/download`
   - 覆盖 `DELETE /system-logs/files/{filename}` 的当前日志 fail-close 400
   - 主要用于补齐 system-log UI 强依赖的 transport contract，避免前端吞错时后端回归失去可见性
+- 任务管理与定时任务管理 route 合约哨兵已新增：
+  - `backend/tests/test_admin_task_routes_contract.py`
+  - `backend/tests/test_admin_periodic_task_routes_contract.py`
+  - 覆盖 `GET /tasks`、`GET /tasks/active`、`POST /tasks/{task_log_id}/retry`
+  - 覆盖 `GET /periodic-tasks`、`POST /periodic-tasks`、
+    `PUT /periodic-tasks/{task_id}/bindings`
+  - 主要用于补齐 control-plane route transport contract，确保薄 facade +
+    query-service/controller 协调层不会静默回归
+- Shared ops 前端 seam 回归已新增：
+  - `frontend/apps/web-antd/src/components/business/config-form/__tests__/use-config-form-model.test.ts`
+  - `frontend/apps/web-antd/src/views/admin/plugins/modules/plugin-config-drawer/__tests__/use-plugin-config-drawer.test.ts`
+  - 覆盖 `config-form` 的嵌套 JSON 子字段回填、加密占位保护、dirty snapshot 重置
+  - 覆盖 `plugin-config-drawer` 的配置 schema 本地化映射、租户分配装载、结构化配置保存、非法 JSON 拦截
+  - 审计结论同步确认：
+    `system-logs/index.vue`、`PluginConfigDrawer.vue`、`config-form/index.vue`
+    已进入“薄壳 + composable/section”状态，本轮不再为拆而拆
+- Auth / RBAC 服务拆分已进一步收口：
+  - `backend/app/services/common/auth_service.py` 从 608 行降到 441 行
+  - 新增 `backend/app/services/common/auth_domains/facades.py`
+  - `backend/app/rbac/services/permission_service.py` 从 532 行降到 307 行
+  - 新增 `backend/app/rbac/services/permission_domains/checks.py`
+  - 新增 `backend/app/rbac/services/permission_domains/query.py`
+  - 新增 `backend/app/rbac/services/permission_domains/tenant_admin.py`
+  - 认证 service 继续保留稳定 façade，对外方法名不变；权限 service 变成真正的 façade + domains，而不是“同文件内伪拆分”
+- Codegen 全链路拆分与回归已新增：
+  - `backend/app/api/admin/codegen.py`
+  - `backend/app/services/system/codegen_service_parts/execution_mixin.py`
+  - `backend/app/services/system/codegen_service_parts/workbench_mixin.py`
+  - `backend/tests/codegen/test_codegen_service_orchestration.py`
+  - `frontend/apps/web-antd/src/views/admin/system/codegen/workbench-utils.ts`
+  - `frontend/apps/web-antd/src/views/admin/system/codegen/composables/workflow-helpers.ts`
+  - `frontend/apps/web-antd/src/views/admin/system/codegen/__tests__/workbench-utils.test.ts`
+  - `frontend/apps/web-antd/src/views/admin/system/codegen/composables/__tests__/workflow-helpers.test.ts`
+  - admin codegen controller 已把 generate / rollback / manifest-history orchestration 下沉到 service parts
+  - codegen 前端 workbench 规则与 builder workflow helper 已从 `index.vue` / `use-codegen-builder-workflows.ts` 抽离
+- Plugin 平台后端拆分与回归已新增：
+  - `backend/app/api/admin/plugins.py`
+  - `backend/app/api/admin/plugin_install_preview.py`
+  - `backend/app/api/admin/plugin_admin_contracts.py`
+  - `backend/app/plugins/lifecycle.py`
+  - `backend/app/plugins/lifecycle_orchestrator.py`
+  - `backend/app/plugins/registry.py`
+  - `backend/app/plugins/registry_runtime_extensions.py`
+  - `backend/app/services/system/plugin_read_model_service.py`
+  - `backend/app/services/system/plugin_cleanup_service.py`
+  - `backend/tests/test_admin_plugin_dependency_contract.py`
+  - admin plugins controller 已收成更薄的 write-side façade
+  - marketplace / upload preview-install 已沉到 `plugin_install_preview.py`
+  - admin plugins read routes 已沉到 `plugin_admin_contracts.py`
+  - registry 的 notification / permission / menu / socketio / frontend-slot 运行时家族已抽到 `registry_runtime_extensions.py`
+  - lifecycle 新增 menu override 的持久化与 runtime 重挂 orchestration seam
 
 ## 验证补充
 
@@ -106,15 +162,47 @@
   - 宽回归优先把 `TMP`、`TEMP` 指向
     `E:/git_clone/novusai-saas-yudi/.codex-temp/pytest-temp`
   - `.pytest_cache` 告警可记录但不视为业务失败
+- 本轮新增定向验证：
+  - `ruff check backend/tests/test_admin_task_routes_contract.py backend/tests/test_admin_periodic_task_routes_contract.py`
+  - `python -m pytest backend/tests/test_admin_task_routes_contract.py backend/tests/test_admin_periodic_task_routes_contract.py -q`
+  - 结果：`6 passed`，伴随 `.pytest_cache` `WinError 5` warning（环境噪音，不视为业务失败）
+  - `pnpm --dir frontend exec vitest run --dom apps/web-antd/src/components/business/config-form/__tests__/use-config-form-model.test.ts apps/web-antd/src/views/admin/plugins/modules/plugin-config-drawer/__tests__/use-plugin-config-drawer.test.ts`
+  - `pnpm --dir frontend exec vue-tsc --noEmit --skipLibCheck --pretty false -p apps/web-antd/tsconfig.json`
+  - 结果：`2 files passed / 6 tests passed`，`vue-tsc` 通过
+  - `ruff check backend/app/services/common/auth_service.py backend/app/services/common/auth_domains/facades.py backend/app/services/common/auth_domains/__init__.py backend/tests/services/test_auth_service.py`
+  - `python -m pytest backend/tests/services/test_auth_service.py backend/tests/api/test_tenant_auth.py backend/tests/api/test_tenant_admins.py backend/tests/api/test_admin_tenants.py -q`
+  - 结果：`31 passed`，伴随 `.pytest_cache` `WinError 5` warning
+  - `ruff check backend/app/rbac/services/permission_service.py backend/app/rbac/services/permission_domains/__init__.py backend/app/rbac/services/permission_domains/checks.py backend/app/rbac/services/permission_domains/tenant_admin.py backend/app/rbac/services/permission_domains/query.py backend/tests/rbac/test_permission_service_menu_ai_meta.py backend/tests/services/test_permission_service_tenant_org_node.py`
+  - `python -m pytest backend/tests/rbac/test_permission_service_menu_ai_meta.py backend/tests/services/test_permission_service_tenant_org_node.py -q`
+  - 结果：`3 passed`，伴随 `.pytest_cache` `WinError 5` warning
+  - `ruff check backend/app/services/system/codegen_service_parts/execution_mixin.py backend/app/services/system/codegen_service_parts/workbench_mixin.py backend/app/api/admin/codegen.py backend/tests/codegen/test_codegen_service_orchestration.py`
+  - `python -m pytest backend/tests/codegen/test_codegen_service.py backend/tests/codegen/test_codegen_service_orchestration.py -q`
+  - `pnpm --dir frontend exec vitest run apps/web-antd/src/views/admin/system/codegen/__tests__/workbench-utils.test.ts apps/web-antd/src/views/admin/system/codegen/composables/__tests__/workflow-helpers.test.ts apps/web-antd/src/store/admin/__tests__/codegen-builder.test.ts`
+  - `pnpm --dir frontend exec vue-tsc --noEmit --skipLibCheck --pretty false -p apps/web-antd/tsconfig.json`
+  - 结果：后端 `14 passed`，前端 `3 files passed / 8 tests passed`，`vue-tsc` 通过
+  - `ruff check backend/app/api/admin/plugins.py backend/app/api/admin/plugin_install_preview.py backend/app/api/admin/plugin_admin_contracts.py backend/app/plugins/lifecycle.py backend/app/plugins/lifecycle_orchestrator.py backend/app/plugins/registry.py backend/app/plugins/registry_runtime_extensions.py backend/app/services/system/plugin_read_model_service.py backend/app/services/system/plugin_cleanup_service.py backend/tests/test_admin_plugin_dependency_contract.py backend/tests/test_admin_plugin_read_routes_contract.py backend/tests/services/test_plugin_read_model_service.py backend/tests/services/test_plugin_cleanup_service.py backend/tests/test_admin_plugin_repair_fail_close.py backend/tests/test_admin_plugin_marketplace_contract.py`
+  - `python -m pytest backend/tests/test_admin_plugin_dependency_contract.py backend/tests/test_admin_plugin_read_routes_contract.py backend/tests/services/test_plugin_read_model_service.py backend/tests/services/test_plugin_cleanup_service.py backend/tests/test_admin_plugin_repair_fail_close.py backend/tests/test_admin_plugin_marketplace_contract.py -q`
+  - 结果：`23 passed`，伴随 `.pytest_cache` `WinError 5` warning
+
+## 本轮已确认收口的 facade
+
+- 下列文件当前已经属于“薄 facade / 兼容壳”状态，不再作为主要拆分热点：
+  - `backend/app/cli.py`
+  - `backend/app/core/base_repository.py`
+  - `backend/app/services/system/codegen_service.py`
+  - `backend/app/codegen/generator.py`
+  - `backend/plugins/storage-billing/backend/services/reconciliation_service.py`
+- 后续如需继续演进，优先改其内部 parts/helpers，不回头把逻辑塞回 facade。
 
 ## 本轮残余审计图
 
 - `agent-1 / control-plane-and-core-foundation`
   - `backend/app/services/system/operation_log_service.py` 仍是最大 service 团块。
   - `backend/app/api/admin/tasks.py`、`backend/app/api/admin/periodic_tasks.py` 已去掉直查库，但 controller 仍直接编排二级 service/query。
-  - `backend/app/core/base_repository.py`、`backend/app/cli.py` 仍需按 facade + 子模块继续落刀。
+  - `backend/app/core/base_repository.py`、`backend/app/cli.py` 已完成 facade 化，剩余重点转向 route contract 与 query-service 收口。
 - `agent-2 / auth-rbac-and-org-boundary`
-  - `backend/app/services/common/auth_service.py`、`backend/app/rbac/services/permission_service.py` 目前仍以同文件 facade 包装为主，真实实现还未分域。
+  - `backend/app/services/common/auth_service.py` 已继续下沉 façade 类到 `auth_domains/facades.py`，主 service 主要保留 domain 委托与兼容方法。
+  - `backend/app/rbac/services/permission_service.py` 已继续下沉到 `permission_domains/checks.py`、`query.py`、`tenant_admin.py`，主 service 已收成 façade。
   - 这批 controller 已基本清掉 `db.execute(...)`，但 `tenant/configs.py`、`admin/tenant_admins.py`、`admin/tenants.py` 仍有 controller-file-local presenter/workflow。
   - auth 事务边界仍混杂在 helper 内部 `commit/rollback` 与 controller 外层提交之间。
 - `agent-3 / plugin-platform-backend`
@@ -123,16 +211,17 @@
   - lifecycle 相关拆分模式由“假拆分”更新为可执行样例：`facade + mixin/parts`。
   - 本轮已修复 `PluginCleanupService` 的 alembic `LIKE` 转义风险，并补了回归测试。
   - `backend/scripts/plugin_cli.py` 已降为 825 行，仍需持续沿 facade + parts 收敛其余主干。
+  - 本轮已把 admin plugin 写路由、preview-install、registry runtime families 进一步拆开并补齐 23 个定向回归。
 - `agent-4 / codegen-fullstack`
-  - `backend/app/services/system/codegen_service.py`、`backend/app/codegen/generator.py`、`backend/app/api/admin/codegen.py` 仍是大块。
-  - `frontend/.../builder.vue` 已抽出 `scope/workflows`，但仍保留页面装载、离页保护、快捷键、DB import merge、modal 模板。
+  - `backend/app/services/system/codegen_service.py`、`backend/app/codegen/generator.py` 已完成 facade 化，剩余重点转向 `backend/app/api/admin/codegen.py` 与前端 Builder/FieldPropertyPanel 的 workflow seams。
+  - `frontend/.../builder.vue` 已抽出 `scope/workflows`，本轮继续补了 `workflow-helpers.ts` 与 `workbench-utils.ts`。
   - `FieldPropertyPanel` 和 `use-field-property-panel` 仍需按 section / contract 继续拆。
 - `agent-5 / frontend-shared-ops-pages`
-  - `frontend/.../config-form/index.vue` 是最大的共享低内聚点。
-  - `frontend/.../file-picker/FilePicker.vue` 与 `use-file-picker-core.ts` 仍是共享大件对子系统。
-  - `useSystemLogs.ts`、`use-plugin-config-drawer.ts` / `PluginConfigDrawerBody.vue` 仍需继续按 presenter / domain 收口。
+  - `system-logs`、`plugin-config-drawer`、`config-form` 已确认完成“薄壳 + composable/section”收口，本轮通过 seam 测试加锁。
+  - `frontend/.../file-picker/FilePicker.vue` 与 `use-file-picker-core.ts` 仍是共享大件对子系统，但当前更偏能力内聚而非壳层回潮。
+  - `file-picker` 上传队列/拖拽与 `system-logs` 交互流仍缺 slice 级专项测试，可作为后续补强点。
 - `agent-6 / bundled-plugins-and-surface-contracts`
-  - `backend/plugins/storage-billing/backend/services/reconciliation_service.py` 仍是本工作流最大后端热点。
+  - `backend/plugins/storage-billing/backend/services/reconciliation_service.py` 已完成 facade 化，剩余重点转向 storage-billing 前端 admin page 和 slider-captcha 交互壳层。
   - `backend/plugins/storage-billing/frontend/src/views/admin/index.vue`、`AdminRunsCard.vue` 仍掌握过多 view-model 和 workflow。
   - `backend/plugins/storage-migration/backend/services/migration_service.py` 仍需拆 runtime registry / runner / transfer / recovery。
   - `backend/plugins/slider-captcha/frontend/src/SliderCaptcha.vue` 外部 contract 清晰，但内部 orchestration 还偏重。

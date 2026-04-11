@@ -72,12 +72,17 @@
 - Oversized operations/list pages default split:
   route/page shell keeps layout and wiring; composables own data/query/workflow;
   section components own presentation details.
+- Once a page shell has been reduced to layout + wiring, keep new workflow logic
+  out of the shell and continue evolving the extracted composables/sections.
 - Shared components (for example file picker, config form, plugin drawer body)
   must not absorb unrelated product workflows by option creep. Split by
   capability boundary before adding another unrelated feature switch.
 - Plugin frontend pages follow the same rule as host pages:
   keep plugin route shell thin, extract plugin-local composables and section
   units under the plugin package.
+- Bundled plugin interaction components may keep a stable public component path,
+  but internal rendering, layout, and workflow orchestration should still move
+  into plugin-local helpers and child units instead of re-growing the shell.
 - Codegen frontend defaults:
   keep builder page shell focused on route/state handoff, extract field editor,
   DB import, preview/history, and dirty-state guards into focused composables or

@@ -46,6 +46,10 @@ pnpm exec vue-tsc --noEmit --skipLibCheck --pretty false -p apps/web-antd/tsconf
 - If a page or component has grown oversized, prefer `page shell + composables +
   section components` or `component shell + focused child units` instead of
   adding more branches to the same SFC.
+- When a refactor claims a shell is now thin, reviewers should expect the
+  extracted workflow composables or child units to carry follow-up changes.
+  Do not move new logic back into the shell just because the public path stayed
+  stable.
 - Bundled plugin frontends follow the same oversized-page rule as host
   frontends. Do not keep a giant plugin page just because it lives under
   `backend/plugins/**`; extract plugin-local section components and composables
@@ -106,6 +110,10 @@ should require:
 - Validation gate:
   at least one targeted unit test or e2e flow proves the extracted seam still
   works end-to-end.
+- Contract gate:
+  stable public component/page entry paths may stay in place, but the shell
+  must no longer own cross-domain workflow state, API transforms, and dialog
+  orchestration at once.
 
 ## Dev-only Bootstrap Credential for Local E2E
 

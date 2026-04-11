@@ -72,6 +72,10 @@ For each layer pair, answer:
 - **Plugin lifecycle/runtime governance**: If plugin platform files are touched,
   is shape kept as `facade + mixin/parts` with compatibility preserved
   (reference: `lifecycle.py(432)` + `lifecycle_orchestrator.py(833)`)?
+- **Governance test seam**: If package-level imports would drag unrelated
+  out-of-scope modules into a route/controller test, can the test isolate the
+  touched controller module directly while still validating the public transport
+  contract?
 
 ### Frontend UI Runtime Priority Order
 
@@ -136,6 +140,9 @@ Checklist:
 11. If plugin lifecycle/runtime files changed, did you confirm
     `facade + mixin/parts` and avoid re-converging orchestration into one giant
     module?
+12. If route-level regression tests were added for a split controller, did you
+    keep the test isolated to the touched transport contract instead of relying
+    on unrelated package import side effects?
 
 If the answer is no, stop and gather the missing contract before coding.
 

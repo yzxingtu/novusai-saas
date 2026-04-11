@@ -58,6 +58,9 @@
   `thin facade + mixin/parts`:
   keep the public import/entry module stable, move real logic into focused
   sibling modules or a package, and preserve command names/routes/public imports.
+- Once a facade is compatibility-only glue, keep new behavior out of it and
+  continue splitting the heavier inner parts instead of reopening the facade
+  for line-count-only churn.
 - Do not return ad-hoc dict shapes; use `success()`, `created()`, `paginated()`,
   `deleted()`, or `error()`.
 - Do not use `print()`, `logging.getLogger()`, or raw `loguru.logger`; use
@@ -86,6 +89,9 @@ backend modules:
 - Oversized CLI: keep `app/cli.py` as thin facade, register command groups from
   `app/cli_commands/*`, and keep command names/options/import-visible helpers
   compatible.
+- Base repository governance: keep `app/core/base_repository.py` as a facade
+  over `app/core/repository_parts/*`; shared query/filter/tenant-scope logic
+  belongs in the parts package, not in new repository helper buckets.
 - Oversized controller families (`tasks`, `periodic_tasks`, plugin admin APIs):
   controller only parses request + delegates; query assembly lives in
   `*_query_service.py` or repository.
@@ -97,6 +103,13 @@ backend modules:
 - Codegen backend chain: separate generation core, config/read-model management,
   and CLI/API transport adapters; avoid one module owning config parse,
   generation orchestration, migration hooks, and delivery format at once.
+- Codegen thin-facade pattern is acceptable when `codegen_service.py` and
+  `codegen/generator.py` mainly compose `codegen_service_parts/*`,
+  `generator_support.py`, `generator_context_builder.py`, and
+  `generator_output_assembler.py`.
+- Plugin-bundled backend services follow the same rule: keep package-facing
+  facades thin, move overview/query/execution/scheduling logic into plugin-local
+  modules, and preserve plugin runtime contracts.
 
 ## Pre-Development Checklist
 

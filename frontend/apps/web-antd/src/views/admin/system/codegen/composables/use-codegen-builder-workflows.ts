@@ -27,39 +27,23 @@ import { $t } from '#/locales';
 import { formatRelativeTime } from '#/utils/common';
 import { downloadText } from '#/utils/download';
 
+import {
+  buildCodegenSavePayload,
+  buildGenerateNextSteps,
+  formatConflictItem,
+  parseImportedYaml,
+  type GenerateNextStepKey,
+  type GenerateResultPayload,
+} from './workflow-helpers';
+
+export type { GenerateResultPayload } from './workflow-helpers';
+
 type ValidationErrorItem = {
   code: string;
   field: string;
   message: string;
   path: string;
 };
-
-export type GenerateResultPayload = {
-  config_id?: null | number;
-  conflicts: Array<Record<string, string>>;
-  errors: string[];
-  files_created: string[];
-  files_modified: string[];
-  migration?: null | {
-    error?: string;
-    message?: string;
-    migration_path?: string;
-    phase?: string;
-    success?: boolean;
-  };
-  module?: null | string;
-  resource?: null | string;
-  success: boolean;
-  table_name?: null | string;
-};
-
-type GenerateNextStepKey =
-  | 'checkMigration'
-  | 'migrationAlreadyApplied'
-  | 'migrationNoChanges'
-  | 'restartIfNeeded'
-  | 'reviewCode'
-  | 'runMigration';
 
 type BuilderStoreLike = {
   configId: null | number;
@@ -107,30 +91,7 @@ export function useCodegenBuilderWorkflows(
   const versionPreviewVisible = ref(false);
 
   const resultNextSteps = computed<GenerateNextStepKey[]>(() => {
-    const result = lastResult.value;
-    if (!result) return [];
-
-    const steps: GenerateNextStepKey[] = [];
-    const migration = result.migration;
-    const hasWrittenFiles =
-      (result.files_created?.length ?? 0) > 0 ||
-      (result.files_modified?.length ?? 0) > 0;
-
-    if (migration?.migration_path) {
-      steps.push('checkMigration');
-    }
-    if (migration?.phase === 'noop') {
-      steps.push('migrationNoChanges');
-    } else if (migration?.success) {
-      steps.push('migrationAlreadyApplied');
-    } else if (migration || result.success) {
-      steps.push('runMigration');
-    }
-    if (hasWrittenFiles) {
-      steps.push('restartIfNeeded');
-    }
-    steps.push('reviewCode');
-    return steps;
+    return buildGenerateNextSteps(lastResult.value);
   });
 
   async function buildGeneratePreviewSnapshot() {
@@ -178,24 +139,18 @@ export function useCodegenBuilderWorkflows(
 
     isSaving.value = true;
     try {
-      const name =
-        (json.name as string) ||
-        (json.display_name as string) ||
-        $t('admin.system.codegen.unnamed');
-      const displayNameEn = (json.display_name_en as string) || resource;
+      const payload = buildCodegenSavePayload(json, {
+        unnamedLabel: $t('admin.system.codegen.unnamed'),
+      });
 
       if (
         options.store.configId !== null &&
         options.store.configId !== undefined
       ) {
-        const updated = await updateCodegenConfigApi(options.store.configId, {
-          config_json: json,
-          display_name: displayName,
-          display_name_en: displayNameEn,
-          module,
-          name,
-          resource,
-        });
+        const updated = await updateCodegenConfigApi(
+          options.store.configId,
+          payload,
+        );
         options.store.saveConfig(options.store.configId, json);
         options.configMeta.value = updated;
         options.validationErrors.value = [];
@@ -203,14 +158,7 @@ export function useCodegenBuilderWorkflows(
         return;
       }
 
-      const created = await createCodegenConfigApi({
-        config_json: json,
-        display_name: displayName,
-        display_name_en: displayNameEn,
-        module,
-        name,
-        resource,
-      });
+      const created = await createCodegenConfigApi(payload);
       options.store.saveConfig(created.id, created.config_json || json);
       options.configMeta.value = created;
       options.validationErrors.value = [];
@@ -523,16 +471,13 @@ export function useCodegenBuilderWorkflows(
     if (!raw) return;
     let parsed: Record<string, unknown>;
     try {
-      parsed = yaml.load(raw) as Record<string, unknown>;
+      const maybeParsed = parseImportedYaml(raw);
+      if (!maybeParsed) {
+        message.error($t('admin.system.codegen.builder.importYamlParseError'));
+        return;
+      }
+      parsed = maybeParsed;
     } catch {
-      message.error($t('admin.system.codegen.builder.importYamlParseError'));
-      return;
-    }
-    if (
-      typeof parsed !== 'object' ||
-      parsed === null ||
-      Array.isArray(parsed)
-    ) {
       message.error($t('admin.system.codegen.builder.importYamlParseError'));
       return;
     }
@@ -611,20 +556,6 @@ export function useCodegenBuilderWorkflows(
 
   function formatVersionTime(iso: null | string) {
     return formatRelativeTime(iso) ?? '-';
-  }
-
-  function formatConflictItem(conflict: unknown): string {
-    if (
-      conflict &&
-      typeof conflict === 'object' &&
-      'path' in (conflict as Record<string, unknown>)
-    ) {
-      const path = (conflict as Record<string, unknown>).path;
-      if (typeof path === 'string' && path) {
-        return path;
-      }
-    }
-    return JSON.stringify(conflict);
   }
 
   async function onPreviewVersion(version: CodegenVersionItem) {

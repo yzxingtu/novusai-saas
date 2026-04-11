@@ -16,4 +16,31 @@
 {"file": "backend/tests/test_admin_plugin_read_routes_contract.py", "reason": "Verify /admin/plugins list/detail transport layer still exercises PluginReadModelService facade and returns stable envelopes after facade refactors"}
 {"file": "backend/tests/test_admin_operation_log_routes_contract.py", "reason": "Verify /admin/operation-logs/{id} still exercises OperationLogService/BaseService facade and returns stable success envelope after repository refactors"}
 {"file": "backend/tests/test_admin_system_log_routes_contract.py", "reason": "Verify /admin/system-logs stats/read/delete still return stable success and fail-close contracts after controller/service refactors"}
+{"file": "backend/tests/test_admin_task_routes_contract.py", "reason": "Verify /admin/tasks list/active/retry contracts stay stable after control-plane facade and query-service refactors"}
+{"file": "backend/tests/test_admin_periodic_task_routes_contract.py", "reason": "Verify /admin/periodic-tasks list/create/binding-sync contracts stay stable after controller/query-service split"}
+{"file": "frontend/apps/web-antd/src/components/business/config-form/__tests__/use-config-form-model.test.ts", "reason": "Verify extracted config-form model seam keeps nested JSON hydration, encrypted placeholders, and dirty reset behavior stable"}
+{"file": "frontend/apps/web-antd/src/views/admin/plugins/modules/plugin-config-drawer/__tests__/use-plugin-config-drawer.test.ts", "reason": "Verify extracted plugin-config-drawer seam keeps schema normalization, tenant loading, save flow, and invalid JSON guard stable"}
+{"file": "backend/app/services/common/auth_domains/facades.py", "reason": "Verify AuthService facades are extracted without changing external auth entrypoints"}
+{"file": "backend/app/rbac/services/permission_domains/checks.py", "reason": "Verify permission predicate logic moved out of PermissionService stays stable"}
+{"file": "backend/app/rbac/services/permission_domains/query.py", "reason": "Verify permission tree/list query logic moved out of PermissionService stays stable"}
+{"file": "backend/app/rbac/services/permission_domains/tenant_admin.py", "reason": "Verify tenant-admin permission aggregation moved out of PermissionService stays stable"}
+{"file": "backend/tests/services/test_auth_service.py", "reason": "Verify AuthService facade extraction preserved auth/password/bootstrap behavior"}
+{"file": "backend/tests/rbac/test_permission_service_menu_ai_meta.py", "reason": "Verify permission menu AI metadata stays stable after PermissionService domain extraction"}
+{"file": "backend/tests/services/test_permission_service_tenant_org_node.py", "reason": "Verify tenant org-node permission aggregation stays stable after PermissionService domain extraction"}
+{"file": "backend/tests/codegen/test_codegen_service_orchestration.py", "reason": "Verify extracted codegen execution/workbench orchestration remains stable"}
+{"file": "frontend/apps/web-antd/src/views/admin/system/codegen/__tests__/workbench-utils.test.ts", "reason": "Verify extracted codegen workbench helper rules stay stable"}
+{"file": "frontend/apps/web-antd/src/views/admin/system/codegen/composables/__tests__/workflow-helpers.test.ts", "reason": "Verify extracted codegen workflow helper logic stays stable"}
+{"file": "backend/tests/test_admin_plugin_dependency_contract.py", "reason": "Verify admin plugin dependency routes stay stable after admin/plugins controller thinning"}
+{"file": "backend/tests/test_admin_plugin_marketplace_contract.py", "reason": "Verify plugin marketplace/preview-install routes stay stable after transport extraction"}
+{"file": "backend/tests/test_admin_plugin_repair_fail_close.py", "reason": "Verify plugin repair path still delegates through the new lifecycle facade/lock seam without runtime regression"}
 {"file": ".trellis/tasks/04-10-non-ai-governance-refactor/info.md", "reason": "Verify post-refactor regression hardening notes capture new commits, coverage gaps closed, and pytest temp/cache caveat"}
+{"file": ".trellis/tasks/04-10-non-ai-governance-refactor/ownership-matrix.md", "reason": "Verify .trellis task/spec ownership is reserved to the umbrella owner/docs worker instead of a business workstream"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Verify backend rules now treat thin facades as closed-state seams instead of perpetual hotspots"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify backend quality gates now require transport-level sentinels for split governance controllers when applicable"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Verify frontend governance rules forbid regrowing extracted shell pages/components"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Verify frontend acceptance adds shell follow-up and contract gates for extracted seams"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Verify reuse guidance now protects thin facades as compatibility seams"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Verify cross-layer checklist includes governance route-test isolation guidance"}
+{"file": ".trellis/spec/guides/plugin-runtime-playbook.md", "reason": "Verify plugin runtime playbook now separates admin plugin controller seam responsibilities explicitly"}
+{"file": ".trellis/spec/guides/repo-stabilization-workstreams.md", "reason": "Verify stabilization rules now allow hotspots to close once facades are genuinely thin"}
+{"file": ".trellis/spec/guides/repo-stabilization-workstreams.md", "reason": "Verify stabilization rules keep umbrella task/spec backfill as a dedicated .trellis write set instead of burying it under one feature workstream"}

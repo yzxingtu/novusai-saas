@@ -4,15 +4,19 @@ from __future__ import annotations
 
 import hashlib
 import json
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from filelock import FileLock, Timeout
 
 from app.codegen.config_parser import ConfigParser
 from app.codegen.constants import CODEGEN_PROJECT_ROOT as _PROJECT_ROOT
 from app.codegen.file_writer import FileWriter, WriteResult
 from app.codegen.generator import CodeGenerator, GeneratedFile
 from app.codegen.manifest import ManifestEntry, ManifestManager
+from app.codegen.migration_helper import run_rollback_migration_cleanup
 from app.codegen.rollback import CodegenRollback, RollbackResult
 from app.codegen.zip_exporter import export_zip, format_code
 from app.core.i18n import _
@@ -20,6 +24,31 @@ from app.enums.codegen import CodegenConfigStatusEnum
 from app.exceptions import ConflictException, NotFoundException
 
 from .types import GenerateOutput
+
+_LOCK_DIR_NAME = ".codegen_locks"
+_GLOBAL_LOCK_FILE = "_codegen_global.lock"
+
+
+@contextmanager
+def _acquire_codegen_global_lock(
+    project_root: Path,
+    *,
+    timeout: int = 60,
+):
+    """Guard write/rollback orchestration with one project-wide lock."""
+    lock_dir = project_root / _LOCK_DIR_NAME
+    lock_dir.mkdir(parents=True, exist_ok=True)
+    lock = FileLock(lock_dir / _GLOBAL_LOCK_FILE, timeout=timeout)
+    try:
+        lock.acquire(timeout=timeout)
+    except Timeout as exc:
+        raise ConflictException(message=_("codegen.concurrent_operation")) from exc
+
+    try:
+        yield
+    finally:
+        if lock.is_locked:
+            lock.release()
 
 
 class CodegenExecutionMixin:
@@ -297,6 +326,92 @@ class CodegenExecutionMixin:
             "conflicts": conflicts,
             "error": "; ".join(render_errors) if render_errors else None,
         }
+
+    async def generate_with_auto_migrate(
+        self,
+        config_id_or_json: int | dict[str, Any],
+        *,
+        force: bool = False,
+        auto_migrate: bool = False,
+        project_root: Path | None = None,
+    ) -> dict[str, Any]:
+        """Execute generate flow with lock + optional auto-migrate orchestration."""
+        root = project_root or _PROJECT_ROOT
+        with _acquire_codegen_global_lock(root):
+            output = await self.generate(
+                config_id_or_json,
+                force=force,
+                project_root=root,
+            )
+            result = output.result
+            data: dict[str, Any] = {
+                "success": result.success,
+                "files_created": result.files_created,
+                "files_modified": result.files_modified,
+                "conflicts": result.conflicts,
+                "errors": result.errors,
+                "backup_dir": result.backup_dir,
+                "config_id": output.config_id,
+                "resource": output.resource,
+                "module": output.module,
+                "table_name": output.table_name,
+            }
+
+            if auto_migrate and result.success and output.resource:
+                await self._apply_auto_migrate_result(
+                    output=output,
+                    response_data=data,
+                    project_root=root,
+                )
+
+            return data
+
+    async def _apply_auto_migrate_result(
+        self,
+        *,
+        output: GenerateOutput,
+        response_data: dict[str, Any],
+        project_root: Path,
+    ) -> None:
+        """Sync auto-migrate side effects back into manifest/config state."""
+        resource = output.resource
+        if not resource:
+            return
+
+        migrate_result = self.run_auto_migrate(resource, project_root)
+        response_data["migration"] = migrate_result
+        if migrate_result.get("success"):
+            migration_path = migrate_result.get("migration_path")
+            if migration_path:
+                ManifestManager(project_root).update_migration_file(
+                    resource,
+                    migration_path,
+                )
+            if output.config_id is not None:
+                await self.update(
+                    output.config_id,
+                    {
+                        "status": CodegenConfigStatusEnum.APPLIED.value,
+                        "last_error": None,
+                    },
+                )
+            return
+
+        err_msg = (
+            f"auto_migrate failed at {migrate_result.get('phase', 'unknown')}: "
+            f"{migrate_result.get('error', 'unknown error')}"
+        )
+        response_data["success"] = False
+        response_data["errors"] = list(response_data.get("errors") or [])
+        response_data["errors"].append(err_msg)
+        if output.config_id is not None:
+            await self.update(
+                output.config_id,
+                {
+                    "status": CodegenConfigStatusEnum.GENERATED.value,
+                    "last_error": err_msg,
+                },
+            )
 
     async def generate(
         self,
@@ -621,6 +736,120 @@ class CodegenExecutionMixin:
                     resource=config.resource, force=force, dry_run=dry_run
                 )
         return result
+
+    async def rollback_config_with_cleanup(
+        self,
+        config_id: int,
+        *,
+        resource: str,
+        migration_file: str | None = None,
+        force: bool = False,
+        dry_run: bool = False,
+        project_root: Path | None = None,
+    ) -> dict[str, Any]:
+        """Rollback a generated config with lock + manifest cleanup orchestration."""
+        root = project_root or _PROJECT_ROOT
+        with _acquire_codegen_global_lock(root):
+            result = await self.rollback_async(
+                config_id,
+                force=force,
+                dry_run=dry_run,
+                project_root=root,
+            )
+            return await self._finalize_rollback_cleanup(
+                result=result,
+                resource=resource,
+                migration_file=migration_file,
+                config_id=config_id,
+                force=force,
+                dry_run=dry_run,
+                project_root=root,
+            )
+
+    async def rollback_resource_with_cleanup(
+        self,
+        resource: str,
+        *,
+        migration_file: str | None = None,
+        force: bool = False,
+        dry_run: bool = False,
+        project_root: Path | None = None,
+    ) -> dict[str, Any]:
+        """Rollback a generated resource with lock + manifest cleanup orchestration."""
+        root = project_root or _PROJECT_ROOT
+        with _acquire_codegen_global_lock(root):
+            rb = CodegenRollback(root)
+            result = rb.rollback(resource=resource, force=force, dry_run=dry_run)
+            return await self._finalize_rollback_cleanup(
+                result=result,
+                resource=resource,
+                migration_file=migration_file,
+                config_id=None,
+                force=force,
+                dry_run=dry_run,
+                project_root=root,
+            )
+
+    async def _finalize_rollback_cleanup(
+        self,
+        *,
+        result: RollbackResult,
+        resource: str,
+        migration_file: str | None,
+        config_id: int | None,
+        force: bool,
+        dry_run: bool,
+        project_root: Path,
+    ) -> dict[str, Any]:
+        """Apply manifest cleanup + config status sync after file rollback."""
+        manifest = ManifestManager(project_root)
+        migration_cleaned = False
+
+        if not dry_run and result.success:
+            migration_cleaned = run_rollback_migration_cleanup(
+                resource=resource,
+                migration_file=migration_file,
+                project_root=project_root,
+                force_drop=force,
+            )
+
+        config = None
+        if not dry_run:
+            if config_id is not None:
+                config = await self.get_by_id(config_id)
+            else:
+                config = await self.get_by_resource(resource)
+
+        overall_success = result.success
+        errors = list(result.errors)
+        if not dry_run and result.success:
+            if migration_cleaned:
+                manifest.remove_entry(resource)
+                if config:
+                    await self.update(
+                        config.id,
+                        {
+                            "status": CodegenConfigStatusEnum.ROLLED_BACK.value,
+                            "generated_files": None,
+                            "last_error": None,
+                        },
+                    )
+            else:
+                overall_success = False
+                rollback_err = _("codegen.rollback.cleanup_failed")
+                errors.append(rollback_err)
+                if config:
+                    await self.update(config.id, {"last_error": rollback_err})
+
+        return {
+            "success": overall_success,
+            "files_deleted": result.files_deleted,
+            "files_modified": result.files_modified,
+            "files_skipped": result.files_skipped,
+            "manual_steps": result.manual_steps,
+            "errors": errors,
+            "migration_cleaned": migration_cleaned,
+        }
 
     async def download(self, config_id: int, project_root: Path | None = None) -> bytes:
         """

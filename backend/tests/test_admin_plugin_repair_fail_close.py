@@ -211,7 +211,7 @@ async def test_admin_repair_endpoint_delegates_to_lifecycle(
     def _build_lifecycle(*_args, **_kwargs):
         return lifecycle
 
-    monkeypatch.setattr("app.plugins.lifecycle.PluginLifecycle", _build_lifecycle)
+    monkeypatch.setattr("app.api.admin.plugins.PluginLifecycle", _build_lifecycle)
 
     endpoint = _get_endpoint("/plugins/{plugin_id}/repair", "POST")
     response = await endpoint(77, AsyncMock(), SimpleNamespace(id=9))

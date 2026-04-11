@@ -57,6 +57,9 @@ Primary references:
 - For governance refactors, prefer `facade + parts` over a mega helper:
   backend facade keeps stable import/route/CLI contract, parts modules own
   concrete responsibilities (query, orchestration, runtime, cleanup).
+- When a governance-heavy controller or facade is split, add at least one
+  transport-level or contract-level sentinel test so regressions are caught
+  above the service mock layer.
 - For plugin lifecycle/runtime governance, prefer `facade + mixin/parts`:
   facade keeps compatibility exports and assembly, while orchestrator parts own
   lifecycle execution paths. Current reference shape:
@@ -74,6 +77,10 @@ Primary references:
 - Many service tests instantiate services with `__new__` and inject `db`,
   `tenant_id`, and `repo` manually; follow that existing pattern.
 - Async service tests should use `pytest.mark.asyncio`.
+- If a route-level test only needs one controller module but the package
+  `__init__` imports unrelated out-of-scope modules, direct-load the target
+  file instead of broad-importing the whole package. Keep the test focused on
+  the touched transport contract.
 - For uploads, quotas, traces, plugins, and domain isolation, include at least
   one real-path validation step in addition to unit tests.
 - New RBAC-aware controllers should update `@permission_resource`,

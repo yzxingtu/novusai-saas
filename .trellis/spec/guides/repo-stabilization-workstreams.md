@@ -29,8 +29,12 @@ When this guide is active:
    owned by a workstream.
 5. Freeze any shared contracts or facade modules before parallel implementation
    starts.
+6. Reserve `.trellis/tasks/{umbrella}/**` and `.trellis/spec/**` for the
+   umbrella owner or an explicitly assigned docs-only worker when spec backfill
+   is part of scope. Do not bury task/spec ownership inside one business
+   workstream row.
 
-Do not continue broad implementation until those five control-plane steps are
+Do not continue broad implementation until those six control-plane steps are
 done.
 
 ## Workstream Rules
@@ -43,6 +47,13 @@ done.
 - If a workstream extracts a new facade, query service, or helper module from an
   owned giant file, add that new file to the ownership matrix in the same
   change; extracted files are not implicitly owned.
+- Umbrella task docs/spec backfill is its own write set. Keep it under the
+  umbrella owner or a docs-only worker; do not silently attach `.trellis/**`
+  to a product workstream such as control-plane.
+- If a file has already been reduced to a thin compatibility facade, mark the
+  hotspot as closed in the umbrella notes and move the remaining work to the
+  heavier extracted parts. Do not keep reopening the facade just because an
+  older checklist still names that original file.
 - Do not let “while I am here” edits leak into a nearby subsystem.
 - Shared contracts may change only through the umbrella owner or a worker
   explicitly assigned to that shared seam.

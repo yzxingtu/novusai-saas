@@ -39,21 +39,41 @@ function createOptions() {
   };
 }
 
+function createChallengeResponse(challengeId = "challenge-1") {
+  return {
+    challenge_id: challengeId,
+    payload: {
+      board_image: "data:image/png;base64,board",
+      canvas_height: 180,
+      canvas_width: 320,
+      piece_height: 48,
+      piece_image: "data:image/png;base64,piece",
+      piece_top: 32,
+      piece_width: 48,
+      tolerance_px: 6,
+    },
+  };
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+
+  const promise = new Promise<T>((innerResolve, innerReject) => {
+    resolve = innerResolve;
+    reject = innerReject;
+  });
+
+  return {
+    promise,
+    reject,
+    resolve,
+  };
+}
+
 describe("use-slider-captcha-challenge", () => {
   it("loads challenge and forwards difficulty", async () => {
-    const post = vi.fn().mockResolvedValue({
-      challenge_id: "challenge-1",
-      payload: {
-        board_image: "data:image/png;base64,board",
-        canvas_height: 180,
-        canvas_width: 320,
-        piece_height: 48,
-        piece_image: "data:image/png;base64,piece",
-        piece_top: 32,
-        piece_width: 48,
-        tolerance_px: 6,
-      },
-    });
+    const post = vi.fn().mockResolvedValue(createChallengeResponse());
 
     const state = useSliderCaptchaChallenge(() => ({ post }), createOptions());
 
@@ -85,5 +105,53 @@ describe("use-slider-captcha-challenge", () => {
     );
     expect(state.statusKey.value).toBe("retry");
     expect(state.loading.value).toBe(false);
+  });
+
+  it("ignores stale challenge responses when a newer load wins", async () => {
+    const firstRequest = createDeferred<
+      ReturnType<typeof createChallengeResponse>
+    >();
+    const secondRequest = createDeferred<
+      ReturnType<typeof createChallengeResponse>
+    >();
+    const post = vi
+      .fn()
+      .mockReturnValueOnce(firstRequest.promise)
+      .mockReturnValueOnce(secondRequest.promise);
+    const options = createOptions();
+
+    const state = useSliderCaptchaChallenge(() => ({ post }), options);
+
+    const firstLoad = state.loadChallenge();
+    const secondLoad = state.loadChallenge();
+
+    secondRequest.resolve(createChallengeResponse("challenge-2"));
+    await secondLoad;
+
+    firstRequest.resolve(createChallengeResponse("challenge-1"));
+    await firstLoad;
+
+    expect(state.challengeId.value).toBe("challenge-2");
+    expect(options.updateDisplayWidth).toHaveBeenCalledTimes(1);
+    expect(options.updateModalPosition).toHaveBeenCalledTimes(1);
+    expect(state.statusKey.value).toBe("default");
+    expect(state.loading.value).toBe(false);
+  });
+
+  it("rerenders with the previous scale ratio and updates modal position when visible", async () => {
+    const options = createOptions();
+    const post = vi.fn().mockResolvedValue(createChallengeResponse());
+
+    const state = useSliderCaptchaChallenge(() => ({ post }), options);
+
+    await state.loadChallenge();
+    options.getScaleRatio = vi.fn(() => 0.75);
+
+    await state.rerenderExistingChallenge();
+
+    expect(options.syncDragAfterResize).toHaveBeenCalledWith(0.75);
+    expect(options.updateDisplayWidth).toHaveBeenCalledTimes(2);
+    expect(options.updateModalPosition).toHaveBeenCalledTimes(2);
+    expect(state.detectedTargetLeft.value).toBe(42);
   });
 });

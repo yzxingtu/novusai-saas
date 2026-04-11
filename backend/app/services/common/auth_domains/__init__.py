@@ -4,6 +4,12 @@ from app.services.common.auth_domains.admin_auth import AuthAdminDomain
 from app.services.common.auth_domains.captcha_verification import (
     AuthCaptchaVerificationMixin,
 )
+from app.services.common.auth_domains.facades import (
+    AdminAuthFacade,
+    TenantAdminAuthFacade,
+    TenantUserAuthFacade,
+    TokenSessionFacade,
+)
 from app.services.common.auth_domains.logging_bootstrap import (
     AuthLoggingBootstrapDomain,
 )
@@ -20,4 +26,8 @@ __all__ = [
     "AuthTenantAdminDomain",
     "AuthTenantUserDomain",
     "AuthCaptchaVerificationMixin",
+    "TokenSessionFacade",
+    "AdminAuthFacade",
+    "TenantAdminAuthFacade",
+    "TenantUserAuthFacade",
 ]

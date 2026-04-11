@@ -17,4 +17,33 @@
 {"file": "backend/tests/test_admin_plugin_read_routes_contract.py", "reason": "Add admin plugin route sentinels that keep /plugins list/detail traversing PluginReadModelService facade and paginated/success transport contracts"}
 {"file": "backend/tests/test_admin_operation_log_routes_contract.py", "reason": "Add admin operation-log route sentinel that keeps detail reads traversing OperationLogService/BaseService/OperationLogRepository facade chain"}
 {"file": "backend/tests/test_admin_system_log_routes_contract.py", "reason": "Add admin system-log route sentinels for stats/read/delete contracts so UI-facing success and fail-close behavior stay stable"}
+{"file": "backend/tests/test_admin_task_routes_contract.py", "reason": "Add admin task route sentinels for list/active/retry transport contracts so the thin controller + query-service path stays stable"}
+{"file": "backend/tests/test_admin_periodic_task_routes_contract.py", "reason": "Add admin periodic-task route sentinels for list/create/binding-sync transport contracts after controller/query-service split"}
+{"file": "frontend/apps/web-antd/src/components/business/config-form/__tests__/use-config-form-model.test.ts", "reason": "Add seam tests for extracted config-form model logic: nested JSON hydration, encrypted masking, and dirty snapshot reset"}
+{"file": "frontend/apps/web-antd/src/views/admin/plugins/modules/plugin-config-drawer/__tests__/use-plugin-config-drawer.test.ts", "reason": "Add seam tests for plugin-config-drawer composable normalization, tenant assignment loading, structured save, and invalid JSON guard"}
+{"file": "backend/app/services/common/auth_domains/facades.py", "reason": "Extract AuthService compatibility facades so auth_service.py stays focused on domain assembly and delegation"}
+{"file": "backend/app/rbac/services/permission_domains/checks.py", "reason": "Extract pure permission predicate helpers from PermissionService into dedicated internal domain"}
+{"file": "backend/app/rbac/services/permission_domains/query.py", "reason": "Extract permission tree/list query orchestration from PermissionService into dedicated internal domain"}
+{"file": "backend/app/rbac/services/permission_domains/tenant_admin.py", "reason": "Extract tenant-admin permission aggregation from PermissionService into dedicated internal domain"}
+{"file": "backend/app/api/admin/codegen.py", "reason": "Thin admin codegen controller by moving generate/rollback/history orchestration into service parts"}
+{"file": "backend/app/services/system/codegen_service_parts/execution_mixin.py", "reason": "Own generate/rollback/preview execution orchestration behind CodegenService facade"}
+{"file": "backend/app/services/system/codegen_service_parts/workbench_mixin.py", "reason": "Own workbench/history orchestration behind CodegenService facade"}
+{"file": "backend/tests/codegen/test_codegen_service_orchestration.py", "reason": "Add backend orchestration coverage for the extracted codegen execution/workbench seams"}
+{"file": "frontend/apps/web-antd/src/views/admin/system/codegen/workbench-utils.ts", "reason": "Extract workbench rule shaping from the codegen page shell"}
+{"file": "frontend/apps/web-antd/src/views/admin/system/codegen/composables/workflow-helpers.ts", "reason": "Extract builder workflow helper logic from use-codegen-builder-workflows.ts"}
+{"file": "frontend/apps/web-antd/src/views/admin/system/codegen/__tests__/workbench-utils.test.ts", "reason": "Lock codegen workbench helper behavior with focused frontend seam tests"}
+{"file": "frontend/apps/web-antd/src/views/admin/system/codegen/composables/__tests__/workflow-helpers.test.ts", "reason": "Lock codegen workflow helper behavior with focused frontend seam tests"}
+{"file": "backend/app/api/admin/plugin_install_preview.py", "reason": "Move plugin marketplace/upload preview-install transport helpers out of admin plugins controller"}
+{"file": "backend/app/api/admin/plugin_admin_contracts.py", "reason": "Move admin plugin read-route contracts and read-side helpers out of admin plugins controller"}
+{"file": "backend/app/plugins/registry_runtime_extensions.py", "reason": "Extract registry runtime extension families from registry.py to keep the registry facade thin"}
 {"file": ".trellis/tasks/04-10-non-ai-governance-refactor/info.md", "reason": "Record post-refactor regression hardening commits and environment-specific pytest temp/cache workaround"}
+{"file": ".trellis/tasks/04-10-non-ai-governance-refactor/ownership-matrix.md", "reason": "Move umbrella task/spec ownership out of agent-1 and reserve .trellis control-plane files for the umbrella owner/docs worker"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Codify thin-facade closed-state guidance and backend examples for repository/codegen/plugin-bundled services"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Codify transport-level sentinel tests and direct-load route-test pattern for split governance controllers"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Codify thin shell follow-on rule for host and bundled-plugin frontend pages/components"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Codify shell follow-up gate and contract gate for extracted frontend seams"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Record thin-facade-as-reuse-seam rule so refactors do not re-inflate compatibility shells"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Record governance test seam guidance for route-level controller contract tests"}
+{"file": ".trellis/spec/guides/plugin-runtime-playbook.md", "reason": "Expand plugin admin controller seam map and anti-patterns for oversized host plugin APIs"}
+{"file": ".trellis/spec/guides/repo-stabilization-workstreams.md", "reason": "Codify that thin facades can close a hotspot and shift remaining work to extracted parts"}
+{"file": ".trellis/spec/guides/repo-stabilization-workstreams.md", "reason": "Require umbrella-owned .trellis task/spec write sets so control-plane docs are not silently attached to a business workstream"}

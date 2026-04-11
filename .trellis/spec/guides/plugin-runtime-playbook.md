@@ -105,6 +105,10 @@ Do not skip validation just because the plugin uses a slimmer standalone toolcha
   - lifecycle layer: install/enable/disable/sync orchestration
   - cleanup layer: rollback/remove and safety checks
   - transport adapters: API/CLI request-to-service mapping
+  - admin plugin controller seam map:
+    dependency subroutes, install-preview helpers, read-model query service,
+    cleanup/audit services, and lifecycle/runtime services should stay separate
+    instead of collapsing back into one giant `plugins.py`
 - Plugin frontend:
   - route/page shell: layout + section composition
   - composables: loading/query/form workflows
@@ -133,3 +137,6 @@ At minimum, verify:
 - Depending on a deleted compatibility playbook instead of this guide
 - Letting one plugin host file own install, enable, migration, sync, rollback,
   and audit logic all at once
+- Letting one host controller file own marketplace transport, zip extraction,
+  dependency previews, cleanup flows, tenant assignment, runtime audit, and
+  license workflows all at once

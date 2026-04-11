@@ -243,6 +243,66 @@ class LifecycleOrchestrator(LifecycleOrchestratorMaintenanceMixin):
             action=action,
         )
 
+    async def update_menu_overrides_impl(
+        self,
+        plugin_id: int,
+        *,
+        menu_overrides: dict[str, dict[str, str]],
+        refresh_runtime: bool,
+    ) -> None:
+        """Persist plugin menu overrides and optionally re-register enabled menus."""
+        from sqlalchemy import select
+
+        from app.enums.plugin import PluginStatusEnum
+        from app.exceptions.base import BusinessException, NotFoundException
+        from app.models.system.plugin import Plugin as PluginModel
+        from app.plugins._extension_registrar import register_navigation_extensions
+        from app.plugins.registry import ExtensionRegistry
+        from app.rbac.sync import PermissionSyncService
+
+        result = await self._lifecycle._db.execute(
+            select(PluginModel).where(
+                PluginModel.id == plugin_id,
+                PluginModel.is_deleted.is_(False),
+            )
+        )
+        plugin = result.scalar_one_or_none()
+        if plugin is None:
+            raise NotFoundException(
+                message=_("plugin.error.not_found_by_id").format(plugin_id=plugin_id)
+            )
+
+        config = dict(plugin.config or {})
+        config["menu_overrides"] = menu_overrides
+        plugin.config = config
+        await self._lifecycle._db.flush()
+
+        if not refresh_runtime or plugin.status != PluginStatusEnum.ENABLED.value:
+            return
+
+        registry = ExtensionRegistry.get_instance()
+        registry.unregister_by_type(plugin.name, "menu")
+
+        manifest = self._lifecycle._loader.load_manifest(plugin.name)
+        try:
+            register_navigation_extensions(
+                registry,
+                manifest,
+                plugin.name,
+                menu_overrides=menu_overrides,
+            )
+        except Exception as exc:
+            registry.unregister_by_type(plugin.name, "menu")
+            raise BusinessException(
+                message=resolve_public_error_message(
+                    exc,
+                    fallback_message=_("plugin.error.menu_config_update_failed"),
+                ),
+            ) from exc
+
+        sync_service = PermissionSyncService(self._lifecycle._db)
+        await sync_service.sync_plugin_permissions(plugin.name)
+
     async def enable_impl(
         self,
         plugin_id: int,

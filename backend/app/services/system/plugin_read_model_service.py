@@ -39,6 +39,16 @@ class PluginReadModelService:
             self._plugin_service = PluginService(self._db)
         return self._plugin_service
 
+    async def _get_plugin_or_raise(self, plugin_id: int) -> Plugin:
+        plugin = await self._get_plugin_service().get_by_id(plugin_id)
+        if plugin is None:
+            raise NotFoundException(
+                message=_("plugin.error.not_found_by_id").format(
+                    plugin_id=plugin_id,
+                )
+            )
+        return plugin
+
     async def assert_name_available(self, plugin_name: str) -> None:
         """Raise if a plugin with the same name is already installed."""
         existing = await self._get_plugin_service().get_by_name(plugin_name)
@@ -282,13 +292,7 @@ class PluginReadModelService:
     ) -> dict[str, Any]:
         """Build admin plugin detail payload with README and dependency status."""
         service = self._get_plugin_service()
-        plugin = await service.get_by_id(plugin_id)
-        if plugin is None:
-            raise NotFoundException(
-                message=_("plugin.error.not_found_by_id").format(
-                    plugin_id=plugin_id,
-                )
-            )
+        plugin = await self._get_plugin_or_raise(plugin_id)
 
         data = self._mask_sensitive_config(plugin.to_dict())
         dependency_status = await service.get_dependency_status(plugin)
@@ -317,6 +321,15 @@ class PluginReadModelService:
             )
         )
         return list(result.scalars().all())
+
+    async def list_ai_feature_assignment_items(
+        self,
+        plugin_id: int,
+    ) -> list[dict[str, Any]]:
+        """Build plugin AI feature assignment payloads by plugin id."""
+        plugin = await self._get_plugin_or_raise(plugin_id)
+        assignments = await self.list_ai_feature_assignments(plugin.name)
+        return [assignment.to_dict() for assignment in assignments]
 
     async def get_known_storage_drivers(self) -> list[dict[str, Any]]:
         """Load declared plugin storage drivers for config pages."""
@@ -469,5 +482,50 @@ class PluginReadModelService:
             manifest_data,
             require_enabled=require_enabled,
         )
+
+    async def list_plugin_versions(self, plugin_id: int) -> list[dict[str, Any]]:
+        """List plugin versions for admin version management."""
+        await self._get_plugin_or_raise(plugin_id)
+
+        from app.plugins.version_manager import VersionManager
+
+        manager = VersionManager(self._db)
+        return await manager.list_versions(plugin_id)
+
+    async def list_tenant_assignment_items(
+        self,
+        plugin_id: int,
+    ) -> list[dict[str, Any]]:
+        """List tenant assignments for the plugin."""
+        plugin = await self._get_plugin_or_raise(plugin_id)
+        assignments = await self._get_plugin_service().repo.get_tenant_assignments(
+            plugin.id
+        )
+        return [assignment.to_dict() for assignment in assignments]
+
+    async def get_plugin_license_status(self, plugin_id: int) -> dict[str, Any]:
+        """Load plugin license status payload for admin surfaces."""
+        await self._get_plugin_or_raise(plugin_id)
+
+        from app.plugins.license import get_license_status_by_id
+
+        return await get_license_status_by_id(plugin_id, self._db)
+
+    async def list_plugin_backups(self, plugin_id: int) -> list[dict[str, Any]]:
+        """List backup snapshots for the plugin."""
+        import asyncio as _asyncio
+
+        from app.plugins.backup import list_backups as _list
+
+        plugin = await self._get_plugin_or_raise(plugin_id)
+        return await _asyncio.to_thread(_list, plugin.name)
+
+    async def get_plugin_health_status(self, plugin_id: int) -> dict[str, Any]:
+        """Load runtime health status for the plugin."""
+        from app.plugins.health import PluginHealthMonitor
+
+        plugin = await self._get_plugin_or_raise(plugin_id)
+        monitor = PluginHealthMonitor(self._db)
+        return await monitor.get_health_status(plugin.name)
 
 __all__ = ["PluginReadModelService"]

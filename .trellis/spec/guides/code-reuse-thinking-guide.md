@@ -40,6 +40,9 @@ Practical rule:
   a new miscellaneous toolbox to avoid proper boundary extraction
 - plugin/runtime governance can use `facade + mixin/parts` where mixins encode
   stable concern slices and orchestrator parts own execution choreography
+- once a facade becomes the stable reuse seam, protect it as the compatibility
+  surface and add new behavior in the focused parts instead of inflating the
+  facade again
 
 Warning signs that cohesion/coupling is drifting:
 
@@ -59,6 +62,8 @@ Default large-file remedy:
 - frontend page: keep the route shell, move state/process logic into composables
   and heavy visual subsections into section components
 - shared layers: split by capability family, not by "misc/common/utils"
+- thin facades are a valid end state; the goal is responsibility clarity, not
+  to keep recursively splitting already-thin compatibility shells
 
 Recommended governance seams:
 

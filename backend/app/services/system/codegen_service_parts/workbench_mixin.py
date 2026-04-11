@@ -163,6 +163,29 @@ class CodegenWorkbenchMixin:
         )
         return self.build_delete_guard(config, manifest_present=manifest_present)
 
+    def list_manifest_history(
+        self,
+        *,
+        resource: str | None = None,
+        project_root: Path | None = None,
+    ) -> list[dict[str, Any]]:
+        """Expose manifest-backed codegen history as a read model."""
+        root = project_root or _PROJECT_ROOT
+        manifest = ManifestManager(root)
+        entries = manifest.list_entries()
+        if resource:
+            entries = [entry for entry in entries if entry.resource == resource]
+        return [
+            {
+                "resource": entry.resource,
+                "module": entry.module,
+                "generated_at": entry.generated_at,
+                "config_id": entry.config_id,
+                "file_count": len(entry.files),
+            }
+            for entry in entries
+        ]
+
     async def assert_can_delete(
         self,
         config_id: int,
@@ -179,4 +202,3 @@ class CodegenWorkbenchMixin:
                 "reason_code": guard.reason_code,
             },
         )
-

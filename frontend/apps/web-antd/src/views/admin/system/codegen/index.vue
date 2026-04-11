@@ -9,7 +9,6 @@
  */
 import type {
   CodegenConfigInfo,
-  CodegenWorkbenchItem,
   CodegenWorkbenchSummary,
 } from '#/api/admin/codegen';
 
@@ -53,35 +52,21 @@ import {
 } from './data';
 import DbTableImportModal from './modules/DbTableImportModal.vue';
 import PresetSelectModal from './modules/PresetSelectModal.vue';
+import {
+  buildWorkbenchIssues,
+  buildWorkbenchStats,
+  getActionErrorMessage,
+  getActiveWorkbenchItems,
+  getFocusSeverityClasses,
+  getFocusSeverityIcon,
+  getWorkbenchFilterConfig,
+  isStatusWorkbenchFilter,
+  type WorkbenchFilterKey,
+  type WorkbenchFocusItem,
+  type WorkbenchStat,
+} from './workbench-utils';
 
 defineOptions({ name: 'AdminSystemCodegenList' });
-
-type WorkbenchStat = {
-  hint: string;
-  icon: string;
-  key: Exclude<WorkbenchFilterKey, 'all'>;
-  label: string;
-  tone: string;
-  value: number;
-};
-
-type WorkbenchFilterKey =
-  | 'all'
-  | 'applied'
-  | 'attention'
-  | 'draft'
-  | 'generated'
-  | 'rollback';
-
-type WorkbenchFocusItem = {
-  id: number;
-  manifestPresent: boolean;
-  message: string;
-  name: string;
-  resource: string;
-  severity: 'error' | 'info' | 'warning';
-  status: string;
-};
 
 const router = useRouter();
 const dbImportVisible = ref(false);
@@ -90,207 +75,29 @@ const workbenchLoading = ref(false);
 const workbenchSummary = ref<CodegenWorkbenchSummary | null>(null);
 const activeWorkbenchFilter = ref<WorkbenchFilterKey>('all');
 
-const STATUS_FILTER_KEYS = ['draft', 'generated', 'applied'] as const;
-
-function isStatusWorkbenchFilter(
-  key: WorkbenchFilterKey,
-): key is (typeof STATUS_FILTER_KEYS)[number] {
-  return STATUS_FILTER_KEYS.includes(
-    key as (typeof STATUS_FILTER_KEYS)[number],
-  );
-}
-
-function buildWorkbenchItemMessage(item: CodegenWorkbenchItem): string {
-  if (item.last_error) return item.last_error;
-  if (item.delete_allowed === false && item.delete_reason_message) {
-    return item.delete_reason_message;
-  }
-  if (item.last_generated_at) {
-    return [
-      getManifestStatusText(Boolean(item.manifest_present)),
-      formatRelativeTime(item.last_generated_at) ||
-        formatDate(item.last_generated_at) ||
-        '—',
-    ].join(' · ');
-  }
-  return $t('admin.system.codegen.workbench.neverGenerated');
-}
-
 function extractCheckboxChecked(event: unknown): boolean {
   return Boolean(
     (event as { target?: { checked?: boolean } })?.target?.checked,
   );
 }
-
-function getActionErrorMessage(error: unknown, fallback: string): string {
-  const response = (
-    error as {
-      message?: string;
-      response?: {
-        data?: {
-          detail?: string | { error?: string };
-          message?: string;
-        };
-      };
-    }
-  )?.response?.data;
-
-  if (typeof response?.message === 'string' && response.message.trim()) {
-    return response.message;
-  }
-  if (typeof response?.detail === 'string' && response.detail.trim()) {
-    return response.detail;
-  }
-  if (
-    typeof response?.detail === 'object' &&
-    typeof response.detail?.error === 'string' &&
-    response.detail.error.trim()
-  ) {
-    return response.detail.error;
-  }
-  if (
-    typeof (error as { message?: string })?.message === 'string' &&
-    (error as { message?: string }).message?.trim()
-  ) {
-    return (error as { message?: string }).message as string;
-  }
-  return fallback;
-}
-
-function toWorkbenchFocusItem(item: CodegenWorkbenchItem): WorkbenchFocusItem {
-  let severity: WorkbenchFocusItem['severity'] = 'info';
-  if (item.last_error) {
-    severity = 'error';
-  } else if (item.delete_allowed === false || !item.manifest_present) {
-    severity = 'warning';
-  }
-
-  return {
-    id: item.id,
-    name: item.name,
-    resource: item.resource,
-    status: item.status,
-    message: buildWorkbenchItemMessage(item),
-    manifestPresent: Boolean(item.manifest_present),
-    severity,
-  };
-}
-
-function getFocusSeverityIcon(
-  severity: WorkbenchFocusItem['severity'],
-): string {
-  if (severity === 'error') return 'lucide:triangle-alert';
-  if (severity === 'warning') return 'lucide:shield-alert';
-  return 'lucide:circle-dot';
-}
-
-function getFocusSeverityClasses(
-  severity: WorkbenchFocusItem['severity'],
-): string {
-  if (severity === 'error') {
-    return 'border-rose-200 bg-rose-50/80 text-rose-700';
-  }
-  if (severity === 'warning') {
-    return 'border-amber-200 bg-amber-50/80 text-amber-700';
-  }
-  return 'border-slate-200 bg-slate-50/80 text-slate-700';
-}
-
-const workbenchStats = computed<WorkbenchStat[]>(() => {
-  const stats = workbenchSummary.value?.stats;
-  return [
-    {
-      key: 'draft',
-      icon: 'lucide:file-pen-line',
-      tone: 'text-slate-700 bg-slate-100',
-      value: stats?.draft ?? 0,
-      label: $t('admin.system.codegen.workbench.draft'),
-      hint: $t('admin.system.codegen.workbench.draftHint'),
-    },
-    {
-      key: 'generated',
-      icon: 'lucide:sparkles',
-      tone: 'text-sky-700 bg-sky-100',
-      value: stats?.generated ?? 0,
-      label: $t('admin.system.codegen.workbench.generated'),
-      hint: $t('admin.system.codegen.workbench.generatedHint'),
-    },
-    {
-      key: 'applied',
-      icon: 'lucide:badge-check',
-      tone: 'text-emerald-700 bg-emerald-100',
-      value: stats?.applied ?? 0,
-      label: $t('admin.system.codegen.workbench.applied'),
-      hint: $t('admin.system.codegen.workbench.appliedHint'),
-    },
-    {
-      key: 'rollback',
-      icon: 'lucide:undo-2',
-      tone: 'text-amber-700 bg-amber-100',
-      value: stats?.rollback ?? 0,
-      label: $t('admin.system.codegen.workbench.rollbackReady'),
-      hint: $t('admin.system.codegen.workbench.rollbackReadyHint'),
-    },
-    {
-      key: 'attention',
-      icon: 'lucide:triangle-alert',
-      tone: 'text-rose-700 bg-rose-100',
-      value: stats?.attention ?? 0,
-      label: $t('admin.system.codegen.workbench.attention'),
-      hint: $t('admin.system.codegen.workbench.attentionHint'),
-    },
-  ];
-});
-
-const workbenchIssues = computed<WorkbenchFocusItem[]>(() => {
-  const items = workbenchSummary.value?.sections.attention ?? [];
-  return items.map((item) => toWorkbenchFocusItem(item));
-});
-
-function getWorkbenchFilterConfig(key: WorkbenchFilterKey) {
-  if (key === 'all') {
-    return {
-      label: $t('admin.system.codegen.workbench.recentIssues'),
-      hint: $t('admin.system.codegen.workbench.recentIssuesHint'),
-      mode: 'default' as const,
-    };
-  }
-  const stat = workbenchStats.value.find((item) => item.key === key);
-  return {
-    label: stat?.label ?? $t('admin.system.codegen.workbench.recentIssues'),
-    hint: stat?.hint ?? $t('admin.system.codegen.workbench.recentIssuesHint'),
-    mode: isStatusWorkbenchFilter(key)
-      ? ('table' as const)
-      : ('panel' as const),
-  };
-}
-
-const activeWorkbenchConfig = computed(() =>
-  getWorkbenchFilterConfig(activeWorkbenchFilter.value),
+const workbenchStats = computed<WorkbenchStat[]>(() =>
+  buildWorkbenchStats(workbenchSummary.value),
 );
 
-const activeWorkbenchItems = computed<WorkbenchFocusItem[]>(() => {
-  switch (activeWorkbenchFilter.value) {
-    case 'applied':
-    case 'draft':
-    case 'generated': {
-      return (
-        workbenchSummary.value?.sections[activeWorkbenchFilter.value] ?? []
-      ).map((item) => toWorkbenchFocusItem(item));
-    }
-    case 'attention': {
-      return workbenchIssues.value;
-    }
-    case 'rollback': {
-      return (workbenchSummary.value?.sections.rollback ?? []).map((item) =>
-        toWorkbenchFocusItem(item),
-      );
-    }
-    default: {
-      return workbenchIssues.value;
-    }
-  }
-});
+const workbenchIssues = computed<WorkbenchFocusItem[]>(() =>
+  buildWorkbenchIssues(workbenchSummary.value),
+);
+
+const activeWorkbenchConfig = computed(() =>
+  getWorkbenchFilterConfig(activeWorkbenchFilter.value, workbenchStats.value),
+);
+
+const activeWorkbenchItems = computed<WorkbenchFocusItem[]>(() =>
+  getActiveWorkbenchItems(
+    workbenchSummary.value,
+    activeWorkbenchFilter.value,
+  ),
+);
 
 const activeWorkbenchCount = computed(() => {
   if (activeWorkbenchFilter.value === 'all') {

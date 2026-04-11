@@ -1,21 +1,18 @@
-import SliderCaptcha from './SliderCaptcha.vue';
-import { enUS, zhCN } from './locales';
-import type { SliderCaptchaSharedAPI } from './types';
+import SliderCaptcha from "./SliderCaptcha.vue";
+import { enUS, zhCN } from "./locales";
+import {
+  getSliderCaptchaShared,
+  SLIDER_CAPTCHA_LOCALE_PREFIX,
+} from "./slider-captcha-shared";
 
-const PROVIDER_CODE = 'slider';
-const LOCALE_PREFIX = 'plugin.slider-captcha';
-
-function getShared(): SliderCaptchaSharedAPI | undefined {
-  return (window as unknown as { NovusPluginShared?: SliderCaptchaSharedAPI })
-    .NovusPluginShared;
-}
+const PROVIDER_CODE = "slider";
 
 export function setup(): void {
-  const shared = getShared();
-  shared?.registerLocale?.('zh-CN', LOCALE_PREFIX, zhCN);
-  shared?.registerLocale?.('zh', LOCALE_PREFIX, zhCN);
-  shared?.registerLocale?.('en-US', LOCALE_PREFIX, enUS);
-  shared?.registerLocale?.('en', LOCALE_PREFIX, enUS);
+  const shared = getSliderCaptchaShared();
+  shared?.registerLocale?.("zh-CN", SLIDER_CAPTCHA_LOCALE_PREFIX, zhCN);
+  shared?.registerLocale?.("zh", SLIDER_CAPTCHA_LOCALE_PREFIX, zhCN);
+  shared?.registerLocale?.("en-US", SLIDER_CAPTCHA_LOCALE_PREFIX, enUS);
+  shared?.registerLocale?.("en", SLIDER_CAPTCHA_LOCALE_PREFIX, enUS);
   shared?.registerCaptchaProvider?.(PROVIDER_CODE, SliderCaptcha);
 }
 

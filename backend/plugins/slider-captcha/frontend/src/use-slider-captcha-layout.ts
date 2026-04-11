@@ -6,18 +6,11 @@ import {
   type SliderCaptchaModalPlacement,
   type SliderCaptchaModalPosition,
 } from "./slider-captcha-modal-helpers";
-
-type ChallengePayload = {
-  canvas_height: number;
-  canvas_width: number;
-  piece_height: number;
-  piece_top: number;
-  piece_width: number;
-};
+import type { SliderChallengePayload } from "./types";
 
 type UseSliderCaptchaLayoutParams = {
   boardHostRef: Ref<HTMLElement | null>;
-  challenge: Ref<ChallengePayload | null>;
+  challenge: Ref<SliderChallengePayload | null>;
   displayWidth: Ref<number>;
   dragX: Ref<number>;
   modalPanelRef: Ref<HTMLElement | null>;
@@ -33,7 +26,10 @@ export function useSliderCaptchaLayout(params: UseSliderCaptchaLayoutParams) {
     if (!params.challenge.value) {
       return 320;
     }
-    return Math.min(params.displayWidth.value, params.challenge.value.canvas_width);
+    return Math.min(
+      params.displayWidth.value,
+      params.challenge.value.canvas_width,
+    );
   });
 
   const scaleRatio = computed(() => {

@@ -42,7 +42,7 @@ def test_uninstall_plugin_dependencies_rejects_legacy_force_field(
     monkeypatch.setattr(
         AdminPluginController,
         "get_service",
-        lambda self, db: service,
+        lambda *_args, **_kwargs: service,
     )
 
     db = AsyncMock()
@@ -76,7 +76,7 @@ def test_uninstall_plugin_dependencies_response_omits_forced_field(
     monkeypatch.setattr(
         AdminPluginController,
         "get_service",
-        lambda self, db: service,
+        lambda *_args, **_kwargs: service,
     )
 
     db = AsyncMock()

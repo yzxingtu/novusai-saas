@@ -3,18 +3,28 @@
 from __future__ import annotations
 
 import re
+import shutil
 import tempfile
 from datetime import timedelta
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
+from fastapi import File, Form, Response, UploadFile
 from jose import ExpiredSignatureError, JWTError, jwt
 
+from app.api.admin.plugin_admin_contracts import PluginInstallConfirmBody
 from app.core.base_model import utc_now
 from app.core.config import settings
+from app.core.deps import ActiveAdmin, DbSession
 from app.core.i18n import _
 from app.core.logging import get_logger
+from app.core.response import created, paginated, success
+from app.rbac.decorators import action_create, action_read
+from app.services.system.plugin_read_model_service import PluginReadModelService
+
+if TYPE_CHECKING:
+    from app.core.base_controller import GlobalController
 
 _SLUG_PATTERN = re.compile(r"^[a-z0-9][a-z0-9\-]*$")
 _INSTALL_PREVIEW_TOKEN_TYPE = "plugin_install_preview"
@@ -236,3 +246,334 @@ def extract_plugin_from_zip(file_content: bytes, filename: str) -> tuple[Path, P
         raise
 
     return staging_dir, plugin_dir
+
+
+def register_plugin_install_preview_routes(controller: GlobalController) -> None:
+    """Register marketplace and upload preview/install routes."""
+
+    @controller.router.post("/marketplace/test-connection")
+    @action_read("action.plugin.list")
+    async def marketplace_test_connection(
+        db: DbSession,
+        admin: ActiveAdmin,
+        source_url: str = "",
+    ):
+        _ = db, admin
+        from app.plugins.marketplace import _DEFAULT_GITHUB_URL
+
+        return success(
+            data=await test_registry_connection(
+                source_url=source_url,
+                default_url=_DEFAULT_GITHUB_URL,
+                log_label="Marketplace",
+            )
+        )
+
+    @controller.router.post("/skill-registry/test-connection")
+    @action_read("action.plugin.list")
+    async def skill_registry_test_connection(
+        db: DbSession,
+        admin: ActiveAdmin,
+        source_url: str = "",
+    ):
+        _ = db, admin
+        from app.services.ai.skill_registry_service import (
+            _DEFAULT_GITHUB_URL as _SKILL_DEFAULT_GITHUB_URL,
+        )
+
+        return success(
+            data=await test_registry_connection(
+                source_url=source_url,
+                default_url=_SKILL_DEFAULT_GITHUB_URL,
+                log_label="Skill registry",
+            )
+        )
+
+    @controller.router.get("/marketplace")
+    @action_read("action.plugin.list")
+    async def marketplace_list(
+        db: DbSession,
+        admin: ActiveAdmin,
+        response: Response,
+        category: str = "",
+        sort: str = "-downloads",
+        search: str = "",
+        page_number: int = 1,
+        page_size: int = 20,
+    ):
+        _ = admin
+        from app.plugins.marketplace import MarketplaceClient
+
+        page_size = max(1, min(page_size, 100))
+        page_number = max(1, page_number)
+        client = MarketplaceClient(db)
+        result = await client.list_plugins(
+            search=search,
+            category=category,
+            sort=sort,
+            page_number=page_number,
+            page_size=page_size,
+        )
+        response.headers["Cache-Control"] = "private, max-age=60"
+        return paginated(
+            items=result["items"],
+            total=result["total"],
+            page=page_number,
+            page_size=page_size,
+        )
+
+    @controller.router.get("/marketplace/{slug}")
+    @action_read("action.plugin.list")
+    async def marketplace_detail(
+        slug: str,
+        db: DbSession,
+        admin: ActiveAdmin,
+        response: Response,
+    ):
+        _ = admin
+        from app.plugins.marketplace import MarketplaceClient
+
+        client = MarketplaceClient(db)
+        detail = await client.fetch_plugin_detail(slug)
+        if not detail:
+            from app.plugins.exceptions import PluginNotFoundError
+
+            raise PluginNotFoundError(
+                message=_("plugin.error.marketplace_not_found").format(
+                    slug=slug,
+                )
+            )
+
+        readme = await client.fetch_readme(slug)
+        detail["readme"] = readme
+
+        compat = detail.get("compatibility", {})
+        detail["compatibility_ok"] = True
+        if compat.get("platform_version"):
+            detail["platform_version_required"] = compat["platform_version"]
+
+        response.headers["Cache-Control"] = "private, max-age=120"
+        return success(data=detail)
+
+    @controller.router.post("/marketplace/{slug}/install")
+    @action_create("action.plugin.install")
+    async def marketplace_preview_install(
+        slug: str,
+        db: DbSession = None,
+        admin: ActiveAdmin = None,
+    ):
+        sanitize_marketplace_slug(slug)
+
+        from app.plugins.loader import PluginLoader
+        from app.plugins.marketplace import MarketplaceClient
+        from app.plugins.package_security import extract_plugin_zip_safely
+        from app.plugins.preview import generate_preview
+
+        client = MarketplaceClient(db)
+        detail = await client.fetch_plugin_detail(slug)
+        if not detail:
+            from app.plugins.exceptions import PluginNotFoundError
+
+            raise PluginNotFoundError(
+                message=_("plugin.error.marketplace_not_found").format(
+                    slug=slug,
+                )
+            )
+
+        version = detail.get("version", "1.0.0")
+        zip_path = await client.download_plugin(slug, version)
+
+        try:
+            extract_dir = zip_path.parent / "extracted"
+            plugin_dir = extract_plugin_zip_safely(zip_path, extract_dir)
+            loader = PluginLoader(plugins_dir=plugin_dir.parent)
+            manifest = loader.load_manifest_from_path(plugin_dir)
+            assert_marketplace_package_identity(
+                slug=slug,
+                detail=detail,
+                manifest=manifest,
+            )
+            preview = await generate_preview(plugin_dir, loader, db=db)
+            preview.preview_token = create_install_preview_token(
+                source="marketplace",
+                plugin_name=manifest.name,
+                version=manifest.version,
+                admin_id=getattr(admin, "id", None),
+                marketplace_slug=slug,
+            )
+            return success(data=preview.model_dump())
+        finally:
+            shutil.rmtree(zip_path.parent, ignore_errors=True)
+
+    @controller.router.post("/marketplace/{slug}/confirm-install")
+    @action_create("action.plugin.install")
+    async def marketplace_confirm_install(
+        slug: str,
+        body: PluginInstallConfirmBody,
+        db: DbSession = None,
+        admin: ActiveAdmin = None,
+    ):
+        from app.enums.plugin import PluginInstallSourceEnum
+        from app.plugins.loader import PluginLoader
+        from app.plugins.marketplace import MarketplaceClient
+        from app.plugins.package_security import extract_plugin_zip_safely
+        from app.services.common.notification_service import notify
+
+        sanitize_marketplace_slug(slug)
+        preview_payload = decode_install_preview_token(body.preview_token)
+        assert_install_preview_token(
+            preview_payload,
+            source="marketplace",
+            marketplace_slug=slug,
+            admin_id=getattr(admin, "id", None),
+        )
+
+        client = MarketplaceClient(db)
+        detail = await client.fetch_plugin_detail(slug)
+        if not detail:
+            from app.plugins.exceptions import PluginNotFoundError
+
+            raise PluginNotFoundError(
+                message=_("plugin.error.marketplace_not_found").format(
+                    slug=slug,
+                )
+            )
+
+        version = detail.get("version", "1.0.0")
+        assert_install_preview_token(
+            preview_payload,
+            source="marketplace",
+            version=str(version),
+            admin_id=getattr(admin, "id", None),
+            marketplace_slug=slug,
+        )
+        zip_path = await client.download_plugin(slug, version)
+
+        try:
+            extract_dir = zip_path.parent / "extracted"
+            plugin_dir = extract_plugin_zip_safely(zip_path, extract_dir)
+
+            loader = PluginLoader()
+            manifest = loader.load_manifest_from_path(plugin_dir)
+            assert_marketplace_package_identity(
+                slug=slug,
+                detail=detail,
+                manifest=manifest,
+            )
+            assert_install_preview_token(
+                preview_payload,
+                source="marketplace",
+                plugin_name=manifest.name,
+                version=manifest.version,
+                admin_id=getattr(admin, "id", None),
+                marketplace_slug=slug,
+            )
+            _logger.info(
+                "Marketplace confirm install: slug={} plugin={}",
+                slug,
+                manifest.name,
+            )
+            service = controller.get_service(db)
+            plugin = await service.install_from_path(plugin_dir, body.config)
+            plugin.install_source = PluginInstallSourceEnum.MARKETPLACE.value
+            plugin.marketplace_slug = slug
+            await db.flush()
+
+            await notify(
+                db,
+                "biz.plugin_installed",
+                [("admin", admin.id)],
+                data={
+                    "plugin_name": plugin.display_name or plugin.name,
+                    "version": plugin.version or "1.0.0",
+                },
+            )
+
+            return created(data=plugin.to_dict())
+        finally:
+            shutil.rmtree(zip_path.parent, ignore_errors=True)
+
+    @controller.router.post("/preview")
+    @action_create("action.plugin.preview")
+    async def preview_install(
+        file: UploadFile = File(...),
+        db: DbSession = None,
+        admin: ActiveAdmin = None,
+    ):
+        from app.plugins.loader import PluginLoader
+        from app.plugins.preview import generate_preview
+
+        content = await file.read()
+        staging_dir, plugin_dir = extract_plugin_from_zip(
+            content, file.filename or "plugin.zip"
+        )
+
+        try:
+            loader = PluginLoader(plugins_dir=plugin_dir.parent)
+            preview = await generate_preview(plugin_dir, loader, db=db)
+            manifest = loader.load_manifest_from_path(plugin_dir)
+            preview.preview_token = create_install_preview_token(
+                source="upload",
+                plugin_name=manifest.name,
+                version=manifest.version,
+                admin_id=getattr(admin, "id", None),
+            )
+            return success(data=preview.model_dump())
+        finally:
+            shutil.rmtree(staging_dir, ignore_errors=True)
+
+    @controller.router.post("/upload")
+    @action_create("action.plugin.install")
+    async def install_plugin(
+        file: UploadFile = File(...),
+        preview_token: str = Form(""),
+        db: DbSession = None,
+        admin: ActiveAdmin = None,
+    ):
+        import yaml
+
+        from app.services.common.notification_service import notify
+
+        preview_payload = decode_install_preview_token(preview_token)
+        assert_install_preview_token(
+            preview_payload,
+            source="upload",
+            admin_id=getattr(admin, "id", None),
+        )
+
+        content = await file.read()
+        staging_dir, plugin_dir = extract_plugin_from_zip(
+            content, file.filename or "plugin.zip"
+        )
+
+        try:
+            with open(plugin_dir / "plugin.yaml", encoding="utf-8") as yaml_file:
+                manifest_data = yaml.safe_load(yaml_file)
+            plugin_name = manifest_data.get("name", plugin_dir.name)
+            plugin_version = str(manifest_data.get("version", ""))
+            assert_install_preview_token(
+                preview_payload,
+                source="upload",
+                plugin_name=str(plugin_name),
+                version=plugin_version,
+                admin_id=getattr(admin, "id", None),
+            )
+
+            await PluginReadModelService(db).assert_name_available(str(plugin_name))
+
+            service = controller.get_service(db)
+            plugin = await service.install_from_path(plugin_dir, operator_id=admin.id)
+
+            await notify(
+                db,
+                "biz.plugin_installed",
+                [("admin", admin.id)],
+                data={
+                    "plugin_name": plugin.display_name or plugin.name,
+                    "version": plugin.version or "1.0.0",
+                },
+            )
+
+            return created(data=plugin.to_dict())
+        finally:
+            shutil.rmtree(staging_dir, ignore_errors=True)

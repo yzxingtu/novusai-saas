@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sqlalchemy import delete, or_, select, text, update
@@ -34,7 +35,7 @@ def _escape_like_pattern(value: str) -> str:
 
 
 class PluginCleanupService:
-    """Perform targeted cleanup for orphaned plugin records."""
+    """Perform targeted cleanup and maintenance helpers for admin plugin flows."""
 
     def __init__(self, db):
         self._db = db
@@ -46,6 +47,14 @@ class PluginCleanupService:
 
             self._plugin_service = PluginService(self._db)
         return self._plugin_service
+
+    async def _get_plugin_or_raise(self, plugin_id: int) -> PluginModel:
+        plugin = await self._get_plugin_service().get_by_id(plugin_id)
+        if plugin is None:
+            raise NotFoundException(
+                message=_("plugin.error.not_found_by_id").format(plugin_id=plugin_id)
+            )
+        return plugin
 
     async def remove_relational_records(self, plugin_id: int) -> None:
         """Remove plugin-related relational rows (versions, assignments, licenses)."""
@@ -78,11 +87,7 @@ class PluginCleanupService:
         )
 
     async def force_cleanup_orphan(self, plugin_id: int) -> None:
-        plugin = await self._get_plugin_service().get_by_id(plugin_id)
-        if plugin is None:
-            raise NotFoundException(
-                message=_("plugin.error.not_found_by_id").format(plugin_id=plugin_id)
-            )
+        plugin = await self._get_plugin_or_raise(plugin_id)
 
         plugin_dir = PLUGINS_DIR / plugin.name
         if plugin_dir.exists():
@@ -93,6 +98,60 @@ class PluginCleanupService:
         await self.remove_relational_records(plugin_id)
         await self.remove_plugin_row(plugin_id)
         await self.purge_alembic_versions_by_plugin_name(plugin.name)
+
+    async def save_plugin_icon(
+        self,
+        plugin_id: int,
+        *,
+        filename: str | None,
+        content: bytes,
+    ) -> str:
+        """Persist canonical plugin icon file and update the plugin row."""
+        from app.exceptions.base import ValidationException
+
+        plugin = await self._get_plugin_or_raise(plugin_id)
+
+        allowed_suffixes = {".png", ".svg", ".jpg", ".jpeg", ".webp"}
+        suffix = Path(filename).suffix.lower() if filename else ".png"
+        if suffix not in allowed_suffixes:
+            raise ValidationException(message=_("plugin.error.invalid_icon_type"))
+
+        icon_max_size = 2 * 1024 * 1024
+        if len(content) > icon_max_size:
+            raise ValidationException(
+                message=_("plugin.error.icon_too_large").format(size=len(content)),
+            )
+
+        icon_filename = f"icon{suffix}"
+        icon_path = PLUGINS_DIR / plugin.name / icon_filename
+        with open(icon_path, "wb") as file:
+            file.write(content)
+
+        plugin.icon = icon_filename
+        await self._db.flush()
+        return icon_filename
+
+    async def delete_backup(self, plugin_id: int, backup_name: str) -> None:
+        """Delete a validated plugin backup directory."""
+        import re as _re
+        import shutil as _shutil
+
+        from app.exceptions.base import ValidationException
+        from app.plugins.backup import BACKUPS_DIR
+
+        if not _re.match(r"^[a-zA-Z0-9._-]+$", backup_name) or ".." in backup_name:
+            raise ValidationException(message=_("plugin.error.invalid_backup_name"))
+
+        plugin = await self._get_plugin_or_raise(plugin_id)
+        backup_path = BACKUPS_DIR / plugin.name / backup_name
+        if not backup_path.is_dir():
+            raise NotFoundException(message=_("plugin.error.backup_not_found"))
+
+        _shutil.rmtree(backup_path)
+
+        plugin_backup_dir = BACKUPS_DIR / plugin.name
+        if plugin_backup_dir.is_dir() and not any(plugin_backup_dir.iterdir()):
+            plugin_backup_dir.rmdir()
 
     async def deactivate_plugin_skill_records(self, plugin_name: str) -> None:
         """Disable plugin-created skill package and skills."""

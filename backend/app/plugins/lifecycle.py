@@ -291,6 +291,21 @@ class PluginLifecycle(
         async with _plugin_lock(plugin_id):
             return await self._refresh_schedules_impl(plugin_id)
 
+    async def update_menu_overrides(
+        self,
+        plugin_id: int,
+        *,
+        menu_overrides: dict[str, dict[str, str]],
+        refresh_runtime: bool,
+    ) -> None:
+        """Persist plugin menu overrides and optionally re-register runtime menus."""
+        async with _plugin_lock(plugin_id):
+            await self.orchestrator.update_menu_overrides_impl(
+                plugin_id,
+                menu_overrides=menu_overrides,
+                refresh_runtime=refresh_runtime,
+            )
+
     async def repair(
         self,
         plugin_id: int,
