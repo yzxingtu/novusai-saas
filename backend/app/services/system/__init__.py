@@ -21,6 +21,9 @@ if TYPE_CHECKING:
         OperationLogService,
         create_log_async,
     )
+    from app.services.system.plugin_admin_workflow_service import (
+        PluginAdminWorkflowService,
+    )
     from app.services.system.system_log_service import (
         LogCategoryInfo,
         LogContentPage,
@@ -53,6 +56,7 @@ __all__ = [
     "AdminService",
     "AdminAttachmentService",
     "OperationLogService",
+    "PluginAdminWorkflowService",
     "create_log_async",
     "TaskBindingService",
     "TaskDefinitionService",
@@ -79,6 +83,7 @@ _LAZY_EXPORTS = {
     "AdminService": "app.services.system.admin_service",
     "AdminAttachmentService": "app.services.system.attachment_service",
     "OperationLogService": "app.services.system.operation_log_service",
+    "PluginAdminWorkflowService": "app.services.system.plugin_admin_workflow_service",
     "create_log_async": "app.services.system.operation_log_service",
     "TaskBindingService": "app.services.system.task_binding_service",
     "TaskDefinitionService": "app.services.system.task_definition_service",

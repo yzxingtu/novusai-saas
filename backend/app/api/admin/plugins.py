@@ -22,16 +22,12 @@ from app.api.admin.plugin_admin_contracts import (
     PluginRollbackBody,
     register_plugin_admin_read_routes,
 )
-from app.api.admin.plugin_admin_contracts import (
-    build_menu_overrides_payload as _build_menu_overrides_payload,
-)
 from app.api.admin.plugin_dependency_routes import register_plugin_dependency_routes
 from app.core.base_controller import GlobalController
 from app.core.deps import ActiveAdmin, DbSession
 from app.core.i18n import _ as translate
 from app.core.response import deleted, success
 from app.enums.rbac import PermissionScope
-from app.plugins.lifecycle import PluginLifecycle
 from app.rbac.decorators import (
     MenuAIConfig,
     MenuConfig,
@@ -39,7 +35,9 @@ from app.rbac.decorators import (
     action_update,
     permission_resource,
 )
-from app.services.system.plugin_cleanup_service import PluginCleanupService
+from app.services.system.plugin_admin_workflow_service import (
+    PluginAdminWorkflowService,
+)
 from app.services.system.plugin_service import PluginService
 
 _assert_install_preview_token = _install_preview_helpers.assert_install_preview_token
@@ -91,6 +89,10 @@ class AdminPluginController(GlobalController):
     prefix = "/plugins"
     tags = ["Plugin Management"]
     service_class = PluginService
+    workflow_service_class = PluginAdminWorkflowService
+
+    def get_workflow_service(self, db: DbSession) -> PluginAdminWorkflowService:
+        return self.workflow_service_class(db)
 
     def _register_routes(self):
         register_plugin_admin_read_routes(self)
@@ -108,24 +110,10 @@ class AdminPluginController(GlobalController):
             admin: ActiveAdmin,
             body: PluginEnableBody | None = None,
         ):
-            lifecycle = PluginLifecycle(db)
-            if body and body.menu_overrides:
-                await lifecycle.update_menu_overrides(
-                    plugin_id,
-                    menu_overrides=_build_menu_overrides_payload(body.menu_overrides),
-                    refresh_runtime=False,
-                )
-
-            await self.get_service(db).enable_plugin(plugin_id, operator_id=admin.id)
-
-            plugin = await self.get_service(db).get_by_id(plugin_id)
-            from app.services.common.notification_service import notify
-
-            await notify(
-                db,
-                "biz.plugin_enabled",
-                [("admin", admin.id)],
-                data={"plugin_name": plugin.display_name or plugin.name},
+            await self.get_workflow_service(db).enable_plugin(
+                plugin_id=plugin_id,
+                admin_id=admin.id,
+                menu_overrides=body.menu_overrides if body else None,
             )
             return success(data={"message": "Plugin enabled"})
 
@@ -137,19 +125,10 @@ class AdminPluginController(GlobalController):
             admin: ActiveAdmin,
             force: bool = False,
         ):
-            service = self.get_service(db)
-            plugin = await service.get_by_id(plugin_id)
-            plugin_display = plugin.display_name or plugin.name
-
-            await service.disable_plugin(plugin_id, force=force, operator_id=admin.id)
-
-            from app.services.common.notification_service import notify
-
-            await notify(
-                db,
-                "biz.plugin_disabled",
-                [("admin", admin.id)],
-                data={"plugin_name": plugin_display},
+            await self.get_workflow_service(db).disable_plugin(
+                plugin_id=plugin_id,
+                admin_id=admin.id,
+                force=force,
             )
             return success(data={"message": "Plugin disabled"})
 
@@ -161,11 +140,9 @@ class AdminPluginController(GlobalController):
             db: DbSession,
             admin: ActiveAdmin,
         ):
-            _admin = admin
-            await PluginLifecycle(db).update_menu_overrides(
-                plugin_id,
-                menu_overrides=_build_menu_overrides_payload(body.menu_overrides),
-                refresh_runtime=True,
+            await self.get_workflow_service(db).update_menu_config(
+                plugin_id=plugin_id,
+                menu_overrides=body.menu_overrides,
             )
             return success(data={"message": translate("plugin.menu_config_updated")})
 
@@ -176,7 +153,6 @@ class AdminPluginController(GlobalController):
             db: DbSession,
             admin: ActiveAdmin,
         ):
-            _admin = admin
             await self.get_service(db).sync_manifest(plugin_id)
             return success(data={"message": translate("plugin.manifest_synced")})
 
@@ -189,32 +165,14 @@ class AdminPluginController(GlobalController):
             confirm_data_delete: bool = False,
             cleanup_dependencies: bool = False,
         ):
-            service = self.get_service(db)
-            plugin = await service.get_by_id(plugin_id)
-            if plugin is None:
-                return deleted(
-                    message=translate("plugin.deleted_already").format(
-                        plugin_id=plugin_id
-                    )
-                )
-
-            plugin_display = plugin.display_name or plugin.name
-            plugin_version = plugin.version or "1.0.0"
-            await service.uninstall_plugin(
-                plugin_id,
-                confirm_data_delete,
+            deleted_already_message = await self.get_workflow_service(db).uninstall_plugin(
+                plugin_id=plugin_id,
+                admin_id=admin.id,
+                confirm_data_delete=confirm_data_delete,
                 cleanup_dependencies=cleanup_dependencies,
-                operator_id=admin.id,
             )
-
-            from app.services.common.notification_service import notify
-
-            await notify(
-                db,
-                "biz.plugin_uninstalled",
-                [("admin", admin.id)],
-                data={"plugin_name": plugin_display, "version": plugin_version},
-            )
+            if deleted_already_message:
+                return deleted(message=deleted_already_message)
             return deleted()
 
         @self.router.post("/{plugin_id}/refresh-schedules")
@@ -224,11 +182,10 @@ class AdminPluginController(GlobalController):
             db: DbSession,
             admin: ActiveAdmin,
         ):
-            result = await self.get_service(db).refresh_plugin_schedules(
-                plugin_id,
-                operator_id=admin.id,
+            result = await self.get_workflow_service(db).refresh_plugin_schedules(
+                plugin_id=plugin_id,
+                admin_id=admin.id,
             )
-            await db.commit()
             return success(
                 data=result,
                 message=translate("plugin.schedule_refreshed"),
@@ -237,7 +194,10 @@ class AdminPluginController(GlobalController):
         @self.router.post("/{plugin_id}/repair")
         @action_update("action.plugin.repair")
         async def repair_plugin(plugin_id: int, db: DbSession, admin: ActiveAdmin):
-            await PluginLifecycle(db).repair(plugin_id, operator_id=admin.id)
+            await self.get_workflow_service(db).repair_plugin(
+                plugin_id=plugin_id,
+                admin_id=admin.id,
+            )
             return success(
                 data={"message": translate("plugin.repaired_and_restored")}
             )
@@ -249,9 +209,7 @@ class AdminPluginController(GlobalController):
             db: DbSession,
             admin: ActiveAdmin,
         ):
-            _admin = admin
-            await PluginCleanupService(db).force_cleanup_orphan(plugin_id)
-            await db.flush()
+            await self.get_workflow_service(db).force_cleanup_orphan(plugin_id=plugin_id)
             return deleted()
 
         @self.router.put("/{plugin_id}/config")
@@ -262,7 +220,6 @@ class AdminPluginController(GlobalController):
             db: DbSession = None,
             admin: ActiveAdmin = None,
         ):
-            _admin = admin
             await self.get_service(db).update_plugin_config(plugin_id, body.config)
             return success(data={"message": "Config updated"})
 
@@ -274,7 +231,6 @@ class AdminPluginController(GlobalController):
             db: DbSession = None,
             admin: ActiveAdmin = None,
         ):
-            _admin = admin
             await self.get_service(db).update_capabilities(plugin_id, body.capabilities)
             return success(
                 data={"message": translate("plugin.capabilities_updated")}
@@ -288,11 +244,9 @@ class AdminPluginController(GlobalController):
             db: DbSession = None,
             admin: ActiveAdmin = None,
         ):
-            _admin = admin
-            icon = await PluginCleanupService(db).save_plugin_icon(
-                plugin_id,
-                filename=file.filename,
-                content=await file.read(),
+            icon = await self.get_workflow_service(db).upload_icon(
+                plugin_id=plugin_id,
+                file=file,
             )
             return success(data={"icon": icon})
 
@@ -304,7 +258,6 @@ class AdminPluginController(GlobalController):
             db: DbSession = None,
             admin: ActiveAdmin = None,
         ):
-            _admin = admin
             await self.get_service(db).upgrade_plugin(plugin_id, file)
             return success(data={"message": translate("plugin.upgraded")})
 
@@ -316,7 +269,6 @@ class AdminPluginController(GlobalController):
             db: DbSession = None,
             admin: ActiveAdmin = None,
         ):
-            _admin = admin
             await self.get_service(db).rollback_plugin(
                 plugin_id,
                 body.target_version,
@@ -337,7 +289,6 @@ class AdminPluginController(GlobalController):
             db: DbSession = None,
             admin: ActiveAdmin = None,
         ):
-            _admin = admin
             count = await self.get_service(db).assign_tenants(plugin_id, body.tenant_ids)
             return success(data={"assigned": count})
 
@@ -349,7 +300,6 @@ class AdminPluginController(GlobalController):
             db: DbSession = None,
             admin: ActiveAdmin = None,
         ):
-            _admin = admin
             await self.get_service(db).unassign_tenant(plugin_id, tenant_id)
             return deleted()
 
@@ -361,19 +311,10 @@ class AdminPluginController(GlobalController):
             db: DbSession = None,
             admin: ActiveAdmin = None,
         ):
-            _admin = admin
-            from app.plugins.license import activate_license as do_activate
-
-            result = await do_activate(plugin_id, body.license_key, db)
-            if not result.get("success"):
-                from app.exceptions.base import BusinessException
-
-                raise BusinessException(
-                    message=result.get(
-                        "message",
-                        translate("plugin.error.activation_failed"),
-                    )
-                )
+            result = await self.get_workflow_service(db).activate_license(
+                plugin_id=plugin_id,
+                license_key=body.license_key,
+            )
             return success(data=result)
 
         @self.router.post("/{plugin_id}/activate-trial")
@@ -383,15 +324,9 @@ class AdminPluginController(GlobalController):
             db: DbSession = None,
             admin: ActiveAdmin = None,
         ):
-            _admin = admin
-            from app.plugins.license import (
-                create_trial_license,
-                get_license_status_by_id,
+            license_info = await self.get_workflow_service(db).activate_trial(
+                plugin_id=plugin_id
             )
-
-            license_info = await create_trial_license(plugin_id, db=db)
-            if not license_info:
-                license_info = await get_license_status_by_id(plugin_id, db)
             return success(data=license_info)
 
         @self.router.delete("/{plugin_id}/license")
@@ -401,10 +336,7 @@ class AdminPluginController(GlobalController):
             db: DbSession = None,
             admin: ActiveAdmin = None,
         ):
-            _admin = admin
-            from app.plugins.license import revoke_license as do_revoke
-
-            await do_revoke(plugin_id, db)
+            await self.get_workflow_service(db).revoke_license(plugin_id=plugin_id)
             return deleted()
 
         @self.router.delete("/{plugin_id}/backups/{backup_name}")
@@ -415,8 +347,10 @@ class AdminPluginController(GlobalController):
             db: DbSession,
             admin: ActiveAdmin,
         ):
-            _admin = admin
-            await PluginCleanupService(db).delete_backup(plugin_id, backup_name)
+            await self.get_workflow_service(db).delete_backup(
+                plugin_id=plugin_id,
+                backup_name=backup_name,
+            )
             return deleted()
 
 

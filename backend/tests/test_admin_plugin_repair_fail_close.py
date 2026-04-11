@@ -205,18 +205,17 @@ async def test_admin_repair_endpoint_delegates_to_lifecycle(
     monkeypatch.setattr(AdminPluginController, "_instance", None)
     monkeypatch.setattr(AdminPluginController, "_router", None)
 
-    repair = AsyncMock()
-    lifecycle = SimpleNamespace(repair=repair)
-
-    def _build_lifecycle(*_args, **_kwargs):
-        return lifecycle
-
-    monkeypatch.setattr("app.api.admin.plugins.PluginLifecycle", _build_lifecycle)
+    workflow = SimpleNamespace(repair_plugin=AsyncMock())
+    monkeypatch.setattr(
+        AdminPluginController,
+        "get_workflow_service",
+        lambda *_args, **_kwargs: workflow,
+    )
 
     endpoint = _get_endpoint("/plugins/{plugin_id}/repair", "POST")
     response = await endpoint(77, AsyncMock(), SimpleNamespace(id=9))
 
-    repair.assert_awaited_once_with(77, operator_id=9)
+    workflow.repair_plugin.assert_awaited_once_with(plugin_id=77, admin_id=9)
     assert response["code"] == 0
     assert response["data"]["message"] == _("plugin.repaired_and_restored")
 
@@ -247,11 +246,15 @@ async def test_admin_uninstall_returns_deleted_when_plugin_already_removed(
     monkeypatch.setattr(AdminPluginController, "_instance", None)
     monkeypatch.setattr(AdminPluginController, "_router", None)
 
-    service = SimpleNamespace(get_by_id=AsyncMock(return_value=None))
+    workflow = SimpleNamespace(
+        uninstall_plugin=AsyncMock(
+            return_value=_("plugin.deleted_already").format(plugin_id=1089)
+        )
+    )
     monkeypatch.setattr(
         AdminPluginController,
-        "get_service",
-        lambda *_args, **_kwargs: service,
+        "get_workflow_service",
+        lambda *_args, **_kwargs: workflow,
     )
 
     endpoint = _get_endpoint("/plugins/{plugin_id}", "DELETE")
@@ -263,6 +266,12 @@ async def test_admin_uninstall_returns_deleted_when_plugin_already_removed(
         False,
     )
 
+    workflow.uninstall_plugin.assert_awaited_once_with(
+        plugin_id=1089,
+        admin_id=1,
+        confirm_data_delete=False,
+        cleanup_dependencies=False,
+    )
     assert response == deleted(
         message=_("plugin.deleted_already").format(plugin_id=1089)
     )

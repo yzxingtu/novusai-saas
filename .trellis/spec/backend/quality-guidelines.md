@@ -65,6 +65,10 @@ Primary references:
   - a route contract sentinel for the transport seam
   - a service unit test for the extracted workflow rules (validation, commit,
     token issuance, response shaping, or similar)
+- Plugin admin write-side workflows follow the same rule:
+  if `admin/plugins.py` sheds notifications, menu override orchestration,
+  cleanup, or license flows into `plugin_admin_workflow_service.py`, keep both
+  the route contract tests and workflow unit tests in the same change.
 - For plugin lifecycle/runtime governance, prefer `facade + mixin/parts`:
   facade keeps compatibility exports and assembly, while orchestrator parts own
   lifecycle execution paths. Current reference shape:

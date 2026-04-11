@@ -101,10 +101,13 @@ backend modules:
   controller only parses request + delegates; query assembly lives in
   `*_query_service.py` or repository.
 - Plugin platform backend: split by runtime concern
-  (`lifecycle`, `registry`, `manifest/context`, read-model service, cleanup service),
+  (`lifecycle`, `registry`, `manifest/context`, read-model service, admin write workflow, cleanup service),
   avoid one module owning install/enable/migration/sync/audit simultaneously.
   已落地样例：`backend/app/plugins/lifecycle.py` 作为兼容 facade（443 行），
   `backend/app/plugins/lifecycle_orchestrator.py` 作为生命周期编排 parts（987 行）。
+  `backend/app/api/admin/plugins.py` 的推荐写侧分层是：
+  read routes -> `plugin_admin_contracts.py` / `plugin_read_model_service.py`；
+  write routes -> `plugin_admin_workflow_service.py` / `plugin_cleanup_service.py` / `PluginService`。
 - Codegen backend chain: separate generation core, config/read-model management,
   and CLI/API transport adapters; avoid one module owning config parse,
   generation orchestration, migration hooks, and delivery format at once.

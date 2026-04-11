@@ -37,6 +37,7 @@
 {"file": "frontend/apps/web-antd/src/views/admin/system/codegen/composables/__tests__/workflow-helpers.test.ts", "reason": "Lock codegen workflow helper behavior with focused frontend seam tests"}
 {"file": "backend/app/api/admin/plugin_install_preview.py", "reason": "Move plugin marketplace/upload preview-install transport helpers out of admin plugins controller"}
 {"file": "backend/app/api/admin/plugin_admin_contracts.py", "reason": "Move admin plugin read-route contracts and read-side helpers out of admin plugins controller"}
+{"file": "backend/app/services/system/plugin_admin_workflow_service.py", "reason": "Move admin plugin write-side orchestration (menu overrides, notifications, cleanup/license workflows) out of admin plugins controller so the controller stays transport-only"}
 {"file": "backend/app/plugins/registry_runtime_extensions.py", "reason": "Extract registry runtime extension families from registry.py to keep the registry facade thin"}
 {"file": ".trellis/tasks/04-10-non-ai-governance-refactor/info.md", "reason": "Record post-refactor regression hardening commits and environment-specific pytest temp/cache workaround"}
 {"file": ".trellis/tasks/04-10-non-ai-governance-refactor/ownership-matrix.md", "reason": "Move umbrella task/spec ownership out of agent-1 and reserve .trellis control-plane files for the umbrella owner/docs worker"}
@@ -67,6 +68,7 @@
 {"file": "backend/tests/test_admin_tenant_admin_routes_contract.py", "reason": "Add route contract sentinel for admin tenant-admin endpoints delegating to the workflow service"}
 {"file": "backend/tests/test_admin_user_routes_contract.py", "reason": "Optional hardening: add admin user route contract coverage for select/detail/force-logout delegation"}
 {"file": "backend/tests/test_recycle_bin_registry.py", "reason": "Optional hardening: add recycle-bin registry contract checks for module codes, side validation, and delete scope mapping"}
+{"file": "backend/tests/services/test_plugin_admin_workflow_service.py", "reason": "Optional hardening: lock the extracted admin plugin write workflow rules (menu override payload, notifications, commit, icon/license flows)"}
 {"file": "backend/tests/codegen/test_codegen_service.py", "reason": "Optional hardening: add validate sanitize test to suppress path/Traceback leakage"}
 {"file": "frontend/apps/web-antd/src/views/admin/system/system-logs/__tests__/use-system-logs.test.ts", "reason": "Optional hardening: keep system-logs composable contract coverage and clean up test types for verification hygiene"}
 {"file": "frontend/apps/web-antd/src/components/business/file-picker/__tests__/use-file-picker-core.upload-queue.test.ts", "reason": "Optional hardening: add upload queue slice coverage for batching, task state, and enqueue flow"}

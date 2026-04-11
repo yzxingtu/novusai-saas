@@ -102,13 +102,16 @@ Do not skip validation just because the plugin uses a slimmer standalone toolcha
   - facade/entry: route/CLI/runtime registration and compatibility exports only
   - mixin/parts: lifecycle concern slices and orchestrator flows
   - registry/read layer: discover + snapshot + query
+  - admin write workflow layer: notification/menu-override/license/cleanup
+    orchestration for host plugin admin routes
   - lifecycle layer: install/enable/disable/sync orchestration
   - cleanup layer: rollback/remove and safety checks
   - transport adapters: API/CLI request-to-service mapping
   - admin plugin controller seam map:
     dependency subroutes, install-preview helpers, read-model query service,
-    cleanup/audit services, and lifecycle/runtime services should stay separate
-    instead of collapsing back into one giant `plugins.py`
+    write-workflow service, cleanup/audit services, and lifecycle/runtime
+    services should stay separate instead of collapsing back into one giant
+    `plugins.py`
 - Plugin frontend:
   - route/page shell: layout + section composition
   - composables: loading/query/form workflows

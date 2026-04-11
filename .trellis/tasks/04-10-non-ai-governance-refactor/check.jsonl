@@ -32,6 +32,7 @@
 {"file": "frontend/apps/web-antd/src/views/admin/system/codegen/composables/__tests__/workflow-helpers.test.ts", "reason": "Verify extracted codegen workflow helper logic stays stable"}
 {"file": "backend/tests/test_admin_plugin_dependency_contract.py", "reason": "Verify admin plugin dependency routes stay stable after admin/plugins controller thinning"}
 {"file": "backend/tests/test_admin_plugin_marketplace_contract.py", "reason": "Verify plugin marketplace/preview-install routes stay stable after transport extraction"}
+{"file": "backend/tests/services/test_plugin_admin_workflow_service.py", "reason": "Verify extracted admin plugin write workflow keeps menu override, notify, commit, icon, and license rules stable"}
 {"file": "backend/tests/test_admin_plugin_repair_fail_close.py", "reason": "Verify plugin repair path still delegates through the new lifecycle facade/lock seam without runtime regression"}
 {"file": ".trellis/tasks/04-10-non-ai-governance-refactor/info.md", "reason": "Verify post-refactor regression hardening notes capture new commits, coverage gaps closed, and pytest temp/cache caveat"}
 {"file": ".trellis/tasks/04-10-non-ai-governance-refactor/ownership-matrix.md", "reason": "Verify .trellis task/spec ownership is reserved to the umbrella owner/docs worker instead of a business workstream"}

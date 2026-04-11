@@ -36,6 +36,112 @@ def _reset_controller(monkeypatch) -> None:
     monkeypatch.setattr(AdminPluginController, "_router", None)
 
 
+def _patch_workflow(monkeypatch, **methods):
+    workflow = SimpleNamespace(**methods)
+    monkeypatch.setattr(
+        AdminPluginController,
+        "get_workflow_service",
+        lambda *_args, **_kwargs: workflow,
+    )
+    return workflow
+
+
+def test_enable_route_delegates_to_workflow(monkeypatch) -> None:
+    _reset_controller(monkeypatch)
+
+    workflow = _patch_workflow(monkeypatch, enable_plugin=AsyncMock())
+    app = _build_test_app(SimpleNamespace())
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/plugins/7/enable",
+            json={
+                "menu_overrides": [
+                    {"name": "demo_plugin", "parent": "system_maintenance"}
+                ]
+            },
+        )
+
+    assert response.status_code == 200
+    workflow.enable_plugin.assert_awaited_once()
+    kwargs = workflow.enable_plugin.await_args.kwargs
+    assert kwargs["plugin_id"] == 7
+    assert kwargs["admin_id"] == 1
+    assert len(kwargs["menu_overrides"]) == 1
+    assert kwargs["menu_overrides"][0].name == "demo_plugin"
+
+
+def test_menu_config_route_delegates_to_workflow(monkeypatch) -> None:
+    _reset_controller(monkeypatch)
+
+    workflow = _patch_workflow(monkeypatch, update_menu_config=AsyncMock())
+    app = _build_test_app(SimpleNamespace())
+
+    with TestClient(app) as client:
+        response = client.put(
+            "/plugins/7/menu-config",
+            json={
+                "menu_overrides": [
+                    {
+                        "name": "demo_plugin",
+                        "parent": "system_maintenance",
+                        "tenant_parent": "workspace",
+                    }
+                ]
+            },
+        )
+
+    assert response.status_code == 200
+    workflow.update_menu_config.assert_awaited_once()
+    kwargs = workflow.update_menu_config.await_args.kwargs
+    assert kwargs["plugin_id"] == 7
+    assert kwargs["menu_overrides"][0].tenant_parent == "workspace"
+
+
+def test_upload_icon_route_delegates_to_workflow(monkeypatch) -> None:
+    _reset_controller(monkeypatch)
+
+    workflow = _patch_workflow(
+        monkeypatch,
+        upload_icon=AsyncMock(return_value="icon.png"),
+    )
+    app = _build_test_app(SimpleNamespace())
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/plugins/7/icon",
+            files={"file": ("icon.png", b"demo", "image/png")},
+        )
+
+    assert response.status_code == 200
+    workflow.upload_icon.assert_awaited_once()
+    kwargs = workflow.upload_icon.await_args.kwargs
+    assert kwargs["plugin_id"] == 7
+    assert kwargs["file"].filename == "icon.png"
+
+
+def test_activate_license_route_delegates_to_workflow(monkeypatch) -> None:
+    _reset_controller(monkeypatch)
+
+    workflow = _patch_workflow(
+        monkeypatch,
+        activate_license=AsyncMock(return_value={"success": True}),
+    )
+    app = _build_test_app(SimpleNamespace())
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/plugins/7/activate-license",
+            json={"license_key": "demo-key"},
+        )
+
+    assert response.status_code == 200
+    workflow.activate_license.assert_awaited_once_with(
+        plugin_id=7,
+        license_key="demo-key",
+    )
+
+
 def test_update_capabilities_route_delegates_to_service(monkeypatch) -> None:
     _reset_controller(monkeypatch)
 
@@ -107,3 +213,27 @@ def test_rollback_route_delegates_to_plugin_service(monkeypatch) -> None:
     payload = response.json()
     assert payload["code"] == 0
     service.rollback_plugin.assert_awaited_once_with(7, "1.2.3")
+
+
+def test_uninstall_route_delegates_to_workflow(monkeypatch) -> None:
+    _reset_controller(monkeypatch)
+
+    workflow = _patch_workflow(
+        monkeypatch,
+        uninstall_plugin=AsyncMock(return_value=None),
+    )
+    app = _build_test_app(SimpleNamespace())
+
+    with TestClient(app) as client:
+        response = client.delete(
+            "/plugins/7",
+            params={"confirm_data_delete": "true", "cleanup_dependencies": "true"},
+        )
+
+    assert response.status_code == 200
+    workflow.uninstall_plugin.assert_awaited_once_with(
+        plugin_id=7,
+        admin_id=1,
+        confirm_data_delete=True,
+        cleanup_dependencies=True,
+    )

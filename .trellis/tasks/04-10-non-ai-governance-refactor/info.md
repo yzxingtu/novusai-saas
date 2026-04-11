@@ -141,10 +141,12 @@
   - `backend/app/plugins/registry_runtime_extensions.py`
   - `backend/app/services/system/plugin_read_model_service.py`
   - `backend/app/services/system/plugin_cleanup_service.py`
+  - `backend/app/services/system/plugin_admin_workflow_service.py`
   - `backend/tests/test_admin_plugin_dependency_contract.py`
   - admin plugins controller 已收成更薄的 write-side façade
   - marketplace / upload preview-install 已沉到 `plugin_install_preview.py`
   - admin plugins read routes 已沉到 `plugin_admin_contracts.py`
+  - admin plugins write-side 协调已继续下沉到 `plugin_admin_workflow_service.py`
   - registry 的 notification / permission / menu / socketio / frontend-slot 运行时家族已抽到 `registry_runtime_extensions.py`
   - lifecycle 新增 menu override 的持久化与 runtime 重挂 orchestration seam
 - Bundled plugin 前端拆分与回归已新增：
@@ -255,6 +257,9 @@
   - 结果：`1 file passed / 3 tests passed`
   - `pnpm --dir frontend exec vue-tsc --noEmit --skipLibCheck --pretty false -p apps/web-antd/tsconfig.json`
   - 结果：通过
+  - `ruff check backend/app/api/admin/plugins.py backend/app/services/system/plugin_admin_workflow_service.py backend/app/services/system/__init__.py backend/tests/test_admin_plugin_write_routes_contract.py backend/tests/services/test_plugin_admin_workflow_service.py backend/tests/test_admin_plugin_repair_fail_close.py`
+  - `python -m pytest backend/tests/test_admin_plugin_write_routes_contract.py backend/tests/services/test_plugin_admin_workflow_service.py backend/tests/test_admin_plugin_read_routes_contract.py backend/tests/test_admin_plugin_dependency_contract.py backend/tests/test_admin_plugin_marketplace_contract.py backend/tests/test_admin_plugin_repair_fail_close.py backend/tests/services/test_plugin_read_model_service.py -q -p no:cacheprovider`
+  - 结果：`All checks passed!`；`34 passed`
 
 ## 本轮已确认收口的 facade
 
@@ -295,7 +300,7 @@
   - lifecycle 相关拆分模式由“假拆分”更新为可执行样例：`facade + mixin/parts`。
   - 本轮已修复 `PluginCleanupService` 的 alembic `LIKE` 转义风险，并补了回归测试。
   - `backend/scripts/plugin_cli.py` 已收口为薄 facade，create/build/validate/pack/release/parser 等职责已经分拆到 companion modules。
-  - `backend/app/api/admin/plugins.py`、`backend/app/plugins/registry.py` 已完成 host seam 收口，本轮 blocker 已关闭。
+  - `backend/app/api/admin/plugins.py` 已继续把 write-side 协调下沉到 `plugin_admin_workflow_service.py`，controller 现在只保留 transport 协调；`backend/app/plugins/registry.py` 也已完成 host seam 收口，本轮 blocker 已关闭。
 - `agent-4 / codegen-fullstack`
   - `backend/app/services/system/codegen_service.py`、`backend/app/codegen/generator.py` 已完成 facade 化；`backend/app/api/admin/codegen.py`、`FieldPropertyPanel.vue` 的 workflow / section seams 已通过定向回归锁住。
   - `admin/codegen.py` 的 preset 安全校验已进一步下沉到 `CodegenService.get_preset_detail_safe()`，controller 保持 transport-only。
