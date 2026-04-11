@@ -236,9 +236,25 @@
   - `ruff check backend/app/api/tenant/configs.py backend/app/api/admin/tenants.py backend/app/services/tenant/tenant_config_workflow_service.py backend/app/services/system/tenant_storage_admin_service.py backend/app/services/system/tenant_impersonation_service.py backend/app/services/system/tenant_service.py backend/app/services/tenant/tenant_admin_service.py backend/tests/test_tenant_config_routes_contract.py backend/tests/test_admin_tenant_workflow_routes_contract.py backend/tests/services/test_tenant_admin_workflow_services.py`
   - `python -m pytest backend/tests/services/test_tenant_admin_workflow_services.py backend/tests/test_tenant_config_routes_contract.py backend/tests/test_admin_tenant_workflow_routes_contract.py -q -p no:cacheprovider`
   - 结果：`10 passed`；`tenant/configs.py` 与 `admin/tenants.py` 的 controller-local workflow 已下沉到 `tenant_config_workflow_service.py`、`tenant_storage_admin_service.py`、`tenant_impersonation_service.py`，并补齐 route + service 双层哨兵
-  - `ruff check backend/app/api/admin/tenant_admins.py backend/app/services/system/tenant_admin_workflow_service.py backend/tests/test_admin_tenant_admin_routes_contract.py backend/tests/services/test_tenant_admin_workflow_services.py`
+- `ruff check backend/app/api/admin/tenant_admins.py backend/app/services/system/tenant_admin_workflow_service.py backend/tests/test_admin_tenant_admin_routes_contract.py backend/tests/services/test_tenant_admin_workflow_services.py`
   - `python -m pytest backend/tests/test_admin_tenant_admin_routes_contract.py backend/tests/services/test_tenant_admin_workflow_services.py -q -p no:cacheprovider`
   - 结果：`7 passed`；`admin/tenant_admins.py` 的 controller-local workflow/序列化胶水已下沉到 `tenant_admin_workflow_service.py`，并补齐 route + service 双层哨兵
+  - `pnpm --dir frontend exec vitest run --dom apps/web-antd/src/components/business/file-picker/__tests__/use-file-picker-core.upload-queue.test.ts apps/web-antd/src/components/business/file-picker/__tests__/use-file-picker-core.drag-drop.test.ts apps/web-antd/src/components/business/file-picker/__tests__/FilePicker.slice.test.ts apps/web-antd/src/views/admin/system/system-logs/__tests__/use-system-logs.test.ts`
+  - 结果：`4 files passed / 16 tests passed`
+  - `pnpm --dir frontend test:unit -- --run apps/web-antd/src/views/admin/system/system-logs/__tests__/use-system-logs.test.ts`
+  - 结果：`1 file passed / 5 tests passed`
+  - `pnpm --dir frontend test:unit -- --run apps/web-antd/src/components/business/file-picker/__tests__/use-file-picker-core.upload-queue.test.ts`
+  - 结果：`1 file passed / 5 tests passed`
+  - `ruff check backend/app/api/admin/plugins.py backend/app/api/admin/plugin_install_preview.py backend/app/services/system/plugin_service.py backend/tests/test_admin_plugin_write_routes_contract.py backend/tests/test_admin_user_routes_contract.py backend/app/api/admin/tenant_admins.py backend/app/services/system/tenant_admin_workflow_service.py backend/tests/test_admin_tenant_admin_routes_contract.py backend/tests/services/test_tenant_admin_workflow_services.py`
+  - 结果：`All checks passed!`
+  - `python -m pytest backend/tests/test_admin_plugin_write_routes_contract.py backend/tests/test_admin_user_routes_contract.py backend/tests/test_admin_plugin_dependency_contract.py backend/tests/test_admin_plugin_marketplace_contract.py backend/tests/test_admin_tenant_admin_routes_contract.py backend/tests/services/test_tenant_admin_workflow_services.py -q -p no:cacheprovider`
+  - 结果：`22 passed`
+  - `python -m pytest backend/tests/test_admin_plugin_write_routes_contract.py backend/tests/test_admin_plugin_read_routes_contract.py backend/tests/test_admin_plugin_dependency_contract.py backend/tests/test_admin_plugin_marketplace_contract.py backend/tests/test_admin_plugin_repair_fail_close.py backend/tests/services/test_plugin_read_model_service.py backend/tests/test_admin_user_routes_contract.py backend/tests/test_recycle_bin_registry.py backend/tests/test_admin_tenant_admin_routes_contract.py backend/tests/services/test_tenant_admin_workflow_services.py -q -p no:cacheprovider`
+  - 结果：`37 passed`
+  - `pnpm --dir frontend exec vitest run --dom apps/web-antd/src/components/business/file-picker/__tests__/use-file-picker-core.drag-drop.test.ts`
+  - 结果：`1 file passed / 3 tests passed`
+  - `pnpm --dir frontend exec vue-tsc --noEmit --skipLibCheck --pretty false -p apps/web-antd/tsconfig.json`
+  - 结果：通过
 
 ## 本轮已确认收口的 facade
 
@@ -274,8 +290,8 @@
   - `tenant/configs.py`、`admin/tenants.py` 的 controller-local workflow 已下沉到专门 service，并补齐 route + service 双层哨兵。
   - `admin/tenant_admins.py` 已把 controller-local workflow/serializer/tenant 校验胶水下沉到 `tenant_admin_workflow_service.py`，并补齐 route + service 哨兵。
 - `agent-3 / plugin-platform-backend`
-  - `backend/app/plugins/lifecycle.py` 已压到 432 行，作为 facade/mixin 汇聚层使用。
-  - `backend/app/plugins/lifecycle_orchestrator.py` 已压到 833 行，承接生命周期编排主逻辑（parts）。
+  - `backend/app/plugins/lifecycle.py` 已压到 443 行，作为 facade/mixin 汇聚层使用。
+  - `backend/app/plugins/lifecycle_orchestrator.py` 已压到 987 行，承接生命周期编排主逻辑（parts）。
   - lifecycle 相关拆分模式由“假拆分”更新为可执行样例：`facade + mixin/parts`。
   - 本轮已修复 `PluginCleanupService` 的 alembic `LIKE` 转义风险，并补了回归测试。
   - `backend/scripts/plugin_cli.py` 已收口为薄 facade，create/build/validate/pack/release/parser 等职责已经分拆到 companion modules。

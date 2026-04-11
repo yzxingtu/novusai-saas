@@ -170,7 +170,7 @@ describe('useFilePickerCore drag/drop', () => {
     const { core, unmount } = createCore();
     const droppedFile = createFile('drop.txt', 1024, 'text/plain');
     const dragEvent = createDragEvent({ types: ['Files'] });
-    const dropEvent = createDragEvent({ files: [droppedFile] });
+    const dropEvent = createDragEvent({ files: [droppedFile], types: ['Files'] });
 
     mocks.adminSmartUploadFile.mockResolvedValue({
       attachment: { id: 11 },

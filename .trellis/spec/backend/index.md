@@ -103,8 +103,8 @@ backend modules:
 - Plugin platform backend: split by runtime concern
   (`lifecycle`, `registry`, `manifest/context`, read-model service, cleanup service),
   avoid one module owning install/enable/migration/sync/audit simultaneously.
-  已落地样例：`backend/app/plugins/lifecycle.py` 作为兼容 facade（432 行），
-  `backend/app/plugins/lifecycle_orchestrator.py` 作为生命周期编排 parts（833 行）。
+  已落地样例：`backend/app/plugins/lifecycle.py` 作为兼容 facade（443 行），
+  `backend/app/plugins/lifecycle_orchestrator.py` 作为生命周期编排 parts（987 行）。
 - Codegen backend chain: separate generation core, config/read-model management,
   and CLI/API transport adapters; avoid one module owning config parse,
   generation orchestration, migration hooks, and delivery format at once.

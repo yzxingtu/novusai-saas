@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from app.core.base_service import BaseService
+from app.core.i18n import _
 from app.core.logging import get_logger
 from app.exceptions.base import (
     BusinessException,
@@ -28,6 +29,7 @@ from app.plugins.runtime_recovery import build_plugin_recovery_state
 from app.repositories.system.plugin_repository import PluginRepository
 
 if TYPE_CHECKING:
+    from fastapi import UploadFile
     from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = get_logger(__name__)
@@ -228,6 +230,37 @@ class PluginService(BaseService[Plugin, PluginRepository]):
             operator_id=operator_id,
         )
 
+    async def upgrade_plugin(self, plugin_id: int, file: UploadFile) -> None:
+        """Upgrade plugin package from uploaded zip file."""
+        import tempfile
+
+        from app.plugins.package_security import (
+            ensure_package_size_limit,
+            extract_plugin_zip_safely,
+        )
+        from app.plugins.version_manager import VersionManager
+
+        safe_filename = Path(file.filename).name if file.filename else "plugin.zip"
+        content = await file.read()
+        ensure_package_size_limit(len(content))
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir) / safe_filename
+            with open(tmp_path, "wb") as tmp_file:
+                tmp_file.write(content)
+
+            extract_dir = Path(tmp_dir) / "extracted"
+            plugin_dir = extract_plugin_zip_safely(tmp_path, extract_dir)
+            manager = VersionManager(self.db)
+            await manager.upgrade(plugin_id, plugin_dir)
+
+    async def rollback_plugin(self, plugin_id: int, target_version: str) -> None:
+        """Rollback plugin to a specified version."""
+        from app.plugins.version_manager import VersionManager
+
+        manager = VersionManager(self.db)
+        await manager.rollback(plugin_id, target_version)
+
     async def sync_manifest(
         self,
         plugin_id: int,
@@ -395,6 +428,16 @@ class PluginService(BaseService[Plugin, PluginRepository]):
         self, plugin_id: int, capabilities: list[str]
     ) -> Plugin:
         """更新插件授权能力列表 / Update plugin granted capabilities."""
+        from app.plugins.manifest import _VALID_CAPABILITIES
+
+        unknown = [value for value in capabilities if value not in _VALID_CAPABILITIES]
+        if unknown:
+            raise ValidationException(
+                message=_("plugin.error.unknown_capabilities").format(
+                    capabilities=", ".join(unknown),
+                ),
+            )
+
         plugin = await self.repo.get_by_id(plugin_id)
         if not plugin:
             raise NotFoundException(message="plugin.error.not_found")

@@ -9,7 +9,7 @@
 {"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Backfill reusable split seams for plugin platform and codegen chains"}
 {"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Backfill cross-layer boundary checks for controller/query and page orchestration"}
 {"file": ".trellis/spec/guides/plugin-runtime-playbook.md", "reason": "Backfill plugin host/frontend split seams with compatibility constraints"}
-{"file": ".trellis/tasks/04-10-non-ai-governance-refactor/info.md", "reason": "Record landed plugin lifecycle split evidence: lifecycle.py(432) + lifecycle_orchestrator.py(833)"}
+{"file": ".trellis/tasks/04-10-non-ai-governance-refactor/info.md", "reason": "Record landed plugin lifecycle split evidence: lifecycle.py(443) + lifecycle_orchestrator.py(987)"}
 {"file": ".trellis/tasks/04-10-non-ai-governance-refactor/ownership-matrix.md", "reason": "Register lifecycle_orchestrator.py under plugin-platform workstream and note facade+mixin/parts"}
 {"file": ".trellis/spec/guides/plugin-runtime-playbook.md", "reason": "Codify plugin lifecycle runtime recommended split as facade + mixin/parts with landed reference sizes"}
 {"file": "backend/tests/api/test_public_attachments_endpoints.py", "reason": "Add public attachment endpoint black-box regression coverage for /access self-redirect guard and /image processed redirect contract"}

@@ -70,7 +70,7 @@ Recommended governance seams:
 - plugin platform backend:
   lifecycle orchestration, registry/read model, cleanup/runtime sync, and
   transport adapter should be independent seams
-  - landed reference: `lifecycle.py(432)` facade + `lifecycle_orchestrator.py(833)` parts
+  - landed reference: `lifecycle.py(443)` facade + `lifecycle_orchestrator.py(987)` parts
 - codegen backend:
   config/read model management, generator core, migration hook, and CLI/API
   transport should be independent seams

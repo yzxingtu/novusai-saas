@@ -68,7 +68,7 @@ Primary references:
 - For plugin lifecycle/runtime governance, prefer `facade + mixin/parts`:
   facade keeps compatibility exports and assembly, while orchestrator parts own
   lifecycle execution paths. Current reference shape:
-  `lifecycle.py(432)` + `lifecycle_orchestrator.py(833)`.
+  `lifecycle.py(443)` + `lifecycle_orchestrator.py(987)`.
 - Plugin platform and codegen backend changes should follow responsibility seams
   explicitly (`runtime registry/lifecycle`, `read model`, `cleanup`, `generator`,
   `config manager`, `transport adapter`) rather than one mixed service.

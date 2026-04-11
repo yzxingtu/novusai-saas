@@ -17,7 +17,7 @@ from app.api.admin.plugin_admin_contracts import PluginInstallConfirmBody
 from app.core.base_model import utc_now
 from app.core.config import settings
 from app.core.deps import ActiveAdmin, DbSession
-from app.core.i18n import _
+from app.core.i18n import _ as translate
 from app.core.logging import get_logger
 from app.core.response import created, paginated, success
 from app.rbac.decorators import action_create, action_read
@@ -37,7 +37,9 @@ def sanitize_marketplace_slug(slug: str) -> None:
         from app.exceptions.base import ValidationException
 
         raise ValidationException(
-            message=_("plugin.error.invalid_marketplace_slug").format(slug=slug),
+            message=translate("plugin.error.invalid_marketplace_slug").format(
+                slug=slug
+            ),
         )
 
 
@@ -98,7 +100,9 @@ def decode_install_preview_token(token: str) -> dict[str, Any]:
     from app.exceptions.base import ValidationException
 
     if not token:
-        raise ValidationException(message=_("plugin.error.install_preview_required"))
+        raise ValidationException(
+            message=translate("plugin.error.install_preview_required")
+        )
 
     try:
         payload = jwt.decode(
@@ -108,15 +112,17 @@ def decode_install_preview_token(token: str) -> dict[str, Any]:
         )
     except ExpiredSignatureError as exc:
         raise ValidationException(
-            message=_("plugin.error.install_preview_expired")
+            message=translate("plugin.error.install_preview_expired")
         ) from exc
     except JWTError as exc:
         raise ValidationException(
-            message=_("plugin.error.install_preview_invalid")
+            message=translate("plugin.error.install_preview_invalid")
         ) from exc
 
     if payload.get("type") != _INSTALL_PREVIEW_TOKEN_TYPE:
-        raise ValidationException(message=_("plugin.error.install_preview_invalid"))
+        raise ValidationException(
+            message=translate("plugin.error.install_preview_invalid")
+        )
     return payload
 
 
@@ -132,18 +138,28 @@ def assert_install_preview_token(
     from app.exceptions.base import ValidationException
 
     if payload.get("source") != source:
-        raise ValidationException(message=_("plugin.error.install_preview_invalid"))
+        raise ValidationException(
+            message=translate("plugin.error.install_preview_invalid")
+        )
     if (
         marketplace_slug is not None
         and payload.get("marketplace_slug") != marketplace_slug
     ):
-        raise ValidationException(message=_("plugin.error.install_preview_invalid"))
+        raise ValidationException(
+            message=translate("plugin.error.install_preview_invalid")
+        )
     if admin_id is not None and payload.get("admin_id") not in {None, int(admin_id)}:
-        raise ValidationException(message=_("plugin.error.install_preview_invalid"))
+        raise ValidationException(
+            message=translate("plugin.error.install_preview_invalid")
+        )
     if plugin_name is not None and payload.get("plugin_name") != plugin_name:
-        raise ValidationException(message=_("plugin.error.install_preview_stale"))
+        raise ValidationException(
+            message=translate("plugin.error.install_preview_stale")
+        )
     if version is not None and payload.get("version") != version:
-        raise ValidationException(message=_("plugin.error.install_preview_stale"))
+        raise ValidationException(
+            message=translate("plugin.error.install_preview_stale")
+        )
 
 
 async def test_registry_connection(
@@ -174,7 +190,7 @@ async def test_registry_connection(
         from app.exceptions.base import ValidationException
 
         raise ValidationException(
-            message=_("plugin.error.invalid_registry_url_scheme"),
+            message=translate("plugin.error.invalid_registry_url_scheme"),
         )
 
     hostname = (parsed.hostname or "").lower()
@@ -184,14 +200,14 @@ async def test_registry_connection(
             from app.exceptions.base import ValidationException
 
             raise ValidationException(
-                message=_("plugin.error.invalid_registry_private_ip"),
+                message=translate("plugin.error.invalid_registry_private_ip"),
             )
     except ValueError as exc:
         if hostname not in allowed_hosts:
             from app.exceptions.base import ValidationException
 
             raise ValidationException(
-                message=_("plugin.error.invalid_registry_host").format(
+                message=translate("plugin.error.invalid_registry_host").format(
                     host=hostname,
                 ),
             ) from exc
@@ -216,7 +232,7 @@ async def test_registry_connection(
         )
         return {
             "ok": False,
-            "error": _("plugin.error.registry_connection_failed"),
+            "error": translate("plugin.error.registry_connection_failed"),
             "latency_ms": -1,
         }
 
@@ -339,7 +355,7 @@ def register_plugin_install_preview_routes(controller: GlobalController) -> None
             from app.plugins.exceptions import PluginNotFoundError
 
             raise PluginNotFoundError(
-                message=_("plugin.error.marketplace_not_found").format(
+                message=translate("plugin.error.marketplace_not_found").format(
                     slug=slug,
                 )
             )
@@ -375,7 +391,7 @@ def register_plugin_install_preview_routes(controller: GlobalController) -> None
             from app.plugins.exceptions import PluginNotFoundError
 
             raise PluginNotFoundError(
-                message=_("plugin.error.marketplace_not_found").format(
+                message=translate("plugin.error.marketplace_not_found").format(
                     slug=slug,
                 )
             )
@@ -434,7 +450,7 @@ def register_plugin_install_preview_routes(controller: GlobalController) -> None
             from app.plugins.exceptions import PluginNotFoundError
 
             raise PluginNotFoundError(
-                message=_("plugin.error.marketplace_not_found").format(
+                message=translate("plugin.error.marketplace_not_found").format(
                     slug=slug,
                 )
             )

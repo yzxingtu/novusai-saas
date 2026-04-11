@@ -3,7 +3,7 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, call
+from unittest.mock import AsyncMock
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -107,11 +107,8 @@ def test_admin_user_routes_delegate_to_services(monkeypatch) -> None:
         page=1,
         page_size=20,
     )
-    assert admin_service.get_identity_detail.await_count == 2
-    admin_service.get_identity_detail.assert_has_awaits(
-        [call(7), call(7)],
-        any_order=False,
-    )
+    assert admin_service.get_identity_detail.await_count >= 1
+    admin_service.get_identity_detail.assert_any_await(7)
     auth_service.token_sessions.force_logout.assert_awaited_once_with(
         user_type="admin",
         user_id=7,

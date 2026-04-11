@@ -73,7 +73,7 @@ When the repo-wide effort exists to reduce oversized files:
   scaffold templates or static resource payloads into dedicated modules instead
   of leaving command parsing, templates, and runtime checks tangled together
 - for plugin lifecycle/runtime governance, prefer `facade + mixin/parts`
-  (example baseline: `lifecycle.py(432)` + `lifecycle_orchestrator.py(833)`)
+  (example baseline: `lifecycle.py(443)` + `lifecycle_orchestrator.py(987)`)
 - keep public import paths, routes, CLI command names, and runtime contracts
   compatible unless the umbrella task explicitly declares a migration
 

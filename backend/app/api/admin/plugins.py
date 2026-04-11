@@ -4,9 +4,6 @@
 
 from __future__ import annotations
 
-import tempfile
-from pathlib import Path
-
 from fastapi import File, UploadFile
 
 from app.api.admin import plugin_install_preview as _install_preview_helpers
@@ -31,7 +28,7 @@ from app.api.admin.plugin_admin_contracts import (
 from app.api.admin.plugin_dependency_routes import register_plugin_dependency_routes
 from app.core.base_controller import GlobalController
 from app.core.deps import ActiveAdmin, DbSession
-from app.core.i18n import _
+from app.core.i18n import _ as translate
 from app.core.response import deleted, success
 from app.enums.rbac import PermissionScope
 from app.plugins.lifecycle import PluginLifecycle
@@ -164,13 +161,13 @@ class AdminPluginController(GlobalController):
             db: DbSession,
             admin: ActiveAdmin,
         ):
-            _ = admin
+            _admin = admin
             await PluginLifecycle(db).update_menu_overrides(
                 plugin_id,
                 menu_overrides=_build_menu_overrides_payload(body.menu_overrides),
                 refresh_runtime=True,
             )
-            return success(data={"message": _("plugin.menu_config_updated")})
+            return success(data={"message": translate("plugin.menu_config_updated")})
 
         @self.router.post("/{plugin_id}/sync-manifest")
         @action_update("action.plugin.update")
@@ -179,9 +176,9 @@ class AdminPluginController(GlobalController):
             db: DbSession,
             admin: ActiveAdmin,
         ):
-            _ = admin
+            _admin = admin
             await self.get_service(db).sync_manifest(plugin_id)
-            return success(data={"message": _("plugin.manifest_synced")})
+            return success(data={"message": translate("plugin.manifest_synced")})
 
         @self.router.delete("/{plugin_id}")
         @action_delete("action.plugin.uninstall")
@@ -196,7 +193,9 @@ class AdminPluginController(GlobalController):
             plugin = await service.get_by_id(plugin_id)
             if plugin is None:
                 return deleted(
-                    message=_("plugin.deleted_already").format(plugin_id=plugin_id)
+                    message=translate("plugin.deleted_already").format(
+                        plugin_id=plugin_id
+                    )
                 )
 
             plugin_display = plugin.display_name or plugin.name
@@ -232,14 +231,16 @@ class AdminPluginController(GlobalController):
             await db.commit()
             return success(
                 data=result,
-                message=_("plugin.schedule_refreshed"),
+                message=translate("plugin.schedule_refreshed"),
             )
 
         @self.router.post("/{plugin_id}/repair")
         @action_update("action.plugin.repair")
         async def repair_plugin(plugin_id: int, db: DbSession, admin: ActiveAdmin):
             await PluginLifecycle(db).repair(plugin_id, operator_id=admin.id)
-            return success(data={"message": _("plugin.repaired_and_restored")})
+            return success(
+                data={"message": translate("plugin.repaired_and_restored")}
+            )
 
         @self.router.delete("/{plugin_id}/force-cleanup")
         @action_delete("action.plugin.uninstall")
@@ -248,7 +249,7 @@ class AdminPluginController(GlobalController):
             db: DbSession,
             admin: ActiveAdmin,
         ):
-            _ = admin
+            _admin = admin
             await PluginCleanupService(db).force_cleanup_orphan(plugin_id)
             await db.flush()
             return deleted()
@@ -261,7 +262,7 @@ class AdminPluginController(GlobalController):
             db: DbSession = None,
             admin: ActiveAdmin = None,
         ):
-            _ = admin
+            _admin = admin
             await self.get_service(db).update_plugin_config(plugin_id, body.config)
             return success(data={"message": "Config updated"})
 
@@ -273,19 +274,11 @@ class AdminPluginController(GlobalController):
             db: DbSession = None,
             admin: ActiveAdmin = None,
         ):
-            _ = admin
-            from app.exceptions.base import ValidationException
-            from app.plugins.manifest import _VALID_CAPABILITIES
-
-            unknown = [value for value in body.capabilities if value not in _VALID_CAPABILITIES]
-            if unknown:
-                raise ValidationException(
-                    message=_("plugin.error.unknown_capabilities").format(
-                        capabilities=", ".join(unknown),
-                    ),
-                )
+            _admin = admin
             await self.get_service(db).update_capabilities(plugin_id, body.capabilities)
-            return success(data={"message": _("plugin.capabilities_updated")})
+            return success(
+                data={"message": translate("plugin.capabilities_updated")}
+            )
 
         @self.router.post("/{plugin_id}/icon")
         @action_update("action.plugin.icon")
@@ -295,7 +288,7 @@ class AdminPluginController(GlobalController):
             db: DbSession = None,
             admin: ActiveAdmin = None,
         ):
-            _ = admin
+            _admin = admin
             icon = await PluginCleanupService(db).save_plugin_icon(
                 plugin_id,
                 filename=file.filename,
@@ -311,28 +304,9 @@ class AdminPluginController(GlobalController):
             db: DbSession = None,
             admin: ActiveAdmin = None,
         ):
-            _ = admin
-            from app.plugins.package_security import (
-                ensure_package_size_limit,
-                extract_plugin_zip_safely,
-            )
-            from app.plugins.version_manager import VersionManager
-
-            with tempfile.TemporaryDirectory() as tmp_dir:
-                safe_filename = (
-                    Path(file.filename).name if file.filename else "plugin.zip"
-                )
-                tmp_path = Path(tmp_dir) / safe_filename
-                with open(tmp_path, "wb") as tmp_file:
-                    content = await file.read()
-                    ensure_package_size_limit(len(content))
-                    tmp_file.write(content)
-
-                extract_dir = Path(tmp_dir) / "extracted"
-                plugin_dir = extract_plugin_zip_safely(tmp_path, extract_dir)
-                manager = VersionManager(db)
-                await manager.upgrade(plugin_id, plugin_dir)
-                return success(data={"message": _("plugin.upgraded")})
+            _admin = admin
+            await self.get_service(db).upgrade_plugin(plugin_id, file)
+            return success(data={"message": translate("plugin.upgraded")})
 
         @self.router.post("/{plugin_id}/rollback")
         @action_update("action.plugin.rollback")
@@ -342,14 +316,14 @@ class AdminPluginController(GlobalController):
             db: DbSession = None,
             admin: ActiveAdmin = None,
         ):
-            _ = admin
-            from app.plugins.version_manager import VersionManager
-
-            manager = VersionManager(db)
-            await manager.rollback(plugin_id, body.target_version)
+            _admin = admin
+            await self.get_service(db).rollback_plugin(
+                plugin_id,
+                body.target_version,
+            )
             return success(
                 data={
-                    "message": _("plugin.rolled_back_to").format(
+                    "message": translate("plugin.rolled_back_to").format(
                         version=body.target_version,
                     )
                 }
@@ -363,7 +337,7 @@ class AdminPluginController(GlobalController):
             db: DbSession = None,
             admin: ActiveAdmin = None,
         ):
-            _ = admin
+            _admin = admin
             count = await self.get_service(db).assign_tenants(plugin_id, body.tenant_ids)
             return success(data={"assigned": count})
 
@@ -375,7 +349,7 @@ class AdminPluginController(GlobalController):
             db: DbSession = None,
             admin: ActiveAdmin = None,
         ):
-            _ = admin
+            _admin = admin
             await self.get_service(db).unassign_tenant(plugin_id, tenant_id)
             return deleted()
 
@@ -387,7 +361,7 @@ class AdminPluginController(GlobalController):
             db: DbSession = None,
             admin: ActiveAdmin = None,
         ):
-            _ = admin
+            _admin = admin
             from app.plugins.license import activate_license as do_activate
 
             result = await do_activate(plugin_id, body.license_key, db)
@@ -395,7 +369,10 @@ class AdminPluginController(GlobalController):
                 from app.exceptions.base import BusinessException
 
                 raise BusinessException(
-                    message=result.get("message", _("plugin.error.activation_failed"))
+                    message=result.get(
+                        "message",
+                        translate("plugin.error.activation_failed"),
+                    )
                 )
             return success(data=result)
 
@@ -406,7 +383,7 @@ class AdminPluginController(GlobalController):
             db: DbSession = None,
             admin: ActiveAdmin = None,
         ):
-            _ = admin
+            _admin = admin
             from app.plugins.license import (
                 create_trial_license,
                 get_license_status_by_id,
@@ -424,7 +401,7 @@ class AdminPluginController(GlobalController):
             db: DbSession = None,
             admin: ActiveAdmin = None,
         ):
-            _ = admin
+            _admin = admin
             from app.plugins.license import revoke_license as do_revoke
 
             await do_revoke(plugin_id, db)
@@ -438,7 +415,7 @@ class AdminPluginController(GlobalController):
             db: DbSession,
             admin: ActiveAdmin,
         ):
-            _ = admin
+            _admin = admin
             await PluginCleanupService(db).delete_backup(plugin_id, backup_name)
             return deleted()
 

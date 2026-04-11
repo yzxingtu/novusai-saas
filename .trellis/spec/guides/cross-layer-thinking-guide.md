@@ -71,7 +71,7 @@ For each layer pair, answer:
   split into focused command/runtime modules?
 - **Plugin lifecycle/runtime governance**: If plugin platform files are touched,
   is shape kept as `facade + mixin/parts` with compatibility preserved
-  (reference: `lifecycle.py(432)` + `lifecycle_orchestrator.py(833)`)?
+  (reference: `lifecycle.py(443)` + `lifecycle_orchestrator.py(987)`)?
 - **Governance test seam**: If package-level imports would drag unrelated
   out-of-scope modules into a route/controller test, can the test isolate the
   touched controller module directly while still validating the public transport

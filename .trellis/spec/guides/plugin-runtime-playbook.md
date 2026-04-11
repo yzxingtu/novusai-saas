@@ -25,8 +25,8 @@ transport adapters) instead of one giant plugin platform module.
 
 Landed reference for this pattern:
 
-- `backend/app/plugins/lifecycle.py` as compatibility facade (`432` lines)
-- `backend/app/plugins/lifecycle_orchestrator.py` as lifecycle orchestration parts (`833` lines)
+- `backend/app/plugins/lifecycle.py` as compatibility facade (`443` lines)
+- `backend/app/plugins/lifecycle_orchestrator.py` as lifecycle orchestration parts (`987` lines)
 
 ## Read Order
 
