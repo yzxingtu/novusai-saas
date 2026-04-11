@@ -17,6 +17,14 @@ from app.services.common.auth_domains.login_security import AuthLoginSecurityDom
 from app.services.common.auth_domains.session_password import AuthSessionPasswordDomain
 from app.services.common.auth_domains.tenant_admin_auth import AuthTenantAdminDomain
 from app.services.common.auth_domains.tenant_user_auth import AuthTenantUserDomain
+from app.services.common.auth_domains.tenant_user_login import (
+    TenantUserAccountDomain,
+    TenantUserLoginDomain,
+    TenantUserTokenDomain,
+)
+from app.services.common.auth_domains.tenant_user_login_code import (
+    TenantUserLoginCodeDomain,
+)
 
 __all__ = [
     "AuthSessionPasswordDomain",
@@ -26,6 +34,10 @@ __all__ = [
     "AuthTenantAdminDomain",
     "AuthTenantUserDomain",
     "AuthCaptchaVerificationMixin",
+    "TenantUserLoginDomain",
+    "TenantUserTokenDomain",
+    "TenantUserAccountDomain",
+    "TenantUserLoginCodeDomain",
     "TokenSessionFacade",
     "AdminAuthFacade",
     "TenantAdminAuthFacade",

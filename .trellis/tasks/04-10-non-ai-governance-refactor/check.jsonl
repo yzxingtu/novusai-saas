@@ -71,3 +71,14 @@
 {"file": ".trellis/spec/backend/index.md", "reason": "Verify plugin platform rules now codify the install-preview service seam and controller boundary"}
 {"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify backend quality gates reference install-preview service seam and marketplace preview/confirm sentinel coverage"}
 {"file": ".trellis/spec/guides/plugin-runtime-playbook.md", "reason": "Verify plugin runtime playbook includes install-preview workflow service + transport module separation"}
+{"file": "backend/tests/test_plugin_api_dispatcher_security.py", "reason": "Verify PluginContext facade + context_primitives split keeps DB sandbox checks and security guards stable"}
+{"file": "backend/tests/test_plugin_api_dispatcher_context_safety.py", "reason": "Verify PluginContext facade + context_primitives split keeps request-context safety behavior stable"}
+{"file": "backend/tests/test_plugin_storage_runtime.py", "reason": "Verify namespaced storage proxy extraction keeps plugin storage runtime behavior stable"}
+{"file": "backend/tests/test_plugin_manifest_validation.py", "reason": "Verify manifest helper extraction preserves plugin manifest validation behavior"}
+{"file": "backend/tests/test_plugin_dependency_runtime_model.py", "reason": "Verify manifest helper extraction preserves dependency model validation behavior"}
+{"file": "backend/tests/services/test_admin_dashboard_service.py", "reason": "Verify dashboard facade + parts split keeps admin dashboard behavior and identity enrichment stable"}
+{"file": "backend/tests/services/test_tenant_dashboard_service.py", "reason": "Verify dashboard facade + parts split keeps tenant dashboard behavior and identity enrichment stable"}
+{"file": "backend/tests/services/test_auth_service.py", "reason": "Verify tenant-user auth facade split preserves login, login-code, token, and account flows"}
+{"file": "frontend/apps/web-antd/src/views/admin/system/codegen/modules/WysiwygFormView.vue", "reason": "Verify WYSIWYG form preview shell now stays thin and type-safe through vue-tsc"}
+{"file": "frontend/apps/web-antd/src/views/admin/system/codegen/modules/WysiwygListView.vue", "reason": "Verify WYSIWYG list preview quick-search typing no longer leaks Record<string, any>"}
+{"file": "backend/plugins/weather-widget/frontend/src/styles.ts", "reason": "Verify WX_STYLES aggregation still builds after style-module split"}

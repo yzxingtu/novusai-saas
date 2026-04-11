@@ -91,6 +91,11 @@
   keep builder page shell focused on route/state handoff, extract field editor,
   DB import, preview/history, and dirty-state guards into focused composables or
   section components.
+  WYSIWYG preview 也遵循同样模式：保留 `WysiwygFormView.vue` 作为稳定壳层，
+  将 header/body 呈现、预览状态、字段值 helper 下沉到 companion modules
+  （例如 `WysiwygFormHeader.vue`、`WysiwygFormBody.vue`、
+  `useWysiwygFormPreview.ts`、`wysiwyg-form-context.ts`），不要把状态与字段
+  渲染逻辑重新塞回壳层。
 
 ## Pre-Development Checklist
 
@@ -122,6 +127,9 @@ Read these files in order when touching frontend code:
 - Shell + parts decomposition examples:
   `frontend/apps/web-antd/src/components/business/file-picker/**`,
   `frontend/apps/web-antd/src/views/admin/plugins/modules/plugin-config-drawer/**`,
+  `frontend/apps/web-antd/src/views/admin/system/codegen/modules/WysiwygFormView.vue` +
+  `WysiwygFormHeader.vue` + `WysiwygFormBody.vue` +
+  `useWysiwygFormPreview.ts`,
   `backend/plugins/storage-billing/frontend/src/views/admin/**`,
   `backend/plugins/slider-captcha/frontend/src/*`
 

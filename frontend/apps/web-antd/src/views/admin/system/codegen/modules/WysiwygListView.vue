@@ -63,6 +63,17 @@ type WysiwygQuickSearchPayload = {
   options: WysiwygQuickSearchResolvedOption[];
 };
 
+type SearchFormValue =
+  | string
+  | number
+  | boolean
+  | null
+  | undefined
+  | Array<unknown>;
+
+type SearchFormValues = Record<string, SearchFormValue>;
+type QuickSearchUpdateValues = Record<string, string | undefined>;
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -368,7 +379,7 @@ const searchFormOptions = computed(() =>
     ? {
         ...useGridSearchFormOptions(searchSchema.value),
         handleValuesChange: (
-          values: Record<string, any>,
+          values: SearchFormValues,
           changedFields: string[],
         ) => {
           const fieldNames = enabledQuickSearchOptions.value.map(
@@ -474,7 +485,7 @@ async function applyQuickSearchValue(
       field.fieldName,
       undefined,
     ]),
-  ) as Record<string, any>;
+  ) as QuickSearchUpdateValues;
   updates[fieldName] = nextKeyword.trim() || undefined;
   await gridApi.formApi?.setValues?.(updates);
 }

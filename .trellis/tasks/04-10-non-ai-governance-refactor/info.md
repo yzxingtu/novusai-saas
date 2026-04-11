@@ -321,3 +321,46 @@
   - `backend/plugins/storage-billing/frontend/src/views/admin/index.vue` 已完成 `page shell + plugin-local page/bindings/presenters/contracts` 收口，并用 plugin-local vitest 锁住运行详情与 action seams。
   - `backend/plugins/slider-captcha/frontend/src/SliderCaptcha.vue` 已完成 `shell + controller + copy + shared helper` 收口，并补齐 a11y/state-machine/layout/controller/challenge 定向测试。
   - `backend/plugins/storage-migration/backend/services/migration_service.py` 已完成 facade + runtime registry / runner / transfer / recovery 收口，bundled plugin 工作流本轮 blocker 已关闭。
+
+## 2026-04-12 残余收口
+
+- Plugin platform backend 最后一批残余已关闭：
+  - `backend/app/services/system/plugin_install_preview_service.py` 已正式入库，
+    消除 clean checkout 缺文件 blocker。
+  - `backend/app/plugins/manifest.py` 已把公共 helper/constants 下沉到
+    `backend/app/plugins/manifest_helpers.py`，`PluginManifest` 导入路径保持不变。
+  - `backend/app/plugins/context.py` 已降到 775 行，并把 `RequestContext`、
+    `PluginDbProxy`、`_NamespacedStorageProxy` 下沉到
+    `backend/app/plugins/context_primitives.py`，`PluginContext` 对外导出保持兼容。
+- Auth / dashboard 最后一批大文件残余已关闭：
+  - `backend/app/services/common/auth_domains/tenant_user_auth.py` 已降到 157 行
+    facade，并把登录/验证码/账户与 token 逻辑下沉到
+    `tenant_user_login.py` 与 `tenant_user_login_code.py`。
+  - `backend/app/services/system/dashboard_service.py` 已降到 42 行 facade，
+    主逻辑下沉到 `dashboard_service_parts/{admin,tenant,base,activity,visibility}.py`。
+  - dashboard parts 已按 facade seam 兼容现有测试 monkeypatch，避免“真拆分但测不着”的回归。
+- Codegen / bundled plugin 前端残余已关闭：
+  - `frontend/.../WysiwygFormView.vue` 已降到 37 行壳层，
+    header/body/preview-state 分别下沉到
+    `WysiwygFormHeader.vue`、`WysiwygFormBody.vue`、
+    `useWysiwygFormPreview.ts`、`wysiwyg-form-context.ts`。
+  - `frontend/.../WysiwygListView.vue` 已清掉残余 `Record<string, any>`，
+    改为显式 quick-search 类型。
+  - `backend/plugins/weather-widget/frontend/src/styles.ts` 已改为 `WX_STYLES`
+    聚合器，样式片段拆到 `styles.base.ts`、`styles.panel.ts`、
+    `styles.dashboard.ts`、`styles.scene.ts`、`styles.trigger.ts`、
+    `styles.skeleton.ts`、`styles.responsive.ts`。
+
+## 2026-04-12 定向验证
+
+- `python -m ruff check backend/app/plugins/context.py backend/app/plugins/context_primitives.py backend/app/plugins/manifest.py backend/app/plugins/manifest_helpers.py backend/app/services/system/plugin_install_preview_service.py backend/app/services/common/auth_domains/__init__.py backend/app/services/common/auth_domains/tenant_user_auth.py backend/app/services/common/auth_domains/tenant_user_login.py backend/app/services/common/auth_domains/tenant_user_login_code.py backend/app/services/system/dashboard_service.py backend/app/services/system/dashboard_service_parts`
+  - 结果：通过。
+- `python -m pytest tests/services/test_auth_service.py tests/services/test_admin_dashboard_service.py tests/services/test_tenant_dashboard_service.py tests/services/test_plugin_install_preview_service.py tests/test_admin_plugin_marketplace_contract.py tests/test_admin_plugin_install_preview_routes_contract.py tests/test_plugin_api_dispatcher_security.py tests/test_plugin_api_dispatcher_context_safety.py tests/test_plugin_storage_runtime.py tests/test_plugin_manifest_validation.py tests/test_plugin_dependency_runtime_model.py -q -p no:cacheprovider --basetemp E:/git_clone/novusai-saas-yudi/.pytest_tmp/non-ai-residual`
+  - 结果：`94 passed`。
+- `python -m pytest tests/services/test_admin_dashboard_service.py tests/services/test_tenant_dashboard_service.py -q -p no:cacheprovider --basetemp E:/git_clone/novusai-saas-yudi/.pytest_tmp/non-ai-residual`
+  - 结果：`8 passed`。
+- `pnpm --dir frontend exec vue-tsc --noEmit --skipLibCheck --pretty false -p apps/web-antd/tsconfig.json`
+  - 结果：通过。
+- `pnpm exec vite build`
+  - 工作目录：`backend/plugins/weather-widget/frontend`
+  - 结果：通过。

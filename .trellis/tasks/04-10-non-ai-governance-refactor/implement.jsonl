@@ -80,3 +80,21 @@
 {"file": ".trellis/spec/backend/index.md", "reason": "Backfill plugin install-preview service seam guidance for the plugin platform controller split"}
 {"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backfill install-preview service seam and transport sentinel expectations for marketplace preview/confirm flows"}
 {"file": ".trellis/spec/guides/plugin-runtime-playbook.md", "reason": "Make install-preview workflow service + transport module separation explicit in the admin plugin seam map"}
+{"file": "backend/app/plugins/context_primitives.py", "reason": "Extract plugin request/db/storage primitives out of context.py so PluginContext stays a thinner facade with stable public imports"}
+{"file": "backend/app/plugins/manifest_helpers.py", "reason": "Extract plugin manifest helper constants and validators so PluginManifest keeps the public schema surface without remaining a helper bucket"}
+{"file": "backend/app/services/common/auth_domains/tenant_user_login.py", "reason": "Extract tenant-user login, token, and account flows out of tenant_user_auth.py so AuthTenantUserDomain becomes a thin facade"}
+{"file": "backend/app/services/common/auth_domains/tenant_user_login_code.py", "reason": "Extract tenant-user login-code flows out of tenant_user_auth.py so AuthTenantUserDomain stops owning the full code-login workflow"}
+{"file": "backend/app/services/system/dashboard_service_parts/admin.py", "reason": "Move platform dashboard orchestration out of dashboard_service.py into a focused admin part while keeping the public service class stable"}
+{"file": "backend/app/services/system/dashboard_service_parts/tenant.py", "reason": "Move tenant dashboard orchestration out of dashboard_service.py into a focused tenant part while keeping the public service class stable"}
+{"file": "backend/app/services/system/dashboard_service_parts/base.py", "reason": "Extract shared dashboard formatting helpers so admin and tenant parts reuse the same datetime presentation seam"}
+{"file": "frontend/apps/web-antd/src/views/admin/system/codegen/modules/WysiwygFormHeader.vue", "reason": "Extract WYSIWYG form preview header out of WysiwygFormView shell"}
+{"file": "frontend/apps/web-antd/src/views/admin/system/codegen/modules/WysiwygFormBody.vue", "reason": "Extract WYSIWYG form field rendering body out of WysiwygFormView shell"}
+{"file": "frontend/apps/web-antd/src/views/admin/system/codegen/modules/useWysiwygFormPreview.ts", "reason": "Extract WYSIWYG form preview state and helper logic out of WysiwygFormView shell"}
+{"file": "frontend/apps/web-antd/src/views/admin/system/codegen/modules/wysiwyg-form-context.ts", "reason": "Provide/inject the extracted WYSIWYG form preview state so child units can stay narrow and typed"}
+{"file": "backend/plugins/weather-widget/frontend/src/styles.base.ts", "reason": "Split weather-widget shared tokens and base panel styles out of the monolithic WX_STYLES string"}
+{"file": "backend/plugins/weather-widget/frontend/src/styles.panel.ts", "reason": "Split weather-widget panel layout and forecast presentation styles out of the monolithic WX_STYLES string"}
+{"file": "backend/plugins/weather-widget/frontend/src/styles.dashboard.ts", "reason": "Split weather-widget dashboard widget layout styles out of the monolithic WX_STYLES string"}
+{"file": "backend/plugins/weather-widget/frontend/src/styles.scene.ts", "reason": "Split weather-widget scene variants and keyframes out of the monolithic WX_STYLES string"}
+{"file": "backend/plugins/weather-widget/frontend/src/styles.trigger.ts", "reason": "Split weather-widget trigger styles out of the monolithic WX_STYLES string"}
+{"file": "backend/plugins/weather-widget/frontend/src/styles.skeleton.ts", "reason": "Split weather-widget skeleton and empty-state styles out of the monolithic WX_STYLES string"}
+{"file": "backend/plugins/weather-widget/frontend/src/styles.responsive.ts", "reason": "Split weather-widget responsive and reduced-motion rules out of the monolithic WX_STYLES string"}
