@@ -83,6 +83,10 @@
 - Bundled plugin interaction components may keep a stable public component path,
   but internal rendering, layout, and workflow orchestration should still move
   into plugin-local helpers and child units instead of re-growing the shell.
+- When a bundled plugin ships a heavy interaction component (for example captcha
+  or upload widgets), prefer `component shell + controller/state-machine +
+  copy/shared helpers` inside the plugin package instead of leaving one large
+  SFC to own runtime bridge, layout, and interaction logic together.
 - Codegen frontend defaults:
   keep builder page shell focused on route/state handoff, extract field editor,
   DB import, preview/history, and dirty-state guards into focused composables or
@@ -117,7 +121,9 @@ Read these files in order when touching frontend code:
   `frontend/apps/web-antd/src/router/routes/user/index.ts`
 - Shell + parts decomposition examples:
   `frontend/apps/web-antd/src/components/business/file-picker/**`,
-  `frontend/apps/web-antd/src/views/admin/plugins/modules/plugin-config-drawer/**`
+  `frontend/apps/web-antd/src/views/admin/plugins/modules/plugin-config-drawer/**`,
+  `backend/plugins/storage-billing/frontend/src/views/admin/**`,
+  `backend/plugins/slider-captcha/frontend/src/*`
 
 ## Anti-Patterns To Avoid
 

@@ -11,11 +11,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.base_service import TenantService
+from app.core.i18n import _
 from app.core.identity import (
     build_identity_select_extra,
     resolve_identity_display_name,
 )
-from app.core.i18n import _
 from app.core.security import get_password_hash, verify_password
 from app.enums import ErrorCode
 from app.exceptions import BusinessException, NotFoundException
@@ -374,6 +374,23 @@ class TenantAdminService(TenantService[TenantAdmin, TenantAdminRepository]):
             page_size=page_size,
             has_more=(page * page_size) < total,
         )
+
+    async def list_identity_details(self) -> list[TenantAdmin]:
+        """List tenant admins with role/org data for platform-side management."""
+        stmt = (
+            select(self.model)
+            .options(
+                selectinload(self.model.role),
+                selectinload(self.model.org_node),
+            )
+            .where(
+                self.model.tenant_id == self.tenant_id,
+                self.model.is_deleted.is_(False),
+            )
+            .order_by(self.model.is_owner.desc(), self.model.created_at.asc())
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
 
     async def get_identity_detail(self, admin_id: int) -> TenantAdmin:
         """

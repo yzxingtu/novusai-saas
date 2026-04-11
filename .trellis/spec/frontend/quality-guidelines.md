@@ -55,6 +55,10 @@ pnpm exec vue-tsc --noEmit --skipLibCheck --pretty false -p apps/web-antd/tsconf
   `backend/plugins/**`; extract plugin-local section components and composables
   inside the plugin package, then validate with that plugin's own frontend
   build/lint/type gates.
+- Bundled plugin interaction components can close with
+  `component shell + controller/state-machine + copy/shared helpers`, but the
+  claim is only complete when the extracted controller/layout/a11y seams have
+  focused tests in the plugin package.
 - Governance refactor default split:
   `page shell + composables + section components`, and keep API transport
   adaptation in API modules rather than SFC-local ad-hoc transforms.

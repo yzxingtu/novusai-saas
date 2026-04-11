@@ -89,22 +89,29 @@ class TestLogQuery:
         service = OperationLogService.__new__(OperationLogService)
         service.db = mock_db
         service.repo = AsyncMock()
-        service._load_identity_meta_map = AsyncMock(
-            return_value={
-                ("tenant_admin", 12): {
-                    "display_name": "Alice",
-                    "username": "alice",
-                    "nickname": "Alice",
-                    "avatar": "22",
-                    "org_node_id": 5,
-                    "org_node_name": "Ops",
-                    "role_name": "Owner",
-                    "user_type": "tenant_admin",
-                    "is_active": True,
-                    "is_leader": True,
-                    "is_owner": True,
+        service._identity_facade = SimpleNamespace(
+            identity_ref=lambda user_type, user_id: (
+                (str(user_type), int(user_id))
+                if user_type is not None and user_id is not None
+                else None
+            ),
+            load_identity_meta_map=AsyncMock(
+                return_value={
+                    ("tenant_admin", 12): {
+                        "display_name": "Alice",
+                        "username": "alice",
+                        "nickname": "Alice",
+                        "avatar": "22",
+                        "org_node_id": 5,
+                        "org_node_name": "Ops",
+                        "role_name": "Owner",
+                        "user_type": "tenant_admin",
+                        "is_active": True,
+                        "is_leader": True,
+                        "is_owner": True,
+                    }
                 }
-            }
+            ),
         )
 
         log = _make_log(
@@ -136,23 +143,30 @@ class TestLogQuery:
         service = OperationLogService.__new__(OperationLogService)
         service.db = mock_db
         service.repo = AsyncMock()
-        service._load_identity_meta_map = AsyncMock(
-            return_value={
-                ("tenant_admin", 12): {
-                    "display_name": "Current Alice",
-                    "username": "alice_now",
-                    "nickname": "Current Alice",
-                    "avatar": "live-avatar",
-                    "org_node_id": 9,
-                    "org_node_name": "Live Ops",
-                    "role_name": "Live Owner",
-                    "display_role_name": "Live Owner",
-                    "user_type": "tenant_admin",
-                    "is_active": False,
-                    "is_leader": False,
-                    "is_owner": False,
+        service._identity_facade = SimpleNamespace(
+            identity_ref=lambda user_type, user_id: (
+                (str(user_type), int(user_id))
+                if user_type is not None and user_id is not None
+                else None
+            ),
+            load_identity_meta_map=AsyncMock(
+                return_value={
+                    ("tenant_admin", 12): {
+                        "display_name": "Current Alice",
+                        "username": "alice_now",
+                        "nickname": "Current Alice",
+                        "avatar": "live-avatar",
+                        "org_node_id": 9,
+                        "org_node_name": "Live Ops",
+                        "role_name": "Live Owner",
+                        "display_role_name": "Live Owner",
+                        "user_type": "tenant_admin",
+                        "is_active": False,
+                        "is_leader": False,
+                        "is_owner": False,
+                    }
                 }
-            }
+            ),
         )
 
         log = _make_log(
@@ -201,44 +215,7 @@ class TestLogQuery:
         service = OperationLogService.__new__(OperationLogService)
         service.db = mock_db
         service.repo = AsyncMock()
-        service._load_identity_meta_map = AsyncMock(
-            return_value={
-                ("admin", 7): {
-                    "display_name": "Alice Zhang",
-                    "username": "alice",
-                    "nickname": "Alice",
-                    "avatar": "22",
-                    "org_node_id": 3,
-                    "org_node_name": "North Hub",
-                    "role_name": "Supervisor",
-                    "is_active": True,
-                    "is_leader": True,
-                    "is_owner": False,
-                }
-            }
-        )
-
-        count_result = MagicMock()
-        count_result.scalar.return_value = 1
-        page_result = MagicMock()
-        page_result.all.return_value = [
-            SimpleNamespace(
-                user_id=7,
-                user_type="admin",
-                username="alice",
-                nickname="Alice",
-            )
-        ]
-        service.db.execute = AsyncMock(side_effect=[count_result, page_result])
-
-        items, total = await service.get_admin_operators_select(
-            search="alice",
-            page=1,
-            page_size=10,
-        )
-
-        assert total == 1
-        assert items == [
+        expected_items = [
             {
                 "label": "Alice Zhang",
                 "value": "alice",
@@ -259,9 +236,26 @@ class TestLogQuery:
                 "disabled": False,
             }
         ]
+        service._operator_facade = SimpleNamespace(
+            get_admin_operators_select=AsyncMock(return_value=(expected_items, 1))
+        )
+
+        items, total = await service.get_admin_operators_select(
+            search="alice",
+            page=1,
+            page_size=10,
+        )
+
+        assert total == 1
+        assert items == expected_items
+        service._operator_facade.get_admin_operators_select.assert_awaited_once_with(
+            search="alice",
+            page=1,
+            page_size=10,
+        )
 
     @pytest.mark.asyncio
-    async def test_get_admin_operators_select_returns_identity_option(
+    async def test_get_tenant_operators_select_forwards_filters_to_facade(
         self,
         mock_db,
     ):
@@ -270,49 +264,35 @@ class TestLogQuery:
         service = OperationLogService.__new__(OperationLogService)
         service.db = mock_db
         service.repo = AsyncMock()
-        service._load_identity_meta_map = AsyncMock(
-            return_value={
-                ("admin", 7): {
-                    "display_name": "Jane Doe",
-                    "username": "jdoe",
-                    "nickname": "Jane",
-                    "avatar": "avatar-7",
-                    "org_node_id": 3,
-                    "org_node_name": "HQ",
-                    "role_name": "Supervisor",
-                    "is_active": True,
-                    "is_leader": True,
-                    "is_owner": False,
-                }
+        expected_items = [
+            {
+                "label": "Jane Doe",
+                "value": "jdoe",
+                "extra": {"user_type": "tenant_admin"},
+                "disabled": False,
             }
+        ]
+        service._operator_facade = SimpleNamespace(
+            get_tenant_operators_select=AsyncMock(return_value=(expected_items, 1))
         )
 
-        count_result = MagicMock()
-        count_result.scalar.return_value = 1
-        rows_result = MagicMock()
-        rows_result.all.return_value = [
-            make_mock_model(
-                user_id=7,
-                user_type="admin",
-                username="jdoe",
-                nickname="Jane",
-            )
-        ]
-        service.db.execute = AsyncMock(side_effect=[count_result, rows_result])
-
-        items, total = await service.get_admin_operators_select(
+        items, total = await service.get_tenant_operators_select(
+            tenant_id=88,
             search="Jane",
-            page=1,
-            page_size=10,
+            user_type="tenant_admin",
+            page=2,
+            page_size=25,
         )
 
         assert total == 1
-        assert items[0]["label"] == "Jane Doe"
-        assert items[0]["value"] == "jdoe"
-        assert items[0]["extra"]["org_node_name"] == "HQ"
-        assert items[0]["extra"]["role_name"] == "Supervisor"
-        assert items[0]["extra"]["is_leader"] is True
-        assert items[0]["disabled"] is False
+        assert items == expected_items
+        service._operator_facade.get_tenant_operators_select.assert_awaited_once_with(
+            tenant_id=88,
+            search="Jane",
+            user_type="tenant_admin",
+            page=2,
+            page_size=25,
+        )
 
 
 class TestLogFilter:

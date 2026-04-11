@@ -45,6 +45,11 @@
 - Controller-local helper classes inside `app/api/**` still count as controller
   logic. If a route needs extra read-model data, move that query into a service,
   repository, or dedicated `*_query_service.py` module.
+- Controller-local workflow/presenter/serializer helpers inside `app/api/**`
+  still count as controller logic when they coordinate config, storage,
+  impersonation, translated response assembly, or other business flows. Move
+  those seams into `*_workflow_service.py`, `*_query_service.py`, or a shared
+  serializer module outside the controller file.
 - Treat `app/api/**` as transport-only. Any new `db.execute(...)`,
   `session.execute(...)`, raw `select(...)` assembly, or controller-local query
   helper is a design violation by default and must be moved into

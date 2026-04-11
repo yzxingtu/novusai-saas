@@ -55,3 +55,9 @@
 {"file": "backend/plugins/slider-captcha/frontend/src/use-slider-captcha-copy.ts", "reason": "Extract slider-captcha locale fallback and copy computation so the shell no longer owns translation orchestration"}
 {"file": "backend/plugins/slider-captcha/frontend/src/slider-captcha-shared.ts", "reason": "Centralize slider-captcha shared runtime access and locale prefix so entry/setup and component shell reuse the same bridge"}
 {"file": ".trellis/tasks/04-10-non-ai-governance-refactor/info.md", "reason": "Record bundled-plugin frontend closure so the umbrella notes no longer describe storage-billing admin page and slider-captcha shell work as remaining"}
+{"file": "backend/app/services/tenant/tenant_config_workflow_service.py", "reason": "Move tenant config group/detail/storage workflows out of tenant/configs controller so the controller becomes transport-only"}
+{"file": "backend/app/services/system/tenant_storage_admin_service.py", "reason": "Move admin tenant storage override/test workflows out of admin/tenants controller and keep commit/validation at service seam"}
+{"file": "backend/app/services/system/tenant_impersonation_service.py", "reason": "Move tenant-admin impersonation token issuance and audit logging out of admin/tenants controller"}
+{"file": "backend/tests/test_tenant_config_routes_contract.py", "reason": "Add route contract sentinel for tenant config controller delegation to TenantConfigWorkflowService"}
+{"file": "backend/tests/test_admin_tenant_workflow_routes_contract.py", "reason": "Add route contract sentinel for admin tenant storage/impersonation workflows"}
+{"file": "backend/tests/services/test_tenant_admin_workflow_services.py", "reason": "Add service unit tests for extracted tenant config/storage/impersonation workflow services"}

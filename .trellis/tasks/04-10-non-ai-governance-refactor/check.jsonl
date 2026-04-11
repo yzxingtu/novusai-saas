@@ -53,3 +53,6 @@
 {"file": "backend/plugins/slider-captcha/frontend/src/__tests__/use-slider-captcha-layout.test.ts", "reason": "Verify slider-captcha layout seam keeps modal placement and drag-to-handle mapping stable"}
 {"file": "backend/plugins/slider-captcha/frontend/src/__tests__/use-slider-captcha-controller.test.ts", "reason": "Verify slider-captcha controller seam keeps modal opening, challenge load, and teardown behavior stable"}
 {"file": ".trellis/tasks/04-10-non-ai-governance-refactor/info.md", "reason": "Verify bundled-plugin closure notes now match the landed storage-billing and slider-captcha refactors instead of leaving stale residual wording"}
+{"file": "backend/tests/services/test_tenant_admin_workflow_services.py", "reason": "Verify extracted tenant config/storage/impersonation workflow services keep validation, commit, and token issuance rules stable"}
+{"file": "backend/tests/test_tenant_config_routes_contract.py", "reason": "Verify tenant config controller stays transport-only and delegates group/storage flows to TenantConfigWorkflowService"}
+{"file": "backend/tests/test_admin_tenant_workflow_routes_contract.py", "reason": "Verify admin tenant storage and impersonation routes stay transport-only after workflow extraction"}

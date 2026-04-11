@@ -60,6 +60,11 @@ Primary references:
 - When a governance-heavy controller or facade is split, add at least one
   transport-level or contract-level sentinel test so regressions are caught
   above the service mock layer.
+- When controller-local workflow/presenter logic is extracted into a dedicated
+  service, add both:
+  - a route contract sentinel for the transport seam
+  - a service unit test for the extracted workflow rules (validation, commit,
+    token issuance, response shaping, or similar)
 - For plugin lifecycle/runtime governance, prefer `facade + mixin/parts`:
   facade keeps compatibility exports and assembly, while orchestrator parts own
   lifecycle execution paths. Current reference shape:

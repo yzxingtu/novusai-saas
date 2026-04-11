@@ -26,8 +26,16 @@ import {
   smartUploadFile as tenantSmartUploadFile,
 } from '#/api/tenant/attachment';
 import { $t } from '#/locales';
-import { formatFileSize } from '#/utils/file';
 import { getAttachmentUrl } from '#/utils/image';
+
+import {
+  buildFilePickerListQuery,
+  buildFilePickerUploadPlan,
+  normalizeUploadRulesResponse,
+  resolveAcceptMimeFilter,
+  resolveFilePickerEndpoint,
+  validateFilePickerFile,
+} from './file-picker-contracts';
 
 interface UseFilePickerCoreOptions {
   onSelect: (files: AttachmentInfo[]) => void;
@@ -43,9 +51,6 @@ interface UploadRequestPayload {
 type UploadProgress = { percent: number };
 type UploadSignalOptions = { signal: AbortSignal };
 
-const BATCH_SIZE_THRESHOLD = 5 * 1024 * 1024;
-const BATCH_MAX_FILES = 20;
-
 function isUploadRequestPayload(value: unknown): value is UploadRequestPayload {
   return (
     typeof value === 'object' &&
@@ -59,8 +64,7 @@ export function useFilePickerCore(options: UseFilePickerCoreOptions) {
   const { onSelect, props } = options;
 
   const resolvedEndpoint = computed(() => {
-    if (props.endpoint) return props.endpoint;
-    return window.location.pathname.startsWith('/admin') ? 'admin' : 'tenant';
+    return resolveFilePickerEndpoint(props.endpoint, window.location.pathname);
   });
 
   const uploadRules = ref<null | UploadRules>(null);
@@ -80,11 +84,7 @@ export function useFilePickerCore(options: UseFilePickerCoreOptions) {
           ? adminGetUploadRulesApi
           : tenantGetUploadRulesApi;
       const rules = await api();
-      uploadRules.value = {
-        allowedExtensions: rules.allowed_extensions ?? '',
-        deniedExtensions: rules.denied_extensions ?? '',
-        maxFileSizeMb: rules.max_file_size_mb ?? 100,
-      };
+      uploadRules.value = normalizeUploadRulesResponse(rules);
       uploadRulesLoaded.value = true;
     } catch {
       //
@@ -124,13 +124,9 @@ export function useFilePickerCore(options: UseFilePickerCoreOptions) {
     () => uploadTasks.value.filter((task) => task.status === 'error').length,
   );
 
-  const acceptMimeFilter = computed(() => {
-    if (!props.accept || props.accept === '*') return '';
-    const parts = props.accept.split(',').map((item) => item.trim());
-    const mimeWild = parts.find((item) => item.endsWith('/*'));
-    if (mimeWild) return mimeWild.replace('/*', '');
-    return '';
-  });
+  const acceptMimeFilter = computed(() =>
+    resolveAcceptMimeFilter(props.accept),
+  );
 
   const showCategoryFilter = computed(
     () => !props.imageOnly && !acceptMimeFilter.value,
@@ -178,21 +174,14 @@ export function useFilePickerCore(options: UseFilePickerCoreOptions) {
   async function loadFiles() {
     loading.value = true;
     try {
-      const params: AttachmentListQueryParams = {
-        page: currentPage.value,
-        page_size: pageSize.value,
-        sort: '-created_at',
-      };
-      if (searchKeyword.value) {
-        params['filter[name][ilike]'] = searchKeyword.value;
-      }
-      if (categoryFilter.value) {
-        params['filter[mime_type][ilike]'] = `${categoryFilter.value}/`;
-      } else if (props.imageOnly) {
-        params['filter[mime_type][ilike]'] = 'image/';
-      } else if (acceptMimeFilter.value) {
-        params['filter[mime_type][ilike]'] = `${acceptMimeFilter.value}/`;
-      }
+      const params: AttachmentListQueryParams = buildFilePickerListQuery({
+        acceptMimeFilter: acceptMimeFilter.value,
+        categoryFilter: categoryFilter.value,
+        currentPage: currentPage.value,
+        imageOnly: props.imageOnly,
+        pageSize: pageSize.value,
+        searchKeyword: searchKeyword.value,
+      });
       const listApi =
         resolvedEndpoint.value === 'admin'
           ? adminGetAttachmentListApi
@@ -241,39 +230,25 @@ export function useFilePickerCore(options: UseFilePickerCoreOptions) {
   }
 
   function validateFile(file: File): null | string {
-    const maxSize = effectiveMaxFileSize.value;
-    if (file.size > maxSize) {
-      return $t('shared.filePicker.fileTooLarge', {
-        maxSize: formatFileSize(maxSize),
-      });
-    }
-    if (props.imageOnly && !file.type.startsWith('image/')) {
-      return $t('shared.filePicker.onlyImages');
-    }
-    if (!file.name?.trim()) {
-      return $t('shared.filePicker.invalidFileName');
-    }
-    if (!uploadRules.value) return null;
+    return validateFilePickerFile({
+      effectiveMaxFileSize: effectiveMaxFileSize.value,
+      file,
+      imageOnly: props.imageOnly,
+      translate: $t,
+      uploadRules: uploadRules.value,
+    });
+  }
 
-    const extension = file.name.includes('.')
-      ? (file.name.split('.').pop()?.toLowerCase() ?? '')
-      : '';
-    if (!extension) return null;
-    const allowed = uploadRules.value.allowedExtensions
-      .split(',')
-      .map((item) => item.trim().toLowerCase().replace(/^\./, ''))
-      .filter(Boolean);
-    if (allowed.length > 0 && !allowed.includes(extension)) {
-      return $t('shared.filePicker.extensionNotAllowed', { ext: extension });
-    }
-    const denied = uploadRules.value.deniedExtensions
-      .split(',')
-      .map((item) => item.trim().toLowerCase().replace(/^\./, ''))
-      .filter(Boolean);
-    if (denied.includes(extension)) {
-      return $t('shared.filePicker.extensionDenied', { ext: extension });
-    }
-    return null;
+  function createPendingUploadTask(file: File): UploadTask {
+    return {
+      uid: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      file,
+      name: file.name,
+      size: file.size,
+      status: 'pending',
+      percent: 0,
+      retryCount: 0,
+    };
   }
 
   async function executeUploadTask(task: UploadTask): Promise<void> {
@@ -431,43 +406,15 @@ export function useFilePickerCore(options: UseFilePickerCoreOptions) {
     }
     if (validFiles.length === 0) return;
 
-    const smallFiles = validFiles.filter(
-      (file) => file.size <= BATCH_SIZE_THRESHOLD,
-    );
-    const largeFiles = validFiles.filter(
-      (file) => file.size > BATCH_SIZE_THRESHOLD,
-    );
+    const uploadPlan = buildFilePickerUploadPlan({ files: validFiles });
 
-    for (const file of largeFiles) {
-      uploadTasks.value.unshift({
-        uid: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-        file,
-        name: file.name,
-        size: file.size,
-        status: 'pending',
-        percent: 0,
-        retryCount: 0,
-      });
+    for (const file of uploadPlan.queuedFiles) {
+      uploadTasks.value.unshift(createPendingUploadTask(file));
     }
     uploading.value = true;
 
-    if (smallFiles.length >= 2) {
-      for (let i = 0; i < smallFiles.length; i += BATCH_MAX_FILES) {
-        const chunk = smallFiles.slice(i, i + BATCH_MAX_FILES);
-        void executeBatchUpload(chunk).finally(() => processQueue());
-      }
-    } else {
-      for (const file of smallFiles) {
-        uploadTasks.value.unshift({
-          uid: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-          file,
-          name: file.name,
-          size: file.size,
-          status: 'pending',
-          percent: 0,
-          retryCount: 0,
-        });
-      }
+    for (const batch of uploadPlan.batchedFiles) {
+      void executeBatchUpload(batch).finally(() => processQueue());
     }
 
     if (uploadTasks.value.some((task) => task.status === 'pending')) {

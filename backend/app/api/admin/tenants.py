@@ -5,23 +5,14 @@
 Provides tenant CRUD endpoints (platform admin only).
 """
 
-from fastapi import Body, HTTPException, Query, Request, status
+from fastapi import Body, Query, Request
 
-from app.configs.service import ConfigService
 from app.core.base_controller import GlobalController
 from app.core.deps import ActiveAdmin, DbSession, QueryParams
 from app.core.i18n import _
-from app.core.logging import ImpersonateLoggerMixin
 from app.core.recycle_bin import register_admin_recycle_bin_routes
-from app.core.response import build_inline_error_result, success
-from app.core.security import (
-    IMPERSONATE_TOKEN_EXPIRE_SECONDS,
-    TOKEN_SCOPE_TENANT_ADMIN,
-    create_impersonate_token,
-)
-from app.enums import ErrorCode
+from app.core.response import success
 from app.enums.rbac import PermissionScope
-from app.exceptions import BusinessException
 from app.rbac.decorators import (
     MenuConfig,
     action_create,
@@ -34,139 +25,15 @@ from app.rbac.decorators import (
 from app.schemas.system import (
     TenantCreateRequest,
     TenantImpersonateRequest,
-    TenantImpersonateResponse,
     TenantResetOwnerPasswordRequest,
     TenantResponse,
     TenantStatusRequest,
     TenantUpdateRequest,
 )
 from app.services.system import TenantService
+from app.services.system.tenant_impersonation_service import TenantImpersonationService
+from app.services.system.tenant_storage_admin_service import TenantStorageAdminService
 from app.services.tenant.tenant_role_option_service import TenantAdminReadModelService
-
-
-# 审计日志辅助类 / Audit log helper class
-class _ImpersonateAuditLogger(ImpersonateLoggerMixin):
-    """Impersonate 审计日志器 / Impersonate audit logger"""
-
-    pass
-
-
-_audit_helper = _ImpersonateAuditLogger()
-
-
-class _TenantStorageAdminFacade:
-    """Storage-config workflow facade for admin tenant endpoints."""
-
-    _CONFIG_KEY_MAP = {
-        "tenant_storage_mode": "tenant_storage_mode",
-        "tenant_storage_driver": "tenant_storage_driver",
-        "tenant_storage_root_path": "tenant_storage_root_path",
-        "tenant_storage_base_url": "tenant_storage_base_url",
-        "tenant_storage_options": "tenant_storage_options",
-        "tenant_storage_self_config_enabled": "tenant_storage_self_config_enabled",
-    }
-
-    def __init__(self, db: DbSession) -> None:
-        self._db = db
-        self._config_service = ConfigService(db)
-
-    async def get_tenant_storage_config(self, tenant_id: int) -> dict:
-        from app.services.common.storage_config_resolver import StorageConfigResolver
-
-        resolver = StorageConfigResolver(self._db)
-        mode = await resolver.get_storage_mode(tenant_id)
-        tenant_driver = await self._config_service.get_tenant_config(
-            tenant_id, "tenant_storage_driver", default=None
-        )
-        tenant_root_path = await self._config_service.get_tenant_config(
-            tenant_id, "tenant_storage_root_path", default=""
-        )
-        tenant_base_url = await self._config_service.get_tenant_config(
-            tenant_id, "tenant_storage_base_url", default=""
-        )
-        tenant_options = await self._config_service.get_tenant_config(
-            tenant_id, "tenant_storage_options", default={}
-        )
-        tenant_mode = await self._config_service.get_tenant_config(
-            tenant_id, "tenant_storage_mode", default="platform"
-        )
-        tenant_self_enabled = await self._config_service.get_tenant_config(
-            tenant_id, "tenant_storage_self_config_enabled", default=False
-        )
-        return {
-            "tenant_id": tenant_id,
-            "effective_mode": mode,
-            "tenant_storage_mode": str(tenant_mode),
-            "tenant_storage_driver": str(tenant_driver) if tenant_driver else None,
-            "tenant_storage_root_path": str(tenant_root_path),
-            "tenant_storage_base_url": str(tenant_base_url),
-            "tenant_storage_options": tenant_options or {},
-            "tenant_storage_self_config_enabled": bool(tenant_self_enabled),
-        }
-
-    async def update_tenant_storage_config(self, tenant_id: int, data: dict) -> None:
-        mode = data.get("tenant_storage_mode")
-        if mode == "admin_override":
-            driver = data.get("tenant_storage_driver")
-            root_path = data.get("tenant_storage_root_path", "")
-            if not driver or not root_path or not str(root_path).strip():
-                raise BusinessException(
-                    message=_("error.common.invalid_parameter"),
-                    code=ErrorCode.INVALID_PARAMETER,
-                )
-            if driver == "local":
-                raise BusinessException(
-                    message=_("config.storage.local_not_allowed_for_tenant"),
-                    code=ErrorCode.INVALID_PARAMETER,
-                )
-
-        for field, config_key in self._CONFIG_KEY_MAP.items():
-            if field in data:
-                await self._config_service.set_tenant_config(
-                    tenant_id=tenant_id,
-                    key=config_key,
-                    value=data[field],
-                )
-
-    async def test_tenant_storage_connection(
-        self,
-        driver: str,
-        root_path: str,
-        base_url: str,
-        config: dict,
-    ) -> dict:
-        import io
-        import uuid
-
-        from app.storage import storage_manager
-        from app.storage.base import StorageConfig
-
-        if driver == "local":
-            return build_inline_error_result(
-                _("config.storage.local_not_allowed_for_tenant"),
-            )
-
-        try:
-            sc = StorageConfig(
-                driver=driver,
-                root_path=root_path or config.get("bucket", "test"),
-                base_url=base_url or None,
-                options=config,
-            )
-            drv = storage_manager.get_driver(sc)
-            test_key = f".novusai-test/{uuid.uuid4().hex[:8]}.txt"
-            test_content = io.BytesIO(b"NovusAI tenant storage test")
-            await drv.put(test_key, test_content, mime_type="text/plain")
-            exists = await drv.exists(test_key)
-            if not exists:
-                return build_inline_error_result(_("config.storage.test_file_not_found"))
-            await drv.delete(test_key)
-            return {"success": True}
-        except Exception as exc:
-            return build_inline_error_result(
-                exc,
-                fallback_message=_("common.server_error"),
-            )
 
 
 @permission_resource(
@@ -452,52 +319,14 @@ class AdminTenantController(GlobalController):
 
             权限 / Permission: tenant:impersonate
             """
-            # 获取企业信息 / Get tenant info
-            service = TenantService(db)
-            tenant = await service.get_by_id(tenant_id)
-
-            if tenant is None:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=_("tenant.not_found"),
-                )
-
-            if not tenant.is_active:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=_("tenant.disabled"),
-                )
-
-            # 验证目标角色（如果指定） / Validate target role (if specified)
             role_id = data.role_id if data else None
-            if role_id:
-                await service.validate_impersonation_role(tenant_id, role_id)
-
-            # 生成 impersonate token / Generate impersonate token
-            token = create_impersonate_token(
-                admin_id=current_admin.id,
-                target_scope=TOKEN_SCOPE_TENANT_ADMIN,
-                target_tenant_id=tenant_id,
-                target_role_id=role_id,
-            )
-
-            # 记录审计日志 / Record audit log
-            _audit_helper.logger.info(
-                "Admin impersonate initiated | admin_id={} | admin_username={} | "
-                "target_tenant_id=%s | target_tenant_code=%s | target_role_id=%s",
-                current_admin.id,
-                current_admin.username,
-                tenant_id,
-                tenant.code,
-                role_id,
-            )
+            impersonation_service = TenantImpersonationService(db)
 
             return success(
-                data=TenantImpersonateResponse(
-                    impersonate_token=token,
-                    tenant_code=tenant.code,
-                    tenant_name=tenant.name,
-                    expires_in=IMPERSONATE_TOKEN_EXPIRE_SECONDS,
+                data=await impersonation_service.issue_tenant_admin_token(
+                    current_admin=current_admin,
+                    role_id=role_id,
+                    tenant_id=tenant_id,
                 ),
                 message=_("common.success"),
             )
@@ -516,8 +345,8 @@ class AdminTenantController(GlobalController):
 
             权限 / Permission: tenant:detail
             """
-            storage_facade = _TenantStorageAdminFacade(db)
-            return success(data=await storage_facade.get_tenant_storage_config(tenant_id))
+            storage_service = TenantStorageAdminService(db)
+            return success(data=await storage_service.get_tenant_storage_config(tenant_id))
 
         @router.put("/{tenant_id}/storage-config", summary="设置企业存储配置")
         @action_update("action.tenant.update")
@@ -534,12 +363,11 @@ class AdminTenantController(GlobalController):
 
             权限 / Permission: tenant:update
             """
-            storage_facade = _TenantStorageAdminFacade(db)
-            await storage_facade.update_tenant_storage_config(
+            storage_service = TenantStorageAdminService(db)
+            await storage_service.update_tenant_storage_config(
                 tenant_id=tenant_id,
                 data=data,
             )
-            await db.commit()
             return success(message=_("config.updated"))
 
         @router.post("/{tenant_id}/storage-config/test", summary="测试企业存储连接")
@@ -559,8 +387,8 @@ class AdminTenantController(GlobalController):
 
             权限 / Permission: tenant:update
             """
-            storage_facade = _TenantStorageAdminFacade(db)
-            result = await storage_facade.test_tenant_storage_connection(
+            storage_service = TenantStorageAdminService(db)
+            result = await storage_service.test_tenant_storage_connection(
                 driver=driver,
                 root_path=root_path,
                 base_url=base_url,

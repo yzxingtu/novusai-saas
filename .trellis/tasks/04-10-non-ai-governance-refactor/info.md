@@ -210,45 +210,59 @@
   - `pnpm --dir frontend exec vitest run --dom --root .. backend/plugins/slider-captcha/frontend/src/__tests__/offset-detector.test.ts backend/plugins/slider-captcha/frontend/src/__tests__/render-slider-assets.test.ts backend/plugins/slider-captcha/frontend/src/__tests__/use-slider-captcha-challenge.test.ts backend/plugins/slider-captcha/frontend/src/__tests__/use-slider-captcha-controller.test.ts backend/plugins/slider-captcha/frontend/src/__tests__/slider-captcha-a11y.test.ts backend/plugins/slider-captcha/frontend/src/__tests__/slider-captcha-state-machine.test.ts backend/plugins/slider-captcha/frontend/src/__tests__/use-slider-captcha-layout.test.ts`
   - `pnpm --dir backend/plugins/slider-captcha/frontend exec vite build`
   - 结果：slider-captcha 插件前端 `7 files passed / 24 tests passed`，生产打包通过
+  - `ruff check backend/app/api/tenant/configs.py backend/app/api/admin/tenants.py backend/app/services/tenant/tenant_config_workflow_service.py backend/app/services/system/tenant_storage_admin_service.py backend/app/services/system/tenant_impersonation_service.py backend/app/services/system/tenant_service.py backend/app/services/tenant/tenant_admin_service.py backend/tests/test_tenant_config_routes_contract.py backend/tests/test_admin_tenant_workflow_routes_contract.py backend/tests/services/test_tenant_admin_workflow_services.py`
+  - `python -m pytest backend/tests/services/test_tenant_admin_workflow_services.py backend/tests/test_tenant_config_routes_contract.py backend/tests/test_admin_tenant_workflow_routes_contract.py -q -p no:cacheprovider`
+  - 结果：`10 passed`；`tenant/configs.py` 与 `admin/tenants.py` 的 controller-local workflow 已下沉到 `tenant_config_workflow_service.py`、`tenant_storage_admin_service.py`、`tenant_impersonation_service.py`，并补齐 route + service 双层哨兵
 
 ## 本轮已确认收口的 facade
 
 - 下列文件当前已经属于“薄 facade / 兼容壳”状态，不再作为主要拆分热点：
   - `backend/app/cli.py`
   - `backend/app/core/base_repository.py`
+  - `backend/app/services/system/operation_log_service.py`
+  - `backend/scripts/plugin_cli.py`
   - `backend/app/services/system/codegen_service.py`
   - `backend/app/codegen/generator.py`
   - `backend/plugins/storage-billing/backend/services/reconciliation_service.py`
+  - `backend/plugins/storage-migration/backend/services/migration_service.py`
 - 后续如需继续演进，优先改其内部 parts/helpers，不回头把逻辑塞回 facade。
+
+## 本轮已确认收口的 shell / workflow seams
+
+- 下列文件当前已经属于“薄 shell / workflow seam”状态，不再作为主要拆分热点：
+  - `backend/app/api/tenant/configs.py`
+  - `backend/app/api/admin/tenants.py`
+  - `frontend/apps/web-antd/src/views/admin/system/codegen/modules/FieldPropertyPanel.vue`
+- 后续如需继续演进，优先修改对应 workflow service、section components 或 typed contracts，不回头把 presenter / storage / impersonation / field-section 逻辑塞回 controller 或页面壳层。
 
 ## 本轮残余审计图
 
 - `agent-1 / control-plane-and-core-foundation`
-  - `backend/app/services/system/operation_log_service.py` 仍是最大 service 团块。
-  - `backend/app/api/admin/tasks.py`、`backend/app/api/admin/periodic_tasks.py` 已去掉直查库，但 controller 仍直接编排二级 service/query。
-  - `backend/app/core/base_repository.py`、`backend/app/cli.py` 已完成 facade 化，剩余重点转向 route contract 与 query-service 收口。
+  - `backend/app/services/system/operation_log_service.py` 已拆成 façade + `operation_log_service_parts/**`，并补齐 service 回归，不再作为主要拆分热点。
+  - `backend/app/api/admin/tasks.py`、`backend/app/api/admin/periodic_tasks.py` 已去掉直查库，并通过 route contract 锁住 controller + query-service seam。
+  - `backend/app/core/base_repository.py`、`backend/app/cli.py` 已完成 facade 化，当前 workstream 已收口。
 - `agent-2 / auth-rbac-and-org-boundary`
   - `backend/app/services/common/auth_service.py` 已继续下沉 façade 类到 `auth_domains/facades.py`，主 service 主要保留 domain 委托与兼容方法。
   - `backend/app/rbac/services/permission_service.py` 已继续下沉到 `permission_domains/checks.py`、`query.py`、`tenant_admin.py`，主 service 已收成 façade。
-  - 这批 controller 已基本清掉 `db.execute(...)`，但 `tenant/configs.py`、`admin/tenant_admins.py`、`admin/tenants.py` 仍有 controller-file-local presenter/workflow。
-  - auth 事务边界仍混杂在 helper 内部 `commit/rollback` 与 controller 外层提交之间。
+  - `tenant/configs.py`、`admin/tenants.py` 的 controller-local workflow 已下沉到专门 service，并补齐 route + service 双层哨兵。
+  - `admin/tenant_admins.py` 仍保留少量 controller-file-local serializer / tenant verify glue，但不涉及 controller 直查库，已从本轮 blocker 退化为后续可选整洁化项。
 - `agent-3 / plugin-platform-backend`
   - `backend/app/plugins/lifecycle.py` 已压到 432 行，作为 facade/mixin 汇聚层使用。
   - `backend/app/plugins/lifecycle_orchestrator.py` 已压到 833 行，承接生命周期编排主逻辑（parts）。
   - lifecycle 相关拆分模式由“假拆分”更新为可执行样例：`facade + mixin/parts`。
   - 本轮已修复 `PluginCleanupService` 的 alembic `LIKE` 转义风险，并补了回归测试。
-  - `backend/scripts/plugin_cli.py` 已降为 825 行，仍需持续沿 facade + parts 收敛其余主干。
-  - 本轮已把 admin plugin 写路由、preview-install、registry runtime families 进一步拆开并补齐 23 个定向回归。
+  - `backend/scripts/plugin_cli.py` 已收口为薄 facade，create/build/validate/pack/release/parser 等职责已经分拆到 companion modules。
+  - `backend/app/api/admin/plugins.py`、`backend/app/plugins/registry.py` 已完成 host seam 收口，本轮 blocker 已关闭。
 - `agent-4 / codegen-fullstack`
-  - `backend/app/services/system/codegen_service.py`、`backend/app/codegen/generator.py` 已完成 facade 化，剩余重点转向 `backend/app/api/admin/codegen.py` 与前端 Builder/FieldPropertyPanel 的 workflow seams。
+  - `backend/app/services/system/codegen_service.py`、`backend/app/codegen/generator.py` 已完成 facade 化；`backend/app/api/admin/codegen.py`、`FieldPropertyPanel.vue` 的 workflow / section seams 已通过定向回归锁住。
   - `frontend/.../builder.vue` 已抽出 `scope/workflows`，本轮继续补了 `workflow-helpers.ts` 与 `workbench-utils.ts`。
-  - `FieldPropertyPanel` 和 `use-field-property-panel` 仍需按 section / contract 继续拆。
+  - `FieldPropertyPanel` 已收口为 section components + typed contracts，不再作为主要拆分热点。
 - `agent-5 / frontend-shared-ops-pages`
   - `system-logs`、`plugin-config-drawer`、`config-form` 已确认完成“薄壳 + composable/section”收口，本轮通过 seam 测试加锁。
-  - `frontend/.../file-picker/FilePicker.vue` 与 `use-file-picker-core.ts` 仍是共享大件对子系统，但当前更偏能力内聚而非壳层回潮。
+  - `frontend/.../file-picker/FilePicker.vue` 与 `use-file-picker-core.ts` 仍是共享大件对子系统，但当前更偏能力内聚而非壳层回潮；contracts + core tests 已补齐。
   - `file-picker` 上传队列/拖拽与 `system-logs` 交互流仍缺 slice 级专项测试，可作为后续补强点。
 - `agent-6 / bundled-plugins-and-surface-contracts`
   - `backend/plugins/storage-billing/backend/services/reconciliation_service.py` 已完成 facade 化。
   - `backend/plugins/storage-billing/frontend/src/views/admin/index.vue` 已完成 `page shell + plugin-local page/bindings/presenters/contracts` 收口，并用 plugin-local vitest 锁住运行详情与 action seams。
   - `backend/plugins/slider-captcha/frontend/src/SliderCaptcha.vue` 已完成 `shell + controller + copy + shared helper` 收口，并补齐 a11y/state-machine/layout/controller/challenge 定向测试。
-  - `backend/plugins/storage-migration/backend/services/migration_service.py` 仍需拆 runtime registry / runner / transfer / recovery；这是 bundled plugin 工作流里当前唯一仍保留的后续热点。
+  - `backend/plugins/storage-migration/backend/services/migration_service.py` 已完成 facade + runtime registry / runner / transfer / recovery 收口，bundled plugin 工作流本轮 blocker 已关闭。

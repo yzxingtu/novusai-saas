@@ -18,6 +18,7 @@ from app.core.logging import LogManager
 from app.core.security import get_password_hash
 from app.enums import ErrorCode, RoleType
 from app.exceptions import BusinessException, NotFoundException
+from app.models.auth.tenant_admin_role import TenantAdminRole
 from app.models.auth.tenant_user_role import TenantUserRole
 from app.models.org import TenantOrgNode
 from app.models.tenant.tenant import Tenant
@@ -618,6 +619,18 @@ class TenantService(GlobalService[Tenant, TenantRepository]):
             return await self.enable_tenant(tenant_id)
         else:
             return await self.disable_tenant(tenant_id)
+
+    async def validate_impersonation_role(self, tenant_id: int, role_id: int) -> None:
+        """Ensure a tenant-admin role belongs to the impersonation target tenant."""
+        result = await self.db.execute(
+            select(TenantAdminRole.id).where(
+                TenantAdminRole.id == role_id,
+                TenantAdminRole.tenant_id == tenant_id,
+                TenantAdminRole.is_deleted.is_(False),
+            )
+        )
+        if result.scalar_one_or_none() is None:
+            raise NotFoundException(message=_("tenant_admin.role_not_found"))
 
 
 __all__ = ["TenantService"]

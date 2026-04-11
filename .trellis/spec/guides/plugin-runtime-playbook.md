@@ -114,6 +114,8 @@ Do not skip validation just because the plugin uses a slimmer standalone toolcha
   - composables: loading/query/form workflows
   - sections: presentational cards/tables/dialog bodies
   - shared helpers: plugin-local util contracts (not host-global dump buckets)
+  - interaction components: keep public component path stable, but extract
+    controller/state-machine/copy/layout helpers inside the plugin package
 - If plugin includes codegen-like workflows, apply the same seam model:
   builder shell, workflow composables, and focused sections instead of one
   mega page.
