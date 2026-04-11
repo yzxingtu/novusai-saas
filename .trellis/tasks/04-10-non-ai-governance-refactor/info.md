@@ -147,6 +147,27 @@
   - admin plugins read routes 已沉到 `plugin_admin_contracts.py`
   - registry 的 notification / permission / menu / socketio / frontend-slot 运行时家族已抽到 `registry_runtime_extensions.py`
   - lifecycle 新增 menu override 的持久化与 runtime 重挂 orchestration seam
+- Bundled plugin 前端拆分与回归已新增：
+  - `backend/plugins/storage-billing/frontend/src/views/admin/index.vue`
+  - `backend/plugins/storage-billing/frontend/src/views/admin/use-storage-billing-admin-page.ts`
+  - `backend/plugins/storage-billing/frontend/src/views/admin/use-storage-billing-admin-bindings.ts`
+  - `backend/plugins/storage-billing/frontend/src/views/admin/storage-billing-admin-contracts.ts`
+  - `backend/plugins/storage-billing/frontend/src/views/admin/storage-billing-admin-presenters.ts`
+  - `backend/plugins/storage-billing/frontend/src/views/admin/__tests__/reconciliation-helpers.test.ts`
+  - `backend/plugins/storage-billing/frontend/src/views/admin/__tests__/use-reconciliation-run-detail.test.ts`
+  - `backend/plugins/storage-billing/frontend/src/views/admin/__tests__/use-storage-billing-admin-run-actions.test.ts`
+  - `backend/plugins/storage-billing/frontend/vitest.config.ts`
+  - `backend/plugins/slider-captcha/frontend/src/SliderCaptcha.vue`
+  - `backend/plugins/slider-captcha/frontend/src/use-slider-captcha-controller.ts`
+  - `backend/plugins/slider-captcha/frontend/src/use-slider-captcha-copy.ts`
+  - `backend/plugins/slider-captcha/frontend/src/slider-captcha-shared.ts`
+  - `backend/plugins/slider-captcha/frontend/src/__tests__/slider-captcha-a11y.test.ts`
+  - `backend/plugins/slider-captcha/frontend/src/__tests__/slider-captcha-state-machine.test.ts`
+  - `backend/plugins/slider-captcha/frontend/src/__tests__/use-slider-captcha-layout.test.ts`
+  - `backend/plugins/slider-captcha/frontend/src/__tests__/use-slider-captcha-controller.test.ts`
+  - storage-billing admin page 已收成 `page shell + plugin-local page/bindings/presenters/contracts`，`index.vue` 降到约 300 行
+  - slider-captcha 已收成 `shell + controller + copy + shared helper`，`SliderCaptcha.vue` 降到约 222 行
+  - 两个 bundled plugin 都保持原组件导出路径、plugin manifest/runtime gate 与 frontend slot 契约不变
 
 ## 验证补充
 
@@ -183,6 +204,12 @@
   - `ruff check backend/app/api/admin/plugins.py backend/app/api/admin/plugin_install_preview.py backend/app/api/admin/plugin_admin_contracts.py backend/app/plugins/lifecycle.py backend/app/plugins/lifecycle_orchestrator.py backend/app/plugins/registry.py backend/app/plugins/registry_runtime_extensions.py backend/app/services/system/plugin_read_model_service.py backend/app/services/system/plugin_cleanup_service.py backend/tests/test_admin_plugin_dependency_contract.py backend/tests/test_admin_plugin_read_routes_contract.py backend/tests/services/test_plugin_read_model_service.py backend/tests/services/test_plugin_cleanup_service.py backend/tests/test_admin_plugin_repair_fail_close.py backend/tests/test_admin_plugin_marketplace_contract.py`
   - `python -m pytest backend/tests/test_admin_plugin_dependency_contract.py backend/tests/test_admin_plugin_read_routes_contract.py backend/tests/services/test_plugin_read_model_service.py backend/tests/services/test_plugin_cleanup_service.py backend/tests/test_admin_plugin_repair_fail_close.py backend/tests/test_admin_plugin_marketplace_contract.py -q`
   - 结果：`23 passed`，伴随 `.pytest_cache` `WinError 5` warning
+  - `pnpm --dir frontend exec vitest run --config E:/git_clone/novusai-saas-yudi/backend/plugins/storage-billing/frontend/vitest.config.ts --root E:/git_clone/novusai-saas-yudi/backend/plugins/storage-billing/frontend src/views/admin/__tests__/reconciliation-helpers.test.ts src/views/admin/__tests__/use-reconciliation-run-detail.test.ts src/views/admin/__tests__/use-storage-billing-admin-run-actions.test.ts`
+  - `pnpm --dir backend/plugins/storage-billing/frontend exec vite build`
+  - 结果：storage-billing 插件前端 `3 files passed / 11 tests passed`，生产打包通过
+  - `pnpm --dir frontend exec vitest run --dom --root .. backend/plugins/slider-captcha/frontend/src/__tests__/offset-detector.test.ts backend/plugins/slider-captcha/frontend/src/__tests__/render-slider-assets.test.ts backend/plugins/slider-captcha/frontend/src/__tests__/use-slider-captcha-challenge.test.ts backend/plugins/slider-captcha/frontend/src/__tests__/use-slider-captcha-controller.test.ts backend/plugins/slider-captcha/frontend/src/__tests__/slider-captcha-a11y.test.ts backend/plugins/slider-captcha/frontend/src/__tests__/slider-captcha-state-machine.test.ts backend/plugins/slider-captcha/frontend/src/__tests__/use-slider-captcha-layout.test.ts`
+  - `pnpm --dir backend/plugins/slider-captcha/frontend exec vite build`
+  - 结果：slider-captcha 插件前端 `7 files passed / 24 tests passed`，生产打包通过
 
 ## 本轮已确认收口的 facade
 
@@ -221,7 +248,7 @@
   - `frontend/.../file-picker/FilePicker.vue` 与 `use-file-picker-core.ts` 仍是共享大件对子系统，但当前更偏能力内聚而非壳层回潮。
   - `file-picker` 上传队列/拖拽与 `system-logs` 交互流仍缺 slice 级专项测试，可作为后续补强点。
 - `agent-6 / bundled-plugins-and-surface-contracts`
-  - `backend/plugins/storage-billing/backend/services/reconciliation_service.py` 已完成 facade 化，剩余重点转向 storage-billing 前端 admin page 和 slider-captcha 交互壳层。
-  - `backend/plugins/storage-billing/frontend/src/views/admin/index.vue`、`AdminRunsCard.vue` 仍掌握过多 view-model 和 workflow。
-  - `backend/plugins/storage-migration/backend/services/migration_service.py` 仍需拆 runtime registry / runner / transfer / recovery。
-  - `backend/plugins/slider-captcha/frontend/src/SliderCaptcha.vue` 外部 contract 清晰，但内部 orchestration 还偏重。
+  - `backend/plugins/storage-billing/backend/services/reconciliation_service.py` 已完成 facade 化。
+  - `backend/plugins/storage-billing/frontend/src/views/admin/index.vue` 已完成 `page shell + plugin-local page/bindings/presenters/contracts` 收口，并用 plugin-local vitest 锁住运行详情与 action seams。
+  - `backend/plugins/slider-captcha/frontend/src/SliderCaptcha.vue` 已完成 `shell + controller + copy + shared helper` 收口，并补齐 a11y/state-machine/layout/controller/challenge 定向测试。
+  - `backend/plugins/storage-migration/backend/services/migration_service.py` 仍需拆 runtime registry / runner / transfer / recovery；这是 bundled plugin 工作流里当前唯一仍保留的后续热点。
