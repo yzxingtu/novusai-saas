@@ -7,6 +7,8 @@ Provides codegen config business logic.
 
 from __future__ import annotations
 
+import re
+from pathlib import Path
 from typing import Any
 
 from app.codegen.generator import CodeGenerator
@@ -56,6 +58,24 @@ class CodegenService(
     @staticmethod
     def get_preset_detail(name: str) -> dict[str, Any] | None:
         """Get preset detail / 获取预设详情."""
+        return load_codegen_preset(name)
+
+    @staticmethod
+    def get_preset_detail_safe(name: str) -> dict[str, Any] | None:
+        """Safely resolve preset detail by name with path traversal guard."""
+        if not re.match(r"^[a-zA-Z0-9_-]+$", name):
+            return None
+        presets_dir = (
+            Path(__file__).resolve().parent.parent.parent
+            / "codegen"
+            / "templates"
+            / "presets"
+        )
+        path = (presets_dir / f"{name}.yaml").resolve()
+        if not path.is_relative_to(presets_dir.resolve()):
+            return None
+        if not path.exists():
+            return None
         return load_codegen_preset(name)
 
     @classmethod

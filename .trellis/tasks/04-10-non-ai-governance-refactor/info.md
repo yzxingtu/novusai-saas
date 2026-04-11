@@ -190,6 +190,9 @@
   - `pnpm --dir frontend exec vitest run --dom apps/web-antd/src/components/business/config-form/__tests__/use-config-form-model.test.ts apps/web-antd/src/views/admin/plugins/modules/plugin-config-drawer/__tests__/use-plugin-config-drawer.test.ts`
   - `pnpm --dir frontend exec vue-tsc --noEmit --skipLibCheck --pretty false -p apps/web-antd/tsconfig.json`
   - 结果：`2 files passed / 6 tests passed`，`vue-tsc` 通过
+  - `pnpm --dir frontend exec vitest run apps/web-antd/src/views/admin/plugins/modules/plugin-config-drawer/__tests__/use-plugin-config-drawer.test.ts`
+  - `pnpm --dir frontend exec vue-tsc --noEmit --skipLibCheck --pretty false -p apps/web-antd/tsconfig.json`
+  - 结果：`1 file passed / 3 tests passed`，`vue-tsc` 通过；`PluginConfigDrawerBody.vue` 的 lifecycle audit 区块继续下沉到 `PluginLifecycleAuditPanel.vue`
   - `ruff check backend/app/services/common/auth_service.py backend/app/services/common/auth_domains/facades.py backend/app/services/common/auth_domains/__init__.py backend/tests/services/test_auth_service.py`
   - `python -m pytest backend/tests/services/test_auth_service.py backend/tests/api/test_tenant_auth.py backend/tests/api/test_tenant_admins.py backend/tests/api/test_admin_tenants.py -q`
   - 结果：`31 passed`，伴随 `.pytest_cache` `WinError 5` warning
@@ -201,6 +204,9 @@
   - `pnpm --dir frontend exec vitest run apps/web-antd/src/views/admin/system/codegen/__tests__/workbench-utils.test.ts apps/web-antd/src/views/admin/system/codegen/composables/__tests__/workflow-helpers.test.ts apps/web-antd/src/store/admin/__tests__/codegen-builder.test.ts`
   - `pnpm --dir frontend exec vue-tsc --noEmit --skipLibCheck --pretty false -p apps/web-antd/tsconfig.json`
   - 结果：后端 `14 passed`，前端 `3 files passed / 8 tests passed`，`vue-tsc` 通过
+  - `ruff check backend/app/services/system/codegen_service.py backend/app/api/admin/codegen.py backend/tests/codegen/test_codegen_service_orchestration.py`
+  - `TMP=E:/git_clone/novusai-saas-yudi/.codex-temp/pytest-temp TEMP=E:/git_clone/novusai-saas-yudi/.codex-temp/pytest-temp python -m pytest backend/tests/codegen/test_codegen_service_orchestration.py -q -p no:cacheprovider`
+  - 结果：`6 passed`；preset 路径遍历与文件存在性守卫已从 `admin/codegen.py` 下沉到 `CodegenService.get_preset_detail_safe()`
   - `ruff check backend/app/api/admin/plugins.py backend/app/api/admin/plugin_install_preview.py backend/app/api/admin/plugin_admin_contracts.py backend/app/plugins/lifecycle.py backend/app/plugins/lifecycle_orchestrator.py backend/app/plugins/registry.py backend/app/plugins/registry_runtime_extensions.py backend/app/services/system/plugin_read_model_service.py backend/app/services/system/plugin_cleanup_service.py backend/tests/test_admin_plugin_dependency_contract.py backend/tests/test_admin_plugin_read_routes_contract.py backend/tests/services/test_plugin_read_model_service.py backend/tests/services/test_plugin_cleanup_service.py backend/tests/test_admin_plugin_repair_fail_close.py backend/tests/test_admin_plugin_marketplace_contract.py`
   - `python -m pytest backend/tests/test_admin_plugin_dependency_contract.py backend/tests/test_admin_plugin_read_routes_contract.py backend/tests/services/test_plugin_read_model_service.py backend/tests/services/test_plugin_cleanup_service.py backend/tests/test_admin_plugin_repair_fail_close.py backend/tests/test_admin_plugin_marketplace_contract.py -q`
   - 结果：`23 passed`，伴随 `.pytest_cache` `WinError 5` warning
@@ -259,10 +265,12 @@
   - `backend/app/api/admin/plugins.py`、`backend/app/plugins/registry.py` 已完成 host seam 收口，本轮 blocker 已关闭。
 - `agent-4 / codegen-fullstack`
   - `backend/app/services/system/codegen_service.py`、`backend/app/codegen/generator.py` 已完成 facade 化；`backend/app/api/admin/codegen.py`、`FieldPropertyPanel.vue` 的 workflow / section seams 已通过定向回归锁住。
+  - `admin/codegen.py` 的 preset 安全校验已进一步下沉到 `CodegenService.get_preset_detail_safe()`，controller 保持 transport-only。
   - `frontend/.../builder.vue` 已抽出 `scope/workflows`，本轮继续补了 `workflow-helpers.ts` 与 `workbench-utils.ts`。
   - `FieldPropertyPanel` 已收口为 section components + typed contracts，不再作为主要拆分热点。
 - `agent-5 / frontend-shared-ops-pages`
   - `system-logs`、`plugin-config-drawer`、`config-form` 已确认完成“薄壳 + composable/section”收口，本轮通过 seam 测试加锁。
+  - `PluginConfigDrawerBody.vue` 的 lifecycle audit 展示已继续抽成 `PluginLifecycleAuditPanel.vue`，避免 DrawerBody 回潮成 audit 展示聚合层。
   - `frontend/.../file-picker/FilePicker.vue` 与 `use-file-picker-core.ts` 仍是共享大件对子系统，但当前更偏能力内聚而非壳层回潮；contracts + core tests 已补齐。
   - `file-picker` 上传队列/拖拽与 `system-logs` 交互流仍缺 slice 级专项测试，可作为后续补强点。
 - `agent-6 / bundled-plugins-and-surface-contracts`

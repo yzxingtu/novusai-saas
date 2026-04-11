@@ -16,6 +16,7 @@ from app.codegen.generator import GeneratedFile
 from app.codegen.manifest import ManifestManager
 from app.codegen.rollback import RollbackResult
 from app.enums.codegen import CodegenConfigStatusEnum
+from app.services.system import codegen_service as codegen_service_module
 from app.services.system.codegen_service import CodegenService, GenerateOutput
 
 
@@ -149,6 +150,38 @@ def test_list_manifest_history_uses_manifest_as_read_model(tmp_path: Path) -> No
     assert comment_items[0]["config_id"] == 4
     assert comment_items[0]["file_count"] == 1
     assert isinstance(comment_items[0]["generated_at"], str)
+
+
+def test_get_preset_detail_safe_rejects_path_traversal(monkeypatch) -> None:
+    """非法 preset 名称不应触发 loader，也不应穿透到文件系统外。"""
+    called = {"value": False}
+
+    def _fake_loader(_name: str):
+        called["value"] = True
+        return {"name": _name}
+
+    monkeypatch.setattr(
+        codegen_service_module,
+        "load_codegen_preset",
+        _fake_loader,
+    )
+
+    assert CodegenService.get_preset_detail_safe("../escape") is None
+    assert called["value"] is False
+
+
+def test_get_preset_detail_safe_loads_known_preset(monkeypatch) -> None:
+    """合法 preset 名称应通过安全守卫后再委托 loader。"""
+    monkeypatch.setattr(
+        codegen_service_module,
+        "load_codegen_preset",
+        lambda name: {"name": name, "ok": True},
+    )
+
+    assert CodegenService.get_preset_detail_safe("simple") == {
+        "name": "simple",
+        "ok": True,
+    }
 
 
 @pytest.mark.anyio

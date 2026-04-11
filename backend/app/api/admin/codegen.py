@@ -7,8 +7,6 @@ Provides config CRUD, version history, preview, generate, rollback, DB introspec
 DEBUG 模式下可用 / Available in DEBUG mode only.
 """
 
-from pathlib import Path
-
 from fastapi import Body, HTTPException, Query, Request, status
 from fastapi.responses import Response, StreamingResponse
 
@@ -428,24 +426,7 @@ class AdminCodegenController(GlobalController):
             current_admin: ActiveAdmin,
         ):
             _require_debug()
-            import re
-
-            # 防止路径遍历：仅允许字母、数字、下划线、连字符
-            # Prevent path traversal: only allow alphanumeric, underscore, hyphen
-            if not re.match(r"^[a-zA-Z0-9_-]+$", name):
-                raise NotFoundException(message=_("codegen.preset_not_found"))
-            presets_dir = (
-                Path(__file__).resolve().parent.parent.parent
-                / "codegen"
-                / "templates"
-                / "presets"
-            )
-            path = (presets_dir / f"{name}.yaml").resolve()
-            if not path.is_relative_to(presets_dir.resolve()):
-                raise NotFoundException(message=_("codegen.preset_not_found"))
-            if not path.exists():
-                raise NotFoundException(message=_("codegen.preset_not_found"))
-            preset = CodegenService.get_preset_detail(name)
+            preset = CodegenService.get_preset_detail_safe(name)
             if not preset:
                 raise NotFoundException(message=_("codegen.preset_not_found"))
             return success(data=preset)

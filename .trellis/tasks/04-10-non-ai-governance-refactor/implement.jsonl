@@ -21,11 +21,13 @@
 {"file": "backend/tests/test_admin_periodic_task_routes_contract.py", "reason": "Add admin periodic-task route sentinels for list/create/binding-sync transport contracts after controller/query-service split"}
 {"file": "frontend/apps/web-antd/src/components/business/config-form/__tests__/use-config-form-model.test.ts", "reason": "Add seam tests for extracted config-form model logic: nested JSON hydration, encrypted masking, and dirty snapshot reset"}
 {"file": "frontend/apps/web-antd/src/views/admin/plugins/modules/plugin-config-drawer/__tests__/use-plugin-config-drawer.test.ts", "reason": "Add seam tests for plugin-config-drawer composable normalization, tenant assignment loading, structured save, and invalid JSON guard"}
+{"file": "frontend/apps/web-antd/src/views/admin/plugins/modules/plugin-config-drawer/PluginLifecycleAuditPanel.vue", "reason": "Extract plugin lifecycle audit presentation out of PluginConfigDrawerBody so the drawer body stays thinner without regrowing audit UI glue"}
 {"file": "backend/app/services/common/auth_domains/facades.py", "reason": "Extract AuthService compatibility facades so auth_service.py stays focused on domain assembly and delegation"}
 {"file": "backend/app/rbac/services/permission_domains/checks.py", "reason": "Extract pure permission predicate helpers from PermissionService into dedicated internal domain"}
 {"file": "backend/app/rbac/services/permission_domains/query.py", "reason": "Extract permission tree/list query orchestration from PermissionService into dedicated internal domain"}
 {"file": "backend/app/rbac/services/permission_domains/tenant_admin.py", "reason": "Extract tenant-admin permission aggregation from PermissionService into dedicated internal domain"}
 {"file": "backend/app/api/admin/codegen.py", "reason": "Thin admin codegen controller by moving generate/rollback/history orchestration into service parts"}
+{"file": "backend/app/services/system/codegen_service.py", "reason": "Move preset path traversal and filesystem safety checks behind CodegenService so admin codegen transport stays thinner"}
 {"file": "backend/app/services/system/codegen_service_parts/execution_mixin.py", "reason": "Own generate/rollback/preview execution orchestration behind CodegenService facade"}
 {"file": "backend/app/services/system/codegen_service_parts/workbench_mixin.py", "reason": "Own workbench/history orchestration behind CodegenService facade"}
 {"file": "backend/tests/codegen/test_codegen_service_orchestration.py", "reason": "Add backend orchestration coverage for the extracted codegen execution/workbench seams"}
