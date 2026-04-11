@@ -178,7 +178,13 @@
 - `backend/tests/codegen/test_codegen_service.py`
   - codegen validate 解析异常时必须做安全文案 sanitize，避免路径/Traceback 泄漏。
 - `frontend/apps/web-antd/src/views/admin/system/system-logs/__tests__/use-system-logs.test.ts`
-  - system-logs composable 合约：日志行解析、刷新保持选中项、分页追加、搜索计数稳定。
+  - system-logs composable 合约：日志行解析、刷新保持选中项、分页追加、搜索计数稳定；测试类型清理用于保持验证清洁度。
+- `frontend/apps/web-antd/src/components/business/file-picker/__tests__/use-file-picker-core.upload-queue.test.ts`
+  - file-picker upload queue slice：入队分流、批量上传与任务状态保持稳定。
+- `frontend/apps/web-antd/src/components/business/file-picker/__tests__/use-file-picker-core.drag-drop.test.ts`
+  - file-picker drag/drop slice：拖拽叠层与 drop 入队流程保持稳定。
+- `frontend/apps/web-antd/src/components/business/file-picker/__tests__/FilePicker.slice.test.ts`
+  - FilePicker shell slice 合约：壳层交互与核心组合契约保持稳定。
 
 ## 验证补充
 
@@ -283,7 +289,7 @@
   - `system-logs`、`plugin-config-drawer`、`config-form` 已确认完成“薄壳 + composable/section”收口，本轮通过 seam 测试加锁。
   - `PluginConfigDrawerBody.vue` 的 lifecycle audit 展示已继续抽成 `PluginLifecycleAuditPanel.vue`，避免 DrawerBody 回潮成 audit 展示聚合层。
   - `frontend/.../file-picker/FilePicker.vue` 与 `use-file-picker-core.ts` 仍是共享大件对子系统，但当前更偏能力内聚而非壳层回潮；contracts + core tests 已补齐。
-  - `file-picker` 上传队列/拖拽与 `system-logs` 交互流仍缺 slice 级专项测试，可作为后续补强点。
+  - `file-picker` 上传队列/拖拽/壳层 slice 已补齐；`system-logs` 交互流仍可作为后续补强点。
 - `agent-6 / bundled-plugins-and-surface-contracts`
   - `backend/plugins/storage-billing/backend/services/reconciliation_service.py` 已完成 facade 化。
   - `backend/plugins/storage-billing/frontend/src/views/admin/index.vue` 已完成 `page shell + plugin-local page/bindings/presenters/contracts` 收口，并用 plugin-local vitest 锁住运行详情与 action seams。

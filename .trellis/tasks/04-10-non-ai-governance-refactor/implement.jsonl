@@ -68,4 +68,7 @@
 {"file": "backend/tests/test_admin_user_routes_contract.py", "reason": "Optional hardening: add admin user route contract coverage for select/detail/force-logout delegation"}
 {"file": "backend/tests/test_recycle_bin_registry.py", "reason": "Optional hardening: add recycle-bin registry contract checks for module codes, side validation, and delete scope mapping"}
 {"file": "backend/tests/codegen/test_codegen_service.py", "reason": "Optional hardening: add validate sanitize test to suppress path/Traceback leakage"}
-{"file": "frontend/apps/web-antd/src/views/admin/system/system-logs/__tests__/use-system-logs.test.ts", "reason": "Optional hardening: add system-logs composable contract coverage for parsing, refresh selection, pagination append, and search count"}
+{"file": "frontend/apps/web-antd/src/views/admin/system/system-logs/__tests__/use-system-logs.test.ts", "reason": "Optional hardening: keep system-logs composable contract coverage and clean up test types for verification hygiene"}
+{"file": "frontend/apps/web-antd/src/components/business/file-picker/__tests__/use-file-picker-core.upload-queue.test.ts", "reason": "Optional hardening: add upload queue slice coverage for batching, task state, and enqueue flow"}
+{"file": "frontend/apps/web-antd/src/components/business/file-picker/__tests__/use-file-picker-core.drag-drop.test.ts", "reason": "Optional hardening: add drag/drop slice coverage for overlay state and drop queueing"}
+{"file": "frontend/apps/web-antd/src/components/business/file-picker/__tests__/FilePicker.slice.test.ts", "reason": "Optional hardening: add FilePicker shell slice contract coverage for modal wiring and core integration"}

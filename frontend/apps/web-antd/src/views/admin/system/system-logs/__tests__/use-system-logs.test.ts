@@ -4,12 +4,7 @@ import { defineComponent, nextTick } from 'vue';
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type {
-  SystemLogCategory,
-  SystemLogContent,
-  SystemLogFile,
-  SystemLogStats,
-} from '#/api';
+import type { adminApi } from '#/api';
 
 import { provideSystemLogsContext } from '../composables/useSystemLogs';
 
@@ -43,6 +38,11 @@ vi.mock('ant-design-vue', () => ({
 
 type SystemLogsVm = ReturnType<typeof provideSystemLogsContext>;
 
+type SystemLogCategory = adminApi.SystemLogCategory;
+type SystemLogContent = adminApi.SystemLogContent;
+type SystemLogFile = adminApi.SystemLogFile;
+type SystemLogStats = adminApi.SystemLogStats;
+
 const DEFAULT_STATS: SystemLogStats = {
   totalFiles: 0,
   totalSize: 0,
@@ -50,17 +50,21 @@ const DEFAULT_STATS: SystemLogStats = {
 };
 
 function mountHarness(): SystemLogsVm {
-  const wrapper = mount(
+  let context: SystemLogsVm | null = null;
+  mount(
     defineComponent({
       name: 'SystemLogsHarness',
       setup() {
-        return provideSystemLogsContext();
+        context = provideSystemLogsContext();
+        return () => null;
       },
-      render: () => null,
     }),
   );
+  if (!context) {
+    throw new Error('System logs context not initialized');
+  }
 
-  return wrapper.vm as unknown as SystemLogsVm;
+  return context;
 }
 
 function createCategory(code: string): SystemLogCategory {
@@ -122,7 +126,7 @@ describe('useSystemLogs', () => {
     const vm = mountHarness();
     await flushPromises();
 
-    vm.logContent = createContent('app.log', [
+    vm.logContent.value = createContent('app.log', [
       '2026-04-12 12:34:56 | INFO | Hello world',
       '  File "app.py", line 1, in <module>',
       'Traceback (most recent call last):',
@@ -131,7 +135,10 @@ describe('useSystemLogs', () => {
 
     await nextTick();
 
-    const [first, second, third, fourth] = vm.renderedLines;
+    const [first, second, third, fourth] = vm.renderedLines.value;
+    if (!first || !second || !third || !fourth) {
+      throw new Error('Rendered lines are missing');
+    }
 
     expect(first.timestamp).toBe('2026-04-12 12:34:56');
     expect(first.level).toBe('INFO');
@@ -165,15 +172,15 @@ describe('useSystemLogs', () => {
     const vm = mountHarness();
     await flushPromises();
 
-    expect(vm.activeCategory).toBe('app');
-    expect(vm.selectedFile?.filename).toBe('app.log');
+    expect(vm.activeCategory.value).toBe('app');
+    expect(vm.selectedFile.value?.filename).toBe('app.log');
 
     vm.onCategorySelect('app');
     await flushPromises();
 
     expect(mockAdminApi.getSystemLogFilesApi).toHaveBeenCalledTimes(2);
-    expect(vm.activeCategory).toBe('app');
-    expect(vm.selectedFile?.filename).toBe('app.log');
+    expect(vm.activeCategory.value).toBe('app');
+    expect(vm.selectedFile.value?.filename).toBe('app.log');
   });
 
   it('updates the file list when switching categories', async () => {
@@ -194,9 +201,9 @@ describe('useSystemLogs', () => {
     const vm = mountHarness();
     await flushPromises();
 
-    expect(vm.activeCategory).toBe('app');
-    expect(vm.files).toEqual([appFile]);
-    expect(vm.selectedFile?.filename).toBe('app.log');
+    expect(vm.activeCategory.value).toBe('app');
+    expect(vm.files.value).toEqual([appFile]);
+    expect(vm.selectedFile.value?.filename).toBe('app.log');
 
     vm.onCategorySelect('error');
     await flushPromises();
@@ -205,9 +212,9 @@ describe('useSystemLogs', () => {
     expect(mockAdminApi.getSystemLogFilesApi).toHaveBeenLastCalledWith({
       category: 'error',
     });
-    expect(vm.activeCategory).toBe('error');
-    expect(vm.files).toEqual([errorFile]);
-    expect(vm.selectedFile?.filename).toBe('error.log');
+    expect(vm.activeCategory.value).toBe('error');
+    expect(vm.files.value).toEqual([errorFile]);
+    expect(vm.selectedFile.value?.filename).toBe('error.log');
   });
 
   it('appends content when loading the next page', async () => {
@@ -215,7 +222,7 @@ describe('useSystemLogs', () => {
     await flushPromises();
 
     const file = createFile('app.log', 'app');
-    vm.logContent = createContent('app.log', ['first'], 1, true);
+    vm.logContent.value = createContent('app.log', ['first'], 1, true);
     await nextTick();
 
     mockAdminApi.getSystemLogContentApi.mockResolvedValueOnce(
@@ -230,24 +237,24 @@ describe('useSystemLogs', () => {
 
     expect(filename).toBe('app.log');
     expect(params).toEqual({ page: 2, page_size: 120, reverse: true });
-    expect(vm.logContent?.lines).toEqual(['first', 'second']);
-    expect(vm.logContent?.page).toBe(2);
+    expect(vm.logContent.value?.lines).toEqual(['first', 'second']);
+    expect(vm.logContent.value?.page).toBe(2);
   });
 
   it('counts matched lines against the search query', async () => {
     const vm = mountHarness();
     await flushPromises();
 
-    vm.logContent = createContent('app.log', [
+    vm.logContent.value = createContent('app.log', [
       '2026-04-12 12:34:56 | INFO | Hello',
       '2026-04-12 12:34:57 | ERROR | Something failed',
       'plain error line',
     ]);
 
     await nextTick();
-    vm.contentSearchQuery = 'error';
+    vm.contentSearchQuery.value = 'error';
     await nextTick();
 
-    expect(vm.matchedLineCount).toBe(2);
+    expect(vm.matchedLineCount.value).toBe(2);
   });
 });
