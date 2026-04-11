@@ -19,18 +19,14 @@ Unknown types fall through to plugin resolver path.
 
 from __future__ import annotations
 
-import asyncio
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from app.ai.events.hooks import HookPoint, get_hook_registry
-from app.ai.prompt_contracts import render_prompt_contract
 from app.ai.runtime.types import CapabilityDescriptor
-from app.ai.text_semantics import extract_double_brace_placeholders
-from app.ai.tools.semantic_defaults import FAMILY_HINT_TAGS
+from app.ai.skills import resolver_parts as parts
 from app.ai.tools.types import ToolDefinition, ToolParameter
 from app.core.logging import LogManager
-from app.enums.agent import SkillTypeEnum, ToolTypeEnum
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -39,11 +35,7 @@ if TYPE_CHECKING:
 
 logger = LogManager.get_logger("ai.skill.resolver")
 
-_BASELINE_RUNTIME_BUILTINS = (
-    "get_current_time",
-    "web_search",
-    "fetch_url",
-)
+_BASELINE_RUNTIME_BUILTINS = parts.BASELINE_RUNTIME_BUILTINS
 
 
 @dataclass
@@ -78,48 +70,7 @@ class SkillResolveResult:
 
 
 def build_skill_capability_descriptors(skills: list[Any]) -> list[CapabilityDescriptor]:
-    """
-    Convert resolved skill rows to runtime capability descriptors.
-    将已解析技能行转换为 runtime 能力描述符。
-    """
-    descriptors: list[CapabilityDescriptor] = []
-    seen_keys: set[tuple[int | None, str]] = set()
-
-    for skill in skills:
-        skill_name = str(getattr(skill, "name", "") or "").strip()
-        if not skill_name:
-            continue
-        skill_id = getattr(skill, "id", None)
-        key = (skill_id, skill_name)
-        if key in seen_keys:
-            continue
-        seen_keys.add(key)
-
-        package = getattr(skill, "package", None)
-        package_name = str(getattr(package, "name", "") or "").strip()
-        source_plugin = str(getattr(package, "source_plugin", "") or "").strip()
-        source = f"skill_package:{package_name}" if package_name else "skill_resolver"
-        metadata: dict[str, Any] = {
-            "skill_id": skill_id,
-            "skill_type": getattr(skill, "type", None),
-            "package_id": getattr(skill, "package_id", None),
-        }
-        if package_name:
-            metadata["package_name"] = package_name
-        if source_plugin:
-            metadata["source_plugin"] = source_plugin
-
-        descriptors.append(
-            CapabilityDescriptor(
-                name=skill_name,
-                kind="prompt_skill",
-                source=source,
-                description=str(getattr(skill, "description", "") or ""),
-                metadata=metadata,
-            )
-        )
-
-    return descriptors
+    return parts.build_skill_capability_descriptors(skills)
 
 
 def enrich_skill_capability_descriptors_with_tools(
@@ -127,49 +78,14 @@ def enrich_skill_capability_descriptors_with_tools(
     descriptors: list[CapabilityDescriptor],
     tools: list[ToolDefinition],
 ) -> None:
-    """
-    Attach resolved execution-tool metadata onto prompt_skill descriptors.
-    为 prompt_skill 描述符补齐本轮可执行工具元信息。
-    """
-    tool_names_by_skill: dict[str, list[str]] = {}
-    for tool in tools:
-        skill_name = str(getattr(tool, "source_skill_name", "") or "").strip()
-        tool_name = str(getattr(tool, "name", "") or "").strip()
-        if not skill_name or not tool_name:
-            continue
-        bucket = tool_names_by_skill.setdefault(skill_name, [])
-        if tool_name not in bucket:
-            bucket.append(tool_name)
-
-    for descriptor in descriptors:
-        if descriptor.kind != "prompt_skill":
-            continue
-        skill_name = str(descriptor.name or "").strip()
-        if not skill_name:
-            continue
-        resolved_tool_names = list(tool_names_by_skill.get(skill_name, []))
-        descriptor.metadata = {
-            **dict(descriptor.metadata or {}),
-            "resolved_tool_names": resolved_tool_names,
-            "resolved_tool_count": len(resolved_tool_names),
-            "has_execution_tools": bool(resolved_tool_names),
-        }
+    parts.enrich_skill_capability_descriptors_with_tools(
+        descriptors=descriptors,
+        tools=tools,
+    )
 
 
 def _is_runtime_eligible_skill(skill: Any) -> bool:
-    if not skill:
-        return False
-    if getattr(skill, "is_active", True) is False:
-        return False
-    if getattr(skill, "is_deleted", False) is True:
-        return False
-    package = getattr(skill, "package", None)
-    if package is None:
-        return False
-    return bool(
-        getattr(package, "is_active", True) is not False
-        and getattr(package, "is_deleted", False) is not True
-    )
+    return parts.is_runtime_eligible_skill(skill)
 
 
 class SkillResolver:
@@ -187,63 +103,14 @@ class SkillResolver:
 
     @staticmethod
     def _semantic_tags(*values: str) -> list[str]:
-        tags: list[str] = []
-        for value in values:
-            text = (value or "").strip()
-            if text and text not in tags:
-                tags.append(text)
-        return tags
+        return parts.semantic_tags(*values)
 
     @classmethod
     def _apply_tool_semantics(
         cls,
         tool: ToolDefinition,
     ) -> None:
-        if tool.semantic_family:
-            return
-
-        name = (tool.name or "").strip()
-        if not name:
-            return
-
-        if name in {"web_search", "fetch_url"}:
-            tool.semantic_family = "web_research"
-            tool.semantic_tags = tool.semantic_tags or cls._semantic_tags(
-                *FAMILY_HINT_TAGS["web_research"],
-                "website",
-                "url",
-                "search web",
-            )
-            return
-
-        if name == "get_current_time":
-            tool.semantic_family = "time_ops"
-            tool.semantic_tags = tool.semantic_tags or cls._semantic_tags(
-                *FAMILY_HINT_TAGS["time_ops"],
-                "time",
-                "clock",
-            )
-            return
-
-        if name in {"get_current_weather", "get_weather_forecast"}:
-            tool.semantic_family = "weather"
-            tool.semantic_tags = tool.semantic_tags or cls._semantic_tags(
-                *FAMILY_HINT_TAGS["weather"],
-                "weather",
-                "forecast",
-            )
-            return
-
-        if name in {
-            "get_page_context",
-            "invoke_page_operation",
-            "list_page_operations",
-        } or name.startswith("pageop_"):
-            tool.semantic_family = "page_ops"
-            tool.semantic_tags = tool.semantic_tags or cls._semantic_tags(
-                *FAMILY_HINT_TAGS["page_ops"],
-                "page context",
-            )
+        parts.apply_tool_semantics(tool)
 
     async def resolve(
         self,
@@ -325,34 +192,7 @@ class SkillResolver:
         self,
         skills: list[Skill],
     ) -> dict[int, str]:
-        """
-        Batch query source_plugin field for skill packages.
-        批量查询技能包的 source_plugin 字段。
-
-        Returns:
-            {package_id: source_plugin_name} only includes records with source_plugin /
-            仅包含有 source_plugin 的记录
-        """
-        if not self.db or not skills:
-            return {}
-
-        package_ids = list({s.package_id for s in skills if s.package_id})
-        if not package_ids:
-            return {}
-
-        from sqlalchemy import select
-
-        from app.models.ai.skill_package import SkillPackage
-
-        stmt = select(
-            SkillPackage.id,
-            SkillPackage.source_plugin,
-        ).where(
-            SkillPackage.id.in_(package_ids),
-            SkillPackage.source_plugin.isnot(None),
-        )
-        rows = await self.db.execute(stmt)
-        return {row.id: row.source_plugin for row in rows}
+        return await parts.load_source_plugins(db=self.db, skills=skills)
 
     async def _resolve_one(
         self,
@@ -361,48 +201,18 @@ class SkillResolver:
         result: SkillResolveResult,
         source_plugin: str | None = None,
     ) -> None:
-        """
-        Dispatch to corresponding conversion method by type. / 按类型分发到对应的转换方法。
-
-        Plugin skills (source_plugin has value) take priority for plugin resolver,
-        regardless of their type (can be toolkit or other standard types).
-        插件技能（source_plugin 有值）优先走插件 resolver，
-        不论其 type 是什么（可以是 toolkit 等标准类型）。
-
-        Skills with config.internal=true are for internal system dispatch
-        (e.g., llm_chat, llm_embedding), not resolved as function calling tools.
-        config.internal=true 的技能为系统内部调度用途（如 llm_chat、
-        llm_embedding），不解析为 function calling 工具。
-        """
-        # Skip internal dispatch skills (not exposed to LLM as function calling tools)
-        # 跳过内部调度技能（不暴露给 LLM 作为 function calling 工具）
-        if config.get("internal"):
-            return
-
-        # Plugin skills take priority for plugin resolver
-        # 插件技能优先走插件 resolver
-        if source_plugin:
-            await self._resolve_plugin_skill(skill, config, result, source_plugin)
-            return
-
-        skill_type = skill.type
-
-        if skill_type == SkillTypeEnum.TOOLKIT.value:
-            self._resolve_toolkit(skill, config, result)
-        elif skill_type == SkillTypeEnum.BUILTIN.value:
-            self._resolve_builtin(skill, config, result)
-        elif skill_type == SkillTypeEnum.HTTP.value:
-            self._resolve_http(skill, config, result)
-        elif skill_type == SkillTypeEnum.EMAIL.value:
-            self._resolve_email(skill, config, result)
-        elif skill_type == SkillTypeEnum.CODE_EXECUTION.value:
-            self._resolve_code_execution(skill, config, result)
-        else:
-            logger.warning(
-                "Unknown skill type: {} (skill={}), no resolver available",
-                skill_type,
-                skill.id,
-            )
+        await parts.resolve_one_skill(
+            skill=skill,
+            config=config,
+            result=result,
+            source_plugin=source_plugin,
+            resolve_toolkit=self._resolve_toolkit,
+            resolve_builtin=self._resolve_builtin,
+            resolve_http=self._resolve_http,
+            resolve_email=self._resolve_email,
+            resolve_code_execution=self._resolve_code_execution,
+            resolve_plugin=self._resolve_plugin_skill,
+        )
 
     # ============================================
     # Toolkit Skill / Toolkit 技能
@@ -414,55 +224,10 @@ class SkillResolver:
         config: dict[str, Any],
         result: SkillResolveResult,
     ) -> None:
-        """
-        Toolkit Skill → N ToolDefinitions. / Toolkit Skill → N 个 ToolDefinition。
-
-        Parses Toolkit Python source, generates one ToolDefinition per public method of Tools class.
-        Valves config is read from config and injected into each tool's config.
-        解析 Toolkit Python 源码，每个 Tools 类的公开方法生成一个 ToolDefinition。
-        Valves 配置从 config 中读取并注入到每个工具的 config 中。
-        """
-        toolkit_content = getattr(skill, "toolkit_content", None) or ""
-        if not toolkit_content:
-            logger.warning(
-                "Toolkit skill {} ({}) has no toolkit_content",
-                skill.id,
-                skill.name,
-            )
-            return
-
-        from app.ai.skills.toolkit_parser import (
-            parse_toolkit,
-            toolkit_tools_to_definitions,
-        )
-
-        meta = parse_toolkit(toolkit_content)
-        tool_defs = toolkit_tools_to_definitions(meta)
-
-        # Valves config obtained from binding config_override or skill config
-        # Valves 配置从 binding config_override 或 skill config 中获取
-        valves_config = config.get("valves", {})
-
-        for td in tool_defs:
-            td.tool_type = ToolTypeEnum.TOOLKIT.value
-            td.config = {
-                "_toolkit_content": toolkit_content,
-                "_toolkit_method": td.name,
-                "_toolkit_is_async": td.config.get("is_async", True),
-                "_valves_config": valves_config,
-                "_toolkit_trusted": bool(getattr(skill, "is_system", False)),
-            }
-            td.enabled = True
-            td.timeout = skill.timeout
-            td.source_skill_id = skill.id
-            td.source_skill_name = skill.name
-            td.source_skill_type = skill.type
-            result.tools.append(td)
-
-        logger.debug(
-            "Toolkit skill '{}' resolved {} tools",
-            skill.name,
-            len(tool_defs),
+        parts.resolve_toolkit_skill(
+            skill=skill,
+            config=config,
+            result=result,
         )
 
     # ============================================
@@ -474,195 +239,34 @@ class SkillResolver:
         tool_name: str,
         description: str,
     ) -> str:
-        normalized = (tool_name or "").strip().lower()
-        base = (description or "").strip()
-
-        if normalized == "web_search":
-            extra = render_prompt_contract("builtin_web_search_description")
-        elif normalized == "fetch_url":
-            extra = render_prompt_contract("builtin_fetch_url_description")
-        elif normalized == "get_current_time":
-            extra = render_prompt_contract("builtin_current_time_description")
-        else:
-            return base
-
-        if not base:
-            return extra
-        if extra in base:
-            return base
-        return f"{base} {extra}"
+        return parts.augment_builtin_tool_description(tool_name, description)
 
     @classmethod
     def _build_baseline_builtin_tool(
         cls,
         tool_name: str,
     ) -> ToolDefinition | None:
-        normalized = (tool_name or "").strip().lower()
-        tool: ToolDefinition | None = None
-        if normalized == "get_current_time":
-            tool = ToolDefinition(
-                name="get_current_time",
-                description=cls._augment_builtin_tool_description(
-                    "get_current_time",
-                    "Get the current time, date, and weekday in the requested timezone.",
-                ),
-                tool_type=ToolTypeEnum.BUILTIN.value,
-                parameters=[
-                    ToolParameter(
-                        name="timezone_name",
-                        type="string",
-                        description=(
-                            "Optional IANA timezone name like Asia/Shanghai or "
-                            "America/Los_Angeles."
-                        ),
-                        required=False,
-                    ),
-                    ToolParameter(
-                        name="format",
-                        type="string",
-                        description=(
-                            "Optional strftime format string. Defaults to "
-                            "%Y-%m-%d %H:%M:%S."
-                        ),
-                        required=False,
-                    ),
-                ],
-                config={"builtin_type": "get_current_time", "auto_injected": True},
-                enabled=True,
-                timeout=15,
-                source_skill_name="get_current_time",
-                source_skill_type=ToolTypeEnum.BUILTIN.value,
-            )
-        elif normalized == "web_search":
-            tool = ToolDefinition(
-                name="web_search",
-                description=cls._augment_builtin_tool_description(
-                    "web_search",
-                    "Search the web for current information and candidate source URLs.",
-                ),
-                tool_type=ToolTypeEnum.BUILTIN.value,
-                parameters=[
-                    ToolParameter(
-                        name="query",
-                        type="string",
-                        description="Search query to look up on the web.",
-                        required=True,
-                    ),
-                    ToolParameter(
-                        name="max_results",
-                        type="integer",
-                        description="Optional number of results to return. Defaults to 5 and is capped at 10.",
-                        required=False,
-                    ),
-                ],
-                config={"builtin_type": "web_search", "auto_injected": True},
-                enabled=True,
-                timeout=30,
-                source_skill_name="web_search",
-                source_skill_type=ToolTypeEnum.BUILTIN.value,
-            )
-        elif normalized == "fetch_url":
-            tool = ToolDefinition(
-                name="fetch_url",
-                description=cls._augment_builtin_tool_description(
-                    "fetch_url",
-                    "Fetch and read the content of a specific URL.",
-                ),
-                tool_type=ToolTypeEnum.BUILTIN.value,
-                parameters=[
-                    ToolParameter(
-                        name="url",
-                        type="string",
-                        description="Absolute http or https URL to fetch.",
-                        required=True,
-                    ),
-                    ToolParameter(
-                        name="max_length",
-                        type="integer",
-                        description="Optional max characters to return. Defaults to 5000.",
-                        required=False,
-                    ),
-                ],
-                config={"builtin_type": "fetch_url", "auto_injected": True},
-                enabled=True,
-                timeout=30,
-                source_skill_name="fetch_url",
-                source_skill_type=ToolTypeEnum.BUILTIN.value,
-            )
-        if tool is None:
-            return None
-        cls._apply_tool_semantics(tool)
-        return tool
+        return parts.build_baseline_builtin_tool(
+            tool_name=tool_name,
+            apply_tool_semantics=cls._apply_tool_semantics,
+        )
 
     @classmethod
     def _inject_baseline_runtime_builtins(
         cls,
         result: SkillResolveResult,
     ) -> None:
-        existing_tool_names = {tool.name for tool in result.tools}
-        existing_descriptor_names = {
-            descriptor.name
-            for descriptor in result.capability_descriptors
-            if descriptor.kind == "prompt_skill"
-        }
-
-        for tool_name in _BASELINE_RUNTIME_BUILTINS:
-            if tool_name in existing_tool_names:
-                continue
-
-            tool = cls._build_baseline_builtin_tool(tool_name)
-            if tool is None:
-                continue
-
-            result.tools.append(tool)
-            result.tool_consent_modes.setdefault(tool.name, "auto")
-            if tool_name not in existing_descriptor_names:
-                result.capability_descriptors.append(
-                    CapabilityDescriptor(
-                        name=tool_name,
-                        kind="prompt_skill",
-                        source="system_baseline_builtin",
-                        description=(
-                            "System baseline builtin injected at runtime for "
-                            "fast-lane time/date queries."
-                        ),
-                        metadata={
-                            "auto_injected": True,
-                            "resolved_tool_names": [tool.name],
-                            "resolved_tool_count": 1,
-                            "has_execution_tools": True,
-                        },
-                    )
-                )
-                existing_descriptor_names.add(tool_name)
-            existing_tool_names.add(tool.name)
+        parts.inject_baseline_runtime_builtins(
+            result=result,
+            apply_tool_semantics=cls._apply_tool_semantics,
+        )
 
     @classmethod
     def _build_time_only_runtime_result(cls) -> SkillResolveResult:
-        result = SkillResolveResult()
-        tool = cls._build_baseline_builtin_tool("get_current_time")
-        if tool is None:
-            return result
-        result.tools.append(tool)
-        result.tool_consent_modes[tool.name] = "auto"
-        result.capability_descriptors.append(
-            CapabilityDescriptor(
-                name="get_current_time",
-                kind="prompt_skill",
-                source="system_baseline_builtin",
-                description=(
-                    "System baseline builtin injected at runtime for "
-                    "fast-lane time/date queries."
-                ),
-                metadata={
-                    "auto_injected": True,
-                    "resolved_tool_names": [tool.name],
-                    "resolved_tool_count": 1,
-                    "has_execution_tools": True,
-                },
-            )
+        return parts.build_time_only_runtime_result(
+            result_factory=SkillResolveResult,
+            apply_tool_semantics=cls._apply_tool_semantics,
         )
-        return result
 
     def _resolve_builtin(
         self,
@@ -670,62 +274,12 @@ class SkillResolver:
         config: dict[str, Any],
         result: SkillResolveResult,
     ) -> None:
-        """
-        Builtin Skill → ToolDefinition.
-
-        Supports two modes / 支持两种模式：
-        1. Multi-tool mode: config.tools list → N ToolDefinitions
-           多工具模式：config.tools 列表 → N 个 ToolDefinition
-        2. Single-tool mode (default): skill itself is one tool
-           单工具模式（默认）：skill 本身即为一个工具
-        """
-        tools_config = config.get("tools")
-        tool_type_override = config.get("tool_type", ToolTypeEnum.BUILTIN.value)
-
-        if tools_config and isinstance(tools_config, list):
-            for tool_cfg in tools_config:
-                tool_name = tool_cfg.get("name", "")
-                if not tool_name:
-                    continue
-                tool_params = self._build_params_from_schema(tool_cfg.get("parameters"))
-                description = self._augment_builtin_tool_description(
-                    tool_name,
-                    tool_cfg.get("description", ""),
-                )
-                result.tools.append(
-                    ToolDefinition(
-                        name=tool_name,
-                        description=description,
-                        tool_type=tool_type_override,
-                        parameters=tool_params,
-                        config=config,
-                        enabled=True,
-                        timeout=tool_cfg.get("timeout", skill.timeout),
-                        source_skill_id=skill.id,
-                        source_skill_name=skill.name,
-                        source_skill_type=skill.type,
-                    )
-                )
-        else:
-            params = self._build_params_from_schema(skill.input_schema)
-            description = self._augment_builtin_tool_description(
-                skill.name,
-                skill.description or "",
-            )
-            result.tools.append(
-                ToolDefinition(
-                    name=skill.name,
-                    description=description,
-                    tool_type=tool_type_override,
-                    parameters=params,
-                    config=config,
-                    enabled=True,
-                    timeout=skill.timeout,
-                    source_skill_id=skill.id,
-                    source_skill_name=skill.name,
-                    source_skill_type=skill.type,
-                )
-            )
+        parts.resolve_builtin(
+            skill=skill,
+            config=config,
+            result=result,
+            build_params_from_schema=self._build_params_from_schema,
+        )
 
     # ============================================
     # HTTP/Webhook Skill / HTTP 与 Webhook 技能
@@ -737,109 +291,10 @@ class SkillResolver:
         config: dict[str, Any],
         result: SkillResolveResult,
     ) -> None:
-        """
-        HTTP/Webhook Skill → 1 ToolDefinition.
-
-        Declarative HTTP calls: users only need to fill in URL / Method / Headers / Body template,
-        no code required to integrate external APIs.
-        声明式 HTTP 调用：用户只需填写 URL / Method / Headers / Body 模板，
-        无需编写代码即可集成外部 API。
-
-        Skill.config structure / Skill.config 结构：
-        {
-            "url": "https://api.example.com/v1/data",
-            "method": "POST",
-            "headers": {"Authorization": "Bearer {{api_key}}"},
-            "body_template": "{\"query\": \"{{question}}\"}",
-            "query_params": {"format": "json"},
-            "auth_type": "none|bearer|api_key|basic",
-            "auth_config": {"token": "xxx"} | {"key_name": "X-API-Key", "key_value": "xxx"} | {"username": "x", "password": "y"},
-            "response_path": "$.data.result",
-            "timeout": 30
-        }
-        """
-        url = config.get("url", "")
-        if not url:
-            logger.warning(
-                "HTTP skill {} ({}) has no URL configured",
-                skill.id,
-                skill.name,
-            )
-            return
-
-        method = (config.get("method", "GET") or "GET").upper()
-        body_template = config.get("body_template", "")
-        response_path = config.get("response_path", "")
-
-        # Extract {{variable}} placeholders from body_template as LLM parameters
-        # 从 body_template 提取 {{variable}} 占位符作为 LLM 参数
-        template_vars = extract_double_brace_placeholders(body_template)
-        # Also extract variables from URL and query_params
-        # 也从 URL 和 query_params 提取变量
-        url_vars = extract_double_brace_placeholders(url)
-        query_params = config.get("query_params", {}) or {}
-        qp_vars = []
-        for v in query_params.values():
-            if isinstance(v, str):
-                qp_vars.extend(extract_double_brace_placeholders(v))
-
-        all_vars = list(dict.fromkeys(url_vars + template_vars + qp_vars))
-
-        params: list[ToolParameter] = []
-        for var_name in all_vars:
-            params.append(
-                ToolParameter(
-                    name=var_name,
-                    type="string",
-                    description=f"Value for {{{{{var_name}}}}}",
-                    required=True,
-                )
-            )
-
-        # If no template variables but has body, add generic input parameter
-        # 如果没有模板变量但有 body，添加通用 input 参数
-        if not params and method in ("POST", "PUT", "PATCH"):
-            params.append(
-                ToolParameter(
-                    name="input",
-                    type="string",
-                    description="Request body or input data",
-                    required=True,
-                )
-            )
-
-        description = skill.description or f"Call {method} {url}"
-
-        result.tools.append(
-            ToolDefinition(
-                name=skill.name.lower().replace(" ", "_"),
-                description=description,
-                tool_type=ToolTypeEnum.HTTP.value,
-                parameters=params,
-                config={
-                    "_http_url": url,
-                    "_http_method": method,
-                    "_http_headers": config.get("headers", {}),
-                    "_http_body_template": body_template,
-                    "_http_query_params": query_params,
-                    "_http_auth_type": config.get("auth_type", "none"),
-                    "_http_auth_config": config.get("auth_config", {}),
-                    "_http_response_path": response_path,
-                },
-                enabled=True,
-                timeout=config.get("timeout", skill.timeout),
-                source_skill_id=skill.id,
-                source_skill_name=skill.name,
-                source_skill_type=skill.type,
-            )
-        )
-
-        logger.debug(
-            "HTTP skill '{}' resolved: {} {} ({} params)",
-            skill.name,
-            method,
-            url,
-            len(params),
+        parts.resolve_http_skill(
+            skill=skill,
+            config=config,
+            result=result,
         )
 
     # ============================================
@@ -852,89 +307,11 @@ class SkillResolver:
         config: dict[str, Any],
         result: SkillResolveResult,
     ) -> None:
-        """
-        Email Skill → 1 ToolDefinition (send_email).
-
-        Leverages existing EmailService to send emails. Default consent_mode=ask
-        (sending emails requires user confirmation).
-        利用已有的 EmailService 发送邮件。默认 consent_mode=ask（发邮件需用户确认）。
-
-        Skill.config structure / Skill.config 结构：
-        {
-            "subject_prefix": "[NovusAI]",
-            "allowed_domains": ["example.com"],
-            "max_recipients": 5,
-            "require_confirmation": true,
-            "allow_cc": true,
-            "allow_attachments": false
-        }
-        """
-        max_recipients = config.get("max_recipients", 5)
-        allow_cc = config.get("allow_cc", True)
-
-        description = render_prompt_contract(
-            "email_tool_description",
-            max_recipients=max_recipients,
+        parts.resolve_email_skill(
+            skill=skill,
+            config=config,
+            result=result,
         )
-        if skill.description:
-            description = skill.description
-
-        params: list[ToolParameter] = [
-            ToolParameter(
-                name="to",
-                type="string",
-                description="Recipient email address(es), comma-separated for multiple",
-                required=True,
-            ),
-            ToolParameter(
-                name="subject",
-                type="string",
-                description="Email subject line",
-                required=True,
-            ),
-            ToolParameter(
-                name="body",
-                type="string",
-                description="Email body content (supports HTML)",
-                required=True,
-            ),
-        ]
-
-        if allow_cc:
-            params.append(
-                ToolParameter(
-                    name="cc",
-                    type="string",
-                    description="CC email address(es), comma-separated (optional)",
-                    required=False,
-                )
-            )
-
-        result.tools.append(
-            ToolDefinition(
-                name="send_email",
-                description=description,
-                tool_type=ToolTypeEnum.EMAIL.value,
-                parameters=params,
-                config={
-                    "_email_subject_prefix": config.get("subject_prefix", ""),
-                    "_email_allowed_domains": config.get("allowed_domains", []),
-                    "_email_max_recipients": max_recipients,
-                    "_email_require_confirmation": config.get(
-                        "require_confirmation", True
-                    ),
-                    "_email_allow_cc": allow_cc,
-                    "_email_allow_attachments": config.get("allow_attachments", False),
-                },
-                enabled=True,
-                timeout=config.get("timeout", skill.timeout),
-                source_skill_id=skill.id,
-                source_skill_name=skill.name,
-                source_skill_type=skill.type,
-            )
-        )
-
-        logger.debug("Email skill '{}' resolved", skill.name)
 
     # ============================================
     # Code Execution Skill / 代码执行技能
@@ -946,79 +323,10 @@ class SkillResolver:
         config: dict[str, Any],
         result: SkillResolveResult,
     ) -> None:
-        """
-        Code Execution Skill → 1 ToolDefinition (execute_code).
-
-        Executes user-provided code in a secure sandbox.
-        在安全沙箱中执行用户提供的代码。
-
-        Skill.config structure / Skill.config 结构：
-        {
-            "language": "python",
-            "timeout": 30,
-            "memory_limit_mb": 256,
-            "allowed_modules": ["math", "json", "datetime", "re", "collections"]
-        }
-        """
-        language = config.get("language", "python")
-        allowed_modules = config.get(
-            "allowed_modules",
-            [
-                "math",
-                "json",
-                "datetime",
-                "re",
-                "collections",
-                "itertools",
-                "functools",
-                "statistics",
-                "decimal",
-                "fractions",
-                "random",
-                "string",
-                "textwrap",
-            ],
-        )
-
-        description = render_prompt_contract(
-            "execute_code_tool_description",
-            language=language,
-            allowed_modules=", ".join(allowed_modules[:10]),
-        )
-        if skill.description:
-            description = skill.description
-
-        result.tools.append(
-            ToolDefinition(
-                name="execute_code",
-                description=description,
-                tool_type=ToolTypeEnum.CODE_EXECUTION.value,
-                parameters=[
-                    ToolParameter(
-                        name="code",
-                        type="string",
-                        description=f"The {language} code to execute. Must use print() to output results.",
-                        required=True,
-                    ),
-                ],
-                config={
-                    "_code_language": language,
-                    "_code_timeout": config.get("timeout", skill.timeout),
-                    "_code_memory_limit_mb": config.get("memory_limit_mb", 256),
-                    "_code_allowed_modules": allowed_modules,
-                },
-                enabled=True,
-                timeout=config.get("timeout", skill.timeout),
-                source_skill_id=skill.id,
-                source_skill_name=skill.name,
-                source_skill_type=skill.type,
-            )
-        )
-
-        logger.debug(
-            "Code execution skill '{}' resolved: lang={}",
-            skill.name,
-            language,
+        parts.resolve_code_execution_skill(
+            skill=skill,
+            config=config,
+            result=result,
         )
 
     # ========================================
@@ -1032,54 +340,12 @@ class SkillResolver:
         result: SkillResolveResult,
         source_plugin: str = "",
     ) -> None:
-        """
-        插件技能解析 — 按 plugin_name 查询 ExtensionRegistry 获取插件 resolver / Plugin skill resolution: query ExtensionRegistry by plugin_name to get plugin resolver.
-
-        Plugins register resolver functions via ExtensionRegistry.register_skill(plugin_name, ...)
-        during enable; here we look up and call by source_plugin (plugin name).
-        插件在 enable 时通过 ExtensionRegistry.register_skill(plugin_name, ...)
-        注册了 resolver 函数，此处按 source_plugin（插件名）查找并调用。
-        """
-        from app.plugins.registry import ExtensionRegistry
-
-        registry = ExtensionRegistry.get_instance()
-        resolver_func = registry.get_plugin_skill_resolver(source_plugin)
-
-        if resolver_func is None:
-            logger.warning(
-                "No plugin resolver for plugin '{}' (skill={}, type={})",
-                source_plugin,
-                skill.id,
-                skill.type,
-            )
-            return
-
-        try:
-            tool_defs = (
-                await resolver_func(skill, config)
-                if asyncio.iscoroutinefunction(resolver_func)
-                else resolver_func(skill, config)
-            )
-            if isinstance(tool_defs, list):
-                for td in tool_defs:
-                    td.source_skill_id = skill.id
-                    td.source_skill_name = skill.name
-                    td.source_skill_type = skill.type
-                    td.source_plugin = source_plugin
-                    result.tools.append(td)
-                logger.info(
-                    "Plugin '{}' skill '{}' resolved {} tools",
-                    source_plugin,
-                    skill.name,
-                    len(tool_defs),
-                )
-        except Exception as exc:
-            logger.error(
-                "Plugin skill resolver failed for '{}' (plugin={}): {}",
-                skill.name,
-                source_plugin,
-                exc,
-            )
+        await parts.resolve_plugin_skill(
+            skill=skill,
+            config=config,
+            result=result,
+            source_plugin=source_plugin,
+        )
 
     # ========================================
     # Helper Methods / 辅助方法
@@ -1091,96 +357,17 @@ class SkillResolver:
         suffix: str,
         used_names: set[str],
     ) -> str:
-        """Build unique and length-controlled (OpenAI function name <= 64) tool name. / 构建唯一且长度可控（OpenAI function name <= 64）的工具名。"""
-        max_len = 64
-        available = max_len - len(suffix)
-        short_base = base_name[:available] if available > 0 else ""
-        candidate = f"{short_base}{suffix}" if short_base else suffix.strip("_")
-        if not candidate:
-            candidate = "tool"
-
-        unique_name = candidate
-        idx = 1
-        while unique_name in used_names:
-            extra = f"_{idx}"
-            keep = max_len - len(extra)
-            unique_name = f"{candidate[:keep]}{extra}" if keep > 0 else candidate
-            idx += 1
-        return unique_name
+        return parts.build_unique_tool_name(base_name, suffix, used_names)
 
     @classmethod
     def _ensure_unique_tool_names(cls, tools: list[ToolDefinition]) -> None:
-        """Deduplicate tool names to avoid parsing/authorization/attribution conflicts. / 去重工具名，避免同名工具导致解析/授权/归因冲突。"""
-        used_names: set[str] = set()
-        duplicate_counts: dict[str, int] = {}
-
-        for td in tools:
-            name = td.name
-            if name not in used_names:
-                used_names.add(name)
-                duplicate_counts.setdefault(name, 1)
-                continue
-
-            duplicate_counts[name] = duplicate_counts.get(name, 1) + 1
-            serial = duplicate_counts[name]
-            suffix = (
-                f"__s{td.source_skill_id}"
-                if td.source_skill_id is not None
-                else f"__dup{serial}"
-            )
-            unique_name = cls._build_unique_tool_name(name, suffix, used_names)
-            logger.warning(
-                "Duplicate tool name '{}' detected, renamed to '{}' (skill_id={})",
-                name,
-                unique_name,
-                td.source_skill_id,
-            )
-            td.name = unique_name
-            used_names.add(unique_name)
+        parts.ensure_unique_tool_names(tools)
 
     @staticmethod
     def _build_params_from_schema(
         input_schema: dict[str, Any] | None,
     ) -> list[ToolParameter]:
-        """
-        Build ToolParameter list from JSON Schema.
-        从 JSON Schema 构建 ToolParameter 列表。
-
-        input_schema format / input_schema 格式：
-        {
-            "type": "object",
-            "properties": {
-                "city": {"type": "string", "description": "City name / 城市名"},
-                "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]}
-            },
-            "required": ["city"]
-        }
-        """
-        if not input_schema:
-            return []
-
-        properties = input_schema.get("properties", {})
-        required_set = set(input_schema.get("required", []))
-        params: list[ToolParameter] = []
-
-        for name, prop in properties.items():
-            params.append(
-                ToolParameter(
-                    name=name,
-                    type=prop.get("type", "string"),
-                    description=prop.get("description", ""),
-                    required=name in required_set,
-                    default=prop.get("default"),
-                    enum=prop.get("enum"),
-                    items=(
-                        dict(prop.get("items"))
-                        if isinstance(prop.get("items"), dict)
-                        else None
-                    ),
-                )
-            )
-
-        return params
+        return parts.build_params_from_schema(input_schema)
 
 
 async def resolve_for_agent(

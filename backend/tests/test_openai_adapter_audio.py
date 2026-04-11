@@ -58,8 +58,8 @@ async def test_convert_messages_audio_http_url_yields_input_audio(
     mock_cm.__aexit__ = AsyncMock(return_value=None)
     with pytest.MonkeyPatch.context() as m:
         m.setattr(
-            "app.ai.adapters.openai_adapter.httpx.AsyncClient",
-            lambda *a, **kw: mock_cm,
+            "app.ai.adapters.openai_compatible.support.multimodal_attachment_runtime.httpx.AsyncClient",
+            lambda *_args, **_kwargs: mock_cm,
         )
         messages = [_make_audio_message("https://example.com/audio.wav", mime_type="audio/wav")]
         result = await adapter._convert_messages(
@@ -100,8 +100,8 @@ async def test_convert_messages_audio_http_url_mp3_format(
     mock_cm.__aexit__ = AsyncMock(return_value=None)
     with pytest.MonkeyPatch.context() as m:
         m.setattr(
-            "app.ai.adapters.openai_adapter.httpx.AsyncClient",
-            lambda *a, **kw: mock_cm,
+            "app.ai.adapters.openai_compatible.support.multimodal_attachment_runtime.httpx.AsyncClient",
+            lambda *_args, **_kwargs: mock_cm,
         )
         messages = [_make_audio_message("https://example.com/a.mp3", mime_type="audio/mpeg")]
         result = await adapter._convert_messages(
@@ -151,8 +151,8 @@ async def test_convert_messages_audio_fetch_failure_fallback_to_text(
     mock_cm.__aexit__ = AsyncMock(return_value=None)
     with pytest.MonkeyPatch.context() as m:
         m.setattr(
-            "app.ai.adapters.openai_adapter.httpx.AsyncClient",
-            lambda *a, **kw: mock_cm,
+            "app.ai.adapters.openai_compatible.support.multimodal_attachment_runtime.httpx.AsyncClient",
+            lambda *_args, **_kwargs: mock_cm,
         )
         messages = [_make_audio_message("https://example.com/bad.wav")]
         result = await adapter._convert_messages(
@@ -257,8 +257,8 @@ async def test_convert_messages_audio_supports_audio_false_yields_text(
     mock_cm.__aexit__ = AsyncMock(return_value=None)
     with pytest.MonkeyPatch.context() as m:
         m.setattr(
-            "app.ai.adapters.openai_adapter.httpx.AsyncClient",
-            lambda *a, **kw: mock_cm,
+            "app.ai.adapters.openai_compatible.support.multimodal_attachment_runtime.httpx.AsyncClient",
+            lambda *_args, **_kwargs: mock_cm,
         )
         messages = [_make_audio_message("https://example.com/x.wav")]
         result = await adapter._convert_messages(

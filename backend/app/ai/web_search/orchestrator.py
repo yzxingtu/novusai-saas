@@ -10,13 +10,48 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
-from urllib.parse import urlparse
 
 from redis.exceptions import RedisError
 
 from app.ai.failover import HEALTH_KEY_PREFIX
 from app.ai.gateway import AIGateway
 from app.ai.page_locale import resolve_page_locale
+from app.ai.web_search.orchestrator_support.diagnostics import (
+    clamp_stage_timeout_seconds as _support_clamp_stage_timeout_seconds,
+)
+from app.ai.web_search.orchestrator_support.diagnostics import (
+    conv_id as _support_conv_id,
+)
+from app.ai.web_search.orchestrator_support.diagnostics import (
+    decorate_duplicate_query_output as _support_decorate_duplicate_query_output,
+)
+from app.ai.web_search.orchestrator_support.diagnostics import (
+    duplicate_query_signature as _support_duplicate_query_signature,
+)
+from app.ai.web_search.orchestrator_support.diagnostics import (
+    native_backend_disabled as _support_native_backend_disabled,
+)
+from app.ai.web_search.orchestrator_support.diagnostics import (
+    record_native_backend_outcome as _support_record_native_backend_outcome,
+)
+from app.ai.web_search.orchestrator_support.diagnostics import (
+    remaining_tool_budget_seconds as _support_remaining_tool_budget_seconds,
+)
+from app.ai.web_search.orchestrator_support.provider_selector import (
+    default_web_search_config as _support_default_web_search_config,
+)
+from app.ai.web_search.orchestrator_support.provider_selector import (
+    is_verified_native_runtime_candidate as _support_is_verified_native_runtime_candidate,
+)
+from app.ai.web_search.orchestrator_support.provider_selector import (
+    normalize_provider_web_search_settings as _support_normalize_provider_web_search_settings,
+)
+from app.ai.web_search.orchestrator_support.provider_selector import (
+    normalized_hostname as _support_normalized_hostname,
+)
+from app.ai.web_search.orchestrator_support.summary_builder import (
+    build_search_output_text as _support_build_search_output_text,
+)
 from app.ai.web_search.public_html import (
     BaseSearchProvider,
     PublicHtmlSearchProvider,
@@ -39,7 +74,6 @@ from app.ai.web_search.types import (
     WebSearchExecution,
     WebSearchExecutionMeta,
 )
-from app.core.config import settings
 from app.core.logging import LogManager
 from app.core.redis import get_redis
 from app.repositories.ai import (
@@ -49,7 +83,6 @@ from app.repositories.ai import (
 from app.schemas.ai.provider import (
     AIProviderWebSearchConfig,
     AIProviderWebSearchVerifiedTarget,
-    normalize_provider_web_search_config,
 )
 
 if TYPE_CHECKING:
@@ -93,21 +126,17 @@ class _ResolvedWebSearchConfig:
     native_timeout_seconds: int
     public_timeout_seconds: int
     public_providers: list[str]
-    provider: "AIProvider | None" = None
-    model: "AIModel | None" = None
-    runtime_provider: "AIProvider | None" = None
-    runtime_model: "AIModel | None" = None
+    provider: AIProvider | None = None
+    model: AIModel | None = None
+    runtime_provider: AIProvider | None = None
+    runtime_model: AIModel | None = None
     native_target_source: str | None = None
     native_target_reason: str | None = None
     config_error: str | None = None
 
 
 def _normalized_hostname(raw_url: str | None) -> str:
-    try:
-        parsed = urlparse(str(raw_url or "").strip())
-    except Exception:
-        return ""
-    return str(parsed.hostname or "").strip().lower()
+    return _support_normalized_hostname(raw_url)
 
 
 def _is_trusted_openai_compatible_host(hostname: str) -> bool:
@@ -119,100 +148,40 @@ def _is_trusted_openai_compatible_host(hostname: str) -> bool:
 
 
 def _is_verified_native_runtime_candidate(
-    provider: "AIProvider | None",
+    provider: AIProvider | None,
     *,
     allow_unverified_runtime_target: bool,
 ) -> tuple[bool, str]:
-    if provider is None:
-        return False, "runtime_provider_missing"
-    if allow_unverified_runtime_target:
-        return True, "allow_unverified_runtime_target_override"
-    provider_type = str(getattr(provider, "type", "") or "").strip().lower()
-    if provider_type != "openai_compatible":
-        return True, "provider_type_verified_by_default"
-    host = _normalized_hostname(getattr(provider, "base_url", None))
-    if _is_trusted_openai_compatible_host(host):
-        return True, f"trusted_openai_compatible_host:{host}"
-    if not host:
-        return (
-            False,
-            "untrusted_openai_compatible_runtime_target:missing_base_url_host",
-        )
-    return False, f"untrusted_openai_compatible_runtime_target:{host}"
+    return _support_is_verified_native_runtime_candidate(
+        provider,
+        allow_unverified_runtime_target=allow_unverified_runtime_target,
+        trusted_hosts=_TRUSTED_OPENAI_COMPATIBLE_HOSTS,
+    )
 
 
 def _default_web_search_config() -> AIProviderWebSearchConfig:
-    return AIProviderWebSearchConfig(
-        enabled=bool(settings.WEB_SEARCH_DEFAULT_ENABLED),
-        strategy=str(settings.WEB_SEARCH_DEFAULT_STRATEGY).strip()
-        or STRATEGY_NATIVE_FIRST_FALLBACK_PUBLIC,
-        max_results_cap=int(settings.WEB_SEARCH_DEFAULT_MAX_RESULTS_CAP),
-        native_timeout_seconds=int(settings.WEB_SEARCH_DEFAULT_NATIVE_TIMEOUT_SECONDS),
-        public_timeout_seconds=int(settings.WEB_SEARCH_DEFAULT_PUBLIC_TIMEOUT_SECONDS),
-        public_providers=[
-            provider
-            for provider in settings.WEB_SEARCH_DEFAULT_PUBLIC_PROVIDERS
-            if str(provider or "").strip()
-        ]
-        or list(DEFAULT_PUBLIC_PROVIDERS),
-    )
+    return _support_default_web_search_config(list(DEFAULT_PUBLIC_PROVIDERS))
 
 
 def _normalize_provider_web_search_settings(
     provider_config: dict | None,
 ) -> AIProviderWebSearchConfig:
-    raw_web_search = (
-        provider_config.get("web_search")
-        if isinstance(provider_config, dict)
-        else None
-    )
-    return normalize_provider_web_search_config(
-        raw_web_search,
-        defaults=_default_web_search_config(),
+    return _support_normalize_provider_web_search_settings(
+        provider_config,
+        default_public_providers=list(DEFAULT_PUBLIC_PROVIDERS),
     )
 
 
-def _conv_id(context: "ExecutionContext | None") -> int:
-    if context is None or context.conversation_id is None:
-        return 0
-    return int(context.conversation_id)
-
-
-def _is_verifiable_http_url(url: str) -> bool:
-    try:
-        parsed = urlparse(str(url or "").strip())
-    except Exception:
-        return False
-    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
-
-
-def _has_search_wrapper_url(items: list[SearchResultItem]) -> bool:
-    for item in items:
-        try:
-            host = (urlparse(item.url).hostname or "").lower()
-        except Exception:
-            continue
-        if host in _SEARCH_ENGINE_HOSTS or host.endswith(".baidu.com") or host.endswith(
-            ".so.com"
-        ):
-            return True
-    return False
+def _conv_id(context: ExecutionContext | None) -> int:
+    return _support_conv_id(context)
 
 
 def _build_search_output_text(query: str, items: list[SearchResultItem]) -> str:
-    lines = [f"Search results for: {query}\n"]
-    if _has_search_wrapper_url(items):
-        lines.append(
-            "Note: Some URLs below are search-engine redirect links; use fetch_url to load "
-            "the final page content (redirects are followed automatically).\n"
-        )
-    for index, item in enumerate(items, start=1):
-        lines.append(f"{index}. {item.title}")
-        lines.append(f"   URL: {item.url}")
-        if item.snippet:
-            lines.append(f"   {item.snippet}")
-        lines.append("")
-    return "\n".join(lines).rstrip()
+    return _support_build_search_output_text(
+        query,
+        items,
+        search_engine_hosts=_SEARCH_ENGINE_HOSTS,
+    )
 
 
 def _duplicate_query_signature(
@@ -223,16 +192,16 @@ def _duplicate_query_signature(
     model_code: str,
     locale: str | None,
     max_results: int,
-    context: "ExecutionContext | None",
+    context: ExecutionContext | None,
 ) -> tuple[int, str, str, str, str, str, int]:
-    return (
-        _conv_id(context),
-        _normalize_text(query).lower(),
-        strategy,
-        provider_label,
-        model_code,
-        str(locale or ""),
-        int(max_results),
+    return _support_duplicate_query_signature(
+        query=query,
+        strategy=strategy,
+        provider_label=provider_label,
+        model_code=model_code,
+        locale=locale,
+        max_results=max_results,
+        context=context,
     )
 
 
@@ -242,70 +211,54 @@ def _decorate_duplicate_query_output(
     signature: tuple[int, str, str, str, str, str, int],
     status: str,
 ) -> str:
-    if signature[0] <= 0 or status not in {STATUS_SUCCESS, STATUS_NO_RESULTS}:
-        return output
-    if signature in _DUPLICATE_QUERY_SIGNATURES:
-        return (
-            output
-            + "\n\n[Note: This exact query was already searched in this conversation; "
-            "use fetch_url on a candidate URL from earlier results instead of repeating web_search.]"
-        )
-    _DUPLICATE_QUERY_SIGNATURES.add(signature)
-    return output
+    return _support_decorate_duplicate_query_output(
+        output=output,
+        signature=signature,
+        status=status,
+        seen_signatures=_DUPLICATE_QUERY_SIGNATURES,
+    )
 
 
 def _record_native_backend_outcome(conv_id: int, backend_key: str, status: str) -> None:
-    key = (conv_id, backend_key)
-    if status in {STATUS_SUCCESS, STATUS_NO_RESULTS}:
-        _NATIVE_BACKEND_FAIL_STREAK.pop(key, None)
-        if conv_id:
-            _NATIVE_BACKEND_DISABLED.setdefault(conv_id, set()).discard(backend_key)
-        return
-    _NATIVE_BACKEND_FAIL_STREAK[key] = _NATIVE_BACKEND_FAIL_STREAK.get(key, 0) + 1
-    if conv_id and _NATIVE_BACKEND_FAIL_STREAK[key] >= 3:
-        _NATIVE_BACKEND_DISABLED.setdefault(conv_id, set()).add(backend_key)
+    disabled_now, streak = _support_record_native_backend_outcome(
+        conv_id_value=conv_id,
+        backend_key=backend_key,
+        status=status,
+        fail_streak=_NATIVE_BACKEND_FAIL_STREAK,
+        disabled=_NATIVE_BACKEND_DISABLED,
+    )
+    if disabled_now:
         logger.info(
             "web_search native backend cooling down: backend={} conv_id={} streak={}",
             backend_key,
             conv_id,
-            _NATIVE_BACKEND_FAIL_STREAK[key],
+            streak,
         )
 
 
 def _native_backend_disabled(conv_id: int, backend_key: str) -> bool:
-    return bool(conv_id) and backend_key in _NATIVE_BACKEND_DISABLED.get(conv_id, set())
+    return _support_native_backend_disabled(
+        conv_id_value=conv_id,
+        backend_key=backend_key,
+        disabled=_NATIVE_BACKEND_DISABLED,
+    )
 
 
-def _remaining_tool_budget_seconds(context: "ExecutionContext | None") -> float | None:
-    if context is None:
-        return None
-    deadline = getattr(context, "tool_deadline_monotonic", None)
-    if deadline is None:
-        return None
-    try:
-        remaining = float(deadline) - time.perf_counter()
-    except (TypeError, ValueError):
-        return None
-    return max(0.0, remaining)
+def _remaining_tool_budget_seconds(context: ExecutionContext | None) -> float | None:
+    return _support_remaining_tool_budget_seconds(context)
 
 
 def _clamp_stage_timeout_seconds(
     requested_seconds: int,
     *,
-    context: "ExecutionContext | None",
+    context: ExecutionContext | None,
 ) -> int:
-    requested = max(_MIN_STAGE_TIMEOUT_SECONDS, int(requested_seconds))
-    remaining = _remaining_tool_budget_seconds(context)
-    if remaining is None:
-        return requested
-    bounded = min(
-        float(requested),
-        max(
-            float(_MIN_STAGE_TIMEOUT_SECONDS),
-            remaining - _SEARCH_TIMEOUT_SAFETY_MARGIN_SECONDS,
-        ),
+    return _support_clamp_stage_timeout_seconds(
+        requested_seconds,
+        context=context,
+        min_stage_timeout_seconds=_MIN_STAGE_TIMEOUT_SECONDS,
+        timeout_safety_margin_seconds=_SEARCH_TIMEOUT_SAFETY_MARGIN_SECONDS,
     )
-    return max(_MIN_STAGE_TIMEOUT_SECONDS, int(bounded))
 
 
 class NativeModelSearchProvider(BaseSearchProvider):
@@ -316,7 +269,7 @@ class NativeModelSearchProvider(BaseSearchProvider):
         max_results: int,
         locale: str | None,
         timeout_seconds: int,
-        context: "ExecutionContext | None" = None,
+        context: ExecutionContext | None = None,
         strategy: str | None = None,
         runtime_provider_label: str | None = None,
         runtime_model_code: str | None = None,
@@ -501,7 +454,7 @@ class WebSearchOrchestrator:
 
     @staticmethod
     async def _is_health_verified_native_candidate(
-        provider: "AIProvider | None",
+        provider: AIProvider | None,
         *,
         model_code: str,
     ) -> tuple[bool, str]:
@@ -569,7 +522,7 @@ class WebSearchOrchestrator:
 
     @staticmethod
     async def _verify_native_runtime_candidate(
-        provider: "AIProvider | None",
+        provider: AIProvider | None,
         *,
         model_code: str,
         allow_unverified_runtime_target: bool,
@@ -600,10 +553,10 @@ class WebSearchOrchestrator:
     @staticmethod
     async def _load_runtime_provider_and_model(
         *,
-        context: "ExecutionContext | None",
+        context: ExecutionContext | None,
         provider_repo: AIProviderRepository,
         model_repo: AIModelRepository,
-    ) -> tuple["AIProvider | None", "AIModel | None"]:
+    ) -> tuple[AIProvider | None, AIModel | None]:
         runtime_provider_id = getattr(context, "runtime_provider_id", None)
         runtime_model_id = getattr(context, "runtime_model_id", None)
         runtime_model_code = str(getattr(context, "runtime_model_code", "") or "").strip()
@@ -631,8 +584,8 @@ class WebSearchOrchestrator:
         target: AIProviderWebSearchVerifiedTarget,
         provider_repo: AIProviderRepository,
         model_repo: AIModelRepository,
-        runtime_model: "AIModel | None",
-    ) -> tuple["AIProvider | None", "AIModel | None", str]:
+        runtime_model: AIModel | None,
+    ) -> tuple[AIProvider | None, AIModel | None, str]:
         provider = None
         if target.provider_id is not None:
             provider = await provider_repo.get_by_id(int(target.provider_id))
@@ -653,9 +606,12 @@ class WebSearchOrchestrator:
                 str(target.model_code).strip(),
                 provider.id,
             )
-        if model is None and runtime_model is not None:
-            if int(getattr(runtime_model, "provider_id", 0) or 0) == int(provider.id):
-                model = runtime_model
+        if (
+            model is None
+            and runtime_model is not None
+            and int(getattr(runtime_model, "provider_id", 0) or 0) == int(provider.id)
+        ):
+            model = runtime_model
         if model is None:
             return provider, None, "verified_target_model_unavailable"
         return provider, model, "verified_native_target"
@@ -663,12 +619,12 @@ class WebSearchOrchestrator:
     @staticmethod
     async def _resolve_default_verified_native_target(
         *,
-        runtime_provider: "AIProvider | None",
-        runtime_model: "AIModel | None",
+        runtime_provider: AIProvider | None,
+        runtime_model: AIModel | None,
         runtime_model_code: str,
         provider_repo: AIProviderRepository,
         model_repo: AIModelRepository,
-    ) -> tuple["AIProvider | None", "AIModel | None", str | None, str]:
+    ) -> tuple[AIProvider | None, AIModel | None, str | None, str]:
         preferred_model_code = str(
             getattr(runtime_model, "code", "") or runtime_model_code or ""
         ).strip()
@@ -727,12 +683,12 @@ class WebSearchOrchestrator:
     async def _resolve_verified_native_target(
         *,
         normalized_config: AIProviderWebSearchConfig,
-        runtime_provider: "AIProvider | None",
-        runtime_model: "AIModel | None",
+        runtime_provider: AIProvider | None,
+        runtime_model: AIModel | None,
         runtime_model_code: str,
         provider_repo: AIProviderRepository,
         model_repo: AIModelRepository,
-    ) -> tuple["AIProvider | None", "AIModel | None", str | None, str]:
+    ) -> tuple[AIProvider | None, AIModel | None, str | None, str]:
         explicit_target = normalized_config.verified_native_target
         if explicit_target is not None:
             provider, model, reason = await WebSearchOrchestrator._resolve_verified_target_from_config(
@@ -812,7 +768,7 @@ class WebSearchOrchestrator:
         *,
         query: str,
         max_results: int,
-        context: "ExecutionContext | None" = None,
+        context: ExecutionContext | None = None,
     ) -> WebSearchExecution:
         start = time.perf_counter()
         rewritten_query = _normalize_text(_correct_query_year(query))
@@ -1051,7 +1007,7 @@ class WebSearchOrchestrator:
 
     async def _resolve_config(
         self,
-        context: "ExecutionContext | None",
+        context: ExecutionContext | None,
     ) -> _ResolvedWebSearchConfig:
         defaults = _default_web_search_config()
         runtime_provider = None
@@ -1159,9 +1115,7 @@ class WebSearchOrchestrator:
         elif (
             context is not None
             and str(getattr(context, "runtime_model_code", "") or "").strip()
-        ):
-            native_target_reason = "runtime_target_missing"
-        elif runtime_provider is None:
+        ) or runtime_provider is None:
             native_target_reason = "runtime_target_missing"
         else:
             native_target_reason = "runtime_db_unavailable_for_verified_target_resolution"
@@ -1221,7 +1175,7 @@ async def run_web_search(
     query: str,
     max_results: int,
     *,
-    context: "ExecutionContext | None" = None,
+    context: ExecutionContext | None = None,
 ) -> WebSearchExecution:
     orchestrator = WebSearchOrchestrator()
     return await orchestrator.search(

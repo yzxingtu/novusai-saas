@@ -4,46 +4,31 @@ Unified AI runtime diagnostics service / 统一 AI runtime 诊断服务。
 
 from __future__ import annotations
 
-from collections import Counter
-from datetime import timedelta
 from typing import Any
 from urllib.parse import urlparse
 
 from kombu import Connection
 from redis.asyncio import Redis
-from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.base_model import utc_now
 from app.core.config import settings
 from app.core.database import check_database_connection
 from app.core.logging import get_logger
-from app.enums.agent import MessageRoleEnum
 from app.core.redis import RedisManager
 from app.enums.ai import CallStatusEnum
-from app.exceptions import BusinessException, NotFoundException
+from app.exceptions import NotFoundException
 from app.models.ai.call_log import AICallLog
-from app.ai.text_semantics import (
-    extract_textual_tool_call_names,
-    has_tool_planning_leak_phrase,
+from app.services.ai.monitoring_read_model_projector import (
+    MonitoringReadModelProjector,
 )
-from app.services.ai.conversation_service import ConversationService
-from app.services.ai.monitoring_service import MonitoringService
+from app.services.ai.runtime_diagnostics_query_service import (
+    RuntimeDiagnosticsQueryService,
+)
 from app.services.ai.runtime_inventory_service import RuntimeInventoryService
+from app.services.ai.runtime_root_cause_projector import RuntimeRootCauseProjector
 from app.services.ai.skill_registry_service import SkillRegistryService
 
 logger = get_logger(__name__)
-
-_BUDGET_TERMINATION_REASONS = {
-    "budget_exit",
-    "elapsed_budget_exceeded",
-    "completion_budget_exceeded",
-    "tool_round_budget_exceeded",
-    "retry_budget_exhausted",
-    "prompt_budget_exceeded",
-    "tool_result_budget_exceeded",
-    "candidate_tool_budget_exceeded",
-}
 
 
 class RuntimeDiagnosticsService:
@@ -210,7 +195,9 @@ class RuntimeDiagnosticsService:
             raise NotFoundException(message="AI call log not found")
 
         call_log_diagnostics = (
-            MonitoringService._extract_call_trace_diagnostics(call_log.request_metadata)
+            MonitoringReadModelProjector.extract_call_trace_diagnostics(
+                call_log.request_metadata
+            )
             if call_log is not None
             else {}
         )
@@ -560,63 +547,9 @@ class RuntimeDiagnosticsService:
         *,
         tenant_id: int | None,
     ) -> list[dict[str, Any]]:
-        since = utc_now() - timedelta(hours=24)
-        stmt: Select[tuple[AICallLog]] = (
-            select(AICallLog)
-            .where(
-                AICallLog.is_deleted.is_(False),
-                AICallLog.created_at >= since,
-            )
-            .order_by(AICallLog.created_at.desc(), AICallLog.id.desc())
-            .limit(500)
+        return await RuntimeDiagnosticsQueryService(self).aggregate_recent_failures(
+            tenant_id=tenant_id
         )
-        if tenant_id is not None:
-            stmt = stmt.where(AICallLog.tenant_id == tenant_id)
-
-        result = await self.db.execute(stmt)
-        logs = list(result.scalars().all())
-
-        failure_counter: Counter[tuple[str | None, ...]] = Counter()
-        collected = 0
-        for log in logs:
-            diagnostics = MonitoringService._extract_call_trace_diagnostics(
-                log.request_metadata
-            )
-            if not self._is_failed_call(log, diagnostics):
-                continue
-            selected_tools = diagnostics.get("selected_tool_names") or []
-            key = (
-                diagnostics.get("failure_kind"),
-                getattr(log, "provider_name_snapshot", None),
-                getattr(log, "model_name_snapshot", None),
-                getattr(log, "agent_name_snapshot", None),
-                selected_tools[0] if selected_tools else None,
-                diagnostics.get("contract_breach_type"),
-            )
-            failure_counter[key] += 1
-            collected += 1
-            if collected >= 50:
-                break
-
-        return [
-            {
-                "failure_kind": failure_kind,
-                "provider": provider_name,
-                "model": model_name,
-                "agent": agent_name,
-                "tool": tool_name,
-                "contract_breach_type": contract,
-                "count": count,
-            }
-            for (
-                failure_kind,
-                provider_name,
-                model_name,
-                agent_name,
-                tool_name,
-                contract,
-            ), count in failure_counter.most_common()
-        ]
 
     @staticmethod
     def _is_failed_call(log: AICallLog, diagnostics: dict[str, Any]) -> bool:
@@ -633,13 +566,7 @@ class RuntimeDiagnosticsService:
             "tool_round_failed",
         }:
             return True
-        if str(diagnostics.get("failure_kind") or "").strip() not in {"", "none"}:
-            return True
-        return False
-
-    @staticmethod
-    def _has_meaningful_value(value: Any) -> bool:
-        return value not in (None, "", [], {}, ())
+        return str(diagnostics.get("failure_kind") or "").strip() not in {"", "none"}
 
     @classmethod
     def _merge_root_cause_diagnostics(
@@ -648,87 +575,9 @@ class RuntimeDiagnosticsService:
         conversation_diagnostics: dict[str, Any],
         call_log_diagnostics: dict[str, Any],
     ) -> dict[str, Any]:
-        merged = dict(call_log_diagnostics or {})
-        for key, value in (conversation_diagnostics or {}).items():
-            if key not in merged or cls._has_meaningful_value(value):
-                merged[key] = value
-        return merged
-
-    @staticmethod
-    def _detect_claimed_tool_call_without_event(
-        *,
-        content: str,
-        diagnostics: dict[str, Any],
-        tool_calls: list[dict[str, Any]],
-    ) -> bool:
-        if tool_calls:
-            return False
-        normalized_content = str(content or "").strip()
-        if not normalized_content:
-            return False
-
-        tool_names = []
-        for name in list(diagnostics.get("candidate_tool_names") or []) + list(
-            diagnostics.get("selected_tool_names") or []
-        ):
-            normalized_name = str(name or "").strip()
-            if normalized_name and normalized_name not in tool_names:
-                tool_names.append(normalized_name)
-        alias_map = {name: name for name in tool_names}
-        textual_tool_names = (
-            extract_textual_tool_call_names(
-                normalized_content,
-                alias_to_tool_name=alias_map,
-                known_tool_names=set(alias_map) if alias_map else None,
-            )
-            if alias_map
-            else []
-        )
-        lowered = normalized_content.lower()
-        marker_present = (
-            has_tool_planning_leak_phrase(normalized_content)
-            or "calling " in lowered
-            or "invoking " in lowered
-            or "正在调用" in normalized_content
-            or "调用 " in normalized_content
-        )
-        return bool(textual_tool_names or (marker_present and tool_names))
-
-    @classmethod
-    def _assistant_message_is_turn_anchor(cls, message: Any) -> bool:
-        metadata = (
-            dict(getattr(message, "metadata_", {}) or {})
-            if isinstance(getattr(message, "metadata_", {}), dict)
-            else {}
-        )
-        if not metadata:
-            return False
-        if any(
-            cls._has_meaningful_value(metadata.get(key))
-            for key in (
-                "turn_record",
-                "context_diagnostics",
-                "last_run_summary",
-                "turn_outcome",
-                "termination_reason",
-                "protocol_path",
-            )
-        ):
-            return True
-        diagnostics = ConversationService._extract_turn_diagnostics_from_metadata(metadata)
-        return any(
-            cls._has_meaningful_value(diagnostics.get(key))
-            for key in (
-                "turn_outcome",
-                "conversation_outcome",
-                "termination_reason",
-                "failure_kind",
-                "unfinished_intents",
-                "candidate_tool_names",
-                "selected_tool_names",
-                "retry_events",
-                "provider_events",
-            )
+        return RuntimeRootCauseProjector.merge_root_cause_diagnostics(
+            conversation_diagnostics=conversation_diagnostics,
+            call_log_diagnostics=call_log_diagnostics,
         )
 
     async def _resolve_conversation_turn(
@@ -737,58 +586,10 @@ class RuntimeDiagnosticsService:
         conversation_id: int,
         turn: int,
     ) -> dict[str, Any]:
-        service, conversation = await ConversationService.get_service_for_conversation(
-            self.db,
-            conversation_id,
+        return await RuntimeDiagnosticsQueryService(self).resolve_conversation_turn(
+            conversation_id=conversation_id,
+            turn=turn,
         )
-        messages = await service.message_repo.get_by_conversation(conversation_id)
-        assistant_messages = [
-            message
-            for message in messages
-            if message.role == MessageRoleEnum.ASSISTANT.value
-        ]
-        turn_anchor_messages = [
-            message
-            for message in assistant_messages
-            if self._assistant_message_is_turn_anchor(message)
-        ]
-        target_messages = turn_anchor_messages or assistant_messages
-        if turn <= 0 or turn > len(target_messages):
-            raise NotFoundException(message="Conversation turn not found")
-
-        target_message = target_messages[turn - 1]
-        metadata = (
-            dict(getattr(target_message, "metadata_", {}) or {})
-            if isinstance(getattr(target_message, "metadata_", {}), dict)
-            else {}
-        )
-        diagnostics = ConversationService._extract_turn_diagnostics_from_metadata(
-            metadata
-        )
-        content = str(getattr(target_message, "content", "") or "")
-        tool_calls = [
-            dict(item)
-            for item in (getattr(target_message, "tool_calls", None) or [])
-            if isinstance(item, dict)
-        ]
-        if self._detect_claimed_tool_call_without_event(
-            content=content,
-            diagnostics=diagnostics,
-            tool_calls=tool_calls,
-        ):
-            diagnostics["assistant_claimed_tool_call_without_tool_event"] = True
-            diagnostics.setdefault(
-                "contract_breach_type",
-                "assistant_claimed_tool_call_without_tool_event",
-            )
-        return {
-            "message_id": getattr(target_message, "id", None),
-            "conversation_id": conversation.id,
-            "assistant_content": content,
-            "tool_calls": tool_calls,
-            "metadata": metadata,
-            "diagnostics": diagnostics,
-        }
 
     async def _resolve_related_call_log_for_conversation_turn(
         self,
@@ -796,18 +597,12 @@ class RuntimeDiagnosticsService:
         conversation_id: int,
         turn: int,
     ) -> AICallLog | None:
-        result = await self.db.execute(
-            select(AICallLog)
-            .where(
-                AICallLog.conversation_id == conversation_id,
-                AICallLog.is_deleted.is_(False),
-            )
-            .order_by(AICallLog.created_at.asc(), AICallLog.id.asc())
+        return await RuntimeDiagnosticsQueryService(
+            self
+        ).resolve_related_call_log_for_conversation_turn(
+            conversation_id=conversation_id,
+            turn=turn,
         )
-        logs = list(result.scalars().all())
-        if turn <= 0 or turn > len(logs):
-            return None
-        return logs[turn - 1]
 
     async def _resolve_call_log(
         self,
@@ -817,181 +612,11 @@ class RuntimeDiagnosticsService:
         conversation_id: int | None,
         turn: int | None,
     ) -> AICallLog:
-        if call_log_id is not None:
-            result = await self.db.execute(
-                select(AICallLog).where(
-                    AICallLog.id == call_log_id,
-                    AICallLog.is_deleted.is_(False),
-                )
-            )
-            call_log = result.scalar_one_or_none()
-            if call_log is None:
-                raise NotFoundException(message="AI call log not found")
-            return call_log
-
-        if trace_id:
-            result = await self.db.execute(
-                select(AICallLog)
-                .where(
-                    AICallLog.trace_id == trace_id,
-                    AICallLog.is_deleted.is_(False),
-                )
-                .order_by(AICallLog.created_at.desc(), AICallLog.id.desc())
-                .limit(1)
-            )
-            call_log = result.scalar_one_or_none()
-            if call_log is None:
-                raise NotFoundException(message="AI call log not found")
-            return call_log
-
-        if conversation_id is not None and turn is not None:
-            result = await self.db.execute(
-                select(AICallLog)
-                .where(
-                    AICallLog.conversation_id == conversation_id,
-                    AICallLog.is_deleted.is_(False),
-                )
-                .order_by(AICallLog.created_at.asc(), AICallLog.id.asc())
-            )
-            logs = list(result.scalars().all())
-            if turn <= 0 or turn > len(logs):
-                raise NotFoundException(message="AI call log not found")
-            return logs[turn - 1]
-
-        raise BusinessException(
-            message="trace_id, call_log_id, or conversation_id+turn is required"
-        )
-
-    @staticmethod
-    def _is_research_like_diagnostics(diagnostics: dict[str, Any]) -> bool:
-        tool_planner = (
-            dict(diagnostics.get("tool_planner") or {})
-            if isinstance(diagnostics.get("tool_planner"), dict)
-            else {}
-        )
-        planner_family = str(tool_planner.get("family") or "").strip()
-        continuation_source = str(diagnostics.get("continuation_source") or "").strip()
-        selected_tools = {
-            str(name or "").strip()
-            for name in list(diagnostics.get("selected_tool_names") or [])
-            + list(diagnostics.get("candidate_tool_names") or [])
-            if str(name or "").strip()
-        }
-        unfinished_intents = {
-            str(name or "").strip()
-            for name in diagnostics.get("unfinished_intents") or []
-            if str(name or "").strip()
-        }
-        return bool(
-            planner_family == "web_research"
-            or continuation_source == "web_research"
-            or {"web_search", "fetch_url"} & selected_tools
-            or unfinished_intents
-            & {"web_research", "weather_query", "weather", "rail_ticket_research"}
-        )
-
-    @staticmethod
-    def _planner_source_text(diagnostics: dict[str, Any]) -> str:
-        tool_planner = diagnostics.get("tool_planner")
-        if not isinstance(tool_planner, dict):
-            return ""
-        intent_plan = tool_planner.get("intent_plan")
-        if not isinstance(intent_plan, list):
-            return ""
-        for item in intent_plan:
-            if not isinstance(item, dict):
-                continue
-            source_text = str(item.get("source_text") or "").strip()
-            if source_text:
-                return source_text
-        return ""
-
-    @staticmethod
-    def _has_false_direct_reply_signal(diagnostics: dict[str, Any]) -> bool:
-        tool_planner = (
-            dict(diagnostics.get("tool_planner") or {})
-            if isinstance(diagnostics.get("tool_planner"), dict)
-            else {}
-        )
-        if str(tool_planner.get("intent") or "").strip() != "direct_reply":
-            return False
-        selected_tool_names = {
-            str(name or "").strip()
-            for name in diagnostics.get("selected_tool_names") or []
-            if str(name or "").strip()
-        }
-        candidate_tool_names = {
-            str(name or "").strip()
-            for name in diagnostics.get("candidate_tool_names") or []
-            if str(name or "").strip()
-        }
-        if selected_tool_names or candidate_tool_names:
-            return False
-
-        selected_skill_names = {
-            str(name or "").strip()
-            for name in diagnostics.get("selected_skill_names") or []
-            if str(name or "").strip()
-        }
-        if not selected_skill_names:
-            return False
-
-        source_text = RuntimeDiagnosticsService._planner_source_text(diagnostics).lower()
-        if not source_text:
-            return False
-
-        looks_like_time = any(
-            token in source_text
-            for token in (
-                "现在几点",
-                "现在是几点",
-                "当前时间",
-                "北京时间",
-                "current time",
-                "beijing time",
-                "星期几",
-                "周几",
-                "几号",
-            )
-        )
-        looks_like_weather = any(
-            token in source_text
-            for token in ("天气", "气温", "温度", "降雨", "湿度", "weather")
-        )
-        looks_like_web = any(
-            token in source_text
-            for token in (
-                "联网",
-                "搜索",
-                "搜一下",
-                "搜一搜",
-                "官网",
-                "链接",
-                "网址",
-                "web search",
-                "search online",
-                "fetch",
-                "新闻",
-                "热点",
-                "排行",
-            )
-        )
-        has_time_capability = any(
-            token in " ".join(selected_skill_names).lower()
-            for token in ("get_current_time", "time", "时间")
-        )
-        has_weather_capability = any(
-            token in " ".join(selected_skill_names).lower()
-            for token in ("weather", "天气")
-        )
-        has_web_capability = any(
-            token in " ".join(selected_skill_names).lower()
-            for token in ("web_search", "fetch_url", "search", "搜索")
-        )
-        return bool(
-            (looks_like_time and has_time_capability)
-            or (looks_like_weather and (has_weather_capability or has_web_capability))
-            or (looks_like_web and has_web_capability)
+        return await RuntimeDiagnosticsQueryService(self).resolve_call_log(
+            trace_id=trace_id,
+            call_log_id=call_log_id,
+            conversation_id=conversation_id,
+            turn=turn,
         )
 
     @staticmethod
@@ -1001,28 +626,10 @@ class RuntimeDiagnosticsService:
         diagnostics: dict[str, Any],
         conversation_turn: dict[str, Any] | None,
     ) -> str:
-        del conversation_turn
-        conversation_outcome = str(
-            diagnostics.get("conversation_outcome") or diagnostics.get("turn_outcome") or ""
-        ).strip()
-        if conversation_outcome in {"failed", "partial"}:
-            return "failed"
-        if bool(diagnostics.get("assistant_claimed_tool_call_without_tool_event")):
-            return "failed"
-        if str(diagnostics.get("failure_kind") or "").strip() not in {"", "none"}:
-            return "failed"
-        if str(diagnostics.get("contract_breach_type") or "").strip():
-            return "failed"
-        if diagnostics.get("unfinished_intents"):
-            return "failed"
-        if RuntimeDiagnosticsService._has_false_direct_reply_signal(diagnostics):
-            return "failed"
-        if call_log is None:
-            return "success"
-        return (
-            "success"
-            if str(call_log.status or "") == CallStatusEnum.SUCCESS.value
-            else "failed"
+        return RuntimeRootCauseProjector.resolve_root_cause_status(
+            call_log=call_log,
+            diagnostics=diagnostics,
+            conversation_turn=conversation_turn,
         )
 
     def _classify_root_cause(
@@ -1032,218 +639,10 @@ class RuntimeDiagnosticsService:
         diagnostics: dict[str, Any],
         conversation_turn: dict[str, Any] | None,
     ) -> tuple[str | None, str | None, str, str | None, float | None]:
-        error_message = str(
-            getattr(call_log, "error_message", "") if call_log is not None else ""
-        ).strip()
-        failure_kind = str(diagnostics.get("failure_kind") or "").strip()
-        contract_breach_type = str(
-            diagnostics.get("contract_breach_type") or ""
-        ).strip()
-        termination_reason = str(
-            diagnostics.get("termination_reason") or ""
-        ).strip()
-        budget_exit_reason = str(
-            diagnostics.get("budget_exit_reason") or ""
-        ).strip()
-        partial_exit_reason = str(
-            diagnostics.get("partial_exit_reason") or ""
-        ).strip()
-        conversation_outcome = str(
-            diagnostics.get("conversation_outcome") or diagnostics.get("turn_outcome") or ""
-        ).strip()
-        tool_planner = (
-            dict(diagnostics.get("tool_planner") or {})
-            if isinstance(diagnostics.get("tool_planner"), dict)
-            else {}
-        )
-        planner_intent = str(tool_planner.get("intent") or "").strip()
-        continuation_source = str(diagnostics.get("continuation_source") or "").strip()
-        provider_events = list(diagnostics.get("provider_events") or [])
-        retry_events = list(diagnostics.get("retry_events") or [])
-        selected_tools = list(diagnostics.get("selected_tool_names") or [])
-        candidate_tool_names = list(diagnostics.get("candidate_tool_names") or [])
-        unfinished_intents = list(diagnostics.get("unfinished_intents") or [])
-        assistant_claimed_tool_call_without_tool_event = bool(
-            diagnostics.get("assistant_claimed_tool_call_without_tool_event")
-        )
-        research_like = self._is_research_like_diagnostics(diagnostics)
-        false_direct_reply = self._has_false_direct_reply_signal(diagnostics)
-
-        if assistant_claimed_tool_call_without_tool_event:
-            return (
-                "stream_output_contract",
-                "assistant_claimed_tool_call_without_tool_event",
-                "The assistant claimed it was calling a tool, but no real tool event or tool message followed.",
-                "Start with the turn executor contract-breach path and keep the active intent family/tool scope pinned during the recovery retry.",
-                0.97,
-            )
-
-        if false_direct_reply:
-            return (
-                "post_processing",
-                "planner_false_direct_reply",
-                "The planner collapsed a tool-eligible current-information request into direct_reply even though matching runtime capabilities were available.",
-                "Fix explicit time/weather/web intent detection before allowing direct_reply short-circuit.",
-                0.93,
-            )
-
-        if continuation_source == "page_ops" and planner_intent == "direct_reply":
-            return (
-                "post_processing",
-                "planner_false_direct_reply",
-                "A page continuation turn was misplanned as direct_reply even though page context and page tools were still available.",
-                "Fix the intent planner so page continuation stays in the page_ops family before any direct_reply fallback is allowed.",
-                0.94,
-            )
-
-        if (
-            call_log is not None
-            and str(call_log.status or "") == CallStatusEnum.SUCCESS.value
-            and conversation_outcome not in {"failed", "partial"}
-            and not failure_kind
-            and not contract_breach_type
-            and termination_reason not in _BUDGET_TERMINATION_REASONS
-        ):
-            return (
-                None,
-                None,
-                "The call completed successfully and no blocking failure signal was found.",
-                None,
-                0.98,
-            )
-
-        if (
-            continuation_source == "page_ops"
-            and conversation_outcome in {"failed", "partial"}
-            and planner_intent != "page_summary"
-            and not selected_tools
-        ):
-            return (
-                "post_processing",
-                "page_continuation_missed",
-                "The runtime missed a page continuation and failed to carry the turn forward inside the page_ops family.",
-                "Start with page continuation detection and keep the active page family available through tool routing and recovery.",
-                0.9,
-            )
-
-        if (
-            (termination_reason == "retry_budget_exhausted")
-            or (budget_exit_reason == "retry_budget_exhausted")
-            or (partial_exit_reason == "retry_budget_exhausted")
-        ) and unfinished_intents:
-            return (
-                "research_contract" if research_like else "post_processing",
-                "retry_budget_exhausted_with_unfinished_intents",
-                "The turn exhausted retry budget while one or more intents were still unfinished.",
-                "Start with the unfinished-intent retry policy and stop finalizing the turn while required tool work is still missing.",
-                0.95,
-            )
-
-        if conversation_outcome == "partial" and research_like and unfinished_intents:
-            return (
-                "research_contract",
-                "research_partial_finalized_by_orchestrator",
-                "The orchestrator finalized the turn as partial even though web research remained unfinished from the user's perspective.",
-                "Inspect unfinished intents, fetch_url completion checks, and the partial-exit finalization path before changing prompts.",
-                0.94,
-            )
-
-        if contract_breach_type:
-            lower_contract = contract_breach_type.lower()
-            if "research" in lower_contract or "unfinished_intent" in lower_contract:
-                return (
-                    "research_contract",
-                    contract_breach_type,
-                    "The turn failed because the web-research contract was not fully satisfied.",
-                    "Inspect the agent's web_search/fetch_url tool pair and the unfinished-intent retry rules for this trace.",
-                    0.92,
-                )
-            return (
-                "stream_output_contract",
-                contract_breach_type,
-                "The turn failed because the stream/output contract was breached.",
-                "Start with the stream handler and final output contract reconciliation for this trace.",
-                0.9,
-            )
-
-        if unfinished_intents:
-            return (
-                "research_contract",
-                failure_kind or "unfinished_intents",
-                "The turn exited with unfinished intents that never reached the required completion signal.",
-                "Check intent retry / fetch_url completion criteria before changing downstream formatting.",
-                0.86,
-            )
-
-        lower_error = error_message.lower()
-        if provider_events or any(
-            token in lower_error
-            for token in ("provider", "upstream", "timeout", "rate limit", "api key")
-        ):
-            return (
-                "provider_gateway",
-                failure_kind or "provider_gateway_error",
-                "The failure came from the provider gateway or upstream model interaction.",
-                "Inspect provider events, model routing, and upstream credentials for this trace first.",
-                0.84,
-            )
-
-        if selected_tools or "tool" in failure_kind or "tool" in lower_error:
-            return (
-                "tool_execution",
-                failure_kind or "tool_execution_failed",
-                "A runtime tool call failed or the tool loop did not converge.",
-                "Start with the selected tool payloads and execution logs for the affected turn.",
-                0.82,
-            )
-
-        if any(
-            token in lower_error for token in ("skill", "grant", "resolver", "toolkit")
-        ):
-            return (
-                "skill_resolution",
-                failure_kind or "skill_resolution_failed",
-                "The turn failed before execution because runtime skills/tools could not be resolved cleanly.",
-                "Check agent skill grants and runtime skill resolution for this agent.",
-                0.78,
-            )
-
-        if any(
-            token in lower_error
-            for token in ("context", "knowledge base", "memory", "page_context")
-        ):
-            return (
-                "context_assembly",
-                failure_kind or "context_assembly_failed",
-                "The turn failed while assembling runtime context.",
-                "Inspect context assembly diagnostics, including KB, memory, and page-context inputs.",
-                0.76,
-            )
-
-        if termination_reason in _BUDGET_TERMINATION_REASONS or budget_exit_reason:
-            return (
-                "post_processing",
-                budget_exit_reason or termination_reason or "budget_exit",
-                "The turn exhausted a runtime budget or exited during finalization.",
-                "Tune runtime budgets or remove the stop-loss path that terminated this turn.",
-                0.8,
-            )
-
-        if retry_events:
-            return (
-                "post_processing",
-                failure_kind or "retry_exhausted",
-                "The turn could not recover after runtime retries.",
-                "Inspect retry chain diagnostics before changing model prompts or frontend rendering.",
-                0.74,
-            )
-
-        return (
-            "post_processing",
-            failure_kind or "unknown_failure",
-            "The turn failed after execution, but no narrower failure layer matched.",
-            "Start from turn diagnostics and provider/tool evidence on this call log.",
-            0.6,
+        return RuntimeRootCauseProjector.classify_root_cause(
+            call_log=call_log,
+            diagnostics=diagnostics,
+            conversation_turn=conversation_turn,
         )
 
     @staticmethod
@@ -1253,39 +652,11 @@ class RuntimeDiagnosticsService:
         *,
         conversation_turn: dict[str, Any] | None,
     ) -> list[dict[str, Any]]:
-        evidence: list[dict[str, Any]] = []
-
-        def append(label: str, value: Any) -> None:
-            if value in (None, "", [], {}, ()):
-                return
-            evidence.append({"label": label, "value": value})
-
-        if call_log is not None:
-            append("call_status", call_log.status)
-            append("error_message", call_log.error_message)
-        if isinstance(conversation_turn, dict):
-            append("conversation_message_id", conversation_turn.get("message_id"))
-        append("turn_outcome", diagnostics.get("turn_outcome"))
-        append("conversation_outcome", diagnostics.get("conversation_outcome"))
-        append("termination_reason", diagnostics.get("termination_reason"))
-        append("tool_planner", diagnostics.get("tool_planner"))
-        append("active_intent_id", diagnostics.get("active_intent_id"))
-        append("continuation_source", diagnostics.get("continuation_source"))
-        append("failure_kind", diagnostics.get("failure_kind"))
-        append("contract_breach_type", diagnostics.get("contract_breach_type"))
-        append(
-            "assistant_claimed_tool_call_without_tool_event",
-            diagnostics.get("assistant_claimed_tool_call_without_tool_event"),
+        return RuntimeRootCauseProjector.build_root_cause_evidence(
+            call_log,
+            diagnostics,
+            conversation_turn=conversation_turn,
         )
-        append("budget_exit_reason", diagnostics.get("budget_exit_reason"))
-        append("selected_tool_names", diagnostics.get("selected_tool_names"))
-        append("candidate_tool_names", diagnostics.get("candidate_tool_names"))
-        append("selected_skill_names", diagnostics.get("selected_skill_names"))
-        append("unfinished_intents", diagnostics.get("unfinished_intents"))
-        append("retry_events", diagnostics.get("retry_events"))
-        append("provider_events", diagnostics.get("provider_events"))
-        append("fallback_history", diagnostics.get("fallback_history"))
-        return evidence
 
     @staticmethod
     def _resolve_overall_status(checks: list[dict[str, Any]]) -> str:

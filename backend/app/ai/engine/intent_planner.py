@@ -7,7 +7,10 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app.ai.navigation_semantics import has_navigation_intent
-from app.ai.tools.semantic_defaults import tool_semantic_family
+from app.ai.tools.semantic_defaults import (
+    page_context_available_ui_tools,
+    tool_semantic_family,
+)
 from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage
 from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
@@ -33,6 +36,47 @@ _CLAUSE_SEPARATORS = (
     " and then ",
 )
 _WEATHER_TERMS = ("天气", "气温", "温度", "降雨", "湿度", "weather", "temperature")
+_CAPABILITY_QUERY_TERMS = (
+    "是否能",
+    "能否",
+    "会不会",
+    "能不能",
+    "可以做什么",
+    "有哪些能力",
+    "能力边界",
+    "what can you do",
+    "whether you can",
+    "what are you capable of",
+)
+_CAPABILITY_REFERENCE_TERMS = (
+    "天气",
+    "查询天气",
+    "调用技能",
+    "技能",
+    "页面感知",
+    "页面操作",
+    "执行页面操作",
+    "工具",
+    "weather",
+    "skill",
+    "skills",
+    "page operation",
+    "page operations",
+    "tool",
+    "tools",
+)
+_NO_TOOL_REQUEST_TERMS = (
+    "不要调用任何工具",
+    "不要调用工具",
+    "不要使用任何工具",
+    "不要使用工具",
+    "不需要调用工具",
+    "无需调用工具",
+    "do not call any tools",
+    "don't call any tools",
+    "without calling any tools",
+    "without using tools",
+)
 _TIME_TERMS = (
     "现在几点",
     "现在是几点",
@@ -261,8 +305,6 @@ _PAGE_EDITOR_WRITE_TERMS = (
     "插入内容",
     "更新标题",
     "修改标题",
-    "标题",
-    "正文",
     "替换章节",
     "rewrite section",
     "replace content",
@@ -293,7 +335,7 @@ _PAGE_PAGINATION_TERMS = (
     "previous page",
     "go to page",
 )
-_PAGE_CAPABILITY_TERMS = ("页面感知能力", "页面能力", "页面操作能力", "页面操作")
+_PAGE_CAPABILITY_TERMS = ("页面感知能力", "页面能力", "页面操作能力")
 _KNOWLEDGE_TERMS = ("知识库", "文档", "资料", "kb")
 _KNOWLEDGE_DEFINITION_PATTERNS = (
     re.compile(
@@ -376,6 +418,46 @@ _PAGE_CONTINUE_ACTION_TERMS = (
     "展开",
     "看看",
 )
+_MEMORY_SAVE_TERMS = (
+    "存入记忆",
+    "存到记忆",
+    "保存到记忆",
+    "记住这个",
+    "记住这句",
+    "记住这条",
+    "帮我记住",
+    "请记住",
+    "把这个记下来",
+    "把这句记下来",
+    "记下来",
+    "记到记忆",
+    "remember this",
+    "save to memory",
+)
+_MEMORY_RECALL_TERMS = (
+    "你还记得",
+    "还记得我",
+    "刚才让你记住",
+    "之前让你记住",
+    "我刚才说的",
+    "回忆一下",
+    "代号",
+    "codename",
+    "remember",
+    "recall",
+)
+_MEMORY_QUERY_HINT_TERMS = (
+    "是什么",
+    "是啥",
+    "还记得",
+    "记得吗",
+    "记住了没",
+    "回忆",
+    "remember",
+    "recall",
+    "what",
+    "which",
+)
 _WEATHER_LOCATION_SUFFIX_RE = re.compile(
     r"[\u4e00-\u9fff]{2,12}(?:市|区|县|州|省|自治区|特别行政区)"
 )
@@ -452,32 +534,22 @@ class IntentPlanner:
         if not isinstance(input_variables, dict):
             return set()
         page_context = input_variables.get(PAGE_CONTEXT_KEY)
-        if not isinstance(page_context, dict):
-            return set()
-        page_data = page_context.get("page_data")
-        raw_operations = (
-            page_data.get("available_operations")
-            if isinstance(page_data, dict)
-            else page_context.get("available_operations")
-        )
-        if not isinstance(raw_operations, list):
-            return set()
-        return {
-            str(item.get("name") or "").strip()
-            for item in raw_operations
-            if isinstance(item, dict) and item.get("name")
-        }
+        return set(page_context_available_ui_tools(page_context))
 
-    @staticmethod
+    @classmethod
     def _tool_families(
+        cls,
         tools: list[ToolDefinition],
         input_variables: dict[str, Any] | None,
     ) -> set[str]:
-        return {
+        families = {
             tool_semantic_family(tool, input_variables)
             for tool in tools
             if tool_semantic_family(tool, input_variables) != "none"
         }
+        if input_variables and cls._has_page_context(input_variables):
+            families.add("page_ops")
+        return families
 
     @staticmethod
     def _continuation_families(continuation_context: Any | None) -> set[str]:
@@ -647,6 +719,28 @@ class IntentPlanner:
         )
         return has_page_reference
 
+    @staticmethod
+    def _explicitly_forbids_tool_usage(lowered: str) -> bool:
+        return any(term in lowered for term in _NO_TOOL_REQUEST_TERMS)
+
+    @staticmethod
+    def _looks_like_capability_self_report(lowered: str) -> bool:
+        if any(
+            term in lowered
+            for term in (
+                "介绍一下你自己",
+                "简单介绍一下你自己",
+                "先介绍一下你自己",
+                "自我介绍",
+                "introduce yourself",
+                "who are you",
+            )
+        ):
+            return True
+        if not any(term in lowered for term in _CAPABILITY_QUERY_TERMS):
+            return False
+        return any(term in lowered for term in _CAPABILITY_REFERENCE_TERMS)
+
     @classmethod
     def _generic_web_search_position(cls, lowered: str) -> int:
         if cls._looks_like_page_search_request(lowered):
@@ -761,6 +855,23 @@ class IntentPlanner:
             position = lowered.find(subject_lowered)
             return position if position >= 0 else 0
         return -1
+
+    @classmethod
+    def _looks_like_generic_definition_question(cls, clause: str) -> bool:
+        text = re.sub(r"\s+", " ", str(clause or "").strip())
+        if not text:
+            return False
+        for pattern in _KNOWLEDGE_DEFINITION_PATTERNS:
+            match = pattern.match(text)
+            if not match:
+                continue
+            subject = cls._normalize_knowledge_subject(match.group("subject")).lower()
+            return (
+                not subject
+                or len(subject) <= 1
+                or subject in _KNOWLEDGE_GENERIC_SUBJECTS
+            )
+        return False
 
     @classmethod
     def _detect_page_signal(
@@ -892,12 +1003,13 @@ class IntentPlanner:
         )
         form_write_position = cls._first_position(lowered, _PAGE_FORM_WRITE_TERMS)
         if not (editor_anchor >= 0 and editor_write_position >= 0):
-            add_candidate(
-                "page_form_write",
-                "page_form_write",
-                form_write_position,
-                4,
-            )
+            if not cls._looks_like_read_only_form_instruction(lowered):
+                add_candidate(
+                    "page_form_write",
+                    "page_form_write",
+                    form_write_position,
+                    4,
+                )
         add_candidate(
             "page_form_read",
             "page_form_read",
@@ -944,6 +1056,48 @@ class IntentPlanner:
             return None
         return min(candidates, key=lambda item: (item[0], item[1]))[2]
 
+    @staticmethod
+    def _is_question_like_clause(lowered: str) -> bool:
+        if not lowered:
+            return False
+        return (
+            "?" in lowered
+            or "？" in lowered
+            or any(token in lowered for token in _MEMORY_QUERY_HINT_TERMS)
+        )
+
+    @classmethod
+    def _memory_save_position(cls, lowered: str) -> int:
+        pos = cls._first_position(lowered, _MEMORY_SAVE_TERMS)
+        if pos >= 0:
+            return pos
+        if "记住" in lowered and not cls._is_question_like_clause(lowered):
+            return lowered.find("记住")
+        if "记下来" in lowered and not cls._is_question_like_clause(lowered):
+            return lowered.find("记下来")
+        return -1
+
+    @classmethod
+    def _memory_recall_position(cls, lowered: str) -> int:
+        if not lowered:
+            return -1
+        pos = cls._first_position(lowered, _MEMORY_RECALL_TERMS)
+        if pos >= 0:
+            return pos
+        if "记得" in lowered and cls._is_question_like_clause(lowered):
+            return lowered.find("记得")
+        if "记住" in lowered and cls._is_question_like_clause(lowered):
+            return lowered.find("记住")
+        return -1
+
+    @staticmethod
+    def _looks_like_read_only_form_instruction(lowered: str) -> bool:
+        if not lowered:
+            return False
+        hints = ("不要", "别", "先不要", "不需要", "暂时不", "不要帮我")
+        actions = ("创建", "新增", "填", "提交", "点击", "operate", "create", "click")
+        return any(hint in lowered for hint in hints) and any(action in lowered for action in actions)
+
     @classmethod
     def _detect_clause_signals(
         cls,
@@ -956,21 +1110,47 @@ class IntentPlanner:
         continuation_context: Any | None,
     ) -> list[_IntentSignal]:
         lowered = clause.lower()
+        if cls._explicitly_forbids_tool_usage(lowered) or cls._looks_like_capability_self_report(
+            lowered
+        ):
+            return []
         families = cls._tool_families(tools, input_variables)
         signals: list[_IntentSignal] = []
+        memory_recall_position = cls._memory_recall_position(lowered)
+        if memory_recall_position >= 0:
+            signals.append(
+                _IntentSignal(
+                    "memory_recall",
+                    "memory",
+                    "memory_recall",
+                    offset + memory_recall_position,
+                    requires_tools=False,
+                    shortcircuit=True,
+                )
+            )
+        elif (memory_save_position := cls._memory_save_position(lowered)) >= 0:
+            signals.append(
+                _IntentSignal(
+                    "memory_save",
+                    "memory",
+                    "memory_save",
+                    offset + memory_save_position,
+                    requires_tools=False,
+                    shortcircuit=True,
+                )
+            )
         weather_position = cls._first_position(lowered, _WEATHER_TERMS)
 
-        if "weather" in families:
-            if weather_position >= 0:
-                signals.append(
-                    _IntentSignal(
-                        "weather_query",
-                        "weather",
-                        "weather",
-                        offset + weather_position,
-                        shortcircuit=True,
-                    )
+        if "weather" in families and weather_position >= 0:
+            signals.append(
+                _IntentSignal(
+                    "weather_query",
+                    "weather",
+                    "weather",
+                    offset + weather_position,
+                    shortcircuit=True,
                 )
+            )
 
         if "time_ops" in families:
             position = cls._first_position(lowered, _TIME_TERMS)
@@ -1025,20 +1205,32 @@ class IntentPlanner:
                     if any(term in lowered for term in ("高铁票", "火车票", "12306"))
                     else "web_research"
                 )
-                signals.append(
-                    _IntentSignal(
-                        "web_research",
-                        "web_research",
-                        label,
-                        offset + position,
-                    )
+                # "帮我查天气 / 联网查查" should stay a single weather-fallback
+                # intent instead of duplicating a second generic web_research intent.
+                suppress_generic_weather_fallback = (
+                    label == "web_research"
+                    and weather_position >= 0
+                    and "weather" not in families
+                    and not any(term in lowered for term in _WEB_NOUN_TERMS)
                 )
+                if not suppress_generic_weather_fallback:
+                    signals.append(
+                        _IntentSignal(
+                            "web_research",
+                            "web_research",
+                            label,
+                            offset + position,
+                        )
+                    )
 
         if cls._has_bound_kb(capability_bundle):
+            has_memory_signal = any(
+                signal.kind in {"memory_save", "memory_recall"} for signal in signals
+            )
             position = cls._first_position(lowered, _KNOWLEDGE_TERMS)
-            if position < 0 and not signals:
+            if position < 0:
                 position = cls._definition_like_knowledge_query_position(clause)
-            if position >= 0:
+            if position >= 0 and not has_memory_signal:
                 signals.append(
                     _IntentSignal(
                         "knowledge_query",

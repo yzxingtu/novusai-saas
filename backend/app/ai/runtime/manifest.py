@@ -12,7 +12,10 @@ from typing import Any, Literal
 
 from app.ai.runtime.context_assembler import ContextAssemblerState
 from app.ai.runtime.types import CapabilityBundle
-from app.ai.tools.semantic_defaults import tool_semantic_family
+from app.ai.tools.semantic_defaults import (
+    page_context_available_ui_tools,
+    tool_semantic_family,
+)
 from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
 
 RuntimeCapabilityStatus = Literal["available", "degraded", "unavailable"]
@@ -140,22 +143,7 @@ class AIRuntimeInventoryService:
     @classmethod
     def _page_operation_names(cls, request: Any) -> list[str]:
         page_context = cls._page_context_payload(request)
-        page_data = page_context.get("page_data")
-        raw_operations = (
-            page_data.get("available_operations")
-            if isinstance(page_data, dict)
-            else page_context.get("available_operations")
-        )
-        if not isinstance(raw_operations, list):
-            return []
-        operation_names: list[str] = []
-        for item in raw_operations:
-            if not isinstance(item, dict):
-                continue
-            name = str(item.get("name") or "").strip()
-            if name and name not in operation_names:
-                operation_names.append(name)
-        return operation_names
+        return page_context_available_ui_tools(page_context)
 
     @classmethod
     def _tool_families(cls, bundle: CapabilityBundle, request: Any) -> list[str]:
@@ -200,9 +188,6 @@ class AIRuntimeInventoryService:
     ) -> RuntimeCapabilityManifest:
         provider, model = cls._resolve_provider_model(agent)
         context_sources = cls._collect_context_sources(bundle)
-        source_kinds = cls._stable_unique(
-            [source.get("kind") for source in context_sources if source.get("active")]
-        )
         selected_tools = cls._stable_unique(list(bundle.selected_tool_names or []))
         selected_skills = cls._stable_unique(list(bundle.selected_skill_names or []))
         tool_families = cls._tool_families(bundle, request)
@@ -296,9 +281,7 @@ class AIRuntimeInventoryService:
                 metadata={
                     **dict(source.get("metadata") or {}),
                     "page_context_attached": page_context_attached,
-                    "available_operations": [
-                        {"name": name} for name in page_operation_names
-                    ],
+                    "available_ui_tools": list(page_operation_names),
                 },
                 source="request.page_context",
             )
@@ -314,7 +297,7 @@ class AIRuntimeInventoryService:
                     reason="page_context_not_attached",
                     metadata={
                         "page_context_attached": page_context_attached,
-                        "available_operations": [],
+                        "available_ui_tools": [],
                     },
                     source="request.page_context",
                 )
@@ -447,20 +430,14 @@ class AIRuntimeInventoryService:
             ),
             "page_operation_names": cls._stable_unique(
                 [
-                    operation.get("name")
+                    name
                     for item in manifest.page_context
-                    for operation in (
-                        (
-                            item.metadata.get("available_operations")
-                            if isinstance(item.metadata.get("available_operations"), list)
-                            else (
-                                item.metadata.get("page_data", {}) or {}
-                            ).get("available_operations", [])
-                            if isinstance(item.metadata.get("page_data"), dict)
-                            else []
-                        )
+                    for name in (
+                        item.metadata.get("available_ui_tools")
+                        if isinstance(item.metadata.get("available_ui_tools"), list)
+                        else []
                     )
-                    if isinstance(operation, dict)
+                    if isinstance(name, str) and name
                 ]
             ),
             "page_context_attached": any(

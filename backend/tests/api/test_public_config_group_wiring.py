@@ -68,7 +68,7 @@ async def test_platform_public_config_reads_domain_group(monkeypatch: pytest.Mon
         _return_none,
     )
     monkeypatch.setattr(
-        "app.api.public.platform.get_page_context_max_bytes",
+        "app.api.public.platform.get_ui_runtime_payload_max_bytes",
         _return_page_context_limit,
     )
     monkeypatch.setattr(
@@ -126,7 +126,7 @@ async def test_tenant_public_config_reads_registration_group(monkeypatch: pytest
         _return_none,
     )
     monkeypatch.setattr(
-        "app.api.public.tenant.get_page_context_max_bytes",
+        "app.api.public.tenant.get_ui_runtime_payload_max_bytes",
         _return_page_context_limit,
     )
     monkeypatch.setattr(

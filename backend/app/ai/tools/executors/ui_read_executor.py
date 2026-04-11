@@ -14,10 +14,16 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from app.ai.tools.executors.base import BaseToolExecutor
+from app.ai.tools.executors.page_runtime_support import (
+    normalize_public_message as _normalize_public_message,
+)
+from app.ai.tools.executors.page_runtime_support import (
+    resolve_page_session_id as _resolve_page_session_id,
+)
+from app.ai.tools.executors.page_runtime_support import text as _text
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.core.i18n import _
 from app.core.logging import LogManager
-from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
 
 if TYPE_CHECKING:
     from app.ai.tools.types import ExecutionContext
@@ -27,42 +33,8 @@ logger = LogManager.get_logger("ai.tool.ui_read")
 _TABLE_MAX_PAGE_SIZE = 100
 _INTERACTABLE_LIMIT = 200
 _REGION_TEXT_MAX = 4000
-
-
-def _text(value: Any, *, max_length: int) -> str | None:
-    if not isinstance(value, str):
-        return None
-    normalized = " ".join(value.split()).strip()
-    if not normalized:
-        return None
-    if len(normalized) <= max_length:
-        return normalized
-    return f"{normalized[:max_length]}..."
-
-
 def _byte_size(payload: Any) -> int:
     return len(json.dumps(payload, ensure_ascii=False, default=str).encode("utf-8"))
-
-
-def _normalize_public_message(value: Any) -> str | None:
-    if not isinstance(value, str):
-        return None
-    normalized = " ".join(value.split()).strip()
-    return normalized or None
-
-
-def _resolve_page_session_id(context: ExecutionContext | None) -> str | None:
-    if context and context.page_session_id:
-        session_id = _text(context.page_session_id, max_length=64)
-        if session_id:
-            return session_id
-    if context and isinstance(context.variables, dict):
-        page_context = context.variables.get(PAGE_CONTEXT_KEY)
-        if isinstance(page_context, dict):
-            session_id = _text(page_context.get("page_session_id"), max_length=64)
-            if session_id:
-                return session_id
-    return None
 
 
 async def _request_ui_read(
@@ -407,20 +379,24 @@ class UIReadExecutor(BaseToolExecutor):
             if not isinstance(locator, str):
                 return False
 
-        if "surface_id" in arguments and arguments.get("surface_id") is not None:
-            if not isinstance(arguments.get("surface_id"), str):
-                return False
+        if "surface_id" in arguments and arguments.get("surface_id") is not None and not isinstance(
+            arguments.get("surface_id"), str
+        ):
+            return False
 
-        if "page" in arguments and arguments.get("page") is not None:
-            if not isinstance(arguments.get("page"), int):
-                return False
-        if "page_size" in arguments and arguments.get("page_size") is not None:
-            if not isinstance(arguments.get("page_size"), int):
-                return False
-        if "filters" in arguments and arguments.get("filters") is not None:
-            if not isinstance(arguments.get("filters"), dict):
-                return False
-        return True
+        if "page" in arguments and arguments.get("page") is not None and not isinstance(
+            arguments.get("page"), int
+        ):
+            return False
+        if "page_size" in arguments and arguments.get("page_size") is not None and not isinstance(
+            arguments.get("page_size"), int
+        ):
+            return False
+        return not (
+            "filters" in arguments
+            and arguments.get("filters") is not None
+            and not isinstance(arguments.get("filters"), dict)
+        )
 
 
 __all__ = ["UIReadExecutor"]

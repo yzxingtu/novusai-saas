@@ -62,7 +62,7 @@ async def test_web_search_hits_turn_cache_once() -> None:
 
 
 @pytest.mark.asyncio
-async def test_page_context_cache_marker_set_on_hit() -> None:
+async def test_ui_snapshot_hits_readonly_cache_once() -> None:
     state = ExecutionStateMachine(
         intent_plan=[],
         budget=None,
@@ -76,14 +76,15 @@ async def test_page_context_cache_marker_set_on_hit() -> None:
             tools=[],
             all_tools=[],
         )
-        args = {"page_key": "admin.users"}
-        await processor.execute_tool("tc1", "get_page_context", args, 2)
-        await processor.execute_tool("tc2", "get_page_context", args, 2)
+        args = {"mode": "compact"}
+        sandbox.input_variables = {"page_context": {"page_key": "admin.users"}}
+        await processor.execute_tool("tc1", "ui_get_snapshot", args, 2)
+        await processor.execute_tool("tc2", "ui_get_snapshot", args, 2)
 
         assert len(sandbox.calls) == 1
         payload = state.build_diagnostics_payload()
         cache_info = payload["cache_hits"]
-        assert cache_info["page_context_cache_hit"] is True
-        assert "page_context" in cache_info["cache_hit_kind"]
+        assert cache_info["page_context_cache_hit"] is False
+        assert "readonly" in (cache_info["cache_hit_kind"] or "")
     finally:
         reset_current_execution_state_machine(token)

@@ -6,7 +6,6 @@ import pytest
 
 from app.ai.engine.base import BaseEngine
 from app.ai.engine.types import ExecutionRequest, ExecutionResult
-from app.ai.tools.page_tool_expander import expand_page_tools
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.types import ChatMessage, ChatResponse
 
@@ -14,33 +13,6 @@ from app.ai.types import ChatMessage, ChatResponse
 class _DummyEngine(BaseEngine):
     async def execute(self, _agent, _request) -> ExecutionResult:  # noqa: ANN001
         return ExecutionResult(success=True)
-
-
-def test_expand_page_tools_includes_capture_screenshot() -> None:
-    base_tools = [
-        ToolDefinition(name="invoke_page_operation", description="invoke"),
-    ]
-    input_vars = {
-        "page_context": {
-            "page_key": "admin.dashboard",
-            "page_data": {
-                "available_operations": [
-                    {
-                        "name": "capture_screenshot",
-                        "label": "Capture Screenshot",
-                        "readonly": True,
-                    },
-                ],
-            },
-        },
-    }
-
-    expanded = expand_page_tools(base_tools, input_vars)
-
-    assert [tool.name for tool in expanded] == [
-        "invoke_page_operation",
-        "pageop_capture_screenshot",
-    ]
 
 
 @pytest.mark.asyncio
@@ -57,7 +29,7 @@ async def test_tool_call_loop_injects_internal_screenshot_attachment_for_next_ll
     sandbox.execute = AsyncMock(
         return_value=ToolResult(
             tool_call_id="tc-shot",
-            name="invoke_page_operation",
+            name="ui_get_snapshot",
             success=True,
             output="ok",
             attachments=[screenshot_attachment],
@@ -108,10 +80,8 @@ async def test_tool_call_loop_injects_internal_screenshot_attachment_for_next_ll
                 "id": "tc-shot",
                 "type": "function",
                 "function": {
-                    "name": "invoke_page_operation",
-                    "arguments": (
-                        '{"page_key":"admin.dashboard","operation_name":"capture_screenshot"}'
-                    ),
+                    "name": "ui_get_snapshot",
+                    "arguments": '{"mode":"full"}',
                 },
             },
         ],
@@ -121,8 +91,8 @@ async def test_tool_call_loop_injects_internal_screenshot_attachment_for_next_ll
         agent=SimpleNamespace(id=1),
         messages=messages,
         response=response,
-        tools=[ToolDefinition(name="invoke_page_operation", description="invoke")],
-        all_tools=[ToolDefinition(name="invoke_page_operation", description="invoke")],
+        tools=[ToolDefinition(name="ui_get_snapshot", description="snapshot")],
+        all_tools=[ToolDefinition(name="ui_get_snapshot", description="snapshot")],
         request=request,
     )
 

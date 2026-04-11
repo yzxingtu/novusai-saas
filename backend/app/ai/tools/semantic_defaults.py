@@ -12,6 +12,7 @@ Provides:
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
@@ -73,6 +74,38 @@ FAMILY_EXPLICIT_REQUEST_HINTS: dict[str, tuple[str, ...]] = {
     for family, tags in FAMILY_HINT_TAGS.items()
 }
 
+UI_PAGE_TOOL_ORDER: tuple[str, ...] = (
+    "ui_get_snapshot",
+    "ui_read_region",
+    "ui_read_table",
+    "ui_list_interactables",
+    "ui_click",
+    "ui_open_surface",
+    "ui_get_form_state",
+    "ui_set_field",
+    "ui_fill_form",
+    "ui_submit_form",
+)
+UI_PAGE_TOOL_NAMES: frozenset[str] = frozenset(UI_PAGE_TOOL_ORDER)
+UI_READONLY_PAGE_TOOL_NAMES: frozenset[str] = frozenset(
+    {
+        "ui_get_snapshot",
+        "ui_read_region",
+        "ui_read_table",
+        "ui_list_interactables",
+        "ui_get_form_state",
+    }
+)
+UI_SAFE_WRITE_PAGE_TOOL_NAMES: frozenset[str] = frozenset(
+    {
+        "ui_click",
+        "ui_open_surface",
+        "ui_set_field",
+        "ui_fill_form",
+    }
+)
+UI_DANGEROUS_PAGE_TOOL_NAMES: frozenset[str] = frozenset({"ui_submit_form"})
+
 
 # ---------------------------------------------------------------------------
 # Unified family resolver
@@ -82,10 +115,116 @@ FAMILY_EXPLICIT_REQUEST_HINTS: dict[str, tuple[str, ...]] = {
 def _has_page_context(input_variables: dict[str, Any] | None) -> bool:
     if not input_variables:
         return False
-    page_ctx = input_variables.get(PAGE_CONTEXT_KEY)
+    page_ctx = page_context_payload(input_variables)
     if not isinstance(page_ctx, dict):
         return False
     return bool((page_ctx.get("page_key") or "").strip())
+
+
+def is_ui_page_tool_name(name: str) -> bool:
+    return str(name or "").strip() in UI_PAGE_TOOL_NAMES
+
+
+def page_context_payload(input_variables: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not isinstance(input_variables, dict):
+        return None
+    page_context = input_variables.get(PAGE_CONTEXT_KEY)
+    return page_context if isinstance(page_context, dict) else None
+
+
+def _normalize_tool_name_list(raw: Any) -> list[str]:
+    if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes)):
+        return []
+    normalized: list[str] = []
+    for item in raw:
+        name = str(item or "").strip()
+        if name and name in UI_PAGE_TOOL_NAMES and name not in normalized:
+            normalized.append(name)
+    return normalized
+
+
+def page_context_has_runtime_state(page_context: Mapping[str, Any] | None) -> bool:
+    if not isinstance(page_context, Mapping):
+        return False
+    if str(page_context.get("page_key") or "").strip():
+        return True
+    if isinstance(page_context.get("ui_epoch"), int):
+        return True
+    if isinstance(page_context.get("surface_stack"), list) and page_context.get(
+        "surface_stack"
+    ):
+        return True
+    if str(page_context.get("active_surface_id") or "").strip():
+        return True
+    if str(page_context.get("active_form_session_id") or "").strip():
+        return True
+    return isinstance(page_context.get("active_form_summary"), Mapping)
+
+
+def page_context_available_ui_tools(
+    page_context: Mapping[str, Any] | None,
+    *,
+    available_tool_names: set[str] | None = None,
+    include_secondary: bool = True,
+) -> list[str]:
+    if not isinstance(page_context, Mapping):
+        return []
+
+    preferred: list[str] = []
+    suggested_tools = page_context.get("suggested_tools")
+    if isinstance(suggested_tools, Mapping):
+        preferred.extend(_normalize_tool_name_list(suggested_tools.get("primary")))
+        if include_secondary:
+            preferred.extend(_normalize_tool_name_list(suggested_tools.get("secondary")))
+
+    inferred: list[str] = []
+    if page_context_has_runtime_state(page_context):
+        inferred.extend(
+            [
+                "ui_get_snapshot",
+                "ui_read_region",
+                "ui_read_table",
+                "ui_list_interactables",
+                "ui_click",
+            ]
+        )
+    if str(page_context.get("active_surface_id") or "").strip() or (
+        isinstance(page_context.get("surface_stack"), list) and page_context.get("surface_stack")
+    ):
+        inferred.append("ui_open_surface")
+
+    active_form_summary = page_context.get("active_form_summary")
+    has_active_form = bool(str(page_context.get("active_form_session_id") or "").strip())
+    if isinstance(active_form_summary, Mapping):
+        has_active_form = True
+    if has_active_form:
+        inferred.extend(["ui_get_form_state", "ui_set_field", "ui_fill_form"])
+        stage = (
+            str(active_form_summary.get("stage") or "").strip()
+            if isinstance(active_form_summary, Mapping)
+            else ""
+        )
+        can_submit = (
+            bool(active_form_summary.get("can_submit"))
+            if isinstance(active_form_summary, Mapping)
+            else False
+        )
+        if can_submit or stage in {"ready_to_submit", "submitting", "submitted"}:
+            inferred.append("ui_submit_form")
+
+    allowed = (
+        {str(name).strip() for name in available_tool_names if str(name).strip()}
+        if available_tool_names
+        else None
+    )
+    resolved: list[str] = []
+    for name in [*preferred, *inferred, *UI_PAGE_TOOL_ORDER]:
+        if name not in UI_PAGE_TOOL_NAMES or name in resolved:
+            continue
+        if allowed is not None and name not in allowed:
+            continue
+        resolved.append(name)
+    return resolved
 
 
 def tool_family_from_name(
@@ -102,10 +241,8 @@ def tool_family_from_name(
         return "time_ops"
     if normalized in {"get_current_weather", "get_weather_forecast"}:
         return "weather"
-    if (
-        normalized in {"get_page_context", "invoke_page_operation"}
-        or normalized.startswith("pageop_")
-        or (normalized == "list_page_operations" and _has_page_context(input_variables))
+    if is_ui_page_tool_name(normalized) or (
+        normalized.startswith("ui_") and _has_page_context(input_variables)
     ):
         return "page_ops"
     return "none"

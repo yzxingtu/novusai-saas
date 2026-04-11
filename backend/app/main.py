@@ -207,10 +207,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("Verified custom-domain CORS cache refreshed")
 
         # Register core AI adapters (hardcoded, not dependent on plugin system) / 注册核心 AI 适配器（硬编码，不依赖插件系统）
-        from app.ai.adapters import AdapterRegistry
-        from app.ai.adapters.openai_adapter import OpenAIAdapter
+        from app.ai.adapters import register_core_adapters
 
-        AdapterRegistry.register("openai_compatible", OpenAIAdapter)
+        register_core_adapters()
 
         # Clean up residual online presence data (old connections already disconnected after server restart) / 清理残留的在线状态数据（服务器重启后旧连接已断开）
         try:

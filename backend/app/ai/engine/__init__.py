@@ -10,6 +10,7 @@ from app.ai.engine.batch import BatchEngine
 from app.ai.engine.conversation import ConversationEngine
 from app.ai.engine.dispatcher import ExecutionDispatcher
 from app.ai.engine.task import TaskEngine
+from app.ai.runtime import ProtocolExecutionPlan, TurnCommand, TurnExecutionResult
 from app.ai.engine.types import (
     BatchItem,
     BatchResult,
@@ -23,6 +24,9 @@ __all__ = [
     "ExecutionResult",
     "BatchItem",
     "BatchResult",
+    "ProtocolExecutionPlan",
+    "TurnCommand",
+    "TurnExecutionResult",
     # Engines / 引擎
     "BaseEngine",
     "ConversationEngine",

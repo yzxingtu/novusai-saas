@@ -175,7 +175,7 @@ async def test_turn_executor_scopes_initial_model_round_to_active_intent_tools()
     tools = [
         ToolDefinition(name="web_search", description="Search"),
         ToolDefinition(name="fetch_url", description="Fetch"),
-        ToolDefinition(name="get_page_context", description="Page"),
+        ToolDefinition(name="ui_get_snapshot", description="Page"),
     ]
     intents = [
         _build_intent(
@@ -188,7 +188,7 @@ async def test_turn_executor_scopes_initial_model_round_to_active_intent_tools()
             intent_id="intent-page",
             kind="page_summary",
             family="page_ops",
-            allowed_tool_names=["get_page_context"],
+            allowed_tool_names=["ui_get_snapshot"],
         ),
     ]
     prep = _build_prep(
@@ -282,13 +282,13 @@ async def test_turn_executor_marks_contract_retry_round_and_failed_retry() -> No
 
 @pytest.mark.asyncio
 async def test_turn_executor_retries_structured_intent_when_assistant_claims_fake_tool_call() -> None:
-    tools = [ToolDefinition(name="get_page_context", description="Read page")]
+    tools = [ToolDefinition(name="ui_get_snapshot", description="Read page")]
     intents = [
         _build_intent(
             intent_id="intent-page",
             kind="page_summary",
             family="page_ops",
-            allowed_tool_names=["get_page_context"],
+            allowed_tool_names=["ui_get_snapshot"],
         )
     ]
     prep = _build_prep(
@@ -297,7 +297,7 @@ async def test_turn_executor_retries_structured_intent_when_assistant_claims_fak
         tool_use_policy=ToolUsePolicy(
             family="page_ops",
             mode="required",
-            allowed_tool_names=["get_page_context"],
+            allowed_tool_names=["ui_get_snapshot"],
             retry_on_contract_breach=True,
             reason="intent:page_summary",
         ),
@@ -305,7 +305,7 @@ async def test_turn_executor_retries_structured_intent_when_assistant_claims_fak
     state = ExecutionStateMachine.from_prepared_execution(prep)
     io = _FakeIOAdapter(
         model_rounds=[
-            _assistant_response("Calling get_page_context to continue reviewing."),
+            _assistant_response("Calling ui_get_snapshot to continue reviewing."),
             _assistant_response(
                 "",
                 tool_calls=[
@@ -313,7 +313,7 @@ async def test_turn_executor_retries_structured_intent_when_assistant_claims_fak
                         "id": "call_page_ctx",
                         "type": "function",
                         "function": {
-                            "name": "get_page_context",
+                            "name": "ui_get_snapshot",
                             "arguments": "{}",
                         },
                     }
@@ -329,7 +329,7 @@ async def test_turn_executor_retries_structured_intent_when_assistant_claims_fak
             tool_results=[
                 ToolResult(
                     tool_call_id="call_page_ctx",
-                    name="get_page_context",
+                    name="ui_get_snapshot",
                     success=True,
                     output="page context payload",
                 )
@@ -342,7 +342,7 @@ async def test_turn_executor_retries_structured_intent_when_assistant_claims_fak
             ToolUsePolicy(
                 family="page_ops",
                 mode="required",
-                allowed_tool_names=["get_page_context"],
+                allowed_tool_names=["ui_get_snapshot"],
                 retry_on_contract_breach=False,
                 reason="assistant_claimed_tool_call_without_tool_event",
             ),
@@ -370,7 +370,7 @@ async def test_turn_executor_retries_structured_intent_when_assistant_claims_fak
     assert result.output == "我继续查看了页面内容。"
     assert len(io.call_history) == 2
     assert io.call_history[1]["breach_retry_result"] == "contract_retry"
-    assert [tool.name for tool in io.call_history[1]["tools"]] == ["get_page_context"]
+    assert [tool.name for tool in io.call_history[1]["tools"]] == ["ui_get_snapshot"]
     assert state.preparation_diagnostics["contract_breach_type"] == (
         "assistant_claimed_tool_call_without_tool_event"
     )
@@ -469,6 +469,514 @@ async def test_turn_executor_contract_breach_without_evidence_avoids_completed_p
     assert state.preparation_diagnostics["post_tool_completion_state"] == (
         "partial_output"
     )
+
+
+@pytest.mark.asyncio
+async def test_turn_executor_unfinished_multi_intent_retry_keeps_page_tools() -> None:
+    tools = [
+        ToolDefinition(name="web_search", description="Search"),
+        ToolDefinition(name="fetch_url", description="Fetch"),
+        ToolDefinition(name="ui_get_snapshot", description="Read page"),
+    ]
+    intents = [
+        _build_intent(
+            intent_id="intent-web",
+            kind="web_research",
+            family="web_research",
+            allowed_tool_names=["web_search", "fetch_url"],
+        ),
+        _build_intent(
+            intent_id="intent-page",
+            kind="page_summary",
+            family="page_ops",
+            allowed_tool_names=["ui_get_snapshot"],
+        ),
+    ]
+    prep = _build_prep(
+        tools=tools,
+        intents=intents,
+        tool_use_policy=ToolUsePolicy(
+            family="web_research",
+            mode="required",
+            allowed_tool_names=[tool.name for tool in tools],
+            retry_on_contract_breach=True,
+            reason="j4_mixed_intent",
+        ),
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    io = _FakeIOAdapter(
+        model_rounds=[
+            _assistant_response(
+                "现在是北京时间，我查到了天气并整理了新闻。",
+                total_tokens=13,
+            ),
+            _assistant_response(
+                "继续处理中",
+                total_tokens=8,
+            ),
+        ],
+        post_tool_contract_breach=(
+            "unfinished_multi_intent_reply",
+            ToolUsePolicy(
+                family="page_ops",
+                mode="required",
+                allowed_tool_names=["ui_get_snapshot"],
+                retry_on_contract_breach=False,
+                reason="unfinished_intent_retry",
+            ),
+            {
+                "unfinished_intents": ["page_summary"],
+            },
+        ),
+    )
+
+    with patch("app.ai.engine.turn_executor.RecoveryManager.decide", return_value=None):
+        await TurnExecutor.run(
+            state=state,
+            io=io,
+            prep=prep,
+            request=SimpleNamespace(
+                input_variables={
+                    "page_context": {"page_key": "admin.ai.agents"},
+                },
+                conversation_id=2104,
+            ),
+            agent=SimpleNamespace(id=1),
+        )
+
+    assert len(io.call_history) == 2
+    assert [tool.name for tool in io.call_history[0]["tools"]] == [
+        "web_search",
+        "fetch_url",
+    ]
+    assert io.call_history[1]["breach_retry_result"] == "contract_retry"
+    assert [tool.name for tool in io.call_history[1]["tools"]] == ["ui_get_snapshot"]
+    assert io.call_history[1]["tool_use_policy"].allowed_tool_names == [
+        "ui_get_snapshot"
+    ]
+    assert state.preparation_diagnostics["contract_breach_type"] == (
+        "unfinished_multi_intent_reply"
+    )
+    assert state.preparation_diagnostics["unfinished_intents"] == ["page_summary"]
+
+
+@pytest.mark.asyncio
+async def test_turn_executor_j4_contract_then_unfinished_intent_retry_keeps_ui_snapshot() -> None:
+    tools = [
+        ToolDefinition(name="web_search", description="Search"),
+        ToolDefinition(name="fetch_url", description="Fetch"),
+        ToolDefinition(name="ui_get_snapshot", description="Read page"),
+    ]
+    intents = [
+        _build_intent(
+            intent_id="intent-web",
+            kind="web_research",
+            family="web_research",
+            allowed_tool_names=["web_search", "fetch_url"],
+        ),
+        _build_intent(
+            intent_id="intent-page",
+            kind="page_summary",
+            family="page_ops",
+            allowed_tool_names=["ui_get_snapshot"],
+        ),
+    ]
+    prep = _build_prep(
+        tools=tools,
+        intents=intents,
+        tool_use_policy=ToolUsePolicy(
+            family="web_research",
+            mode="required",
+            allowed_tool_names=[tool.name for tool in tools],
+            retry_on_contract_breach=True,
+            reason="j4_mixed_intent",
+        ),
+    )
+    prep.messages = [
+        ChatMessage(
+            role="user",
+            content="现在几点了？帮我查北京天气，再搜索今天 AI 新闻，然后看看当前页面第一条记录或关键内容",
+        )
+    ]
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    io = _FakeIOAdapter(
+        model_rounds=[
+            _assistant_response("现在是北京时间，我查到了天气和 AI 新闻。"),
+            _assistant_response("我继续处理剩余请求。"),
+            _assistant_response("继续处理页面内容。"),
+        ],
+        post_tool_contract_breach=(
+            "unfinished_multi_intent_reply",
+            ToolUsePolicy(
+                family="page_ops",
+                mode="required",
+                allowed_tool_names=["ui_get_snapshot"],
+                retry_on_contract_breach=False,
+                reason="unfinished_multi_intent_reply",
+            ),
+            {
+                "unfinished_intents": ["page_summary"],
+            },
+        ),
+    )
+
+    with patch(
+        "app.ai.engine.turn_executor.RecoveryManager.decide",
+        side_effect=[
+            RecoveryDecision(
+                action="retry_intent",
+                target_intent_id="intent-page",
+                retry_family="page_ops",
+                allowed_tool_names=["ui_get_snapshot"],
+                reason="unfinished_intent_retry",
+            ),
+            None,
+        ],
+    ):
+        await TurnExecutor.run(
+            state=state,
+            io=io,
+            prep=prep,
+            request=SimpleNamespace(
+                input_variables={
+                    "page_context": {"page_key": "admin.ai.agents"},
+                },
+                conversation_id=2105,
+            ),
+            agent=SimpleNamespace(id=1),
+        )
+
+    assert len(io.call_history) == 3
+    assert [tool.name for tool in io.call_history[1]["tools"]] == ["ui_get_snapshot"]
+    assert io.call_history[1]["breach_retry_result"] == "contract_retry"
+    assert [tool.name for tool in io.call_history[2]["tools"]] == ["ui_get_snapshot"]
+    assert io.call_history[2]["breach_retry_result"] == "intent_retry"
+    assert io.call_history[2]["tool_use_policy"].reason == "unfinished_intent_retry"
+    assert state.preparation_diagnostics["contract_breach_type"] == (
+        "unfinished_multi_intent_reply"
+    )
+    assert state.preparation_diagnostics["unfinished_intents"] == ["page_summary"]
+
+
+@pytest.mark.asyncio
+async def test_turn_executor_page_retry_leaves_web_retry_budget_intact() -> None:
+    tools = [
+        ToolDefinition(name="web_search", description="Search"),
+        ToolDefinition(name="fetch_url", description="Fetch"),
+        ToolDefinition(name="ui_get_snapshot", description="Read page"),
+    ]
+    intents = [
+        _build_intent(
+            intent_id="intent-web",
+            kind="web_research",
+            family="web_research",
+            allowed_tool_names=["web_search", "fetch_url"],
+        ),
+        _build_intent(
+            intent_id="intent-page",
+            kind="page_summary",
+            family="page_ops",
+            allowed_tool_names=["ui_get_snapshot"],
+        ),
+    ]
+    prep = _build_prep(
+        tools=tools,
+        intents=intents,
+        tool_use_policy=ToolUsePolicy(
+            family="web_research",
+            mode="required",
+            allowed_tool_names=[tool.name for tool in tools],
+            retry_on_contract_breach=True,
+            reason="mixed_web_page_retry",
+        ),
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    first_round = ModelRoundResult(
+        response=ChatResponse(
+            message=ChatMessage(
+                role="assistant",
+                content="weather done",
+                tool_calls=[
+                    {
+                        "id": "call-web",
+                        "name": "web_search",
+                        "arguments": "{}",
+                    },
+                    {
+                        "id": "call-fetch",
+                        "name": "fetch_url",
+                        "arguments": "{}",
+                    },
+                ],
+            ),
+            total_tokens=10,
+            output_tokens=10,
+        ),
+        total_tokens=10,
+        completion_tokens_used=10,
+    )
+    io = _FakeIOAdapter(
+        model_rounds=[
+            first_round,
+            _assistant_response("still pending page"),
+            _assistant_response("page finished"),
+        ],
+        post_tool_contract_breach=(
+            "unfinished_multi_intent_reply",
+            ToolUsePolicy(
+                family="page_ops",
+                mode="required",
+                allowed_tool_names=["ui_get_snapshot"],
+                retry_on_contract_breach=False,
+                reason="unfinished_intent_retry",
+            ),
+            {"unfinished_intents": ["page_summary"]},
+        ),
+    )
+
+    decision = RecoveryDecision(
+        action="retry_intent",
+        target_intent_id="intent-page",
+        retry_family="page_ops",
+        allowed_tool_names=["ui_get_snapshot"],
+        reason="unfinished_intent_retry",
+    )
+
+    with patch(
+        "app.ai.engine.turn_executor.RecoveryManager.decide",
+        side_effect=[decision, None],
+    ):
+        await TurnExecutor.run(
+            state=state,
+            io=io,
+            prep=prep,
+            request=SimpleNamespace(
+                input_variables={"page_context": {"page_key": "admin.ai.agents"}},
+                conversation_id=311,
+            ),
+            agent=SimpleNamespace(id=1),
+        )
+
+    assert state.budget.retries_by_intent.get("intent-web", 0) == 0
+    assert state.budget.retries_by_intent.get("intent-page", 0) == 1
+
+
+@pytest.mark.asyncio
+async def test_turn_executor_ignores_prior_turn_page_tool_success_for_current_turn_page_retry() -> None:
+    tools = [
+        ToolDefinition(name="get_current_time", description="Time"),
+        ToolDefinition(name="ui_get_snapshot", description="Read page"),
+    ]
+    intents = [
+        _build_intent(
+            intent_id="intent-time",
+            kind="time_query",
+            family="time",
+            allowed_tool_names=["get_current_time"],
+        ),
+        _build_intent(
+            intent_id="intent-page",
+            kind="page_summary",
+            family="page_ops",
+            allowed_tool_names=["ui_get_snapshot"],
+        ),
+    ]
+    prep = _build_prep(
+        tools=tools,
+        intents=intents,
+        tool_use_policy=ToolUsePolicy(
+            family="time",
+            mode="required",
+            allowed_tool_names=[tool.name for tool in tools],
+            retry_on_contract_breach=False,
+            reason="mixed_time_page",
+        ),
+    )
+    prep.messages = [
+        ChatMessage(role="user", content="上一轮读取页面"),
+        ChatMessage(
+            role="assistant",
+            content="",
+            tool_calls=[
+                {
+                    "id": "old-page-call",
+                    "type": "function",
+                    "success": True,
+                    "function": {
+                        "name": "ui_get_snapshot",
+                        "arguments": "{}",
+                    },
+                }
+            ],
+        ),
+        ChatMessage(role="user", content="现在几点了？再看看当前页面第一条记录"),
+    ]
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    io = _FakeIOAdapter(
+        model_rounds=[
+            _assistant_response(
+                "先查当前时间。",
+                tool_calls=[
+                    {
+                        "id": "time-call",
+                        "type": "function",
+                        "function": {
+                            "name": "get_current_time",
+                            "arguments": "{}",
+                        },
+                    }
+                ],
+            ),
+            _assistant_response(
+                "继续读取当前页面。",
+                tool_calls=[
+                    {
+                        "id": "page-call",
+                        "type": "function",
+                        "function": {
+                            "name": "ui_get_snapshot",
+                            "arguments": "{}",
+                        },
+                    }
+                ],
+            ),
+        ],
+        tool_batches=[
+            ToolBatchResult(
+                response=_assistant_response("现在是北京时间 10:00。").response,
+                tool_results=[
+                    ToolResult(
+                        tool_call_id="time-call",
+                        name="get_current_time",
+                        success=True,
+                        output='{"time":"10:00"}',
+                    )
+                ],
+                total_tokens=7,
+                completion_tokens_used=7,
+            ),
+            ToolBatchResult(
+                response=_assistant_response(
+                    "现在是北京时间 10:00。当前页面第一条记录是 Agent Alpha。"
+                ).response,
+                tool_results=[
+                    ToolResult(
+                        tool_call_id="page-call",
+                        name="ui_get_snapshot",
+                        success=True,
+                        summary="当前页面第一条记录是 Agent Alpha。",
+                    )
+                ],
+                total_tokens=7,
+                completion_tokens_used=7,
+            ),
+        ],
+    )
+
+    result = await TurnExecutor.run(
+        state=state,
+        io=io,
+        prep=prep,
+        request=SimpleNamespace(
+            input_variables={
+                "page_context": {"page_key": "admin.ai.agents"},
+            },
+            conversation_id=2106,
+        ),
+        agent=SimpleNamespace(id=1),
+    )
+
+    assert len(io.call_history) == 2
+    assert [tool.name for tool in io.call_history[0]["tools"]] == ["get_current_time"]
+    assert [tool.name for tool in io.call_history[1]["tools"]] == ["ui_get_snapshot"]
+    assert state.intent_plan[0].status == "completed"
+    assert state.intent_plan[1].status == "completed"
+    assert result.output == "现在是北京时间 10:00。当前页面第一条记录是 Agent Alpha。"
+
+
+@pytest.mark.asyncio
+async def test_turn_executor_allows_second_intent_retry_when_per_intent_budget_is_one() -> None:
+    tools = [
+        ToolDefinition(name="ui_get_snapshot", description="Read page"),
+        ToolDefinition(name="fetch_url", description="Fetch"),
+    ]
+    intents = [
+        _build_intent(
+            intent_id="intent-page",
+            kind="page_summary",
+            family="page_ops",
+            allowed_tool_names=["ui_get_snapshot"],
+        ),
+        _build_intent(
+            intent_id="intent-web",
+            kind="web_research",
+            family="web_research",
+            allowed_tool_names=["fetch_url"],
+        ),
+    ]
+    prep = _build_prep(
+        tools=tools,
+        intents=intents,
+        tool_use_policy=ToolUsePolicy(
+            family="page_ops",
+            mode="required",
+            allowed_tool_names=[tool.name for tool in tools],
+            retry_on_contract_breach=False,
+            reason="multi_intent_retry",
+        ),
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    assert state.budget is not None
+    assert state.budget.max_retry_per_intent == 1
+    io = _FakeIOAdapter(
+        model_rounds=[
+            _assistant_response("初始轮次未调用工具。"),
+            _assistant_response("继续处理页面内容。"),
+            _assistant_response("继续补充联网核验。"),
+        ]
+    )
+
+    with patch(
+        "app.ai.engine.turn_executor.RecoveryManager.decide",
+        side_effect=[
+            RecoveryDecision(
+                action="retry_intent",
+                target_intent_id="intent-page",
+                retry_family="page_ops",
+                allowed_tool_names=["ui_get_snapshot"],
+                reason="unfinished_intent_retry",
+            ),
+            RecoveryDecision(
+                action="retry_intent",
+                target_intent_id="intent-web",
+                retry_family="web_research",
+                allowed_tool_names=["fetch_url"],
+                reason="unfinished_intent_retry",
+            ),
+            None,
+        ],
+    ):
+        result = await TurnExecutor.run(
+            state=state,
+            io=io,
+            prep=prep,
+            request=SimpleNamespace(
+                input_variables={},
+                conversation_id=2107,
+            ),
+            agent=SimpleNamespace(id=1),
+        )
+
+    assert len(io.call_history) == 3
+    assert io.call_history[1]["breach_retry_result"] == "intent_retry"
+    assert [tool.name for tool in io.call_history[1]["tools"]] == ["ui_get_snapshot"]
+    assert io.call_history[2]["breach_retry_result"] == "intent_retry"
+    assert [tool.name for tool in io.call_history[2]["tools"]] == ["fetch_url"]
+    assert state.budget.retries_by_intent == {
+        "intent-page": 1,
+        "intent-web": 1,
+    }
+    assert result.output == "继续补充联网核验。"
 
 
 @pytest.mark.asyncio

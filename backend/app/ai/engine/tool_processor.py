@@ -25,6 +25,10 @@ from app.ai.text_semantics import (
     strip_model_function_call_markup,
 )
 from app.ai.tools.sandbox import ToolSandbox
+from app.ai.tools.semantic_defaults import (
+    UI_READONLY_PAGE_TOOL_NAMES,
+    is_ui_page_tool_name,
+)
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.types import ChatMessage
 from app.core.i18n import _
@@ -34,23 +38,6 @@ from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
 from .execution_state_machine import get_current_execution_state_machine
 
 logger = LogManager.get_logger("ai.engine.tool_processor")
-
-# Readonly ops safe to dedupe within one assistant turn / 同轮可安全去重的只读页面操作名
-# Excludes view-changing ops (search, paging, refresh): same name+args can advance UI state.
-# 不含会改变表格/检索视图的操作（翻页、搜索、刷新）：同参重复调用应再次执行而非命中缓存。
-_READONLY_PAGE_OPERATION_NAMES = frozenset(
-    {
-        "read_current_view",
-        "read_current_sections",
-        "read_visible_rows",
-        "get_form_state",
-        "get_form_options",
-        "list_available_menus",
-        "capture_screenshot",
-        "get_editor_html",
-        "validate_form",
-    }
-)
 
 
 def is_trusted_auto_read_only_tool_call(
@@ -67,16 +54,9 @@ def is_trusted_auto_read_only_tool_call(
         "get_current_time",
         "web_search",
         "fetch_url",
-        "get_page_context",
-        "list_page_operations",
     }:
         return True
-    if name.startswith("pageop_"):
-        return name.removeprefix("pageop_") in _READONLY_PAGE_OPERATION_NAMES
-    if name == "invoke_page_operation":
-        op = str((arguments or {}).get("operation_name") or "").strip()
-        return op in _READONLY_PAGE_OPERATION_NAMES
-    return False
+    return name in UI_READONLY_PAGE_TOOL_NAMES
 
 
 def _strip_dsml_from_args(s: str) -> str:
@@ -390,19 +370,13 @@ class ToolCallProcessor:
     @staticmethod
     def _invalidates_same_page_readonly_cache(
         func_name: str,
-        arguments: dict[str, Any],
+        _arguments: dict[str, Any],
     ) -> bool:
         """True after successful runs that can change same-page UI state (invalidates read snapshots)."""
         name = (func_name or "").strip()
-        if name == "get_page_context":
+        if not is_ui_page_tool_name(name):
             return False
-        if name.startswith("pageop_"):
-            op = name.removeprefix("pageop_")
-            return op not in _READONLY_PAGE_OPERATION_NAMES
-        if name == "invoke_page_operation":
-            op = str(arguments.get("operation_name") or "").strip()
-            return op not in _READONLY_PAGE_OPERATION_NAMES
-        return False
+        return name not in UI_READONLY_PAGE_TOOL_NAMES
 
     def _bump_page_readonly_cache_epoch_if_needed(
         self,
@@ -442,16 +416,8 @@ class ToolCallProcessor:
             "fetch_url",
         }:
             pass
-        elif name == "get_page_context":
-            page_suffix = self._page_identity_cache_segment()
-        elif name.startswith("pageop_"):
-            op = name.removeprefix("pageop_")
-            if op not in _READONLY_PAGE_OPERATION_NAMES:
-                return None
-            page_suffix = self._page_identity_cache_segment()
-        elif name == "invoke_page_operation":
-            op = str(arguments.get("operation_name") or "").strip()
-            if op not in _READONLY_PAGE_OPERATION_NAMES:
+        elif is_ui_page_tool_name(name):
+            if name not in UI_READONLY_PAGE_TOOL_NAMES:
                 return None
             page_suffix = self._page_identity_cache_segment()
         else:
@@ -467,8 +433,6 @@ class ToolCallProcessor:
         name = (func_name or "").strip()
         if name == "web_search":
             return "search_query"
-        if name == "get_page_context":
-            return "page_context"
         return "readonly"
 
     def _cache_signature(
@@ -884,15 +848,22 @@ class ToolCallProcessor:
                 tool_call["error_type"] = result.error_type
 
     @staticmethod
-    def build_pending_confirmation_payload(parsed: dict[str, Any]) -> dict[str, Any]:
+    def build_pending_confirmation_payload(
+        parsed: dict[str, Any],
+        func_name: str | None = None,
+    ) -> dict[str, Any]:
         """Build recoverable pending confirmation payload / 构建可恢复的待确认信息。"""
-        return {
+        payload = {
             "action": parsed.get("action", ""),
             "table": parsed.get("table", ""),
             "preview": (
                 parsed.get("preview") or parsed.get("diff") or parsed.get("record")
             ),
         }
+        normalized_name = str(func_name or "").strip()
+        if normalized_name:
+            payload["tool_name"] = normalized_name
+        return payload
 
     @staticmethod
     def build_pending_consent_payload(
@@ -1123,9 +1094,6 @@ class ToolCallProcessor:
     ) -> dict[str, Any]:
         """
         Build tool_call SSE event / 构建 tool_call SSE 事件
-
-        name_override: Use original func_name when sandbox redirects (e.g. pageop_* -> invoke_page_operation).
-        当 sandbox 重定向时使用原始 func_name（如 pageop_* -> invoke_page_operation），避免前端匹配失败。
         """
         event: dict[str, Any] = {
             "event": "tool_call",
@@ -1163,6 +1131,7 @@ class ToolCallProcessor:
     @staticmethod
     def build_confirmation_event(
         parsed: dict[str, Any],
+        func_name: str | None = None,
     ) -> dict[str, Any]:
         """Build confirmation_request SSE event / 构建 confirmation_request SSE 事件"""
         event: dict[str, Any] = {
@@ -1173,6 +1142,9 @@ class ToolCallProcessor:
                 parsed.get("preview") or parsed.get("diff") or parsed.get("record")
             ),
         }
+        normalized_name = str(func_name or "").strip()
+        if normalized_name:
+            event["tool_name"] = normalized_name
         # File-generation confirmation (e.g. plugin codegen) / 文件生成类确认（如插件 codegen）
         if parsed.get("files"):
             event["files"] = parsed["files"]

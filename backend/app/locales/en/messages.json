@@ -789,7 +789,8 @@
     "stream": {
       "error": {
         "service_unavailable": "Sorry, AI service is temporarily unavailable. Please try again later.",
-        "fallback_failed": "AI service response failed. Please try again later."
+        "fallback_failed": "AI service response failed. Please try again later.",
+        "interrupted": "This reply was interrupted, possibly by a page refresh or lost connection. Please retry."
       },
       "partial": {
         "budget_exit": "This turn hit its execution budget before I could finish the final summary. You can continue the conversation and I will pick up from the current progress.",
@@ -3081,11 +3082,19 @@
       "read": {
         "unsupported_tool": "Unsupported UI read tool.",
         "unavailable": "UI read is currently unavailable.",
-        "failed": "UI read failed."
+        "failed": "UI read failed.",
+        "region_timeout": "UI region read request timed out.",
+        "region_request_failed": "UI region read request failed.",
+        "table_timeout": "UI table read request timed out.",
+        "table_request_failed": "UI table read request failed.",
+        "interactables_timeout": "Interactables request timed out.",
+        "interactables_request_failed": "Interactables request failed."
       },
       "snapshot": {
         "unavailable": "UI snapshot is currently unavailable.",
-        "failed": "UI snapshot failed."
+        "failed": "UI snapshot failed.",
+        "request_timeout": "UI snapshot request timed out.",
+        "request_failed": "UI snapshot request failed."
       }
     }
   },
@@ -3296,11 +3305,11 @@
   "page_operation.error.reason_suffix": " Reason: {message}",
   "page_operation.error.page_context_missing": "Page context missing (page_key). Ensure the request includes page identifier.",
   "page_operation.error.invalid_top_level": "Invalid top-level fields: {fields}",
-  "page_operation.error.invalid_top_level_full": "Invalid top-level fields: {fields}. Editor params (content, old_html, new_html, title, etc.) must go inside 'params'. Example: invoke_page_operation(page_key='...', operation_name='replace_content', params={{'content': '<p>...</p>'}}).",
+  "page_operation.error.invalid_top_level_full": "Invalid top-level fields: {fields}. Editor params (content, old_html, new_html, title, etc.) must go inside 'params'. Example: send a UI Runtime page operation with page_key='...', operation_name='replace_content', params={{'content': '<p>...</p>'}}.",
   "page_operation.error.operation_name_top_level": "operation_name must be a top-level parameter.",
-  "page_operation.error.operation_name_top_level_full": "operation_name must be a top-level parameter, not inside params. Example: invoke_page_operation(page_key='...', operation_name='replace_content', params={{}})",
+  "page_operation.error.operation_name_top_level_full": "operation_name must be a top-level parameter, not inside params. Example: keep operation_name at the top level when sending a UI Runtime page operation request with the desired params.",
   "page_operation.error.missing_operation_name": "Missing required parameter: operation_name",
-  "page_operation.error.missing_operation_name_full": "Missing required parameter: operation_name. You MUST specify operation_name in every invoke_page_operation call.{ops_hint}{example}",
+  "page_operation.error.missing_operation_name_full": "Missing required parameter: operation_name. You MUST specify operation_name in every UI Runtime page operation request.{ops_hint}{example}",
   "page_operation.error.multiple_failures_hint": "[System] Multiple page operations failed. Check page session and retry.",
   "page_operation.error.multiple_failures_parse": "[System] Multiple page operations failed (including JSON parse errors). Please tell the user to retry with valid input or refresh the page.",
   "page_operation.error.multiple_failures_sequence": "[System] Multiple page operations failed in sequence. Please tell the user the operation encountered issues and suggest they retry or refresh the page.",

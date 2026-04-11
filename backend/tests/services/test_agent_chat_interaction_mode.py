@@ -129,7 +129,7 @@ async def test_resolve_interaction_mode_downgrades_trusted_auto_without_policy(
 
     assert effective_mode == "confirm"
     assert trust_policy_ref is None
-    assert downgrade_reason == "missing_runtime_trust_policy"
+    assert downgrade_reason == "missing_trust_policy"
 
 
 @pytest.mark.asyncio
@@ -152,7 +152,7 @@ async def test_resolve_interaction_mode_uses_interaction_updates_as_runtime_poli
             {
                 "kind": "pending_confirmation",
                 "rejected": False,
-                "tool_name": "pageop_create_record",
+                "tool_name": "ui_fill_form",
             }
         ],
     )
@@ -160,7 +160,7 @@ async def test_resolve_interaction_mode_uses_interaction_updates_as_runtime_poli
     assert effective_mode == "trusted_auto"
     assert trust_policy_ref == {
         "policy_ids": [],
-        "allowed_tool_names": ["pageop_create_record"],
+        "allowed_tool_names": ["ui_fill_form"],
         "tool_families": ["page_ops"],
         "risk_level_cap": "safe_write",
     }

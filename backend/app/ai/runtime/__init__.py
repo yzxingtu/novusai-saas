@@ -20,12 +20,23 @@ if TYPE_CHECKING:
         LegacyContextAssemblerAdapter,
         get_context_assembler,
     )
+    from app.ai.runtime.contracts import (
+        ProtocolExecutionPlan,
+        TurnCommand,
+        TurnExecutionResult,
+    )
     from app.ai.runtime.manifest import (
         AIRuntimeInventoryService,
         RuntimeCapabilityItem,
         RuntimeCapabilityManifest,
         RuntimeCapabilityStatus,
     )
+    from app.ai.runtime.protocol_recovery_policy import (
+        ObservedStream,
+        ProtocolRecoveryPolicy,
+        StreamObservationError,
+    )
+    from app.ai.runtime.protocol_turn_session import ProtocolTurnSession
     from app.ai.runtime.query_engine import ConversationQueryEngine
     from app.ai.runtime.tool_executor import ToolExecutor
     from app.ai.runtime.types import (
@@ -53,6 +64,13 @@ _EXPORT_MAP = {
     "RuntimeCapabilityItem": "app.ai.runtime.manifest",
     "RuntimeCapabilityManifest": "app.ai.runtime.manifest",
     "RuntimeCapabilityStatus": "app.ai.runtime.manifest",
+    "ProtocolExecutionPlan": "app.ai.runtime.contracts",
+    "TurnCommand": "app.ai.runtime.contracts",
+    "TurnExecutionResult": "app.ai.runtime.contracts",
+    "ObservedStream": "app.ai.runtime.protocol_recovery_policy",
+    "ProtocolRecoveryPolicy": "app.ai.runtime.protocol_recovery_policy",
+    "StreamObservationError": "app.ai.runtime.protocol_recovery_policy",
+    "ProtocolTurnSession": "app.ai.runtime.protocol_turn_session",
     "ConversationQueryEngine": "app.ai.runtime.query_engine",
     "ToolExecutor": "app.ai.runtime.tool_executor",
     "CapabilityBundle": "app.ai.runtime.types",
@@ -100,5 +118,12 @@ __all__ = [
     "RuntimeCapabilityItem",
     "RuntimeCapabilityManifest",
     "RuntimeCapabilityStatus",
+    "ProtocolExecutionPlan",
+    "ObservedStream",
+    "ProtocolRecoveryPolicy",
+    "ProtocolTurnSession",
+    "StreamObservationError",
+    "TurnCommand",
+    "TurnExecutionResult",
     "get_context_assembler",
 ]

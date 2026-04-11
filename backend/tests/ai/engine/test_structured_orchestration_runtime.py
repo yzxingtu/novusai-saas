@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
+from app.ai.engine.base import BaseEngine
 from app.ai.engine.budget_guard import BudgetGuard
 from app.ai.engine.execution_state_machine import ExecutionStateMachine
 from app.ai.engine.failure_classifier import FailureClassifier
@@ -14,6 +15,7 @@ from app.ai.engine.types import (
     IntentPlan,
     PreparedExecution,
     RecoveryDecision,
+    ToolUsePolicy,
 )
 from app.ai.exceptions import (
     AIGatewayError,
@@ -21,7 +23,7 @@ from app.ai.exceptions import (
     ProviderTimeoutError,
 )
 from app.ai.tools.types import ToolDefinition, ToolResult
-from app.ai.types import ChatMessage
+from app.ai.types import ChatMessage, ChatResponse
 
 
 def _tool(name: str, description: str = "") -> ToolDefinition:
@@ -34,9 +36,9 @@ def _mixed_tools() -> list[ToolDefinition]:
         _tool("get_weather_forecast", "Forecast"),
         _tool("web_search", "Search the web"),
         _tool("fetch_url", "Fetch url"),
-        _tool("get_page_context", "Read page"),
-        _tool("invoke_page_operation", "Operate page"),
-        _tool("pageop_navigate_menu", "Navigate menu"),
+        _tool("ui_get_snapshot", "Read page"),
+        _tool("ui_read_region", "Read region"),
+        _tool("ui_click", "Click ui"),
     ]
 
 
@@ -44,19 +46,12 @@ def _page_context() -> dict:
     return {
         "page_context": {
             "page_key": "admin.ai.dashboard",
-            "page_data": {
-                "available_operations": [{"name": "navigate_menu"}],
-                "available_menus": [
-                    {
-                        "title": "智能体管理",
-                        "page_key": "admin.ai.agents",
-                        "path": "/admin/ai/agents",
-                        "description": "创建、编辑和管理 AI 智能体",
-                        "keywords": ["智能体", "agent", "AI助手"],
-                        "capabilities": ["create_agent"],
-                        "category": "ai",
-                    }
-                ],
+            "page_title": "AI 仪表盘",
+            "page_session_id": "session-dashboard",
+            "ui_epoch": 1,
+            "suggested_tools": {
+                "primary": ["ui_get_snapshot", "ui_click"],
+                "secondary": ["ui_read_region"],
             },
         }
     }
@@ -125,7 +120,7 @@ def test_intent_planner_keeps_page_follow_up_in_page_family() -> None:
                 tool_calls=[
                     {
                         "success": True,
-                        "function": {"name": "get_page_context"},
+                        "function": {"name": "ui_get_snapshot"},
                     }
                 ],
             ),
@@ -139,6 +134,59 @@ def test_intent_planner_keeps_page_follow_up_in_page_family() -> None:
     assert len(intents) == 1
     assert intents[0].family == "page_ops"
     assert intents[0].requires_tools is True
+
+
+def test_detect_requested_turn_intents_aligns_with_planner_for_page_row_detail() -> None:
+    intents = BaseEngine._detect_requested_turn_intents(
+        "现在几点了？帮我查北京天气，再搜索今天 AI 新闻，然后看看当前页面第一条记录或关键内容",
+        tools=_mixed_tools(),
+        input_variables=_page_context(),
+    )
+
+    assert intents == ["weather", "page_summary"]
+
+
+def test_post_tool_contract_breach_keeps_page_intent_when_page_not_executed() -> None:
+    messages = [
+        ChatMessage(
+            role="user",
+            content="现在几点了？帮我查北京天气，再搜索今天 AI 新闻，然后看看当前页面第一条记录或关键内容",
+        ),
+        ChatMessage(
+            role="assistant",
+            content="",
+            tool_calls=[
+                {"success": True, "function": {"name": "get_current_weather"}},
+                {"success": True, "function": {"name": "web_search"}},
+                {"success": True, "function": {"name": "fetch_url"}},
+            ],
+        ),
+    ]
+    response = ChatResponse(
+        message=ChatMessage(
+            role="assistant",
+            content="现在是北京时间，今天北京天气我也查到了，并给你整理了今天的 AI 新闻。",
+        ),
+        tool_calls=None,
+    )
+
+    breach_type, retry_policy, diagnostics = BaseEngine._analyze_post_tool_contract_breach(
+        messages=messages,
+        response=response,
+        current_policy=ToolUsePolicy(
+            family="web_research",
+            mode="required",
+            allowed_tool_names=["web_search", "fetch_url"],
+        ),
+        tools=_mixed_tools(),
+        input_variables=_page_context(),
+    )
+
+    assert breach_type == "unfinished_multi_intent_reply"
+    assert retry_policy is not None
+    assert diagnostics["requested_intents"] == ["weather", "page_summary"]
+    assert diagnostics["unfinished_intents"] == ["page_summary"]
+    assert "ui_get_snapshot" in retry_policy.allowed_tool_names
 
 
 def test_path_selector_routes_fast_normal_and_deep_by_intent_shape() -> None:
@@ -198,12 +246,12 @@ def test_tool_router_caps_mixed_candidates_and_preserves_page_summary_focus() ->
     )
 
     assert len(decision.candidate_tool_names()) <= budget.max_candidate_tools
-    assert decision.intent_allowed_tools["intent-3"] == ["get_page_context"]
+    assert decision.intent_allowed_tools["intent-3"] == ["ui_get_snapshot"]
     assert set(decision.candidate_tool_names()) == {
         "get_current_weather",
         "web_search",
         "fetch_url",
-        "get_page_context",
+        "ui_get_snapshot",
     }
 
 
@@ -274,7 +322,7 @@ def test_recovery_manager_retries_only_unfinished_page_intent() -> None:
             family="page_ops",
             order=3,
             status="pending",
-            allowed_tool_names=["get_page_context"],
+            allowed_tool_names=["ui_get_snapshot"],
         ),
     ]
     budget = BudgetGuard.build_default("deep", intent_count=3)
@@ -284,14 +332,84 @@ def test_recovery_manager_retries_only_unfinished_page_intent() -> None:
     assert decision.action == "retry_intent"
     assert decision.target_intent_id == "intent-3"
     assert decision.retry_family == "page_ops"
-    assert decision.allowed_tool_names == ["get_page_context"]
+    assert decision.allowed_tool_names == ["ui_get_snapshot"]
     assert decision.completed_intent_ids == ["intent-1", "intent-2"]
     assert decision.unfinished_intent_ids == ["intent-3"]
 
     message = RecoveryManager.build_recovery_message(decision=decision, intents=intents)
     assert message.role == "system"
-    assert "Allowed tools for this recovery: get_page_context." in message.content
+    assert "Allowed tools for this recovery: ui_get_snapshot." in message.content
     assert "Unfinished requested intents: page_summary." in message.content
+
+
+def test_recovery_manager_unions_allowed_tools_for_multiple_unfinished_intents() -> None:
+    intents = [
+        _intent(
+            "intent-1",
+            kind="weather_query",
+            family="weather",
+            order=1,
+            status="completed",
+            allowed_tool_names=["get_current_weather"],
+        ),
+        _intent(
+            "intent-2",
+            kind="page_summary",
+            family="page_ops",
+            order=2,
+            status="pending",
+            allowed_tool_names=["ui_get_snapshot"],
+        ),
+        _intent(
+            "intent-3",
+            kind="page_row_detail",
+            family="page_ops",
+            order=3,
+            status="pending",
+            allowed_tool_names=["ui_read_region"],
+        ),
+    ]
+    budget = BudgetGuard.build_default("deep", intent_count=3)
+
+    decision = RecoveryManager.decide(intents, budget=budget)
+
+    assert decision is not None
+    assert decision.action == "retry_intent"
+    assert decision.target_intent_id == "intent-2"
+    assert decision.allowed_tool_names == ["ui_get_snapshot", "ui_read_region"]
+    assert decision.unfinished_intent_ids == ["intent-2", "intent-3"]
+
+
+def test_recovery_manager_retry_tools_do_not_mix_cross_family_unfinished_intents() -> None:
+    intents = [
+        _intent(
+            "intent-1",
+            kind="web_research",
+            family="web_research",
+            order=1,
+            status="pending",
+            allowed_tool_names=["web_search", "fetch_url"],
+        ),
+        _intent(
+            "intent-2",
+            kind="page_summary",
+            family="page_ops",
+            order=2,
+            status="pending",
+            allowed_tool_names=["ui_get_snapshot"],
+        ),
+    ]
+    budget = BudgetGuard.build_default("normal", intent_count=2)
+
+    decision = RecoveryManager.decide(intents, budget=budget)
+
+    assert decision is not None
+    assert decision.action == "retry_intent"
+    assert decision.target_intent_id == "intent-1"
+    assert decision.retry_family == "web_research"
+    assert decision.allowed_tool_names == ["web_search", "fetch_url"]
+    assert decision.unfinished_intent_ids == ["intent-1", "intent-2"]
+    assert "ui_get_snapshot" not in decision.allowed_tool_names
 
 
 def test_recovery_manager_returns_partial_when_retry_budget_is_exhausted() -> None:
@@ -302,7 +420,7 @@ def test_recovery_manager_returns_partial_when_retry_budget_is_exhausted() -> No
             family="page_ops",
             order=3,
             status="pending",
-            allowed_tool_names=["get_page_context"],
+            allowed_tool_names=["ui_get_snapshot"],
         )
     ]
     budget = BudgetGuard.build_default("normal", intent_count=1)
@@ -338,7 +456,7 @@ def test_failure_classifier_distinguishes_provider_and_tool_failures() -> None:
         [
             ToolResult(
                 tool_call_id="call-1",
-                name="get_page_context",
+                name="ui_get_snapshot",
                 success=False,
                 error="timeout",
                 error_type="timeout",
@@ -357,7 +475,7 @@ def test_failure_classifier_distinguishes_provider_and_tool_failures() -> None:
     assert tool_kind == "tool_timeout"
     assert tool_events == [
         {
-            "tool_name": "get_page_context",
+            "tool_name": "ui_get_snapshot",
             "error_type": "timeout",
             "error": "timeout",
         }
@@ -378,7 +496,7 @@ def test_execution_state_machine_accumulates_usage_and_emits_turn_diagnostics() 
             kind="page_summary",
             family="page_ops",
             order=2,
-            allowed_tool_names=["get_page_context"],
+            allowed_tool_names=["ui_get_snapshot"],
         ),
     ]
     budget = BudgetGuard.build_default("normal", intent_count=2)
@@ -388,7 +506,7 @@ def test_execution_state_machine_accumulates_usage_and_emits_turn_diagnostics() 
         execution_budget=budget,
         tools=[
             _tool("get_current_weather"),
-            _tool("get_page_context"),
+            _tool("ui_get_snapshot"),
         ],
         provider_events=[{"kind": "provider_timeout", "trace_id": "t-1"}],
         recovery_history=[
@@ -396,7 +514,7 @@ def test_execution_state_machine_accumulates_usage_and_emits_turn_diagnostics() 
                 action="retry_intent",
                 target_intent_id="intent-2",
                 retry_family="page_ops",
-                allowed_tool_names=["get_page_context"],
+                allowed_tool_names=["ui_get_snapshot"],
                 completed_intent_ids=["intent-1"],
                 unfinished_intent_ids=["intent-2"],
                 reason="unfinished_intent_retry",
@@ -438,7 +556,7 @@ def test_execution_state_machine_accumulates_usage_and_emits_turn_diagnostics() 
             action="retry_intent",
             target_intent_id="intent-2",
             retry_family="page_ops",
-            allowed_tool_names=["get_page_context"],
+            allowed_tool_names=["ui_get_snapshot"],
             completed_intent_ids=["intent-1"],
             unfinished_intent_ids=["intent-2"],
             reason="unfinished_intent_retry",
@@ -450,7 +568,7 @@ def test_execution_state_machine_accumulates_usage_and_emits_turn_diagnostics() 
     assert payload["execution_path"] == "normal"
     assert payload["routing"]["candidate_tool_names"] == [
         "get_current_weather",
-        "get_page_context",
+        "ui_get_snapshot",
     ]
     assert payload["failures"]["failure_kind"] == "provider_timeout"
     assert payload["failures"]["provider_events"][-1]["status_code"] == 504

@@ -111,6 +111,17 @@ class AdapterRegistry:
         return list(cls._adapters.keys())
 
 
+def register_core_adapters() -> None:
+    """
+    Register built-in adapters used by app/bootstrap entry points.
+    注册应用与启动链路依赖的内建适配器。
+    """
+    from app.ai.adapters.openai_adapter import OpenAIAdapter
+
+    AdapterRegistry.register("openai_compatible", OpenAIAdapter)
+
+
 __all__ = [
     "AdapterRegistry",
+    "register_core_adapters",
 ]

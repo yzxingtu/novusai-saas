@@ -206,6 +206,77 @@ async def test_native_web_search_marks_zero_request_responses_as_unsupported() -
 
 
 @pytest.mark.asyncio
+async def test_native_web_search_renders_prompt_contract_and_attempts_stream_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    adapter = _make_adapter()
+    empty_response = SimpleNamespace(
+        status="completed",
+        output=[],
+        tool_usage=SimpleNamespace(web_search=SimpleNamespace(num_requests=0)),
+        usage=SimpleNamespace(input_tokens=12, output_tokens=3, total_tokens=15),
+    )
+    stream = _FakeAsyncStream(
+        [
+            SimpleNamespace(type="response.web_search_call.in_progress"),
+            SimpleNamespace(
+                type="response.output_text.delta",
+                delta="https://example.com/ai-story",
+            ),
+            SimpleNamespace(
+                type="response.completed",
+                response=SimpleNamespace(
+                    usage=SimpleNamespace(
+                        input_tokens=20,
+                        output_tokens=10,
+                        total_tokens=30,
+                    )
+                ),
+            ),
+        ]
+    )
+    calls: list[dict] = []
+
+    async def _create(*args, **kwargs):
+        _ = args
+        calls.append(kwargs)
+        if kwargs.get("stream"):
+            return stream
+        return empty_response
+
+    render_calls: list[tuple[str, str | None]] = []
+
+    def _fake_render(contract_name: str, *, locale: str | None = None, **kwargs):
+        _ = kwargs
+        render_calls.append((contract_name, locale))
+        return "PROMPT"
+
+    monkeypatch.setattr(
+        "app.ai.adapters.openai_compatible.support.native_web_search_support.render_prompt_contract",
+        _fake_render,
+    )
+    adapter.client = SimpleNamespace(responses=SimpleNamespace(create=_create))
+
+    run = await adapter.native_web_search(
+        query="OpenAI",
+        max_results=5,
+        locale="zh-CN",
+        timeout_seconds=20,
+        model="gpt-5.4",
+        provider_label="openai",
+        backend_key="native:openai:gpt-5.4",
+    )
+
+    assert run.status == STATUS_SUCCESS
+    assert render_calls == [("hosted_web_search_candidate_instructions", "zh-CN")]
+    assert len(calls) == 2
+    assert calls[0].get("stream") is not True
+    assert calls[0]["instructions"] == "PROMPT"
+    assert calls[1]["stream"] is True
+    assert calls[1]["instructions"] == "PROMPT"
+
+
+@pytest.mark.asyncio
 async def test_native_web_search_uses_stream_fallback_when_non_stream_returns_empty_completed_body() -> None:
     adapter = _make_adapter()
     empty_response = SimpleNamespace(

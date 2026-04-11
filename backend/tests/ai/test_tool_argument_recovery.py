@@ -1,478 +1,85 @@
-"""
-Tool argument parse recovery tests / 工具参数解析恢复测试
+"""Tool argument recovery and UI page hint tests."""
 
-验证富文本专用 tools 整改 P0 项：
-- 非法 JSON 参数不再被伪装成缺少 operation_name
-- parse_arguments 显式返回 invalid_tool_arguments_json
-- invoke_page_operation 顶层字段白名单，未知字段报错
-- 已移除 content->replace_content 危险推断
-"""
-
-import sys
-import types
-from unittest.mock import AsyncMock, MagicMock
-
-import pytest
-
-# Stub redis/socketio before app imports（不 stub bcrypt，以免污染 TestRealPasswordHash）
-redis_module = types.ModuleType("redis")
-redis_asyncio_module = types.ModuleType("redis.asyncio")
-redis_asyncio_client_module = types.ModuleType("redis.asyncio.client")
-redis_exceptions_module = types.ModuleType("redis.exceptions")
-
-
-class _RedisConnectionPool:
-    @classmethod
-    def from_url(cls, *args, **kwargs):
-        return cls()
-
-    async def aclose(self) -> None:
-        return None
-
-
-class _RedisClient:
-    def __init__(self, *args, **kwargs) -> None:
-        return None
-
-
-class _RedisPipeline:
-    pass
-
-
-redis_exceptions_module.RedisError = type("RedisError", (Exception,), {})
-redis_asyncio_module.ConnectionPool = _RedisConnectionPool
-redis_asyncio_module.Redis = _RedisClient
-redis_asyncio_client_module.Pipeline = _RedisPipeline
-redis_module.Redis = _RedisClient
-redis_module.from_url = lambda *a, **kw: MagicMock()
-redis_module.asyncio = redis_asyncio_module
-redis_module.exceptions = redis_exceptions_module
-sys.modules.setdefault("redis", redis_module)
-sys.modules.setdefault("redis.asyncio", redis_asyncio_module)
-sys.modules.setdefault("redis.asyncio.client", redis_asyncio_client_module)
-sys.modules.setdefault("redis.exceptions", redis_exceptions_module)
-
-_mock_sio = MagicMock()
-_mock_sio.emit = AsyncMock()
-_sio_mod = types.ModuleType("app.core.socketio_server")
-_sio_mod.get_sio = lambda: _mock_sio
-_sio_mod.sio = _mock_sio  # emit_force_logout 等使用 sio 直接导入
-sys.modules.setdefault("app.core.socketio_server", _sio_mod)
-
+from app.ai.engine.base import BaseEngine
 from app.ai.engine.tool_processor import ToolCallProcessor
+from app.ai.tools.types import ToolDefinition
 
 
 class TestParseArguments:
-    """parse_arguments 显式 parse failure 测试"""
+    """parse_arguments 应在异常 JSON 输入时返回显式错误码。"""
 
     def test_valid_json_returns_dict_and_none(self) -> None:
-        """有效 JSON 返回 (dict, None)"""
-        args, err = ToolCallProcessor.parse_arguments('{"page_key":"p","operation_name":"op"}')
+        args, err = ToolCallProcessor.parse_arguments('{"mode":"compact"}')
         assert err is None
-        assert args == {"page_key": "p", "operation_name": "op"}
+        assert args == {"mode": "compact"}
 
     def test_empty_string_returns_empty_dict_and_none(self) -> None:
-        """空字符串返回 ({}, None)"""
         args, err = ToolCallProcessor.parse_arguments("")
         assert err is None
         assert args == {}
 
     def test_invalid_json_returns_invalid_tool_arguments_json(self) -> None:
-        """非法 JSON 返回 (None, invalid_tool_arguments_json)，不再静默为 {}"""
         args, err = ToolCallProcessor.parse_arguments("{invalid json}")
         assert err == "invalid_tool_arguments_json"
         assert args is None
 
     def test_truncated_json_returns_error(self) -> None:
-        """截断 JSON 返回错误"""
         args, err = ToolCallProcessor.parse_arguments('{"page_key":')
         assert err == "invalid_tool_arguments_json"
         assert args is None
 
     def test_dict_input_passthrough(self) -> None:
-        """dict 输入直接透传"""
-        d = {"a": 1, "b": "x"}
-        args, err = ToolCallProcessor.parse_arguments(d)
+        raw = {"a": 1, "b": "x"}
+        args, err = ToolCallProcessor.parse_arguments(raw)
         assert err is None
-        assert args is d
-
-
-class TestInvokePageOperationTopLevelWhitelist:
-    """invoke_page_operation 顶层字段白名单测试"""
-
-    @pytest.mark.asyncio
-    async def test_unknown_top_level_fields_return_invalid_input(self) -> None:
-        """
-        顶层 content/old_html/new_html 等必须放入 params，否则返回 invalid_input。
-        验证不再静默丢失业务参数。
-        """
-        from app.ai.tools.sandbox import SandboxConfig, ToolSandbox
-        from app.ai.tools.types import ToolDefinition
-
-        sandbox = ToolSandbox(tenant_id=1, agent_id=1, config=SandboxConfig())
-        definition = ToolDefinition(
-            name="invoke_page_operation",
-            description="invoke",
-        )
-        definitions = [definition]
-
-        # content at top level (should be in params) -> reject
-        result = await sandbox.execute(
-            tool_call_id="tc-1",
-            name="invoke_page_operation",
-            arguments={
-                "page_key": "doc.editor",
-                "operation_name": "replace_content",
-                "content": "<p>wrong place</p>",  # must be in params
-            },
-            definitions=definitions,
-        )
-
-        assert result.success is False
-        assert result.error_type == "invalid_input"
-        assert "Invalid top-level fields" in result.error or "无效的顶层字段" in result.error
-        assert "content" in result.error
-
-    @pytest.mark.asyncio
-    async def test_get_form_options_field_alias_is_normalized(self) -> None:
-        """params.field 会被归一化为 params.field_name。"""
-        from app.ai.tools.sandbox import SandboxConfig, ToolSandbox
-        from app.ai.tools.types import ToolDefinition, ToolResult
-
-        captured_arguments: dict | None = None
-
-        class _CaptureExecutor:
-            async def validate(self, definition, arguments):  # noqa: ANN001
-                return True
-
-            async def execute(self, definition, tool_call_id, arguments, context=None):  # noqa: ANN001
-                nonlocal captured_arguments
-                captured_arguments = arguments
-                return ToolResult(
-                    tool_call_id=tool_call_id,
-                    name=definition.name,
-                    success=True,
-                    output="ok",
-                )
-
-        sandbox = ToolSandbox(tenant_id=1, agent_id=1, config=SandboxConfig())
-        sandbox._named_executors["invoke_page_operation"] = _CaptureExecutor()
-        definition = ToolDefinition(
-            name="invoke_page_operation",
-            description="invoke",
-        )
-
-        result = await sandbox.execute(
-            tool_call_id="tc-field-alias",
-            name="invoke_page_operation",
-            arguments={
-                "page_key": "admin.ai.agents",
-                "operation_name": "get_form_options",
-                "params": {"field": "tenant_ids"},
-            },
-            definitions=[definition],
-        )
-
-        assert result.success is True
-        assert captured_arguments is not None
-        assert captured_arguments["params"]["field_name"] == "tenant_ids"
-
-    @pytest.mark.asyncio
-    async def test_get_form_options_field_alias_can_infer_operation_name(self) -> None:
-        """params.fieldName 可推断 get_form_options 并完成归一化。"""
-        from app.ai.tools.sandbox import SandboxConfig, ToolSandbox
-        from app.ai.tools.types import ToolDefinition, ToolResult
-
-        captured_arguments: dict | None = None
-
-        class _CaptureExecutor:
-            async def validate(self, definition, arguments):  # noqa: ANN001
-                return True
-
-            async def execute(self, definition, tool_call_id, arguments, context=None):  # noqa: ANN001
-                nonlocal captured_arguments
-                captured_arguments = arguments
-                return ToolResult(
-                    tool_call_id=tool_call_id,
-                    name=definition.name,
-                    success=True,
-                    output="ok",
-                )
-
-        sandbox = ToolSandbox(tenant_id=1, agent_id=1, config=SandboxConfig())
-        sandbox._named_executors["invoke_page_operation"] = _CaptureExecutor()
-        definition = ToolDefinition(
-            name="invoke_page_operation",
-            description="invoke",
-        )
-
-        result = await sandbox.execute(
-            tool_call_id="tc-fieldName-alias",
-            name="invoke_page_operation",
-            arguments={
-                "page_key": "admin.ai.agents",
-                "params": {"fieldName": "model_id"},
-            },
-            definitions=[definition],
-        )
-
-        assert result.success is True
-        assert captured_arguments is not None
-        assert captured_arguments["operation_name"] == "get_form_options"
-        assert captured_arguments["params"]["field_name"] == "model_id"
-
-
-class TestPageToolExpander:
-    """PageToolExpander 富文本专用 tools 展开测试"""
-
-    def test_expands_editor_tools_when_available(self) -> None:
-        """available_operations 含编辑操作时展开 pageop_* tools"""
-        from app.ai.tools.page_tool_expander import PREFIX, expand_page_tools
-        from app.ai.tools.types import ToolDefinition
-
-        base_tools = [
-            ToolDefinition(name="invoke_page_operation", description="invoke"),
-        ]
-        input_vars = {
-            "page_context": {
-                "page_key": "doc.editor",
-                "page_data": {
-                    "available_operations": [
-                        {"name": "get_editor_html", "label": "Get HTML", "description": "Read", "readonly": True},
-                        {"name": "replace_content", "label": "Replace", "params": {"content": {"type": "string"}}},
-                    ],
-                },
-            },
-        }
-        result = expand_page_tools(base_tools, input_vars)
-        expanded_names = [t.name for t in result if t.name.startswith(PREFIX)]
-        assert "pageop_get_editor_html" in expanded_names
-        assert "pageop_replace_content" in expanded_names
-        assert len(expanded_names) == 2
-        for t in result:
-            if t.name == "pageop_replace_content":
-                assert t.config.get("underlying_operation") == "replace_content"
-                assert len(t.parameters) >= 1
-                break
-
-    def test_no_expansion_without_page_context(self) -> None:
-        """无 page_context 时不展开"""
-        from app.ai.tools.page_tool_expander import expand_page_tools
-        from app.ai.tools.types import ToolDefinition
-
-        base = [ToolDefinition(name="invoke_page_operation", description="x")]
-        result = expand_page_tools(base, None)
-        assert result == base
-        result = expand_page_tools(base, {})
-        assert result == base
-
-    def test_expands_generic_page_tools_when_available(self) -> None:
-        """普通页面高频操作也应展开 pageop_* tools。"""
-        from app.ai.tools.page_tool_expander import expand_page_tools
-        from app.ai.tools.types import ToolDefinition
-
-        base = [ToolDefinition(name="invoke_page_operation", description="x")]
-        input_vars = {
-            "page_context": {
-                "page_key": "admin.dashboard",
-                "page_data": {
-                    "available_operations": [
-                        {"name": "refresh_list", "label": "Refresh", "readonly": True},
-                        {
-                            "name": "search",
-                            "label": "Search",
-                            "params": {
-                                "keyword": {"type": "string", "required": True},
-                            },
-                            "readonly": True,
-                        },
-                        {
-                            "name": "get_form_state",
-                            "label": "Form State",
-                            "readonly": True,
-                        },
-                    ]
-                },
-            },
-        }
-        result = expand_page_tools(base, input_vars)
-        expanded_names = [tool.name for tool in result]
-        assert "pageop_refresh_list" in expanded_names
-        assert "pageop_search" in expanded_names
-        assert "pageop_get_form_state" in expanded_names
-        assert "pageop_navigate_menu" not in expanded_names
-
-    def test_expands_menu_navigation_tools_when_available(self) -> None:
-        """菜单导航操作也应展开为 pageop_* tools。"""
-        from app.ai.tools.page_tool_expander import expand_page_tools
-        from app.ai.tools.types import ToolDefinition
-
-        base = [ToolDefinition(name="invoke_page_operation", description="x")]
-        input_vars = {
-            "page_context": {
-                "page_key": "admin.dashboard",
-                "page_data": {
-                    "available_operations": [
-                        {
-                            "name": "list_available_menus",
-                            "label": "List Available Menus",
-                            "readonly": True,
-                        },
-                        {
-                            "name": "navigate_menu",
-                            "label": "Navigate Menu",
-                            "params": {
-                                "target": {"type": "string", "required": True},
-                            },
-                            "readonly": True,
-                        },
-                    ]
-                },
-            },
-        }
-        result = expand_page_tools(base, input_vars)
-        expanded_names = [tool.name for tool in result]
-        assert "pageop_list_available_menus" in expanded_names
-        assert "pageop_navigate_menu" in expanded_names
-
-    def test_no_expansion_when_no_expandable_page_ops(self) -> None:
-        """available_operations 无可展开操作时不展开。"""
-        from app.ai.tools.page_tool_expander import expand_page_tools
-        from app.ai.tools.types import ToolDefinition
-
-        base = [ToolDefinition(name="invoke_page_operation", description="x")]
-        input_vars = {
-            "page_context": {
-                "page_key": "admin.dashboard",
-                "page_data": {
-                    "available_operations": [{"name": "open_help_center", "label": "Help"}],
-                },
-            },
-        }
-        result = expand_page_tools(base, input_vars)
-        assert len(result) == 1
-        assert result[0].name == "invoke_page_operation"
-
-    def test_fill_form_array_parameter_emits_items_schema_for_tenant_ids(self) -> None:
-        """fill_form 数组字段 tenant_ids 应输出合法的 array.items schema。"""
-        from app.ai.tools.page_tool_expander import expand_page_tools
-        from app.ai.tools.types import ToolDefinition
-
-        base = [ToolDefinition(name="invoke_page_operation", description="x")]
-        input_vars = {
-            "page_context": {
-                "page_key": "admin.ai.agents",
-                "page_data": {
-                    "available_operations": [
-                        {
-                            "name": "fill_form",
-                            "label": "Fill Form",
-                            "params": {
-                                "tenant_ids": {
-                                    "type": "array",
-                                    "description": "Assigned tenant ids",
-                                    "component": "remote_select",
-                                    "optionsSource": "remote",
-                                }
-                            },
-                        },
-                    ]
-                },
-            },
-        }
-
-        result = expand_page_tools(base, input_vars)
-        tool = next(tool for tool in result if tool.name == "pageop_fill_form")
-        schema = tool.to_openai_schema()
-        tenant_ids_schema = schema["function"]["parameters"]["properties"]["tenant_ids"]
-
-        assert tenant_ids_schema["type"] == "array"
-        assert tenant_ids_schema["items"] == {"type": "integer"}
-
-
-class TestOptimizerRetainsPageopTools:
-    """工具优化后 pageop_* 仍被保留"""
-
-    def test_pageop_tools_retained_after_optimization(self) -> None:
-        """富文本 pageop_* tools 在工具优化后仍被保留"""
-        from app.ai.tools.optimizer import optimize_tools
-        from app.ai.tools.types import ToolDefinition
-
-        tools = [
-            ToolDefinition(name="get_page_context", description="Read page context"),
-            ToolDefinition(name="pageop_get_editor_html", description="Get editor HTML"),
-            ToolDefinition(name="pageop_replace_section", description="Replace section"),
-            ToolDefinition(name="invoke_page_operation", description="Invoke page op"),
-        ]
-        for i in range(10):
-            tools.append(ToolDefinition(name=f"filler_{i}", description=f"Filler {i}"))
-
-        result = optimize_tools(
-            tools,
-            "帮我把文档里的第二节改成新的内容",
-            max_after_optimization=6,
-        )
-
-        assert not result.skipped
-        tool_names = [t.name for t in result.tools]
-        assert "pageop_get_editor_html" in tool_names
-        assert "pageop_replace_section" in tool_names
-        assert "get_page_context" in tool_names
-        assert "invoke_page_operation" in tool_names
+        assert args is raw
 
 
 class TestPageOperationsHint:
-    """页面操作提示文案测试"""
+    """页面提示应基于 ui_* 工具与薄 page_context。"""
 
-    def test_prefers_dedicated_generic_pageop_tools(self) -> None:
-        """普通页面存在专用 pageop_* 时，也应给出 tool-first 提示。"""
-        from app.ai.engine.base import BaseEngine
-        from app.ai.tools.types import ToolDefinition
-
+    def test_builds_hint_with_thin_page_context_and_ui_tools(self) -> None:
         hint = BaseEngine._build_page_operations_hint(
             {
                 "page_context": {
                     "page_key": "admin.ai.agents",
-                    "page_data": {
-                        "available_operations": [
-                            {"name": "search"},
-                            {"name": "read_visible_rows"},
-                            {"name": "refresh_list"},
-                        ],
+                    "active_surface_id": "drawer-1",
+                    "surface_stack": [
+                        {"surface_id": "page-1", "kind": "page", "title": "Agents"},
+                        {"surface_id": "drawer-1", "kind": "drawer", "title": "Edit"},
+                    ],
+                    "active_form_summary": {
+                        "form_session_id": "form-1",
+                        "can_submit": True,
+                        "stage": "ready_to_submit",
                     },
-                },
+                }
             },
             [
-                ToolDefinition(name="invoke_page_operation", description="invoke"),
-                ToolDefinition(name="pageop_search", description="search"),
-                ToolDefinition(name="pageop_read_visible_rows", description="read rows"),
+                ToolDefinition(name="ui_get_snapshot", description="snapshot"),
+                ToolDefinition(name="ui_read_region", description="read region"),
+                ToolDefinition(name="ui_read_table", description="read table"),
+                ToolDefinition(name="ui_list_interactables", description="list"),
+                ToolDefinition(name="ui_click", description="click"),
+                ToolDefinition(name="ui_open_surface", description="open"),
+                ToolDefinition(name="ui_get_form_state", description="form state"),
+                ToolDefinition(name="ui_set_field", description="set field"),
+                ToolDefinition(name="ui_fill_form", description="fill form"),
+                ToolDefinition(name="ui_submit_form", description="submit"),
             ],
         )
 
-        assert "Preferred: use dedicated pageop_* tools directly when available." in hint
-        assert "Dedicated pageop_* tools available for: search, read_visible_rows" in hint
-        assert "Other operations (use invoke_page_operation): refresh_list" in hint
+        assert "[PAGE OPERATIONS]" in hint
+        assert "Current page: admin.ai.agents" in hint
+        assert "Readonly: ui_get_snapshot" in hint
+        assert "Actions (navigation / open): ui_list_interactables, ui_click, ui_open_surface" in hint
+        assert "Form read/write: ui_get_form_state, ui_set_field, ui_fill_form" in hint
+        assert "Safe write: ui_set_field, ui_fill_form" in hint
+        assert "Submit-required: ui_submit_form" in hint
 
-    def test_fallback_hint_uses_generic_examples_without_editor_bias(self) -> None:
-        """非编辑页 fallback 提示不能硬编码 get_editor_html。"""
-        from app.ai.engine.base import BaseEngine
-        from app.ai.tools.types import ToolDefinition
-
+    def test_returns_empty_hint_without_valid_page_context(self) -> None:
         hint = BaseEngine._build_page_operations_hint(
-            {
-                "page_context": {
-                    "page_key": "admin.ai.agents",
-                    "page_data": {
-                        "available_operations": [
-                            {"name": "search"},
-                            {"name": "read_visible_rows"},
-                        ],
-                    },
-                },
-            },
-            [ToolDefinition(name="invoke_page_operation", description="invoke")],
+            {"page_context": {"page_title": "missing-key"}},
+            [ToolDefinition(name="ui_get_snapshot", description="snapshot")],
         )
-
-        assert 'operation_name="read_visible_rows"' in hint
-        assert 'operation_name="search"' in hint
-        assert "get_editor_html" not in hint
+        assert hint == ""

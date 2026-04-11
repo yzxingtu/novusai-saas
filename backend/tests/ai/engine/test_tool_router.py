@@ -18,30 +18,16 @@ def _budget(max_candidate_tools: int = 8) -> ExecutionBudget:
 
 def _page_tools() -> list[ToolDefinition]:
     return [
-        ToolDefinition(name="get_page_context"),
-        ToolDefinition(name="invoke_page_operation"),
-        ToolDefinition(name="pageop_capture_screenshot"),
-        ToolDefinition(name="pageop_create_record"),
-        ToolDefinition(name="pageop_edit_record"),
-        ToolDefinition(name="pageop_fill_form"),
-        ToolDefinition(name="pageop_validate_form"),
-        ToolDefinition(name="pageop_submit_form"),
-        ToolDefinition(name="pageop_get_editor_html"),
-        ToolDefinition(name="pageop_get_editor_text"),
-        ToolDefinition(name="pageop_replace_content"),
-        ToolDefinition(name="pageop_replace_section"),
-        ToolDefinition(name="pageop_append_content"),
-        ToolDefinition(name="pageop_insert_content"),
-        ToolDefinition(name="pageop_update_title"),
-        ToolDefinition(name="pageop_search"),
-        ToolDefinition(name="pageop_clear_search"),
-        ToolDefinition(name="pageop_refresh_list"),
-        ToolDefinition(name="pageop_go_to_page"),
-        ToolDefinition(name="pageop_prev_page"),
-        ToolDefinition(name="pageop_next_page"),
-        ToolDefinition(name="pageop_set_page_size"),
-        ToolDefinition(name="pageop_read_row_detail"),
-        ToolDefinition(name="pageop_read_visible_rows"),
+        ToolDefinition(name="ui_get_snapshot"),
+        ToolDefinition(name="ui_read_region"),
+        ToolDefinition(name="ui_read_table"),
+        ToolDefinition(name="ui_list_interactables"),
+        ToolDefinition(name="ui_click"),
+        ToolDefinition(name="ui_open_surface"),
+        ToolDefinition(name="ui_get_form_state"),
+        ToolDefinition(name="ui_set_field"),
+        ToolDefinition(name="ui_fill_form"),
+        ToolDefinition(name="ui_submit_form"),
     ]
 
 
@@ -66,12 +52,10 @@ def test_tool_router_prioritizes_screenshot_tools_over_generic_page_read() -> No
     )
 
     assert [tool.name for tool in decision.candidate_tools] == [
-        "pageop_capture_screenshot",
-        "invoke_page_operation",
+        "ui_get_snapshot",
     ]
     assert decision.intent_preferred_tools["intent-page_screenshot"] == [
-        "pageop_capture_screenshot",
-        "invoke_page_operation",
+        "ui_get_snapshot",
     ]
 
 
@@ -85,11 +69,10 @@ def test_tool_router_keeps_form_write_chain_when_many_page_operations_exist() ->
     )
 
     assert decision.intent_allowed_tools["intent-page_form_write"] == [
-        "pageop_create_record",
-        "pageop_edit_record",
-        "pageop_fill_form",
-        "pageop_validate_form",
-        "pageop_submit_form",
+        "ui_open_surface",
+        "ui_get_form_state",
+        "ui_fill_form",
+        "ui_submit_form",
     ]
 
 
@@ -103,11 +86,9 @@ def test_tool_router_keeps_editor_tools_when_many_page_operations_exist() -> Non
     )
 
     assert decision.intent_allowed_tools["intent-page_editor_write"] == [
-        "pageop_replace_content",
-        "pageop_replace_section",
-        "pageop_append_content",
-        "pageop_insert_content",
-        "pageop_update_title",
+        "ui_open_surface",
+        "ui_fill_form",
+        "ui_submit_form",
     ]
 
 
@@ -121,8 +102,9 @@ def test_tool_router_prefers_row_detail_tools_for_detail_request() -> None:
     )
 
     assert decision.intent_preferred_tools["intent-page_row_detail"] == [
-        "pageop_read_row_detail",
-        "pageop_read_visible_rows",
+        "ui_read_region",
+        "ui_read_table",
+        "ui_get_snapshot",
     ]
 
 
@@ -136,8 +118,7 @@ def test_tool_router_prefers_pagination_tools_for_page_jump_request() -> None:
     )
 
     assert decision.intent_allowed_tools["intent-page_pagination"] == [
-        "pageop_go_to_page",
-        "pageop_prev_page",
-        "pageop_next_page",
-        "pageop_set_page_size",
+        "ui_read_table",
+        "ui_click",
+        "ui_list_interactables",
     ]

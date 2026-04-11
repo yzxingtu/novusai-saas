@@ -13,9 +13,16 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from app.ai.capabilities import CapabilityDescriptionBuilder
+from app.ai.context.compaction_snapshot_store import ContextCompactionSnapshotStore
+from app.ai.context.contributors import MemoryContributor, RAGContributor
 from app.ai.context.long_term_memory import get_long_term_memory_provider
+from app.ai.context.orchestrator import ContextPipelineOrchestrator
 from app.ai.context.pruning import TransientPruner
-from app.ai.page_locale import page_language_name, resolve_page_locale
+from app.ai.page_locale import (
+    page_language_name,
+    resolve_page_locale,
+    resolve_visible_reply_locale,
+)
 from app.ai.prompt_contracts import render_prompt_contract
 from app.ai.runtime.capabilities import CapabilityContext, CapabilityRegistry
 from app.ai.runtime.context_assembler import (
@@ -127,10 +134,35 @@ class ConversationContextEngine(ContextEngine):
     在保持当前行为的同时，收口 system prompt 组装、RAG 注入和 prompt 临时裁剪。
     """
 
+    @staticmethod
+    def _should_run_memory_vector_recall(user_text: str) -> bool:
+        normalized = str(user_text or "").strip()
+        if not normalized:
+            return False
+        collapsed = "".join(normalized.lower().split())
+        if collapsed in {
+            "嗯",
+            "嗯嗯",
+            "好",
+            "好的",
+            "收到",
+            "谢谢",
+            "thanks",
+            "thankyou",
+            "ok",
+            "okay",
+        }:
+            return False
+        if len(collapsed) < 4 and BaseEngine._looks_like_generic_follow_up(normalized):
+            return False
+        return True
+
     def __init__(self, db: AsyncSession, base_engine: BaseEngine) -> None:
         self.db = db
         self.base_engine = base_engine
         self.pruner = TransientPruner()
+        self.rag_contributor = RAGContributor()
+        self.memory_contributor = MemoryContributor()
         self.context_assembler = get_context_assembler()
         self.context_assembler_adapter = LegacyContextAssemblerAdapter()
         # True after assemble() persisted a compaction snapshot; compact() skips duplicate persist.
@@ -144,44 +176,10 @@ class ConversationContextEngine(ContextEngine):
         intent_plan: list[Any],
         request: ExecutionRequest | None = None,
     ) -> dict[str, bool]:
-        normalized_plan = list(intent_plan or [])
-        intent_kinds = {
-            str(getattr(intent, "kind", "") or "").strip()
-            for intent in normalized_plan
-        }
-        all_shortcircuit = bool(normalized_plan) and all(
-            bool(getattr(intent, "shortcircuit", False))
-            for intent in normalized_plan
-        )
-        has_page_intent = any(kind.startswith("page_") for kind in intent_kinds)
-        has_knowledge_intent = "knowledge_query" in intent_kinds
-        has_web_research_intent = (
-            "web_research" in intent_kinds
-            or any(
-                str(getattr(intent, "family", "") or "").strip() == "web_research"
-                for intent in normalized_plan
-            )
-        )
-        allow_memory_even_if_shortcircuit = bool(
-            request is not None
-            and getattr(request, "user_id", None)
-            and (
-                bool(getattr(request, "long_term_memory_enabled", False))
-                or bool(getattr(request, "memory_enabled", False))
-            )
-        )
-        has_memory_intent = allow_memory_even_if_shortcircuit or any(
-            not bool(getattr(intent, "shortcircuit", False))
-            for intent in normalized_plan
-        )
-        return {
-            "all_shortcircuit": all_shortcircuit,
-            "has_page_intent": has_page_intent,
-            "has_knowledge_intent": has_knowledge_intent,
-            "has_web_research_intent": has_web_research_intent,
-            "has_memory_intent": has_memory_intent,
-            "allow_memory_even_if_shortcircuit": allow_memory_even_if_shortcircuit,
-        }
+        return ContextPipelineOrchestrator.compute_intent_flags(
+            intent_plan,
+            request,
+        ).to_dict()
 
     def _build_provisional_capability_bundle(
         self,
@@ -236,7 +234,7 @@ class ConversationContextEngine(ContextEngine):
         if request.messages:
             messages.extend(request.messages)
 
-        from app.ai.rag_injector import inject_rag_context, load_agent_kb_bindings
+        from app.ai.rag_injector import load_agent_kb_bindings
 
         rag_sources = None
         rag_source_kinds: list[str] = []
@@ -311,24 +309,25 @@ class ConversationContextEngine(ContextEngine):
             ),
         }
 
-        effective_rag_config = agent.rag_config or {}
-        if (
-            not intent_flags["all_shortcircuit"]
-            and intent_flags["has_knowledge_intent"]
-            and merged_kb_ids
-        ):
-            messages, rag_sources = await inject_rag_context(
-                self.db,
-                agent,
-                messages,
-                request.tenant_id,
-                kb_ids=merged_kb_ids,
-                rag_config=effective_rag_config or None,
-                kb_weights=agent_kb_weights,
-            )
-            capability_injection_decision["kb_injected"] = True
-            if rag_sources:
-                rag_source_kinds.append("formal_kb")
+        rag_contribution = await self.rag_contributor.contribute(
+            db=self.db,
+            agent=agent,
+            tenant_id=request.tenant_id,
+            messages=messages,
+            kb_ids=list(merged_kb_ids or []),
+            rag_config=agent.rag_config or {},
+            kb_weights=agent_kb_weights,
+            enabled=(
+                not intent_flags["all_shortcircuit"]
+                and intent_flags["has_knowledge_intent"]
+            ),
+        )
+        messages = list(rag_contribution.messages or messages)
+        rag_sources = rag_contribution.rag_sources
+        rag_source_kinds = list(rag_contribution.rag_source_kinds or [])
+        capability_injection_decision["kb_injected"] = bool(
+            rag_contribution.kb_injected
+        )
 
         context_config = getattr(agent, "context_config", None) or {}
         long_term_memory_enabled = bool(request.long_term_memory_enabled)
@@ -375,20 +374,21 @@ class ConversationContextEngine(ContextEngine):
                 total_token_limit=context_budget["system_additions_tokens"],
                 budget_usage=budget_usage,
             )
-        page_locale_hint = (
+        visible_output_locale_hint = (
             self._build_page_locale_hint(request)
             if intent_flags["has_page_intent"]
-            else ""
+            else self._build_visible_output_locale_hint(request)
         )
-        if page_locale_hint:
+        if visible_output_locale_hint:
             self._append_budgeted_addition(
                 additions=system_prompt_additions,
-                text=page_locale_hint,
-                category="page_locale_thinking",
+                text=visible_output_locale_hint,
+                category="visible_output_locale",
                 per_item_token_limit=context_budget["page_locale_tokens"],
                 total_token_limit=context_budget["system_additions_tokens"],
                 budget_usage=budget_usage,
             )
+        if visible_output_locale_hint and intent_flags["has_page_intent"]:
             capability_injection_decision["page_injected"] = True
 
         try:
@@ -479,65 +479,34 @@ class ConversationContextEngine(ContextEngine):
                 str(exc),
             )
 
-        if intent_flags["has_memory_intent"] and long_term_memory_enabled and request.user_id:
-            current_user_text = self.base_engine._extract_last_user_text(messages)
-            if current_user_text:
-                provider = get_long_term_memory_provider(
-                    db=self.db,
-                    tenant_id=request.tenant_id,
-                )
-                profile_snapshot = await provider.profile(
-                    agent_id=agent.id,
-                    user_id=request.user_id,
-                    limit=10,
-                )
-                if profile_snapshot:
-                    profile_block = self._build_profile_snapshot_block(profile_snapshot)
-                    if profile_block:
-                        self._append_budgeted_addition(
-                            additions=system_prompt_additions,
-                            text=profile_block,
-                            category="memory_profile_snapshot",
-                            per_item_token_limit=context_budget["memory_block_tokens"],
-                            total_token_limit=context_budget["system_additions_tokens"],
-                            budget_usage=budget_usage,
-                        )
-                        memory_recalled = True
-                        capability_injection_decision["memory_injected"] = True
-                        memory_recall_slice = {
-                            "count": 0,
-                            "profile_snapshot": True,
-                            "scope_type": "user_agent",
-                        }
-                recalled_records = await provider.recall(
-                    agent_id=agent.id,
-                    user_id=request.user_id,
-                    query_text=current_user_text,
-                    limit=5,
-                )
-                if recalled_records:
-                    recall_block = self._build_memory_recall_block(recalled_records)
-                    if recall_block:
-                        self._append_budgeted_addition(
-                            additions=system_prompt_additions,
-                            text=recall_block,
-                            category="memory_recall",
-                            per_item_token_limit=context_budget["memory_block_tokens"],
-                            total_token_limit=context_budget["system_additions_tokens"],
-                            budget_usage=budget_usage,
-                        )
-                        memory_recalled = True
-                        capability_injection_decision["memory_injected"] = True
-                        memory_recall_slice = {
-                            "count": len(recalled_records),
-                            **(
-                                {"profile_snapshot": True}
-                                if memory_recall_slice
-                                and memory_recall_slice.get("profile_snapshot")
-                                else {}
-                            ),
-                            "scope_type": "user_agent",
-                        }
+        current_user_text = self.base_engine._extract_last_user_text(messages)
+        memory_contribution = await self.memory_contributor.contribute(
+            db=self.db,
+            enabled=bool(intent_flags["has_memory_intent"] and long_term_memory_enabled),
+            user_id=request.user_id,
+            tenant_id=request.tenant_id,
+            agent_id=agent.id,
+            current_user_text=current_user_text,
+            should_run_memory_profile=bool(intent_flags["should_run_memory_profile"]),
+            should_run_memory_vector_recall=bool(
+                intent_flags["should_run_memory_vector_recall"]
+            ),
+            should_run_vector_recall_for_text=self._should_run_memory_vector_recall,
+            provider_factory=get_long_term_memory_provider,
+            append_budgeted_addition=self._append_budgeted_addition,
+            additions=system_prompt_additions,
+            budget_usage=budget_usage,
+            context_budget=context_budget,
+            build_profile_snapshot_block=self._build_profile_snapshot_block,
+            build_memory_recall_block=self._build_memory_recall_block,
+        )
+        memory_recalled = bool(memory_contribution.memory_recalled)
+        if memory_contribution.memory_recall_slice:
+            memory_recall_slice = dict(memory_contribution.memory_recall_slice)
+        capability_injection_decision["memory_injected"] = bool(
+            capability_injection_decision["memory_injected"]
+            or memory_contribution.memory_injected
+        )
 
         split_index = self._compaction_split_index(
             messages,
@@ -633,6 +602,9 @@ class ConversationContextEngine(ContextEngine):
             rag_sources=list(rag_sources or []),
             rag_source_kinds=list(rag_source_kinds or []),
             memory_recalled=memory_recalled,
+            session_memory_injected=bool(
+                getattr(request, "session_memory_injected", False)
+            ),
             memory_recall_slice=memory_recall_slice,
             runtime_model_capabilities=runtime_model_capabilities,
         )
@@ -844,10 +816,8 @@ class ConversationContextEngine(ContextEngine):
     ) -> dict[str, Any] | None:
         if not request.conversation_id:
             return None
-        from app.services.ai.conversation_service import ConversationService
-
-        service = ConversationService(self.db, request.tenant_id)
-        return await service.get_context_compaction_snapshot(request.conversation_id)
+        store = ContextCompactionSnapshotStore(self.db, request.tenant_id)
+        return await store.get_snapshot(request.conversation_id)
 
     async def _persist_compaction_snapshot(
         self,
@@ -859,21 +829,17 @@ class ConversationContextEngine(ContextEngine):
     ) -> None:
         if not request.conversation_id:
             return
-        from app.services.ai.conversation_service import ConversationService
-
-        service = ConversationService(self.db, request.tenant_id)
+        store = ContextCompactionSnapshotStore(self.db, request.tenant_id)
         # Dedupe when assemble() and compact() both persist in the same turn: message lists
         # differ (system included vs request.messages only), so counts/tokens may not match even
         # when the generated summary text is identical — compare summary only.
-        existing = await service.get_context_compaction_snapshot(
-            request.conversation_id
-        )
+        existing = await store.get_snapshot(request.conversation_id)
         if existing and isinstance(existing, dict):
             prev_summary = (existing.get("summary") or "").strip()
             new_summary = (summary or "").strip()
             if prev_summary and prev_summary == new_summary:
                 return
-        await service.upsert_context_compaction_snapshot(
+        await store.upsert_snapshot(
             request.conversation_id,
             summary=summary,
             source_message_count=source_message_count,
@@ -1068,6 +1034,18 @@ class ConversationContextEngine(ContextEngine):
             "page_locale_thinking",
             page_locale=page_locale,
             page_language=page_language_name(page_locale),
+        )
+
+    @staticmethod
+    def _build_visible_output_locale_hint(request: ExecutionRequest) -> str:
+        reply_locale = resolve_visible_reply_locale(
+            getattr(request, "messages", None),
+            getattr(request, "input_variables", None),
+        )
+        return render_prompt_contract(
+            "visible_output_locale",
+            reply_locale=reply_locale,
+            reply_language=page_language_name(reply_locale),
         )
 
     @staticmethod

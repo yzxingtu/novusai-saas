@@ -108,7 +108,7 @@ class TestCallTraceDiagnostics:
                     "conversation_outcome": "failed",
                     "assistant_claimed_tool_call_without_tool_event": True,
                     "turn_record": {
-                        "candidate_tool_names": ["get_page_context"],
+                        "candidate_tool_names": ["ui_get_snapshot"],
                         "metadata": {
                             "turn_diagnostics": {
                                 "contract_breach_type": (
@@ -128,7 +128,7 @@ class TestCallTraceDiagnostics:
         assert diagnostics["active_intent_id"] == "intent-1"
         assert diagnostics["continuation_source"] == "page_ops"
         assert diagnostics["conversation_outcome"] == "failed"
-        assert diagnostics["candidate_tool_names"] == ["get_page_context"]
+        assert diagnostics["candidate_tool_names"] == ["ui_get_snapshot"]
         assert diagnostics["contract_breach_type"] == (
             "assistant_claimed_tool_call_without_tool_event"
         )
@@ -457,8 +457,9 @@ class TestConversationQueries:
             }
         )
 
-        with patch(
-            "app.services.ai.monitoring_service.ConversationService",
+        with patch.object(
+            MonitoringService,
+            "ConversationService",
             return_value=conversation_service,
         ):
             items, total = await service.list_conversations(
@@ -512,8 +513,9 @@ class TestConversationQueries:
         service._load_conversation_actor_snapshot_map = AsyncMock(return_value={})
         service._load_actor_map = AsyncMock(return_value={})
 
-        with patch(
-            "app.services.ai.monitoring_service.AdminAgentConversationRepository",
+        with patch.object(
+            MonitoringService,
+            "AdminAgentConversationRepository",
             return_value=repo,
         ):
             items, total = await service.list_conversations(
@@ -671,8 +673,9 @@ class TestConversationQueries:
             )
         )
 
-        with patch(
-            "app.services.ai.monitoring_service.ConversationService",
+        with patch.object(
+            MonitoringService,
+            "ConversationService",
             return_value=conversation_service,
         ):
             detail = await service.get_conversation_detail(
@@ -736,8 +739,9 @@ class TestConversationQueries:
         service.db = mock_db
 
         with (
-            patch(
-                "app.services.ai.monitoring_service.ConversationService",
+            patch.object(
+                MonitoringService,
+                "ConversationService",
                 return_value=conversation_service,
             ),
             pytest.raises(NotFoundException, match="conversation not found"),
@@ -746,3 +750,94 @@ class TestConversationQueries:
                 MonitoringService.tenant_scope(11),
                 conversation_id=5,
             )
+
+
+class TestMonitoringFacadeDelegation:
+    @pytest.mark.asyncio
+    async def test_get_usage_dashboard_delegates_to_usage_query_service(self, mock_db):
+        from app.services.ai.monitoring_service import MonitoringService
+
+        service = MonitoringService.__new__(MonitoringService)
+        service.db = mock_db
+        expected = object()
+
+        with patch(
+            "app.services.ai.monitoring_service.MonitoringUsageQueryService"
+        ) as query_service_cls:
+            query_service = query_service_cls.return_value
+            query_service.get_usage_dashboard = AsyncMock(return_value=expected)
+
+            result = await service.get_usage_dashboard(
+                MonitoringService.admin_scope(),
+                start_date=None,
+                end_date=None,
+            )
+
+        assert result is expected
+        query_service_cls.assert_called_once_with(service)
+        query_service.get_usage_dashboard.assert_awaited_once_with(
+            MonitoringService.admin_scope(),
+            start_date=None,
+            end_date=None,
+        )
+
+    @pytest.mark.asyncio
+    async def test_list_conversations_delegates_to_conversation_query_service(
+        self, mock_db
+    ):
+        from app.services.ai.monitoring_service import MonitoringService
+
+        service = MonitoringService.__new__(MonitoringService)
+        service.db = mock_db
+        expected = ([], 0)
+        spec = QuerySpec()
+
+        with patch(
+            "app.services.ai.monitoring_service.MonitoringConversationQueryService"
+        ) as query_service_cls:
+            query_service = query_service_cls.return_value
+            query_service.list_conversations = AsyncMock(return_value=expected)
+
+            result = await service.list_conversations(
+                MonitoringService.tenant_scope(11),
+                spec,
+            )
+
+        assert result == expected
+        query_service_cls.assert_called_once_with(service)
+        query_service.list_conversations.assert_awaited_once_with(
+            MonitoringService.tenant_scope(11),
+            spec,
+        )
+
+    @pytest.mark.asyncio
+    async def test_get_conversation_detail_delegates_to_conversation_query_service(
+        self, mock_db
+    ):
+        from app.services.ai.monitoring_service import MonitoringService
+
+        service = MonitoringService.__new__(MonitoringService)
+        service.db = mock_db
+        expected = object()
+
+        with patch(
+            "app.services.ai.monitoring_service.MonitoringConversationQueryService"
+        ) as query_service_cls:
+            query_service = query_service_cls.return_value
+            query_service.get_conversation_detail = AsyncMock(return_value=expected)
+
+            result = await service.get_conversation_detail(
+                MonitoringService.admin_scope(),
+                conversation_id=42,
+                message_skip=3,
+                message_limit=20,
+            )
+
+        assert result is expected
+        query_service_cls.assert_called_once_with(service)
+        query_service.get_conversation_detail.assert_awaited_once_with(
+            MonitoringService.admin_scope(),
+            42,
+            message_skip=3,
+            message_limit=20,
+        )

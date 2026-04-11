@@ -12,10 +12,16 @@ import time
 from typing import TYPE_CHECKING, Any, Literal
 
 from app.ai.tools.executors.base import BaseToolExecutor
+from app.ai.tools.executors.page_runtime_support import (
+    normalize_public_message as _normalize_public_message,
+)
+from app.ai.tools.executors.page_runtime_support import (
+    resolve_page_session_id as _resolve_page_session_id,
+)
+from app.ai.tools.executors.page_runtime_support import text as _text
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.core.i18n import _
 from app.core.logging import LogManager
-from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
 
 if TYPE_CHECKING:
     from app.ai.tools.types import ExecutionContext
@@ -27,28 +33,8 @@ _COMPACT_MAX_BYTES = 10 * 1024
 _FULL_MAX_BYTES = 50 * 1024
 _MAX_NODES_COMPACT = 160
 _MAX_NODES_FULL = 320
-
-
-def _text(value: Any, *, max_length: int) -> str | None:
-    if not isinstance(value, str):
-        return None
-    normalized = " ".join(value.split()).strip()
-    if not normalized:
-        return None
-    if len(normalized) <= max_length:
-        return normalized
-    return f"{normalized[:max_length]}..."
-
-
 def _byte_size(payload: Any) -> int:
     return len(json.dumps(payload, ensure_ascii=False, default=str).encode("utf-8"))
-
-
-def _normalize_public_message(value: Any) -> str | None:
-    if not isinstance(value, str):
-        return None
-    normalized = " ".join(value.split()).strip()
-    return normalized or None
 
 
 def _normalize_surface_stack(raw_stack: Any) -> list[dict[str, Any]]:
@@ -268,20 +254,6 @@ async def _request_ui_snapshot(
         timeout=timeout,
     )
     return result if isinstance(result, dict) else None
-
-
-def _resolve_page_session_id(context: ExecutionContext | None) -> str | None:
-    if context and context.page_session_id:
-        session_id = _text(context.page_session_id, max_length=64)
-        if session_id:
-            return session_id
-    if context and isinstance(context.variables, dict):
-        page_context = context.variables.get(PAGE_CONTEXT_KEY)
-        if isinstance(page_context, dict):
-            session_id = _text(page_context.get("page_session_id"), max_length=64)
-            if session_id:
-                return session_id
-    return None
 
 
 def _resolve_mode(arguments: dict[str, Any]) -> SNAPSHOT_MODE:

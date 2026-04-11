@@ -7,10 +7,11 @@ joining/leaving client sid to/from page_session:{id} rooms.
 处理前端 page_session_join / page_session_leave 事件，
 将客户端 sid 加入/离开 page_session:{id} 房间。
 
-Backend dispatches page_operation_invoke events to specified page_session_id rooms
-via invoke_page_operation(), frontend executes and returns results via page_operation_result.
-后端通过 invoke_page_operation() 向指定 page_session_id 房间
-下发 page_operation_invoke 事件，前端执行后通过 page_operation_result 回传结果。
+Backend dispatches runtime events to specified page_session_id rooms via helpers
+such as invoke_ui_action() and request_ui_snapshot().
+Frontend executes and returns results via the corresponding *_result events.
+后端通过 invoke_ui_action()、request_ui_snapshot() 等辅助方法向指定
+page_session_id 房间下发运行时事件，前端执行后通过对应 *_result 回传结果。
 
 Active session tracking: (scope, user_id, page_key) -> {page_session_id -> last_seen}.
 Fallback recovery only works when there is exactly one active session for the page;
@@ -102,6 +103,31 @@ def _page_operation_error_result(
     )
     return {
         "invoke_id": invoke_id,
+        "success": False,
+        "error_type": error_type,
+        **payload,
+    }
+
+
+def _runtime_request_error_result(
+    *,
+    request_id: str,
+    error_type: str,
+    message: str,
+    code: int | str,
+    debug: Any = None,
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build generic runtime request failure result / 构建通用 runtime 请求失败结果。"""
+    payload = build_error_payload(
+        message=message,
+        code=code,
+        trace_id=trace_id_var.get() or None,
+        debug=debug,
+        extra=extra,
+    )
+    return {
+        "request_id": request_id,
         "success": False,
         "error_type": error_type,
         **payload,
@@ -242,9 +268,11 @@ class PageSessionMixin:
     Mixin：为 AsyncNamespace 子类添加 page_session 房间管理能力。
 
     Subclasses only need to mix in this Mixin to automatically handle
-    page_session_join / page_session_leave / page_operation_result events.
+    page_session_join / page_session_leave /
+    ui_action_result / ui_snapshot_result / ui_read_*_result events.
     子类只需在类定义中混入此 Mixin 即可自动处理
-    page_session_join / page_session_leave / page_operation_result 事件。
+    page_session_join / page_session_leave /
+    ui_action_result / ui_snapshot_result / ui_read_*_result 事件。
     """
 
     async def trigger_event(
@@ -257,7 +285,11 @@ class PageSessionMixin:
             return await super().trigger_event(event, *args)
 
         if event not in {
-            "page_operation_result",
+            "ui_action_result",
+            "ui_snapshot_result",
+            "ui_read_region_result",
+            "ui_read_table_result",
+            "ui_list_interactables_result",
             "page_session_join",
             "page_session_leave",
         }:
@@ -432,181 +464,399 @@ class PageSessionMixin:
         scope = self.namespace or "/tenant"
         _remove_sid_active_sessions(scope, sid)
 
-    async def on_page_operation_result(
-        self: socketio.AsyncNamespace,  # type: ignore[override] / 忽略与基类签名差异
+    async def _handle_pending_result_event(
+        self: socketio.AsyncNamespace,
         sid: str,
-        data: dict[str, Any] | None = None,
+        data: dict[str, Any] | None,
+        *,
+        event_name: str,
+        id_field: str,
+        error_code: str,
     ) -> dict[str, Any] | None:
-        """Frontend returns operation execution result / 前端回传操作执行结果"""
-        _sid = sid  # noqa: F841
-        invoke_id = ""
+        request_id = ""
         try:
             await self.bind_socket_trace(sid, data)
-            if not data or not data.get("invoke_id"):
-                return
-            invoke_id = str(data["invoke_id"])
-            future = _pending_invocations.get(invoke_id)
+            if not data or not data.get(id_field):
+                return None
+            request_id = str(data[id_field])
+            future = _pending_invocations.get(request_id)
             if future and not future.done():
                 result_payload = dict(data)
                 if not result_payload.get("trace_id"):
                     result_payload["trace_id"] = normalize_trace_id(
-                        trace_id_var.get() or invoke_id,
-                        default=invoke_id,
+                        trace_id_var.get() or request_id,
+                        default=request_id,
                     )
                 future.set_result(result_payload)
                 logger.debug(
-                    "SIO {} page_operation:result received invoke_id={} success={}",
+                    "SIO {} {} received {}={} success={}",
                     self.namespace,
-                    invoke_id,
+                    event_name,
+                    id_field,
+                    request_id,
                     data.get("success"),
                 )
             return None
         except Exception as exc:
-            future = _pending_invocations.get(invoke_id) if invoke_id else None
+            future = _pending_invocations.get(request_id) if request_id else None
             if future and not future.done():
                 with contextlib.suppress(Exception):
-                    future.set_result(
+                    error_result = (
                         _page_operation_error_result(
-                            invoke_id=invoke_id,
+                            invoke_id=request_id,
                             error_type="internal_error",
                             message=_("common.server_error"),
-                            code="PAGE_OPERATION_RESULT_ERROR",
+                            code=error_code,
                             debug=build_exception_debug(exc),
-                            extra={"event": "page_operation_result"},
+                            extra={"event": event_name},
+                        )
+                        if id_field == "invoke_id"
+                        else _runtime_request_error_result(
+                            request_id=request_id,
+                            error_type="internal_error",
+                            message=_("common.server_error"),
+                            code=error_code,
+                            debug=build_exception_debug(exc),
+                            extra={"event": event_name},
                         )
                     )
+                    future.set_result(error_result)
             return _handle_socket_event_failure(
                 namespace=self.namespace,
-                event="page_operation_result",
+                event=event_name,
                 sid=sid,
                 exc=exc,
             )
         finally:
             trace_id_var.set("")
 
+    async def on_ui_action_result(
+        self: socketio.AsyncNamespace,
+        sid: str,
+        data: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        return await self._handle_pending_result_event(
+            sid,
+            data,
+            event_name="ui_action_result",
+            id_field="invoke_id",
+            error_code="UI_ACTION_RESULT_ERROR",
+        )
 
-async def invoke_page_operation(
+    async def on_ui_snapshot_result(
+        self: socketio.AsyncNamespace,
+        sid: str,
+        data: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        return await self._handle_pending_result_event(
+            sid,
+            data,
+            event_name="ui_snapshot_result",
+            id_field="request_id",
+            error_code="UI_SNAPSHOT_RESULT_ERROR",
+        )
+
+    async def on_ui_read_region_result(
+        self: socketio.AsyncNamespace,
+        sid: str,
+        data: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        return await self._handle_pending_result_event(
+            sid,
+            data,
+            event_name="ui_read_region_result",
+            id_field="request_id",
+            error_code="UI_READ_REGION_RESULT_ERROR",
+        )
+
+    async def on_ui_read_table_result(
+        self: socketio.AsyncNamespace,
+        sid: str,
+        data: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        return await self._handle_pending_result_event(
+            sid,
+            data,
+            event_name="ui_read_table_result",
+            id_field="request_id",
+            error_code="UI_READ_TABLE_RESULT_ERROR",
+        )
+
+    async def on_ui_list_interactables_result(
+        self: socketio.AsyncNamespace,
+        sid: str,
+        data: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        return await self._handle_pending_result_event(
+            sid,
+            data,
+            event_name="ui_list_interactables_result",
+            id_field="request_id",
+            error_code="UI_LIST_INTERACTABLES_RESULT_ERROR",
+        )
+
+
+async def _dispatch_page_session_request(
+    *,
+    event_name: str,
+    payload: dict[str, Any],
     page_session_id: str,
-    page_key: str,
-    operation_name: str,
-    params: dict[str, Any] | None = None,
-    requires_confirmation: bool = False,
-    auto_approved: bool = False,
-    tool_call_id: str | None = None,
-    timeout: float = PAGE_OPERATION_TIMEOUT,
+    request_id: str,
+    timeout: float,
     namespace: str | None = None,
 ) -> dict[str, Any]:
-    """
-    Dispatch page operation to specified page_session_id and await result.
-    向指定 page_session_id 下发页面操作并等待结果。
-
-    Sends page_operation:invoke event to page_session:{id} room via Socket.IO,
-    waits for frontend to return execution result via page_operation:result.
-    通过 Socket.IO 向 page_session:{id} 房间发送 page_operation:invoke 事件，
-    等待前端通过 page_operation:result 回传执行结果。
-
-    Args:
-        page_session_id: Frontend page session ID / 前端页面会话 ID
-        page_key: Page identifier (pageContextKey) / 页面标识（pageContextKey）
-        operation_name: Operation name / 操作名称
-        params: Operation params / 操作参数
-        requires_confirmation: Whether user confirmation is needed / 是否需要用户确认
-        auto_approved: Whether backend trust policy already approved the operation / 是否已由后端信任策略自动批准
-        tool_call_id: Tool call ID for frontend to associate confirmation card with message / 工具调用 ID，供前端将确认卡片关联到对应消息
-        timeout: Timeout (seconds), default 60s / 超时时间（秒），默认 60s
-        namespace: Socket.IO namespace, None broadcasts to all namespaces / Socket.IO namespace，None 时向所有 namespace 广播
-
-    Returns:
-        Operation result dict (with invoke_id, success, message, data, error_type) /
-        操作结果 dict（含 invoke_id, success, message, data, error_type）
-
-    Raises:
-        asyncio.TimeoutError: Operation timed out (frontend didn't return result in time) /
-            操作超时（前端未在限定时间内回传结果）
-    """
     from app.core.socketio_server import get_sio
 
     sio = get_sio()
-    invoke_id = str(uuid.uuid4())
     room = f"page_session:{page_session_id}"
-
-    # Create Future to await callback / 创建 Future 等待回传
     loop = asyncio.get_running_loop()
     future: asyncio.Future[dict[str, Any]] = loop.create_future()
-    _pending_invocations[invoke_id] = future
+    _pending_invocations[request_id] = future
 
-    # Construct invoke event data / 构造 invoke 事件数据
-    invoke_data: dict[str, Any] = {
+    try:
+        namespaces = [namespace] if namespace else ["/admin", "/tenant", "/user"]
+        for ns in namespaces:
+            await sio.emit(
+                event_name,
+                payload,
+                room=room,
+                namespace=ns,
+            )
+        logger.debug(
+            "{} sent request_id={} room={}",
+            event_name,
+            request_id,
+            room,
+        )
+        return await asyncio.wait_for(future, timeout=timeout)
+    finally:
+        _pending_invocations.pop(request_id, None)
+
+
+async def invoke_ui_action(
+    *,
+    page_session_id: str,
+    page_key: str,
+    action_type: str,
+    payload: dict[str, Any] | None = None,
+    timeout: float = PAGE_OPERATION_TIMEOUT,
+    namespace: str | None = None,
+    tool_call_id: str | None = None,
+) -> dict[str, Any]:
+    invoke_id = str(uuid.uuid4())
+    request_payload: dict[str, Any] = {
         "invoke_id": invoke_id,
         "trace_id": normalize_trace_id(
             trace_id_var.get() or invoke_id, default=invoke_id
         ),
         "page_key": page_key,
-        "operation_name": operation_name,
-        "params": params or {},
-        "requires_confirmation": requires_confirmation,
-        "auto_approved": auto_approved,
+        "action_type": action_type,
+        **(payload or {}),
     }
     if tool_call_id:
-        invoke_data["tool_call_id"] = tool_call_id
+        request_payload["tool_call_id"] = tool_call_id
 
     try:
-        # Send to specified namespace or all namespaces / 发送到指定 namespace 或所有 namespace
-        namespaces = [namespace] if namespace else ["/admin", "/tenant", "/user"]
-        for ns in namespaces:
-            await sio.emit(
-                "page_operation_invoke",
-                invoke_data,
-                room=room,
-                namespace=ns,
-            )
-
-        logger.debug(
-            "page_operation:invoke sent invoke_id={} page_key={} op={} room={}",
-            invoke_id,
-            page_key,
-            operation_name,
-            room,
+        return await _dispatch_page_session_request(
+            event_name="ui_action_invoke",
+            payload=request_payload,
+            page_session_id=page_session_id,
+            request_id=invoke_id,
+            timeout=timeout,
+            namespace=namespace,
         )
-
-        # Wait for frontend result callback / 等待前端回传结果
-        result = await asyncio.wait_for(future, timeout=timeout)
-        return result
-
     except asyncio.TimeoutError:
-        logger.warning(
-            "page_operation:invoke timed out invoke_id={} page_key={} op={} timeout={}s",
-            invoke_id,
-            page_key,
-            operation_name,
-            timeout,
-        )
         return _page_operation_error_result(
             invoke_id=invoke_id,
             error_type="timeout",
-            message=_(
-                "page_operation.error.timeout", op=operation_name, timeout=int(timeout)
-            ),
-            code="PAGE_OPERATION_TIMEOUT",
+            message=_("page_operation.error.timeout", op=action_type, timeout=int(timeout)),
+            code="UI_ACTION_TIMEOUT",
         )
-
-    except Exception as e:
-        logger.error(
-            "page_operation:invoke failed invoke_id={} error={}",
-            invoke_id,
-            e,
-        )
+    except Exception as exc:
         return _page_operation_error_result(
             invoke_id=invoke_id,
             error_type="internal_error",
             message=_(
                 "page_operation.error.internal_failed",
-                op=operation_name,
+                op=action_type,
                 error=_("common.server_error"),
             ),
-            code="PAGE_OPERATION_INTERNAL_ERROR",
-            debug=build_exception_debug(e),
+            code="UI_ACTION_INTERNAL_ERROR",
+            debug=build_exception_debug(exc),
         )
 
-    finally:
-        _pending_invocations.pop(invoke_id, None)
+
+async def request_ui_snapshot(
+    *,
+    page_session_id: str,
+    mode: str = "compact",
+    surface_id: str | None = None,
+    timeout: float = PAGE_OPERATION_TIMEOUT,
+    namespace: str | None = None,
+) -> dict[str, Any]:
+    request_id = str(uuid.uuid4())
+    payload: dict[str, Any] = {
+        "request_id": request_id,
+        "trace_id": normalize_trace_id(
+            trace_id_var.get() or request_id, default=request_id
+        ),
+        "mode": mode,
+    }
+    if surface_id:
+        payload["surface_id"] = surface_id
+
+    try:
+        return await _dispatch_page_session_request(
+            event_name="ui_snapshot_request",
+            payload=payload,
+            page_session_id=page_session_id,
+            request_id=request_id,
+            timeout=timeout,
+            namespace=namespace,
+        )
+    except asyncio.TimeoutError:
+        return _runtime_request_error_result(
+            request_id=request_id,
+            error_type="timeout",
+            message=_("tool.ui.snapshot.request_timeout"),
+            code="UI_SNAPSHOT_TIMEOUT",
+        )
+    except Exception as exc:
+        return _runtime_request_error_result(
+            request_id=request_id,
+            error_type="internal_error",
+            message=_("tool.ui.snapshot.request_failed"),
+            code="UI_SNAPSHOT_INTERNAL_ERROR",
+            debug=build_exception_debug(exc),
+        )
+
+
+async def request_ui_read_region(
+    *,
+    page_session_id: str,
+    region_locator: str,
+    timeout: float = PAGE_OPERATION_TIMEOUT,
+    namespace: str | None = None,
+) -> dict[str, Any]:
+    request_id = str(uuid.uuid4())
+    payload = {
+        "request_id": request_id,
+        "trace_id": normalize_trace_id(
+            trace_id_var.get() or request_id, default=request_id
+        ),
+        "region_locator": region_locator,
+    }
+    try:
+        return await _dispatch_page_session_request(
+            event_name="ui_read_region_request",
+            payload=payload,
+            page_session_id=page_session_id,
+            request_id=request_id,
+            timeout=timeout,
+            namespace=namespace,
+        )
+    except asyncio.TimeoutError:
+        return _runtime_request_error_result(
+            request_id=request_id,
+            error_type="timeout",
+            message=_("tool.ui.read.region_timeout"),
+            code="UI_READ_REGION_TIMEOUT",
+        )
+    except Exception as exc:
+        return _runtime_request_error_result(
+            request_id=request_id,
+            error_type="internal_error",
+            message=_("tool.ui.read.region_request_failed"),
+            code="UI_READ_REGION_INTERNAL_ERROR",
+            debug=build_exception_debug(exc),
+        )
+
+
+async def request_ui_read_table(
+    *,
+    page_session_id: str,
+    table_locator: str,
+    page: int = 1,
+    page_size: int = 20,
+    filters: dict[str, Any] | None = None,
+    timeout: float = PAGE_OPERATION_TIMEOUT,
+    namespace: str | None = None,
+) -> dict[str, Any]:
+    request_id = str(uuid.uuid4())
+    payload: dict[str, Any] = {
+        "request_id": request_id,
+        "trace_id": normalize_trace_id(
+            trace_id_var.get() or request_id, default=request_id
+        ),
+        "table_locator": table_locator,
+        "page": page,
+        "page_size": page_size,
+    }
+    if filters:
+        payload["filters"] = filters
+    try:
+        return await _dispatch_page_session_request(
+            event_name="ui_read_table_request",
+            payload=payload,
+            page_session_id=page_session_id,
+            request_id=request_id,
+            timeout=timeout,
+            namespace=namespace,
+        )
+    except asyncio.TimeoutError:
+        return _runtime_request_error_result(
+            request_id=request_id,
+            error_type="timeout",
+            message=_("tool.ui.read.table_timeout"),
+            code="UI_READ_TABLE_TIMEOUT",
+        )
+    except Exception as exc:
+        return _runtime_request_error_result(
+            request_id=request_id,
+            error_type="internal_error",
+            message=_("tool.ui.read.table_request_failed"),
+            code="UI_READ_TABLE_INTERNAL_ERROR",
+            debug=build_exception_debug(exc),
+        )
+
+
+async def request_ui_list_interactables(
+    *,
+    page_session_id: str,
+    surface_id: str | None = None,
+    timeout: float = PAGE_OPERATION_TIMEOUT,
+    namespace: str | None = None,
+) -> dict[str, Any]:
+    request_id = str(uuid.uuid4())
+    payload: dict[str, Any] = {
+        "request_id": request_id,
+        "trace_id": normalize_trace_id(
+            trace_id_var.get() or request_id, default=request_id
+        ),
+    }
+    if surface_id:
+        payload["surface_id"] = surface_id
+    try:
+        return await _dispatch_page_session_request(
+            event_name="ui_list_interactables_request",
+            payload=payload,
+            page_session_id=page_session_id,
+            request_id=request_id,
+            timeout=timeout,
+            namespace=namespace,
+        )
+    except asyncio.TimeoutError:
+        return _runtime_request_error_result(
+            request_id=request_id,
+            error_type="timeout",
+            message=_("tool.ui.read.interactables_timeout"),
+            code="UI_LIST_INTERACTABLES_TIMEOUT",
+        )
+    except Exception as exc:
+        return _runtime_request_error_result(
+            request_id=request_id,
+            error_type="internal_error",
+            message=_("tool.ui.read.interactables_request_failed"),
+            code="UI_LIST_INTERACTABLES_INTERNAL_ERROR",
+            debug=build_exception_debug(exc),
+        )

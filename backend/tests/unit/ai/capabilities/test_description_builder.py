@@ -6,7 +6,6 @@ Unit tests for CapabilityDescriptionBuilder
 import pytest
 
 from app.ai.capabilities.description_builder import (
-    CapabilityDescription,
     CapabilityDescriptionBuilder,
 )
 
@@ -286,17 +285,18 @@ class TestCapabilityDescriptionBuilder:
         result = builder.build_page_context_description(None)
         assert result is None
 
-    def test_build_page_context_description_with_operations(self):
-        """Test page context with operations"""
+    def test_build_page_context_description_with_thin_runtime_hints(self):
+        """Test page context with thin runtime hints"""
         page_context = {
             "page_key": "user_management",
             "page_title": "用户管理页面",
-            "page_data": {
-                "available_operations": [
-                    {"name": "create_user", "readonly": False},
-                    {"name": "update_user", "readonly": False},
-                    {"name": "delete_user", "readonly": False},
-                ],
+            "active_surface_id": "drawer-user-edit",
+            "active_form_summary": {
+                "mode": "edit",
+                "stage": "ready_to_submit",
+            },
+            "suggested_tools": {
+                "primary": ["ui_get_snapshot", "ui_read_region", "ui_set_field"],
             },
         }
 
@@ -306,21 +306,20 @@ class TestCapabilityDescriptionBuilder:
         assert result is not None
         assert result.category == "page_context"
         assert result.title == "Current Page Context"
-        assert len(result.items) == 2
+        assert len(result.items) == 4
         assert "用户管理页面" in result.items[0]
-        assert "create_user" in result.items[1]
-        assert "update_user" in result.items[1]
+        assert "Active surface: drawer-user-edit" in result.items[1]
+        assert "Active form: mode=edit, stage=ready_to_submit" in result.items[2]
+        assert (
+            "Suggested tools: ui_get_snapshot, ui_read_region, ui_set_field"
+            in result.items[3]
+        )
 
     def test_build_page_context_description_falls_back_to_page_key(self):
         """Test page key fallback when title is missing"""
         page_context = {
             "page_key": "admin.logs",
-            "page_data": {
-                "available_operations": [
-                    {"name": ""},
-                    {"readonly": True},
-                ],
-            },
+            "suggested_tools": {"primary": ["", "   "]},
         }
 
         builder = CapabilityDescriptionBuilder()

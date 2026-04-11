@@ -307,6 +307,7 @@ class ExecutionStateMachine:
         self,
         *,
         messages: list[ChatMessage],
+        turn_messages: list[ChatMessage] | None = None,
         tool_results: list[ToolResult],
     ) -> None:
         if tool_results:
@@ -330,6 +331,7 @@ class ExecutionStateMachine:
         self.intent_plan = RecoveryManager.update_intent_statuses(
             self.intent_plan,
             messages=messages,
+            turn_messages=turn_messages,
             tool_results=tool_results,
         )
         self._emit_budget_checked()

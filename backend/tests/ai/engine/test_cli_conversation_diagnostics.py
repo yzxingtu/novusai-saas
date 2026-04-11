@@ -36,7 +36,7 @@ def test_extract_turn_diagnostics_from_call_log_metadata_reads_extended_fields()
                 "order": 3,
                 "user_visible_label": "page_read",
                 "status": "pending",
-                "allowed_tool_names": ["get_page_context"],
+                "allowed_tool_names": ["ui_get_snapshot"],
             },
         ],
         "budget": {
@@ -50,7 +50,7 @@ def test_extract_turn_diagnostics_from_call_log_metadata_reads_extended_fields()
                 "get_current_weather",
                 "web_search",
                 "fetch_url",
-                "get_page_context",
+                "ui_get_snapshot",
             ]
         },
         "recovery": {
@@ -59,7 +59,7 @@ def test_extract_turn_diagnostics_from_call_log_metadata_reads_extended_fields()
                     "action": "retry_intent",
                     "target_intent_id": "intent-3",
                     "retry_family": "page_ops",
-                    "allowed_tool_names": ["get_page_context"],
+                    "allowed_tool_names": ["ui_get_snapshot"],
                     "completed_intent_ids": ["intent-1", "intent-2"],
                     "unfinished_intent_ids": ["intent-3"],
                     "reason": "unfinished_intent_retry",
@@ -89,7 +89,7 @@ def test_extract_turn_diagnostics_from_call_log_metadata_reads_extended_fields()
                     "context_sources": [
                         {"kind": "page_context", "name": "admin.ai.dashboard"}
                     ],
-                    "last_tool_name": "get_page_context",
+                    "last_tool_name": "ui_get_snapshot",
                     "last_page_key": "admin.ai.dashboard",
                     "last_page_op": "read",
                     "interrupted_stage": "tool_loop",
@@ -115,7 +115,7 @@ def test_extract_turn_diagnostics_from_call_log_metadata_reads_extended_fields()
         "get_current_weather",
         "web_search",
         "fetch_url",
-        "get_page_context",
+        "ui_get_snapshot",
     ]
     assert diagnostics["retry_events"][0]["retry_family"] == "page_ops"
     assert diagnostics["partial_exit_reason"] == "retry_budget_exhausted"
@@ -127,7 +127,7 @@ def test_extract_turn_diagnostics_from_call_log_metadata_reads_extended_fields()
     assert diagnostics["tool_leak_detected"] is True
     assert diagnostics["unfinished_intents"] == ["intent-3"]
     assert diagnostics["recovered_via_retry"] is False
-    assert diagnostics["last_tool_name"] == "get_page_context"
+    assert diagnostics["last_tool_name"] == "ui_get_snapshot"
     assert diagnostics["tool_loop_progress"] == {"current_round": 2, "total_rounds": 3}
 
 
@@ -157,7 +157,7 @@ def test_cli_compact_diagnostics_builder_and_text_renderer_surface_key_orchestra
                 "get_current_weather",
                 "web_search",
                 "fetch_url",
-                "get_page_context",
+                "ui_get_snapshot",
             ],
             "tool_planner": {
                 "intent": "weather_query",
@@ -198,7 +198,7 @@ def test_cli_compact_diagnostics_builder_and_text_renderer_surface_key_orchestra
                     "order": 3,
                     "user_visible_label": "page_read",
                     "status": "pending",
-                    "allowed_tool_names": ["get_page_context"],
+                    "allowed_tool_names": ["ui_get_snapshot"],
                 },
             ],
             "unfinished_intents": ["intent-3"],
@@ -207,7 +207,7 @@ def test_cli_compact_diagnostics_builder_and_text_renderer_surface_key_orchestra
                     "action": "retry_intent",
                     "target_intent_id": "intent-3",
                     "retry_family": "page_ops",
-                    "allowed_tool_names": ["get_page_context"],
+                    "allowed_tool_names": ["ui_get_snapshot"],
                     "completed_intent_ids": ["intent-1", "intent-2"],
                     "unfinished_intent_ids": ["intent-3"],
                     "reason": "unfinished_intent_retry",
@@ -227,7 +227,7 @@ def test_cli_compact_diagnostics_builder_and_text_renderer_surface_key_orchestra
             "contract_breach_type": "unfinished_multi_intent_reply",
             "tool_leak_detected": True,
             "recovered_via_retry": False,
-            "last_tool_name": "get_page_context",
+            "last_tool_name": "ui_get_snapshot",
             "last_page_key": "admin.ai.dashboard",
             "last_page_op": "read",
             "interrupted_stage": "tool_loop",
@@ -252,7 +252,7 @@ def test_cli_compact_diagnostics_builder_and_text_renderer_surface_key_orchestra
     assert "Conversation #666 diagnostics" in text
     assert "execution_path=deep" in text
     assert "selected_tools=get_current_weather, web_search, fetch_url" in text
-    assert "candidate_tools=get_current_weather, web_search, fetch_url, get_page_context" in text
+    assert "candidate_tools=get_current_weather, web_search, fetch_url, ui_get_snapshot" in text
     assert "tool_planner=" in text
     assert "path_decision=" in text
     assert "tool_filtering=" in text

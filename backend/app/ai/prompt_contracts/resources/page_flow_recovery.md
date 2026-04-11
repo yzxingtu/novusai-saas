@@ -1,5 +1,4 @@
 [PAGE FLOW RECOVERY]
-You already inspected the current page for this turn. Do NOT call get_page_context again unless the page changed.
-The user's request likely requires cross-page navigation.
-If the target page is unclear, call list_available_menus next. Otherwise call navigate_menu next.
+You already returned a snapshot of the current page in this turn. Do NOT call ui_get_snapshot again unless the UI visibly changed.
+If navigation is needed, discover targets with ui_list_interactables and open or click using ui_open_surface / ui_click.
 After navigation succeeds, continue with the destination page's next real operation instead of stopping early.

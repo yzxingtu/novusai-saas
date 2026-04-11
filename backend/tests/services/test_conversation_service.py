@@ -29,7 +29,7 @@ class _MetadataDataclassPayload:
 
 
 class _PydanticLikePayload:
-    def model_dump(self, mode: str = "python"):
+    def model_dump(self, _mode: str = "python"):
         return {
             "score": Decimal("9.5"),
             "state": _MetadataEnum.READY,
@@ -181,6 +181,7 @@ class TestGetConversationDetail:
         conversation = _make_conversation()
         conversation.metadata_ = {
             "interaction_mode": "confirm",
+            "interaction_mode_requested": "trusted_auto",
         }
         message = _make_message(role="user", content="hello")
         message.to_dict.return_value = {
@@ -205,6 +206,7 @@ class TestGetConversationDetail:
 
         detail = await service.get_conversation_detail(1, user_id=1)
 
+        assert detail["interaction_mode_requested"] == "trusted_auto"
         assert detail["interaction_mode_effective"] == "confirm"
         assert detail["context_diagnostics"]["interaction_mode_effective"] == "confirm"
         assert detail["last_run_summary"]["interaction_mode_effective"] == "confirm"
@@ -222,7 +224,7 @@ class TestGetConversationDetail:
             "last_error": {
                 "timestamp": "2026-04-07T12:00:00+00:00",
                 "error_type": "stream_execution_error",
-                "friendly_message": "service unavailable",
+                "friendly_message": "服务器内部错误",
                 "partial": True,
             },
         }
@@ -244,7 +246,7 @@ class TestGetConversationDetail:
 
         assert detail["context_diagnostics"]["failure_kind"] == "stream_execution_error"
         assert detail["context_diagnostics"]["persistence_error"] is True
-        assert detail["last_run_summary"]["error_message"] == "service unavailable"
+        assert detail["last_run_summary"]["error_message"] == "服务器内部错误"
         assert detail["last_error"]["partial"] is True
 
     @pytest.mark.asyncio
@@ -1647,6 +1649,111 @@ class TestThinkingPersistence:
         assert payload["turn_outcome"] == "partial"
         assert payload["termination_reason"] == "interrupted"
 
+    def test_extract_turn_diagnostics_prefers_partial_metadata_over_success_turn_record(
+        self,
+    ):
+        from app.services.ai.conversation_service import ConversationService
+
+        payload = ConversationService._extract_turn_diagnostics_from_metadata(
+            {
+                "turn_record": {
+                    "turn_outcome": "success",
+                    "termination_reason": "completed",
+                    "protocol_path": "responses",
+                },
+                "partial": True,
+                "completion_reason": "error",
+            }
+        )
+
+        assert payload["turn_outcome"] == "partial"
+        assert payload["termination_reason"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_persist_chat_messages_marks_partial_error_on_tool_round_without_final_plain_assistant(
+        self, mock_db
+    ):
+        from app.services.ai.conversation_service import ConversationService
+
+        conversation = _make_conversation(id=906, message_count=0)
+        result = SimpleNamespace(
+            success=False,
+            messages=[
+                {"role": "user", "content": "现在几点了"},
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "id": "tc_time_1",
+                            "function": {
+                                "name": "get_current_time",
+                                "arguments": '{"timezone_name":"Asia/Shanghai"}',
+                            },
+                        }
+                    ],
+                    "tool_call_id": None,
+                    "attachments": None,
+                    "reasoning_content": None,
+                    "metadata": {},
+                },
+                {
+                    "role": "tool",
+                    "content": "2026-04-09 18:45:59",
+                    "tool_calls": None,
+                    "tool_call_id": "tc_time_1",
+                    "attachments": None,
+                    "reasoning_content": None,
+                },
+            ],
+            tool_results=[],
+            partial=True,
+            interrupted=False,
+            completion_reason="error",
+            runtime_model_id=None,
+            runtime_model_name=None,
+            runtime_provider_id=None,
+            runtime_provider_name=None,
+            turn_record={
+                "turn_outcome": "success",
+                "termination_reason": "completed",
+                "protocol_path": "responses",
+                "selected_tool_names": ["get_current_time"],
+            },
+            rag_sources=None,
+            rag_source_kinds=[],
+            context_compacted=False,
+            memory_flush_triggered=False,
+            memory_recalled=False,
+            prune_stats=None,
+        )
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service._message_repo = MagicMock()
+        service._message_repo.get_next_sequence = AsyncMock(return_value=1)
+        service._message_repo.create = AsyncMock()
+
+        await service.persist_chat_messages(
+            conversation=conversation,
+            result=result,
+            history_count=0,
+            agent_id=7,
+        )
+
+        assistant_payload = service._message_repo.create.await_args_list[1].args[0]
+        metadata = assistant_payload["metadata_"]
+        assert metadata["partial"] is True
+        assert metadata["completion_reason"] == "error"
+        assert metadata["turn_outcome"] == "partial"
+        assert metadata["termination_reason"] == "error"
+        assert metadata["context_diagnostics"]["turn_outcome"] == "partial"
+        assert metadata["context_diagnostics"]["termination_reason"] == "error"
+        assert metadata["last_run_summary"]["turn_outcome"] == "partial"
+        assert metadata["last_run_summary"]["termination_reason"] == "error"
+
     @pytest.mark.asyncio
     async def test_persist_chat_messages_skips_internal_only_messages(self, mock_db):
         from app.services.ai.conversation_service import ConversationService
@@ -1805,7 +1912,10 @@ class TestThinkingPersistence:
         with patch(
             "app.services.ai.conversation_service.ExecutionDecisionService.record_decision",
             new=AsyncMock(),
-        ) as record_decision:
+        ) as record_decision, patch(
+            "app.services.ai.conversation_service.write_ai_action_log",
+            new=AsyncMock(),
+        ):
             updated = await service.update_last_assistant_interaction_state(
                 conversation_id=99,
                 user_id=1,
@@ -1991,7 +2101,7 @@ def test_extract_turn_diagnostics_reads_extended_runtime_fields_from_nested_turn
                         "order": 3,
                         "user_visible_label": "page_read",
                         "status": "pending",
-                        "allowed_tool_names": ["get_page_context"],
+                        "allowed_tool_names": ["ui_get_snapshot"],
                     },
                 ],
                 "budget": {
@@ -2000,7 +2110,7 @@ def test_extract_turn_diagnostics_reads_extended_runtime_fields_from_nested_turn
                     "limits": {"max_tool_rounds": 3},
                     "usage": {"tool_rounds_used": 4},
                 },
-                "last_tool_name": "get_page_context",
+                "last_tool_name": "ui_get_snapshot",
                 "last_page_key": "admin.ai.dashboard",
                 "last_page_op": "read",
                 "interrupted_stage": "tool_loop",
@@ -2017,7 +2127,7 @@ def test_extract_turn_diagnostics_reads_extended_runtime_fields_from_nested_turn
                                 "get_current_weather",
                                 "web_search",
                                 "fetch_url",
-                                "get_page_context",
+                                "ui_get_snapshot",
                             ]
                         },
                         "recovery": {
@@ -2026,7 +2136,7 @@ def test_extract_turn_diagnostics_reads_extended_runtime_fields_from_nested_turn
                                     "action": "retry_intent",
                                     "target_intent_id": "intent-3",
                                     "retry_family": "page_ops",
-                                    "allowed_tool_names": ["get_page_context"],
+                                    "allowed_tool_names": ["ui_get_snapshot"],
                                     "completed_intent_ids": ["intent-1", "intent-2"],
                                     "unfinished_intent_ids": ["intent-3"],
                                     "reason": "unfinished_intent_retry",
@@ -2059,7 +2169,7 @@ def test_extract_turn_diagnostics_reads_extended_runtime_fields_from_nested_turn
         "get_current_weather",
         "web_search",
         "fetch_url",
-        "get_page_context",
+        "ui_get_snapshot",
     ]
     assert payload["retry_events"][0]["target_intent_id"] == "intent-3"
     assert payload["partial_exit_reason"] == "retry_budget_exhausted"
@@ -2067,7 +2177,7 @@ def test_extract_turn_diagnostics_reads_extended_runtime_fields_from_nested_turn
     assert payload["provider_events"] == [
         {"kind": "provider_http_5xx", "status_code": 503}
     ]
-    assert payload["last_tool_name"] == "get_page_context"
+    assert payload["last_tool_name"] == "ui_get_snapshot"
     assert payload["last_page_key"] == "admin.ai.dashboard"
     assert payload["interrupted_stage"] == "tool_loop"
     assert payload["tool_loop_progress"] == {"current_round": 2, "total_rounds": 3}
@@ -2124,7 +2234,7 @@ async def test_persist_chat_messages_records_extended_runtime_diagnostics_fields
                     "order": 3,
                     "user_visible_label": "page_read",
                     "status": "pending",
-                    "allowed_tool_names": ["get_page_context"],
+                    "allowed_tool_names": ["ui_get_snapshot"],
                 },
             ],
             "budget": {
@@ -2141,7 +2251,7 @@ async def test_persist_chat_messages_records_extended_runtime_diagnostics_fields
                             "get_current_weather",
                             "web_search",
                             "fetch_url",
-                            "get_page_context",
+                            "ui_get_snapshot",
                         ]
                     },
                     "recovery": {
@@ -2150,7 +2260,7 @@ async def test_persist_chat_messages_records_extended_runtime_diagnostics_fields
                                 "action": "retry_intent",
                                 "target_intent_id": "intent-3",
                                 "retry_family": "page_ops",
-                                "allowed_tool_names": ["get_page_context"],
+                                "allowed_tool_names": ["ui_get_snapshot"],
                                 "completed_intent_ids": ["intent-1", "intent-2"],
                                 "unfinished_intent_ids": ["intent-3"],
                                 "reason": "unfinished_intent_retry",
@@ -2194,7 +2304,7 @@ async def test_persist_chat_messages_records_extended_runtime_diagnostics_fields
         "get_current_weather",
         "web_search",
         "fetch_url",
-        "get_page_context",
+        "ui_get_snapshot",
     ]
     assert context_diag["retry_events"][0]["target_intent_id"] == "intent-3"
     assert context_diag["partial_exit_reason"] == "elapsed_budget_exceeded"

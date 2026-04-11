@@ -44,8 +44,8 @@ class _BaseEngineStub:
         return False
 
     @staticmethod
-    def _build_web_research_continuation_context(messages, input_variables=None):
-        _ = (messages, input_variables)
+    def _build_web_research_continuation_context(*args, **kwargs):
+        _ = (args, kwargs)
         return ResearchContinuationContext()
 
 
@@ -193,6 +193,38 @@ async def test_context_engine_tracks_skill_capabilities_without_prompt_injection
 
 
 @pytest.mark.asyncio
+async def test_context_engine_only_surfaces_session_memory_context_source_when_injected() -> None:
+    inactive_assembly = await _assemble_context(
+        request=_build_request(memory_enabled=True, session_memory_injected=False),
+        skill_result=None,
+        settings=TenantCapabilityAwarenessSettings(),
+        intent_plan=_build_intent_plan("assistant_response"),
+    )
+
+    inactive_kinds = {
+        source.kind for source in (inactive_assembly.capability_bundle or SimpleNamespace(context_sources=[])).context_sources
+    }
+    assert "session_memory" not in inactive_kinds
+
+    active_assembly = await _assemble_context(
+        request=_build_request(memory_enabled=True, session_memory_injected=True),
+        skill_result=None,
+        settings=TenantCapabilityAwarenessSettings(),
+        intent_plan=_build_intent_plan("assistant_response"),
+    )
+
+    active_sources = list(
+        (active_assembly.capability_bundle or SimpleNamespace(context_sources=[])).context_sources
+    )
+    session_sources = [
+        source for source in active_sources if source.kind == "session_memory"
+    ]
+    assert len(session_sources) == 1
+    assert session_sources[0].active is True
+    assert session_sources[0].metadata.get("injected") is True
+
+
+@pytest.mark.asyncio
 async def test_context_engine_handles_mapping_description_inputs() -> None:
     skill_result = _build_skill_result(
         CapabilityDescriptor(
@@ -303,11 +335,13 @@ async def test_context_engine_tracks_page_context_capabilities_without_prompt_in
             "page_context": {
                 "page_key": "admin.users",
                 "page_title": "用户管理",
-                "page_data": {
-                    "available_operations": [
-                        {"name": "create_user", "readonly": False},
-                        {"name": "delete_user", "readonly": False},
-                    ]
+                "active_surface_id": "drawer-user-create",
+                "active_form_summary": {
+                    "mode": "create",
+                    "stage": "ready",
+                },
+                "suggested_tools": {
+                    "primary": ["ui_get_snapshot", "ui_read_region", "ui_fill_form"],
                 },
             }
         }
@@ -360,10 +394,8 @@ async def test_context_engine_injects_locale_hint_from_page_context() -> None:
         input_variables={
             "page_context": {
                 "page_key": "tenant.dashboard",
+                "locale": "zh_CN",
                 "page_title": "仪表盘",
-                "page_data": {
-                    "locale": "zh_CN",
-                },
             }
         }
     )
@@ -378,6 +410,36 @@ async def test_context_engine_injects_locale_hint_from_page_context() -> None:
     additions = " ".join(assembly.system_prompt_additions or [])
     assert "zh_CN" in additions or "zh-CN" in additions
     assert "Chinese" in additions
+
+
+@pytest.mark.asyncio
+async def test_context_engine_injects_visible_output_locale_for_non_page_turns() -> None:
+    request = _build_request(
+        messages=[
+            ChatMessage(
+                role="user",
+                content="How is the weather in Shanghai today?",
+            )
+        ],
+        input_variables={
+            "page_context": {
+                "locale": "zh_CN",
+                "page_title": "仪表盘",
+            }
+        },
+    )
+
+    assembly = await _assemble_context(
+        request=request,
+        skill_result=None,
+        settings=TenantCapabilityAwarenessSettings(),
+        intent_plan=_build_intent_plan("assistant_response"),
+    )
+
+    additions = " ".join(assembly.system_prompt_additions or [])
+    assert "VISIBLE OUTPUT LANGUAGE" in additions
+    assert "English" in additions
+    assert "zh_CN" not in additions
 
 
 @pytest.mark.asyncio

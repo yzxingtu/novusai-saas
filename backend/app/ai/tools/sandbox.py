@@ -32,7 +32,6 @@ from app.core.logging import LogManager
 from app.core.response import build_public_error_text
 from app.enums.agent import ToolTypeEnum
 from app.enums.common import UserRoleEnum
-from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -41,81 +40,6 @@ if TYPE_CHECKING:
     from app.models.ai.agent import Agent
 
 logger = LogManager.get_logger("ai.tool.sandbox")
-
-# Heuristic: param key signatures -> operation_name (parallel calls may omit it) / 启发式：参数键组合推断 operation_name（并行调用常省略）
-_PARAM_KEY_TO_OP: list[tuple[frozenset[str], str]] = [
-    (frozenset({"title"}), "update_title"),
-    (frozenset({"command"}), "format_text"),
-    (frozenset({"level"}), "set_heading"),
-    (frozenset({"type"}), "toggle_list"),
-    (frozenset({"align"}), "set_text_align"),
-    (frozenset({"action", "href"}), "manage_link"),
-    (frozenset({"action"}), "manage_link"),
-    (frozenset({"rows", "cols"}), "insert_table"),
-    (frozenset({"rows"}), "insert_table"),
-    (frozenset({"cols"}), "insert_table"),
-    (frozenset({"field_name"}), "get_form_options"),
-    (frozenset({"fieldName"}), "get_form_options"),
-    (frozenset({"field"}), "get_form_options"),
-    (frozenset({"format"}), "export_document"),
-    (frozenset({"status"}), "toggle_status"),
-]
-
-# Top-level keys allowed for invoke_page_operation. Others must go in params.
-# invoke_page_operation 允许的顶层字段，其他参数必须放入 params。
-_INVOKE_PAGE_OP_TOP_LEVEL_WHITELIST = frozenset(
-    {
-        "page_key",
-        "operation_name",
-        "params",
-        "requires_confirmation",
-    }
-)
-
-_RESERVED_ARG_KEYS = frozenset({"page_key", "operation_name", "params"})
-
-
-def _infer_operation_name(params: dict[str, Any]) -> str:
-    """
-    Best-effort inference of operation_name from params keys.
-    根据 params 的 key 尽力推断 operation_name。不限制 available_ops，由执行阶段校验。
-
-    Note: Removed content->replace_content inference; LLM must pass operation_name explicitly
-    to avoid misattribution and error loops.
-    已移除 content->replace_content 推断；模型必须显式传入 operation_name 以避免误判和错误循环。
-    """
-    if not params:
-        return ""
-    keys = frozenset(params.keys())
-    for sig, op in _PARAM_KEY_TO_OP:
-        if sig <= keys:
-            return op
-    return ""
-
-
-def _normalize_page_operation_params(arguments: dict[str, Any]) -> None:
-    """
-    Normalize invoke_page_operation params for operation-specific aliases.
-    归一化 invoke_page_operation 的操作参数别名。
-    """
-    operation_name = (arguments.get("operation_name") or "").strip()
-    params = arguments.get("params")
-    if not isinstance(params, dict):
-        return
-
-    if operation_name == "get_form_options":
-        field_name = params.get("field_name")
-        if isinstance(field_name, str) and field_name.strip():
-            return
-        alias_value = params.get("fieldName")
-        if not isinstance(alias_value, str) or not alias_value.strip():
-            alias_value = params.get("field")
-        if isinstance(alias_value, str) and alias_value.strip():
-            arguments["params"] = {
-                **params,
-                "field_name": alias_value.strip(),
-            }
-
 
 @dataclass
 class SandboxConfig:
@@ -240,13 +164,26 @@ class ToolSandbox:
 
         self._executors[ToolTypeEnum.CODE_EXECUTION.value] = CodeExecutionExecutor()
         # Page context executor (matched by tool name, prioritized over type-based lookup) / 页面上下文执行器
-        from app.ai.tools.executors.page_context_executor import PageContextExecutor
+        from app.ai.tools.executors.ui_action_executor import UIActionExecutor
+        from app.ai.tools.executors.ui_read_executor import UIReadExecutor
+        from app.ai.tools.executors.ui_snapshot_executor import UISnapshotExecutor
 
-        self._named_executors["get_page_context"] = PageContextExecutor()
-        # Page operation executor (dispatches operations to frontend via WebSocket) / 页面操作执行器
-        from app.ai.tools.executors.page_operation_executor import PageOperationExecutor
-
-        self._named_executors["invoke_page_operation"] = PageOperationExecutor()
+        self._named_executors["ui_get_snapshot"] = UISnapshotExecutor()
+        for tool_name in {
+            "ui_read_region",
+            "ui_read_table",
+            "ui_list_interactables",
+        }:
+            self._named_executors[tool_name] = UIReadExecutor()
+        for tool_name in {
+            "ui_click",
+            "ui_open_surface",
+            "ui_get_form_state",
+            "ui_set_field",
+            "ui_fill_form",
+            "ui_submit_form",
+        }:
+            self._named_executors[tool_name] = UIActionExecutor()
 
     def get_executor(self, tool_type: str) -> BaseToolExecutor | None:
         """Get executor for specified type / 获取指定类型的执行器"""
@@ -296,16 +233,6 @@ class ToolSandbox:
         # 1. Find tool definition / 查找工具定义
         definition = self._find_definition(name, definitions)
 
-        # 1.1 Redirect: operation name as tool -> invoke_page_operation when it matches a page op / 将页面操作名透明改写为 invoke_page_operation
-        if not definition and definitions:
-            redirect_target = self._try_redirect_to_page_op(
-                name,
-                arguments,
-                definitions,
-            )
-            if redirect_target is not None:
-                name, arguments, definition = redirect_target
-
         if not definition:
             return ToolResult(
                 tool_call_id=tool_call_id,
@@ -313,150 +240,6 @@ class ToolSandbox:
                 success=False,
                 error=_("tool.error.not_found", name=name),
             )
-
-        # 1.2 Redirect: pageop_* dedicated editor tools -> invoke_page_operation
-        # 专用 editor tools 重写为 invoke_page_operation，由 PageOperationExecutor 执行
-        if definition.config.get("underlying_operation"):
-            underlying = definition.config["underlying_operation"]
-            variables = self.input_variables or {}
-            page_ctx = (
-                variables.get(PAGE_CONTEXT_KEY) if isinstance(variables, dict) else None
-            )
-            page_key = ""
-            if isinstance(page_ctx, dict):
-                page_key = (page_ctx.get("page_key") or "").strip()
-            if not page_key:
-                return ToolResult(
-                    tool_call_id=tool_call_id,
-                    name=name,
-                    success=False,
-                    error=_("page_operation.error.page_context_missing"),
-                    error_type="invalid_input",
-                )
-            page_op_def = self._find_definition("invoke_page_operation", definitions)
-            if page_op_def:
-                name = "invoke_page_operation"
-                arguments = {
-                    "page_key": page_key,
-                    "operation_name": underlying,
-                    "params": dict(arguments) if arguments else {},
-                }
-                definition = page_op_def
-                logger.debug(
-                    "Redirected pageop_{} -> invoke_page_operation(operation_name={})",
-                    underlying,
-                    underlying,
-                )
-
-        # invoke_page_operation: top-level whitelist, auto page_key; clear errors if op missing or stray keys / 顶层白名单并补 page_key；缺 operation_name 或非法顶层字段时返回明确错误
-        if name == "invoke_page_operation":
-            # Top-level field whitelist: reject unknown keys to avoid content/old_html/new_html
-            # being silently dropped when placed at top level.
-            # 顶层字段白名单：拒绝未知 key，避免 content/old_html/new_html 放错位置被静默丢失
-            unknown_top = [
-                k for k in arguments if k not in _INVOKE_PAGE_OP_TOP_LEVEL_WHITELIST
-            ]
-            if unknown_top:
-                return ToolResult(
-                    tool_call_id=tool_call_id,
-                    name=name,
-                    success=False,
-                    error=_(
-                        "page_operation.error.invalid_top_level_full",
-                        fields=", ".join(sorted(unknown_top)),
-                    ),
-                    error_type="invalid_input",
-                )
-
-            variables = self.input_variables or {}
-            page_ctx = (
-                variables.get(PAGE_CONTEXT_KEY) if isinstance(variables, dict) else None
-            )
-
-            if not (arguments.get("page_key") or "").strip() and isinstance(
-                page_ctx, dict
-            ):
-                pk = (page_ctx.get("page_key") or "").strip()
-                if pk:
-                    arguments["page_key"] = pk
-
-            if not (arguments.get("operation_name") or "").strip():
-                nested_params: dict[str, Any] = arguments.get("params") or {}
-                # operation_name must be top-level, not inside params / operation_name 须在顶层，不可放在 params 内
-                if "operation_name" in nested_params:
-                    return ToolResult(
-                        tool_call_id=tool_call_id,
-                        name=name,
-                        success=False,
-                        error=_("page_operation.error.operation_name_top_level_full"),
-                        error_type="invalid_input",
-                    )
-                extra_keys = {
-                    k: v for k, v in arguments.items() if k not in _RESERVED_ARG_KEYS
-                }
-                effective_params = nested_params if nested_params else extra_keys
-
-                inferred = _infer_operation_name(effective_params)
-                if inferred:
-                    arguments["operation_name"] = inferred
-                    if extra_keys and not nested_params:
-                        arguments["params"] = effective_params
-                        for k in extra_keys:
-                            arguments.pop(k, None)
-                    logger.info(
-                        "invoke_page_operation: inferred operation_name={} "
-                        "from params keys=%s",
-                        inferred,
-                        list(effective_params.keys()),
-                    )
-                else:
-                    available_ops: list[str] = []
-                    if isinstance(page_ctx, dict):
-                        pd = page_ctx.get("page_data")
-                        if isinstance(pd, dict):
-                            ops = pd.get("available_operations")
-                            if isinstance(ops, list):
-                                available_ops = [
-                                    o.get("name", "")
-                                    for o in ops
-                                    if isinstance(o, dict) and o.get("name")
-                                ]
-                    pk = (arguments.get("page_key") or "").strip()
-                    logger.warning(
-                        "invoke_page_operation: could not infer operation_name. "
-                        "raw_argument_keys=%s nested_params_keys=%s extra_keys=%s",
-                        list(arguments.keys()),
-                        list(nested_params.keys()),
-                        list(extra_keys.keys()),
-                    )
-                    ops_hint = (
-                        f" Available operations: {', '.join(available_ops)}."
-                        if available_ops
-                        else ""
-                    )
-                    example = (
-                        (
-                            f" Example: invoke_page_operation("
-                            f'page_key="{pk}", '
-                            f'operation_name="replace_content", '
-                            f'params={{"content": "<h1>Title</h1><p>Body</p>"}})'
-                        )
-                        if pk
-                        else ""
-                    )
-                    return ToolResult(
-                        tool_call_id=tool_call_id,
-                        name=name,
-                        success=False,
-                        error=_(
-                            "page_operation.error.missing_operation_name_full",
-                            ops_hint=ops_hint,
-                            example=example,
-                        ),
-                        error_type="invalid_input",
-                    )
-
-            _normalize_page_operation_params(arguments)
 
         # 1.5 Security check: input validation + call count limit / 安全检查
         try:
@@ -783,74 +566,6 @@ class ToolSandbox:
                     return d
 
         return None
-
-    def _try_redirect_to_page_op(
-        self,
-        name: str,
-        arguments: dict[str, Any],
-        definitions: list[ToolDefinition],
-    ) -> tuple[str, dict[str, Any], ToolDefinition] | None:
-        """Redirect a bare operation name to ``invoke_page_operation``. / 将裸操作名重定向到 invoke_page_operation。
-
-        Some LLMs call enum values (e.g. ``get_editor_text``) as standalone
-        function names instead of wrapping them in ``invoke_page_operation``.
-        When *name* matches one of the available page operations, rewrite the
-        call transparently.
-
-        Returns ``(new_name, new_arguments, definition)`` or ``None``.
-        """
-        page_op_def: ToolDefinition | None = None
-        for d in definitions:
-            if d.name == "invoke_page_operation":
-                page_op_def = d
-                break
-        if page_op_def is None:
-            return None
-
-        op_names: set[str] = set()
-        for param in page_op_def.parameters:
-            if param.name == "operation_name" and param.enum:
-                op_names = set(param.enum)
-                break
-
-        if not op_names:
-            variables = self.input_variables or {}
-            page_ctx = (
-                variables.get(PAGE_CONTEXT_KEY) if isinstance(variables, dict) else None
-            )
-            if isinstance(page_ctx, dict):
-                pd = page_ctx.get("page_data")
-                if isinstance(pd, dict):
-                    raw = pd.get("available_operations")
-                    if isinstance(raw, list):
-                        op_names = {
-                            o["name"]
-                            for o in raw
-                            if isinstance(o, dict) and o.get("name")
-                        }
-
-        if name not in op_names:
-            return None
-
-        new_args: dict[str, Any] = {
-            "operation_name": name,
-            "params": arguments if arguments else {},
-        }
-
-        page_ctx2 = (self.input_variables or {}).get(PAGE_CONTEXT_KEY)
-        if isinstance(page_ctx2, dict):
-            pk = (page_ctx2.get("page_key") or "").strip()
-            if pk:
-                new_args["page_key"] = pk
-
-        logger.info(
-            "Redirecting bare tool call '{}' → invoke_page_operation "
-            "(operation_name=%s)",
-            name,
-            name,
-        )
-        return "invoke_page_operation", new_args, page_op_def
-
 
 __all__ = [
     "SandboxConfig",

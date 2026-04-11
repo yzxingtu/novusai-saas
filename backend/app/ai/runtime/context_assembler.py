@@ -12,6 +12,7 @@ import inspect
 from dataclasses import dataclass, field
 from typing import Any
 
+from app.ai.context.orchestrator import ContextPipelineOrchestrator
 from app.ai.runtime.capabilities import (
     CapabilityContext,
     CapabilityFragment,
@@ -35,6 +36,7 @@ class ContextAssemblerState:
     rag_sources: list[dict[str, Any]] = field(default_factory=list)
     rag_source_kinds: list[str] = field(default_factory=list)
     memory_recalled: bool = False
+    session_memory_injected: bool = False
     memory_recall_slice: dict[str, Any] | None = None
     runtime_model_capabilities: dict[str, Any] | None = None
 
@@ -48,6 +50,7 @@ class ContextAssemblerState:
             "rag_sources": list(self.rag_sources or []),
             "rag_source_kinds": list(self.rag_source_kinds or []),
             "memory_recalled": bool(self.memory_recalled),
+            "session_memory_injected": bool(self.session_memory_injected),
             "memory_recall_slice": dict(self.memory_recall_slice or {}),
             "runtime_model_capabilities": dict(self.runtime_model_capabilities or {}),
         }
@@ -141,35 +144,24 @@ class ContextAssembler:
         if intent_plan is None:
             return None
 
-        normalized_plan = list(intent_plan or [])
-        allow_memory_even_if_shortcircuit = bool(
+        flags = ContextPipelineOrchestrator.compute_intent_flags(
+            intent_plan,
+            request,
+        )
+        has_session_memory_context = bool(
             request is not None
-            and getattr(request, "user_id", None)
             and (
-                bool(getattr(request, "long_term_memory_enabled", False))
-                or bool(getattr(request, "memory_enabled", False))
+                bool(getattr(request, "memory_enabled", False))
+                or bool(getattr(request, "session_memory_injected", False))
             )
-        )
-        all_shortcircuit = bool(normalized_plan) and all(
-            bool(getattr(intent, "shortcircuit", False)) for intent in normalized_plan
-        )
-        intent_kinds = {
-            str(getattr(intent, "kind", "") or "").strip()
-            for intent in normalized_plan
-        }
-        has_page_intent = any(kind.startswith("page_") for kind in intent_kinds)
-        has_knowledge_intent = "knowledge_query" in intent_kinds
-        has_memory_intent = allow_memory_even_if_shortcircuit or any(
-            not bool(getattr(intent, "shortcircuit", False))
-            for intent in normalized_plan
         )
 
         provider_names = ["skills"]
-        if has_page_intent:
+        if flags.has_page_intent:
             provider_names.append("page_context")
-        if not all_shortcircuit and has_knowledge_intent:
+        if not flags.all_shortcircuit and flags.has_knowledge_intent:
             provider_names.append("knowledge_base")
-        if has_memory_intent:
+        if flags.has_memory_intent or has_session_memory_context:
             provider_names.append("memory")
         provider_names.append("runtime_model")
         return provider_names
@@ -238,27 +230,11 @@ class ContextAssembler:
 
         page_key = str(page_context.get("page_key") or "").strip() or "page_context"
         page_title = str(page_context.get("page_title") or "").strip()
-        page_data = page_context.get("page_data")
-        raw_operations = (
-            page_data.get("available_operations", [])
-            if isinstance(page_data, dict)
-            else []
-        )
-        operations = [
-            operation
-            for operation in raw_operations
-            if isinstance(operation, dict) and operation.get("name")
-        ]
-        writable_ops = [
-            operation
-            for operation in operations
-            if not bool(operation.get("readonly", False))
-        ]
+        page_data = page_context.get("page_data") if isinstance(page_context, dict) else {}
         metadata = {
             "page_key": page_key,
             "page_title": page_title or None,
-            "operation_count": len(operations),
-            "writable_operation_count": len(writable_ops),
+            "has_page_data": isinstance(page_data, dict),
         }
 
         return CapabilityFragment(
@@ -348,6 +324,7 @@ class ContextAssembler:
         request = context.request
         state = context.state or {}
         memory_recalled = bool(state.get("memory_recalled"))
+        session_memory_injected = bool(state.get("session_memory_injected"))
         memory_recall_slice = dict(state.get("memory_recall_slice") or {})
 
         session_memory_enabled = bool(getattr(request, "memory_enabled", False))
@@ -358,6 +335,7 @@ class ContextAssembler:
             not session_memory_enabled
             and not long_term_memory_enabled
             and not memory_recalled
+            and not session_memory_injected
         ):
             return CapabilityFragment()
 
@@ -369,6 +347,8 @@ class ContextAssembler:
                 "scene": getattr(request, "memory_scene", ""),
                 "channel": getattr(request, "memory_channel", ""),
                 "source": getattr(request, "memory_source", ""),
+                "enabled": True,
+                "injected": session_memory_injected,
             }
             capability_descriptors.append(
                 CapabilityDescriptor(
@@ -379,14 +359,15 @@ class ContextAssembler:
                     metadata=session_metadata,
                 )
             )
-            context_sources.append(
-                ContextSource(
-                    kind="session_memory",
-                    name="session_memory",
-                    active=True,
-                    metadata=session_metadata,
+            if session_memory_injected:
+                context_sources.append(
+                    ContextSource(
+                        kind="session_memory",
+                        name="session_memory",
+                        active=True,
+                        metadata=session_metadata,
+                    )
                 )
-            )
 
         if long_term_memory_enabled or memory_recalled:
             long_term_metadata = {

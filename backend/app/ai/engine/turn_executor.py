@@ -9,8 +9,28 @@ from app.ai.tools.types import ToolResult
 from app.ai.types import ChatMessage, ChatResponse
 
 from .execution_state_machine import ExecutionStateMachine
-from .failure_classifier import FailureClassifier
 from .recovery_manager import RecoveryManager
+from .tool_execution_helpers import (
+    register_tool_failures as _register_tool_failures_impl,
+)
+from .tool_execution_helpers import (
+    synthesize_tool_results_from_calls as _synthesize_tool_results_from_calls_impl,
+)
+from .turn_executor_helpers import (
+    active_intent as _active_intent_impl,
+)
+from .turn_executor_helpers import (
+    assistant_tool_round_count as _assistant_tool_round_count_impl,
+)
+from .turn_executor_helpers import (
+    current_turn_messages as _current_turn_messages_impl,
+)
+from .turn_executor_helpers import (
+    current_turn_start_index as _current_turn_start_index_impl,
+)
+from .turn_executor_helpers import (
+    register_tool_round_delta as _register_tool_round_delta_impl,
+)
 from .types import RecoveryDecision, ToolUsePolicy
 
 
@@ -160,13 +180,7 @@ class TurnExecutor:
 
     @staticmethod
     def _active_intent(state: ExecutionStateMachine) -> Any | None:
-        for intent in state.intent_plan:
-            if intent.status in {"completed", "failed", "skipped"}:
-                continue
-            if intent.family == "none" or not intent.requires_tools:
-                continue
-            return intent
-        return None
+        return _active_intent_impl(state)
 
     @staticmethod
     def _scope_tools_to_active_intent(
@@ -238,11 +252,7 @@ class TurnExecutor:
 
     @staticmethod
     def _assistant_tool_round_count(messages: list[ChatMessage]) -> int:
-        return sum(
-            1
-            for message in messages
-            if message.role == "assistant" and bool(message.tool_calls)
-        )
+        return _assistant_tool_round_count_impl(messages)
 
     @staticmethod
     def _register_tool_round_delta(
@@ -251,51 +261,39 @@ class TurnExecutor:
         before_count: int,
         messages: list[ChatMessage],
     ) -> None:
-        delta = max(0, TurnExecutor._assistant_tool_round_count(messages) - before_count)
-        for _round_idx in range(delta):
-            state.register_tool_round()
+        _register_tool_round_delta_impl(
+            state,
+            before_count=before_count,
+            messages=messages,
+        )
+
+    @staticmethod
+    def _current_turn_start_index(messages: list[ChatMessage]) -> int:
+        return _current_turn_start_index_impl(messages)
+
+    @staticmethod
+    def _current_turn_messages(
+        messages: list[ChatMessage],
+        *,
+        start_index: int,
+    ) -> list[ChatMessage]:
+        return _current_turn_messages_impl(messages, start_index=start_index)
 
     @staticmethod
     def _register_tool_failures(
         state: ExecutionStateMachine,
         tool_results: list[ToolResult],
     ) -> None:
-        tool_failure_kind, tool_failure_events = (
-            FailureClassifier.classify_tool_results(tool_results)
-        )
-        if tool_failure_kind != "none":
-            for event in tool_failure_events:
-                state.register_provider_failure(kind=tool_failure_kind, event=event)
+        _register_tool_failures_impl(state, tool_results)
 
     @staticmethod
     def _synthesize_tool_results_from_calls(
         tool_calls: list[dict[str, Any]] | None,
     ) -> list[ToolResult]:
-        synthesized: list[ToolResult] = []
-        for index, tool_call in enumerate(tool_calls or []):
-            pending_consent = tool_call.get("pending_consent")
-            if isinstance(pending_consent, dict) and not pending_consent.get("resolved"):
-                continue
-            pending_confirmation = tool_call.get("pending_confirmation")
-            if isinstance(pending_confirmation, dict) and not pending_confirmation.get(
-                "resolved"
-            ):
-                continue
-            function_block = tool_call.get("function") or {}
-            tool_name = str(
-                function_block.get("name") or tool_call.get("name") or ""
-            ).strip()
-            if not tool_name:
-                continue
-            tool_call_id = str(tool_call.get("id") or f"synthetic_tool_call_{index}")
-            synthesized.append(
-                ToolResult(
-                    tool_call_id=tool_call_id,
-                    name=tool_name,
-                    success=True,
-                )
-            )
-        return synthesized
+        return _synthesize_tool_results_from_calls_impl(
+            tool_calls,
+            skip_unresolved_interactions=True,
+        )
 
     @staticmethod
     async def _execute_tool_batch(
@@ -305,6 +303,7 @@ class TurnExecutor:
         response: ChatResponse,
         tools: list[Any],
         messages: list[ChatMessage],
+        turn_messages: list[ChatMessage] | None,
         tool_use_policy: ToolUsePolicy | None,
         total_tokens: int,
         completion_tokens_used: int,
@@ -334,6 +333,7 @@ class TurnExecutor:
         )
         state.register_tool_results(
             messages=messages,
+            turn_messages=turn_messages,
             tool_results=tool_results,
         )
         state.register_completion_tokens(next_completion_tokens)
@@ -512,6 +512,7 @@ class TurnExecutor:
     def _constrain_retry_policy_to_active_intent(
         *,
         retry_policy: ToolUsePolicy,
+        breach_type: str | None,
         active_intent: Any | None,
         current_policy: ToolUsePolicy | None,
     ) -> ToolUsePolicy:
@@ -519,6 +520,27 @@ class TurnExecutor:
             return retry_policy
         if active_intent is None:
             return retry_policy
+        normalized_breach = str(breach_type or "").strip()
+        normalized_reason = str(retry_policy.reason or "").strip()
+        if (
+            (
+                normalized_breach == "unfinished_multi_intent_reply"
+                or normalized_reason.startswith("unfinished")
+            )
+            and retry_policy.allowed_tool_names
+        ):
+            return ToolUsePolicy(
+                family=(
+                    str(retry_policy.family or "").strip()
+                    or str(getattr(active_intent, "family", "") or "").strip()
+                    or str(getattr(current_policy, "family", "") or "").strip()
+                    or retry_policy.family
+                ),
+                mode="required",
+                allowed_tool_names=list(retry_policy.allowed_tool_names),
+                retry_on_contract_breach=False,
+                reason=retry_policy.reason,
+            )
         allowed_tool_names = list(
             getattr(active_intent, "allowed_tool_names", None)
             or getattr(current_policy, "allowed_tool_names", None)
@@ -660,6 +682,7 @@ class TurnExecutor:
     ) -> TurnExecutionResult:
         """Run one turn using a shared orchestration loop (sync path ready)."""
         messages: list[ChatMessage] = prep.messages
+        current_turn_start_index = TurnExecutor._current_turn_start_index(messages)
         tools = list(prep.tools or [])
         active_policy = prep.tool_use_policy
         active_tools, active_policy, active_intent = (
@@ -676,6 +699,12 @@ class TurnExecutor:
         tool_results: list[ToolResult] = []
         decision = None
         ran_post_tool_follow_up = False
+
+        def current_turn_messages() -> list[ChatMessage]:
+            return TurnExecutor._current_turn_messages(
+                messages,
+                start_index=current_turn_start_index,
+            )
 
         initial_budget_exit = state.budget_exit_reason()
         if initial_budget_exit:
@@ -728,6 +757,7 @@ class TurnExecutor:
                     response=response,
                     tools=active_tools,
                     messages=messages,
+                    turn_messages=current_turn_messages(),
                     tool_use_policy=active_policy,
                     total_tokens=total_tokens,
                     completion_tokens_used=completion_tokens_used,
@@ -749,6 +779,7 @@ class TurnExecutor:
                         response=fallback_response,
                         tools=active_tools,
                         messages=messages,
+                        turn_messages=current_turn_messages(),
                         tool_use_policy=active_policy,
                         total_tokens=total_tokens,
                         completion_tokens_used=completion_tokens_used,
@@ -758,6 +789,7 @@ class TurnExecutor:
             state.intent_plan = RecoveryManager.update_intent_statuses(
                 state.intent_plan,
                 messages=messages,
+                turn_messages=current_turn_messages(),
                 tool_results=[],
             )
 
@@ -795,6 +827,7 @@ class TurnExecutor:
                 if retry_policy is not None:
                     retry_policy = TurnExecutor._constrain_retry_policy_to_active_intent(
                         retry_policy=retry_policy,
+                        breach_type=breach_type,
                         active_intent=active_intent,
                         current_policy=active_policy,
                     )
@@ -830,8 +863,9 @@ class TurnExecutor:
                         breach_type=non_intent_breach_type,
                         diagnostics={},
                     )
+                retry_tool_pool = list(prep.all_tools or tools or contract_tools)
                 retry_tools = io.restrict_tools_to_names(
-                    contract_tools,
+                    retry_tool_pool,
                     retry_policy.allowed_tool_names,
                 )
                 TurnExecutor._emit_round_started(
@@ -845,7 +879,7 @@ class TurnExecutor:
                     agent=agent,
                     messages=messages,
                     response=response,
-                    tools=contract_tools,
+                    tools=retry_tool_pool,
                     policy=retry_policy,
                     conversation_id=request.conversation_id,
                     breach_type=retry_policy.reason or "contract_breach",
@@ -908,6 +942,7 @@ class TurnExecutor:
                     )
                     state.register_tool_results(
                         messages=messages,
+                        turn_messages=current_turn_messages(),
                         tool_results=extra_tool_results,
                     )
                     state.register_completion_tokens(completion_tokens_used)
@@ -931,6 +966,7 @@ class TurnExecutor:
                     state.intent_plan = RecoveryManager.update_intent_statuses(
                         state.intent_plan,
                         messages=messages,
+                        turn_messages=current_turn_messages(),
                         tool_results=[],
                     )
 
@@ -946,17 +982,7 @@ class TurnExecutor:
             budget=state.budget,
             provider_failure_kind=state.provider_failure_kind,
         )
-        retry_limit = int(
-            getattr(state.budget, "max_retry_per_intent", 0)
-            if state.budget is not None
-            else 0
-        )
-        retry_attempts = 0
-        while (
-            decision is not None
-            and decision.action == "retry_intent"
-            and retry_attempts < retry_limit
-        ):
+        while decision is not None and decision.action == "retry_intent":
             retry_intent = next(
                 (
                     intent
@@ -982,7 +1008,6 @@ class TurnExecutor:
                     provider_failure_kind=state.provider_failure_kind,
                 )
                 continue
-            retry_attempts += 1
             state.register_retry(decision)
             messages.append(
                 RecoveryManager.build_recovery_message(
@@ -1044,6 +1069,7 @@ class TurnExecutor:
                     response=response,
                     tools=retry_tools,
                     messages=messages,
+                    turn_messages=current_turn_messages(),
                     tool_use_policy=retry_policy,
                     total_tokens=total_tokens,
                     completion_tokens_used=completion_tokens_used,
@@ -1069,6 +1095,7 @@ class TurnExecutor:
                         response=fallback_response,
                         tools=retry_tools,
                         messages=messages,
+                        turn_messages=current_turn_messages(),
                         tool_use_policy=retry_policy,
                         total_tokens=total_tokens,
                         completion_tokens_used=completion_tokens_used,
@@ -1084,6 +1111,7 @@ class TurnExecutor:
                 state.intent_plan = RecoveryManager.update_intent_statuses(
                     state.intent_plan,
                     messages=messages,
+                    turn_messages=current_turn_messages(),
                     tool_results=[],
                 )
                 if retry_policy.mode == "required" and retry_tools and response is not None:

@@ -35,6 +35,11 @@ if TYPE_CHECKING:
         is_retryable,
     )
     from app.ai.gateway import AIGateway
+    from app.ai.runtime import (
+        ProtocolExecutionPlan,
+        TurnCommand,
+        TurnExecutionResult,
+    )
     from app.ai.sse import SSEChunkEncoder, SSEStreamingResponse
     from app.ai.tools import ToolSandbox
     from app.ai.types import (
@@ -69,6 +74,9 @@ _EXPORT_MAP = {
     "ProviderTimeoutError": "app.ai.exceptions",
     "is_retryable": "app.ai.exceptions",
     "AIGateway": "app.ai.gateway",
+    "ProtocolExecutionPlan": "app.ai.runtime",
+    "TurnCommand": "app.ai.runtime",
+    "TurnExecutionResult": "app.ai.runtime",
     "SSEChunkEncoder": "app.ai.sse",
     "SSEStreamingResponse": "app.ai.sse",
     "ToolSandbox": "app.ai.tools",
@@ -96,6 +104,9 @@ __all__ = [
     "ChatChunk",
     "EmbeddingResponse",
     "ImageResponse",
+    "ProtocolExecutionPlan",
+    "TurnCommand",
+    "TurnExecutionResult",
     "SSEChunkEncoder",
     "SSEStreamingResponse",
     "BaseAdapter",

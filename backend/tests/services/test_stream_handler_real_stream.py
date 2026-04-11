@@ -431,26 +431,24 @@ async def test_stream_io_adapter_keeps_finalized_completed_output_over_stream_pr
     handler._output = "放假通知！湖南12地明确！|特殊教育学校_新浪财经_新浪网"
     adapter = StreamIOAdapter(handler)
 
-    with patch(
-        "app.ai.engine.conversation.ConversationEngine._finalize_completed_output",
-        AsyncMock(return_value=("根据已获取网页内容，长沙义务教育阶段学校今年暑假从7月6日开始。", 18, 18)),
-    ):
-        output, total_tokens, completion_tokens_used = (
-            await adapter.finalize_completed_output(
-                messages=[],
-                response=ChatResponse(
-                    message=ChatMessage(role="assistant", content=""),
-                    total_tokens=18,
-                    output_tokens=18,
-                ),
-                state=handler._state,
-                tool_results=[],
-                reason="completed",
+    handler.runtime_contract.finalize_completed_output = AsyncMock(
+        return_value=("根据已获取网页内容，长沙义务教育阶段学校今年暑假从7月6日开始。", 18, 18)
+    )
+    output, total_tokens, completion_tokens_used = (
+        await adapter.finalize_completed_output(
+            messages=[],
+            response=ChatResponse(
+                message=ChatMessage(role="assistant", content=""),
                 total_tokens=18,
-                completion_tokens_used=18,
-            )
+                output_tokens=18,
+            ),
+            state=handler._state,
+            tool_results=[],
+            reason="completed",
+            total_tokens=18,
+            completion_tokens_used=18,
         )
-
+    )
     assert "长沙义务教育阶段学校今年暑假从7月6日开始" in output
     assert "特殊教育学校_新浪财经_新浪网" not in output
     assert total_tokens == 18
@@ -463,26 +461,24 @@ async def test_stream_io_adapter_keeps_finalized_partial_output_over_stream_prev
     handler._output = "放假通知！湖南12地明确！|特殊教育学校_新浪财经_新浪网"
     adapter = StreamIOAdapter(handler)
 
-    with patch(
-        "app.ai.engine.conversation.ConversationEngine._finalize_partial_output",
-        AsyncMock(return_value=("我先把目前能确认的内容给你：长沙义务教育阶段学校今年暑假从7月6日开始。", 18, 18)),
-    ):
-        output, total_tokens, completion_tokens_used = (
-            await adapter.finalize_partial_output(
-                messages=[],
-                response=ChatResponse(
-                    message=ChatMessage(role="assistant", content=""),
-                    total_tokens=18,
-                    output_tokens=18,
-                ),
-                state=handler._state,
-                tool_results=[],
-                reason="completion_budget_exceeded",
+    handler.runtime_contract.finalize_partial_output = AsyncMock(
+        return_value=("我先把目前能确认的内容给你：长沙义务教育阶段学校今年暑假从7月6日开始。", 18, 18)
+    )
+    output, total_tokens, completion_tokens_used = (
+        await adapter.finalize_partial_output(
+            messages=[],
+            response=ChatResponse(
+                message=ChatMessage(role="assistant", content=""),
                 total_tokens=18,
-                completion_tokens_used=18,
-            )
+                output_tokens=18,
+            ),
+            state=handler._state,
+            tool_results=[],
+            reason="completion_budget_exceeded",
+            total_tokens=18,
+            completion_tokens_used=18,
         )
-
+    )
     assert "长沙义务教育阶段学校今年暑假从7月6日开始" in output
     assert "特殊教育学校_新浪财经_新浪网" not in output
     assert total_tokens == 18
@@ -864,7 +860,7 @@ async def test_stream_handler_budget_exit_after_successful_tool_uses_generic_par
                             "id": "call_page_context_1",
                             "type": "function",
                             "function": {
-                                "name": "get_page_context",
+                                "name": "ui_get_snapshot",
                                 "arguments": "{}",
                             },
                         },
@@ -875,14 +871,17 @@ async def test_stream_handler_budget_exit_after_successful_tool_uses_generic_par
             ],
         ],
     )
-    tools = [ToolDefinition(name="get_page_context", description="Read page context")]
+    tools = [ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot")]
     handler = _build_handler(engine, tools=tools)
     handler.on_complete = on_complete
     handler.request.input_variables = {
         "page_context": {
             "page_key": "tenant.dashboard",
             "page_title": "仪表盘",
-            "page_data": {"locale": "zh_CN"},
+            "ui_epoch": 2,
+            "suggested_tools": {
+                "primary": ["ui_get_snapshot", "ui_read_region"],
+            },
         }
     }
     handler._state.budget_exit_reason = MagicMock(
@@ -1375,7 +1374,7 @@ async def test_stream_handler_does_not_recursively_contract_retry_after_partial_
                             "id": "call_page_context",
                             "type": "function",
                             "function": {
-                                "name": "get_page_context",
+                                "name": "ui_get_snapshot",
                                 "arguments": "{}",
                             },
                         },
@@ -1424,7 +1423,7 @@ async def test_stream_handler_does_not_recursively_contract_retry_after_partial_
     tools = [
         ToolDefinition(name="web_search", description="Search the web"),
         ToolDefinition(name="fetch_url", description="Fetch url"),
-        ToolDefinition(name="get_page_context", description="Read page context"),
+        ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
     ]
     handler = _build_handler(
         engine,
@@ -1432,7 +1431,7 @@ async def test_stream_handler_does_not_recursively_contract_retry_after_partial_
         tool_use_policy=ToolUsePolicy(
             family="web_research",
             mode="required",
-            allowed_tool_names=["web_search", "fetch_url", "get_page_context"],
+            allowed_tool_names=["web_search", "fetch_url", "ui_get_snapshot"],
             retry_on_contract_breach=True,
             reason="explicit_web_request",
         ),
@@ -1448,7 +1447,10 @@ async def test_stream_handler_does_not_recursively_contract_retry_after_partial_
         "page_context": {
             "page_key": "admin.dashboard",
             "page_title": "平台控制塔",
-            "page_data": {"ai_calls_today": 146},
+            "ui_epoch": 4,
+            "suggested_tools": {
+                "primary": ["ui_get_snapshot", "ui_read_region", "ui_read_table"],
+            },
         }
     }
 
@@ -1496,7 +1498,7 @@ async def test_stream_handler_does_not_recursively_contract_retry_page_first_rou
                             "id": "call_page_context",
                             "type": "function",
                             "function": {
-                                "name": "get_page_context",
+                                "name": "ui_get_snapshot",
                                 "arguments": "{}",
                             },
                         },
@@ -1550,7 +1552,7 @@ async def test_stream_handler_does_not_recursively_contract_retry_page_first_rou
     tools = [
         ToolDefinition(name="web_search", description="Search the web"),
         ToolDefinition(name="fetch_url", description="Fetch url"),
-        ToolDefinition(name="get_page_context", description="Read page context"),
+        ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
     ]
     handler = _build_handler(
         engine,
@@ -1558,7 +1560,7 @@ async def test_stream_handler_does_not_recursively_contract_retry_page_first_rou
         tool_use_policy=ToolUsePolicy(
             family="page_ops",
             mode="required",
-            allowed_tool_names=["web_search", "fetch_url", "get_page_context"],
+            allowed_tool_names=["web_search", "fetch_url", "ui_get_snapshot"],
             retry_on_contract_breach=False,
             reason="explicit_page_request",
         ),
@@ -1574,7 +1576,10 @@ async def test_stream_handler_does_not_recursively_contract_retry_page_first_rou
         "page_context": {
             "page_key": "admin.ai.agents",
             "page_title": "智能体名称",
-            "page_data": {"total": 7},
+            "ui_epoch": 8,
+            "suggested_tools": {
+                "primary": ["ui_get_snapshot", "ui_read_region", "ui_click"],
+            },
         }
     }
 
@@ -1627,7 +1632,7 @@ async def test_stream_handler_does_not_recursively_contract_retry_page_first_web
                             "id": "call_page_context",
                             "type": "function",
                             "function": {
-                                "name": "get_page_context",
+                                "name": "ui_get_snapshot",
                                 "arguments": "{}",
                             },
                         },
@@ -1678,7 +1683,7 @@ async def test_stream_handler_does_not_recursively_contract_retry_page_first_web
     tools = [
         ToolDefinition(name="web_search", description="Search the web"),
         ToolDefinition(name="fetch_url", description="Fetch url"),
-        ToolDefinition(name="get_page_context", description="Read page context"),
+        ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
     ]
     handler = _build_handler(
         engine,
@@ -1686,7 +1691,7 @@ async def test_stream_handler_does_not_recursively_contract_retry_page_first_web
         tool_use_policy=ToolUsePolicy(
             family="page_ops",
             mode="required",
-            allowed_tool_names=["web_search", "fetch_url", "get_page_context"],
+            allowed_tool_names=["web_search", "fetch_url", "ui_get_snapshot"],
             retry_on_contract_breach=True,
             reason="explicit_page_request",
         ),
@@ -2465,15 +2470,16 @@ async def test_stream_handler_logs_failed_retry_when_required_policy_still_retur
     )
 
     events: list[dict] = []
-    with patch.object(_FakeEngine, "_log_tool_contract_diagnostics") as diag_mock:
-        async for raw in handler.generate():
-            if raw.strip().startswith("data: {"):
-                events.append(_parse_sse_payload(raw))
+    handler.runtime_contract.log_tool_contract_diagnostics = MagicMock()
+    async for raw in handler.generate():
+        if raw.strip().startswith("data: {"):
+            events.append(_parse_sse_payload(raw))
 
     message_text = "".join(
         event.get("delta", "") for event in events if event.get("event") == "message"
     )
     assert "仍然没有联网能力。" in message_text
+    diag_mock = handler.runtime_contract.log_tool_contract_diagnostics
     assert diag_mock.call_count >= 2
     retry_results = [call.kwargs["retry_result"] for call in diag_mock.call_args_list]
     assert retry_results[0] == "retrying"
@@ -2582,81 +2588,6 @@ async def test_stream_handler_consent_round_does_not_append_duplicate_assistant(
     ]
     assert len(assistant_messages) == 1
     assert assistant_messages[0].get("tool_calls")
-
-
-@pytest.mark.asyncio
-async def test_tool_call_name_matches_tool_start_when_sandbox_redirects():
-    """
-    When sandbox redirects pageop_* to invoke_page_operation, tool_call event
-    must use original func_name (name_override) so frontend matches correctly.
-    pageop_* 重定向后 tool_call 事件的 name 必须与 tool_start 一致（原始 func_name）。
-    """
-
-    class _RedirectSandbox:
-        async def execute(
-            self,
-            tool_call_id: str,
-            name: str,
-            arguments: dict,
-            definitions: list,
-            conversation_id: int,
-        ):
-            _ = tool_call_id, arguments, definitions, conversation_id
-            # Simulate sandbox redirect: pageop_* -> invoke_page_operation
-            result_name = (
-                "invoke_page_operation" if name.startswith("pageop_") else name
-            )
-            return ToolResult(
-                tool_call_id="call_1",
-                name=result_name,
-                success=True,
-                output='{"ok": true}',
-            )
-
-    engine = _FakeEngine(
-        call_llm_responses=[
-            ChatResponse(
-                message=ChatMessage(role="assistant", content=""),
-                tool_calls=[
-                    {
-                        "id": "call_1",
-                        "type": "function",
-                        "function": {
-                            "name": "pageop_get_editor_html",
-                            "arguments": '{"page_key":"test"}',
-                        },
-                    },
-                ],
-                total_tokens=50,
-            ),
-            ChatResponse(
-                message=ChatMessage(role="assistant", content="Done"),
-                tool_calls=None,
-                total_tokens=60,
-            ),
-        ],
-    )
-    engine.sandbox = _RedirectSandbox()
-    tools = [
-        ToolDefinition(name="pageop_get_editor_html", description="Get editor HTML"),
-    ]
-    handler = _build_handler(engine, tools=tools)
-
-    events: list[dict] = []
-    async for raw in handler.generate():
-        if raw.strip().startswith("data: {"):
-            events.append(_parse_sse_payload(raw))
-
-    tool_starts = [e for e in events if e.get("event") == "tool_start"]
-    tool_calls = [
-        e for e in events if e.get("event") == "tool_call" and e.get("success")
-    ]
-    assert len(tool_starts) >= 1
-    assert len(tool_calls) >= 1
-    assert tool_starts[0].get("name") == "pageop_get_editor_html"
-    assert tool_calls[0].get("name") == "pageop_get_editor_html", (
-        "tool_call name must match tool_start (name_override) when sandbox redirects"
-    )
 
 
 @pytest.mark.asyncio
@@ -2806,49 +2737,150 @@ async def test_stream_handler_runs_parallel_safe_web_search_batch_concurrently()
 
 
 @pytest.mark.asyncio
-async def test_parse_error_abort_after_consecutive_page_op_failures():
+async def test_handle_tool_calls_trims_unexecuted_tail_on_early_exit():
+    from app.services.ai.conversation_service import ConversationService
+
+    class _BudgetExitAfterFirstExecutionSandbox(_FakeSandbox):
+        def __init__(self) -> None:
+            super().__init__()
+            self.execute_count = 0
+
+        async def execute(
+            self,
+            tool_call_id: str,
+            name: str,
+            arguments: dict,
+            definitions: list[ToolDefinition],
+            conversation_id: int,
+        ) -> ToolResult:
+            _ = definitions, conversation_id
+            self.execute_count += 1
+            return ToolResult(
+                tool_call_id=tool_call_id,
+                name=name,
+                success=True,
+                output=json.dumps(
+                    {
+                        "name": name,
+                        "page_key": arguments.get("page_key"),
+                    }
+                ),
+            )
+
+    engine = _FakeEngine()
+    budget_sandbox = _BudgetExitAfterFirstExecutionSandbox()
+    engine.sandbox = budget_sandbox
+    tools = [
+        ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
+        ToolDefinition(name="fetch_url", description="Fetch URL"),
+    ]
+    handler = _build_handler(engine, tools=tools)
+    handler._runtime_turn_record = {}
+    handler._runtime_turn_record_source = None
+    handler._runtime_turn_record_overlays = {}
+    handler._state.budget_exit_reason = (
+        lambda: (
+            "tool_result_budget_exceeded"
+            if budget_sandbox.execute_count >= 1
+            else None
+        )
+    )
+    adapter = StreamIOAdapter(handler)
+    messages = [ChatMessage(role="user", content="继续读取页面并补来源")]
+    response = ChatResponse(
+        message=ChatMessage(role="assistant", content=""),
+        tool_calls=[
+            {
+                "id": "call_snapshot",
+                "type": "function",
+                "function": {
+                    "name": "ui_get_snapshot",
+                    "arguments": '{"page_key":"tenant.crm.detail"}',
+                },
+            },
+            {
+                "id": "call_fetch",
+                "type": "function",
+                "function": {
+                    "name": "fetch_url",
+                    "arguments": '{"url":"https://example.com"}',
+                },
+            },
+        ],
+        total_tokens=24,
+    )
+
+    result = await adapter.handle_tool_calls(
+        response=response,
+        tools=handler.prep.tools,
+        messages=messages,
+        starting_total_tokens=24,
+        starting_completion_tokens=24,
+    )
+
+    assert [tool_result.name for tool_result in result.tool_results] == [
+        "ui_get_snapshot"
+    ]
+    assert result.response is None
+
+    assistant_round = messages[1]
+    assert assistant_round.role == "assistant"
+    assert [tc["id"] for tc in (assistant_round.tool_calls or [])] == [
+        "call_snapshot",
+    ]
+    assert [msg.tool_call_id for msg in messages if msg.role == "tool"] == [
+        "call_snapshot",
+    ]
+
+    sanitized = ConversationService.sanitize_tool_messages(messages)
+    assert [msg.role for msg in sanitized] == ["user", "assistant", "tool"]
+    assert [tc["id"] for tc in (sanitized[1].tool_calls or [])] == [
+        "call_snapshot",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_parse_error_abort_after_consecutive_ui_action_failures():
     """
     parse error 连续 3 次后触发熔断，停止工具循环并输出恢复提示。
     验证富文本审计方案：parse error 分支纳入熔断计数。
     """
-    # 3 个 invoke_page_operation 调用，每个 arguments 为非法 JSON
+    # 3 个 ui_click 调用，每个 arguments 为非法 JSON
     engine = _FakeEngine(
         call_llm_responses=[
             ChatResponse(
                 message=ChatMessage(role="assistant", content=""),
                 tool_calls=[
                     {
-                        "id": "c1",
-                        "type": "function",
-                        "function": {
-                            "name": "invoke_page_operation",
-                            "arguments": "{bad json 1",
+                            "id": "c1",
+                            "type": "function",
+                            "function": {
+                                "name": "ui_click",
+                                "arguments": "{bad json 1",
+                            },
                         },
-                    },
                     {
-                        "id": "c2",
-                        "type": "function",
-                        "function": {
-                            "name": "invoke_page_operation",
-                            "arguments": "{bad json 2",
+                            "id": "c2",
+                            "type": "function",
+                            "function": {
+                                "name": "ui_click",
+                                "arguments": "{bad json 2",
+                            },
                         },
-                    },
                     {
-                        "id": "c3",
-                        "type": "function",
-                        "function": {
-                            "name": "invoke_page_operation",
-                            "arguments": "{bad json 3",
+                            "id": "c3",
+                            "type": "function",
+                            "function": {
+                                "name": "ui_click",
+                                "arguments": "{bad json 3",
+                            },
                         },
-                    },
                 ],
                 total_tokens=100,
             ),
         ],
     )
-    tools = [
-        ToolDefinition(name="invoke_page_operation", description="Execute page op")
-    ]
+    tools = [ToolDefinition(name="ui_click", description="Click UI element")]
     handler = _build_handler(engine, tools=tools)
 
     events: list[dict] = []
@@ -2862,9 +2894,14 @@ async def test_parse_error_abort_after_consecutive_page_op_failures():
     ]
     assert len(failed_calls) >= 3
 
-    # 熔断后 output 应包含恢复提示（兼容 i18n key 或翻译结果）
+    # 熔断后 output 应包含恢复提示（不再依赖旧 multiple_failures 文案 key）
     output = handler._output or ""
-    assert "multiple_failures" in output or "Multiple" in output or "失败" in output
+    assert output
+    assert (
+        "Multiple page operations failed" in output
+        or "页面操作多次失败" in output
+        or "暂时中断" in output
+    )
 
 
 @pytest.mark.asyncio

@@ -18,16 +18,19 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.ai.navigation_semantics import (
-    has_navigation_intent,
-)
+from app.ai.navigation_semantics import has_navigation_intent
 from app.ai.prompt_contracts import render_prompt_contract
 from app.ai.routing.router import ModelRouter
-from app.ai.tools.semantic_defaults import tool_family_from_name
 from app.ai.text_semantics import (
     collapse_whitespace,
     extract_fenced_json_block,
     extract_first_json_object_with_key,
+)
+from app.ai.tools.semantic_defaults import (
+    is_ui_page_tool_name,
+    page_context_available_ui_tools,
+    page_context_has_runtime_state,
+    tool_family_from_name,
 )
 from app.configs.service import PLATFORM_TENANT_ID
 from app.core.i18n import _
@@ -63,8 +66,8 @@ ROUTER_TIMEOUT_SECONDS = 15
 # Minimum confidence threshold / 最低置信度阈值
 MIN_CONFIDENCE_THRESHOLD = 0.3
 
-PAGE_OPERATION_REQUIRED_SKILLS = frozenset(
-    {"get_page_context", "invoke_page_operation"},
+PAGE_OPERATION_REQUIRED_SKILL_GROUPS = (
+    frozenset({"ui_get_snapshot", "ui_click"}),
 )
 PAGE_OPERATION_STRONG_INTENT_TOKENS = (
     "operate on the current page",
@@ -1083,25 +1086,21 @@ class AgentRouterService:
 
     @classmethod
     def _agent_supports_page_operations(cls, agent: Agent | None) -> bool:
-        return PAGE_OPERATION_REQUIRED_SKILLS.issubset(
-            cls._agent_skill_names(agent),
-        )
+        skill_names = cls._agent_skill_names(agent)
+        if any(
+            group.issubset(skill_names) for group in PAGE_OPERATION_REQUIRED_SKILL_GROUPS
+        ):
+            return True
+        return any(is_ui_page_tool_name(skill_name) for skill_name in skill_names)
 
     @staticmethod
-    def _page_context_has_available_operations(
+    def _page_context_has_runtime_ui_tools(
         page_context: dict[str, Any] | None,
     ) -> bool:
-        if not isinstance(page_context, dict):
-            return False
-
-        page_data = page_context.get("page_data")
-        if isinstance(page_data, dict):
-            operations = page_data.get("available_operations")
-            if isinstance(operations, list) and len(operations) > 0:
-                return True
-
-        operations = page_context.get("available_operations")
-        return isinstance(operations, list) and len(operations) > 0
+        return bool(
+            page_context_has_runtime_state(page_context)
+            and page_context_available_ui_tools(page_context)
+        )
 
     @staticmethod
     def _requires_vision_page_operation(message: str) -> bool:
@@ -1125,26 +1124,9 @@ class AgentRouterService:
     def _page_context_supports_navigation(
         page_context: dict[str, Any] | None,
     ) -> bool:
-        if not isinstance(page_context, dict):
-            return False
-
-        raw_operations: list[Any] = []
-        page_data = page_context.get("page_data")
-        if isinstance(page_data, dict) and isinstance(
-            page_data.get("available_operations"), list
-        ):
-            raw_operations = page_data.get("available_operations") or []
-        elif isinstance(page_context.get("available_operations"), list):
-            raw_operations = page_context.get("available_operations") or []
-
-        operation_names = {
-            str(item.get("name") or "").strip()
-            for item in raw_operations
-            if isinstance(item, dict)
-        }
-        return (
-            "navigate_menu" in operation_names
-            or "list_available_menus" in operation_names
+        tool_names = set(page_context_available_ui_tools(page_context))
+        return bool(
+            {"ui_click", "ui_open_surface", "ui_list_interactables"} & tool_names
         )
 
     @classmethod
@@ -1160,7 +1142,7 @@ class AgentRouterService:
         if not normalized_message:
             return False
 
-        if not cls._page_context_has_available_operations(page_context):
+        if not cls._page_context_has_runtime_ui_tools(page_context):
             return False
 
         has_strong_intent = any(
@@ -1213,11 +1195,9 @@ class AgentRouterService:
             return True
         if any(token in normalized_message for token in NON_PAGE_WEB_SEARCH_TOKENS):
             return True
-        if ("搜索" in normalized_message or "搜" in normalized_message) and not any(
+        return ("搜索" in normalized_message or "搜" in normalized_message) and not any(
             token in normalized_message for token in PAGE_SEARCH_CONTEXT_TOKENS
-        ):
-            return True
-        return False
+        )
 
     @classmethod
     def _requested_tool_families(
@@ -1239,11 +1219,11 @@ class AgentRouterService:
             add("weather")
         if any(token in normalized_message for token in NON_PAGE_TIME_TOKENS):
             add("time_ops")
-        if any(token in normalized_message for token in NON_PAGE_WEB_SEARCH_TOKENS):
-            add("web_research")
-        elif ("搜索" in normalized_message or "搜" in normalized_message) and not any(
+        if any(
+            token in normalized_message for token in NON_PAGE_WEB_SEARCH_TOKENS
+        ) or (("搜索" in normalized_message or "搜" in normalized_message) and not any(
             token in normalized_message for token in PAGE_SEARCH_CONTEXT_TOKENS
-        ):
+        )):
             add("web_research")
 
         if page_context and (
@@ -1312,12 +1292,6 @@ class AgentRouterService:
                 for token in ("联网", "搜索", "web", "网页", "fetch url", "url")
             ):
                 supported.add("web_research")
-            if any(
-                token in descriptor
-                for descriptor in descriptors
-                for token in ("页面", "page", "表单", "page operation", "page context")
-            ):
-                supported.add("page_ops")
         return all(family in supported for family in families)
 
     async def _agent_can_handle_images(self, agent: Agent | None) -> bool:

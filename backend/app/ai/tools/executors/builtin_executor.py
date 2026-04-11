@@ -19,6 +19,12 @@ from urllib.parse import urlparse
 from app.ai.tools.executors.base import BaseToolExecutor
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.web_search.orchestrator import run_web_search as orchestrated_run_web_search
+from app.ai.web_search.public_html import (
+    _extract_baidu_public_results as _public_extract_baidu_public_results,
+)
+from app.ai.web_search.public_html import (
+    _extract_so360_public_results as _public_extract_so360_public_results,
+)
 from app.ai.web_search.types import (
     STATUS_NO_RESULTS as WS_STATUS_NO_RESULTS,
 )
@@ -235,76 +241,11 @@ def _clean_search_snippet(text: str, title: str) -> str:
 
 
 def _extract_baidu_public_results(html: str, max_results: int) -> list[dict[str, str]]:
-    """Parse Baidu public search result page. / 解析百度公共搜索结果页。"""
-    from bs4 import BeautifulSoup
-
-    soup = BeautifulSoup(html, "lxml")
-    results: list[dict[str, str]] = []
-    seen_urls: set[str] = set()
-
-    for container in soup.select("div.result.c-container, div.c-container"):
-        title_link = container.select_one("h3 a")
-        if title_link is None:
-            continue
-
-        href = (title_link.get("href") or "").strip()
-        title = _normalize_text(title_link.get_text(" ", strip=True))
-        if not href or not title or href in seen_urls:
-            continue
-
-        snippet = _clean_search_snippet(
-            container.get_text(" ", strip=True),
-            title,
-        )
-        results.append({"title": title, "url": href, "snippet": snippet})
-        seen_urls.add(href)
-        if len(results) >= max_results:
-            break
-
-    return results
+    return _public_extract_baidu_public_results(html, max_results)
 
 
 def _extract_so360_public_results(html: str, max_results: int) -> list[dict[str, str]]:
-    """Parse 360 public search result page. / 解析 360 公共搜索结果页。"""
-    from bs4 import BeautifulSoup
-
-    soup = BeautifulSoup(html, "lxml")
-    results: list[dict[str, str]] = []
-    seen_urls: set[str] = set()
-
-    selectors = (
-        "li.res-list",
-        "div.res-list",
-        "li[class*='result']",
-        "div[class*='result']",
-        "div[class*='res-list']",
-    )
-    containers = []
-    for selector in selectors:
-        containers = soup.select(selector)
-        if containers:
-            break
-
-    for container in containers:
-        title_link = container.select_one("h3 a")
-        if title_link is None:
-            continue
-
-        href = (title_link.get("href") or "").strip()
-        title = _normalize_text(title_link.get_text(" ", strip=True))
-        if not href or not title or href in seen_urls:
-            continue
-
-        snippet = _clean_search_snippet(
-            container.get_text(" ", strip=True),
-            title,
-        )
-        results.append({"title": title, "url": href, "snippet": snippet})
-        seen_urls.add(href)
-        if len(results) >= max_results:
-            break
-
-    return results
+    return _public_extract_so360_public_results(html, max_results)
 
 
 def _build_search_output_text(

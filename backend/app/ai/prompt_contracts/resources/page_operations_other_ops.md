@@ -1,2 +1,2 @@
-Other operations (use invoke_page_operation): {{ other_ops }}
-Format: invoke_page_operation(page_key="{{ page_key }}", operation_name="<name>", params={...})
+Other available ui_* tools: {{ other_ops or "none" }}.
+Use these ui_* tools directly; respond with natural language results, not tool arguments.

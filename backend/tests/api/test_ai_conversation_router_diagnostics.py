@@ -35,16 +35,16 @@ def _conversation_detail_diagnostics_payload() -> dict:
                 "intent_id": "intent-2",
                 "family": "page_ops",
                 "status": "pending",
-                "allowed_tool_names": ["get_page_context"],
+                "allowed_tool_names": ["ui_get_snapshot"],
             },
         ],
         "active_intent_id": "intent-2",
         "active_intent": {
             "intent_id": "intent-2",
             "family": "page_ops",
-            "allowed_tool_names": ["get_page_context"],
+            "allowed_tool_names": ["ui_get_snapshot"],
         },
-        "allowed_tool_names": ["get_page_context"],
+        "allowed_tool_names": ["ui_get_snapshot"],
         "budget": {
             "status": "exited",
             "exit_reason": "retry_budget_exhausted",
@@ -56,7 +56,7 @@ def _conversation_detail_diagnostics_payload() -> dict:
                 "action": "retry_intent",
                 "target_intent_id": "intent-2",
                 "retry_family": "page_ops",
-                "allowed_tool_names": ["get_page_context"],
+                "allowed_tool_names": ["ui_get_snapshot"],
             }
         ],
         "partial_exit_reason": "retry_budget_exhausted",

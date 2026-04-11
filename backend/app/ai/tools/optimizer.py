@@ -40,8 +40,16 @@ MAX_TOOLS_AFTER_OPTIMIZATION = 8
 # Infrastructure tool whitelist: always kept, not subject to optimization / 基础设施工具白名单
 PROTECTED_TOOL_NAMES: frozenset[str] = frozenset(
     {
-        "get_page_context",
-        "invoke_page_operation",
+        "ui_get_snapshot",
+        "ui_read_region",
+        "ui_read_table",
+        "ui_list_interactables",
+        "ui_click",
+        "ui_open_surface",
+        "ui_get_form_state",
+        "ui_set_field",
+        "ui_fill_form",
+        "ui_submit_form",
     }
 )
 
@@ -89,8 +97,6 @@ def _query_forbids_family(
     return _query_mentions_family(query_text, query_tokens, family_tokens, family_hints)
 
 
-# Dedicated editor tools (pageop_*) are also protected when present
-# 专用 editor tools 存在时同样保护
 def _is_protected_tool(
     tool: ToolDefinition,
     preferred_family: str | None = None,

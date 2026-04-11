@@ -6,18 +6,15 @@ Orchestrates full chat flow: create/resume conversation → load history → cal
 """
 
 import time
-from datetime import datetime, timezone
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
-from uuid import uuid4
 
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agent_quota import (
-    AgentConcurrencyExceeded,
     AgentConcurrencyLimiter,
     AgentQuotaConfig,
-    AgentQuotaExceeded,
     AgentQuotaManager,
 )
 from app.ai.agent_stats import AgentStatsManager
@@ -31,9 +28,6 @@ from app.ai.engine.conversation import ConversationEngine
 from app.ai.engine.dispatcher import ExecutionDispatcher
 from app.ai.engine.types import ExecutionRequest, ExecutionResult
 from app.ai.events.hooks import HookPoint, get_hook_registry
-from app.ai.gateway import AIGateway
-from app.ai.json_safe import normalize_json_safe, normalize_json_safe_dict
-from app.ai.tools.sandbox import ToolSandbox
 from app.ai.types import ChatMessage
 from app.ai.utils.token_estimator import estimate_tokens
 from app.configs.service import PLATFORM_TENANT_ID
@@ -41,34 +35,50 @@ from app.core.database import async_session_factory
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.enums.agent import (
-    ActionLevelEnum,
     AgentExecutionModeEnum,
     AgentStatusEnum,
-    ConversationOwnerTypeEnum,
-    MemoryChannelEnum,
-    MemorySceneEnum,
 )
 from app.enums.common import UserRoleEnum
 from app.exceptions import BusinessException, NotFoundException
 from app.repositories.ai.agent_repository import AgentRepository
 from app.schemas.ai.agent_chat import AgentChatResponse, InteractionMode, PageContext
+from app.services.ai.agent_chat_conversation_turn_service import (
+    AgentChatConversationTurnService,
+    PreparedConversationTurn,
+)
+from app.services.ai.agent_chat_error_surface import (
+    build_stream_error_display,
+    friendly_stream_error_detail,
+    friendly_stream_error_text,
+    strip_stream_error_trace,
+)
+from app.services.ai.agent_chat_interaction_mode_manager import (
+    AgentChatInteractionModeManager,
+)
+from app.services.ai.agent_chat_runtime_support import AgentChatRuntimeSupport
+from app.services.ai.agent_chat_stream_bootstrap_service import (
+    AgentChatStreamBootstrapService,
+)
+from app.services.ai.agent_chat_stream_persistence_orchestrator import (
+    AgentChatStreamPersistenceOrchestrator,
+)
+from app.services.ai.agent_chat_stream_runtime_dependencies import (
+    AgentChatStreamPersistenceDependencies,
+)
+from app.services.ai.agent_chat_turn_projection_service import (
+    AgentChatTurnProjectionBundle,
+    AgentChatTurnProjectionService,
+)
 from app.services.ai.conversation_service import ConversationService
 from app.services.ai.execution_trust_policy_service import (
     ExecutionTrustPolicyService,
 )
-from app.services.ai.long_term_memory_service import (
-    build_memory_capture_payload_from_session_delta,
-)
-from app.services.ai.memory_extraction_service import MemoryExtractionService
 from app.services.ai.session_memory_service import SessionMemoryService
 
 if TYPE_CHECKING:
     from app.models.ai.agent import Agent
 
 logger = LogManager.get_logger("ai.agent_chat_service")
-_JSON_SAFE = normalize_json_safe
-_JSON_SAFE_DICT = normalize_json_safe_dict
-_EXTRACT_TURN_DIAGNOSTICS = ConversationService._extract_turn_diagnostics_from_metadata
 
 
 class AgentChatService:
@@ -98,6 +108,17 @@ class AgentChatService:
         self.db = db
         self.tenant_id = tenant_id
         self.conversation_svc = ConversationService(db, tenant_id)
+        self.runtime_support = AgentChatRuntimeSupport(db, tenant_id)
+        self.stream_bootstrap = AgentChatStreamBootstrapService(
+            db,
+            tenant_id,
+            conversation_engine_factory=lambda **kwargs: ConversationEngine(**kwargs),
+        )
+        self._conversation_turn_service = AgentChatConversationTurnService()
+        self._interaction_mode_manager = AgentChatInteractionModeManager(
+            self.runtime_support
+        )
+        self._turn_projection_service = AgentChatTurnProjectionService()
 
     # ========================================
     # Internal: Agent validation / 内部：Agent 校验
@@ -163,26 +184,7 @@ class AgentChatService:
         user_role: str,
         user_role_id: int | None = None,
     ) -> dict[str, Any]:
-        """
-        Build immutable billing attribution context for the current entrypoint.
-        为当前入口构建不可变计费归属上下文。
-        """
-        if self.tenant_id == PLATFORM_TENANT_ID:
-            from app.services.ai.agent_service import AdminAgentService
-
-            return await AdminAgentService(self.db).build_usage_attribution_context(
-                agent=agent,
-                user_id=user_id,
-                user_role=user_role,
-                user_role_id=user_role_id,
-            )
-
-        from app.services.ai.agent_service import AgentService
-
-        return await AgentService(
-            self.db,
-            self.tenant_id,
-        ).build_usage_attribution_context(
+        return await self.runtime_support.build_billing_context(
             agent=agent,
             user_id=user_id,
             user_role=user_role,
@@ -195,92 +197,21 @@ class AgentChatService:
         response: str,
         agent_id: int,
     ) -> dict[str, list[str]]:
-        """
-        使用 LLM 从本轮对话中提取会话记忆增量 / Extract session memory delta from this turn via LLM.
-
-        相比关键词匹配版本，LLM 能更准确地理解上下文、
-        区分重要信息、并生成简洁的摘要式记忆条目。
-
-        使用独立 DB Session 以兼容流式回调场景。
-        失败时静默降级返回空 delta，不影响主对话链路。
-        """
-        empty: dict[str, list[str]] = {
-            "preferences": [],
-            "constraints": [],
-            "task_states": [],
-            "verified_facts": [],
-        }
-        result = await MemoryExtractionService(
-            self.tenant_id,
-        ).extract_turn_memory(
-            agent_id=agent_id,
+        return await self.runtime_support.extract_memory_delta(
             message=message,
             response=response,
+            agent_id=agent_id,
         )
-        return result or empty
 
     async def _load_session_memory_context(
         self,
         *,
         request: ExecutionRequest,
     ) -> str:
-        """
-        读取会话记忆并拼装为可注入 system 的文本 / Read session memory and build system-injectable text.
-        """
-        if not request.memory_enabled:
-            return ""
-        if not request.conversation_id or not request.user_id:
-            return ""
-
-        try:
-            memory_svc = SessionMemoryService(self.tenant_id)
-            _, state = await memory_svc.get_state(
-                channel=request.memory_channel,
-                source=request.memory_source,
-                agent_id=request.agent_id,
-                user_id=request.user_id,
-                conversation_id=request.conversation_id,
-            )
-        except Exception as exc:
-            logger.warning(
-                "Session memory load degraded: tenant={} agent={} user={} conversation={} err={}",
-                self.tenant_id,
-                request.agent_id,
-                request.user_id,
-                request.conversation_id,
-                str(exc),
-            )
-            return ""
-
-        _MEMORY_SECTION_KEYS = (
-            "constraints",
-            "preferences",
-            "task_states",
-            "verified_facts",
+        return await self.runtime_support.load_session_memory_context(
+            request=request,
+            session_memory_service_cls=SessionMemoryService,
         )
-        parts: list[str] = []
-        for key in _MEMORY_SECTION_KEYS:
-            items = state.get(key)
-            if items:
-                parts.append(f"{key}: " + " | ".join(items[:6]))
-
-        if not parts:
-            logger.info(
-                "Session memory context empty: tenant={} agent={} user={} conversation={}",
-                self.tenant_id,
-                request.agent_id,
-                request.user_id,
-                request.conversation_id,
-            )
-            return ""
-        logger.info(
-            "Session memory context injected: tenant={} agent={} user={} conversation={}",
-            self.tenant_id,
-            request.agent_id,
-            request.user_id,
-            request.conversation_id,
-        )
-        return "[SESSION MEMORY CONTEXT]\n" + "\n".join(parts)
 
     async def _persist_session_memory(
         self,
@@ -290,62 +221,19 @@ class AgentChatService:
         response: str,
         event_id: str,
     ) -> dict[str, list[str]] | None:
-        """
-        将本轮对话增量写入会话记忆 / Persist this turn's memory delta to session memory.
-
-        Returns:
-            提取到的 delta dict（有内容时），或 None（无记忆提取）
-        """
-        if not request.memory_enabled:
-            return None
-        if not request.conversation_id or not request.user_id:
-            return None
-
-        delta = await self._extract_memory_delta(message, response, request.agent_id)
-        if not any(delta.values()):
-            return None
-
-        memory_svc = SessionMemoryService(self.tenant_id)
-        await memory_svc.upsert_state(
-            channel=request.memory_channel,
-            source=request.memory_source,
-            agent_id=request.agent_id,
-            user_id=request.user_id,
-            conversation_id=request.conversation_id,
+        return await self.runtime_support.persist_session_memory(
+            request=request,
+            message=message,
+            response=response,
             event_id=event_id,
-            delta=delta,
-            metadata={"scene": request.memory_scene},
+            extract_memory_delta_fn=self._extract_memory_delta,
+            session_memory_service_cls=SessionMemoryService,
+            long_term_memory_provider_factory=get_long_term_memory_provider,
         )
-        if request.long_term_memory_enabled and request.user_id:
-            try:
-                payload = build_memory_capture_payload_from_session_delta(delta)
-                if any(payload.values()):
-                    provider = get_long_term_memory_provider(
-                        db=self.db,
-                        tenant_id=self.tenant_id,
-                    )
-                    await provider.capture(
-                        agent_id=request.agent_id,
-                        user_id=request.user_id,
-                        source_kind="conversation_turn",
-                        source_ref=f"conversation:{request.conversation_id}:{event_id}",
-                        items_by_type=payload,
-                    )
-            except Exception as exc:
-                logger.warning(
-                    "Long-term memory capture degraded: tenant={} agent={} user={} conversation={} err={}",
-                    self.tenant_id,
-                    request.agent_id,
-                    request.user_id,
-                    request.conversation_id,
-                    str(exc),
-                )
-        return delta
 
     @staticmethod
     def _build_memory_event_id(conversation_id: int) -> str:
-        """生成请求级唯一记忆事件 ID / Build a request-scoped unique memory event ID."""
-        return f"memevt:{conversation_id}:{uuid4().hex}"
+        return AgentChatRuntimeSupport.build_memory_event_id(conversation_id)
 
     @staticmethod
     def _resolve_memory_context(
@@ -353,28 +241,11 @@ class AgentChatService:
         memory_channel: str,
         memory_source: str,
     ) -> tuple[str, str, str, bool]:
-        """
-        解析并归一化会话记忆场景参数 / Parse and normalize session memory scene params.
-
-        Returns:
-            (scene, channel, source, enabled)
-        """
-        scene = (
-            memory_scene
-            if MemorySceneEnum.has_value(memory_scene)
-            else MemorySceneEnum.UNKNOWN.value
+        return AgentChatRuntimeSupport.resolve_memory_context(
+            memory_scene=memory_scene,
+            memory_channel=memory_channel,
+            memory_source=memory_source,
         )
-        channel = (
-            memory_channel
-            if MemoryChannelEnum.has_value(memory_channel)
-            else MemoryChannelEnum.SYSTEM.value
-        )
-        source = memory_source or scene
-        enabled = scene in (
-            MemorySceneEnum.AI_CHAT_PAGE.value,
-            MemorySceneEnum.ADMIN_CHAT.value,
-        )
-        return scene, channel, source, enabled
 
     async def _resolve_effective_memory_enabled(
         self,
@@ -383,47 +254,11 @@ class AgentChatService:
         scene: str,
         scene_enabled: bool,
     ) -> bool:
-        """
-        解析运行时最终记忆开关（入口场景 + 三层开关）/ Resolve effective memory enabled (scene + 3-layer toggles).
-
-        规则：
-        1) 非 ai_chat_page/admin_chat 场景直接关闭
-        2) 允许场景下叠加平台/管理端/企业三层开关
-        """
-        if not scene_enabled:
-            return False
-
-        try:
-            if self.tenant_id == PLATFORM_TENANT_ID:
-                from app.services.ai.agent_service import AdminAgentService
-
-                config = await AdminAgentService(self.db).get_memory_config(agent_id)
-            else:
-                from app.services.ai.agent_service import AgentService
-
-                config = await AgentService(self.db, self.tenant_id).get_memory_config(
-                    agent_id
-                )
-
-            enabled = bool(config.get("effective_memory_enabled", False))
-            logger.info(
-                "Session memory switch resolved: tenant={} agent={} scene={} enabled={}",
-                self.tenant_id,
-                agent_id,
-                scene,
-                enabled,
-            )
-            return enabled
-        except Exception as exc:
-            # Memory switch parse fail: degrade silently (no impact on main chat) / 记忆开关解析失败时降级，不影响主链路
-            logger.warning(
-                "Resolve session memory switch degraded: tenant={} agent={} scene={} err={}",
-                self.tenant_id,
-                agent_id,
-                scene,
-                str(exc),
-            )
-            return False
+        return await self.runtime_support.resolve_effective_memory_enabled(
+            agent_id=agent_id,
+            scene=scene,
+            scene_enabled=scene_enabled,
+        )
 
     async def _resolve_runtime_trust_policy_ref(
         self,
@@ -434,30 +269,14 @@ class AgentChatService:
         operator_type: str | None,
         explicit_ref: dict[str, Any] | None = None,
     ) -> dict[str, Any] | None:
-        """Resolve backend trust policy reference with fail-safe degradation / 解析后端 trust policy 引用，失败时静默降级。"""
-        if explicit_ref:
-            return explicit_ref
-        try:
-            return await ExecutionTrustPolicyService(
-                self.db,
-                self.tenant_id,
-            ).resolve_runtime_policy(
-                conversation_id=conversation_id,
-                agent_id=agent_id,
-                operator_id=operator_id,
-                operator_type=operator_type,
-            )
-        except Exception as exc:
-            logger.warning(
-                "Resolve execution trust policy degraded: tenant={} agent={} conversation={} operator={} type={} err={}",
-                self.tenant_id,
-                agent_id,
-                conversation_id,
-                operator_id,
-                operator_type,
-                str(exc),
-            )
-            return None
+        return await self.runtime_support.resolve_runtime_trust_policy_ref(
+            conversation_id=conversation_id,
+            agent_id=agent_id,
+            operator_id=operator_id,
+            operator_type=operator_type,
+            explicit_ref=explicit_ref,
+            trust_policy_service_cls=ExecutionTrustPolicyService,
+        )
 
     async def _resolve_interaction_mode(
         self,
@@ -470,77 +289,16 @@ class AgentChatService:
         explicit_trust_policy_ref: dict[str, Any] | None = None,
         interaction_updates: list[dict[str, Any]] | None = None,
     ) -> tuple[InteractionMode, dict[str, Any] | None, str | None]:
-        normalized_mode = (
-            requested_mode
-            if requested_mode in {"confirm", "trusted_auto"}
-            else "confirm"
-        )
-        if normalized_mode != "trusted_auto":
-            return normalized_mode, explicit_trust_policy_ref, None
-
-        resolved_ref = await self._resolve_runtime_trust_policy_ref(
+        outcome = await self._interaction_mode_manager.resolve_mode(
+            requested_mode=requested_mode,
             conversation_id=conversation_id,
             agent_id=agent_id,
             operator_id=operator_id,
             operator_type=operator_type,
-            explicit_ref=explicit_trust_policy_ref,
+            explicit_trust_policy_ref=explicit_trust_policy_ref,
+            interaction_updates=interaction_updates,
         )
-        if resolved_ref:
-            return "trusted_auto", resolved_ref, None
-        interaction_ref = self._build_trust_policy_ref_from_interaction_updates(
-            interaction_updates
-        )
-        if interaction_ref:
-            return "trusted_auto", interaction_ref, None
-        return "confirm", None, "missing_runtime_trust_policy"
-
-    @staticmethod
-    def _build_trust_policy_ref_from_interaction_updates(
-        interaction_updates: list[dict[str, Any]] | None,
-    ) -> dict[str, Any] | None:
-        """Build a temporary trust policy ref from freshly confirmed interaction updates / 基于刚确认的交互更新构建临时信任策略引用。"""
-        if not interaction_updates:
-            return None
-
-        allowed_tool_names: set[str] = set()
-        tool_families: set[str] = set()
-        risk_cap = ActionLevelEnum.READ.value
-
-        for update in interaction_updates:
-            if not isinstance(update, dict):
-                continue
-            if bool(update.get("rejected")):
-                continue
-            if str(update.get("kind") or "") not in {
-                "pending_confirmation",
-                "pending_consent",
-            }:
-                continue
-            tool_name = str(update.get("tool_name") or "").strip()
-            if not tool_name:
-                continue
-            tool_family = ExecutionTrustPolicyService.tool_family_for_name(tool_name)
-            tool_risk = ExecutionTrustPolicyService.tool_risk_level(
-                tool_name=tool_name,
-                tool_family=tool_family,
-            )
-            allowed_tool_names.add(tool_name)
-            if tool_family and tool_family != "none":
-                tool_families.add(tool_family)
-            if ExecutionTrustPolicyService._risk_rank(
-                tool_risk
-            ) > ExecutionTrustPolicyService._risk_rank(risk_cap):
-                risk_cap = tool_risk
-
-        if not allowed_tool_names:
-            return None
-
-        return {
-            "policy_ids": [],
-            "allowed_tool_names": sorted(allowed_tool_names),
-            "tool_families": sorted(tool_families),
-            "risk_level_cap": risk_cap,
-        }
+        return outcome.effective_mode, outcome.trust_policy_ref, outcome.downgrade_reason
 
     async def _grant_trusted_auto_policies(
         self,
@@ -552,41 +310,117 @@ class AgentChatService:
         interaction_updates: list[dict[str, Any]] | None,
         interaction_mode: str,
     ) -> None:
-        if interaction_mode != "trusted_auto" or not interaction_updates:
-            return
+        await self._interaction_mode_manager.grant_trusted_auto_policies(
+            conversation_id=conversation_id,
+            agent_id=agent_id,
+            operator_id=operator_id,
+            operator_type=operator_type,
+            interaction_updates=interaction_updates,
+            interaction_mode=interaction_mode,
+        )
 
-        service = ExecutionTrustPolicyService(self.db, self.tenant_id)
-        for update in interaction_updates:
-            if str(update.get("kind") or "") not in {
-                "pending_consent",
-                "pending_confirmation",
-            }:
-                continue
-            if bool(update.get("rejected")):
-                continue
-            tool_name = str(update.get("tool_name") or "").strip()
-            if not tool_name:
-                continue
-            await service.grant_conversation_tool_trust(
-                conversation_id=conversation_id,
-                agent_id=agent_id,
-                operator_id=operator_id,
-                operator_type=operator_type,
-                tool_name=tool_name,
-                granted_by=operator_id,
-                grant_reason="interaction_mode:trusted_auto",
-            )
+    async def _apply_conversation_interaction_state(
+        self,
+        *,
+        conversation: Any,
+        agent_id: int,
+        user_id: int | None,
+        conversation_owner_type: str,
+        requested_mode: str | None,
+        interaction_mode_effective: str,
+        interaction_mode_downgrade_reason: str | None,
+        interaction_updates: list[dict[str, Any]] | None,
+    ) -> list[dict[str, Any]] | None:
+        return await self._conversation_turn_service.apply_interaction_state(
+            conversation=conversation,
+            agent_id=agent_id,
+            user_id=user_id,
+            conversation_owner_type=conversation_owner_type,
+            requested_mode=requested_mode,
+            interaction_mode_effective=interaction_mode_effective,
+            interaction_mode_downgrade_reason=interaction_mode_downgrade_reason,
+            interaction_updates=interaction_updates,
+            conversation_service=self.conversation_svc,
+            interaction_mode_manager=self._interaction_mode_manager,
+            grant_trusted_auto_policies=self._grant_trusted_auto_policies,
+        )
+
+    async def _prepare_conversation_turn(
+        self,
+        *,
+        agent_id: int,
+        conversation_id: int | None,
+        message: str,
+        user_id: int | None,
+        user_role: str,
+        interaction_mode: str | None,
+        interaction_updates: list[dict[str, Any]] | None,
+        trust_policy_ref: dict[str, Any] | None,
+    ) -> PreparedConversationTurn:
+        return await self._conversation_turn_service.prepare_conversation_turn(
+            agent_id=agent_id,
+            conversation_id=conversation_id,
+            user_id=user_id,
+            user_role=user_role,
+            first_message=message,
+            requested_mode=interaction_mode,
+            interaction_updates=interaction_updates,
+            trust_policy_ref=trust_policy_ref,
+            resolve_interaction_mode=self._resolve_interaction_mode,
+            apply_interaction_state=self._apply_conversation_interaction_state,
+            build_memory_event_id=self._build_memory_event_id,
+            conversation_service=self.conversation_svc,
+        )
 
     @staticmethod
-    def _extract_turn_meta_from_result(result: ExecutionResult) -> dict[str, Any]:
-        return _EXTRACT_TURN_DIAGNOSTICS(
-            {
-                "turn_record": getattr(result, "turn_record", None),
-                "completion_reason": getattr(result, "completion_reason", None),
-                "partial": bool(getattr(result, "partial", False)),
-                "interrupted": bool(getattr(result, "interrupted", False)),
-            }
-        )
+    def _friendly_stream_error_text(
+        error: Any,
+        *,
+        failure_kind: str | None = None,
+    ) -> str:
+        return friendly_stream_error_text(error, failure_kind=failure_kind)
+
+    @staticmethod
+    def _strip_stream_error_trace(error: Any) -> str:
+        return strip_stream_error_trace(error)
+
+    @staticmethod
+    def _friendly_stream_error_detail(
+        error: Any,
+        *,
+        failure_kind: str | None = None,
+    ) -> str | None:
+        return friendly_stream_error_detail(error, failure_kind=failure_kind)
+
+    @classmethod
+    def _build_stream_error_display(
+        cls,
+        error: Any,
+        *,
+        failure_kind: str | None = None,
+    ) -> dict[str, Any]:
+        del cls
+        return build_stream_error_display(error, failure_kind=failure_kind)
+
+    @staticmethod
+    def _assistant_message_has_visible_reply_payload(message: dict[str, Any]) -> bool:
+        if not isinstance(message, dict):
+            return False
+        if str(message.get("role") or "").strip() != "assistant":
+            return False
+        if str(message.get("content") or "").strip():
+            return True
+        metadata = message.get("metadata")
+        if not isinstance(metadata, dict):
+            return False
+        if metadata.get("error") is True:
+            return True
+        if isinstance(metadata.get("pending_confirmation"), dict) or isinstance(
+            metadata.get("pending_consent"), dict
+        ):
+            return True
+        action_buttons = metadata.get("action_buttons")
+        return isinstance(action_buttons, list) and len(action_buttons) > 0
 
     @staticmethod
     def _build_context_diagnostics(
@@ -594,60 +428,10 @@ class AgentChatService:
         *,
         interaction_mode_effective: str,
     ) -> dict[str, Any]:
-        turn_meta = AgentChatService._extract_turn_meta_from_result(result)
-        payload: dict[str, Any] = {
-            "estimated_tokens": result.total_tokens,
-            "context_compacted": bool(result.context_compacted),
-            "compact_summary_present": bool(result.context_compacted),
-            "memory_recalled": bool(result.memory_recalled),
-            "memory_flush_triggered": bool(result.memory_flush_triggered),
-            "prune_stats": result.prune_stats,
-            "rag_source_kinds": list(result.rag_source_kinds or []),
-            "last_interrupted": bool(result.interrupted),
-            "interaction_mode_effective": interaction_mode_effective,
-            "tool_planner": result.tool_planner,
-        }
-        if turn_meta.get("turn_outcome"):
-            payload["turn_outcome"] = turn_meta["turn_outcome"]
-        if turn_meta.get("termination_reason"):
-            payload["termination_reason"] = turn_meta["termination_reason"]
-        if turn_meta.get("protocol_path"):
-            payload["protocol_path"] = turn_meta["protocol_path"]
-        if turn_meta.get("active_intent_id"):
-            payload["active_intent_id"] = turn_meta["active_intent_id"]
-        if turn_meta.get("continuation_source"):
-            payload["continuation_source"] = turn_meta["continuation_source"]
-        if turn_meta.get("conversation_outcome"):
-            payload["conversation_outcome"] = turn_meta["conversation_outcome"]
-        if turn_meta.get("selected_tool_names"):
-            payload["selected_tool_names"] = turn_meta["selected_tool_names"]
-        if turn_meta.get("selected_skill_names"):
-            payload["selected_skill_names"] = turn_meta["selected_skill_names"]
-        if turn_meta.get("context_sources"):
-            payload["context_sources"] = turn_meta["context_sources"]
-        if turn_meta.get("contract_breach_type"):
-            payload["contract_breach_type"] = turn_meta["contract_breach_type"]
-        if turn_meta.get("tool_leak_detected"):
-            payload["tool_leak_detected"] = True
-        if turn_meta.get("assistant_claimed_tool_call_without_tool_event"):
-            payload["assistant_claimed_tool_call_without_tool_event"] = True
-        if turn_meta.get("unfinished_intents"):
-            payload["unfinished_intents"] = turn_meta["unfinished_intents"]
-        if turn_meta.get("leaked_tool_names"):
-            payload["leaked_tool_names"] = turn_meta["leaked_tool_names"]
-        if turn_meta.get("recovered_via_retry") is not None:
-            payload["recovered_via_retry"] = turn_meta["recovered_via_retry"]
-        if turn_meta.get("last_tool_name"):
-            payload["last_tool_name"] = turn_meta["last_tool_name"]
-        if turn_meta.get("last_page_key"):
-            payload["last_page_key"] = turn_meta["last_page_key"]
-        if turn_meta.get("last_page_op"):
-            payload["last_page_op"] = turn_meta["last_page_op"]
-        if turn_meta.get("interrupted_stage"):
-            payload["interrupted_stage"] = turn_meta["interrupted_stage"]
-        if turn_meta.get("tool_loop_progress"):
-            payload["tool_loop_progress"] = turn_meta["tool_loop_progress"]
-        return payload
+        return AgentChatTurnProjectionService.build_context_diagnostics(
+            result,
+            interaction_mode_effective=interaction_mode_effective,
+        )
 
     @staticmethod
     def _build_last_run_summary(
@@ -656,64 +440,65 @@ class AgentChatService:
         interaction_mode_effective: str,
         downgrade_reason: str | None,
     ) -> dict[str, Any]:
-        turn_meta = AgentChatService._extract_turn_meta_from_result(result)
-        payload: dict[str, Any] = {
-            "duration_ms": result.duration_ms,
-            "interaction_mode_effective": interaction_mode_effective,
-            "downgrade_reason": downgrade_reason,
-            "runtime_model_name": result.runtime_model_name,
-            "runtime_provider_name": result.runtime_provider_name,
-            "success": bool(result.success),
-            "total_tokens": result.total_tokens,
-            "tool_planner": result.tool_planner,
-        }
-        completion_reason = (
-            turn_meta.get("termination_reason")
-            or str(getattr(result, "completion_reason", "") or "").strip()
-            or None
+        return AgentChatTurnProjectionService.build_last_run_summary(
+            result,
+            interaction_mode_effective=interaction_mode_effective,
+            downgrade_reason=downgrade_reason,
         )
-        if completion_reason:
-            payload["completion_reason"] = completion_reason
-            payload["termination_reason"] = completion_reason
-        if turn_meta.get("turn_outcome"):
-            payload["turn_outcome"] = turn_meta["turn_outcome"]
-        if turn_meta.get("protocol_path"):
-            payload["protocol_path"] = turn_meta["protocol_path"]
-        if turn_meta.get("active_intent_id"):
-            payload["active_intent_id"] = turn_meta["active_intent_id"]
-        if turn_meta.get("continuation_source"):
-            payload["continuation_source"] = turn_meta["continuation_source"]
-        if turn_meta.get("conversation_outcome"):
-            payload["conversation_outcome"] = turn_meta["conversation_outcome"]
-        if turn_meta.get("selected_tool_names"):
-            payload["selected_tool_names"] = turn_meta["selected_tool_names"]
-        if turn_meta.get("selected_skill_names"):
-            payload["selected_skill_names"] = turn_meta["selected_skill_names"]
-        if turn_meta.get("context_sources"):
-            payload["context_sources"] = turn_meta["context_sources"]
-        if turn_meta.get("contract_breach_type"):
-            payload["contract_breach_type"] = turn_meta["contract_breach_type"]
-        if turn_meta.get("tool_leak_detected"):
-            payload["tool_leak_detected"] = True
-        if turn_meta.get("assistant_claimed_tool_call_without_tool_event"):
-            payload["assistant_claimed_tool_call_without_tool_event"] = True
-        if turn_meta.get("unfinished_intents"):
-            payload["unfinished_intents"] = turn_meta["unfinished_intents"]
-        if turn_meta.get("leaked_tool_names"):
-            payload["leaked_tool_names"] = turn_meta["leaked_tool_names"]
-        if turn_meta.get("recovered_via_retry") is not None:
-            payload["recovered_via_retry"] = turn_meta["recovered_via_retry"]
-        if turn_meta.get("last_tool_name"):
-            payload["last_tool_name"] = turn_meta["last_tool_name"]
-        if turn_meta.get("last_page_key"):
-            payload["last_page_key"] = turn_meta["last_page_key"]
-        if turn_meta.get("last_page_op"):
-            payload["last_page_op"] = turn_meta["last_page_op"]
-        if turn_meta.get("interrupted_stage"):
-            payload["interrupted_stage"] = turn_meta["interrupted_stage"]
-        if turn_meta.get("tool_loop_progress"):
-            payload["tool_loop_progress"] = turn_meta["tool_loop_progress"]
-        return payload
+
+    def _bind_turn_projector(
+        self,
+        *,
+        interaction_mode_effective: str,
+        downgrade_reason: str | None,
+    ):
+        return self._turn_projection_service.bind(
+            context_diagnostics_builder=lambda result: self._build_context_diagnostics(
+                result,
+                interaction_mode_effective=interaction_mode_effective,
+            ),
+            last_run_summary_builder=lambda result: self._build_last_run_summary(
+                result,
+                interaction_mode_effective=interaction_mode_effective,
+                downgrade_reason=downgrade_reason,
+            ),
+        )
+
+    def _build_turn_projection_bundle(
+        self,
+        result: ExecutionResult,
+        *,
+        interaction_mode_effective: str,
+        downgrade_reason: str | None,
+    ) -> AgentChatTurnProjectionBundle:
+        return self._bind_turn_projector(
+            interaction_mode_effective=interaction_mode_effective,
+            downgrade_reason=downgrade_reason,
+        ).build(result)
+
+    @staticmethod
+    def _stream_persistence_runtime_dependencies() -> AgentChatStreamPersistenceDependencies:
+        """Late-bind patchable dependencies for stream on_complete persistence."""
+        return AgentChatStreamPersistenceDependencies(
+            session_factory=async_session_factory,
+            conversation_service_cls=ConversationService,
+            adjust_usage=AgentQuotaManager.adjust_usage,
+            record_user_usage=AgentQuotaManager.record_user_usage,
+            record_chat_stats=AgentStatsManager.record_chat,
+            release_concurrency=AgentConcurrencyLimiter.release,
+            publish_execution_completed=BaseEngine._publish_execution_completed,
+            publish_execution_failed=BaseEngine._publish_execution_failed,
+        )
+
+    def _build_stream_runtime_dependencies(self) -> AgentChatStreamPersistenceDependencies:
+        dependencies = self._stream_persistence_runtime_dependencies()
+        if isinstance(dependencies, AgentChatStreamPersistenceDependencies):
+            return dependencies
+        if isinstance(dependencies, Mapping):
+            return AgentChatStreamPersistenceDependencies.from_mapping(dependencies)  # type: ignore[arg-type]
+        raise TypeError(
+            "Stream persistence dependencies must be a mapping or AgentChatStreamPersistenceDependencies"
+        )
 
     # ========================================
     # Non-streaming chat / 非流式对话
@@ -778,73 +563,25 @@ class AgentChatService:
         )
 
         # 1. Get or create conversation / 1. 获取或创建对话
-        is_new_conversation = conversation_id is None
-        conversation_owner_type = ConversationOwnerTypeEnum.from_user_role(user_role)
-        (
-            interaction_mode_effective,
-            resolved_trust_policy_ref,
-            interaction_mode_downgrade_reason,
-        ) = await self._resolve_interaction_mode(
-            requested_mode=interaction_mode,
-            conversation_id=conversation_id,
-            agent_id=agent_id,
-            operator_id=user_id,
-            operator_type=conversation_owner_type,
-            explicit_trust_policy_ref=trust_policy_ref,
-            interaction_updates=interaction_updates,
-        )
-        conversation = await self.conversation_svc.get_or_create_for_chat(
+        prepared_turn = await self._prepare_conversation_turn(
             agent_id=agent_id,
             conversation_id=conversation_id,
+            message=message,
             user_id=user_id,
-            owner_type=conversation_owner_type,
-            first_message=message,
+            user_role=user_role,
+            interaction_mode=interaction_mode,
+            interaction_updates=interaction_updates,
+            trust_policy_ref=trust_policy_ref,
         )
-        conversation_metadata = dict(conversation.metadata_ or {})
-        conversation_metadata["interaction_mode"] = interaction_mode_effective
-        conversation_metadata["interaction_mode_requested"] = interaction_mode
-        if interaction_mode_downgrade_reason:
-            conversation_metadata["interaction_mode_downgrade_reason"] = (
-                interaction_mode_downgrade_reason
-            )
-        conversation.metadata_ = conversation_metadata
-        if interaction_updates:
-            interaction_updates = [
-                {
-                    **update,
-                    "auto_approve_source": (
-                        "execution_trust_policy"
-                        if interaction_mode_effective == "trusted_auto"
-                        else None
-                    ),
-                    "downgraded_from": (
-                        interaction_mode
-                        if interaction_mode != interaction_mode_effective
-                        else None
-                    ),
-                    "downgrade_reason": interaction_mode_downgrade_reason,
-                    "interaction_mode_effective": interaction_mode_effective,
-                }
-                for update in interaction_updates
-            ]
-            await self.conversation_svc.update_last_assistant_interaction_state(
-                conversation.id,
-                interaction_updates,
-                user_id=user_id,
-                owner_type=conversation_owner_type,
-                interaction_mode_requested=interaction_mode,
-                interaction_mode_effective=interaction_mode_effective,
-                interaction_mode_downgrade_reason=interaction_mode_downgrade_reason,
-            )
-            await self._grant_trusted_auto_policies(
-                conversation_id=conversation.id,
-                agent_id=agent_id,
-                operator_id=user_id,
-                operator_type=conversation_owner_type,
-                interaction_updates=interaction_updates,
-                interaction_mode=interaction_mode_effective,
-            )
-        memory_event_id = self._build_memory_event_id(conversation.id)
+        conversation = prepared_turn.conversation
+        is_new_conversation = prepared_turn.is_new_conversation
+        interaction_mode_effective = prepared_turn.interaction_mode_effective
+        resolved_trust_policy_ref = prepared_turn.resolved_trust_policy_ref
+        interaction_mode_downgrade_reason = (
+            prepared_turn.interaction_mode_downgrade_reason
+        )
+        interaction_updates = prepared_turn.interaction_updates
+        memory_event_id = prepared_turn.memory_event_id
 
         # 1.5 Increment daily conversation count for new chat (conversations_per_day) / 1.5 新对话递增每日计数
         if is_new_conversation:
@@ -954,6 +691,7 @@ class AgentChatService:
 
         # 4.1 Session memory injection (ai_chat_page only) / 4.1 会话记忆注入
         mem_text = await self._load_session_memory_context(request=request)
+        request.session_memory_injected = bool(mem_text)
         if mem_text:
             # Prefer system slot, else prepend / system 位优先，否则插首位
             if request.messages and request.messages[0].role == "system":
@@ -1002,15 +740,13 @@ class AgentChatService:
 
         # 6. Persist new messages (user + engine) / 6. 持久化新消息
         history_count = len(history_messages)
-        context_diagnostics_payload = self._build_context_diagnostics(
-            result,
-            interaction_mode_effective=interaction_mode_effective,
-        )
-        last_run_summary_payload = self._build_last_run_summary(
+        turn_projection = self._build_turn_projection_bundle(
             result,
             interaction_mode_effective=interaction_mode_effective,
             downgrade_reason=interaction_mode_downgrade_reason,
         )
+        context_diagnostics_payload = turn_projection.context_diagnostics
+        last_run_summary_payload = turn_projection.last_run_summary
         (
             tool_calls_collected,
             _persisted_message_count,
@@ -1160,73 +896,25 @@ class AgentChatService:
         first_message = batch[0] if batch else ""
 
         # 1. Get or create conversation / 1. 获取或创建对话
-        is_new_conversation = conversation_id is None
-        conversation_owner_type = ConversationOwnerTypeEnum.from_user_role(user_role)
-        (
-            interaction_mode_effective,
-            resolved_trust_policy_ref,
-            interaction_mode_downgrade_reason,
-        ) = await self._resolve_interaction_mode(
-            requested_mode=interaction_mode,
-            conversation_id=conversation_id,
-            agent_id=agent_id,
-            operator_id=user_id,
-            operator_type=conversation_owner_type,
-            explicit_trust_policy_ref=trust_policy_ref,
-            interaction_updates=interaction_updates,
-        )
-        conversation = await self.conversation_svc.get_or_create_for_chat(
+        prepared_turn = await self._prepare_conversation_turn(
             agent_id=agent_id,
             conversation_id=conversation_id,
+            message=first_message,
             user_id=user_id,
-            owner_type=conversation_owner_type,
-            first_message=first_message,
+            user_role=user_role,
+            interaction_mode=interaction_mode,
+            interaction_updates=interaction_updates,
+            trust_policy_ref=trust_policy_ref,
         )
-        conversation_metadata = dict(conversation.metadata_ or {})
-        conversation_metadata["interaction_mode"] = interaction_mode_effective
-        conversation_metadata["interaction_mode_requested"] = interaction_mode
-        if interaction_mode_downgrade_reason:
-            conversation_metadata["interaction_mode_downgrade_reason"] = (
-                interaction_mode_downgrade_reason
-            )
-        conversation.metadata_ = conversation_metadata
-        if interaction_updates:
-            interaction_updates = [
-                {
-                    **update,
-                    "auto_approve_source": (
-                        "execution_trust_policy"
-                        if interaction_mode_effective == "trusted_auto"
-                        else None
-                    ),
-                    "downgraded_from": (
-                        interaction_mode
-                        if interaction_mode != interaction_mode_effective
-                        else None
-                    ),
-                    "downgrade_reason": interaction_mode_downgrade_reason,
-                    "interaction_mode_effective": interaction_mode_effective,
-                }
-                for update in interaction_updates
-            ]
-            await self.conversation_svc.update_last_assistant_interaction_state(
-                conversation.id,
-                interaction_updates,
-                user_id=user_id,
-                owner_type=conversation_owner_type,
-                interaction_mode_requested=interaction_mode,
-                interaction_mode_effective=interaction_mode_effective,
-                interaction_mode_downgrade_reason=interaction_mode_downgrade_reason,
-            )
-            await self._grant_trusted_auto_policies(
-                conversation_id=conversation.id,
-                agent_id=agent_id,
-                operator_id=user_id,
-                operator_type=conversation_owner_type,
-                interaction_updates=interaction_updates,
-                interaction_mode=interaction_mode_effective,
-            )
-        memory_event_id = self._build_memory_event_id(conversation.id)
+        conversation = prepared_turn.conversation
+        is_new_conversation = prepared_turn.is_new_conversation
+        interaction_mode_effective = prepared_turn.interaction_mode_effective
+        resolved_trust_policy_ref = prepared_turn.resolved_trust_policy_ref
+        interaction_mode_downgrade_reason = (
+            prepared_turn.interaction_mode_downgrade_reason
+        )
+        interaction_updates = prepared_turn.interaction_updates
+        memory_event_id = prepared_turn.memory_event_id
 
         # 2. Load history (context_config window) / 2. 加载历史
         ctx_cfg = agent.context_config or {}
@@ -1291,783 +979,116 @@ class AgentChatService:
             scene=normalized_scene,
             scene_enabled=memory_enabled,
         )
-        request = ExecutionRequest(
-            agent_id=agent_id,
-            tenant_id=self.tenant_id,
+        billing_context = await self._build_billing_context(
+            agent=agent,
             user_id=user_id,
-            messages=all_messages,
-            input_variables=variables or {},
-            execution_mode=AgentExecutionModeEnum.CONVERSATION.value,
-            stream=True,
+            user_role=user_role,
+            user_role_id=user_role_id,
+        )
+        request_bundle = await self.stream_bootstrap.build_conversation_stream_request(
+            agent=agent,
+            agent_id=agent_id,
             conversation_id=conversation.id,
+            all_messages=all_messages,
+            variables=variables,
             knowledge_base_ids=knowledge_base_ids,
+            dropped_knowledge_base_ids=dropped_knowledge_base_ids,
             consented_actions=consented_actions,
             user_role=user_role,
             user_role_id=user_role_id,
             permissions=permissions,
-            billing_context=await self._build_billing_context(
-                agent=agent,
-                user_id=user_id,
-                user_role=user_role,
-                user_role_id=user_role_id,
-            ),
-            memory_scene=normalized_scene,
-            memory_channel=normalized_channel,
-            memory_source=normalized_source,
+            billing_context=billing_context,
+            normalized_scene=normalized_scene,
+            normalized_channel=normalized_channel,
+            normalized_source=normalized_source,
             memory_enabled=memory_enabled,
-            long_term_memory_enabled=bool(
-                ctx_cfg.get("long_term_memory_enabled", memory_enabled)
-            ),
             trust_policy_ref=resolved_trust_policy_ref,
             interaction_mode=interaction_mode_effective,
             page_session_id=page_session_id,
             interaction_updates=interaction_updates,
-            knowledge_base_feedback=(
-                {
-                    "dropped_knowledge_base_ids": dropped_knowledge_base_ids,
-                    "effective_knowledge_base_ids": knowledge_base_ids or [],
-                }
-                if dropped_knowledge_base_ids
-                else None
+            long_term_memory_enabled=bool(
+                ctx_cfg.get("long_term_memory_enabled", memory_enabled)
             ),
+            session_memory_text="",
         )
+        request = request_bundle.request
 
         # 4.1 Session memory injection (ai_chat_page only) / 4.1 会话记忆注入
         mem_text = await self._load_session_memory_context(request=request)
-        if mem_text:
-            # Prefer system slot, else prepend / system 位优先，否则插首位
-            if request.messages and request.messages[0].role == "system":
-                request.messages[
-                    0
-                ].content = f"{request.messages[0].content}\n\n{mem_text}"
-            else:
-                request.messages.insert(0, ChatMessage(role="system", content=mem_text))
+        self.stream_bootstrap._inject_session_memory(request, mem_text)
 
         # 4.2 Conversation quota (max_turns / max_tokens per conversation) / 4.2 会话级配额
-        quota_config = AgentQuotaConfig.from_dict(agent.quota_config)
-        if (
-            quota_config.max_turns_per_conversation > 0
-            or quota_config.max_tokens_per_conversation > 0
-        ):
-            current_turns = sum(1 for m in request.messages if m.role == "assistant")
-            current_tokens = sum(
-                estimate_tokens(m.content or "") for m in request.messages
-            )
-            await AgentQuotaManager.check_conversation_limits(
-                config=quota_config,
-                current_turns=current_turns,
-                current_tokens=current_tokens,
-            )
+        await self.stream_bootstrap.check_conversation_limits(
+            quota_config=request_bundle.quota_config,
+            messages=request.messages,
+        )
 
         # 5. Pre-check quota, concurrency, hooks (match dispatch) / 5. 配额并发钩子前置检查
-        lock_token: str = ""
-
-        # Estimate input tokens for atomic pre-deduction (match dispatcher) / 预估输入 Token 以原子预扣
-        estimated_tokens = max(
-            sum(estimate_tokens(m.content or "") for m in all_messages),
-            100,  # Floor 100 (system prompt + generation overhead) / 下限 100（system 与生成开销）
+        preflight = await self.stream_bootstrap.run_stream_preflight(
+            agent=agent,
+            agent_id=agent_id,
+            request=request,
+            quota_config=request_bundle.quota_config,
+            estimated_tokens=request_bundle.estimated_tokens,
+            user_id=user_id,
+            persist_new_conversation=is_new_conversation,
+            persist_user_messages=self.conversation_svc.persist_user_messages,
+            conversation=conversation,
+            user_msgs=user_msgs,
         )
-        seeded_user_message_count = 0
-
-        try:
-            # Concurrency control / 并发控制
-            if (
-                quota_config.max_concurrent > 0
-                or quota_config.tenant_max_concurrent > 0
-            ):
-                lock_token = await AgentConcurrencyLimiter.acquire(
-                    tenant_id=self.tenant_id,
-                    agent_id=agent_id,
-                    max_concurrent=quota_config.max_concurrent,
-                    tenant_max_concurrent=quota_config.tenant_max_concurrent,
-                )
-
-            # Quota check (atomic pre-deduction) / 配额检查（原子预扣）
-            await AgentQuotaManager.check_quota(
-                tenant_id=self.tenant_id,
-                agent_id=agent_id,
-                config=quota_config,
-                estimated_tokens=estimated_tokens,
-            )
-            if user_id:
-                await AgentQuotaManager.check_user_quota(
-                    tenant_id=self.tenant_id,
-                    agent_id=agent_id,
-                    user_id=user_id,
-                    config=quota_config,
-                )
-
-            # Plan monthly API call quota / 套餐月 API 调用配额
-            if self.tenant_id:
-                from app.enums import ErrorCode
-                from app.services.tenant.quota_service import QuotaService
-
-                api_check = await QuotaService.check_api_quota_for_tenant_id(
-                    self.db, self.tenant_id
-                )
-                if not api_check.allowed:
-                    raise BusinessException(
-                        message=api_check.message or _("quota.api_calls_exceeded"),
-                        code=ErrorCode.CONFLICT,
-                    )
-
-            # BEFORE_EXECUTE hook (registry from step 3.5) / BEFORE_EXECUTE 钩子
-            hook_context = await hook_registry.trigger(
-                HookPoint.BEFORE_EXECUTE,
-                tenant_id=self.tenant_id,
-                agent_id=agent_id,
-                execution_mode=request.execution_mode,
-                request=request,
-            )
-            if hook_context.get("blocked"):
-                reason = hook_context.get(
-                    "block_reason", _("agent.error.blocked_by_hook")
-                )
-                raise BusinessException(message=reason)
-
-            # Commit only after all preflight checks pass, so failed requests do not
-            # leave empty conversations or consume daily conversation quota.
-            if is_new_conversation:
-                await AgentQuotaManager.record_conversation(
-                    tenant_id=self.tenant_id,
-                    agent_id=agent_id,
-                    user_id=user_id,
-                )
-            seeded_user_message_count = 0
-            if user_msgs:
-                seeded_user_message_count = (
-                    await self.conversation_svc.persist_user_messages(
-                        conversation=conversation,
-                        messages=user_msgs,
-                    )
-                )
-            await self.db.commit()
-
-            # ExecutionStarted event / 执行开始事件
-            await BaseEngine._publish_execution_started(request, agent)
-
-        except (AgentQuotaExceeded, AgentConcurrencyExceeded, BusinessException):
-            # Release concurrency lock then re-raise / 释放并发锁后重抛
-            if lock_token:
-                await AgentConcurrencyLimiter.release(
-                    tenant_id=self.tenant_id,
-                    agent_id=agent_id,
-                    lock_token=lock_token,
-                )
-            raise
+        hook_registry = preflight.hook_registry
+        lock_token = preflight.lock_token
+        seeded_user_message_count = preflight.seeded_user_message_count
 
         # 6. Create Gateway / 6. 创建 Gateway
-        gateway = AIGateway(self.db)
-
-        # 6.1 Image model → ImageGenerationEngine / 6.1 生图模型走 ImageGenerationEngine
-        model_obj = getattr(agent, "model", None)
-        is_image_model = (
-            model_obj is not None and getattr(model_obj, "type", "") == "image"
+        engine_bundle = await self.stream_bootstrap.build_stream_engine_bundle(
+            agent=agent,
+            agent_id=agent_id,
+            user_id=user_id,
+            user_role=user_role,
+            permissions=permissions,
+            variables=variables,
+            page_session_id=page_session_id,
+            trust_policy_ref=resolved_trust_policy_ref,
+            interaction_mode=interaction_mode_effective,
         )
-
-        if is_image_model:
-            from app.ai.engine.image_generation import ImageGenerationEngine
-
-            engine = ImageGenerationEngine(gateway=gateway)
-            skill_result = None
-        else:
-            # Resolve skills in Service layer (not inside Engine) / Service 层解析 Skill（Engine 内不查库）
-            from app.ai.skills.resolver import resolve_for_agent
-
-            try:
-                skill_result = await resolve_for_agent(
-                    self.db,
-                    agent,
-                    tenant_id=self.tenant_id,
-                    user_role=user_role,
-                )
-            except Exception as skill_exc:
-                logger.error(
-                    "Skill resolution failed for agent {}: {}",
-                    agent_id,
-                    str(skill_exc),
-                )
-                skill_result = None
-
-            # Platform Toolkit security config / 读取平台 Toolkit 安全配置
-            from app.configs.service import ConfigService
-
-            _cfg = ConfigService(self.db)
-            _toolkit_security_level = await _cfg.get_platform_config(
-                "toolkit_security_level",
-                default="normal",
-            )
-            _toolkit_memory_limit_mb = await _cfg.get_platform_config(
-                "toolkit_memory_limit_mb",
-                default=256,
-            )
-
-            sandbox = ToolSandbox(
-                tenant_id=self.tenant_id,
-                agent_id=agent_id,
-                user_id=user_id,
-                user_role=user_role,
-                permissions=permissions,
-                gateway=gateway,
-                db=self.db,
-                agent=agent,
-                toolkit_security_level=str(_toolkit_security_level),
-                toolkit_memory_limit_mb=int(_toolkit_memory_limit_mb),
-                input_variables=variables or {},
-                page_session_id=page_session_id,
-                trust_policy_ref=resolved_trust_policy_ref,
-                interaction_mode=interaction_mode_effective,
-            )
-            engine = ConversationEngine(
-                db=self.db,
-                gateway=gateway,
-                sandbox=sandbox,
-            )
+        engine = engine_bundle.engine
+        is_image_model = engine_bundle.is_image_model
+        skill_result = engine_bundle.skill_result
 
         # 7. Persist callback after stream (quota, lock release, hooks) / 7. 流式结束持久化回调
         history_count = len(history_messages) + int(seeded_user_message_count or 0)
-
-        async def _persist_stream_last_error_marker(
-            *,
-            conversation_id: int,
-            error_type: str,
-            error_message: str,
-            friendly_message: str,
-            partial: bool,
-            extra_payload: dict[str, Any] | None = None,
-        ) -> bool:
-            """Persist conversation-level stream error marker / 持久化会话级流式错误标记。"""
-            async with async_session_factory() as marker_db:
-                marker_conv_svc = ConversationService(marker_db, self.tenant_id)
-                marker_conv = await marker_conv_svc.repo.get_by_id(conversation_id)
-                if marker_conv is None:
-                    logger.warning(
-                        "Skip stream error marker because conversation is missing: conversation_id={}",
-                        conversation_id,
-                    )
-                    return False
-
-                conversation_metadata = dict(marker_conv.metadata_ or {})
-                marker_payload: dict[str, Any] = {
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "error_type": error_type,
-                    "error_message": str(error_message or "")[:500],
-                    "friendly_message": friendly_message,
-                    "partial": bool(partial),
-                }
-                if isinstance(extra_payload, dict) and extra_payload:
-                    marker_payload["details"] = _JSON_SAFE(extra_payload)
-                conversation_metadata["last_error"] = marker_payload
-                marker_conv.metadata_ = (
-                    _JSON_SAFE_DICT(conversation_metadata)
-                    or {}
-                )
-                await marker_db.commit()
-                return True
-
-        async def _save_error_message_to_conversation(
-            *,
-            conversation_id: int,
-            error_text: str,
-            user_message: str,
-            result: ExecutionResult,
-            history_count: int,
-            persist_user_message: bool,
-            context_diagnostics_payload: dict[str, Any],
-            last_run_summary_payload: dict[str, Any],
-        ) -> int:
-            """Persist a user-facing stream error message / 持久化面向用户的流式错误消息。"""
-            from app.enums.agent import MessageRoleEnum
-
-            async with async_session_factory() as err_db:
-                err_conv_svc = ConversationService(err_db, self.tenant_id)
-                err_conv = await err_conv_svc.repo.get_by_id(conversation_id)
-                if err_conv is None:
-                    logger.warning(
-                        "Skip stream error persistence because conversation is missing: conversation_id={}",
-                        conversation_id,
-                    )
-                    return 0
-
-                current_count = await err_conv_svc.message_repo.count_by_conversation(
-                    conversation_id
-                )
-                next_seq = await err_conv_svc.message_repo.get_next_sequence(
-                    conversation_id
-                )
-                persisted_rows = 0
-                normalized_user_message = str(user_message or "").strip()
-                if persist_user_message and normalized_user_message:
-                    await err_conv_svc.message_repo.create(
-                        {
-                            "tenant_id": self.tenant_id,
-                            "conversation_id": conversation_id,
-                            "role": MessageRoleEnum.USER.value,
-                            "content": normalized_user_message,
-                            "sequence": next_seq,
-                            "token_count": estimate_tokens(normalized_user_message),
-                            "agent_id": None,
-                            "model_id": None,
-                            "metadata_": _JSON_SAFE_DICT(
-                                {
-                                    "recovered_from_failed_stream": True,
-                                    "stream_error_recovered": True,
-                                }
-                            )
-                            or {},
-                        }
-                    )
-                    next_seq += 1
-                    persisted_rows += 1
-                error_metadata: dict[str, Any] = {
-                    "error": True,
-                    "error_type": "stream_execution_error",
-                    "raw_error_message": str(result.error or "")[:500],
-                    "partial_output": result.output or "",
-                    "total_tokens": result.total_tokens or 0,
-                    "duration_ms": result.duration_ms or 0,
-                    "user_message_preview": (user_message or "")[:200],
-                }
-                if context_diagnostics_payload:
-                    error_metadata["context_diagnostics"] = _JSON_SAFE(
-                        context_diagnostics_payload
-                    )
-                if last_run_summary_payload:
-                    error_metadata["last_run_summary"] = _JSON_SAFE(
-                        last_run_summary_payload
-                    )
-                error_metadata = _JSON_SAFE_DICT(error_metadata) or {}
-
-                await err_conv_svc.message_repo.create(
-                    {
-                        "tenant_id": self.tenant_id,
-                        "conversation_id": conversation_id,
-                        "role": MessageRoleEnum.ASSISTANT.value,
-                        "content": error_text,
-                        "sequence": next_seq,
-                        "token_count": estimate_tokens(error_text),
-                        "agent_id": agent_id,
-                        "model_id": result.runtime_model_id,
-                        "metadata_": error_metadata,
-                    }
-                )
-                persisted_rows += 1
-
-                conversation_metadata = dict(err_conv.metadata_ or {})
-                conversation_metadata["last_error"] = {
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "error_type": "stream_execution_error",
-                    "error_message": str(result.error or "")[:500],
-                    "friendly_message": error_text,
-                    "partial": bool(result.partial),
-                }
-                if persisted_rows:
-                    err_conv.message_count = max(
-                        int(getattr(err_conv, "message_count", 0) or 0),
-                        int(current_count or 0),
-                    ) + persisted_rows
-                err_conv.metadata_ = (
-                    _JSON_SAFE_DICT(conversation_metadata)
-                    or {}
-                )
-                await err_db.commit()
-                logger.info(
-                    "Stream error message saved: conversation_id={} error_type=stream_execution_error",
-                    conversation_id,
-                )
-                return int(persisted_rows or 0)
-
-        async def on_stream_complete(result: ExecutionResult) -> dict[str, Any] | None:
-            """流式完成后持久化消息 + 配额记录 + 并发释放 / Persist message + quota + release concurrency on stream complete.
-
-            使用独立 db session，不依赖 DI session 生命周期。
-            SSE 生成器在响应体流式传输期间执行此回调，
-            DI session 的 commit/close 时机取决于框架版本，
-            独立 session 保证写入操作始终可靠。
-
-            Returns:
-                Extra data dict to merge into the SSE 'done' event, or None.
-            """
-            extra: dict[str, Any] = {}
-            persisted_message_count = 0
-            context_diagnostics_payload: dict[str, Any] = {}
-            last_run_summary_payload: dict[str, Any] = {}
-            system_count = 0
-            error_message_persisted = False
-            critical_persistence_committed = False
-            last_error_marker_persisted = False
-            tail_result = result
-
-            async def _run_stream_post_persist_tail(
-                final_result: ExecutionResult,
-            ) -> None:
-                try:
-                    try:
-                        await AgentStatsManager.record_chat(
-                            tenant_id=self.tenant_id,
-                            agent_id=agent_id,
-                            tokens=final_result.total_tokens,
-                        )
-                    except Exception as stats_exc:
-                        logger.warning(
-                            "Record agent stats failed: tenant={} agent={} conversation={} err={}",
-                            self.tenant_id,
-                            agent_id,
-                            conversation.id,
-                            str(stats_exc),
-                        )
-
-                    try:
-                        memory_delta = await self._persist_session_memory(
-                            request=request,
-                            message=message,
-                            response=final_result.output or "",
-                            event_id=memory_event_id,
-                        )
-                        if memory_delta:
-                            async with async_session_factory() as mem_db:
-                                try:
-                                    mem_conv_svc = ConversationService(
-                                        mem_db,
-                                        self.tenant_id,
-                                    )
-                                    await mem_conv_svc.mark_memory_updated(
-                                        conversation.id,
-                                    )
-                                    await mem_db.commit()
-                                except Exception:
-                                    await mem_db.rollback()
-                                    raise
-                            extra["memory_updated"] = True
-                    except Exception as mem_exc:
-                        logger.warning(
-                            "Persist stream session memory failed: tenant={} conversation={} err={}",
-                            self.tenant_id,
-                            conversation.id,
-                            str(mem_exc),
-                        )
-
-                    actual_tokens = final_result.total_tokens or 0
-                    await AgentQuotaManager.adjust_usage(
-                        tenant_id=self.tenant_id,
-                        agent_id=agent_id,
-                        estimated_tokens=estimated_tokens,
-                        actual_tokens=actual_tokens,
-                        config=quota_config,
-                    )
-
-                    if user_id and actual_tokens > 0:
-                        await AgentQuotaManager.record_user_usage(
-                            tenant_id=self.tenant_id,
-                            agent_id=agent_id,
-                            user_id=user_id,
-                            tokens=actual_tokens,
-                        )
-
-                    if hook_registry.has_hooks(HookPoint.AFTER_AGENT_CHAT):
-                        hook_ctx = await hook_registry.trigger(
-                            HookPoint.AFTER_AGENT_CHAT,
-                            tenant_id=self.tenant_id,
-                            agent_id=agent_id,
-                            response=final_result.output,
-                            total_tokens=final_result.total_tokens,
-                        )
-                        if (
-                            "response" in hook_ctx
-                            and hook_ctx["response"] != final_result.output
-                        ):
-                            final_result.output = hook_ctx["response"]
-
-                    await hook_registry.trigger(
-                        HookPoint.AFTER_EXECUTE,
-                        tenant_id=self.tenant_id,
-                        agent_id=agent_id,
-                        result=final_result,
-                    )
-
-                    if final_result.success:
-                        await BaseEngine._publish_execution_completed(
-                            request,
-                            agent,
-                            final_result,
-                        )
-                    else:
-                        await BaseEngine._publish_execution_failed(
-                            request,
-                            agent,
-                            final_result.error or "",
-                        )
-                except Exception as tail_exc:
-                    logger.error(
-                        "Stream post-persist tail failed: tenant={} conversation={} err={}",
-                        self.tenant_id,
-                        conversation.id,
-                        str(tail_exc),
-                        exc_info=True,
-                    )
-                finally:
-                    if lock_token:
-                        await AgentConcurrencyLimiter.release(
-                            tenant_id=self.tenant_id,
-                            agent_id=agent_id,
-                            lock_token=lock_token,
-                        )
-
-            try:
-                context_diagnostics_payload = self._build_context_diagnostics(
-                    result,
-                    interaction_mode_effective=interaction_mode_effective,
-                )
-                last_run_summary_payload = self._build_last_run_summary(
-                    result,
-                    interaction_mode_effective=interaction_mode_effective,
-                    downgrade_reason=interaction_mode_downgrade_reason,
-                )
-
-                # Persist when success OR when we have new messages (partial/interrupted) / 成功时持久化；或中断时如有新消息也持久化
-                system_count = sum(
-                    1 for m in (result.messages or []) if m.get("role") == "system"
-                )
-                has_new_messages = (result.messages or []) and len(
-                    result.messages
-                ) > system_count + history_count
-                if result.success or has_new_messages:
-                    # Commit messages and stats first, then memory extract (avoid full rollback on late cancel) / 先提交消息与统计再记忆抽取，避免取消导致整笔回滚
-                    try:
-                        async with async_session_factory() as cb_db:
-                            try:
-                                cb_conv_svc = ConversationService(
-                                    cb_db,
-                                    self.tenant_id,
-                                )
-                                cb_conv = await cb_conv_svc.repo.get_by_id(
-                                    conversation.id,
-                                )
-                                (
-                                    _persisted_tool_calls,
-                                    persisted_message_count,
-                                ) = await cb_conv_svc.persist_chat_messages(
-                                    conversation=cb_conv,
-                                    result=result,
-                                    history_count=history_count,
-                                    agent_id=agent_id,
-                                    route_source=route_source,
-                                    context_diagnostics=context_diagnostics_payload,
-                                    last_run_summary=last_run_summary_payload,
-                                )
-                                await cb_conv_svc.update_stats(
-                                    cb_conv,
-                                    result,
-                                    current_agent=agent,
-                                )
-                                await cb_db.commit()
-                                critical_persistence_committed = True
-                            except Exception:
-                                await cb_db.rollback()
-                                raise
-                    except Exception as persist_exc:
-                        logger.error(
-                            "Stream completion persistence failed: tenant={} conversation={} err={}",
-                            self.tenant_id,
-                            conversation.id,
-                            str(persist_exc),
-                            exc_info=True,
-                        )
-                        extra["persistence_error"] = True
-                        persist_failure_result = ExecutionResult(
-                            **{
-                                **result.__dict__,
-                                "error": str(persist_exc),
-                            }
-                        )
-                        try:
-                            fallback_rows = await _save_error_message_to_conversation(
-                                conversation_id=conversation.id,
-                                error_text=_("ai.stream.error.service_unavailable"),
-                                user_message=first_message,
-                                result=persist_failure_result,
-                                history_count=history_count,
-                                persist_user_message=seeded_user_message_count <= 0,
-                                context_diagnostics_payload={
-                                    **(context_diagnostics_payload or {}),
-                                    "persistence_error": True,
-                                    "persistence_error_message": str(persist_exc)[:500],
-                                },
-                                last_run_summary_payload={
-                                    **(last_run_summary_payload or {}),
-                                    "persistence_error": True,
-                                    "persistence_error_message": str(persist_exc)[:500],
-                                },
-                            )
-                            if fallback_rows > 0:
-                                persisted_message_count += fallback_rows
-                                error_message_persisted = True
-                                critical_persistence_committed = True
-                        except Exception as fallback_exc:
-                            logger.error(
-                                "Fallback stream error persistence failed: tenant={} conversation={} err={}",
-                                self.tenant_id,
-                                conversation.id,
-                                str(fallback_exc),
-                                exc_info=True,
-                            )
-                            try:
-                                marker_persisted = await _persist_stream_last_error_marker(
-                                    conversation_id=conversation.id,
-                                    error_type="stream_on_complete_persistence_error",
-                                    error_message=str(fallback_exc),
-                                    friendly_message=_(
-                                        "ai.stream.error.service_unavailable"
-                                    ),
-                                    partial=bool(result.partial),
-                                    extra_payload={
-                                        "stage": "persist_chat_messages",
-                                        "original_error": str(persist_exc)[:500],
-                                        "fallback_error": str(fallback_exc)[:500],
-                                    },
-                                )
-                                last_error_marker_persisted = (
-                                    last_error_marker_persisted or marker_persisted
-                                )
-                                critical_persistence_committed = (
-                                    critical_persistence_committed or marker_persisted
-                                )
-                            except Exception as marker_exc:
-                                logger.error(
-                                    "Persist stream error marker failed after fallback error: tenant={} conversation={} err={}",
-                                    self.tenant_id,
-                                    conversation.id,
-                                    str(marker_exc),
-                                    exc_info=True,
-                                )
-
-                # Save error if failed and no assistant persisted / 失败且无 assistant 落库时写入错误
-                # Count user messages in new slice / 统计新片段中 user 条数
-                new_start = system_count + history_count
-                new_messages_raw = (result.messages or [])[new_start:]
-                user_message_count = sum(
-                    1 for m in new_messages_raw if m.get("role") == "user"
-                )
-                # True if persisted rows include assistant (count > user-only) / 持久化条数大于纯 user 条数则含 assistant
-                has_assistant_persisted = persisted_message_count > user_message_count
-                if not result.success and not has_assistant_persisted:
-                    lowered_error = str(result.error or "").lower()
-                    friendly_error_text = (
-                        _("ai.stream.error.fallback_failed")
-                        if "fallback" in lowered_error
-                        else _("ai.stream.error.service_unavailable")
-                    )
-                    fallback_rows = await _save_error_message_to_conversation(
-                        conversation_id=conversation.id,
-                        error_text=friendly_error_text,
-                        user_message=first_message,
-                        result=result,
-                        history_count=history_count,
-                        persist_user_message=seeded_user_message_count <= 0,
-                        context_diagnostics_payload=context_diagnostics_payload,
-                        last_run_summary_payload=last_run_summary_payload,
-                    )
-                    if fallback_rows > 0:
-                        persisted_message_count += fallback_rows
-                        error_message_persisted = True
-                        critical_persistence_committed = True
-                    logger.warning(
-                        "Stream execution failed for conversation_id={}: {}",
-                        conversation.id,
-                        result.error or "Unknown error",
-                    )
-                extra["persistence_committed"] = critical_persistence_committed
-                extra["persisted_message_count"] = int(persisted_message_count or 0)
-            except Exception as on_complete_exc:
-                logger.error(
-                    "Stream on_complete callback failed: tenant={} conversation={} err={}",
-                    self.tenant_id,
-                    conversation.id,
-                    str(on_complete_exc),
-                    exc_info=True,
-                )
-                extra["on_complete_error"] = True
-                fallback_result = ExecutionResult(
-                    **{
-                        **result.__dict__,
-                        "error": str(on_complete_exc),
-                    }
-                )
-                tail_result = fallback_result
-                fallback_error_text = _("ai.stream.error.service_unavailable")
-                if not error_message_persisted:
-                    try:
-                        fallback_rows = await _save_error_message_to_conversation(
-                            conversation_id=conversation.id,
-                            error_text=fallback_error_text,
-                            user_message=first_message,
-                            result=fallback_result,
-                            history_count=history_count,
-                            persist_user_message=seeded_user_message_count <= 0,
-                            context_diagnostics_payload={
-                                **(context_diagnostics_payload or {}),
-                                "on_complete_error": True,
-                                "on_complete_error_message": str(on_complete_exc)[
-                                    :500
-                                ],
-                            },
-                            last_run_summary_payload={
-                                **(last_run_summary_payload or {}),
-                                "on_complete_error": True,
-                                "on_complete_error_message": str(on_complete_exc)[
-                                    :500
-                                ],
-                            },
-                        )
-                        if fallback_rows > 0:
-                            persisted_message_count += fallback_rows
-                            error_message_persisted = True
-                            critical_persistence_committed = True
-                    except Exception as fallback_exc:
-                        logger.error(
-                            "Final stream error message persistence failed: tenant={} conversation={} err={}",
-                            self.tenant_id,
-                            conversation.id,
-                            str(fallback_exc),
-                            exc_info=True,
-                        )
-
-                try:
-                    marker_persisted = await _persist_stream_last_error_marker(
-                        conversation_id=conversation.id,
-                        error_type="stream_on_complete_callback_error",
-                        error_message=str(on_complete_exc),
-                        friendly_message=fallback_error_text,
-                        partial=bool(result.partial),
-                        extra_payload={
-                            "context_diagnostics_present": bool(
-                                context_diagnostics_payload
-                            ),
-                            "last_run_summary_present": bool(last_run_summary_payload),
-                        },
-                    )
-                    last_error_marker_persisted = (
-                        last_error_marker_persisted or marker_persisted
-                    )
-                    critical_persistence_committed = (
-                        critical_persistence_committed or marker_persisted
-                    )
-                except Exception as marker_exc:
-                    logger.error(
-                        "Final stream error marker persistence failed: tenant={} conversation={} err={}",
-                        self.tenant_id,
-                        conversation.id,
-                        str(marker_exc),
-                        exc_info=True,
-                    )
-                extra["persistence_committed"] = critical_persistence_committed
-                extra["persisted_message_count"] = int(persisted_message_count or 0)
-            extra["__post_done_callback__"] = (
-                lambda final_result=tail_result: _run_stream_post_persist_tail(
-                    final_result
-                )
-            )
-            return extra or None
+        turn_projector = self._bind_turn_projector(
+            interaction_mode_effective=interaction_mode_effective,
+            downgrade_reason=interaction_mode_downgrade_reason,
+        )
+        on_stream_complete = AgentChatStreamPersistenceOrchestrator(
+            tenant_id=self.tenant_id,
+            agent_id=agent_id,
+            conversation_id=conversation.id,
+            request=request,
+            agent=agent,
+            message=message,
+            first_message=first_message,
+            history_count=history_count,
+            seeded_user_message_count=seeded_user_message_count,
+            route_source=route_source,
+            interaction_mode_effective=interaction_mode_effective,
+            interaction_mode_downgrade_reason=interaction_mode_downgrade_reason,
+            memory_event_id=memory_event_id,
+            estimated_tokens=request_bundle.estimated_tokens,
+            quota_config=request_bundle.quota_config,
+            user_id=user_id,
+            lock_token=lock_token,
+            hook_registry=hook_registry,
+            persist_session_memory=self._persist_session_memory,
+            build_context_diagnostics=turn_projector.build_context_diagnostics,
+            build_last_run_summary=turn_projector.build_last_run_summary,
+            assistant_message_has_visible_reply_payload=self._assistant_message_has_visible_reply_payload,
+            friendly_stream_error_text=self._friendly_stream_error_text,
+            build_stream_error_display=self._build_stream_error_display,
+            runtime_dependencies=self._build_stream_runtime_dependencies,
+        )
 
         if is_image_model:
             return await engine.stream_execute(
@@ -2118,20 +1139,14 @@ class AgentChatService:
             knowledge_base_ids,
         )
 
-        user_msg = ChatMessage(role="user", content=message)
-        all_messages = [user_msg]
-
-        request = ExecutionRequest(
+        request_bundle = await self.stream_bootstrap.build_ephemeral_stream_request(
+            agent=agent,
             agent_id=agent_id,
-            tenant_id=self.tenant_id,
+            message=message,
+            variables=variables,
             user_id=user_id,
-            messages=all_messages,
-            input_variables=variables or {},
-            execution_mode=AgentExecutionModeEnum.CONVERSATION.value,
-            stream=True,
-            conversation_id=None,
             knowledge_base_ids=knowledge_base_ids,
-            skip_persistence=True,
+            dropped_knowledge_base_ids=dropped_knowledge_base_ids,
             user_role=user_role,
             user_role_id=user_role_id,
             permissions=permissions,
@@ -2141,65 +1156,19 @@ class AgentChatService:
                 user_role=user_role,
                 user_role_id=user_role_id,
             ),
-            memory_scene="ephemeral",
-            memory_channel=MEMORY_CHANNEL_SYSTEM,
-            memory_source="system.ai_writing",
-            memory_enabled=False,
-            long_term_memory_enabled=False,
-            knowledge_base_feedback=(
-                {
-                    "dropped_knowledge_base_ids": dropped_knowledge_base_ids,
-                    "effective_knowledge_base_ids": knowledge_base_ids or [],
-                }
-                if dropped_knowledge_base_ids
-                else None
-            ),
         )
-
-        quota_config = AgentQuotaConfig.from_dict(agent.quota_config)
-        estimated_tokens = max(estimate_tokens(message), 100)
-        lock_token: str = ""
-
-        try:
-            if (
-                quota_config.max_concurrent > 0
-                or quota_config.tenant_max_concurrent > 0
-            ):
-                lock_token = await AgentConcurrencyLimiter.acquire(
-                    tenant_id=self.tenant_id,
-                    agent_id=agent_id,
-                    max_concurrent=quota_config.max_concurrent,
-                    tenant_max_concurrent=quota_config.tenant_max_concurrent,
-                )
-
-            await AgentQuotaManager.check_quota(
-                tenant_id=self.tenant_id,
-                agent_id=agent_id,
-                config=quota_config,
-                estimated_tokens=estimated_tokens,
-            )
-
-            if self.tenant_id:
-                from app.enums import ErrorCode
-                from app.services.tenant.quota_service import QuotaService
-
-                api_check = await QuotaService.check_api_quota_for_tenant_id(
-                    self.db, self.tenant_id
-                )
-                if not api_check.allowed:
-                    raise BusinessException(
-                        message=api_check.message or _("quota.api_calls_exceeded"),
-                        code=ErrorCode.CONFLICT,
-                    )
-
-        except (AgentQuotaExceeded, AgentConcurrencyExceeded, BusinessException):
-            if lock_token:
-                await AgentConcurrencyLimiter.release(
-                    tenant_id=self.tenant_id,
-                    agent_id=agent_id,
-                    lock_token=lock_token,
-                )
-            raise
+        request = request_bundle.request
+        preflight = await self.stream_bootstrap.run_stream_preflight(
+            agent=agent,
+            agent_id=agent_id,
+            request=request,
+            quota_config=request_bundle.quota_config,
+            estimated_tokens=request_bundle.estimated_tokens,
+            user_id=user_id,
+            persist_new_conversation=False,
+            persist_user_messages=None,
+        )
+        lock_token = preflight.lock_token
 
         async def on_stream_complete(result: ExecutionResult) -> dict[str, Any] | None:
             try:
@@ -2207,9 +1176,9 @@ class AgentChatService:
                 await AgentQuotaManager.adjust_usage(
                     tenant_id=self.tenant_id,
                     agent_id=agent_id,
-                    estimated_tokens=estimated_tokens,
+                    estimated_tokens=request_bundle.estimated_tokens,
                     actual_tokens=actual_tokens,
-                    config=quota_config,
+                    config=request_bundle.quota_config,
                 )
                 if user_id and actual_tokens > 0:
                     await AgentQuotaManager.record_user_usage(
@@ -2232,8 +1201,19 @@ class AgentChatService:
                     )
             return None
 
-        gateway = AIGateway(self.db)
-        engine = ConversationEngine(db=self.db, gateway=gateway, sandbox=None)
+        engine_bundle = await self.stream_bootstrap.build_stream_engine_bundle(
+            agent=agent,
+            agent_id=agent_id,
+            user_id=user_id,
+            user_role=user_role,
+            permissions=permissions,
+            variables=variables,
+            page_session_id=None,
+            trust_policy_ref=None,
+            interaction_mode="confirm",
+            enable_tool_runtime=False,
+        )
+        engine = engine_bundle.engine
         return await engine.stream_execute(
             agent=agent,
             request=request,

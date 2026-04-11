@@ -187,49 +187,41 @@ class CapabilityDescriptionBuilder:
         page_context: dict[str, Any] | None,
     ) -> CapabilityDescription | None:
         """
-        Build page context description.
-        从页面上下文构建描述。
-
-        Args:
-            page_context: Page context dict with:
-                - page_key: Page identifier
-                - page_title: Page title
-                - page_data: Page data with available_operations
-
-        Returns:
-            CapabilityDescription or None if no page context
+        Build page context description from thin context (ui_* runtime).
         """
-        if not page_context:
+        if not isinstance(page_context, dict):
             return None
 
         page_key = str(page_context.get("page_key") or "").strip()
         page_title = str(page_context.get("page_title") or "").strip()
-        page_data = page_context.get("page_data")
-
         if not page_key and not page_title:
             return None
 
         items: list[str] = []
-
-        # Add page info
         if page_title:
             items.append(f"Current page: {page_title}")
         elif page_key:
             items.append(f"Current page: {page_key}")
 
-        # Add available operations
-        if isinstance(page_data, dict):
-            operations = page_data.get("available_operations", [])
-            if operations:
-                operation_names = [
-                    str(op.get("name") or "").strip()
-                    for op in operations
-                    if isinstance(op, dict) and op.get("name")
-                ]
-                if operation_names:
-                    items.append(
-                        f"Available operations: {', '.join(operation_names[:10])}"
-                    )
+        active_surface_id = str(page_context.get("active_surface_id") or "").strip()
+        if active_surface_id:
+            items.append(f"Active surface: {active_surface_id}")
+
+        active_form = page_context.get("active_form_summary")
+        if isinstance(active_form, dict):
+            mode = str(active_form.get("mode") or "").strip() or "unknown"
+            stage = str(active_form.get("stage") or "").strip() or "ready"
+            items.append(f"Active form: mode={mode}, stage={stage}")
+
+        suggested = page_context.get("suggested_tools")
+        if isinstance(suggested, dict):
+            primary = [
+                str(name or "").strip()
+                for name in (suggested.get("primary") or [])
+                if str(name or "").strip()
+            ]
+            if primary:
+                items.append(f"Suggested tools: {', '.join(primary[:8])}")
 
         if not items:
             return None

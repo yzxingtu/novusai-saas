@@ -7,6 +7,21 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from app.ai.runtime.execution_trust_policy import (
+    allows_tool as runtime_allows_tool,
+)
+from app.ai.runtime.execution_trust_policy import (
+    build_policy_ref as runtime_build_policy_ref,
+)
+from app.ai.runtime.execution_trust_policy import (
+    risk_rank as runtime_risk_rank,
+)
+from app.ai.runtime.execution_trust_policy import (
+    tool_family_for_name as runtime_tool_family_for_name,
+)
+from app.ai.runtime.execution_trust_policy import (
+    tool_risk_level as runtime_tool_risk_level,
+)
 from app.core.base_model import utc_now
 from app.core.base_service import TenantService
 from app.enums.agent import ActionLevelEnum
@@ -14,12 +29,6 @@ from app.models.ai.execution_trust_policy import ExecutionTrustPolicy
 from app.repositories.ai.execution_trust_policy_repository import (
     ExecutionTrustPolicyRepository,
 )
-
-_RISK_ORDER = {
-    ActionLevelEnum.READ.value: 0,
-    ActionLevelEnum.SAFE_WRITE.value: 1,
-    ActionLevelEnum.DANGEROUS.value: 2,
-}
 
 
 class ExecutionTrustPolicyService(
@@ -61,17 +70,17 @@ class ExecutionTrustPolicyService(
             )
             if row.tool_family:
                 tool_families.add(str(row.tool_family).strip())
-            if row.risk_level_cap and self._risk_rank(
+            if row.risk_level_cap and runtime_risk_rank(
                 row.risk_level_cap
-            ) > self._risk_rank(risk_cap):
+            ) > runtime_risk_rank(risk_cap):
                 risk_cap = row.risk_level_cap
 
-        return {
-            "policy_ids": source_policy_ids,
-            "allowed_tool_names": sorted(allowed_tool_names),
-            "tool_families": sorted(tool_families),
-            "risk_level_cap": risk_cap,
-        }
+        return runtime_build_policy_ref(
+            policy_ids=source_policy_ids,
+            allowed_tool_names=sorted(allowed_tool_names),
+            tool_families=sorted(tool_families),
+            risk_level_cap=risk_cap,
+        )
 
     async def grant_conversation_tool_trust(
         self,
@@ -84,8 +93,8 @@ class ExecutionTrustPolicyService(
         granted_by: int | None,
         grant_reason: str | None = None,
     ) -> ExecutionTrustPolicy:
-        tool_family = self.tool_family_for_name(tool_name)
-        risk_level_cap = self.tool_risk_level(
+        tool_family = runtime_tool_family_for_name(tool_name)
+        risk_level_cap = runtime_tool_risk_level(
             tool_name=tool_name,
             tool_family=tool_family,
         )
@@ -118,7 +127,7 @@ class ExecutionTrustPolicyService(
             }
             next_names.add(tool_name)
             existing.allowed_tool_names = sorted(next_names)
-            if self._risk_rank(risk_level_cap) > self._risk_rank(
+            if runtime_risk_rank(risk_level_cap) > runtime_risk_rank(
                 existing.risk_level_cap
             ):
                 existing.risk_level_cap = risk_level_cap
@@ -164,9 +173,11 @@ class ExecutionTrustPolicyService(
             getattr(row, "conversation_id", None) == conversation_id for row in rows
         )
 
+    # Compatibility delegates: keep legacy call sites/tests stable while the
+    # pure trust-policy logic lives under app.ai.runtime.
     @staticmethod
     def _risk_rank(value: str | None) -> int:
-        return _RISK_ORDER.get(str(value or "").strip(), -1)
+        return runtime_risk_rank(value)
 
     @classmethod
     def tool_risk_level(
@@ -175,46 +186,14 @@ class ExecutionTrustPolicyService(
         tool_name: str,
         tool_family: str | None,
     ) -> str:
-        normalized_name = str(tool_name or "").strip().lower()
-        normalized_family = str(tool_family or "").strip().lower()
-
-        if normalized_family in {"web_research", "weather"}:
-            return ActionLevelEnum.READ.value
-
-        if normalized_name in {
-            "get_page_context",
-            "list_page_operations",
-        } or normalized_name.startswith(
-            (
-                "pageop_get_",
-                "pageop_read_",
-                "pageop_list_",
-            )
-        ):
-            return ActionLevelEnum.READ.value
-
-        if normalized_family == "page_ops" or normalized_name.startswith("pageop_"):
-            return ActionLevelEnum.SAFE_WRITE.value
-
-        if normalized_name.startswith(("http", "email", "code_", "toolkit")):
-            return ActionLevelEnum.DANGEROUS.value
-
-        return ActionLevelEnum.SAFE_WRITE.value
+        return runtime_tool_risk_level(
+            tool_name=tool_name,
+            tool_family=tool_family,
+        )
 
     @staticmethod
     def tool_family_for_name(tool_name: str) -> str:
-        normalized = str(tool_name or "").strip().lower()
-        if normalized in {"web_search", "fetch_url"}:
-            return "web_research"
-        if normalized in {"get_current_weather", "get_weather_forecast"}:
-            return "weather"
-        if normalized in {
-            "get_page_context",
-            "invoke_page_operation",
-            "list_page_operations",
-        } or normalized.startswith("pageop_"):
-            return "page_ops"
-        return "none"
+        return runtime_tool_family_for_name(tool_name)
 
     @classmethod
     def allows_tool(
@@ -224,27 +203,11 @@ class ExecutionTrustPolicyService(
         tool_family: str | None,
         policy_ref: dict[str, Any] | None,
     ) -> bool:
-        if not isinstance(policy_ref, dict):
-            return False
-        allowed_tool_names = {
-            str(name).strip()
-            for name in (policy_ref.get("allowed_tool_names") or [])
-            if str(name).strip()
-        }
-        allowed_families = {
-            str(name).strip()
-            for name in (policy_ref.get("tool_families") or [])
-            if str(name).strip()
-        }
-        if tool_name in allowed_tool_names:
-            return cls._risk_rank(
-                cls.tool_risk_level(tool_name=tool_name, tool_family=tool_family)
-            ) <= cls._risk_rank(policy_ref.get("risk_level_cap"))
-        if tool_family and tool_family in allowed_families:
-            return cls._risk_rank(
-                cls.tool_risk_level(tool_name=tool_name, tool_family=tool_family)
-            ) <= cls._risk_rank(policy_ref.get("risk_level_cap"))
-        return False
+        return runtime_allows_tool(
+            tool_name=tool_name,
+            tool_family=tool_family,
+            policy_ref=policy_ref,
+        )
 
 
 __all__ = ["ExecutionTrustPolicyService"]

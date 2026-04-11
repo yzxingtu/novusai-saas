@@ -1,5 +1,5 @@
 """
-Page context runtime limit helpers / 页面上下文运行期限制辅助函数
+Page context runtime payload limit helpers / 页面上下文运行期负载限制辅助函数
 """
 
 from __future__ import annotations
@@ -14,8 +14,8 @@ from app.exceptions import ValidationException
 DEFAULT_PAGE_CONTEXT_MAX_BYTES = 8192
 
 
-async def get_page_context_max_bytes(db: Any) -> int:
-    """Resolve page_context.page_data hard limit from platform config / 从平台配置读取 page_context.page_data 硬限制."""
+async def get_ui_runtime_payload_max_bytes(db: Any) -> int:
+    """Resolve thin page_context runtime payload limit / 读取薄 page_context 运行期负载上限."""
     config_service = ConfigService(db)
     raw = await config_service.get_platform_config(
         "ai_page_context_max_bytes",
@@ -29,7 +29,7 @@ async def get_page_context_max_bytes(db: Any) -> int:
 
 
 async def validate_page_context_size(db: Any, page_context: Any) -> None:
-    """Validate page_context.page_data serialized size at runtime / 在运行期校验 page_context.page_data 序列化大小."""
+    """Validate thin page_context runtime payload serialized size / 校验薄 page_context 运行期负载序列化大小."""
     if not page_context:
         return
 
@@ -40,13 +40,12 @@ async def validate_page_context_size(db: Any, page_context: Any) -> None:
     else:
         return
 
-    page_data = payload.get("page_data")
-    if not isinstance(page_data, dict):
+    if not isinstance(payload, dict) or not payload:
         return
 
-    serialized = json.dumps(page_data, ensure_ascii=False, default=str)
+    serialized = json.dumps(payload, ensure_ascii=False, default=str)
     size = len(serialized.encode("utf-8"))
-    limit = await get_page_context_max_bytes(db)
+    limit = await get_ui_runtime_payload_max_bytes(db)
     if size <= limit:
         return
 
@@ -60,6 +59,6 @@ async def validate_page_context_size(db: Any, page_context: Any) -> None:
 
 __all__ = [
     "DEFAULT_PAGE_CONTEXT_MAX_BYTES",
-    "get_page_context_max_bytes",
+    "get_ui_runtime_payload_max_bytes",
     "validate_page_context_size",
 ]

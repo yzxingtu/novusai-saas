@@ -164,6 +164,67 @@ class ContextLengthExceededError(AIGatewayError):
 # ========== Provider exception conversion utilities / 供应商原始异常转换工具函数 ==========
 
 
+def _extract_message_from_payload(payload: object) -> str | None:
+    if not isinstance(payload, dict):
+        return None
+
+    candidates: list[object] = [
+        payload.get("message"),
+        payload.get("detail"),
+        payload.get("msg"),
+        payload.get("error_description"),
+    ]
+
+    nested_error = payload.get("error")
+    if isinstance(nested_error, dict):
+        candidates.extend(
+            [
+                nested_error.get("message"),
+                nested_error.get("detail"),
+                nested_error.get("msg"),
+                nested_error.get("error_description"),
+            ]
+        )
+    elif nested_error is not None:
+        candidates.append(nested_error)
+
+    for candidate in candidates:
+        text = str(candidate or "").strip()
+        if text:
+            return text
+    return None
+
+
+def extract_provider_error_message(error: object | None) -> str | None:
+    """Extract provider-originated public message from SDK/App exceptions / 从 SDK 或网关异常中提取供应商原始可见文案。"""
+    if error is None or isinstance(error, str):
+        return None
+
+    original_error = getattr(error, "original_error", None)
+    if original_error is not None and original_error is not error:
+        nested_message = extract_provider_error_message(original_error)
+        if nested_message:
+            return nested_message
+
+    body_message = _extract_message_from_payload(getattr(error, "body", None))
+    if body_message:
+        return body_message
+
+    response = getattr(error, "response", None)
+    if response is not None:
+        with contextlib.suppress(Exception):
+            response_message = _extract_message_from_payload(response.json())
+            if response_message:
+                return response_message
+
+    message_attr = getattr(error, "message", None)
+    text = str(message_attr or "").strip()
+    if text:
+        return text
+
+    return None
+
+
 def convert_openai_error(
     error: Exception,
     provider_code: str = "openai",
@@ -196,22 +257,23 @@ def convert_openai_error(
         "model_code": model_code,
         "original_error": error,
     }
+    provider_message = extract_provider_error_message(error)
 
     if isinstance(error, APITimeoutError):
         return ProviderTimeoutError(
-            message=_("ai.error.provider_timeout"),
+            message=provider_message or _("ai.error.provider_timeout"),
             **kwargs,
         )
 
     if isinstance(error, APIConnectionError):
         return ProviderConnectionError(
-            message=_("ai.error.provider_connection"),
+            message=provider_message or _("ai.error.provider_connection"),
             **kwargs,
         )
 
     if isinstance(error, AuthenticationError):
         return ProviderAuthError(
-            message=_("ai.error.provider_auth"),
+            message=provider_message or _("ai.error.provider_auth"),
             error_code=getattr(error, "code", None),
             **kwargs,
         )
@@ -225,14 +287,14 @@ def convert_openai_error(
                 with contextlib.suppress(ValueError, TypeError):
                     retry_after = int(retry_header)
         return ProviderRateLimitError(
-            message=_("ai.error.provider_rate_limit"),
+            message=provider_message or _("ai.error.provider_rate_limit"),
             retry_after=retry_after,
             **kwargs,
         )
 
     if isinstance(error, NotFoundError):
         return ModelNotFoundError(
-            message=_("ai.error.model_not_found"),
+            message=provider_message or _("ai.error.model_not_found"),
             **kwargs,
         )
 
@@ -242,13 +304,13 @@ def convert_openai_error(
         # Check if context length exceeded / 检查是否为上下文长度超出
         if "context_length" in error_lower or "maximum context" in error_lower:
             return ContextLengthExceededError(
-                message=_("ai.error.context_length_exceeded"),
+                message=provider_message or _("ai.error.context_length_exceeded"),
                 **kwargs,
             )
         # Check if content filter / 检查是否为内容过滤
         if "content_filter" in error_lower or "content_policy" in error_lower:
             return ContentFilterError(
-                message=_("ai.error.content_filtered"),
+                message=provider_message or _("ai.error.content_filtered"),
                 **kwargs,
             )
         # Image URL fetch / parse failures (distinct from model lacking vision)
@@ -270,7 +332,7 @@ def convert_openai_error(
             or "image" in error_lower
         ):
             return ProviderError(
-                message=_("ai.error.image_url_inaccessible"),
+                message=provider_message or _("ai.error.image_url_inaccessible"),
                 error_code="image_url_inaccessible",
                 **kwargs,
             )
@@ -279,12 +341,12 @@ def convert_openai_error(
             "image" in error_lower and "unsupported" in error_lower
         ):
             return ProviderError(
-                message=_("ai.error.vision_not_supported"),
+                message=provider_message or _("ai.error.vision_not_supported"),
                 error_code="vision_not_supported",
                 **kwargs,
             )
         return ProviderError(
-            message=_("ai.request_failed"),
+            message=provider_message or _("ai.request_failed"),
             error_code=getattr(error, "code", None),
             **kwargs,
         )
@@ -294,19 +356,19 @@ def convert_openai_error(
         # HTTP 5xx → Provider server error / 供应商服务端错误
         if 500 <= status < 600:
             return ProviderError(
-                message=_("ai.error.provider_server_error"),
+                message=provider_message or _("ai.error.provider_server_error"),
                 error_code=str(status),
                 **kwargs,
             )
         return ProviderError(
-            message=_("ai.request_failed"),
+            message=provider_message or _("ai.request_failed"),
             error_code=str(status),
             **kwargs,
         )
 
     # Fallback: wrap unknown exception as ProviderError / 兜底：未知异常包装为 ProviderError
     return ProviderError(
-        message=_("ai.request_failed"),
+        message=provider_message or _("ai.request_failed"),
         **kwargs,
     )
 
@@ -357,5 +419,6 @@ __all__ = [
     # Conversion functions / 转换函数
     "convert_openai_error",
     # Utility functions / 工具函数
+    "extract_provider_error_message",
     "is_retryable",
 ]

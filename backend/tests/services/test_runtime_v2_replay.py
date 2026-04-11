@@ -378,8 +378,8 @@ async def test_runtime_v2_stream_path_uses_query_engine_for_page_tools(mock_db) 
                 conversation_id=67,
                 tools=[
                     ToolDefinition(
-                        name="invoke_page_operation",
-                        description="Operate page",
+                        name="ui_click",
+                        description="Click UI element",
                     )
                 ],
                 runtime_context=runtime_context,

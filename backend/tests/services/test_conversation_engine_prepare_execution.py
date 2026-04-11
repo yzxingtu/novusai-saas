@@ -8,7 +8,7 @@ import pytest
 from app.ai.context import get_context_engine
 from app.ai.engine.base import BaseEngine
 from app.ai.engine.conversation import ConversationEngine, _SyncIOAdapter
-from app.ai.engine.types import ExecutionRequest, ToolUsePolicy
+from app.ai.engine.types import ExecutionRequest, IntentPlan, ToolUsePolicy
 from app.ai.runtime.types import CapabilityDescriptor
 from app.ai.skills.resolver import SkillResolveResult
 from app.ai.tools.types import ToolDefinition
@@ -71,8 +71,8 @@ def _build_plugin_page_web_skill_result() -> SkillResolveResult:
                 source_plugin="plugin.research",
             ),
             ToolDefinition(
-                name="get_page_context",
-                description="Read page context",
+                name="ui_get_snapshot",
+                description="Get UI snapshot",
                 source_skill_id=12,
                 source_skill_name="Plugin Page Skill",
                 source_skill_type="plugin",
@@ -80,8 +80,8 @@ def _build_plugin_page_web_skill_result() -> SkillResolveResult:
                 source_plugin="plugin.page",
             ),
             ToolDefinition(
-                name="invoke_page_operation",
-                description="Operate page",
+                name="ui_click",
+                description="Click UI element",
                 source_skill_id=12,
                 source_skill_name="Plugin Page Skill",
                 source_skill_type="plugin",
@@ -99,17 +99,35 @@ def _build_structured_skill_result() -> SkillResolveResult:
             ToolDefinition(name="get_weather_forecast", description="Forecast"),
             ToolDefinition(name="web_search", description="Search the web"),
             ToolDefinition(name="fetch_url", description="Fetch the url"),
-            ToolDefinition(name="get_page_context", description="Read page context"),
+            ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
+            ToolDefinition(name="ui_read_region", description="Read UI region"),
+            ToolDefinition(name="ui_read_table", description="Read UI table"),
             ToolDefinition(
-                name="invoke_page_operation",
-                description="Operate current page",
+                name="ui_list_interactables",
+                description="List interactable UI elements",
             ),
-            ToolDefinition(
-                name="pageop_navigate_menu",
-                description="Navigate to a page from available menus",
-            ),
+            ToolDefinition(name="ui_click", description="Click UI element"),
+            ToolDefinition(name="ui_open_surface", description="Open UI surface"),
+            ToolDefinition(name="ui_get_form_state", description="Read active form"),
+            ToolDefinition(name="ui_fill_form", description="Fill active form"),
+            ToolDefinition(name="ui_submit_form", description="Submit active form"),
         ]
     )
+
+
+def _build_intent_plan(*kinds: str) -> list[IntentPlan]:
+    return [
+        IntentPlan(
+            intent_id=f"intent-{index}",
+            kind=kind,
+            family="memory" if kind.startswith("memory_") else "none",
+            order=index,
+            user_visible_label=kind,
+            source_text="test intent",
+            shortcircuit=kind.startswith("memory_"),
+        )
+        for index, kind in enumerate(kinds, start=1)
+    ]
 
 
 @pytest.fixture(autouse=True)
@@ -125,6 +143,28 @@ def _stub_missing_tool_runtime_summary_prompt(monkeypatch):
         return original(name, *args, **kwargs)
 
     monkeypatch.setattr(base_module, "render_prompt_contract", _render)
+
+
+@pytest.fixture(autouse=True)
+def _stub_capability_awareness_runtime(monkeypatch):
+    from app.services.ai.capability_awareness_config import (
+        TenantCapabilityAwarenessSettings,
+    )
+
+    monkeypatch.setattr(
+        "app.ai.context.engine.get_tenant_capability_awareness_settings",
+        AsyncMock(
+            return_value=TenantCapabilityAwarenessSettings(
+                enable_dynamic_capability_awareness=True,
+                capability_description_style="detailed",
+                max_capability_items_per_category=20,
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        "app.ai.context.engine.resolve_runtime_model_capabilities",
+        AsyncMock(return_value={}),
+    )
 
 
 @pytest.mark.asyncio
@@ -442,8 +482,8 @@ async def test_prepare_execution_does_not_inherit_page_ops_for_generic_follow_up
                         "id": "call_page_1",
                         "type": "function",
                         "function": {
-                            "name": "invoke_page_operation",
-                            "arguments": '{"page_key":"demo.form","operation_name":"fill_form"}',
+                            "name": "ui_fill_form",
+                            "arguments": '{"form_session_id":"fs_demo","fields":{"name":"Alice"}}',
                         },
                         "success": True,
                     }
@@ -456,9 +496,12 @@ async def test_prepare_execution_does_not_inherit_page_ops_for_generic_follow_up
         input_variables={
             "page_context": {
                 "page_key": "demo.form",
-                "page_data": {
-                    "available_operations": [
-                        {"name": "fill_form", "readonly": False},
+                "ui_epoch": 3,
+                "suggested_tools": {
+                    "primary": [
+                        "ui_get_snapshot",
+                        "ui_fill_form",
+                        "ui_submit_form",
                     ],
                 },
             },
@@ -479,8 +522,8 @@ async def test_prepare_execution_does_not_inherit_page_ops_for_generic_follow_up
 
     skill_result = SkillResolveResult(
         tools=[
-            ToolDefinition(name="invoke_page_operation", description="Operate page"),
-            ToolDefinition(name="get_page_context", description="Read page"),
+            ToolDefinition(name="ui_fill_form", description="Fill active form"),
+            ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
             ToolDefinition(name="web_search", description="Search the web"),
         ]
     )
@@ -524,7 +567,7 @@ async def test_prepare_execution_keeps_page_continuation_runtime_facts_and_diagn
                         "id": "call_page_1",
                         "type": "function",
                         "function": {
-                            "name": "get_page_context",
+                            "name": "ui_get_snapshot",
                             "arguments": "{}",
                         },
                         "success": True,
@@ -538,10 +581,14 @@ async def test_prepare_execution_keeps_page_continuation_runtime_facts_and_diagn
         input_variables={
             "page_context": {
                 "page_key": "admin.ai.conversations",
-                "page_data": {
-                    "available_operations": [
-                        {"name": "read_visible_rows", "readonly": True},
+                "ui_epoch": 7,
+                "suggested_tools": {
+                    "primary": [
+                        "ui_get_snapshot",
+                        "ui_read_region",
+                        "ui_read_table",
                     ],
+                    "secondary": ["ui_list_interactables"],
                 },
             },
         },
@@ -568,17 +615,17 @@ async def test_prepare_execution_keeps_page_continuation_runtime_facts_and_diagn
         "web_research",
         "page_ops",
     ]
-    assert prep.continuation_context.page_operation_names == ["read_visible_rows"]
+    assert "ui_get_snapshot" in prep.continuation_context.page_operation_names
     assert prep.continuation_context.page_context_attached is True
     assert prep.continuation_context.web_research_pair_complete is True
     assert prep.continuation_context.continuation_capable_families == [
         "page_ops",
         "web_research",
     ]
-    assert prep.continuation_context.last_tool_name == "get_page_context"
+    assert prep.continuation_context.last_tool_name == "ui_get_snapshot"
     assert [intent.kind for intent in prep.intent_plan] == ["page_summary"]
-    assert [tool.name for tool in prep.tools] == ["get_page_context"]
-    assert prep.diagnostics["candidate_tool_names"] == ["get_page_context"]
+    assert [tool.name for tool in prep.tools] == ["ui_get_snapshot"]
+    assert prep.diagnostics["candidate_tool_names"] == ["ui_get_snapshot"]
     assert prep.diagnostics["active_intent_id"] == "intent-1"
     assert prep.diagnostics["continuation_source"] == "page_ops"
 
@@ -598,10 +645,9 @@ async def test_prepare_execution_selects_page_ops_for_local_page_content_request
         input_variables={
             "page_context": {
                 "page_key": "admin.ai.conversations",
-                "page_data": {
-                    "available_operations": [
-                        {"name": "read_visible_rows", "readonly": True},
-                    ],
+                "ui_epoch": 2,
+                "suggested_tools": {
+                    "primary": ["ui_get_snapshot", "ui_read_region"],
                 },
             },
         },
@@ -616,19 +662,20 @@ async def test_prepare_execution_selects_page_ops_for_local_page_content_request
             tools=[
                 tool
                 for tool in tools
-                if tool.name in {"get_page_context", "invoke_page_operation"}
+                if tool.name in {"ui_get_snapshot", "ui_read_region", "ui_click"}
             ],
             skipped=False,
             total=len(tools),
-            selected=2,
+            selected=3,
         )
 
     skill_result = SkillResolveResult(
         tools=[
             ToolDefinition(name="web_search", description="Search the web"),
             ToolDefinition(name="fetch_url", description="Fetch a webpage"),
-            ToolDefinition(name="get_page_context", description="Read page context"),
-            ToolDefinition(name="invoke_page_operation", description="Operate page"),
+            ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
+            ToolDefinition(name="ui_read_region", description="Read UI region"),
+            ToolDefinition(name="ui_click", description="Click UI element"),
         ]
     )
 
@@ -646,11 +693,11 @@ async def test_prepare_execution_selects_page_ops_for_local_page_content_request
             skill_result=skill_result,
         )
 
-    assert [tool.name for tool in prep.tools] == ["get_page_context"]
+    assert [tool.name for tool in prep.tools] == ["ui_get_snapshot"]
     assert prep.tool_use_policy == ToolUsePolicy(
         family="page_ops",
         mode="required",
-        allowed_tool_names=["get_page_context"],
+        allowed_tool_names=["ui_get_snapshot"],
         retry_on_contract_breach=True,
         reason="intent:page_summary",
     )
@@ -674,12 +721,18 @@ async def test_prepare_execution_selects_page_ops_for_page_capability_request() 
         input_variables={
             "page_context": {
                 "page_key": "admin.ai.agents",
-                "page_data": {
-                    "available_operations": [
-                        {"name": "create_record", "readonly": False},
-                        {"name": "fill_form", "readonly": False},
-                        {"name": "submit_form", "readonly": False},
-                    ],
+                "active_form_session_id": "form-agent-create",
+                "active_form_summary": {
+                    "form_session_id": "form-agent-create",
+                    "entity_name": "智能体",
+                    "mode": "create",
+                    "stage": "ready_to_submit",
+                    "can_submit": True,
+                    "submit_policy": "confirm",
+                },
+                "suggested_tools": {
+                    "primary": ["ui_get_form_state", "ui_fill_form", "ui_submit_form"],
+                    "secondary": ["ui_open_surface"],
                 },
             },
         },
@@ -689,8 +742,11 @@ async def test_prepare_execution_selects_page_ops_for_page_capability_request() 
         tools=[
             ToolDefinition(name="web_search", description="Search the web"),
             ToolDefinition(name="fetch_url", description="Fetch a webpage"),
-            ToolDefinition(name="get_page_context", description="Read page context"),
-            ToolDefinition(name="invoke_page_operation", description="Operate page"),
+            ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
+            ToolDefinition(name="ui_open_surface", description="Open UI surface"),
+            ToolDefinition(name="ui_get_form_state", description="Get form state"),
+            ToolDefinition(name="ui_fill_form", description="Fill form"),
+            ToolDefinition(name="ui_submit_form", description="Submit form"),
         ]
     )
 
@@ -708,10 +764,10 @@ async def test_prepare_execution_selects_page_ops_for_page_capability_request() 
         )
 
     assert prep.tool_use_policy.family == "page_ops"
-    assert "pageop_create_record" in prep.tool_use_policy.allowed_tool_names
-    assert "pageop_fill_form" in prep.tool_use_policy.allowed_tool_names
-    assert "pageop_submit_form" in prep.tool_use_policy.allowed_tool_names
-    assert "get_page_context" not in prep.tool_use_policy.allowed_tool_names
+    assert "ui_fill_form" in prep.tool_use_policy.allowed_tool_names
+    assert "ui_submit_form" in prep.tool_use_policy.allowed_tool_names
+    assert "ui_open_surface" in prep.tool_use_policy.allowed_tool_names
+    assert "ui_get_snapshot" not in prep.tool_use_policy.allowed_tool_names
 
 
 @pytest.mark.asyncio
@@ -778,11 +834,9 @@ async def test_prepare_execution_keeps_weather_tools_for_mixed_weather_and_healt
         input_variables={
             "page_context": {
                 "page_key": "admin.ai.conversations",
-                "page_data": {
-                    "available_operations": [
-                        {"name": "read_visible_rows", "readonly": True},
-                        {"name": "read_row_detail", "readonly": True},
-                    ],
+                "ui_epoch": 2,
+                "suggested_tools": {
+                    "primary": ["ui_get_snapshot", "ui_read_region", "ui_read_table"],
                 },
             },
         },
@@ -791,8 +845,9 @@ async def test_prepare_execution_keeps_weather_tools_for_mixed_weather_and_healt
         tools=[
             ToolDefinition(name="web_search", description="Search the web"),
             ToolDefinition(name="fetch_url", description="Fetch a webpage"),
-            ToolDefinition(name="get_page_context", description="Read page context"),
-            ToolDefinition(name="invoke_page_operation", description="Operate page"),
+            ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
+            ToolDefinition(name="ui_read_region", description="Read UI region"),
+            ToolDefinition(name="ui_read_table", description="Read UI table"),
             ToolDefinition(
                 name="get_current_weather", description="Get current weather"
             ),
@@ -839,11 +894,9 @@ async def test_prepare_execution_allows_page_and_weather_tools_for_mixed_request
         input_variables={
             "page_context": {
                 "page_key": "admin.ai.conversations",
-                "page_data": {
-                    "available_operations": [
-                        {"name": "read_visible_rows", "readonly": True},
-                        {"name": "read_row_detail", "readonly": True},
-                    ],
+                "ui_epoch": 2,
+                "suggested_tools": {
+                    "primary": ["ui_get_snapshot", "ui_read_region", "ui_read_table"],
                 },
             },
         },
@@ -852,8 +905,9 @@ async def test_prepare_execution_allows_page_and_weather_tools_for_mixed_request
         tools=[
             ToolDefinition(name="web_search", description="Search the web"),
             ToolDefinition(name="fetch_url", description="Fetch a webpage"),
-            ToolDefinition(name="get_page_context", description="Read page context"),
-            ToolDefinition(name="invoke_page_operation", description="Operate page"),
+            ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
+            ToolDefinition(name="ui_read_region", description="Read UI region"),
+            ToolDefinition(name="ui_read_table", description="Read UI table"),
             ToolDefinition(
                 name="get_current_weather", description="Get current weather"
             ),
@@ -882,11 +936,11 @@ async def test_prepare_execution_allows_page_and_weather_tools_for_mixed_request
 
     assert prep.tool_use_policy.family == "page_ops"
     assert prep.tool_use_policy.allowed_tool_names == [
-        "get_page_context",
+        "ui_get_snapshot",
         "get_current_weather",
     ]
     assert [tool.name for tool in prep.tools] == [
-        "get_page_context",
+        "ui_get_snapshot",
         "get_current_weather",
     ]
     assert prep.execution_path == "fast"
@@ -921,11 +975,9 @@ async def test_prepare_execution_allows_page_and_weather_tools_for_mixed_request
         input_variables={
             "page_context": {
                 "page_key": "admin.ai.conversations",
-                "page_data": {
-                    "available_operations": [
-                        {"name": "read_visible_rows", "readonly": True},
-                        {"name": "read_row_detail", "readonly": True},
-                    ],
+                "ui_epoch": 2,
+                "suggested_tools": {
+                    "primary": ["ui_get_snapshot", "ui_read_region", "ui_read_table"],
                 },
             },
         },
@@ -934,8 +986,9 @@ async def test_prepare_execution_allows_page_and_weather_tools_for_mixed_request
         tools=[
             ToolDefinition(name="web_search", description="Search the web"),
             ToolDefinition(name="fetch_url", description="Fetch a webpage"),
-            ToolDefinition(name="get_page_context", description="Read page context"),
-            ToolDefinition(name="invoke_page_operation", description="Operate page"),
+            ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
+            ToolDefinition(name="ui_read_region", description="Read UI region"),
+            ToolDefinition(name="ui_read_table", description="Read UI table"),
             ToolDefinition(
                 name="get_current_weather", description="Get current weather"
             ),
@@ -964,11 +1017,11 @@ async def test_prepare_execution_allows_page_and_weather_tools_for_mixed_request
 
     assert prep.tool_use_policy.family == "page_ops"
     assert prep.tool_use_policy.allowed_tool_names == [
-        "get_page_context",
+        "ui_get_snapshot",
         "get_current_weather",
     ]
     assert [tool.name for tool in prep.tools] == [
-        "get_page_context",
+        "ui_get_snapshot",
         "get_current_weather",
     ]
 
@@ -988,11 +1041,9 @@ async def test_prepare_execution_restores_secondary_family_when_optimizer_drops_
         input_variables={
             "page_context": {
                 "page_key": "admin.ai.conversations",
-                "page_data": {
-                    "available_operations": [
-                        {"name": "read_visible_rows", "readonly": True},
-                        {"name": "read_row_detail", "readonly": True},
-                    ],
+                "ui_epoch": 2,
+                "suggested_tools": {
+                    "primary": ["ui_get_snapshot", "ui_read_region", "ui_read_table"],
                 },
             },
         },
@@ -1001,8 +1052,9 @@ async def test_prepare_execution_restores_secondary_family_when_optimizer_drops_
         tools=[
             ToolDefinition(name="web_search", description="Search the web"),
             ToolDefinition(name="fetch_url", description="Fetch a webpage"),
-            ToolDefinition(name="get_page_context", description="Read page context"),
-            ToolDefinition(name="invoke_page_operation", description="Operate page"),
+            ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
+            ToolDefinition(name="ui_read_region", description="Read UI region"),
+            ToolDefinition(name="ui_read_table", description="Read UI table"),
             ToolDefinition(
                 name="get_current_weather", description="Get current weather"
             ),
@@ -1021,15 +1073,14 @@ async def test_prepare_execution_restores_secondary_family_when_optimizer_drops_
                 for tool in tools
                 if tool.name
                 in {
-                    "get_page_context",
-                    "invoke_page_operation",
-                    "pageop_read_row_detail",
-                    "pageop_read_visible_rows",
+                    "ui_get_snapshot",
+                    "ui_read_region",
+                    "ui_read_table",
                 }
             ],
             skipped=False,
             total=len(tools),
-            selected=4,
+            selected=3,
         )
 
     with (
@@ -1048,11 +1099,11 @@ async def test_prepare_execution_restores_secondary_family_when_optimizer_drops_
 
     assert prep.tool_use_policy.family == "page_ops"
     assert prep.tool_use_policy.allowed_tool_names == [
-        "get_page_context",
+        "ui_get_snapshot",
         "get_current_weather",
     ]
     assert [tool.name for tool in prep.tools] == [
-        "get_page_context",
+        "ui_get_snapshot",
         "get_current_weather",
     ]
 
@@ -1072,18 +1123,14 @@ async def test_prepare_execution_prefers_web_research_on_first_turn_even_with_pa
         input_variables={
             "page_context": {
                 "page_key": "admin.ai.conversations",
-                "page_data": {
-                    "available_operations": [
-                        {"name": "capture_screenshot", "readonly": True},
-                        {"name": "refresh_list", "readonly": True},
-                        {"name": "search", "readonly": True},
-                        {"name": "clear_search", "readonly": True},
-                        {"name": "read_visible_rows", "readonly": True},
-                        {"name": "next_page", "readonly": True},
-                        {"name": "prev_page", "readonly": True},
-                        {"name": "go_to_page", "readonly": True},
-                        {"name": "set_page_size", "readonly": True},
-                        {"name": "read_row_detail", "readonly": True},
+                "page_title": "AI Conversations",
+                "ui_epoch": 11,
+                "suggested_tools": {
+                    "primary": [
+                        "ui_get_snapshot",
+                        "ui_read_region",
+                        "ui_read_table",
+                        "ui_click",
                     ],
                 },
             },
@@ -1093,8 +1140,8 @@ async def test_prepare_execution_prefers_web_research_on_first_turn_even_with_pa
         tools=[
             ToolDefinition(name="web_search", description="Search the web"),
             ToolDefinition(name="fetch_url", description="Fetch a webpage"),
-            ToolDefinition(name="get_page_context", description="Read page context"),
-            ToolDefinition(name="invoke_page_operation", description="Operate page"),
+            ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
+            ToolDefinition(name="ui_click", description="Click UI element"),
             ToolDefinition(name="query_records", description="Query platform data"),
             ToolDefinition(name="create_records", description="Create data"),
             ToolDefinition(name="update_records", description="Update data"),
@@ -1146,9 +1193,13 @@ async def test_prepare_execution_keeps_non_zero_selected_count_for_explicit_web_
         input_variables={
             "page_context": {
                 "page_key": "admin.ai.conversations",
-                "page_data": {
-                    "available_operations": [
-                        {"name": "read_visible_rows", "readonly": True},
+                "page_title": "AI Conversations",
+                "ui_epoch": 12,
+                "suggested_tools": {
+                    "primary": [
+                        "ui_get_snapshot",
+                        "ui_read_region",
+                        "ui_read_table",
                     ],
                 },
             },
@@ -1158,8 +1209,8 @@ async def test_prepare_execution_keeps_non_zero_selected_count_for_explicit_web_
         tools=[
             ToolDefinition(name="web_search", description="Search the web"),
             ToolDefinition(name="fetch_url", description="Fetch a webpage"),
-            ToolDefinition(name="get_page_context", description="Read page context"),
-            ToolDefinition(name="invoke_page_operation", description="Operate page"),
+            ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
+            ToolDefinition(name="ui_read_region", description="Read UI region"),
         ]
     )
 
@@ -1603,11 +1654,11 @@ async def test_prepare_execution_builds_compaction_snapshot_sidecar_when_thresho
         ),
         patch("app.ai.routing.router.ModelRouter", new=_FakeRouter),
         patch(
-            "app.services.ai.conversation_service.ConversationService.get_context_compaction_snapshot",
+            "app.ai.context.engine.ContextCompactionSnapshotStore.get_snapshot",
             new=AsyncMock(side_effect=fake_get_snapshot),
         ),
         patch(
-            "app.services.ai.conversation_service.ConversationService.upsert_context_compaction_snapshot",
+            "app.ai.context.engine.ContextCompactionSnapshotStore.upsert_snapshot",
             new=AsyncMock(side_effect=fake_upsert_snapshot),
         ) as upsert_snapshot,
     ):
@@ -1717,6 +1768,10 @@ async def test_prepare_execution_injects_long_term_memory_recall_when_enabled() 
             "app.ai.rag_injector.load_agent_kb_bindings",
             new=AsyncMock(return_value=([], {})),
         ),
+        patch(
+            "app.ai.engine.intent_planner.IntentPlanner.plan_turn",
+            return_value=_build_intent_plan("memory_recall"),
+        ),
         patch("app.ai.routing.router.ModelRouter", new=_FakeRouter),
         patch(
             "app.ai.context.engine.get_long_term_memory_provider",
@@ -1770,6 +1825,10 @@ async def test_prepare_execution_injects_profile_snapshot_before_recall() -> Non
             "app.ai.rag_injector.load_agent_kb_bindings",
             new=AsyncMock(return_value=([], {})),
         ),
+        patch(
+            "app.ai.engine.intent_planner.IntentPlanner.plan_turn",
+            return_value=_build_intent_plan("memory_recall"),
+        ),
         patch("app.ai.routing.router.ModelRouter", new=_FakeRouter),
         patch(
             "app.ai.context.engine.get_long_term_memory_provider",
@@ -1789,6 +1848,54 @@ async def test_prepare_execution_injects_profile_snapshot_before_recall() -> Non
         "scope_type": "user_agent",
     }
     assert "[PROFILE SNAPSHOT]" in prep.messages[0].content
+
+
+@pytest.mark.asyncio
+async def test_prepare_execution_skips_memory_vector_recall_for_short_acknowledgement() -> (
+    None
+):
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
+    agent = _build_agent()
+    agent.context_config = {
+        "long_term_memory_enabled": True,
+    }
+    request = ExecutionRequest(
+        agent_id=1,
+        tenant_id=1,
+        user_id=7,
+        long_term_memory_enabled=True,
+        messages=[
+            ChatMessage(role="user", content="好的"),
+        ],
+        input_variables={},
+    )
+    provider = MagicMock()
+    provider.profile = AsyncMock(return_value=None)
+    provider.recall = AsyncMock(return_value=[])
+
+    with (
+        patch(
+            "app.ai.rag_injector.load_agent_kb_bindings",
+            new=AsyncMock(return_value=([], {})),
+        ),
+        patch("app.ai.routing.router.ModelRouter", new=_FakeRouter),
+        patch(
+            "app.ai.context.engine.get_long_term_memory_provider",
+            return_value=provider,
+        ),
+    ):
+        prep = await engine._prepare_execution(
+            agent,
+            request,
+            skill_result=_build_skill_result(),
+        )
+
+    provider.profile.assert_not_awaited()
+    provider.recall.assert_not_awaited()
+    assert prep.memory_recalled is False
+    assert prep.memory_recall_slice is None
 
 
 @pytest.mark.asyncio
@@ -2019,9 +2126,12 @@ async def test_prepare_execution_assembles_pageaware_kb_memory_and_plugin_skill_
             "page_context": {
                 "page_key": "admin.ai.conversations",
                 "page_title": "AI Conversations",
-                "page_data": {
-                    "available_operations": [
-                        {"name": "read_visible_rows", "readonly": True},
+                "ui_epoch": 9,
+                "suggested_tools": {
+                    "primary": [
+                        "ui_get_snapshot",
+                        "ui_read_region",
+                        "ui_read_table",
                     ],
                 },
             },
@@ -2070,6 +2180,26 @@ async def test_prepare_execution_assembles_pageaware_kb_memory_and_plugin_skill_
             "app.ai.rag_injector.inject_rag_context",
             new=AsyncMock(side_effect=_fake_inject_rag_context),
         ),
+        patch(
+            "app.services.ai.agent_kb_binding_service.AgentKBBindingService.get_agent_kb_bindings_with_metadata",
+            new=AsyncMock(
+                return_value=[
+                    {
+                        "knowledge_base_id": 101,
+                        "name": "KB-101",
+                        "weight": 1.0,
+                    }
+                ]
+            ),
+        ),
+        patch(
+            "app.ai.engine.intent_planner.IntentPlanner.plan_turn",
+            return_value=_build_intent_plan(
+                "memory_recall",
+                "knowledge_query",
+                "page_summary",
+            ),
+        ),
         patch("app.ai.routing.router.ModelRouter", new=_FakeRouter),
         patch(
             "app.ai.context.engine.get_long_term_memory_provider",
@@ -2108,15 +2238,9 @@ async def test_prepare_execution_assembles_pageaware_kb_memory_and_plugin_skill_
         "profile_snapshot": True,
         "scope_type": "user_agent",
     }
-    assert "[TURN CAPABILITIES]" in prep.messages[0].content
-    assert (
-        "Selected skills for this turn: Plugin Research Skill, Plugin Page Skill."
-        in prep.messages[0].content
-    )
-    assert "Knowledge-base context is available this turn." in prep.messages[0].content
-    assert "Page context is available this turn." in prep.messages[0].content
-    assert "[LONG-TERM MEMORY RECALL]" in prep.messages[0].content
-    assert "[PROFILE SNAPSHOT]" in prep.messages[0].content
+    system_content = prep.messages[0].content
+    assert "[LONG-TERM MEMORY RECALL]" in system_content
+    assert "[PROFILE SNAPSHOT]" in system_content
 
 
 @pytest.mark.asyncio
@@ -2330,18 +2454,19 @@ async def test_prepare_execution_does_not_bypass_risk_cap_for_page_ops() -> None
         input_variables={
             "page_context": {
                 "page_key": "demo.form",
-                "page_data": {
-                    "available_operations": [{"name": "fill_form", "readonly": False}],
+                "ui_epoch": 5,
+                "suggested_tools": {
+                    "primary": ["ui_fill_form", "ui_submit_form"],
                 },
             },
         },
     )
     skill_result = SkillResolveResult(
         tools=[
-            ToolDefinition(name="invoke_page_operation", description="Operate page"),
+            ToolDefinition(name="ui_fill_form", description="Fill form"),
         ],
         tool_consent_modes={
-            "invoke_page_operation": "ask",
+            "ui_fill_form": "ask",
         },
     )
 
@@ -2358,7 +2483,7 @@ async def test_prepare_execution_does_not_bypass_risk_cap_for_page_ops() -> None
             skill_result=skill_result,
         )
 
-    assert prep.tool_consent_modes["invoke_page_operation"] == "ask"
+    assert prep.tool_consent_modes["ui_fill_form"] == "ask"
 
 
 @pytest.mark.asyncio
@@ -2454,7 +2579,7 @@ async def test_call_llm_runtime_errors_do_not_fallback_to_legacy() -> None:
             agent=agent,
             messages=[ChatMessage(role="user", content="继续")],
             tools=[
-                ToolDefinition(name="get_page_context", description="Read page context")
+                ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot")
             ],
             selected_skill_names=["page_skill"],
             context_sources=[],
@@ -2529,9 +2654,10 @@ async def test_prepare_execution_builds_deep_structured_plan_for_666_style_turn(
         input_variables={
             "page_context": {
                 "page_key": "admin.ai.dashboard",
-                "page_data": {
-                    "available_operations": [{"name": "navigate_menu"}],
-                    "available_menus": [],
+                "ui_epoch": 5,
+                "suggested_tools": {
+                    "primary": ["ui_get_snapshot", "ui_read_region", "ui_click"],
+                    "secondary": ["ui_open_surface"],
                 },
             }
         },
@@ -2568,7 +2694,7 @@ async def test_prepare_execution_builds_deep_structured_plan_for_666_style_turn(
         "get_current_weather",
         "web_search",
         "fetch_url",
-        "get_page_context",
+        "ui_get_snapshot",
     ]
     assert prep.active_intent_id == "intent-1"
     assert prep.tool_use_policy.family == "weather"
@@ -2630,7 +2756,10 @@ async def test_prepare_execution_page_summary_turn_keeps_page_only_candidates() 
         input_variables={
             "page_context": {
                 "page_key": "admin.ai.dashboard",
-                "page_data": {"available_operations": [{"name": "navigate_menu"}]},
+                "ui_epoch": 5,
+                "suggested_tools": {
+                    "primary": ["ui_get_snapshot", "ui_read_region"],
+                },
             }
         },
     )
@@ -2650,9 +2779,9 @@ async def test_prepare_execution_page_summary_turn_keeps_page_only_candidates() 
 
     assert prep.execution_path == "fast"
     assert [intent.kind for intent in prep.intent_plan] == ["page_summary"]
-    assert [tool.name for tool in prep.tools] == ["get_page_context"]
-    assert prep.intent_plan[0].allowed_tool_names == ["get_page_context"]
-    assert prep.tool_use_policy.allowed_tool_names == ["get_page_context"]
+    assert [tool.name for tool in prep.tools] == ["ui_get_snapshot"]
+    assert prep.intent_plan[0].allowed_tool_names == ["ui_get_snapshot"]
+    assert prep.tool_use_policy.allowed_tool_names == ["ui_get_snapshot"]
     assert prep.diagnostics["capability_injection_decision"] == {
         "all_shortcircuit": True,
         "skills_injected": False,
@@ -2678,8 +2807,9 @@ async def test_prepare_execution_page_screenshot_keeps_capture_screenshot_tool()
         input_variables={
             "page_context": {
                 "page_key": "admin.ai.dashboard",
-                "page_data": {
-                    "available_operations": [{"name": "capture_screenshot"}],
+                "ui_epoch": 5,
+                "suggested_tools": {
+                    "primary": ["ui_get_snapshot", "ui_read_region"],
                 },
             }
         },
@@ -2699,14 +2829,8 @@ async def test_prepare_execution_page_screenshot_keeps_capture_screenshot_tool()
         )
 
     assert [intent.kind for intent in prep.intent_plan] == ["page_screenshot"]
-    assert [tool.name for tool in prep.tools] == [
-        "pageop_capture_screenshot",
-        "invoke_page_operation",
-    ]
-    assert prep.tool_use_policy.allowed_tool_names == [
-        "pageop_capture_screenshot",
-        "invoke_page_operation",
-    ]
+    assert [tool.name for tool in prep.tools] == ["ui_get_snapshot"]
+    assert prep.tool_use_policy.allowed_tool_names == ["ui_get_snapshot"]
 
 
 @pytest.mark.asyncio
@@ -2722,14 +2846,17 @@ async def test_prepare_execution_editor_write_keeps_editor_mutation_tools() -> N
         input_variables={
             "page_context": {
                 "page_key": "admin.ai.dashboard",
-                "page_data": {
-                    "available_operations": [
-                        {"name": "replace_content"},
-                        {"name": "replace_section"},
-                        {"name": "append_content"},
-                        {"name": "insert_content"},
-                        {"name": "update_title"},
-                    ],
+                "active_form_session_id": "editor-form-1",
+                "active_form_summary": {
+                    "form_session_id": "editor-form-1",
+                    "entity_name": "编辑器",
+                    "mode": "edit",
+                    "stage": "ready_to_submit",
+                    "can_submit": True,
+                },
+                "suggested_tools": {
+                    "primary": ["ui_open_surface", "ui_fill_form", "ui_submit_form"],
+                    "secondary": ["ui_get_form_state"],
                 },
             }
         },
@@ -2750,9 +2877,7 @@ async def test_prepare_execution_editor_write_keeps_editor_mutation_tools() -> N
 
     assert [intent.kind for intent in prep.intent_plan] == ["page_editor_write"]
     assert prep.tool_use_policy.allowed_tool_names == [
-        "pageop_replace_content",
-        "pageop_replace_section",
-        "pageop_append_content",
-        "pageop_insert_content",
-        "pageop_update_title",
+        "ui_open_surface",
+        "ui_fill_form",
+        "ui_submit_form",
     ]

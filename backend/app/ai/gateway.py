@@ -20,11 +20,34 @@ from app.ai.adapters.openai_adapter import OpenAIAdapter
 from app.ai.cache import AIResponseCache
 from app.ai.exceptions import (
     AIGatewayError,
-    ProviderConnectionError,
     ProviderTimeoutError,
     is_retryable,
 )
 from app.ai.failover import FailoverService
+from app.ai.gateway_support.call_log_bridge import GatewayCallLogBridge
+from app.ai.gateway_support.dispatcher import GatewayDispatcher
+from app.ai.gateway_support.native_web_search_bridge import (
+    native_web_search_call_status as native_web_search_call_status_impl,
+)
+from app.ai.gateway_support.native_web_search_bridge import (
+    native_web_search_error_status as native_web_search_error_status_impl,
+)
+from app.ai.gateway_support.native_web_search_bridge import (
+    raise_retryable_native_web_search_failure as raise_retryable_native_web_search_failure_impl,
+)
+from app.ai.gateway_support.protocol_adapter_bridge import (
+    call_chat_adapter as call_chat_adapter_impl,
+)
+from app.ai.gateway_support.protocol_adapter_bridge import (
+    resolve_adapter_protocol_wire_api as resolve_adapter_protocol_wire_api_impl,
+)
+from app.ai.gateway_support.protocol_adapter_bridge import (
+    resolve_gateway_protocol_wire_api as resolve_gateway_protocol_wire_api_impl,
+)
+from app.ai.gateway_support.protocol_adapter_bridge import (
+    stream_chat_adapter as stream_chat_adapter_impl,
+)
+from app.ai.gateway_support.retry_orchestrator import GatewayRetryOrchestrator
 from app.ai.retry_service import (
     MAX_RETRIES,
     RETRY_BASE_DELAY,
@@ -45,7 +68,6 @@ from app.ai.usage_mode import resolve_chat_usage
 from app.ai.usage_recorder import UsageRecorder
 from app.ai.web_search.types import (
     PROVIDER_MODE_NATIVE,
-    STATUS_TIMEOUT,
     STATUS_UNSUPPORTED,
     STATUS_UPSTREAM_ERROR,
     SearchProviderRun,
@@ -55,9 +77,7 @@ from app.core.config import settings
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.core.response import build_public_error_text
-from app.core.runtime_identity import get_runtime_identity_tag
 from app.enums.ai import CallStatusEnum, CallTypeEnum, RequestTypeEnum
-from app.enums.log import UserTypeEnum as LogUserTypeEnum
 from app.exceptions import BusinessException, NotFoundException
 from app.middleware.trace import trace_id_var
 from app.models.ai import AIModel, AIProvider, ProviderApiKey
@@ -93,9 +113,18 @@ class AIGateway:
         self.provider_repo = AIProviderRepository(db)
         self.api_key_repo = ProviderApiKeyRepository(db)
         self.model_repo = AIModelRepository(db)
+        self.dispatcher = GatewayDispatcher(db)
         self.failover = FailoverService(db)
         self.retry_service = RetryService(self.api_key_repo)
+        self.retry_orchestrator = GatewayRetryOrchestrator(self.retry_service)
         self.usage_recorder = UsageRecorder(db)
+        self.call_log_bridge = GatewayCallLogBridge()
+
+    async def _execute_with_retry(self, **kwargs):
+        orchestrator = getattr(self, "retry_orchestrator", None)
+        if orchestrator is not None:
+            return await orchestrator.execute_with_retry(**kwargs)
+        return await self.retry_service.execute_with_retry(**kwargs)
 
     @staticmethod
     def _should_meter_usage(tenant_id: int | None) -> bool:
@@ -110,13 +139,7 @@ class AIGateway:
         tenant_id: int | None,
         user_type: str | None = None,
     ) -> str | None:
-        if user_type:
-            return user_type
-        if tenant_id is None:
-            return None
-        if tenant_id == PLATFORM_TENANT_ID:
-            return LogUserTypeEnum.ADMIN.value
-        return LogUserTypeEnum.TENANT_ADMIN.value
+        return GatewayCallLogBridge.resolve_call_user_type(tenant_id, user_type)
 
     @staticmethod
     def _build_request_log_data(
@@ -135,35 +158,21 @@ class AIGateway:
         breach_retry_result: str | None = None,
         stream: bool = False,
     ) -> dict[str, object]:
-        selected_tool_names = [
-            ((tool.get("function", {}) or {}).get("name"))
-            for tool in (tools or [])
-            if isinstance(tool, dict)
-        ]
-        selected_tool_names = [name for name in selected_tool_names if name]
-        request_data: dict[str, object] = {
-            "messages": messages_to_dicts(messages),
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-            "top_p": top_p,
-            "tools": tools,
-            "tool_choice": tool_choice,
-            "runtime_identity": get_runtime_identity_tag(),
-            "selected_tool_names": selected_tool_names,
-            "all_tool_names": all_tool_names or selected_tool_names,
-            "tool_use_policy": {
-                "family": tool_use_policy_family or "none",
-                "mode": tool_use_policy_mode or ("auto" if tools else "none"),
-                "allowed_tool_names": allowed_tool_names or [],
-            },
-        }
-        if stream:
-            request_data["_stream"] = True
-        if retry_count > 0:
-            request_data["_retry_count"] = retry_count
-        if breach_retry_result:
-            request_data["breach_retry_result"] = breach_retry_result
-        return request_data
+        return GatewayCallLogBridge.build_request_log_data(
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            top_p=top_p,
+            tools=tools,
+            tool_choice=tool_choice,
+            all_tool_names=all_tool_names,
+            retry_count=retry_count,
+            tool_use_policy_family=tool_use_policy_family,
+            tool_use_policy_mode=tool_use_policy_mode,
+            allowed_tool_names=allowed_tool_names,
+            breach_retry_result=breach_retry_result,
+            stream=stream,
+        )
 
     @staticmethod
     def _warn_policy_not_loaded(
@@ -173,23 +182,11 @@ class AIGateway:
         conversation_id: int | None,
         agent_id: int | None,
     ) -> None:
-        if not tools:
-            return
-        tool_names = {
-            (tool.get("function", {}) or {}).get("name", "")
-            for tool in tools
-            if isinstance(tool, dict)
-        }
-        if not ({"web_search", "fetch_url"} & tool_names):
-            return
-        if tool_choice:
-            return
-        logger.warning(
-            "Tool policy not loaded: status=policy_not_loaded runtime={} conversation_id={} agent_id={} tool_names={}",
-            get_runtime_identity_tag(),
-            conversation_id,
-            agent_id,
-            sorted(name for name in tool_names if name),
+        GatewayCallLogBridge.warn_policy_not_loaded(
+            tools=tools,
+            tool_choice=tool_choice,
+            conversation_id=conversation_id,
+            agent_id=agent_id,
         )
 
     @staticmethod
@@ -200,20 +197,12 @@ class AIGateway:
         user_type: str | None,
         billing_context: dict | None = None,
     ) -> dict[str, object | None]:
-        """
-        Resolve immutable billing attribution defaults for call logging.
-        解析调用日志的不可变计费归属默认值。
-        """
-        resolved = dict(billing_context or {})
-        default_billing_tenant_id = (
-            tenant_id
-            if tenant_id is not None and tenant_id > PLATFORM_TENANT_ID
-            else None
+        return GatewayCallLogBridge.resolve_billing_context(
+            tenant_id,
+            user_id=user_id,
+            user_type=user_type,
+            billing_context=billing_context,
         )
-        resolved.setdefault("billing_tenant_id", default_billing_tenant_id)
-        resolved.setdefault("actor_user_id", user_id)
-        resolved.setdefault("actor_user_type", user_type)
-        return resolved
 
     @staticmethod
     def _merge_model_provider_snapshots(
@@ -222,19 +211,11 @@ class AIGateway:
         provider: AIProvider | None,
         ai_model: AIModel | None,
     ) -> dict[str, object | None]:
-        """Attach model/provider display snapshots for immutable call ledger rows."""
-        merged = dict(billing_context or {})
-        if ai_model is not None:
-            merged.setdefault(
-                "model_name_snapshot",
-                getattr(ai_model, "name", None) or getattr(ai_model, "code", None),
-            )
-        if provider is not None:
-            merged.setdefault(
-                "provider_name_snapshot",
-                getattr(provider, "name", None) or getattr(provider, "code", None),
-            )
-        return merged
+        return GatewayCallLogBridge.merge_model_provider_snapshots(
+            billing_context,
+            provider=provider,
+            ai_model=ai_model,
+        )
 
     @staticmethod
     def _attach_runtime_metadata(
@@ -243,24 +224,11 @@ class AIGateway:
         provider: AIProvider,
         ai_model: AIModel,
     ) -> None:
-        """Attach actual runtime provider/model snapshot to response metadata."""
-        metadata = dict(getattr(payload, "metadata", {}) or {})
-        metadata["runtime_model_info"] = {
-            "provider_id": provider.id,
-            "provider_name": (
-                getattr(provider, "name", None)
-                or getattr(provider, "code", None)
-                or f"Provider #{provider.id}"
-            ),
-            "model_id": ai_model.id,
-            "model_name": (
-                getattr(ai_model, "name", None)
-                or getattr(ai_model, "code", None)
-                or f"Model #{ai_model.id}"
-            ),
-            "model_code": getattr(ai_model, "code", None),
-        }
-        payload.metadata = metadata
+        GatewayCallLogBridge.attach_runtime_metadata(
+            payload,
+            provider=provider,
+            ai_model=ai_model,
+        )
 
     def _build_adapter_extra(
         self,
@@ -300,39 +268,104 @@ class AIGateway:
         }
 
     @staticmethod
+    def _resolve_gateway_protocol_wire_api(
+        provider: AIProvider,
+        *,
+        extra_kwargs: dict[str, Any] | None = None,
+    ) -> str | None:
+        return resolve_gateway_protocol_wire_api_impl(
+            provider,
+            extra_kwargs=extra_kwargs,
+        )
+
+    @staticmethod
+    def _resolve_adapter_protocol_wire_api(
+        adapter: Any,
+        *,
+        wire_api: str | None,
+    ) -> str:
+        return resolve_adapter_protocol_wire_api_impl(
+            adapter,
+            wire_api=wire_api,
+        )
+
+    async def _call_chat_adapter(
+        self,
+        *,
+        adapter: Any,
+        provider: AIProvider,
+        messages: list[ChatMessage],
+        model: str,
+        temperature: float,
+        max_tokens: int | None,
+        top_p: float,
+        stream: bool,
+        tools: list[dict] | None,
+        tool_choice: str | None,
+        extra_kwargs: dict[str, Any] | None = None,
+    ) -> ChatResponse:
+        return await call_chat_adapter_impl(
+            messages=messages,
+            adapter=adapter,
+            provider=provider,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            top_p=top_p,
+            stream=stream,
+            tools=tools,
+            tool_choice=tool_choice,
+            extra_kwargs=extra_kwargs,
+        )
+
+    async def _stream_chat_adapter(
+        self,
+        *,
+        adapter: Any,
+        provider: AIProvider,
+        messages: list[ChatMessage],
+        model: str,
+        temperature: float,
+        max_tokens: int | None,
+        top_p: float,
+        tools: list[dict] | None,
+        tool_choice: str | None,
+        extra_kwargs: dict[str, Any] | None = None,
+    ) -> AsyncIterator[ChatChunk]:
+        async for chunk in stream_chat_adapter_impl(
+            adapter=adapter,
+            provider=provider,
+            messages=messages,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            top_p=top_p,
+            tools=tools,
+            tool_choice=tool_choice,
+            extra_kwargs=extra_kwargs,
+        ):
+            yield chunk
+
+    @staticmethod
     def _raise_retryable_native_web_search_failure(
         run: SearchProviderRun,
         *,
         provider_code: str,
         model_code: str,
     ) -> SearchProviderRun:
-        if run.status == STATUS_TIMEOUT:
-            raise ProviderTimeoutError(
-                message=run.failure_reason or _("ai.error.provider_timeout"),
-                provider_code=provider_code,
-                model_code=model_code,
-            )
-        if run.status == STATUS_UPSTREAM_ERROR:
-            raise ProviderConnectionError(
-                message=run.failure_reason or _("ai.error.provider_connection"),
-                provider_code=provider_code,
-                model_code=model_code,
-            )
-        return run
+        return raise_retryable_native_web_search_failure_impl(
+            run,
+            provider_code=provider_code,
+            model_code=model_code,
+        )
 
     @staticmethod
     def _native_web_search_error_status(error: Exception) -> str:
-        if isinstance(error, ProviderTimeoutError):
-            return STATUS_TIMEOUT
-        return STATUS_UPSTREAM_ERROR
+        return native_web_search_error_status_impl(error)
 
     @staticmethod
     def _native_web_search_call_status(status: str) -> str:
-        if status == STATUS_TIMEOUT:
-            return CallStatusEnum.TIMEOUT.value
-        if status in {STATUS_UPSTREAM_ERROR, STATUS_UNSUPPORTED}:
-            return CallStatusEnum.FAILED.value
-        return CallStatusEnum.SUCCESS.value
+        return native_web_search_call_status_impl(status)
 
     async def native_web_search(
         self,
@@ -523,7 +556,7 @@ class AIGateway:
             )
 
         try:
-            run, retry_count, used_api_key = await self.retry_service.execute_with_retry(
+            run, retry_count, used_api_key = await self._execute_with_retry(
                 provider=provider,
                 api_key=api_key,
                 model=model,
@@ -788,11 +821,13 @@ class AIGateway:
                 response,
                 retry_count,
                 used_api_key,
-            ) = await self.retry_service.execute_with_retry(
+            ) = await self._execute_with_retry(
                 provider=provider,
                 api_key=api_key,
                 model=model,
-                call_fn=lambda adapter: adapter.chat(
+                call_fn=lambda adapter: self._call_chat_adapter(
+                    adapter=adapter,
+                    provider=provider,
                     messages=messages,
                     model=model,
                     temperature=temperature,
@@ -801,7 +836,7 @@ class AIGateway:
                     stream=stream,
                     tools=tools,
                     tool_choice=tool_choice,
-                    **kwargs,
+                    extra_kwargs=kwargs,
                 ),
                 tenant_id=tenant_id,
                 adapter_extra={
@@ -868,11 +903,13 @@ class AIGateway:
                     response,
                     retry_count,
                     used_api_key,
-                ) = await self.retry_service.execute_with_retry(
+                ) = await self._execute_with_retry(
                     provider=fb_provider,
                     api_key=fb_api_key,
                     model=fallback_model.code,
-                    call_fn=lambda adapter: adapter.chat(
+                    call_fn=lambda adapter: self._call_chat_adapter(
+                        adapter=adapter,
+                        provider=fb_provider,
                         messages=messages,
                         model=fallback_model.code,
                         temperature=temperature,
@@ -881,7 +918,7 @@ class AIGateway:
                         stream=stream,
                         tools=tools,
                         tool_choice=tool_choice,
-                        **kwargs,
+                        extra_kwargs=kwargs,
                     ),
                     tenant_id=tenant_id,
                     adapter_extra={
@@ -1166,7 +1203,9 @@ class AIGateway:
                             model,
                         )
 
-                        async for chunk in adapter.stream_chat(
+                        async for chunk in self._stream_chat_adapter(
+                            adapter=adapter,
+                            provider=provider,
                             messages=messages,
                             model=model,
                             temperature=temperature,
@@ -1174,7 +1213,7 @@ class AIGateway:
                             top_p=top_p,
                             tools=tools,
                             tool_choice=tool_choice,
-                            **kwargs,
+                            extra_kwargs=kwargs,
                         ):
                             yield chunk
 
@@ -1308,7 +1347,9 @@ class AIGateway:
                         model_config=getattr(fallback_model, "config", None),
                     )
 
-                    async for chunk in fb_adapter.stream_chat(
+                    async for chunk in self._stream_chat_adapter(
+                        adapter=fb_adapter,
+                        provider=fb_provider,
                         messages=messages,
                         model=fallback_model.code,
                         temperature=temperature,
@@ -1316,7 +1357,7 @@ class AIGateway:
                         top_p=top_p,
                         tools=tools,
                         tool_choice=tool_choice,
-                        **kwargs,
+                        extra_kwargs=kwargs,
                     ):
                         yield chunk
 
@@ -1503,7 +1544,7 @@ class AIGateway:
             response,
             _retry_count,
             used_api_key,
-        ) = await self.retry_service.execute_with_retry(
+        ) = await self._execute_with_retry(
             provider=provider,
             api_key=api_key,
             model=model,
@@ -1671,7 +1712,7 @@ class AIGateway:
             response,
             _retry_count,
             used_api_key,
-        ) = await self.retry_service.execute_with_retry(
+        ) = await self._execute_with_retry(
             provider=provider,
             api_key=api_key,
             model=model,
@@ -1921,11 +1962,16 @@ class AIGateway:
             if stream:
                 # Streaming response test (take first 5 chunks only) / 流式响应测试（只取前 5 个 chunk）
                 response_chunks = []
-                stream_gen = adapter.stream_chat(
+                stream_gen = self._stream_chat_adapter(
+                    adapter=adapter,
+                    provider=provider,
                     messages=messages,
                     model=model_code,
                     temperature=temperature,
                     max_tokens=max_tokens,
+                    top_p=1.0,
+                    tools=None,
+                    tool_choice=None,
                 )
                 try:
                     async for chunk in stream_gen:
@@ -1966,12 +2012,17 @@ class AIGateway:
                 )
             else:
                 # Non-streaming response test / 非流式响应测试
-                response = await adapter.chat(
+                response = await self._call_chat_adapter(
+                    adapter=adapter,
+                    provider=provider,
                     messages=messages,
                     model=model_code,
                     temperature=temperature,
                     max_tokens=max_tokens,
+                    top_p=1.0,
                     stream=False,
+                    tools=None,
+                    tool_choice=None,
                 )
 
                 latency_ms = int((time.time() - start_time) * 1000)
@@ -2064,24 +2115,25 @@ class AIGateway:
             NotFoundException: Provider not found / 供应商不存在
             BusinessException: No available API Key / 没有可用的 API Key
         """
-        # Query provider via Repository / 通过 Repository 查询供应商
-        provider = await self.provider_repo.get_by_code(provider_code)
+        dispatcher = getattr(self, "dispatcher", None)
+        if dispatcher is not None:
+            return await dispatcher.resolve_provider_and_key(
+                provider_code=provider_code,
+                tenant_id=tenant_id,
+            )
 
+        provider = await self.provider_repo.get_by_code(provider_code)
         if not provider or not provider.is_active:
             raise NotFoundException(message=_("ai.provider_not_found"))
 
-        # Get available API Key via Repository / 通过 Repository 获取可用 API Key
         api_key = await self.api_key_repo.get_available_key(
             provider_id=provider.id,
             tenant_id=tenant_id,
         )
-
         if not api_key:
             raise BusinessException(message=_("ai.no_api_key"))
-
         if not api_key.is_available():
             raise BusinessException(message=_("ai.api_key_unavailable"))
-
         return provider, api_key
 
     async def _get_model(self, model_name: str, provider_id: int) -> AIModel | None:
@@ -2096,6 +2148,13 @@ class AIGateway:
         Returns:
             AIModel instance, or None if not found / AIModel 实例，如果不存在则返回 None
         """
+        dispatcher = getattr(self, "dispatcher", None)
+        if dispatcher is not None:
+            return await dispatcher.resolve_model(
+                model_name=model_name,
+                provider_id=provider_id,
+            )
+
         model = await self.model_repo.get_active_by_code_and_provider(
             model_name,
             provider_id,

@@ -47,7 +47,7 @@ def _sample_snapshot() -> dict:
                 "sequence": 18,
                 "role": "assistant",
                 "created_at": "2026-03-28T17:11:46+00:00",
-                "content": "to=functions.get_page_context 天天中奖不json_string",
+                "content": "to=functions.ui_get_snapshot 天天中奖不json_string",
                 "tool_calls": None,
                 "metadata": {
                     "model_name": "gpt-5.4-xhigh",
@@ -80,7 +80,7 @@ def _sample_snapshot() -> dict:
         ],
         "diagnostics": {
             "last_assistant_looks_like_textual_tool_call": True,
-            "last_assistant_textual_tool_call_names": ["get_page_context"],
+            "last_assistant_textual_tool_call_names": ["ui_get_snapshot"],
             "contract_breach_type": "leaked_textual_tool_call",
             "unfinished_intents": ["rail_ticket_research", "page_summary"],
             "recovered_via_retry": True,
@@ -245,7 +245,7 @@ def test_ai_conversation_show_json_success(monkeypatch) -> None:
     assert result.exit_code == 0
     assert '"id": 563' in result.output
     assert '"last_assistant_textual_tool_call_names": [' in result.output
-    assert '"get_page_context"' in result.output
+    assert '"ui_get_snapshot"' in result.output
 
 
 def test_ai_conversation_show_json_accepts_trace_id_reference(monkeypatch) -> None:
@@ -424,7 +424,7 @@ def test_ai_conversation_show_text_renders_diagnostic(monkeypatch) -> None:
     assert "Diagnostic: unfinished_intents=rail_ticket_research, page_summary" in result.output
     assert "Diagnostic: recovered_via_retry=True" in result.output
     assert "type=main_chat" in result.output
-    assert "get_page_context" in result.output
+    assert "ui_get_snapshot" in result.output
     assert "对象存储对帐计费" in result.output
 
 

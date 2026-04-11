@@ -85,12 +85,35 @@ def _make_conversation(
     return conversation
 
 
+def _thin_page_context(
+    page_key: str,
+    *,
+    primary_tools: list[str] | None = None,
+    reason: str = "router-test",
+) -> dict[str, object]:
+    return {
+        "page_key": page_key,
+        "ui_epoch": 1,
+        "suggested_tools": {
+            "primary": primary_tools
+            or [
+                "ui_get_snapshot",
+                "ui_read_region",
+                "ui_list_interactables",
+                "ui_click",
+            ],
+            "secondary": ["ui_open_surface"],
+            "reason": reason,
+        },
+    }
+
+
 def test_agent_supports_page_operations_ignores_inactive_packages() -> None:
     agent = _make_agent(
         agent_id=59,
         name="Page Agent",
         supports_vision=False,
-        skill_names=["get_page_context", "invoke_page_operation"],
+        skill_names=["ui_get_snapshot", "ui_click"],
     )
     for grant in agent.skill_grants:
         grant.skill.package.is_active = False
@@ -103,7 +126,7 @@ def test_agent_needs_function_calling_ignores_inactive_packages() -> None:
         agent_id=60,
         name="Tool Agent",
         supports_vision=False,
-        skill_names=["invoke_page_operation"],
+        skill_names=["ui_click"],
     )
     for grant in agent.skill_grants:
         grant.skill.package.is_active = False
@@ -130,11 +153,11 @@ def test_agent_supports_families_uses_skill_metadata_descriptors() -> None:
             package_name="联网搜索",
         ),
         _make_descriptor_grant(
-            skill_name="get_page_context",
+            skill_name="ui_get_snapshot",
             package_name="页面感知交互",
         ),
         _make_descriptor_grant(
-            skill_name="invoke_page_operation",
+            skill_name="ui_click",
             package_name="页面感知交互",
         ),
     ]
@@ -388,7 +411,7 @@ async def test_route_directly_selects_only_page_operation_capable_agent(mock_db)
         agent_id=59,
         name="Page Agent",
         supports_vision=False,
-        skill_names=["get_page_context", "invoke_page_operation"],
+        skill_names=["ui_get_snapshot", "ui_click"],
     )
 
     service._list_available_agents = AsyncMock(
@@ -400,12 +423,7 @@ async def test_route_directly_selects_only_page_operation_capable_agent(mock_db)
     result = await service.route(
         tenant_id=1,
         message="请帮我操作当前页面并打开表单",
-        page_context={
-            "page_key": "admin.ai.quotas",
-            "page_data": {
-                "available_operations": [{"name": "create_record"}],
-            },
-        },
+        page_context=_thin_page_context("admin.ai.quotas"),
         user_role=UserRoleEnum.TENANT_ADMIN.value,
         user_role_id=1,
         user_id=10,
@@ -430,7 +448,7 @@ async def test_route_detects_admin_cross_page_navigation_intent(mock_db):
         name="Admin Page Agent",
         supports_vision=False,
         owner_tenant_id=None,
-        skill_names=["get_page_context", "invoke_page_operation"],
+        skill_names=["ui_get_snapshot", "ui_click"],
     )
 
     service._list_available_agents = AsyncMock(
@@ -443,11 +461,16 @@ async def test_route_detects_admin_cross_page_navigation_intent(mock_db):
         tenant_id=None,
         message="我想添加一个智能体",
         page_context={
-            "page_key": "admin.dashboard",
-            "page_data": {
-                "available_operations": [{"name": "navigate_menu"}],
-                "available_menus": [_semantic_agents_menu_entry()],
-            },
+            **_thin_page_context(
+                "admin.dashboard",
+                primary_tools=[
+                    "ui_get_snapshot",
+                    "ui_list_interactables",
+                    "ui_click",
+                    "ui_open_surface",
+                ],
+            ),
+            "page_data": {"available_menus": [_semantic_agents_menu_entry()]},
         },
         user_role=UserRoleEnum.PLATFORM_ADMIN.value,
         user_role_id=1,
@@ -471,7 +494,7 @@ async def test_route_detects_tenant_cross_page_navigation_intent(mock_db):
         agent_id=66,
         name="Tenant Page Agent",
         supports_vision=False,
-        skill_names=["get_page_context", "invoke_page_operation"],
+        skill_names=["ui_get_snapshot", "ui_click"],
     )
 
     service._list_available_agents = AsyncMock(
@@ -484,11 +507,16 @@ async def test_route_detects_tenant_cross_page_navigation_intent(mock_db):
         tenant_id=1,
         message="帮我添加一个智能体",
         page_context={
-            "page_key": "tenant.dashboard",
-            "page_data": {
-                "available_operations": [{"name": "navigate_menu"}],
-                "available_menus": [_semantic_agents_menu_entry()],
-            },
+            **_thin_page_context(
+                "tenant.dashboard",
+                primary_tools=[
+                    "ui_get_snapshot",
+                    "ui_list_interactables",
+                    "ui_click",
+                    "ui_open_surface",
+                ],
+            ),
+            "page_data": {"available_menus": [_semantic_agents_menu_entry()]},
         },
         user_role=UserRoleEnum.TENANT_ADMIN.value,
         user_role_id=1,
@@ -513,7 +541,7 @@ async def test_route_detects_semantic_agent_navigation_phrase(mock_db):
         name="Admin Page Agent",
         supports_vision=False,
         owner_tenant_id=None,
-        skill_names=["get_page_context", "invoke_page_operation"],
+        skill_names=["ui_get_snapshot", "ui_click"],
     )
 
     service._list_available_agents = AsyncMock(
@@ -526,11 +554,16 @@ async def test_route_detects_semantic_agent_navigation_phrase(mock_db):
         tenant_id=None,
         message="我想创建一个 agent",
         page_context={
-            "page_key": "admin.system.organization",
-            "page_data": {
-                "available_operations": [{"name": "navigate_menu"}],
-                "available_menus": [_semantic_agents_menu_entry()],
-            },
+            **_thin_page_context(
+                "admin.system.organization",
+                primary_tools=[
+                    "ui_get_snapshot",
+                    "ui_list_interactables",
+                    "ui_click",
+                    "ui_open_surface",
+                ],
+            ),
+            "page_data": {"available_menus": [_semantic_agents_menu_entry()]},
         },
         user_role=UserRoleEnum.PLATFORM_ADMIN.value,
         user_role_id=1,
@@ -555,7 +588,7 @@ async def test_route_detects_semantic_ai_assistant_navigation_phrase(mock_db):
         name="Admin Page Agent",
         supports_vision=False,
         owner_tenant_id=None,
-        skill_names=["get_page_context", "invoke_page_operation"],
+        skill_names=["ui_get_snapshot", "ui_click"],
     )
 
     service._list_available_agents = AsyncMock(
@@ -568,11 +601,16 @@ async def test_route_detects_semantic_ai_assistant_navigation_phrase(mock_db):
         tenant_id=None,
         message="帮我新增 AI 助手",
         page_context={
-            "page_key": "admin.system.organization",
-            "page_data": {
-                "available_operations": [{"name": "navigate_menu"}],
-                "available_menus": [_semantic_agents_menu_entry()],
-            },
+            **_thin_page_context(
+                "admin.system.organization",
+                primary_tools=[
+                    "ui_get_snapshot",
+                    "ui_list_interactables",
+                    "ui_click",
+                    "ui_open_surface",
+                ],
+            ),
+            "page_data": {"available_menus": [_semantic_agents_menu_entry()]},
         },
         user_role=UserRoleEnum.PLATFORM_ADMIN.value,
         user_role_id=1,
@@ -598,7 +636,7 @@ async def test_route_does_not_force_page_operation_pool_for_page_analysis_reques
         agent_id=59,
         name="Page Agent",
         supports_vision=False,
-        skill_names=["get_page_context", "invoke_page_operation"],
+        skill_names=["ui_get_snapshot", "ui_click"],
     )
     router_agent = MagicMock()
     router_agent.model_id = 101
@@ -615,12 +653,7 @@ async def test_route_does_not_force_page_operation_pool_for_page_analysis_reques
     result = await service.route(
         tenant_id=1,
         message="请解释一下当前页面的配额和限速差异",
-        page_context={
-            "page_key": "admin.ai.quotas",
-            "page_data": {
-                "available_operations": [{"name": "create_record"}],
-            },
-        },
+        page_context=_thin_page_context("admin.ai.quotas"),
         user_role=UserRoleEnum.TENANT_ADMIN.value,
         user_role_id=1,
         user_id=10,
@@ -646,7 +679,7 @@ async def test_route_keeps_full_candidate_pool_for_mixed_weather_and_page_write_
         agent_id=59,
         name="Page Agent",
         supports_vision=False,
-        skill_names=["get_page_context", "invoke_page_operation"],
+        skill_names=["ui_get_snapshot", "ui_click"],
     )
     router_agent = MagicMock()
     router_agent.model_id = 101
@@ -663,12 +696,7 @@ async def test_route_keeps_full_candidate_pool_for_mixed_weather_and_page_write_
     result = await service.route(
         tenant_id=1,
         message="帮我查一下北京天气，然后在当前页面创建一条测试记录",
-        page_context={
-            "page_key": "admin.ai.quotas",
-            "page_data": {
-                "available_operations": [{"name": "create_record"}],
-            },
-        },
+        page_context=_thin_page_context("admin.ai.quotas"),
         user_role=UserRoleEnum.TENANT_ADMIN.value,
         user_role_id=1,
         user_id=10,
@@ -694,7 +722,7 @@ async def test_route_keeps_full_candidate_pool_for_mixed_web_and_page_request(
         agent_id=59,
         name="Page Agent",
         supports_vision=False,
-        skill_names=["get_page_context", "invoke_page_operation"],
+        skill_names=["ui_get_snapshot", "ui_click"],
     )
     router_agent = MagicMock()
     router_agent.model_id = 101
@@ -711,12 +739,10 @@ async def test_route_keeps_full_candidate_pool_for_mixed_web_and_page_request(
     result = await service.route(
         tenant_id=1,
         message="帮我搜索一下今天的 AI 新闻，再顺便概括一下当前页面都能做什么",
-        page_context={
-            "page_key": "admin.ai.quotas",
-            "page_data": {
-                "available_operations": [{"name": "get_page_context"}],
-            },
-        },
+        page_context=_thin_page_context(
+            "admin.ai.quotas",
+            primary_tools=["ui_get_snapshot", "ui_read_region", "ui_read_table"],
+        ),
         user_role=UserRoleEnum.TENANT_ADMIN.value,
         user_role_id=1,
         user_id=10,
@@ -740,8 +766,8 @@ async def test_route_prefers_candidate_covering_all_requested_families_for_mixed
         skill_names=[
             "web_search",
             "fetch_url",
-            "get_page_context",
-            "invoke_page_operation",
+            "ui_get_snapshot",
+            "ui_click",
         ],
     )
     full_agent = _make_agent(
@@ -752,8 +778,8 @@ async def test_route_prefers_candidate_covering_all_requested_families_for_mixed
             "get_current_weather",
             "web_search",
             "fetch_url",
-            "get_page_context",
-            "invoke_page_operation",
+            "ui_get_snapshot",
+            "ui_click",
         ],
     )
 
@@ -766,12 +792,10 @@ async def test_route_prefers_candidate_covering_all_requested_families_for_mixed
     result = await service.route(
         tenant_id=1,
         message="帮我查一下北京天气，顺便搜索一下今天的热点新闻，再看看当前页面都有什么",
-        page_context={
-            "page_key": "admin.ai.agents",
-            "page_data": {
-                "available_operations": [{"name": "get_page_context"}],
-            },
-        },
+        page_context=_thin_page_context(
+            "admin.ai.agents",
+            primary_tools=["ui_get_snapshot", "ui_read_region", "ui_read_table"],
+        ),
         user_role=UserRoleEnum.TENANT_ADMIN.value,
         user_role_id=1,
         user_id=10,
@@ -829,13 +853,13 @@ async def test_route_uses_page_operation_candidate_pool_for_fallback(mock_db):
         agent_id=59,
         name="Page Agent A",
         supports_vision=False,
-        skill_names=["get_page_context", "invoke_page_operation"],
+        skill_names=["ui_get_snapshot", "ui_click"],
     )
     page_agent_b = _make_agent(
         agent_id=60,
         name="Page Agent B",
         supports_vision=False,
-        skill_names=["get_page_context", "invoke_page_operation"],
+        skill_names=["ui_get_snapshot", "ui_click"],
     )
 
     service._list_available_agents = AsyncMock(
@@ -854,12 +878,7 @@ async def test_route_uses_page_operation_candidate_pool_for_fallback(mock_db):
     result = await service.route(
         tenant_id=1,
         message="请帮我在这个页面编辑一条限速规则",
-        page_context={
-            "page_key": "admin.ai.quotas",
-            "page_data": {
-                "available_operations": [{"name": "edit_rate_limit_rule"}],
-            },
-        },
+        page_context=_thin_page_context("admin.ai.quotas"),
         user_role=UserRoleEnum.TENANT_ADMIN.value,
         user_role_id=1,
         user_id=10,
@@ -889,7 +908,7 @@ async def test_fallback_to_default_prefers_bound_default_agent_within_preferred_
             name="Default Page Agent",
             supports_vision=True,
             owner_tenant_id=None,
-            skill_names=["get_page_context", "invoke_page_operation"],
+            skill_names=["ui_get_snapshot", "ui_click"],
         ),
     )
     service._is_agent_visible = AsyncMock(return_value=True)
@@ -905,14 +924,14 @@ async def test_fallback_to_default_prefers_bound_default_agent_within_preferred_
                 name="Default Page Agent",
                 supports_vision=True,
                 owner_tenant_id=None,
-                skill_names=["get_page_context", "invoke_page_operation"],
+                skill_names=["ui_get_snapshot", "ui_click"],
             ),
             _make_agent(
                 agent_id=60,
                 name="Backup Page Agent",
                 supports_vision=True,
                 owner_tenant_id=None,
-                skill_names=["get_page_context", "invoke_page_operation"],
+                skill_names=["ui_get_snapshot", "ui_click"],
             ),
         ],
     )
@@ -951,14 +970,14 @@ async def test_fallback_to_default_uses_preferred_pool_when_default_agent_is_out
                 name="Page Agent A",
                 supports_vision=True,
                 owner_tenant_id=None,
-                skill_names=["get_page_context", "invoke_page_operation"],
+                skill_names=["ui_get_snapshot", "ui_click"],
             ),
             _make_agent(
                 agent_id=60,
                 name="Page Agent B",
                 supports_vision=True,
                 owner_tenant_id=None,
-                skill_names=["get_page_context", "invoke_page_operation"],
+                skill_names=["ui_get_snapshot", "ui_click"],
             ),
         ],
     )
@@ -974,13 +993,13 @@ async def test_route_prefers_vision_page_agent_for_screenshot_request(mock_db):
         agent_id=59,
         name="Text Page Agent",
         supports_vision=False,
-        skill_names=["get_page_context", "invoke_page_operation"],
+        skill_names=["ui_get_snapshot", "ui_click"],
     )
     vision_page_agent = _make_agent(
         agent_id=60,
         name="Vision Page Agent",
         supports_vision=True,
-        skill_names=["get_page_context", "invoke_page_operation"],
+        skill_names=["ui_get_snapshot", "ui_click"],
     )
 
     service._list_available_agents = AsyncMock(
@@ -995,12 +1014,10 @@ async def test_route_prefers_vision_page_agent_for_screenshot_request(mock_db):
     result = await service.route(
         tenant_id=1,
         message="请帮我给当前页面截图",
-        page_context={
-            "page_key": "admin.ai.quotas",
-            "page_data": {
-                "available_operations": [{"name": "capture_screenshot"}],
-            },
-        },
+        page_context=_thin_page_context(
+            "admin.ai.quotas",
+            primary_tools=["ui_get_snapshot", "ui_read_region", "ui_click"],
+        ),
         user_role=UserRoleEnum.TENANT_ADMIN.value,
         user_role_id=1,
         user_id=10,
@@ -1017,7 +1034,7 @@ async def test_route_rejects_screenshot_request_when_no_vision_page_agent_exists
         agent_id=59,
         name="Text Page Agent",
         supports_vision=False,
-        skill_names=["get_page_context", "invoke_page_operation"],
+        skill_names=["ui_get_snapshot", "ui_click"],
     )
 
     service._list_available_agents = AsyncMock(return_value=[text_page_agent])
@@ -1028,12 +1045,10 @@ async def test_route_rejects_screenshot_request_when_no_vision_page_agent_exists
         await service.route(
             tenant_id=1,
             message="请帮我把当前页面截图发出来",
-            page_context={
-                "page_key": "admin.ai.quotas",
-                "page_data": {
-                    "available_operations": [{"name": "capture_screenshot"}],
-                },
-            },
+            page_context=_thin_page_context(
+                "admin.ai.quotas",
+                primary_tools=["ui_get_snapshot", "ui_read_region", "ui_click"],
+            ),
             user_role=UserRoleEnum.TENANT_ADMIN.value,
             user_role_id=1,
             user_id=10,

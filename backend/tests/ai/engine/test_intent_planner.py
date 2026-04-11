@@ -10,8 +10,11 @@ def _tools() -> list[ToolDefinition]:
     return [
         ToolDefinition(name="web_search", description="Search the web"),
         ToolDefinition(name="fetch_url", description="Fetch a webpage"),
-        ToolDefinition(name="get_page_context", description="Read current page"),
-        ToolDefinition(name="invoke_page_operation", description="Operate page"),
+        ToolDefinition(name="ui_get_snapshot", description="Read current page"),
+        ToolDefinition(name="ui_read_region", description="Read page region"),
+        ToolDefinition(name="ui_click", description="Click UI element"),
+        ToolDefinition(name="ui_fill_form", description="Fill form fields"),
+        ToolDefinition(name="ui_submit_form", description="Submit form"),
     ]
 
 
@@ -53,7 +56,7 @@ def _page_continuation_context(
         origin="continuation",
         current_user_text=current_user_text,
         research_target_text="admin.ai.api-keys",
-        recent_successful_tool_names=["get_page_context"],
+        recent_successful_tool_names=["ui_get_snapshot"],
         tool_families=["page_ops"],
         page_context_attached=True,
         continuation_capable_families=["page_ops"],
@@ -84,7 +87,7 @@ def test_intent_planner_returns_direct_reply_for_smalltalk_after_page_flow() -> 
                 role="assistant",
                 content="",
                 tool_calls=[
-                    {"success": True, "function": {"name": "invoke_page_operation"}}
+                    {"success": True, "function": {"name": "ui_click"}}
                 ],
             ),
             ChatMessage(role="user", content="你真聪明"),
@@ -142,6 +145,27 @@ def test_intent_planner_detects_page_summary_when_page_context_is_present() -> N
     assert intents[0].shortcircuit is True
 
 
+def test_intent_planner_recognizes_memory_recall_and_readonly_guidance() -> None:
+    user_text = (
+        "先回答我刚才让你记住的代号是什么。"
+        "然后再告诉我如果我要新建记录下一步通常点哪里，但先不要真的创建，也不要帮我点击。"
+    )
+    intents = IntentPlanner.plan_turn(
+        messages=[ChatMessage(role="user", content=user_text)],
+        tools=_tools(),
+        input_variables={"page_context": {"page_key": "admin.ai.api-keys"}},
+        continuation_context=None,
+        capability_bundle=None,
+    )
+
+    assert len(intents) == 2
+    assert intents[0].family == "memory"
+    assert intents[0].kind == "memory_recall"
+    assert intents[0].requires_tools is False
+    assert intents[1].family == "page_ops"
+    assert intents[1].kind == "page_summary"
+
+
 def test_intent_planner_detects_page_continuation_summary_for_continue_look() -> None:
     intents = _plan(
         "继续看",
@@ -162,9 +186,8 @@ def test_intent_planner_detects_page_continuation_screenshot_request() -> None:
         input_variables={
             "page_context": {
                 "page_key": "admin.ai.api-keys",
-                "page_data": {
-                    "available_operations": [{"name": "capture_screenshot"}],
-                },
+                "ui_epoch": 3,
+                "suggested_tools": {"primary": ["ui_get_snapshot"]},
             }
         },
         continuation=_page_continuation_context(current_user_text="截个图看"),
@@ -193,6 +216,28 @@ def test_intent_planner_detects_editor_write_request() -> None:
     )
 
     assert [intent.kind for intent in intents] == ["page_editor_write"]
+
+
+def test_intent_planner_keeps_capability_self_report_prompt_as_direct_reply() -> None:
+    intents = _plan(
+        "先简单介绍一下你自己，并说明你是否能查询天气、调用技能和执行页面操作。",
+        tools=_tools_with_weather(),
+        input_variables={"page_context": {"page_key": "admin.dashboard"}},
+    )
+
+    assert [intent.kind for intent in intents] == ["direct_reply"]
+    assert intents[0].requires_tools is False
+
+
+def test_intent_planner_respects_explicit_no_tool_instruction_for_long_writing() -> None:
+    intents = _plan(
+        "请只用中文写一篇至少2500字的长文，分成标题、正文和结尾三个部分，不要调用任何工具。",
+        tools=_tools_with_weather(),
+        input_variables={"page_context": {"page_key": "admin.dashboard"}},
+    )
+
+    assert [intent.kind for intent in intents] == ["direct_reply"]
+    assert intents[0].requires_tools is False
 
 
 def test_intent_planner_detects_page_pagination_request() -> None:
@@ -277,6 +322,16 @@ def test_intent_planner_falls_back_to_web_research_for_weather_when_only_web_too
     assert intents[0].family == "web_research"
 
 
+def test_intent_planner_does_not_duplicate_weather_web_lookup_into_two_web_intents() -> (
+    None
+):
+    intents = _plan("今天怀化天气怎么样 联网查查", tools=_tools())
+
+    assert [intent.kind for intent in intents] == ["web_research"]
+    assert intents[0].family == "web_research"
+    assert intents[0].user_visible_label == "weather_web_research"
+
+
 def test_intent_planner_marks_weather_without_city_for_clarification() -> None:
     intents = _plan("现在几点了？今天天气怎么样？")
 
@@ -302,6 +357,27 @@ def test_intent_planner_detects_definition_query_as_knowledge_when_bound_kb_pres
 
     assert [intent.kind for intent in intents] == ["knowledge_query"]
     assert intents[0].shortcircuit is False
+
+
+def test_intent_planner_keeps_definition_like_kb_query_when_web_signal_exists() -> None:
+    intents = _plan(
+        "联网查一下 NovusAI 是什么",
+        tools=_tools(),
+        capability_bundle=_kb_capability_bundle(),
+    )
+
+    assert [intent.kind for intent in intents] == ["web_research", "knowledge_query"]
+
+
+def test_intent_planner_adds_kb_fallback_when_bound_kb_has_no_other_signal() -> None:
+    intents = _plan(
+        "介绍一下退货政策",
+        tools=_tools(),
+        capability_bundle=_kb_capability_bundle(),
+    )
+
+    assert [intent.kind for intent in intents] == ["knowledge_query"]
+    assert intents[0].requires_tools is False
 
 
 def test_intent_planner_keeps_pronoun_only_definition_as_direct_reply_even_with_bound_kb() -> (

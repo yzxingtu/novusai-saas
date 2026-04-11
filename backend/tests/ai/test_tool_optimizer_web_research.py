@@ -2,18 +2,18 @@ from app.ai.tools.optimizer import optimize_tools
 from app.ai.tools.types import ToolDefinition
 
 
-def test_optimize_tools_prefers_web_research_over_extra_pageops() -> None:
+def test_optimize_tools_prefers_web_research_over_extra_ui_page_tools() -> None:
     tools = [
-        ToolDefinition(name="get_page_context", description="Read page context"),
-        ToolDefinition(name="invoke_page_operation", description="Operate page"),
-        ToolDefinition(name="pageop_capture_screenshot", description="Capture screenshot"),
-        ToolDefinition(name="pageop_refresh_list", description="Refresh list"),
-        ToolDefinition(name="pageop_search", description="Search current page"),
-        ToolDefinition(name="pageop_clear_search", description="Clear page search"),
-        ToolDefinition(name="pageop_read_visible_rows", description="Read visible rows"),
-        ToolDefinition(name="pageop_next_page", description="Next page"),
-        ToolDefinition(name="pageop_prev_page", description="Previous page"),
-        ToolDefinition(name="pageop_go_to_page", description="Go to page"),
+        ToolDefinition(name="ui_get_snapshot", description="Read current page snapshot"),
+        ToolDefinition(name="ui_read_region", description="Read region"),
+        ToolDefinition(name="ui_read_table", description="Read table"),
+        ToolDefinition(name="ui_list_interactables", description="List interactables"),
+        ToolDefinition(name="ui_click", description="Click element"),
+        ToolDefinition(name="ui_open_surface", description="Open target surface"),
+        ToolDefinition(name="ui_get_form_state", description="Get form state"),
+        ToolDefinition(name="ui_set_field", description="Set form field"),
+        ToolDefinition(name="ui_fill_form", description="Fill form"),
+        ToolDefinition(name="ui_submit_form", description="Submit form"),
         ToolDefinition(name="web_search", description="Search the web"),
         ToolDefinition(name="fetch_url", description="Fetch a webpage"),
     ]
@@ -27,10 +27,12 @@ def test_optimize_tools_prefers_web_research_over_extra_pageops() -> None:
     selected_names = [tool.name for tool in result.tools]
     assert "web_search" in selected_names
     assert "fetch_url" in selected_names
-    assert "get_page_context" in selected_names
-    assert "invoke_page_operation" in selected_names
-    pageop_names = [name for name in selected_names if name.startswith("pageop_")]
-    assert len(pageop_names) < 8
+    assert "ui_get_snapshot" in selected_names
+    assert "ui_click" in selected_names
+    assert all(
+        name.startswith("ui_") or name in {"web_search", "fetch_url"}
+        for name in selected_names
+    )
 
 
 def test_optimize_tools_uses_semantic_metadata_for_custom_web_research_tools() -> None:
@@ -69,10 +71,9 @@ def test_optimize_tools_uses_semantic_metadata_for_custom_web_research_tools() -
 
 def test_optimize_tools_prefers_semantic_web_tools_without_name_aliases() -> None:
     tools = [
-        ToolDefinition(name="get_page_context", description="Read page context"),
-        ToolDefinition(name="invoke_page_operation", description="Operate page"),
-        ToolDefinition(name="pageop_refresh_list", description="Refresh list"),
-        ToolDefinition(name="pageop_search", description="Search current page"),
+        ToolDefinition(name="ui_get_snapshot", description="Read page context"),
+        ToolDefinition(name="ui_read_region", description="Read current area"),
+        ToolDefinition(name="ui_click", description="Open and click"),
         ToolDefinition(
             name="public_lookup",
             description="Find external references",

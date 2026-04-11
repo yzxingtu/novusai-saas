@@ -704,17 +704,17 @@ async def test_conversation_engine_retries_leaked_textual_tool_output_after_part
         tools=[
             ToolDefinition(name="web_search", description="Search the web"),
             ToolDefinition(name="fetch_url", description="Fetch url"),
-            ToolDefinition(name="get_page_context", description="Read page context"),
+            ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
         ],
         all_tools=[
             ToolDefinition(name="web_search", description="Search the web"),
             ToolDefinition(name="fetch_url", description="Fetch url"),
-            ToolDefinition(name="get_page_context", description="Read page context"),
+            ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
         ],
         tool_use_policy=ToolUsePolicy(
             family="web_research",
             mode="required",
-            allowed_tool_names=["web_search", "fetch_url", "get_page_context"],
+            allowed_tool_names=["web_search", "fetch_url", "ui_get_snapshot"],
             retry_on_contract_breach=True,
             reason="explicit_web_request",
         ),
@@ -742,7 +742,7 @@ async def test_conversation_engine_retries_leaked_textual_tool_output_after_part
                         "id": "call_page_context",
                         "type": "function",
                         "function": {
-                            "name": "get_page_context",
+                            "name": "ui_get_snapshot",
                             "arguments": "{}",
                         },
                     },
@@ -787,7 +787,7 @@ async def test_conversation_engine_retries_leaked_textual_tool_output_after_part
             (tool_call.get("function") or {}).get("name")
             for tool_call in (response.tool_calls or [])
         ]
-        if tool_names == ["web_search", "get_page_context"]:
+        if tool_names == ["web_search", "ui_get_snapshot"]:
             messages.append(
                 ChatMessage(
                     role="assistant",
@@ -874,7 +874,7 @@ async def test_conversation_engine_retries_leaked_textual_tool_output_after_part
                 ),
                 ToolResult(
                     tool_call_id="call_page_context",
-                    name="get_page_context",
+                    name="ui_get_snapshot",
                     success=True,
                     output="Page: admin.dashboard\nTitle: 平台控制塔\nData: {\"ai_calls_today\":146}",
                 ),
@@ -911,7 +911,10 @@ async def test_conversation_engine_retries_leaked_textual_tool_output_after_part
             "page_context": {
                 "page_key": "admin.dashboard",
                 "page_title": "平台控制塔",
-                "page_data": {"ai_calls_today": 146},
+                "ui_epoch": 6,
+                "suggested_tools": {
+                    "primary": ["ui_get_snapshot", "ui_read_region", "ui_read_table"],
+                },
             }
         },
     )
@@ -1060,7 +1063,7 @@ def test_conversation_engine_retries_same_explicit_family_before_switching() -> 
     tools = [
         ToolDefinition(name="get_current_weather", description="Get current weather"),
         ToolDefinition(name="get_weather_forecast", description="Get weather forecast"),
-        ToolDefinition(name="get_page_context", description="Read page context"),
+        ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
     ]
 
     should_retry, retry_policy, response_text = (
@@ -1087,19 +1090,19 @@ def test_conversation_engine_retries_when_tool_call_leaks_as_plain_text() -> Non
     response = ChatResponse(
         message=ChatMessage(
             role="assistant",
-            content="to=functions.get_page_context 天天乐不json_string",
+            content="to=functions.ui_get_snapshot 天天乐不json_string",
         ),
     )
     current_policy = ToolUsePolicy(
         family="none",
         mode="auto",
-        allowed_tool_names=["get_page_context", "invoke_page_operation", "web_search"],
+        allowed_tool_names=["ui_get_snapshot", "ui_click", "web_search"],
         retry_on_contract_breach=True,
         reason="default_auto",
     )
     tools = [
-        ToolDefinition(name="get_page_context", description="Read current page context"),
-        ToolDefinition(name="invoke_page_operation", description="Execute page operation"),
+        ToolDefinition(name="ui_get_snapshot", description="Get current UI snapshot"),
+        ToolDefinition(name="ui_click", description="Click UI element"),
         ToolDefinition(name="web_search", description="Search the web"),
     ]
 
@@ -1113,13 +1116,13 @@ def test_conversation_engine_retries_when_tool_call_leaks_as_plain_text() -> Non
     )
 
     assert should_retry is True
-    assert response_text == "to=functions.get_page_context 天天乐不json_string"
+    assert response_text == "to=functions.ui_get_snapshot 天天乐不json_string"
     assert retry_policy == ToolUsePolicy(
         family="page_ops",
         mode="required",
-        allowed_tool_names=["get_page_context", "invoke_page_operation"],
+        allowed_tool_names=["ui_get_snapshot", "ui_click"],
         retry_on_contract_breach=False,
-        reason="textual_tool_call_leak:get_page_context",
+        reason="textual_tool_call_leak:ui_get_snapshot",
     )
 
 
@@ -1256,7 +1259,7 @@ def test_collect_completed_turn_intents_requires_weather_fetch_or_weather_tool()
     tools = [
         ToolDefinition(name="web_search", description="Search the web"),
         ToolDefinition(name="fetch_url", description="Fetch url"),
-        ToolDefinition(name="get_page_context", description="Read page context"),
+        ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
     ]
     messages = [
         ChatMessage(
@@ -1276,7 +1279,7 @@ def test_collect_completed_turn_intents_requires_weather_fetch_or_weather_tool()
                     "id": "call_page_context",
                     "type": "function",
                     "function": {
-                        "name": "get_page_context",
+                        "name": "ui_get_snapshot",
                         "arguments": "{}",
                     },
                     "success": True,
@@ -1348,14 +1351,80 @@ def test_collect_completed_turn_intents_requires_weather_fetch_or_weather_tool()
     assert "weather" in completed_with_fetch
 
 
+def test_analyze_post_tool_contract_breach_accepts_native_web_search_weather_answer() -> None:
+    tools = [
+        ToolDefinition(name="web_search", description="Search the web"),
+        ToolDefinition(name="fetch_url", description="Fetch url"),
+    ]
+    messages = [ChatMessage(role="user", content="今天怀化天气怎么样 联网查查")]
+    response = ChatResponse(
+        message=ChatMessage(
+            role="assistant",
+            content="今天怀化白天多云，最高气温 27°C，夜间有阵雨概率。",
+        ),
+        raw_response={
+            "output": [
+                {
+                    "type": "message",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": "今天怀化白天多云，最高气温 27°C，夜间有阵雨概率。",
+                            "annotations": [
+                                {
+                                    "type": "url_citation",
+                                    "url": "https://www.weather.com/zh-CN/weather/today/l/CHXX0036:1:CH",
+                                    "title": "weather.com",
+                                }
+                            ],
+                        }
+                    ],
+                },
+                {
+                    "type": "web_search_call",
+                    "action": {
+                        "sources": [
+                            {
+                                "url": "https://www.weather.com/zh-CN/weather/today/l/CHXX0036:1:CH"
+                            }
+                        ]
+                    },
+                },
+            ]
+        },
+    )
+
+    breach_type, retry_policy, diagnostics = (
+        ConversationEngine._analyze_post_tool_contract_breach(
+            messages=messages,
+            response=response,
+            current_policy=ToolUsePolicy(
+                family="web_research",
+                mode="required",
+                allowed_tool_names=["web_search", "fetch_url"],
+                retry_on_contract_breach=False,
+                reason="explicit_web_request",
+            ),
+            tools=tools,
+            input_variables={},
+        )
+    )
+
+    assert breach_type is None
+    assert retry_policy is None
+    assert diagnostics["native_web_search_evidence"] is True
+    assert diagnostics["completed_intents"] == ["weather"]
+    assert diagnostics["unfinished_intents"] == []
+
+
 def test_ensure_web_research_tool_pair_restores_fetch_url_for_page_first_selection() -> None:
     all_tools = [
-        ToolDefinition(name="get_page_context", description="Read page context"),
+        ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
         ToolDefinition(name="web_search", description="Search the web"),
         ToolDefinition(name="fetch_url", description="Fetch url"),
     ]
     selected_tools = [
-        ToolDefinition(name="get_page_context", description="Read page context"),
+        ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
         ToolDefinition(name="web_search", description="Search the web"),
     ]
 
@@ -1366,7 +1435,7 @@ def test_ensure_web_research_tool_pair_restores_fetch_url_for_page_first_selecti
         policy=ToolUsePolicy(
             family="page_ops",
             mode="required",
-            allowed_tool_names=["get_page_context", "web_search"],
+            allowed_tool_names=["ui_get_snapshot", "web_search"],
             retry_on_contract_breach=False,
             reason="explicit_page_request",
         ),
@@ -1374,20 +1443,20 @@ def test_ensure_web_research_tool_pair_restores_fetch_url_for_page_first_selecti
 
     assert restored is True
     assert [tool.name for tool in restored_tools] == [
-        "get_page_context",
+        "ui_get_snapshot",
         "web_search",
         "fetch_url",
     ]
 
 
-def test_restrict_page_tools_for_generic_summary_keeps_get_page_context_only() -> None:
+def test_restrict_page_tools_for_generic_summary_keeps_ui_get_snapshot_only() -> None:
     all_tools = [
         ToolDefinition(name="web_search", description="Search the web"),
         ToolDefinition(name="fetch_url", description="Fetch url"),
-        ToolDefinition(name="get_page_context", description="Read page context"),
-        ToolDefinition(name="invoke_page_operation", description="Invoke page operation"),
-        ToolDefinition(name="pageop_read_current_view", description="Read current view"),
-        ToolDefinition(name="pageop_read_visible_rows", description="Read visible rows"),
+        ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
+        ToolDefinition(name="ui_click", description="Click UI element"),
+        ToolDefinition(name="ui_read_region", description="Read UI region"),
+        ToolDefinition(name="ui_read_table", description="Read UI table"),
     ]
     selected_tools = list(all_tools)
 
@@ -1407,7 +1476,7 @@ def test_restrict_page_tools_for_generic_summary_keeps_get_page_context_only() -
     assert [tool.name for tool in restricted_tools] == [
         "web_search",
         "fetch_url",
-        "get_page_context",
+        "ui_get_snapshot",
     ]
 
 
@@ -1415,8 +1484,8 @@ def test_restrict_page_tools_for_generic_summary_keeps_detail_tools_when_rows_re
     all_tools = [
         ToolDefinition(name="web_search", description="Search the web"),
         ToolDefinition(name="fetch_url", description="Fetch url"),
-        ToolDefinition(name="get_page_context", description="Read page context"),
-        ToolDefinition(name="pageop_read_visible_rows", description="Read visible rows"),
+        ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
+        ToolDefinition(name="ui_read_table", description="Read table rows"),
     ]
 
     restricted_tools, restricted = ConversationEngine._restrict_page_tools_for_generic_summary(
@@ -1435,6 +1504,6 @@ def test_restrict_page_tools_for_generic_summary_keeps_detail_tools_when_rows_re
     assert [tool.name for tool in restricted_tools] == [
         "web_search",
         "fetch_url",
-        "get_page_context",
-        "pageop_read_visible_rows",
+        "ui_get_snapshot",
+        "ui_read_table",
     ]

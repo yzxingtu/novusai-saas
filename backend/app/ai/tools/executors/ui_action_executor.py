@@ -11,6 +11,12 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from app.ai.tools.executors.base import BaseToolExecutor
+from app.ai.tools.executors.page_runtime_support import (
+    normalize_public_message as _normalize_public_message,
+)
+from app.ai.tools.executors.page_runtime_support import (
+    user_role_to_namespace as _user_role_to_namespace,
+)
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.core.i18n import _
 from app.core.logging import LogManager
@@ -46,21 +52,6 @@ def _normalize_action_name(
     if from_argument in UI_ACTION_NAMES:
         return from_argument
     return ""
-
-
-def _user_role_to_namespace(user_role: str) -> str:
-    if user_role == "platform_admin":
-        return "/admin"
-    if user_role == "tenant_user":
-        return "/user"
-    return "/tenant"
-
-
-def _normalize_public_message(value: Any) -> str | None:
-    if not isinstance(value, str):
-        return None
-    normalized = " ".join(value.split()).strip()
-    return normalized or None
 
 
 class UIActionExecutor(BaseToolExecutor):
@@ -289,9 +280,7 @@ class UIActionExecutor(BaseToolExecutor):
             return bool(str(arguments.get("field_name") or "").strip())
         if action_name == UI_FILL_FORM:
             return isinstance(arguments.get("fields"), dict)
-        if action_name == UI_SUBMIT_FORM:
-            return True
-        return False
+        return action_name == UI_SUBMIT_FORM
 
 
 __all__ = ["UIActionExecutor"]

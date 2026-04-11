@@ -9,6 +9,7 @@ from app.core.i18n import get_locale
 
 _CJK_RE = re.compile(r"[\u3400-\u9fff]")
 _LATIN_RE = re.compile(r"[A-Za-z]")
+_LOCALE_KEY_RE = re.compile(r"^[a-z0-9]+(?:[._-][a-z0-9]+){2,}$")
 _PAGE_CONTEXT_KEY = "page_context"
 
 
@@ -80,11 +81,55 @@ def infer_page_locale_from_text(*values: Any) -> str | None:
         text = str(value or "").strip()
         if not text:
             continue
+        if looks_like_locale_key(text):
+            continue
         if _CJK_RE.search(text):
             return "zh_CN"
         if len(_LATIN_RE.findall(text)) >= 3:
             return "en"
     return None
+
+
+def infer_user_message_locale(value: Any) -> str | None:
+    text = str(value or "").strip()
+    if not text or looks_like_locale_key(text):
+        return None
+    if _CJK_RE.search(text):
+        return "zh_CN"
+    if len(_LATIN_RE.findall(text)) >= 6:
+        return "en"
+    return None
+
+
+def resolve_visible_reply_locale(
+    messages: list[Any] | None,
+    input_variables: dict[str, Any] | None,
+) -> str:
+    if isinstance(messages, list):
+        for message in reversed(messages):
+            role = (
+                message.get("role")
+                if isinstance(message, dict)
+                else getattr(message, "role", None)
+            )
+            if str(role or "").strip() != "user":
+                continue
+            content = (
+                message.get("content")
+                if isinstance(message, dict)
+                else getattr(message, "content", None)
+            )
+            inferred_locale = infer_user_message_locale(content)
+            if inferred_locale:
+                return inferred_locale
+    return resolve_page_locale(input_variables)
+
+
+def looks_like_locale_key(value: Any) -> bool:
+    text = str(value or "").strip()
+    if not text or " " in text:
+        return False
+    return bool(_LOCALE_KEY_RE.fullmatch(text.lower()))
 
 
 def page_language_name(locale: str) -> str:
@@ -94,7 +139,10 @@ def page_language_name(locale: str) -> str:
 __all__ = [
     "infer_page_locale_from_page_context",
     "infer_page_locale_from_text",
+    "infer_user_message_locale",
+    "looks_like_locale_key",
     "normalize_page_locale",
     "page_language_name",
     "resolve_page_locale",
+    "resolve_visible_reply_locale",
 ]

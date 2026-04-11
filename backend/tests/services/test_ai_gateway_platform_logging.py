@@ -265,20 +265,20 @@ def test_build_request_log_data_records_selected_and_all_tool_names(mock_db):
         ],
         tool_choice="auto",
         all_tool_names=[
-            "get_page_context",
-            "invoke_page_operation",
+            "ui_get_snapshot",
+            "ui_click",
             "web_search",
             "fetch_url",
         ],
         tool_use_policy_family="web_research",
         tool_use_policy_mode="auto",
-        allowed_tool_names=["get_page_context", "invoke_page_operation", "web_search", "fetch_url"],
+        allowed_tool_names=["ui_get_snapshot", "ui_click", "web_search", "fetch_url"],
     )
 
     assert payload["selected_tool_names"] == ["web_search", "fetch_url"]
     assert payload["all_tool_names"] == [
-        "get_page_context",
-        "invoke_page_operation",
+        "ui_get_snapshot",
+        "ui_click",
         "web_search",
         "fetch_url",
     ]
@@ -304,12 +304,12 @@ def test_build_request_log_data_keeps_non_empty_selected_tools_with_mixed_inputs
             "invalid-tool-entry",
         ],
         tool_choice="auto",
-        all_tool_names=["web_search", "fetch_url", "get_page_context"],
+        all_tool_names=["web_search", "fetch_url", "ui_get_snapshot"],
     )
 
     assert payload["selected_tool_names"] == ["web_search"]
     assert len(payload["selected_tool_names"]) == 1
-    assert payload["all_tool_names"] == ["web_search", "fetch_url", "get_page_context"]
+    assert payload["all_tool_names"] == ["web_search", "fetch_url", "ui_get_snapshot"]
 
 
 def test_usage_recorder_turn_diagnostics_preserves_shadow_diff_payload() -> None:
@@ -829,14 +829,14 @@ async def test_conversation_engine_stream_logs_failure_before_done(
                 user_id=7,
                 conversation_id=386,
                 tools=[
-                    ToolDefinition(name="get_page_context", description="Read current page"),
-                    ToolDefinition(name="invoke_page_operation", description="Operate page"),
+                    ToolDefinition(name="ui_get_snapshot", description="Get UI snapshot"),
+                    ToolDefinition(name="ui_click", description="Click UI element"),
                 ],
-                all_tool_names=["get_page_context", "invoke_page_operation"],
+                all_tool_names=["ui_get_snapshot", "ui_click"],
                 tool_use_policy=ToolUsePolicy(
                     family="page_ops",
                     mode="required",
-                    allowed_tool_names=["get_page_context", "invoke_page_operation"],
+                    allowed_tool_names=["ui_get_snapshot", "ui_click"],
                 ),
             )
         ]
@@ -850,8 +850,8 @@ async def test_conversation_engine_stream_logs_failure_before_done(
     assert kwargs["model_id"] == 33
     assert kwargs["provider"] is provider
     assert kwargs["tool_choice"] == "required"
-    assert kwargs["selected_tool_names"] == ["get_page_context", "invoke_page_operation"]
-    assert kwargs["allowed_tool_names"] == ["get_page_context", "invoke_page_operation"]
+    assert kwargs["selected_tool_names"] == ["ui_get_snapshot", "ui_click"]
+    assert kwargs["allowed_tool_names"] == ["ui_get_snapshot", "ui_click"]
     gateway.usage_recorder.call_log_service.log_call_async.assert_not_awaited()
     gateway.usage_recorder.record_usage_and_adjust.assert_not_awaited()
     api_key.increment_usage.assert_not_called()

@@ -190,8 +190,6 @@ _PAGE_DETAIL_OPERATION_TERMS = (
     "fill_form",
     "submit_form",
     "get_form_",
-    "pageop_",
-    "invoke_page_operation",
 )
 _WEB_SEARCH_PREFIXES = ("search results for:",)
 _FETCH_URL_PREFIXES = ("content from http://", "content from https://")

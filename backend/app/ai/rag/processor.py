@@ -290,12 +290,10 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
 
         # Ensure AI adapters are registered (Celery worker may not have loaded registrations from celery_app.py)
         # 确保 AI 适配器已注册（Celery worker 可能未加载 celery_app.py 中的注册）
-        from app.ai.adapters import AdapterRegistry
+        from app.ai.adapters import AdapterRegistry, register_core_adapters
 
         if not AdapterRegistry.list_adapters():
-            from app.ai.adapters.openai_adapter import OpenAIAdapter
-
-            AdapterRegistry.register("openai_compatible", OpenAIAdapter)
+            register_core_adapters()
             logger.info("Registered AI adapters in task context")
 
         from app.ai.gateway import AIGateway

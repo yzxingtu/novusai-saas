@@ -11,8 +11,7 @@ from celery import Celery
 from celery.signals import beat_init, worker_process_init
 from kombu import Exchange, Queue
 
-from app.ai.adapters import AdapterRegistry
-from app.ai.adapters.openai_adapter import OpenAIAdapter
+from app.ai.adapters import register_core_adapters
 from app.core.config import settings
 from app.core.logging import LogManager
 from app.core.runtime_identity import get_runtime_identity_tag
@@ -191,7 +190,7 @@ _bootstrap_enabled_plugin_queue_extensions()
 # AI Adapter Registration (Worker process doesn't go through main.py lifespan)
 # AI 适配器注册（Worker 进程不走 main.py lifespan）
 # ========================================
-AdapterRegistry.register("openai_compatible", OpenAIAdapter)
+register_core_adapters()
 
 
 @worker_process_init.connect

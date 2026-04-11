@@ -168,6 +168,25 @@ def test_find_pending_confirmation_keeps_consent_tool_args_clean() -> None:
     assert "confirmed" not in pending["arguments"]
 
 
+def test_build_pending_confirmation_payload_keeps_tool_name() -> None:
+    payload = ToolCallProcessor.build_pending_confirmation_payload(
+        {"action": "update", "table": "agents"},
+        "ui_fill_form",
+    )
+
+    assert payload["tool_name"] == "ui_fill_form"
+
+
+def test_build_confirmation_event_keeps_tool_name() -> None:
+    payload = ToolCallProcessor.build_confirmation_event(
+        {"action": "update", "table": "agents"},
+        "ui_fill_form",
+    )
+
+    assert payload["event"] == "confirmation_request"
+    assert payload["tool_name"] == "ui_fill_form"
+
+
 def test_build_attachment_relay_message_returns_none_without_attachments() -> None:
     result = ToolResult(
         tool_call_id="tc_result",
@@ -184,7 +203,7 @@ def test_build_attachment_relay_message_returns_none_without_attachments() -> No
 def test_build_attachment_relay_message_relays_only_attachments() -> None:
     result = ToolResult(
         tool_call_id="tc_media",
-        name="invoke_page_operation",
+        name="ui_click",
         success=True,
         attachments=[{"type": "image", "url": "https://example.com/image.png"}],
     )
@@ -476,25 +495,31 @@ def test_check_consent_auto_approves_readonly_tool_in_trusted_auto_mode() -> Non
     assert processor.check_consent("get_current_weather", {"city": "西安"}) == "auto"
 
 
-def test_check_consent_keeps_write_like_page_operation_on_ask() -> None:
+def test_check_consent_keeps_ui_write_ops_on_ask_and_auto_approves_ui_reads() -> None:
     processor = ToolCallProcessor(
         sandbox=None,  # type: ignore[arg-type]
-        tools=[ToolDefinition(name="invoke_page_operation")],
-        consent_modes={"invoke_page_operation": "ask"},
+        tools=[
+            ToolDefinition(name="ui_fill_form"),
+            ToolDefinition(name="ui_read_region"),
+        ],
+        consent_modes={
+            "ui_fill_form": "ask",
+            "ui_read_region": "ask",
+        },
         interaction_mode="trusted_auto",
     )
 
     assert (
         processor.check_consent(
-            "invoke_page_operation",
-            {"operation_name": "fill_form"},
+            "ui_fill_form",
+            {"fields": [{"field": "name", "value": "Alice"}]},
         )
         == "ask"
     )
     assert (
         processor.check_consent(
-            "invoke_page_operation",
-            {"operation_name": "read_visible_rows"},
+            "ui_read_region",
+            {"target_locator": "table-main"},
         )
         == "auto"
     )
@@ -505,7 +530,7 @@ def test_approved_pending_consent_tool_names_filters_rejected_updates() -> None:
         [
             {"kind": "pending_consent", "tool_name": "get_current_weather"},
             {"kind": "pending_consent", "tool_name": "get_weather_forecast", "rejected": True},
-            {"kind": "pending_confirmation", "tool_name": "invoke_page_operation"},
+            {"kind": "pending_confirmation", "tool_name": "ui_submit_form"},
         ]
     )
 

@@ -1,14 +1,30 @@
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+import httpx
 import pytest
+from openai import APIConnectionError, RateLimitError
 
 from app.ai.adapters.openai_adapter import OpenAIAdapter
-from app.ai.exceptions import ProviderError
+from app.ai.adapters.openai_compatible.legacy_orchestrator import (
+    responses_tool_call_fallback_enabled,
+)
+from app.ai.adapters.openai_compatible.protocol_policy import (
+    should_fallback_from_responses_error,
+    should_skip_sync_rescue_after_stream_error,
+)
+from app.ai.exceptions import (
+    ProviderConnectionError,
+    ProviderError,
+    ProviderRateLimitError,
+    ProviderTimeoutError,
+    convert_openai_error,
+)
 from app.ai.runtime.query_engine import ConversationQueryEngine
-from app.ai.types import ChatChunk, ChatMessage
+from app.ai.types import ChatChunk, ChatMessage, ChatResponse
 
 
 class _FakeStatusError(Exception):
@@ -83,10 +99,122 @@ def _make_chat_completion_response(text: str = "ok"):
     )
 
 
+def _make_openai_rate_limit_error(
+    message: str = "too many concurrent sessions",
+) -> RateLimitError:
+    request = httpx.Request("POST", "https://api.example.com/v1/responses")
+    response = httpx.Response(429, request=request)
+    return RateLimitError(
+        "Error code: 429",
+        response=response,
+        body={
+            "type": "rate_limit_error",
+            "message": message,
+            "code": "rate_limit_exceeded",
+        },
+    )
+
+
+def _responses_cross_protocol_provider_config() -> dict[str, object]:
+    return {
+        "wire_api": "responses",
+        "protocol_capabilities": {
+            "allowed_wire_apis": ["responses", "chat_completions"],
+            "allow_adapter_cross_protocol_fallback": True,
+        },
+    }
+
+
+def test_convert_openai_rate_limit_preserves_provider_message() -> None:
+    request = httpx.Request("POST", "https://api.example.com/v1/responses")
+    response = httpx.Response(429, request=request)
+    error = RateLimitError(
+        "Error code: 429",
+        response=response,
+        body={
+            "type": "rate_limit_error",
+            "message": "并发 Session 超限：当前 3 个（限制：3 个）。",
+            "code": "rate_limit_exceeded",
+        },
+    )
+
+    converted = convert_openai_error(
+        error,
+        provider_code="openai_compatible",
+        model_code="gpt-5.4",
+    )
+
+    assert isinstance(converted, ProviderRateLimitError)
+    assert str(converted) == "并发 Session 超限：当前 3 个（限制：3 个）。"
+
+
+def test_responses_rate_limit_does_not_cross_protocol_fallback() -> None:
+    adapter = OpenAIAdapter(api_key="test-key", base_url="https://api.example.com")
+
+    assert (
+        should_fallback_from_responses_error(
+            capabilities=adapter.protocol_capabilities,
+            error=_make_openai_rate_limit_error(),
+            tools=[
+                {
+                    "type": "function",
+                    "function": {"name": "ui_get_snapshot", "parameters": {}},
+                }
+            ],
+            tool_choice="required",
+            use_responses_api=True,
+            fallback_switch_enabled=responses_tool_call_fallback_enabled(
+                adapter.provider_config,
+            ),
+        )
+        is False
+    )
+
+
+def test_responses_timeout_does_not_cross_protocol_fallback() -> None:
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config=_responses_cross_protocol_provider_config(),
+    )
+
+    assert (
+        should_fallback_from_responses_error(
+            capabilities=adapter.protocol_capabilities,
+            error=ProviderTimeoutError(
+                "provider timed out",
+                provider_code="openai_compatible",
+                model_code="gpt-5.4",
+            ),
+            tools=[
+                {
+                    "type": "function",
+                    "function": {"name": "ui_get_snapshot", "parameters": {}},
+                }
+            ],
+            tool_choice="required",
+            use_responses_api=True,
+            fallback_switch_enabled=responses_tool_call_fallback_enabled(
+                adapter.provider_config,
+            ),
+        )
+        is False
+    )
+
+
+def test_rate_limit_stream_error_skips_sync_rescue() -> None:
+    assert should_skip_sync_rescue_after_stream_error(
+        _make_openai_rate_limit_error()
+    )
+
+
 @pytest.mark.asyncio
 async def test_chat_applies_runtime_reasoning_override_to_responses_request() -> None:
-    adapter = OpenAIAdapter(api_key="test-key", base_url="https://api.example.com")
-    adapter.wire_api = "responses"
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
     response_obj = SimpleNamespace(
         object="response",
         status="completed",
@@ -113,7 +241,17 @@ async def test_chat_applies_runtime_reasoning_override_to_responses_request() ->
 
 @pytest.mark.asyncio
 async def test_chat_falls_back_to_responses_when_chat_payload_has_no_choices() -> None:
-    adapter = OpenAIAdapter(api_key="test-key", base_url="https://api.example.com")
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={
+            "wire_api": "chat_completions",
+            "protocol_capabilities": {
+                "allowed_wire_apis": ["chat_completions", "responses"],
+                "allow_adapter_cross_protocol_fallback": True,
+            },
+        },
+    )
     response_obj = SimpleNamespace(
         object="response",
         status="completed",
@@ -128,7 +266,7 @@ async def test_chat_falls_back_to_responses_when_chat_payload_has_no_choices() -
     # Misrouted: chat.completions returns a Responses-shaped body (no choices) / 误走路由：chat 返回 Responses 形响应
     adapter.client = _FakeClient(chat_response=response_obj, responses_response=response_obj)
 
-    result = await adapter.chat(
+    result = await adapter.chat_legacy_compat(
         messages=[ChatMessage(role="user", content="hello")],
         model="gpt-5.4-xhigh",
     )
@@ -255,7 +393,17 @@ async def test_chat_forwards_required_tool_choice_and_subset_tools_to_chat_compl
 
 @pytest.mark.asyncio
 async def test_chat_runtime_force_wire_api_uses_responses_path() -> None:
-    adapter = OpenAIAdapter(api_key="test-key", base_url="https://api.example.com")
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={
+            "wire_api": "chat_completions",
+            "protocol_capabilities": {
+                "allowed_wire_apis": ["chat_completions", "responses"],
+                "allow_adapter_cross_protocol_fallback": True,
+            },
+        },
+    )
     response_obj = SimpleNamespace(
         object="response",
         status="completed",
@@ -289,7 +437,7 @@ async def test_chat_falls_back_to_chat_completions_when_responses_tool_call_retu
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_cross_protocol_provider_config(),
     )
     completions = _FakeChatCompletions(_make_chat_completion_response("fallback ok"))
     adapter.client = SimpleNamespace(
@@ -299,10 +447,10 @@ async def test_chat_falls_back_to_chat_completions_when_responses_tool_call_retu
         chat=SimpleNamespace(completions=completions),
     )
 
-    result = await adapter.chat(
+    result = await adapter.chat_legacy_compat(
         messages=[ChatMessage(role="user", content="hello")],
         model="gpt-5.4-xhigh",
-        tools=[{"type": "function", "function": {"name": "get_page_context", "parameters": {}}}],
+        tools=[{"type": "function", "function": {"name": "ui_get_snapshot", "parameters": {}}}],
         tool_choice="required",
     )
 
@@ -317,7 +465,7 @@ async def test_chat_does_not_fallback_to_chat_completions_on_responses_4xx() -> 
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_cross_protocol_provider_config(),
     )
     completions = _FakeChatCompletions(_make_chat_completion_response("fallback ok"))
     adapter.client = SimpleNamespace(
@@ -328,14 +476,277 @@ async def test_chat_does_not_fallback_to_chat_completions_on_responses_4xx() -> 
     )
 
     with pytest.raises(ProviderError, match="AI 请求失败"):
-        await adapter.chat(
+        await adapter.chat_legacy_compat(
             messages=[ChatMessage(role="user", content="hello")],
             model="gpt-5.4-xhigh",
-            tools=[{"type": "function", "function": {"name": "get_page_context", "parameters": {}}}],
+            tools=[{"type": "function", "function": {"name": "ui_get_snapshot", "parameters": {}}}],
             tool_choice="required",
         )
 
     assert completions.last_kwargs is None
+
+
+@pytest.mark.asyncio
+async def test_responses_only_provider_contract_blocks_cross_protocol_fallback() -> None:
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={
+            "wire_api": "responses",
+            "protocol_capabilities": {
+                "allowed_wire_apis": ["responses"],
+                "allow_adapter_cross_protocol_fallback": False,
+            },
+        },
+    )
+    completions = _FakeChatCompletions(_make_chat_completion_response("fallback ok"))
+    adapter.client = SimpleNamespace(
+        responses=SimpleNamespace(
+            create=AsyncMock(side_effect=_FakeStatusError(502, "Upstream request failed")),
+        ),
+        chat=SimpleNamespace(completions=completions),
+    )
+
+    with pytest.raises(ProviderError, match="AI 请求失败"):
+        await adapter.chat_legacy_compat(
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.4-xhigh",
+            tools=[
+                {
+                    "type": "function",
+                    "function": {"name": "ui_get_snapshot", "parameters": {}},
+                }
+            ],
+            tool_choice="required",
+        )
+
+    assert completions.last_kwargs is None
+
+
+@pytest.mark.asyncio
+async def test_chat_public_entrypoint_keeps_protocol_safe_responses_error_without_legacy_fallback() -> (
+    None
+):
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config=_responses_cross_protocol_provider_config(),
+    )
+    completions = _FakeChatCompletions(_make_chat_completion_response("fallback ok"))
+    adapter.client = SimpleNamespace(
+        responses=SimpleNamespace(
+            create=AsyncMock(side_effect=_FakeStatusError(502, "Upstream request failed")),
+        ),
+        chat=SimpleNamespace(completions=completions),
+    )
+
+    with pytest.raises(ProviderError, match="AI 请求失败"):
+        await adapter.chat(
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.4-xhigh",
+            tools=[{"type": "function", "function": {"name": "ui_get_snapshot", "parameters": {}}}],
+            tool_choice="required",
+        )
+
+    assert completions.last_kwargs is None
+
+
+def test_responses_provider_defaults_to_primary_only_protocol_capabilities() -> None:
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+
+    assert adapter.protocol_capabilities.primary_wire_api == "responses"
+    assert adapter.protocol_capabilities.allowed_wire_apis == ("responses",)
+    assert adapter.protocol_capabilities.allow_adapter_cross_protocol_fallback is False
+
+
+def test_nested_protocol_capabilities_without_top_level_wire_api_stays_responses_only() -> (
+    None
+):
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={
+            "protocol_capabilities": {
+                "allowed_wire_apis": ["responses"],
+            },
+        },
+    )
+
+    assert adapter.protocol_capabilities.primary_wire_api == "responses"
+    assert adapter.protocol_capabilities.allowed_wire_apis == ("responses",)
+    assert adapter.protocol_capabilities.allow_adapter_cross_protocol_fallback is False
+
+
+def test_nested_protocol_capabilities_without_top_level_wire_api_preserves_first_allowed_primary() -> (
+    None
+):
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={
+            "protocol_capabilities": {
+                "allowed_wire_apis": ["responses", "chat_completions"],
+            },
+        },
+    )
+
+    assert adapter.protocol_capabilities.primary_wire_api == "responses"
+    assert adapter.protocol_capabilities.allowed_wire_apis == (
+        "responses",
+        "chat_completions",
+    )
+
+
+def test_top_level_wire_api_respected_when_supported_by_nested_protocol_contract() -> None:
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={
+            "wire_api": "responses",
+            "protocol_capabilities": {
+                "allowed_wire_apis": ["chat_completions", "responses"],
+            },
+        },
+    )
+
+    assert adapter.protocol_capabilities.primary_wire_api == "responses"
+    assert adapter.protocol_capabilities.allowed_wire_apis == (
+        "responses",
+        "chat_completions",
+    )
+
+
+def test_conflicting_top_level_wire_api_does_not_widen_nested_responses_only_contract() -> (
+    None
+):
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={
+            "wire_api": "chat_completions",
+            "protocol_capabilities": {
+                "allowed_wire_apis": ["responses"],
+            },
+        },
+    )
+
+    assert adapter.protocol_capabilities.primary_wire_api == "responses"
+    assert adapter.protocol_capabilities.allowed_wire_apis == ("responses",)
+    assert adapter.protocol_capabilities.allow_adapter_cross_protocol_fallback is False
+
+
+def test_invalid_protocol_token_in_allowed_wire_apis_raises_provider_error() -> None:
+    with pytest.raises(ProviderError, match="Invalid provider protocol contract wire API"):
+        OpenAIAdapter(
+            api_key="test-key",
+            base_url="https://api.example.com",
+            provider_config={
+                "protocol_capabilities": {
+                    "allowed_wire_apis": ["respones"],
+                },
+            },
+        )
+
+
+def test_invalid_protocol_token_in_fallback_map_raises_provider_error() -> None:
+    with pytest.raises(ProviderError, match="Invalid provider protocol contract wire API"):
+        OpenAIAdapter(
+            api_key="test-key",
+            base_url="https://api.example.com",
+            provider_config={
+                "protocol_capabilities": {
+                    "allowed_cross_protocol_fallbacks": {
+                        "responses": ["chat_completionz"],
+                    },
+                },
+            },
+        )
+
+
+def test_runtime_query_engine_default_responses_provider_plans_responses_only_protocol() -> (
+    None
+):
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+
+    plan = ConversationQueryEngine(adapter=adapter, strict_contract=False).planner.plan_turn(
+        tools=[
+            {
+                "type": "function",
+                "function": {"name": "web_search", "parameters": {}},
+            }
+        ],
+    )
+
+    assert plan.protocol_chain == ["responses"]
+
+
+@pytest.mark.asyncio
+async def test_runtime_force_wire_api_rejects_unsupported_protocol_for_responses_only_provider() -> (
+    None
+):
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={
+            "wire_api": "responses",
+            "protocol_capabilities": {
+                "allowed_wire_apis": ["responses"],
+                "allow_adapter_cross_protocol_fallback": False,
+            },
+        },
+    )
+    adapter.client = _FakeClient(
+        chat_response=_make_chat_completion_response(),
+        responses_response=SimpleNamespace(output_text="should not be used"),
+    )
+
+    with pytest.raises(
+        ProviderError,
+        match="requested wire API: chat_completions",
+    ):
+        await adapter.chat(
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.4-xhigh",
+            _runtime_force_wire_api="chat_completions",
+        )
+
+
+@pytest.mark.asyncio
+async def test_runtime_force_wire_api_rejects_unsupported_protocol_for_nested_responses_only_contract() -> (
+    None
+):
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={
+            "protocol_capabilities": {
+                "allowed_wire_apis": ["responses"],
+                "allow_adapter_cross_protocol_fallback": False,
+            },
+        },
+    )
+    adapter.client = _FakeClient(
+        chat_response=_make_chat_completion_response(),
+        responses_response=SimpleNamespace(output_text="should not be used"),
+    )
+
+    with pytest.raises(
+        ProviderError,
+        match="requested wire API: chat_completions",
+    ):
+        await adapter.chat(
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.4-xhigh",
+            _runtime_force_wire_api="chat_completions",
+        )
 
 
 def _fake_chat_completion_chunk(delta_text: str, finish_reason: str | None = None):
@@ -355,6 +766,25 @@ class _FakeChatStream:
     def __init__(self, chunks: list):
         self._chunks = list(chunks)
         self._iter = iter(self._chunks)
+        self.aclose_called = False
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        try:
+            return next(self._iter)
+        except StopIteration as exc:
+            raise StopAsyncIteration from exc
+
+    async def aclose(self) -> None:
+        self.aclose_called = True
+
+
+class _FakeResponsesStream:
+    def __init__(self, events: list):
+        self._events = list(events)
+        self._iter = iter(self._events)
         self.aclose_called = False
 
     def __aiter__(self):
@@ -399,11 +829,82 @@ async def test_stream_chat_chat_completions_breaks_on_finish_reason_and_acloses(
 
 
 @pytest.mark.asyncio
-async def test_stream_chat_falls_back_to_chat_completions_when_responses_tool_call_returns_5xx() -> None:
+async def test_stream_chat_chat_completions_maps_timeout_seconds_to_timeout() -> None:
+    adapter = OpenAIAdapter(api_key="test-key", base_url="https://api.example.com")
+    stream = _FakeChatStream(
+        [
+            _fake_chat_completion_chunk("hi", None),
+            _fake_chat_completion_chunk("", "stop"),
+        ]
+    )
+    chat_create = AsyncMock(return_value=stream)
+    adapter.client = SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=chat_create)),
+        responses=SimpleNamespace(create=AsyncMock()),
+    )
+
+    chunks: list[ChatChunk] = []
+    async for chunk in adapter.stream_chat(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-4",
+        timeout_seconds=7,
+    ):
+        chunks.append(chunk)
+
+    assert "".join(chunk.delta for chunk in chunks) == "hi"
+    assert chunks[-1].finish_reason == "stop"
+    assert chat_create.await_args is not None
+    assert chat_create.await_args.kwargs["timeout"] == 7.0
+    assert "timeout_seconds" not in chat_create.await_args.kwargs
+    assert stream.aclose_called is True
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_responses_defaults_timeout_without_timeout_seconds_payload() -> None:
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
         provider_config={"wire_api": "responses"},
+    )
+    completed_response = SimpleNamespace(
+        usage=SimpleNamespace(input_tokens=11, output_tokens=4, total_tokens=15),
+        output_text="OK",
+        output=[],
+    )
+    stream = _FakeResponsesStream(
+        [
+            SimpleNamespace(type="response.output_text.delta", delta="O"),
+            SimpleNamespace(type="response.output_text.delta", delta="K"),
+            SimpleNamespace(type="response.completed", response=completed_response),
+        ]
+    )
+    responses_create = AsyncMock(return_value=stream)
+    adapter.client = SimpleNamespace(
+        responses=SimpleNamespace(create=responses_create),
+        chat=SimpleNamespace(completions=SimpleNamespace(create=AsyncMock())),
+    )
+
+    chunks: list[ChatChunk] = []
+    async for chunk in adapter.stream_chat(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+    ):
+        chunks.append(chunk)
+
+    assert "".join(chunk.delta for chunk in chunks) == "OK"
+    assert chunks[-1].finish_reason == "stop"
+    assert responses_create.await_args is not None
+    assert responses_create.await_args.kwargs["timeout"] == 20.0
+    assert "timeout_seconds" not in responses_create.await_args.kwargs
+    assert stream.aclose_called is True
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_falls_back_to_chat_completions_when_responses_tool_call_returns_5xx() -> None:
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config=_responses_cross_protocol_provider_config(),
     )
     stream = _FakeChatStream(
         [
@@ -419,10 +920,10 @@ async def test_stream_chat_falls_back_to_chat_completions_when_responses_tool_ca
     )
 
     chunks = []
-    async for chunk in adapter.stream_chat(
+    async for chunk in adapter.stream_chat_legacy_compat(
         messages=[ChatMessage(role="user", content="hello")],
         model="gpt-5.4-xhigh",
-        tools=[{"type": "function", "function": {"name": "get_page_context", "parameters": {}}}],
+        tools=[{"type": "function", "function": {"name": "ui_get_snapshot", "parameters": {}}}],
         tool_choice="required",
     ):
         chunks.append(chunk)
@@ -437,7 +938,7 @@ async def test_stream_chat_responses_fallback_empty_chat_stream_rescues_with_syn
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_cross_protocol_provider_config(),
     )
     empty_stream = _FakeChatStream([])
     chat_create = AsyncMock(
@@ -451,10 +952,10 @@ async def test_stream_chat_responses_fallback_empty_chat_stream_rescues_with_syn
     )
 
     chunks = []
-    async for chunk in adapter.stream_chat(
+    async for chunk in adapter.stream_chat_legacy_compat(
         messages=[ChatMessage(role="user", content="hello")],
         model="gpt-5.4-xhigh",
-        tools=[{"type": "function", "function": {"name": "get_page_context", "parameters": {}}}],
+        tools=[{"type": "function", "function": {"name": "ui_get_snapshot", "parameters": {}}}],
         tool_choice="required",
     ):
         chunks.append(chunk)
@@ -480,7 +981,7 @@ async def test_stream_chat_responses_fallback_failed_chat_stream_rescues_with_sy
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_cross_protocol_provider_config(),
     )
     chat_create = AsyncMock(
         side_effect=[_FailImmediatelyChatStream(), _make_chat_completion_response("sync rescue after error")],
@@ -493,10 +994,10 @@ async def test_stream_chat_responses_fallback_failed_chat_stream_rescues_with_sy
     )
 
     chunks = []
-    async for chunk in adapter.stream_chat(
+    async for chunk in adapter.stream_chat_legacy_compat(
         messages=[ChatMessage(role="user", content="hello")],
         model="gpt-5.4-xhigh",
-        tools=[{"type": "function", "function": {"name": "get_page_context", "parameters": {}}}],
+        tools=[{"type": "function", "function": {"name": "ui_get_snapshot", "parameters": {}}}],
         tool_choice="required",
     ):
         chunks.append(chunk)
@@ -507,11 +1008,93 @@ async def test_stream_chat_responses_fallback_failed_chat_stream_rescues_with_sy
 
 
 @pytest.mark.asyncio
+async def test_stream_chat_rate_limit_after_cross_protocol_fallback_skips_sync_rescue() -> (
+    None
+):
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config=_responses_cross_protocol_provider_config(),
+    )
+    chat_create = AsyncMock(side_effect=[_make_openai_rate_limit_error()])
+    adapter.client = SimpleNamespace(
+        responses=SimpleNamespace(
+            create=AsyncMock(side_effect=_FakeStatusError(502, "Upstream request failed")),
+        ),
+        chat=SimpleNamespace(completions=SimpleNamespace(create=chat_create)),
+    )
+
+    with pytest.raises(ProviderRateLimitError):
+        async for _ in adapter.stream_chat_legacy_compat(
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.4-xhigh",
+            tools=[{"type": "function", "function": {"name": "ui_get_snapshot", "parameters": {}}}],
+            tool_choice="required",
+        ):
+            pass
+
+    assert chat_create.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_responses_connection_error_does_not_cross_fallback() -> None:
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config=_responses_cross_protocol_provider_config(),
+    )
+    adapter.client = SimpleNamespace(
+        responses=SimpleNamespace(
+            create=AsyncMock(side_effect=APIConnectionError(message="Connection error.", request=httpx.Request("POST", "https://api.example.com/v1/responses"))),
+        ),
+        chat=SimpleNamespace(completions=SimpleNamespace(create=AsyncMock())),
+    )
+
+    with pytest.raises(ProviderConnectionError, match="Connection error\\."):
+        async for _ in adapter.stream_chat_legacy_compat(
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.4-xhigh",
+            tools=[{"type": "function", "function": {"name": "ui_get_snapshot", "parameters": {}}}],
+            tool_choice="required",
+        ):
+            pass
+
+    assert adapter.client.chat.completions.create.await_count == 0
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_responses_rate_limit_does_not_cross_fallback() -> None:
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config=_responses_cross_protocol_provider_config(),
+    )
+    chat_create = AsyncMock()
+    adapter.client = SimpleNamespace(
+        responses=SimpleNamespace(
+            create=AsyncMock(side_effect=_make_openai_rate_limit_error()),
+        ),
+        chat=SimpleNamespace(completions=SimpleNamespace(create=chat_create)),
+    )
+
+    with pytest.raises(ProviderRateLimitError):
+        async for _ in adapter.stream_chat_legacy_compat(
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.4-xhigh",
+            tools=[{"type": "function", "function": {"name": "ui_get_snapshot", "parameters": {}}}],
+            tool_choice="required",
+        ):
+            pass
+
+    assert chat_create.await_count == 0
+
+
+@pytest.mark.asyncio
 async def test_stream_chat_responses_fallback_empty_chat_stream_rescues_with_sync_raw_text() -> None:
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_cross_protocol_provider_config(),
     )
     empty_stream = _FakeChatStream([])
     chat_create = AsyncMock(side_effect=[empty_stream, "sync raw text rescue"])
@@ -523,10 +1106,10 @@ async def test_stream_chat_responses_fallback_empty_chat_stream_rescues_with_syn
     )
 
     chunks = []
-    async for chunk in adapter.stream_chat(
+    async for chunk in adapter.stream_chat_legacy_compat(
         messages=[ChatMessage(role="user", content="hello")],
         model="gpt-5.4-xhigh",
-        tools=[{"type": "function", "function": {"name": "get_page_context", "parameters": {}}}],
+        tools=[{"type": "function", "function": {"name": "ui_get_snapshot", "parameters": {}}}],
         tool_choice="required",
     ):
         chunks.append(chunk)
@@ -543,7 +1126,7 @@ async def test_stream_chat_responses_fallback_sync_chat_retries_v1_when_root_ret
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://codex.2api.com.cn",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_cross_protocol_provider_config(),
     )
     empty_stream = _FakeChatStream([])
     primary_chat_create = AsyncMock(
@@ -564,10 +1147,10 @@ async def test_stream_chat_responses_fallback_sync_chat_retries_v1_when_root_ret
     )
 
     chunks = []
-    async for chunk in adapter.stream_chat(
+    async for chunk in adapter.stream_chat_legacy_compat(
         messages=[ChatMessage(role="user", content="hello")],
         model="gpt-5.4-xhigh",
-        tools=[{"type": "function", "function": {"name": "get_page_context", "parameters": {}}}],
+        tools=[{"type": "function", "function": {"name": "ui_get_snapshot", "parameters": {}}}],
         tool_choice="required",
     ):
         chunks.append(chunk)
@@ -584,7 +1167,7 @@ async def test_stream_chat_runtime_disable_cross_protocol_fallback_keeps_respons
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_cross_protocol_provider_config(),
     )
     stream = _FakeChatStream(
         [
@@ -600,16 +1183,52 @@ async def test_stream_chat_runtime_disable_cross_protocol_fallback_keeps_respons
     )
 
     with pytest.raises(ProviderError, match="AI 请求失败"):
-        async for _ in adapter.stream_chat(
+        async for _ in adapter.stream_chat_legacy_compat(
             messages=[ChatMessage(role="user", content="hello")],
             model="gpt-5.4-xhigh",
-            tools=[{"type": "function", "function": {"name": "get_page_context", "parameters": {}}}],
+            tools=[{"type": "function", "function": {"name": "ui_get_snapshot", "parameters": {}}}],
             tool_choice="required",
             _runtime_disable_cross_protocol_fallback=True,
         ):
             pass
 
     assert chat_create.await_count == 0
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_runtime_disable_sync_rescue_keeps_chat_completions_stream_error() -> (
+    None
+):
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "chat_completions"},
+    )
+    stream_error = ProviderTimeoutError(
+        message="provider timed out",
+        provider_code="openai_compatible",
+        model_code="gpt-5.4-xhigh",
+    )
+
+    async def failing_stream(*args, **kwargs):
+        _ = args, kwargs
+        raise stream_error
+        yield
+
+    adapter._stream_chat_via_chat_completions = failing_stream
+    adapter._chat_via_chat_completions = AsyncMock(
+        return_value=_make_chat_completion_response("sync rescue should not run")
+    )
+
+    with pytest.raises(ProviderTimeoutError, match="provider timed out"):
+        async for _ in adapter.stream_chat_legacy_compat(
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.4-xhigh",
+            _runtime_disable_sync_rescue=True,
+        ):
+            pass
+
+    adapter._chat_via_chat_completions.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -651,10 +1270,10 @@ async def test_stream_chat_responses_error_after_meaningful_chunk_does_not_fallb
     )
 
     with pytest.raises(ProviderError, match="AI 请求失败"):
-        async for _ in adapter.stream_chat(
+        async for _ in adapter.stream_chat_legacy_compat(
             messages=[ChatMessage(role="user", content="hello")],
             model="gpt-5.4-xhigh",
-            tools=[{"type": "function", "function": {"name": "get_page_context", "parameters": {}}}],
+            tools=[{"type": "function", "function": {"name": "ui_get_snapshot", "parameters": {}}}],
             tool_choice="required",
         ):
             pass
@@ -688,7 +1307,7 @@ async def test_stream_chat_responses_reasoning_only_then_error_falls_back() -> N
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
-        provider_config={"wire_api": "responses"},
+        provider_config=_responses_cross_protocol_provider_config(),
     )
     stream = _FailAfterReasoningResponsesStream()
     chat_create = AsyncMock(
@@ -705,10 +1324,10 @@ async def test_stream_chat_responses_reasoning_only_then_error_falls_back() -> N
     )
 
     chunks = []
-    async for chunk in adapter.stream_chat(
+    async for chunk in adapter.stream_chat_legacy_compat(
         messages=[ChatMessage(role="user", content="hello")],
         model="gpt-5.4-xhigh",
-        tools=[{"type": "function", "function": {"name": "get_page_context", "parameters": {}}}],
+        tools=[{"type": "function", "function": {"name": "ui_get_snapshot", "parameters": {}}}],
         tool_choice="required",
     ):
         chunks.append(chunk)
@@ -719,6 +1338,42 @@ async def test_stream_chat_responses_reasoning_only_then_error_falls_back() -> N
     assert "".join(chunk.delta for chunk in chunks) == "fallback"
     assert chat_create.await_count == 1
     assert stream.aclose_called is True
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_public_entrypoint_keeps_protocol_safe_responses_error_without_legacy_rescue() -> (
+    None
+):
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config=_responses_cross_protocol_provider_config(),
+    )
+    chat_create = AsyncMock(
+        return_value=_FakeChatStream(
+            [
+                _fake_chat_completion_chunk("fallback", None),
+                _fake_chat_completion_chunk("", "stop"),
+            ]
+        ),
+    )
+    adapter.client = SimpleNamespace(
+        responses=SimpleNamespace(
+            create=AsyncMock(side_effect=_FakeStatusError(502, "Upstream request failed")),
+        ),
+        chat=SimpleNamespace(completions=SimpleNamespace(create=chat_create)),
+    )
+
+    with pytest.raises(ProviderError, match="AI 请求失败"):
+        async for _ in adapter.stream_chat(
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.4-xhigh",
+            tools=[{"type": "function", "function": {"name": "ui_get_snapshot", "parameters": {}}}],
+            tool_choice="required",
+        ):
+            pass
+
+    assert chat_create.await_count == 0
 
 
 @pytest.mark.asyncio
@@ -782,8 +1437,14 @@ async def test_stream_chat_responses_native_web_search_emits_progress_chunk() ->
 
 
 class _RuntimeFakeAdapter:
-    def __init__(self, *, wire_api: str = "responses"):
+    def __init__(
+        self,
+        *,
+        wire_api: str = "responses",
+        protocol_capabilities: object | None = None,
+    ):
         self.wire_api = wire_api
+        self.protocol_capabilities = protocol_capabilities
         self.stream_calls: list[dict] = []
         self.chat_calls: list[dict] = []
         self._stream_behaviors: dict[str, list] = {"responses": [], "chat_completions": []}
@@ -814,6 +1475,35 @@ class _RuntimeFakeAdapter:
         return result
 
 
+class _ProtocolOnlyRuntimeAdapter(_RuntimeFakeAdapter):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.protocol_chat_calls: list[dict] = []
+        self.protocol_stream_calls: list[dict] = []
+
+    async def execute_protocol_chat(self, *, wire_api: str, **kwargs):
+        protocol = "responses" if str(wire_api).startswith("responses") else "chat_completions"
+        self.protocol_chat_calls.append({"protocol": protocol, **kwargs})
+        result = self._chat_behaviors.get(protocol)
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    async def execute_protocol_stream(self, *, wire_api: str, **kwargs):
+        protocol = "responses" if str(wire_api).startswith("responses") else "chat_completions"
+        self.protocol_stream_calls.append({"protocol": protocol, **kwargs})
+        for chunk in list(self._stream_behaviors.get(protocol, [])):
+            if isinstance(chunk, Exception):
+                raise chunk
+            yield chunk
+
+    async def chat(self, **_kwargs):
+        raise AssertionError("ProtocolRunner should use execute_protocol_chat()")
+
+    async def stream_chat(self, **_kwargs):
+        raise AssertionError("ProtocolRunner should use execute_protocol_stream()")
+
+
 @pytest.mark.asyncio
 async def test_runtime_query_engine_required_empty_without_tool_calls_fails() -> None:
     adapter = _RuntimeFakeAdapter(wire_api="chat_completions")
@@ -836,6 +1526,88 @@ async def test_runtime_query_engine_required_empty_without_tool_calls_fails() ->
             supports_audio=False,
             supports_video=False,
         )
+
+
+@pytest.mark.asyncio
+async def test_runtime_query_engine_uses_protocol_specific_adapter_entrypoints() -> None:
+    adapter = _ProtocolOnlyRuntimeAdapter(
+        wire_api="responses",
+        protocol_capabilities=SimpleNamespace(
+            primary_wire_api="responses",
+            allowed_wire_apis=("responses",),
+            allowed_cross_protocol_fallbacks={},
+            allow_adapter_cross_protocol_fallback=False,
+        ),
+    )
+    adapter.set_chat(
+        "responses",
+        ChatResponse(
+            message=ChatMessage(role="assistant", content="hello from protocol client"),
+            finish_reason="stop",
+            model="gpt-5.4-xhigh",
+        ),
+    )
+    query_engine = ConversationQueryEngine(adapter=adapter, strict_contract=False)
+
+    response = await query_engine.run_chat_turn(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+        temperature=0.7,
+        max_tokens=None,
+        top_p=1.0,
+        tools=None,
+        tool_choice=None,
+        supports_vision=True,
+        supports_audio=False,
+        supports_video=False,
+    )
+
+    assert response.message.content == "hello from protocol client"
+    assert [call["protocol"] for call in adapter.protocol_chat_calls] == ["responses"]
+    assert adapter.chat_calls == []
+
+
+@pytest.mark.asyncio
+async def test_runtime_query_engine_uses_protocol_specific_stream_entrypoint() -> None:
+    adapter = _ProtocolOnlyRuntimeAdapter(
+        wire_api="responses",
+        protocol_capabilities=SimpleNamespace(
+            primary_wire_api="responses",
+            allowed_wire_apis=("responses",),
+            allowed_cross_protocol_fallbacks={},
+            allow_adapter_cross_protocol_fallback=False,
+        ),
+    )
+    adapter.set_stream(
+        "responses",
+        [
+            ChatChunk(delta="hello from stream"),
+            ChatChunk(delta="", finish_reason="stop", total_tokens=5),
+        ],
+    )
+    query_engine = ConversationQueryEngine(adapter=adapter, strict_contract=False)
+
+    chunks = [
+        chunk
+        async for chunk in query_engine.iter_stream_turn(
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.4-xhigh",
+            temperature=0.7,
+            max_tokens=None,
+            top_p=1.0,
+            tools=None,
+            tool_choice=None,
+            supports_vision=True,
+            supports_audio=False,
+            supports_video=False,
+        )
+    ]
+
+    assert "".join(chunk.delta for chunk in chunks) == "hello from stream"
+    assert [call["protocol"] for call in adapter.protocol_stream_calls] == [
+        "responses"
+    ]
+    assert adapter.stream_calls == []
 
 
 @pytest.mark.asyncio
@@ -1022,6 +1794,176 @@ async def test_runtime_query_engine_progress_only_then_exception_falls_back() ->
         "responses",
         "chat_completions",
     ]
+
+
+@pytest.mark.asyncio
+async def test_runtime_query_engine_responses_only_provider_never_plans_chat_completions_fallback() -> (
+    None
+):
+    adapter = _RuntimeFakeAdapter(
+        wire_api="responses",
+        protocol_capabilities=SimpleNamespace(
+            primary_wire_api="responses",
+            allowed_wire_apis=("responses",),
+            allowed_cross_protocol_fallbacks={},
+            allow_adapter_cross_protocol_fallback=False,
+        ),
+    )
+    adapter.set_stream(
+        "responses",
+        [RuntimeError("responses stream interrupted")],
+    )
+    adapter.set_stream(
+        "chat_completions",
+        [ChatChunk(delta="should not be used", finish_reason="stop", total_tokens=9)],
+    )
+    query_engine = ConversationQueryEngine(adapter=adapter, strict_contract=False)
+
+    with pytest.raises(RuntimeError, match="responses stream interrupted"):
+        await query_engine.run_stream_turn(
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.4-xhigh",
+            temperature=0.7,
+            max_tokens=None,
+            top_p=1.0,
+            tools=[
+                {
+                    "type": "function",
+                    "function": {"name": "web_search", "parameters": {}},
+                }
+            ],
+            tool_choice="auto",
+            supports_vision=True,
+            supports_audio=False,
+            supports_video=False,
+        )
+
+    assert query_engine.planner.plan_turn(
+        tools=[
+            {
+                "type": "function",
+                "function": {"name": "web_search", "parameters": {}},
+            }
+        ],
+    ).protocol_chain == ["responses"]
+    assert [call["protocol"] for call in adapter.stream_calls] == ["responses"]
+    assert adapter.chat_calls == []
+
+
+@pytest.mark.asyncio
+async def test_runtime_query_engine_provider_rate_limit_stream_does_not_cross_fallback() -> None:
+    adapter = _RuntimeFakeAdapter(wire_api="responses")
+    adapter.set_stream(
+        "responses",
+        [ProviderRateLimitError("too many concurrent sessions")],
+    )
+    adapter.set_stream(
+        "chat_completions",
+        [ChatChunk(delta="should not be used", finish_reason="stop", total_tokens=9)],
+    )
+    query_engine = ConversationQueryEngine(adapter=adapter, strict_contract=False)
+
+    with pytest.raises(ProviderRateLimitError):
+        await query_engine.run_stream_turn(
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.4-xhigh",
+            temperature=0.7,
+            max_tokens=None,
+            top_p=1.0,
+            tools=None,
+            tool_choice=None,
+            supports_vision=True,
+            supports_audio=False,
+            supports_video=False,
+        )
+
+    assert query_engine.turn_record.turn_outcome == "failed"
+    assert query_engine.turn_record.termination_reason == "error"
+    assert query_engine.turn_record.fallback_history == []
+    assert query_engine.turn_record.metadata["protocol_fallback_blocked_reason"] == (
+        "provider_rate_limit"
+    )
+    assert [call["protocol"] for call in adapter.stream_calls] == ["responses"]
+
+
+@pytest.mark.asyncio
+async def test_runtime_query_engine_provider_timeout_stream_does_not_cross_fallback() -> (
+    None
+):
+    adapter = _RuntimeFakeAdapter(wire_api="responses")
+    adapter.set_stream(
+        "responses",
+        [
+            ProviderTimeoutError(
+                "provider timed out",
+                provider_code="openai_compatible",
+                model_code="gpt-5.4",
+            )
+        ],
+    )
+    adapter.set_stream(
+        "chat_completions",
+        [ChatChunk(delta="should not be used", finish_reason="stop", total_tokens=9)],
+    )
+    query_engine = ConversationQueryEngine(adapter=adapter, strict_contract=False)
+
+    with pytest.raises(ProviderTimeoutError, match="provider timed out"):
+        await query_engine.run_stream_turn(
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.4-xhigh",
+            temperature=0.7,
+            max_tokens=None,
+            top_p=1.0,
+            tools=None,
+            tool_choice=None,
+            supports_vision=True,
+            supports_audio=False,
+            supports_video=False,
+        )
+
+    assert query_engine.turn_record.turn_outcome == "failed"
+    assert query_engine.turn_record.termination_reason == "error"
+    assert query_engine.turn_record.fallback_history == []
+    assert query_engine.turn_record.metadata["protocol_fallback_blocked_reason"] == (
+        "provider_timeout"
+    )
+    assert [call["protocol"] for call in adapter.stream_calls] == ["responses"]
+
+
+@pytest.mark.asyncio
+async def test_runtime_query_engine_provider_connection_stream_does_not_cross_fallback() -> None:
+    adapter = _RuntimeFakeAdapter(wire_api="responses")
+    adapter.set_stream(
+        "responses",
+        [ProviderConnectionError("Connection error.")],
+    )
+    adapter.set_stream(
+        "chat_completions",
+        [ChatChunk(delta="should not be used", finish_reason="stop", total_tokens=9)],
+    )
+    query_engine = ConversationQueryEngine(adapter=adapter, strict_contract=False)
+
+    with pytest.raises(ProviderConnectionError, match="Connection error\\."):
+        await query_engine.run_stream_turn(
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.4-xhigh",
+            temperature=0.7,
+            max_tokens=None,
+            top_p=1.0,
+            tools=None,
+            tool_choice=None,
+            supports_vision=True,
+            supports_audio=False,
+            supports_video=False,
+        )
+
+    assert query_engine.turn_record.turn_outcome == "failed"
+    assert query_engine.turn_record.termination_reason == "error"
+    assert query_engine.turn_record.fallback_history == []
+    assert query_engine.turn_record.metadata["protocol_fallback_blocked_reason"] == (
+        "provider_connection_error"
+    )
+    assert [call["protocol"] for call in adapter.stream_calls] == ["responses"]
 
 
 @pytest.mark.asyncio
@@ -1553,6 +2495,99 @@ async def test_stream_chat_uses_responses_protocol_when_configured() -> None:
 
 
 @pytest.mark.asyncio
+async def test_stream_chat_responses_hanging_stream_times_out_with_timeout_seconds() -> None:
+    class _HangingResponsesStream:
+        def __init__(self):
+            self.aclose_called = False
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            await asyncio.sleep(3600)
+            raise StopAsyncIteration
+
+        async def aclose(self) -> None:
+            self.aclose_called = True
+
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+    hanging_stream = _HangingResponsesStream()
+    responses_create = AsyncMock(return_value=hanging_stream)
+    adapter.client = SimpleNamespace(
+        responses=SimpleNamespace(create=responses_create),
+        chat=SimpleNamespace(completions=_FakeChatCompletions(None)),
+    )
+
+    with pytest.raises(ProviderTimeoutError):
+        async for _ in adapter.stream_chat(
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.4-xhigh",
+            timeout_seconds=0.05,
+        ):
+            pass
+
+    assert responses_create.await_count == 1
+    assert adapter.client.chat.completions.last_kwargs is None
+    assert responses_create.await_args.kwargs.get("timeout") == pytest.approx(0.05)
+    assert hanging_stream.aclose_called is True
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_cross_protocol_enabled_responses_timeout_does_not_hit_chat_completions() -> (
+    None
+):
+    class _HangingResponsesStream:
+        def __init__(self):
+            self.aclose_called = False
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            await asyncio.sleep(3600)
+            raise StopAsyncIteration
+
+        async def aclose(self) -> None:
+            self.aclose_called = True
+
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config=_responses_cross_protocol_provider_config(),
+    )
+    hanging_stream = _HangingResponsesStream()
+    responses_create = AsyncMock(return_value=hanging_stream)
+    adapter.client = SimpleNamespace(
+        responses=SimpleNamespace(create=responses_create),
+        chat=SimpleNamespace(completions=_FakeChatCompletions(None)),
+    )
+
+    with pytest.raises(ProviderTimeoutError):
+        async for _ in adapter.stream_chat_legacy_compat(
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.4-xhigh",
+            tools=[
+                {
+                    "type": "function",
+                    "function": {"name": "ui_get_snapshot", "parameters": {}},
+                }
+            ],
+            tool_choice="required",
+            timeout_seconds=0.05,
+        ):
+            pass
+
+    assert responses_create.await_count == 1
+    assert adapter.client.chat.completions.last_kwargs is None
+    assert responses_create.await_args.kwargs.get("timeout") == pytest.approx(0.05)
+    assert hanging_stream.aclose_called is True
+
+
+@pytest.mark.asyncio
 async def test_stream_chat_emits_reasoning_from_completed_response_when_no_reasoning_delta() -> None:
     class _FakeResponsesStream:
         def __init__(self, events):
@@ -1674,7 +2709,7 @@ async def test_convert_messages_to_responses_input_can_textualize_tool_roundtrip
                 "id": "call_1",
                 "type": "function",
                 "function": {
-                    "name": "get_page_context",
+                    "name": "ui_get_snapshot",
                     "arguments": "{}",
                 },
             }],
@@ -1695,7 +2730,7 @@ async def test_convert_messages_to_responses_input_can_textualize_tool_roundtrip
         {
             "type": "message",
             "role": "assistant",
-            "content": "Context returned by previously executed tool get_page_context:\nPage: admin.ai.providers",
+            "content": "Context returned by previously executed tool ui_get_snapshot:\nPage: admin.ai.providers",
         },
     ]
 

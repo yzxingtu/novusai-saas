@@ -1,6 +1,5 @@
 [PAGE OPERATIONS]
-Current page: {{ page_key }}{% if entity_desc %}
-Page entity: {{ entity_desc }}
-{% endif %}
-Available operations: {{ op_names }}
-Call format: invoke_page_operation(page_key="{{ page_key }}", operation_name="<pick one>", params={...}){% if read_example %}{{ read_example }}{% endif %}{% if search_example %}{{ search_example }}{% endif %}{% if section_example %}{{ section_example }}{% endif %}{% if screenshot_guidance %}{{ screenshot_guidance }}{% endif %}{% if mutation_guidance %}{{ mutation_guidance }}{% endif %}{% if data_distinction_note %}{{ data_distinction_note }}{% endif %}
+Current page: {{ page_key }}
+Available ui_* tools: {{ ui_tools or "none" }}.
+Use ui_get_snapshot to read, ui_read_region/table for data, ui_click/ui_open_surface for navigation, ui_get_form_state/ui_fill_form/ui_submit_form for forms.
+Return natural-language results; do NOT expose tool params or raw HTML/JSON.

@@ -8,6 +8,9 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from app.ai.adapters.openai_adapter import OpenAIAdapter
+from app.ai.adapters.openai_compatible.legacy_orchestrator import (
+    stream_chat_completions_with_sync_rescue,
+)
 from app.ai.exceptions import ProviderConnectionError
 from app.ai.types import ChatChunk, ChatMessage, ChatResponse
 
@@ -50,7 +53,8 @@ async def test_stream_rescue_success(openai_adapter):
         return_value=sync_response,
     ):
         chunks = []
-        async for chunk in openai_adapter._stream_chat_completions_with_sync_rescue(
+        async for chunk in stream_chat_completions_with_sync_rescue(
+            adapter=openai_adapter,
             request_params={},
             sync_request_params={},
             messages=messages,
@@ -96,9 +100,10 @@ async def test_stream_rescue_both_fail(openai_adapter):
         openai_adapter,
         "_chat_via_chat_completions",
         side_effect=rescue_error,
-    ):
+    ) as sync_mock:
         with pytest.raises(ProviderConnectionError) as exc_info:
-            async for _ in openai_adapter._stream_chat_completions_with_sync_rescue(
+            async for _ in stream_chat_completions_with_sync_rescue(
+                adapter=openai_adapter,
                 request_params={},
                 sync_request_params={},
                 messages=messages,
@@ -110,6 +115,7 @@ async def test_stream_rescue_both_fail(openai_adapter):
         # Should raise the original stream error, not the rescue error
         assert exc_info.value == stream_error
         assert "Stream connection failed" in str(exc_info.value)
+        sync_mock.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -141,7 +147,8 @@ async def test_stream_rescue_no_stream_error(openai_adapter):
         side_effect=rescue_error,
     ):
         with pytest.raises(ProviderConnectionError) as exc_info:
-            async for _ in openai_adapter._stream_chat_completions_with_sync_rescue(
+            async for _ in stream_chat_completions_with_sync_rescue(
+                adapter=openai_adapter,
                 request_params={},
                 sync_request_params={},
                 messages=messages,
@@ -177,7 +184,8 @@ async def test_stream_rescue_partial_stream_success(openai_adapter):
         "_chat_via_chat_completions",
     ) as sync_mock:
         chunks = []
-        async for chunk in openai_adapter._stream_chat_completions_with_sync_rescue(
+        async for chunk in stream_chat_completions_with_sync_rescue(
+            adapter=openai_adapter,
             request_params={},
             sync_request_params={},
             messages=messages,
@@ -223,7 +231,8 @@ async def test_stream_rescue_network_error(openai_adapter):
         side_effect=sync_network_error,
     ):
         with pytest.raises(Exception) as exc_info:
-            async for _ in openai_adapter._stream_chat_completions_with_sync_rescue(
+            async for _ in stream_chat_completions_with_sync_rescue(
+                adapter=openai_adapter,
                 request_params={},
                 sync_request_params={},
                 messages=messages,
@@ -264,7 +273,8 @@ async def test_stream_rescue_invalid_string_response(openai_adapter):
         side_effect=invalid_string_response,
     ):
         with pytest.raises(ValueError) as exc_info:
-            async for _ in openai_adapter._stream_chat_completions_with_sync_rescue(
+            async for _ in stream_chat_completions_with_sync_rescue(
+                adapter=openai_adapter,
                 request_params={},
                 sync_request_params={},
                 messages=messages,
@@ -275,4 +285,3 @@ async def test_stream_rescue_invalid_string_response(openai_adapter):
 
         # Should raise ValueError for invalid string response
         assert "invalid string response" in str(exc_info.value).lower()
-

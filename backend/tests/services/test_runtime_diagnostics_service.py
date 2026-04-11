@@ -95,7 +95,7 @@ def test_classify_root_cause_marks_page_continuation_false_direct_reply(mock_db)
                     "intent": "direct_reply",
                     "family": "none",
                 },
-                "candidate_tool_names": ["get_page_context"],
+                "candidate_tool_names": ["ui_get_snapshot"],
             },
             conversation_turn={"message_id": 91},
         )
@@ -159,7 +159,7 @@ async def test_build_root_cause_reports_fake_tool_call_contract_breach(mock_db):
                 "intent": "direct_reply",
                 "family": "none",
             },
-            "candidate_tool_names": ["get_page_context"],
+            "candidate_tool_names": ["ui_get_snapshot"],
             "assistant_claimed_tool_call_without_tool_event": True,
             "contract_breach_type": "assistant_claimed_tool_call_without_tool_event",
         },
@@ -226,12 +226,13 @@ async def test_resolve_conversation_turn_prefers_turn_anchor_assistant_message(m
             tool_calls=[],
         ),
     ]
-    message_repo = SimpleNamespace(get_by_conversation=AsyncMock(return_value=messages))
-    conversation_service = SimpleNamespace(message_repo=message_repo)
+    conversation_service = SimpleNamespace(
+        get_messages_for_conversation=AsyncMock(return_value=messages)
+    )
 
     with patch.object(
-        service_module := __import__(
-            "app.services.ai.runtime_diagnostics_service",
+        __import__(
+            "app.services.ai.runtime_diagnostics_query_service",
             fromlist=["ConversationService"],
         ).ConversationService,
         "get_service_for_conversation",

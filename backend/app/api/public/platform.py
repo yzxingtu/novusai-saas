@@ -9,7 +9,7 @@ from app.core.response import success
 from app.rbac.decorators import public
 from app.schemas.public import PlatformPublicConfig
 from app.schemas.public.platform import RuntimeLimitsPublicConfig, StoragePublicConfig
-from app.services.ai.page_context_limits import get_page_context_max_bytes
+from app.services.ai.page_context_limits import get_ui_runtime_payload_max_bytes
 
 router = APIRouter(prefix="/platform", tags=["平台公开接口 / Platform Public API"])
 
@@ -86,7 +86,7 @@ async def get_platform_public_config(db: DbSession):
                 allowed_extensions=configs.get("platform_storage_allowed_extensions"),
             ),
             runtime_limits=RuntimeLimitsPublicConfig(
-                page_context_max_bytes=await get_page_context_max_bytes(db),
+                page_context_max_bytes=await get_ui_runtime_payload_max_bytes(db),
             ),
         ),
         message=_("common.success"),

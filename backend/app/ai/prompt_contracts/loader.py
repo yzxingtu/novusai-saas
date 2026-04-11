@@ -96,6 +96,7 @@ class PromptContractName(StrEnum):
     CAPABILITY_MEMORY_SESSION = "capability_memory_session"
     CAPABILITY_MEMORY_LONG_TERM = "capability_memory_long_term"
     PAGE_LOCALE_THINKING = "page_locale_thinking"
+    VISIBLE_OUTPUT_LOCALE = "visible_output_locale"
     PAGE_WORKFLOW_INTRO = "page_workflow_intro"
 
     # --- Page-aware execution discipline & extra page-op hints / 页面感知执行纪律与扩展页面操作说明 ---
@@ -111,11 +112,9 @@ class PromptContractName(StrEnum):
         "contract_recovery_web_research_guidance"
     )
 
-    # --- Router preambles & repeated page context / 路由前言与重复页面上下文 ---
+    # --- Router preambles / 路由前言 ---
     AGENT_ROUTER_VISION_PREAMBLE = "agent_router_vision_preamble"
     AGENT_ROUTER_ATTACHMENT_PREAMBLE = "agent_router_attachment_preamble"
-    PAGE_CONTEXT_REPEATED = "page_context_repeated"
-    PAGE_CONTEXT_UNAVAILABLE = "page_context_unavailable"
 
     # --- Builtin tools & toolkit-style tools / 内置工具与类 toolkit 工具描述 ---
     BUILTIN_WEB_SEARCH_DESCRIPTION = "builtin_web_search_description"
@@ -126,7 +125,6 @@ class PromptContractName(StrEnum):
     HOSTED_WEB_SEARCH_CANDIDATE_INSTRUCTIONS = (
         "hosted_web_search_candidate_instructions"
     )
-    PAGE_TOOL_EXPANDER_NAVIGATE = "page_tool_expander_navigate"
 
 
 @dataclass(frozen=True)
@@ -370,6 +368,11 @@ _PROMPT_CONTRACTS: dict[str, PromptContractSpec] = {
         template_name="page_locale_thinking.md",
         description="Page-locale guidance for visible thinking and final answer language.",
     ),
+    PromptContractName.VISIBLE_OUTPUT_LOCALE.value: PromptContractSpec(
+        name=PromptContractName.VISIBLE_OUTPUT_LOCALE,
+        template_name="visible_output_locale.md",
+        description="General visible-output language guidance for thinking and final answer.",
+    ),
     # --- Page workflow intro & execution discipline & extra page-op hints / 页面流程引言、执行纪律与扩展页面操作 ---
     PromptContractName.PAGE_WORKFLOW_INTRO.value: PromptContractSpec(
         name=PromptContractName.PAGE_WORKFLOW_INTRO,
@@ -399,7 +402,7 @@ _PROMPT_CONTRACTS: dict[str, PromptContractSpec] = {
     PromptContractName.PAGE_OPERATIONS_OTHER_OPS.value: PromptContractSpec(
         name=PromptContractName.PAGE_OPERATIONS_OTHER_OPS,
         template_name="page_operations_other_ops.md",
-        description="Fallback invoke_page_operation list for non-expanded page ops.",
+        description="Fallback guidance for page operations not covered by dedicated ui_* tools.",
     ),
     PromptContractName.PAGE_OPERATIONS_MUTATION.value: PromptContractSpec(
         name=PromptContractName.PAGE_OPERATIONS_MUTATION,
@@ -411,7 +414,7 @@ _PROMPT_CONTRACTS: dict[str, PromptContractSpec] = {
         template_name="page_operations_editor_flow.md",
         description="Editor flow guidance for page operations.",
     ),
-    # --- Contract leak recovery & router preambles & repeated context / 契约泄漏恢复、路由前言、重复上下文 ---
+    # --- Contract leak recovery & router preambles / 契约泄漏恢复与路由前言 ---
     PromptContractName.CONTRACT_RECOVERY_LEAK_GUIDANCE.value: PromptContractSpec(
         name=PromptContractName.CONTRACT_RECOVERY_LEAK_GUIDANCE,
         template_name="contract_recovery_leak_guidance.md",
@@ -432,17 +435,7 @@ _PROMPT_CONTRACTS: dict[str, PromptContractSpec] = {
         template_name="agent_router_attachment_preamble.md",
         description="Attachment preamble for router selection.",
     ),
-    PromptContractName.PAGE_CONTEXT_REPEATED.value: PromptContractSpec(
-        name=PromptContractName.PAGE_CONTEXT_REPEATED,
-        template_name="page_context_repeated.md",
-        description="Repeated page context warning within a single turn.",
-    ),
-    PromptContractName.PAGE_CONTEXT_UNAVAILABLE.value: PromptContractSpec(
-        name=PromptContractName.PAGE_CONTEXT_UNAVAILABLE,
-        template_name="page_context_unavailable.md",
-        description="Tool output when execution variables carry no usable page_context.",
-    ),
-    # --- Builtin & email & code & page-tool expander / 内置工具、邮件、代码与页面工具展开 ---
+    # --- Builtin & email & code tools / 内置工具、邮件与代码工具 ---
     PromptContractName.BUILTIN_WEB_SEARCH_DESCRIPTION.value: PromptContractSpec(
         name=PromptContractName.BUILTIN_WEB_SEARCH_DESCRIPTION,
         template_name="builtin_web_search_description.md",
@@ -474,11 +467,6 @@ _PROMPT_CONTRACTS: dict[str, PromptContractSpec] = {
             template_name="hosted_web_search_candidate_instructions.md",
             description="Instructions for hosted Responses API web search candidates.",
         )
-    ),
-    PromptContractName.PAGE_TOOL_EXPANDER_NAVIGATE.value: PromptContractSpec(
-        name=PromptContractName.PAGE_TOOL_EXPANDER_NAVIGATE,
-        template_name="page_tool_expander_navigate.md",
-        description="Additional navigate_menu guidance for expanded page tools.",
     ),
 }
 

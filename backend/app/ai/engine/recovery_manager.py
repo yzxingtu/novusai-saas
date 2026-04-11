@@ -10,6 +10,18 @@ from app.ai.tools.types import ToolResult
 from app.ai.types import ChatMessage
 from app.core.i18n import _
 
+from .recovery_consent_helpers import (
+    ensure_latest_assistant_pending_consent as _ensure_latest_assistant_pending_consent_impl,
+)
+from .recovery_consent_helpers import (
+    extract_pending_consent_payload as _extract_pending_consent_payload_impl,
+)
+from .recovery_consent_helpers import (
+    pending_consent_payload_from_decision as _pending_consent_payload_from_decision_impl,
+)
+from .recovery_consent_helpers import (
+    pending_consent_payload_from_tool_calls as _pending_consent_payload_from_tool_calls_impl,
+)
 from .types import ExecutionBudget, IntentPlan, ProviderFailureKind, RecoveryDecision
 
 
@@ -738,60 +750,26 @@ class RecoveryManager:
     def _pending_consent_payload_from_tool_calls(
         tool_calls: list[dict[str, Any]] | None,
     ) -> dict[str, Any] | None:
-        for tool_call in tool_calls or []:
-            payload = tool_call.get("pending_consent")
-            if isinstance(payload, dict) and not payload.get("resolved"):
-                return dict(payload)
-        return None
+        return _pending_consent_payload_from_tool_calls_impl(tool_calls)
 
     @staticmethod
     def _extract_pending_consent_payload(
         messages: list[ChatMessage],
     ) -> dict[str, Any] | None:
-        for message in reversed(messages):
-            meta = message.metadata or {}
-            payload = meta.get("pending_consent")
-            if isinstance(payload, dict) and not payload.get("resolved"):
-                return dict(payload)
-            payload = RecoveryManager._pending_consent_payload_from_tool_calls(
-                message.tool_calls
-            )
-            if payload:
-                return payload
-        return None
+        return _extract_pending_consent_payload_impl(messages)
 
     @staticmethod
     def pending_consent_payload_from_decision(
         decision: RecoveryDecision | None,
     ) -> dict[str, Any] | None:
-        if decision is None:
-            return None
-        meta = dict(decision.metadata or {})
-        payload = meta.get("pending_consent")
-        return dict(payload) if isinstance(payload, dict) else None
+        return _pending_consent_payload_from_decision_impl(decision)
 
     @staticmethod
     def ensure_latest_assistant_pending_consent(
         messages: list[ChatMessage],
         payload: dict[str, Any] | None,
     ) -> None:
-        if not isinstance(payload, dict) or not payload:
-            return
-        normalized_payload = dict(payload)
-        for message in reversed(messages):
-            if message.role != "assistant":
-                continue
-            metadata = dict(message.metadata or {})
-            metadata["pending_consent"] = normalized_payload
-            message.metadata = metadata
-            return
-        messages.append(
-            ChatMessage(
-                role="assistant",
-                content="",
-                metadata={"pending_consent": normalized_payload},
-            )
-        )
+        _ensure_latest_assistant_pending_consent_impl(messages, payload)
 
     @staticmethod
     def complete_native_search_intents(intents: list[IntentPlan]) -> list[IntentPlan]:
@@ -818,10 +796,12 @@ class RecoveryManager:
         intents: list[IntentPlan],
         *,
         messages: list[ChatMessage],
+        turn_messages: list[ChatMessage] | None = None,
         tool_results: list[ToolResult] | None = None,
     ) -> list[IntentPlan]:
+        evidence_messages = turn_messages if turn_messages is not None else messages
         successful_tool_names = set(
-            RecoveryManager._successful_tool_names(messages, tool_results)
+            RecoveryManager._successful_tool_names(evidence_messages, tool_results)
         )
         pending_payload = RecoveryManager._extract_pending_consent_payload(messages)
         pending_tool_name = (
@@ -837,7 +817,7 @@ class RecoveryManager:
             clone.metadata.pop("pending_consent", None)
             RecoveryManager._force_fetch_url_after_search(
                 clone,
-                messages=messages,
+                messages=evidence_messages,
                 tool_results=tool_results,
                 successful_tool_names=successful_tool_names,
             )
@@ -848,7 +828,7 @@ class RecoveryManager:
                 clone.status = "completed"
             elif RecoveryManager._is_completed_web_research_no_result(
                 clone,
-                messages=messages,
+                messages=evidence_messages,
                 tool_results=tool_results,
                 successful_tool_names=successful_tool_names,
             ):
@@ -1011,11 +991,22 @@ class RecoveryManager:
                     reason="retry_budget_exhausted",
                     provider_failure_kind=provider_failure_kind,
                 )
+            allowed_tool_names: list[str] = []
+            seen: set[str] = set()
+            target_family = str(target.family or "").strip().casefold()
+            for intent in unfinished:
+                intent_family = str(intent.family or "").strip().casefold()
+                if intent_family != target_family:
+                    continue
+                for name in intent.allowed_tool_names:
+                    if name and name not in seen:
+                        seen.add(name)
+                        allowed_tool_names.append(name)
             return RecoveryDecision(
                 action="retry_intent",
                 target_intent_id=target.intent_id,
                 retry_family=target.family,
-                allowed_tool_names=list(target.allowed_tool_names),
+                allowed_tool_names=allowed_tool_names or list(target.allowed_tool_names),
                 completed_intent_ids=completed,
                 unfinished_intent_ids=[intent.intent_id for intent in unfinished],
                 reason="unfinished_intent_retry",

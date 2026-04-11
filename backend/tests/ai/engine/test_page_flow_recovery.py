@@ -5,38 +5,25 @@ from app.ai.types import ChatMessage
 
 def _page_tools() -> list[ToolDefinition]:
     return [
-        ToolDefinition(name="get_page_context"),
-        ToolDefinition(name="pageop_list_available_menus"),
-        ToolDefinition(name="pageop_navigate_menu"),
-        ToolDefinition(name="invoke_page_operation"),
-        ToolDefinition(name="pageop_capture_screenshot"),
-        ToolDefinition(name="pageop_get_editor_html"),
-        ToolDefinition(name="pageop_replace_content"),
-        ToolDefinition(name="pageop_create_record"),
-        ToolDefinition(name="pageop_fill_form"),
-        ToolDefinition(name="pageop_validate_form"),
-        ToolDefinition(name="pageop_submit_form"),
-        ToolDefinition(name="pageop_read_row_detail"),
-        ToolDefinition(name="pageop_read_visible_rows"),
-        ToolDefinition(name="pageop_go_to_page"),
-        ToolDefinition(name="pageop_prev_page"),
-        ToolDefinition(name="pageop_next_page"),
-        ToolDefinition(name="pageop_set_page_size"),
-        ToolDefinition(name="pageop_search"),
-        ToolDefinition(name="pageop_clear_search"),
-        ToolDefinition(name="pageop_refresh_list"),
+        ToolDefinition(name="ui_get_snapshot"),
+        ToolDefinition(name="ui_read_region"),
+        ToolDefinition(name="ui_read_table"),
+        ToolDefinition(name="ui_list_interactables"),
+        ToolDefinition(name="ui_click"),
+        ToolDefinition(name="ui_open_surface"),
+        ToolDefinition(name="ui_get_form_state"),
+        ToolDefinition(name="ui_set_field"),
+        ToolDefinition(name="ui_fill_form"),
+        ToolDefinition(name="ui_submit_form"),
     ]
 
 
-def _repeated_page_context_result() -> ToolResult:
+def _snapshot_result() -> ToolResult:
     return ToolResult(
         tool_call_id="call_1",
-        name="get_page_context",
+        name="ui_get_snapshot",
         success=True,
-        output=(
-            "Page context was already returned earlier in this turn. "
-            "Reuse the previous get_page_context result unless the page actually changed."
-        ),
+        output='{"ui_epoch": 9}',
     )
 
 
@@ -44,35 +31,21 @@ def _build_input_variables() -> dict:
     return {
         "page_context": {
             "page_key": "admin.dashboard",
-            "page_data": {
-                "available_operations": [
-                    {"name": "navigate_menu"},
-                    {"name": "list_available_menus"},
-                    {"name": "capture_screenshot"},
-                    {"name": "create_record"},
-                    {"name": "fill_form"},
-                    {"name": "validate_form"},
-                    {"name": "submit_form"},
-                    {"name": "read_row_detail"},
-                    {"name": "read_visible_rows"},
-                    {"name": "go_to_page"},
-                    {"name": "prev_page"},
-                    {"name": "next_page"},
-                    {"name": "set_page_size"},
-                    {"name": "search"},
-                    {"name": "clear_search"},
-                    {"name": "refresh_list"},
-                    {"name": "get_editor_html"},
-                    {"name": "replace_content"},
-                ],
-                "available_menus": [
-                    {
-                        "title": "智能体管理",
-                        "page_key": "admin.ai.agents",
-                        "path": "/admin/ai/agents",
-                        "keywords": ["智能体", "agent", "AI助手", "assistant"],
-                    }
-                ],
+            "ui_epoch": 9,
+            "active_surface_id": "drawer-agent-edit",
+            "surface_stack": [
+                {"surface_id": "page-1", "kind": "page", "title": "Agent List"},
+                {
+                    "surface_id": "drawer-agent-edit",
+                    "kind": "drawer",
+                    "title": "Edit Agent",
+                },
+            ],
+            "active_form_summary": {
+                "form_session_id": "form-1",
+                "can_submit": True,
+                "stage": "ready_to_submit",
+                "remaining_required_fields": [],
             },
         }
     }
@@ -85,24 +58,25 @@ def _recover(user_text: str) -> tuple[str | None, list[str], dict]:
             {
                 "id": "call_1",
                 "type": "function",
-                "function": {"name": "get_page_context", "arguments": "{}"},
+                "function": {"name": "ui_get_snapshot", "arguments": "{}"},
             }
         ],
-        tool_results=[_repeated_page_context_result()],
+        tool_results=[_snapshot_result()],
         tools=_page_tools(),
         input_variables=_build_input_variables(),
     )
 
 
 def test_build_page_no_progress_recovery_for_navigation_request() -> None:
-    hint, preferred_tool_names, diagnostics = _recover("帮我新增 AI 助手")
+    hint, preferred_tool_names, diagnostics = _recover("帮我打开智能体管理页面")
 
     assert hint is not None
-    assert "Do NOT call get_page_context again" in hint
+    assert "Do NOT call ui_get_snapshot again" in hint
     assert preferred_tool_names == [
-        "pageop_list_available_menus",
-        "pageop_navigate_menu",
-        "invoke_page_operation",
+        "ui_list_interactables",
+        "ui_click",
+        "ui_open_surface",
+        "ui_get_snapshot",
     ]
     assert diagnostics["intent_kind"] == "page_navigation"
 
@@ -112,33 +86,33 @@ def test_build_page_no_progress_recovery_for_screenshot_request() -> None:
 
     assert hint is not None
     assert preferred_tool_names == [
-        "pageop_capture_screenshot",
-        "invoke_page_operation",
+        "ui_get_snapshot",
     ]
     assert diagnostics["intent_kind"] == "page_screenshot"
 
 
-def test_build_page_no_progress_recovery_for_editor_write_request() -> None:
-    hint, preferred_tool_names, diagnostics = _recover("帮我替换当前编辑器正文")
-
-    assert hint is not None
-    assert preferred_tool_names == [
-        "pageop_replace_content",
-    ]
-    assert diagnostics["intent_kind"] == "page_editor_write"
-
-
 def test_build_page_no_progress_recovery_for_form_write_request() -> None:
-    hint, preferred_tool_names, diagnostics = _recover("帮我新增记录并提交表单")
+    hint, preferred_tool_names, diagnostics = _recover("帮我填写并提交表单")
 
     assert hint is not None
     assert preferred_tool_names == [
-        "pageop_create_record",
-        "pageop_fill_form",
-        "pageop_validate_form",
-        "pageop_submit_form",
+        "ui_fill_form",
+        "ui_set_field",
+        "ui_submit_form",
     ]
     assert diagnostics["intent_kind"] == "page_form_write"
+
+
+def test_build_page_no_progress_recovery_for_form_read_request() -> None:
+    hint, preferred_tool_names, diagnostics = _recover("帮我读取当前表单状态")
+
+    assert hint is not None
+    assert preferred_tool_names == [
+        "ui_get_form_state",
+        "ui_read_region",
+        "ui_get_snapshot",
+    ]
+    assert diagnostics["intent_kind"] == "page_form_read"
 
 
 def test_build_page_no_progress_recovery_for_row_detail_request() -> None:
@@ -146,8 +120,9 @@ def test_build_page_no_progress_recovery_for_row_detail_request() -> None:
 
     assert hint is not None
     assert preferred_tool_names == [
-        "pageop_read_row_detail",
-        "pageop_read_visible_rows",
+        "ui_read_region",
+        "ui_read_table",
+        "ui_get_snapshot",
     ]
     assert diagnostics["intent_kind"] == "page_row_detail"
 
@@ -157,10 +132,9 @@ def test_build_page_no_progress_recovery_for_pagination_request() -> None:
 
     assert hint is not None
     assert preferred_tool_names == [
-        "pageop_go_to_page",
-        "pageop_prev_page",
-        "pageop_next_page",
-        "pageop_set_page_size",
+        "ui_read_table",
+        "ui_click",
+        "ui_list_interactables",
     ]
     assert diagnostics["intent_kind"] == "page_pagination"
 
@@ -170,9 +144,9 @@ def test_build_page_no_progress_recovery_for_search_request() -> None:
 
     assert hint is not None
     assert preferred_tool_names == [
-        "pageop_search",
-        "pageop_clear_search",
-        "pageop_refresh_list",
+        "ui_read_region",
+        "ui_list_interactables",
+        "ui_click",
     ]
     assert diagnostics["intent_kind"] == "page_search"
 

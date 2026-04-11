@@ -38,47 +38,12 @@ async def test_dedupes_identical_get_current_weather_same_turn() -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_page_context_not_deduped_when_page_key_changes() -> None:
-    sandbox = MagicMock()
-    sandbox.execute = AsyncMock(
-        side_effect=[
-            ToolResult(
-                tool_call_id="a",
-                name="get_page_context",
-                success=True,
-                output="page-a",
-            ),
-            ToolResult(
-                tool_call_id="b",
-                name="get_page_context",
-                success=True,
-                output="page-b",
-            ),
-        ]
-    )
-    sandbox.input_variables = {
-        PAGE_CONTEXT_KEY: {"page_key": "admin.a"},
-        "page_session_id": "s1",
-    }
-    sandbox._page_session_id = "s1"
-    proc = ToolCallProcessor(
-        sandbox=sandbox,
-        tools=[ToolDefinition(name="get_page_context", description="x")],
-    )
-    await proc.execute_tool("1", "get_page_context", {}, 1)
-    sandbox.input_variables[PAGE_CONTEXT_KEY] = {"page_key": "admin.b"}
-    await proc.execute_tool("2", "get_page_context", {}, 1)
-
-    assert sandbox.execute.call_count == 2
-
-
-@pytest.mark.asyncio
-async def test_pageop_mutation_tools_are_never_deduped() -> None:
+async def test_ui_write_tools_are_never_deduped() -> None:
     sandbox = MagicMock()
     sandbox.execute = AsyncMock(
         return_value=ToolResult(
             tool_call_id="x",
-            name="pageop_create_record",
+            name="ui_click",
             success=True,
             output="ok",
         )
@@ -86,22 +51,30 @@ async def test_pageop_mutation_tools_are_never_deduped() -> None:
     sandbox.input_variables = {PAGE_CONTEXT_KEY: {"page_key": "p1"}}
     proc = ToolCallProcessor(
         sandbox=sandbox,
-        tools=[ToolDefinition(name="pageop_create_record", description="x")],
+        tools=[
+            ToolDefinition(name="ui_click", description="x"),
+            ToolDefinition(name="ui_fill_form", description="x"),
+            ToolDefinition(name="ui_submit_form", description="x"),
+        ],
     )
-    await proc.execute_tool("1", "pageop_create_record", {}, 1)
-    await proc.execute_tool("2", "pageop_create_record", {}, 1)
+    await proc.execute_tool("1", "ui_click", {"target_locator": "btn-save"}, 1)
+    await proc.execute_tool("2", "ui_click", {"target_locator": "btn-save"}, 1)
+    await proc.execute_tool("3", "ui_fill_form", {"fields": [{"name": "n", "value": "v"}]}, 1)
+    await proc.execute_tool("4", "ui_fill_form", {"fields": [{"name": "n", "value": "v"}]}, 1)
+    await proc.execute_tool("5", "ui_submit_form", {"form_session_id": "form-1"}, 1)
+    await proc.execute_tool("6", "ui_submit_form", {"form_session_id": "form-1"}, 1)
 
-    assert sandbox.execute.call_count == 2
+    assert sandbox.execute.call_count == 6
 
 
 @pytest.mark.asyncio
-async def test_next_page_and_prev_page_never_deduped_same_turn() -> None:
-    """Paging changes view state; same empty args must run twice (not readonly cache)."""
+async def test_ui_navigation_tools_never_deduped_same_turn() -> None:
+    """Navigation changes UI state; same args must still execute."""
     sandbox = MagicMock()
     sandbox.execute = AsyncMock(
         return_value=ToolResult(
             tool_call_id="x",
-            name="pageop_next_page",
+            name="ui_open_surface",
             success=True,
             output="ok",
         )
@@ -112,54 +85,15 @@ async def test_next_page_and_prev_page_never_deduped_same_turn() -> None:
     proc = ToolCallProcessor(
         sandbox=sandbox,
         tools=[
-            ToolDefinition(name="pageop_next_page", description="x"),
-            ToolDefinition(name="pageop_prev_page", description="x"),
+            ToolDefinition(name="ui_open_surface", description="x"),
+            ToolDefinition(name="ui_click", description="x"),
         ],
     )
-    await proc.execute_tool("1", "pageop_next_page", {}, 1)
-    await proc.execute_tool("2", "pageop_next_page", {}, 1)
-    await proc.execute_tool("3", "pageop_prev_page", {}, 1)
-    await proc.execute_tool("4", "pageop_prev_page", {}, 1)
+    await proc.execute_tool("1", "ui_open_surface", {"surface_id": "drawer-1"}, 1)
+    await proc.execute_tool("2", "ui_open_surface", {"surface_id": "drawer-1"}, 1)
+    await proc.execute_tool("3", "ui_click", {"target_locator": "menu-agents"}, 1)
+    await proc.execute_tool("4", "ui_click", {"target_locator": "menu-agents"}, 1)
 
     assert sandbox.execute.call_count == 4
 
 
-@pytest.mark.asyncio
-async def test_same_page_state_change_invalidates_get_page_context_cache() -> None:
-    """After a state-changing page op, readonly snapshot cache must not reuse pre-change results."""
-    sandbox = MagicMock()
-    seq = {"i": 0}
-
-    async def execute_side_effect(**kwargs: object) -> ToolResult:
-        seq["i"] += 1
-        n = seq["i"]
-        name = kwargs.get("name") or ""
-        return ToolResult(
-            tool_call_id=str(kwargs.get("tool_call_id", "")),
-            name=str(name),
-            success=True,
-            output=f"snapshot-{n}",
-        )
-
-    sandbox.execute = AsyncMock(side_effect=execute_side_effect)
-    sandbox.input_variables = {PAGE_CONTEXT_KEY: {"page_key": "p1"}}
-    sandbox._page_session_id = "s1"
-    sandbox._page_readonly_cache_epoch = 0
-
-    tools = [
-        ToolDefinition(name="get_page_context", description="x"),
-        ToolDefinition(name="pageop_next_page", description="x"),
-    ]
-    proc = ToolCallProcessor(sandbox=sandbox, tools=tools, all_tools=tools)
-
-    r1, _ = await proc.execute_tool("1", "get_page_context", {}, 1)
-    r2, _ = await proc.execute_tool("2", "get_page_context", {}, 1)
-    assert r1.output == r2.output
-    assert sandbox.execute.call_count == 1
-
-    await proc.execute_tool("3", "pageop_next_page", {}, 1)
-    assert sandbox._page_readonly_cache_epoch == 1
-
-    r3, _ = await proc.execute_tool("4", "get_page_context", {}, 1)
-    assert sandbox.execute.call_count == 3
-    assert r3.output != r1.output

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import time
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -720,11 +722,14 @@ async def test_orchestrator_uses_health_verified_untrusted_runtime_target() -> N
     model_repo.get_active_with_provider.return_value = runtime_model
     model_repo.get_active_by_code_and_provider.return_value = runtime_model
     redis_client = AsyncMock()
-    redis_client.get.return_value = (
-        '{"is_healthy": true, "tool_calling_healthy": true, '
-        '"tool_probe_model": "gpt-5.4", '
-        '"wire_api": "responses", '
-        '"checked_at": "2026-04-07T09:29:45.103846+00:00"}'
+    redis_client.get.return_value = json.dumps(
+        {
+            "is_healthy": True,
+            "tool_calling_healthy": True,
+            "tool_probe_model": "gpt-5.4",
+            "wire_api": "responses",
+            "checked_at": datetime.now(timezone.utc).isoformat(),
+        }
     )
     native_run = _make_run(
         status=STATUS_SUCCESS,

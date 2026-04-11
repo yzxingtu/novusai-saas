@@ -12,6 +12,11 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
 from app.ai.constants import DEFAULT_MEMORY_SCENE, MEMORY_CHANNEL_SYSTEM
+from app.ai.runtime.contracts import (
+    ProtocolExecutionPlan,
+    TurnCommand,
+    TurnExecutionResult,
+)
 from app.ai.runtime.types import CapabilityBundle, TurnRecord
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.types import ChatMessage
@@ -87,6 +92,8 @@ class IntentPlan:
             "completed_by_tool_names": list(self.completed_by_tool_names),
             "metadata": dict(self.metadata),
         }
+
+
 @dataclass
 class ExecutionBudget:
     """Hard orchestration budget for one turn."""
@@ -247,6 +254,7 @@ class ExecutionRequest:
     memory_channel: str = MEMORY_CHANNEL_SYSTEM
     memory_source: str = ""
     memory_enabled: bool = False
+    session_memory_injected: bool = False
     long_term_memory_enabled: bool = False
     page_session_id: str | None = None
     knowledge_base_feedback: dict[str, Any] | None = None
@@ -378,9 +386,12 @@ __all__ = [
     "ExecutionRequest",
     "ExecutionResult",
     "IntentPlan",
+    "ProtocolExecutionPlan",
     "PreparedExecution",
     "ProviderFailureKind",
     "RecoveryDecision",
     "ResearchContinuationContext",
+    "TurnExecutionResult",
+    "TurnCommand",
     "ToolUsePolicy",
 ]

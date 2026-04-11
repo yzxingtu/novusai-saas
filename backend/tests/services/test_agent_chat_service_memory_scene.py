@@ -303,6 +303,47 @@ async def test_chat_non_stream_persists_session_memory(mock_db):
 
 
 @pytest.mark.asyncio
+async def test_chat_marks_request_session_memory_injected_when_context_loaded(mock_db):
+    from app.services.ai.agent_chat_service import AgentChatService
+
+    service = AgentChatService(mock_db, tenant_id=1)
+    service._validate_agent = AsyncMock(return_value=_make_agent())
+    service.conversation_svc.get_or_create_for_chat = AsyncMock(return_value=_make_conversation())
+    service.conversation_svc.load_chat_history = AsyncMock(return_value=[])
+    service.conversation_svc.persist_chat_messages = AsyncMock(return_value=([], 0))
+    service.conversation_svc.update_stats = AsyncMock(return_value=None)
+    service._resolve_effective_memory_enabled = AsyncMock(return_value=True)
+    service._load_session_memory_context = AsyncMock(
+        return_value="[SESSION MEMORY CONTEXT]\npreferences: 喜欢简洁回答"
+    )
+    service._persist_session_memory = AsyncMock(return_value=None)
+    service._resolve_runtime_trust_policy_ref = AsyncMock(return_value=None)
+
+    dispatcher = AsyncMock()
+    dispatcher.dispatch = AsyncMock(return_value=_make_execution_result())
+
+    from unittest.mock import patch
+
+    with patch("app.services.ai.agent_chat_service.ExecutionDispatcher", return_value=dispatcher), \
+            patch("app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation", new=AsyncMock()), \
+            patch("app.services.ai.agent_chat_service.AgentStatsManager.record_chat", new=AsyncMock()):
+        await service.chat(
+            agent_id=1,
+            message="hello",
+            user_id=10,
+            user_role=UserRoleEnum.TENANT_ADMIN.value,
+            memory_scene=MemorySceneEnum.AI_CHAT_PAGE.value,
+            memory_channel=MemoryChannelEnum.TENANT_CHAT.value,
+            memory_source=MemorySceneEnum.AI_CHAT_PAGE.value,
+        )
+
+    called_request = dispatcher.dispatch.call_args.args[0]
+    assert called_request.session_memory_injected is True
+    assert called_request.messages[0].role == "system"
+    assert "[SESSION MEMORY CONTEXT]" in (called_request.messages[0].content or "")
+
+
+@pytest.mark.asyncio
 async def test_chat_response_includes_tool_planner_diagnostics(mock_db):
     from unittest.mock import patch
 
@@ -528,7 +569,7 @@ async def test_chat_grants_backend_trust_policy_from_page_confirmation_when_trus
                 {
                     "kind": "pending_confirmation",
                     "rejected": False,
-                    "tool_name": "pageop_create_record",
+                    "tool_name": "ui_fill_form",
                 }
             ],
         )
@@ -568,6 +609,8 @@ async def test_stream_chat_updates_pending_consent_state_with_string_owner_type(
         return_value=None,
     )
     service.conversation_svc.load_chat_history = AsyncMock(return_value=[])
+    service.conversation_svc.persist_user_messages = AsyncMock(return_value=1)
+    service.conversation_svc.persist_chat_messages = AsyncMock(return_value=([], 0))
 
     engine = AsyncMock()
     engine.stream_execute = AsyncMock(return_value=MagicMock())

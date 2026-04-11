@@ -4,7 +4,7 @@ Split "系统核心技能包" into:
   A. 系统引擎技能包  — llm_chat + llm_embedding (internal, not for function calling)
   B. 平台数据管理    — data intelligence / management skills (admin_only)
   C. 联网搜索       — web_search (admin_tenant)
-  D. 页面感知交互   — get_page_context + invoke_page_operation (admin_tenant)
+  D. 页面感知交互   — 历史页面交互包（后续由 UI Runtime 接管）(admin_tenant)
 
 All new packages use bind_mode=manual.
 Existing AgentSkillBindings pointing to the old core package are kept pointing
@@ -43,13 +43,37 @@ _PKG_C_NAME = "联网搜索"
 _PKG_C_DESC = "联网搜索能力包。提供 web_search（联网搜索）和 fetch_url（网页抓取）工具，支持管理端和企业端智能体使用。"
 
 _PKG_D_NAME = "页面感知交互"
-_PKG_D_DESC = "页面感知与交互能力包。提供 get_page_context（读取页面上下文）和 invoke_page_operation（执行页面操作）工具。"
+_PKG_D_DESC = "历史页面交互包，后续由 UI Runtime 接管。当前用于承接历史页面交互能力并保持迁移兼容。"
 
 # Skills that belong to each new package (matched by name + type)
 _ENGINE_SKILLS = {"llm_chat", "llm_embedding"}
 _WEB_SEARCH_SKILLS = {"web_search"}
-_PAGE_SKILLS = {"get_page_context", "invoke_page_operation"}
+_PAGE_BUILTIN_TYPES = {"page_context", "page_operation"}
 # Remaining skills (not in the above sets) → data management package B
+
+
+def _extract_builtin_type(skill_config: object) -> str | None:
+    payload = skill_config
+    if isinstance(skill_config, str):
+        try:
+            payload = json.loads(skill_config)
+        except json.JSONDecodeError:
+            return None
+
+    if not isinstance(payload, dict):
+        return None
+
+    builtin_type = payload.get("builtin_type")
+    if not isinstance(builtin_type, str):
+        return None
+    normalized = builtin_type.strip()
+    return normalized if normalized else None
+
+
+def _is_page_awareness_skill(skill_type: str, skill_config: object) -> bool:
+    if skill_type != "builtin":
+        return False
+    return _extract_builtin_type(skill_config) in _PAGE_BUILTIN_TYPES
 
 
 def _find_package_by_name(conn, name: str) -> int | None:
@@ -129,7 +153,7 @@ def upgrade() -> None:
     # ── 3. Get all non-deleted skills in Package A ────────────────────────────
     skills = conn.execute(
         text(
-            "SELECT id, name, type FROM skills "
+            "SELECT id, name, type, config::text AS config_text FROM skills "
             "WHERE package_id = :pkg_id AND is_deleted = false "
             "ORDER BY name"
         ),
@@ -174,14 +198,14 @@ def upgrade() -> None:
         print(f"[SPLIT] Package D '{_PKG_D_NAME}' already exists (id={pkg_d_id})")
 
     # ── 7. Move skills from Package A to B/C/D ────────────────────────────────
-    for skill_id, skill_name, skill_type in skills:
+    for skill_id, skill_name, skill_type, skill_config_text in skills:
         if skill_name in _ENGINE_SKILLS:
             # Keep in Package A
             continue
         elif skill_name in _WEB_SEARCH_SKILLS:
             target_pkg = pkg_c_id
             target_name = _PKG_C_NAME
-        elif skill_name in _PAGE_SKILLS:
+        elif _is_page_awareness_skill(skill_type, skill_config_text):
             target_pkg = pkg_d_id
             target_name = _PKG_D_NAME
         else:

@@ -50,9 +50,14 @@ def _extract_agent_relations(agent: Any) -> tuple[str | None, dict | None, list[
         grants = getattr(agent, "skill_grants", None)
         if grants is not None:
             for grant in grants:
+                if getattr(grant, "is_deleted", False) or not getattr(grant, "enabled", True):
+                    continue
                 skill = getattr(grant, "skill", None)
-                if skill is not None:
-                    skills.append({"id": skill.id, "name": skill.name})
+                if not skill:
+                    continue
+                if getattr(skill, "is_deleted", False) or not getattr(skill, "is_active", True):
+                    continue
+                skills.append({"id": skill.id, "name": skill.name})
     except AttributeError:
         pass
 

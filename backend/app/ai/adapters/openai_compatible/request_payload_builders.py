@@ -1,0 +1,223 @@
+"""Request payload builders for OpenAI-compatible adapters."""
+
+from __future__ import annotations
+
+from typing import Any, Protocol
+
+from app.ai.types import ChatMessage
+
+
+class RequestPayloadBuilderAdapterProtocol(Protocol):
+    config: dict[str, Any]
+
+    def resolve_effective_model_request(
+        self,
+        *,
+        model: str,
+        model_config: Any = None,
+        wire_api: str | None = None,
+    ) -> dict[str, Any]: ...
+
+    async def _convert_messages_to_responses_input(
+        self,
+        messages: list[ChatMessage],
+        *,
+        supports_vision: bool = True,
+        supports_audio: bool = False,
+        supports_video: bool = False,
+    ) -> list[dict[str, Any]]: ...
+
+
+def build_chat_completions_request(
+    *,
+    adapter: RequestPayloadBuilderAdapterProtocol,
+    openai_messages: list[dict[str, Any]],
+    model: str,
+    temperature: float,
+    max_tokens: int | None,
+    top_p: float,
+    tools: list[dict] | None,
+    tool_choice: str | None,
+    stream: bool,
+    kwargs: dict[str, Any],
+) -> dict[str, Any]:
+    runtime_kwargs = dict(kwargs)
+    effective_request = runtime_kwargs.pop("_effective_model_request", None)
+    model_config = runtime_kwargs.pop("model_config", None)
+    if effective_request is None:
+        effective_request = adapter.resolve_effective_model_request(
+            model=model,
+            model_config=(
+                model_config
+                if model_config is not None
+                else adapter.config.get("model_config")
+            ),
+            wire_api="chat_completions",
+        )
+
+    request_params: dict[str, Any] = {
+        "model": effective_request["upstream_model"],
+        "messages": openai_messages,
+        "temperature": temperature,
+        "top_p": top_p,
+    }
+    if max_tokens is not None:
+        request_params["max_tokens"] = max_tokens
+    if stream:
+        request_params["stream"] = True
+    if tools:
+        request_params["tools"] = tools
+        request_params["tool_choice"] = tool_choice or "auto"
+    if runtime_kwargs.get("reasoning_effort") is None and "reasoning_effort" in (
+        effective_request.get("effective_params", {})
+    ):
+        request_params["reasoning_effort"] = effective_request["effective_params"][
+            "reasoning_effort"
+        ]
+    request_params.update(runtime_kwargs)
+    return request_params
+
+
+def supports_responses_reasoning_summary(
+    *,
+    model: str,
+    reasoning_summary_model_prefixes: tuple[str, ...],
+) -> bool:
+    normalized = str(model or "").strip().lower()
+    return any(
+        normalized.startswith(prefix) for prefix in reasoning_summary_model_prefixes
+    )
+
+
+def build_responses_reasoning_config(
+    *,
+    model: str,
+    explicit_reasoning: Any = None,
+    reasoning_summary_model_prefixes: tuple[str, ...],
+) -> Any:
+    supports_summary = supports_responses_reasoning_summary(
+        model=model,
+        reasoning_summary_model_prefixes=reasoning_summary_model_prefixes,
+    )
+
+    if isinstance(explicit_reasoning, dict):
+        if explicit_reasoning.get("summary") is not None:
+            return explicit_reasoning
+        if not supports_summary:
+            return explicit_reasoning
+        return {
+            **explicit_reasoning,
+            "summary": "auto",
+        }
+
+    if explicit_reasoning is not None:
+        return explicit_reasoning
+    if not supports_summary:
+        return None
+    return {"summary": "auto"}
+
+
+def convert_tools_for_responses(tools: list[dict]) -> list[dict]:
+    converted: list[dict] = []
+    has_web_search_function = False
+
+    for tool in tools:
+        if tool.get("type") == "function" and isinstance(tool.get("function"), dict):
+            function = tool["function"]
+            func_name = function.get("name", "")
+            if func_name == "web_search":
+                has_web_search_function = True
+                continue
+            converted.append(
+                {
+                    "type": "function",
+                    "name": func_name,
+                    "description": function.get("description"),
+                    "parameters": function.get("parameters"),
+                }
+            )
+            continue
+        converted.append(tool)
+
+    if has_web_search_function:
+        converted.insert(0, {"type": "web_search", "search_context_size": "medium"})
+    return converted
+
+
+async def build_responses_request(
+    *,
+    adapter: RequestPayloadBuilderAdapterProtocol,
+    messages: list[ChatMessage],
+    model: str,
+    temperature: float = 0.7,
+    max_tokens: int | None = None,
+    top_p: float = 1.0,
+    tools: list[dict] | None = None,
+    tool_choice: str | None = None,
+    stream: bool = False,
+    kwargs: dict[str, Any],
+    reasoning_summary_model_prefixes: tuple[str, ...],
+) -> dict[str, Any]:
+    runtime_kwargs = dict(kwargs)
+    supports_vision = runtime_kwargs.pop("supports_vision", True)
+    supports_audio = runtime_kwargs.pop("supports_audio", False)
+    supports_video = runtime_kwargs.pop("supports_video", False)
+    explicit_reasoning = runtime_kwargs.pop("reasoning", None)
+    effective_request = runtime_kwargs.pop("_effective_model_request", None)
+    model_config = runtime_kwargs.pop("model_config", None)
+    if effective_request is None:
+        effective_request = adapter.resolve_effective_model_request(
+            model=model,
+            model_config=(
+                model_config
+                if model_config is not None
+                else adapter.config.get("model_config")
+            ),
+            wire_api="responses",
+        )
+
+    if explicit_reasoning is None and "reasoning" in (
+        effective_request.get("effective_params", {})
+    ):
+        explicit_reasoning = effective_request["effective_params"]["reasoning"]
+
+    request_params: dict[str, Any] = {
+        "model": effective_request["upstream_model"],
+        "input": await adapter._convert_messages_to_responses_input(
+            messages,
+            supports_vision=supports_vision,
+            supports_audio=supports_audio,
+            supports_video=supports_video,
+        ),
+        "temperature": temperature,
+        "top_p": top_p,
+    }
+    if max_tokens is not None:
+        request_params["max_output_tokens"] = max_tokens
+    if stream:
+        request_params["stream"] = True
+    if tools:
+        request_params["tools"] = convert_tools_for_responses(tools)
+    if tool_choice:
+        request_params["tool_choice"] = tool_choice
+
+    reasoning = build_responses_reasoning_config(
+        model=model,
+        explicit_reasoning=explicit_reasoning,
+        reasoning_summary_model_prefixes=reasoning_summary_model_prefixes,
+    )
+    if reasoning is not None:
+        request_params["reasoning"] = reasoning
+
+    request_params.update(runtime_kwargs)
+    return request_params
+
+
+__all__ = [
+    "RequestPayloadBuilderAdapterProtocol",
+    "build_chat_completions_request",
+    "build_responses_reasoning_config",
+    "build_responses_request",
+    "convert_tools_for_responses",
+    "supports_responses_reasoning_summary",
+]
