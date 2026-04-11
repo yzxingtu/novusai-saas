@@ -9,14 +9,10 @@ import pytest
 from app.api.admin.plugins import (
     AdminPluginController,
     PluginInstallConfirmBody,
-    _assert_install_preview_token,
-    _assert_marketplace_package_identity,
     _create_install_preview_token,
-    _decode_install_preview_token,
 )
 from app.core.i18n import _, set_locale
 from app.exceptions.base import ValidationException
-from app.plugins.exceptions import PluginInstallError
 from app.plugins.preview import InstallPreview
 
 
@@ -33,59 +29,6 @@ def _use_english_locale():
     set_locale("en")
     yield
     set_locale("zh_CN")
-
-
-def test_marketplace_package_identity_accepts_matching_manifest() -> None:
-    manifest = SimpleNamespace(name="weather-widget", version="1.2.3")
-
-    _assert_marketplace_package_identity(
-        slug="weather-widget",
-        detail={"name": "weather-widget", "version": "1.2.3"},
-        manifest=manifest,
-    )
-
-
-def test_marketplace_package_identity_rejects_manifest_name_mismatch() -> None:
-    manifest = SimpleNamespace(name="other-plugin", version="1.2.3")
-
-    with pytest.raises(PluginInstallError, match="expected plugin 'weather-widget'"):
-        _assert_marketplace_package_identity(
-            slug="weather-widget",
-            detail={"name": "weather-widget", "version": "1.2.3"},
-            manifest=manifest,
-        )
-
-
-def test_marketplace_package_identity_rejects_manifest_version_mismatch() -> None:
-    manifest = SimpleNamespace(name="weather-widget", version="9.9.9")
-
-    with pytest.raises(PluginInstallError, match="expected '1.2.3'"):
-        _assert_marketplace_package_identity(
-            slug="weather-widget",
-            detail={"name": "weather-widget", "version": "1.2.3"},
-            manifest=manifest,
-        )
-
-
-def test_install_preview_token_round_trip_accepts_matching_marketplace_context() -> None:
-    token = _create_install_preview_token(
-        source="marketplace",
-        plugin_name="weather-widget",
-        version="1.2.3",
-        admin_id=7,
-        marketplace_slug="weather-widget",
-    )
-
-    payload = _decode_install_preview_token(token)
-
-    _assert_install_preview_token(
-        payload,
-        source="marketplace",
-        plugin_name="weather-widget",
-        version="1.2.3",
-        admin_id=7,
-        marketplace_slug="weather-widget",
-    )
 
 
 @pytest.mark.asyncio

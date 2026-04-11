@@ -74,3 +74,9 @@
 {"file": "frontend/apps/web-antd/src/components/business/file-picker/__tests__/use-file-picker-core.upload-queue.test.ts", "reason": "Optional hardening: add upload queue slice coverage for batching, task state, and enqueue flow"}
 {"file": "frontend/apps/web-antd/src/components/business/file-picker/__tests__/use-file-picker-core.drag-drop.test.ts", "reason": "Optional hardening: add drag/drop slice coverage for overlay state and drop queueing"}
 {"file": "frontend/apps/web-antd/src/components/business/file-picker/__tests__/FilePicker.slice.test.ts", "reason": "Optional hardening: add FilePicker shell slice contract coverage for modal wiring and core integration"}
+{"file": "backend/app/services/system/plugin_install_preview_service.py", "reason": "Own marketplace/upload install-preview orchestration and token validation outside admin controllers"}
+{"file": "backend/tests/services/test_plugin_install_preview_service.py", "reason": "Lock the extracted install-preview workflow helpers and upload preview orchestration with service-level coverage"}
+{"file": "backend/tests/test_admin_plugin_install_preview_routes_contract.py", "reason": "Lock the thin install-preview transport adapter so marketplace/upload preview routes keep delegating to the extracted service seam"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backfill plugin install-preview service seam guidance for the plugin platform controller split"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backfill install-preview service seam and transport sentinel expectations for marketplace preview/confirm flows"}
+{"file": ".trellis/spec/guides/plugin-runtime-playbook.md", "reason": "Make install-preview workflow service + transport module separation explicit in the admin plugin seam map"}

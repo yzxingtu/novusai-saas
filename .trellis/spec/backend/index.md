@@ -108,6 +108,9 @@ backend modules:
   `backend/app/api/admin/plugins.py` 的推荐写侧分层是：
   read routes -> `plugin_admin_contracts.py` / `plugin_read_model_service.py`；
   write routes -> `plugin_admin_workflow_service.py` / `plugin_cleanup_service.py` / `PluginService`。
+  install-preview workflow 保持在 `plugin_install_preview_service.py`
+  （token 编解码、marketplace/upload preview/confirm、package identity 校验）；
+  `plugin_install_preview.py` 仅做路由/兼容导出，不回收进 `plugins.py`。
 - Codegen backend chain: separate generation core, config/read-model management,
   and CLI/API transport adapters; avoid one module owning config parse,
   generation orchestration, migration hooks, and delivery format at once.

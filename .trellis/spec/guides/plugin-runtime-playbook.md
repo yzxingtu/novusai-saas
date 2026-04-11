@@ -108,10 +108,11 @@ Do not skip validation just because the plugin uses a slimmer standalone toolcha
   - cleanup layer: rollback/remove and safety checks
   - transport adapters: API/CLI request-to-service mapping
   - admin plugin controller seam map:
-    dependency subroutes, install-preview helpers, read-model query service,
-    write-workflow service, cleanup/audit services, and lifecycle/runtime
-    services should stay separate instead of collapsing back into one giant
-    `plugins.py`
+    dependency subroutes, install-preview workflow service
+    (`plugin_install_preview_service.py`) + thin transport module
+    (`plugin_install_preview.py`), read-model query service, write-workflow
+    service, cleanup/audit services, and lifecycle/runtime services should stay
+    separate instead of collapsing back into one giant `plugins.py`
 - Plugin frontend:
   - route/page shell: layout + section composition
   - composables: loading/query/form workflows

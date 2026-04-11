@@ -69,6 +69,10 @@ Primary references:
   if `admin/plugins.py` sheds notifications, menu override orchestration,
   cleanup, or license flows into `plugin_admin_workflow_service.py`, keep both
   the route contract tests and workflow unit tests in the same change.
+- Plugin install-preview workflows (marketplace/upload preview + confirm +
+  token validation) must live in `plugin_install_preview_service.py`; keep
+  `plugin_install_preview.py` and `admin/plugins.py` transport-only, and
+  preserve `test_admin_plugin_marketplace_contract.py` as the route sentinel.
 - For plugin lifecycle/runtime governance, prefer `facade + mixin/parts`:
   facade keeps compatibility exports and assembly, while orchestrator parts own
   lifecycle execution paths. Current reference shape:

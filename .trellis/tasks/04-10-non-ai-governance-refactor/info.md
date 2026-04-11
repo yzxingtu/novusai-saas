@@ -142,9 +142,12 @@
   - `backend/app/services/system/plugin_read_model_service.py`
   - `backend/app/services/system/plugin_cleanup_service.py`
   - `backend/app/services/system/plugin_admin_workflow_service.py`
+  - `backend/app/services/system/plugin_install_preview_service.py`
   - `backend/tests/test_admin_plugin_dependency_contract.py`
+  - `backend/tests/test_admin_plugin_install_preview_routes_contract.py`
+  - `backend/tests/services/test_plugin_install_preview_service.py`
   - admin plugins controller 已收成更薄的 write-side façade
-  - marketplace / upload preview-install 已沉到 `plugin_install_preview.py`
+  - marketplace / upload preview-install workflow 已沉到 `plugin_install_preview_service.py`，`plugin_install_preview.py` 仅保留路由/兼容导出
   - admin plugins read routes 已沉到 `plugin_admin_contracts.py`
   - admin plugins write-side 协调已继续下沉到 `plugin_admin_workflow_service.py`
   - registry 的 notification / permission / menu / socketio / frontend-slot 运行时家族已抽到 `registry_runtime_extensions.py`
@@ -301,6 +304,8 @@
   - 本轮已修复 `PluginCleanupService` 的 alembic `LIKE` 转义风险，并补了回归测试。
   - `backend/scripts/plugin_cli.py` 已收口为薄 facade，create/build/validate/pack/release/parser 等职责已经分拆到 companion modules。
   - `backend/app/api/admin/plugins.py` 已继续把 write-side 协调下沉到 `plugin_admin_workflow_service.py`，controller 现在只保留 transport 协调；`backend/app/plugins/registry.py` 也已完成 host seam 收口，本轮 blocker 已关闭。
+  - install-preview workflow 已由 `plugin_install_preview_service.py` 承接，`plugin_install_preview.py` 保留路由/兼容导出，`test_admin_plugin_marketplace_contract.py` 继续覆盖 preview/confirm 与 token 校验合约。
+  - 2026-04-12 定向验证：`python -m ruff check backend/app/api/admin/plugin_install_preview.py backend/app/services/system/__init__.py backend/tests/test_admin_plugin_marketplace_contract.py backend/tests/services/test_plugin_install_preview_service.py backend/tests/test_admin_plugin_install_preview_routes_contract.py .trellis/spec/backend/index.md .trellis/spec/backend/quality-guidelines.md .trellis/spec/guides/plugin-runtime-playbook.md` 通过；`python -m pytest tests/test_admin_plugin_marketplace_contract.py tests/test_admin_plugin_install_preview_routes_contract.py tests/services/test_plugin_install_preview_service.py tests/test_admin_plugin_write_routes_contract.py tests/test_admin_plugin_read_routes_contract.py tests/test_admin_plugin_dependency_contract.py tests/test_admin_plugin_repair_fail_close.py tests/services/test_plugin_read_model_service.py -q -p no:cacheprovider --basetemp .pytest_tmp/install-preview` 结果 `35 passed`。
 - `agent-4 / codegen-fullstack`
   - `backend/app/services/system/codegen_service.py`、`backend/app/codegen/generator.py` 已完成 facade 化；`backend/app/api/admin/codegen.py`、`FieldPropertyPanel.vue` 的 workflow / section seams 已通过定向回归锁住。
   - `admin/codegen.py` 的 preset 安全校验已进一步下沉到 `CodegenService.get_preset_detail_safe()`，controller 保持 transport-only。

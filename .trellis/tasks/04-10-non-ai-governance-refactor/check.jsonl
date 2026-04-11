@@ -65,3 +65,9 @@
 {"file": "frontend/apps/web-antd/src/components/business/file-picker/__tests__/use-file-picker-core.upload-queue.test.ts", "reason": "Verify file-picker upload queue slice stays stable for batching, task state, and enqueue flow"}
 {"file": "frontend/apps/web-antd/src/components/business/file-picker/__tests__/use-file-picker-core.drag-drop.test.ts", "reason": "Verify file-picker drag/drop slice stays stable for overlay state and drop queueing"}
 {"file": "frontend/apps/web-antd/src/components/business/file-picker/__tests__/FilePicker.slice.test.ts", "reason": "Verify FilePicker shell slice stays stable for modal wiring and core integration"}
+{"file": "backend/app/services/system/plugin_install_preview_service.py", "reason": "Verify install-preview workflow stays in the service seam and controller exports remain thin"}
+{"file": "backend/tests/services/test_plugin_install_preview_service.py", "reason": "Verify helper validation and upload preview orchestration stay locked at the extracted install-preview service seam"}
+{"file": "backend/tests/test_admin_plugin_install_preview_routes_contract.py", "reason": "Verify marketplace/upload preview routes remain transport-only adapters after the install-preview extraction"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Verify plugin platform rules now codify the install-preview service seam and controller boundary"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify backend quality gates reference install-preview service seam and marketplace preview/confirm sentinel coverage"}
+{"file": ".trellis/spec/guides/plugin-runtime-playbook.md", "reason": "Verify plugin runtime playbook includes install-preview workflow service + transport module separation"}
