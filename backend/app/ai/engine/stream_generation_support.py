@@ -11,6 +11,10 @@ from typing import TYPE_CHECKING, Any
 from app.ai.sse import SSEChunkEncoder
 from app.ai.types import ChatMessage
 
+from .conversation_result_projector import (
+    build_execution_result,
+    build_turn_projection,
+)
 from .recovery_manager import RecoveryManager
 from .stream_error_utils import trace_payload as _trace_payload
 from .stream_generation_view import ensure_stream_generation_view
@@ -360,71 +364,6 @@ def _build_result_turn_record(
     return result_turn_record, resolved_protocol_path
 
 
-def _apply_turn_record_diagnostics(
-    result: ExecutionResult,
-    *,
-    execution_path: str | None,
-    diagnostics_payload: dict[str, Any],
-    resolved_protocol_path: str,
-    partial: bool,
-) -> None:
-    if not isinstance(result.turn_record, dict):
-        return
-
-    result.turn_record["execution_path"] = execution_path
-    result.turn_record["protocol_path"] = resolved_protocol_path
-    result.turn_record["termination_reason"] = result.completion_reason
-    if partial:
-        result.turn_record["turn_outcome"] = "partial"
-    elif not result.turn_record.get("turn_outcome"):
-        result.turn_record["turn_outcome"] = "success"
-    result.turn_record["intent_plan"] = diagnostics_payload.get("intent_plan")
-    result.turn_record["budget"] = diagnostics_payload.get("budget")
-    result.turn_record["budget_status"] = diagnostics_payload.get("budget_status")
-    result.turn_record["budget_exit_reason"] = diagnostics_payload.get(
-        "budget_exit_reason"
-    )
-    result.turn_record["candidate_tool_names"] = diagnostics_payload.get(
-        "candidate_tool_names"
-    )
-    result.turn_record["retry_events"] = diagnostics_payload.get("retry_events")
-    result.turn_record["partial_exit_reason"] = diagnostics_payload.get(
-        "partial_exit_reason"
-    )
-    result.turn_record["unfinished_intents"] = diagnostics_payload.get(
-        "unfinished_intents"
-    )
-    result.turn_record["provider_events"] = diagnostics_payload.get("provider_events")
-    result.turn_record["failure_kind"] = diagnostics_payload.get("failure_kind")
-    result.turn_record["tool_planner"] = diagnostics_payload.get("tool_planner")
-    result.turn_record["active_intent_id"] = diagnostics_payload.get("active_intent_id")
-    result.turn_record["continuation_source"] = diagnostics_payload.get(
-        "continuation_source"
-    )
-    result.turn_record["conversation_outcome"] = diagnostics_payload.get(
-        "conversation_outcome"
-    )
-    result.turn_record["assistant_claimed_tool_call_without_tool_event"] = (
-        diagnostics_payload.get("assistant_claimed_tool_call_without_tool_event")
-    )
-    result.turn_record["contract_breach_type"] = diagnostics_payload.get(
-        "contract_breach_type"
-    )
-    result.turn_record["final_output_source"] = diagnostics_payload.get(
-        "final_output_source"
-    )
-    result.turn_record["post_tool_completion_state"] = diagnostics_payload.get(
-        "post_tool_completion_state"
-    )
-    result.turn_record["auto_fetch_gate_reason"] = diagnostics_payload.get(
-        "auto_fetch_gate_reason"
-    )
-    metadata = dict(result.turn_record.get("metadata") or {})
-    metadata["orchestration"] = diagnostics_payload
-    metadata["turn_diagnostics"] = diagnostics_payload
-    result.turn_record["metadata"] = metadata
-
-
 def _encode_message_events(chunks: list[str]) -> list[str]:
     return [
         SSEChunkEncoder.encode(
@@ -574,8 +513,20 @@ def finalize_successful_turn(
         diagnostics_payload=diagnostics_payload,
         response_metadata=response_metadata,
     )
+    turn_projection = build_turn_projection(
+        raw_turn_record=result_turn_record,
+        diagnostics_payload=diagnostics_payload,
+        execution_path=view.execution_path,
+        completion_reason=completion_reason,
+        partial=partial,
+        final_output_source=final_output_source,
+        protocol_path=resolved_protocol_path,
+        default_turn_outcome="success",
+        force_completion_reason_in_turn_record=True,
+    )
+    diagnostics_payload = turn_projection.diagnostics
 
-    result = ExecutionResult(
+    result = build_execution_result(
         success=not partial,
         output=output,
         messages=view.messages_to_dicts(messages),
@@ -583,27 +534,24 @@ def finalize_successful_turn(
         total_tokens=total_tokens,
         duration_ms=duration_ms,
         conversation_id=view.request.conversation_id,
-        runtime_model_id=(view.runtime_model_info or {}).get("model_id"),
-        runtime_model_name=(view.runtime_model_info or {}).get("model_name"),
-        runtime_provider_id=(view.runtime_model_info or {}).get("provider_id"),
-        runtime_provider_name=(view.runtime_model_info or {}).get("provider_name"),
+        runtime_model_info=view.runtime_model_info,
+        partial=partial,
+        interrupted=paused_for_consent,
+        completion_reason=completion_reason,
         rag_sources=rag_sources,
         rag_source_kinds=view.rag_source_kinds,
-        partial=partial,
-        completion_reason=completion_reason,
         context_compacted=view.context_compacted,
         memory_flush_triggered=view.memory_flush_triggered,
         memory_recalled=view.memory_recalled,
         prune_stats=view.prune_stats,
         tool_planner=view.tool_planner,
-        turn_record=result_turn_record,
+        turn_projection=turn_projection,
         intent_plan=view.intent_plan,
         execution_path=view.execution_path,
         execution_budget=view.budget_snapshot,
         recovery_history=view.recovery_history_dicts,
         provider_failure_kind=view.provider_failure_kind,
         provider_events=view.provider_events,
-        diagnostics=diagnostics_payload,
     )
     if completion_reason == "length":
         logger.warning(
@@ -616,15 +564,6 @@ def finalize_successful_turn(
 
     if paused_for_consent:
         result.success = False
-        result.interrupted = True
-
-    _apply_turn_record_diagnostics(
-        result,
-        execution_path=view.execution_path,
-        diagnostics_payload=diagnostics_payload,
-        resolved_protocol_path=resolved_protocol_path,
-        partial=partial,
-    )
 
     replay_events = _build_replay_events(
         handler,

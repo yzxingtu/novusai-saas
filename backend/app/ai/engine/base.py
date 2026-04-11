@@ -399,6 +399,8 @@ class BaseEngine(ABC):
     _build_research_continuation_hint = staticmethod(
         _build_research_continuation_hint_impl
     )
+    _prepare_llm_gateway_call = staticmethod(_prepare_llm_gateway_call_impl)
+    _apply_llm_response_metadata = staticmethod(_apply_llm_response_metadata_impl)
     _user_message = staticmethod(build_user_message)
     _parse_tool_arguments = staticmethod(parse_tool_arguments)
     _tool_call_operation_name = staticmethod(tool_call_operation_name)
@@ -596,7 +598,7 @@ class BaseEngine(ABC):
             route_result: ModelRouter route result (None uses agent's original model) / ModelRouter 路由结果
         """
         del selected_skill_names, context_sources
-        prepared_call = await _prepare_llm_gateway_call_impl(
+        prepared_call = await self._prepare_llm_gateway_call(
             db=self.db,
             agent=agent,
             messages=messages,
@@ -627,7 +629,7 @@ class BaseEngine(ABC):
         response = await self.gateway.chat(
             **prepared_call.gateway_kwargs,
         )
-        return _apply_llm_response_metadata_impl(
+        return self._apply_llm_response_metadata(
             response,
             llm_call_context=prepared_call.llm_call_context,
         )

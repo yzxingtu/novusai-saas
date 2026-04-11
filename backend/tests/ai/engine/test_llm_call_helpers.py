@@ -87,6 +87,12 @@ async def test_prepare_llm_gateway_call_builds_gateway_payload_and_prunes_unsupp
     assert prepared.gateway_kwargs["supports_audio"] is False
     assert prepared.gateway_kwargs["supports_video"] is False
     assert messages[0].attachments == [
+        {"type": "image", "url": "https://example.com/image.png"},
+        {"type": "audio", "url": "https://example.com/audio.mp3"},
+        {"type": "file", "url": "https://example.com/file.txt"},
+    ]
+    sanitized_messages = prepared.gateway_kwargs["messages"]
+    assert sanitized_messages[0].attachments == [
         {"type": "file", "url": "https://example.com/file.txt"}
     ]
 

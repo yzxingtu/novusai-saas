@@ -197,12 +197,13 @@ class StreamIOAdapter:
             return
         runtime_model_info = metadata.get("runtime_model_info")
         if isinstance(runtime_model_info, dict):
-            self.handler._runtime_model_info = dict(runtime_model_info)
+            generation_view = self.handler._stream_generation_view()
+            generation_view.runtime_model_info = dict(runtime_model_info)
             sandbox = getattr(self.handler.engine, "sandbox", None)
             if sandbox is not None and hasattr(sandbox, "set_runtime_model_info"):
                 sandbox.set_runtime_model_info(runtime_model_info)
         raw_turn_record = metadata.get("runtime_turn_record")
-        self.handler._replace_runtime_turn_record(raw_turn_record)
+        self.handler._stream_generation_view().replace_runtime_turn_record(raw_turn_record)
 
     async def call_llm(
         self,
@@ -220,15 +221,17 @@ class StreamIOAdapter:
         finish_reason = "stop"
         native_search_observed = False
 
+        generation_view = self.handler._stream_generation_view()
+        runtime_state = generation_view.runtime
         round_kind = str(kwargs.get("breach_retry_result") or "").strip()
         if round_kind in {"contract_retry", "intent_retry"}:
             await self.handler._emit_clear_content_if_needed()
-        elif self.handler._clear_before_next_message:
-            self.handler._clear_before_next_message = False
+        elif runtime_state.clear_before_next_message:
+            runtime_state.clear_before_next_message = False
             await self.handler._emit_clear_content_if_needed()
 
-        runtime_context = self.handler._next_runtime_context
-        self.handler._next_runtime_context = None
+        runtime_context = runtime_state.next_runtime_context
+        runtime_state.next_runtime_context = None
         req_role = getattr(
             self.handler.request,
             "user_role",
@@ -266,7 +269,7 @@ class StreamIOAdapter:
                 )
             if chunk.reasoning_delta:
                 aggregated_reasoning += chunk.reasoning_delta
-                self.handler._reasoning_output = aggregated_reasoning
+                generation_view.reasoning_output = aggregated_reasoning
                 await self.handler._emit_runtime_event(
                     {
                         "event": "thinking",
@@ -275,8 +278,10 @@ class StreamIOAdapter:
                 )
             if chunk.delta:
                 aggregated_output += chunk.delta
-                self.handler._visible_stream_content += chunk.delta
-                self.handler._output = self.handler._visible_stream_content
+                generation_view.visible_stream_content = (
+                    generation_view.visible_stream_content + chunk.delta
+                )
+                generation_view.output = generation_view.visible_stream_content
                 await self.handler._emit_runtime_event(
                     {
                         "event": "message",
@@ -309,11 +314,11 @@ class StreamIOAdapter:
             finalized_tool_calls = []
             finish_reason = "stop"
 
-        self.handler._clear_before_next_message = bool(
+        runtime_state.clear_before_next_message = bool(
             finalized_tool_calls and aggregated_output.strip()
         )
-        self.handler._total_tokens = int(total_tokens or 0)
-        self.handler._completion_tokens_used = int(completion_tokens_used or 0)
+        generation_view.total_tokens = int(total_tokens or 0)
+        generation_view.completion_tokens_used = int(completion_tokens_used or 0)
         response = ChatResponse(
             message=ChatMessage(
                 role="assistant",
@@ -377,7 +382,7 @@ class StreamIOAdapter:
             ),
         )
         if runtime_outcome.output_override is not None:
-            self.handler._output = runtime_outcome.output_override
+            self.handler._stream_generation_view().output = runtime_outcome.output_override
 
         return ToolBatchResult(
             response=runtime_outcome.response,
@@ -413,7 +418,7 @@ class StreamIOAdapter:
                 context_sources=self._context_sources(),
             )
         )
-        stream_local_output = str(self.handler._output or "").strip()
+        stream_local_output = str(self.handler._stream_generation_view().output or "").strip()
         if not str(output or "").strip() and stream_local_output:
             output = stream_local_output
         return output, final_total_tokens, final_completion_tokens
@@ -445,7 +450,7 @@ class StreamIOAdapter:
                 context_sources=self._context_sources(),
             )
         )
-        stream_local_output = str(self.handler._output or "").strip()
+        stream_local_output = str(self.handler._stream_generation_view().output or "").strip()
         if not str(output or "").strip() and stream_local_output:
             output = stream_local_output
         return output, final_total_tokens, final_completion_tokens
@@ -762,12 +767,13 @@ class StreamExecutionHandler:
         await self._event_queue.put(SSEChunkEncoder.encode(payload))
 
     async def _emit_clear_content_if_needed(self) -> None:
-        if not self._visible_stream_content:
+        generation_view = self._stream_generation_view()
+        if not generation_view.visible_stream_content:
             return
         await self._emit_runtime_event({"event": "clear_content"})
-        self._visible_stream_content = ""
-        self._output = ""
-        self._reasoning_output = ""
+        generation_view.visible_stream_content = ""
+        generation_view.output = ""
+        generation_view.reasoning_output = ""
 
     async def generate(self) -> AsyncIterator[str]:
         """SSE event generator main loop / SSE 事件生成器主循环"""
@@ -857,16 +863,16 @@ class StreamExecutionHandler:
                 )
 
             # Partial persist: pass accumulated state so history is not lost / 中断时传递已累积状态，避免历史丢失
-            if self.on_complete and not self._on_complete_called:
+            if self.on_complete and not generation_view.runtime.on_complete_called:
                 duration_ms = int((time.perf_counter() - self.start_time) * 1000)
-                partial_output = getattr(self, "_output", None) or output
-                partial_tokens = getattr(self, "_total_tokens", None)
+                partial_output = generation_view.output or output
+                partial_tokens = generation_view.total_tokens
                 if partial_tokens is None:
                     partial_tokens = total_tokens
                 _append_partial_assistant_output_impl(
                     messages,
                     output=partial_output,
-                    reasoning_output=getattr(self, "_reasoning_output", None),
+                    reasoning_output=generation_view.reasoning_output,
                 )
                 failed_result = _build_terminal_result_impl(
                     generation_view,
@@ -910,16 +916,16 @@ class StreamExecutionHandler:
                 exc_info=True,
             )
             self._update_turn_progress(interrupted_stage=self._interrupted_stage)
-            if self.on_complete and not self._on_complete_called:
+            if self.on_complete and not generation_view.runtime.on_complete_called:
                 duration_ms = int((time.perf_counter() - self.start_time) * 1000)
-                partial_output = getattr(self, "_output", None) or output
-                partial_tokens = getattr(self, "_total_tokens", None)
+                partial_output = generation_view.output or output
+                partial_tokens = generation_view.total_tokens
                 if partial_tokens is None:
                     partial_tokens = total_tokens
                 _append_partial_assistant_output_impl(
                     messages,
                     output=partial_output,
-                    reasoning_output=getattr(self, "_reasoning_output", None),
+                    reasoning_output=generation_view.reasoning_output,
                 )
                 interrupted_result = _build_terminal_result_impl(
                     generation_view,

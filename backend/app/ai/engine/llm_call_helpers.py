@@ -113,55 +113,88 @@ def prune_messages_for_model_capabilities(
     supports_vision: bool,
     supports_audio: bool,
     supports_video: bool,
-) -> None:
-    for msg in messages:
-        if not msg.attachments:
-            continue
-        kept = [
-            attachment
-            for attachment in msg.attachments
-            if not (
-                (attachment.get("type") == "image" and not supports_vision)
-                or (attachment.get("type") == "audio" and not supports_audio)
-                or (attachment.get("type") == "video" and not supports_video)
-            )
-        ]
-        msg.attachments = kept if kept else None
+) -> list[ChatMessage]:
+    return sanitize_messages_for_capabilities(
+        messages,
+        supports_vision=supports_vision,
+        supports_audio=supports_audio,
+        supports_video=supports_video,
+    )
 
 
-async def prepare_llm_gateway_call(
+async def resolve_model_capabilities(
     *,
     db: Any,
     agent: Agent,
+    route_result: Any | None,
+) -> LLMCallContext:
+    return await resolve_llm_call_context(
+        db=db,
+        agent=agent,
+        route_result=route_result,
+    )
+
+
+def sanitize_messages_for_capabilities(
+    messages: list[ChatMessage],
+    *,
+    supports_vision: bool,
+    supports_audio: bool,
+    supports_video: bool,
+) -> list[ChatMessage]:
+    sanitized: list[ChatMessage] = []
+    for msg in messages:
+        attachments = None
+        if msg.attachments:
+            kept: list[dict[str, Any]] = []
+            for attachment in msg.attachments:
+                attachment_type = attachment.get("type")
+                if attachment_type == "image" and not supports_vision:
+                    continue
+                if attachment_type == "audio" and not supports_audio:
+                    continue
+                if attachment_type == "video" and not supports_video:
+                    continue
+                kept.append(dict(attachment))
+            if kept:
+                attachments = kept
+        tool_calls = None
+        if msg.tool_calls:
+            tool_calls = [dict(call) for call in msg.tool_calls]
+        metadata = dict(msg.metadata) if msg.metadata else None
+        sanitized.append(
+            ChatMessage(
+                role=msg.role,
+                content=msg.content,
+                name=msg.name,
+                tool_calls=tool_calls,
+                tool_call_id=msg.tool_call_id,
+                attachments=attachments,
+                reasoning_content=msg.reasoning_content,
+                metadata=metadata,
+                internal_only=msg.internal_only,
+            )
+        )
+    return sanitized
+
+
+def build_gateway_kwargs(
+    *,
+    agent: Agent,
     messages: list[ChatMessage],
     tools: list[ToolDefinition] | None,
+    openai_tools: list[dict[str, Any]] | None,
     all_tool_names: list[str] | None,
-    tool_use_policy: ToolUsePolicy | None,
+    effective_policy: ToolUsePolicy,
     breach_retry_result: str | None,
     tenant_id: int | None,
     user_id: int | None,
     conversation_id: int | None,
     billing_context: dict[str, Any] | None,
-    route_result: Any | None,
+    llm_call_context: LLMCallContext,
     log_user_type: str | None,
-) -> PreparedLLMCall:
-    openai_tools = to_openai_tools(tools) if tools else None
-    effective_policy = build_effective_tool_policy(
-        tools=tools,
-        tool_use_policy=tool_use_policy,
-    )
-    llm_call_context = await resolve_llm_call_context(
-        db=db,
-        agent=agent,
-        route_result=route_result,
-    )
-    prune_messages_for_model_capabilities(
-        messages,
-        supports_vision=llm_call_context.supports_vision,
-        supports_audio=llm_call_context.supports_audio,
-        supports_video=llm_call_context.supports_video,
-    )
-    gateway_kwargs = {
+) -> dict[str, Any]:
+    return {
         "provider_code": llm_call_context.provider_code,
         "messages": messages,
         "model": llm_call_context.model_code,
@@ -191,6 +224,55 @@ async def prepare_llm_gateway_call(
         "supports_audio": llm_call_context.supports_audio,
         "supports_video": llm_call_context.supports_video,
     }
+
+
+async def prepare_llm_gateway_call(
+    *,
+    db: Any,
+    agent: Agent,
+    messages: list[ChatMessage],
+    tools: list[ToolDefinition] | None,
+    all_tool_names: list[str] | None,
+    tool_use_policy: ToolUsePolicy | None,
+    breach_retry_result: str | None,
+    tenant_id: int | None,
+    user_id: int | None,
+    conversation_id: int | None,
+    billing_context: dict[str, Any] | None,
+    route_result: Any | None,
+    log_user_type: str | None,
+) -> PreparedLLMCall:
+    openai_tools = to_openai_tools(tools) if tools else None
+    effective_policy = build_effective_tool_policy(
+        tools=tools,
+        tool_use_policy=tool_use_policy,
+    )
+    llm_call_context = await resolve_model_capabilities(
+        db=db,
+        agent=agent,
+        route_result=route_result,
+    )
+    sanitized_messages = sanitize_messages_for_capabilities(
+        messages,
+        supports_vision=llm_call_context.supports_vision,
+        supports_audio=llm_call_context.supports_audio,
+        supports_video=llm_call_context.supports_video,
+    )
+    gateway_kwargs = build_gateway_kwargs(
+        agent=agent,
+        messages=sanitized_messages,
+        tools=tools,
+        openai_tools=openai_tools,
+        all_tool_names=all_tool_names,
+        effective_policy=effective_policy,
+        breach_retry_result=breach_retry_result,
+        tenant_id=tenant_id,
+        user_id=user_id,
+        conversation_id=conversation_id,
+        billing_context=billing_context,
+        llm_call_context=llm_call_context,
+        log_user_type=log_user_type,
+    )
     return PreparedLLMCall(
         effective_policy=effective_policy,
         llm_call_context=llm_call_context,
@@ -218,7 +300,10 @@ __all__ = [
     "PreparedLLMCall",
     "apply_llm_response_metadata",
     "build_effective_tool_policy",
+    "build_gateway_kwargs",
     "prepare_llm_gateway_call",
     "prune_messages_for_model_capabilities",
+    "resolve_model_capabilities",
+    "sanitize_messages_for_capabilities",
     "resolve_llm_call_context",
 ]
