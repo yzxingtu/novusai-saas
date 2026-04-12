@@ -211,6 +211,11 @@ class TenantAdminWorkflowService:
             exclude_unset=True,
             exclude={"password"},
         )
+        if data.password is None and not update_data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=_("common.invalid_request"),
+            )
 
         try:
             if data.password is not None:

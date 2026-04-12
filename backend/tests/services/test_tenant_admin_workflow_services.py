@@ -54,6 +54,36 @@ async def test_tenant_admin_workflow_rejects_owner_disable(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
+async def test_tenant_admin_workflow_rejects_empty_update(monkeypatch) -> None:
+    service = TenantAdminWorkflowService.__new__(TenantAdminWorkflowService)
+    service._db = SimpleNamespace(flush=AsyncMock())
+    service._tenant_service = SimpleNamespace(get_by_id=AsyncMock(return_value=object()))
+    service._auth_service = SimpleNamespace()
+
+    tenant_admin_service = SimpleNamespace(
+        get_identity_detail=AsyncMock(return_value=SimpleNamespace(is_owner=False)),
+        reset_password=AsyncMock(),
+        update_admin=AsyncMock(),
+    )
+    service._get_tenant_admin_service = lambda _tenant_id: tenant_admin_service
+
+    with pytest.raises(Exception) as exc_info:
+        await service.update_tenant_admin(
+            tenant_id=3,
+            admin_id=7,
+            data=SimpleNamespace(
+                is_active=None,
+                password=None,
+                model_dump=lambda **_kwargs: {},
+            ),
+        )
+
+    assert "无效请求" in str(exc_info.value)
+    tenant_admin_service.reset_password.assert_not_called()
+    tenant_admin_service.update_admin.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_tenant_admin_workflow_force_logout_delegates(monkeypatch) -> None:
     service = TenantAdminWorkflowService.__new__(TenantAdminWorkflowService)
     service._db = SimpleNamespace()

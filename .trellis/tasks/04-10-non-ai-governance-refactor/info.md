@@ -190,6 +190,14 @@
   - file-picker drag/drop slice：拖拽叠层与 drop 入队流程保持稳定。
 - `frontend/apps/web-antd/src/components/business/file-picker/__tests__/FilePicker.slice.test.ts`
   - FilePicker shell slice 合约：壳层交互与核心组合契约保持稳定。
+- `frontend/apps/web-antd/src/views/admin/system/system-logs/__tests__/SystemLogToolbar.slice.test.ts`
+  - system-logs toolbar 壳层切片：分类/文件 chips 与 download/copy 禁用状态保持稳定。
+- `frontend/apps/web-antd/src/views/admin/system/codegen/modules/__tests__/preview-builders.test.ts`
+  - codegen WYSIWYG 列表预览构建：当全部字段被标记为不显示时仍会回退列构建，首行默认值解析保持稳定。
+- `backend/tests/services/test_plugin_read_model_service.py`
+  - plugin registry fail-close 清理：当 unregister handler 抛错时，permission / notification / skill runtime caches 仍必须被清空。
+- `backend/tests/services/test_tenant_admin_workflow_services.py`
+  - tenant-admin workflow：空更新请求必须 fail-close，不允许 controller/service 把空 payload 视为成功更新。
 
 ## 验证补充
 
@@ -373,3 +381,13 @@
 - `python -m pytest tests/test_plugin_manifest_validation.py tests/test_plugin_extension_registration.py tests/test_plugin_storage_runtime.py tests/test_plugin_manifest_sync_service.py tests/test_plugin_startup_discovery_boundaries.py -q -p no:cacheprovider --basetemp E:/git_clone/novusai-saas-yudi/.pytest_tmp/manifest-runtime`
   - 工作目录：`backend`
   - 结果：`24 passed`。
+- `python -m pytest tests/services/test_plugin_read_model_service.py -q -p no:cacheprovider --basetemp E:/git_clone/novusai-saas-yudi/.pytest_tmp/plugin-read-guard`
+  - 工作目录：`backend`
+  - 结果：`3 passed`。
+- `python -m pytest tests/services/test_tenant_admin_workflow_services.py -q -p no:cacheprovider --basetemp E:/git_clone/novusai-saas-yudi/.pytest_tmp/tenant-admin-guard`
+  - 工作目录：`backend`
+  - 结果：`7 passed`。
+- `pnpm --dir frontend test:unit -- preview-builders SystemLogToolbar.slice`
+  - 结果：`2 files passed / 4 tests passed`。
+- `pnpm --dir frontend exec vue-tsc --noEmit --skipLibCheck --pretty false -p apps/web-antd/tsconfig.json`
+  - 结果：通过。

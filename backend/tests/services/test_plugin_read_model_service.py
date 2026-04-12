@@ -97,3 +97,40 @@ async def test_build_admin_plugin_detail_uses_base_service_get_by_id(mock_db):
         dependency_status={"overall": "installed"},
     )
     service.get_readme.assert_awaited_once_with(7, locale="zh-CN")
+
+
+def test_registry_cleanup_clears_runtime_state_on_unreg_failure(monkeypatch):
+    from app.plugins.registry import ExtensionRegistry
+
+    ExtensionRegistry.reset()
+    registry = ExtensionRegistry.get_instance()
+
+    class DummyExecutor:
+        pass
+
+    registry.register_permission("demo-plugin", "access", name={"en": "Access"})
+    registry.register_notification("demo-plugin", "alert", title={"en": "Alert"})
+    registry.register_skill(
+        "demo-plugin",
+        "toolkit",
+        lambda *_args, **_kwargs: [],
+        executor=DummyExecutor,
+    )
+
+    def _boom(*_args, **_kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(registry, "_unregister_permission", _boom)
+    monkeypatch.setattr(registry, "_unregister_notification", _boom)
+    monkeypatch.setattr(registry, "_unregister_skill", _boom)
+
+    registry.unregister_all("demo-plugin")
+
+    assert registry.get_plugin_permissions("demo-plugin") == []
+    assert registry.get_plugin_notification("plugin.demo-plugin.alert") is None
+    assert (
+        registry.resolve_plugin_permission_title("demo_plugin.permission.access")
+        is None
+    )
+    assert registry.get_plugin_skill_resolver("demo-plugin") is None
+    assert registry.get_plugin_executor("demo-plugin") is None

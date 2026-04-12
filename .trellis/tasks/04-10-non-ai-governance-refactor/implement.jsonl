@@ -99,3 +99,7 @@
 {"file": "backend/plugins/weather-widget/frontend/src/styles.skeleton.ts", "reason": "Split weather-widget skeleton and empty-state styles out of the monolithic WX_STYLES string"}
 {"file": "backend/plugins/weather-widget/frontend/src/styles.responsive.ts", "reason": "Split weather-widget responsive and reduced-motion rules out of the monolithic WX_STYLES string"}
 {"file": "backend/app/plugins/manifest_metadata_schemas.py", "reason": "Extract manifest feature/dependency/pricing/resource schemas out of manifest.py so PluginManifest stays a thinner public facade without breaking import roots"}
+{"file": "backend/app/plugins/registry.py", "reason": "Harden unregister_all fail-close cleanup so plugin runtime caches are purged even when unregister handlers raise"}
+{"file": "backend/app/services/system/tenant_admin_workflow_service.py", "reason": "Reject empty tenant-admin update payloads in the workflow service instead of silently succeeding on a no-op request"}
+{"file": "frontend/apps/web-antd/src/views/admin/system/codegen/modules/__tests__/preview-builders.test.ts", "reason": "Lock the WYSIWYG preview builder fallback path and first-row default parsing with a focused seam test"}
+{"file": "frontend/apps/web-antd/src/views/admin/system/system-logs/__tests__/SystemLogToolbar.slice.test.ts", "reason": "Lock toolbar chip rendering and disabled download/copy states with a focused system-log shell slice test"}

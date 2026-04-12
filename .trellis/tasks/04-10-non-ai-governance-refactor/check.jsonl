@@ -83,3 +83,7 @@
 {"file": "frontend/apps/web-antd/src/views/admin/system/codegen/modules/WysiwygListView.vue", "reason": "Verify WYSIWYG list preview quick-search typing no longer leaks Record<string, any>"}
 {"file": "backend/plugins/weather-widget/frontend/src/styles.ts", "reason": "Verify WX_STYLES aggregation still builds after style-module split"}
 {"file": "backend/app/plugins/manifest_metadata_schemas.py", "reason": "Verify manifest metadata companion extraction keeps PluginManifest import roots, validation, and startup discovery behavior stable"}
+{"file": "backend/tests/services/test_plugin_read_model_service.py", "reason": "Verify registry unregister fail-close cleanup purges permission/notification/skill runtime caches even when unregister handlers raise"}
+{"file": "backend/tests/services/test_tenant_admin_workflow_services.py", "reason": "Verify tenant-admin workflow rejects empty update payloads instead of silently succeeding"}
+{"file": "frontend/apps/web-antd/src/views/admin/system/codegen/modules/__tests__/preview-builders.test.ts", "reason": "Verify preview builders keep fallback columns and first-row default parsing stable for WYSIWYG list preview"}
+{"file": "frontend/apps/web-antd/src/views/admin/system/system-logs/__tests__/SystemLogToolbar.slice.test.ts", "reason": "Verify system-log toolbar shell keeps chips and disabled action states stable"}

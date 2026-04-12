@@ -251,6 +251,23 @@ class ExtensionRegistry(RegistryRuntimeExtensionsMixin):
         self._plugin_middlewares.pop(plugin_name, None)
         self._plugin_menus.pop(plugin_name, None)
         self._plugin_menu_titles.pop(plugin_name, None)
+        self._plugin_permission_titles.pop(plugin_name, None)
+        self._plugin_skill_resolvers.pop(plugin_name, None)
+        self._plugin_executors.pop(plugin_name, None)
+
+        if self._plugin_permissions:
+            self._plugin_permissions = {
+                key: value
+                for key, value in self._plugin_permissions.items()
+                if value.get("plugin_name") != plugin_name
+            }
+
+        if self._plugin_notifications:
+            self._plugin_notifications = {
+                key: value
+                for key, value in self._plugin_notifications.items()
+                if value.get("plugin_name") != plugin_name
+            }
 
     @staticmethod
     def _cleanup_plugin_event_bus(plugin_name: str) -> None:
