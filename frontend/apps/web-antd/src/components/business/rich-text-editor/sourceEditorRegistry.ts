@@ -8,7 +8,7 @@ import { ref } from 'vue';
 import DOMPurify from 'dompurify';
 import MarkdownIt from 'markdown-it';
 
-import { normalizePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
+import { normalizePageKey } from '#/components/business/ai-runtime/page-key-utils';
 
 const markdown = new MarkdownIt({
   html: false,

@@ -5,7 +5,7 @@
 
 import type { AIPageMode } from '@vben/types';
 
-import type { PageOperation } from '#/components/business/ai-slide-panel/page-operation-types';
+import type { PageOperation } from '#/components/business/ai-runtime/page-operation-types';
 
 // --- Capability keys & navigation-only allowlist / 能力键与仅导航白名单 ---
 

@@ -36,7 +36,7 @@ import {
   RichTextEditor,
   waitForRichTextEditorOperations,
 } from '#/components/business/rich-text-editor';
-import { normalizePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
+import { normalizePageKey } from '#/components/business/ai-runtime/page-key-utils';
 import { $t } from '#/locales';
 import { router } from '#/router';
 import { getCurrentEndpoint } from '#/router/access';

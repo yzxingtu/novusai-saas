@@ -1,6 +1,6 @@
 import type { MenuRecordRaw, RouteMeta } from '@vben/types';
 
-import { normalizePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
+import { normalizePageKey } from '#/components/business/ai-runtime/page-key-utils';
 import { getEndpointFromPath } from '#/utils/endpoint';
 
 interface RouteMetaAI {

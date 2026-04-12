@@ -32,7 +32,7 @@ vi.mock('../use-ai-permission', () => ({
   }),
 }));
 
-vi.mock('#/components/business/ai-slide-panel/page-key-utils', () => ({
+vi.mock('#/components/business/ai-runtime/page-key-utils', () => ({
   normalizePageKey: (value?: string) =>
     String(value ?? '')
       .replace(/^\//, '')

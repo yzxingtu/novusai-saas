@@ -19,7 +19,7 @@ import { getChatAgentsApi } from '#/api/shared/ai-chat';
 import {
   normalizePageKey,
   resolveRoutePageKey,
-} from '#/components/business/ai-slide-panel/page-key-utils';
+} from '#/components/business/ai-runtime/page-key-utils';
 import { useFileUpload } from '#/composables/use-file-upload';
 import { waitForPageSessionJoin } from '#/composables/use-ui-action-channel';
 import { $t } from '#/locales';

@@ -4,14 +4,14 @@ import type { MenuNavigationEntry } from './menu-navigation';
 
 import type { PageContext } from '#/api/shared/ai-chat';
 import type { PageContextSuggestedTool } from '#/api/shared/ai-chat';
-import type { PageOperation } from '#/components/business/ai-slide-panel/page-operation-types';
+import type { PageOperation } from '#/components/business/ai-runtime/page-operation-types';
 
 import { nextTick } from 'vue';
 
 import {
   normalizePageKey,
   resolveRoutePageKey,
-} from '#/components/business/ai-slide-panel/page-key-utils';
+} from '#/components/business/ai-runtime/page-key-utils';
 import { getRuntimeThinPageContext } from '#/components/business/ai-runtime/runtime-bridge';
 import { $t } from '#/locales';
 import { resolveRuntimeLocale } from '#/locales/runtime-locale';

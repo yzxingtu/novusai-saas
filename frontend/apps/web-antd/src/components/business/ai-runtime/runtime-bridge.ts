@@ -10,7 +10,7 @@ import type { UISnapshot, UISnapshotMode } from './ui-snapshot-generator';
 
 import { nextTick } from 'vue';
 
-import { resolveRoutePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
+import { resolveRoutePageKey } from '#/components/business/ai-runtime/page-key-utils';
 import { formStateTracker } from '#/composables/use-form-state-tracker';
 import { $t } from '#/locales';
 import { resolveRuntimeLocale } from '#/locales/runtime-locale';

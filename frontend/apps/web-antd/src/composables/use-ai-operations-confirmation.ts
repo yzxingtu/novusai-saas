@@ -1,4 +1,4 @@
-import type { PageOperationResult } from '#/components/business/ai-slide-panel/page-operation-types';
+import type { PageOperationResult } from '#/components/business/ai-runtime/page-operation-types';
 
 import type { TrackableFormApi } from './use-form-state-tracker';
 

@@ -21,7 +21,7 @@ vi.mock('#/locales', () => ({
   },
 }));
 
-vi.mock('#/components/business/ai-slide-panel/page-key-utils', () => ({
+vi.mock('#/components/business/ai-runtime/page-key-utils', () => ({
   resolveRoutePageKey: (_route: unknown, pathname?: string) => {
     const normalizedPath = (pathname || '/').trim();
     const pageKey = normalizedPath

@@ -65,7 +65,7 @@ vi.mock('#/api/shared/ai-chat', () => ({
   uploadChatFileApi: vi.fn(),
 }));
 
-vi.mock('#/components/business/ai-slide-panel/page-key-utils', () => ({
+vi.mock('#/components/business/ai-runtime/page-key-utils', () => ({
   normalizePageKey: (value: string) => value,
 }));
 

@@ -1,7 +1,7 @@
 import type {
   PageOperation,
   PageOperationResult,
-} from '#/components/business/ai-slide-panel/page-operation-types';
+} from '#/components/business/ai-runtime/page-operation-types';
 
 import { $t } from '#/locales';
 import { router } from '#/router';

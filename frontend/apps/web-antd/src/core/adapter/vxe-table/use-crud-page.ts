@@ -70,7 +70,7 @@ import { requestClient } from '#/utils/request';
 
 import { CrudGrid, RecycleBinDrawer, useExportModal } from './components';
 import { useGridSearchFormOptions, useVbenVxeGrid } from './use-vxe-grid';
-import { normalizePageKey, resolveRoutePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
+import { normalizePageKey, resolveRoutePageKey } from '#/components/business/ai-runtime/page-key-utils';
 
 /** Dependency blocked error code / 依赖阻止错误码 */
 const DEPENDENCY_BLOCKED_CODE = 4221;

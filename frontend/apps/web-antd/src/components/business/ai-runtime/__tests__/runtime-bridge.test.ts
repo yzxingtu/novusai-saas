@@ -269,7 +269,7 @@ async function loadRuntimeBridge(options: LoadRuntimeBridgeOptions = {}) {
       params?.locator ? `${key}:${String(params.locator)}` : key,
   );
 
-  vi.doMock('#/components/business/ai-slide-panel/page-key-utils', () => ({
+  vi.doMock('#/components/business/ai-runtime/page-key-utils', () => ({
     resolveRoutePageKey,
   }));
   vi.doMock('#/composables/use-form-state-tracker', () => ({

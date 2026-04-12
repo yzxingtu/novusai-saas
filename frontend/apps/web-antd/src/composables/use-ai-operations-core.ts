@@ -23,7 +23,7 @@
 
 import type { Ref } from 'vue';
 
-import type { PageOperation } from '#/components/business/ai-slide-panel/page-operation-types';
+import type { PageOperation } from '#/components/business/ai-runtime/page-operation-types';
 import type { VbenFormSchema } from '#/core/adapter/form/setup';
 import type { PageAICapabilityKey } from '#/utils/ai-page-capabilities';
 

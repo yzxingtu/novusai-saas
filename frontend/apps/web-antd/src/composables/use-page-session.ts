@@ -22,7 +22,7 @@ import type { Ref } from 'vue';
 import { ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 
-import { resolveRoutePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
+import { resolveRoutePageKey } from '#/components/business/ai-runtime/page-key-utils';
 
 /** Global active page_session_id (only one active page in SPA) / 全局当前活跃的 page_session_id */
 const activePageSessionId = ref<string>('');
