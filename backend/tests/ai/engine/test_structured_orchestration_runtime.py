@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
+
+import pytest
 
 from app.ai.engine.base import BaseEngine
 from app.ai.engine.budget_guard import BudgetGuard
@@ -23,7 +27,7 @@ from app.ai.exceptions import (
     ProviderTimeoutError,
 )
 from app.ai.tools.types import ToolDefinition, ToolResult
-from app.ai.types import ChatMessage, ChatResponse
+from app.ai.types import ChatChunk, ChatMessage, ChatResponse
 
 
 def _tool(name: str, description: str = "") -> ToolDefinition:
@@ -137,20 +141,32 @@ def test_intent_planner_keeps_page_follow_up_in_page_family() -> None:
 
 
 def test_detect_requested_turn_intents_aligns_with_planner_for_page_row_detail() -> None:
-    intents = BaseEngine._detect_requested_turn_intents(
-        "现在几点了？帮我查北京天气，再搜索今天 AI 新闻，然后看看当前页面第一条记录或关键内容",
+    user_text = "现在几点了？帮我查北京天气，再搜索今天 AI 新闻，然后看看当前页面第一条记录或关键内容"
+    intent_plan = IntentPlanner.plan_turn(
+        messages=[ChatMessage(role="user", content=user_text)],
         tools=_mixed_tools(),
         input_variables=_page_context(),
+        continuation_context=None,
+    )
+    input_variables = {
+        **_page_context(),
+        "_runtime_intent_plan": [intent.to_dict() for intent in intent_plan],
+    }
+    intents = BaseEngine._detect_requested_turn_intents(
+        user_text,
+        tools=_mixed_tools(),
+        input_variables=input_variables,
     )
 
     assert intents == ["weather", "page_summary"]
 
 
 def test_post_tool_contract_breach_keeps_page_intent_when_page_not_executed() -> None:
+    user_text = "现在几点了？帮我查北京天气，再搜索今天 AI 新闻，然后看看当前页面第一条记录或关键内容"
     messages = [
         ChatMessage(
             role="user",
-            content="现在几点了？帮我查北京天气，再搜索今天 AI 新闻，然后看看当前页面第一条记录或关键内容",
+            content=user_text,
         ),
         ChatMessage(
             role="assistant",
@@ -169,6 +185,16 @@ def test_post_tool_contract_breach_keeps_page_intent_when_page_not_executed() ->
         ),
         tool_calls=None,
     )
+    intent_plan = IntentPlanner.plan_turn(
+        messages=[ChatMessage(role="user", content=user_text)],
+        tools=_mixed_tools(),
+        input_variables=_page_context(),
+        continuation_context=None,
+    )
+    input_variables = {
+        **_page_context(),
+        "_runtime_intent_plan": [intent.to_dict() for intent in intent_plan],
+    }
 
     breach_type, retry_policy, diagnostics = BaseEngine._analyze_post_tool_contract_breach(
         messages=messages,
@@ -179,7 +205,7 @@ def test_post_tool_contract_breach_keeps_page_intent_when_page_not_executed() ->
             allowed_tool_names=["web_search", "fetch_url"],
         ),
         tools=_mixed_tools(),
-        input_variables=_page_context(),
+        input_variables=input_variables,
     )
 
     assert breach_type == "unfinished_multi_intent_reply"
@@ -580,3 +606,483 @@ def test_execution_state_machine_accumulates_usage_and_emits_turn_diagnostics() 
     assert payload["recovery"]["unfinished_intents"] == ["intent-2"]
     assert payload["intent_plan"][0]["status"] == "completed"
     assert payload["intent_plan"][0]["completed_by_tool_names"] == ["get_current_weather"]
+
+
+@pytest.mark.asyncio
+async def test_call_runtime_query_turn_forwards_skip_metering_preflight(
+    monkeypatch,
+) -> None:
+    from app.ai.engine import conversation_runtime_bridge as bridge
+
+    captured: dict[str, object] = {}
+
+    async def fake_prepare_stream_runtime(
+        engine,
+        *,
+        agent,
+        messages,
+        tenant_id,
+        route_result=None,
+        skip_metering_preflight=False,
+    ):
+        _ = engine, agent, messages, tenant_id, route_result
+        captured["skip_metering_preflight"] = skip_metering_preflight
+        provider = SimpleNamespace(code="mock-provider", type="mock")
+        return SimpleNamespace(
+            provider=provider,
+            model_code="mock-model",
+            runtime_info={"model_id": 1},
+        )
+
+    async def fake_build_runtime_query_entrypoint_plan(
+        engine,
+        *,
+        runtime_preparer,
+        skip_metering_preflight=True,
+        **kwargs,
+    ):
+        runtime_context = await runtime_preparer(
+            engine,
+            agent=kwargs["agent"],
+            messages=kwargs["messages"],
+            tenant_id=kwargs["tenant_id"],
+            route_result=kwargs["route_result"],
+            skip_metering_preflight=skip_metering_preflight,
+        )
+
+        class _Accounting:
+            async def finalize_success(
+                self,
+                *,
+                runtime_context,
+                request_context,
+                audit_context,
+                output_text,
+                input_tokens,
+                output_tokens,
+                total_tokens,
+                start_time,
+                turn_record,
+                success_log_message,
+            ):
+                _ = (
+                    runtime_context,
+                    request_context,
+                    audit_context,
+                    output_text,
+                    input_tokens,
+                    output_tokens,
+                    total_tokens,
+                    start_time,
+                    turn_record,
+                    success_log_message,
+                )
+                return SimpleNamespace(
+                    input_tokens=0,
+                    output_tokens=0,
+                    total_tokens=0,
+                    usage_mode="test",
+                )
+
+            async def log_failure(self, **kwargs):
+                _ = kwargs
+                return None
+
+        return SimpleNamespace(
+            runtime_context=runtime_context,
+            query_engine=SimpleNamespace(turn_record={}),
+            accounting=_Accounting(),
+            request_context=SimpleNamespace(),
+            audit_context=SimpleNamespace(),
+        )
+
+    async def fake_run_runtime_query_entrypoint(*, plan, agent, selected_skill_names):
+        _ = plan, agent, selected_skill_names
+        return ChatResponse(
+            message=ChatMessage(role="assistant", content="ok"),
+            total_tokens=0,
+            input_tokens=0,
+            output_tokens=0,
+        )
+
+    monkeypatch.setattr(bridge, "prepare_stream_runtime", fake_prepare_stream_runtime)
+    monkeypatch.setattr(
+        bridge,
+        "build_runtime_query_entrypoint_plan",
+        fake_build_runtime_query_entrypoint_plan,
+    )
+    monkeypatch.setattr(
+        bridge,
+        "run_runtime_query_entrypoint",
+        fake_run_runtime_query_entrypoint,
+    )
+
+    engine = SimpleNamespace(
+        db=SimpleNamespace(commit=AsyncMock()),
+        gateway=SimpleNamespace(),
+    )
+    response, _query_engine = await bridge.call_runtime_query_turn(
+        engine,
+        agent=SimpleNamespace(id=1),
+        messages=[ChatMessage(role="user", content="hi")],
+        tools=None,
+        all_tool_names=None,
+        tool_use_policy=None,
+        breach_retry_result=None,
+        tenant_id=1,
+        user_id=1,
+        conversation_id=2,
+        billing_context=None,
+        route_result=None,
+        log_user_type=None,
+        selected_skill_names=None,
+        context_sources=None,
+        execution_path="normal",
+        extra_kwargs=None,
+        skip_metering_preflight=False,
+    )
+
+    assert captured["skip_metering_preflight"] is False
+    assert response.metadata["runtime_model_info"]["model_id"] == 1
+
+
+@pytest.mark.asyncio
+async def test_call_runtime_query_turn_passes_model_request_override_builder(
+    monkeypatch,
+) -> None:
+    from app.ai.engine import conversation_runtime_bridge as bridge
+
+    captured: dict[str, object] = {}
+
+    async def fake_prepare_stream_runtime(
+        engine,
+        *,
+        agent,
+        messages,
+        tenant_id,
+        route_result=None,
+        skip_metering_preflight=False,
+    ):
+        _ = engine, agent, messages, tenant_id, route_result, skip_metering_preflight
+        provider = SimpleNamespace(code="mock-provider", type="mock")
+        return SimpleNamespace(
+            provider=provider,
+            model_code="mock-model",
+            runtime_info={"model_id": 1},
+        )
+
+    def fake_model_request_override_builder(*, execution_path, tools):
+        captured["execution_path"] = execution_path
+        captured["tools"] = tools
+        return {"_runtime_reasoning_effort_override": "low"}
+
+    async def fake_build_runtime_query_entrypoint_plan(
+        engine,
+        *,
+        runtime_preparer,
+        model_request_override_builder,
+        **kwargs,
+    ):
+        _ = await runtime_preparer(
+            engine,
+            agent=kwargs["agent"],
+            messages=kwargs["messages"],
+            tenant_id=kwargs["tenant_id"],
+            route_result=kwargs["route_result"],
+            skip_metering_preflight=kwargs["skip_metering_preflight"],
+        )
+        captured["builder_result"] = model_request_override_builder(
+            execution_path=kwargs["execution_path"],
+            tools=kwargs["tools"],
+        )
+
+        class _Accounting:
+            async def finalize_success(self, **kwargs):
+                _ = kwargs
+                return SimpleNamespace(
+                    input_tokens=0,
+                    output_tokens=0,
+                    total_tokens=0,
+                    usage_mode="test",
+                )
+
+            async def log_failure(self, **kwargs):
+                _ = kwargs
+                return None
+
+        return SimpleNamespace(
+            runtime_context=SimpleNamespace(
+                provider=SimpleNamespace(code="mock-provider"),
+                model_code="mock-model",
+                runtime_info={"model_id": 1},
+            ),
+            query_engine=SimpleNamespace(turn_record={}),
+            accounting=_Accounting(),
+            request_context=SimpleNamespace(),
+            audit_context=SimpleNamespace(),
+        )
+
+    async def fake_run_runtime_query_entrypoint(*, plan, agent, selected_skill_names):
+        _ = plan, agent, selected_skill_names
+        return ChatResponse(
+            message=ChatMessage(role="assistant", content="ok"),
+            total_tokens=0,
+            input_tokens=0,
+            output_tokens=0,
+        )
+
+    monkeypatch.setattr(bridge, "prepare_stream_runtime", fake_prepare_stream_runtime)
+    monkeypatch.setattr(
+        bridge,
+        "build_runtime_query_entrypoint_plan",
+        fake_build_runtime_query_entrypoint_plan,
+    )
+    monkeypatch.setattr(
+        bridge,
+        "run_runtime_query_entrypoint",
+        fake_run_runtime_query_entrypoint,
+    )
+
+    engine = SimpleNamespace(
+        db=SimpleNamespace(commit=AsyncMock()),
+        gateway=SimpleNamespace(),
+    )
+    response, _query_engine = await bridge.call_runtime_query_turn(
+        engine,
+        agent=SimpleNamespace(id=1),
+        messages=[ChatMessage(role="user", content="hi")],
+        tools=None,
+        all_tool_names=None,
+        tool_use_policy=None,
+        breach_retry_result=None,
+        tenant_id=1,
+        user_id=1,
+        conversation_id=2,
+        billing_context=None,
+        route_result=None,
+        log_user_type=None,
+        selected_skill_names=None,
+        context_sources=None,
+        execution_path="fast",
+        extra_kwargs=None,
+        skip_metering_preflight=False,
+        model_request_override_builder=fake_model_request_override_builder,
+    )
+
+    assert captured["execution_path"] == "fast"
+    assert captured["tools"] is None
+    assert captured["builder_result"] == {"_runtime_reasoning_effort_override": "low"}
+    assert response.metadata["runtime_model_info"]["model_id"] == 1
+
+
+@pytest.mark.asyncio
+async def test_stream_llm_chunks_forwards_skip_metering_preflight(
+    monkeypatch,
+) -> None:
+    from app.ai.engine import conversation_runtime_bridge as bridge
+
+    captured: dict[str, object] = {}
+
+    async def fake_prepare_stream_runtime(
+        engine,
+        *,
+        agent,
+        messages,
+        tenant_id,
+        route_result=None,
+        skip_metering_preflight=False,
+    ):
+        _ = engine, agent, messages, tenant_id, route_result
+        captured["skip_metering_preflight"] = skip_metering_preflight
+        provider = SimpleNamespace(code="mock-provider", type="mock")
+        return SimpleNamespace(
+            provider=provider,
+            model_code="mock-model",
+            ai_model=SimpleNamespace(supports_streaming=True),
+            runtime_info={"model_id": 2},
+        )
+
+    async def fake_build_runtime_stream_entrypoint_plan(
+        engine,
+        *,
+        runtime_preparer,
+        skip_metering_preflight=False,
+        **kwargs,
+    ):
+        runtime_context = await runtime_preparer(
+            engine,
+            agent=kwargs["agent"],
+            messages=kwargs["messages"],
+            tenant_id=kwargs["tenant_id"],
+            route_result=kwargs["route_result"],
+            skip_metering_preflight=skip_metering_preflight,
+        )
+
+        class _Accounting:
+            async def finalize_success(self, **kwargs):
+                _ = kwargs
+                return None
+
+            async def log_failure(self, **kwargs):
+                _ = kwargs
+                return None
+
+        return SimpleNamespace(
+            runtime_context=runtime_context,
+            query_engine=SimpleNamespace(turn_record={}),
+            accounting=_Accounting(),
+            request_context=SimpleNamespace(),
+            audit_context=SimpleNamespace(),
+        )
+
+    async def fake_iterate_runtime_stream_entrypoint(
+        *,
+        plan,
+        agent,
+        selected_skill_names,
+    ):
+        _ = plan, agent, selected_skill_names
+        yield ChatChunk(delta="ok", finish_reason="stop", total_tokens=1)
+
+    monkeypatch.setattr(bridge, "prepare_stream_runtime", fake_prepare_stream_runtime)
+    monkeypatch.setattr(
+        bridge,
+        "build_runtime_stream_entrypoint_plan",
+        fake_build_runtime_stream_entrypoint_plan,
+    )
+    monkeypatch.setattr(
+        bridge,
+        "iterate_runtime_stream_entrypoint",
+        fake_iterate_runtime_stream_entrypoint,
+    )
+
+    engine = SimpleNamespace(
+        logger=None,
+        gateway=SimpleNamespace(),
+        db=SimpleNamespace(),
+    )
+    chunks = []
+    async for chunk in bridge.stream_llm_chunks(
+        engine,
+        agent=SimpleNamespace(id=1),
+        messages=[ChatMessage(role="user", content="hi")],
+        tenant_id=1,
+        conversation_id=2,
+        tools=None,
+        skip_metering_preflight=True,
+    ):
+        chunks.append(chunk)
+
+    assert captured["skip_metering_preflight"] is True
+    assert len(chunks) == 1
+    assert chunks[0].delta == "ok"
+
+
+@pytest.mark.asyncio
+async def test_stream_llm_chunks_forwards_extra_kwargs(
+    monkeypatch,
+) -> None:
+    from app.ai.engine import conversation_runtime_bridge as bridge
+
+    captured: dict[str, object] = {}
+
+    async def fake_prepare_stream_runtime(
+        engine,
+        *,
+        agent,
+        messages,
+        tenant_id,
+        route_result=None,
+        skip_metering_preflight=False,
+    ):
+        _ = engine, agent, messages, tenant_id, route_result, skip_metering_preflight
+        provider = SimpleNamespace(code="mock-provider", type="mock")
+        return SimpleNamespace(
+            provider=provider,
+            model_code="mock-model",
+            ai_model=SimpleNamespace(supports_streaming=True),
+            runtime_info={"model_id": 3},
+        )
+
+    async def fake_build_runtime_stream_entrypoint_plan(
+        engine,
+        *,
+        runtime_preparer,
+        extra_kwargs=None,
+        **kwargs,
+    ):
+        runtime_context = await runtime_preparer(
+            engine,
+            agent=kwargs["agent"],
+            messages=kwargs["messages"],
+            tenant_id=kwargs["tenant_id"],
+            route_result=kwargs["route_result"],
+            skip_metering_preflight=kwargs["skip_metering_preflight"],
+        )
+        captured["extra_kwargs"] = extra_kwargs
+
+        class _Accounting:
+            async def finalize_success(self, **kwargs):
+                _ = kwargs
+                return None
+
+            async def log_failure(self, **kwargs):
+                _ = kwargs
+                return None
+
+        return SimpleNamespace(
+            runtime_context=runtime_context,
+            query_engine=SimpleNamespace(turn_record={}),
+            accounting=_Accounting(),
+            request_context=SimpleNamespace(),
+            audit_context=SimpleNamespace(),
+            request_extra_kwargs=extra_kwargs or {},
+        )
+
+    async def fake_iterate_runtime_stream_entrypoint(
+        *,
+        plan,
+        agent,
+        selected_skill_names,
+    ):
+        _ = plan, agent, selected_skill_names
+        captured["plan_extra_kwargs"] = plan.request_extra_kwargs
+        yield ChatChunk(delta="ok", finish_reason="stop", total_tokens=1)
+
+    monkeypatch.setattr(bridge, "prepare_stream_runtime", fake_prepare_stream_runtime)
+    monkeypatch.setattr(
+        bridge,
+        "build_runtime_stream_entrypoint_plan",
+        fake_build_runtime_stream_entrypoint_plan,
+    )
+    monkeypatch.setattr(
+        bridge,
+        "iterate_runtime_stream_entrypoint",
+        fake_iterate_runtime_stream_entrypoint,
+    )
+
+    engine = SimpleNamespace(
+        logger=None,
+        gateway=SimpleNamespace(),
+        db=SimpleNamespace(),
+    )
+    extra_kwargs = {
+        "_runtime_reasoning_effort_override": "low",
+        "trace_id": "trace-1",
+    }
+    chunks = []
+    async for chunk in bridge.stream_llm_chunks(
+        engine,
+        agent=SimpleNamespace(id=1),
+        messages=[ChatMessage(role="user", content="hi")],
+        tenant_id=1,
+        conversation_id=2,
+        tools=None,
+        extra_kwargs=extra_kwargs,
+    ):
+        chunks.append(chunk)
+
+    assert captured["extra_kwargs"] == extra_kwargs
+    assert captured["plan_extra_kwargs"] == extra_kwargs
+    assert len(chunks) == 1
+    assert chunks[0].delta == "ok"

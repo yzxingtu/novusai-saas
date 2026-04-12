@@ -9,13 +9,13 @@ from app.ai.adapters.openai_compatible.client_factory import (
     build_openai_client,
     resolve_retry_client,
 )
-from app.ai.adapters.openai_compatible.legacy_orchestrator import (
+from app.ai.adapters.openai_compatible.compat.legacy_protocol_execution import (
     execute_legacy_chat,
     execute_legacy_stream,
     responses_tool_call_fallback_enabled,
     stream_chat_completions_with_sync_rescue,
 )
-from app.ai.adapters.openai_compatible.protocol_policy import (
+from app.ai.adapters.openai_compatible.compat.legacy_protocol_policy import (
     extract_status_code,
     should_fallback_from_responses_error,
     should_skip_sync_rescue_after_stream_error,

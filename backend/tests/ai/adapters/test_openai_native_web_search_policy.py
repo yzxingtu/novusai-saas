@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+from app.ai.adapters.openai_compatible import native_web_search_policy as facade
 from app.ai.adapters.openai_compatible.native_web_search_policy import (
     map_native_web_search_error,
     supports_native_web_search_model,
+)
+from app.ai.adapters.openai_compatible.support import (
+    native_web_search_policy as support,
 )
 from app.ai.exceptions import ProviderConnectionError, ProviderTimeoutError
 
@@ -11,6 +15,12 @@ class _StatusError(Exception):
     def __init__(self, status_code: int, message: str):
         super().__init__(message)
         self.status_code = status_code
+
+
+def test_native_web_search_policy_facade_exports_support_symbols() -> None:
+    assert facade.supports_native_web_search_model is support.supports_native_web_search_model
+    assert facade.map_native_web_search_error is support.map_native_web_search_error
+    assert facade.NATIVE_WEB_SEARCH_MODEL_PREFIXES == support.NATIVE_WEB_SEARCH_MODEL_PREFIXES
 
 
 def test_supports_native_web_search_model_requires_supported_prefix() -> None:

@@ -7,8 +7,8 @@ from typing import Any
 import pytest
 
 from app.ai.engine.base import BaseEngine
-from app.ai.engine.stream_runtime_hooks import BaseEngineStreamRuntimeHooks
 from app.ai.engine.stream_runtime_contract import build_stream_runtime_contract
+from app.ai.engine.stream_runtime_hooks import BaseEngineStreamRuntimeHooks
 from app.ai.engine.types import ToolUsePolicy
 from app.ai.tools.types import ToolResult
 from app.ai.types import ChatMessage, ChatResponse
@@ -92,7 +92,7 @@ class _BaseEngineStub(BaseEngine):
         raise NotImplementedError
 
     @classmethod
-    def _truncate_tool_calls_after_navigation(cls, tool_calls):
+    def _truncate_tool_calls_after_navigation(cls, _tool_calls):
         return [{"id": "base"}], True
 
     @classmethod
@@ -268,3 +268,103 @@ async def test_build_stream_runtime_contract_keeps_legacy_private_name_compatibi
     assert partial == ("ok", 7, 7)
     assert completed == ("ok", 7, 7)
     assert calls == ["retry", "analyze", "log"]
+
+
+def test_build_stream_runtime_contract_ignores_partial_public_legacy_overrides() -> None:
+    class _MixedStub:
+        @staticmethod
+        def should_retry_tool_contract_breach(**kwargs):
+            _ = kwargs
+            return False, None, "public"
+
+        @staticmethod
+        def _should_retry_tool_contract_breach(**kwargs):
+            _ = kwargs
+            return True, None, "private"
+
+    contract = build_stream_runtime_contract(_MixedStub())
+
+    assert contract.should_retry_tool_contract_breach(
+        response=None,
+        current_policy=ToolUsePolicy(),
+        tools=[],
+        input_variables=None,
+    ) == (True, None, "private")
+
+
+@pytest.mark.asyncio
+async def test_build_stream_runtime_contract_prefers_public_legacy_helpers_when_surface_is_complete() -> (
+    None
+):
+    class _PublicSurfaceStub:
+        @staticmethod
+        def truncate_tool_calls_after_navigation(tool_calls):
+            return list(tool_calls), False
+
+        @staticmethod
+        def should_retry_tool_contract_breach(**kwargs):
+            _ = kwargs
+            return False, None, "public"
+
+        @staticmethod
+        def should_retry_web_research_contract_breach(**kwargs):
+            _ = kwargs
+            return False, None, "public-web"
+
+        @staticmethod
+        def analyze_post_tool_contract_breach(**kwargs):
+            _ = kwargs
+            return "public", None, {"source": "public"}
+
+        @staticmethod
+        def restrict_tools_to_names(tools, allowed):
+            return [tools, allowed]
+
+        @staticmethod
+        def log_tool_contract_diagnostics(**kwargs):
+            _ = kwargs
+
+        @staticmethod
+        async def finalize_partial_output(**kwargs):
+            _ = kwargs
+            return "public partial", 5, 3
+
+        @staticmethod
+        async def finalize_completed_output(**kwargs):
+            _ = kwargs
+            return "public completed", 6, 4
+
+        @staticmethod
+        def _should_retry_tool_contract_breach(**kwargs):
+            _ = kwargs
+            return True, None, "private"
+
+    contract = build_stream_runtime_contract(_PublicSurfaceStub())
+
+    assert contract.should_retry_tool_contract_breach(
+        response=None,
+        current_policy=ToolUsePolicy(),
+        tools=[],
+        input_variables=None,
+    ) == (False, None, "public")
+    assert await contract.finalize_partial_output(**_build_runtime_kwargs()) == (
+        "public partial",
+        5,
+        3,
+    )
+
+
+def test_build_stream_runtime_contract_uses_default_helpers_when_engine_is_empty() -> None:
+    class _EmptyEngine:
+        pass
+
+    contract = build_stream_runtime_contract(_EmptyEngine())
+
+    response = ChatResponse(message=ChatMessage(role="assistant", content=""))
+
+    assert contract.should_retry_tool_contract_breach(
+        response=response,
+        current_policy=ToolUsePolicy(),
+        tools=[],
+        input_variables=None,
+    ) == (False, None, "")

@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     )
     from app.ai.runtime.contracts import (
         ProtocolExecutionPlan,
+        ProtocolGuardContract,
         TurnCommand,
         TurnExecutionResult,
     )
@@ -50,6 +51,7 @@ if TYPE_CHECKING:
         TurnOutcome,
         TurnRecord,
     )
+    from app.ai.runtime.usage_metrics import CostCalculator, TokenCounter
 
 _EXPORT_MAP = {
     "CapabilityContext": "app.ai.runtime.capabilities",
@@ -65,6 +67,7 @@ _EXPORT_MAP = {
     "RuntimeCapabilityManifest": "app.ai.runtime.manifest",
     "RuntimeCapabilityStatus": "app.ai.runtime.manifest",
     "ProtocolExecutionPlan": "app.ai.runtime.contracts",
+    "ProtocolGuardContract": "app.ai.runtime.contracts",
     "TurnCommand": "app.ai.runtime.contracts",
     "TurnExecutionResult": "app.ai.runtime.contracts",
     "ObservedStream": "app.ai.runtime.protocol_recovery_policy",
@@ -82,6 +85,8 @@ _EXPORT_MAP = {
     "TerminationReason": "app.ai.runtime.types",
     "TurnOutcome": "app.ai.runtime.types",
     "TurnRecord": "app.ai.runtime.types",
+    "CostCalculator": "app.ai.runtime.usage_metrics",
+    "TokenCounter": "app.ai.runtime.usage_metrics",
 }
 
 
@@ -96,33 +101,11 @@ def __getattr__(name: str) -> Any:
 
 
 __all__ = [
-    "CapabilityContext",
-    "CapabilityBundle",
-    "CapabilityDescriptor",
-    "CapabilityFragment",
-    "CapabilityKind",
-    "CapabilityProvider",
-    "CapabilityRegistry",
     "AIRuntimeInventoryService",
-    "ContextAssembler",
     "ContextAssemblerState",
-    "ContextSource",
     "ConversationQueryEngine",
-    "FallbackRecord",
-    "LegacyContextAssemblerAdapter",
-    "ProtocolPath",
-    "TerminationReason",
-    "TurnOutcome",
-    "TurnRecord",
-    "ToolExecutor",
-    "RuntimeCapabilityItem",
-    "RuntimeCapabilityManifest",
-    "RuntimeCapabilityStatus",
     "ProtocolExecutionPlan",
-    "ObservedStream",
-    "ProtocolRecoveryPolicy",
-    "ProtocolTurnSession",
-    "StreamObservationError",
+    "ProtocolGuardContract",
     "TurnCommand",
     "TurnExecutionResult",
     "get_context_assembler",

@@ -10,6 +10,7 @@ from app.ai.adapters.openai_compatible.compat import (
 )
 from app.ai.adapters.openai_compatible.compat.legacy_context_builder import (
     LegacyEntrypointContext,
+    LegacyEntrypointGuardSnapshot,
     LegacyEntrypointPlan,
 )
 from app.ai.adapters.openai_compatible.compat.legacy_entrypoint_dispatch import (
@@ -53,8 +54,10 @@ def _build_plan(*, wire_api: str = "responses") -> LegacyEntrypointPlan:
         supports_audio=False,
         supports_video=False,
         protocol_kwargs={},
-        runtime_disable_cross_protocol_fallback=True,
-        runtime_disable_sync_rescue=True,
+        guard_snapshot=LegacyEntrypointGuardSnapshot(
+            runtime_disable_cross_protocol_fallback=True,
+            runtime_disable_sync_rescue=True,
+        ),
     )
     return LegacyEntrypointPlan(
         context=context,
@@ -145,6 +148,46 @@ async def test_stream_entrypoint_delegates_to_builder_and_runner(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("runtime_wire_api", ["responses", "chat_completions"])
+async def test_chat_entrypoint_facade_preserves_runtime_protocol_guard_kwargs_for_builder(
+    monkeypatch: pytest.MonkeyPatch,
+    runtime_wire_api: str,
+) -> None:
+    adapter = _AdapterStub()
+    calls: dict[str, object] = {}
+
+    async def _fake_dispatch(**kwargs):
+        calls["dispatch"] = kwargs
+        return _build_plan(wire_api=runtime_wire_api), ChatResponse(
+            message=ChatMessage(role="assistant", content="ok")
+        )
+
+    monkeypatch.setattr(
+        legacy_facade,
+        "dispatch_legacy_chat_entrypoint",
+        _fake_dispatch,
+    )
+
+    response = await legacy_facade.execute_legacy_adapter_chat_entrypoint(
+        adapter=adapter,  # type: ignore[arg-type]
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4",
+        _runtime_force_wire_api=runtime_wire_api,
+        _runtime_disable_cross_protocol_fallback=True,
+        _runtime_disable_sync_rescue=True,
+    )
+
+    assert response.message.content == "ok"
+    dispatch_kwargs = calls["dispatch"]
+    assert isinstance(dispatch_kwargs, dict)
+    assert dispatch_kwargs["kwargs"]["_runtime_force_wire_api"] == runtime_wire_api
+    assert (
+        dispatch_kwargs["kwargs"]["_runtime_disable_cross_protocol_fallback"] is True
+    )
+    assert dispatch_kwargs["kwargs"]["_runtime_disable_sync_rescue"] is True
+
+
+@pytest.mark.asyncio
 async def test_chat_entrypoint_logs_with_final_plan_context_on_runner_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -178,8 +221,7 @@ async def test_chat_entrypoint_logs_with_final_plan_context_on_runner_error(
         _fake_dispatch,
     )
     monkeypatch.setattr(
-        legacy_facade,
-        "convert_openai_error",
+        "app.ai.adapters.openai_compatible.compat.legacy_entrypoint_errors.convert_openai_error",
         _fake_convert_openai_error,
     )
 

@@ -19,6 +19,7 @@ from app.ai.adapters.openai_compatible.compat.legacy_entrypoint_runner import (
 from app.ai.adapters.openai_compatible.protocol_runtime_context import (
     prepare_protocol_execution_context,
 )
+from app.ai.runtime.contracts import TurnCommand
 from app.ai.types import ChatChunk, ChatMessage, ChatResponse
 
 TOOLS = [
@@ -129,8 +130,8 @@ async def test_build_legacy_entrypoint_plan_chat_preserves_runtime_context() -> 
     )
 
     assert plan.context.active_wire_api == "responses"
-    assert plan.context.runtime_disable_cross_protocol_fallback is True
-    assert plan.context.runtime_disable_sync_rescue is True
+    assert plan.context.guard_snapshot.runtime_disable_cross_protocol_fallback is True
+    assert plan.context.guard_snapshot.runtime_disable_sync_rescue is True
     assert adapter.prepared_contexts[0]["kwargs"]["_runtime_force_wire_api"] == "responses"
     assert "_runtime_force_wire_api" not in plan.context.protocol_kwargs
     assert "_runtime_disable_cross_protocol_fallback" not in plan.context.protocol_kwargs
@@ -157,10 +158,51 @@ async def test_build_legacy_entrypoint_plan_stream_builds_sync_rescue_payload() 
         kwargs={"_runtime_disable_sync_rescue": True},
     )
 
-    assert plan.context.runtime_disable_sync_rescue is True
+    assert plan.context.guard_snapshot.runtime_disable_sync_rescue is True
     assert plan.request_params["stream"] is True
     assert plan.sync_request_params is not None
     assert plan.sync_request_params["stream"] is False
+
+
+@pytest.mark.asyncio
+async def test_build_legacy_entrypoint_plan_aligns_with_turn_command_guards() -> None:
+    adapter = _LegacyAdapterStub()
+    command = TurnCommand(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4",
+        temperature=0.2,
+        max_tokens=128,
+        top_p=0.9,
+        tools=TOOLS,
+        tool_choice="required",
+    )
+    adapter_kwargs = command.to_adapter_kwargs(protocol_path="chat_completions")
+    legacy_runtime_kwargs = {
+        key: value
+        for key, value in adapter_kwargs.items()
+        if str(key).startswith("_runtime_")
+    }
+
+    plan = await build_legacy_entrypoint_plan(
+        adapter=adapter,
+        messages=command.messages,
+        model=command.model,
+        temperature=command.temperature,
+        max_tokens=command.max_tokens,
+        top_p=command.top_p,
+        tools=command.tools,
+        tool_choice=command.tool_choice,
+        stream=False,
+        kwargs=legacy_runtime_kwargs,
+    )
+
+    assert plan.context.active_wire_api == "chat_completions"
+    assert plan.context.guard_snapshot.runtime_disable_cross_protocol_fallback is True
+    assert plan.context.guard_snapshot.runtime_disable_sync_rescue is True
+    assert adapter.prepared_contexts[0]["kwargs"]["_runtime_force_wire_api"] == "chat_completions"
+    assert "_runtime_force_wire_api" not in plan.context.protocol_kwargs
+    assert "_runtime_disable_cross_protocol_fallback" not in plan.context.protocol_kwargs
+    assert "_runtime_disable_sync_rescue" not in plan.context.protocol_kwargs
 
 
 @pytest.mark.asyncio

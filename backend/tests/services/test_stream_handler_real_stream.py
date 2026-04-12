@@ -426,6 +426,49 @@ def _build_handler(
 
 
 @pytest.mark.asyncio
+async def test_prepare_stream_runtime_forwards_skip_metering_preflight() -> None:
+    from app.ai.engine.conversation import ConversationEngine
+
+    captured: dict[str, object] = {}
+
+    class _Preflight:
+        async def prepare(
+            self,
+            *,
+            agent,
+            messages,
+            tenant_id,
+            route_result=None,
+            skip_metering_preflight=False,
+        ):
+            _ = agent, messages, tenant_id, route_result
+            captured["skip_metering_preflight"] = skip_metering_preflight
+            provider = SimpleNamespace(code="mock-provider", type="mock")
+            return SimpleNamespace(
+                provider=provider,
+                model_code="mock-model",
+                runtime_info={},
+            )
+
+    engine = ConversationEngine(
+        db=SimpleNamespace(),
+        gateway=SimpleNamespace(),
+        sandbox=None,
+    )
+    engine._runtime_preflight = lambda: _Preflight()
+
+    await engine._prepare_stream_runtime(
+        agent=SimpleNamespace(id=1),
+        messages=[ChatMessage(role="user", content="hi")],
+        tenant_id=1,
+        route_result=None,
+        skip_metering_preflight=True,
+    )
+
+    assert captured["skip_metering_preflight"] is True
+
+
+@pytest.mark.asyncio
 async def test_stream_io_adapter_keeps_finalized_completed_output_over_stream_preview():
     handler = _build_handler(_FakeEngine())
     handler._output = "放假通知！湖南12地明确！|特殊教育学校_新浪财经_新浪网"

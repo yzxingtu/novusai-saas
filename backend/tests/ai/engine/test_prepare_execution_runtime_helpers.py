@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from contextlib import ExitStack, contextmanager
+from importlib import import_module
+from importlib.util import find_spec
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -10,6 +13,37 @@ from app.ai.engine.prepare_execution_runtime_helpers import (
     resolve_runtime_execution_state,
 )
 from app.ai.types import ChatMessage
+
+_USAGE_METRICS_MODULES = (
+    "app.ai.runtime.usage_metrics",
+    "app.services.ai.usage_metrics",
+)
+
+
+def _resolve_usage_metrics_modules() -> dict[str, object]:
+    modules: dict[str, object] = {}
+    for module_path in _USAGE_METRICS_MODULES:
+        if find_spec(module_path) is None:
+            continue
+        modules[module_path] = import_module(module_path)
+    return modules
+
+
+@contextmanager
+def _patch_usage_metrics_attr(attr_path: str, **kwargs):
+    module_paths = [
+        module_path
+        for module_path in _USAGE_METRICS_MODULES
+        if find_spec(module_path) is not None
+    ]
+    if not module_paths:
+        raise AssertionError(
+            "usage_metrics module not found at expected import paths"
+        )
+    with ExitStack() as stack:
+        for module_path in module_paths:
+            stack.enter_context(patch(f"{module_path}.{attr_path}", **kwargs))
+        yield
 
 
 def test_apply_runtime_capability_injection_updates_diagnostics() -> None:
@@ -50,6 +84,19 @@ def test_apply_runtime_capability_injection_updates_diagnostics() -> None:
     assert injected_calls[0]["include_memory_hint"] is True
 
 
+def test_usage_metrics_import_paths_are_compatible() -> None:
+    modules = _resolve_usage_metrics_modules()
+    legacy_module = modules.get("app.services.ai.usage_metrics")
+    runtime_module = modules.get("app.ai.runtime.usage_metrics")
+
+    assert legacy_module is not None
+    if runtime_module is None:
+        return
+
+    assert runtime_module.TokenCounter is legacy_module.TokenCounter
+    assert runtime_module.CostCalculator is legacy_module.CostCalculator
+
+
 @pytest.mark.asyncio
 async def test_resolve_runtime_execution_state_filters_consent_and_injects_runtime_caps() -> None:
     request = SimpleNamespace(
@@ -74,8 +121,8 @@ async def test_resolve_runtime_execution_state_filters_consent_and_injects_runti
             "app.ai.routing.router.ModelRouter.route",
             new=AsyncMock(return_value=route_result),
         ),
-        patch(
-            "app.services.ai.usage_metrics.TokenCounter.count_messages_tokens",
+        _patch_usage_metrics_attr(
+            "TokenCounter.count_messages_tokens",
             return_value=88,
         ),
         patch(

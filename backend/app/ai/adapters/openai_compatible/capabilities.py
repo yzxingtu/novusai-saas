@@ -19,6 +19,7 @@ _WIRE_API_ALIASES: dict[str, str] = {
 }
 
 _VALID_WIRE_APIS: tuple[str, str] = ("responses", "chat_completions")
+_MISSING = object()
 
 
 def normalize_wire_api(value: Any) -> str:
@@ -73,8 +74,14 @@ def _normalize_runtime_wire_api(value: Any) -> str | None:
     )
 
 def _normalize_wire_api_list(value: Any) -> tuple[str, ...]:
-    if not isinstance(value, list):
+    if value is None:
         return ()
+    if not isinstance(value, list):
+        raise ProviderError(
+            message="Invalid provider protocol contract allowed_wire_apis payload",
+            provider_code="openai_compatible",
+            error_code="invalid_protocol_contract",
+        )
     collected: list[str] = []
     for item in value:
         wire_api = _normalize_contract_wire_api(
@@ -82,15 +89,28 @@ def _normalize_wire_api_list(value: Any) -> tuple[str, ...]:
             field_name="allowed_wire_apis",
         )
         if wire_api is None:
-            continue
+            raise ProviderError(
+                message="Empty provider protocol contract allowed_wire_apis entry",
+                provider_code="openai_compatible",
+                error_code="invalid_protocol_contract",
+            )
         if wire_api not in collected:
             collected.append(wire_api)
     return tuple(collected)
 
 
 def _normalize_fallback_map(value: Any) -> dict[str, tuple[str, ...]]:
-    if not isinstance(value, dict):
+    if value is None:
         return {}
+    if not isinstance(value, dict):
+        raise ProviderError(
+            message=(
+                "Invalid provider protocol contract allowed_cross_protocol_fallbacks"
+                " payload"
+            ),
+            provider_code="openai_compatible",
+            error_code="invalid_protocol_contract",
+        )
     normalized: dict[str, tuple[str, ...]] = {}
     for raw_from, raw_targets in value.items():
         from_wire_api = _normalize_contract_wire_api(
@@ -98,16 +118,39 @@ def _normalize_fallback_map(value: Any) -> dict[str, tuple[str, ...]]:
             field_name="allowed_cross_protocol_fallbacks",
         )
         if from_wire_api is None:
-            continue
+            raise ProviderError(
+                message=(
+                    "Empty provider protocol contract allowed_cross_protocol_fallbacks"
+                    " entry"
+                ),
+                provider_code="openai_compatible",
+                error_code="invalid_protocol_contract",
+            )
         if not isinstance(raw_targets, list):
-            continue
+            raise ProviderError(
+                message=(
+                    "Invalid provider protocol contract allowed_cross_protocol_fallbacks"
+                    " targets payload"
+                ),
+                provider_code="openai_compatible",
+                error_code="invalid_protocol_contract",
+            )
         targets: list[str] = []
         for raw_target in raw_targets:
             target = _normalize_contract_wire_api(
                 raw_target,
                 field_name="allowed_cross_protocol_fallbacks",
             )
-            if target is None or target in targets:
+            if target is None:
+                raise ProviderError(
+                    message=(
+                        "Empty provider protocol contract allowed_cross_protocol_fallbacks"
+                        " target entry"
+                    ),
+                    provider_code="openai_compatible",
+                    error_code="invalid_protocol_contract",
+                )
+            if target in targets:
                 continue
             targets.append(target)
         if targets:
@@ -135,13 +178,19 @@ def _resolve_primary_wire_api(
     contract_payload: dict[str, Any],
     explicit_allowed_wire_apis: tuple[str, ...],
     allowed_cross_protocol_fallbacks: dict[str, tuple[str, ...]],
-) -> str:
+) -> tuple[str, bool]:
     contract_primary = _normalize_contract_wire_api(
-        contract_payload.get("primary_wire_api") or contract_payload.get("wire_api"),
+        contract_payload.get("primary_wire_api"),
         field_name="primary_wire_api",
     )
     if contract_primary is not None:
-        return contract_primary
+        return contract_primary, True
+    contract_primary = _normalize_contract_wire_api(
+        contract_payload.get("wire_api"),
+        field_name="wire_api",
+    )
+    if contract_primary is not None:
+        return contract_primary, True
 
     configured = _normalize_configured_wire_api(configured_wire_api)
     contract_wire_apis = _merge_wire_api_sets(
@@ -153,18 +202,18 @@ def _resolve_primary_wire_api(
         ),
     )
     if configured is not None and configured in contract_wire_apis:
-        return configured
+        return configured, False
 
     if explicit_allowed_wire_apis:
-        return explicit_allowed_wire_apis[0]
+        return explicit_allowed_wire_apis[0], False
 
     if allowed_cross_protocol_fallbacks:
-        return next(iter(allowed_cross_protocol_fallbacks))
+        return next(iter(allowed_cross_protocol_fallbacks)), False
 
     if configured is not None:
-        return configured
+        return configured, False
 
-    return "chat_completions"
+    return "chat_completions", False
 
 
 @dataclass(frozen=True)
@@ -185,14 +234,31 @@ class OpenAIProtocolCapabilities:
     ) -> OpenAIProtocolCapabilities:
         config = provider_config if isinstance(provider_config, dict) else {}
         contract = config.get("protocol_capabilities")
-        contract_payload = contract if isinstance(contract, dict) else {}
-        explicit_allowed_wire_apis = _normalize_wire_api_list(
-            contract_payload.get("allowed_wire_apis"),
+        if contract is None:
+            contract_payload: dict[str, Any] = {}
+        elif not isinstance(contract, dict):
+            raise ProviderError(
+                message="Invalid provider protocol_capabilities payload",
+                provider_code="openai_compatible",
+                error_code="invalid_protocol_contract",
+            )
+        else:
+            contract_payload = contract
+        raw_allowed_wire_apis = contract_payload.get("allowed_wire_apis", _MISSING)
+        explicit_allowed_wire_apis = (
+            ()
+            if raw_allowed_wire_apis is _MISSING
+            else _normalize_wire_api_list(raw_allowed_wire_apis)
         )
-        allowed_cross_protocol_fallbacks = _normalize_fallback_map(
-            contract_payload.get("allowed_cross_protocol_fallbacks"),
+        raw_cross_fallbacks = contract_payload.get(
+            "allowed_cross_protocol_fallbacks", _MISSING
         )
-        primary_wire_api = _resolve_primary_wire_api(
+        allowed_cross_protocol_fallbacks = (
+            {}
+            if raw_cross_fallbacks is _MISSING
+            else _normalize_fallback_map(raw_cross_fallbacks)
+        )
+        primary_wire_api, primary_is_explicit = _resolve_primary_wire_api(
             configured_wire_api=configured_wire_api,
             contract_payload=contract_payload,
             explicit_allowed_wire_apis=explicit_allowed_wire_apis,
@@ -207,6 +273,19 @@ class OpenAIProtocolCapabilities:
             explicit_allowed_wire_apis,
             fallback_wire_apis,
         )
+        if (
+            primary_is_explicit
+            and raw_allowed_wire_apis is not _MISSING
+            and primary_wire_api not in explicit_allowed_wire_apis
+        ):
+            raise ProviderError(
+                message=(
+                    "Provider protocol contract primary_wire_api must be present in "
+                    "allowed_wire_apis"
+                ),
+                provider_code="openai_compatible",
+                error_code="invalid_protocol_contract",
+            )
         if not allowed_wire_apis:
             allowed_wire_apis = _default_allowed_wire_apis(primary_wire_api)
         elif primary_wire_api not in allowed_wire_apis:

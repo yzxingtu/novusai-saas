@@ -138,7 +138,7 @@ async def resolve_runtime_execution_state(
     route_result = None
     try:
         from app.ai.routing.router import ModelRouter
-        from app.services.ai.usage_metrics import TokenCounter
+        from app.ai.runtime.usage_metrics import TokenCounter
 
         estimated_tokens = TokenCounter.count_messages_tokens(
             [{"content": m.content or "", "name": m.name or ""} for m in messages]

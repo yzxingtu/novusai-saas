@@ -8,8 +8,10 @@ from app.ai.engine.contract_diagnostics_helpers import (
 )
 from app.ai.engine.system_prompt_helpers import (
     build_system_message,
+    deserialize_intent_plan,
     inject_runtime_summary,
     is_capability_reporting_query,
+    resolve_capability_injection_decision,
 )
 from app.ai.engine.types import ExecutionBudget, IntentPlan
 from app.ai.runtime.types import TurnRecord
@@ -137,3 +139,47 @@ def test_base_engine_wrappers_delegate_to_extracted_helpers() -> None:
     assert response.total_tokens == 42
     assert response.message.role == "assistant"
     assert helper_response.message.content == ""
+
+
+def test_deserialize_intent_plan_filters_invalid_entries() -> None:
+    raw = [
+        {
+            "intent_id": "intent-1",
+            "kind": "web_research",
+            "family": "web_research",
+            "order": 1,
+            "user_visible_label": "web_research",
+            "source_text": "latest ai news",
+        },
+        "not-a-dict",
+    ]
+
+    intents = deserialize_intent_plan(raw)
+
+    assert len(intents) == 1
+    assert intents[0].intent_id == "intent-1"
+
+
+def test_resolve_capability_injection_decision_sets_context_flags() -> None:
+    class _Source:
+        def __init__(self, kind: str, active: bool = True) -> None:
+            self.kind = kind
+            self.active = active
+
+    decision = resolve_capability_injection_decision(
+        diagnostics={},
+        intent_flags={
+            "all_shortcircuit": False,
+            "has_page_intent": True,
+            "has_knowledge_intent": False,
+            "has_memory_intent": False,
+        },
+        context_sources=[_Source("page_context")],
+        capability_summary_injected=True,
+    )
+
+    assert decision["all_shortcircuit"] is False
+    assert decision["page_injected"] is True
+    assert decision["kb_injected"] is False
+    assert decision["memory_injected"] is False
+    assert decision["skills_injected"] is False

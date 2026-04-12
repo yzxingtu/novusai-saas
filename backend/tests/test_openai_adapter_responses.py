@@ -59,6 +59,25 @@ class _FakeResponses:
         return self.response
 
 
+class _FakeChatCompletionsStream:
+    def __init__(self, events):
+        self._events = events
+        self.aclose_called = False
+
+    def __aiter__(self):
+        self._iter = iter(self._events)
+        return self
+
+    async def __anext__(self):
+        try:
+            return next(self._iter)
+        except StopIteration as exc:
+            raise StopAsyncIteration from exc
+
+    async def aclose(self) -> None:
+        self.aclose_called = True
+
+
 class _FakeClient:
     def __init__(self, chat_response, responses_response):
         self.chat = SimpleNamespace(completions=_FakeChatCompletions(chat_response))
@@ -123,6 +142,22 @@ def _responses_cross_protocol_provider_config() -> dict[str, object]:
             "allow_adapter_cross_protocol_fallback": True,
         },
     }
+
+
+def test_adapter_rejects_primary_not_in_allowed_wire_apis() -> None:
+    with pytest.raises(ProviderError) as exc:
+        OpenAIAdapter(
+            api_key="test-key",
+            base_url="https://api.example.com",
+            provider_config={
+                "protocol_capabilities": {
+                    "primary_wire_api": "responses",
+                    "allowed_wire_apis": ["chat_completions"],
+                }
+            },
+        )
+
+    assert exc.value.error_code == "invalid_protocol_contract"
 
 
 def test_convert_openai_rate_limit_preserves_provider_message() -> None:
@@ -282,6 +317,157 @@ async def test_chat_falls_back_to_responses_when_chat_payload_has_no_choices() -
             "arguments": '{"city":"Shanghai"}',
         },
     }]
+
+
+@pytest.mark.asyncio
+async def test_chat_public_entrypoint_does_not_fallback_to_responses_on_misrouted_payload() -> (
+    None
+):
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={
+            "wire_api": "chat_completions",
+            "protocol_capabilities": {
+                "allowed_wire_apis": ["chat_completions", "responses"],
+                "allow_adapter_cross_protocol_fallback": True,
+            },
+        },
+    )
+    response_obj = SimpleNamespace(
+        object="response",
+        status="completed",
+        usage=SimpleNamespace(input_tokens=12, output_tokens=8, total_tokens=20),
+        output=[_make_responses_message("hello from responses")],
+        output_text="hello from responses",
+        model_dump=lambda: {"ok": True},
+    )
+    adapter.client = _FakeClient(
+        chat_response=response_obj,
+        responses_response=SimpleNamespace(output_text="should not be used"),
+    )
+
+    with pytest.raises(ProviderError, match="AI 请求失败"):
+        await adapter.chat(
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.4-xhigh",
+        )
+
+    assert adapter.client.responses.last_kwargs is None
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_public_entrypoint_does_not_fallback_to_responses_on_misrouted_payload() -> (
+    None
+):
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={
+            "wire_api": "chat_completions",
+            "protocol_capabilities": {
+                "allowed_wire_apis": ["chat_completions", "responses"],
+                "allow_adapter_cross_protocol_fallback": True,
+            },
+        },
+    )
+    response_obj = SimpleNamespace(
+        object="response",
+        status="completed",
+        usage=SimpleNamespace(input_tokens=12, output_tokens=8, total_tokens=20),
+        output=[_make_responses_message("hello from responses")],
+        output_text="hello from responses",
+        model_dump=lambda: {"ok": True},
+    )
+    misrouted_stream = _FakeChatCompletionsStream([response_obj])
+    adapter.client = SimpleNamespace(
+        chat=SimpleNamespace(completions=_FakeChatCompletions(misrouted_stream)),
+        responses=_FakeResponses(SimpleNamespace(output_text="should not be used")),
+    )
+
+    with pytest.raises(ProviderError, match="AI 请求失败"):
+        async for _ in adapter.stream_chat(
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.4-xhigh",
+        ):
+            pass
+
+    assert adapter.client.responses.last_kwargs is None
+
+
+@pytest.mark.asyncio
+async def test_chat_legacy_compat_respects_disabled_responses_fallback_on_misrouted_payload() -> (
+    None
+):
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={
+            "wire_api": "chat_completions",
+            "protocol_capabilities": {
+                "allowed_wire_apis": ["chat_completions", "responses"],
+                "allow_adapter_cross_protocol_fallback": False,
+            },
+        },
+    )
+    response_obj = SimpleNamespace(
+        object="response",
+        status="completed",
+        usage=SimpleNamespace(input_tokens=12, output_tokens=8, total_tokens=20),
+        output=[_make_responses_message("hello from responses")],
+        output_text="hello from responses",
+        model_dump=lambda: {"ok": True},
+    )
+    adapter.client = _FakeClient(
+        chat_response=response_obj,
+        responses_response=SimpleNamespace(output_text="should not be used"),
+    )
+
+    with pytest.raises(ProviderError, match="AI 请求失败"):
+        await adapter.chat_legacy_compat(
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.4-xhigh",
+        )
+
+    assert adapter.client.responses.last_kwargs is None
+
+
+@pytest.mark.asyncio
+async def test_chat_legacy_compat_runtime_guard_blocks_responses_fallback_on_misrouted_payload() -> (
+    None
+):
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={
+            "wire_api": "chat_completions",
+            "protocol_capabilities": {
+                "allowed_wire_apis": ["chat_completions", "responses"],
+                "allow_adapter_cross_protocol_fallback": True,
+            },
+        },
+    )
+    response_obj = SimpleNamespace(
+        object="response",
+        status="completed",
+        usage=SimpleNamespace(input_tokens=12, output_tokens=8, total_tokens=20),
+        output=[_make_responses_message("hello from responses")],
+        output_text="hello from responses",
+        model_dump=lambda: {"ok": True},
+    )
+    adapter.client = _FakeClient(
+        chat_response=response_obj,
+        responses_response=SimpleNamespace(output_text="should not be used"),
+    )
+
+    with pytest.raises(ProviderError, match="AI 请求失败"):
+        await adapter.chat_legacy_compat(
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.4-xhigh",
+            _runtime_disable_cross_protocol_fallback=True,
+        )
+
+    assert adapter.client.responses.last_kwargs is None
 
 
 @pytest.mark.asyncio
@@ -941,6 +1127,46 @@ async def test_stream_chat_falls_back_to_chat_completions_when_responses_tool_ca
 
     assert "".join(chunk.delta for chunk in chunks) == "hi"
     assert chunks[-1].finish_reason == "stop"
+    assert stream.aclose_called is True
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_legacy_compat_respects_disabled_responses_fallback_on_misrouted_chunk() -> (
+    None
+):
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={
+            "wire_api": "chat_completions",
+            "protocol_capabilities": {
+                "allowed_wire_apis": ["chat_completions", "responses"],
+                "allow_adapter_cross_protocol_fallback": False,
+            },
+        },
+    )
+    stream = _FakeChatStream(
+        [
+            SimpleNamespace(
+                object="response",
+                output=[_make_responses_message("hello from responses")],
+                output_text="hello from responses",
+            )
+        ]
+    )
+    adapter.client = SimpleNamespace(
+        responses=_FakeResponses(SimpleNamespace(output_text="should not be used")),
+        chat=SimpleNamespace(completions=SimpleNamespace(create=AsyncMock(return_value=stream))),
+    )
+
+    with pytest.raises(ProviderError, match="AI 请求失败"):
+        async for _ in adapter.stream_chat_legacy_compat(
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.4-xhigh",
+        ):
+            pass
+
+    assert adapter.client.responses.last_kwargs is None
     assert stream.aclose_called is True
 
 

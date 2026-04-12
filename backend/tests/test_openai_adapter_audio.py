@@ -274,6 +274,49 @@ async def test_convert_messages_audio_supports_audio_false_yields_text(
     assert len(text_parts) == 1
 
 
+@pytest.mark.asyncio
+async def test_convert_messages_audio_uses_payload_helper(
+    adapter: OpenAIAdapter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Audio conversion should delegate to the shared payload helper. / 说明"""
+    called: dict[str, object] = {}
+
+    async def _fake_fetch_audio_bytes(_url: str) -> bytes | None:
+        return b"payload-bytes"
+
+    def _fake_build_input_audio_part(
+        audio_bytes: bytes,
+        mime_type: str | None,
+        *,
+        audio_mime_to_openai_format: dict[str, str] | None = None,
+    ) -> dict[str, object]:
+        called["audio_bytes"] = audio_bytes
+        called["mime_type"] = mime_type
+        called["mapping"] = dict(audio_mime_to_openai_format or {})
+        return {"type": "input_audio", "input_audio": {"data": "YWJj", "format": "wav"}}
+
+    monkeypatch.setattr(adapter, "_fetch_audio_bytes", AsyncMock(side_effect=_fake_fetch_audio_bytes))
+    monkeypatch.setattr(
+        "app.ai.adapters.openai_compatible.support.chat_multimodal_messages.build_input_audio_part",
+        _fake_build_input_audio_part,
+    )
+
+    messages = [_make_audio_message("https://example.com/audio.wav", mime_type="audio/wav")]
+    result = await adapter._convert_messages(
+        messages,
+        supports_vision=True,
+        supports_audio=True,
+        supports_video=False,
+    )
+
+    parts = [p for p in result[0]["content"] if p.get("type") == "input_audio"]
+    assert len(parts) == 1
+    assert parts[0]["input_audio"]["format"] == "wav"
+    assert called["audio_bytes"] == b"payload-bytes"
+    assert called["mime_type"] == "audio/wav"
+
+
 def test_supports_native_audio_constant() -> None:
     """SUPPORTS_NATIVE_AUDIO is True so native audio can be used when enabled. / 说明"""
     assert SUPPORTS_NATIVE_AUDIO is True

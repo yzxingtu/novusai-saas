@@ -5,16 +5,10 @@ Unified AI runtime diagnostics service / 统一 AI runtime 诊断服务。
 from __future__ import annotations
 
 from typing import Any
-from urllib.parse import urlparse
 
-from kombu import Connection
-from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
-from app.core.database import check_database_connection
 from app.core.logging import get_logger
-from app.core.redis import RedisManager
 from app.enums.ai import CallStatusEnum
 from app.exceptions import NotFoundException
 from app.models.ai.call_log import AICallLog
@@ -24,6 +18,7 @@ from app.services.ai.monitoring_read_model_projector import (
 from app.services.ai.runtime_diagnostics_query_service import (
     RuntimeDiagnosticsQueryService,
 )
+from app.services.ai.runtime_diagnostics_support import RuntimeDiagnosticsCheckSupport
 from app.services.ai.runtime_inventory_service import RuntimeInventoryService
 from app.services.ai.runtime_root_cause_projector import RuntimeRootCauseProjector
 from app.services.ai.skill_registry_service import SkillRegistryService
@@ -37,6 +32,13 @@ class RuntimeDiagnosticsService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
         self.inventory = RuntimeInventoryService(db)
+        self._check_support = RuntimeDiagnosticsCheckSupport()
+
+    @property
+    def check_support(self) -> RuntimeDiagnosticsCheckSupport:
+        if not hasattr(self, "_check_support"):
+            self._check_support = RuntimeDiagnosticsCheckSupport()
+        return self._check_support
 
     async def get_capabilities(
         self,
@@ -68,25 +70,25 @@ class RuntimeDiagnosticsService:
             agent_code=agent_code,
         )
         checks: list[dict[str, Any]] = [
-            await self._check_database(),
-            await self._check_redis(),
-            await self._check_celery_broker(),
+            await self.check_support.check_database(),
+            await self.check_support.check_redis(),
+            await self.check_support.check_celery_broker(),
         ]
         checks.extend(
-            self._build_manifest_checks(
+            self.check_support.build_manifest_checks(
                 manifest,
                 require_agent=False,
                 require_page_context=False,
             )
         )
         recent_failures = await self._aggregate_recent_failures(tenant_id=tenant_id)
-        recommended_actions = self._build_recommended_actions(
+        recommended_actions = RuntimeRootCauseProjector.build_recommended_actions(
             checks=checks,
             manifest=manifest,
             recent_failures=recent_failures,
         )
         return {
-            "overall_status": self._resolve_overall_status(checks),
+            "overall_status": RuntimeRootCauseProjector.resolve_overall_status(checks),
             "checks": checks,
             "recent_failures": recent_failures,
             "capability_manifest_summary": dict(manifest.get("summary") or {}),
@@ -103,7 +105,7 @@ class RuntimeDiagnosticsService:
     ) -> dict[str, Any]:
         if agent_id is None and not str(agent_code or "").strip():
             checks = [
-                self._check_item(
+                self.check_support.build_check_item(
                     "agent_resolution",
                     status="unavailable",
                     blocking=True,
@@ -126,7 +128,7 @@ class RuntimeDiagnosticsService:
             agent_code=agent_code,
         )
         checks = [
-            self._check_item(
+            self.check_support.build_check_item(
                 "agent_resolution",
                 status="available",
                 blocking=True,
@@ -135,19 +137,19 @@ class RuntimeDiagnosticsService:
             )
         ]
         checks.extend(
-            self._build_manifest_checks(
+            self.check_support.build_manifest_checks(
                 manifest,
                 require_agent=True,
                 require_page_context=False,
             )
         )
-        recommended_actions = self._build_recommended_actions(
+        recommended_actions = RuntimeRootCauseProjector.build_recommended_actions(
             checks=checks,
             manifest=manifest,
             recent_failures=[],
         )
         return {
-            "overall_status": self._resolve_overall_status(checks),
+            "overall_status": RuntimeRootCauseProjector.resolve_overall_status(checks),
             "checks": checks,
             "runtime_capability_manifest": manifest,
             "recommended_actions": recommended_actions,
@@ -291,256 +293,6 @@ class RuntimeDiagnosticsService:
             upgrade_existing=upgrade_existing,
             dry_run=dry_run,
         )
-
-    @staticmethod
-    def _check_item(
-        name: str,
-        *,
-        status: str,
-        blocking: bool = False,
-        reason: str | None = None,
-        metadata: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        return {
-            "name": name,
-            "status": status,
-            "blocking": blocking,
-            "reason": reason,
-            "metadata": dict(metadata or {}),
-        }
-
-    async def _check_database(self) -> dict[str, Any]:
-        healthy = await check_database_connection()
-        return self._check_item(
-            "database",
-            status="available" if healthy else "unavailable",
-            blocking=True,
-            reason=None if healthy else "database_connection_failed",
-        )
-
-    async def _check_redis(self) -> dict[str, Any]:
-        try:
-            await RedisManager.init()
-            healthy = await RedisManager.health_check()
-        except Exception as exc:
-            logger.warning("Runtime doctor redis check failed: {}", exc)
-            healthy = False
-        return self._check_item(
-            "redis",
-            status="available" if healthy else "unavailable",
-            blocking=True,
-            reason=None if healthy else "redis_connection_failed",
-        )
-
-    async def _check_celery_broker(self) -> dict[str, Any]:
-        broker_url = settings.celery_broker_url
-        if not broker_url:
-            return self._check_item(
-                "celery_broker",
-                status="unavailable",
-                blocking=True,
-                reason="celery_broker_url_missing",
-            )
-
-        parsed = urlparse(broker_url)
-        scheme = str(parsed.scheme or "").lower()
-        try:
-            if scheme.startswith("redis"):
-                client = Redis.from_url(
-                    broker_url,
-                    decode_responses=True,
-                    socket_connect_timeout=3,
-                    socket_timeout=3,
-                )
-                try:
-                    healthy = bool(await client.ping())
-                finally:
-                    await client.aclose()
-            elif scheme in {"amqp", "amqps", "pyamqp"}:
-                with Connection(broker_url, connect_timeout=3) as connection:
-                    connection.ensure_connection(max_retries=1)
-                healthy = True
-            else:
-                return self._check_item(
-                    "celery_broker",
-                    status="degraded",
-                    blocking=False,
-                    reason="unsupported_broker_scheme_check",
-                    metadata={"scheme": scheme or None},
-                )
-        except Exception as exc:
-            logger.warning("Runtime doctor celery broker check failed: {}", exc)
-            healthy = False
-
-        return self._check_item(
-            "celery_broker",
-            status="available" if healthy else "unavailable",
-            blocking=True,
-            reason=None if healthy else "celery_broker_connection_failed",
-            metadata={"scheme": scheme or None},
-        )
-
-    def _build_manifest_checks(
-        self,
-        manifest: dict[str, Any],
-        *,
-        require_agent: bool,
-        require_page_context: bool,
-    ) -> list[dict[str, Any]]:
-        checks: list[dict[str, Any]] = []
-        summary = dict(manifest.get("summary") or {})
-        provider = dict(manifest.get("provider") or {})
-        model = dict(manifest.get("model") or {})
-        web_research_items = list(manifest.get("web_research") or [])
-        page_context_items = list(manifest.get("page_context") or [])
-        memory_items = list(manifest.get("memory") or [])
-        kb_items = list(manifest.get("knowledge_bases") or [])
-
-        if require_agent:
-            checks.append(
-                self._check_item(
-                    "provider",
-                    status=str(provider.get("status") or "unavailable"),
-                    blocking=True,
-                    reason=provider.get("reason"),
-                    metadata={"provider": provider},
-                )
-            )
-            checks.append(
-                self._check_item(
-                    "model",
-                    status=str(model.get("status") or "unavailable"),
-                    blocking=True,
-                    reason=model.get("reason"),
-                    metadata={"model": model},
-                )
-            )
-        elif provider.get("id") or model.get("id"):
-            checks.append(
-                self._check_item(
-                    "provider_model_resolution",
-                    status="available"
-                    if provider.get("status") == "available"
-                    and model.get("status") == "available"
-                    else "degraded",
-                    blocking=False,
-                    reason=None
-                    if provider.get("status") == "available"
-                    and model.get("status") == "available"
-                    else "provider_or_model_degraded",
-                    metadata={"provider": provider, "model": model},
-                )
-            )
-
-        tool_count = int(summary.get("tool_count") or 0)
-        skill_count = int(summary.get("skill_count") or 0)
-        checks.append(
-            self._check_item(
-                "tools",
-                status="available" if tool_count > 0 else "degraded",
-                blocking=False,
-                reason=None if tool_count > 0 else "no_runtime_tools_exposed",
-                metadata={"tool_count": tool_count},
-            )
-        )
-        checks.append(
-            self._check_item(
-                "skills",
-                status="available" if skill_count > 0 else "degraded",
-                blocking=False,
-                reason=None if skill_count > 0 else "no_runtime_skills_selected",
-                metadata={"skill_count": skill_count},
-            )
-        )
-
-        web_research = next(
-            (
-                item
-                for item in web_research_items
-                if str(item.get("name") or "").strip() == "web_research"
-            ),
-            {},
-        )
-        research_status = str(web_research.get("status") or "unavailable")
-        research_metadata = dict(web_research.get("metadata") or {})
-        has_one_of_pair = bool(research_metadata.get("has_web_search")) ^ bool(
-            research_metadata.get("has_fetch_url")
-        )
-        checks.append(
-            self._check_item(
-                "web_research_contract",
-                status=research_status,
-                blocking=has_one_of_pair,
-                reason=web_research.get("reason"),
-                metadata=research_metadata,
-            )
-        )
-
-        kb_available_count = len(
-            [item for item in kb_items if item.get("status") == "available"]
-        )
-        checks.append(
-            self._check_item(
-                "knowledge_base",
-                status="available" if kb_available_count > 0 else "degraded",
-                blocking=False,
-                reason=None
-                if kb_available_count > 0
-                else "no_effective_knowledge_base_binding",
-                metadata={"knowledge_base_count": kb_available_count},
-            )
-        )
-
-        memory_status = next(
-            (
-                str(item.get("status") or "unavailable")
-                for item in memory_items
-                if str(item.get("name") or "").strip() == "memory"
-            ),
-            "unavailable",
-        )
-        memory_reason = next(
-            (
-                item.get("reason")
-                for item in memory_items
-                if str(item.get("name") or "").strip() == "memory"
-            ),
-            None,
-        )
-        checks.append(
-            self._check_item(
-                "memory",
-                status=memory_status,
-                blocking=False,
-                reason=memory_reason,
-            )
-        )
-
-        page_status = next(
-            (
-                str(item.get("status") or "unavailable")
-                for item in page_context_items
-                if str(item.get("name") or "").strip()
-            ),
-            "unavailable",
-        )
-        page_reason = next(
-            (
-                item.get("reason")
-                for item in page_context_items
-                if str(item.get("name") or "").strip()
-            ),
-            None,
-        )
-        checks.append(
-            self._check_item(
-                "page_context",
-                status=page_status,
-                blocking=require_page_context,
-                reason=page_reason,
-            )
-        )
-        return checks
 
     async def _aggregate_recent_failures(
         self,

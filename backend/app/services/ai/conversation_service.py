@@ -14,7 +14,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.json_safe import normalize_json_safe, normalize_json_safe_dict
 from app.ai.types import ChatMessage
-from app.ai.utils.token_estimator import estimate_tokens
 from app.configs.service import PLATFORM_TENANT_ID
 from app.core.base_service import TenantService
 from app.core.i18n import _
@@ -37,6 +36,9 @@ from app.services.ai.action_log_service import resolve_action_level, write_ai_ac
 from app.services.ai.conversation_chat_lifecycle_service import (
     ConversationChatLifecycleService,
 )
+from app.services.ai.conversation_compaction_service import (
+    ConversationCompactionService,
+)
 from app.services.ai.conversation_diagnostics_projector import (
     ConversationDiagnosticsProjector,
 )
@@ -48,6 +50,9 @@ from app.services.ai.conversation_history_service import ConversationHistoryServ
 from app.services.ai.conversation_interaction_service import (
     ConversationInteractionService,
 )
+from app.services.ai.conversation_memory_state_service import (
+    ConversationMemoryStateService,
+)
 from app.services.ai.conversation_message_persistence_service import (
     ConversationMessagePersistenceService,
 )
@@ -56,6 +61,9 @@ from app.services.ai.conversation_read_model_service import (
 )
 from app.services.ai.conversation_runtime_projection_service import (
     ConversationRuntimeProjectionService,
+)
+from app.services.ai.conversation_search_query_service import (
+    ConversationSearchQueryService,
 )
 from app.services.ai.conversation_stats_service import ConversationStatsService
 from app.services.ai.conversation_timeline_service import (
@@ -67,7 +75,6 @@ from app.services.ai.execution_decision_service import (
 from app.services.ai.execution_trust_policy_service import (
     ExecutionTrustPolicyService,  # noqa: F401
 )
-from app.services.ai.session_memory_service import SessionMemoryService
 
 if TYPE_CHECKING:
     from app.ai.engine.types import ExecutionResult
@@ -80,6 +87,22 @@ if TYPE_CHECKING:
 
 logger = LogManager.get_logger("ai.conversation_service")
 _CONTEXT_COMPACTION_METADATA_KEY = "context_compaction"
+
+
+class SessionMemoryService:
+    """Legacy shim kept for conversation-service patch compatibility."""
+
+    def __init__(self, memory_tenant_id: int):
+        self._service = ConversationMemoryStateService(memory_tenant_id=memory_tenant_id)
+
+    async def get_conversation_memory_state(self, conversation_id: int) -> dict[str, Any]:
+        return await self._service.get_state(conversation_id)
+
+    async def clear_conversation_memory(self, conversation_id: int) -> int:
+        return await self._service.clear_state(conversation_id)
+
+    async def clear_conversation_memory_safe(self, conversation_id: int) -> None:
+        await self._service.clear_state_safe(conversation_id)
 
 
 def parse_output(*args: Any, **kwargs: Any) -> Any:
@@ -168,6 +191,15 @@ class ConversationService(
         return self._history_service
 
     @property
+    def search_query_service(self) -> ConversationSearchQueryService:
+        if not hasattr(self, "_search_query_service"):
+            self._search_query_service = ConversationSearchQueryService(
+                message_repo=self.message_repo,
+                read_model_service=self.read_model_service,
+            )
+        return self._search_query_service
+
+    @property
     def chat_lifecycle_service(self) -> ConversationChatLifecycleService:
         if not hasattr(self, "_chat_lifecycle_service"):
             self._chat_lifecycle_service = ConversationChatLifecycleService(
@@ -179,6 +211,16 @@ class ConversationService(
         return self._chat_lifecycle_service
 
     @property
+    def compaction_service(self) -> ConversationCompactionService:
+        if not hasattr(self, "_compaction_service"):
+            self._compaction_service = ConversationCompactionService(
+                message_repo=self.message_repo,
+                load_chat_history=self.load_chat_history,
+                upsert_snapshot=self.upsert_context_compaction_snapshot,
+            )
+        return self._compaction_service
+
+    @property
     def runtime_projection_service(self) -> ConversationRuntimeProjectionService:
         if not hasattr(self, "_runtime_projection_service"):
             self._runtime_projection_service = ConversationRuntimeProjectionService(
@@ -188,6 +230,14 @@ class ConversationService(
                 get_context_compaction_snapshot=self.get_context_compaction_snapshot,
             )
         return self._runtime_projection_service
+
+    @property
+    def memory_state_service(self) -> SessionMemoryService:
+        if not hasattr(self, "_memory_state_service"):
+            self._memory_state_service = SessionMemoryService(
+                self._get_memory_tenant_id()
+            )
+        return self._memory_state_service
 
     @property
     def stats_service(self) -> ConversationStatsService:
@@ -423,37 +473,9 @@ class ConversationService(
             user_id=user_id,
             owner_type=owner_type,
         )
-        context_config = (
-            getattr(getattr(conversation, "agent", None), "context_config", None) or {}
-        )
-        max_chars = int(context_config.get("compact_max_summary_chars", 1600) or 1600)
-        total_messages = await self.message_repo.count_by_conversation(conversation_id)
-        messages = await self.load_chat_history(
+        return await self.compaction_service.rebuild_snapshot(
             conversation_id=conversation_id,
-            max_messages=max(total_messages, 1),
-            max_tokens=0,
-        )
-        if not messages:
-            return None
-
-        from app.ai.context.engine import ConversationContextEngine
-
-        summary = ConversationContextEngine._build_compact_summary(
-            messages,
-            max_chars=max_chars,
-        )
-        if not summary:
-            return None
-        source_messages = [
-            message for message in messages if message.role in {"user", "assistant"}
-        ]
-        return await self.upsert_context_compaction_snapshot(
-            conversation_id,
-            summary=summary,
-            source_message_count=len(source_messages),
-            source_token_estimate=sum(
-                estimate_tokens(message.content or "") for message in source_messages
-            ),
+            conversation=conversation,
         )
 
     async def get_conversation_timeline(
@@ -496,8 +518,9 @@ class ConversationService(
             user_id=user_id,
             owner_type=owner_type,
         )
-        memory_svc = SessionMemoryService(self._get_memory_tenant_id())
-        return await memory_svc.get_conversation_memory_state(conversation_id)
+        return await self.memory_state_service.get_conversation_memory_state(
+            conversation_id
+        )
 
     async def clear_conversation_memory_state(
         self,
@@ -510,8 +533,9 @@ class ConversationService(
             user_id=user_id,
             owner_type=owner_type,
         )
-        memory_svc = SessionMemoryService(self._get_memory_tenant_id())
-        return await memory_svc.clear_conversation_memory(conversation_id)
+        return await self.memory_state_service.clear_conversation_memory(
+            conversation_id
+        )
 
     # ========================================
     # 搜索 / Search
@@ -534,26 +558,11 @@ class ConversationService(
         Returns:
             搜索结果字典
         """
-        if not keyword or not keyword.strip():
-            raise BusinessException(
-                message=_("conversation.search_keyword_required"),
-            )
-
-        skip = (page - 1) * page_size
-        messages, total = await self.message_repo.search_by_content(
-            keyword=keyword.strip(),
-            skip=skip,
-            limit=page_size,
+        return await self.search_query_service.search_messages(
+            keyword=keyword,
+            page=page,
+            page_size=page_size,
         )
-
-        items = await self.read_model_service.serialize_search_messages(messages)
-
-        return {
-            "items": items,
-            "total": total,
-            "page": page,
-            "page_size": page_size,
-        }
 
     # ========================================
     # 归档 / Archive
@@ -586,16 +595,9 @@ class ConversationService(
         )
 
         # Proactively clear session memory (immediate cleanup beyond TTL) / 主动清理会话记忆（TTL 外的即时清理）
-        memory_svc = SessionMemoryService(self._get_memory_tenant_id())
-        try:
-            await memory_svc.clear_conversation_memory(conversation_id)
-        except Exception as exc:
-            logger.warning(
-                "Archive conversation memory cleanup failed: conversation={} tenant={} err={}",
-                conversation_id,
-                self.tenant_id,
-                str(exc),
-            )
+        await self.memory_state_service.clear_conversation_memory_safe(
+            conversation_id
+        )
 
         logger.info(
             "Conversation archived: conversation_id={} tenant_id={}",
@@ -610,15 +612,14 @@ class ConversationService(
         对话删除后清理会话记忆（失败降级，不影响删除主流程）/ Clear session memory after delete (best-effort, does not block delete).
         """
         await super()._after_delete(id)
-        memory_svc = SessionMemoryService(self._get_memory_tenant_id())
         try:
-            await memory_svc.clear_conversation_memory(id)
-        except Exception as exc:
+            await self.memory_state_service.clear_conversation_memory(id)
+        except Exception as exc:  # pragma: no cover - best effort cleanup path
             logger.warning(
                 "Delete conversation memory cleanup failed: conversation={} tenant={} err={}",
                 id,
                 self.tenant_id,
-                str(exc),
+                exc,
             )
 
     # ========================================

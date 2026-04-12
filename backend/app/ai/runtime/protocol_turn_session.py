@@ -5,7 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from app.ai.runtime.contracts import ProtocolExecutionPlan, TurnCommand
+from app.ai.runtime.contracts import (
+    ProtocolExecutionPlan,
+    ProtocolGuardContract,
+    TurnCommand,
+)
 from app.ai.runtime.protocol_planner import ProtocolPlanner
 from app.ai.runtime.types import ContextSource, FallbackRecord, ProtocolPath, TurnRecord
 from app.ai.types import ChatMessage, ChatResponse
@@ -35,7 +39,9 @@ class ProtocolTurnSession:
         selected_skill_names: list[str] | None = None,
         context_sources: list[ContextSource] | None = None,
         extra_kwargs: dict[str, Any] | None = None,
+        guard_contract: ProtocolGuardContract | None = None,
     ) -> ProtocolTurnSession:
+        resolved_guards = guard_contract or ProtocolGuardContract()
         command = TurnCommand(
             messages=messages,
             model=model,
@@ -50,12 +56,15 @@ class ProtocolTurnSession:
             selected_skill_names=list(selected_skill_names or []),
             context_sources=list(context_sources or []),
             extra_kwargs=dict(extra_kwargs or {}),
+            protocol_guards=resolved_guards,
         )
         plan = planner.plan_turn(
             tools=command.tools,
+            guard_contract=resolved_guards,
             selected_skill_names=command.selected_skill_names,
             context_sources=command.context_sources,
         )
+        plan.protocol_guards = resolved_guards
         turn_record = TurnRecord(
             protocol_path=plan.preferred_protocol,
             selected_tool_names=list(plan.selected_tool_names),

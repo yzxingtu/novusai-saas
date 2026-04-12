@@ -166,6 +166,15 @@ def test_intent_planner_recognizes_memory_recall_and_readonly_guidance() -> None
     assert intents[1].kind == "page_summary"
 
 
+def test_intent_planner_detects_memory_save_intent() -> None:
+    intents = _plan("请记住这条信息，之后再提醒我。")
+
+    assert [intent.kind for intent in intents] == ["memory_save"]
+    assert intents[0].family == "memory"
+    assert intents[0].requires_tools is False
+    assert intents[0].shortcircuit is True
+
+
 def test_intent_planner_detects_page_continuation_summary_for_continue_look() -> None:
     intents = _plan(
         "继续看",
@@ -359,6 +368,17 @@ def test_intent_planner_detects_definition_query_as_knowledge_when_bound_kb_pres
     assert intents[0].shortcircuit is False
 
 
+def test_intent_planner_does_not_default_to_kb_when_bound_kb_present() -> None:
+    intents = _plan(
+        "你好",
+        tools=_tools(),
+        capability_bundle=_kb_capability_bundle(),
+    )
+
+    assert [intent.kind for intent in intents] == ["direct_reply"]
+    assert intents[0].shortcircuit is True
+
+
 def test_intent_planner_keeps_definition_like_kb_query_when_web_signal_exists() -> None:
     intents = _plan(
         "联网查一下 NovusAI 是什么",
@@ -369,7 +389,7 @@ def test_intent_planner_keeps_definition_like_kb_query_when_web_signal_exists() 
     assert [intent.kind for intent in intents] == ["web_research", "knowledge_query"]
 
 
-def test_intent_planner_adds_kb_fallback_when_bound_kb_has_no_other_signal() -> None:
+def test_intent_planner_keeps_definition_like_intro_as_kb_query_when_bound_kb_present() -> None:
     intents = _plan(
         "介绍一下退货政策",
         tools=_tools(),
@@ -378,6 +398,7 @@ def test_intent_planner_adds_kb_fallback_when_bound_kb_has_no_other_signal() -> 
 
     assert [intent.kind for intent in intents] == ["knowledge_query"]
     assert intents[0].requires_tools is False
+    assert intents[0].shortcircuit is False
 
 
 def test_intent_planner_keeps_pronoun_only_definition_as_direct_reply_even_with_bound_kb() -> (

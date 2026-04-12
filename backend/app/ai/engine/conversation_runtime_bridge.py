@@ -45,12 +45,13 @@ async def call_runtime_query_turn(
     context_sources: list[Any] | None,
     execution_path: str | None,
     extra_kwargs: dict[str, Any] | None,
+    skip_metering_preflight: bool,
     adapter_registry: Any = AdapterRegistry,
     query_engine_cls: Any = ConversationQueryEngine,
     model_request_override_builder: Any = build_model_request_overrides,
+    accounting_builder: Any = None,
     engine_logger: Any = None,
 ) -> tuple[ChatResponse, ConversationQueryEngine]:
-    del model_request_override_builder
     plan = await build_runtime_query_entrypoint_plan(
         engine,
         agent=agent,
@@ -68,9 +69,12 @@ async def call_runtime_query_turn(
         context_sources=context_sources,
         execution_path=execution_path,
         extra_kwargs=extra_kwargs,
+        skip_metering_preflight=skip_metering_preflight,
         runtime_preparer=prepare_stream_runtime,
         adapter_registry=adapter_registry,
         query_engine_cls=query_engine_cls,
+        model_request_override_builder=model_request_override_builder,
+        accounting_builder=accounting_builder,
     )
     runtime_context = plan.runtime_context
     provider = runtime_context.provider
@@ -141,6 +145,7 @@ async def stream_llm_chunks(
     route_result: Any | None = None,
     tools: list[ToolDefinition] | None = None,
     execution_path: str | None = None,
+    extra_kwargs: dict[str, Any] | None = None,
     user_id: int | None = None,
     log_user_type: str | None = None,
     billing_context: dict[str, Any] | None = None,
@@ -150,9 +155,11 @@ async def stream_llm_chunks(
     context_sources: list[Any] | None = None,
     tool_use_policy: ToolUsePolicy | None = None,
     breach_retry_result: str | None = None,
+    skip_metering_preflight: bool = False,
     adapter_registry: Any = AdapterRegistry,
     query_engine_cls: Any = ConversationQueryEngine,
     model_request_override_builder: Any = build_model_request_overrides,
+    accounting_builder: Any = None,
     engine_logger: Any = None,
 ) -> AsyncIterator[ChatChunk]:
     stream_start = time.perf_counter()
@@ -165,6 +172,7 @@ async def stream_llm_chunks(
         route_result=route_result,
         tools=tools,
         execution_path=execution_path,
+        extra_kwargs=extra_kwargs,
         user_id=user_id,
         log_user_type=log_user_type,
         billing_context=billing_context,
@@ -173,10 +181,12 @@ async def stream_llm_chunks(
         context_sources=context_sources,
         tool_use_policy=tool_use_policy,
         breach_retry_result=breach_retry_result,
+        skip_metering_preflight=skip_metering_preflight,
         runtime_preparer=prepare_stream_runtime,
         adapter_registry=adapter_registry,
         query_engine_cls=query_engine_cls,
         model_request_override_builder=model_request_override_builder,
+        accounting_builder=accounting_builder,
         engine_logger=(engine_logger or getattr(engine, "logger", None)),
     )
     runtime_context = plan.runtime_context

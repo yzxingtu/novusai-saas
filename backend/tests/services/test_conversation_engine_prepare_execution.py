@@ -6,9 +6,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.ai.context import get_context_engine
+from app.ai.context.engine import ConversationContextEngine
 from app.ai.engine.base import BaseEngine
 from app.ai.engine.conversation import ConversationEngine, _SyncIOAdapter
+from app.ai.engine.stream_runtime_contract import build_stream_runtime_contract
 from app.ai.engine.types import ExecutionRequest, IntentPlan, ToolUsePolicy
+from app.ai.runtime.context_capability_bridge import DefaultContextCapabilityBridge
+from app.ai.runtime.contracts import ContextCapabilityAwareness
 from app.ai.runtime.types import CapabilityDescriptor
 from app.ai.skills.resolver import SkillResolveResult
 from app.ai.tools.types import ToolDefinition
@@ -132,9 +136,9 @@ def _build_intent_plan(*kinds: str) -> list[IntentPlan]:
 
 @pytest.fixture(autouse=True)
 def _stub_missing_tool_runtime_summary_prompt(monkeypatch):
-    import app.ai.engine.base as base_module
+    import app.ai.engine.base_execution_support as base_execution_support
 
-    original = base_module.render_prompt_contract
+    original = base_execution_support.render_prompt_contract
 
     def _render(name, *args, **kwargs):
         if name == "tool_runtime_summary":
@@ -142,28 +146,33 @@ def _stub_missing_tool_runtime_summary_prompt(monkeypatch):
             return "[TOOL RUNTIME SUMMARY]"
         return original(name, *args, **kwargs)
 
-    monkeypatch.setattr(base_module, "render_prompt_contract", _render)
+    monkeypatch.setattr(base_execution_support, "render_prompt_contract", _render)
 
 
 @pytest.fixture(autouse=True)
 def _stub_capability_awareness_runtime(monkeypatch):
-    from app.services.ai.capability_awareness_config import (
-        TenantCapabilityAwarenessSettings,
-    )
+    async def _resolve_runtime_model_capabilities(self, *, agent):
+        model = getattr(agent, "model", None)
+        if model is None:
+            return {"supports_audio": False}
+        return {
+            "supports_audio": bool(getattr(model, "supports_audio", False)),
+            "supports_video": bool(getattr(model, "supports_video", False)),
+            "supports_vision": bool(getattr(model, "supports_vision", False)),
+        }
+
+    async def _compute_awareness(self, **_kwargs):
+        return ContextCapabilityAwareness(enabled=True)
 
     monkeypatch.setattr(
-        "app.ai.context.engine.get_tenant_capability_awareness_settings",
-        AsyncMock(
-            return_value=TenantCapabilityAwarenessSettings(
-                enable_dynamic_capability_awareness=True,
-                capability_description_style="detailed",
-                max_capability_items_per_category=20,
-            )
-        ),
+        DefaultContextCapabilityBridge,
+        "resolve_runtime_model_capabilities",
+        _resolve_runtime_model_capabilities,
     )
     monkeypatch.setattr(
-        "app.ai.context.engine.resolve_runtime_model_capabilities",
-        AsyncMock(return_value={}),
+        DefaultContextCapabilityBridge,
+        "compute_awareness",
+        _compute_awareness,
     )
 
 
@@ -1653,6 +1662,11 @@ async def test_prepare_execution_builds_compaction_snapshot_sidecar_when_thresho
             new=AsyncMock(return_value=([], {})),
         ),
         patch("app.ai.routing.router.ModelRouter", new=_FakeRouter),
+        patch.object(
+            ConversationContextEngine,
+            "_build_compact_summary",
+            return_value="Facade summary",
+        ) as build_compact_summary,
         patch(
             "app.ai.context.engine.ContextCompactionSnapshotStore.get_snapshot",
             new=AsyncMock(side_effect=fake_get_snapshot),
@@ -1669,9 +1683,10 @@ async def test_prepare_execution_builds_compaction_snapshot_sidecar_when_thresho
         )
 
     assert prep.context_compacted is True
-    assert prep.compact_summary is not None
+    assert prep.compact_summary == "Facade summary"
     assert "[COMPACTED CONTEXT SUMMARY]" in prep.messages[0].content
     assert prep.system_prompt_additions
+    build_compact_summary.assert_called_once()
     # Second persist skipped when snapshot unchanged (assemble + compact dedup).
     assert upsert_snapshot.await_count == 1
 
@@ -1937,15 +1952,10 @@ async def test_prepare_execution_skips_runtime_capability_summary_when_dynamic_a
     )
 
     with (
-        patch(
-            "app.ai.context.engine.get_tenant_capability_awareness_settings",
-            new=AsyncMock(
-                return_value=SimpleNamespace(
-                    enable_dynamic_capability_awareness=True,
-                    capability_description_style="detailed",
-                    max_capability_items_per_category=20,
-                )
-            ),
+        patch.object(
+            DefaultContextCapabilityBridge,
+            "compute_awareness",
+            new=AsyncMock(return_value=ContextCapabilityAwareness(enabled=True)),
         ),
         patch(
             "app.ai.rag_injector.load_agent_kb_bindings",
@@ -2000,15 +2010,10 @@ async def test_prepare_execution_keeps_runtime_capability_summary_when_dynamic_a
     )
 
     with (
-        patch(
-            "app.ai.context.engine.get_tenant_capability_awareness_settings",
-            new=AsyncMock(
-                return_value=SimpleNamespace(
-                    enable_dynamic_capability_awareness=False,
-                    capability_description_style="detailed",
-                    max_capability_items_per_category=20,
-                )
-            ),
+        patch.object(
+            DefaultContextCapabilityBridge,
+            "compute_awareness",
+            new=AsyncMock(return_value=ContextCapabilityAwareness(enabled=False)),
         ),
         patch(
             "app.ai.rag_injector.load_agent_kb_bindings",
@@ -2620,6 +2625,7 @@ async def test_sync_io_adapter_fast_text_round_passes_low_reasoning_override() -
         ),
         selected_skill_names=[],
         context_sources=[],
+        runtime_contract=build_stream_runtime_contract(engine),
     )
 
     await sync_adapter.call_llm(

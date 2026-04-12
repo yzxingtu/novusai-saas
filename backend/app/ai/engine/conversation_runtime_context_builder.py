@@ -161,6 +161,19 @@ def _build_query_engine(
     )
 
 
+def _build_accounting(
+    *,
+    engine: Any,
+    accounting_builder: Callable[[Any], ConversationRuntimeAccounting] | None,
+) -> ConversationRuntimeAccounting:
+    if accounting_builder is not None:
+        return accounting_builder(engine)
+    return ConversationRuntimeAccounting(
+        gateway=engine.gateway,
+        db=engine.db,
+    )
+
+
 def _build_stream_request_log_data(
     *,
     messages: list[ChatMessage],
@@ -227,6 +240,26 @@ def _build_query_request_log_data(
     }
 
 
+def _build_request_extra_kwargs(
+    *,
+    execution_path: str | None,
+    tools: list[ToolDefinition] | None,
+    extra_kwargs: dict[str, Any] | None,
+    model_request_override_builder: Any,
+) -> dict[str, Any]:
+    overrides: dict[str, Any] = {}
+    if model_request_override_builder is not None:
+        override_payload = model_request_override_builder(
+            execution_path=execution_path,
+            tools=tools,
+        )
+        if override_payload:
+            overrides.update(override_payload)
+    if extra_kwargs:
+        overrides.update(extra_kwargs)
+    return overrides
+
+
 def _warn_missing_stream_tool_policy(
     *,
     engine_logger: Any,
@@ -280,8 +313,11 @@ async def build_runtime_query_entrypoint_plan(
     execution_path: str | None,
     extra_kwargs: dict[str, Any] | None,
     runtime_preparer: Callable[..., Awaitable[ConversationRuntimeContext]],
+    skip_metering_preflight: bool = False,
     adapter_registry: Any = AdapterRegistry,
     query_engine_cls: Any = ConversationQueryEngine,
+    model_request_override_builder: Any = build_model_request_overrides,
+    accounting_builder: Callable[[Any], ConversationRuntimeAccounting] | None = None,
 ) -> ConversationRuntimeEntrypointPlan:
     runtime_context = await _prepare_runtime_context(
         runtime_context=None,
@@ -291,7 +327,7 @@ async def build_runtime_query_entrypoint_plan(
         messages=messages,
         tenant_id=tenant_id,
         route_result=route_result,
-        skip_metering_preflight=True,
+        skip_metering_preflight=skip_metering_preflight,
     )
     openai_tools = to_openai_tools(tools) if tools else None
     effective_policy = _resolve_effective_policy(
@@ -326,9 +362,9 @@ async def build_runtime_query_entrypoint_plan(
         query_engine_cls=query_engine_cls,
         effective_tool_choice=effective_tool_choice,
     )
-    accounting = ConversationRuntimeAccounting(
-        gateway=engine.gateway,
-        db=engine.db,
+    accounting = _build_accounting(
+        engine=engine,
+        accounting_builder=accounting_builder,
     )
     request_context = _build_request_context(
         messages=messages,
@@ -363,7 +399,12 @@ async def build_runtime_query_entrypoint_plan(
         openai_tools=openai_tools,
         effective_policy=effective_policy,
         effective_tool_choice=effective_tool_choice,
-        request_extra_kwargs=dict(extra_kwargs or {}),
+        request_extra_kwargs=_build_request_extra_kwargs(
+            execution_path=execution_path,
+            tools=tools,
+            extra_kwargs=extra_kwargs,
+            model_request_override_builder=model_request_override_builder,
+        ),
     )
 
 
@@ -377,6 +418,7 @@ async def build_runtime_stream_entrypoint_plan(
     route_result: Any | None = None,
     tools: list[ToolDefinition] | None = None,
     execution_path: str | None = None,
+    extra_kwargs: dict[str, Any] | None = None,
     user_id: int | None = None,
     log_user_type: str | None = None,
     billing_context: dict[str, Any] | None = None,
@@ -385,10 +427,12 @@ async def build_runtime_stream_entrypoint_plan(
     context_sources: list[Any] | None = None,
     tool_use_policy: ToolUsePolicy | None = None,
     breach_retry_result: str | None = None,
+    skip_metering_preflight: bool = False,
     runtime_preparer: Callable[..., Awaitable[ConversationRuntimeContext]] | None = None,
     adapter_registry: Any = AdapterRegistry,
     query_engine_cls: Any = ConversationQueryEngine,
     model_request_override_builder: Any = build_model_request_overrides,
+    accounting_builder: Callable[[Any], ConversationRuntimeAccounting] | None = None,
     engine_logger: Any = None,
 ) -> ConversationRuntimeEntrypointPlan:
     runtime_context = await _prepare_runtime_context(
@@ -399,7 +443,7 @@ async def build_runtime_stream_entrypoint_plan(
         messages=messages,
         tenant_id=tenant_id,
         route_result=route_result,
-        skip_metering_preflight=False,
+        skip_metering_preflight=skip_metering_preflight,
     )
     openai_tools = to_openai_tools(tools) if tools else None
     effective_policy = _resolve_effective_policy(
@@ -440,9 +484,9 @@ async def build_runtime_stream_entrypoint_plan(
         query_engine_cls=query_engine_cls,
         effective_tool_choice=effective_tool_choice,
     )
-    accounting = ConversationRuntimeAccounting(
-        gateway=engine.gateway,
-        db=engine.db,
+    accounting = _build_accounting(
+        engine=engine,
+        accounting_builder=accounting_builder,
     )
     request_context = _build_request_context(
         messages=messages,
@@ -477,11 +521,11 @@ async def build_runtime_stream_entrypoint_plan(
         openai_tools=openai_tools,
         effective_policy=effective_policy,
         effective_tool_choice=effective_tool_choice,
-        request_extra_kwargs=dict(
-            model_request_override_builder(
-                execution_path=execution_path,
-                tools=tools,
-            )
+        request_extra_kwargs=_build_request_extra_kwargs(
+            execution_path=execution_path,
+            tools=tools,
+            extra_kwargs=extra_kwargs,
+            model_request_override_builder=model_request_override_builder,
         ),
     )
 

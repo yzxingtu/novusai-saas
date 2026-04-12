@@ -181,7 +181,10 @@ async def test_conversation_engine_execute_projects_turn_result_with_shared_help
     engine._handle_tool_calls = AsyncMock()
 
     with pytest.MonkeyPatch.context() as mp:
-        mp.setattr("app.ai.engine.conversation.TurnExecutor.run", AsyncMock(side_effect=_fake_run))
+        mp.setattr(
+            "app.ai.engine.conversation_entrypoints.TurnExecutor.run",
+            AsyncMock(side_effect=_fake_run),
+        )
         result = await engine.execute(
             SimpleNamespace(id=1),
             ExecutionRequest(

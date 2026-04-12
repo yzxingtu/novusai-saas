@@ -46,9 +46,9 @@ def _build_skill_result() -> SkillResolveResult:
 
 @pytest.fixture(autouse=True)
 def _stub_missing_tool_runtime_summary_prompt(monkeypatch):
-    import app.ai.engine.base as base_module
+    import app.ai.engine.base_execution_support as base_execution_support
 
-    original = base_module.render_prompt_contract
+    original = base_execution_support.render_prompt_contract
 
     def _render(name, *args, **kwargs):
         if name == "tool_runtime_summary":
@@ -56,7 +56,7 @@ def _stub_missing_tool_runtime_summary_prompt(monkeypatch):
             return "[TOOL RUNTIME SUMMARY]"
         return original(name, *args, **kwargs)
 
-    monkeypatch.setattr(base_module, "render_prompt_contract", _render)
+    monkeypatch.setattr(base_execution_support, "render_prompt_contract", _render)
 
 
 @pytest.mark.asyncio

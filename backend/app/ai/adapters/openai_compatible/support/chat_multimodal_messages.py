@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-import base64
 from typing import Any, Protocol
 
+from app.ai.adapters.openai_compatible.support.audio_inputs import (
+    build_input_audio_part,
+)
 from app.ai.types import ChatMessage
 
 
@@ -87,13 +89,12 @@ async def convert_chat_messages(
                         if bytes_result is None:
                             content_parts.append({"type": "text", "text": hint})
                         else:
-                            fmt = audio_formats.get(att_mime) or "mpeg"
-                            b64_str = base64.b64encode(bytes_result).decode("ascii")
                             content_parts.append(
-                                {
-                                    "type": "input_audio",
-                                    "input_audio": {"data": b64_str, "format": fmt},
-                                }
+                                build_input_audio_part(
+                                    bytes_result,
+                                    att_mime,
+                                    audio_mime_to_openai_format=audio_formats,
+                                )
                             )
                     else:
                         content_parts.append({"type": "text", "text": hint})

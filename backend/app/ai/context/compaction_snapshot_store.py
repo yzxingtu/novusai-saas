@@ -13,7 +13,9 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.repositories.ai.agent_conversation_repository import AgentConversationRepository
+from app.repositories.ai.agent_conversation_repository import (
+    AgentConversationRepository,
+)
 
 _CONTEXT_COMPACTION_METADATA_KEY = "context_compaction"
 

@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.ai.engine import base as base_mod
+from app.ai.engine import base_tool_loop_support as tool_loop_support_mod
 from app.ai.engine import tool_call_loop_runtime as runtime_mod
 from app.ai.engine import tool_processor as tool_processor_mod
 from app.ai.engine.base import BaseEngine
@@ -121,7 +121,11 @@ async def test_handle_tool_calls_delegates_to_runtime_helper(monkeypatch) -> Non
         captured["followup"] = await callbacks.call_followup_llm([], ToolUsePolicy())
         return sentinel
 
-    monkeypatch.setattr(base_mod, "run_tool_call_loop", _fake_run_tool_call_loop)
+    monkeypatch.setattr(
+        tool_loop_support_mod,
+        "run_tool_call_loop",
+        _fake_run_tool_call_loop,
+    )
 
     result = await engine._handle_tool_calls(
         agent=SimpleNamespace(id=99),

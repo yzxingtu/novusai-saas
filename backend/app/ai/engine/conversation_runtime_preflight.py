@@ -7,10 +7,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from app.ai.runtime.usage_metrics import TokenCounter
 from app.ai.types import ChatMessage, messages_to_dicts
 from app.configs.service import PLATFORM_TENANT_ID
 from app.repositories.ai.model_repository import AIModelRepository
-from app.services.ai.usage_metrics import TokenCounter
 
 from .conversation_helpers import await_if_needed as _await_if_needed
 

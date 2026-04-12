@@ -1,10 +1,31 @@
 from __future__ import annotations
 
+from app.ai.adapters.openai_compatible import native_web_search_parser as facade
 from app.ai.adapters.openai_compatible.native_web_search_parser import (
     extract_native_web_search_items,
     extract_native_web_search_items_from_text,
     extract_native_web_search_usage,
 )
+from app.ai.adapters.openai_compatible.support import (
+    native_web_search_parser as support,
+)
+
+
+def test_native_web_search_parser_facade_exports_support_symbols() -> None:
+    assert (
+        facade.extract_native_web_search_items
+        is support.extract_native_web_search_items
+    )
+    assert (
+        facade.extract_native_web_search_items_from_text
+        is support.extract_native_web_search_items_from_text
+    )
+    assert (
+        facade.extract_native_web_search_request_count
+        is support.extract_native_web_search_request_count
+    )
+    assert facade.extract_native_web_search_usage is support.extract_native_web_search_usage
+    assert facade.normalize_native_web_search_snippet is support.normalize_native_web_search_snippet
 
 
 def test_extract_native_web_search_items_supports_dict_payloads() -> None:

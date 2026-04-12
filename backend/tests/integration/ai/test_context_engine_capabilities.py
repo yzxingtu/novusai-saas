@@ -12,6 +12,7 @@ from app.ai.engine.types import (
     IntentPlan,
     ResearchContinuationContext,
 )
+from app.ai.runtime.context_capability_bridge import DefaultContextCapabilityBridge
 from app.ai.runtime.types import CapabilityDescriptor
 from app.ai.skills.resolver import SkillResolveResult
 from app.ai.types import ChatMessage
@@ -118,12 +119,13 @@ async def _assemble_context(
 
     with (
         patch(
-            "app.ai.context.engine.get_tenant_capability_awareness_settings",
+            "app.ai.runtime.context_capability_bridge.get_tenant_capability_awareness_settings",
             new=AsyncMock(return_value=settings),
         ),
-        patch(
-            "app.ai.context.engine.resolve_runtime_model_capabilities",
-            new=AsyncMock(return_value={}),
+        patch.object(
+            DefaultContextCapabilityBridge,
+            "resolve_runtime_model_capabilities",
+            new=AsyncMock(return_value={"supports_audio": False}),
         ),
         patch(
             "app.ai.rag_injector.load_agent_kb_bindings",
@@ -189,7 +191,17 @@ async def test_context_engine_tracks_skill_capabilities_without_prompt_injection
     assert assembly.diagnostics["dynamic_capability_awareness_categories"] == [
         "skills"
     ]
+    assert assembly.capability_bundle is not None
+    assert assembly.capability_bundle.selected_skill_names == ["web_search"]
     assert assembly.diagnostics["selected_skill_names"] == ["web_search"]
+    assert (
+        assembly.diagnostics["runtime_capability_manifest"]["manifest_version"]
+        == "runtime-capability-manifest/v1"
+    )
+    assert (
+        assembly.diagnostics["runtime_capability_summary"]["manifest_version"]
+        == "runtime-capability-manifest/v1"
+    )
 
 
 @pytest.mark.asyncio
@@ -381,6 +393,12 @@ async def test_context_engine_tracks_page_context_capabilities_without_prompt_in
     assert set(assembly.diagnostics["dynamic_capability_awareness_categories"]) == {
         "skills",
         "knowledge_bases",
+        "page_context",
+    }
+    assert assembly.capability_bundle is not None
+    assert {source.kind for source in assembly.capability_bundle.context_sources} >= {
+        "skill",
+        "knowledge_base",
         "page_context",
     }
     assert assembly.diagnostics["selected_skill_names"] == ["web_search"]

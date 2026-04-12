@@ -130,7 +130,9 @@ class AgentChatRuntimeSupport:
         if long_term_provider_factory is None:
             long_term_provider_factory = long_term_memory_provider_factory
         if long_term_provider_factory is None:
-            from app.ai.context.long_term_memory import get_long_term_memory_provider
+            from app.services.ai.long_term_memory_provider import (
+                get_long_term_memory_provider,
+            )
 
             long_term_provider_factory = get_long_term_memory_provider
         if session_memory_service_cls is None:

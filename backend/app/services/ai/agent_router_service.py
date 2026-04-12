@@ -10,46 +10,40 @@ and endpoint-internal access semantics.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
-from app.ai.navigation_semantics import has_navigation_intent
-from app.ai.prompt_contracts import render_prompt_contract
 from app.ai.routing.router import ModelRouter
-from app.ai.text_semantics import (
-    collapse_whitespace,
-    extract_fenced_json_block,
-    extract_first_json_object_with_key,
-)
-from app.ai.tools.semantic_defaults import (
-    is_ui_page_tool_name,
-    page_context_available_ui_tools,
-    page_context_has_runtime_state,
-    tool_family_from_name,
-)
 from app.configs.service import PLATFORM_TENANT_ID
 from app.core.i18n import _
 from app.core.logging import LogManager
-from app.enums.agent import (
-    AgentExecutionModeEnum,
-    AgentStatusEnum,
-    ConversationOwnerTypeEnum,
-)
-from app.enums.ai import CallAccessChannelEnum
 from app.enums.common import UserRoleEnum
-from app.exceptions import BusinessException, NotFoundException
+from app.exceptions import BusinessException
 from app.models.ai.agent import Agent
-from app.models.ai.agent_conversation import AgentConversation
-from app.models.ai.agent_skill_grant import AgentSkillGrant
-from app.models.ai.skill import Skill
 from app.models.system.agent_assignment import SystemAgentAssignment
-from app.repositories.ai.agent_repository import _tenant_available_condition
-from app.services.ai.agent_service import AgentService
+from app.services.ai.agent_router_capability_support import (
+    agent_needs_function_calling,
+    agent_supports_families,
+    agent_supports_images,
+    agent_supports_page_operations,
+    grant_skill_name_if_active,
+)
+from app.services.ai.agent_router_policy import (
+    has_non_page_mixed_intent,
+    page_context_has_runtime_ui_tools,
+    page_context_supports_navigation,
+    requested_tool_families,
+    requires_page_operation_routing,
+    requires_vision_page_operation,
+)
+from app.services.ai.agent_router_query_service import AgentRouterQueryService
+from app.services.ai.agent_router_runtime_support import (
+    ROUTER_TIMEOUT_SECONDS,
+    AgentRouterRuntimeSupport,
+)
 
 logger = LogManager.get_logger("ai")
 
@@ -60,186 +54,8 @@ ROUTED_BY_DEFAULT = "default"
 ROUTED_BY_PREFERRED_FALLBACK = "preferred_fallback"
 ROUTED_BY_CONVERSATION = "conversation"
 
-# Router timeout in seconds / Router 超时秒数
-ROUTER_TIMEOUT_SECONDS = 15
-
 # Minimum confidence threshold / 最低置信度阈值
 MIN_CONFIDENCE_THRESHOLD = 0.3
-
-PAGE_OPERATION_REQUIRED_SKILL_GROUPS = (
-    frozenset({"ui_get_snapshot", "ui_click"}),
-)
-PAGE_OPERATION_STRONG_INTENT_TOKENS = (
-    "operate on the current page",
-    "operate on this page",
-    "perform the page action",
-    "help me operate on the current page",
-    "帮我操作当前页面",
-    "帮我操作这个页面",
-    "操作当前页面",
-    "操作这个页面",
-    "操作本页面",
-    "帮我截图当前页面",
-    "帮我截屏当前页面",
-    "帮我编辑当前页面",
-    "帮我填写当前表单",
-)
-PAGE_OPERATION_REFERENCE_TOKENS = (
-    "current page",
-    "current form",
-    "current screen",
-    "current editor",
-    "current list",
-    "current record",
-    "this page",
-    "this form",
-    "当前页面",
-    "当前表单",
-    "这个页面",
-    "本页面",
-    "当前界面",
-    "这个表单",
-    "当前编辑器",
-    "这个编辑器",
-    "当前列表",
-    "这条记录",
-)
-PAGE_OPERATION_ACTION_TOKENS = (
-    "apply",
-    "add",
-    "append",
-    "change",
-    "capture",
-    "click",
-    "configure",
-    "create",
-    "delete",
-    "edit",
-    "fill",
-    "filter",
-    "paginate",
-    "open",
-    "read detail",
-    "refresh",
-    "replace",
-    "save",
-    "screenshot",
-    "search",
-    "select",
-    "set",
-    "switch to",
-    "submit",
-    "switch",
-    "update",
-    "visit",
-    "go to",
-    "jump to",
-    "navigate",
-    "上一页",
-    "下一页",
-    "分页",
-    "详情",
-    "进入",
-    "添加",
-    "保存",
-    "修改",
-    "切换",
-    "切到",
-    "创建",
-    "删除",
-    "刷新",
-    "新增",
-    "填写",
-    "打开",
-    "操作",
-    "搜索",
-    "提交",
-    "跳转",
-    "新建",
-    "点击",
-    "截图",
-    "截屏",
-    "编辑器",
-    "筛选",
-    "追加",
-    "插入",
-    "编辑",
-    "设置",
-    "配置",
-)
-PAGE_OPERATION_TARGET_TOKENS = (
-    "button",
-    "dialog",
-    "drawer",
-    "editor",
-    "form",
-    "list",
-    "menu",
-    "modal",
-    "record",
-    "screenshot",
-    "tab",
-    "按钮",
-    "编辑器",
-    "列表",
-    "菜单",
-    "记录",
-    "表单",
-    "页签",
-    "弹窗",
-    "抽屉",
-    "对话框",
-    "截图",
-)
-NON_PAGE_WEATHER_TOKENS = (
-    "天气",
-    "气温",
-    "温度",
-    "weather",
-)
-NON_PAGE_TIME_TOKENS = (
-    "几点",
-    "星期几",
-    "周几",
-    "几号",
-    "current time",
-    "what day is it",
-)
-NON_PAGE_WEB_SEARCH_TOKENS = (
-    "联网",
-    "网上查",
-    "网络搜索",
-    "官网",
-    "链接",
-    "url",
-    "网址",
-    "网页",
-    "web search",
-    "search online",
-    "online search",
-    "fetch",
-    "新闻",
-    "热点",
-    "排行",
-    "高铁票",
-    "火车票",
-    "12306",
-)
-BASELINE_RUNTIME_FAMILIES = frozenset({"time_ops"})
-PAGE_SEARCH_CONTEXT_TOKENS = (
-    "记录",
-    "列表",
-    "表格",
-    "筛选",
-    "过滤",
-    "条件",
-    "结果",
-    "数据",
-    "page",
-    "list",
-    "table",
-    "filter",
-)
 
 
 @dataclass
@@ -273,6 +89,20 @@ class AgentRouterService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
+        self._query_service = AgentRouterQueryService(db)
+        self._runtime_support = AgentRouterRuntimeSupport(db)
+
+    @property
+    def query_service(self) -> AgentRouterQueryService:
+        if not hasattr(self, "_query_service"):
+            self._query_service = AgentRouterQueryService(self.db)
+        return self._query_service
+
+    @property
+    def runtime_support(self) -> AgentRouterRuntimeSupport:
+        if not hasattr(self, "_runtime_support"):
+            self._runtime_support = AgentRouterRuntimeSupport(self.db)
+        return self._runtime_support
 
     async def route(
         self,
@@ -391,12 +221,12 @@ class AgentRouterService:
                 has_image_attachments=has_image_attachments,
             )
 
-        page_operation_routing_required = self._requires_page_operation_routing(
+        page_operation_routing_required = requires_page_operation_routing(
             message,
             page_context,
         )
-        mixed_non_page_intent = self._has_non_page_mixed_intent(message)
-        requested_families = self._requested_tool_families(message, page_context)
+        mixed_non_page_intent = has_non_page_mixed_intent(message)
+        requested_families = requested_tool_families(message, page_context)
         page_operation_filtered = False
         family_coverage_filtered = False
 
@@ -418,16 +248,14 @@ class AgentRouterService:
             page_operation_candidates = [
                 agent
                 for agent in candidates
-                if self._agent_supports_page_operations(agent)
+                if agent_supports_page_operations(agent)
             ]
-            if page_operation_candidates and self._requires_vision_page_operation(
-                message
-            ):
+            if page_operation_candidates and requires_vision_page_operation(message):
                 vision_page_candidates = [
                     agent
                     for agent in page_operation_candidates
-                    if await self._agent_can_handle_images(agent)
-                ]
+                if await self._agent_can_handle_images(agent)
+            ]
                 if not vision_page_candidates:
                     raise BusinessException(
                         message=_("agent_chat.error.no_vision_agent_available"),
@@ -453,7 +281,7 @@ class AgentRouterService:
             coverage_candidates = [
                 agent
                 for agent in candidates
-                if self._agent_supports_families(agent, requested_families)
+                if agent_supports_families(agent, requested_families)
             ]
             if coverage_candidates:
                 if len(coverage_candidates) < len(candidates):
@@ -603,70 +431,19 @@ class AgentRouterService:
         user_id: int | None = None,
         user_role_id: int | None = None,
     ) -> list[Agent]:
-        """
-        获取当前上下文可用的候选智能体列表。
-        Get candidate agents available under the current context.
-        """
-        query = (
-            select(Agent)
-            .options(
-                selectinload(Agent.model),
-                selectinload(Agent.skill_grants)
-                .selectinload(AgentSkillGrant.skill)
-                .selectinload(Skill.package),
-            )
-            .where(
-                Agent.status == AgentStatusEnum.PUBLISHED.value,
-                Agent.is_deleted.is_(False),
-                Agent.execution_mode != AgentExecutionModeEnum.ROUTER.value,
-            )
+        return await self.query_service.list_available_agents(
+            tenant_id,
+            user_role,
+            user_id=user_id,
+            user_role_id=user_role_id,
         )
-
-        if user_role == UserRoleEnum.PLATFORM_ADMIN.value:
-            query = query.where(Agent.owner_tenant_id.is_(None))
-            agents = list((await self.db.execute(query)).scalars().unique().all())
-            return sorted(agents, key=lambda item: item.id)
-        elif tenant_id:
-            query = query.where(_tenant_available_condition(tenant_id))
-        else:
-            return []
-
-        agents = list((await self.db.execute(query)).scalars().all())
-        if not agents:
-            return []
-
-        agent_service = AgentService(self.db, tenant_id)
-        visible: list[Agent] = []
-        for agent in agents:
-            allowed = await agent_service.check_user_access(
-                agent_id=agent.id,
-                user_id=user_id or 0,
-                user_role=user_role,
-                user_role_id=user_role_id,
-            )
-            if allowed:
-                visible.append(agent)
-        return sorted(visible, key=lambda item: item.id)
 
     # ========================================
     # Resolve router agent / 查找 Router 智能体
     # ========================================
 
     async def _get_router_agent(self) -> Agent | None:
-        """获取 execution_mode=router 的系统智能体 / Get system agent with execution_mode=router."""
-        result = await self.db.execute(
-            select(Agent)
-            .where(
-                Agent.execution_mode == AgentExecutionModeEnum.ROUTER.value,
-                Agent.is_system.is_(True),
-                Agent.owner_tenant_id.is_(None),
-                Agent.status == AgentStatusEnum.PUBLISHED.value,
-                Agent.is_deleted.is_(False),
-            )
-            .order_by(Agent.id.asc())
-            .limit(1)
-        )
-        return result.scalar_one_or_none()
+        return await self.query_service.get_router_agent()
 
     # ========================================
     # Call router agent / 调用 Router 智能体
@@ -688,144 +465,32 @@ class AgentRouterService:
         has_video_attachments: bool = False,
         has_file_attachments: bool = False,
     ) -> dict[str, Any] | None:
-        """
-        TASK 模式调用 Router 智能体，解析 JSON 结果 / TASK mode: call Router agent and parse JSON result.
-
-        Returns:
-            {"agent_id": int, "confidence": float} or None
-        """
-        import asyncio
-
-        from app.ai.engine.dispatcher import ExecutionDispatcher
-        from app.ai.engine.types import ExecutionRequest
-        from app.ai.types import ChatMessage
-
-        # Build candidate descriptions (capability hints for Router) / 构建候选描述（能力摘要，供 Router 选 Agent）
-        agent_list = []
-        for a in candidates:
-            entry: dict[str, Any] = {
-                "id": a.id,
-                "name": a.name,
-                "description": a.description or "",
-            }
-            entry["supports_vision"] = await self._agent_can_handle_images(a)
-            # Collect enabled skill names (tool surface for Router) / 提取已启用技能名，告知工具能力
-            skill_grants = getattr(a, "skill_grants", None)
-            if skill_grants:
-                skill_names = []
-                for grant in skill_grants:
-                    skill_name = self._grant_skill_name_if_active(grant)
-                    if skill_name:
-                        skill_names.append(skill_name)
-                if skill_names:
-                    entry["capabilities"] = skill_names
-            agent_list.append(entry)
-
-        # 构建路由指令消息 / Build routing instruction message
-        vision_preamble = ""
-        if has_image_attachments:
-            vision_preamble = render_prompt_contract("agent_router_vision_preamble")
-        attachment_notes: list[str] = []
-        if has_audio_attachments:
-            attachment_notes.append("audio")
-        if has_video_attachments:
-            attachment_notes.append("video")
-        if has_file_attachments:
-            attachment_notes.append("file")
-
-        attachment_preamble = ""
-        if attachment_notes:
-            attachment_preamble = render_prompt_contract(
-                "agent_router_attachment_preamble",
-                attachment_types=", ".join(attachment_notes),
-            )
-
-        routing_prompt = render_prompt_contract(
-            "agent_router_selection",
-            vision_preamble=vision_preamble.strip(),
-            attachment_preamble=attachment_preamble.strip(),
-            agent_list_json=json.dumps(agent_list, ensure_ascii=False),
-            page_context_json=(
-                json.dumps(page_context, ensure_ascii=False) if page_context else ""
-            ),
+        return await self.runtime_support.call_router_agent(
+            router_agent=router_agent,
+            candidates=candidates,
             message=message,
-        )
-
-        request = ExecutionRequest(
-            agent_id=router_agent.id,
-            tenant_id=execution_tenant_id or PLATFORM_TENANT_ID,
+            page_context=page_context,
+            execution_tenant_id=execution_tenant_id or PLATFORM_TENANT_ID,
+            execution_user_role=execution_user_role,
+            execution_user_role_id=execution_user_role_id,
             user_id=user_id,
-            messages=[ChatMessage(role="user", content=routing_prompt)],
-            execution_mode=AgentExecutionModeEnum.TASK.value,
-            stream=False,
-            user_role=execution_user_role,
-            user_role_id=execution_user_role_id,
+            has_image_attachments=has_image_attachments,
+            has_audio_attachments=has_audio_attachments,
+            has_video_attachments=has_video_attachments,
+            has_file_attachments=has_file_attachments,
+            agent_can_handle_images_fn=self._agent_can_handle_images,
             billing_context=self._build_router_billing_context(
                 router_agent=router_agent,
                 tenant_id=execution_tenant_id,
                 user_id=user_id,
                 user_role=execution_user_role,
             ),
+            timeout_seconds=ROUTER_TIMEOUT_SECONDS,
         )
-
-        dispatcher = ExecutionDispatcher(self.db)
-
-        try:
-            result = await asyncio.wait_for(
-                dispatcher.dispatch(request),
-                timeout=ROUTER_TIMEOUT_SECONDS,
-            )
-        except asyncio.TimeoutError:
-            logger.warning("Router agent timed out after {}s", ROUTER_TIMEOUT_SECONDS)
-            return None
-
-        if not result.success or not result.output:
-            logger.warning("Router agent returned no output: {}", result.error)
-            return None
-
-        # Parse JSON from router output / 解析 Router 输出的 JSON
-        return self._parse_router_output(result.output)
 
     @staticmethod
     def _parse_router_output(output: str) -> dict[str, Any] | None:
-        """从 Router 输出中提取 JSON / Extract JSON from Router output."""
-        # 尝试直接解析 / Try direct parse first
-        try:
-            data = json.loads(output.strip())
-            if isinstance(data, dict) and "agent_id" in data:
-                return {
-                    "agent_id": int(data["agent_id"]),
-                    "confidence": float(data.get("confidence", 0.5)),
-                }
-        except (json.JSONDecodeError, ValueError, TypeError):
-            pass
-
-        # Extract JSON from fenced code block / 从 ``` 代码块提取 JSON
-        json_block = extract_fenced_json_block(output)
-        if json_block:
-            try:
-                data = json.loads(json_block)
-                if isinstance(data, dict) and "agent_id" in data:
-                    return {
-                        "agent_id": int(data["agent_id"]),
-                        "confidence": float(data.get("confidence", 0.5)),
-                    }
-            except (json.JSONDecodeError, ValueError, TypeError):
-                pass
-
-        # Match bare JSON object with agent_id / 匹配含 agent_id 的裸 JSON
-        data = extract_first_json_object_with_key(output, "agent_id")
-        if data is not None:
-            try:
-                return {
-                    "agent_id": int(data["agent_id"]),
-                    "confidence": float(data.get("confidence", 0.5)),
-                }
-            except (json.JSONDecodeError, ValueError, TypeError):
-                pass
-
-        logger.warning("Failed to parse router output: {}", output[:200])
-        return None
+        return AgentRouterRuntimeSupport.parse_router_output(output)
 
     # ========================================
     # Fallback handling / 降级逻辑
@@ -959,22 +624,7 @@ class AgentRouterService:
         )
 
     async def _get_published_agent(self, agent_id: int) -> Agent | None:
-        """获取已发布的智能体 / Get published agent."""
-        result = await self.db.execute(
-            select(Agent)
-            .options(
-                selectinload(Agent.model),
-                selectinload(Agent.skill_grants)
-                .selectinload(AgentSkillGrant.skill)
-                .selectinload(Skill.package),
-            )
-            .where(
-                Agent.id == agent_id,
-                Agent.status == AgentStatusEnum.PUBLISHED.value,
-                Agent.is_deleted.is_(False),
-            )
-        )
-        return result.scalar_one_or_none()
+        return await self.query_service.get_published_agent(agent_id)
 
     async def _get_accessible_conversation(
         self,
@@ -983,41 +633,13 @@ class AgentRouterService:
         user_role: str,
         *,
         user_id: int | None,
-    ) -> AgentConversation:
-        """Resolve an accessible conversation for routing / 为路由解析当前可访问的对话。"""
-        stmt = select(AgentConversation).where(
-            AgentConversation.id == conversation_id,
-            AgentConversation.is_deleted.is_(False),
+    ) -> Any:
+        return await self.query_service.get_accessible_conversation(
+            conversation_id,
+            tenant_id,
+            user_role,
+            user_id=user_id,
         )
-        if user_role == UserRoleEnum.PLATFORM_ADMIN.value:
-            stmt = stmt.where(
-                AgentConversation.tenant_id == PLATFORM_TENANT_ID,
-                AgentConversation.owner_type
-                == ConversationOwnerTypeEnum.PLATFORM_ADMIN.value,
-            )
-        elif tenant_id:
-            stmt = stmt.where(
-                AgentConversation.tenant_id == tenant_id,
-                AgentConversation.owner_type
-                == ConversationOwnerTypeEnum.from_user_role(
-                    user_role,
-                ),
-            )
-        else:
-            raise NotFoundException(
-                message=_("agent_chat.error.conversation_not_found"),
-            )
-
-        if user_role != UserRoleEnum.PLATFORM_ADMIN.value and user_id is not None:
-            stmt = stmt.where(AgentConversation.user_id == user_id)
-
-        result = await self.db.execute(stmt.limit(1))
-        conversation = result.scalar_one_or_none()
-        if not conversation:
-            raise NotFoundException(
-                message=_("agent_chat.error.conversation_not_found"),
-            )
-        return conversation
 
     async def _is_agent_visible(
         self,
@@ -1028,27 +650,17 @@ class AgentRouterService:
         user_id: int | None,
         user_role_id: int | None,
     ) -> bool:
-        """检查智能体对当前上下文是否可见 / Check agent visible to current context."""
-        if user_role == UserRoleEnum.PLATFORM_ADMIN.value:
-            return getattr(agent, "owner_tenant_id", None) is None
-
-        if not tenant_id:
-            return False
-
-        try:
-            return await AgentService(self.db, tenant_id).check_user_access(
-                agent_id=agent.id,
-                user_id=user_id or 0,
-                user_role=user_role,
-                user_role_id=user_role_id,
-            )
-        except NotFoundException:
-            return False
+        return await self.query_service.is_agent_visible(
+            agent,
+            tenant_id,
+            user_role,
+            user_id=user_id,
+            user_role_id=user_role_id,
+        )
 
     @staticmethod
     def _agent_supports_images(agent: Agent | None) -> bool:
-        model = getattr(agent, "model", None)
-        return bool(getattr(model, "supports_vision", False))
+        return agent_supports_images(agent)
 
     @staticmethod
     def _agent_skill_names(agent: Agent | None) -> set[str]:
@@ -1064,70 +676,28 @@ class AgentRouterService:
         return skill_names
 
     @staticmethod
-    def _grant_skill_name_if_active(grant: AgentSkillGrant | Any) -> str | None:
-        if getattr(grant, "enabled", True) is False:
-            return None
-        skill = getattr(grant, "skill", None)
-        if not skill:
-            return None
-        if not getattr(skill, "is_active", True) or getattr(skill, "is_deleted", False):
-            return None
-        package = getattr(skill, "package", None)
-        if package is None:
-            return None
-        if not getattr(package, "is_active", True) or getattr(
-            package, "is_deleted", False
-        ):
-            return None
-        skill_name = getattr(skill, "name", None)
-        if isinstance(skill_name, str) and skill_name:
-            return skill_name
-        return None
+    def _grant_skill_name_if_active(grant: Any) -> str | None:
+        return grant_skill_name_if_active(grant)
 
     @classmethod
     def _agent_supports_page_operations(cls, agent: Agent | None) -> bool:
-        skill_names = cls._agent_skill_names(agent)
-        if any(
-            group.issubset(skill_names) for group in PAGE_OPERATION_REQUIRED_SKILL_GROUPS
-        ):
-            return True
-        return any(is_ui_page_tool_name(skill_name) for skill_name in skill_names)
+        return agent_supports_page_operations(agent)
 
     @staticmethod
     def _page_context_has_runtime_ui_tools(
         page_context: dict[str, Any] | None,
     ) -> bool:
-        return bool(
-            page_context_has_runtime_state(page_context)
-            and page_context_available_ui_tools(page_context)
-        )
+        return page_context_has_runtime_ui_tools(page_context)
 
     @staticmethod
     def _requires_vision_page_operation(message: str) -> bool:
-        normalized_message = collapse_whitespace(message).strip().lower()
-        if not normalized_message:
-            return False
-        return any(
-            token in normalized_message
-            for token in (
-                "截图",
-                "截屏",
-                "屏幕截图",
-                "页面截图",
-                "screenshot",
-                "capture screenshot",
-                "take a screenshot",
-            )
-        )
+        return requires_vision_page_operation(message)
 
     @staticmethod
     def _page_context_supports_navigation(
         page_context: dict[str, Any] | None,
     ) -> bool:
-        tool_names = set(page_context_available_ui_tools(page_context))
-        return bool(
-            {"ui_click", "ui_open_surface", "ui_list_interactables"} & tool_names
-        )
+        return page_context_supports_navigation(page_context)
 
     @classmethod
     def _requires_page_operation_routing(
@@ -1135,69 +705,14 @@ class AgentRouterService:
         message: str,
         page_context: dict[str, Any] | None,
     ) -> bool:
-        if not message or not page_context:
-            return False
-
-        normalized_message = collapse_whitespace(message).strip().lower()
-        if not normalized_message:
-            return False
-
-        if not cls._page_context_has_runtime_ui_tools(page_context):
-            return False
-
-        has_strong_intent = any(
-            token in normalized_message for token in PAGE_OPERATION_STRONG_INTENT_TOKENS
-        )
-        if has_strong_intent:
-            return True
-
-        has_action_token = any(
-            token in normalized_message for token in PAGE_OPERATION_ACTION_TOKENS
-        )
-        has_navigation_request = has_navigation_intent(
-            normalized_message,
-            page_context,
-        )
-        if has_navigation_request:
-            return True
-
-        if (
-            cls._page_context_supports_navigation(page_context)
-            and has_navigation_request
-        ):
-            return True
-
-        if not has_action_token:
-            return False
-
-        has_reference_token = any(
-            token in normalized_message for token in PAGE_OPERATION_REFERENCE_TOKENS
-        )
-        if has_reference_token:
-            return True
-
-        return any(
-            token in normalized_message for token in PAGE_OPERATION_TARGET_TOKENS
-        )
+        return requires_page_operation_routing(message, page_context)
 
     @classmethod
     def _has_non_page_mixed_intent(
         cls,
         message: str,
     ) -> bool:
-        normalized_message = collapse_whitespace(message).strip().lower()
-        if not normalized_message:
-            return False
-
-        if any(token in normalized_message for token in NON_PAGE_WEATHER_TOKENS):
-            return True
-        if any(token in normalized_message for token in NON_PAGE_TIME_TOKENS):
-            return True
-        if any(token in normalized_message for token in NON_PAGE_WEB_SEARCH_TOKENS):
-            return True
-        return ("搜索" in normalized_message or "搜" in normalized_message) and not any(
-            token in normalized_message for token in PAGE_SEARCH_CONTEXT_TOKENS
-        )
+        return has_non_page_mixed_intent(message)
 
     @classmethod
     def _requested_tool_families(
@@ -1205,36 +720,7 @@ class AgentRouterService:
         message: str,
         page_context: dict[str, Any] | None,
     ) -> list[str]:
-        normalized_message = collapse_whitespace(message).strip().lower()
-        if not normalized_message:
-            return []
-
-        families: list[str] = []
-
-        def add(family: str) -> None:
-            if family not in families:
-                families.append(family)
-
-        if any(token in normalized_message for token in NON_PAGE_WEATHER_TOKENS):
-            add("weather")
-        if any(token in normalized_message for token in NON_PAGE_TIME_TOKENS):
-            add("time_ops")
-        if any(
-            token in normalized_message for token in NON_PAGE_WEB_SEARCH_TOKENS
-        ) or (("搜索" in normalized_message or "搜" in normalized_message) and not any(
-            token in normalized_message for token in PAGE_SEARCH_CONTEXT_TOKENS
-        )):
-            add("web_research")
-
-        if page_context and (
-            cls._requires_page_operation_routing(message, page_context)
-            or any(token in normalized_message for token in PAGE_OPERATION_REFERENCE_TOKENS)
-            or "页面有什么" in normalized_message
-            or "页面都能做什么" in normalized_message
-        ):
-            add("page_ops")
-
-        return families
+        return requested_tool_families(message, page_context)
 
     @classmethod
     def _agent_supports_families(
@@ -1242,57 +728,7 @@ class AgentRouterService:
         agent: Agent | None,
         families: list[str],
     ) -> bool:
-        if agent is None or not families:
-            return False
-
-        supported: set[str] = set()
-        supported.update(BASELINE_RUNTIME_FAMILIES)
-        skill_grants = getattr(agent, "skill_grants", None) or []
-        for grant in skill_grants:
-            skill_name = cls._grant_skill_name_if_active(grant)
-            if not skill_name:
-                continue
-
-            descriptors = {
-                str(skill_name).strip().lower(),
-            }
-            skill = getattr(grant, "skill", None)
-            if skill is not None:
-                descriptors.add(str(getattr(skill, "key", "") or "").strip().lower())
-                descriptors.add(
-                    str(getattr(skill, "description", "") or "").strip().lower()
-                )
-                package = getattr(skill, "package", None)
-                if package is not None:
-                    descriptors.add(
-                        str(getattr(package, "name", "") or "").strip().lower()
-                    )
-                    descriptors.add(
-                        str(getattr(package, "description", "") or "").strip().lower()
-                    )
-
-            family = tool_family_from_name(skill_name)
-            if family and family != "none":
-                supported.add(family)
-            if any(
-                token in descriptor
-                for descriptor in descriptors
-                for token in ("天气", "weather", "forecast", "气温", "温度")
-            ):
-                supported.add("weather")
-            if any(
-                token in descriptor
-                for descriptor in descriptors
-                for token in ("时间", "日期", "time tool", "current time", "clock")
-            ):
-                supported.add("time_ops")
-            if any(
-                token in descriptor
-                for descriptor in descriptors
-                for token in ("联网", "搜索", "web", "网页", "fetch url", "url")
-            ):
-                supported.add("web_research")
-        return all(family in supported for family in families)
+        return agent_supports_families(agent, families)
 
     async def _agent_can_handle_images(self, agent: Agent | None) -> bool:
         if agent is None:
@@ -1318,11 +754,7 @@ class AgentRouterService:
 
     @staticmethod
     def _agent_needs_function_calling(agent: Agent | None) -> bool:
-        skill_grants = getattr(agent, "skill_grants", None) or []
-        for grant in skill_grants:
-            if AgentRouterService._grant_skill_name_if_active(grant):
-                return True
-        return False
+        return agent_needs_function_calling(agent)
 
     @staticmethod
     def _build_router_billing_context(
@@ -1332,31 +764,12 @@ class AgentRouterService:
         user_id: int | None,
         user_role: str,
     ) -> dict[str, Any]:
-        billing_tenant_id = (
-            tenant_id
-            if tenant_id is not None and tenant_id > PLATFORM_TENANT_ID
-            else None
+        return AgentRouterRuntimeSupport.build_router_billing_context(
+            router_agent=router_agent,
+            tenant_id=tenant_id,
+            user_id=user_id,
+            user_role=user_role,
         )
-        if user_role == UserRoleEnum.PLATFORM_ADMIN.value:
-            access_channel = CallAccessChannelEnum.ADMIN_INTERNAL.value
-        elif user_role == UserRoleEnum.TENANT_USER.value:
-            access_channel = CallAccessChannelEnum.TENANT_USER.value
-        else:
-            access_channel = CallAccessChannelEnum.TENANT_ADMIN.value
-
-        _otid = getattr(router_agent, "owner_tenant_id", None)
-        return {
-            "billing_tenant_id": billing_tenant_id,
-            "actor_user_id": user_id,
-            "actor_user_type": user_role,
-            "access_channel": access_channel,
-            "agent_owner_type": ("platform" if _otid is None else "tenant"),
-            "agent_owner_tenant_id": _otid,
-            "agent_resource_scope": getattr(router_agent, "scope", None),
-            "tenant_publication_id": None,
-            "publication_enabled_snapshot": None,
-            "publication_access_type_snapshot": None,
-        }
 
 
 __all__ = ["AgentRouterService", "RouteResult"]

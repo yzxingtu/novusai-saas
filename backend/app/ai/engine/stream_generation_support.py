@@ -5,35 +5,25 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import AsyncIterator
-from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from app.ai.sse import SSEChunkEncoder
 from app.ai.types import ChatMessage
 
-from .conversation_result_projector import (
-    build_execution_result,
-    build_turn_projection,
-    coerce_turn_record_payload,
-)
+from .conversation_result_projector import build_execution_result, build_turn_projection
 from .final_output_policy import resolve_skip_final_assistant
 from .recovery_manager import RecoveryManager
 from .stream_error_utils import trace_payload as _trace_payload
+from .stream_finalization_support import (
+    StreamFinalizationArtifacts,
+    build_done_event_payload,
+    build_result_turn_record,
+)
 from .stream_generation_view import ensure_stream_generation_view
 from .types import ExecutionResult
 
 if TYPE_CHECKING:
     from .turn_executor import TurnExecutionResult
-
-
-@dataclass(slots=True)
-class StreamFinalizationArtifacts:
-    result: ExecutionResult
-    diagnostics_payload: dict[str, Any]
-    response_metadata: dict[str, Any]
-    resolved_protocol_path: str
-    immediate_events: list[str] = field(default_factory=list)
-    replay_events: list[str] = field(default_factory=list)
 
 
 def _resolve_generation_view(handler: Any) -> Any:
@@ -312,6 +302,7 @@ def _finalize_completed_output(
     handler: Any,
     *,
     messages: list[ChatMessage],
+    turn_start_message_index: int,
     output: str,
     response: Any,
     action_buttons: list[dict[str, str]] | None,
@@ -340,7 +331,7 @@ def _finalize_completed_output(
     _append_output_if_missing(
         handler=handler,
         messages=messages,
-        current_turn_messages=messages,
+        current_turn_messages=messages[turn_start_message_index:],
         output=output,
         streamed_output=streamed_output,
         action_buttons=action_buttons,
@@ -350,33 +341,6 @@ def _finalize_completed_output(
     if output != streamed_output:
         return output, view.chunk_text_for_streaming(output)
     return output, []
-
-
-def _build_result_turn_record(
-    handler: Any,
-    *,
-    diagnostics_payload: dict[str, Any],
-    response_metadata: dict[str, Any],
-) -> tuple[dict[str, Any], str]:
-    view = _resolve_generation_view(handler)
-    raw_turn_record = view.runtime_turn_record
-    view.refresh_runtime_turn_record()
-    refreshed_turn_record = coerce_turn_record_payload(view.runtime_turn_record)
-    if raw_turn_record is not None:
-        raw_payload = coerce_turn_record_payload(raw_turn_record)
-        if raw_payload:
-            raw_payload.update(refreshed_turn_record)
-            result_turn_record = raw_payload
-        else:
-            result_turn_record = refreshed_turn_record
-    else:
-        result_turn_record = refreshed_turn_record
-    resolved_protocol_path = view.resolved_protocol_path(
-        diagnostics_payload=diagnostics_payload,
-        turn_record=result_turn_record,
-        response_metadata=response_metadata,
-    )
-    return result_turn_record, resolved_protocol_path
 
 
 def _encode_message_events(chunks: list[str]) -> list[str]:
@@ -431,18 +395,6 @@ def _should_clear_replayed_output(
         and final_output_source in {"tool_evidence_completed", "budget_fallback"}
         and (partial_reply_stream_chunks or completed_reply_stream_chunks)
     )
-
-
-def _resolve_done_turn_outcome(
-    *,
-    diagnostics_payload: dict[str, Any] | None,
-    turn_record: dict[str, Any] | None,
-) -> Any:
-    if isinstance(diagnostics_payload, dict) and diagnostics_payload.get("turn_outcome"):
-        return diagnostics_payload.get("turn_outcome")
-    if isinstance(turn_record, dict):
-        return turn_record.get("turn_outcome")
-    return None
 
 
 def finalize_successful_turn(
@@ -518,6 +470,7 @@ def finalize_successful_turn(
         output, completed_reply_stream_chunks = _finalize_completed_output(
             handler,
             messages=messages,
+            turn_start_message_index=turn_start_message_index,
             output=output,
             response=response,
             action_buttons=action_buttons,
@@ -526,7 +479,7 @@ def finalize_successful_turn(
 
     diagnostics_payload = view.build_diagnostics_payload()
     diagnostics_payload["final_output_source"] = final_output_source
-    result_turn_record, resolved_protocol_path = _build_result_turn_record(
+    result_turn_record, resolved_protocol_path = build_result_turn_record(
         handler,
         diagnostics_payload=diagnostics_payload,
         response_metadata=response_metadata,
@@ -605,45 +558,12 @@ def build_done_event(
     on_complete_extra: dict[str, Any] | None,
 ) -> str:
     view = _resolve_generation_view(handler)
-    return SSEChunkEncoder.encode(
-        _trace_payload(
-            {
-                "event": "done",
-                "conversation_id": view.request.conversation_id,
-                "total_tokens": artifacts.result.total_tokens,
-                "duration_ms": artifacts.result.duration_ms,
-                "context_compacted": artifacts.result.context_compacted,
-                "memory_flush_triggered": artifacts.result.memory_flush_triggered,
-                "memory_recalled": artifacts.result.memory_recalled,
-                "prune_stats": artifacts.result.prune_stats,
-                "rag_source_kinds": artifacts.result.rag_source_kinds,
-                "turn_record": artifacts.result.turn_record
-                or artifacts.diagnostics_payload,
-                "turn_outcome": _resolve_done_turn_outcome(
-                    diagnostics_payload=artifacts.diagnostics_payload,
-                    turn_record=artifacts.result.turn_record,
-                ),
-                "termination_reason": artifacts.result.completion_reason,
-                "protocol_path": artifacts.resolved_protocol_path,
-                "selected_tool_names": (
-                    artifacts.diagnostics_payload.get("selected_tool_names")
-                    if isinstance(artifacts.diagnostics_payload, dict)
-                    else None
-                ),
-                "selected_skill_names": (
-                    artifacts.diagnostics_payload.get("selected_skill_names")
-                    if isinstance(artifacts.diagnostics_payload, dict)
-                    else None
-                ),
-                "context_sources": (
-                    artifacts.diagnostics_payload.get("context_sources")
-                    if isinstance(artifacts.diagnostics_payload, dict)
-                    else None
-                ),
-                **(on_complete_extra or {}),
-            }
-        )
+    payload = build_done_event_payload(
+        request=view.request,
+        artifacts=artifacts,
+        on_complete_extra=on_complete_extra,
     )
+    return SSEChunkEncoder.encode(_trace_payload(payload))
 
 
 def append_partial_assistant_output(
@@ -681,7 +601,7 @@ def build_terminal_result(
     view.refresh_runtime_turn_record()
     diagnostics_payload = view.build_diagnostics_payload()
     final_output_source = diagnostics_payload.get("final_output_source")
-    result_turn_record, resolved_protocol_path = _build_result_turn_record(
+    result_turn_record, resolved_protocol_path = build_result_turn_record(
         handler,
         diagnostics_payload=diagnostics_payload,
         response_metadata={},

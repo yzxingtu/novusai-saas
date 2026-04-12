@@ -20,9 +20,6 @@ from app.ai.adapters.openai_compatible.protocol_chat_completions import (
 from app.ai.adapters.openai_compatible.protocol_chat_completions import (
     is_salvageable_raw_text_chat_response as is_salvageable_chat_completions_raw_text,
 )
-from app.ai.adapters.openai_compatible.protocol_chat_completions import (
-    should_fallback_to_responses as should_fallback_to_responses_impl,
-)
 from app.ai.adapters.openai_compatible.protocol_responses import (
     convert_responses_chat_response as convert_responses_chat_response_impl,
 )
@@ -167,16 +164,6 @@ class OpenAIAdapterProtocolBridgeMixin:
 
     def _use_responses_api(self) -> bool:
         return self.wire_api == "responses"
-
-    def _should_fallback_to_responses(self, payload: Any) -> bool:
-        return should_fallback_to_responses_impl(
-            use_responses_api=self._use_responses_api(),
-            cross_protocol_fallback_allowed=self.protocol_capabilities.is_cross_protocol_fallback_allowed(
-                from_wire_api="chat_completions",
-                to_wire_api="responses",
-            ),
-            payload=payload,
-        )
 
     def _is_salvageable_raw_text_chat_response(self, payload: Any) -> bool:
         return is_salvageable_chat_completions_raw_text(payload)

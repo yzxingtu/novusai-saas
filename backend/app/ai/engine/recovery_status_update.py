@@ -1,0 +1,112 @@
+"""Intent status update helpers extracted from RecoveryManager."""
+
+from __future__ import annotations
+
+from app.ai.tools.types import ToolResult
+from app.ai.types import ChatMessage
+
+from .recovery_consent_helpers import extract_pending_consent_payload
+from .recovery_result_normalizer import RecoveryResultNormalizer
+from .recovery_tool_result_helpers import (
+    intent_result_from_tool_results,
+    successful_tool_names,
+)
+from .recovery_web_research_gate import RecoveryWebResearchGate
+from .types import IntentPlan
+
+
+def update_intent_statuses(
+    intents: list[IntentPlan],
+    *,
+    messages: list[ChatMessage],
+    turn_messages: list[ChatMessage] | None = None,
+    tool_results: list[ToolResult] | None = None,
+) -> list[IntentPlan]:
+    evidence_messages = turn_messages if turn_messages is not None else messages
+    completed_tool_names = set(successful_tool_names(evidence_messages, tool_results))
+    pending_payload = extract_pending_consent_payload(messages)
+    pending_tool_name = (
+        str((pending_payload or {}).get("tool_name") or "").strip()
+        if isinstance(pending_payload, dict)
+        else ""
+    )
+    pending_consent_assigned = False
+    updated: list[IntentPlan] = []
+
+    for intent in intents:
+        clone = IntentPlan(**intent.to_dict())
+        clone.metadata = dict(clone.metadata or {})
+        clone.metadata.pop("pending_consent", None)
+
+        RecoveryWebResearchGate.force_fetch_url_after_search(
+            clone,
+            messages=evidence_messages,
+            tool_results=tool_results,
+            successful_tool_names=completed_tool_names,
+        )
+        completion_signals = set(clone.completion_signals or clone.allowed_tool_names)
+        if clone.family == "none" or not clone.requires_tools:
+            clone.status = "completed"
+        elif RecoveryWebResearchGate.is_completed_web_research_no_result(
+            clone,
+            messages=evidence_messages,
+            tool_results=tool_results,
+            successful_tool_names=completed_tool_names,
+        ):
+            clone.status = "completed"
+            clone.completed_by_tool_names = ["web_search"]
+            RecoveryWebResearchGate.clear_requires_fetch_url(
+                clone,
+                reason="search_no_results_completed",
+            )
+            RecoveryResultNormalizer._cache_intent_result(
+                clone,
+                RecoveryWebResearchGate.web_research_no_result_output(clone),
+            )
+        elif completion_signals & completed_tool_names:
+            clone.status = "completed"
+            clone.completed_by_tool_names = sorted(completion_signals & completed_tool_names)
+
+        if clone.status == "completed":
+            cached_result = None
+            if (
+                str(clone.metadata.get("auto_fetch_gate_reason") or "").strip()
+                == "search_no_results_completed"
+            ):
+                cached_result = RecoveryResultNormalizer._intent_cached_result(clone)
+            if not cached_result:
+                cached_result = intent_result_from_tool_results(clone, tool_results)
+            if not cached_result:
+                cached_result = RecoveryResultNormalizer._intent_cached_result(clone)
+            if cached_result:
+                RecoveryResultNormalizer._cache_intent_result(clone, cached_result)
+        elif clone.status not in {"failed", "skipped"}:
+            clone.status = "pending"
+            partial_result = intent_result_from_tool_results(clone, tool_results)
+            if partial_result:
+                RecoveryResultNormalizer._cache_partial_intent_result(
+                    clone,
+                    partial_result,
+                )
+
+        if (
+            pending_payload
+            and not pending_consent_assigned
+            and clone.requires_tools
+            and clone.status not in {"failed", "skipped"}
+            and (
+                clone.status != "completed"
+                or (pending_tool_name and pending_tool_name in completion_signals)
+            )
+        ):
+            clone.status = "awaiting_consent"
+            clone.cached_result = None
+            clone.completed_by_tool_names = []
+            clone.metadata["pending_consent"] = dict(pending_payload)
+            pending_consent_assigned = True
+
+        updated.append(clone)
+    return updated
+
+
+__all__ = ["update_intent_statuses"]

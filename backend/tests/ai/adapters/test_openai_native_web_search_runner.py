@@ -4,6 +4,10 @@ from types import SimpleNamespace
 
 import pytest
 
+from app.ai.adapters.openai_compatible import native_web_search_runner as facade
+from app.ai.adapters.openai_compatible.support import (
+    native_web_search_facade as support_facade,
+)
 from app.ai.adapters.openai_compatible.support.native_web_search_request_builder import (
     build_native_web_search_request,
 )
@@ -37,6 +41,12 @@ class _FakeAsyncStream:
 class _AdapterStub:
     def _extract_responses_text(self, response) -> str:
         return getattr(response, "output_text", "") or ""
+
+
+def test_native_web_search_runner_facade_exports_support_symbols() -> None:
+    assert facade.native_web_search_via_responses is support_facade.native_web_search_via_responses
+    assert facade.native_web_search_via_stream is support_facade.native_web_search_via_stream
+    assert facade.NativeWebSearchAdapterProtocol is support_facade.NativeWebSearchAdapterProtocol
 
 
 def test_build_native_web_search_request_switches_include_and_stream_flags() -> None:

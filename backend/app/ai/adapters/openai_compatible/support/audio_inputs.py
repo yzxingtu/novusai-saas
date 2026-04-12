@@ -30,6 +30,37 @@ AUDIO_FETCH_TIMEOUT_SEC: float = 30.0
 AUDIO_MAX_BYTES: int = 25 * 1024 * 1024
 
 
+def resolve_audio_format(
+    mime_type: str | None,
+    *,
+    audio_mime_to_openai_format: dict[str, str] | None = None,
+) -> str:
+    """Resolve an audio MIME type to the OpenAI input_audio format label."""
+    normalized_mime = str(mime_type or "").strip().lower()
+    formats = audio_mime_to_openai_format or AUDIO_MIME_TO_OPENAI_FORMAT
+    return formats.get(normalized_mime) or "mpeg"
+
+
+def build_input_audio_part(
+    audio_bytes: bytes,
+    mime_type: str | None,
+    *,
+    audio_mime_to_openai_format: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Build input_audio part payload for chat.completions messages."""
+    b64_str = base64.b64encode(audio_bytes).decode("ascii")
+    return {
+        "type": "input_audio",
+        "input_audio": {
+            "data": b64_str,
+            "format": resolve_audio_format(
+                mime_type,
+                audio_mime_to_openai_format=audio_mime_to_openai_format,
+            ),
+        },
+    }
+
+
 async def fetch_audio_bytes(
     url: str,
     *,
@@ -96,5 +127,7 @@ __all__ = [
     "AUDIO_FETCH_TIMEOUT_SEC",
     "AUDIO_MAX_BYTES",
     "AUDIO_MIME_TO_OPENAI_FORMAT",
+    "build_input_audio_part",
     "fetch_audio_bytes",
+    "resolve_audio_format",
 ]

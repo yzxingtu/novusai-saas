@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.ai.runtime.contracts import ProtocolExecutionPlan
+from app.ai.runtime.contracts import ProtocolExecutionPlan, ProtocolGuardContract
 from app.ai.runtime.protocol_turn_session import ProtocolTurnSession
 from app.ai.runtime.types import TurnRecord
 from app.ai.types import ChatMessage, ChatResponse
@@ -10,8 +10,15 @@ class _PlannerStub:
     def __init__(self, plan: ProtocolExecutionPlan) -> None:
         self.plan = plan
 
-    def plan_turn(self, *, tools, selected_skill_names=None, context_sources=None):
-        _ = tools, selected_skill_names, context_sources
+    def plan_turn(
+        self,
+        *,
+        tools,
+        guard_contract=None,
+        selected_skill_names=None,
+        context_sources=None,
+    ):
+        _ = tools, guard_contract, selected_skill_names, context_sources
         return self.plan
 
 
@@ -118,3 +125,32 @@ def test_protocol_turn_session_finalize_chat_success_attaches_turn_record() -> N
     assert finalized.metadata["runtime_turn_record"] is session.turn_record
     assert session.turn_record.turn_outcome == "success"
     assert session.turn_record.termination_reason == "completed"
+
+
+def test_protocol_turn_session_create_propagates_guard_contract() -> None:
+    guard_contract = ProtocolGuardContract(
+        disable_cross_protocol_fallback=False,
+        disable_sync_rescue=False,
+    )
+    session = ProtocolTurnSession.create(
+        planner=_PlannerStub(
+            ProtocolExecutionPlan(
+                preferred_protocol="responses",
+                protocol_chain=["responses"],
+            )
+        ),
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4",
+        temperature=0.7,
+        max_tokens=None,
+        top_p=1.0,
+        tools=None,
+        tool_choice=None,
+        supports_vision=False,
+        supports_audio=False,
+        supports_video=False,
+        guard_contract=guard_contract,
+    )
+
+    assert session.command.protocol_guards == guard_contract
+    assert session.plan.protocol_guards == guard_contract
