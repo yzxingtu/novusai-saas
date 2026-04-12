@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Protocol
 
 from app.ai.exceptions import ProviderError
+from app.ai.runtime.contracts import ProtocolGuardContract
 
 
 class ProtocolRuntimeContextAdapterProtocol(Protocol):
@@ -37,13 +38,13 @@ class ProtocolRuntimeContextAdapterProtocol(Protocol):
     def _normalize_timeout_seconds(self, timeout: Any) -> float | None: ...
 
 
-def _ensure_runtime_guard_enabled(flag_name: str, value: Any) -> None:
-    if value is None or value is True:
+def _ensure_runtime_guard_enabled(flag_name: str, enabled: bool) -> None:
+    if enabled:
         return
     raise ProviderError(
         message=(
             "Runtime protocol guard must stay enabled for protocol-safe entrypoints: "
-            f"{flag_name}={value}"
+            f"{flag_name}={enabled}"
         ),
         provider_code="openai_compatible",
         error_code="invalid_runtime_guard",
@@ -60,17 +61,19 @@ def prepare_protocol_execution_context(
     default_stream_timeout_seconds: float,
 ) -> dict[str, Any]:
     runtime_kwargs = dict(kwargs or {})
-    _ensure_runtime_guard_enabled(
-        "_runtime_disable_cross_protocol_fallback",
-        runtime_kwargs.get("_runtime_disable_cross_protocol_fallback"),
+    guard_contract = ProtocolGuardContract.pop_runtime_kwargs(
+        runtime_kwargs,
+        default=ProtocolGuardContract(),
     )
     _ensure_runtime_guard_enabled(
-        "_runtime_disable_sync_rescue",
-        runtime_kwargs.get("_runtime_disable_sync_rescue"),
+        ProtocolGuardContract.RUNTIME_DISABLE_CROSS_PROTOCOL_FALLBACK,
+        guard_contract.disable_cross_protocol_fallback,
+    )
+    _ensure_runtime_guard_enabled(
+        ProtocolGuardContract.RUNTIME_DISABLE_SYNC_RESCUE,
+        guard_contract.disable_sync_rescue,
     )
     runtime_kwargs.pop("_runtime_force_wire_api", None)
-    runtime_kwargs.pop("_runtime_disable_cross_protocol_fallback", None)
-    runtime_kwargs.pop("_runtime_disable_sync_rescue", None)
     runtime_reasoning_effort_override = runtime_kwargs.pop(
         "_runtime_reasoning_effort_override",
         None,

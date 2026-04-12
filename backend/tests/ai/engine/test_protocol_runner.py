@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.ai.runtime.contracts import TurnCommand
+from app.ai.runtime.contracts import ProtocolGuardContract, TurnCommand
 from app.ai.runtime.protocol_runner import ProtocolRunner
 from app.ai.runtime.types import TurnRecord
 from app.ai.types import ChatChunk, ChatMessage, ChatResponse
@@ -40,8 +40,10 @@ async def test_protocol_runner_chat_passes_strict_protocol_overrides() -> None:
     kwargs = adapter.execute_protocol_chat.await_args.kwargs
     assert kwargs["wire_api"] == "responses"
     assert kwargs["_runtime_force_wire_api"] == "responses"
-    assert kwargs["_runtime_disable_cross_protocol_fallback"] is True
-    assert kwargs["_runtime_disable_sync_rescue"] is True
+    assert (
+        kwargs[ProtocolGuardContract.RUNTIME_DISABLE_CROSS_PROTOCOL_FALLBACK] is True
+    )
+    assert kwargs[ProtocolGuardContract.RUNTIME_DISABLE_SYNC_RESCUE] is True
     assert kwargs["tenant_id"] == 1
 
 
@@ -75,5 +77,39 @@ async def test_protocol_runner_stream_passes_strict_protocol_overrides() -> None
     kwargs = adapter.execute_protocol_stream.call_args.kwargs
     assert kwargs["wire_api"] == "chat_completions"
     assert kwargs["_runtime_force_wire_api"] == "chat_completions"
-    assert kwargs["_runtime_disable_cross_protocol_fallback"] is True
-    assert kwargs["_runtime_disable_sync_rescue"] is True
+    assert (
+        kwargs[ProtocolGuardContract.RUNTIME_DISABLE_CROSS_PROTOCOL_FALLBACK] is True
+    )
+    assert kwargs[ProtocolGuardContract.RUNTIME_DISABLE_SYNC_RESCUE] is True
+
+
+@pytest.mark.asyncio
+async def test_protocol_runner_respects_explicit_guard_contract() -> None:
+    adapter = AsyncMock()
+    adapter.execute_protocol_chat = AsyncMock(
+        return_value=ChatResponse(
+            message=ChatMessage(role="assistant", content="ok"),
+            metadata={},
+        )
+    )
+    runner = ProtocolRunner(adapter=adapter)
+    command = TurnCommand(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4",
+        protocol_guards=ProtocolGuardContract(
+            disable_cross_protocol_fallback=False,
+            disable_sync_rescue=False,
+        ),
+    )
+
+    await runner.chat(
+        protocol_path="responses",
+        command=command,
+        turn_record=TurnRecord(),
+    )
+
+    kwargs = adapter.execute_protocol_chat.await_args.kwargs
+    assert (
+        kwargs[ProtocolGuardContract.RUNTIME_DISABLE_CROSS_PROTOCOL_FALLBACK] is False
+    )
+    assert kwargs[ProtocolGuardContract.RUNTIME_DISABLE_SYNC_RESCUE] is False

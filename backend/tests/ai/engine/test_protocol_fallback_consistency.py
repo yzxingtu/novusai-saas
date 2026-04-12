@@ -6,6 +6,7 @@ import httpx
 import pytest
 from openai import RateLimitError
 
+from app.ai.adapters.openai_compatible.capabilities import OpenAIProtocolCapabilities
 from app.ai.adapters.openai_compatible.compat.legacy_context_builder import (
     build_legacy_entrypoint_plan,
 )
@@ -15,16 +16,19 @@ from app.ai.adapters.openai_compatible.compat.legacy_protocol_policy import (
 )
 from app.ai.exceptions import (
     ProviderConnectionError,
+    ProviderError,
     ProviderRateLimitError,
     ProviderTimeoutError,
 )
 from app.ai.gateway_support.protocol_adapter_bridge import (
     resolve_gateway_protocol_wire_api,
 )
-from app.ai.runtime.contracts import TurnCommand
+from app.ai.runtime.contracts import ProtocolGuardContract, TurnCommand
 from app.ai.runtime.protocol_planner import ProtocolPlanner
 from app.ai.runtime.protocol_recovery_policy import ProtocolRecoveryPolicy
-from app.ai.types import ChatMessage
+from app.ai.runtime.protocol_runner import ProtocolRunner
+from app.ai.runtime.types import TurnRecord
+from app.ai.types import ChatMessage, ChatResponse
 
 
 class _AllowAllCapabilities:
@@ -96,6 +100,16 @@ TOOLS = [
         "function": {"name": "ui_get_snapshot", "parameters": {}},
     }
 ]
+
+_RUNTIME_FORCE_WIRE_API = "_runtime_force_wire_api"
+
+
+def _runtime_overrides(payload: dict[str, object]) -> dict[str, object]:
+    runtime_keys = (
+        _RUNTIME_FORCE_WIRE_API,
+        *ProtocolGuardContract.runtime_guard_keys(),
+    )
+    return {key: payload[key] for key in runtime_keys if key in payload}
 
 
 class _LegacyPlanAdapter:
@@ -274,6 +288,59 @@ def test_runtime_and_compat_both_disable_cross_protocol_fallback_for_responses_o
     )
 
 
+@pytest.mark.asyncio
+async def test_turn_command_guards_keep_responses_only_provider_consistent() -> None:
+    capabilities = _ResponsesOnlyCapabilities()
+    runtime_kwargs = TurnCommand(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4",
+        temperature=0.2,
+        max_tokens=128,
+        top_p=0.9,
+        tools=TOOLS,
+        tool_choice="required",
+    ).to_adapter_kwargs(protocol_path="responses")
+    legacy_runtime_kwargs = {
+        key: value
+        for key, value in runtime_kwargs.items()
+        if str(key).startswith("_runtime_")
+    }
+
+    plan = await build_legacy_entrypoint_plan(
+        adapter=_LegacyPlanAdapter(),  # type: ignore[arg-type]
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4",
+        temperature=0.2,
+        max_tokens=128,
+        top_p=0.9,
+        tools=TOOLS,
+        tool_choice="required",
+        stream=False,
+        kwargs=legacy_runtime_kwargs,
+    )
+
+    assert plan.context.runtime_disable_cross_protocol_fallback is True
+    assert plan.context.runtime_disable_sync_rescue is True
+    adapter = SimpleNamespace(
+        wire_api="responses",
+        protocol_capabilities=capabilities,
+    )
+    assert ProtocolPlanner.build_protocol_chain("responses", adapter=adapter) == [
+        "responses"
+    ]
+    assert (
+        should_fallback_from_responses_error(
+            capabilities=capabilities,
+            error=_FakeStatusError(502, "bad gateway"),
+            tools=TOOLS,
+            tool_choice="required",
+            use_responses_api=True,
+            fallback_switch_enabled=True,
+        )
+        is False
+    )
+
+
 def test_protocol_planner_preserves_one_way_fallback_contract() -> None:
     capabilities = _OneWayFallbackCapabilities()
     adapter = SimpleNamespace(
@@ -300,6 +367,170 @@ def test_protocol_planner_keeps_legacy_fallback_when_contract_missing() -> None:
     ]
 
 
+def test_protocol_planner_resolves_responses_alias_for_legacy_wire_api() -> None:
+    adapter = SimpleNamespace(wire_api="responses_api")
+
+    assert ProtocolPlanner.resolve_preferred_protocol(adapter) == "responses"
+
+
+@pytest.mark.parametrize(
+    ("allow_flag", "expected_chain"),
+    [
+        pytest.param(True, ["responses", "chat_completions"], id="allow-true"),
+        pytest.param(False, ["responses"], id="allow-false"),
+    ],
+)
+def test_protocol_planner_respects_allow_flag_with_explicit_fallback_map(
+    allow_flag: bool,
+    expected_chain: list[str],
+) -> None:
+    provider_config = {
+        "protocol_capabilities": {
+            "primary_wire_api": "responses_api",
+            "allowed_wire_apis": ["responses_api", "chat/completions"],
+            "allowed_cross_protocol_fallbacks": {"responses_api": ["chat/completions"]},
+            "allow_adapter_cross_protocol_fallback": allow_flag,
+        }
+    }
+    capabilities = OpenAIProtocolCapabilities.from_provider_config(
+        provider_config=provider_config,
+        configured_wire_api=None,
+    )
+    adapter = SimpleNamespace(
+        wire_api="responses",
+        protocol_capabilities=capabilities,
+    )
+
+    preferred = ProtocolPlanner.resolve_preferred_protocol(adapter)
+
+    assert preferred == "responses"
+    assert ProtocolPlanner.build_protocol_chain(preferred, adapter=adapter) == expected_chain
+    assert (
+        capabilities.is_cross_protocol_fallback_allowed(
+            from_wire_api="responses",
+            to_wire_api="chat_completions",
+        )
+        is allow_flag
+    )
+
+
+def test_protocol_planner_normalizes_contract_aliases() -> None:
+    capabilities = SimpleNamespace(
+        primary_wire_api="responses_api",
+        allowed_wire_apis=("responses_api", "chat/completions"),
+        allowed_cross_protocol_fallbacks={"responses_api": ("chat/completions",)},
+        allow_adapter_cross_protocol_fallback=True,
+    )
+    adapter = SimpleNamespace(
+        wire_api="responses",
+        protocol_capabilities=capabilities,
+    )
+
+    preferred = ProtocolPlanner.resolve_preferred_protocol(adapter)
+
+    assert preferred == "responses"
+    assert ProtocolPlanner.build_protocol_chain(preferred, adapter=adapter) == [
+        "responses",
+        "chat_completions",
+    ]
+
+
+def test_protocol_planner_responses_only_contract_matches_capabilities() -> None:
+    capabilities = OpenAIProtocolCapabilities.from_provider_config(
+        provider_config={"protocol_capabilities": {"allowed_wire_apis": ["responses"]}},
+        configured_wire_api="responses",
+    )
+    adapter = SimpleNamespace(
+        wire_api="responses",
+        protocol_capabilities=capabilities,
+    )
+
+    preferred = ProtocolPlanner.resolve_preferred_protocol(adapter)
+
+    assert preferred == "responses"
+    assert ProtocolPlanner.build_protocol_chain(preferred, adapter=adapter) == ["responses"]
+    assert (
+        capabilities.is_cross_protocol_fallback_allowed(
+            from_wire_api="responses",
+            to_wire_api="chat_completions",
+        )
+        is False
+    )
+
+
+@pytest.mark.parametrize(
+    ("capabilities", "action"),
+    [
+        pytest.param(
+            SimpleNamespace(
+                primary_wire_api="respones",
+                allowed_wire_apis=("responses",),
+                allowed_cross_protocol_fallbacks={},
+                allow_adapter_cross_protocol_fallback=False,
+            ),
+            "resolve",
+            id="invalid-primary",
+        ),
+        pytest.param(
+            SimpleNamespace(
+                primary_wire_api="responses",
+                allowed_wire_apis=("responses", "chat_completionz"),
+                allowed_cross_protocol_fallbacks={},
+                allow_adapter_cross_protocol_fallback=True,
+            ),
+            "chain",
+            id="invalid-allowed",
+        ),
+        pytest.param(
+            SimpleNamespace(
+                primary_wire_api="responses",
+                allowed_wire_apis=("responses", "chat_completions"),
+                allowed_cross_protocol_fallbacks={"responses": ("respones",)},
+                allow_adapter_cross_protocol_fallback=True,
+            ),
+            "chain",
+            id="invalid-fallback",
+        ),
+    ],
+)
+def test_protocol_planner_rejects_invalid_contract_tokens(
+    capabilities: SimpleNamespace,
+    action: str,
+) -> None:
+    adapter = SimpleNamespace(
+        wire_api="responses",
+        protocol_capabilities=capabilities,
+    )
+
+    with pytest.raises(ProviderError) as exc_info:
+        if action == "resolve":
+            ProtocolPlanner.resolve_preferred_protocol(adapter)
+        else:
+            ProtocolPlanner.build_protocol_chain("responses", adapter=adapter)
+
+    assert exc_info.value.error_code == "invalid_protocol_contract"
+
+
+def test_protocol_planner_rejects_primary_not_in_allowed_wire_apis() -> None:
+    capabilities = SimpleNamespace(
+        primary_wire_api="responses",
+        allowed_wire_apis=("chat_completions",),
+        allowed_cross_protocol_fallbacks={},
+        allow_adapter_cross_protocol_fallback=False,
+    )
+    adapter = SimpleNamespace(
+        wire_api="responses",
+        protocol_capabilities=capabilities,
+    )
+
+    preferred = ProtocolPlanner.resolve_preferred_protocol(adapter)
+
+    with pytest.raises(ProviderError) as exc_info:
+        ProtocolPlanner.build_protocol_chain(preferred, adapter=adapter)
+
+    assert exc_info.value.error_code == "invalid_protocol_contract"
+
+
 def test_protocol_planner_requires_explicit_fallback_map_for_contracts() -> None:
     capabilities = SimpleNamespace(
         allowed_wire_apis=("responses", "chat_completions"),
@@ -315,6 +546,41 @@ def test_protocol_planner_requires_explicit_fallback_map_for_contracts() -> None
     assert ProtocolPlanner.build_protocol_chain("responses", adapter=adapter) == [
         "responses"
     ]
+
+
+def test_legacy_transitional_fallback_does_not_relax_runtime_planner_contract() -> None:
+    provider_config = {
+        "protocol_capabilities": {
+            "primary_wire_api": "responses_api",
+            "allowed_wire_apis": ["responses_api", "chat/completions"],
+            "allow_adapter_cross_protocol_fallback": True,
+        }
+    }
+    capabilities = OpenAIProtocolCapabilities.from_provider_config(
+        provider_config=provider_config,
+        configured_wire_api=None,
+    )
+    adapter = SimpleNamespace(
+        wire_api="responses",
+        protocol_capabilities=capabilities,
+    )
+    error = _FakeStatusError(502, "bad gateway")
+
+    assert capabilities.allowed_cross_protocol_fallbacks == {}
+    assert ProtocolPlanner.build_protocol_chain("responses", adapter=adapter) == [
+        "responses"
+    ]
+    assert (
+        should_fallback_from_responses_error(
+            capabilities=capabilities,
+            error=error,
+            tools=TOOLS,
+            tool_choice="required",
+            use_responses_api=True,
+            fallback_switch_enabled=True,
+        )
+        is True
+    )
 
 
 def test_turn_command_freezes_each_runtime_protocol_step_with_guard_flags() -> None:
@@ -333,9 +599,36 @@ def test_turn_command_freezes_each_runtime_protocol_step_with_guard_flags() -> N
     kwargs = command.to_adapter_kwargs(protocol_path=chain[0])
 
     assert chain == ["responses", "chat_completions"]
-    assert kwargs["_runtime_force_wire_api"] == "responses"
-    assert kwargs["_runtime_disable_cross_protocol_fallback"] is True
-    assert kwargs["_runtime_disable_sync_rescue"] is True
+    assert kwargs[_RUNTIME_FORCE_WIRE_API] == "responses"
+    assert (
+        kwargs[ProtocolGuardContract.RUNTIME_DISABLE_CROSS_PROTOCOL_FALLBACK] is True
+    )
+    assert kwargs[ProtocolGuardContract.RUNTIME_DISABLE_SYNC_RESCUE] is True
+
+
+def test_turn_command_guard_contract_overrides_extra_runtime_kwargs() -> None:
+    command = TurnCommand(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4",
+        tools=TOOLS,
+        tool_choice="required",
+        extra_kwargs={
+            ProtocolGuardContract.RUNTIME_DISABLE_CROSS_PROTOCOL_FALLBACK: False,
+            ProtocolGuardContract.RUNTIME_DISABLE_SYNC_RESCUE: False,
+        },
+        protocol_guards=ProtocolGuardContract(
+            disable_cross_protocol_fallback=True,
+            disable_sync_rescue=True,
+        ),
+    )
+
+    kwargs = command.to_adapter_kwargs(protocol_path="responses")
+
+    assert kwargs[_RUNTIME_FORCE_WIRE_API] == "responses"
+    assert (
+        kwargs[ProtocolGuardContract.RUNTIME_DISABLE_CROSS_PROTOCOL_FALLBACK] is True
+    )
+    assert kwargs[ProtocolGuardContract.RUNTIME_DISABLE_SYNC_RESCUE] is True
 
 
 @pytest.mark.asyncio
@@ -352,11 +645,7 @@ async def test_turn_command_protocol_guards_stay_legacy_plan_compatible(
         tools=TOOLS,
         tool_choice="required",
     ).to_adapter_kwargs(protocol_path=protocol_path)
-    legacy_runtime_kwargs = {
-        key: value
-        for key, value in runtime_kwargs.items()
-        if str(key).startswith("_runtime_")
-    }
+    legacy_runtime_kwargs = _runtime_overrides(runtime_kwargs)
 
     plan = await build_legacy_entrypoint_plan(
         adapter=_LegacyPlanAdapter(),  # type: ignore[arg-type]
@@ -374,9 +663,115 @@ async def test_turn_command_protocol_guards_stay_legacy_plan_compatible(
     assert plan.context.active_wire_api == protocol_path
     assert plan.context.runtime_disable_cross_protocol_fallback is True
     assert plan.context.runtime_disable_sync_rescue is True
-    assert "_runtime_force_wire_api" not in plan.context.protocol_kwargs
-    assert "_runtime_disable_cross_protocol_fallback" not in plan.context.protocol_kwargs
-    assert "_runtime_disable_sync_rescue" not in plan.context.protocol_kwargs
+    assert _RUNTIME_FORCE_WIRE_API not in plan.context.protocol_kwargs
+    assert (
+        ProtocolGuardContract.RUNTIME_DISABLE_CROSS_PROTOCOL_FALLBACK
+        not in plan.context.protocol_kwargs
+    )
+    assert (
+        ProtocolGuardContract.RUNTIME_DISABLE_SYNC_RESCUE
+        not in plan.context.protocol_kwargs
+    )
+
+
+@pytest.mark.asyncio
+async def test_protocol_runner_turn_command_guards_match_legacy_plan_snapshot() -> None:
+    command = TurnCommand(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4",
+        temperature=0.2,
+        max_tokens=128,
+        top_p=0.9,
+        tools=TOOLS,
+        tool_choice="required",
+    )
+    adapter_kwargs = command.to_adapter_kwargs(protocol_path="responses")
+    captured: dict[str, object] = {}
+
+    async def _execute_protocol_chat(**kwargs):
+        captured.update(kwargs)
+        return ChatResponse(message=ChatMessage(role="assistant", content="ok"))
+
+    runner = ProtocolRunner(adapter=SimpleNamespace(execute_protocol_chat=_execute_protocol_chat))
+    await runner.chat(
+        protocol_path="responses",
+        command=command,
+        turn_record=TurnRecord(),
+    )
+
+    assert adapter_kwargs[_RUNTIME_FORCE_WIRE_API] == "responses"
+    assert (
+        adapter_kwargs[ProtocolGuardContract.RUNTIME_DISABLE_CROSS_PROTOCOL_FALLBACK]
+        is True
+    )
+    assert adapter_kwargs[ProtocolGuardContract.RUNTIME_DISABLE_SYNC_RESCUE] is True
+    assert captured[_RUNTIME_FORCE_WIRE_API] == "responses"
+    assert (
+        captured[ProtocolGuardContract.RUNTIME_DISABLE_CROSS_PROTOCOL_FALLBACK] is True
+    )
+    assert captured[ProtocolGuardContract.RUNTIME_DISABLE_SYNC_RESCUE] is True
+
+    legacy_runtime_kwargs = _runtime_overrides(adapter_kwargs)
+    plan = await build_legacy_entrypoint_plan(
+        adapter=_LegacyPlanAdapter(),  # type: ignore[arg-type]
+        messages=command.messages,
+        model=command.model,
+        temperature=command.temperature,
+        max_tokens=command.max_tokens,
+        top_p=command.top_p,
+        tools=command.tools,
+        tool_choice=command.tool_choice,
+        stream=False,
+        kwargs=legacy_runtime_kwargs,
+    )
+
+    assert plan.context.active_wire_api == "responses"
+    assert plan.context.runtime_disable_cross_protocol_fallback is True
+    assert plan.context.runtime_disable_sync_rescue is True
+
+
+@pytest.mark.asyncio
+async def test_legacy_plan_snapshot_tracks_custom_guard_contract_values() -> None:
+    guard_contract = ProtocolGuardContract(
+        disable_cross_protocol_fallback=False,
+        disable_sync_rescue=False,
+    )
+    command = TurnCommand(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4",
+        temperature=0.2,
+        max_tokens=128,
+        top_p=0.9,
+        tools=TOOLS,
+        tool_choice="required",
+        protocol_guards=guard_contract,
+    )
+    adapter_kwargs = command.to_adapter_kwargs(protocol_path="responses")
+    legacy_runtime_kwargs = _runtime_overrides(adapter_kwargs)
+
+    plan = await build_legacy_entrypoint_plan(
+        adapter=_LegacyPlanAdapter(),  # type: ignore[arg-type]
+        messages=command.messages,
+        model=command.model,
+        temperature=command.temperature,
+        max_tokens=command.max_tokens,
+        top_p=command.top_p,
+        tools=command.tools,
+        tool_choice=command.tool_choice,
+        stream=False,
+        kwargs=legacy_runtime_kwargs,
+    )
+
+    assert plan.context.guard_snapshot.runtime_disable_cross_protocol_fallback is False
+    assert plan.context.guard_snapshot.runtime_disable_sync_rescue is False
+    assert (
+        ProtocolGuardContract.RUNTIME_DISABLE_CROSS_PROTOCOL_FALLBACK
+        not in plan.context.protocol_kwargs
+    )
+    assert (
+        ProtocolGuardContract.RUNTIME_DISABLE_SYNC_RESCUE
+        not in plan.context.protocol_kwargs
+    )
 
 
 @pytest.mark.asyncio
@@ -412,4 +807,4 @@ async def test_gateway_runtime_force_wire_api_and_legacy_plan_keep_same_response
     assert plan.context.active_wire_api == "responses"
     assert plan.context.runtime_disable_cross_protocol_fallback is True
     assert plan.context.runtime_disable_sync_rescue is True
-    assert "_runtime_force_wire_api" not in plan.context.protocol_kwargs
+    assert _RUNTIME_FORCE_WIRE_API not in plan.context.protocol_kwargs

@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from app.ai.runtime.contracts import ProtocolGuardContract
 from app.ai.types import ChatMessage
 
 
@@ -60,6 +61,50 @@ class LegacyEntrypointAdapterProtocol(Protocol):
     ) -> None: ...
 
 
+@dataclass(frozen=True, slots=True, init=False)
+class LegacyEntrypointGuardSnapshot:
+    contract: ProtocolGuardContract
+
+    def __init__(
+        self,
+        contract: ProtocolGuardContract | None = None,
+        *,
+        runtime_disable_cross_protocol_fallback: bool | None = None,
+        runtime_disable_sync_rescue: bool | None = None,
+    ) -> None:
+        if contract is None:
+            contract = ProtocolGuardContract(
+                disable_cross_protocol_fallback=bool(
+                    runtime_disable_cross_protocol_fallback
+                ),
+                disable_sync_rescue=bool(runtime_disable_sync_rescue),
+            )
+        object.__setattr__(self, "contract", contract)
+
+    @classmethod
+    def from_runtime_kwargs(
+        cls,
+        runtime_kwargs: dict[str, Any],
+    ) -> LegacyEntrypointGuardSnapshot:
+        return cls(
+            contract=ProtocolGuardContract.pop_runtime_kwargs(
+                runtime_kwargs,
+                default=ProtocolGuardContract(
+                    disable_cross_protocol_fallback=False,
+                    disable_sync_rescue=False,
+                ),
+            )
+        )
+
+    @property
+    def runtime_disable_cross_protocol_fallback(self) -> bool:
+        return self.contract.disable_cross_protocol_fallback
+
+    @property
+    def runtime_disable_sync_rescue(self) -> bool:
+        return self.contract.disable_sync_rescue
+
+
 @dataclass(frozen=True)
 class LegacyEntrypointContext:
     active_endpoint_path: str
@@ -71,8 +116,15 @@ class LegacyEntrypointContext:
     supports_audio: bool
     supports_video: bool
     protocol_kwargs: dict[str, Any]
-    runtime_disable_cross_protocol_fallback: bool
-    runtime_disable_sync_rescue: bool
+    guard_snapshot: LegacyEntrypointGuardSnapshot
+
+    @property
+    def runtime_disable_cross_protocol_fallback(self) -> bool:
+        return self.guard_snapshot.runtime_disable_cross_protocol_fallback
+
+    @property
+    def runtime_disable_sync_rescue(self) -> bool:
+        return self.guard_snapshot.runtime_disable_sync_rescue
 
 
 @dataclass(frozen=True)
@@ -98,12 +150,7 @@ async def build_legacy_entrypoint_plan(
 ) -> LegacyEntrypointPlan:
     runtime_kwargs = dict(kwargs)
     runtime_force_wire_api = runtime_kwargs.get("_runtime_force_wire_api")
-    runtime_disable_cross_protocol_fallback = bool(
-        runtime_kwargs.pop("_runtime_disable_cross_protocol_fallback", False)
-    )
-    runtime_disable_sync_rescue = bool(
-        runtime_kwargs.pop("_runtime_disable_sync_rescue", False)
-    )
+    guard_snapshot = LegacyEntrypointGuardSnapshot.from_runtime_kwargs(runtime_kwargs)
     raw_context = adapter._prepare_protocol_execution_context(
         wire_api=runtime_force_wire_api,
         model=model,
@@ -120,8 +167,7 @@ async def build_legacy_entrypoint_plan(
         supports_audio=raw_context["supports_audio"],
         supports_video=raw_context["supports_video"],
         protocol_kwargs=dict(raw_context["kwargs"]),
-        runtime_disable_cross_protocol_fallback=runtime_disable_cross_protocol_fallback,
-        runtime_disable_sync_rescue=runtime_disable_sync_rescue,
+        guard_snapshot=guard_snapshot,
     )
     openai_messages = await adapter._convert_messages(
         messages,
@@ -182,6 +228,7 @@ async def build_legacy_entrypoint_plan(
 
 __all__ = [
     "LegacyEntrypointAdapterProtocol",
+    "LegacyEntrypointGuardSnapshot",
     "LegacyEntrypointContext",
     "LegacyEntrypointPlan",
     "build_legacy_entrypoint_plan",

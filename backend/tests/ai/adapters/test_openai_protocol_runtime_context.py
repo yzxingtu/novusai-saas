@@ -8,6 +8,7 @@ from app.ai.adapters.openai_compatible.protocol_runtime_context import (
     prepare_protocol_execution_context,
 )
 from app.ai.exceptions import ProviderError
+from app.ai.runtime.contracts import ProtocolGuardContract
 
 
 class _RuntimeContextAdapterStub:
@@ -62,8 +63,8 @@ def test_prepare_protocol_execution_context_pops_runtime_flags_and_applies_defau
         stream=True,
         kwargs={
             "_runtime_force_wire_api": "responses",
-            "_runtime_disable_cross_protocol_fallback": True,
-            "_runtime_disable_sync_rescue": True,
+            ProtocolGuardContract.RUNTIME_DISABLE_CROSS_PROTOCOL_FALLBACK: True,
+            ProtocolGuardContract.RUNTIME_DISABLE_SYNC_RESCUE: True,
             "supports_vision": False,
             "supports_audio": True,
             "tenant_id": 9,
@@ -84,8 +85,8 @@ def test_prepare_protocol_execution_context_pops_runtime_flags_and_applies_defau
 @pytest.mark.parametrize(
     "runtime_flag",
     [
-        "_runtime_disable_cross_protocol_fallback",
-        "_runtime_disable_sync_rescue",
+        ProtocolGuardContract.RUNTIME_DISABLE_CROSS_PROTOCOL_FALLBACK,
+        ProtocolGuardContract.RUNTIME_DISABLE_SYNC_RESCUE,
     ],
 )
 def test_prepare_protocol_execution_context_rejects_disabled_runtime_guards(
