@@ -1,14 +1,14 @@
 import type { MaybeRefOrGetter } from 'vue';
 
-import type { PageOperation } from '#/components/business/ai-slide-panel/page-operation-registry';
+import type { RichTextRuntimeOperation } from './ai/runtime-operation-types';
 
 import { toValue } from 'vue';
 
 import {
-  appendPageOperations,
-  listPageOperations,
-  registerPageContextExtras,
-} from '#/components/business/ai-slide-panel';
+  registerRichTextRuntimeProvider,
+  waitForRichTextRuntimeOperation,
+} from './ai/runtime-adapter-registry';
+import { normalizeRuntimePageKey } from './ai/page-key';
 
 export interface RegisterRichTextDocumentPageAIOptions {
   documentId?: MaybeRefOrGetter<null | number | undefined>;
@@ -24,7 +24,7 @@ export interface RegisterRichTextDocumentPageAIOptions {
   entityDescriptionAppend?: MaybeRefOrGetter<string | undefined>;
   excerptLength?: number;
   extraData?: MaybeRefOrGetter<Record<string, unknown> | undefined>;
-  operations?: MaybeRefOrGetter<PageOperation[] | undefined>;
+  operations?: MaybeRefOrGetter<RichTextRuntimeOperation[] | undefined>;
   pageKey: MaybeRefOrGetter<string>;
   saving?: MaybeRefOrGetter<boolean | null | undefined>;
   wordCount?: MaybeRefOrGetter<null | number | undefined>;
@@ -45,19 +45,22 @@ const DEFAULT_TIMEOUT_MS = 2000;
 export function registerRichTextDocumentPageAI(
   options: RegisterRichTextDocumentPageAIOptions,
 ): () => void {
-  const pageKey = toValue(options.pageKey);
+  const pageKey = normalizeRuntimePageKey(toValue(options.pageKey));
   if (!pageKey) {
     return () => {};
   }
 
-  const cleanupContext = registerPageContextExtras(pageKey, () => {
-    const editor = toValue(options.editor);
-    const fullText = editor?.getText?.() ?? '';
-    const excerptLength = options.excerptLength ?? DEFAULT_EXCERPT_LEN;
+  const providerId = `rich-text-document:${pageKey}:${Math.random().toString(36).slice(2, 10)}`;
+  return registerRichTextRuntimeProvider({
+    providerId,
+    pageKey,
+    priority: 40,
+    getContextData: () => {
+      const editor = toValue(options.editor);
+      const fullText = editor?.getText?.() ?? '';
+      const excerptLength = options.excerptLength ?? DEFAULT_EXCERPT_LEN;
 
-    return {
-      page_key: pageKey,
-      page_data: {
+      return {
         ...(toValue(options.entityDescriptionAppend)
           ? {
               entity_description_append: toValue(
@@ -93,44 +96,20 @@ export function registerRichTextDocumentPageAI(
         document_body_length: fullText.length,
         document_body_text: fullText.slice(0, excerptLength),
         ...toValue(options.extraData),
-      },
-    };
+      };
+    },
+    getOperations: () => toValue(options.operations) ?? [],
   });
-
-  const operations = toValue(options.operations) ?? [];
-  const cleanupOps =
-    operations.length > 0 ? appendPageOperations(pageKey, operations) : null;
-
-  return () => {
-    cleanupContext();
-    cleanupOps?.();
-  };
 }
 
 export async function waitForRichTextEditorOperations(
   pageKey: string,
   options: WaitForRichTextEditorOperationsOptions = {},
 ): Promise<boolean> {
-  const operationName = options.operationName ?? DEFAULT_EDITOR_OPERATION_NAME;
-  const pollMs = options.pollMs ?? DEFAULT_POLL_MS;
-  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const deadline = Date.now() + timeoutMs;
-
-  while (Date.now() < deadline) {
-    const operations = listPageOperations(pageKey);
-    if (operations.some((operation) => operation.name === operationName)) {
-      return true;
-    }
-    await new Promise((resolve) => setTimeout(resolve, pollMs));
-  }
-
-  if (options.warnOnTimeout !== false) {
-    console.warn(
-      '[RichTextDocumentPageAI] waitForRichTextEditorOperations timed out for "%s" while waiting for "%s".',
-      pageKey,
-      operationName,
-    );
-  }
-
-  return false;
+  return waitForRichTextRuntimeOperation(normalizeRuntimePageKey(pageKey), {
+    operationName: options.operationName ?? DEFAULT_EDITOR_OPERATION_NAME,
+    pollMs: options.pollMs ?? DEFAULT_POLL_MS,
+    timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    warnOnTimeout: options.warnOnTimeout ?? true,
+  });
 }

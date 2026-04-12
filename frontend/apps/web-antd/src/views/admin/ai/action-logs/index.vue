@@ -37,9 +37,6 @@ import {
 } from '#/api/admin/action-logs';
 import { getAdminExecutionDecisionDetailApi } from '#/api/admin/execution-decisions';
 import { IdentitySummaryCard } from '#/components/business/identity-display';
-import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
-import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
-import { createViewDetailPageOperation } from '#/composables';
 import { PLATFORM_TENANT_ID } from '#/constants';
 import { $t } from '#/locales';
 import {
@@ -48,6 +45,8 @@ import {
   formatRelativeTime,
 } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
+import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
+import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 
 import { createAdminIdentityModel } from '../../_shared/identity';
 import AIPageHeroCard from '../_shared/AIPageHeroCard.vue';
@@ -364,19 +363,6 @@ const { Grid } = useCrudPage<AdminActionLogItem>({
   defaultSort: '-created_at',
   customActions: {
     detail: openDetail,
-  },
-  ai: {
-    entityName: $t('admin.ai.actionLog.name'),
-    entityDescription: $t('admin.ai.actionLog.pageDesc'),
-    extra: [
-      createViewDetailPageOperation({
-        description: $t('admin.ai.actionLog.desc.openDetailById'),
-        idDescription: $t('admin.ai.actionLog.param.actionLogId'),
-        openDetail: async (id) => {
-          await openDetailById(id);
-        },
-      }),
-    ],
   },
 });
 </script>

@@ -5,7 +5,7 @@
 
 import type { AIPageMode } from '@vben/types';
 
-import type { PageOperation } from '#/components/business/ai-slide-panel/page-operation-registry';
+import type { PageOperation } from '#/components/business/ai-slide-panel/page-operation-types';
 
 // --- Capability keys & navigation-only allowlist / 能力键与仅导航白名单 ---
 
@@ -22,11 +22,10 @@ export type PageAICapabilityKey =
   | 'submit';
 
 export const NAVIGATION_ONLY_OPERATION_NAMES = new Set([
-  'capture_screenshot',
-  'list_available_menus',
-  'navigate_menu',
-  'read_current_sections',
-  'read_current_view',
+  'ui_get_snapshot',
+  'ui_list_interactables',
+  'ui_read_region',
+  'ui_read_table',
 ]);
 
 export interface PageAIPolicyLike {
@@ -41,49 +40,25 @@ const CAPABILITY_TO_OPERATION_NAMES: Record<
   Exclude<PageAICapabilityKey, 'context' | 'custom'>,
   string[]
 > = {
-  content: ['read_current_sections', 'read_current_view'],
-  detail: ['navigate_back', 'refresh_detail'],
+  content: ['ui_get_snapshot', 'ui_read_region'],
+  detail: ['ui_open_surface', 'ui_click'],
   editor: [
-    'append_content',
-    'clear_formatting',
-    'format_text',
-    'get_editor_html',
-    'get_editor_text',
-    'get_selection',
-    'insert_content',
-    'insert_horizontal_rule',
-    'insert_table',
-    'manage_link',
-    'redo',
-    'replace_content',
-    'replace_section',
-    'select_all',
-    'set_heading',
-    'set_text_align',
-    'toggle_blockquote',
-    'toggle_code_block',
-    'toggle_list',
-    'undo',
-    'update_title',
+    'ui_click',
+    'ui_set_field',
+    'ui_fill_form',
+    'ui_submit_form',
+    'ui_get_form_state',
   ],
   form: [
-    'create_record',
-    'edit_record',
-    'fill_form',
-    'get_form_options',
-    'get_form_state',
-    'validate_form',
-    'view_recycle_bin',
+    'ui_get_form_state',
+    'ui_set_field',
+    'ui_fill_form',
+    'ui_submit_form',
   ],
-  list_read: [
-    'export_data',
-    'read_row_detail',
-    'read_visible_rows',
-    'refresh_list',
-  ],
-  pagination: ['go_to_page', 'next_page', 'prev_page', 'set_page_size'],
-  search: ['clear_search', 'search'],
-  submit: ['submit_form'],
+  list_read: ['ui_get_snapshot', 'ui_read_table', 'ui_read_region'],
+  pagination: ['ui_click', 'ui_open_surface'],
+  search: ['ui_set_field', 'ui_fill_form', 'ui_click'],
+  submit: ['ui_submit_form'],
 };
 
 // --- String / number list normalizers / 字符串与数字列表规范化 ---
@@ -186,7 +161,7 @@ export function mergeDisabledOperations(input: {
   return [...merged];
 }
 
-// --- Apply policy to registered operations / 将策略应用到已注册操作列表 ---
+// --- Apply policy to operation descriptors / 将策略应用到操作描述列表 ---
 
 export function filterPageOperationsByPolicy<
   T extends Pick<PageOperation, 'name'>,

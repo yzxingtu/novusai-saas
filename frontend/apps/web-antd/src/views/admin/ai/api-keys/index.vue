@@ -33,7 +33,6 @@ import AIGatewayQuickStartHero from '../_shared/AIGatewayQuickStartHero.vue';
 import {
   getFormDefaults,
   useColumns,
-  useFormSchema,
   useGridFormSchema,
 } from './data';
 import Form from './modules/form.vue';
@@ -88,11 +87,6 @@ const { Grid, FormDrawer, onRefresh } = useCrudPage<AIApiKeyInfo>({
   defaultSort: '-created_at',
   createPermission: 'ai_api_key:create',
   recycleBin: true,
-  ai: {
-    formSchema: (isEdit?: boolean) => useFormSchema(Boolean(isEdit)),
-    entityName: $t('admin.ai.apiKey.name'),
-    entityDescription: $t('admin.ai.apiKey.pageDesc'),
-  },
 });
 </script>
 

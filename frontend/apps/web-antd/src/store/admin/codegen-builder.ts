@@ -161,8 +161,20 @@ export const useCodegenBuilderStore = defineStore(
 
     // ── Actions / 操作 ──
 
+    function safeClone<T>(value: T): T {
+      try {
+        return structuredClone(value);
+      } catch (error) {
+        try {
+          return JSON.parse(JSON.stringify(value));
+        } catch {
+          return value;
+        }
+      }
+    }
+
     function pushHistory(snapshot: Record<string, unknown>) {
-      historyStack.value.push(structuredClone(snapshot));
+      historyStack.value.push(safeClone(snapshot));
       if (historyStack.value.length > MAX_HISTORY) {
         historyStack.value.shift();
       }
@@ -171,7 +183,7 @@ export const useCodegenBuilderStore = defineStore(
     /** 撤销 / Undo */
     function undo() {
       if (historyStack.value.length === 0) return false;
-      redoStack.value.push(structuredClone(configJson.value));
+      redoStack.value.push(safeClone(configJson.value));
       if (redoStack.value.length > MAX_HISTORY) redoStack.value.shift();
       const prev = historyStack.value.pop();
       if (prev) {
@@ -185,7 +197,7 @@ export const useCodegenBuilderStore = defineStore(
     /** 重做 / Redo */
     function redo() {
       if (redoStack.value.length === 0) return false;
-      historyStack.value.push(structuredClone(configJson.value));
+      historyStack.value.push(safeClone(configJson.value));
       const next = redoStack.value.pop();
       if (next) {
         configJson.value = next;

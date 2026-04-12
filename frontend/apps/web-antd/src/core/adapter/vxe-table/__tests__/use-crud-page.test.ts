@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 /* eslint-disable vue/one-component-per-file */
 import type { PropType } from 'vue';
 
@@ -8,39 +9,54 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useCrudPage } from '../use-crud-page';
 
-const mockRefs = vi.hoisted(() => ({
-  appendPageOperations: vi.fn(() => vi.fn()),
-  createStandardOperations: vi.fn(() => []),
-  crudGridProps: [] as Array<Record<string, unknown>>,
-  gridFactoryOptions: [] as Array<Record<string, unknown>>,
-  gridQuery: vi.fn(),
-  gridReload: vi.fn(),
-  messageError: vi.fn(),
-  messageSuccess: vi.fn(),
-  registerPageContext: vi.fn(() => vi.fn()),
-  registerPageContextExtras: vi.fn(() => vi.fn()),
-  requestDelete: vi.fn(),
-  requestGet: vi.fn(),
-  showDependencyBlockModal: vi.fn(),
-  showDependencyPreviewModal: vi.fn(),
+const mockRoute = {
+  path: '/admin/items',
+  meta: {},
+};
+
+vi.mock('vue-router', () => ({
+  useRoute: () => mockRoute,
 }));
+
+const mockRefs = vi.hoisted(() => {
+  const drawerPayloads: Array<Record<string, unknown>> = [];
+  const drawerApi = {
+    open: vi.fn(),
+    setData: vi.fn(),
+  };
+  drawerApi.setData.mockImplementation((payload: Record<string, unknown>) => {
+    drawerPayloads.push(payload);
+    return drawerApi;
+  });
+
+  return {
+    crudGridProps: [] as Array<Record<string, unknown>>,
+    drawerApi,
+    drawerPayloads,
+    gridFactoryOptions: [] as Array<Record<string, unknown>>,
+    gridQuery: vi.fn(),
+    gridReload: vi.fn(),
+    messageError: vi.fn(),
+    messageSuccess: vi.fn(),
+    requestDelete: vi.fn(),
+    requestGet: vi.fn(),
+    showDependencyBlockModal: vi.fn(),
+    showDependencyPreviewModal: vi.fn(),
+  };
+});
 
 vi.mock('@vben/common-ui', () => ({
   useVbenDrawer: () => [
     defineComponent({ name: 'MockDrawer', render: () => null }),
-    {},
+    mockRefs.drawerApi,
   ],
   useVbenModal: () => [
     defineComponent({ name: 'MockModal', render: () => null }),
-    {},
+    {
+      open: vi.fn(),
+      setData: vi.fn(),
+    },
   ],
-}));
-
-vi.mock('vue-router', () => ({
-  useRoute: () => ({
-    path: '/admin/items',
-    meta: {},
-  }),
 }));
 
 vi.mock('ant-design-vue', () => ({
@@ -66,38 +82,6 @@ vi.mock('#/utils/request', () => ({
 vi.mock('#/components/business/dependency-block-modal/service', () => ({
   showDependencyBlockModal: mockRefs.showDependencyBlockModal,
   showDependencyPreviewModal: mockRefs.showDependencyPreviewModal,
-}));
-
-vi.mock('#/components/business/ai-slide-panel', () => ({
-  appendPageOperations: mockRefs.appendPageOperations,
-  registerPageContextExtras: mockRefs.registerPageContextExtras,
-}));
-
-vi.mock('#/components/business/ai-slide-panel/page-context-registry', () => ({
-  registerPageContext: mockRefs.registerPageContext,
-}));
-
-vi.mock('#/composables/use-ai-operations', () => ({
-  buildCrudListSummary: () => undefined,
-  buildCrudPaginationState: () => ({
-    current_page: 1,
-    page_size: 15,
-    total_pages: 1,
-    total_rows: 0,
-    has_next_page: false,
-    has_previous_page: false,
-  }),
-  compactCrudContextValues: (value: Record<string, unknown>) => value,
-  createFormOperations: () => [],
-  createStandardOperations: mockRefs.createStandardOperations,
-  extractFormParams: () => ({}),
-}));
-
-vi.mock('#/composables/use-form-state-tracker', () => ({
-  formStateTracker: {
-    close: vi.fn(),
-    isOpen: vi.fn(() => false),
-  },
 }));
 
 vi.mock('../components', () => ({
@@ -166,6 +150,10 @@ function mountCrudPage(options: Record<string, unknown>) {
             resource: '/admin/items',
           },
           columns: () => [],
+          formComponent: defineComponent({
+            name: 'InlineForm',
+            render: () => null,
+          }),
           i18nPrefix: 'admin.test',
           ...options,
         });
@@ -175,24 +163,25 @@ function mountCrudPage(options: Record<string, unknown>) {
   );
 
   return wrapper.vm as {
+    onCreate: () => void;
     onDelete: (row: { id: number; name?: string }) => Promise<void>;
+    onEdit: (row: { id: number; name?: string }) => void;
   };
 }
 
 describe('useCrudPage', () => {
   beforeEach(() => {
-    mockRefs.appendPageOperations.mockClear();
-    mockRefs.createStandardOperations.mockClear();
     mockRefs.crudGridProps.length = 0;
+    mockRefs.drawerApi.open.mockClear();
+    mockRefs.drawerApi.setData.mockClear();
+    mockRefs.drawerPayloads.length = 0;
     mockRefs.gridFactoryOptions.length = 0;
-    mockRefs.requestGet.mockReset();
-    mockRefs.requestDelete.mockReset();
-    mockRefs.messageError.mockReset();
-    mockRefs.messageSuccess.mockReset();
     mockRefs.gridQuery.mockReset();
     mockRefs.gridReload.mockReset();
-    mockRefs.registerPageContext.mockClear();
-    mockRefs.registerPageContextExtras.mockClear();
+    mockRefs.messageError.mockReset();
+    mockRefs.messageSuccess.mockReset();
+    mockRefs.requestDelete.mockReset();
+    mockRefs.requestGet.mockReset();
     mockRefs.showDependencyBlockModal.mockReset();
     mockRefs.showDependencyPreviewModal.mockReset();
   });
@@ -271,31 +260,60 @@ describe('useCrudPage', () => {
     expect(latestProps?.createPermission).toBe('');
   });
 
-  it('auto-registers page AI when ai config is omitted', () => {
-    mountCrudPage({});
+  it('does not inject legacy _aiPageKey into form popup payload', () => {
+    const vm = mountCrudPage({});
 
-    expect(mockRefs.appendPageOperations).toHaveBeenCalled();
-    expect(mockRefs.registerPageContext).toHaveBeenCalled();
-    expect(mockRefs.registerPageContextExtras).toHaveBeenCalled();
+    vm.onCreate();
+    const createPayload = mockRefs.drawerPayloads.at(-1);
+    expect(createPayload?._aiPageKey).toBeUndefined();
+    expect(createPayload).toMatchObject({
+      _resource: '/admin/items',
+      mode: 'add',
+    });
+
+    vm.onEdit({ id: 8, name: 'Row 8' });
+    const editPayload = mockRefs.drawerPayloads.at(-1);
+    expect(editPayload?._aiPageKey).toBeUndefined();
+    expect(editPayload).toMatchObject({
+      _resource: '/admin/items',
+      id: 8,
+      mode: 'edit',
+      name: 'Row 8',
+    });
   });
 
-  it('passes export modal opener to standard AI ops when export is enabled', () => {
-    mountCrudPage({});
+  it('injects _pageKey by default for AI-enabled pages', () => {
+    mockRoute.path = '/admin/items';
+    const vm = mountCrudPage({});
 
-    expect(mockRefs.createStandardOperations).toHaveBeenCalled();
-    const latestCall = mockRefs.createStandardOperations.mock.calls.at(-1) as
-      | [Record<string, unknown>]
-      | undefined;
-    const latestArgs = latestCall?.[0];
-    expect(latestArgs?.openExportModal).toBeTypeOf('function');
+    vm.onCreate();
+    const createPayload = mockRefs.drawerPayloads.at(-1);
+    expect(createPayload?._pageKey).toBe('admin.items');
+    expect(createPayload?._aiPageKey).toBeUndefined();
+
+    vm.onEdit({ id: 9, name: 'Row 9' });
+    const editPayload = mockRefs.drawerPayloads.at(-1);
+    expect(editPayload?._pageKey).toBe('admin.items');
   });
 
-  it('skips page AI registration when ai is false', () => {
-    mountCrudPage({ ai: false });
+  it('respects explicit ai.pageKey override', () => {
+    const vm = mountCrudPage({
+      ai: { pageKey: 'custom.page' },
+    });
 
-    expect(mockRefs.appendPageOperations).not.toHaveBeenCalled();
-    expect(mockRefs.registerPageContext).not.toHaveBeenCalled();
-    expect(mockRefs.registerPageContextExtras).not.toHaveBeenCalled();
+    vm.onCreate();
+    const createPayload = mockRefs.drawerPayloads.at(-1);
+    expect(createPayload?._pageKey).toBe('custom.page');
+  });
+
+  it('skips _pageKey when ai is false', () => {
+    const vm = mountCrudPage({
+      ai: false,
+    });
+
+    vm.onCreate();
+    const createPayload = mockRefs.drawerPayloads.at(-1);
+    expect(createPayload?._pageKey).toBeUndefined();
   });
 
   it('passes search defaultOpen and quick search config to grid wrapper', async () => {

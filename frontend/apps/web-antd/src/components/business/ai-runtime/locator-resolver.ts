@@ -419,19 +419,38 @@ export class LocatorResolver {
     return records;
   }
 
-  private resolveBySelector(selector: string): null | LocatorResolution {
-    let element: HTMLElement | null = null;
+  private resolveBySelector(
+    selector: string,
+    options: {
+      failOnMultiple?: boolean;
+      locatorForError?: string;
+    } = {},
+  ): null | LocatorResolution {
+    let elements: NodeListOf<HTMLElement>;
     try {
-      element = this.root.querySelector<HTMLElement>(selector);
+      elements = this.root.querySelectorAll<HTMLElement>(selector);
     } catch {
       return null;
     }
-    if (!element) {
+    const visibleMatches = Array.from(elements).filter(
+      (element) => this.includeHidden || isElementVisible(element),
+    );
+    if (visibleMatches.length === 0) {
       return null;
     }
-    if (!this.includeHidden && !isElementVisible(element)) {
-      return null;
+    if (options.failOnMultiple && visibleMatches.length > 1) {
+      const locator = options.locatorForError || selector;
+      const candidates = visibleMatches
+        .slice(0, this.candidateLimit)
+        .map((element) => toCandidateRecord(element).candidate);
+      throw new LocatorResolutionError(
+        'ambiguous',
+        locator,
+        candidates,
+        tAiRuntime('locatorAmbiguous', { locator }),
+      );
     }
+    const element = visibleMatches[0]!;
     return {
       candidate: toCandidateRecord(element).candidate,
       element,
@@ -440,10 +459,16 @@ export class LocatorResolver {
 
   private resolveExact(locator: string): null | LocatorResolution {
     if (locator.startsWith('css:')) {
-      return this.resolveBySelector(locator.slice(4));
+      return this.resolveBySelector(locator.slice(4), {
+        failOnMultiple: true,
+        locatorForError: locator,
+      });
     }
     if (looksLikeCssSelector(locator)) {
-      return this.resolveBySelector(locator);
+      return this.resolveBySelector(locator, {
+        failOnMultiple: true,
+        locatorForError: locator,
+      });
     }
     if (locator.startsWith('id:')) {
       return this.resolveBySelector(`#${escapeSelectorValue(locator.slice(3))}`);

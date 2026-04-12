@@ -18,6 +18,7 @@ import type {
 } from './types';
 
 const EMPTY_ROUTE = '/';
+const AI_EXCLUDE_SELECTOR = '[data-ai="off"],[data-ai-panel]';
 
 function nowInMs(): number {
   if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
@@ -81,6 +82,29 @@ function cloneNode(input: UIGraphNode): UIGraphNode {
   };
 }
 
+function normalizeText(value: string): string {
+  return value.replaceAll(/\s+/g, ' ').trim();
+}
+
+function escapeSelectorValue(value: string): string {
+  const escaper =
+    typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+      ? CSS.escape
+      : (raw: string) => raw.replaceAll('"', '\\"');
+  return escaper(value);
+}
+
+function isElementVisible(element: HTMLElement): boolean {
+  if (element.hidden) {
+    return false;
+  }
+  const style = window.getComputedStyle(element);
+  if (style.display === 'none' || style.visibility === 'hidden') {
+    return false;
+  }
+  return element.getClientRects().length > 0 || style.opacity !== '0';
+}
+
 export interface UIGraphBuilderConstructorOptions extends UIGraphBuilderOptions {
   defaultAdaptersOptions?: CreateDefaultAdaptersOptions;
 }
@@ -138,6 +162,9 @@ export class UIGraphBuilder {
         overlayMap.set(overlay.key, cloneOverlay(overlay));
       });
       result.nodes?.forEach((node) => {
+        if (this.shouldExcludeNode(node)) {
+          return;
+        }
         const key = nodeKey(node);
         const previous = nodeMap.get(key);
         if (!previous) {
@@ -180,6 +207,9 @@ export class UIGraphBuilder {
 
     if (domMode === 'full') {
       domScanResult.nodes.forEach((node) => {
+        if (this.shouldExcludeNode(node)) {
+          return;
+        }
         const key = nodeKey(node);
         if (nodeMap.has(key)) {
           return;
@@ -218,6 +248,61 @@ export class UIGraphBuilder {
     const before = this.adapters.length;
     this.adapters = this.adapters.filter((adapter) => adapter.id !== adapterId);
     return this.adapters.length !== before;
+  }
+
+  private isAIExcludedElement(element: Element): boolean {
+    return (
+      element.matches(AI_EXCLUDE_SELECTOR) ||
+      element.closest(AI_EXCLUDE_SELECTOR) !== null
+    );
+  }
+
+  private resolveNodeElement(locator: string): HTMLElement | null {
+    const normalized = normalizeText(locator);
+    if (!normalized) {
+      return null;
+    }
+
+    const prefixed = [
+      ['ai-id:', `[data-ai-id="${escapeSelectorValue(normalized.slice(6))}"]`],
+      ['testid:', `[data-testid="${escapeSelectorValue(normalized.slice(7))}"]`],
+      ['id:', `#${escapeSelectorValue(normalized.slice(3))}`],
+      ['name:', `[name="${escapeSelectorValue(normalized.slice(5))}"]`],
+      ['href:', `a[href="${escapeSelectorValue(normalized.slice(5))}"]`],
+    ] as const;
+    for (const [prefix, selector] of prefixed) {
+      if (!normalized.startsWith(prefix)) {
+        continue;
+      }
+      try {
+        const candidates = Array.from(
+          this.root.querySelectorAll<HTMLElement>(selector),
+        );
+        return candidates.find((element) => isElementVisible(element)) ?? null;
+      } catch {
+        return null;
+      }
+    }
+
+    const cssSelector = normalized.startsWith('css:')
+      ? normalized.slice(4)
+      : normalized;
+    try {
+      const candidates = Array.from(
+        this.root.querySelectorAll<HTMLElement>(cssSelector),
+      );
+      return candidates.find((element) => isElementVisible(element)) ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  private shouldExcludeNode(node: UIGraphNode): boolean {
+    const element = this.resolveNodeElement(node.locator);
+    if (!element) {
+      return false;
+    }
+    return this.isAIExcludedElement(element);
   }
 
   private createGraph(

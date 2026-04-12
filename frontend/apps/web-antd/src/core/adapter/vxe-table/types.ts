@@ -7,9 +7,6 @@ import type { Component } from 'vue';
 import type { Recordable } from '@vben/types';
 
 import type { VbenFormSchema } from '#/adapter/form';
-import type { PageOperation } from '#/components/business/ai-slide-panel/page-operation-registry';
-import type { PageAICapabilityKey } from '#/utils/ai-page-capabilities';
-
 // Export base types from vben plugin / 从 vben 插件导出基础类型
 export type { VxeTableGridOptions } from '@vben/plugins/vxe-table';
 
@@ -146,31 +143,11 @@ export interface SearchConfig {
 }
 
 export interface CrudPageAiOptions {
-  /** Page key matching registerPageOperations / 匹配 registerPageOperations 的页面标识 */
+  /**
+   * Override the page key that runtime thin context injects.
+   * Use `pageKey` only when you need a deterministic key that differs from the route-derived default.
+   */
   pageKey?: string;
-  /** Form schema factory for AI field extraction / 表单 schema 工厂函数，用于 AI 字段提取 */
-  formSchema?: (isEdit?: boolean) => VbenFormSchema[];
-  /** Detail route template / 详情页路由模板 */
-  detailRoute?: string;
-  /** Legacy disabled operation names / 旧版禁用操作名称列表 */
-  disabled?: string[];
-  /** Disabled capability groups / 禁用的能力分组 */
-  disabledCapabilities?: PageAICapabilityKey[];
-  /** Disabled operation names / 禁用的操作名称列表 */
-  disabledOperations?: string[];
-  /** Extra custom operations merged with standard ops / 额外自定义操作 */
-  extra?: PageOperation[];
-  /** Entity display name for AI context / AI 上下文中的实体显示名 */
-  entityName?: string;
-  /** Entity description for AI context / AI 上下文中的实体描述 */
-  entityDescription?: string;
-  /** Form purpose descriptions / 表单用途描述 */
-  formPurpose?: {
-    create?: string;
-    edit?: string;
-  };
-  /** Extra page_data merged into auto-registered context / 合并到自动注册上下文的额外 page_data */
-  contextExtras?: () => Record<string, unknown>;
 }
 
 /**
@@ -252,7 +229,7 @@ export interface UseCrudPageOptions<T extends BaseRow = BaseRow> {
    * AI page awareness config.
    * - Omit / 省略: auto-enable page AI with inferred defaults / 自动启用并推导默认配置
    * - false: fully disable page AI for this CRUD page / 完全禁用该 CRUD 页的页面 AI
-   * - CrudPageAiOptions: enable with overrides / 启用并覆盖默认配置
+   * - CrudPageAiOptions: enable with overrides (currently only `pageKey`) / 启用并覆盖默认配置（当前仅支持 `pageKey` 覆盖）
    */
   ai?: CrudPageAiOptions | false;
 }

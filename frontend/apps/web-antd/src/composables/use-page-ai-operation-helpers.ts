@@ -1,7 +1,7 @@
 import type {
   PageOperation,
   PageOperationResult,
-} from '#/components/business/ai-slide-panel/page-operation-registry';
+} from '#/components/business/ai-slide-panel/page-operation-types';
 
 import { $t } from '#/locales';
 import { router } from '#/router';
@@ -616,7 +616,7 @@ export function buildPageAIFormExtraData(
   };
 
   return {
-    _aiPageKey: options.pageKey,
+    _pageKey: options.pageKey,
     ...(options.resource ? { _resource: options.resource } : {}),
     ...(hasOwnKeys(defaults) ? { _defaults: expandDotKeys(defaults) } : {}),
     ...(hasOwnKeys(options.overrides)

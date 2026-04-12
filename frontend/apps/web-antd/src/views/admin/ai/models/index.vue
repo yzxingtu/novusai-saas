@@ -27,7 +27,6 @@ import {
   getModelTierText,
   getModelTypeText,
   useColumns,
-  useFormSchema,
   useGridFormSchema,
 } from './data';
 import Form from './modules/form.vue';
@@ -207,11 +206,6 @@ const { Grid, FormDrawer, onRefresh } = useCrudPage<AIModelInfo>({
   createPermission: 'ai_model:create',
   customActions: {
     test: onTestModel,
-  },
-  ai: {
-    formSchema: useFormSchema,
-    entityName: $t('admin.ai.model.name'),
-    entityDescription: $t('admin.ai.model.pageDesc'),
   },
 });
 </script>

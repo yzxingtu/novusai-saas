@@ -40,10 +40,6 @@ import {
 import { getExecutionDecisionDetailApi } from '#/api/tenant/execution-decisions';
 import AIPageHeroCard from '#/components/business/ai-page-hero/AIPageHeroCard.vue';
 import { IdentitySummaryCard } from '#/components/business/identity-display';
-import {
-  createRefreshPageOperation,
-  createViewDetailPageOperation,
-} from '#/composables';
 import { $t } from '#/locales';
 import {
   copyToClipboard,
@@ -451,7 +447,7 @@ onMounted(() => {
 
 // ============ 列表 / List ============
 
-const { Grid, onRefresh } = useCrudPage<ActionLogItem>({
+const { Grid } = useCrudPage<ActionLogItem>({
   api: {
     list: getActionLogListApi,
     resource: '/tenant/ai/action-logs',
@@ -474,35 +470,6 @@ const { Grid, onRefresh } = useCrudPage<ActionLogItem>({
   rowHeight: 72,
   customActions: {
     detail: openDetail,
-  },
-  ai: {
-    entityName: $t('tenant.ai.actionLog.name'),
-    entityDescription: $t('tenant.ai.actionLog.pageDesc'),
-    contextExtras: () => ({
-      avg_duration_ms: stats.value.avg_duration_ms,
-      failed_count: stats.value.failed_count,
-      pending_count: stats.value.pending_count,
-      rejected_count: stats.value.rejected_count,
-      success_count: stats.value.success_count,
-      success_rate: successRate.value,
-      total_actions: stats.value.total,
-    }),
-    extra: [
-      createRefreshPageOperation({
-        description: $t('tenant.ai.actionLog.desc.refreshListAndSummary'),
-        action: async () => {
-          await Promise.resolve(onRefresh());
-          await loadStats();
-        },
-      }),
-      createViewDetailPageOperation({
-        description: $t('tenant.ai.actionLog.desc.openDetailById'),
-        idDescription: $t('tenant.ai.actionLog.param.actionLogId'),
-        openDetail: async (id) => {
-          await openDetailById(id);
-        },
-      }),
-    ],
   },
 });
 </script>

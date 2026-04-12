@@ -22,6 +22,7 @@ import { useAccessStore, useTabbarStore, useUserStore } from '@vben/stores';
 import { message, Popover, Tooltip } from 'ant-design-vue';
 
 import { AIChatSlidePanel } from '#/components/business/ai-slide-panel';
+import { ensureGlobalUIRuntime } from '#/components/business/ai-runtime/runtime-bridge';
 import CacheClearModal from '#/components/business/cache-clear-modal/CacheClearModal.vue';
 import { CommandBar } from '#/components/business/command-bar';
 import NotificationPanel from '#/components/business/notification-panel/NotificationPanel.vue';
@@ -29,8 +30,8 @@ import NotificationToast from '#/components/business/notification-toast/Notifica
 import PluginFloatingPanels from '#/components/business/plugin-slots/PluginFloatingPanels.vue';
 import ReLoginForm from '#/components/business/re-login-form/ReLoginForm.vue';
 import { useCurrentPageAIPolicy } from '#/composables';
-import { usePageOperationChannel } from '#/composables/use-page-operation-channel';
 import { usePageSession } from '#/composables/use-page-session';
+import { useUIActionChannel } from '#/composables/use-ui-action-channel';
 import {
   refreshPluginSlots,
   resetPluginRoutesReady,
@@ -77,7 +78,23 @@ const { initSnapshot, skipSync } = usePreferenceSync();
 // ============ AI Panel / AI 面板 ============
 
 usePageSession();
-usePageOperationChannel();
+ensureGlobalUIRuntime({
+  getRoute: () => {
+    const currentRoute = router.currentRoute.value;
+    return {
+      fullPath: currentRoute.fullPath,
+      meta:
+        currentRoute.meta && typeof currentRoute.meta === 'object'
+          ? (currentRoute.meta as Record<string, unknown> & { title?: string })
+          : undefined,
+      name:
+        currentRoute.name === undefined || currentRoute.name === null
+          ? undefined
+          : String(currentRoute.name),
+    };
+  },
+});
+useUIActionChannel();
 const {
   aiEnabled,
   disabledCapabilities,

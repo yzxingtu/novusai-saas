@@ -174,10 +174,10 @@ export interface UseCrudDrawerOptions<T = any> {
   idField?: string;
 
   /**
-   * AI page key (enables form state tracking for AI operations)
-   * AI 页面标识（启用表单状态追踪供 AI 操作使用）
+   * Stable page key for runtime form-state tracking.
+   * 供运行时表单状态追踪使用的稳定页面标识。
    */
-  aiPageKey?: string;
+  pageKey?: string;
 }
 
 /**
@@ -199,10 +199,11 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
     apiPath,
     detailApi,
     idField = 'id',
-    aiPageKey: staticAiPageKey,
+    pageKey: staticPageKey,
   } = options;
 
-  let aiPageKey = staticAiPageKey;
+  let currentPageKey: null | string = staticPageKey ?? null;
+  let currentFormSessionId: null | string = null;
 
   // 如果提供了 fields，自动生成 transform 和 toFormValues / auto-build from fields
   const transform =
@@ -222,6 +223,17 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
 
   // 防抖状态 / submit debounce guard
   const isSubmitting = ref(false);
+
+  function closeTrackedFormSession() {
+    const closeTarget = currentFormSessionId ?? currentPageKey;
+    if (closeTarget) {
+      formStateTracker.close(closeTarget);
+    }
+    currentFormSessionId = null;
+    if (!staticPageKey) {
+      currentPageKey = null;
+    }
+  }
 
   async function doSubmit() {
     if (isSubmitting.value) return;
@@ -253,7 +265,7 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
       if (afterSave) {
         await afterSave(response, values, isEdit.value);
       }
-      if (aiPageKey) formStateTracker.close(aiPageKey);
+      closeTrackedFormSession();
       await onSuccess?.();
       drawerApi.close();
     } catch {
@@ -270,7 +282,7 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
 
     async onOpenChange(isOpen) {
       if (!isOpen) {
-        if (aiPageKey) formStateTracker.close(aiPageKey);
+        closeTrackedFormSession();
         return;
       }
 
@@ -280,6 +292,7 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
             [key: string]: any;
             _defaults?: Record<string, any>;
             _overrides?: Record<string, any>;
+            _pageKey?: string;
             _resource?: string;
             id?: number | string;
             mode?: FormMode;
@@ -288,9 +301,11 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
       mode.value = data?.mode ?? 'add';
       recordId.value = data?.[idField];
 
-      if (!aiPageKey && data?._aiPageKey) {
-        aiPageKey = data._aiPageKey as string;
-      }
+      const payloadPageKey =
+        typeof data?._pageKey === 'string' && data._pageKey.trim()
+          ? data._pageKey.trim()
+          : null;
+      currentPageKey = staticPageKey ?? payloadPageKey;
       {
         const p = unref(apiPath) as (() => string) | string | undefined;
         const resolved = typeof p === 'function' ? p() : p;
@@ -349,7 +364,7 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
       }
 
       // Register form state for AI tracking / 注册表单状态供 AI 追踪
-      if (aiPageKey && formApi) {
+      if (currentPageKey && formApi) {
         const fieldDescriptors = schema
           ? extractFormParams(schema(isEdit.value))
           : {};
@@ -366,12 +381,14 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
           validate: () => formApi.validate() as Promise<{ valid: boolean }>,
           submitForm: doSubmit,
         };
-        formStateTracker.open(aiPageKey, {
+        currentFormSessionId = formStateTracker.open(currentPageKey, {
           mode: mode.value as 'add' | 'edit' | 'view',
           formApi: trackableApi,
           fieldDescriptors,
           initialValues,
         });
+      } else {
+        currentFormSessionId = null;
       }
     },
   });

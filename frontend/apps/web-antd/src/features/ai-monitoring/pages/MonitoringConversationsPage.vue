@@ -21,7 +21,6 @@ import {
   getTenantAIProviderSelectApi,
 } from '#/api/tenant/ai';
 import AIPageHeroCard from '#/components/business/ai-page-hero/AIPageHeroCard.vue';
-import { createViewDetailPageOperation } from '#/composables';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
@@ -374,21 +373,6 @@ const { Grid, gridApi } = useCrudPage<MonitoringConversationInfo>({
   rowHeight: MONITORING_ROW_HEIGHT,
   customActions: {
     detail: viewDetail,
-  },
-  ai: {
-    entityName: props.title,
-    entityDescription: props.title,
-    extra: [
-      createViewDetailPageOperation({
-        description: 'Open conversation detail drawer / 打开对话详情抽屉',
-        idDescription: 'Conversation ID / 对话 ID',
-        openDetail: async (id) => {
-          detailId.value = id;
-          detailOpen.value = true;
-          return null;
-        },
-      }),
-    ],
   },
 });
 </script>

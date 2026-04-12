@@ -4,12 +4,6 @@ import { ref } from 'vue';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
-  clearPageOperationRegistry,
-  executePageOperation,
-  registerPageOperations,
-} from '#/components/business/ai-slide-panel/page-operation-registry';
-
-import {
   clearRemoteOptionsCache,
   createStandardOperations,
 } from '../use-ai-operations';
@@ -40,7 +34,6 @@ vi.mock('#/router', () => ({
 describe('createStandardOperations', () => {
   afterEach(() => {
     vi.useRealTimers();
-    clearPageOperationRegistry();
     clearRemoteOptionsCache();
     formStateTracker.clear();
   });
@@ -85,16 +78,17 @@ describe('createStandardOperations', () => {
       ],
     });
 
-    registerPageOperations('admin.system.periodic-tasks', operations);
-
-    const resultPromise = executePageOperation(
-      'admin.system.periodic-tasks',
-      'create_record',
-      {
-        name: 'AI scope regression',
-        task_path: 'tasks.regression',
-      },
+    const createRecord = operations.find(
+      (operation) => operation.name === 'create_record',
     );
+    if (!createRecord?.handler) {
+      throw new Error('create_record handler missing');
+    }
+
+    const resultPromise = createRecord.handler({
+      name: 'AI scope regression',
+      task_path: 'tasks.regression',
+    });
 
     await vi.advanceTimersByTimeAsync(2000);
     const result = await resultPromise;
@@ -252,6 +246,68 @@ describe('createStandardOperations', () => {
     expect(open).toHaveBeenCalledOnce();
   });
 
+  it('uses _pageKey instead of legacy _aiPageKey when opening CRUD forms', async () => {
+    vi.useFakeTimers();
+
+    const open = vi.fn();
+    const setData = vi.fn(() => ({ open }));
+
+    const operations = createStandardOperations({
+      resource: '/admin/ai/agents',
+      loadList: async () => {},
+      onSearch: async () => {},
+      list: ref([{ id: 7, name: 'existing' }]),
+      formPopupApi: {
+        setData,
+      },
+      formSchema: () => [
+        {
+          component: 'Input',
+          fieldName: 'name',
+          label: 'Name',
+          rules: 'required',
+        },
+      ],
+      pageKey: 'admin.ai.agents',
+    });
+
+    const createRecord = operations.find(
+      (operation) => operation.name === 'create_record',
+    );
+    const editRecord = operations.find(
+      (operation) => operation.name === 'edit_record',
+    );
+    if (!createRecord?.handler || !editRecord?.handler) {
+      throw new Error('create/edit handlers missing');
+    }
+
+    const createPromise = createRecord.handler({});
+    await vi.advanceTimersByTimeAsync(2000);
+    await createPromise;
+
+    const editPromise = editRecord.handler({ id: 7 });
+    await vi.advanceTimersByTimeAsync(2000);
+    await editPromise;
+
+    const createPayload =
+      (setData.mock.calls.at(0)?.at(0) as Record<string, unknown> | undefined) ??
+      null;
+    const editPayload =
+      (setData.mock.calls.at(1)?.at(0) as Record<string, unknown> | undefined) ??
+      null;
+    if (!createPayload || !editPayload) {
+      throw new Error('expected create/edit drawer payloads');
+    }
+    expect(createPayload).toMatchObject({
+      _pageKey: 'admin.ai.agents',
+    });
+    expect(editPayload).toMatchObject({
+      _pageKey: 'admin.ai.agents',
+    });
+    expect(createPayload).not.toHaveProperty('_aiPageKey');
+    expect(editPayload).not.toHaveProperty('_aiPageKey');
+  });
+
   it('allows fill_form to patch only a subset of fields even when the form schema marks them required', async () => {
     vi.useFakeTimers();
 
@@ -304,15 +360,14 @@ describe('createStandardOperations', () => {
       pageKey: 'admin.system.periodic-tasks',
     });
 
-    registerPageOperations('admin.system.periodic-tasks', operations);
+    const fillForm = operations.find((operation) => operation.name === 'fill_form');
+    if (!fillForm?.handler) {
+      throw new Error('fill_form handler missing');
+    }
 
-    const resultPromise = executePageOperation(
-      'admin.system.periodic-tasks',
-      'fill_form',
-      {
-        name: 'Only update name',
-      },
-    );
+    const resultPromise = fillForm.handler({
+      name: 'Only update name',
+    });
 
     await vi.advanceTimersByTimeAsync(2000);
     const result = await resultPromise;

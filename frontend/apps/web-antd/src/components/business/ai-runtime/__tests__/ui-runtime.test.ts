@@ -221,4 +221,120 @@ describe('ui-runtime phase-1 infrastructure', () => {
     expect(graph.graph.nodes).toHaveLength(1);
     expect(graph.graph.nodes[0]?.label).toBe('High');
   });
+
+  it('binds page surface_id for page nodes in compact snapshot', () => {
+    document.body.innerHTML = `
+      <button id="page-action">Page Action</button>
+    `;
+
+    const runtime = createUIRuntime({
+      adapters: [],
+      includeDomFallbackInCompact: false,
+      route: {
+        fullPath: '/admin/runtime/page-surface',
+        meta: { title: 'Page Surface' },
+        name: 'page-surface',
+      },
+    });
+    const snapshot = runtime.initialize();
+    const pageSurface = snapshot.surface_stack.find((surface) => surface.kind === 'page');
+    expect(pageSurface).toBeTruthy();
+
+    const pageNode = snapshot.ui_graph.nodes.find((node) => node.locator.includes('#page-action'));
+    expect(pageNode).toBeTruthy();
+    expect(pageNode?.surfaceId).toBe(pageSurface?.id);
+
+    const scopedPageNodes = snapshot.ui_graph.nodes.filter(
+      (node) => node.surfaceId === pageSurface?.id,
+    );
+    expect(scopedPageNodes.length).toBeGreaterThan(0);
+  });
+
+  it('binds page surface_id for adapter nodes when compact mode uses surfaces-only fallback', () => {
+    document.body.innerHTML = `
+      <button data-testid="adapter-page-action">Adapter Page Action</button>
+    `;
+
+    const runtime = createUIRuntime({
+      adapters: [
+        createStaticAdapter({
+          id: 'adapter-page-node',
+          label: 'Adapter Page Action',
+          locator: 'testid:adapter-page-action',
+          priority: 80,
+        }),
+      ],
+      includeDomFallbackInCompact: false,
+      route: {
+        fullPath: '/admin/runtime/adapter-page-surface',
+        meta: { title: 'Adapter Page Surface' },
+        name: 'adapter-page-surface',
+      },
+    });
+
+    const snapshot = runtime.initialize();
+    const pageSurface = snapshot.surface_stack.find((surface) => surface.kind === 'page');
+    expect(pageSurface).toBeTruthy();
+    const adapterNode = snapshot.ui_graph.nodes.find(
+      (node) => node.locator === 'testid:adapter-page-action',
+    );
+    expect(adapterNode).toBeTruthy();
+    expect(adapterNode?.surfaceId).toBe(pageSurface?.id);
+    expect(snapshot.ui_graph.stats.usedDomFallback).toBe(false);
+  });
+
+  it('excludes adapter nodes inside data-ai=off regions in graph binding', () => {
+    document.body.innerHTML = `
+      <div data-ai=" off ">
+        <button data-testid="off-action">Off Action</button>
+      </div>
+      <button data-testid="safe-action">Safe Action</button>
+    `;
+
+    const runtime = createUIRuntime({
+      adapters: [
+        createStaticAdapter({
+          id: 'adapter-off-node',
+          label: 'Off Action',
+          locator: 'text:Off Action',
+          priority: 90,
+        }),
+        createStaticAdapter({
+          id: 'adapter-safe-node',
+          label: 'Safe Action',
+          locator: 'testid:safe-action',
+          priority: 80,
+        }),
+      ],
+      includeDomFallbackInCompact: false,
+    });
+
+    const snapshot = runtime.initialize();
+    const locators = snapshot.ui_graph.nodes.map((node) => node.locator);
+    expect(locators).toContain('testid:safe-action');
+    expect(locators).not.toContain('text:Off Action');
+  });
+
+  it('excludes data-ai=off and data-ai-panel regions from runtime graph', () => {
+    document.body.innerHTML = `
+      <div data-ai="off">
+        <button id="off-action">Off Action</button>
+      </div>
+      <div data-ai-panel>
+        <button id="panel-action">Panel Action</button>
+      </div>
+      <button id="safe-action">Safe Action</button>
+    `;
+
+    const runtime = createUIRuntime({
+      adapters: [],
+      includeDomFallbackInCompact: false,
+    });
+    const snapshot = runtime.initialize();
+    const locators = snapshot.ui_graph.nodes.map((node) => node.locator);
+
+    expect(locators.some((locator) => locator.includes('#safe-action'))).toBe(true);
+    expect(locators.some((locator) => locator.includes('#off-action'))).toBe(false);
+    expect(locators.some((locator) => locator.includes('#panel-action'))).toBe(false);
+  });
 });

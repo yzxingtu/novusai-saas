@@ -1,0 +1,80 @@
+import type { ComputedRef, InjectionKey, Ref } from 'vue';
+import { inject, provide } from 'vue';
+
+import type { useAIChat } from '#/components/business/ai-chat-panel/use-ai-chat';
+import type { ConversationItem, InputVariable } from '#/types/ai-chat';
+
+export interface ConversationGroup {
+  label: string;
+  items: ConversationItem[];
+}
+
+export interface WorkspaceHighlight {
+  icon: string;
+  key: string;
+  label: string;
+  value: string;
+}
+
+export interface ExportMenuItem {
+  key: string;
+  label: string;
+  onClick: () => void;
+}
+
+export interface VarsModalAgent {
+  id: number;
+  name: string;
+  vars: InputVariable[];
+}
+
+export interface UserAIChatContext {
+  apiPrefix: string;
+  chat: ReturnType<typeof useAIChat>;
+  mobileSidebarOpen: Ref<boolean>;
+  conversationSearch: Ref<string>;
+  groupedConversations: ComputedRef<ConversationGroup[]>;
+  exportMenuItems: ComputedRef<ExportMenuItem[]>;
+  editingConversationId: Ref<number | null>;
+  editingTitle: Ref<string>;
+  showMemoryPanel: Ref<boolean>;
+  showWorkspaceHero: ComputedRef<boolean>;
+  workspaceHighlights: ComputedRef<WorkspaceHighlight[]>;
+  effectiveWelcomeMessage: ComputedRef<string>;
+  effectiveSuggestedQuestions: ComputedRef<string[]>;
+  chatHeaderSubtitle: ComputedRef<string>;
+  selectedAgentHasVariables: ComputedRef<boolean>;
+  selectedAgentVarsConfigured: ComputedRef<boolean>;
+  varsModalVisible: Ref<boolean>;
+  varsFormValues: Record<string, string>;
+  varsModalAgent: Ref<VarsModalAgent | null>;
+  varsPersist: Ref<boolean>;
+  onSelectConversation: (convId: number) => void;
+  onDeleteConversation: (convId: number) => void;
+  onStartNewChat: () => void;
+  onSelectAgent: (agentId: number) => void;
+  startEditTitle: (conv: { id: number; title?: null | string }) => void;
+  commitEditTitle: () => void;
+  cancelEditTitle: () => void;
+  onToggleMemory: () => Promise<void>;
+  onClearMemory: () => void;
+  openSelectedAgentVarsModal: () => void;
+  onVarsConfirm: () => void;
+  onVarsCancel: () => void;
+}
+
+const userAIChatContextKey: InjectionKey<UserAIChatContext> =
+  Symbol('UserAIChatContext');
+
+export function provideUserAIChatContext(context: UserAIChatContext) {
+  provide(userAIChatContextKey, context);
+  return context;
+}
+
+export function useUserAIChatContext(): UserAIChatContext {
+  const context = inject(userAIChatContextKey);
+  if (!context) {
+    throw new Error('UserAIChatContext is not provided');
+  }
+  return context;
+}

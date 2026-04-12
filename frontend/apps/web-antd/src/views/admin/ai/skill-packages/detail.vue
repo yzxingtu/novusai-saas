@@ -35,8 +35,6 @@ import {
   updateSkillPackageValvesApi,
 } from '#/api/admin/skill-packages';
 import { deleteSkillApi, toggleSkillStatusApi } from '#/api/admin/skills';
-import { useDetailPageAi } from '#/composables/use-detail-page-ai';
-import { usePageAIContext } from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
 import { useAccess } from '#/utils';
 import { getSkillTypeColor, getSkillTypeIcon } from '#/utils/ai-helpers';
@@ -354,6 +352,39 @@ const configuredValveCount = computed(
       isConfiguredValveValue(valvesConfig.value[field.key]),
     ).length,
 );
+const overviewStats = computed(() => [
+  {
+    icon: 'lucide:boxes',
+    labelKey: 'admin.ai.skillPackage.skillCount',
+    value: pkg.value?.skill_count ?? 0,
+    valueClass: 'text-lg font-semibold text-foreground',
+  },
+  {
+    icon: 'lucide:wrench',
+    labelKey: 'admin.ai.skillPackage.detail.tools',
+    value: resolvedTools.value.length,
+    valueClass: 'text-lg font-semibold text-foreground',
+  },
+  {
+    icon: 'lucide:key-round',
+    labelKey: 'admin.ai.skillPackage.detail.envVars',
+    value: valvesFieldCount.value,
+    valueClass: 'text-lg font-semibold text-foreground',
+  },
+  {
+    icon: 'lucide:clock-3',
+    labelKey: 'admin.ai.skillPackage.detail.updatedAt',
+    value: pkg.value?.updated_at
+      ? formatRelativeTime(pkg.value.updated_at)
+      : '-',
+    valueClass: 'text-sm font-semibold text-foreground',
+  },
+]);
+const valveSummaryStats = computed(() => [
+  { labelKey: 'admin.ai.skillPackage.detail.envVars', value: valvesFieldCount.value },
+  { labelKey: 'admin.ai.skillPackage.valves.required', value: requiredValveCount.value },
+  { labelKey: 'admin.ai.skillPackage.detail.configured', value: configuredValveCount.value },
+]);
 
 async function loadPackage(): Promise<boolean> {
   loading.value = true;
@@ -493,22 +524,6 @@ onMounted(() => {
   void loadPage();
 });
 
-usePageAIContext({
-  resource: '/admin/ai/skill-packages',
-  entityName: () => pkg.value?.name ?? $t('admin.ai.skillPackage.detail.title'),
-  entityDescription: () => $t('admin.ai.skillPackage.pageDesc'),
-  data: () => ({
-    package_id: packageId.value,
-    package_name: pkg.value?.name ?? '',
-  }),
-});
-
-useDetailPageAi({
-  refreshFn: async () => {
-    await loadPage();
-  },
-  backRoute: '/admin/ai/skill-packages',
-});
 </script>
 
 <template>
@@ -673,63 +688,22 @@ useDetailPageAi({
                 />
 
                 <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
-                  <div class="rounded-xl border bg-accent/30 p-4">
+                  <div
+                    v-for="stat in overviewStats"
+                    :key="stat.labelKey"
+                    class="rounded-xl border bg-accent/30 p-4"
+                  >
                     <div class="mb-1.5 flex items-center gap-1.5">
                       <IconifyIcon
-                        icon="lucide:boxes"
+                        :icon="stat.icon"
                         class="size-3.5 text-muted-foreground"
                       />
                       <span class="text-xs text-muted-foreground">
-                        {{ $t('admin.ai.skillPackage.skillCount') }}
+                        {{ $t(stat.labelKey) }}
                       </span>
                     </div>
-                    <div class="text-lg font-semibold text-foreground">
-                      {{ pkg.skill_count }}
-                    </div>
-                  </div>
-
-                  <div class="rounded-xl border bg-accent/30 p-4">
-                    <div class="mb-1.5 flex items-center gap-1.5">
-                      <IconifyIcon
-                        icon="lucide:wrench"
-                        class="size-3.5 text-muted-foreground"
-                      />
-                      <span class="text-xs text-muted-foreground">
-                        {{ $t('admin.ai.skillPackage.detail.tools') }}
-                      </span>
-                    </div>
-                    <div class="text-lg font-semibold text-foreground">
-                      {{ resolvedTools.length }}
-                    </div>
-                  </div>
-
-                  <div class="rounded-xl border bg-accent/30 p-4">
-                    <div class="mb-1.5 flex items-center gap-1.5">
-                      <IconifyIcon
-                        icon="lucide:key-round"
-                        class="size-3.5 text-muted-foreground"
-                      />
-                      <span class="text-xs text-muted-foreground">
-                        {{ $t('admin.ai.skillPackage.detail.envVars') }}
-                      </span>
-                    </div>
-                    <div class="text-lg font-semibold text-foreground">
-                      {{ valvesFieldCount }}
-                    </div>
-                  </div>
-
-                  <div class="rounded-xl border bg-accent/30 p-4">
-                    <div class="mb-1.5 flex items-center gap-1.5">
-                      <IconifyIcon
-                        icon="lucide:clock-3"
-                        class="size-3.5 text-muted-foreground"
-                      />
-                      <span class="text-xs text-muted-foreground">
-                        {{ $t('admin.ai.skillPackage.detail.updatedAt') }}
-                      </span>
-                    </div>
-                    <div class="text-sm font-semibold text-foreground">
-                      {{ formatRelativeTime(pkg.updated_at) }}
+                    <div :class="stat.valueClass">
+                      {{ stat.value }}
                     </div>
                   </div>
                 </div>
@@ -990,34 +964,18 @@ useDetailPageAi({
                       </div>
 
                       <div v-else class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                        <div class="rounded-lg border bg-background px-4 py-3">
+                        <div
+                          v-for="stat in valveSummaryStats"
+                          :key="stat.labelKey"
+                          class="rounded-lg border bg-background px-4 py-3"
+                        >
                           <div class="text-xs text-muted-foreground">
-                            {{ $t('admin.ai.skillPackage.detail.envVars') }}
+                            {{ $t(stat.labelKey) }}
                           </div>
                           <div
                             class="mt-1 text-lg font-semibold text-foreground"
                           >
-                            {{ valvesFieldCount }}
-                          </div>
-                        </div>
-                        <div class="rounded-lg border bg-background px-4 py-3">
-                          <div class="text-xs text-muted-foreground">
-                            {{ $t('admin.ai.skillPackage.valves.required') }}
-                          </div>
-                          <div
-                            class="mt-1 text-lg font-semibold text-foreground"
-                          >
-                            {{ requiredValveCount }}
-                          </div>
-                        </div>
-                        <div class="rounded-lg border bg-background px-4 py-3">
-                          <div class="text-xs text-muted-foreground">
-                            {{ $t('admin.ai.skillPackage.detail.configured') }}
-                          </div>
-                          <div
-                            class="mt-1 text-lg font-semibold text-foreground"
-                          >
-                            {{ configuredValveCount }}
+                            {{ stat.value }}
                           </div>
                         </div>
                       </div>

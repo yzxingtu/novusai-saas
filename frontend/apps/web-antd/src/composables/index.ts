@@ -31,6 +31,20 @@ export {
   useFileUpload,
 } from './use-file-upload';
 export {
+  buildCrudListSummary,
+  buildCrudPaginationState,
+  clearRemoteOptionsCache,
+  compactCrudContextValues,
+  createFormOperations,
+  createStandardOperations,
+  extractFormParams,
+  extractSearchParams,
+  type CrudAiOperationsOptions,
+  type CrudPaginationState,
+  type FormAiOperationsOptions,
+  type FormPopupApi,
+} from './use-ai-operations';
+export {
   buildPageAIFormExtraData,
   createCreateRecordPageOperation,
   createKeywordSearchPageOperation,
@@ -46,9 +60,3 @@ export {
   createStructuredSearchPageOperation,
   createViewDetailPageOperation,
 } from './use-page-ai-operation-helpers';
-export {
-  usePageAIAnchor,
-  usePageAIContext,
-  usePageAIOperations,
-  usePageAIRegistration,
-} from './use-page-ai-registration';

@@ -19,7 +19,6 @@ import {
   getTenantAIProviderSelectApi,
 } from '#/api/tenant/ai';
 import AIPageHeroCard from '#/components/business/ai-page-hero/AIPageHeroCard.vue';
-import { createViewDetailPageOperation } from '#/composables';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
@@ -314,21 +313,6 @@ const { Grid, gridApi } = useCrudPage<MonitoringCallLogInfo>({
   rowHeight: MONITORING_ROW_HEIGHT,
   customActions: {
     detail: viewDetail,
-  },
-  ai: {
-    entityName: props.title,
-    entityDescription: props.title,
-    extra: [
-      createViewDetailPageOperation({
-        description: 'Open call log detail drawer / 打开调用日志详情抽屉',
-        idDescription: 'Call log ID / 调用日志 ID',
-        openDetail: async (id) => {
-          detailId.value = id;
-          detailOpen.value = true;
-          return null;
-        },
-      }),
-    ],
   },
 });
 

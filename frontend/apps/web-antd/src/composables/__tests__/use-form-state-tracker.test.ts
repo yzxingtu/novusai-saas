@@ -31,6 +31,10 @@ describe('formStateTracker', () => {
       },
     });
 
+    const sessionId = formStateTracker.getSessionId('admin.ai.agents');
+    expect(sessionId).toBeTruthy();
+    expect(sessionId).not.toBe('admin.ai.agents');
+
     const state = await formStateTracker.getState('admin.ai.agents');
 
     expect(state.isOpen).toBe(true);
@@ -40,6 +44,39 @@ describe('formStateTracker', () => {
       _form: 'shared.pageOperation.msg.formHasValidationErrors',
     });
     expect(state.fieldDescriptors.name?.label).toBe('Name');
+  });
+
+  it('supports session-id-based runtime access while keeping pageKey mapping', async () => {
+    const formApi = {
+      getValues: async () => ({ name: 'Alice Updated' }),
+      setValues: vi.fn(),
+      validate: async () => ({ valid: true }),
+    };
+    formStateTracker.open('admin.ai.users', {
+      mode: 'edit',
+      formApi,
+      initialValues: { name: 'Alice' },
+    });
+
+    const sessionId = formStateTracker.getSessionId('admin.ai.users');
+    if (!sessionId) {
+      throw new Error('session id missing');
+    }
+
+    expect(formStateTracker.getFormApi(sessionId)).toBe(formApi);
+    expect(formStateTracker.getSession(sessionId)?.form_session_id).toBe(sessionId);
+    expect(formStateTracker.getSession(sessionId)?.surface_id).toBe(sessionId);
+
+    const session = formStateTracker.setSessionFieldValues(sessionId, {
+      name: 'Alice Updated',
+    });
+    expect(session?.fields.find((field) => field.name === 'name')?.value).toBe(
+      'Alice Updated',
+    );
+
+    const state = await formStateTracker.getState(sessionId);
+    expect(state.isOpen).toBe(true);
+    expect(state.currentValues).toEqual({ name: 'Alice Updated' });
   });
 
   it('falls back to the only tracked form for state and api lookup', async () => {
@@ -62,6 +99,21 @@ describe('formStateTracker', () => {
     const state =
       await formStateTracker.getStateWithFallback('different.page.key');
     expect(state.currentValues).toEqual({ name: 'Only Form' });
+  });
+
+  it('keeps known page keys open when multiple forms are tracked', () => {
+    formStateTracker.open('page.one', {
+      mode: 'add',
+      initialValues: {},
+    });
+    formStateTracker.open('page.two', {
+      mode: 'edit',
+      initialValues: {},
+    });
+
+    expect(formStateTracker.isOpenWithFallback('page.one')).toBe(true);
+    expect(formStateTracker.isOpenWithFallback('page.two')).toBe(true);
+    expect(formStateTracker.isOpenWithFallback('page.unknown')).toBe(false);
   });
 
   it('closes and clears tracked entries', () => {

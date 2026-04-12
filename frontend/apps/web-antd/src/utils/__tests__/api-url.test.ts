@@ -9,6 +9,10 @@ vi.mock('@vben/hooks', () => ({
 import { resolveApiUrl } from '#/utils/api-url';
 
 describe('resolveApiUrl', () => {
+  it('returns an empty string when api url config is missing', () => {
+    expect(resolveApiUrl(undefined)).toBe('');
+  });
+
   it('keeps explicit non-loopback api hosts in development', () => {
     expect(
       resolveApiUrl('http://192.168.31.129:8000/', {

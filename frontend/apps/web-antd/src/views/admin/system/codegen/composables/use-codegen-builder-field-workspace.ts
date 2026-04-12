@@ -1,6 +1,6 @@
 import type { ComputedRef, Ref } from 'vue';
 
-import type { PaletteItem } from '../modules/ComponentPalette.vue';
+import type { PaletteItem } from '../modules/component-palette.types';
 
 import { nextTick } from 'vue';
 

@@ -13,6 +13,7 @@ import { nextTick } from 'vue';
 import { resolveRoutePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
 import { formStateTracker } from '#/composables/use-form-state-tracker';
 import { $t } from '#/locales';
+import { resolveRuntimeLocale } from '#/locales/runtime-locale';
 import { getActivePageSessionId } from '#/composables/use-page-session';
 
 import { tAiRuntime } from './i18n';
@@ -84,7 +85,8 @@ function resolveRuntimePageKey(explicitPageKey?: string): string {
 function resolvePageTitle(pageKey: string): string {
   const routeTitle = resolveCurrentRoute()?.meta?.title;
   if (typeof routeTitle === 'string' && routeTitle.trim()) {
-    return routeTitle.trim();
+    const localizedTitle = String($t(routeTitle.trim()) || '').trim();
+    return normalizeText(localizedTitle || routeTitle.trim(), 200) || pageKey;
   }
   return normalizeText(document.title || pageKey, 200) || pageKey;
 }
@@ -183,10 +185,61 @@ function toFormSummary(session: null | FormSession): ActiveFormSummary | undefin
 }
 
 function getTrackedFormSessions(): FormSession[] {
+  const tracker = formStateTracker as {
+    listSessions?: () => FormSession[];
+  };
+  if (typeof tracker.listSessions === 'function') {
+    return tracker.listSessions();
+  }
+
   return formStateTracker
     .getTrackedKeys()
     .map((pageKey) => formStateTracker.getSession(pageKey))
     .filter((session): session is FormSession => Boolean(session));
+}
+
+function resolveActiveFormSessionForPage(pageKey: string): null | FormSession {
+  const normalizedPageKey = pageKey.trim();
+  const tracker = formStateTracker as {
+    getActiveSession?: (surfaceId?: string) => FormSession | null;
+    getActiveSessionByPageKey?: (pageKey: string) => FormSession | null;
+    getSession?: (pageKeyOrSessionId: string) => FormSession | null;
+    getSessionId?: (pageKey: string) => null | string;
+  };
+
+  if (normalizedPageKey) {
+    if (typeof tracker.getActiveSessionByPageKey === 'function') {
+      const byPageKey = tracker.getActiveSessionByPageKey(normalizedPageKey);
+      if (byPageKey) {
+        return byPageKey;
+      }
+    }
+
+    if (
+      typeof tracker.getSessionId === 'function' &&
+      typeof tracker.getSession === 'function'
+    ) {
+      const sessionId = tracker.getSessionId(normalizedPageKey);
+      if (sessionId) {
+        const bySessionId = tracker.getSession(sessionId);
+        if (bySessionId) {
+          return bySessionId;
+        }
+      }
+    }
+  }
+
+  if (typeof tracker.getActiveSession === 'function') {
+    if (normalizedPageKey) {
+      const byLegacySurface = tracker.getActiveSession(normalizedPageKey);
+      if (byLegacySurface) {
+        return byLegacySurface;
+      }
+    }
+    return tracker.getActiveSession() ?? null;
+  }
+
+  return null;
 }
 
 function computeSuggestedTools(args: {
@@ -240,7 +293,7 @@ function buildSnapshot(mode: UISnapshotMode = 'compact'): RuntimeSnapshotResult 
   const pageKey = resolveRuntimePageKey();
   const formSessions = getTrackedFormSessions();
   const activeFormSummary = toFormSummary(
-    formStateTracker.getActiveSession(pageKey) ?? formStateTracker.getActiveSession(),
+    resolveActiveFormSessionForPage(pageKey),
   );
   const hasTable = document.querySelector('table') !== null;
   const thinSnapshot = snapshotGenerator.generateSnapshot(
@@ -316,6 +369,7 @@ function buildSnapshot(mode: UISnapshotMode = 'compact'): RuntimeSnapshotResult 
   );
 
   const pageContext = snapshotGenerator.buildThinPageContext({
+    locale: resolveRuntimeLocale(),
     pageKey,
     pageSessionId: getActivePageSessionId() || undefined,
     pageTitle: resolvePageTitle(pageKey),
@@ -418,7 +472,7 @@ function resolveFormSession(formSessionId?: string): null | FormSession {
   if (formSessionId?.trim()) {
     return formStateTracker.getSession(formSessionId.trim());
   }
-  return formStateTracker.getActiveSession() ?? null;
+  return resolveActiveFormSessionForPage(resolveRuntimePageKey());
 }
 
 function buildFormStateData(session: FormSession): Record<string, unknown> {

@@ -28,6 +28,8 @@ const INTERACTABLE_SELECTOR = [
   '[role="tab"]',
 ].join(',');
 
+const AI_PANEL_SELECTOR = '[data-ai-panel]';
+
 function nowInMs(): number {
   if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
     return performance.now();
@@ -66,6 +68,26 @@ export function isElementVisible(element: HTMLElement): boolean {
     }
   }
   return true;
+}
+
+function isAIExcluded(element: Element): boolean {
+  let cursor: null | Element = element;
+  while (cursor) {
+    if (cursor.matches(AI_PANEL_SELECTOR)) {
+      return true;
+    }
+    const dataAI = cursor.getAttribute('data-ai');
+    if (typeof dataAI === 'string') {
+      const hasOffDirective = dataAI
+        .split(/\s+/)
+        .some((token) => token.trim().toLocaleLowerCase() === 'off');
+      if (hasOffDirective) {
+        return true;
+      }
+    }
+    cursor = cursor.parentElement;
+  }
+  return false;
 }
 
 export function buildElementLocator(element: Element): string {
@@ -288,6 +310,9 @@ function collectOverlays(document: Document, maxLength: number): UIOverlaySurfac
       if (!isElementVisible(element)) {
         return;
       }
+      if (isAIExcluded(element)) {
+        return;
+      }
       index += 1;
       const key = buildOverlayKey(definition.kind, element, index);
       if (seen.has(key)) {
@@ -354,8 +379,11 @@ export class DOMScanner {
         break;
       }
 
-      scannedElements += 1;
       const { depth, element } = current;
+      if (isAIExcluded(element)) {
+        continue;
+      }
+      scannedElements += 1;
       const isVisible = !(element instanceof HTMLElement) || isElementVisible(element);
 
       if (
@@ -386,6 +414,9 @@ export class DOMScanner {
       const children = Array.from(element.children);
       children.forEach((child) => {
         if (!(child instanceof Element)) {
+          return;
+        }
+        if (isAIExcluded(child)) {
           return;
         }
         if (

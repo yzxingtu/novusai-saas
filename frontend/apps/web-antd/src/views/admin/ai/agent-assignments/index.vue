@@ -7,7 +7,7 @@ import type { AgentAssignmentItem } from '#/api/shared/agent-assignments';
  *
  * useCrudList(keyField='feature_code') 管理列表数据，自定义 inline 编辑。
  */
-import { computed, onMounted, ref, watchEffect } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -36,8 +36,6 @@ import { $t } from '#/locales';
 import AIPageHeroCard from '../_shared/AIPageHeroCard.vue';
 
 // ========== 声明式列表管理 / declarative CRUD list ==========
-const assignmentSummary = ref({ active: 0, assigned: 0 });
-
 const {
   list: assignments,
   loading,
@@ -51,14 +49,6 @@ const {
   i18nPrefix: 'admin.ai.agentAssignment',
   nameField: 'feature_name',
   pager: false,
-  ai: {
-    entityName: $t('admin.ai.agentAssignment.title'),
-    entityDescription: $t('admin.ai.agentAssignments.entityDescription'),
-    contextExtras: () => ({
-      active: assignmentSummary.value.active,
-      assigned: assignmentSummary.value.assigned,
-    }),
-  },
 });
 
 // ========== Agent 选项 / agent select options ==========
@@ -194,14 +184,6 @@ function getFeatureIcon(featureCode: string): FeatureIconConfig {
     }
   }
 }
-
-// ========== 统计 / stats ==========
-watchEffect(() => {
-  assignmentSummary.value = {
-    active: assignments.value.filter((item) => item.is_active).length,
-    assigned: assignments.value.filter((item) => item.agent_id !== null).length,
-  };
-});
 
 const assignmentStats = computed(() => {
   const items = assignments.value;

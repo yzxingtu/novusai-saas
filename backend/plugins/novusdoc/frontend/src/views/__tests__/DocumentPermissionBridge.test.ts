@@ -49,8 +49,6 @@ const sharedSpies = {
     (options: Record<string, unknown>) => options,
   ),
   createRefreshPageOperation: vi.fn((options: Record<string, unknown>) => options),
-  registerPageContext: vi.fn(() => () => {}),
-  registerPageOperations: vi.fn(() => () => {}),
   routerPush: vi.fn(),
   downloadBlob: vi.fn(),
 };
@@ -89,8 +87,6 @@ function installSharedApi() {
     createPrefilledCreatePageOperation:
       sharedSpies.createPrefilledCreatePageOperation,
     createRefreshPageOperation: sharedSpies.createRefreshPageOperation,
-    registerPageContext: sharedSpies.registerPageContext,
-    registerPageOperations: sharedSpies.registerPageOperations,
     router: {
       push: sharedSpies.routerPush,
       currentRoute: {

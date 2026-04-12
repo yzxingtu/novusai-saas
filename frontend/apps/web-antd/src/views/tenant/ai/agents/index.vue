@@ -10,7 +10,7 @@
  */
 import type { AgentListItem } from '#/api/tenant/agents';
 
-import { computed, ref, watchEffect } from 'vue';
+import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
@@ -41,13 +41,7 @@ import {
   publishAgentApi,
 } from '#/api/tenant/agents';
 import AIPageHeroCard from '#/components/business/ai-page-hero/AIPageHeroCard.vue';
-import {
-  buildPageAIFormExtraData,
-  createKeywordSearchPageOperation,
-  createOpenRecordPageOperation,
-  createPrefilledCreatePageOperation,
-  useCrudList,
-} from '#/composables';
+import { buildPageAIFormExtraData, useCrudList } from '#/composables';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
@@ -58,7 +52,6 @@ import {
   getFormDefaults,
   getStatusText,
   isTenantOwnedAgent,
-  useFormSchema,
 } from './data';
 import AgentForm from './modules/AgentForm.vue';
 import VersionHistory from './modules/VersionHistory.vue';
@@ -70,8 +63,6 @@ const AI_PAGE_KEY = 'tenant.ai.agents';
 // ============================================================
 // Declarative CRUD / 声明式 CRUD
 // ============================================================
-
-const agentSummary = ref({ published: 0, system: 0 });
 
 const {
   list,
@@ -102,107 +93,6 @@ const {
         buildPageAIFormExtraData({ pageKey: AI_PAGE_KEY }),
       ),
   },
-  ai: {
-    pageKey: AI_PAGE_KEY,
-    formSchema: (isEdit?: boolean) => useFormSchema(!(isEdit ?? false)),
-    entityName: $t('tenant.ai.agent.name'),
-    entityDescription: $t('tenant.ai.agent.entityDescription'),
-    openRecycleBin: () => recycleBinRef.value?.open(),
-    contextExtras: () => ({
-      published: agentSummary.value.published,
-      system: agentSummary.value.system,
-    }),
-    extra: [
-      createPrefilledCreatePageOperation({
-        description:
-          'Open the create agent form and optionally pre-fill fields / 打开新建智能体表单，可选预填字段',
-        params: {
-          description: {
-            type: 'string',
-            description: 'Agent description / 智能体简介',
-          },
-          model_id: {
-            type: 'number',
-            description: 'AI model ID / AI 模型 ID',
-          },
-          name: {
-            type: 'string',
-            description: 'Agent name / 智能体名称',
-          },
-          system_prompt: {
-            type: 'string',
-            description: 'System prompt / 系统提示词',
-          },
-          welcome_message: {
-            type: 'string',
-            description: 'Welcome message / 欢迎语',
-          },
-        },
-        normalizeParams: (params) => {
-          const defaults: Record<string, unknown> = {};
-          if (
-            typeof params.description === 'string' &&
-            params.description.trim()
-          ) {
-            defaults.description = params.description.trim();
-          }
-          if (Number.isFinite(Number(params.model_id))) {
-            defaults.model_id = Number(params.model_id);
-          }
-          if (typeof params.name === 'string' && params.name.trim()) {
-            defaults.name = params.name.trim();
-          }
-          if (
-            typeof params.system_prompt === 'string' &&
-            params.system_prompt.trim()
-          ) {
-            defaults.system_prompt = params.system_prompt.trim();
-          }
-          if (
-            typeof params.welcome_message === 'string' &&
-            params.welcome_message.trim()
-          ) {
-            defaults.welcome_message = params.welcome_message.trim();
-          }
-          return defaults;
-        },
-        openCreate: async (defaults) => {
-          openAgentCreate(defaults);
-        },
-      }),
-      createOpenRecordPageOperation({
-        name: 'open_version_history',
-        label: $t('tenant.ai.agent.actions.viewVersions'),
-        description:
-          'Open the version history drawer for an agent by ID / 按智能体 ID 打开版本历史抽屉',
-        readonly: true,
-        params: {
-          id: {
-            type: 'number',
-            description: 'Agent ID / 智能体 ID',
-            required: true,
-          },
-        },
-        normalizeParams: (params) => ({
-          id: Number(params.id ?? 0),
-        }),
-        resolveRecord: (params) => findAgentById(params.id),
-        resolveRecordId: (params) => params.id,
-        open: async (agent) => {
-          openAgentVersionHistory(agent);
-        },
-      }),
-      createKeywordSearchPageOperation({
-        description: 'Search agents by keyword / 按关键词搜索智能体',
-        setKeyword: (keyword) => {
-          searchKeyword.value = keyword;
-        },
-        action: async (keyword) => {
-          onSearch({ 'filter[name][ilike]': keyword || undefined });
-        },
-      }),
-    ],
-  },
 });
 
 // ========== Recycle bin / 回收站 ==========
@@ -230,10 +120,6 @@ function openAgentCreate(defaults: Record<string, unknown> = {}) {
       defaults,
     }),
   );
-}
-
-function findAgentById(id: number): AgentListItem | null {
-  return list.value.find((agent) => agent.id === id) ?? null;
 }
 
 function onCreateAgent() {
@@ -362,13 +248,6 @@ function getExecutionModeIcon(mode: string): string {
     }
   }
 }
-
-watchEffect(() => {
-  agentSummary.value = {
-    published: list.value.filter((a) => a.status === 'published').length,
-    system: list.value.filter((a) => a.is_system).length,
-  };
-});
 
 const stats = computed(() => ({
   total: total.value,

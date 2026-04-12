@@ -37,16 +37,10 @@
  */
 
 import type { Component, ComputedRef, Ref } from 'vue';
-
-import type { FormPopupApi } from './use-ai-operations';
-
-import type { PageOperation } from '#/components/business/ai-slide-panel/page-operation-registry';
 import type {
   DeletePreviewResult,
   DependencyGroup,
 } from '#/components/business/dependency-block-modal/service';
-import type { VbenFormSchema } from '#/core/adapter/form/setup';
-import type { PageAICapabilityKey } from '#/utils/ai-page-capabilities';
 
 import {
   computed,
@@ -56,40 +50,22 @@ import {
   onMounted,
   ref,
 } from 'vue';
-import { useRoute } from 'vue-router';
 
 import { useVbenDrawer, useVbenModal } from '@vben/common-ui';
-import { preferences } from '@vben/preferences';
-import { resolveRouteMetaTitle } from '@vben/utils';
 
 import { message, Modal } from 'ant-design-vue';
 
 import {
-  appendPageOperations,
-  registerPageContext,
-  registerPageContextExtras,
-} from '#/components/business/ai-slide-panel';
-import { normalizePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
-import {
   showDependencyBlockModal,
   showDependencyPreviewModal,
 } from '#/components/business/dependency-block-modal/service';
-import { $t, $te } from '#/locales';
+import { $t } from '#/locales';
 import {
   getErrorData,
   getErrorStatus,
   showRequestError,
 } from '#/utils/error-helpers';
 import { requestClient } from '#/utils/request';
-
-import {
-  buildCrudListSummary,
-  buildCrudPaginationState,
-  compactCrudContextValues,
-  createStandardOperations,
-  extractFormParams,
-} from './use-ai-operations';
-import { formStateTracker } from './use-form-state-tracker';
 
 // ============================================================
 // Type definitions / 类型定义
@@ -228,83 +204,6 @@ export interface UseCrudListOptions<
 
   /** Custom action handlers / 自定义操作处理器 */
   customActions?: Record<string, (row: T) => void>;
-
-  /**
-   * AI page operation config (auto-registers standard CRUD operations)
-   * AI 页面操作配置（自动注册标准 CRUD 操作）
-   *
-   * - Not provided / 不提供: auto-enable page AI with inferred defaults / 自动启用并推导默认配置
-   * - false: Explicitly disable AI operations / 显式禁用 AI 操作
-   * - CrudListAiOptions: Enable with config / 启用并配置
-   */
-  ai?: CrudListAiOptions | false;
-}
-
-/**
- * AI page operation options for useCrudList
- * useCrudList 的 AI 页面操作配置选项
- */
-export interface CrudListAiOptions {
-  /**
-   * Page key override (defaults to normalizePageKey of route.meta.ai?.pageContextKey or route.path)
-   * 页面标识覆盖（默认通过 normalizePageKey 从 route.meta.ai?.pageContextKey 或 route.path 推导为点号格式）
-   */
-  pageKey?: string;
-  /** Legacy disabled operation names / 旧版禁用操作名称列表 */
-  disabled?: string[];
-  /** Disabled capability groups / 禁用的能力分组 */
-  disabledCapabilities?: PageAICapabilityKey[];
-  /** Disabled operation names / 禁用的操作名称列表 */
-  disabledOperations?: string[];
-  /**
-   * Search schema factory — used to derive search params for 'search' operation
-   * 搜索 schema 工厂函数 — 用于推导 search 操作的参数
-   */
-  searchSchema?: () => VbenFormSchema[];
-  /**
-   * Form schema factory — used to derive create/edit params
-   * 表单 schema 工厂函数 — 用于推导 create/edit 操作的参数
-   */
-  formSchema?: (isEdit?: boolean) => VbenFormSchema[];
-  /**
-   * Detail route template (e.g. '/admin/ai/agents/:id') — enables navigate_to_detail
-   * 详情页路由模板 — 启用 navigate_to_detail 操作
-   */
-  detailRoute?: string;
-  /**
-   * Open recycle bin callback — enables view_recycle_bin operation
-   * 打开回收站回调 — 启用 view_recycle_bin 操作
-   */
-  openRecycleBin?: () => void;
-  /**
-   * Extra custom operations merged with standard ops (extra overrides same-named standard)
-   * 额外自定义操作，与标准操作合并（extra 可覆盖同名标准操作）
-   */
-  extra?: PageOperation[];
-  /**
-   * Entity display name (for AI context) / 业务实体名称（供 AI 上下文理解）
-   * @example "智能体" / "知识库"
-   */
-  entityName?: string;
-  /**
-   * Entity description (for AI context) / 业务描述（供 AI 上下文理解）
-   * @example "管理 AI 智能体的配置、技能绑定和发布状态"
-   */
-  entityDescription?: string;
-  /**
-   * Form purpose descriptions (for AI context) / 表单用途描述（供 AI 上下文理解）
-   */
-  formPurpose?: {
-    create?: string;
-    edit?: string;
-  };
-  /**
-   * Extra page_data to merge into auto-registered page context.
-   * Use this instead of manual registerPageContext() to avoid key conflicts.
-   * 合并到自动注册的页面上下文的额外 page_data。
-   * 使用此选项替代手动 registerPageContext()，避免 key 冲突。
-   */
-  contextExtras?: () => Record<string, unknown>;
 }
 
 /** useCrudList return value / useCrudList 返回值 */
@@ -351,10 +250,6 @@ export interface UseCrudListReturn<T extends object = Record<string, unknown>> {
   // === Recycle bin / 回收站 ===
   openRecycleBin: () => void;
   recycleBinCount: Ref<number>;
-
-  // === AI / 智能体集成 ===
-  /** Resolved AI page key (for ref-mode form integration) / 解析后的 AI 页面标识 */
-  aiPageKey: string | undefined;
 
   // === Utilities / 辅助 ===
   isProcessing: (id: number | string) => boolean;
@@ -443,9 +338,7 @@ export function useCrudList<T extends object = Record<string, unknown>>(
     keyField = 'id',
     nameField = 'name' as keyof T & string,
     customActions = {},
-    ai,
   } = options;
-  const aiConfig = ai === false ? false : (ai ?? {});
 
   /** Get row primary key value / 获取行主键值 */
   function getRowKey(row: T): number | string {
@@ -600,7 +493,6 @@ export function useCrudList<T extends object = Record<string, unknown>>(
         mode: 'add',
         _resource: api.resource,
         _defaults: defaults,
-        ...(resolvedAiPageKey ? { _aiPageKey: resolvedAiPageKey } : {}),
       })
       .open();
   }
@@ -611,140 +503,8 @@ export function useCrudList<T extends object = Record<string, unknown>>(
         ...row,
         mode: 'edit',
         _resource: api.resource,
-        ...(resolvedAiPageKey ? { _aiPageKey: resolvedAiPageKey } : {}),
       })
       .open();
-  }
-
-  // ==================== AI page operations / AI 页面操作自动注册 ====================
-  // Auto-register standard CRUD operations if ai config is provided / 若提供 ai 配置则自动注册标准 CRUD 操作
-  let cleanupAiOps: (() => void) | null = null;
-
-  // Resolved AI page key (shared between operations and form tracking) / 解析后的 AI 页面 key（操作与表单追踪共用）
-  let resolvedAiPageKey: string | undefined;
-  let cleanupAiContextBase: (() => void) | null = null;
-  let cleanupAiContextExtras: (() => void) | null = null;
-  const aiRoute = aiConfig ? useRoute() : null;
-
-  function cleanupAiBindings() {
-    cleanupAiOps?.();
-    cleanupAiOps = null;
-    cleanupAiContextExtras?.();
-    cleanupAiContextExtras = null;
-    cleanupAiContextBase?.();
-    cleanupAiContextBase = null;
-  }
-
-  function registerAiBindings() {
-    if (!aiConfig || !aiRoute || cleanupAiOps || cleanupAiContextBase) {
-      return;
-    }
-
-    const pageKey = normalizePageKey(
-      aiConfig.pageKey ??
-        ((aiRoute.meta?.ai as Record<string, unknown> | undefined)
-          ?.pageContextKey as string | undefined) ??
-        aiRoute.path,
-    );
-    resolvedAiPageKey = pageKey;
-
-    const standardOps = createStandardOperations({
-      resource: api.resource,
-      loadList,
-      onSearch,
-      list: list as Ref<unknown[]>,
-      total,
-      currentPage,
-      pageSize,
-      setCurrentPage: (page) => {
-        currentPage.value = page;
-      },
-      setPageSize: (size) => {
-        pageSize.value = size;
-        currentPage.value = 1;
-      },
-      formPopupApi: formPopupApi as FormPopupApi | null,
-      formDefaults,
-      searchSchema: aiConfig.searchSchema,
-      formSchema: aiConfig.formSchema,
-      detailRoute: aiConfig.detailRoute,
-      hasRecycleBin: !!options.recycleBin && !!aiConfig.openRecycleBin,
-      openRecycleBin: aiConfig.openRecycleBin,
-      disabled: aiConfig.disabled,
-      disabledCapabilities: aiConfig.disabledCapabilities,
-      disabledOperations: aiConfig.disabledOperations,
-      extra: aiConfig.extra,
-      pageKey,
-      rowKeyField: keyField,
-    });
-
-    const resolveEntityName = () =>
-      aiConfig.entityName ??
-      resolveRouteMetaTitle(aiRoute.meta, {
-        hasLocaleKey: $te,
-        locale: preferences.app.locale,
-        translate: $t,
-      }) ??
-      '';
-    const entityDescription = aiConfig.entityDescription;
-    const formPurpose = aiConfig.formPurpose;
-    const contextExtras = aiConfig.contextExtras;
-    const formFieldDescriptors = aiConfig.formSchema
-      ? extractFormParams(aiConfig.formSchema(false))
-      : undefined;
-
-    cleanupAiOps = appendPageOperations(pageKey, standardOps);
-    cleanupAiContextBase = registerPageContext(pageKey, () => ({
-      page_key: pageKey,
-      page_title: resolveEntityName() || pageKey,
-      page_data: {
-        resource: api.resource,
-      },
-    }));
-    cleanupAiContextExtras = registerPageContextExtras(pageKey, () => {
-      const rows = list.value as unknown[];
-      const pagination = buildCrudPaginationState({
-        currentPage,
-        pageSize,
-        total,
-      });
-      const listSummary = buildCrudListSummary(rows, {
-        currentPage,
-        pageSize,
-        total,
-      });
-      const activeFilters = compactCrudContextValues(
-        processFormValues(searchParams.value),
-      );
-
-      return {
-        page_key: pageKey,
-        page_data: {
-          ...pagination,
-          total: total.value,
-          list_count: rows.length,
-          ...(resolveEntityName() ? { entity_name: resolveEntityName() } : {}),
-          ...(entityDescription
-            ? { entity_description: entityDescription }
-            : {}),
-          ...(formPurpose ? { form_purpose: formPurpose } : {}),
-          ...(formFieldDescriptors &&
-          Object.keys(formFieldDescriptors).length > 0
-            ? { form_fields: formFieldDescriptors }
-            : {}),
-          ...(formStateTracker.isOpen(pageKey) ? { form_is_open: true } : {}),
-          ...(Object.keys(activeFilters).length > 0
-            ? { active_filters: activeFilters }
-            : {}),
-          ...(listSummary ? { list_summary: listSummary } : {}),
-          ...(contextExtras ? contextExtras() : {}),
-        },
-      };
-    });
-  }
-
-  if (aiConfig) {
-    registerAiBindings();
   }
 
   // ==================== Debounce state / 防抖状态 ====================
@@ -937,12 +697,10 @@ export function useCrudList<T extends object = Record<string, unknown>>(
   // Stop auto-refresh when KeepAlive page deactivates / KeepAlive 页面切走时停止自动刷新
   onDeactivated(() => {
     stopAutoRefresh();
-    cleanupAiBindings();
   });
 
   // Resume auto-refresh when KeepAlive page reactivates / KeepAlive 页面恢复时再启动
   onActivated(() => {
-    registerAiBindings();
     if (autoRefreshInterval > 0) {
       startAutoRefresh();
     }
@@ -950,8 +708,6 @@ export function useCrudList<T extends object = Record<string, unknown>>(
 
   onBeforeUnmount(() => {
     stopAutoRefresh();
-    cleanupAiBindings();
-    if (resolvedAiPageKey) formStateTracker.close(resolvedAiPageKey);
   });
 
   // ==================== Return / 返回 ====================
@@ -992,9 +748,6 @@ export function useCrudList<T extends object = Record<string, unknown>>(
     // Recycle bin / 回收站
     openRecycleBin,
     recycleBinCount,
-
-    // AI / 页面 AI 能力
-    aiPageKey: resolvedAiPageKey,
 
     // Utilities / 辅助
     isProcessing,

@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
     path: '/admin/dashboard',
   },
   pushMock: vi.fn(),
-  resolvePageContextMock: vi.fn(),
+  resolveRuntimePageContextMock: vi.fn(),
 }));
 
 vi.mock('#/router', () => ({
@@ -31,8 +31,16 @@ vi.mock('#/composables/use-page-session', () => ({
   getActivePageSessionId: () => 'page-session-2',
 }));
 
-vi.mock('#/components/business/ai-slide-panel/page-context-registry', () => ({
-  resolvePageContext: mocks.resolvePageContextMock,
+vi.mock('#/components/business/ai-runtime/runtime-bridge', () => ({
+  getRuntimeThinPageContext: mocks.resolveRuntimePageContextMock,
+}));
+
+vi.mock('#/locales', () => ({
+  $t: (key: string) => `locale:${key}`,
+}));
+
+vi.mock('#/locales/runtime-locale', () => ({
+  resolveRuntimeLocale: () => 'zh-CN',
 }));
 
 describe('page-navigation', () => {
@@ -42,13 +50,23 @@ describe('page-navigation', () => {
       path: '/admin/dashboard',
     };
     mocks.pushMock.mockReset();
-    mocks.resolvePageContextMock.mockReset();
-    mocks.resolvePageContextMock.mockImplementation((pageKey: string) => ({
+    mocks.resolveRuntimePageContextMock.mockReset();
+    mocks.resolveRuntimePageContextMock.mockImplementation((pageKey: string) => ({
       page_key: pageKey,
       page_title: 'Resolved Page',
-      page_data: {
-        source: 'registered',
+      suggested_tools: {
+        primary: ['ui_get_snapshot', 'ui_list_interactables'],
+        reason: 'test_runtime',
+        secondary: ['ui_read_region'],
       },
+      surface_stack: [
+        {
+          kind: 'page',
+          surface_id: `page:${pageKey}`,
+          title: 'Resolved Page',
+        },
+      ],
+      ui_epoch: 1,
     }));
   });
 
@@ -99,6 +117,7 @@ describe('page-navigation', () => {
     expect(result.success).toBe(true);
     expect(result.data?.page_session_id).toBe('page-session-2');
     expect(result.data?.page_context).toMatchObject({
+      locale: 'zh-CN',
       page_key: 'admin.ai.agents',
     });
     expect(result.data?.navigation_target).toMatchObject({
@@ -106,7 +125,10 @@ describe('page-navigation', () => {
       path: '/admin/ai/agents',
     });
     expect(result.data?.destination_ready).toBe(true);
-    expect(result.data?.can_auto_continue).toBe(false);
+    expect(result.data?.can_auto_continue).toBe(true);
+    expect(result.data?.navigation_target).toMatchObject({
+      title: 'locale:智能体',
+    });
   });
 
   it('returns a partial success when the route matches but destination readiness is not reached', async () => {
@@ -121,11 +143,11 @@ describe('page-navigation', () => {
         path,
       };
     });
-    mocks.resolvePageContextMock.mockReturnValue({
+    mocks.resolveRuntimePageContextMock.mockReturnValue({
       page_key: 'admin.ai.agents',
       page_title: 'Resolved Page',
-      page_data: {
-        source: 'minimal_fallback',
+      suggested_tools: {
+        primary: [],
       },
     });
 

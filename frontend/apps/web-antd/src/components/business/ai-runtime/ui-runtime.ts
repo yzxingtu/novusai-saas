@@ -32,11 +32,17 @@ const EMPTY_GRAPH: UIRuntimeState['ui_graph'] = {
     usedDomFallback: false,
   },
 };
+const AI_PANEL_SELECTOR = '[data-ai-panel]';
+
+interface LocatorCandidates {
+  allowedVisible: HTMLElement[];
+  allVisible: HTMLElement[];
+}
 
 function createGraphSignature(state: UIRuntimeState['ui_graph']): string {
   const parts = state.nodes.map((node) => {
     const label = node.label ?? '';
-    return `${node.kind}|${node.locator}|${node.disabled ? 1 : 0}|${node.visible ? 1 : 0}|${label}`;
+    return `${node.kind}|${node.locator}|${node.surfaceId ?? ''}|${node.disabled ? 1 : 0}|${node.visible ? 1 : 0}|${label}`;
   });
   return `${state.mode}|${parts.join(';')}`;
 }
@@ -53,6 +59,199 @@ function cloneSurface(surface: UISurface): UISurface {
   return {
     ...surface,
     ...(surface.metadata ? { metadata: { ...surface.metadata } } : {}),
+  };
+}
+
+function normalizeText(value: string): string {
+  return value.replaceAll(/\s+/g, ' ').trim();
+}
+
+function escapeSelectorValue(value: string): string {
+  if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
+    return CSS.escape(value);
+  }
+  return value.replaceAll('"', '\\"');
+}
+
+function isElementVisible(element: HTMLElement): boolean {
+  if (element.hidden) {
+    return false;
+  }
+  const style = window.getComputedStyle(element);
+  if (style.display === 'none' || style.visibility === 'hidden') {
+    return false;
+  }
+  return element.getClientRects().length > 0 || style.opacity !== '0';
+}
+
+function isAIExcludedElement(element: Element): boolean {
+  let cursor: null | Element = element;
+  while (cursor) {
+    if (cursor.matches(AI_PANEL_SELECTOR)) {
+      return true;
+    }
+    const dataAI = cursor.getAttribute('data-ai');
+    if (typeof dataAI === 'string') {
+      const hasOffDirective = dataAI
+        .split(/\s+/)
+        .some((token) => token.trim().toLocaleLowerCase() === 'off');
+      if (hasOffDirective) {
+        return true;
+      }
+    }
+    cursor = cursor.parentElement;
+  }
+  return false;
+}
+
+function classifyCandidates(candidates: HTMLElement[]): LocatorCandidates {
+  const allVisible = candidates.filter((element) => isElementVisible(element));
+  return {
+    allowedVisible: allVisible.filter(
+      (element) => !isAIExcludedElement(element),
+    ),
+    allVisible,
+  };
+}
+
+function queryLocatorCandidates(locator: string): LocatorCandidates {
+  const normalized = normalizeText(locator);
+  if (!normalized) {
+    return {
+      allowedVisible: [],
+      allVisible: [],
+    };
+  }
+
+  const prefixed = [
+    ['ai-id:', `[data-ai-id="${escapeSelectorValue(normalized.slice(6))}"]`],
+    ['testid:', `[data-testid="${escapeSelectorValue(normalized.slice(7))}"]`],
+    ['id:', `#${escapeSelectorValue(normalized.slice(3))}`],
+    ['name:', `[name="${escapeSelectorValue(normalized.slice(5))}"]`],
+    ['href:', `a[href="${escapeSelectorValue(normalized.slice(5))}"]`],
+  ] as const;
+  for (const [prefix, selector] of prefixed) {
+    if (!normalized.startsWith(prefix)) {
+      continue;
+    }
+    try {
+      return classifyCandidates(
+        Array.from(document.querySelectorAll<HTMLElement>(selector)),
+      );
+    } catch {
+      return {
+        allowedVisible: [],
+        allVisible: [],
+      };
+    }
+  }
+
+  if (normalized.startsWith('text:')) {
+    const query = normalizeText(normalized.slice(5)).toLocaleLowerCase();
+    if (!query) {
+      return {
+        allowedVisible: [],
+        allVisible: [],
+      };
+    }
+    return classifyCandidates(
+      Array.from(document.querySelectorAll<HTMLElement>('body *')).filter(
+        (element) =>
+          normalizeText(element.innerText || element.textContent || '')
+            .toLocaleLowerCase()
+            .includes(query),
+      ),
+    );
+  }
+
+  const cssSelector = normalized.startsWith('css:')
+    ? normalized.slice(4)
+    : normalized;
+  try {
+    return classifyCandidates(
+      Array.from(document.querySelectorAll<HTMLElement>(cssSelector)),
+    );
+  } catch {
+    return {
+      allowedVisible: [],
+      allVisible: [],
+    };
+  }
+}
+
+function bindGraphSurfaceIds(
+  graph: UIRuntimeState['ui_graph'],
+  surfaces: UISurface[],
+): UIRuntimeState['ui_graph'] {
+  if (graph.nodes.length === 0 || surfaces.length === 0) {
+    return graph;
+  }
+
+  const validIds = new Set(surfaces.map((surface) => surface.id));
+  const pageSurfaceId = surfaces.find((surface) => surface.kind === 'page')?.id;
+  const lastSurfaceIdByKind = new Map<UISurface['kind'], string>();
+  surfaces.forEach((surface) => {
+    lastSurfaceIdByKind.set(surface.kind, surface.id);
+  });
+
+  const overlaySelectors: Array<[UISurface['kind'], string]> = [
+    ['popover', '.ant-popover'],
+    ['dropdown', '.ant-dropdown, .ant-select-dropdown'],
+    ['modal', '.ant-modal, .ant-modal-wrap, [role="dialog"]'],
+    ['drawer', '.ant-drawer, .ant-drawer-content-wrapper, .ant-drawer-content'],
+  ];
+
+  let changed = false;
+  const nextNodes: UIRuntimeState['ui_graph']['nodes'] = [];
+  graph.nodes.forEach((node) => {
+    const candidates = queryLocatorCandidates(node.locator);
+    if (
+      candidates.allVisible.length > 0 &&
+      candidates.allowedVisible.length === 0
+    ) {
+      changed = true;
+      return;
+    }
+
+    let nextSurfaceId = validIds.has(node.surfaceId ?? '') ? node.surfaceId : undefined;
+    if (!nextSurfaceId) {
+      const element = candidates.allowedVisible[0] ?? null;
+      if (element) {
+        for (const [kind, selector] of overlaySelectors) {
+          if (element.closest(selector)) {
+            const overlaySurfaceId = lastSurfaceIdByKind.get(kind);
+            if (overlaySurfaceId) {
+              nextSurfaceId = overlaySurfaceId;
+            }
+            break;
+          }
+        }
+      }
+    }
+    if (!nextSurfaceId && pageSurfaceId) {
+      nextSurfaceId = pageSurfaceId;
+    }
+    if (nextSurfaceId !== node.surfaceId) {
+      changed = true;
+      nextNodes.push({
+        ...node,
+        surfaceId: nextSurfaceId,
+      });
+      return;
+    }
+    nextNodes.push(node);
+  });
+
+  if (!changed) {
+    return graph;
+  }
+  return {
+    ...graph,
+    nodes: nextNodes,
+    stats: {
+      ...graph.stats,
+      totalNodeCount: nextNodes.length,
+    },
   };
 }
 
@@ -152,25 +351,28 @@ export class UIRuntime {
   rebuildGraph(input: UIRuntimeRebuildInput = {}): UIRuntimeSnapshot {
     const nextRoute = input.route ?? this.getRoute?.() ?? this.route;
     const routeChanged = this.applyRoute(nextRoute ?? null);
-    const buildResult = this.graphBuilder.build({
+    const built = this.graphBuilder.build({
       activeSurfaceId: this.surfaceTracker.getActiveSurface()?.id ?? null,
       forceDomFallback: input.forceDomFallback,
       mode: input.mode,
       route: this.route,
     });
-    const graphChanged =
-      createGraphSignature(buildResult.graph) !== this.graphSignature;
-    if (graphChanged) {
-      this.graphSignature = createGraphSignature(buildResult.graph);
-    }
 
     const surfaceDelta = this.surfaceTracker.sync({
-      overlays: buildResult.overlays,
-      page: buildResult.page,
+      overlays: built.overlays,
+      page: built.page,
     });
+    const nextSurfaceStack = this.surfaceTracker.getStack();
+    const boundGraph = bindGraphSurfaceIds(built.graph, nextSurfaceStack);
+    const nextGraphSignature = createGraphSignature(boundGraph);
+    const graphChanged = nextGraphSignature !== this.graphSignature;
+    if (graphChanged) {
+      this.graphSignature = nextGraphSignature;
+    }
+
     if (graphChanged) {
       this.epochManager.bump('graph_rebuilt', {
-        mode: buildResult.graph.mode,
+        mode: boundGraph.mode,
       });
     } else if (surfaceDelta.changed) {
       this.epochManager.bump('surface_synced');
@@ -179,9 +381,9 @@ export class UIRuntime {
     }
 
     this.state = {
-      surface_stack: this.surfaceTracker.getStack(),
+      surface_stack: nextSurfaceStack,
       ui_epoch: this.epochManager.current(),
-      ui_graph: buildResult.graph,
+      ui_graph: boundGraph,
     };
     return this.getSnapshot();
   }

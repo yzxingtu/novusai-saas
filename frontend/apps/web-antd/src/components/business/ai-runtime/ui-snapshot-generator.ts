@@ -342,6 +342,7 @@ export class UISnapshotGenerator {
   }
 
   buildThinPageContext(args: {
+    locale?: string;
     pageKey: string;
     pageSessionId?: string;
     pageTitle?: string;
@@ -351,6 +352,7 @@ export class UISnapshotGenerator {
       active_form_session_id: args.snapshot.active_form_session_id,
       active_form_summary: args.snapshot.active_form_summary,
       active_surface_id: args.snapshot.active_surface_id,
+      locale: args.locale,
       page_key: args.pageKey,
       page_session_id: args.pageSessionId,
       page_title: args.pageTitle,

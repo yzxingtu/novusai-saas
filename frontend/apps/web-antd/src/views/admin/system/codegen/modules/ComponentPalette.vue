@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { PaletteItem } from './component-palette.types';
+
 import { computed, ref } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
@@ -10,15 +12,6 @@ import { $t } from '#/locales';
 defineOptions({ name: 'ComponentPalette' });
 
 const emit = defineEmits<{ (e: 'add', item: PaletteItem): void }>();
-
-export interface PaletteItem {
-  type: string;
-  component: string;
-  icon: string;
-  label: string;
-  defaultName: string;
-  multiple?: boolean;
-}
 
 type PaletteGroup = {
   items: PaletteItem[];

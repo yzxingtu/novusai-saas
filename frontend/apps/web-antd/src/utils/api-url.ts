@@ -2,8 +2,8 @@ import { useAppConfig } from '@vben/hooks';
 
 const LOOPBACK_HOSTNAMES = new Set(['0.0.0.0', '127.0.0.1', 'localhost']);
 
-function normalizeApiUrl(url: string): string {
-  return url.trim().replace(/\/+$/, '');
+function normalizeApiUrl(url: null | string | undefined): string {
+  return (typeof url === 'string' ? url : '').trim().replace(/\/+$/, '');
 }
 
 function normalizeHostname(hostname: string): string {
@@ -16,7 +16,7 @@ function isLoopbackHostname(hostname: string): boolean {
 }
 
 export function resolveApiUrl(
-  rawApiUrl: string,
+  rawApiUrl: null | string | undefined,
   options: {
     currentHostname?: string;
     isProduction?: boolean;

@@ -16,11 +16,11 @@
  * ```
  */
 import type { AIPageMode } from '@vben/types';
+import type { AIRouteSecurityPolicy } from '#/components/business/ai-runtime/security-policy';
 
 import { computed, ref, watchEffect } from 'vue';
 import { useRoute } from 'vue-router';
 
-import { normalizePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
 import {
   normalizeCapabilityKeys,
   normalizeOperationNames,
@@ -30,10 +30,27 @@ import {
 import { useAIPermission } from './use-ai-permission';
 
 type RouteAIMeta = {
+  act?: string;
+  confirmActionKinds?: string | string[];
+  confirm_action_kinds?: string | string[];
+  dataAi?: 'off' | 'on';
+  dataAiAct?: 'allow' | 'off';
+  dataAiRead?: 'allow' | 'mask' | 'off';
+  dataAiSubmit?: 'allow' | 'off';
+  data_ai?: 'off' | 'on';
+  data_ai_act?: 'allow' | 'off';
+  data_ai_read?: 'allow' | 'mask' | 'off';
+  data_ai_submit?: 'allow' | 'off';
+  disabledActionKinds?: string | string[];
+  disabled_action_kinds?: string | string[];
   disabledCapabilities?: string | string[];
   disabledOperations?: string | string[];
   mode?: AIPageMode;
   pageContextKey?: string;
+  read?: string;
+  sensitiveFieldRead?: 'mask' | 'off';
+  sensitive_field_read?: 'mask' | 'off';
+  submit?: string;
 };
 
 export interface CurrentPageAIExecutionPolicy {
@@ -52,6 +69,56 @@ export const currentPageAIExecutionPolicy = ref<CurrentPageAIExecutionPolicy>({
   mode: DEFAULT_AI_MODE,
   pageContextKey: undefined,
 });
+
+export const currentRouteAISecurityPolicy = ref<AIRouteSecurityPolicy>({
+  act: 'allow',
+  confirmActionKinds: [],
+  disabledActionKinds: [],
+  enabled: true,
+  read: 'allow',
+  sensitiveFieldRead: 'off',
+  submit: 'allow',
+});
+
+function normalizePolicyPageKey(raw?: string): string | undefined {
+  const value = String(raw ?? '').trim();
+  if (!value) return undefined;
+  return value.replace(/^\//, '').replaceAll('/', '.');
+}
+
+function normalizeRouteList(values?: string | string[]): string[] {
+  if (!values) return [];
+  if (Array.isArray(values)) {
+    return [...new Set(values.map((item) => String(item).trim()))].filter(
+      Boolean,
+    );
+  }
+  return [
+    ...new Set(
+      String(values)
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  ];
+}
+
+function normalizeRead(value?: string): AIRouteSecurityPolicy['read'] {
+  const normalized = String(value ?? '')
+    .trim()
+    .toLowerCase();
+  if (normalized === 'off') return 'off';
+  if (normalized === 'mask') return 'mask';
+  return 'allow';
+}
+
+function normalizeToggle(value?: string): 'allow' | 'off' {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase() === 'off'
+    ? 'off'
+    : 'allow';
+}
 
 export function useCurrentPageAIPolicy() {
   const route = useRoute();
@@ -85,8 +152,9 @@ export function useCurrentPageAIPolicy() {
   const pageContextKey = computed<string | undefined>(
     () =>
       (rawAIMeta.value.pageContextKey
-        ? normalizePageKey(rawAIMeta.value.pageContextKey)
-        : undefined) ?? (route.path ? normalizePageKey(route.path) : undefined),
+        ? normalizePolicyPageKey(rawAIMeta.value.pageContextKey)
+        : undefined) ??
+      (route.path ? normalizePolicyPageKey(route.path) : undefined),
   );
 
   /** Page AI disabled flag / 页面 AI 禁用标志 */
@@ -108,12 +176,116 @@ export function useCurrentPageAIPolicy() {
     return pageMode.value;
   });
 
+  const runtimeRouteSecurityPolicy = computed<AIRouteSecurityPolicy>(() => {
+    const meta = rawAIMeta.value;
+    const legacyDisabledOperations = normalizeOperationNames(
+      meta.disabledOperations,
+    );
+    const explicitDisabledActionKinds = normalizeRouteList(
+      meta.disabledActionKinds ?? meta.disabled_action_kinds,
+    );
+    const disabledActionKinds = [
+      ...legacyDisabledOperations,
+      ...explicitDisabledActionKinds,
+    ];
+
+    const disabledCapabilitySet = new Set(disabledCapabilities.value);
+    if (disabledCapabilitySet.has('form')) {
+      disabledActionKinds.push(
+        'create_record',
+        'edit_record',
+        'fill_field',
+        'fill_form',
+        'submit_form',
+      );
+    }
+    if (disabledCapabilitySet.has('submit')) {
+      disabledActionKinds.push('submit_form');
+    }
+    if (disabledCapabilitySet.has('editor')) {
+      disabledActionKinds.push(
+        'append_content',
+        'insert_content',
+        'replace_content',
+        'replace_section',
+      );
+    }
+
+    const mode = effectiveMode.value;
+    const modeDisabledActionKinds: string[] = [];
+    let modeSubmit: 'allow' | 'off' = 'allow';
+    let modeAct: 'allow' | 'off' = 'allow';
+    if (mode === 'context_only') {
+      modeAct = 'off';
+      modeSubmit = 'off';
+    } else if (mode === 'navigation_only') {
+      modeSubmit = 'off';
+      modeDisabledActionKinds.push(
+        'create_record',
+        'delete_record',
+        'edit_record',
+        'fill_field',
+        'fill_form',
+        'replace_content',
+        'replace_section',
+        'submit_form',
+      );
+    }
+
+    const dataAi =
+      (meta.dataAi ?? meta.data_ai)?.toString().trim().toLowerCase() || '';
+    const routeEnabled =
+      canChat.value && mode !== 'disabled' && dataAi !== 'off';
+
+    const confirmActionKinds = normalizeRouteList(
+      meta.confirmActionKinds ?? meta.confirm_action_kinds,
+    );
+
+    return {
+      pageContextKey: pageContextKey.value,
+      enabled: routeEnabled,
+      read: normalizeRead(
+        meta.dataAiRead ?? meta.data_ai_read ?? meta.read ?? undefined,
+      ),
+      act:
+        modeAct === 'off'
+          ? 'off'
+          : normalizeToggle(
+              meta.dataAiAct ?? meta.data_ai_act ?? meta.act ?? undefined,
+            ),
+      submit:
+        modeSubmit === 'off'
+          ? 'off'
+          : normalizeToggle(
+              meta.dataAiSubmit ??
+                meta.data_ai_submit ??
+                meta.submit ??
+                undefined,
+            ),
+      sensitiveFieldRead:
+        meta.sensitiveFieldRead ?? meta.sensitive_field_read ?? 'off',
+      disabledActionKinds: [
+        ...new Set([...disabledActionKinds, ...modeDisabledActionKinds]),
+      ],
+      confirmActionKinds,
+    };
+  });
+
   watchEffect(() => {
     currentPageAIExecutionPolicy.value = {
       disabledCapabilities: [...disabledCapabilities.value],
       disabledOperations: [...disabledOperations.value],
       mode: effectiveMode.value,
       pageContextKey: pageContextKey.value,
+    };
+    currentRouteAISecurityPolicy.value = {
+      ...runtimeRouteSecurityPolicy.value,
+      disabledActionKinds: [
+        ...(runtimeRouteSecurityPolicy.value.disabledActionKinds ?? []),
+      ],
+      confirmActionKinds: [
+        ...(runtimeRouteSecurityPolicy.value.confirmActionKinds ?? []),
+      ],
     };
   });
 
@@ -140,5 +312,7 @@ export function useCurrentPageAIPolicy() {
     pageMode,
     /** Current resource name / 当前资源名 */
     resource,
+    /** Route-level runtime security policy bridge / route 级 runtime 安全策略桥接 */
+    routeSecurityPolicy: runtimeRouteSecurityPolicy,
   };
 }

@@ -5,7 +5,7 @@
  * Reused for both tenant (/tenant/plugins/novusdoc) and admin (/admin/plugins/novusdoc)
  * 企业端与管理端共用（/tenant/plugins/novusdoc、/admin/plugins/novusdoc）
  */
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import type { DocItem, Folder } from '../types';
 import { listDocs, listFolders, createDoc, deleteDoc, createFolder, deleteFolder, searchDocs } from '../api/novusdoc';
 import {
@@ -25,8 +25,6 @@ const shared = (window as unknown as Record<string, unknown>).NovusPluginShared 
     push: (to: string) => void;
     currentRoute?: { value?: { meta?: Record<string, unknown> } };
   };
-  registerPageContext?: (key: string, resolver: () => unknown) => () => void;
-  registerPageOperations?: (key: string, ops: unknown[]) => () => void;
 } | undefined;
 
 const $t = (key: string) => {
@@ -116,170 +114,20 @@ watch([page, activeFolderId], () => {
   if (!searchActive.value) loadDocs();
 });
 
-// ── Page Awareness / 页面感知 ──
-const pageKey = computed(() =>
-  isAdmin.value ? 'admin.plugins.novusdoc' : 'tenant.plugins.novusdoc',
-);
-
-let cleanupContext: (() => void) | undefined;
-let cleanupOps: (() => void) | undefined;
-
-function setupPageAwareness() {
-  cleanupContext?.();
-  cleanupOps?.();
-
-  if (!canView.value) {
-    return;
-  }
-
-  if (shared?.registerPageContext) {
-    cleanupContext = shared.registerPageContext(pageKey.value, () => ({
-      page_key: pageKey.value,
-      page_title: $t('plugin.novusdoc.doc.title'),
-      page_data: {
-        entity_name: $t('plugin.novusdoc.doc.title'),
-        entity_description: $t('plugin.novusdoc.description') || 'Document management with folders, tags and full-text search',
-        list_summary: {
-          total_rows: total.value,
-          page_size: size.value,
-          current_page: page.value,
-          sample_rows: docs.value.slice(0, 5).map(d => ({
-            id: d.id,
-            title: d.title,
-            status: d.status,
-            word_count: d.word_count,
-            updated_at: d.updated_at,
-          })),
-        },
-        active_folder: activeFolderId.value,
-        folder_count: folders.value.length,
-        search_active: searchActive.value,
-        search_query: searchQuery.value,
-      },
-    }));
-  }
-
-  if (shared?.registerPageOperations) {
-    cleanupOps = shared.registerPageOperations(pageKey.value, [
-      shared?.createRefreshPageOperation?.({
-        description: 'Reload documents and folders',
-        label: $t('plugin.novusdoc.op.refresh') || 'Refresh document list',
-        name: 'refresh_list',
-        action: async () => {
-          await Promise.all([loadFolders(), loadDocs()]);
-          return `Loaded ${docs.value.length} documents`;
-        },
-      }),
-      shared?.createKeywordSearchPageOperation?.({
-        name: 'search',
-        label: $t('plugin.novusdoc.op.search') || 'Search documents',
-        description: 'Search documents by keyword',
-        keywordDescription: 'Search keyword',
-        setKeyword: (keyword: string) => {
-          searchQuery.value = keyword;
-          searchActive.value = !!keyword.trim();
-          page.value = 1;
-        },
-        action: async (keyword: string) => {
-          await loadDocs();
-          return keyword.trim()
-            ? `Found ${total.value} results for "${keyword}"`
-            : 'Search cleared';
-        },
-      }),
-      shared?.createSimplePageOperation?.({
-        name: 'clear_search',
-        label: $t('plugin.novusdoc.op.clearSearch') || 'Clear search',
-        description: 'Clear search filter and show all documents',
-        readonly: true,
-        action: async () => {
-          clearSearch();
-          return 'Search cleared';
-        },
-      }),
-      canCreate.value
-        ? shared?.createPrefilledCreatePageOperation?.({
-        name: 'create_document',
-        label: $t('plugin.novusdoc.doc.newDoc') || 'Create new document',
-        description: 'Create a new document and open editor',
-        params: {
-          title: {
-            type: 'string',
-            description: 'Document title (optional)',
-          },
-          folder_id: {
-            type: 'number',
-            description: 'Folder ID to place in (optional)',
-          },
-        },
-        normalizeParams: (params: Record<string, unknown>) => ({
-          ...(params?.title ? { title: params.title } : {}),
-          ...(typeof params?.folder_id === 'number'
-            ? { folder_id: params.folder_id }
-            : activeFolderId.value != null
-              ? { folder_id: activeFolderId.value }
-              : {}),
-        }),
-        openCreate: async (params: Record<string, unknown>) => {
-          const res = await createDoc({
-            title:
-              (params.title as string) || $t('plugin.novusdoc.doc.untitled'),
-            folder_id:
-              (params.folder_id as number | null | undefined)
-              ?? activeFolderId.value,
-            status: 'draft',
-          });
-          const doc = res.document;
-          navigateToEditor(doc.id);
-        },
-        successMessage: (params) => {
-          const folderId =
-            typeof params.folder_id === 'number' ? params.folder_id : null;
-          return folderId != null
-            ? `Create document flow started in folder ${folderId}`
-            : 'Create document flow started';
-        },
-      })
-        : null,
-      shared?.createParameterizedPageOperation?.({
-        name: 'select_folder',
-        label: $t('plugin.novusdoc.op.selectFolder') || 'Select folder',
-        description: 'Filter documents by folder. Pass null to show all.',
-        readonly: true,
-        params: {
-          folder_id: {
-            type: 'number',
-            description: 'Folder ID or null for all',
-          },
-        },
-        action: async (params: Record<string, unknown>) => {
-          const fid = params.folder_id as number | null;
-          selectFolder(fid);
-          await loadDocs();
-          return { success: true, message: fid ? `Filtered by folder ${fid}` : 'Showing all documents' };
-        },
-      }),
-    ].filter(Boolean));
-  }
-}
-
 onMounted(async () => {
   if (canView.value) {
     await Promise.all([loadFolders(), loadDocs()]);
   } else {
     clearListState();
   }
-  setupPageAwareness();
 });
 
 watch(canView, (allowed) => {
   if (!allowed) {
     clearListState();
-    setupPageAwareness();
     return;
   }
   void Promise.all([loadFolders(), loadDocs()]);
-  setupPageAwareness();
 });
 
 function selectFolder(fid: number | null) {
@@ -409,11 +257,6 @@ function formatDate(iso: string | null): string {
 }
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / size.value)));
-
-onUnmounted(() => {
-  cleanupContext?.();
-  cleanupOps?.();
-});
 </script>
 
 <template>

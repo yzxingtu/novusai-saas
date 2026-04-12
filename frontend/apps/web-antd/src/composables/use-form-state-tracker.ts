@@ -23,7 +23,13 @@
  */
 
 import type { EnhancedFormFieldDescriptor } from './ai-operation-types';
+import type {
+  FormFieldDescriptor,
+  FormSession,
+  FormSessionMode,
+} from '#/components/business/ai-runtime/form-session-manager';
 
+import { FormSessionManager } from '#/components/business/ai-runtime/form-session-manager';
 import { $t } from '#/locales';
 
 /**
@@ -57,10 +63,33 @@ export interface TrackableFormApi {
 }
 
 interface TrackerEntry {
+  pageKey: string;
+  sessionId: string;
   mode: 'add' | 'edit' | 'view';
   formApi: null | TrackableFormApi;
   fieldDescriptors: Record<string, EnhancedFormFieldDescriptor>;
   initialValues: Record<string, unknown>;
+}
+
+function mapTrackerModeToSessionMode(
+  mode: 'add' | 'edit' | 'view',
+): FormSessionMode {
+  if (mode === 'add') return 'create';
+  return mode;
+}
+
+function toRuntimeFieldDescriptors(
+  descriptors: Record<string, EnhancedFormFieldDescriptor>,
+  initialValues: Record<string, unknown>,
+): FormFieldDescriptor[] {
+  return Object.entries(descriptors).map(([name, descriptor]) => ({
+    name,
+    label: descriptor.label ?? name,
+    required: !!descriptor.required,
+    type: descriptor.component,
+    initialValue: initialValues[name],
+    value: initialValues[name],
+  }));
 }
 
 /**
@@ -69,6 +98,32 @@ interface TrackerEntry {
  */
 class FormStateTrackerImpl {
   private _entries = new Map<string, TrackerEntry>();
+  private _sessionIdByPageKey = new Map<string, string>();
+  private _sessionIdCounter = 0;
+  private _formSessions = new FormSessionManager();
+
+  getActiveFieldDescriptors(surfaceIdOrPageKey?: string): FormFieldDescriptor[] {
+    return this.getActiveSession(surfaceIdOrPageKey)?.fields ?? [];
+  }
+
+  getActiveSession(surfaceIdOrPageKey?: string): FormSession | null {
+    if (!surfaceIdOrPageKey) {
+      return this._formSessions.getActiveSession();
+    }
+    const sessionId = this.resolveSessionId(surfaceIdOrPageKey);
+    if (sessionId) {
+      return this._formSessions.getSession(sessionId);
+    }
+    return this._formSessions.getActiveSession(surfaceIdOrPageKey);
+  }
+
+  getActiveSessionByPageKey(pageKey: string): FormSession | null {
+    const sessionId = this._sessionIdByPageKey.get(pageKey);
+    if (!sessionId) {
+      return null;
+    }
+    return this._formSessions.getSession(sessionId);
+  }
 
   /**
    * Clear all entries (for testing/reset)
@@ -76,6 +131,8 @@ class FormStateTrackerImpl {
    */
   clear(): void {
     this._entries.clear();
+    this._sessionIdByPageKey.clear();
+    this._formSessions.clear();
   }
 
   /**
@@ -83,7 +140,11 @@ class FormStateTrackerImpl {
    * 标记页面表单为关闭状态
    */
   close(pageKey: string): void {
-    this._entries.delete(pageKey);
+    const sessionId = this.resolveSessionId(pageKey);
+    if (!sessionId) {
+      return;
+    }
+    this.closeBySessionId(sessionId);
   }
 
   /**
@@ -94,7 +155,7 @@ class FormStateTrackerImpl {
   getFieldDescriptors(
     pageKey: string,
   ): null | Record<string, EnhancedFormFieldDescriptor> {
-    const exact = this._entries.get(pageKey);
+    const exact = this.getEntry(pageKey);
     if (exact) return exact.fieldDescriptors;
     if (this._entries.size === 1) {
       return this.getSingleEntry()?.fieldDescriptors ?? null;
@@ -105,12 +166,12 @@ class FormStateTrackerImpl {
   /**
    * Get the FormApi for a page (for fill_form / submit_form).
    * Falls back to the only open entry if the exact pageKey has no match
-   * and exactly one form is currently tracked (handles _aiPageKey mismatch).
+   * and exactly one form is currently tracked.
    * 获取页面的 FormApi（用于 fill_form / submit_form）。
-   * 精确 key 无匹配且仅一个表单被追踪时，回退到该表单（处理 _aiPageKey 不匹配）。
+   * 精确 key 无匹配且仅一个表单被追踪时，回退到该表单。
    */
   getFormApi(pageKey: string): null | TrackableFormApi {
-    const exact = this._entries.get(pageKey);
+    const exact = this.getEntry(pageKey);
     if (exact) return exact.formApi;
 
     // Fallback: if only one form is open, it's likely the intended target / 回退：仅一个表单打开时视为目标
@@ -125,7 +186,7 @@ class FormStateTrackerImpl {
    * 获取页面当前表单状态
    */
   async getState(pageKey: string): Promise<FormState> {
-    const entry = this._entries.get(pageKey);
+    const entry = this.getEntry(pageKey);
     if (!entry) {
       return {
         isOpen: false,
@@ -187,17 +248,17 @@ class FormStateTrackerImpl {
 
   /**
    * Get state with fallback: if exact key not found but exactly one form
-   * is tracked, return that form's state (handles _aiPageKey mismatch).
+   * is tracked, return that form's state.
    * 带回退的表单状态获取：精确 key 未找到但仅一个表单被追踪时返回该表单状态。
    */
   async getStateWithFallback(pageKey: string): Promise<FormState> {
-    if (this._entries.has(pageKey)) {
+    if (this.resolveSessionId(pageKey)) {
       return this.getState(pageKey);
     }
     if (this._entries.size === 1) {
-      const actualKey = this.getSingleKey();
-      if (actualKey) {
-        return this.getState(actualKey);
+      const sessionId = this.getSingleSessionId();
+      if (sessionId) {
+        return this.getState(sessionId);
       }
     }
     return this.getState(pageKey);
@@ -208,7 +269,15 @@ class FormStateTrackerImpl {
    * 获取所有追踪的页面 key
    */
   getTrackedKeys(): string[] {
-    return [...this._entries.keys()];
+    return [...this._sessionIdByPageKey.keys()];
+  }
+
+  getSessionId(pageKey: string): null | string {
+    return this._sessionIdByPageKey.get(pageKey) ?? null;
+  }
+
+  listSessions(): FormSession[] {
+    return this._formSessions.listSessions();
   }
 
   /**
@@ -216,16 +285,16 @@ class FormStateTrackerImpl {
    * 检查页面是否有表单打开
    */
   isOpen(pageKey: string): boolean {
-    return this._entries.has(pageKey);
+    return !!this.resolveSessionId(pageKey);
   }
 
   /**
    * Check form open status with fallback: if exact key not found but
-   * exactly one form is tracked, treat it as open (handles _aiPageKey mismatch).
+   * exactly one form is tracked, treat it as open.
    * 带回退的表单打开状态检查：精确 key 未找到但仅一个表单被追踪时视为打开。
    */
   isOpenWithFallback(pageKey: string): boolean {
-    if (this._entries.has(pageKey)) return true;
+    if (this.resolveSessionId(pageKey)) return true;
     return this._entries.size === 1;
   }
 
@@ -241,13 +310,55 @@ class FormStateTrackerImpl {
       initialValues?: Record<string, unknown>;
       mode: 'add' | 'edit' | 'view';
     },
-  ): void {
-    this._entries.set(pageKey, {
+  ): string {
+    const previousSessionId = this._sessionIdByPageKey.get(pageKey);
+    if (previousSessionId) {
+      this.closeBySessionId(previousSessionId);
+    }
+
+    const sessionId = this.createSessionId(pageKey);
+    const fieldDescriptors = opts.fieldDescriptors ?? {};
+    const initialValues = opts.initialValues ?? {};
+    this._sessionIdByPageKey.set(pageKey, sessionId);
+    this._entries.set(sessionId, {
+      pageKey,
+      sessionId,
       mode: opts.mode,
       formApi: opts.formApi ?? null,
-      fieldDescriptors: opts.fieldDescriptors ?? {},
-      initialValues: opts.initialValues ?? {},
+      fieldDescriptors,
+      initialValues,
     });
+
+    this._formSessions.upsertSession({
+      form_session_id: sessionId,
+      surface_id: sessionId,
+      mode: mapTrackerModeToSessionMode(opts.mode),
+      entity_name: pageKey.split('.').at(-1) ?? undefined,
+      fields: toRuntimeFieldDescriptors(fieldDescriptors, initialValues),
+      initial_values: initialValues,
+      current_values: initialValues,
+      submit_policy: 'confirm',
+    });
+    return sessionId;
+  }
+
+  setSessionFieldValues(
+    pageKey: string,
+    values: Record<string, unknown>,
+  ): FormSession | null {
+    const sessionId = this.resolveSessionId(pageKey);
+    if (!sessionId) {
+      return null;
+    }
+    return this._formSessions.updateFieldValues(sessionId, values);
+  }
+
+  getSession(pageKey: string): FormSession | null {
+    const sessionId = this.resolveSessionId(pageKey);
+    if (!sessionId) {
+      return null;
+    }
+    return this._formSessions.getSession(sessionId);
   }
 
   private getSingleEntry(): null | TrackerEntry {
@@ -255,9 +366,48 @@ class FormStateTrackerImpl {
     return firstEntry ? firstEntry[1] : null;
   }
 
-  private getSingleKey(): null | string {
+  private getSingleSessionId(): null | string {
     const firstEntry = this._entries.keys().next().value;
     return typeof firstEntry === 'string' ? firstEntry : null;
+  }
+
+  private closeBySessionId(sessionId: string): void {
+    const entry = this._entries.get(sessionId);
+    if (!entry) {
+      this._formSessions.closeSession(sessionId);
+      return;
+    }
+    this._entries.delete(sessionId);
+    if (this._sessionIdByPageKey.get(entry.pageKey) === sessionId) {
+      this._sessionIdByPageKey.delete(entry.pageKey);
+    }
+    this._formSessions.closeSession(sessionId);
+  }
+
+  private createSessionId(pageKey: string): string {
+    this._sessionIdCounter += 1;
+    const normalizedPageKey = pageKey
+      .trim()
+      .replaceAll(/[^a-zA-Z0-9_.-]+/g, '-')
+      .replaceAll(/-+/g, '-')
+      .replaceAll(/(^-|-$)/g, '');
+    const base = normalizedPageKey || 'form';
+    return `${base}__session_${Date.now()}_${this._sessionIdCounter}`;
+  }
+
+  private getEntry(pageKeyOrSessionId: string): null | TrackerEntry {
+    const sessionId = this.resolveSessionId(pageKeyOrSessionId);
+    if (!sessionId) {
+      return null;
+    }
+    return this._entries.get(sessionId) ?? null;
+  }
+
+  private resolveSessionId(pageKeyOrSessionId: string): null | string {
+    if (this._entries.has(pageKeyOrSessionId)) {
+      return pageKeyOrSessionId;
+    }
+    return this._sessionIdByPageKey.get(pageKeyOrSessionId) ?? null;
   }
 }
 

@@ -1,18 +1,10 @@
 <script lang="ts" setup>
+import type {
+  AttachmentDetailField,
+  AttachmentDetailSection,
+} from './types';
+
 import { Descriptions, DescriptionsItem, Tag } from 'ant-design-vue';
-
-export interface AttachmentDetailField {
-  color?: string;
-  kind?: 'code' | 'tag' | 'text';
-  label: string;
-  show?: boolean;
-  value: null | number | string | undefined;
-}
-
-export interface AttachmentDetailSection {
-  fields: AttachmentDetailField[];
-  title?: string;
-}
 
 interface Props {
   sections: AttachmentDetailSection[];

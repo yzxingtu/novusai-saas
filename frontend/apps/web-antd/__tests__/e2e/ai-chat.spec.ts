@@ -44,13 +44,16 @@ interface SingleTurnScenario extends ChatTurnOptions {
 }
 
 const PAGE_READ_TOOLS = new Set([
-  'capture_screenshot',
   'get_form_options',
   'get_form_state',
-  'get_page_context',
   'list_available_menus',
   'read_row_detail',
   'read_visible_rows',
+  'ui_get_form_state',
+  'ui_get_snapshot',
+  'ui_list_interactables',
+  'ui_read_region',
+  'ui_read_table',
 ]);
 
 const PAGE_MUTATION_TOOLS = new Set([
@@ -59,6 +62,11 @@ const PAGE_MUTATION_TOOLS = new Set([
   'fill_form',
   'navigate_menu',
   'submit_form',
+  'ui_click',
+  'ui_fill_form',
+  'ui_open_surface',
+  'ui_set_field',
+  'ui_submit_form',
 ]);
 
 const PAGE_PAGINATION_TOOLS = new Set([
@@ -69,6 +77,10 @@ const PAGE_PAGINATION_TOOLS = new Set([
   'refresh_list',
   'search',
   'set_page_size',
+  'ui_click',
+  'ui_fill_form',
+  'ui_set_field',
+  'ui_submit_form',
 ]);
 
 const EDITOR_TOOLS = new Set([
@@ -98,7 +110,7 @@ function readToolNames(metrics: ChatTurnMetrics) {
 }
 
 function normalizeToolName(name: string) {
-  return name.startsWith('pageop_') ? name.slice('pageop_'.length) : name;
+  return name;
 }
 
 function responseContainsAny(
@@ -130,7 +142,6 @@ function isSearchTool(name: string) {
 function isPageTool(name: string) {
   const normalized = normalizeToolName(name);
   return (
-    normalized === 'invoke_page_operation' ||
     PAGE_READ_TOOLS.has(normalized) ||
     PAGE_MUTATION_TOOLS.has(normalized) ||
     PAGE_PAGINATION_TOOLS.has(normalized)
@@ -139,37 +150,36 @@ function isPageTool(name: string) {
 
 function isPageReadTool(name: string) {
   const normalized = normalizeToolName(name);
-  return (
-    normalized === 'invoke_page_operation' || PAGE_READ_TOOLS.has(normalized)
-  );
+  return PAGE_READ_TOOLS.has(normalized);
 }
 
 function isPageMutationTool(name: string) {
   const normalized = normalizeToolName(name);
-  return (
-    normalized === 'invoke_page_operation' ||
-    PAGE_MUTATION_TOOLS.has(normalized)
-  );
+  return PAGE_MUTATION_TOOLS.has(normalized);
 }
 
 function isPageSearchTool(name: string) {
   const normalized = normalizeToolName(name);
   return (
-    normalized === 'invoke_page_operation' ||
     normalized === 'search' ||
     normalized === 'clear_search' ||
-    normalized === 'refresh_list'
+    normalized === 'refresh_list' ||
+    normalized === 'ui_click' ||
+    normalized === 'ui_fill_form' ||
+    normalized === 'ui_set_field' ||
+    normalized === 'ui_submit_form'
   );
 }
 
 function isPagePaginationTool(name: string) {
   const normalized = normalizeToolName(name);
   return (
-    normalized === 'invoke_page_operation' ||
     normalized === 'go_to_page' ||
     normalized === 'next_page' ||
     normalized === 'prev_page' ||
-    normalized === 'set_page_size'
+    normalized === 'set_page_size' ||
+    normalized === 'ui_click' ||
+    normalized === 'ui_set_field'
   );
 }
 
@@ -189,7 +199,11 @@ function isEditorTool(name: string) {
 
 function isScreenshotTool(name: string) {
   const normalized = normalizeToolName(name);
-  return normalized === 'capture_screenshot' || normalized.includes('screenshot');
+  return (
+    normalized === 'ui_get_snapshot' ||
+    normalized === 'capture_screenshot' ||
+    normalized.includes('screenshot')
+  );
 }
 
 function resolveToolFamily(name: string) {
@@ -197,8 +211,8 @@ function resolveToolFamily(name: string) {
   if (isTimeTool(name)) return 'time';
   if (isSearchTool(name)) return 'search';
   if (isEditorTool(name)) return 'editor';
-  if (isScreenshotTool(name)) return 'media';
   if (isPageTool(name)) return 'page';
+  if (isScreenshotTool(name)) return 'media';
   return 'other';
 }
 
@@ -1014,6 +1028,57 @@ test.describe('AI Chat E2E', () => {
         },
       },
     ]);
+
+    test('J4 — outrageous Hyper-Panda chaos keeps multi-tool and avoids accidental writes', async ({
+      page,
+    }) => {
+      test.setTimeout(EXTENDED_CHAT_TIMEOUT * 2 + TURN_TIMEOUT_BUFFER);
+      const [firstTurn, secondTurn, thirdTurn] = await runChatTurnSequence(
+        page,
+        [
+          '请记住一个代号：Hyper-Panda，后面我要你回忆它',
+          '现在几点了？帮我查北京天气，再搜索今天 AI 新闻，然后看看当前页面第一条记录或关键内容',
+          '先回答我刚才让你记住的代号是什么。然后再告诉我如果我要新建记录下一步通常点哪里，但先不要真的创建，也不要帮我点击。',
+        ],
+        { route: ROUTES.agents, timeout: EXTENDED_CHAT_TIMEOUT },
+      );
+
+      expectGracefulResponse(firstTurn, 8);
+      expectGracefulResponse(secondTurn, 20);
+      expectGracefulResponse(thirdTurn, 12);
+
+      expectDistinctToolFamiliesAtLeast(secondTurn, 3);
+      expect(
+        secondTurn.toolCalls.some((toolCall) =>
+          isTimeTool(toolCall.name) ||
+          isWeatherTool(toolCall.name) ||
+          isSearchTool(toolCall.name) ||
+          isPageReadTool(toolCall.name),
+        ),
+      ).toBe(true);
+      expect(secondTurn.fullResponse).not.toContain('[PARTIAL EXIT]');
+
+      expect(thirdTurn.fullResponse).toMatch(/hyper[- ]?panda/i);
+      const hasWriteTool = thirdTurn.toolCalls.some((toolCall) =>
+        isPageMutationTool(toolCall.name),
+      );
+      if (hasWriteTool) {
+        const hasApprovalGate =
+          thirdTurn.toolConsentRequests.length > 0 ||
+          thirdTurn.confirmationRequests.length > 0 ||
+          thirdTurn.actionButtons.length > 0;
+        expect(
+          hasApprovalGate,
+          `Expected consent/confirmation gate when write tools are used. Seen tool calls: ${readToolNames(thirdTurn).join(', ') || 'none'}`,
+        ).toBe(true);
+      } else {
+        expectNoTool(
+          thirdTurn,
+          isPageMutationTool,
+          'Expected guidance-only response without triggering page mutation tools',
+        );
+      }
+    });
   });
 
   test.describe('K: Chaotic user input', () => {
@@ -1699,7 +1764,7 @@ test.describe('AI Chat E2E', () => {
       },
     ]);
 
-    test('T6 — go_to_page / prev_page / set_page_size are covered', async ({
+    test('T6 — pagination flows are covered with ui runtime actions', async ({
       page,
     }) => {
       test.setTimeout(EXTENDED_CHAT_TIMEOUT + TURN_TIMEOUT_BUFFER);
@@ -1714,18 +1779,18 @@ test.describe('AI Chat E2E', () => {
       expectGracefulResponse(thirdTurn, 4);
       expectTool(
         firstTurn,
-        (name) => name === 'go_to_page' || name === 'pageop_go_to_page',
-        'Expected go_to_page tool',
+        isPagePaginationTool,
+        'Expected pagination tool in first turn',
       );
       expectTool(
         secondTurn,
-        (name) => name === 'prev_page' || name === 'pageop_prev_page',
-        'Expected prev_page tool',
+        isPagePaginationTool,
+        'Expected pagination tool in second turn',
       );
       expectTool(
         thirdTurn,
-        (name) => name === 'set_page_size' || name === 'pageop_set_page_size',
-        'Expected set_page_size tool',
+        isPagePaginationTool,
+        'Expected pagination tool in third turn',
       );
     });
 
@@ -1745,7 +1810,9 @@ test.describe('AI Chat E2E', () => {
         (name) =>
           name === 'clear_search' ||
           name === 'refresh_list' ||
-          name === 'pageop_clear_search',
+          name === 'ui_click' ||
+          name === 'ui_set_field' ||
+          name === 'ui_submit_form',
         'Expected clear_search or refresh_list tool on second turn',
       );
     });

@@ -45,8 +45,8 @@ const props = withDefaults(
 );
 
 const SANITIZE_OPTIONS = {
-  ADD_ATTR: ['target', 'rel'],
-} as const;
+  ADD_ATTR: ['target', 'rel'] as string[],
+};
 
 type FenceState = null | {
   character: '`' | '~';

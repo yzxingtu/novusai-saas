@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import type { KnowledgeBaseDocProgressInfo } from '#/composables/use-knowledge-base-detail-tools';
+import type { KnowledgeBaseDocumentRow } from './types';
 
 import { IconifyIcon } from '@vben/icons';
 
@@ -21,17 +22,6 @@ import {
 } from '#/composables/use-knowledge-base-detail-tools';
 import { formatDate } from '#/utils/common';
 import { formatFileSize } from '#/utils/file';
-
-export interface KnowledgeBaseDocumentRow {
-  chunk_count: number;
-  created_at: string;
-  error_message: null | string;
-  file_name: string;
-  file_size: number;
-  file_type: string;
-  id: number;
-  status: string;
-}
 
 interface Props {
   canDelete?: boolean;

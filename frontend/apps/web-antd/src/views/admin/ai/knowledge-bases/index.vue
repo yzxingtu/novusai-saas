@@ -24,11 +24,7 @@ import {
   getKnowledgeBaseStatsApi,
 } from '#/api/admin/knowledge-bases';
 import KnowledgeBaseCardGrid from '#/components/business/knowledge-base-card-grid/KnowledgeBaseCardGrid.vue';
-import {
-  createCreateRecordPageOperation,
-  createStructuredSearchPageOperation,
-  useCrudList,
-} from '#/composables';
+import { useCrudList } from '#/composables';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 import { formatFileSize } from '#/utils/file';
@@ -39,8 +35,6 @@ import {
   getScopeColor,
   getScopeOptions,
   getScopeText,
-  useFormSchema,
-  useGridFormSchema,
 } from './data';
 import Detail from './modules/detail.vue';
 import Form from './modules/form.vue';
@@ -89,58 +83,6 @@ const {
   pageSize: 12,
   recycleBin: true,
   createPermission: 'ai_knowledge_base:create',
-  ai: {
-    formSchema: useFormSchema,
-    searchSchema: useGridFormSchema,
-    entityName: $t('admin.knowledgeBase.name'),
-    entityDescription: $t('admin.knowledgeBase.ai.entityDescription'),
-    openRecycleBin: () => recycleBinRef.value?.open(),
-    contextExtras: () => ({
-      total_knowledge_bases: stats.value?.total_knowledge_bases ?? 0,
-      total_documents: stats.value?.total_documents ?? 0,
-      total_size_bytes: stats.value?.total_size_bytes ?? 0,
-    }),
-    extra: [
-      createStructuredSearchPageOperation({
-        description: $t('admin.knowledgeBase.ai.structuredSearchDescription'),
-        params: {
-          keyword: {
-            type: 'string',
-            description: $t('admin.knowledgeBase.ai.paramKeyword'),
-          },
-          scope: {
-            type: 'string',
-            description: $t('admin.knowledgeBase.ai.paramScope'),
-          },
-        },
-        normalizeParams: (params) => ({
-          keyword: String(params?.keyword ?? ''),
-          scope: String(params?.scope ?? ''),
-        }),
-        runSearch: async ({ keyword, scope }) => {
-          searchKeyword.value = keyword;
-          scopeFilter.value = scope || undefined;
-          doSearch();
-        },
-        successMessage: ({ keyword, scope }) => {
-          const parts: string[] = [];
-          if (keyword) parts.push(`keyword="${keyword}"`);
-          if (scope) parts.push(`scope="${scope}"`);
-          return parts.length > 0
-            ? $t('admin.knowledgeBase.ai.searchApplied', {
-                detail: parts.join(', '),
-              })
-            : $t('admin.knowledgeBase.ai.filtersCleared');
-        },
-      }),
-      createCreateRecordPageOperation({
-        description: $t('admin.knowledgeBase.ai.openCreateForm'),
-        action: () => {
-          onCreate();
-        },
-      }),
-    ],
-  },
 });
 
 // ========== Detail drawer / 详情抽屉 ==========

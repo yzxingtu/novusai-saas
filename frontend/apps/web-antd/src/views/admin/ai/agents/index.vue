@@ -10,7 +10,7 @@
  */
 import type { AIAgentInfo } from '#/api/admin/ai';
 
-import { computed, ref, watchEffect } from 'vue';
+import { computed, ref } from 'vue';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
@@ -41,12 +41,7 @@ import {
   updateAIAgentStatusApi,
 } from '#/api/admin/ai';
 import AIPageHeroCard from '#/components/business/ai-page-hero/AIPageHeroCard.vue';
-import {
-  buildPageAIFormExtraData,
-  createKeywordSearchPageOperation,
-  createPrefilledCreatePageOperation,
-  useCrudList,
-} from '#/composables';
+import { buildPageAIFormExtraData, useCrudList } from '#/composables';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 import { toAvatarDisplayUrl } from '#/utils/image';
@@ -56,12 +51,7 @@ import {
   getScopeText,
 } from '#/utils/scope-helpers';
 
-import {
-  getExecutionModeText,
-  getFormDefaults,
-  getStatusText,
-  useFormSchema,
-} from './data';
+import { getExecutionModeText, getStatusText } from './data';
 import AgentForm from './modules/form.vue';
 import PluginSourceBadge from './modules/PluginSourceBadge.vue';
 import VersionHistoryDrawer from './modules/VersionHistory.vue';
@@ -73,8 +63,6 @@ const AI_PAGE_KEY = 'admin.ai.agents';
 // ============================================================
 // Declarative CRUD (list/pagination/search/delete/recycle bin) / 声明式 CRUD（列表/分页/搜索/删除/回收站）
 // ============================================================
-
-const agentSummary = ref({ published: 0, system: 0 });
 
 const {
   list,
@@ -104,72 +92,6 @@ const {
         row,
         buildPageAIFormExtraData({ pageKey: AI_PAGE_KEY }),
       ),
-  },
-  ai: {
-    pageKey: AI_PAGE_KEY,
-    formSchema: (isEdit?: boolean) =>
-      useFormSchema(isEdit ?? false, false, !(isEdit ?? false)),
-    entityName: $t('admin.ai.agent.name'),
-    entityDescription: $t('admin.ai.agent.entityDescription'),
-    openRecycleBin: () => recycleBinRef.value?.open(),
-    contextExtras: () => ({
-      published: agentSummary.value.published,
-      system: agentSummary.value.system,
-    }),
-    extra: [
-      createPrefilledCreatePageOperation({
-        description:
-          'Open the create agent form and optionally pre-fill fields / 打开新建智能体表单，可选预填字段',
-        params: {
-          name: { type: 'string', description: 'Agent name / 智能体名称' },
-          description: {
-            type: 'string',
-            description: 'Agent description / 简介',
-          },
-          model_id: { type: 'number', description: 'AI model ID / AI 模型 ID' },
-          system_prompt: {
-            type: 'string',
-            description: 'System prompt / 系统提示词',
-          },
-          welcome_message: {
-            type: 'string',
-            description: 'Welcome message / 欢迎语',
-          },
-        },
-        normalizeParams: (params) => {
-          const overrides: Record<string, unknown> = {};
-          if (params?.name) overrides.name = params.name;
-          if (params?.description) overrides.description = params.description;
-          if (params?.model_id) overrides.model_id = params.model_id;
-          if (params?.system_prompt)
-            overrides.system_prompt = params.system_prompt;
-          if (params?.welcome_message)
-            overrides.welcome_message = params.welcome_message;
-          return overrides;
-        },
-        openCreate: async (overrides) => {
-          agentFormRef.value?.openNew(
-            buildPageAIFormExtraData({
-              pageKey: AI_PAGE_KEY,
-              baseDefaults:
-                Object.keys(overrides).length > 0
-                  ? getFormDefaults()
-                  : undefined,
-              defaults: overrides,
-            }),
-          );
-        },
-      }),
-      createKeywordSearchPageOperation({
-        description: 'Search agents by keyword / 按关键词搜索智能体',
-        setKeyword: (keyword) => {
-          searchKeyword.value = keyword;
-        },
-        action: async () => {
-          doSearch();
-        },
-      }),
-    ],
   },
 });
 
@@ -333,14 +255,6 @@ function getExecutionModeIcon(mode: string): string {
     }
   }
 }
-
-watchEffect(() => {
-  const all = list.value;
-  agentSummary.value = {
-    published: all.filter((a) => a.status === 'published').length,
-    system: all.filter((a) => a.is_system).length,
-  };
-});
 
 const stats = computed(() => {
   const all = list.value;

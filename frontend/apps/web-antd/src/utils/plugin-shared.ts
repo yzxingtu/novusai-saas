@@ -29,14 +29,6 @@ import { useAccessStore, useUserStore } from '@vben/stores';
 
 import * as AntDesignVue from 'ant-design-vue';
 
-import {
-  appendPageOperations,
-  listPageOperations,
-  normalizePageKey,
-  registerPageContext,
-  registerPageContextExtras,
-  registerPageOperations,
-} from '#/components/business/ai-slide-panel';
 import { registerCaptchaProvider as registerCaptchaProviderRegistry } from '#/components/business/captcha';
 import {
   mountRichTextEditor,
@@ -44,14 +36,7 @@ import {
   RichTextEditor,
   waitForRichTextEditorOperations,
 } from '#/components/business/rich-text-editor';
-import {
-  createKeywordSearchPageOperation,
-  createParameterizedPageOperation,
-  createPrefilledCreatePageOperation,
-  createRefreshPageOperation,
-  createSavePageOperation,
-  createSimplePageOperation,
-} from '#/composables/use-page-ai-operation-helpers';
+import { normalizePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
 import { $t } from '#/locales';
 import { router } from '#/router';
 import { getCurrentEndpoint } from '#/router/access';
@@ -66,13 +51,6 @@ import { requestClient } from '#/utils/request';
 // Re-export for dev mode: plugins import { $t, IconifyIcon, ... } from '@novus/plugin-shared' / 开发态供插件复用
 export {
   $t,
-  appendPageOperations,
-  createKeywordSearchPageOperation,
-  createParameterizedPageOperation,
-  createPrefilledCreatePageOperation,
-  createRefreshPageOperation,
-  createSavePageOperation,
-  createSimplePageOperation,
   downloadBlob,
   getAccessCodes,
   getActiveAIConversation,
@@ -80,13 +58,9 @@ export {
   getCurrentUser,
   hasAccessByCodes,
   IconifyIcon,
-  listPageOperations,
   mountRichTextEditor,
   openAIPanel,
   registerCaptchaProviderRegistry as registerCaptchaProvider,
-  registerPageContext,
-  registerPageContextExtras,
-  registerPageOperations,
   registerRichTextDocumentPageAI,
   requestClient,
   RichTextEditor,
@@ -330,34 +304,12 @@ export interface NovusPluginSharedAPI {
   getCurrentUser: () => { id: null | number; name: string; username: string };
   /** Vue Router instance (for plugin in-page navigation) / Vue Router 实例（供插件页面内导航使用） */
   router: typeof router;
-  /** Register page context for AI awareness / 注册页面上下文供 AI 感知 */
-  registerPageContext: typeof registerPageContext;
-  /** Register extras onto existing page context (merge, do not replace) / 在已有页面上下文上合并 extras */
-  registerPageContextExtras: typeof registerPageContextExtras;
-  /** Register page operations for AI invocation / 注册页面操作供 AI 调用 */
-  registerPageOperations: typeof registerPageOperations;
-  /** Build a simple operation quickly / 快速构建简单页面操作 */
-  createSimplePageOperation: typeof createSimplePageOperation;
-  /** Build a parameterized operation / 构建参数化页面操作 */
-  createParameterizedPageOperation: typeof createParameterizedPageOperation;
-  /** Build a refresh operation / 构建刷新页面操作 */
-  createRefreshPageOperation: typeof createRefreshPageOperation;
-  /** Build a save operation / 构建保存页面操作 */
-  createSavePageOperation: typeof createSavePageOperation;
-  /** Build a keyword-search operation / 构建关键词搜索页面操作 */
-  createKeywordSearchPageOperation: typeof createKeywordSearchPageOperation;
-  /** Build a prefilled create operation / 构建预填新建页面操作 */
-  createPrefilledCreatePageOperation: typeof createPrefilledCreatePageOperation;
   /** Register rich text editor document AI bridge / 注册富文本文档 AI bridge */
   registerRichTextDocumentPageAI: typeof registerRichTextDocumentPageAI;
   /** Wait for rich text editor operations to become available / 等待富文本编辑器页面操作就绪 */
   waitForRichTextEditorOperations: typeof waitForRichTextEditorOperations;
   /** Register captcha provider component / 注册验证码提供方组件 */
   registerCaptchaProvider: typeof registerCaptchaProviderRegistry;
-  /** List currently registered page operations (e.g. to merge with plugin ops) / 获取当前已注册的页面操作（如与插件操作合并） */
-  listPageOperations: typeof listPageOperations;
-  /** Append page operations without replacing (for plugins; call after platform has registered) / 追加页面操作不替换（供插件在平台注册后追加） */
-  appendPageOperations: typeof appendPageOperations;
   /** Download blob as file (handles cross-browser quirks) / 下载 Blob 为文件（处理跨浏览器兼容） */
   downloadBlob: typeof downloadBlob;
   /** Open the global AI panel with optional message/agent/conversation seed / 打开全局 AI 面板并可附带消息、智能体或对话种子 */
@@ -404,20 +356,9 @@ export function exposePluginShared(): void {
     getCurrentUser,
     hasAccessByCodes,
     router,
-    listPageOperations,
     registerCaptchaProvider: registerCaptchaProviderRegistry,
-    registerPageContext,
-    registerPageContextExtras,
-    registerPageOperations,
-    createSimplePageOperation,
-    createParameterizedPageOperation,
-    createRefreshPageOperation,
-    createSavePageOperation,
-    createKeywordSearchPageOperation,
-    createPrefilledCreatePageOperation,
     registerRichTextDocumentPageAI,
     waitForRichTextEditorOperations,
-    appendPageOperations,
     downloadBlob,
     openAIPanel,
     getActiveAIConversation,

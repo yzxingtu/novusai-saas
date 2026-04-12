@@ -31,7 +31,6 @@ import {
   resolveProviderWebSearchConfig,
   shouldWarnProviderWebSearchAutoFallback,
   useColumns,
-  useFormSchema,
   useGridFormSchema,
 } from './data';
 import Form from './modules/form.vue';
@@ -107,11 +106,6 @@ const { Grid, FormDrawer, gridApi, onRefresh } = useCrudPage<AIProviderInfo>({
   rowHeight: 84,
   recycleBin: true,
   createPermission: 'ai_provider:create',
-  ai: {
-    formSchema: useFormSchema,
-    entityName: $t('admin.ai.provider.name'),
-    entityDescription: $t('admin.ai.provider.pageDesc'),
-  },
 });
 
 function onFormSuccess() {

@@ -1,4 +1,4 @@
-import type { PageOperationResult } from '#/components/business/ai-slide-panel/page-operation-registry';
+import type { PageOperationResult } from '#/components/business/ai-slide-panel/page-operation-types';
 
 import { createParameterizedPageOperation } from '#/composables/use-page-ai-operation-helpers';
 import { $t } from '#/locales';

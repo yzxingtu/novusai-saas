@@ -56,17 +56,7 @@ import {
 import ValvesConfigPanel from '#/components/business/valves-config-panel/ValvesConfigPanel.vue';
 import {
   buildPageAIFormExtraData,
-  createCreateRecordPageOperation,
-  createKeywordSearchPageOperation,
-  createOpenCurrentPageOperation,
-  createPrefilledCreatePageOperation,
-  createRefreshPageOperation,
 } from '#/composables';
-import { createFormOperations } from '#/composables/use-ai-operations';
-import {
-  usePageAIContext,
-  usePageAIOperations,
-} from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 
@@ -79,7 +69,6 @@ import {
   getRuntimeBindingModeColor,
   getRuntimeBindingModeText,
   getSourceSummaryText,
-  usePackageFormSchema,
 } from './data';
 import PackageForm from './modules/form.vue';
 
@@ -411,10 +400,6 @@ function onOpenValvesConfig() {
   valvesConfigPanelRef.value?.open();
 }
 
-function openValvesConfigPanel() {
-  valvesConfigPanelRef.value?.open();
-}
-
 // ==================== 技能列表（右侧）/ skills list (right) ====================
 const skills = ref<AdminSkillInfo[]>([]);
 const skillsLoading = ref(false);
@@ -611,109 +596,6 @@ onMounted(() => {
   loadPackages();
 });
 
-const packageFormOps = createFormOperations({
-  pageKey: PKG_PAGE_KEY,
-  formSchema: usePackageFormSchema,
-  resource: '/admin/ai/skill-packages',
-});
-
-usePageAIContext({
-  resource: '/admin/ai/skill-packages',
-  entityName: () => $t('admin.ai.skillPackage.name'),
-  entityDescription: () => $t('admin.ai.skillPackage.pageDesc'),
-  data: () => ({
-    selected_package_has_valves_schema: !!selectedPackage.value?.valves_schema,
-    selected_package_id: selectedPackageId.value,
-    selected_package: selectedPackage.value?.name ?? null,
-    total_packages: packages.value.length,
-  }),
-});
-
-usePageAIOperations({
-  operationStrategy: 'append',
-  operations: [
-    createRefreshPageOperation({
-      description: 'Reload the skill package list / 重新加载技能包列表',
-      action: async () => {
-        await loadPackages();
-      },
-    }),
-    createCreateRecordPageOperation({
-      description: 'Open the skill package creation form / 打开技能包创建表单',
-      action: () => {
-        onCreatePackage();
-      },
-    }),
-    createKeywordSearchPageOperation({
-      description: 'Search skill packages by keyword / 按关键词搜索技能包',
-      setKeyword: (keyword) => {
-        searchKeyword.value = keyword;
-      },
-    }),
-    createPrefilledCreatePageOperation({
-      name: 'create_skill',
-      label: $t('admin.ai.skill.create'),
-      description:
-        'Open the create skill form for the currently selected package / 为当前选中的技能包打开新建技能表单',
-      params: {
-        description: {
-          type: 'string',
-          description: 'Skill description / 技能描述',
-        },
-        is_active: {
-          type: 'boolean',
-          description: 'Whether the skill should be active / 是否启用',
-        },
-        name: {
-          type: 'string',
-          description: 'Skill name / 技能名称',
-        },
-        timeout: {
-          type: 'number',
-          description: 'Skill timeout in seconds / 超时时间（秒）',
-        },
-        type: {
-          type: 'string',
-          enum: [
-            'toolkit',
-            'knowledge_base',
-            'builtin',
-            'http',
-            'email',
-            'code_execution',
-          ],
-          description: 'Skill type / 技能类型',
-        },
-      },
-      normalizeParams: (params) => ({
-        ...(params?.description ? { description: params.description } : {}),
-        ...(typeof params?.is_active === 'boolean'
-          ? { is_active: params.is_active }
-          : {}),
-        ...(params?.name ? { name: params.name } : {}),
-        ...(typeof params?.timeout === 'number'
-          ? { timeout: params.timeout }
-          : {}),
-        ...(params?.type ? { type: params.type } : {}),
-      }),
-      openCreate: async (overrides) => {
-        return openSkillCreateDrawer(overrides);
-      },
-    }),
-    createOpenCurrentPageOperation({
-      name: 'open_valves_config',
-      label: $t('admin.ai.skillPackage.valves.configBtn'),
-      description:
-        'Open the environment variable configuration panel for the selected skill package / 打开当前技能包的环境变量配置面板',
-      available: () => !!selectedPackage.value?.valves_schema,
-      unavailableMessage: $t('admin.ai.skillPackage.valves.noSchema'),
-      open: async () => {
-        openValvesConfigPanel();
-      },
-    }),
-    ...packageFormOps,
-  ],
-});
 </script>
 
 <template>

@@ -43,44 +43,24 @@ import type {
   DeletePreviewResult,
   DependencyGroup,
 } from '#/components/business/dependency-block-modal/service';
-import type { FormPopupApi } from '#/composables/use-ai-operations';
 
 import {
   computed,
   defineComponent,
   h,
-  onActivated,
-  onBeforeUnmount,
-  onDeactivated,
   ref,
 } from 'vue';
 import { useRoute } from 'vue-router';
 
 import { useVbenDrawer, useVbenModal } from '@vben/common-ui';
-import { preferences } from '@vben/preferences';
-import { resolveRouteMetaTitle } from '@vben/utils';
 
 import { message, Modal } from 'ant-design-vue';
 
 import {
-  appendPageOperations,
-  registerPageContextExtras,
-} from '#/components/business/ai-slide-panel';
-import { registerPageContext } from '#/components/business/ai-slide-panel/page-context-registry';
-import { normalizePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
-import {
   showDependencyBlockModal,
   showDependencyPreviewModal,
 } from '#/components/business/dependency-block-modal/service';
-import {
-  buildCrudListSummary,
-  buildCrudPaginationState,
-  compactCrudContextValues,
-  createStandardOperations,
-  extractFormParams,
-} from '#/composables/use-ai-operations';
-import { formStateTracker } from '#/composables/use-form-state-tracker';
-import { $t, $te } from '#/locales';
+import { $t } from '#/locales';
 import {
   getErrorData,
   getErrorStatus,
@@ -90,6 +70,7 @@ import { requestClient } from '#/utils/request';
 
 import { CrudGrid, RecycleBinDrawer, useExportModal } from './components';
 import { useGridSearchFormOptions, useVbenVxeGrid } from './use-vxe-grid';
+import { normalizePageKey, resolveRoutePageKey } from '#/components/business/ai-slide-panel/page-key-utils';
 
 /** Dependency blocked error code / 依赖阻止错误码 */
 const DEPENDENCY_BLOCKED_CODE = 4221;
@@ -163,17 +144,30 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
     gridOptions: extraGridOptions = {},
     ai,
   } = options;
-
   const route = useRoute();
-  const aiConfig = ai === false ? false : (ai ?? {});
-  const aiPageKey = aiConfig
-    ? normalizePageKey(
-        aiConfig.pageKey ??
-          ((route.meta?.ai as Record<string, unknown> | undefined)
-            ?.pageContextKey as string | undefined) ??
-          route.path,
-      )
-    : undefined;
+  const aiEnabled = ai !== false;
+  const explicitPageKey = computed(() => {
+    if (!aiEnabled) return '';
+    const raw = ai?.pageKey;
+    if (typeof raw === 'string' && raw.trim()) {
+      return normalizePageKey(raw.trim());
+    }
+    return '';
+  });
+  const defaultPageKey = computed(() => {
+    if (!aiEnabled) return '';
+    const fallbackPath =
+      typeof window !== 'undefined' ? window.location.pathname : '';
+    return normalizePageKey(
+      resolveRoutePageKey(route, fallbackPath),
+    );
+  });
+  const injectedPageKey = computed(
+    () => explicitPageKey.value || defaultPageKey.value,
+  );
+  const shouldInjectPageKey = computed(
+    () => aiEnabled && injectedPageKey.value.trim().length > 0,
+  );
 
   // ==================== Recycle bin config / 回收站配置 ====================
   const recycleBinEnabled = !!recycleBin;
@@ -217,15 +211,6 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
   // ==================== Export modal / 导出弹窗 ====================
   // Pre-declare gridApi (for closure reference) / 前置声明 gridApi（用于闭包引用）
   let gridApi: ReturnType<typeof useVbenVxeGrid>[1];
-  const aiCurrentRows = ref<unknown[]>([]);
-  const aiTotalRows = ref(0);
-  const aiCurrentPage = ref(1);
-  const aiCurrentPageSize = ref(
-    Number(
-      (extraGridOptions.pagerConfig as undefined | { pageSize?: number })
-        ?.pageSize ?? 15,
-    ),
-  );
   const quickSearchField = ref('');
   const quickSearchKeyword = ref('');
 
@@ -253,7 +238,9 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
         mode: 'add' as FormMode,
         _resource: api.resource,
         _defaults: defaults,
-        ...(aiPageKey ? { _aiPageKey: aiPageKey } : {}),
+        ...(shouldInjectPageKey.value
+          ? { _pageKey: injectedPageKey.value }
+          : {}),
       })
       .open();
   }
@@ -265,7 +252,9 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
         ...row,
         mode: 'edit' as FormMode,
         _resource: api.resource,
-        ...(aiPageKey ? { _aiPageKey: aiPageKey } : {}),
+        ...(shouldInjectPageKey.value
+          ? { _pageKey: injectedPageKey.value }
+          : {}),
       })
       .open();
   }
@@ -655,20 +644,12 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
       ajax: {
         query: async ({ page }: any, formValues: any) => {
           const processedValues = processFormValues(formValues);
-          aiCurrentPage.value = pager ? Number(page.currentPage ?? 1) : 1;
-          aiCurrentPageSize.value = pager
-            ? Number(page.pageSize ?? aiCurrentPageSize.value)
-            : 9999;
-
-          const result = await api.list({
+          return await api.list({
             ...processedValues,
             'page[number]': page.currentPage,
             'page[size]': page.pageSize,
             sort: defaultSort,
           });
-          aiCurrentRows.value = result.items as unknown[];
-          aiTotalRows.value = result.total;
-          return result;
         },
       },
     },
@@ -762,185 +743,6 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
     },
   });
 
-  function getVisibleColumnFields(): string[] {
-    const grid = gridApi?.grid as {
-      getTableColumn?: () => { fullColumn?: Array<{ field?: string }> };
-    };
-    const fullColumn = grid?.getTableColumn?.().fullColumn ?? [];
-    return fullColumn
-      .map((column) => column.field)
-      .filter(
-        (field): field is string =>
-          !!field &&
-          !field.startsWith('_') &&
-          field !== 'id' &&
-          field !== 'operation',
-      )
-      .slice(0, 6);
-  }
-
-  function getActiveFilters(): Record<string, unknown> {
-    const grid = gridApi?.grid as {
-      getProxyInfo?: () => null | { form?: Record<string, unknown> };
-    };
-    const proxyInfo = grid?.getProxyInfo?.();
-    return compactCrudContextValues(
-      processFormValues((proxyInfo?.form ?? {}) as Record<string, any>),
-    );
-  }
-
-  async function onAiSearch(
-    _params?: Record<string, unknown>,
-    state?: { rawFormValues?: Record<string, unknown> },
-  ) {
-    if (state?.rawFormValues && gridApi.formApi?.setValues) {
-      await gridApi.formApi.setValues(state.rawFormValues);
-    }
-    await gridApi.reload();
-  }
-
-  let cleanupAiOps: (() => void) | null = null;
-  let cleanupAiContextBase: (() => void) | null = null;
-  let cleanupAiContextExtras: (() => void) | null = null;
-
-  function cleanupAiBindings() {
-    cleanupAiOps?.();
-    cleanupAiOps = null;
-    cleanupAiContextExtras?.();
-    cleanupAiContextExtras = null;
-    cleanupAiContextBase?.();
-    cleanupAiContextBase = null;
-  }
-
-  function registerAiBindings() {
-    if (!aiConfig || !aiPageKey || cleanupAiOps || cleanupAiContextBase) {
-      return;
-    }
-
-    const resolveEntityName = () =>
-      aiConfig.entityName ??
-      resolveRouteMetaTitle(route.meta, {
-        hasLocaleKey: $te,
-        locale: preferences.app.locale,
-        translate: $t,
-      }) ??
-      '';
-    const formFieldDescriptors = aiConfig.formSchema
-      ? extractFormParams(aiConfig.formSchema(false))
-      : undefined;
-
-    const standardOps = createStandardOperations({
-      resource: api.resource,
-      loadList: async () => {
-        await gridApi.query();
-      },
-      onSearch: onAiSearch,
-      list: aiCurrentRows,
-      total: aiTotalRows,
-      currentPage: aiCurrentPage,
-      pageSize: aiCurrentPageSize,
-      setCurrentPage: async (page) => {
-        aiCurrentPage.value = page;
-        const grid = gridApi?.grid as {
-          setCurrentPage?: (value: number) => Promise<void>;
-        };
-        await grid?.setCurrentPage?.(page);
-      },
-      setPageSize: async (size) => {
-        aiCurrentPageSize.value = size;
-        aiCurrentPage.value = 1;
-        const grid = gridApi?.grid as {
-          setCurrentPage?: (value: number) => Promise<void>;
-          setPageSize?: (value: number) => Promise<void>;
-        };
-        await grid?.setPageSize?.(size);
-        await grid?.setCurrentPage?.(1);
-      },
-      formPopupApi: formPopupApi as FormPopupApi | null,
-      formDefaults,
-      searchSchema: searchSchema ? () => searchSchema : undefined,
-      formSchema: aiConfig.formSchema,
-      detailRoute: aiConfig.detailRoute,
-      hasRecycleBin: recycleBinEnabled,
-      openRecycleBin: recycleBinEnabled ? openRecycleBin : undefined,
-      openExportModal: showExportButton ? openExportModal : undefined,
-      disabled: aiConfig.disabled,
-      disabledCapabilities: aiConfig.disabledCapabilities,
-      disabledOperations: aiConfig.disabledOperations,
-      extra: aiConfig.extra,
-      pageKey: aiPageKey,
-      displayKeys: getVisibleColumnFields,
-    });
-
-    cleanupAiOps = appendPageOperations(aiPageKey, standardOps);
-    cleanupAiContextBase = registerPageContext(aiPageKey, () => ({
-      page_key: aiPageKey,
-      page_title: resolveEntityName() || aiPageKey,
-      page_data: {
-        resource: api.resource,
-      },
-    }));
-    cleanupAiContextExtras = registerPageContextExtras(aiPageKey, () => {
-      const pagination = buildCrudPaginationState({
-        currentPage: aiCurrentPage,
-        pageSize: aiCurrentPageSize,
-        total: aiTotalRows,
-      });
-      const listSummary = buildCrudListSummary(aiCurrentRows.value, {
-        currentPage: aiCurrentPage,
-        pageSize: aiCurrentPageSize,
-        total: aiTotalRows,
-        displayKeys: getVisibleColumnFields(),
-      });
-      const activeFilters = getActiveFilters();
-      const visibleColumns = getVisibleColumnFields();
-
-      return {
-        page_key: aiPageKey,
-        page_data: {
-          ...pagination,
-          total: aiTotalRows.value,
-          list_count: aiCurrentRows.value.length,
-          ...(resolveEntityName() ? { entity_name: resolveEntityName() } : {}),
-          ...(aiConfig.entityDescription
-            ? { entity_description: aiConfig.entityDescription }
-            : {}),
-          ...(aiConfig.formPurpose
-            ? { form_purpose: aiConfig.formPurpose }
-            : {}),
-          ...(formFieldDescriptors &&
-          Object.keys(formFieldDescriptors).length > 0
-            ? { form_fields: formFieldDescriptors }
-            : {}),
-          ...(formStateTracker.isOpen(aiPageKey) ? { form_is_open: true } : {}),
-          ...(visibleColumns.length > 0
-            ? { visible_columns: visibleColumns }
-            : {}),
-          ...(Object.keys(activeFilters).length > 0
-            ? { active_filters: activeFilters }
-            : {}),
-          ...(listSummary ? { list_summary: listSummary } : {}),
-          ...(aiConfig.contextExtras ? aiConfig.contextExtras() : {}),
-        },
-      };
-    });
-  }
-
-  registerAiBindings();
-
-  onDeactivated(() => {
-    cleanupAiBindings();
-  });
-
-  onActivated(() => {
-    registerAiBindings();
-  });
-
-  onBeforeUnmount(() => {
-    cleanupAiBindings();
-    if (aiPageKey) formStateTracker.close(aiPageKey);
-  });
-
   return {
     // Components / 组件
     Grid,
@@ -969,8 +771,5 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
     // Recycle bin / 回收站
     openRecycleBin,
     recycleBinRef,
-
-    // AI / 页面 AI 能力
-    aiPageKey,
   };
 }

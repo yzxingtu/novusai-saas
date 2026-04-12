@@ -34,14 +34,7 @@ import {
   getAIRateLimitListApi,
 } from '#/api/admin/ai';
 import { getTenantSelectApi } from '#/api/admin/tenant';
-import {
-  buildPageAIFormExtraData,
-  createOpenPageOperation,
-  createPrefilledCreatePageOperation,
-  createRecordActionPageOperation,
-  useCrudList,
-  usePageAIOperations,
-} from '#/composables';
+import { buildPageAIFormExtraData, useCrudList } from '#/composables';
 import { $t } from '#/locales';
 import { formatTokens } from '#/utils/format';
 
@@ -60,7 +53,6 @@ import {
   getScopeTypeText,
   getSourceColor,
   getSourceText,
-  useQuotaPageAiFormSchema,
 } from './data';
 import Form from './modules/form.vue';
 import RateLimitForm from './modules/RateLimitForm.vue';
@@ -83,21 +75,7 @@ interface RateLimitFormExposed {
   openNew: (extraData?: Record<string, unknown>) => void;
 }
 
-interface RateLimitCreateOperationParams extends Record<string, unknown> {
-  description?: string;
-  is_active?: boolean;
-  model_id?: number;
-  rpm_limit?: number;
-  tenant_id?: number;
-  tpm_limit?: number;
-}
-
-interface RateLimitRecordOperationParams extends Record<string, unknown> {
-  id: number;
-}
-
 const AI_PAGE_KEY = 'admin.ai.quotas';
-const RATE_LIMIT_RESOURCE = '/admin/ai/quotas/rate-limits';
 
 const activeTab = ref<'quotas' | 'rateLimits'>('quotas');
 const tenantOptions = ref<SelectOption[]>([]);
@@ -293,43 +271,6 @@ function handleQuotaTypeChange(value: unknown) {
   applyFilters();
 }
 
-function normalizeRateLimitCreateParams(
-  params: RateLimitCreateOperationParams,
-): RateLimitCreateOperationParams {
-  return {
-    ...(typeof params?.tenant_id === 'number'
-      ? { tenant_id: params.tenant_id }
-      : {}),
-    ...(typeof params?.model_id === 'number'
-      ? { model_id: params.model_id }
-      : {}),
-    ...(typeof params?.rpm_limit === 'number'
-      ? { rpm_limit: params.rpm_limit }
-      : {}),
-    ...(typeof params?.tpm_limit === 'number'
-      ? { tpm_limit: params.tpm_limit }
-      : {}),
-    ...(typeof params?.description === 'string' && params.description.trim()
-      ? { description: params.description.trim() }
-      : {}),
-    ...(typeof params?.is_active === 'boolean'
-      ? { is_active: params.is_active }
-      : {}),
-  };
-}
-
-function buildRateLimitFormAiData(options?: {
-  defaults?: Record<string, unknown>;
-  overrides?: Record<string, unknown>;
-}) {
-  return buildPageAIFormExtraData({
-    pageKey: AI_PAGE_KEY,
-    resource: RATE_LIMIT_RESOURCE,
-    ...(options?.defaults ? { defaults: options.defaults } : {}),
-    ...(options?.overrides ? { overrides: options.overrides } : {}),
-  });
-}
-
 function openRateLimitTab() {
   activeTab.value = 'rateLimits';
 }
@@ -345,18 +286,6 @@ function openRateLimitEdit(
 ) {
   openRateLimitTab();
   rateLimitFormRef.value?.openEdit(row, extraData);
-}
-
-function resolveRateLimitRecord(
-  params: Partial<RateLimitRecordOperationParams>,
-): AIRateLimitInfo | undefined {
-  const id = Number(params.id ?? 0);
-  if (!Number.isFinite(id) || id <= 0) {
-    return undefined;
-  }
-  return rateLimits.value.find((item) => item.id === id) as
-    | AIRateLimitInfo
-    | undefined;
 }
 
 const {
@@ -384,48 +313,6 @@ const {
   nameField: 'id',
   pageSize: 9,
   createPermission: 'ai_quota:create',
-  ai: {
-    pageKey: AI_PAGE_KEY,
-    formSchema: useQuotaPageAiFormSchema,
-    entityName: $t('admin.ai.quota.name'),
-    entityDescription: $t('admin.ai.quota.entityDescription'),
-    contextExtras: () => ({
-      active_tab: activeTab.value,
-      active_quota_rules: summary.value.active_quota_rules,
-      active_rate_limit_rules: summary.value.active_rate_limit_rules,
-      hard_quota_rules: summary.value.hard_quota_rules,
-      total_quota_rules: summary.value.total_quota_rules,
-      total_rate_limit_rules: summary.value.total_rate_limit_rules,
-    }),
-    extra: [
-      {
-        name: 'refresh_list',
-        label: $t('shared.pageOperation.refreshList'),
-        description: $t('admin.ai.quota.aiOps.refreshDescription'),
-        readonly: true,
-        handler: async () => {
-          await refreshAll();
-          return {
-            message: $t('shared.pageOperation.msg.listRefreshed'),
-            success: true,
-          };
-        },
-      },
-      {
-        name: 'create_record',
-        label: $t('shared.pageOperation.createRecord'),
-        description: $t('admin.ai.quota.aiOps.openCreateDescription'),
-        readonly: false,
-        handler: async () => {
-          openQuotaCreate();
-          return {
-            message: $t('shared.pageOperation.msg.createFormOpenedEmpty'),
-            success: true,
-          };
-        },
-      },
-    ],
-  },
 });
 
 const {
@@ -452,7 +339,7 @@ const {
   customActions: {
     edit: (row) =>
       openRateLimitEdit(row as AIRateLimitInfo, {
-        _aiPageKey: AI_PAGE_KEY,
+        ...buildPageAIFormExtraData({ pageKey: AI_PAGE_KEY }),
       }),
   },
 });
@@ -489,98 +376,6 @@ function progressStatus(isExceeded: boolean, isWarning: boolean) {
   if (isWarning) return 'active';
   return 'success';
 }
-
-usePageAIOperations({
-  pageKey: AI_PAGE_KEY,
-  operationStrategy: 'append',
-  operations: [
-    createOpenPageOperation({
-      name: 'open_rate_limit_tab',
-      label: $t('admin.ai.rateLimit.title'),
-      description: $t('admin.ai.rateLimit.aiOps.openTabDescription'),
-      open: async () => {
-        openRateLimitTab();
-      },
-    }),
-    createPrefilledCreatePageOperation<RateLimitCreateOperationParams>({
-      name: 'create_rate_limit_rule',
-      label: $t('admin.ai.rateLimit.create'),
-      description: $t('admin.ai.rateLimit.aiOps.openCreateDescription'),
-      params: {
-        tenant_id: {
-          type: 'number',
-          description: $t('admin.ai.rateLimit.tenantId'),
-        },
-        model_id: {
-          type: 'number',
-          description: $t('admin.ai.rateLimit.modelId'),
-        },
-        rpm_limit: {
-          type: 'number',
-          description: $t('admin.ai.rateLimit.rpmLimit'),
-        },
-        tpm_limit: {
-          type: 'number',
-          description: $t('admin.ai.rateLimit.tpmLimit'),
-        },
-        description: {
-          type: 'string',
-          description: $t('admin.ai.rateLimit.description'),
-        },
-        is_active: {
-          type: 'boolean',
-          description: $t('admin.ai.rateLimit.isActive'),
-        },
-      },
-      normalizeParams: normalizeRateLimitCreateParams,
-      openCreate: async (defaults) => {
-        openRateLimitCreate(buildRateLimitFormAiData({ defaults }));
-      },
-    }),
-    createRecordActionPageOperation<
-      AIRateLimitInfo,
-      RateLimitRecordOperationParams
-    >({
-      name: 'edit_rate_limit_rule',
-      label: $t('common.edit'),
-      description: $t('admin.ai.rateLimit.aiOps.openEditDescription'),
-      params: {
-        id: {
-          type: 'number',
-          description: $t('admin.ai.rateLimit.aiOps.ruleId'),
-          required: true,
-        },
-      },
-      resolveRecord: resolveRateLimitRecord,
-      resolveRecordId: (params) => params.id,
-      action: async (record) => {
-        openRateLimitEdit(record, {
-          _aiPageKey: AI_PAGE_KEY,
-        });
-      },
-    }),
-    createRecordActionPageOperation<
-      AIRateLimitInfo,
-      RateLimitRecordOperationParams
-    >({
-      name: 'delete_rate_limit_rule',
-      label: $t('common.delete'),
-      description: $t('admin.ai.rateLimit.aiOps.deleteDescription'),
-      params: {
-        id: {
-          type: 'number',
-          description: $t('admin.ai.rateLimit.aiOps.ruleId'),
-          required: true,
-        },
-      },
-      resolveRecord: resolveRateLimitRecord,
-      resolveRecordId: (params) => params.id,
-      action: async (record) => {
-        await handleRateLimitDelete(record as AIRateLimitDiagnosticInfo);
-      },
-    }),
-  ],
-});
 
 onMounted(async () => {
   await Promise.all([loadSummary(), loadSelectOptions()]);
@@ -690,7 +485,11 @@ onMounted(async () => {
             v-else
             v-access:code="['ai_quota:create_rate_limit']"
             type="primary"
-            @click="openRateLimitCreate({ _aiPageKey: AI_PAGE_KEY })"
+            @click="
+              openRateLimitCreate(
+                buildPageAIFormExtraData({ pageKey: AI_PAGE_KEY }),
+              )
+            "
           >
             {{ $t('admin.ai.rateLimit.create') }}
           </Button>
@@ -967,7 +766,10 @@ onMounted(async () => {
                       size="small"
                       type="text"
                       @click="
-                        openRateLimitEdit(item, { _aiPageKey: AI_PAGE_KEY })
+                        openRateLimitEdit(
+                          item,
+                          buildPageAIFormExtraData({ pageKey: AI_PAGE_KEY }),
+                        )
                       "
                     >
                       <template #icon>

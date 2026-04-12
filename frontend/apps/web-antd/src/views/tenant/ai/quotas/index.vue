@@ -28,7 +28,7 @@ import {
   getTenantRateLimitsApi,
 } from '#/api/tenant/ai';
 import AIPageHeroCard from '#/components/business/ai-page-hero/AIPageHeroCard.vue';
-import { createRefreshPageOperation, useCrudList } from '#/composables';
+import { useCrudList } from '#/composables';
 import { $t } from '#/locales';
 
 import {
@@ -88,24 +88,6 @@ const {
       : [],
     total: Array.isArray(data) ? (data as unknown[]).length : 0,
   }),
-  ai: {
-    entityDescription: $t('tenant.ai.quota.pageDesc'),
-    entityName: $t('tenant.ai.quota.name'),
-    contextExtras: (): Record<string, number> => ({
-      active_rate_limit_count: rateLimits.value.filter((item) => item.is_active)
-        .length,
-      quota_rule_count: displayedQuotas.value.length,
-      rate_limit_count: rateLimits.value.length,
-    }),
-    extra: [
-      createRefreshPageOperation({
-        description: 'Reload quotas and rate limits / 重新加载配额与速率限制',
-        action: async () => {
-          await refreshAll();
-        },
-      }),
-    ],
-  },
 });
 
 const {
@@ -123,7 +105,6 @@ const {
     items: Array.isArray(data) ? (data as TenantRateLimitInfo[]) : [],
     total: Array.isArray(data) ? (data as unknown[]).length : 0,
   }),
-  ai: false,
 });
 
 const displayedQuotas = computed(() =>
@@ -309,10 +290,6 @@ function applyFilters() {
     ...(quotaPeriod.value ? { period: quotaPeriod.value } : {}),
   });
   searchRateLimits(buildSharedSearchParams());
-}
-
-async function refreshAll() {
-  applyFilters();
 }
 
 function handleModelFilterChange(value: unknown) {
