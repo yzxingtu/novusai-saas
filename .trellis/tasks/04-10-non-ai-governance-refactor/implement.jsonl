@@ -103,3 +103,5 @@
 {"file": "backend/app/services/system/tenant_admin_workflow_service.py", "reason": "Reject empty tenant-admin update payloads in the workflow service instead of silently succeeding on a no-op request"}
 {"file": "frontend/apps/web-antd/src/views/admin/system/codegen/modules/__tests__/preview-builders.test.ts", "reason": "Lock the WYSIWYG preview builder fallback path and first-row default parsing with a focused seam test"}
 {"file": "frontend/apps/web-antd/src/views/admin/system/system-logs/__tests__/SystemLogToolbar.slice.test.ts", "reason": "Lock toolbar chip rendering and disabled download/copy states with a focused system-log shell slice test"}
+{"file": "frontend/apps/web-antd/src/views/admin/plugins/modules/plugin-config-drawer/use-plugin-config-drawer.ts", "reason": "Guard plugin config schema parsing so malformed manifest properties fail closed instead of becoming bogus config fields"}
+{"file": "frontend/apps/web-antd/src/views/admin/plugins/modules/plugin-config-drawer/__tests__/use-plugin-config-drawer.test.ts", "reason": "Lock malformed plugin config schema handling so invalid properties are skipped while valid fields still render"}

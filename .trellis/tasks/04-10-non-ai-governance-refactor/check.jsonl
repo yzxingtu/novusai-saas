@@ -87,3 +87,4 @@
 {"file": "backend/tests/services/test_tenant_admin_workflow_services.py", "reason": "Verify tenant-admin workflow rejects empty update payloads instead of silently succeeding"}
 {"file": "frontend/apps/web-antd/src/views/admin/system/codegen/modules/__tests__/preview-builders.test.ts", "reason": "Verify preview builders keep fallback columns and first-row default parsing stable for WYSIWYG list preview"}
 {"file": "frontend/apps/web-antd/src/views/admin/system/system-logs/__tests__/SystemLogToolbar.slice.test.ts", "reason": "Verify system-log toolbar shell keeps chips and disabled action states stable"}
+{"file": "frontend/apps/web-antd/src/views/admin/plugins/modules/plugin-config-drawer/__tests__/use-plugin-config-drawer.test.ts", "reason": "Verify plugin-config-drawer skips malformed manifest config schema entries while preserving valid fields"}

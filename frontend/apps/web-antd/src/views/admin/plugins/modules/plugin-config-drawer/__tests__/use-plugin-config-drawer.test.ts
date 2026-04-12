@@ -359,4 +359,44 @@ describe('usePluginConfigDrawer', () => {
       'admin.plugin.invalidJson',
     );
   });
+
+  it('ignores malformed config schema properties instead of synthesizing bogus fields', async () => {
+    const plugin = createPlugin({
+      id: 41,
+      manifest: {
+        config_schema: {
+          properties: {
+            broken: 'oops',
+            retries: {
+              default: 3,
+              enum: ['auto', 1],
+              minimum: '1',
+              title: {
+                'zh-CN': '重试次数',
+                en: 'Retries',
+              },
+              type: 'number',
+            },
+          },
+        },
+      },
+    });
+
+    mockRefs.getPluginDetailApi.mockResolvedValue({ data: plugin });
+
+    const drawer = usePluginConfigDrawer({ onSaved: vi.fn() });
+
+    await drawer.open(plugin);
+
+    expect(drawer.configSchemaFields.value).toEqual([
+      expect.objectContaining({
+        default: 3,
+        enum: ['auto'],
+        key: 'retries',
+        minimum: undefined,
+        title: '重试次数',
+        type: 'number',
+      }),
+    ]);
+  });
 });

@@ -58,8 +58,12 @@ interface UploadRequestOptions {
   onSuccess?: (body: unknown) => void;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 function isDataEnvelope<T>(value: unknown): value is { data: T } {
-  return typeof value === 'object' && value !== null && 'data' in value;
+  return isRecord(value) && 'data' in value;
 }
 
 function normalizeObjectResponse<T extends object>(
@@ -124,9 +128,12 @@ export function usePluginConfigDrawer(options: UsePluginConfigDrawerOptions) {
 
   const needsTenantAssignment = computed(() => {
     if (!plugin.value) return false;
+    const manifest = isRecord(plugin.value.manifest)
+      ? plugin.value.manifest
+      : undefined;
     const scope =
       plugin.value.scope ||
-      (plugin.value.manifest as Record<string, unknown>)?.scope;
+      manifest?.scope;
     return scopeNeedsAssignment(String(scope || ''));
   });
 
@@ -145,41 +152,45 @@ export function usePluginConfigDrawer(options: UsePluginConfigDrawerOptions) {
   );
 
   const configSchemaFields = computed<ConfigField[]>(() => {
-    const manifest = plugin.value?.manifest as
-      | Record<string, unknown>
-      | undefined;
-    const schema = manifest?.config_schema as
-      | Record<string, unknown>
-      | undefined;
-    if (!schema || !schema.properties) return [];
-    const props = schema.properties as Record<string, Record<string, unknown>>;
+    const manifest = isRecord(plugin.value?.manifest)
+      ? plugin.value.manifest
+      : undefined;
+    const schema = isRecord(manifest?.config_schema)
+      ? manifest.config_schema
+      : undefined;
+    const properties = schema?.properties;
+    if (!isRecord(properties)) return [];
     const locale = currentLocale.value;
-    return Object.entries(props).map(([key, prop]) => {
+    return Object.entries(properties).flatMap(([key, rawProp]) => {
+      if (!isRecord(rawProp)) return [];
+      const prop = rawProp;
       const titleRaw = prop.title;
       const descRaw = prop.description;
       const title =
-        typeof titleRaw === 'object' && titleRaw !== null
+        isRecord(titleRaw)
           ? (titleRaw as Record<string, string>)[locale] ||
             (titleRaw as Record<string, string>).en ||
             key
           : String(titleRaw || key);
       const description =
-        typeof descRaw === 'object' && descRaw !== null
+        isRecord(descRaw)
           ? (descRaw as Record<string, string>)[locale] ||
             (descRaw as Record<string, string>).en ||
             ''
           : String(descRaw || '');
-      return {
+      return [{
         key,
         format: typeof prop.format === 'string' ? prop.format : undefined,
         type: String(prop.type || 'string'),
         title,
         description,
         default: prop.default,
-        enum: prop.enum as string[] | undefined,
-        minimum: prop.minimum as number | undefined,
-        maximum: prop.maximum as number | undefined,
-      };
+        enum: Array.isArray(prop.enum)
+          ? prop.enum.filter((item): item is string => typeof item === 'string')
+          : undefined,
+        minimum: typeof prop.minimum === 'number' ? prop.minimum : undefined,
+        maximum: typeof prop.maximum === 'number' ? prop.maximum : undefined,
+      }];
     });
   });
 

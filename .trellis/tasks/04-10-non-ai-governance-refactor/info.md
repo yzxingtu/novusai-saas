@@ -194,6 +194,10 @@
   - system-logs toolbar 壳层切片：分类/文件 chips 与 download/copy 禁用状态保持稳定。
 - `frontend/apps/web-antd/src/views/admin/system/codegen/modules/__tests__/preview-builders.test.ts`
   - codegen WYSIWYG 列表预览构建：当全部字段被标记为不显示时仍会回退列构建，首行默认值解析保持稳定。
+- `frontend/apps/web-antd/src/views/admin/plugins/modules/plugin-config-drawer/use-plugin-config-drawer.ts`
+  - plugin-config-drawer 对 `manifest.config_schema.properties` 改为运行时 guard：异常 schema 不再被误解析成伪字段，非法 `enum/minimum/maximum` 也不会静默污染 UI 配置表单。
+- `frontend/apps/web-antd/src/views/admin/plugins/modules/plugin-config-drawer/__tests__/use-plugin-config-drawer.test.ts`
+  - plugin-config-drawer 新增 malformed schema 用例，锁住“跳过坏字段、保留合法字段”的 fail-close 行为。
 - `backend/tests/services/test_plugin_read_model_service.py`
   - plugin registry fail-close 清理：当 unregister handler 抛错时，permission / notification / skill runtime caches 仍必须被清空。
 - `backend/tests/services/test_tenant_admin_workflow_services.py`
@@ -389,5 +393,7 @@
   - 结果：`7 passed`。
 - `pnpm --dir frontend test:unit -- preview-builders SystemLogToolbar.slice`
   - 结果：`2 files passed / 4 tests passed`。
+- `pnpm --dir frontend exec vitest run apps/web-antd/src/views/admin/plugins/modules/plugin-config-drawer/__tests__/use-plugin-config-drawer.test.ts`
+  - 结果：`1 file passed / 4 tests passed`。
 - `pnpm --dir frontend exec vue-tsc --noEmit --skipLibCheck --pretty false -p apps/web-antd/tsconfig.json`
   - 结果：通过。
