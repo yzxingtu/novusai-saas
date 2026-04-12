@@ -48,6 +48,8 @@ import {
   getRuntimeBindingModeText,
   getSourceSummaryText,
 } from './data';
+import SkillPackageDetailHero from './modules/detail/SkillPackageDetailHero.vue';
+import SkillPackageOverviewTab from './modules/detail/SkillPackageOverviewTab.vue';
 
 defineOptions({ name: 'AdminSkillPackageDetail' });
 
@@ -534,138 +536,22 @@ onMounted(() => {
       </div>
 
       <div v-if="pkg" class="flex flex-col gap-4">
-        <div
-          class="relative overflow-hidden rounded-xl border bg-card shadow-sm"
-        >
-          <div
-            class="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent"
-          ></div>
-
-          <div class="relative p-6">
-            <div class="mb-5 flex items-center justify-between gap-4">
-              <button
-                class="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-                @click="goBack"
-              >
-                <IconifyIcon icon="lucide:chevron-left" class="size-4" />
-                {{ $t('common.back') }}
-              </button>
-
-              <div class="flex flex-wrap items-center gap-2">
-                <Button size="small" @click="openWorkspace()">
-                  <IconifyIcon
-                    icon="lucide:layout-panel-left"
-                    class="mr-1 size-3.5"
-                  />
-                  {{ $t('admin.ai.skillPackage.detail.openWorkspace') }}
-                </Button>
-                <Button size="small" @click="focusTab('tools')">
-                  <IconifyIcon icon="lucide:wrench" class="mr-1 size-3.5" />
-                  {{ $t('admin.ai.skillPackage.detail.tools') }}
-                </Button>
-                <Button
-                  size="small"
-                  :disabled="!hasValves"
-                  @click="focusTab('valves')"
-                >
-                  <IconifyIcon icon="lucide:settings-2" class="mr-1 size-3.5" />
-                  {{ $t('admin.ai.skillPackage.valves.title') }}
-                </Button>
-              </div>
-            </div>
-
-            <div class="flex items-start gap-5">
-              <div
-                class="flex size-16 shrink-0 items-center justify-center rounded-2xl shadow-sm ring-2 ring-offset-2 ring-offset-card"
-                :class="getPackageHeroClass()"
-              >
-                <IconifyIcon
-                  :icon="getPackageIcon(pkg.avatar)"
-                  class="size-8"
-                />
-              </div>
-
-              <div class="min-w-0 flex-1">
-                <h1 class="mb-1 text-xl font-bold text-foreground">
-                  {{ pkg.name }}
-                </h1>
-                <p class="mb-4 text-sm text-muted-foreground">
-                  {{
-                    pkg.description ||
-                    $t('admin.ai.skillPackage.detail.noDescription')
-                  }}
-                </p>
-
-                <div class="flex flex-wrap items-center gap-2">
-                  <Tag
-                    :color="getPackageRoleColor(pkg.package_role_key)"
-                    class="!mr-0 !text-xs"
-                  >
-                    {{ getPackageRoleText(pkg.package_role_key) }}
-                  </Tag>
-                  <Tag
-                    :color="getPackageStatusColor(pkg.is_active)"
-                    class="!mr-0 !text-xs"
-                  >
-                    {{ getPackageStatusText(pkg.is_active) }}
-                  </Tag>
-                  <Tag
-                    :color="
-                      getRuntimeBindingModeColor(pkg.runtime_binding_mode)
-                    "
-                    class="!mr-0 !text-xs"
-                  >
-                    {{ getRuntimeBindingModeText(pkg.runtime_binding_mode) }}
-                  </Tag>
-                  <Tag
-                    v-if="pkg.is_recommended"
-                    color="gold"
-                    class="!mr-0 !text-xs"
-                  >
-                    <div class="flex items-center gap-1">
-                      <IconifyIcon icon="lucide:star" class="size-3" />
-                      {{ $t('admin.ai.skillPackage.isRecommended') }}
-                    </div>
-                  </Tag>
-                  <div
-                    class="flex items-center gap-1.5 rounded-lg border border-border/50 bg-background px-3 py-1 text-xs text-foreground"
-                  >
-                    <IconifyIcon
-                      icon="lucide:boxes"
-                      class="size-3.5 text-primary/70"
-                    />
-                    {{ pkg.skill_count }}
-                    {{ $t('admin.ai.skillPackage.skillCount') }}
-                  </div>
-                  <div
-                    class="flex items-center gap-1.5 rounded-lg border border-border/50 bg-background px-3 py-1 text-xs text-foreground"
-                  >
-                    <IconifyIcon
-                      icon="lucide:link-2"
-                      class="size-3.5 text-primary/70"
-                    />
-                    {{
-                      getSourceSummaryText(
-                        pkg.source_summary,
-                        pkg.source_plugin,
-                      )
-                    }}
-                  </div>
-                  <div
-                    v-if="pkg.source_plugin"
-                    class="flex items-center gap-1.5 rounded-lg border border-border/50 bg-background px-3 py-1 text-xs text-foreground"
-                  >
-                    <IconifyIcon
-                      icon="lucide:plug"
-                      class="size-3.5 text-primary/70"
-                    />
-                    {{ pkg.source_plugin }}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <SkillPackageDetailHero
+          :focus-tab="focusTab"
+          :get-package-hero-class="getPackageHeroClass"
+          :get-package-icon="getPackageIcon"
+          :get-package-role-color="getPackageRoleColor"
+          :get-package-role-text="getPackageRoleText"
+          :get-package-status-color="getPackageStatusColor"
+          :get-package-status-text="getPackageStatusText"
+          :get-runtime-binding-mode-color="getRuntimeBindingModeColor"
+          :get-runtime-binding-mode-text="getRuntimeBindingModeText"
+          :get-source-summary-text="getSourceSummaryText"
+          :go-back="goBack"
+          :has-valves="hasValves"
+          :open-workspace="openWorkspace"
+          :pkg="pkg"
+        />
 
         <div class="rounded-xl border bg-card">
           <Tabs v-model:active-key="activeTab" class="px-2 pt-1">
@@ -680,309 +566,24 @@ onMounted(() => {
                 </span>
               </template>
 
-              <div class="flex flex-col gap-5 p-5 pt-3">
-                <Alert
-                  :message="$t('admin.ai.skillPackage.detail.runtimeTruthHint')"
-                  type="info"
-                  show-icon
-                />
-
-                <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
-                  <div
-                    v-for="stat in overviewStats"
-                    :key="stat.labelKey"
-                    class="rounded-xl border bg-accent/30 p-4"
-                  >
-                    <div class="mb-1.5 flex items-center gap-1.5">
-                      <IconifyIcon
-                        :icon="stat.icon"
-                        class="size-3.5 text-muted-foreground"
-                      />
-                      <span class="text-xs text-muted-foreground">
-                        {{ $t(stat.labelKey) }}
-                      </span>
-                    </div>
-                    <div :class="stat.valueClass">
-                      {{ stat.value }}
-                    </div>
-                  </div>
-                </div>
-
-                <div class="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-                  <div class="rounded-xl border bg-accent/30 p-5">
-                    <div class="mb-4 flex items-center gap-2">
-                      <div
-                        class="flex size-7 items-center justify-center rounded-lg bg-primary/10"
-                      >
-                        <IconifyIcon
-                          icon="lucide:package-open"
-                          class="size-4 text-primary"
-                        />
-                      </div>
-                      <span class="text-sm font-semibold">
-                        {{ $t('admin.ai.skillPackage.detail.basicInfo') }}
-                      </span>
-                    </div>
-
-                    <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                      <div
-                        class="rounded-lg border bg-background px-4 py-3 md:col-span-2"
-                      >
-                        <div class="text-xs text-muted-foreground">
-                          {{ $t('admin.ai.skillPackage.description') }}
-                        </div>
-                        <div
-                          class="mt-1 text-sm leading-relaxed text-foreground"
-                        >
-                          {{
-                            pkg.description ||
-                            $t('admin.ai.skillPackage.detail.noDescription')
-                          }}
-                        </div>
-                      </div>
-
-                      <div class="rounded-lg border bg-background px-4 py-3">
-                        <div class="text-xs text-muted-foreground">
-                          {{ $t('admin.ai.skillPackage.packageRole') }}
-                        </div>
-                        <div class="mt-1">
-                          <Tag
-                            :color="getPackageRoleColor(pkg.package_role_key)"
-                            class="!mr-0 !text-xs"
-                          >
-                            {{ getPackageRoleText(pkg.package_role_key) }}
-                          </Tag>
-                        </div>
-                      </div>
-
-                      <div class="rounded-lg border bg-background px-4 py-3">
-                        <div class="text-xs text-muted-foreground">
-                          {{ $t('admin.ai.skillPackage.runtimeBinding') }}
-                        </div>
-                        <div class="mt-1">
-                          <Tag
-                            :color="
-                              getRuntimeBindingModeColor(
-                                pkg.runtime_binding_mode,
-                              )
-                            "
-                            class="!mr-0 !text-xs"
-                          >
-                            {{
-                              getRuntimeBindingModeText(
-                                pkg.runtime_binding_mode,
-                              )
-                            }}
-                          </Tag>
-                        </div>
-                      </div>
-
-                      <div class="rounded-lg border bg-background px-4 py-3">
-                        <div class="text-xs text-muted-foreground">
-                          {{ $t('admin.ai.skillPackage.isActive') }}
-                        </div>
-                        <div class="mt-1">
-                          <Tag
-                            :color="getPackageStatusColor(pkg.is_active)"
-                            class="!mr-0 !text-xs"
-                          >
-                            {{ getPackageStatusText(pkg.is_active) }}
-                          </Tag>
-                        </div>
-                      </div>
-
-                      <div class="rounded-lg border bg-background px-4 py-3">
-                        <div class="text-xs text-muted-foreground">
-                          {{ $t('admin.ai.skillPackage.isRecommended') }}
-                        </div>
-                        <div class="mt-1 text-sm font-medium text-foreground">
-                          {{
-                            pkg.is_recommended
-                              ? $t('admin.ai.skillPackage.detail.yes')
-                              : $t('admin.ai.skillPackage.detail.no')
-                          }}
-                        </div>
-                      </div>
-
-                      <div class="rounded-lg border bg-background px-4 py-3">
-                        <div class="text-xs text-muted-foreground">
-                          {{ $t('admin.ai.skillPackage.sortOrder') }}
-                        </div>
-                        <div class="mt-1 text-sm font-medium text-foreground">
-                          {{ pkg.sort_order }}
-                        </div>
-                      </div>
-
-                      <div class="rounded-lg border bg-background px-4 py-3">
-                        <div class="text-xs text-muted-foreground">
-                          {{ $t('admin.ai.skillPackage.sourceSummary') }}
-                        </div>
-                        <div class="mt-1 text-sm font-medium text-foreground">
-                          {{
-                            getSourceSummaryText(
-                              pkg.source_summary,
-                              pkg.source_plugin,
-                            )
-                          }}
-                        </div>
-                      </div>
-
-                      <div class="rounded-lg border bg-background px-4 py-3">
-                        <div class="text-xs text-muted-foreground">
-                          {{ $t('admin.ai.skillPackage.detail.tenantName') }}
-                        </div>
-                        <div class="mt-1 text-sm font-medium text-foreground">
-                          {{
-                            pkg.tenant_id === null
-                              ? $t(
-                                  'admin.ai.skillPackage.detail.platformManaged',
-                                )
-                              : `#${pkg.tenant_id}`
-                          }}
-                        </div>
-                      </div>
-
-                      <div class="rounded-lg border bg-background px-4 py-3">
-                        <div class="text-xs text-muted-foreground">
-                          {{ $t('admin.common.createdAt') }}
-                        </div>
-                        <div class="mt-1 text-sm font-medium text-foreground">
-                          {{ formatRelativeTime(pkg.created_at) }}
-                        </div>
-                      </div>
-
-                      <div
-                        class="rounded-lg border bg-background px-4 py-3 md:col-span-2"
-                      >
-                        <div class="text-xs text-muted-foreground">
-                          {{ $t('admin.ai.skillPackage.detail.updatedAt') }}
-                        </div>
-                        <div class="mt-1 text-sm font-medium text-foreground">
-                          {{ formatRelativeTime(pkg.updated_at) }}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="flex flex-col gap-4">
-                    <div class="rounded-xl border bg-accent/30 p-5">
-                      <div class="mb-4 flex items-center justify-between gap-3">
-                        <div class="flex items-center gap-2">
-                          <div
-                            class="flex size-7 items-center justify-center rounded-lg bg-cyan-500/10"
-                          >
-                            <IconifyIcon
-                              icon="lucide:wrench"
-                              class="size-4 text-cyan-500"
-                            />
-                          </div>
-                          <span class="text-sm font-semibold">
-                            {{ $t('admin.ai.skillPackage.detail.tools') }}
-                          </span>
-                        </div>
-                        <Button
-                          size="small"
-                          type="link"
-                          @click="focusTab('tools')"
-                        >
-                          {{ $t('shared.common.viewDetail') }}
-                        </Button>
-                      </div>
-
-                      <div
-                        v-if="resolvedTools.length === 0"
-                        class="rounded-lg border border-dashed bg-background px-4 py-6 text-center text-sm text-muted-foreground"
-                      >
-                        {{ $t('admin.ai.skillPackage.detail.noTools') }}
-                      </div>
-
-                      <div v-else class="flex flex-col gap-3">
-                        <div
-                          v-for="tool in resolvedTools.slice(0, 3)"
-                          :key="tool.name"
-                          class="rounded-lg border bg-background px-4 py-3"
-                        >
-                          <div class="flex items-start justify-between gap-3">
-                            <div class="min-w-0 flex-1">
-                              <div class="flex items-center gap-2">
-                                <IconifyIcon
-                                  :icon="getToolTypeIcon(tool.tool_type)"
-                                  class="size-4 text-primary/80"
-                                />
-                                <span
-                                  class="truncate font-mono text-sm font-semibold"
-                                >
-                                  {{ tool.name }}
-                                </span>
-                              </div>
-                              <div class="mt-1 text-xs text-muted-foreground">
-                                {{ tool.source_skill_name }}
-                              </div>
-                            </div>
-                            <Tag
-                              v-if="tool.tool_type"
-                              :color="getToolTypeColor(tool.tool_type)"
-                              class="!mr-0 !text-[11px]"
-                            >
-                              {{ getToolTypeText(tool.tool_type) }}
-                            </Tag>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div class="rounded-xl border bg-accent/30 p-5">
-                      <div class="mb-4 flex items-center justify-between gap-3">
-                        <div class="flex items-center gap-2">
-                          <div
-                            class="flex size-7 items-center justify-center rounded-lg bg-emerald-500/10"
-                          >
-                            <IconifyIcon
-                              icon="lucide:key-round"
-                              class="size-4 text-emerald-500"
-                            />
-                          </div>
-                          <span class="text-sm font-semibold">
-                            {{ $t('admin.ai.skillPackage.valves.title') }}
-                          </span>
-                        </div>
-                        <Button
-                          size="small"
-                          type="link"
-                          :disabled="!hasValves"
-                          @click="focusTab('valves')"
-                        >
-                          {{ $t('shared.common.viewDetail') }}
-                        </Button>
-                      </div>
-
-                      <div
-                        v-if="!hasValves"
-                        class="rounded-lg border border-dashed bg-background px-4 py-6 text-center text-sm text-muted-foreground"
-                      >
-                        {{ $t('admin.ai.skillPackage.valves.noSchema') }}
-                      </div>
-
-                      <div v-else class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                        <div
-                          v-for="stat in valveSummaryStats"
-                          :key="stat.labelKey"
-                          class="rounded-lg border bg-background px-4 py-3"
-                        >
-                          <div class="text-xs text-muted-foreground">
-                            {{ $t(stat.labelKey) }}
-                          </div>
-                          <div
-                            class="mt-1 text-lg font-semibold text-foreground"
-                          >
-                            {{ stat.value }}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <SkillPackageOverviewTab
+                :focus-tab="focusTab"
+                :get-package-role-color="getPackageRoleColor"
+                :get-package-role-text="getPackageRoleText"
+                :get-package-status-color="getPackageStatusColor"
+                :get-package-status-text="getPackageStatusText"
+                :get-runtime-binding-mode-color="getRuntimeBindingModeColor"
+                :get-runtime-binding-mode-text="getRuntimeBindingModeText"
+                :get-source-summary-text="getSourceSummaryText"
+                :get-tool-type-color="getToolTypeColor"
+                :get-tool-type-icon="getToolTypeIcon"
+                :get-tool-type-text="getToolTypeText"
+                :has-valves="hasValves"
+                :overview-stats="overviewStats"
+                :pkg="pkg"
+                :resolved-tools="resolvedTools"
+                :valve-summary-stats="valveSummaryStats"
+              />
             </TabPane>
 
             <TabPane key="skills">
