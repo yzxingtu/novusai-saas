@@ -675,6 +675,7 @@ async def test_conversation_engine_stream_logs_platform_admin_calls_without_mete
     assert kwargs["user_id"] == 7
     assert kwargs["user_type"] == LogUserTypeEnum.ADMIN.value
     assert kwargs["call_type"] == "main_chat"
+    assert kwargs["cost"] == 0.123
     assert kwargs["response_data"]["model"] == "gpt-5.4-xhigh"
     api_key.increment_usage.assert_called_once()
     mock_db.flush.assert_awaited_once()
