@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
+from app.ai.runtime.contracts import PAGE_CONTEXT_KEY
 
 
 def text(value: Any, *, max_length: int) -> str | None:
@@ -45,4 +45,3 @@ def user_role_to_namespace(user_role: str) -> str:
     if user_role == "tenant_user":
         return "/user"
     return "/tenant"
-

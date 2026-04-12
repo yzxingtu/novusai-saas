@@ -16,6 +16,33 @@ from .tool_execution_helpers import (
 from .tool_execution_helpers import (
     synthesize_tool_results_from_calls as _synthesize_tool_results_from_calls_impl,
 )
+from .turn_executor_completion import (
+    completed_tool_intent_families as _completed_tool_intent_families_impl,
+)
+from .turn_executor_completion import (
+    latest_auto_fetch_gate_reason as _latest_auto_fetch_gate_reason_impl,
+)
+from .turn_executor_completion import (
+    post_tool_completion_state as _post_tool_completion_state_impl,
+)
+from .turn_executor_completion import (
+    response_has_visible_content as _response_has_visible_content_impl,
+)
+from .turn_executor_completion import (
+    should_complete_from_budgeted_web_research_evidence as _should_complete_from_budgeted_web_research_evidence_impl,
+)
+from .turn_executor_contracts import (
+    constrain_retry_policy_to_active_intent as _constrain_retry_policy_to_active_intent_impl,
+)
+from .turn_executor_contracts import (
+    record_contract_breach as _record_contract_breach_impl,
+)
+from .turn_executor_contracts import (
+    suppress_contract_placeholder_response as _suppress_contract_placeholder_response_impl,
+)
+from .turn_executor_events import (
+    emit_round_started as _emit_round_started_impl,
+)
 from .turn_executor_helpers import (
     active_intent as _active_intent_impl,
 )
@@ -31,7 +58,22 @@ from .turn_executor_helpers import (
 from .turn_executor_helpers import (
     register_tool_round_delta as _register_tool_round_delta_impl,
 )
-from .types import RecoveryDecision, ToolUsePolicy
+from .turn_executor_rounds import (
+    intent_requires_clarification as _intent_requires_clarification_impl,
+)
+from .turn_executor_rounds import (
+    run_missing_args_clarification as _run_missing_args_clarification_impl,
+)
+from .turn_executor_rounds import (
+    run_post_tool_follow_up_round as _run_post_tool_follow_up_round_impl,
+)
+from .turn_executor_tool_batch import (
+    build_shortcircuit_fallback_response as _build_shortcircuit_fallback_response_impl,
+)
+from .turn_executor_tool_batch import (
+    execute_tool_batch as _execute_tool_batch_impl,
+)
+from .types import ToolUsePolicy
 
 
 @dataclass
@@ -179,10 +221,6 @@ class TurnExecutor:
     """State-machine-driven execution entrypoint shared by sync/stream paths."""
 
     @staticmethod
-    def _active_intent(state: ExecutionStateMachine) -> Any | None:
-        return _active_intent_impl(state)
-
-    @staticmethod
     def _scope_tools_to_active_intent(
         *,
         state: ExecutionStateMachine,
@@ -190,7 +228,7 @@ class TurnExecutor:
         policy: ToolUsePolicy | None,
         io: TurnIOAdapter,
     ) -> tuple[list[Any], ToolUsePolicy | None, Any | None]:
-        active_intent = TurnExecutor._active_intent(state)
+        active_intent = _active_intent_impl(state)
         if active_intent is None or policy is None:
             return list(tools), policy, active_intent
 
@@ -221,457 +259,6 @@ class TurnExecutor:
         )
 
     @staticmethod
-    def _emit_round_started(
-        state: ExecutionStateMachine,
-        *,
-        round_kind: str,
-        policy: ToolUsePolicy | None,
-        tools: list[Any] | None = None,
-        intent: Any | None = None,
-        reason: str | None = None,
-    ) -> None:
-        payload: dict[str, Any] = {
-            "round_kind": round_kind,
-            "tool_names": [tool.name for tool in (tools or [])],
-            "allowed_tool_names": list(
-                getattr(policy, "allowed_tool_names", []) or []
-            ),
-            "tool_use_policy_family": getattr(policy, "family", None),
-            "tool_use_policy_mode": getattr(policy, "mode", None),
-            "tool_use_policy_reason": (
-                reason
-                or str(getattr(policy, "reason", "") or "").strip()
-                or None
-            ),
-        }
-        if intent is not None:
-            payload["intent_id"] = getattr(intent, "intent_id", None)
-            payload["intent_kind"] = getattr(intent, "kind", None)
-            payload["intent_family"] = getattr(intent, "family", None)
-        state.emit_event("turn.round_started", payload)
-
-    @staticmethod
-    def _assistant_tool_round_count(messages: list[ChatMessage]) -> int:
-        return _assistant_tool_round_count_impl(messages)
-
-    @staticmethod
-    def _register_tool_round_delta(
-        state: ExecutionStateMachine,
-        *,
-        before_count: int,
-        messages: list[ChatMessage],
-    ) -> None:
-        _register_tool_round_delta_impl(
-            state,
-            before_count=before_count,
-            messages=messages,
-        )
-
-    @staticmethod
-    def _current_turn_start_index(messages: list[ChatMessage]) -> int:
-        return _current_turn_start_index_impl(messages)
-
-    @staticmethod
-    def _current_turn_messages(
-        messages: list[ChatMessage],
-        *,
-        start_index: int,
-    ) -> list[ChatMessage]:
-        return _current_turn_messages_impl(messages, start_index=start_index)
-
-    @staticmethod
-    def _register_tool_failures(
-        state: ExecutionStateMachine,
-        tool_results: list[ToolResult],
-    ) -> None:
-        _register_tool_failures_impl(state, tool_results)
-
-    @staticmethod
-    def _synthesize_tool_results_from_calls(
-        tool_calls: list[dict[str, Any]] | None,
-    ) -> list[ToolResult]:
-        return _synthesize_tool_results_from_calls_impl(
-            tool_calls,
-            skip_unresolved_interactions=True,
-        )
-
-    @staticmethod
-    async def _execute_tool_batch(
-        *,
-        state: ExecutionStateMachine,
-        io: TurnIOAdapter,
-        response: ChatResponse,
-        tools: list[Any],
-        messages: list[ChatMessage],
-        turn_messages: list[ChatMessage] | None,
-        tool_use_policy: ToolUsePolicy | None,
-        total_tokens: int,
-        completion_tokens_used: int,
-    ) -> tuple[ChatResponse | None, list[ToolResult], int, int]:
-        tool_rounds_before = TurnExecutor._assistant_tool_round_count(messages)
-        tool_call_response = response
-        tool_batch = await io.handle_tool_calls(
-            response=response,
-            tools=tools,
-            messages=messages,
-            tool_use_policy=tool_use_policy,
-            starting_total_tokens=total_tokens,
-            starting_completion_tokens=completion_tokens_used,
-        )
-        next_response = tool_batch.response
-        tool_results = list(tool_batch.tool_results)
-        next_total_tokens = int(tool_batch.total_tokens or 0)
-        next_completion_tokens = int(tool_batch.completion_tokens_used or 0)
-        if not tool_results:
-            tool_results = TurnExecutor._synthesize_tool_results_from_calls(
-                getattr(tool_call_response, "tool_calls", None)
-            )
-        TurnExecutor._register_tool_round_delta(
-            state,
-            before_count=tool_rounds_before,
-            messages=messages,
-        )
-        state.register_tool_results(
-            messages=messages,
-            turn_messages=turn_messages,
-            tool_results=tool_results,
-        )
-        state.register_completion_tokens(next_completion_tokens)
-        TurnExecutor._register_tool_failures(state, tool_results)
-        return next_response, tool_results, next_total_tokens, next_completion_tokens
-
-    @staticmethod
-    def _build_shortcircuit_fallback_response(
-        *,
-        intent: Any | None,
-        response: ChatResponse | None,
-        tools: list[Any],
-        total_tokens: int,
-        completion_tokens_used: int,
-    ) -> ChatResponse | None:
-        if intent is None or not bool(getattr(intent, "shortcircuit", False)):
-            return None
-        if str(getattr(intent, "kind", "") or "").strip() != "time_query":
-            return None
-
-        time_tool = next(
-            (tool for tool in tools if str(getattr(tool, "name", "")).strip() == "get_current_time"),
-            None,
-        )
-        if time_tool is None:
-            return None
-
-        synthetic_call = [
-            {
-                "id": f"synthetic_{getattr(intent, 'intent_id', 'intent')}_get_current_time",
-                "type": "function",
-                "function": {
-                    "name": "get_current_time",
-                    "arguments": "{}",
-                },
-            }
-        ]
-        metadata = dict(getattr(response, "metadata", {}) or {})
-        metadata["synthetic_shortcircuit_tool_call"] = True
-        metadata["synthetic_shortcircuit_intent_id"] = getattr(intent, "intent_id", None)
-        metadata["synthetic_shortcircuit_tool_name"] = "get_current_time"
-        return ChatResponse(
-            message=ChatMessage(
-                role="assistant",
-                content="",
-                tool_calls=synthetic_call,
-            ),
-            total_tokens=int(total_tokens or getattr(response, "total_tokens", 0) or 0),
-            output_tokens=int(
-                completion_tokens_used
-                or getattr(response, "output_tokens", 0)
-                or 0
-            ),
-            finish_reason="tool_calls",
-            tool_calls=synthetic_call,
-            metadata=metadata,
-        )
-
-    @staticmethod
-    def _intent_missing_args(intent: Any | None) -> list[str]:
-        metadata = dict(getattr(intent, "metadata", {}) or {}) if intent is not None else {}
-        raw_missing_args = metadata.get("missing_args")
-        if not isinstance(raw_missing_args, list):
-            return []
-        return [str(item).strip() for item in raw_missing_args if str(item).strip()]
-
-    @staticmethod
-    def _intent_requires_clarification(intent: Any | None) -> bool:
-        return bool(
-            intent is not None
-            and getattr(intent, "allow_text_response", False)
-            and TurnExecutor._intent_missing_args(intent)
-        )
-
-    @staticmethod
-    def _response_has_visible_content(response: ChatResponse | None) -> bool:
-        if response is None:
-            return False
-        return bool(str(response.message.content or "").strip())
-
-    @staticmethod
-    def _latest_auto_fetch_gate_reason(state: ExecutionStateMachine) -> str | None:
-        for intent in reversed(state.intent_plan):
-            metadata = dict(getattr(intent, "metadata", {}) or {})
-            reason = str(metadata.get("auto_fetch_gate_reason") or "").strip()
-            if reason:
-                return reason
-        return None
-
-    @staticmethod
-    def _completed_tool_intent_families(state: ExecutionStateMachine) -> set[str]:
-        families: set[str] = set()
-        for intent in state.intent_plan:
-            if intent.status != "completed" or not intent.requires_tools:
-                continue
-            family = str(intent.family or "").strip()
-            if family:
-                families.add(family)
-        return families
-
-    @staticmethod
-    def _should_complete_from_budgeted_web_research_evidence(
-        *,
-        state: ExecutionStateMachine,
-        response: ChatResponse | None,
-        tool_results: list[ToolResult],
-        reason: str,
-    ) -> Literal["none", "keep_visible_output", "replace_with_tool_evidence"]:
-        if not RecoveryManager.is_budget_exit_reason(reason):
-            return "none"
-        if "web_research" not in TurnExecutor._completed_tool_intent_families(state):
-            return "none"
-        if RecoveryManager.next_unfinished_intents(state.intent_plan):
-            return "none"
-
-        response_text = str(
-            getattr(getattr(response, "message", None), "content", "") or ""
-        ).strip()
-        if not response_text:
-            return "replace_with_tool_evidence"
-        if RecoveryManager.should_replace_budgeted_web_research_response(
-            response_text=response_text,
-            tool_results=tool_results,
-        ):
-            return "replace_with_tool_evidence"
-        return "keep_visible_output"
-
-    @staticmethod
-    def _post_tool_completion_state(
-        *,
-        state: ExecutionStateMachine,
-        final_output_source: str,
-        ran_post_tool_follow_up: bool,
-    ) -> str:
-        if final_output_source == "tool_evidence_completed":
-            auto_fetch_gate_reason = TurnExecutor._latest_auto_fetch_gate_reason(state)
-            if auto_fetch_gate_reason == "search_no_results_completed":
-                return "completed_no_result"
-            return "tool_evidence_completed"
-        if final_output_source == "partial_output":
-            return "partial_output"
-        if final_output_source == "budget_fallback":
-            return "budget_fallback"
-        if ran_post_tool_follow_up:
-            return "llm_follow_up"
-        return "assistant"
-
-    @staticmethod
-    def _record_contract_breach(
-        state: ExecutionStateMachine,
-        *,
-        breach_type: str,
-        diagnostics: dict[str, Any],
-    ) -> None:
-        state.preparation_diagnostics["contract_breach_type"] = breach_type
-        if diagnostics.get("unfinished_intents"):
-            state.preparation_diagnostics["unfinished_intents"] = list(
-                diagnostics.get("unfinished_intents") or []
-            )
-        if diagnostics.get("leaked_tool_names"):
-            state.preparation_diagnostics["leaked_tool_names"] = list(
-                diagnostics.get("leaked_tool_names") or []
-            )
-        if diagnostics.get("tool_leak_detected") is not None:
-            state.preparation_diagnostics["tool_leak_detected"] = bool(
-                diagnostics.get("tool_leak_detected")
-            )
-        if diagnostics.get("assistant_claimed_tool_call_without_tool_event") is not None:
-            state.preparation_diagnostics[
-                "assistant_claimed_tool_call_without_tool_event"
-            ] = bool(
-                diagnostics.get("assistant_claimed_tool_call_without_tool_event")
-            )
-
-    @staticmethod
-    def _constrain_retry_policy_to_active_intent(
-        *,
-        retry_policy: ToolUsePolicy,
-        breach_type: str | None,
-        active_intent: Any | None,
-        current_policy: ToolUsePolicy | None,
-    ) -> ToolUsePolicy:
-        if str(getattr(retry_policy, "mode", "") or "").strip() == "none":
-            return retry_policy
-        if active_intent is None:
-            return retry_policy
-        normalized_breach = str(breach_type or "").strip()
-        normalized_reason = str(retry_policy.reason or "").strip()
-        if (
-            (
-                normalized_breach == "unfinished_multi_intent_reply"
-                or normalized_reason.startswith("unfinished")
-            )
-            and retry_policy.allowed_tool_names
-        ):
-            return ToolUsePolicy(
-                family=(
-                    str(retry_policy.family or "").strip()
-                    or str(getattr(active_intent, "family", "") or "").strip()
-                    or str(getattr(current_policy, "family", "") or "").strip()
-                    or retry_policy.family
-                ),
-                mode="required",
-                allowed_tool_names=list(retry_policy.allowed_tool_names),
-                retry_on_contract_breach=False,
-                reason=retry_policy.reason,
-            )
-        allowed_tool_names = list(
-            getattr(active_intent, "allowed_tool_names", None)
-            or getattr(current_policy, "allowed_tool_names", None)
-            or retry_policy.allowed_tool_names
-        )
-        family = (
-            str(getattr(active_intent, "family", "") or "").strip()
-            or str(getattr(current_policy, "family", "") or "").strip()
-            or retry_policy.family
-        )
-        return ToolUsePolicy(
-            family=family or retry_policy.family,
-            mode="required",
-            allowed_tool_names=allowed_tool_names,
-            retry_on_contract_breach=False,
-            reason=retry_policy.reason,
-        )
-
-    @staticmethod
-    def _suppress_contract_placeholder_response(
-        response: ChatResponse | None,
-    ) -> ChatResponse | None:
-        if response is None:
-            return None
-        if getattr(response, "tool_calls", None):
-            return response
-        response.message.content = ""
-        return response
-
-    @staticmethod
-    async def _run_missing_args_clarification(
-        *,
-        state: ExecutionStateMachine,
-        io: TurnIOAdapter,
-        intent: Any,
-        messages: list[ChatMessage],
-        total_tokens: int,
-        completion_tokens_used: int,
-    ) -> tuple[ChatResponse | None, int, int]:
-        missing_args = TurnExecutor._intent_missing_args(intent)
-        decision = RecoveryDecision(
-            action="retry_intent",
-            target_intent_id=getattr(intent, "intent_id", None),
-            retry_family=getattr(intent, "family", None),
-            completed_intent_ids=[
-                item.intent_id for item in state.intent_plan if item.status == "completed"
-            ],
-            unfinished_intent_ids=[
-                item.intent_id
-                for item in state.intent_plan
-                if item.status not in {"completed", "skipped"}
-            ],
-            reason="missing_args_clarification",
-            metadata={"missing_args": missing_args},
-        )
-        state.register_retry(decision)
-        messages.append(
-            RecoveryManager.build_missing_args_clarification_message(
-                decision=decision,
-                intents=state.intent_plan,
-                missing_args=missing_args,
-            )
-        )
-        clarification_policy = ToolUsePolicy(
-            family="none",
-            mode="none",
-            allowed_tool_names=[],
-            retry_on_contract_breach=False,
-            reason="missing_args_clarification",
-        )
-        TurnExecutor._emit_round_started(
-            state,
-            round_kind="intent_retry",
-            policy=clarification_policy,
-            tools=[],
-            intent=intent,
-            reason="missing_args_clarification",
-        )
-        clarification_round = await io.call_llm(
-            messages=messages,
-            tools=None,
-            tool_use_policy=clarification_policy,
-            breach_retry_result="intent_retry",
-        )
-        response = clarification_round.response
-        total_tokens += int(clarification_round.total_tokens or 0)
-        completion_tokens_used += int(
-            clarification_round.completion_tokens_used or 0
-        )
-        state.register_completion_tokens(completion_tokens_used)
-        intent.status = "completed"
-        intent.metadata = dict(getattr(intent, "metadata", {}) or {})
-        intent.metadata["clarification_requested"] = True
-        return response, total_tokens, completion_tokens_used
-
-    @staticmethod
-    async def _run_post_tool_follow_up_round(
-        *,
-        state: ExecutionStateMachine,
-        io: TurnIOAdapter,
-        messages: list[ChatMessage],
-        total_tokens: int,
-        completion_tokens_used: int,
-    ) -> tuple[ChatResponse | None, int, int]:
-        follow_up_policy = ToolUsePolicy(
-            family="none",
-            mode="none",
-            allowed_tool_names=[],
-            retry_on_contract_breach=False,
-            reason="post_tool_follow_up",
-        )
-        TurnExecutor._emit_round_started(
-            state,
-            round_kind="normal_follow_up_round",
-            policy=follow_up_policy,
-            tools=[],
-            reason="post_tool_follow_up",
-        )
-        follow_up_round = await io.call_llm(
-            messages=messages,
-            tools=None,
-            tool_use_policy=follow_up_policy,
-            breach_retry_result="normal_follow_up_round",
-        )
-        response = follow_up_round.response
-        total_tokens += int(follow_up_round.total_tokens or 0)
-        completion_tokens_used += int(follow_up_round.completion_tokens_used or 0)
-        state.register_completion_tokens(completion_tokens_used)
-        return response, total_tokens, completion_tokens_used
-
-    @staticmethod
     async def run(
         *,
         state: ExecutionStateMachine,
@@ -682,7 +269,7 @@ class TurnExecutor:
     ) -> TurnExecutionResult:
         """Run one turn using a shared orchestration loop (sync path ready)."""
         messages: list[ChatMessage] = prep.messages
-        current_turn_start_index = TurnExecutor._current_turn_start_index(messages)
+        current_turn_start_index = _current_turn_start_index_impl(messages)
         tools = list(prep.tools or [])
         active_policy = prep.tool_use_policy
         active_tools, active_policy, active_intent = (
@@ -701,7 +288,7 @@ class TurnExecutor:
         ran_post_tool_follow_up = False
 
         def current_turn_messages() -> list[ChatMessage]:
-            return TurnExecutor._current_turn_messages(
+            return _current_turn_messages_impl(
                 messages,
                 start_index=current_turn_start_index,
             )
@@ -717,15 +304,16 @@ class TurnExecutor:
                 total_tokens=0,
                 output_tokens=0,
             )
-        elif TurnExecutor._intent_requires_clarification(active_intent):
+        elif _intent_requires_clarification_impl(active_intent):
             response, total_tokens, completion_tokens_used = (
-                await TurnExecutor._run_missing_args_clarification(
+                await _run_missing_args_clarification_impl(
                     state=state,
                     io=io,
                     intent=active_intent,
                     messages=messages,
                     total_tokens=total_tokens,
                     completion_tokens_used=completion_tokens_used,
+                    emit_round_started=_emit_round_started_impl,
                 )
             )
         else:
@@ -742,7 +330,7 @@ class TurnExecutor:
             # web_research intents complete so the orchestrator skips retry.
             if (
                 getattr(model_round, "native_search_observed", False)
-                and TurnExecutor._response_has_visible_content(response)
+                and _response_has_visible_content_impl(response)
                 and state.intent_plan
             ):
                 state.intent_plan = RecoveryManager.complete_native_search_intents(
@@ -751,7 +339,7 @@ class TurnExecutor:
 
         if getattr(response, "tool_calls", None) and active_tools:
             response, tool_results, total_tokens, completion_tokens_used = (
-                await TurnExecutor._execute_tool_batch(
+                await _execute_tool_batch_impl(
                     state=state,
                     io=io,
                     response=response,
@@ -764,7 +352,7 @@ class TurnExecutor:
                 )
             )
         elif active_tools:
-            fallback_response = TurnExecutor._build_shortcircuit_fallback_response(
+            fallback_response = _build_shortcircuit_fallback_response_impl(
                 intent=active_intent,
                 response=response,
                 tools=active_tools,
@@ -773,7 +361,7 @@ class TurnExecutor:
             )
             if fallback_response is not None:
                 response, tool_results, total_tokens, completion_tokens_used = (
-                    await TurnExecutor._execute_tool_batch(
+                    await _execute_tool_batch_impl(
                         state=state,
                         io=io,
                         response=fallback_response,
@@ -816,16 +404,16 @@ class TurnExecutor:
                     )
                 )
                 if breach_type:
-                    TurnExecutor._record_contract_breach(
+                    _record_contract_breach_impl(
                         state,
                         breach_type=breach_type,
                         diagnostics=breach_diagnostics,
                     )
-                    response = TurnExecutor._suppress_contract_placeholder_response(
+                    response = _suppress_contract_placeholder_response_impl(
                         response,
                     )
                 if retry_policy is not None:
-                    retry_policy = TurnExecutor._constrain_retry_policy_to_active_intent(
+                    retry_policy = _constrain_retry_policy_to_active_intent_impl(
                         retry_policy=retry_policy,
                         breach_type=breach_type,
                         active_intent=active_intent,
@@ -858,7 +446,7 @@ class TurnExecutor:
                     )
             if should_retry and retry_policy is not None:
                 if non_intent_breach_type:
-                    TurnExecutor._record_contract_breach(
+                    _record_contract_breach_impl(
                         state,
                         breach_type=non_intent_breach_type,
                         diagnostics={},
@@ -868,7 +456,7 @@ class TurnExecutor:
                     retry_tool_pool,
                     retry_policy.allowed_tool_names,
                 )
-                TurnExecutor._emit_round_started(
+                _emit_round_started_impl(
                     state,
                     round_kind="contract_retry",
                     policy=retry_policy,
@@ -899,7 +487,7 @@ class TurnExecutor:
                 completion_tokens_used += int(retry_round.completion_tokens_used or 0)
                 state.register_completion_tokens(completion_tokens_used)
                 if getattr(response, "tool_calls", None) and retry_tools:
-                    tool_rounds_before = TurnExecutor._assistant_tool_round_count(
+                    tool_rounds_before = _assistant_tool_round_count_impl(
                         messages
                     )
                     tool_call_response = response
@@ -918,8 +506,9 @@ class TurnExecutor:
                         tool_batch.completion_tokens_used or 0
                     )
                     if not extra_tool_results:
-                        extra_tool_results = TurnExecutor._synthesize_tool_results_from_calls(
-                            getattr(tool_call_response, "tool_calls", None)
+                        extra_tool_results = _synthesize_tool_results_from_calls_impl(
+                            getattr(tool_call_response, "tool_calls", None),
+                            skip_unresolved_interactions=True,
                         )
                     tool_results.extend(extra_tool_results)
                     if state.intent_plan and retry_policy.allowed_tool_names:
@@ -935,7 +524,7 @@ class TurnExecutor:
                                 intent.allowed_tool_names = list(
                                     retry_policy.allowed_tool_names
                                 )
-                    TurnExecutor._register_tool_round_delta(
+                    _register_tool_round_delta_impl(
                         state,
                         before_count=tool_rounds_before,
                         messages=messages,
@@ -946,9 +535,9 @@ class TurnExecutor:
                         tool_results=extra_tool_results,
                     )
                     state.register_completion_tokens(completion_tokens_used)
-                    TurnExecutor._register_tool_failures(state, extra_tool_results)
+                    _register_tool_failures_impl(state, extra_tool_results)
                 elif response is not None:
-                    response = TurnExecutor._suppress_contract_placeholder_response(
+                    response = _suppress_contract_placeholder_response_impl(
                         response,
                     )
                     io.log_tool_contract_diagnostics(
@@ -991,15 +580,16 @@ class TurnExecutor:
                 ),
                 None,
             )
-            if TurnExecutor._intent_requires_clarification(retry_intent):
+            if _intent_requires_clarification_impl(retry_intent):
                 response, total_tokens, completion_tokens_used = (
-                    await TurnExecutor._run_missing_args_clarification(
+                    await _run_missing_args_clarification_impl(
                         state=state,
                         io=io,
                         intent=retry_intent,
                         messages=messages,
                         total_tokens=total_tokens,
                         completion_tokens_used=completion_tokens_used,
+                        emit_round_started=_emit_round_started_impl,
                     )
                 )
                 decision = RecoveryManager.decide(
@@ -1027,7 +617,7 @@ class TurnExecutor:
                 retry_on_contract_breach=False,
                 reason=decision.reason,
             )
-            TurnExecutor._emit_round_started(
+            _emit_round_started_impl(
                 state,
                 round_kind="intent_retry",
                 policy=retry_policy,
@@ -1063,7 +653,7 @@ class TurnExecutor:
                     extra_tool_results,
                     total_tokens,
                     completion_tokens_used,
-                ) = await TurnExecutor._execute_tool_batch(
+                ) = await _execute_tool_batch_impl(
                     state=state,
                     io=io,
                     response=response,
@@ -1076,7 +666,7 @@ class TurnExecutor:
                 )
                 tool_results.extend(extra_tool_results)
             elif retry_tools:
-                fallback_response = TurnExecutor._build_shortcircuit_fallback_response(
+                fallback_response = _build_shortcircuit_fallback_response_impl(
                     intent=retry_intent,
                     response=response,
                     tools=retry_tools,
@@ -1089,7 +679,7 @@ class TurnExecutor:
                         extra_tool_results,
                         total_tokens,
                         completion_tokens_used,
-                    ) = await TurnExecutor._execute_tool_batch(
+                    ) = await _execute_tool_batch_impl(
                         state=state,
                         io=io,
                         response=fallback_response,
@@ -1161,7 +751,7 @@ class TurnExecutor:
                 and not web_research_retry_policy.allowed_tool_names
             ):
                 retry_tools: list[Any] = []
-                TurnExecutor._record_contract_breach(
+                _record_contract_breach_impl(
                     state,
                     breach_type=(
                         web_research_retry_policy.reason
@@ -1169,7 +759,7 @@ class TurnExecutor:
                     ),
                     diagnostics={},
                 )
-                TurnExecutor._emit_round_started(
+                _emit_round_started_impl(
                     state,
                     round_kind="contract_retry",
                     policy=web_research_retry_policy,
@@ -1211,19 +801,20 @@ class TurnExecutor:
         if (
             decision is None
             and tool_results
-            and TurnExecutor._active_intent(state) is None
-            and not TurnExecutor._response_has_visible_content(response)
+            and _active_intent_impl(state) is None
+            and not _response_has_visible_content_impl(response)
             and not bool(getattr(response, "tool_calls", None))
-            and "web_research" not in TurnExecutor._completed_tool_intent_families(state)
+            and "web_research" not in _completed_tool_intent_families_impl(state)
         ):
             ran_post_tool_follow_up = True
             response, total_tokens, completion_tokens_used = (
-                await TurnExecutor._run_post_tool_follow_up_round(
+                await _run_post_tool_follow_up_round_impl(
                     state=state,
                     io=io,
                     messages=messages,
                     total_tokens=total_tokens,
                     completion_tokens_used=completion_tokens_used,
+                    emit_round_started=_emit_round_started_impl,
                 )
             )
 
@@ -1243,7 +834,7 @@ class TurnExecutor:
             "keep_visible_output",
             "replace_with_tool_evidence",
         ] = (
-            TurnExecutor._should_complete_from_budgeted_web_research_evidence(
+            _should_complete_from_budgeted_web_research_evidence_impl(
                 state=state,
                 response=response,
                 tool_results=tool_results,
@@ -1298,7 +889,7 @@ class TurnExecutor:
                     retry_on_contract_breach=False,
                     reason="budget_exceeded_synthesis",
                 )
-                TurnExecutor._emit_round_started(
+                _emit_round_started_impl(
                     state,
                     round_kind="budget_exceeded_synthesis",
                     policy=synthesis_policy,
@@ -1396,13 +987,13 @@ class TurnExecutor:
 
         state.preparation_diagnostics["final_output_source"] = final_output_source
         state.preparation_diagnostics["post_tool_completion_state"] = (
-            TurnExecutor._post_tool_completion_state(
+            _post_tool_completion_state_impl(
                 state=state,
                 final_output_source=final_output_source,
                 ran_post_tool_follow_up=ran_post_tool_follow_up,
             )
         )
-        auto_fetch_gate_reason = TurnExecutor._latest_auto_fetch_gate_reason(state)
+        auto_fetch_gate_reason = _latest_auto_fetch_gate_reason_impl(state)
         if auto_fetch_gate_reason:
             state.preparation_diagnostics["auto_fetch_gate_reason"] = (
                 auto_fetch_gate_reason

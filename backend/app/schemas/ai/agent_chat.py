@@ -17,9 +17,9 @@ from pydantic import (
     model_validator,
 )
 
+from app.ai.runtime.contracts import PAGE_CONTEXT_KEY
 from app.core.i18n import _
 
-PAGE_CONTEXT_KEY = "page_context"
 InteractionMode = Literal["confirm", "trusted_auto"]
 
 

@@ -19,7 +19,7 @@ from app.ai.runtime.capabilities import (
     CapabilityRegistry,
 )
 from app.ai.runtime.types import CapabilityBundle, CapabilityDescriptor, ContextSource
-from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
+from app.ai.runtime.contracts import PAGE_CONTEXT_KEY
 from app.services.ai.model_capability_lookup import resolve_runtime_model_capabilities
 
 

@@ -28,7 +28,7 @@ from app.ai.runtime.contracts import (
 from app.ai.runtime.manifest import AIRuntimeInventoryService
 from app.ai.runtime.types import CapabilityBundle
 from app.core.logging import LogManager
-from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
+from app.ai.runtime.contracts import PAGE_CONTEXT_KEY
 from app.services.ai.capability_awareness_config import (
     get_tenant_capability_awareness_settings,
 )

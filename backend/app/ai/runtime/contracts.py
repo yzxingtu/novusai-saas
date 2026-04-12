@@ -14,6 +14,8 @@ from app.ai.runtime.types import (
 )
 from app.ai.types import ChatChunk, ChatMessage, ChatResponse
 
+PAGE_CONTEXT_KEY = "page_context"
+
 
 @dataclass(frozen=True)
 class ProtocolGuardContract:

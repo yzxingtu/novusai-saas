@@ -11,7 +11,7 @@ from app.ai.tools.semantic_defaults import (
 )
 from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage
-from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
+from app.ai.runtime.contracts import PAGE_CONTEXT_KEY
 
 
 @dataclass(frozen=True)

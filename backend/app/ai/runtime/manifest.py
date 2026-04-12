@@ -16,7 +16,7 @@ from app.ai.tools.semantic_defaults import (
     page_context_available_ui_tools,
     tool_semantic_family,
 )
-from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
+from app.ai.runtime.contracts import PAGE_CONTEXT_KEY
 
 RuntimeCapabilityStatus = Literal["available", "degraded", "unavailable"]
 

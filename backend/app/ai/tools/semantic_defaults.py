@@ -15,7 +15,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from app.schemas.ai.agent_chat import PAGE_CONTEXT_KEY
+from app.ai.runtime.contracts import PAGE_CONTEXT_KEY
 
 # Per-family short phrases used for tool optimization and capability-term expansion.
 # 按族的短语文本，用于工具优化与能力词扩展。
