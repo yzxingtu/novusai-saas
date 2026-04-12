@@ -61,15 +61,23 @@ export function useStorageBillingAdminPage() {
     return (window as unknown as { NovusPluginShared?: SharedAccessApi }).NovusPluginShared;
   }
 
+  function getNormalizedAccessCodes(shared: SharedAccessApi | undefined): string[] {
+    const rawAccessCodes = shared?.getAccessCodes?.();
+    if (!Array.isArray(rawAccessCodes)) {
+      return [];
+    }
+    return rawAccessCodes.filter((code): code is string => typeof code === 'string');
+  }
+
   function hasAccess(codes: string[]): boolean {
     const shared = getSharedAccess();
     if (typeof shared?.hasAccessByCodes === 'function') {
       return shared.hasAccessByCodes(codes);
     }
-    if (typeof shared?.getAccessCodes !== 'function') {
+    const accessCodes = getNormalizedAccessCodes(shared);
+    if (!accessCodes.length) {
       return codes.length === 0;
     }
-    const accessCodes = shared.getAccessCodes() ?? [];
     if (accessCodes.includes('*')) {
       return true;
     }
