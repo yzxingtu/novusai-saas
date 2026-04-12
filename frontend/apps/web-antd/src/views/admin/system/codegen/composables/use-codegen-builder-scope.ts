@@ -10,11 +10,33 @@ import { pluralize } from '../modules/infer';
 
 const COMMON_MODULE_KEYS = ['system', 'business', 'tenant', 'ai'] as const;
 
+type BuilderRecord = Record<string, unknown>;
+
+function isRecord(value: unknown): value is BuilderRecord {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function toRecord(value: unknown): BuilderRecord {
+  return isRecord(value) ? value : {};
+}
+
+function toRecordArray(value: unknown): BuilderRecord[] {
+  return Array.isArray(value) ? value.filter(isRecord) : [];
+}
+
+function getEndpointScope(value: unknown): '' | 'admin' | 'tenant' {
+  return value === 'admin' || value === 'tenant' ? value : '';
+}
+
+function getEndpointFrontend(endpoint: unknown): BuilderRecord {
+  return toRecord(toRecord(endpoint).frontend);
+}
+
 function getSuggestedBaseClassFromEndpoints(
-  endpoints: Record<string, unknown>[],
+  endpoints: BuilderRecord[],
 ): 'BaseModel' | 'TenantModel' {
   const hasTenant = endpoints.some(
-    (item) => (item.scope as string) === 'tenant',
+    (item) => getEndpointScope(item.scope) === 'tenant',
   );
   return hasTenant ? 'TenantModel' : 'BaseModel';
 }
@@ -91,21 +113,15 @@ export function useCodegenBuilderScope() {
     get: () => (store.configJson.resource_plural as string) || '',
     set: (value: string) => store.updateConfig({ resource_plural: value }),
   });
-  const model = computed(
-    () => (store.configJson.model as Record<string, unknown>) || {},
-  );
-  const endpoints = computed(
-    () => (store.configJson.endpoints as Record<string, unknown>[]) || [],
-  );
-  const firstEndpoint = computed(() => endpoints.value[0] || {});
-  const frontend = computed(
-    () => (firstEndpoint.value.frontend as Record<string, unknown>) || {},
-  );
+  const model = computed(() => toRecord(store.configJson.model));
+  const endpoints = computed(() => toRecordArray(store.configJson.endpoints));
+  const firstEndpoint = computed<BuilderRecord>(() => endpoints.value[0] || {});
+  const frontend = computed(() => getEndpointFrontend(firstEndpoint.value));
   const hasAdmin = computed(() =>
-    endpoints.value.some((item) => item.scope === 'admin'),
+    endpoints.value.some((item) => getEndpointScope(item.scope) === 'admin'),
   );
   const hasTenant = computed(() =>
-    endpoints.value.some((item) => item.scope === 'tenant'),
+    endpoints.value.some((item) => getEndpointScope(item.scope) === 'tenant'),
   );
   const scopeCount = computed(
     () => Number(hasAdmin.value) + Number(hasTenant.value),
@@ -118,7 +134,7 @@ export function useCodegenBuilderScope() {
       const next = list.map((item) => ({
         ...item,
         frontend: {
-          ...(item.frontend as Record<string, unknown>),
+          ...getEndpointFrontend(item),
           mode: value,
         },
       }));
@@ -174,7 +190,7 @@ export function useCodegenBuilderScope() {
     const previousEndpoints = [...endpoints.value];
     if (checked) {
       const hasAdminEndpoint = previousEndpoints.some(
-        (item) => (item.scope as string) === 'admin',
+        (item) => getEndpointScope(item.scope) === 'admin',
       );
       if (!hasAdminEndpoint) {
         const nextEndpoints = [
@@ -188,7 +204,7 @@ export function useCodegenBuilderScope() {
     }
 
     const nextEndpoints = previousEndpoints.filter(
-      (item) => (item.scope as string) !== 'admin',
+      (item) => getEndpointScope(item.scope) !== 'admin',
     );
     if (nextEndpoints.length === 0) {
       message.warning($t('admin.system.codegen.builder.atLeastOneScope'));
@@ -202,7 +218,7 @@ export function useCodegenBuilderScope() {
     const previousEndpoints = [...endpoints.value];
     if (checked) {
       const hasTenantEndpoint = previousEndpoints.some(
-        (item) => (item.scope as string) === 'tenant',
+        (item) => getEndpointScope(item.scope) === 'tenant',
       );
       if (!hasTenantEndpoint) {
         const nextEndpoints = [
@@ -216,7 +232,7 @@ export function useCodegenBuilderScope() {
     }
 
     const nextEndpoints = previousEndpoints.filter(
-      (item) => (item.scope as string) !== 'tenant',
+      (item) => getEndpointScope(item.scope) !== 'tenant',
     );
     if (nextEndpoints.length === 0) {
       message.warning($t('admin.system.codegen.builder.atLeastOneScope'));

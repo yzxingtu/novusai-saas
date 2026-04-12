@@ -89,3 +89,4 @@
 {"file": "frontend/apps/web-antd/src/views/admin/system/system-logs/__tests__/SystemLogToolbar.slice.test.ts", "reason": "Verify system-log toolbar shell keeps chips and disabled action states stable"}
 {"file": "frontend/apps/web-antd/src/views/admin/plugins/modules/plugin-config-drawer/__tests__/use-plugin-config-drawer.test.ts", "reason": "Verify plugin-config-drawer skips malformed manifest config schema entries while preserving valid fields"}
 {"file": "backend/plugins/storage-billing/frontend/src/views/admin/__tests__/use-storage-billing-admin-page.test.ts", "reason": "Verify storage-billing admin page fails closed on malformed shared access-code payloads and still honors wildcard access"}
+{"file": "frontend/apps/web-antd/src/views/admin/system/codegen/composables/__tests__/use-codegen-builder-scope.test.ts", "reason": "Verify builder-scope normalization ignores malformed endpoint entries while preserving valid scope/base-class synchronization"}

@@ -202,6 +202,10 @@
   - storage-billing admin page 对 `NovusPluginShared.getAccessCodes()` 增加 fail-close guard：宿主返回异常值时按“无权限”处理，不再把坏值继续传入权限判断链。
 - `backend/plugins/storage-billing/frontend/src/views/admin/__tests__/use-storage-billing-admin-page.test.ts`
   - storage-billing admin page 新增 shared bridge 合约测试，锁住“坏 access codes fail-close / wildcard access 放行”的宿主桥接行为。
+- `frontend/apps/web-antd/src/views/admin/system/codegen/composables/use-codegen-builder-scope.ts`
+  - codegen builder scope composable 对 `model/endpoints/frontend` 增加运行时归一化：异常 endpoint 条目会被忽略，坏 `frontend` 节点回退为空对象，不再把脏配置直接带入 scope/base-class 同步逻辑。
+- `frontend/apps/web-antd/src/views/admin/system/codegen/composables/__tests__/use-codegen-builder-scope.test.ts`
+  - codegen builder scope 新增 malformed config 用例，锁住“忽略坏 endpoint / 保留有效 tenant scope / 开启 admin scope 时仍能同步 base_class”的行为。
 - `backend/tests/services/test_plugin_read_model_service.py`
   - plugin registry fail-close 清理：当 unregister handler 抛错时，permission / notification / skill runtime caches 仍必须被清空。
 - `backend/tests/services/test_tenant_admin_workflow_services.py`
@@ -405,3 +409,5 @@
   - 结果：`1 file passed / 2 tests passed`。
 - `pnpm --dir backend/plugins/storage-billing/frontend exec vite build`
   - 结果：通过。
+- `pnpm --dir frontend exec vitest run apps/web-antd/src/views/admin/system/codegen/composables/__tests__/use-codegen-builder-scope.test.ts`
+  - 结果：`1 file passed / 2 tests passed`。
