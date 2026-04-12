@@ -1,6 +1,6 @@
 import type { Ref } from 'vue';
 
-import type { PageContextData } from './page-context-registry';
+import type { PageContext } from '#/api/shared/ai-chat';
 
 import type { InputVariable, RichTextAITask } from '#/types/ai-chat';
 
@@ -13,7 +13,7 @@ import { $t } from '#/locales';
 interface DeferredSendContext {
   agentId: number;
   consumeMention?: boolean;
-  pageContext: null | PageContextData;
+  pageContext: null | PageContext;
   richTextTask?: RichTextAITask;
   routeSource?: string;
 }
@@ -55,7 +55,7 @@ interface UsePanelContextBridgeOptions {
   sendMessage: (options: {
     agentId: number;
     consumeMention?: boolean;
-    pageContext: null | PageContextData;
+    pageContext: null | PageContext;
     routeSource?: string;
   }) => Promise<unknown> | unknown;
   sendPreparedRichTextTask: (task: RichTextAITask) => Promise<boolean>;
@@ -180,7 +180,7 @@ export function usePanelContextBridge(options: UsePanelContextBridgeOptions) {
     agentId: number;
     agentName: string;
     consumeMention?: boolean;
-    pageContext: null | PageContextData;
+    pageContext: null | PageContext;
     requiredVars: InputVariable[];
     richTextTask?: RichTextAITask;
     routeSource?: string;

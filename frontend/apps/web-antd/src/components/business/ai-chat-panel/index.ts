@@ -1,2 +1,6 @@
 export type * from './types';
-export { useAIChat } from './use-ai-chat';
+export type { UseAIChatOptions } from './use-ai-chat';
+export {
+  shouldDisplayConversationInHistory,
+  useAIChat,
+} from './use-ai-chat';

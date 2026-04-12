@@ -4,6 +4,8 @@ import { effectScope, ref } from 'vue';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { PageContextSuggestedTool } from '#/api/shared/ai-chat';
+
 import { useAgentRouter } from '../use-agent-router';
 
 const { routeMessageApiMock } = vi.hoisted(() => ({
@@ -14,8 +16,8 @@ vi.mock('#/api/shared/ai-chat', () => ({
   routeMessageApi: routeMessageApiMock,
 }));
 
-vi.mock('../page-context-registry', () => ({
-  resolvePageContext: vi.fn(),
+vi.mock('#/components/business/ai-runtime/runtime-bridge', () => ({
+  getRuntimeThinPageContext: vi.fn(() => null),
 }));
 
 describe('useAgentRouter', () => {
@@ -33,7 +35,7 @@ describe('useAgentRouter', () => {
     vi.clearAllMocks();
   });
 
-  it('reuses route cache when only visual_state changes', async () => {
+  it('reuses route cache when non-fingerprint thin fields change', async () => {
     const scope = effectScope();
 
     await scope.run(async () => {
@@ -45,32 +47,36 @@ describe('useAgentRouter', () => {
         pinnedAgentName: ref(null),
       });
 
+      const primaryTools: PageContextSuggestedTool[] = [
+        'ui_get_snapshot',
+        'ui_list_interactables',
+      ];
+      const secondaryTools: PageContextSuggestedTool[] = ['ui_read_region'];
       const baseContext = {
+        active_surface_id: 'surface:page',
         page_key: 'tenant.demo.fallback',
         page_title: 'Fallback Demo',
-        page_data: {
-          available_operations: [{ name: 'read_current_view', readonly: true }],
-          entity_description: 'Inspect current page fallback context',
-          source: 'dom_snapshot',
-          tables: [{ columns: ['名称', '状态'], row_count: 12 }],
-          visual_state: {
-            scroll_y: 0,
-            url: '/tenant/demo/fallback',
-          },
+        suggested_tools: {
+          primary: primaryTools,
+          secondary: secondaryTools,
         },
+        surface_stack: [
+          {
+            kind: 'page' as const,
+            surface_id: 'surface:page',
+            title: 'Fallback Demo',
+          },
+        ],
+        ui_epoch: 3,
       };
 
       await routeMessage('请分析当前页面', undefined, baseContext);
       await routeMessage('请分析当前页面', undefined, {
         ...baseContext,
-        page_data: {
-          ...baseContext.page_data,
-          visual_state: {
-            has_modal: true,
-            open_overlays: [{ title: '调试面板', type: 'drawer' }],
-            scroll_y: 480,
-            url: '/tenant/demo/fallback',
-          },
+        page_title: 'Fallback Demo (debug title only)',
+        suggested_tools: {
+          ...baseContext.suggested_tools,
+          reason: 'title changed only',
         },
       });
 
@@ -80,7 +86,7 @@ describe('useAgentRouter', () => {
     scope.stop();
   });
 
-  it('busts route cache when meaningful structural page data changes', async () => {
+  it('busts route cache when meaningful thin context fields change', async () => {
     const scope = effectScope();
 
     await scope.run(async () => {
@@ -93,23 +99,45 @@ describe('useAgentRouter', () => {
       });
 
       await routeMessage('请分析当前页面', undefined, {
+        active_surface_id: 'surface:page',
         page_key: 'tenant.demo.fallback',
         page_title: 'Fallback Demo',
-        page_data: {
-          available_operations: [{ name: 'read_current_view', readonly: true }],
-          entity_description: 'Inspect current page fallback context',
-          source: 'dom_snapshot',
-        },
+        surface_stack: [
+          {
+            kind: 'page' as const,
+            surface_id: 'surface:page',
+            title: 'Fallback Demo',
+          },
+        ],
+        ui_epoch: 3,
       });
 
       await routeMessage('请分析当前页面', undefined, {
+        active_form_summary: {
+          can_submit: false,
+          entity_name: 'supplier',
+          form_session_id: 'form:1',
+          mode: 'edit' as const,
+          remaining_required_fields: ['supplier_name'],
+          stage: 'ready' as const,
+          submit_policy: 'confirm' as const,
+        },
+        active_surface_id: 'surface:drawer',
         page_key: 'tenant.demo.fallback',
         page_title: 'Fallback Demo',
-        page_data: {
-          available_operations: [{ name: 'read_current_view', readonly: true }],
-          entity_description: 'Inspect supplier configuration fallback context',
-          source: 'dom_snapshot',
-        },
+        surface_stack: [
+          {
+            kind: 'page' as const,
+            surface_id: 'surface:page',
+            title: 'Fallback Demo',
+          },
+          {
+            kind: 'drawer' as const,
+            surface_id: 'surface:drawer',
+            title: 'Supplier Config',
+          },
+        ],
+        ui_epoch: 4,
       });
 
       expect(routeMessageApiMock).toHaveBeenCalledTimes(2);

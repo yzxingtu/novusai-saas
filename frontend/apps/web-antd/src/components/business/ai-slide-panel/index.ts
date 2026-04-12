@@ -5,29 +5,7 @@ export { default as AIChatHistoryPane } from './AIChatHistoryPane.vue';
 export { default as AIChatMessageViewport } from './AIChatMessageViewport.vue';
 export { default as AIChatPanelHeader } from './AIChatPanelHeader.vue';
 export { default as AIChatSlidePanel } from './AIChatSlidePanel.vue';
-export {
-  clearPageContextRegistry,
-  getRegisteredKeys,
-  pageContextVersion,
-  registerPageContext,
-  registerPageContextExtras,
-  resolvePageContext,
-} from './page-context-registry';
-export type {
-  PageContextData,
-  PageContextResolver,
-} from './page-context-registry';
 export { normalizePageKey, resolveRoutePageKey } from './page-key-utils';
-export {
-  appendPageOperations,
-  clearPageOperationRegistry,
-  executePageOperation,
-  findPageOperation,
-  getRegisteredOperationKeys,
-  listPageOperations,
-  pageOperationVersion,
-  registerPageOperations,
-} from './page-operation-registry';
 export type {
   PageOperation,
   PageOperationHandler,

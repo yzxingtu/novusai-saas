@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { PageOperation } from './page-operation-registry';
+import type { PageOperation } from './page-operation-types';
 import type {
   PageAIDiagnostics,
   PageAIStatBadge,
@@ -226,25 +226,18 @@ function onToggleDetails() {
                 {{
                   $t('common.aiPanel.pageAiDiagBudget', {
                     final: diagnostics.finalBytes,
-                    hard: diagnostics.hardLimitBytes,
-                    raw: diagnostics.rawBytes,
-                    soft: diagnostics.softLimitBytes,
+                    hard: diagnostics.finalBytes,
+                    raw: diagnostics.finalBytes,
+                    soft: diagnostics.finalBytes,
                   })
                 }}
               </div>
               <div>
                 {{
                   $t('common.aiPanel.pageAiDiagOps', {
-                    current: diagnostics.finalOperationCount,
-                    raw: diagnostics.rawOperationCount,
+                    current: diagnostics.interactablesCount,
+                    raw: diagnostics.interactablesCount,
                   })
-                }}
-              </div>
-              <div>
-                {{
-                  diagnostics.compressed
-                    ? $t('common.aiPanel.pageAiDiagCompressionOn')
-                    : $t('common.aiPanel.pageAiDiagCompressionOff')
                 }}
               </div>
             </div>

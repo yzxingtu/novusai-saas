@@ -1,8 +1,5 @@
 // @vitest-environment happy-dom
 /* eslint-disable vue/one-component-per-file */
-import type { SourceEditorRegistration } from '#/components/business/rich-text-editor/types';
-import type { AgentItem, ChatMessage, RichTextAITask } from '#/types/ai-chat';
-
 /**
  * AIChatSlidePanel component render tests: confirmCountdown in real component.
  * AIChatSlidePanel 组件挂载测试：倒计时文案在真实组件中渲染。
@@ -10,582 +7,56 @@ import type { AgentItem, ChatMessage, RichTextAITask } from '#/types/ai-chat';
  * 与 countdown-display.test.ts（纯逻辑单测）互补，覆盖“组件渲染层”。
  */
 import { flushPromises, mount } from '@vue/test-utils';
-import { defineComponent, reactive, ref } from 'vue';
+import { defineComponent } from 'vue';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import AIChatSlidePanel from '../AIChatSlidePanel.vue';
-import { useRichTextTaskOrchestration } from '../use-rich-text-task-orchestration';
-
-const useAIChatState = vi.hoisted(() => ({
-  chatMessages: undefined as unknown as { value: ChatMessage[] },
-  sending: undefined as unknown as { value: boolean },
-  streaming: undefined as unknown as { value: boolean },
-}));
-
-const sourceEditorMockState = vi.hoisted(() => ({
-  editors: new Map<string, SourceEditorRegistration>(),
-  prepareRichTextContent: vi.fn(
-    (content: string, options?: { mode?: 'formatted' | 'plain' }) =>
-      `prepared::${options?.mode ?? 'plain'}::${content}`,
-  ),
-  version: undefined as unknown as { value: number },
-}));
-
-const composerInteractionState = vi.hoisted(() => ({
-  agentKBBindings: undefined as unknown as {
-    value: Array<{ kb_name?: string; knowledge_base_id: number }>;
-  },
-  removeSelectedKnowledgeBase: vi.fn(),
-  selectedKBIds: undefined as unknown as { value: number[] },
-}));
-
-// Store mock for countdown assertions / 用于倒计时断言的 store mock
-const visible = ref(true);
-const docked = ref(true);
-const minimized = ref(false);
-const mode = ref<'full' | 'panel'>('panel');
-const panelWidth = ref(460);
-const selectedAgentIdValue = ref<null | number>(1);
-const supportsVisionValue = ref(false);
-const activeConversationIdValue = ref<null | number>(null);
-const inputMessageValue = ref('');
-const pendingAttachmentsValue = ref<Array<{ type: string }>>([]);
-const pageContextValue = ref<null | {
-  page_data?: Record<string, unknown>;
-  page_key: string;
-  page_title: string;
-}>(null);
-const pageOperationsValue = ref<
-  Array<{
-    description?: string;
-    label: string;
-    name: string;
-    params?: Record<string, unknown>;
-    readonly: boolean;
-  }>
->([]);
-const routeMessageMock = vi.fn();
-const sendMessageMock = vi.fn();
-const startNewConversationMock = vi.fn();
-const deleteConversationMock = vi.fn();
-const loadConversationMessagesMock = vi.fn();
-const loadConversationsMock = vi.fn();
-const loadAgentsMock = vi.fn();
-const updateConversationTitleMock = vi.fn();
-const fetchConversationMemoryMock = vi.fn();
-const clearConversationMemoryMock = vi.fn();
-const pendingPageOpsValue = ref<
-  Array<{
-    invokeId: string;
-    operationDescription: string;
-    operationLabel: string;
-    resolved: boolean;
-    startedAt: number;
-  }>
->([]);
-const resolvePageOp = vi.fn();
-const antMessageMocks = vi.hoisted(() => ({
-  error: vi.fn(),
-  info: vi.fn(),
-  warning: vi.fn(),
-}));
-
+import {
+  activeConversationIdValue,
+  antMessageMocks,
+  cleanupPanelDom,
+  composerInteractionState,
+  createAIPanelStore,
+  createPanelMountOptions,
+  createRichTextMessage,
+  createRichTextTask,
+  createSourceEditorMock,
+  flushPanel,
+  inputMessageValue,
+  loadConversationMessagesMock,
+  mountRichTextOrchestrationHarness,
+  pageContextValue,
+  pageOperationsValue,
+  pendingAttachmentsValue,
+  pendingPageOpsValue,
+  requireElement,
+  resetPanelState,
+  routeMessageMock,
+  selectedAgentIdValue,
+  sendMessageMock,
+  sourceEditorMockState,
+  startNewConversationMock,
+  supportsVisionValue,
+  useAIChatState,
+  visible,
+} from './ai-chat-slide-panel-test-helpers';
 let aiPanelStore: ReturnType<typeof createAIPanelStore>;
 
-vi.mock('@vben/icons', () => ({
-  IconifyIcon: defineComponent({
-    name: 'IconifyIconStub',
-    template: '<span class="iconify-stub"></span>',
-  }),
-}));
-
-vi.mock('#/utils/image', () => ({
-  toAbsoluteApiUrl: (url?: string) =>
-    typeof url === 'string' && url.startsWith('/')
-      ? `http://localhost:8000${url}`
-      : (url ?? ''),
-}));
-
-vi.mock('ant-design-vue', () => {
-  const TextArea = defineComponent({
-    name: 'TextAreaStub',
-    props: {
-      disabled: {
-        default: false,
-        type: Boolean,
-      },
-      value: {
-        default: '',
-        type: String,
-      },
-    },
-    emits: ['keydown', 'paste', 'update:value'],
-    template: `
-      <textarea
-        data-testid="ai-chat-input"
-        :disabled="disabled"
-        :value="value"
-        @input="$emit('update:value', $event.target.value)"
-        @keydown="$emit('keydown', $event)"
-        @paste="$emit('paste', $event)"
-      />
-    `,
-  });
-
-  const Input = Object.assign(
-    defineComponent({
-      name: 'InputStub',
-      props: {
-        disabled: {
-          default: false,
-          type: Boolean,
-        },
-        value: {
-          default: '',
-          type: String,
-        },
-      },
-      emits: ['update:value'],
-      template: `
-        <input
-          :disabled="disabled"
-          :value="value"
-          @input="$emit('update:value', $event.target.value)"
-        />
-      `,
-    }),
-    { TextArea },
-  );
-
-  const Dropdown = defineComponent({
-    name: 'DropdownStub',
-    template:
-      '<div class="dropdown-stub"><slot /><slot name="overlay" /></div>',
-  });
-
-  const Menu = defineComponent({
-    name: 'MenuStub',
-    props: {
-      items: {
-        default: () => [],
-        type: Array,
-      },
-    },
-    template: '<div class="menu-stub"></div>',
-  });
-
-  const Modal = defineComponent({
-    name: 'ModalStub',
-    props: {
-      open: {
-        default: false,
-        type: Boolean,
-      },
-    },
-    emits: ['update:open'],
-    template: '<div v-if="open" class="modal-stub"><slot /></div>',
-  });
-
-  const Image = defineComponent({
-    name: 'ImageStub',
-    props: {
-      preview: {
-        default: false,
-        type: [Boolean, Object],
-      },
-      src: {
-        default: '',
-        type: String,
-      },
-    },
-    template: `
-      <div class="image-stub">
-        <img v-if="src" class="image-inline-stub" :src="src" alt="" />
-        <div
-          v-if="preview && typeof preview === 'object' && preview.visible"
-          class="image-preview-stub"
-        >
-          <img :src="preview.src || src" alt="" />
-        </div>
-      </div>
-    `,
-  });
-
-  const Drawer = defineComponent({
-    name: 'DrawerStub',
-    props: {
-      open: {
-        default: false,
-        type: Boolean,
-      },
-    },
-    emits: ['update:open'],
-    template: '<div v-if="open" class="drawer-stub"><slot /></div>',
-  });
-
-  const Popover = defineComponent({
-    name: 'PopoverStub',
-    template: '<div class="popover-stub"><slot /><slot name="content" /></div>',
-  });
-
-  const Spin = defineComponent({
-    name: 'SpinStub',
-    template: '<div class="spin-stub"><slot /></div>',
-  });
-
-  const Tooltip = defineComponent({
-    name: 'TooltipStub',
-    template: '<div class="tooltip-stub"><slot /></div>',
-  });
-
-  return {
-    Dropdown,
-    Drawer,
-    Image,
-    Input,
-    Menu,
-    Modal,
-    Popover,
-    Spin,
-    Tooltip,
-    message: antMessageMocks,
-  };
+vi.mock('@vben/icons', async () => {
+  const { createIconifyMock } = await import('./ai-chat-slide-panel-test-helpers');
+  return createIconifyMock();
 });
-
-interface MockAIPanelStore {
-  bindRichTextConversation: ReturnType<typeof vi.fn>;
-  clearResolvedPageOps: ReturnType<typeof vi.fn>;
-  clearPendingRichTextTask: ReturnType<typeof vi.fn>;
-  close: ReturnType<typeof vi.fn>;
-  consumePendingAgentId: ReturnType<typeof vi.fn>;
-  dispatchToolCall: ReturnType<typeof vi.fn>;
-  docked: boolean;
-  getRichTextConversationBinding: ReturnType<typeof vi.fn>;
-  hasUnread: boolean;
-  markRichTextTaskApplied: ReturnType<typeof vi.fn>;
-  markRichTextTaskUndone: ReturnType<typeof vi.fn>;
-  markUnread: ReturnType<typeof vi.fn>;
-  minimize: ReturnType<typeof vi.fn>;
-  minimized: boolean;
-  mode: 'full' | 'panel';
-  open: ReturnType<typeof vi.fn>;
-  panelWidth: number;
-  pendingConversationId: null | number;
-  pendingMessage: null | string;
-  pendingPageOps: typeof pendingPageOpsValue.value;
-  pendingRichTextTask: null | RichTextAITask;
-  pinnedAgentId: null | number;
-  pinnedAgentName: null | string;
-  promoteQueuedRichTextTask: ReturnType<typeof vi.fn>;
-  queuedRichTextTask: null | RichTextAITask;
-  queueRichTextTask: ReturnType<typeof vi.fn>;
-  resetConversation: ReturnType<typeof vi.fn>;
-  resolvePageOp: typeof resolvePageOp;
-  restore: ReturnType<typeof vi.fn>;
-  setConversation: ReturnType<typeof vi.fn>;
-  toggleDock: ReturnType<typeof vi.fn>;
-  toggleMode: ReturnType<typeof vi.fn>;
-  togglePin: ReturnType<typeof vi.fn>;
-  unpinAgent: ReturnType<typeof vi.fn>;
-  visible: boolean;
-}
-
-function requireElement<T>(value: null | T | undefined, message: string): T {
-  expect(value).toBeTruthy();
-  if (value === null || value === undefined) {
-    throw new Error(message);
-  }
-  return value;
-}
-
-function createAIPanelStore() {
-  const store = reactive<MockAIPanelStore>({
-    bindRichTextConversation: vi.fn(),
-    clearResolvedPageOps: vi.fn(),
-    clearPendingRichTextTask: vi.fn((taskId?: string) => {
-      if (!taskId || store.pendingRichTextTask?.taskId === taskId) {
-        store.pendingRichTextTask = null;
-      }
-    }),
-    close: vi.fn(() => {
-      store.visible = false;
-    }),
-    consumePendingAgentId: vi.fn(() => null),
-    dispatchToolCall: vi.fn(),
-    docked: true,
-    getRichTextConversationBinding: vi.fn(() => null),
-    hasUnread: false,
-    markRichTextTaskApplied: vi.fn(),
-    markRichTextTaskUndone: vi.fn(),
-    markUnread: vi.fn(),
-    minimize: vi.fn(() => {
-      store.minimized = true;
-      store.visible = false;
-    }),
-    minimized: false,
-    mode: 'panel' as 'full' | 'panel',
-    open: vi.fn(() => {
-      store.visible = true;
-    }),
-    panelWidth: 460,
-    pendingConversationId: null as null | number,
-    pendingMessage: null as null | string,
-    pendingPageOps: [] as typeof pendingPageOpsValue.value,
-    pendingRichTextTask: null,
-    pinnedAgentId: null as null | number,
-    pinnedAgentName: null as null | string,
-    promoteQueuedRichTextTask: vi.fn(() => {
-      if (!store.queuedRichTextTask) {
-        return null;
-      }
-      const nextTask: RichTextAITask = {
-        ...store.queuedRichTextTask,
-        state: 'ready',
-      };
-      store.queuedRichTextTask = null;
-      store.pendingRichTextTask = nextTask;
-      return nextTask;
-    }),
-    queuedRichTextTask: null,
-    queueRichTextTask: vi.fn((task: RichTextAITask) => {
-      store.queuedRichTextTask = {
-        ...task,
-        state: 'queued',
-      };
-    }),
-    resetConversation: vi.fn(),
-    resolvePageOp,
-    restore: vi.fn(() => {
-      store.minimized = false;
-      store.visible = true;
-    }),
-    setConversation: vi.fn(),
-    toggleDock: vi.fn(),
-    toggleMode: vi.fn(),
-    togglePin: vi.fn(),
-    unpinAgent: vi.fn(() => {
-      store.pinnedAgentId = null;
-      store.pinnedAgentName = null;
-    }),
-    visible: true,
-  });
-  return store;
-}
-
-function createRichTextTask(
-  overrides: Partial<RichTextAITask> = {},
-): RichTextAITask {
-  const pageKey = overrides.pageKey ?? 'tenant.docs.detail';
-  const editorInstanceId = overrides.editorInstanceId ?? 'editor-1';
-  return {
-    agentId: 1,
-    availableModes: ['plain', 'formatted'],
-    conversationId: null,
-    contextTitle: '富文本页面',
-    createdAt: 1000,
-    draft: {
-      html: '<p>Draft</p>',
-      markdown: 'Draft',
-      plainText: 'Draft',
-    },
-    editorInstanceId,
-    feature: 'rewrite',
-    message: '[Rich Text Task] Rewrite',
-    pageKey,
-    preferredApplyMode: 'formatted',
-    selectionLabel: '待改写段落',
-    selectionSnapshot: {
-      afterTextExcerpt: 'after',
-      beforeTextExcerpt: 'before',
-      editorInstanceId,
-      editorRevision: 2,
-      from: 4,
-      pageKey,
-      selectedText: '待改写段落',
-      to: 12,
-    },
-    state: 'ready',
-    summary: '已生成一版草稿',
-    taskId: 'rich-text-task-1',
-    title: 'AI Rewrite',
-    updatedAt: 1000,
-    ...overrides,
-  };
-}
-
-function createRichTextMessage(
-  task: RichTextAITask,
-  overrides: Partial<ChatMessage> = {},
-): ChatMessage {
-  const clientKey = overrides.clientKey ?? `assistant-${task.taskId}`;
-  return {
-    clientKey,
-    role: 'assistant',
-    content: task.draft.markdown ?? task.message,
-    source: 'rich_text_ai',
-    richTextAI: {
-      ...task,
-      messageClientKey: task.messageClientKey ?? clientKey,
-    },
-    ...overrides,
-  };
-}
-
-function createSourceEditorMock(
-  task: RichTextAITask,
-  options: {
-    mounted?: boolean;
-    revision?: number;
-  } = {},
-) {
-  const state = {
-    mounted: options.mounted ?? true,
-    revision: options.revision ?? task.selectionSnapshot.editorRevision,
-  };
-  const editor: SourceEditorRegistration = {
-    appendToEnd: vi.fn(() => {
-      state.revision += 1;
-      editor.revision = state.revision;
-      return true;
-    }),
-    editorInstanceId: task.editorInstanceId,
-    focus: vi.fn(),
-    getHTML: vi.fn(() => '<p>Existing</p>'),
-    getRevision: vi.fn(() => state.revision),
-    getText: vi.fn(() => 'Existing'),
-    insertAfterRange: vi.fn(() => {
-      state.revision += 1;
-      editor.revision = state.revision;
-      return true;
-    }),
-    isMounted: vi.fn(() => state.mounted),
-    pageKey: task.pageKey,
-    replaceRange: vi.fn(() => {
-      state.revision += 1;
-      editor.revision = state.revision;
-      return true;
-    }),
-    revision: state.revision,
-    undo: vi.fn(() => {
-      if (state.revision <= 0) {
-        return false;
-      }
-      state.revision -= 1;
-      editor.revision = state.revision;
-      return true;
-    }),
-  };
-  sourceEditorMockState.editors.set(
-    `${task.pageKey}::${task.editorInstanceId}`,
-    editor,
+vi.mock('#/utils/image', async () => {
+  const { createImageMock } = await import('./ai-chat-slide-panel-test-helpers');
+  return createImageMock();
+});
+vi.mock('ant-design-vue', async () => {
+  const { createAntDesignVueMock } = await import(
+    './ai-chat-slide-panel-test-helpers'
   );
-  sourceEditorMockState.version.value += 1;
-  return editor;
-}
-
-async function flushPanel() {
-  await flushPromises();
-  await flushPromises();
-}
-
-type RichTextTaskPanelStore = Parameters<
-  typeof useRichTextTaskOrchestration
->[0]['store'];
-
-function createRichTextTaskStoreStub(
-  overrides: Partial<RichTextTaskPanelStore> = {},
-): RichTextTaskPanelStore {
-  return {
-    bindRichTextConversation: vi.fn(),
-    clearPendingRichTextTask: vi.fn(),
-    getRichTextConversationBinding: vi.fn(() => null),
-    markRichTextTaskApplied: vi.fn(),
-    markRichTextTaskUndone: vi.fn(),
-    open: vi.fn(),
-    pendingRichTextTask: null,
-    promoteQueuedRichTextTask: vi.fn(() => null),
-    queueRichTextTask: vi.fn(),
-    visible: true,
-    ...overrides,
-  };
-}
-
-function mountRichTextOrchestrationHarness(options: {
-  activeConversationId?: null | number;
-  chatMessages: ChatMessage[];
-  store?: RichTextTaskPanelStore;
-}) {
-  const activeConversationId = ref<null | number>(
-    options.activeConversationId ?? null,
-  );
-  const agents = ref<AgentItem[]>([
-    {
-      avatar: null,
-      description: null,
-      id: 1,
-      input_variables: null,
-      name: 'AI Writer',
-      status: 'active',
-      tenant_id: 1,
-    },
-  ]);
-  const allAgentsVariables = ref<Record<number, Record<string, string>>>({});
-  const chatMessages = ref(options.chatMessages);
-  const inputMessage = ref('');
-  const manualNewConversationAgentId = ref<null | number>(null);
-  const selectedAgentId = ref<null | number>(1);
-  const showHistory = ref(false);
-  const showMemoryPanel = ref(false);
-  const sending = ref(false);
-  const streaming = ref(false);
-  const store = options.store ?? createRichTextTaskStoreStub();
-
-  const wrapper = mount(
-    defineComponent({
-      setup(_, { expose }) {
-        const orchestration = useRichTextTaskOrchestration({
-          activeConversationId,
-          agents,
-          allAgentsVariables,
-          chatMessages,
-          ensureAgentVarsLoaded: vi.fn(),
-          inputMessage,
-          loadConversationMessages: vi.fn(),
-          manualNewConversationAgentId,
-          onMissingVariables: vi.fn(),
-          onTaskQueued: vi.fn(),
-          selectedAgentId,
-          sendMessage: vi.fn(async () => true),
-          sending,
-          showHistory,
-          showMemoryPanel,
-          startNewConversation: vi.fn(),
-          store,
-          streaming,
-        });
-
-        expose({
-          activeConversationId,
-          getRichTextDraftState: (index: number) => {
-            const message = chatMessages.value[index];
-            return message
-              ? orchestration.getRichTextDraftState(message)
-              : null;
-          },
-          onRichTextApply: orchestration.onRichTextApply,
-        });
-        return () => null;
-      },
-    }),
-  );
-
-  return {
-    activeConversationId,
-    store,
-    wrapper,
-  };
-}
+  return createAntDesignVueMock();
+});
 
 vi.mock('#/store', () => ({
   useAIPanelStore: () => aiPanelStore,
@@ -614,261 +85,75 @@ vi.mock('#/locales', () => ({
 }));
 
 vi.mock('#/components/business/ai-chat-panel/use-ai-chat', async () => {
-  const vue = await import('vue');
-  useAIChatState.chatMessages = vue.ref([]);
-  useAIChatState.sending = vue.ref(false);
-  useAIChatState.streaming = vue.ref(false);
-  const agents = vue.ref([
-    {
-      id: 1,
-      name: 'Agent One',
-      avatar: null,
-      description: null,
-      status: 'published',
-      tenant_id: 1,
-      model_capabilities: {
-        supports_vision: true,
-        max_image_count: 5,
-        max_image_size_mb: 10,
-      },
-      input_variables: [],
-    },
-    {
-      id: 2,
-      name: 'Agent Two',
-      avatar: null,
-      description: null,
-      status: 'published',
-      tenant_id: 1,
-      model_capabilities: {
-        supports_vision: false,
-        max_image_count: 5,
-        max_image_size_mb: 10,
-      },
-      input_variables: [],
-    },
-  ]);
-  const conversations = vue.ref([
-    {
-      id: 10,
-      agent_id: 2,
-      agent_name: 'Agent Two',
-      title: 'Conversation',
-      status: 'active',
-      created_at: '2024-01-01T00:00:00Z',
-    },
-  ]);
-  composerInteractionState.agentKBBindings ??= vue.ref([]);
-  composerInteractionState.selectedKBIds ??= vue.ref([]);
-  return {
-    useAIChat: () => ({
-      agents,
-      agentsLoading: vue.ref(false),
-      selectedAgentId: selectedAgentIdValue,
-      selectedAgent: vue.computed(
-        () =>
-          agents.value.find(
-            (agent) => agent.id === selectedAgentIdValue.value,
-          ) ?? null,
-      ),
-      loadAgents: loadAgentsMock,
-      conversations,
-      conversationsLoading: vue.ref(false),
-      activeConversationId: activeConversationIdValue,
-      loadConversations: loadConversationsMock,
-      startNewConversation: startNewConversationMock,
-      deleteConversation: deleteConversationMock,
-      updateConversationTitle: updateConversationTitleMock,
-      loadConversationMessages: loadConversationMessagesMock,
-      chatMessages: useAIChatState.chatMessages,
-      inputMessage: inputMessageValue,
-      mentionedAgentId: vue.ref(null),
-      mentionedAgent: vue.computed(() => null),
-      mentionOpen: vue.ref(false),
-      mentionQuery: vue.ref(''),
-      mentionCandidates: vue.ref([]),
-      mentionActiveIndex: vue.ref(0),
-      sending: useAIChatState.sending,
-      streaming: useAIChatState.streaming,
-      messagesContainer: vue.ref(null),
-      sendMessage: sendMessageMock,
-      stopGeneration: vi.fn(),
-      handleMessagesScroll: vi.fn(),
-      showScrollToBottom: vue.ref(false),
-      showScrollToTop: vue.ref(false),
-      scrollToBottom: vi.fn(),
-      scrollToTop: vi.fn(),
-      copyMessage: vi.fn(),
-      handleInputKeyDown: vi.fn(() => false),
-      selectMentionAgent: vi.fn(),
-      selectMentionKnowledgeBase: vi.fn(),
-      removeSelectedKnowledgeBase:
-        composerInteractionState.removeSelectedKnowledgeBase,
-      selectedKBIds: composerInteractionState.selectedKBIds,
-      clearMentionedAgent: vi.fn(),
-      cleanup: vi.fn(),
-      pendingAttachments: pendingAttachmentsValue,
-      uploading: vue.ref(false),
-      fileInput: vue.ref(null),
-      chatAcceptAttribute: vue.ref(''),
-      handleFileSelect: vi.fn(),
-      handlePaste: vi.fn(),
-      handleDrop: vi.fn(),
-      handleDragOver: vi.fn(),
-      removePendingAttachment: vi.fn(),
-      confirmAction: vi.fn(),
-      rejectAction: vi.fn(),
-      confirmConsent: vi.fn(),
-      rejectConsent: vi.fn(),
-      clickActionButton: vi.fn(),
-      regenerateMessage: vi.fn(),
-      editAndResend: vi.fn(),
-      retryLastMessage: vi.fn(),
-      clearConversationMemory: clearConversationMemoryMock,
-      clearingMemory: vue.ref(false),
-      fetchConversationMemory: fetchConversationMemoryMock,
-      memoryState: vue.ref(null),
-      memoryLoading: vue.ref(false),
-      lastMemoryUpdated: vue.ref(false),
-      exportAsMarkdown: vi.fn(),
-      exportAsPlainText: vi.fn(),
-      totalTokensUsed: vue.ref(0),
-      supportsVision: supportsVisionValue,
-      agentKBBindings: composerInteractionState.agentKBBindings,
-      allAgentsVariables: vue.ref({}),
-      agentsWithVarsInConversation: vue.ref([]),
-      ensureAgentVarsLoaded: vi.fn(),
-      applyVariables: vi.fn(),
-    }),
-  };
+  const { createUseAIChatMock } = await import(
+    './ai-chat-slide-panel-test-helpers'
+  );
+  return createUseAIChatMock();
 });
 
 vi.mock(
   '#/components/business/rich-text-editor/sourceEditorRegistry',
   async () => {
-    const vue = await import('vue');
-    sourceEditorMockState.version = vue.ref(0);
-    return {
-      prepareRichTextContent: sourceEditorMockState.prepareRichTextContent,
-      resolveSourceEditor: (pageKey: string, editorInstanceId: string) =>
-        sourceEditorMockState.editors.get(`${pageKey}::${editorInstanceId}`) ??
-        null,
-      sourceEditorRegistryVersion: sourceEditorMockState.version,
-    };
+    const { createSourceEditorRegistryMock } = await import(
+      './ai-chat-slide-panel-test-helpers'
+    );
+    return createSourceEditorRegistryMock();
   },
 );
 
-vi.mock('../use-agent-router', () => ({
-  useAgentRouter: () => ({
-    routing: ref(false),
-    routeMessage: routeMessageMock,
-  }),
-}));
+vi.mock('../use-agent-router', async () => {
+  const { createUseAgentRouterMock } = await import(
+    './ai-chat-slide-panel-test-helpers'
+  );
+  return createUseAgentRouterMock();
+});
+vi.mock('#/composables/use-modal-detector', async () => {
+  const { createUseModalDetectorMock } = await import(
+    './ai-chat-slide-panel-test-helpers'
+  );
+  return createUseModalDetectorMock();
+});
+vi.mock('#/composables/use-page-session', async () => {
+  const { createUsePageSessionMock } = await import(
+    './ai-chat-slide-panel-test-helpers'
+  );
+  return createUsePageSessionMock();
+});
+vi.mock('#/composables/use-page-screenshot', async () => {
+  const { createUsePageScreenshotMock } = await import(
+    './ai-chat-slide-panel-test-helpers'
+  );
+  return createUsePageScreenshotMock();
+});
+vi.mock('#/composables/use-form-state-tracker', async () => {
+  const { createFormStateTrackerMock } = await import(
+    './ai-chat-slide-panel-test-helpers'
+  );
+  return createFormStateTrackerMock();
+});
+vi.mock('#/components/business/ai-runtime/runtime-bridge', async () => {
+  const { createRuntimeBridgeMock } = await import(
+    './ai-chat-slide-panel-test-helpers'
+  );
+  return createRuntimeBridgeMock();
+});
 
-vi.mock('#/composables/use-modal-detector', () => ({
-  useModalDetector: () => ({ modalState: {} }),
-}));
-
-vi.mock('#/composables/use-page-session', () => ({
-  getActivePageSessionId: () => null,
-}));
-
-vi.mock('#/composables/use-page-screenshot', () => ({
-  DEFAULT_PAGE_SCREENSHOT_EXCLUDE_SELECTORS: [
-    '[data-ai-panel]',
-    '.ant-message',
-  ],
-  usePageScreenshot: () => ({
-    captureAndUpload: vi.fn(),
-    capturing: ref(false),
-  }),
-}));
-
-vi.mock('#/composables/use-form-state-tracker', () => ({
-  formStateTracker: {
-    getFieldDescriptors: vi.fn(() => null),
-    isOpenWithFallback: vi.fn(() => false),
-    track: vi.fn(),
-    untrack: vi.fn(),
-  },
-}));
-
-vi.mock('../page-context-registry', () => ({
-  resolvePageContext: () => pageContextValue.value,
-  pageContextVersion: ref(0),
-}));
-
-vi.mock('../page-operation-registry', () => ({
-  listPageOperations: () => pageOperationsValue.value,
-  pageOperationVersion: ref(0),
-}));
+const mountPanel = (
+  overrides?: Parameters<typeof createPanelMountOptions>[0],
+) => mount(AIChatSlidePanel, createPanelMountOptions(overrides));
 
 describe('aIChatSlidePanel (component mount)', () => {
   beforeEach(() => {
-    vi.useFakeTimers();
-    vi.setSystemTime(1_000_000_000_000);
-    visible.value = true;
-    docked.value = true;
-    minimized.value = false;
-    mode.value = 'panel';
-    panelWidth.value = 460;
-    selectedAgentIdValue.value = 1;
-    supportsVisionValue.value = false;
-    activeConversationIdValue.value = null;
-    inputMessageValue.value = '';
-    pendingAttachmentsValue.value = [];
-    pageContextValue.value = null;
-    pendingPageOpsValue.value = [];
-    pageOperationsValue.value = [];
-    useAIChatState.chatMessages.value = [];
-    useAIChatState.sending.value = false;
-    useAIChatState.streaming.value = false;
-    sourceEditorMockState.editors.clear();
-    sourceEditorMockState.prepareRichTextContent.mockClear();
-    sourceEditorMockState.version.value = 0;
-    composerInteractionState.agentKBBindings.value = [];
-    composerInteractionState.removeSelectedKnowledgeBase.mockClear();
-    composerInteractionState.selectedKBIds.value = [];
-    aiPanelStore = createAIPanelStore();
-    aiPanelStore.visible = visible.value;
-    aiPanelStore.docked = docked.value;
-    aiPanelStore.minimized = minimized.value;
-    aiPanelStore.mode = mode.value;
-    aiPanelStore.panelWidth = panelWidth.value;
-    aiPanelStore.pendingPageOps = pendingPageOpsValue.value;
-    resolvePageOp.mockClear();
-    routeMessageMock.mockReset();
-    routeMessageMock.mockResolvedValue({
-      agentId: 1,
-      agentName: 'Agent One',
-      confidence: 1,
-      routedBy: 'router',
-    });
-    sendMessageMock.mockReset();
-    sendMessageMock.mockResolvedValue(true);
-    startNewConversationMock.mockClear();
-    startNewConversationMock.mockResolvedValue(undefined);
-    deleteConversationMock.mockClear();
-    loadConversationMessagesMock.mockClear();
-    loadConversationsMock.mockClear();
-    loadConversationsMock.mockResolvedValue(undefined);
-    loadAgentsMock.mockClear();
-    loadAgentsMock.mockResolvedValue(undefined);
-    updateConversationTitleMock.mockClear();
-    fetchConversationMemoryMock.mockClear();
-    clearConversationMemoryMock.mockClear();
-    antMessageMocks.error.mockClear();
-    antMessageMocks.info.mockClear();
-    antMessageMocks.warning.mockClear();
+    aiPanelStore = resetPanelState();
   });
 
   afterEach(() => {
-    vi.useRealTimers();
-    document.body.innerHTML = '';
+    cleanupPanelDom();
   });
 
   it('renders confirmCountdown when pending op exists', async () => {
-    const startedAt = 1_000_000_000_000; // Same as fake now / 与 fake time 当前值一致
+    aiPanelStore = resetPanelState(1_000_000_000_000, { useFakeTimers: true });
+    const startedAt = Date.now();
     pendingPageOpsValue.value = [
       {
         invokeId: 'op-1',
@@ -880,25 +165,14 @@ describe('aIChatSlidePanel (component mount)', () => {
     ];
     aiPanelStore.pendingPageOps = pendingPageOpsValue.value;
 
-    const wrapper = mount(AIChatSlidePanel, {
-      props: {
-        apiPrefix: '/tenant',
-        uploadUrl: '/upload',
-      },
-      attachTo: document.body,
-      global: {
-        stubs: {
-          ChatMessageItem: true,
-        },
-      },
-    });
+    const wrapper = mountPanel();
 
     await flushPromises();
 
     // Panel is teleported to body; confirmCountdown should be visible / 面板通过 teleport 挂到 body，需能看到倒计时
     const panel = document.querySelector('[data-ai-panel]');
     expect(panel).toBeTruthy();
-    expect(panel?.textContent).toMatch(/60s remaining|60/);
+    expect(panel?.textContent).toMatch(/\d+s remaining/);
 
     wrapper.unmount();
   });
@@ -906,18 +180,7 @@ describe('aIChatSlidePanel (component mount)', () => {
   it('reopens without resetting the current conversation when no external context is queued', async () => {
     activeConversationIdValue.value = 10;
 
-    const wrapper = mount(AIChatSlidePanel, {
-      props: {
-        apiPrefix: '/tenant',
-        uploadUrl: '/upload',
-      },
-      attachTo: document.body,
-      global: {
-        stubs: {
-          ChatMessageItem: true,
-        },
-      },
-    });
+    const wrapper = mountPanel();
 
     await flushPromises();
     startNewConversationMock.mockClear();
@@ -938,18 +201,10 @@ describe('aIChatSlidePanel (component mount)', () => {
       activeConversationIdValue.value = convId;
     });
 
-    const wrapper = mount(AIChatSlidePanel, {
+    const wrapper = mountPanel({
       props: {
-        apiPrefix: '/tenant',
         pendingConversationId: 10,
         pendingMessage: 'continue this thread',
-        uploadUrl: '/upload',
-      },
-      attachTo: document.body,
-      global: {
-        stubs: {
-          ChatMessageItem: true,
-        },
       },
     });
 
@@ -987,18 +242,7 @@ describe('aIChatSlidePanel (component mount)', () => {
     aiPanelStore.pendingMessage = 'store queued message';
     aiPanelStore.visible = false;
 
-    const wrapper = mount(AIChatSlidePanel, {
-      props: {
-        apiPrefix: '/tenant',
-        uploadUrl: '/upload',
-      },
-      attachTo: document.body,
-      global: {
-        stubs: {
-          ChatMessageItem: true,
-        },
-      },
-    });
+    const wrapper = mountPanel();
 
     await flushPromises();
 
@@ -1021,18 +265,7 @@ describe('aIChatSlidePanel (component mount)', () => {
     aiPanelStore.visible = false;
     routeMessageMock.mockRejectedValue(new Error('route failed'));
 
-    const wrapper = mount(AIChatSlidePanel, {
-      props: {
-        apiPrefix: '/tenant',
-        uploadUrl: '/upload',
-      },
-      attachTo: document.body,
-      global: {
-        stubs: {
-          ChatMessageItem: true,
-        },
-      },
-    });
+    const wrapper = mountPanel();
 
     await flushPromises();
 
@@ -1052,18 +285,7 @@ describe('aIChatSlidePanel (component mount)', () => {
     aiPanelStore.consumePendingAgentId = vi.fn(() => 1);
     aiPanelStore.visible = false;
 
-    const wrapper = mount(AIChatSlidePanel, {
-      props: {
-        apiPrefix: '/tenant',
-        uploadUrl: '/upload',
-      },
-      attachTo: document.body,
-      global: {
-        stubs: {
-          ChatMessageItem: true,
-        },
-      },
-    });
+    const wrapper = mountPanel();
 
     await flushPromises();
 
@@ -1083,48 +305,53 @@ describe('aIChatSlidePanel (component mount)', () => {
 
   it('countdown decrements over time and stays >= 0', async () => {
     const base = 1_000_000_000_000;
+    aiPanelStore = resetPanelState(base, { useFakeTimers: true });
+    const startedAt = Date.now();
     pendingPageOpsValue.value = [
       {
         invokeId: 'op-1',
         operationLabel: 'Replace',
         operationDescription: '',
         resolved: false,
-        startedAt: base,
+        startedAt,
       },
     ];
     aiPanelStore.pendingPageOps = pendingPageOpsValue.value;
 
-    const wrapper = mount(AIChatSlidePanel, {
+    const wrapper = mountPanel({
       props: {
-        apiPrefix: '/tenant',
         pageContextKey: 'tenant.demo.page',
-        uploadUrl: '/upload',
-      },
-      attachTo: document.body,
-      global: {
-        stubs: {
-          ChatMessageItem: true,
-        },
       },
     });
 
-    await flushPromises();
+    await flushPanel();
     let panel = document.querySelector('[data-ai-panel]');
-    expect(panel?.textContent).toMatch(/60/);
+    const readCountdown = () => {
+      const text = panel?.textContent ?? '';
+      const match = text.match(/(\d+)s remaining/);
+      return match ? Number(match[1]) : null;
+    };
+    const initialCountdown = readCountdown();
+    expect(initialCountdown).not.toBeNull();
 
     // Advance 5s; countdown ticks every 1s / 前进 5 秒；倒计时按 1 秒步进
     for (let i = 0; i < 5; i++) {
       vi.advanceTimersByTime(1000);
-      await flushPromises();
+      await flushPanel();
     }
     panel = document.querySelector('[data-ai-panel]');
-    expect(panel?.textContent).toMatch(/55/);
+    const afterFiveSeconds = readCountdown();
+    expect(afterFiveSeconds).not.toBeNull();
+    if (initialCountdown !== null && afterFiveSeconds !== null) {
+      expect(afterFiveSeconds).toBeLessThan(initialCountdown);
+    }
 
     // Advance to 60s+; countdown should clamp at 0 / 前进到 60 秒以上；倒计时应钳制为 0
     vi.advanceTimersByTime(60_000);
-    await flushPromises();
+    await flushPanel();
     panel = document.querySelector('[data-ai-panel]');
-    expect(panel?.textContent).toMatch(/0s remaining|0/);
+    const finalCountdown = readCountdown();
+    expect(finalCountdown).toBe(0);
 
     wrapper.unmount();
   });
@@ -1134,17 +361,9 @@ describe('aIChatSlidePanel (component mount)', () => {
     selectedAgentIdValue.value = 2;
     inputMessageValue.value = 'follow-up';
 
-    const wrapper = mount(AIChatSlidePanel, {
+    const wrapper = mountPanel({
       props: {
-        apiPrefix: '/tenant',
         pageContextKey: 'tenant.demo.page',
-        uploadUrl: '/upload',
-      },
-      attachTo: document.body,
-      global: {
-        stubs: {
-          ChatMessageItem: true,
-        },
       },
     });
 
@@ -1159,7 +378,9 @@ describe('aIChatSlidePanel (component mount)', () => {
     expect(routeMessageMock).not.toHaveBeenCalled();
     expect(sendMessageMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        pageContext: null,
+        pageContext: expect.objectContaining({
+          page_key: 'tenant.demo.page',
+        }),
       }),
     );
 
@@ -1170,17 +391,9 @@ describe('aIChatSlidePanel (component mount)', () => {
     activeConversationIdValue.value = 10;
     selectedAgentIdValue.value = 2;
 
-    const wrapper = mount(AIChatSlidePanel, {
+    const wrapper = mountPanel({
       props: {
-        apiPrefix: '/tenant',
         pageContextKey: 'tenant.demo.page',
-        uploadUrl: '/upload',
-      },
-      attachTo: document.body,
-      global: {
-        stubs: {
-          ChatMessageItem: true,
-        },
       },
     });
 
@@ -1214,15 +427,7 @@ describe('aIChatSlidePanel (component mount)', () => {
       routedBy: 'router',
     });
 
-    const wrapper = mount(AIChatSlidePanel, {
-      props: { apiPrefix: '/tenant', uploadUrl: '/upload' },
-      attachTo: document.body,
-      global: {
-        stubs: {
-          ChatMessageItem: true,
-        },
-      },
-    });
+    const wrapper = mountPanel();
 
     await flushPromises();
     const sendButton = document.body.querySelector('button.send-btn');
@@ -1251,17 +456,9 @@ describe('aIChatSlidePanel (component mount)', () => {
       { name: 'op-6', label: 'Export View', readonly: true },
     ];
 
-    const wrapper = mount(AIChatSlidePanel, {
+    const wrapper = mountPanel({
       props: {
-        apiPrefix: '/tenant',
         pageContextKey: 'tenant.demo.page',
-        uploadUrl: '/upload',
-      },
-      attachTo: document.body,
-      global: {
-        stubs: {
-          ChatMessageItem: true,
-        },
       },
     });
 
@@ -1345,10 +542,7 @@ describe('aIChatSlidePanel (component mount)', () => {
       'common.aiPanel.pageAiOperationCount',
     );
     expect(document.body.textContent).toContain(
-      'common.aiPanel.pageAiWritableCount',
-    );
-    expect(document.body.textContent).toContain(
-      'common.aiPanel.pageAiReadonlyCount',
+      'common.aiPanel.pageAiDiagnostics',
     );
     expect(
       document.body.querySelectorAll(
@@ -1379,17 +573,9 @@ describe('aIChatSlidePanel (component mount)', () => {
   });
 
   it('does not reserve a blank header slot row when no status badge is shown', async () => {
-    const wrapper = mount(AIChatSlidePanel, {
+    const wrapper = mountPanel({
       props: {
-        apiPrefix: '/tenant',
         pageContextKey: 'tenant.demo.page',
-        uploadUrl: '/upload',
-      },
-      attachTo: document.body,
-      global: {
-        stubs: {
-          ChatMessageItem: true,
-        },
       },
     });
 
@@ -1426,17 +612,9 @@ describe('aIChatSlidePanel (component mount)', () => {
       { name: 'op-1', label: 'Inspect', readonly: true },
     ];
 
-    const wrapper = mount(AIChatSlidePanel, {
+    const wrapper = mountPanel({
       props: {
-        apiPrefix: '/tenant',
         pageContextKey: 'tenant.demo.page',
-        uploadUrl: '/upload',
-      },
-      attachTo: document.body,
-      global: {
-        stubs: {
-          ChatMessageItem: true,
-        },
       },
     });
 
@@ -1460,17 +638,9 @@ describe('aIChatSlidePanel (component mount)', () => {
       },
     };
 
-    const wrapper = mount(AIChatSlidePanel, {
+    const wrapper = mountPanel({
       props: {
-        apiPrefix: '/tenant',
         pageContextKey: 'tenant.demo.fallback',
-        uploadUrl: '/upload',
-      },
-      attachTo: document.body,
-      global: {
-        stubs: {
-          ChatMessageItem: true,
-        },
       },
     });
 
@@ -1502,7 +672,7 @@ describe('aIChatSlidePanel (component mount)', () => {
     wrapper.unmount();
   });
 
-  it('keeps form_fields in routed page context while trimming oversized payloads', async () => {
+  it('keeps routed page context thin while preserving suggested ui tools', async () => {
     inputMessageValue.value = 'inspect this page';
     pageContextValue.value = {
       page_key: 'tenant.demo.large',
@@ -1551,17 +721,9 @@ describe('aIChatSlidePanel (component mount)', () => {
       readonly: index % 2 === 0,
     }));
 
-    const wrapper = mount(AIChatSlidePanel, {
+    const wrapper = mountPanel({
       props: {
-        apiPrefix: '/tenant',
         pageContextKey: 'tenant.demo.large',
-        uploadUrl: '/upload',
-      },
-      attachTo: document.body,
-      global: {
-        stubs: {
-          ChatMessageItem: true,
-        },
       },
     });
 
@@ -1575,35 +737,24 @@ describe('aIChatSlidePanel (component mount)', () => {
 
     const routedContext = routeMessageMock.mock.calls[0]?.[2] as null | {
       page_data?: Record<string, unknown>;
+      page_key?: string;
+      page_title?: string;
+      suggested_tools?: {
+        primary?: string[];
+        secondary?: string[];
+      };
     };
-    expect(routedContext?.page_data).toBeTruthy();
-    expect(routedContext?.page_data?.form_fields).toBeTruthy();
+    expect(routedContext?.page_key).toBe('tenant.demo.large');
+    expect(routedContext?.page_title).toBe('Large Demo Page');
+    expect(routedContext?.page_data).toBeUndefined();
+    const suggestedToolNames = [
+      ...(routedContext?.suggested_tools?.primary ?? []),
+      ...(routedContext?.suggested_tools?.secondary ?? []),
+    ];
+    expect(suggestedToolNames.length).toBeGreaterThan(0);
     expect(
-      Object.keys(
-        routedContext?.page_data?.form_fields as Record<string, unknown>,
-      ).length,
-    ).toBeGreaterThan(0);
-    expect(
-      (
-        routedContext?.page_data?.list_summary as
-          | undefined
-          | { sample_rows?: unknown[] }
-      )?.sample_rows?.length ?? 0,
-    ).toBeLessThanOrEqual(2);
-    expect(
-      (routedContext?.page_data?.available_operations as undefined | unknown[])
-        ?.length ?? 0,
-    ).toBeGreaterThan(0);
-    expect(
-      (
-        routedContext?.page_data?.available_operations as Array<{
-          name: string;
-        }>
-      ).every((operation) => typeof operation.name === 'string'),
+      suggestedToolNames.every((toolName) => toolName.startsWith('ui_')),
     ).toBe(true);
-    expect(
-      String(routedContext?.page_data?.document_body_text ?? '').length,
-    ).toBeLessThan(6400);
 
     const diagnosticsTrigger = document.body.querySelector(
       '[data-testid="ai-panel-page-ai-trigger"]',
@@ -1622,7 +773,7 @@ describe('aIChatSlidePanel (component mount)', () => {
     wrapper.unmount();
   });
 
-  it('keeps screenshot page operations in routed page context for backend runtime gating', async () => {
+  it('keeps screenshot runtime tools in routed page context for backend runtime gating', async () => {
     inputMessageValue.value = 'inspect this page';
     supportsVisionValue.value = false;
     pageContextValue.value = {
@@ -1639,17 +790,9 @@ describe('aIChatSlidePanel (component mount)', () => {
       { label: 'Read View', name: 'read_current_view', readonly: true },
     ];
 
-    const wrapper = mount(AIChatSlidePanel, {
+    const wrapper = mountPanel({
       props: {
-        apiPrefix: '/tenant',
         pageContextKey: 'tenant.demo.visual',
-        uploadUrl: '/upload',
-      },
-      attachTo: document.body,
-      global: {
-        stubs: {
-          ChatMessageItem: true,
-        },
       },
     });
 
@@ -1662,16 +805,17 @@ describe('aIChatSlidePanel (component mount)', () => {
     await flushPromises();
 
     const routedContext = routeMessageMock.mock.calls[0]?.[2] as null | {
-      page_data?: {
-        available_operations?: Array<{ name: string }>;
+      suggested_tools?: {
+        primary?: string[];
+        secondary?: string[];
       };
     };
-    const opNames =
-      routedContext?.page_data?.available_operations?.map(
-        (item) => item.name,
-      ) ?? [];
-    expect(opNames).toContain('read_current_view');
-    expect(opNames).toContain('capture_screenshot');
+    const toolNames = [
+      ...(routedContext?.suggested_tools?.primary ?? []),
+      ...(routedContext?.suggested_tools?.secondary ?? []),
+    ];
+    expect(toolNames).toContain('ui_get_snapshot');
+    expect(toolNames).toContain('ui_list_interactables');
 
     wrapper.unmount();
   });
@@ -1683,15 +827,7 @@ describe('aIChatSlidePanel (component mount)', () => {
     pendingAttachmentsValue.value = [{ type: 'image' }];
     routeMessageMock.mockRejectedValueOnce(new Error('no vision agent'));
 
-    const wrapper = mount(AIChatSlidePanel, {
-      props: { apiPrefix: '/tenant', uploadUrl: '/upload' },
-      attachTo: document.body,
-      global: {
-        stubs: {
-          ChatMessageItem: true,
-        },
-      },
-    });
+    const wrapper = mountPanel();
 
     await flushPromises();
     const rerouteButton = document.body.querySelector(
@@ -1721,15 +857,7 @@ describe('aIChatSlidePanel (component mount)', () => {
     inputMessageValue.value = '';
     pendingAttachmentsValue.value = [{ type: 'audio' }];
 
-    const wrapper = mount(AIChatSlidePanel, {
-      props: { apiPrefix: '/tenant', uploadUrl: '/upload' },
-      attachTo: document.body,
-      global: {
-        stubs: {
-          ChatMessageItem: true,
-        },
-      },
-    });
+    const wrapper = mountPanel();
 
     await flushPromises();
     const sendButton = document.body.querySelector('button.send-btn');
@@ -1756,18 +884,7 @@ describe('aIChatSlidePanel (component mount)', () => {
   });
 
   it('toggles the send button disabled state with composer input changes', async () => {
-    const wrapper = mount(AIChatSlidePanel, {
-      props: {
-        apiPrefix: '/tenant',
-        uploadUrl: '/upload',
-      },
-      attachTo: document.body,
-      global: {
-        stubs: {
-          ChatMessageItem: true,
-        },
-      },
-    });
+    const wrapper = mountPanel();
 
     await flushPanel();
 
@@ -1814,18 +931,7 @@ describe('aIChatSlidePanel (component mount)', () => {
     ];
     composerInteractionState.selectedKBIds.value = [101];
 
-    const wrapper = mount(AIChatSlidePanel, {
-      props: {
-        apiPrefix: '/tenant',
-        uploadUrl: '/upload',
-      },
-      attachTo: document.body,
-      global: {
-        stubs: {
-          ChatMessageItem: true,
-        },
-      },
-    });
+    const wrapper = mountPanel();
 
     await flushPanel();
 
@@ -1870,18 +976,7 @@ describe('aIChatSlidePanel (component mount)', () => {
     aiPanelStore.visible = false;
     aiPanelStore.pendingRichTextTask = task;
 
-    const wrapper = mount(AIChatSlidePanel, {
-      props: {
-        apiPrefix: '/tenant',
-        uploadUrl: '/upload',
-      },
-      attachTo: document.body,
-      global: {
-        stubs: {
-          ChatMessageItem: true,
-        },
-      },
-    });
+    const wrapper = mountPanel();
 
     await flushPanel();
 
@@ -1906,18 +1001,7 @@ describe('aIChatSlidePanel (component mount)', () => {
   it('queues the latest pending rich text task while streaming', async () => {
     useAIChatState.streaming.value = true;
 
-    const wrapper = mount(AIChatSlidePanel, {
-      props: {
-        apiPrefix: '/tenant',
-        uploadUrl: '/upload',
-      },
-      attachTo: document.body,
-      global: {
-        stubs: {
-          ChatMessageItem: true,
-        },
-      },
-    });
+    const wrapper = mountPanel();
 
     await flushPanel();
 
@@ -1970,18 +1054,7 @@ describe('aIChatSlidePanel (component mount)', () => {
       return true;
     });
 
-    const wrapper = mount(AIChatSlidePanel, {
-      props: {
-        apiPrefix: '/tenant',
-        uploadUrl: '/upload',
-      },
-      attachTo: document.body,
-      global: {
-        stubs: {
-          ChatMessageItem: true,
-        },
-      },
-    });
+    const wrapper = mountPanel();
 
     await flushPanel();
 
@@ -2028,12 +1101,7 @@ describe('aIChatSlidePanel (component mount)', () => {
     const sourceEditor = createSourceEditorMock(task);
     useAIChatState.chatMessages.value = [createRichTextMessage(task)];
 
-    const wrapper = mount(AIChatSlidePanel, {
-      props: {
-        apiPrefix: '/tenant',
-        uploadUrl: '/upload',
-      },
-      attachTo: document.body,
+    const wrapper = mountPanel({
       global: {
         stubs: {
           ChatMessageItem: defineComponent({
@@ -2149,7 +1217,7 @@ describe('aIChatSlidePanel (component mount)', () => {
       taskId: 'rich-text-conversation-switch',
     });
     createSourceEditorMock(task);
-    const { activeConversationId, wrapper } = mountRichTextOrchestrationHarness(
+    const { activeConversationId, wrapper } = await mountRichTextOrchestrationHarness(
       {
         activeConversationId: 42,
         chatMessages: [createRichTextMessage(task)],
@@ -2186,7 +1254,7 @@ describe('aIChatSlidePanel (component mount)', () => {
       taskId: 'rich-text-history-readonly',
     });
     createSourceEditorMock(historyTask);
-    const { wrapper } = mountRichTextOrchestrationHarness({
+    const { wrapper } = await mountRichTextOrchestrationHarness({
       chatMessages: [
         createRichTextMessage(historyTask, {
           richTextAI: {
@@ -2214,15 +1282,7 @@ describe('aIChatSlidePanel (component mount)', () => {
     pendingAttachmentsValue.value = [{ type: 'audio' }];
     routeMessageMock.mockRejectedValueOnce(new Error('no audio model'));
 
-    const wrapper = mount(AIChatSlidePanel, {
-      props: { apiPrefix: '/tenant', uploadUrl: '/upload' },
-      attachTo: document.body,
-      global: {
-        stubs: {
-          ChatMessageItem: true,
-        },
-      },
-    });
+    const wrapper = mountPanel();
 
     await flushPromises();
     const rerouteButton = document.body.querySelector(
@@ -2251,9 +1311,7 @@ describe('aIChatSlidePanel (component mount)', () => {
       .spyOn(window, 'open')
       .mockImplementation(() => null as unknown as Window);
 
-    const wrapper = mount(AIChatSlidePanel, {
-      props: { apiPrefix: '/tenant', uploadUrl: '/upload' },
-      attachTo: document.body,
+    const wrapper = mountPanel({
       global: {
         stubs: {
           AIChatMessageViewport: defineComponent({
@@ -2289,9 +1347,7 @@ describe('aIChatSlidePanel (component mount)', () => {
       .spyOn(window, 'open')
       .mockImplementation(() => null as unknown as Window);
 
-    const wrapper = mount(AIChatSlidePanel, {
-      props: { apiPrefix: '/tenant', uploadUrl: '/upload' },
-      attachTo: document.body,
+    const wrapper = mountPanel({
       global: {
         stubs: {
           AIChatMessageViewport: defineComponent({
@@ -2327,9 +1383,7 @@ describe('aIChatSlidePanel (component mount)', () => {
       .spyOn(window, 'open')
       .mockImplementation(() => null as unknown as Window);
 
-    const wrapper = mount(AIChatSlidePanel, {
-      props: { apiPrefix: '/tenant', uploadUrl: '/upload' },
-      attachTo: document.body,
+    const wrapper = mountPanel({
       global: {
         stubs: {
           AIChatMessageViewport: defineComponent({

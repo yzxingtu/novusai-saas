@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-import type { PendingPageOp } from '#/store/shared/ai-panel';
 import type {
   AgentItem,
   ChatMessage,
@@ -13,15 +12,7 @@ import { IconifyIcon } from '@vben/icons';
 import ChatMessageItem from '#/components/business/ai-chat-panel/ChatMessageItem.vue';
 import { $t } from '#/locales';
 
-interface PendingOpDisplayItem {
-  allowed?: boolean;
-  invokeId: string;
-  operationDescription?: string;
-  operationLabel: string;
-  params?: Record<string, unknown>;
-  resolved: boolean;
-  startedAt?: number;
-}
+import type { PendingOpDisplayItem } from './use-pending-page-ops';
 
 withDefaults(
   defineProps<{
@@ -31,7 +22,7 @@ withDefaults(
     countdownNow?: number;
     effectiveSuggestedQuestions?: string[];
     effectiveWelcomeMessage?: string;
-    getPendingOpsForMessage: (msg: ChatMessage) => PendingPageOp[];
+    getPendingOpsForMessage: (msg: ChatMessage) => PendingOpDisplayItem[];
     getRichTextDraftState: (
       message: ChatMessage,
     ) => null | RichTextDraftRuntimeState;

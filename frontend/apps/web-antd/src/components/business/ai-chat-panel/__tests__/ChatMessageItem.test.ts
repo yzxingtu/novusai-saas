@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import type {
   ChatMessage,
   RichTextAISelectionSnapshot,
@@ -10,7 +11,7 @@ import type {
  * ChatMessageItem 组件测试：待确认、执行中、8s 提示、error_type 映射。
  */
 import { mount } from '@vue/test-utils';
-import { ref } from 'vue';
+import { defineComponent, ref } from 'vue';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -41,6 +42,17 @@ vi.mock('#/store', () => ({
 
 vi.mock('#/locales', () => ({
   $t: (key: string) => key,
+}));
+
+vi.mock('@vben/icons', () => ({
+  IconifyIcon: defineComponent({
+    name: 'IconifyIconStub',
+    template: '<span class="iconify-stub"></span>',
+  }),
+}));
+
+vi.mock('#/utils/request', () => ({
+  isDevErrorMode: () => false,
 }));
 
 function createAssistantMsg(toolCalls: ChatMessage['toolCalls']): ChatMessage {
@@ -148,12 +160,12 @@ describe('chatMessageItem', () => {
     vi.useRealTimers();
   });
 
-  it('shows toolWaitingConfirm when invoke_page_operation + pending op (legacy: no toolCallId)', async () => {
+  it('shows toolWaitingConfirm when ui runtime tool is pending confirmation', async () => {
     pendingPageOpsValue.value = [createPendingOp()];
     const wrapper = mount(ChatMessageItem, {
       props: {
         msg: createAssistantMsg([
-          { name: 'invoke_page_operation', status: 'running' },
+          { name: 'ui_submit_form', status: 'running' },
         ]),
         pendingOps: [createPendingOp({ invokeId: 'i1' })],
         index: 0,
@@ -178,7 +190,7 @@ describe('chatMessageItem', () => {
       props: {
         msg: createAssistantMsg([
           {
-            name: 'invoke_page_operation',
+            name: 'ui_submit_form',
             status: 'running',
           },
         ]),
@@ -232,7 +244,7 @@ describe('chatMessageItem', () => {
       props: {
         msg: createAssistantMsg([
           {
-            name: 'invoke_page_operation',
+            name: 'ui_submit_form',
             status: 'running',
             startedAt: baseTime - 9000,
           },
@@ -261,7 +273,7 @@ describe('chatMessageItem', () => {
       props: {
         msg: createAssistantMsg([
           {
-            name: 'invoke_page_operation',
+            name: 'ui_submit_form',
             status: 'error',
             error: 'Awaiting confirmation',
             errorType: 'pending_confirmation',
@@ -297,7 +309,7 @@ describe('chatMessageItem', () => {
     const wrapper = mount(ChatMessageItem, {
       props: {
         msg: createAssistantMsg([
-          { id: 'tc_123', name: 'pageop_replace_content', status: 'running' },
+          { id: 'tc_123', name: 'ui_set_field', status: 'running' },
         ]),
         pendingOps: pendingPageOpsValue.value,
         index: 0,
@@ -317,14 +329,12 @@ describe('chatMessageItem', () => {
     expect(wrapper.text()).toContain('Replace content');
   });
 
-  it('shows toolStatusOk (not error) when tool completes successfully after name-mismatch fallback', async () => {
-    // Simulates: tool_start had name pageop_xxx, tool_call had name invoke_page_operation; / 模拟名称不一致
-    // fallback matched and updated the running tool to success, so we show success not error. / 回退匹配后应显示成功
+  it('shows toolStatusOk (not error) when ui runtime tool completes successfully', async () => {
     const wrapper = mount(ChatMessageItem, {
       props: {
         msg: createAssistantMsg([
           {
-            name: 'pageop_get_editor_html',
+            name: 'ui_get_snapshot',
             status: 'success',
             durationMs: 200,
           },
@@ -357,7 +367,7 @@ describe('chatMessageItem', () => {
     const wrapper = mount(ChatMessageItem, {
       props: {
         msg: createAssistantMsg([
-          { id: 'tc_123', name: 'pageop_replace_content', status: 'running' },
+          { id: 'tc_123', name: 'ui_fill_form', status: 'running' },
         ]),
         pendingOps: pendingPageOpsValue.value,
         index: 0,
@@ -381,7 +391,7 @@ describe('chatMessageItem', () => {
       props: {
         msg: createAssistantMsg([
           {
-            name: 'invoke_page_operation',
+            name: 'ui_submit_form',
             status: 'error',
             error: 'Unknown failure',
             errorType: 'unknown_type',
@@ -480,6 +490,56 @@ describe('chatMessageItem', () => {
     expect(
       wrapper.get('[data-testid="thinking-body"]').attributes('style'),
     ).toContain('grid-template-rows: 1fr');
+  });
+
+  it('delays thinking auto-collapse briefly so the close animation is visible', async () => {
+    vi.useFakeTimers();
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: {
+          clientKey: 'assistant-thinking-auto-collapse',
+          role: 'assistant',
+          content: '',
+          thinkingContent: '先检查上下文，再决定下一步。',
+          streaming: true,
+        },
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: {
+            props: ['content'],
+            template: '<div>{{ content }}</div>',
+          },
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+    await wrapper.setProps({
+      msg: {
+        clientKey: 'assistant-thinking-auto-collapse',
+        role: 'assistant',
+        content: '最终答复',
+        thinkingContent: '先检查上下文，再决定下一步。',
+        streaming: false,
+      },
+    });
+    await wrapper.vm.$nextTick();
+
+    expect(
+      wrapper.get('[data-testid="thinking-body"]').attributes('style'),
+    ).toContain('grid-template-rows: 1fr');
+
+    vi.advanceTimersByTime(200);
+    await wrapper.vm.$nextTick();
+
+    expect(
+      wrapper.get('[data-testid="thinking-body"]').attributes('style'),
+    ).toContain('grid-template-rows: 0fr');
   });
 
   it('renders @ route badge for one-time mention messages', async () => {
@@ -913,5 +973,33 @@ describe('chatMessageItem', () => {
     await wrapper.vm.$nextTick();
 
     expect(body.attributes('style') ?? '').toContain('grid-template-rows: 0fr');
+  });
+
+  it('shows a folded-message hint for very long replies', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: {
+          clientKey: 'assistant-long-message',
+          role: 'assistant' as const,
+          content: '很长的内容'.repeat(500),
+          streaming: false,
+        },
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: true,
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.get('[data-testid="collapsed-message-hint"]').text()).toBe(
+      'common.globalAiChat.collapsedMessageHint',
+    );
   });
 });

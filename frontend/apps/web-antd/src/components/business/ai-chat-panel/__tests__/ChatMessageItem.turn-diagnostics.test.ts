@@ -58,6 +58,10 @@ vi.mock('#/store', () => ({
   }),
 }));
 
+vi.mock('#/utils/request', () => ({
+  isDevErrorMode: () => false,
+}));
+
 describe('chatMessageItem turn diagnostics', () => {
   function mountMessage(
     msg: Partial<
@@ -96,7 +100,7 @@ describe('chatMessageItem turn diagnostics', () => {
 
   it('hides turn diagnostics chips for successful assistant turns', () => {
     const wrapper = mountMessage({
-      selectedSkillNames: ['runtime.page_context', 'runtime.route'],
+      selectedSkillNames: ['runtime.ui_runtime', 'runtime.route'],
       selectedToolNames: ['query_records'],
       terminationReason: 'completed',
       turnOutcome: 'success',
@@ -104,29 +108,35 @@ describe('chatMessageItem turn diagnostics', () => {
 
     const rendered = wrapper.text();
     expect(rendered).not.toContain('selected_skills');
-    expect(rendered).not.toContain('runtime.page_context');
+    expect(rendered).not.toContain('runtime.ui_runtime');
     expect(rendered).not.toContain('selected_tools');
     expect(rendered).not.toContain('query_records');
     expect(rendered).not.toContain('turn_outcome');
     expect(rendered).not.toContain('termination_reason');
   });
 
-  it('renders turn diagnostics chips for partial assistant turns', () => {
+  it('hides turn diagnostics chips for benign partial assistant turns', () => {
     const wrapper = mountMessage({
       partial: true,
-      selectedSkillNames: ['runtime.page_context'],
-      selectedToolNames: ['invoke_page_operation'],
+      selectedSkillNames: ['runtime.ui_runtime'],
+      selectedToolNames: ['ui_submit_form'],
       terminationReason: 'interrupted',
       turnOutcome: 'partial',
     });
 
     const rendered = wrapper.text();
-    expect(rendered).toContain('turn_outcome');
-    expect(rendered).toContain('partial');
-    expect(rendered).toContain('termination_reason');
-    expect(rendered).toContain('interrupted');
-    expect(rendered).toContain('selected_skills');
-    expect(rendered).toContain('runtime.page_context');
+    expect(rendered).not.toContain(
+      'common.globalAiChat.diagnosticTurnOutcomeLabel',
+    );
+    expect(rendered).not.toContain('partial');
+    expect(rendered).not.toContain(
+      'common.globalAiChat.diagnosticTerminationReasonLabel',
+    );
+    expect(rendered).not.toContain('interrupted');
+    expect(rendered).not.toContain(
+      'common.globalAiChat.diagnosticSelectedSkillsLabel',
+    );
+    expect(rendered).not.toContain('runtime.ui_runtime');
   });
 
   it('renders turn diagnostics chips for failed assistant turns', () => {
@@ -138,11 +148,81 @@ describe('chatMessageItem turn diagnostics', () => {
     });
 
     const rendered = wrapper.text();
-    expect(rendered).toContain('turn_outcome');
+    expect(rendered).toContain(
+      'common.globalAiChat.diagnosticTurnOutcomeLabel',
+    );
     expect(rendered).toContain('failed');
-    expect(rendered).toContain('termination_reason');
+    expect(rendered).toContain(
+      'common.globalAiChat.diagnosticTerminationReasonLabel',
+    );
     expect(rendered).toContain('tool_error');
-    expect(rendered).toContain('selected_tools');
+    expect(rendered).toContain(
+      'common.globalAiChat.diagnosticSelectedToolsLabel',
+    );
     expect(rendered).toContain('web_search');
+  });
+
+  it('only renders active context source chips', () => {
+    const wrapper = mountMessage({
+      contextSources: [
+        {
+          active: true,
+          kind: 'skill',
+          name: 'skill_resolver',
+        },
+        {
+          active: false,
+          kind: 'session_memory',
+          name: 'session_memory',
+        },
+      ],
+      requestFailedRetry: true,
+      terminationReason: 'tool_error',
+      turnOutcome: 'failed',
+    });
+
+    const rendered = wrapper.text();
+    expect(rendered).toContain(
+      'common.globalAiChat.diagnosticContextSourcesLabel',
+    );
+    expect(rendered).toContain('skill:skill_resolver');
+    expect(rendered).not.toContain('session_memory:session_memory');
+  });
+
+  it('shows a truncation warning when the reply hits the length limit', () => {
+    const wrapper = mountMessage({
+      completionReason: 'length',
+      content: 'This response stopped because it hit the model length limit.',
+    });
+
+    expect(wrapper.text()).toContain('common.globalAiChat.responseTruncated');
+    expect(wrapper.find('[data-testid="truncation-warning"]').exists()).toBe(
+      true,
+    );
+  });
+
+  it('hides turn diagnostics when a structured error panel is shown', () => {
+    const wrapper = mountMessage({
+      error: {
+        message: '服务器内部错误',
+        source: 'sse',
+        traceId: 'trace-chat-error',
+      },
+      requestFailedRetry: true,
+      selectedToolNames: ['web_search'],
+      terminationReason: 'error',
+      turnOutcome: 'failed',
+    });
+
+    const rendered = wrapper.text();
+    expect(rendered).toContain('服务器内部错误');
+    expect(rendered).not.toContain(
+      'common.globalAiChat.diagnosticTurnOutcomeLabel',
+    );
+    expect(rendered).not.toContain('failed');
+    expect(rendered).not.toContain(
+      'common.globalAiChat.diagnosticSelectedToolsLabel',
+    );
+    expect(rendered).not.toContain('web_search');
   });
 });

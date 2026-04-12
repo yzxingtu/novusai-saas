@@ -50,6 +50,7 @@ export interface RawMessageItem {
       action?: string;
       preview?: Record<string, unknown>;
       table?: string;
+      tool_name?: string;
     };
     pending_consent?: {
       arguments?: Record<string, unknown>;
@@ -76,6 +77,12 @@ export interface RawMessageItem {
     completion_reason?: string;
     context_compacted?: boolean;
     context_sources?: TurnContextSourcePayload[];
+    error?: boolean;
+    error_debug_message?: string;
+    error_message?: string;
+    error_only?: boolean;
+    error_trace_id?: string;
+    error_type?: string;
     interrupted?: boolean;
     memory_flush_triggered?: boolean;
     memory_recalled?: boolean;
@@ -87,6 +94,7 @@ export interface RawMessageItem {
       preview?: Record<string, unknown>;
       resolved?: boolean;
       table?: string;
+      tool_name?: string;
     };
     pending_consent?: {
       arguments?: Record<string, unknown>;
@@ -124,6 +132,7 @@ export interface ConversationDetailResponse {
   agent_id?: null | number;
   context_diagnostics?: null | Record<string, unknown>;
   interaction_mode_effective?: InteractionMode;
+  interaction_mode_requested?: InteractionMode;
   last_run_summary?: null | Record<string, unknown>;
   message_list: RawMessageItem[];
 }
@@ -387,14 +396,71 @@ export function buildChatAttachmentFromUpload(
 
 // ============ Route Types / 路由请求类型 ============
 
-export interface PageDataWithLocale extends Record<string, unknown> {
-  locale?: string;
+export type PageSurfaceKind =
+  | 'drawer'
+  | 'dropdown'
+  | 'modal'
+  | 'page'
+  | 'popover';
+
+export interface PageSurfaceSummary {
+  kind: PageSurfaceKind;
+  surface_id: string;
+  title?: string;
+}
+
+export type ActiveFormMode = 'create' | 'edit' | 'unknown' | 'view';
+
+export type ActiveFormStage =
+  | 'failed'
+  | 'filled_partial'
+  | 'opening'
+  | 'ready'
+  | 'ready_to_submit'
+  | 'submitted'
+  | 'submitting'
+  | 'validating';
+
+export interface ActiveFormSummary {
+  can_submit?: boolean;
+  entity_name?: string;
+  form_session_id: string;
+  mode?: ActiveFormMode;
+  record_id?: number | string;
+  remaining_required_fields?: string[];
+  stage?: ActiveFormStage;
+  submit_policy?: 'auto' | 'confirm' | 'off';
+}
+
+export type PageContextSuggestedTool =
+  | 'ui_click'
+  | 'ui_fill_form'
+  | 'ui_get_form_state'
+  | 'ui_get_snapshot'
+  | 'ui_list_interactables'
+  | 'ui_open_surface'
+  | 'ui_read_region'
+  | 'ui_read_table'
+  | 'ui_set_field'
+  | 'ui_submit_form';
+
+export interface PageContextSuggestedTools {
+  primary: PageContextSuggestedTool[];
+  reason?: string;
+  secondary?: PageContextSuggestedTool[];
 }
 
 export interface PageContext {
+  active_form_session_id?: string;
+  active_form_summary?: ActiveFormSummary;
+  active_surface_id?: string;
+  locale?: string;
   page_key: string;
+  page_session_id?: string;
   page_title?: string;
-  page_data?: PageDataWithLocale;
+  suggested_tools?: PageContextSuggestedTools;
+  surface_stack?: PageSurfaceSummary[];
+  ui_epoch?: number;
 }
 
 export interface AgentChatImageParams {

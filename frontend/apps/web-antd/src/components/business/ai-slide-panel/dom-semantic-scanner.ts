@@ -2,7 +2,7 @@
  * DOM Semantic Scanner
  * DOM 语义快照扫描器
  *
- * Provides a fallback page context for pages that have not called registerPageContext().
+ * Provides a fallback page context when runtime thin context is unavailable.
  * Scans the DOM for key semantic elements (headings, tables, forms, buttons, tabs)
  * and returns a lightweight snapshot the AI can use to understand the page.
  *

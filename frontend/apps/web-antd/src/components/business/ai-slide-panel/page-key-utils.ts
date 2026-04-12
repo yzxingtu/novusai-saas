@@ -11,7 +11,7 @@
  *
  * Accepts any of:
  *   '/admin/ai/agents'  → 'admin.ai.agents'  (route.path)
- *   'admin/ai/agents'   → 'admin.ai.agents'  (registerPageContext key)
+ *   'admin/ai/agents'   → 'admin.ai.agents'  (page key)
  *   'admin.ai.agents'   → 'admin.ai.agents'  (already canonical)
  */
 

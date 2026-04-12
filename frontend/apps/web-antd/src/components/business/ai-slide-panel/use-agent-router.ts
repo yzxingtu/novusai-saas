@@ -23,8 +23,7 @@ import type { AgentItem } from '#/types/ai-chat';
 import { ref, unref, watch } from 'vue';
 
 import { routeMessageApi } from '#/api/shared/ai-chat';
-
-import { resolvePageContext } from './page-context-registry';
+import { getRuntimeThinPageContext } from '#/components/business/ai-runtime/runtime-bridge';
 
 const ROUTE_CACHE_TTL_MS = 2 * 60 * 1000;
 
@@ -37,117 +36,58 @@ function _simpleHash(s: string): string {
   return (h >>> 0).toString(36);
 }
 
-function pickStableRoutePageData(
-  pageData?: null | Record<string, unknown>,
-): null | Record<string, unknown> {
-  if (!pageData) {
-    return null;
-  }
-
-  const stableData: Record<string, unknown> = {};
-
-  for (const key of [
-    'source',
-    'entity_name',
-    'entity_description',
-    'document_title',
-  ] as const) {
-    const value = pageData[key];
-    if (typeof value === 'string' && value) {
-      stableData[key] = value;
-    }
-  }
-
-  for (const key of ['form_is_open', 'has_editor'] as const) {
-    const value = pageData[key];
-    if (typeof value === 'boolean') {
-      stableData[key] = value;
-    }
-  }
-
-  if (pageData.form_purpose && typeof pageData.form_purpose === 'object') {
-    stableData.form_purpose = pageData.form_purpose;
-  }
-
-  if (Array.isArray(pageData.available_operations)) {
-    stableData.available_operations = pageData.available_operations
-      .map((item) => {
-        if (!item || typeof item !== 'object') {
-          return null;
-        }
-        const operation = item as Record<string, unknown>;
-        const name = String(operation.name || '').trim();
-        if (!name) {
-          return null;
-        }
-        return {
-          name,
-          readonly: Boolean(operation.readonly),
-        };
-      })
-      .filter(Boolean);
-  }
-
-  if (Array.isArray(pageData.tables)) {
-    stableData.tables = pageData.tables.slice(0, 2).map((item) => {
-      if (!item || typeof item !== 'object') {
-        return item;
-      }
-      const table = item as Record<string, unknown>;
-      return {
-        columns: Array.isArray(table.columns) ? table.columns.slice(0, 4) : [],
-        row_count: table.row_count,
-      };
-    });
-  }
-
-  if (Array.isArray(pageData.forms)) {
-    stableData.forms = pageData.forms.slice(0, 2).map((item) => {
-      if (!item || typeof item !== 'object') {
-        return item;
-      }
-      const form = item as Record<string, unknown>;
-      return {
-        label_count: Array.isArray(form.labels) ? form.labels.length : 0,
-        title: form.title,
-      };
-    });
-  }
-
-  if (Array.isArray(pageData.tabs)) {
-    stableData.tabs = pageData.tabs.slice(0, 6).map((item) => {
-      if (!item || typeof item !== 'object') {
-        return item;
-      }
-      const tab = item as Record<string, unknown>;
-      return {
-        active: Boolean(tab.active),
-        label: tab.label,
-      };
-    });
-  }
-
-  if (Array.isArray(pageData.overlays)) {
-    stableData.overlays = pageData.overlays.slice(0, 2).map((item) => {
-      if (!item || typeof item !== 'object') {
-        return item;
-      }
-      const overlay = item as Record<string, unknown>;
-      return {
-        title: overlay.title,
-        type: overlay.type,
-      };
-    });
-  }
-
-  return Object.keys(stableData).length > 0 ? stableData : null;
-}
-
 export function buildRouteCachePageDataFingerprint(
-  pageData?: null | Record<string, unknown>,
+  pageContext?: null | PageContext,
 ): string {
-  const stableData = pickStableRoutePageData(pageData);
-  return stableData ? _simpleHash(JSON.stringify(stableData)) : '';
+  if (!pageContext) {
+    return '';
+  }
+
+  const thinContext: Record<string, unknown> = {
+    page_key: pageContext.page_key,
+  };
+  const uiEpoch = (pageContext as unknown as Record<string, unknown>).ui_epoch;
+  if (typeof uiEpoch === 'number') {
+    thinContext.ui_epoch = uiEpoch;
+  }
+  const activeSurfaceId = (pageContext as unknown as Record<string, unknown>)
+    .active_surface_id;
+  if (typeof activeSurfaceId === 'string' && activeSurfaceId) {
+    thinContext.active_surface_id = activeSurfaceId;
+  }
+  const activeFormSessionId = (pageContext as unknown as Record<string, unknown>)
+    .active_form_session_id;
+  if (typeof activeFormSessionId === 'string' && activeFormSessionId) {
+    thinContext.active_form_session_id = activeFormSessionId;
+  }
+  const surfaceStack = (pageContext as unknown as Record<string, unknown>)
+    .surface_stack;
+  if (Array.isArray(surfaceStack) && surfaceStack.length > 0) {
+    thinContext.surface_stack = surfaceStack.slice(0, 4).map((item) => {
+      if (!item || typeof item !== 'object') {
+        return item;
+      }
+      const surface = item as Record<string, unknown>;
+      return {
+        kind: surface.kind,
+        surface_id: surface.surface_id,
+        title: surface.title,
+      };
+    });
+  }
+  const activeFormSummary = (pageContext as unknown as Record<string, unknown>)
+    .active_form_summary;
+  if (activeFormSummary && typeof activeFormSummary === 'object') {
+    const summary = activeFormSummary as Record<string, unknown>;
+    thinContext.active_form_summary = {
+      can_submit: summary.can_submit,
+      entity_name: summary.entity_name,
+      mode: summary.mode,
+      stage: summary.stage,
+    };
+  }
+
+  return _simpleHash(JSON.stringify(thinContext));
 }
 
 /** Routing method constants / 路由方式常量 */
@@ -207,7 +147,7 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
    * 执行 P1-P3 路由链
    *
    * @param message - User message / 用户消息
-   * @param pageContextKey - Optional page context registry key / 可选的页面上下文 registry key
+   * @param pageContextKey - Optional page context key / 可选页面上下文 key
    * @returns Routing result / 路由结果
    */
   async function routeMessage(
@@ -256,7 +196,7 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
     }
 
     // ---- P2+P3: Backend routing (with fallback) / 后端路由（含 fallback） ----
-    const pageCtx = pageContext ?? resolvePageContext(pageContextKey);
+    const pageCtx = pageContext ?? getRuntimeThinPageContext(pageContextKey);
     return await _callRouteApi(
       message,
       pageContextKey,
@@ -289,9 +229,7 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
       ? unref(options.activeConversationId)
       : null;
     const pageKey = pageContextKey ?? pageContext?.page_key ?? 'global';
-    const pageDataHash = buildRouteCachePageDataFingerprint(
-      pageContext?.page_data as Record<string, unknown> | undefined,
-    );
+    const pageDataHash = buildRouteCachePageDataFingerprint(pageContext);
     const msgHash = _simpleHash(message.trim().slice(0, 200));
     const attachmentKey = [
       `img${normalizedAttachmentFlags.hasImageAttachments ? '1' : '0'}`,
