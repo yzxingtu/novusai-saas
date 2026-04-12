@@ -4,8 +4,12 @@ Long-term memory context contributor.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from app.ai.context.long_term_memory import LongTermMemoryProvider
 
 
 @dataclass
@@ -28,7 +32,7 @@ class MemoryContributor:
         should_run_memory_profile: bool,
         should_run_memory_vector_recall: bool,
         should_run_vector_recall_for_text: Callable[[str], bool],
-        provider_factory: Callable[..., Any],
+        provider_factory: Callable[..., LongTermMemoryProvider],
         append_budgeted_addition: Callable[..., None],
         additions: list[str],
         budget_usage: dict[str, Any],
@@ -38,9 +42,19 @@ class MemoryContributor:
     ) -> MemoryContextContribution:
         if not enabled or not user_id:
             return MemoryContextContribution()
-        if not current_user_text:
+
+        normalized_text = (current_user_text or "").strip()
+        if not normalized_text:
             return MemoryContextContribution()
-        if not should_run_memory_profile and not should_run_memory_vector_recall:
+
+        should_profile = bool(should_run_memory_profile)
+        should_vector_recall = bool(should_run_memory_vector_recall)
+        if should_vector_recall and not should_run_vector_recall_for_text(
+            normalized_text
+        ):
+            should_vector_recall = False
+
+        if not should_profile and not should_vector_recall:
             return MemoryContextContribution()
 
         provider = provider_factory(
@@ -49,7 +63,7 @@ class MemoryContributor:
         )
         contribution = MemoryContextContribution()
 
-        if should_run_memory_profile:
+        if should_profile:
             profile_snapshot = await provider.profile(
                 agent_id=agent_id,
                 user_id=user_id,
@@ -74,14 +88,11 @@ class MemoryContributor:
                         "scope_type": "user_agent",
                     }
 
-        if (
-            should_run_memory_vector_recall
-            and should_run_vector_recall_for_text(current_user_text)
-        ):
+        if should_vector_recall:
             recalled_records = await provider.recall(
                 agent_id=agent_id,
                 user_id=user_id,
-                query_text=current_user_text,
+                query_text=normalized_text,
                 limit=5,
             )
             if recalled_records:

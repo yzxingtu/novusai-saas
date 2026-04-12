@@ -10,15 +10,24 @@ Built-in Redis search result caching.
 from __future__ import annotations
 
 import asyncio
-import hashlib
-import math
 from dataclasses import asdict, dataclass, field, replace
 
 from sqlalchemy import Integer, String, and_, bindparam, select, text
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai.rag.diagnostics import build_kb_context_diagnostics
 from app.ai.rag.embedding import EmbeddingService
+from app.ai.rag.merge import WeightedRRFMerger, merge_best_results
+from app.ai.rag.query_embedding import QueryEmbeddingResolver
+from app.ai.rag.retriever_cache import (
+    build_search_cache_key,
+    get_search_cache,
+    set_search_cache,
+)
+from app.ai.rag.retriever_cache import (
+    invalidate_kb_cache as invalidate_kb_cache_helper,
+)
 from app.core.logging import LogManager
 from app.enums.knowledge_base import DocumentStatusEnum, SearchModeEnum
 from app.models.ai.document_chunk import DocumentChunk
@@ -26,13 +35,6 @@ from app.models.ai.knowledge_base import KnowledgeBase
 from app.models.ai.knowledge_document import KnowledgeDocument
 
 logger = LogManager.get_logger("ai.rag.retriever")
-
-# RRF fusion constant / RRF 融合常数
-RRF_K = 60
-
-# Redis search cache TTL (5 minutes) / Redis 检索缓存 TTL（5 分钟）
-SEARCH_CACHE_TTL = 300
-SEARCH_CACHE_PREFIX = "kb:search:"
 
 
 @dataclass
@@ -657,7 +659,7 @@ class HybridRetriever:
         if not kb_contexts:
             return []
 
-        cache_key = self._build_cache_key(
+        cache_key = build_search_cache_key(
             kb_contexts,
             effective_query,
             mode,
@@ -666,7 +668,10 @@ class HybridRetriever:
             rewrite_strategy=rewrite_strategy,
             reranker_enabled=reranker_enabled,
         )
-        cached = await self._get_cache(cache_key)
+        cached = await get_search_cache(
+            cache_key,
+            result_factory=lambda item: ChunkSearchResult(**item),
+        )
         if cached is not None:
             logger.info("Search cache hit: {}", cache_key)
             if hook_registry.has_hooks(HookPoint.AFTER_KB_SEARCH):
@@ -707,7 +712,7 @@ class HybridRetriever:
                     score_threshold,
                 )
 
-            self._merge_best_results(best_results, batch)
+            merge_best_results(best_results, batch)
 
         all_results = sorted(
             best_results.values(), key=lambda item: item.score, reverse=True
@@ -736,20 +741,17 @@ class HybridRetriever:
             )
             results = hook_ctx.get("results", results)
 
-        await self._set_cache(cache_key, results)
+        await set_search_cache(
+            cache_key,
+            results,
+            payload_factory=lambda item: item.to_dict(),
+        )
 
         logger.info(
             "Search: mode={}, query_len={}, kb_contexts={}, results={}, rewrite={}, rerank={}",
             mode,
             len(effective_query),
-            [
-                {
-                    "kb_id": ctx.kb_id,
-                    "weight": round(float(ctx.weight), 3),
-                    "embedding": ctx.embedding_signature,
-                }
-                for ctx in kb_contexts
-            ],
+            build_kb_context_diagnostics(kb_contexts),
             len(results),
             rewrite_strategy,
             reranker_enabled,
@@ -805,28 +807,6 @@ class HybridRetriever:
             )
         return contexts
 
-    def _merge_best_results(
-        self,
-        best_results: dict[int, ChunkSearchResult],
-        batch: list[ChunkSearchResult],
-    ) -> None:
-        for result in batch:
-            current = best_results.get(result.chunk_id)
-            if current is None:
-                best_results[result.chunk_id] = result
-                continue
-
-            current.recall_sources = sorted(
-                set(current.recall_sources) | set(result.recall_sources)
-            )
-            if result.raw_score is not None:
-                current.raw_score = max(current.raw_score or 0.0, result.raw_score)
-            if result.fusion_score is not None:
-                current.fusion_score = max(
-                    current.fusion_score or 0.0, result.fusion_score
-                )
-            current.score = max(current.score, result.score)
-
     async def _vector_search(
         self,
         kb_contexts: list[SearchKBContext],
@@ -835,33 +815,29 @@ class HybridRetriever:
         score_threshold: float,
     ) -> list[ChunkSearchResult]:
         per_kb_limit = max(top_k * 2, top_k)
-        embedding_cache: dict[tuple[int, int], list[float]] = {}
+        resolver = QueryEmbeddingResolver(self.embedding_service)
 
         async def _search_for_context(
             context: SearchKBContext,
         ) -> tuple[SearchKBContext, str, list[ChunkSearchResult]]:
-            signature = context.embedding_signature
-            if signature not in embedding_cache:
-                embedding_cache[
-                    signature
-                ] = await self.embedding_service.generate_embedding(
-                    text=query,
-                    knowledge_base=context.knowledge_base,
-                )
+            query_embedding = await resolver.resolve_for_context(
+                query=query,
+                context=context,
+            )
             results = await self.vector_searcher.search(
                 kb_ids=[context.kb_id],
                 query=query,
                 knowledge_base=context.knowledge_base,
                 limit=per_kb_limit,
                 score_threshold=score_threshold,
-                query_embedding=embedding_cache[signature],
+                query_embedding=query_embedding,
             )
             return context, "vector", results
 
         search_lists = await asyncio.gather(
             *[_search_for_context(context) for context in kb_contexts]
         )
-        merged = self._weighted_rrf_merge(search_lists, top_k)
+        merged = WeightedRRFMerger.merge(search_lists=search_lists, top_k=top_k)
         return self._apply_technical_term_boost_to_vector_results(query, merged)
 
     def _apply_technical_term_boost_to_vector_results(
@@ -919,7 +895,7 @@ class HybridRetriever:
         search_lists = await asyncio.gather(
             *[_search_for_context(context) for context in kb_contexts]
         )
-        return self._weighted_rrf_merge(search_lists, top_k)
+        return WeightedRRFMerger.merge(search_lists=search_lists, top_k=top_k)
 
     async def _hybrid_search(
         self,
@@ -929,26 +905,22 @@ class HybridRetriever:
         score_threshold: float,
     ) -> list[ChunkSearchResult]:
         per_kb_limit = max(top_k * 2, top_k)
-        embedding_cache: dict[tuple[int, int], list[float]] = {}
+        resolver = QueryEmbeddingResolver(self.embedding_service)
 
         async def _search_vector_for_context(
             context: SearchKBContext,
         ) -> tuple[SearchKBContext, str, list[ChunkSearchResult]]:
-            signature = context.embedding_signature
-            if signature not in embedding_cache:
-                embedding_cache[
-                    signature
-                ] = await self.embedding_service.generate_embedding(
-                    text=query,
-                    knowledge_base=context.knowledge_base,
-                )
+            query_embedding = await resolver.resolve_for_context(
+                query=query,
+                context=context,
+            )
             results = await self.vector_searcher.search(
                 kb_ids=[context.kb_id],
                 query=query,
                 knowledge_base=context.knowledge_base,
                 limit=per_kb_limit,
                 score_threshold=score_threshold,
-                query_embedding=embedding_cache[signature],
+                query_embedding=query_embedding,
             )
             return context, "vector", results
 
@@ -967,145 +939,12 @@ class HybridRetriever:
             tasks.append(_search_vector_for_context(context))
             tasks.append(_search_keyword_for_context(context))
         search_lists = await asyncio.gather(*tasks)
-        return self._weighted_rrf_merge(search_lists, top_k)
-
-    def _weighted_rrf_merge(
-        self,
-        search_lists: list[tuple[SearchKBContext, str, list[ChunkSearchResult]]],
-        top_k: int,
-    ) -> list[ChunkSearchResult]:
-        if not search_lists:
-            return []
-
-        score_map: dict[int, tuple[float, ChunkSearchResult]] = {}
-        rrf_max = 0.0
-
-        for context, source, results in search_lists:
-            if not results:
-                continue
-
-            weight_factor = self._weight_factor(context.weight)
-            rrf_max += weight_factor / (RRF_K + 1)
-
-            for rank, result in enumerate(results, start=1):
-                contribution = weight_factor / (RRF_K + rank)
-                if result.chunk_id in score_map:
-                    merged_score, merged_result = score_map[result.chunk_id]
-                    merged_result.recall_sources = sorted(
-                        set(merged_result.recall_sources) | {source}
-                    )
-                    if result.raw_score is not None:
-                        merged_result.raw_score = max(
-                            merged_result.raw_score or 0.0,
-                            result.raw_score,
-                        )
-                    merged_result.kb_weight = context.weight
-                    score_map[result.chunk_id] = (
-                        merged_score + contribution,
-                        merged_result,
-                    )
-                    continue
-
-                cloned = ChunkSearchResult(**result.to_dict())
-                cloned.recall_sources = sorted(set(cloned.recall_sources) | {source})
-                cloned.kb_weight = context.weight
-                if cloned.raw_score is None:
-                    cloned.raw_score = result.score
-                score_map[result.chunk_id] = (contribution, cloned)
-
-        if not score_map:
-            return []
-
-        sorted_items = sorted(
-            score_map.values(), key=lambda item: item[0], reverse=True
-        )
-        results: list[ChunkSearchResult] = []
-        for weighted_rrf, chunk_result in sorted_items[:top_k]:
-            normalized = min(weighted_rrf / max(rrf_max, 1e-9), 1.0)
-            chunk_result.fusion_score = round(normalized, 4)
-            chunk_result.score = chunk_result.fusion_score
-            results.append(chunk_result)
-        return results
-
-    @staticmethod
-    def _weight_factor(weight: float) -> float:
-        """
-        Keep KB weight as a prior, not an override.
-        将 KB 权重作为先验而非绝对覆盖，避免低相关结果被硬顶上来。
-        """
-        safe_weight = max(0.1, min(2.0, float(weight)))
-        return max(0.65, min(1.25, 0.5 + (math.sqrt(safe_weight) / 2)))
-
-    @staticmethod
-    def _build_cache_key(
-        kb_contexts: list[SearchKBContext],
-        query: str,
-        mode: str,
-        top_k: int,
-        score_threshold: float,
-        rewrite_strategy: str = "none",
-        reranker_enabled: bool = False,
-    ) -> str:
-        signatures = sorted(context.cache_signature() for context in kb_contexts)
-        raw = (
-            f"{signatures}:{query}:{mode}:{top_k}:{score_threshold}:"
-            f"{rewrite_strategy}:{reranker_enabled}"
-        )
-        digest = hashlib.md5(raw.encode()).hexdigest()
-        kb_prefix = "_".join(
-            str(context.kb_id)
-            for context in sorted(kb_contexts, key=lambda item: item.kb_id)
-        )
-        return f"{SEARCH_CACHE_PREFIX}{kb_prefix}:{digest}"
-
-    @staticmethod
-    async def _get_cache(key: str) -> list[ChunkSearchResult] | None:
-        """Read from Redis cache / 从 Redis 读取缓存"""
-        try:
-            from app.core.redis import cache_get
-
-            data = await cache_get(key)
-            if data is None:
-                return None
-            return [ChunkSearchResult(**item) for item in data]
-        except Exception as exc:
-            logger.debug("Search cache read failed: key={} err={}", key, str(exc))
-            return None
-
-    @staticmethod
-    async def _set_cache(key: str, results: list[ChunkSearchResult]) -> None:
-        """Write to Redis cache / 写入 Redis 缓存"""
-        try:
-            from app.core.redis import cache_set
-
-            await cache_set(
-                key, [item.to_dict() for item in results], ttl=SEARCH_CACHE_TTL
-            )
-        except Exception as exc:
-            logger.debug("Search cache write failed: key={} err={}", key, str(exc))
+        return WeightedRRFMerger.merge(search_lists=search_lists, top_k=top_k)
 
     @staticmethod
     async def invalidate_kb_cache(kb_id: int) -> None:
-        """
-        Clear search cache for specified KB / 清除指定知识库的检索缓存。
-        """
-        try:
-            from app.core.redis import RedisManager
-
-            client = await RedisManager.get_client()
-            patterns = [
-                f"{SEARCH_CACHE_PREFIX}{kb_id}:*",
-                f"{SEARCH_CACHE_PREFIX}*_{kb_id}:*",
-                f"{SEARCH_CACHE_PREFIX}{kb_id}_*",
-                f"{SEARCH_CACHE_PREFIX}*_{kb_id}_*",
-            ]
-            for pattern in patterns:
-                async for key in client.scan_iter(match=pattern, count=100):
-                    await client.delete(key)
-        except Exception as exc:
-            logger.debug(
-                "Search cache invalidation failed: kb_id={} err={}", kb_id, str(exc)
-            )
+        """Clear search cache for specified KB / 清除指定知识库的检索缓存。"""
+        await invalidate_kb_cache_helper(kb_id)
 
 
 # Backward compatibility: keep VectorRetriever alias / 向后兼容：保留 VectorRetriever 别名
