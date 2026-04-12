@@ -198,6 +198,10 @@
   - plugin-config-drawer 对 `manifest.config_schema.properties` 改为运行时 guard：异常 schema 不再被误解析成伪字段，非法 `enum/minimum/maximum` 也不会静默污染 UI 配置表单。
 - `frontend/apps/web-antd/src/views/admin/plugins/modules/plugin-config-drawer/__tests__/use-plugin-config-drawer.test.ts`
   - plugin-config-drawer 新增 malformed schema 用例，锁住“跳过坏字段、保留合法字段”的 fail-close 行为。
+- `backend/plugins/storage-billing/frontend/src/views/admin/use-storage-billing-admin-page.ts`
+  - storage-billing admin page 对 `NovusPluginShared.getAccessCodes()` 增加 fail-close guard：宿主返回异常值时按“无权限”处理，不再把坏值继续传入权限判断链。
+- `backend/plugins/storage-billing/frontend/src/views/admin/__tests__/use-storage-billing-admin-page.test.ts`
+  - storage-billing admin page 新增 shared bridge 合约测试，锁住“坏 access codes fail-close / wildcard access 放行”的宿主桥接行为。
 - `backend/tests/services/test_plugin_read_model_service.py`
   - plugin registry fail-close 清理：当 unregister handler 抛错时，permission / notification / skill runtime caches 仍必须被清空。
 - `backend/tests/services/test_tenant_admin_workflow_services.py`
@@ -396,4 +400,8 @@
 - `pnpm --dir frontend exec vitest run apps/web-antd/src/views/admin/plugins/modules/plugin-config-drawer/__tests__/use-plugin-config-drawer.test.ts`
   - 结果：`1 file passed / 4 tests passed`。
 - `pnpm --dir frontend exec vue-tsc --noEmit --skipLibCheck --pretty false -p apps/web-antd/tsconfig.json`
+  - 结果：通过。
+- `pnpm --dir frontend exec vitest run --config E:/git_clone/novusai-saas-yudi/backend/plugins/storage-billing/frontend/vitest.config.ts --root E:/git_clone/novusai-saas-yudi/backend/plugins/storage-billing/frontend src/views/admin/__tests__/use-storage-billing-admin-page.test.ts`
+  - 结果：`1 file passed / 2 tests passed`。
+- `pnpm --dir backend/plugins/storage-billing/frontend exec vite build`
   - 结果：通过。
