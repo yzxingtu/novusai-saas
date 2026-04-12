@@ -25,10 +25,13 @@ from app.ai.gateway_support.protocol_adapter_bridge import (
 )
 from app.ai.runtime.contracts import ProtocolGuardContract, TurnCommand
 from app.ai.runtime.protocol_planner import ProtocolPlanner
-from app.ai.runtime.protocol_recovery_policy import ProtocolRecoveryPolicy
+from app.ai.runtime.protocol_recovery_policy import (
+    ObservedStream,
+    ProtocolRecoveryPolicy,
+)
 from app.ai.runtime.protocol_runner import ProtocolRunner
 from app.ai.runtime.types import TurnRecord
-from app.ai.types import ChatMessage, ChatResponse
+from app.ai.types import ChatChunk, ChatMessage, ChatResponse
 
 
 class _AllowAllCapabilities:
@@ -246,6 +249,17 @@ def test_compat_and_runtime_block_matrix_stays_aligned(
     capabilities = _AllowAllCapabilities()
 
     assert (
+        ProtocolRecoveryPolicy.should_cross_protocol_fallback_from_responses_error(
+            capabilities=capabilities,
+            error=error,
+            tools=TOOLS,
+            tool_choice="required",
+            use_responses_api=True,
+            fallback_switch_enabled=True,
+        )
+        is expected_fallback
+    )
+    assert (
         should_fallback_from_responses_error(
             capabilities=capabilities,
             error=error,
@@ -257,9 +271,44 @@ def test_compat_and_runtime_block_matrix_stays_aligned(
         is expected_fallback
     )
     assert (
+        ProtocolRecoveryPolicy.should_skip_sync_rescue_after_stream_error(error)
+        is expected_skip_rescue
+    )
+    assert (
         should_skip_sync_rescue_after_stream_error(error) is expected_skip_rescue
     )
     assert ProtocolRecoveryPolicy.fallback_block_reason(error) == expected_block_reason
+
+
+def test_runtime_recovery_stream_observation_blocks_fallback_only_on_visible_or_tool_output() -> (
+    None
+):
+    policy = ProtocolRecoveryPolicy()
+
+    observed = ObservedStream()
+    observed.observe(ChatChunk(delta="", reasoning_delta="thinking"))
+    assert observed.is_meaningful is True
+    assert observed.blocks_fallback is False
+
+    observed = ObservedStream()
+    progress_chunk = ChatChunk(delta="", metadata={"web_search_in_progress": True})
+    observed.observe(
+        progress_chunk,
+        progress_kinds=policy.extract_progress_kinds(progress_chunk.metadata),
+    )
+    assert observed.has_progress_signal is True
+    assert observed.is_meaningful is False
+    assert observed.blocks_fallback is False
+
+    observed = ObservedStream()
+    observed.observe(ChatChunk(delta="hello"))
+    assert observed.blocks_fallback is True
+
+    observed = ObservedStream()
+    observed.observe(
+        ChatChunk(delta="", tool_calls=[{"function": {"name": "ui_get_snapshot"}}])
+    )
+    assert observed.blocks_fallback is True
 
 
 def test_runtime_and_compat_both_disable_cross_protocol_fallback_for_responses_only_provider() -> (
@@ -276,11 +325,80 @@ def test_runtime_and_compat_both_disable_cross_protocol_fallback_for_responses_o
         "responses"
     ]
     assert (
+        ProtocolRecoveryPolicy.should_cross_protocol_fallback_from_responses_error(
+            capabilities=capabilities,
+            error=error,
+            tools=TOOLS,
+            tool_choice="required",
+            use_responses_api=True,
+            fallback_switch_enabled=True,
+        )
+        is False
+    )
+    assert (
         should_fallback_from_responses_error(
             capabilities=capabilities,
             error=error,
             tools=TOOLS,
             tool_choice="required",
+            use_responses_api=True,
+            fallback_switch_enabled=True,
+        )
+        is False
+    )
+
+
+def test_runtime_and_compat_both_disable_cross_protocol_fallback_when_switch_off() -> (
+    None
+):
+    capabilities = _AllowAllCapabilities()
+    error = _FakeStatusError(502, "bad gateway")
+
+    assert (
+        ProtocolRecoveryPolicy.should_cross_protocol_fallback_from_responses_error(
+            capabilities=capabilities,
+            error=error,
+            tools=TOOLS,
+            tool_choice="required",
+            use_responses_api=True,
+            fallback_switch_enabled=False,
+        )
+        is False
+    )
+    assert (
+        should_fallback_from_responses_error(
+            capabilities=capabilities,
+            error=error,
+            tools=TOOLS,
+            tool_choice="required",
+            use_responses_api=True,
+            fallback_switch_enabled=False,
+        )
+        is False
+    )
+
+
+def test_runtime_and_compat_require_tools_for_responses_cross_protocol_fallback() -> None:
+    capabilities = _AllowAllCapabilities()
+    error = _FakeStatusError(502, "bad gateway")
+
+    assert (
+        ProtocolRecoveryPolicy.should_cross_protocol_fallback_from_responses_error(
+            capabilities=capabilities,
+            error=error,
+            tools=None,
+            tool_choice=None,
+            use_responses_api=True,
+            fallback_switch_enabled=True,
+        )
+        is False
+    )
+    assert (
+        should_fallback_from_responses_error(
+            capabilities=capabilities,
+            error=error,
+            tools=None,
+            tool_choice=None,
             use_responses_api=True,
             fallback_switch_enabled=True,
         )

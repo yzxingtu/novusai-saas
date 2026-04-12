@@ -5,11 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.ai.exceptions import (
-    ProviderConnectionError,
-    ProviderRateLimitError,
-    ProviderTimeoutError,
-)
+import app.ai.runtime.protocol_recovery_semantics as recovery_semantics
 from app.ai.runtime.tool_executor import ToolExecutor
 from app.ai.runtime.types import TurnRecord
 from app.ai.types import ChatChunk, ChatResponse
@@ -80,6 +76,9 @@ class StreamObservationError(RuntimeError):
 
 
 class ProtocolRecoveryPolicy:
+    _RATE_LIMIT_ERROR_CLASS_NAMES = recovery_semantics.RATE_LIMIT_ERROR_CLASS_NAMES
+    _TIMEOUT_ERROR_CLASS_NAMES = recovery_semantics.TIMEOUT_ERROR_CLASS_NAMES
+    _CONNECTION_ERROR_CLASS_NAMES = recovery_semantics.CONNECTION_ERROR_CLASS_NAMES
     _KNOWN_PARTIAL_FAILURE_REASONS = frozenset(
         {
             "provider_failure_after_partial_progress",
@@ -137,23 +136,39 @@ class ProtocolRecoveryPolicy:
         return "provider_failure_after_partial_progress"
 
     @staticmethod
-    def fallback_block_reason(exc: BaseException) -> str | None:
-        if isinstance(exc, ProviderRateLimitError):
-            return "provider_rate_limit"
-        if isinstance(exc, ProviderTimeoutError):
-            return "provider_timeout"
-        if isinstance(exc, ProviderConnectionError):
-            return "provider_connection_error"
-        status_code = getattr(exc, "status_code", None)
-        try:
-            normalized_status = int(status_code)
-        except (TypeError, ValueError):
-            return None
-        if normalized_status == 429:
-            return "provider_rate_limit"
-        if normalized_status in {408, 504}:
-            return "provider_timeout"
-        return None
+    def extract_status_code(exc: BaseException) -> int | None:
+        return recovery_semantics.extract_status_code(exc)
+
+    @classmethod
+    def fallback_block_reason(cls, exc: BaseException) -> str | None:
+        return recovery_semantics.fallback_block_reason(exc)
+
+    @classmethod
+    def should_skip_sync_rescue_after_stream_error(
+        cls,
+        error: BaseException | None,
+    ) -> bool:
+        return recovery_semantics.should_skip_sync_rescue_after_stream_error(error)
+
+    @classmethod
+    def should_cross_protocol_fallback_from_responses_error(
+        cls,
+        *,
+        capabilities: Any,
+        error: BaseException,
+        tools: list[dict[str, Any]] | None,
+        tool_choice: str | None,
+        use_responses_api: bool,
+        fallback_switch_enabled: bool,
+    ) -> bool:
+        return recovery_semantics.should_cross_protocol_fallback_from_responses_error(
+            capabilities=capabilities,
+            error=error,
+            tools=tools,
+            tool_choice=tool_choice,
+            use_responses_api=use_responses_api,
+            fallback_switch_enabled=fallback_switch_enabled,
+        )
 
     @staticmethod
     def extract_progress_kinds(metadata: dict[str, Any] | None) -> list[str]:

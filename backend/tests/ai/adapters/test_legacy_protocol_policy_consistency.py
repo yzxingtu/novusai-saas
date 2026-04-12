@@ -8,6 +8,9 @@ from app.ai.adapters.openai_compatible import legacy_entrypoints as legacy_ep
 from app.ai.adapters.openai_compatible.compat.legacy_context_builder import (
     build_legacy_entrypoint_plan,
 )
+from app.ai.adapters.openai_compatible.compat.legacy_protocol_fallback_support import (
+    should_fallback_after_responses_error,
+)
 from app.ai.adapters.openai_compatible.compat.legacy_protocol_policy import (
     should_fallback_from_responses_error,
     should_skip_sync_rescue_after_stream_error,
@@ -21,7 +24,10 @@ from app.ai.exceptions import (
     ProviderTimeoutError,
 )
 from app.ai.runtime.contracts import TurnCommand
-from app.ai.runtime.protocol_recovery_policy import ProtocolRecoveryPolicy
+from app.ai.runtime.protocol_recovery_policy import (
+    ObservedStream,
+    ProtocolRecoveryPolicy,
+)
 from app.ai.types import ChatChunk, ChatMessage, ChatResponse
 
 
@@ -83,6 +89,11 @@ class _LegacyEntrypointExecutionAdapter:
         self.responses_stream_calls = 0
         self.chat_completions_calls = 0
         self.chat_completions_stream_calls = 0
+        self.chat_fallback_flags: list[bool] = []
+        self.chat_responses_kwargs: list[dict | None] = []
+        self.stream_fallback_flags: list[bool] = []
+        self.responses_stream_chunks: list[ChatChunk] | None = None
+        self.chat_completions_stream_chunks: list[ChatChunk] | None = None
         self.responses_error: Exception | None = None
         self.responses_stream_error: Exception | None = None
         self.chat_completions_error: Exception | None = None
@@ -168,20 +179,33 @@ class _LegacyEntrypointExecutionAdapter:
     async def _stream_chat_via_responses(self, **kwargs):
         _ = kwargs
         self.responses_stream_calls += 1
+        if self.responses_stream_chunks is not None:
+            for chunk in self.responses_stream_chunks:
+                yield chunk
+            if self.responses_stream_error is not None:
+                raise self.responses_stream_error
+            return
         if self.responses_stream_error is not None:
             raise self.responses_stream_error
         yield ChatChunk(delta="ok")
 
     async def _chat_via_chat_completions(self, **kwargs) -> ChatResponse:
-        _ = kwargs
+        self.chat_fallback_flags.append(bool(kwargs.get("fallback_to_responses", True)))
+        self.chat_responses_kwargs.append(kwargs.get("responses_kwargs"))
         self.chat_completions_calls += 1
         if self.chat_completions_error is not None:
             raise self.chat_completions_error
         return ChatResponse(message=ChatMessage(role="assistant", content="fallback"))
 
     async def _stream_chat_via_chat_completions(self, **kwargs):
-        _ = kwargs
+        self.stream_fallback_flags.append(bool(kwargs.get("fallback_to_responses", True)))
         self.chat_completions_stream_calls += 1
+        if self.chat_completions_stream_chunks is not None:
+            for chunk in self.chat_completions_stream_chunks:
+                yield chunk
+            if self.chat_completions_stream_error is not None:
+                raise self.chat_completions_stream_error
+            return
         if self.chat_completions_stream_error is not None:
             raise self.chat_completions_stream_error
         yield ChatChunk(delta="fallback")
@@ -222,6 +246,17 @@ def test_compat_and_runtime_block_reason_alignment_for_forbidden_cross_protocol(
     capabilities = _AllowAllCapabilities()
 
     assert (
+        ProtocolRecoveryPolicy.should_cross_protocol_fallback_from_responses_error(
+            capabilities=capabilities,
+            error=error,
+            tools=TOOLS,
+            tool_choice="required",
+            use_responses_api=True,
+            fallback_switch_enabled=True,
+        )
+        is False
+    )
+    assert (
         should_fallback_from_responses_error(
             capabilities=capabilities,
             error=error,
@@ -232,6 +267,7 @@ def test_compat_and_runtime_block_reason_alignment_for_forbidden_cross_protocol(
         )
         is False
     )
+    assert ProtocolRecoveryPolicy.should_skip_sync_rescue_after_stream_error(error) is True
     assert should_skip_sync_rescue_after_stream_error(error) is True
     assert ProtocolRecoveryPolicy.fallback_block_reason(error) == expected_block_reason
 
@@ -240,6 +276,17 @@ def test_compat_and_runtime_allow_5xx_when_not_explicitly_blocked() -> None:
     capabilities = _AllowAllCapabilities()
     error = _FakeStatusError(502, "bad gateway")
 
+    assert (
+        ProtocolRecoveryPolicy.should_cross_protocol_fallback_from_responses_error(
+            capabilities=capabilities,
+            error=error,
+            tools=TOOLS,
+            tool_choice="required",
+            use_responses_api=True,
+            fallback_switch_enabled=True,
+        )
+        is True
+    )
     assert (
         should_fallback_from_responses_error(
             capabilities=capabilities,
@@ -251,6 +298,7 @@ def test_compat_and_runtime_allow_5xx_when_not_explicitly_blocked() -> None:
         )
         is True
     )
+    assert ProtocolRecoveryPolicy.should_skip_sync_rescue_after_stream_error(error) is False
     assert should_skip_sync_rescue_after_stream_error(error) is False
     assert ProtocolRecoveryPolicy.fallback_block_reason(error) is None
 
@@ -260,6 +308,17 @@ def test_responses_only_capabilities_forbid_cross_protocol_in_compat_and_runtime
     error = _FakeStatusError(502, "bad gateway")
 
     assert (
+        ProtocolRecoveryPolicy.should_cross_protocol_fallback_from_responses_error(
+            capabilities=capabilities,
+            error=error,
+            tools=TOOLS,
+            tool_choice="required",
+            use_responses_api=True,
+            fallback_switch_enabled=True,
+        )
+        is False
+    )
+    assert (
         should_fallback_from_responses_error(
             capabilities=capabilities,
             error=error,
@@ -267,6 +326,79 @@ def test_responses_only_capabilities_forbid_cross_protocol_in_compat_and_runtime
             tool_choice="required",
             use_responses_api=True,
             fallback_switch_enabled=True,
+        )
+        is False
+    )
+
+
+def test_responses_only_capabilities_block_fallback_even_when_runtime_allows_5xx() -> (
+    None
+):
+    capabilities = _ResponsesOnlyCapabilities()
+    error = _FakeStatusError(502, "bad gateway")
+
+    assert ProtocolRecoveryPolicy.fallback_block_reason(error) is None
+    assert (
+        ProtocolRecoveryPolicy.should_cross_protocol_fallback_from_responses_error(
+            capabilities=capabilities,
+            error=error,
+            tools=TOOLS,
+            tool_choice="required",
+            use_responses_api=True,
+            fallback_switch_enabled=True,
+        )
+        is False
+    )
+    assert (
+        should_fallback_from_responses_error(
+            capabilities=capabilities,
+            error=error,
+            tools=TOOLS,
+            tool_choice="required",
+            use_responses_api=True,
+            fallback_switch_enabled=True,
+        )
+        is False
+    )
+    assert ProtocolRecoveryPolicy.should_skip_sync_rescue_after_stream_error(error) is False
+    assert should_skip_sync_rescue_after_stream_error(error) is False
+
+
+def test_fallback_support_respects_runtime_disable_cross_protocol() -> None:
+    capabilities = _AllowAllCapabilities()
+    error = _FakeStatusError(502, "bad gateway")
+
+    assert (
+        should_fallback_after_responses_error(
+            capabilities=capabilities,
+            provider_config={},
+            error=error,
+            tools=TOOLS,
+            tool_choice="required",
+            use_responses_api=True,
+            runtime_disable_cross_protocol_fallback=True,
+            model="gpt-5.4",
+            stream=False,
+        )
+        is False
+    )
+
+
+def test_fallback_support_blocks_responses_only_provider() -> None:
+    capabilities = _ResponsesOnlyCapabilities()
+    error = _FakeStatusError(502, "bad gateway")
+
+    assert (
+        should_fallback_after_responses_error(
+            capabilities=capabilities,
+            provider_config={},
+            error=error,
+            tools=TOOLS,
+            tool_choice="required",
+            use_responses_api=True,
+            runtime_disable_cross_protocol_fallback=False,
+            model="gpt-5.4",
+            stream=True,
         )
         is False
     )
@@ -293,7 +425,7 @@ async def test_legacy_chat_entrypoint_respects_forbidden_cross_protocol_fallback
     adapter.responses_error = _FakeStatusError(502, "bad gateway")
 
     monkeypatch.setattr(
-        "app.ai.adapters.openai_compatible.compat.legacy_entrypoint_facade.convert_openai_error",
+        "app.ai.adapters.openai_compatible.compat.legacy_entrypoint_errors.convert_openai_error",
         lambda error, **kwargs: ValueError(f"converted:{kwargs['model_code']}:{error}"),
     )
 
@@ -309,6 +441,30 @@ async def test_legacy_chat_entrypoint_respects_forbidden_cross_protocol_fallback
 
     assert adapter.responses_calls == 1
     assert adapter.chat_completions_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_legacy_chat_entrypoint_blocks_chat_completions_fallback_to_responses() -> (
+    None
+):
+    adapter = _LegacyEntrypointExecutionAdapter(
+        capabilities=_AllowAllCapabilities(),
+        wire_api="chat_completions",
+    )
+
+    response = await legacy_ep.execute_legacy_adapter_chat_entrypoint(
+        adapter=adapter,  # type: ignore[arg-type]
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4",
+        _runtime_force_wire_api="chat_completions",
+        _runtime_disable_cross_protocol_fallback=True,
+    )
+
+    assert response.message.content == "fallback"
+    assert adapter.chat_completions_calls == 1
+    assert adapter.chat_fallback_flags == [False]
+    assert adapter.chat_responses_kwargs == [None]
+    assert adapter.responses_calls == 0
 
 
 @pytest.mark.asyncio
@@ -332,7 +488,7 @@ async def test_legacy_stream_entrypoint_respects_forbidden_cross_protocol_fallba
     adapter.responses_stream_error = _FakeStatusError(502, "bad gateway")
 
     monkeypatch.setattr(
-        "app.ai.adapters.openai_compatible.compat.legacy_entrypoint_facade.convert_openai_error",
+        "app.ai.adapters.openai_compatible.compat.legacy_entrypoint_errors.convert_openai_error",
         lambda error, **kwargs: ValueError(f"converted:{kwargs['model_code']}:{error}"),
     )
 
@@ -353,6 +509,96 @@ async def test_legacy_stream_entrypoint_respects_forbidden_cross_protocol_fallba
 
 
 @pytest.mark.asyncio
+async def test_responses_stream_visible_chunk_blocks_fallback_like_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    adapter = _LegacyEntrypointExecutionAdapter(capabilities=_AllowAllCapabilities())
+    visible_chunk = ChatChunk(delta="partial")
+    adapter.responses_stream_chunks = [visible_chunk]
+    adapter.responses_stream_error = _FakeStatusError(502, "bad gateway")
+
+    observed = ObservedStream()
+    observed.observe(visible_chunk)
+    assert observed.blocks_fallback is True
+
+    monkeypatch.setattr(
+        "app.ai.adapters.openai_compatible.compat.legacy_entrypoint_errors.convert_openai_error",
+        lambda error, **kwargs: ValueError(f"converted:{kwargs['model_code']}:{error}"),
+    )
+
+    with pytest.raises(ValueError, match="converted:gpt-5.4:bad gateway"):
+        async for _ in legacy_ep.execute_legacy_adapter_stream_entrypoint(
+            adapter=adapter,  # type: ignore[arg-type]
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.4",
+            tools=TOOLS,
+            tool_choice="required",
+        ):
+            pass
+
+    assert adapter.responses_stream_calls == 1
+    assert adapter.chat_completions_stream_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_responses_stream_progress_only_allows_fallback_like_runtime() -> None:
+    adapter = _LegacyEntrypointExecutionAdapter(capabilities=_AllowAllCapabilities())
+    progress_chunk = ChatChunk(delta="", metadata={"web_search_in_progress": True})
+    adapter.responses_stream_chunks = [progress_chunk]
+    adapter.responses_stream_error = _FakeStatusError(502, "bad gateway")
+
+    policy = ProtocolRecoveryPolicy()
+    observed = ObservedStream()
+    observed.observe(
+        progress_chunk,
+        progress_kinds=policy.extract_progress_kinds(progress_chunk.metadata),
+    )
+    assert observed.has_progress_signal is True
+    assert observed.blocks_fallback is False
+
+    chunks = [
+        chunk
+        async for chunk in legacy_ep.execute_legacy_adapter_stream_entrypoint(
+            adapter=adapter,  # type: ignore[arg-type]
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.4",
+            tools=TOOLS,
+            tool_choice="required",
+        )
+    ]
+
+    assert adapter.responses_stream_calls == 1
+    assert adapter.chat_completions_stream_calls == 1
+    assert chunks[-1].delta == "fallback"
+
+
+@pytest.mark.asyncio
+async def test_legacy_stream_entrypoint_allows_cross_protocol_fallback_when_sync_rescue_disabled() -> (
+    None
+):
+    adapter = _LegacyEntrypointExecutionAdapter(capabilities=_AllowAllCapabilities())
+    adapter.responses_stream_error = _FakeStatusError(502, "bad gateway")
+
+    chunks = [
+        chunk
+        async for chunk in legacy_ep.execute_legacy_adapter_stream_entrypoint(
+            adapter=adapter,  # type: ignore[arg-type]
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.4",
+            tools=TOOLS,
+            tool_choice="required",
+            _runtime_disable_sync_rescue=True,
+        )
+    ]
+
+    assert [chunk.delta for chunk in chunks] == ["fallback"]
+    assert adapter.responses_stream_calls == 1
+    assert adapter.chat_completions_stream_calls == 1
+    assert adapter.chat_completions_calls == 0
+    assert adapter.stream_fallback_flags == [False]
+
+
+@pytest.mark.asyncio
 async def test_legacy_stream_entrypoint_respects_runtime_disable_sync_rescue(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -363,7 +609,7 @@ async def test_legacy_stream_entrypoint_respects_runtime_disable_sync_rescue(
     adapter.chat_completions_stream_error = _FakeStatusError(502, "bad gateway")
 
     monkeypatch.setattr(
-        "app.ai.adapters.openai_compatible.compat.legacy_entrypoint_facade.convert_openai_error",
+        "app.ai.adapters.openai_compatible.compat.legacy_entrypoint_errors.convert_openai_error",
         lambda error, **kwargs: ValueError(f"converted:{kwargs['model_code']}:{error}"),
     )
 
@@ -416,8 +662,8 @@ async def test_legacy_entrypoint_plan_preserves_runtime_turn_command_protocol_gu
     )
 
     assert plan.context.active_wire_api == "responses"
-    assert plan.context.runtime_disable_cross_protocol_fallback is True
-    assert plan.context.runtime_disable_sync_rescue is True
+    assert plan.context.guard_snapshot.runtime_disable_cross_protocol_fallback is True
+    assert plan.context.guard_snapshot.runtime_disable_sync_rescue is True
     assert "_runtime_force_wire_api" not in plan.context.protocol_kwargs
     assert "_runtime_disable_cross_protocol_fallback" not in plan.context.protocol_kwargs
     assert "_runtime_disable_sync_rescue" not in plan.context.protocol_kwargs
