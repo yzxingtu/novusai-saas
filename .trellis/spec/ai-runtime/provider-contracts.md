@@ -2,79 +2,69 @@
 
 ## Goal
 
-Protocol decisions must be explicit, testable, and owned by one layer.
+Protocol decisions must be explicit, validated, and owned by the runtime
+kernel, not by adapter-local heuristics.
 
-## Scenario: Protocol Capability Contract Resolution
+## Canonical Inputs
 
-### 1. Scope / Trigger
+- `protocol_capabilities` in provider config:
+  `primary_wire_api`, `wire_api` (alias), `allowed_wire_apis`,
+  `allowed_cross_protocol_fallbacks`, `allow_adapter_cross_protocol_fallback`.
+- Legacy `wire_api` at the provider config root (compat seed only).
+- Runtime guard keys carried via ProtocolGuardContract:
+  `_runtime_disable_cross_protocol_fallback`, `_runtime_disable_sync_rescue`.
+- Runtime-selected protocol path injected as `_runtime_force_wire_api`.
 
-- Trigger: provider config includes `wire_api` or `protocol_capabilities`, and
-  the runtime must plan a protocol path for chat/stream/embedding/image calls.
+## Contracts
 
-### 2. Signatures
+- When `protocol_capabilities` exists, it is the source of truth. Invalid
+protocol tokens raise `ProviderError(invalid_protocol_contract)`.
+- `protocol_capabilities.wire_api` is a transitional alias for
+`primary_wire_api`. It may seed a missing primary but must not widen or override
+the contract.
+- `primary_wire_api` must be included in `allowed_wire_apis` when an explicit
+`allowed_wire_apis` list is provided.
+- Legacy top-level `wire_api` is only a seed when the protocol contract is
+absent or incomplete. It must not override an explicit contract.
+- Runtime overrides that request a protocol outside `allowed_wire_apis` raise
+`ProviderError(unsupported_protocol)`.
+- Responses-only providers must publish `allowed_wire_apis=["responses"]` and
+`allow_adapter_cross_protocol_fallback=False`. Adapters must never send a
+`chat/completions` request for those providers.
+- Runtime protocol planning requires an explicit
+`allowed_cross_protocol_fallbacks` map to schedule a multi-protocol chain. If
+the map is empty and a contract exists, the runtime chain stays on the primary
+protocol.
+- `allow_adapter_cross_protocol_fallback` remains a hard gate. If it is false,
+the runtime planner must keep a single-step chain even when a fallback map is
+present.
+- Adapter-level compatibility may still allow cross-protocol fallback when
+`allow_adapter_cross_protocol_fallback` is true and multiple wire APIs are
+listed, even if no fallback map is present. This is transitional behavior and
+must not be treated as the runtime planner rule.
+- Runtime guard keys are enforced by protocol-safe adapter entrypoints. If a
+caller tries to set either guard to false, adapters must raise
+`ProviderError(invalid_runtime_guard)`.
+- `_runtime_force_wire_api` and guard keys are consumed at the adapter boundary
+and must not be forwarded downstream as ordinary provider kwargs.
 
-- `provider.config.protocol_capabilities`
-  - `primary_wire_api: str`
-  - `allowed_wire_apis: list[str]`
-  - `allowed_cross_protocol_fallbacks: dict[str, list[str]]`
-  - `allow_adapter_cross_protocol_fallback: bool`
-- `provider.config.wire_api: str | None` (legacy fallback only)
-- Runtime-owned flags (set by kernel, not adapters):
-  - `_runtime_force_wire_api`
-  - `_runtime_disable_cross_protocol_fallback`
-  - `_runtime_disable_sync_rescue`
+## Ownership
 
-### 3. Contracts
+- The runtime kernel owns protocol planning and fallback decisions.
+- Adapters execute one protocol step; they do not invent fallback chains.
+- Guard semantics are defined by the runtime kernel and must not be redefined
+per adapter.
 
-- **Source of truth**: `protocol_capabilities.*` is authoritative when present.
-- **Validation**:
-  - `protocol_capabilities.primary_wire_api` must be a known protocol token and
-    must be included in `allowed_wire_apis`.
-  - Invalid tokens in `protocol_capabilities.*` raise
-    `ProviderError(code="invalid_protocol_contract")`.
-- **Legacy `wire_api`**:
-  - Only consulted when `protocol_capabilities` is absent.
-  - Must be included in the resolved allowed set; otherwise raise
-    `ProviderError(code="unsupported_protocol")`.
-  - `wire_api` may **not** widen a responses-only contract.
-- **Responses-only providers**:
-  - Must publish `allowed_wire_apis=["responses"]` and
-    `allow_adapter_cross_protocol_fallback=False`.
-  - Adapters must never construct `/chat/completions` for these providers.
-- **Fallback map**:
-  - When `allow_adapter_cross_protocol_fallback=True` and
-    `allowed_wire_apis` has multiple protocols, a full fallback map may be
-    auto-generated as a *transitional behavior*. This is not a replacement for
-    explicit contracts and should be removed once all providers publish the
-    map.
-- **Ownership**:
-  - The runtime kernel owns protocol planning and fallback decisions.
-  - Adapters execute one protocol step and do not invent additional fallback
-    strategies.
+## Required Diagnostics
 
-### 4. Validation & Error Matrix
-
-| Condition | Expected Behavior |
-|---|---|
-| Unknown token in `protocol_capabilities.*` | Raise `ProviderError(invalid_protocol_contract)` |
-| `primary_wire_api` not in `allowed_wire_apis` | Raise `ProviderError(invalid_protocol_contract)` |
-| `wire_api` provided but not allowed | Raise `ProviderError(unsupported_protocol)` |
-| Responses-only provider receives `chat_completions` request | Hard fail before request |
-| `_runtime_disable_cross_protocol_fallback=True` | Planner returns single-protocol plan |
-| `_runtime_disable_sync_rescue=True` | No sync rescue on stream failure |
-
-### 5. Required Tests
-
-- Responses-only provider never hits `/chat/completions`.
-- Timeout/rate-limit/connection error matrix respects protocol plan.
-- Stream and non-stream paths share the same protocol semantics.
-- Protocol contract validation raises `ProviderError` for invalid tokens.
+- TurnRecord must capture `protocol_path` and `fallback_history`.
+- Usage and monitoring surfaces read the protocol path from TurnRecord, not
+from adapter-local metadata.
 
 ## Prohibited Patterns
 
-- Hard-coded `["responses", "chat_completions"]` fallback chains without
-  capability gating.
-- Adapter-local “sync rescue” that bypasses runtime planner ownership.
-- New protocol heuristics hidden in `chat()` / `stream_chat()` instead of the
-  runtime planner + capability contract.
-- Mixing web-search/image/audio branching into one protocol executor file.
+- Adapter-local fallback chains that bypass the runtime planner.
+- Treating the legacy no-contract fallback chain as the canonical rule.
+- Allowing callers to disable runtime guards at adapter entrypoints.
+- Using top-level `wire_api` to override an explicit protocol contract.
+- Mixing multiple protocols inside a single adapter call.

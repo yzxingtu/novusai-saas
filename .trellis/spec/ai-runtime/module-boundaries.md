@@ -2,103 +2,65 @@
 
 ## Goal
 
-Keep the AI stack modular enough that one subsystem can change without forcing
-unrelated rewrites.
+Keep the AI runtime modular enough that protocol work, intent/tool orchestration,
+context assembly, and service-facing workflows can evolve independently.
 
-## Canonical Layers
+## Runtime Layers (Stable Ownership)
 
-1. `contracts`
-2. `runtime kernel`
-3. `provider layer`
-4. `intent + context pipeline`
-5. `tool runtime`
-6. `application services`
-7. `observability`
-8. `frontend AI shell`
+1. Contracts and diagnostics: stable DTOs for intents, budgets, protocol plans,
+turn records, and capability bundles used across layers.
+2. Intent and tool orchestration: intent planning, tool rounds, recovery
+decisions, execution budgets, and unified stream or sync state.
+3. Context pipeline: system prompt assembly, RAG injection, compaction, and
+memory recall orchestration without direct service or adapter imports.
+4. Runtime kernel: protocol planning, protocol chain execution, and fallback or
+rescue policy for a single provider turn.
+5. Adapter and provider layer: protocol-specific request construction and
+response mapping for one protocol step.
+6. Tool runtime and skills: tool catalog, consent gating, tool execution,
+page operations, and web research orchestration.
+7. Service layer: business use cases, persistence, memory capture, and read
+model projection.
+8. Observability and monitoring: diagnostics projection and operator read models.
+9. Frontend AI shell: UI composition and state distribution.
 
-## Ownership
+## Stable Boundary Contracts
 
-- `contracts`
-  - owns stable DTOs, protocol capability types, intent types, context
-    contribution types, turn results, diagnostics projections
-- `runtime kernel`
-  - owns turn orchestration, protocol planning, round execution, stream
-    aggregation, stop-loss decisions
-- `provider layer`
-  - owns request building, single-protocol execution, response mapping, provider
-    error translation
-- `intent + context pipeline`
-  - owns intent classification, memory/RAG/page/context contribution decisions
-- `tool runtime`
-  - owns skill resolution, tool catalog building, tool execution, page runtime,
-    hosted web-search orchestration
-- `application services`
-  - owns business commands and query/read models exposed to controllers
-- `observability`
-  - owns diagnostics projection, replay artifacts, runtime inventory, operator
-    views
-- `frontend AI shell`
-  - owns UI composition and state distribution, but not backend business logic
-
-## Current Canonical Entrypoints (2026-04, Transitional)
-
-- intent classification entrypoint: `backend/app/ai/engine/intent_planner.py`
-  (emits `IntentPlan` list; `IntentSet` is target-state only)
-- context pipeline entrypoint: `backend/app/ai/context/engine.py` +
-  `backend/app/ai/context/orchestrator.py`
-- protocol planning: `backend/app/ai/runtime/protocol_planner.py`
-- protocol execution (openai-compatible): `backend/app/ai/adapters/openai_compatible/`
-- streaming runtime: `backend/app/ai/engine/stream_handler.py` +
-  `backend/app/ai/engine/stream_generation_support.py`
-- application services: `backend/app/services/ai/*`
-- frontend AI shell: `frontend/apps/web-antd/src/components/business/ai-chat-panel/*`
-  (split in progress)
+- Protocol planning lives in the runtime kernel. Adapters execute one protocol
+path at a time and must not invent fallback chains.
+- Context assembly depends on the ContextCapabilityBridge contract. The context
+engine must not import runtime or service internals directly.
+- Long-term memory recall uses the LongTermMemoryProvider protocol from the
+context layer. The service layer owns the provider factory and may lazy-import
+its implementation.
+- Public package imports are protected by lazy export facades in `app.ai`,
+`app.ai.engine`, `app.ai.context`, `app.ai.runtime`, and tool packages. Heavy
+imports must stay out of `__init__` modules.
+- Turn diagnostics flow through TurnRecord and CapabilityBundle. No other layer
+reconstructs protocol path, fallback history, or context sources.
 
 ## Allowed Dependencies
 
-- `runtime kernel -> contracts`
-- `provider layer -> contracts`
-- `intent + context pipeline -> contracts`
-- `tool runtime -> contracts`
-- `application services -> contracts`
-- `application services -> runtime kernel`
-- `application services -> provider layer`
-- `application services -> intent + context pipeline`
-- `application services -> tool runtime`
-- `observability -> contracts`
-- `observability -> application services` only through published read models
-- `frontend AI shell -> frontend shared contracts`
+- Runtime kernel -> contracts, runtime types, adapters, tool executor.
+- Adapters -> protocol contracts, provider SDKs, capability contract helpers.
+- Intent and tool orchestration -> context pipeline, runtime kernel, skills and tools.
+- Context pipeline -> contracts, capability bridge, RAG and memory provider seams.
+- Service layer -> orchestration layer, runtime kernel, provider registry.
+- Observability -> service read models, contracts.
+- Frontend shell -> backend read models and shared UI runtime bridges.
 
 ## Forbidden Dependencies
 
-- `runtime kernel -> services.ai`
-- `provider layer -> runtime kernel strategy modules`
-- `intent classifier -> memory/RAG execution side effects`
-- `context pipeline -> provider protocol selection`
-- `tool runtime -> application service internals`
-- `frontend shell -> ad-hoc reconstruction of backend runtime semantics`
-- cross-layer imports that bypass a published contract
-
-## Cohesion Rules
-
-- one module should have one dominant reason to change
-- if a module simultaneously handles transport, policy, persistence, and UI
-  semantics, it is too large
-- every facade must delegate to smaller collaborators instead of staying as a
-  renamed giant file
-
-## Size Rules
-
-- Python production file target: `<= 600` lines
-- provider/protocol file target: `<= 400` lines
-- Vue SFC target: `<= 450` lines
-- TS composable target: `<= 500` lines
-- any production file above `1000` lines is mandatory-split work
+- Adapter or provider code importing engine or service modules.
+- Context pipeline selecting protocol paths or reaching into adapter internals.
+- Service layer bypassing runtime kernel to call adapters directly.
+- Intent planner performing retrieval or memory side effects.
+- Frontend shell recreating protocol, fallback, or budget semantics locally.
 
 ## Prohibited Patterns
 
-- one “god service” coordinating commands, queries, persistence, and projection
-- adapter-local protocol fallback competing with runtime planner fallback
-- intent classification that directly performs retrieval work
-- UI shells that contain stream state machine logic inline
-- cyclic imports between `app.ai.*` subpackages
+- Adapter-local protocol fallback competing with the runtime planner.
+- New policy embedded in package `__init__` facades.
+- Cross-layer imports that bypass published contracts or bridges.
+- One file owning protocol planning, tool orchestration, persistence, and UI
+projection at the same time.

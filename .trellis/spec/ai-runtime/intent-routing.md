@@ -2,55 +2,50 @@
 
 ## Goal
 
-Produce stable, explicit intents before tool routing or context injection.
+Produce explicit, ordered intents before tool routing or context injection.
 
-## Required Intent Set
+## Canonical Output
 
-- `direct_reply`
-- `memory_save`
-- `memory_recall`
-- `knowledge_query`
-- `web_research`
-- `page_read`
-- `page_write`
-- `time_query`
-- `weather_query`
+- Intent routing emits a list of `IntentPlan` items.
+- Each intent includes `kind`, `family`, `shortcircuit`, `requires_tools`,
+  `allow_text_response`, `continuation`, and `metadata`.
 
-## Current Entry (2026-04, Transitional)
+## Supported Intent Families
 
-- Current classifier output is `IntentPlan` entries from
-  `backend/app/ai/engine/intent_planner.py` (fields: `kind`, `family`,
-  `shortcircuit`, `requires_tools`).
-- `IntentSet` is the target contract but not the current runtime interface.
-  When updating rules, keep `IntentPlan` output stable and add mapping tests.
+- `direct_reply` for pure text responses and capability self-report prompts.
+- `memory_save` and `memory_recall` under the `memory` family.
+- `knowledge_query` for KB-backed retrieval.
+- `web_research` for external search.
+- `time_query` and `weather_query` for tool families that are explicitly
+available.
+- `page_*` intents for page operations under the `page_ops` family. The current
+set includes summary, navigation, search, form read or write, editor read or
+write, pagination, row detail, and screenshot operations.
 
-## Rules
+## Routing Rules
 
-- plan one or more explicit intents, not a single family string
-- classify intent before choosing tools or retrieval strategy
-- tool routing happens after intent classification
-- context injection happens after intent classification
-- candidate tools must be minimized to the active intent set
-- do not expose mixed-family tools and hope later heuristics will sort them out
+- Build a provisional capability bundle before intent planning so tool families
+and page context are known.
+- Split user input into clauses and emit intents ordered by clause position.
+- If no intent signal is found, return a single `direct_reply` intent.
+- When a page continuation context is active, route to `page_*` intents and
+suppress `knowledge_query` or `web_research` signals from the same clause.
+- `memory_recall` takes precedence over `memory_save` when both signals appear.
+- `weather_query` without a detectable location may set `allow_text_response`
+with `missing_args=["city"]` instead of failing tool routing.
+- `knowledge_query` is only emitted when a KB is bound and the user signal is
+explicit (definition-like or KB-specific). KB binding alone is not enough.
+- `web_research` must be suppressed when the user explicitly forbids web access.
 
-## Multi-Intent
+## Multi-Intent Behavior
 
-- split the turn into explicit intents
-- track completion per intent
-- retry only unfinished intents
-- return partial results when one intent fails after stop-loss
-
-## Required Special Cases
-
-- memory-save phrases such as `"存入记忆"` or `"记住这个"` must stay in
-  `memory_save`
-- bound knowledge bases do not create implicit `knowledge_query`
-- page-read and page-write must be distinct intents
-- capability self-report prompts should stay `direct_reply`
+- Track status per intent and retry only unfinished intents.
+- Partial failures return completed intents when stop-loss or tool limits hit.
+- Tool routing always scopes to the active intent set.
 
 ## Prohibited Patterns
 
-- regex-order alone decides primary routing
-- intent classification performing retrieval as a side effect
-- tool family drift during recovery
-- retrying the entire turn when only one intent is incomplete
+- Tool routing before intent planning.
+- Intent classification that performs retrieval or memory side effects.
+- Defaulting to `knowledge_query` solely because a KB is bound.
+- Collapsing page and web research intents into one ambiguous family.

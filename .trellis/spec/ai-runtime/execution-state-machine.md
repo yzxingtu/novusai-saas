@@ -2,16 +2,17 @@
 
 ## Canonical Turn Flow
 
-`ingest -> classify intents -> resolve protocol plan -> assemble context -> route tools -> execute rounds -> recover or exit -> project diagnostics`
+`prepare -> plan intents -> assemble context -> plan protocol -> execute model/tool rounds -> recover or exit -> project diagnostics`
 
-Streaming and non-streaming execution must share the same logical state machine.
+Streaming and non-streaming execution share the same logical state machine and
+emit the same outcome semantics.
 
 ## Required States
 
-- `planned`
-- `executing`
-- `waiting_for_tool`
-- `recovering`
+- `prepared`
+- `model_call`
+- `tool_round`
+- `recovery`
 - `awaiting_consent`
 - `partial_exit`
 - `completed`
@@ -20,35 +21,29 @@ Streaming and non-streaming execution must share the same logical state machine.
 
 ## Rules
 
-- use one execution contract across sync and streaming paths
-- protocol planning happens before provider execution
-- track progress at intent level, not only at tool-call level
-- budgets are checked during execution, not only after the loop ends
-- final responses must carry the same outcome semantics regardless of transport
-  mode
-- consent-gated tool calls transition to `awaiting_consent`, not `partial_exit`
-- protocol fallback history must be part of turn diagnostics
+- One execution contract drives both sync and streaming paths.
+- Protocol planning happens before provider execution and produces a protocol
+chain for the turn.
+- Intent progress is tracked explicitly; recovery decisions target unfinished
+intents rather than replaying the entire turn.
+- Budgets are checked during execution, not just after completion.
+- Consent-gated tool calls transition to `awaiting_consent`, not `partial_exit`.
+- Protocol fallback history is captured in TurnRecord and surfaced in
+diagnostics.
 
 ## Required Outputs
 
-- active and completed intents
-- selected protocol path and fallback history
-- selected tools and tool rounds
-- finish reason / termination reason
-- provider events and recovery events
-
-## Current Implementation Notes (2026-04, Transitional)
-
-- `backend/app/ai/engine/turn_executor.py` is the shared executor for sync and
-  streaming paths.
-- Streaming path uses `StreamExecutionHandler` +
-  `backend/app/ai/engine/stream_generation_view.py` to share turn state and
-  avoid private-field reach-ins.
+- intent status and completion per turn
+- protocol path and fallback history
+- selected tools, tool rounds, and provider events
+- termination reason and outcome
+- recovery decisions and budget exit reason
 
 ## Prohibited Patterns
 
-- separate retry systems for streaming vs non-streaming
-- provider-layer hidden fallback chains that bypass runtime state
-- infinite or near-unbounded tool loops
-- hidden state in free-form prompt markers
-- treating consent-required tool results as ordinary retryable tool failures
+- separate retry systems for streaming vs non-streaming execution
+- provider-layer fallback chains that bypass the runtime protocol plan
+- unbounded tool loops without budget checks
+- storing state only in prompt markers
+- treating consent-required tool results as ordinary retry failures
+- stream-only or sync-only hook overrides that diverge policy or diagnostics

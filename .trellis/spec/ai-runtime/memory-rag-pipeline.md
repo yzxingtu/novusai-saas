@@ -2,70 +2,67 @@
 
 ## Goal
 
-Memory and RAG should be explicit contributors, not side effects hidden inside
-intent routing or context assembly.
+Memory and RAG must be explicit contributors with clear ownership. Retrieval,
+capture, and persistence are separate concerns.
 
-## Intent Taxonomy
+## Intent Boundaries
 
-- `memory_save`
-- `memory_recall`
-- `knowledge_query`
-- `web_research`
-- `page_read`
-- `page_write`
-- `direct_reply`
+- `memory_save` and `memory_recall` are distinct intents.
+- `memory_save` triggers post-turn capture. It must not trigger recall during
+context assembly.
+- `memory_recall` is the only intent that enables long-term recall in the
+context pipeline.
+- KB binding does not imply `knowledge_query`; the intent must be explicit.
 
-## Rules
+## Pipeline Overview
 
-- `memory_save` and `memory_recall` are different intents
-- saving memory does not imply vector recall
-- bound knowledge bases do not imply automatic `knowledge_query`
-- memory extraction failures degrade safely without poisoning the main turn
-- RAG retrieval and long-term memory recall must publish distinct diagnostics and
-  embedding reasons
+1. Build system and user messages.
+2. Resolve KB bindings and runtime model capabilities.
+3. Plan intents (IntentPlan list).
+4. If a knowledge intent is present, inject RAG context using agent `rag_config`.
+5. Compute compaction and system prompt additions (date anchors, locale hints).
+6. If memory recall is enabled, inject profile snapshot and vector recall blocks.
+7. Inject system additions into the system message.
+8. Prune and finalize capability bundle and diagnostics.
 
-## Context Contribution Order
+## Session Memory
 
-1. current turn and active intent
-2. minimal system/runtime rules
-3. page context or active external context
-4. compacted history
-5. session memory
-6. long-term profile snapshot
-7. long-term vector recall
-8. RAG results
+- Session memory is loaded by the service layer when memory is enabled and the
+conversation has a user and conversation id.
+- The injected session memory block sets `session_memory_injected` on the
+request and is surfaced as a context source.
+- Session memory injection is independent of `memory_recall` intent.
 
-## Required Contributor Model
+## Long-Term Memory
 
-Each contributor must publish:
+- Context assembly uses a LongTermMemoryProvider interface for recall and
+profile snapshot retrieval.
+- Long-term memory capture happens after the turn in the service layer and
+uses a memory extraction step plus a provider factory.
+- Memory extraction failures degrade to empty output and must not break the
+main turn.
 
-- `kind`
-- `text_block`
-- `token_cost`
-- `source_ref`
-- `diagnostic_payload`
+## RAG Retrieval
 
-## Current Implementation Notes (2026-04, Transitional)
+- RAG injection uses the agent-level `rag_config` and validated KB bindings.
+- RAG only executes when a knowledge intent is present and the turn is not
+short-circuited.
+- RAG sources and kinds are recorded in diagnostics and capability context.
 
-- `backend/app/ai/context/engine.py` still records contribution metadata via
-  `append_budgeted_addition(category, budget_usage)` rather than the full
-  contributor schema.
-- `backend/app/ai/context/contributors/memory.py` exposes recall flags but does
-  not yet emit full `ContextContribution` payloads.
-- Treat the full contributor model as the target-state contract and avoid
-  coding against it until the pipeline upgrade completes.
+## Diagnostics Requirements
+
+- Context diagnostics include `rag_sources`, `rag_source_kinds`,
+`memory_recalled`, `memory_recall_slice`, and `session_memory_injected`.
+- Capability bundles publish `knowledge_base`, `session_memory`, and
+`long_term_memory` context sources when active.
 
 ## Required Behavior
 
-- `"存入记忆"`, `"记住这个"`, `"remember this"` must classify as `memory_save`
-- memory-save turns must not execute long-term vector recall
-- knowledge-query turns may execute RAG only when classifier or explicit rule
-  allows it
-- memory extraction parser must support plain JSON, fenced JSON, and structured
-  outputs
+- `memory_save` must not execute long-term vector recall.
+- Memory extraction parser must accept plain JSON or fenced JSON responses.
 
 ## Prohibited Patterns
 
-- “if no other signal and KB is bound, default to knowledge query”
-- `has_memory_intent = true` for every authenticated turn
-- mixing profile snapshots and vector recall into one indistinguishable block
+- Defaulting to knowledge query solely because a KB is bound.
+- Treating `memory_save` as a signal to recall memory in the same turn.
+- Mixing profile snapshots and vector recall without separate diagnostics.

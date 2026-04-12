@@ -2,61 +2,42 @@
 
 ## Goal
 
-Frontend AI surfaces should compose state from focused composables and avoid
-re-implementing backend orchestration semantics.
+Frontend AI surfaces must compose state from focused composables and shared
+runtime bridges, not re-implement backend orchestration semantics.
 
 ## Required Split
 
-- public entry facades
-  - stable route/component/composable paths may stay thin wrappers so imports
-    and route registration do not churn
-- shell/core implementations
-  - `*-shell.vue` and `*-core.ts` files own the real rendering and workflow
-    logic behind those stable facades
-- focused helpers
-  - split repeated state domains or formatting helpers into co-located files
-    when the seam is real (`history`, `variables`, page capability/policy,
-    monitoring identity, etc.)
-- shared contracts
-  - message view model
-  - tool-call view model
-  - error surface
-  - diagnostics surface
+- Public entry facades remain thin wrappers for stable imports and routes.
+- Shell or core implementations own layout and workflow logic.
+- Focused helpers own a single, real state domain such as history or variables.
+- Shared view models define message, tool-call, error, and diagnostics surfaces.
 
 ## Rules
 
-- thin public wrappers should only forward props/events/exports; do not put new
-  workflow branches back into them
-- page and drawer shells should own layout + orchestration, then keep pushing
-  repeated sections into child units or helper modules instead of re-growing the
-  route entry file
-- composables should expose one dominant state domain when a split seam is real;
-  do not create fake micro-hooks that only forward a few local refs
-- frontend must consume backend read models when available instead of rebuilding
-  them from raw metadata across multiple places
-- message rendering, diagnostics rendering, and error rendering should be
-  separate components
-- route-level pages should delegate to shell/components instead of embedding all
-  sections inline
-- page runtime state should come from the shared UI Runtime bridge and shared AI
-  policy helpers, not from page-local registration registries
+- Thin facades only forward props, events, or exports.
+- Shell pages own orchestration, then extract repeated sections into companions.
+- Composables should expose one dominant domain; avoid micro-hooks that only
+forward local refs.
+- Frontend should consume backend read models where available instead of
+rebuilding them from raw metadata in multiple places.
+- Route-level pages delegate to shell components instead of embedding full
+workflows inline.
+- Page-AI policy flows through `route.meta.ai` and the shared policy parser.
+Do not create a second policy surface for a single page.
+- Page runtime state comes from the shared UI runtime bridge, not from
+page-local registries.
 
-## Current Implementation Notes (2026-04, Transitional)
+## Transitional Notes
 
-- `frontend/apps/web-antd/src/components/business/ai-chat-panel/use-ai-chat-core.ts`
-  still hosts the primary chat state machine; treat it as the current canonical
-  entrypoint until the composable split is complete.
-- `frontend/apps/web-antd/src/components/business/ai-chat-panel/ChatMessageItem.vue`
-  remains the main message render surface; new message subcomponents should
-  target a future split rather than extending the monolith.
+- Wrapper pattern is canonical, but internal shell granularity is still in
+motion. Avoid freezing helper or companion file names as global rules.
+- CRUD-specific AI overrides are a narrow compatibility seam and must not
+replace route-level AI policy.
 
 ## Prohibited Patterns
 
-- re-growing thin facades such as `use-ai-chat.ts`, `use-ai-operations.ts`,
-  route entry SFCs, or shell forwarding components into new orchestration hubs
-- one `use-ai-chat-core.ts` or `*-shell.vue` becoming the excuse to reintroduce
-  unrelated product flows forever; keep extracting repeated seams instead of
-  treating the first split as the last split
-- frontend-only guesses about runtime protocol/fallback semantics
-- reviving legacy page-AI registration or page-operation registry flows after
-  the shared UI Runtime bridge became the canonical path
+- Re-growing thin facades into new orchestration hubs.
+- Frontend-only guesses about protocol or fallback semantics.
+- Inventing a second page-AI policy surface beside `route.meta.ai`.
+- Reviving legacy page-AI registration flows outside the shared UI runtime
+bridge.
