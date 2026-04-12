@@ -82,3 +82,4 @@
 {"file": "frontend/apps/web-antd/src/views/admin/system/codegen/modules/WysiwygFormView.vue", "reason": "Verify WYSIWYG form preview shell now stays thin and type-safe through vue-tsc"}
 {"file": "frontend/apps/web-antd/src/views/admin/system/codegen/modules/WysiwygListView.vue", "reason": "Verify WYSIWYG list preview quick-search typing no longer leaks Record<string, any>"}
 {"file": "backend/plugins/weather-widget/frontend/src/styles.ts", "reason": "Verify WX_STYLES aggregation still builds after style-module split"}
+{"file": "backend/app/plugins/manifest_metadata_schemas.py", "reason": "Verify manifest metadata companion extraction keeps PluginManifest import roots, validation, and startup discovery behavior stable"}

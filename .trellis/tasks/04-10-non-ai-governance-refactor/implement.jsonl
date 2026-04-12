@@ -98,3 +98,4 @@
 {"file": "backend/plugins/weather-widget/frontend/src/styles.trigger.ts", "reason": "Split weather-widget trigger styles out of the monolithic WX_STYLES string"}
 {"file": "backend/plugins/weather-widget/frontend/src/styles.skeleton.ts", "reason": "Split weather-widget skeleton and empty-state styles out of the monolithic WX_STYLES string"}
 {"file": "backend/plugins/weather-widget/frontend/src/styles.responsive.ts", "reason": "Split weather-widget responsive and reduced-motion rules out of the monolithic WX_STYLES string"}
+{"file": "backend/app/plugins/manifest_metadata_schemas.py", "reason": "Extract manifest feature/dependency/pricing/resource schemas out of manifest.py so PluginManifest stays a thinner public facade without breaking import roots"}

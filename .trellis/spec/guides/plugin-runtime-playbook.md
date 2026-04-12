@@ -102,6 +102,13 @@ Do not skip validation just because the plugin uses a slimmer standalone toolcha
   - facade/entry: route/CLI/runtime registration and compatibility exports only
   - mixin/parts: lifecycle concern slices and orchestrator flows
   - registry/read layer: discover + snapshot + query
+  - schema/context companion modules: keep stable `context.py` / `manifest.py`
+    import roots, but move request/db/storage primitives or validation
+    constants/helpers into adjacent modules such as
+    `context_primitives.py` / `manifest_helpers.py`; if manifest metadata
+    schemas (feature/dependency/pricing/resources) keep growing, move them into
+    a companion schema module such as `manifest_metadata_schemas.py` while
+    preserving `PluginManifest` and legacy import roots
   - admin write workflow layer: notification/menu-override/license/cleanup
     orchestration for host plugin admin routes
   - lifecycle layer: install/enable/disable/sync orchestration
@@ -146,3 +153,7 @@ At minimum, verify:
 - Letting one host controller file own marketplace transport, zip extraction,
   dependency previews, cleanup flows, tenant assignment, runtime audit, and
   license workflows all at once
+- Letting `context.py` or `manifest.py` re-accumulate request primitives,
+  DB/storage proxy details, path validators, regex/constants, or metadata
+  schema buckets after those seams have already been extracted into companion
+  modules

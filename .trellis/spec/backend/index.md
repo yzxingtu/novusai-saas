@@ -116,8 +116,10 @@ backend modules:
   modules（例如 `context_primitives.py`），调用方继续从
   `app.plugins.context` 获取稳定导出。
   `manifest.py` 可以保留 `PluginManifest` 等公共 schema 导出，但路径/handler/
-  scope 校验常量与 helper 应下沉到 `manifest_helpers.py`，避免 schema 主文件继续
-  承担工具常量桶职责。
+  scope 校验常量与 helper 应下沉到 `manifest_helpers.py`，而 feature /
+  dependency / pricing / resources 这类稳定元数据 schema 应继续下沉到
+  companion modules（例如 `manifest_metadata_schemas.py`），避免 schema 主文件继续
+  承担工具常量桶职责或重新膨胀回 1000+ 行。
 - Codegen backend chain: separate generation core, config/read-model management,
   and CLI/API transport adapters; avoid one module owning config parse,
   generation orchestration, migration hooks, and delivery format at once.
@@ -164,6 +166,10 @@ Read these files in order when touching backend code:
   `backend/app/plugins/lifecycle.py` + `backend/app/plugins/lifecycle_orchestrator.py`
 - Plugin context primitives + facade pattern:
   `backend/app/plugins/context.py` + `backend/app/plugins/context_primitives.py`
+- Plugin manifest facade + companion schema pattern:
+  `backend/app/plugins/manifest.py` +
+  `backend/app/plugins/manifest_metadata_schemas.py` +
+  `backend/app/plugins/manifest_helpers.py`
 
 ## Anti-Patterns To Avoid
 

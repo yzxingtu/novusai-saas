@@ -327,8 +327,11 @@
 - Plugin platform backend 最后一批残余已关闭：
   - `backend/app/services/system/plugin_install_preview_service.py` 已正式入库，
     消除 clean checkout 缺文件 blocker。
-  - `backend/app/plugins/manifest.py` 已把公共 helper/constants 下沉到
-    `backend/app/plugins/manifest_helpers.py`，`PluginManifest` 导入路径保持不变。
+  - `backend/app/plugins/manifest.py` 已降到 849 行，并保留 `PluginManifest`
+    导入路径不变；公共 helper/constants 下沉到
+    `backend/app/plugins/manifest_helpers.py`，feature/dependency/pricing/resources
+    元数据 schema 下沉到
+    `backend/app/plugins/manifest_metadata_schemas.py`。
   - `backend/app/plugins/context.py` 已降到 775 行，并把 `RequestContext`、
     `PluginDbProxy`、`_NamespacedStorageProxy` 下沉到
     `backend/app/plugins/context_primitives.py`，`PluginContext` 对外导出保持兼容。
@@ -355,6 +358,9 @@
 
 - `python -m ruff check backend/app/plugins/context.py backend/app/plugins/context_primitives.py backend/app/plugins/manifest.py backend/app/plugins/manifest_helpers.py backend/app/services/system/plugin_install_preview_service.py backend/app/services/common/auth_domains/__init__.py backend/app/services/common/auth_domains/tenant_user_auth.py backend/app/services/common/auth_domains/tenant_user_login.py backend/app/services/common/auth_domains/tenant_user_login_code.py backend/app/services/system/dashboard_service.py backend/app/services/system/dashboard_service_parts`
   - 结果：通过。
+- `python -m ruff check app/plugins/manifest.py app/plugins/manifest_metadata_schemas.py`
+  - 工作目录：`backend`
+  - 结果：通过。
 - `python -m pytest tests/services/test_auth_service.py tests/services/test_admin_dashboard_service.py tests/services/test_tenant_dashboard_service.py tests/services/test_plugin_install_preview_service.py tests/test_admin_plugin_marketplace_contract.py tests/test_admin_plugin_install_preview_routes_contract.py tests/test_plugin_api_dispatcher_security.py tests/test_plugin_api_dispatcher_context_safety.py tests/test_plugin_storage_runtime.py tests/test_plugin_manifest_validation.py tests/test_plugin_dependency_runtime_model.py -q -p no:cacheprovider --basetemp E:/git_clone/novusai-saas-yudi/.pytest_tmp/non-ai-residual`
   - 结果：`94 passed`。
 - `python -m pytest tests/services/test_admin_dashboard_service.py tests/services/test_tenant_dashboard_service.py -q -p no:cacheprovider --basetemp E:/git_clone/novusai-saas-yudi/.pytest_tmp/non-ai-residual`
@@ -364,3 +370,6 @@
 - `pnpm exec vite build`
   - 工作目录：`backend/plugins/weather-widget/frontend`
   - 结果：通过。
+- `python -m pytest tests/test_plugin_manifest_validation.py tests/test_plugin_extension_registration.py tests/test_plugin_storage_runtime.py tests/test_plugin_manifest_sync_service.py tests/test_plugin_startup_discovery_boundaries.py -q -p no:cacheprovider --basetemp E:/git_clone/novusai-saas-yudi/.pytest_tmp/manifest-runtime`
+  - 工作目录：`backend`
+  - 结果：`24 passed`。
