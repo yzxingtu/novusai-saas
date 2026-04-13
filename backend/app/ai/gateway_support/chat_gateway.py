@@ -81,6 +81,7 @@ async def execute_chat(
             model=model,
             messages=messages_to_dicts(messages),
             temperature=temperature,
+            top_p=top_p,
             max_tokens=max_tokens,
             tools=tools,
             tool_choice=tool_choice,

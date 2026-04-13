@@ -42,6 +42,7 @@ class AIResponseCache:
         model: str,
         messages: list,
         temperature: float,
+        top_p: float | None = None,
         max_tokens: int | None = None,
         tools: list | None = None,
         tool_choice: str | None = None,
@@ -50,13 +51,14 @@ class AIResponseCache:
         Generate cache key.
         生成缓存键。
 
-        key = hash(model_code + sorted(messages) + temperature + max_tokens)
+        key = hash(model_code + sorted(messages) + temperature + top_p + max_tokens)
 
         Args:
             provider_code: Provider code / 供应商代码
             model: Model name / 模型名称
             messages: Message list / 消息列表
             temperature: Temperature parameter / 温度参数
+            top_p: Nucleus sampling parameter / 核采样参数
             max_tokens: Max tokens / 最大 tokens
             tools: Tool list / 工具列表
 
@@ -68,6 +70,7 @@ class AIResponseCache:
             "model": model,
             "messages": messages,
             "temperature": temperature,
+            "top_p": top_p,
             "max_tokens": max_tokens,
             "tools": tools,
             "tool_choice": tool_choice,
