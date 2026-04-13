@@ -285,3 +285,54 @@ async def test_route_treats_message_level_file_attachment_as_attachment_for_comp
     assert result.model_id == 3
     assert result.tier == "standard"
     assert result.reason == "complexity:medium"
+
+
+@pytest.mark.asyncio
+async def test_can_handle_attachments_respects_disabled_routing_agent_capabilities(
+    mock_db,
+):
+    agent_model = _make_model(
+        model_id=1,
+        provider_id=1,
+        code="text-base",
+        tier="fast",
+        supports_vision=False,
+    )
+    agent = _make_agent(
+        model=agent_model,
+        routing_config={"enable_routing": False, "vision_model_id": 77},
+    )
+
+    router = ModelRouter(mock_db)
+
+    supported = await router.can_handle_attachments(agent, has_image=True)
+
+    assert supported is False
+
+
+@pytest.mark.asyncio
+async def test_can_handle_attachments_allows_disabled_routing_when_agent_model_matches(
+    mock_db,
+):
+    agent_model = _make_model(
+        model_id=1,
+        provider_id=1,
+        code="vision-base",
+        tier="fast",
+        supports_vision=True,
+        supports_function_calling=True,
+    )
+    agent = _make_agent(
+        model=agent_model,
+        routing_config={"enable_routing": False, "vision_model_id": 77},
+    )
+
+    router = ModelRouter(mock_db)
+
+    supported = await router.can_handle_attachments(
+        agent,
+        has_image=True,
+        needs_fc=True,
+    )
+
+    assert supported is True
