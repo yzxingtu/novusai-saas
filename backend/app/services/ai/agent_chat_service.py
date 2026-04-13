@@ -24,6 +24,7 @@ from app.ai.engine.conversation import ConversationEngine
 from app.ai.engine.dispatcher import ExecutionDispatcher  # noqa: F401
 from app.ai.engine.types import ExecutionRequest, ExecutionResult
 from app.ai.events.hooks import HookPoint, get_hook_registry  # noqa: F401
+from app.core.database import async_session_factory  # noqa: F401
 from app.core.logging import LogManager
 from app.enums.common import UserRoleEnum
 from app.schemas.ai.agent_chat import AgentChatResponse, InteractionMode, PageContext
@@ -63,6 +64,20 @@ logger = LogManager.get_logger("ai.agent_chat_service")
 class BaseEngine:  # noqa: D101
     @staticmethod
     async def _publish_execution_started(  # noqa: ANN002, ANN003
+        *_args,
+        **_kwargs,
+    ):
+        return None
+
+    @staticmethod
+    async def _publish_execution_completed(  # noqa: ANN002, ANN003
+        *_args,
+        **_kwargs,
+    ):
+        return None
+
+    @staticmethod
+    async def _publish_execution_failed(  # noqa: ANN002, ANN003
         *_args,
         **_kwargs,
     ):

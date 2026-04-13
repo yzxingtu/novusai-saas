@@ -551,6 +551,15 @@ class AgentChatCommandService:
         turn_projector = bind_turn_projector(
             interaction_mode_effective=interaction_mode_effective,
             downgrade_reason=interaction_mode_downgrade_reason,
+            context_diagnostics_builder=lambda result: service._build_context_diagnostics(
+                result,
+                interaction_mode_effective=interaction_mode_effective,
+            ),
+            last_run_summary_builder=lambda result: service._build_last_run_summary(
+                result,
+                interaction_mode_effective=interaction_mode_effective,
+                downgrade_reason=interaction_mode_downgrade_reason,
+            ),
         )
         on_stream_complete = AgentChatStreamPersistenceOrchestrator(
             tenant_id=service.tenant_id,
