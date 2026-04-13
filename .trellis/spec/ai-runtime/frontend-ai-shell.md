@@ -12,6 +12,18 @@ runtime bridges, not re-implement backend orchestration semantics.
 - Focused helpers own a single, real state domain such as history or variables.
 - Shared view models define message, tool-call, error, and diagnostics surfaces.
 
+## Stable Contracts
+
+- The chat entry composable is the single orchestration surface and composes
+  focused helpers for streaming, history, attachments, memory, variables,
+  interactions, and export.
+- Chat message rendering is decomposed into a shell plus focused blocks
+  (assistant/user/error/tool-call/diagnostics) to keep the shell layout-only.
+- Page context and page operations flow through the shared AI runtime bridge;
+  page key normalization and page-operation types come from the shared runtime.
+- Shared AI chat API calls live in the shared API module so UI surfaces do not
+  embed their own requestClient flows.
+
 ## Rules
 
 - Thin facades only forward props, events, or exports.
