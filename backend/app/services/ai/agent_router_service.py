@@ -13,10 +13,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.ai.routing.router import ModelRouter
 from app.configs.service import PLATFORM_TENANT_ID
 from app.core.i18n import _
 from app.core.logging import LogManager
@@ -24,20 +22,12 @@ from app.enums.common import UserRoleEnum
 from app.exceptions import BusinessException
 from app.models.ai.agent import Agent
 from app.models.system.agent_assignment import SystemAgentAssignment
+from app.services.ai.agent_router_candidate_support import filter_router_candidates
 from app.services.ai.agent_router_capability_support import (
+    agent_can_handle_images,
     agent_needs_function_calling,
     agent_supports_families,
-    agent_supports_images,
     agent_supports_page_operations,
-    grant_skill_name_if_active,
-)
-from app.services.ai.agent_router_policy import (
-    has_non_page_mixed_intent,
-    page_context_has_runtime_ui_tools,
-    page_context_supports_navigation,
-    requested_tool_families,
-    requires_page_operation_routing,
-    requires_vision_page_operation,
 )
 from app.services.ai.agent_router_query_service import AgentRouterQueryService
 from app.services.ai.agent_router_runtime_support import (
@@ -221,80 +211,17 @@ class AgentRouterService:
                 has_image_attachments=has_image_attachments,
             )
 
-        page_operation_routing_required = requires_page_operation_routing(
-            message,
-            page_context,
+        filter_result = await filter_router_candidates(
+            message=message,
+            page_context=page_context,
+            candidates=candidates,
+            has_image_attachments=has_image_attachments,
+            agent_can_handle_images=self._agent_can_handle_images,
         )
-        mixed_non_page_intent = has_non_page_mixed_intent(message)
-        requested_families = requested_tool_families(message, page_context)
-        page_operation_filtered = False
-        family_coverage_filtered = False
+        candidates = filter_result.candidates
 
-        if has_image_attachments:
-            vision_candidates = [
-                a for a in candidates if await self._agent_can_handle_images(a)
-            ]
-            if not vision_candidates:
-                raise BusinessException(
-                    message=_("agent_chat.error.no_vision_agent_available"),
-                )
-            candidates = vision_candidates
-            logger.info(
-                "Agent router: narrowed to {} vision-capable agents (image attachments)",
-                len(candidates),
-            )
-
-        if page_operation_routing_required and not mixed_non_page_intent:
-            page_operation_candidates = [
-                agent
-                for agent in candidates
-                if agent_supports_page_operations(agent)
-            ]
-            if page_operation_candidates and requires_vision_page_operation(message):
-                vision_page_candidates = [
-                    agent
-                    for agent in page_operation_candidates
-                if await self._agent_can_handle_images(agent)
-            ]
-                if not vision_page_candidates:
-                    raise BusinessException(
-                        message=_("agent_chat.error.no_vision_agent_available"),
-                    )
-                page_operation_candidates = vision_page_candidates
-            if page_operation_candidates:
-                candidates = page_operation_candidates
-                page_operation_filtered = True
-                logger.info(
-                    "Agent router: narrowed to {} page-operation-capable agents",
-                    len(candidates),
-                )
-            else:
-                logger.warning(
-                    "Agent router: page operation intent detected but no page-operation-capable agent was found; using general candidate pool",
-                )
-        elif page_operation_routing_required and mixed_non_page_intent:
-            logger.info(
-                "Agent router: keeping full candidate pool for mixed page/non-page intent",
-            )
-
-        if any(family != "page_ops" for family in requested_families):
-            coverage_candidates = [
-                agent
-                for agent in candidates
-                if agent_supports_families(agent, requested_families)
-            ]
-            if coverage_candidates:
-                if len(coverage_candidates) < len(candidates):
-                    family_coverage_filtered = True
-                    logger.info(
-                        "Agent router: narrowed to {} candidates covering requested families {}",
-                        len(coverage_candidates),
-                        requested_families,
-                    )
-                candidates = coverage_candidates
-
-        if (page_operation_filtered or family_coverage_filtered) and len(candidates) == 1:
-            agent = candidates[0]
+        if filter_result.direct_selected_agent:
+            agent = filter_result.direct_selected_agent
             logger.info(
                 "Agent router: directly selected preferred agent {} ({})",
                 agent.id,
@@ -308,9 +235,7 @@ class AgentRouterService:
             )
 
         valid_ids = {a.id for a in candidates}
-        preferred_fallback_candidates = (
-            candidates if (page_operation_filtered or family_coverage_filtered) else None
-        )
+        preferred_fallback_candidates = filter_result.preferred_fallback_candidates
 
         # P3: Resolve router agent / 获取 Router 智能体
         router_agent = await self._get_router_agent()
@@ -488,10 +413,6 @@ class AgentRouterService:
             timeout_seconds=ROUTER_TIMEOUT_SECONDS,
         )
 
-    @staticmethod
-    def _parse_router_output(output: str) -> dict[str, Any] | None:
-        return AgentRouterRuntimeSupport.parse_router_output(output)
-
     # ========================================
     # Fallback handling / 降级逻辑
     # ========================================
@@ -520,31 +441,11 @@ class AgentRouterService:
         feature_code = "default_chat"
         preferred_candidate_ids = {agent.id for agent in (preferred_candidates or [])}
 
-        assignment: SystemAgentAssignment | None = None
-
-        if tenant_id and user_role != UserRoleEnum.PLATFORM_ADMIN.value:
-            # Tenant override first / 企业端优先查询覆盖配置
-            result = await self.db.execute(
-                select(SystemAgentAssignment).where(
-                    SystemAgentAssignment.feature_code == feature_code,
-                    SystemAgentAssignment.tenant_id == tenant_id,
-                    SystemAgentAssignment.is_active.is_(True),
-                    SystemAgentAssignment.is_deleted.is_(False),
-                )
-            )
-            assignment = result.scalar_one_or_none()
-
-        if not assignment:
-            # Global default fallback / 全局默认兜底
-            result = await self.db.execute(
-                select(SystemAgentAssignment).where(
-                    SystemAgentAssignment.feature_code == feature_code,
-                    SystemAgentAssignment.tenant_id.is_(None),
-                    SystemAgentAssignment.is_active.is_(True),
-                    SystemAgentAssignment.is_deleted.is_(False),
-                )
-            )
-            assignment = result.scalar_one_or_none()
+        assignment: SystemAgentAssignment | None = await self.query_service.resolve_default_assignment(
+            tenant_id=tenant_id,
+            user_role=user_role,
+            feature_code=feature_code,
+        )
 
         if assignment and assignment.agent_id:
             agent = await self._get_published_agent(assignment.agent_id)
@@ -658,89 +559,12 @@ class AgentRouterService:
             user_role_id=user_role_id,
         )
 
-    @staticmethod
-    def _agent_supports_images(agent: Agent | None) -> bool:
-        return agent_supports_images(agent)
-
-    @staticmethod
-    def _agent_skill_names(agent: Agent | None) -> set[str]:
-        if agent is None:
-            return set()
-
-        skill_names: set[str] = set()
-        skill_grants = getattr(agent, "skill_grants", None) or []
-        for grant in skill_grants:
-            skill_name = AgentRouterService._grant_skill_name_if_active(grant)
-            if skill_name:
-                skill_names.add(skill_name)
-        return skill_names
-
-    @staticmethod
-    def _grant_skill_name_if_active(grant: Any) -> str | None:
-        return grant_skill_name_if_active(grant)
-
-    @classmethod
-    def _agent_supports_page_operations(cls, agent: Agent | None) -> bool:
-        return agent_supports_page_operations(agent)
-
-    @staticmethod
-    def _page_context_has_runtime_ui_tools(
-        page_context: dict[str, Any] | None,
-    ) -> bool:
-        return page_context_has_runtime_ui_tools(page_context)
-
-    @staticmethod
-    def _requires_vision_page_operation(message: str) -> bool:
-        return requires_vision_page_operation(message)
-
-    @staticmethod
-    def _page_context_supports_navigation(
-        page_context: dict[str, Any] | None,
-    ) -> bool:
-        return page_context_supports_navigation(page_context)
-
-    @classmethod
-    def _requires_page_operation_routing(
-        cls,
-        message: str,
-        page_context: dict[str, Any] | None,
-    ) -> bool:
-        return requires_page_operation_routing(message, page_context)
-
-    @classmethod
-    def _has_non_page_mixed_intent(
-        cls,
-        message: str,
-    ) -> bool:
-        return has_non_page_mixed_intent(message)
-
-    @classmethod
-    def _requested_tool_families(
-        cls,
-        message: str,
-        page_context: dict[str, Any] | None,
-    ) -> list[str]:
-        return requested_tool_families(message, page_context)
-
-    @classmethod
-    def _agent_supports_families(
-        cls,
-        agent: Agent | None,
-        families: list[str],
-    ) -> bool:
-        return agent_supports_families(agent, families)
+    _agent_supports_page_operations = staticmethod(agent_supports_page_operations)
+    _agent_supports_families = staticmethod(agent_supports_families)
+    _agent_needs_function_calling = staticmethod(agent_needs_function_calling)
 
     async def _agent_can_handle_images(self, agent: Agent | None) -> bool:
-        if agent is None:
-            return False
-        if self._agent_supports_images(agent):
-            return True
-        needs_fc = self._agent_needs_function_calling(agent)
-        return await ModelRouter(self.db).can_handle_attachments(
-            agent,
-            has_image=True,
-            needs_fc=needs_fc,
-        )
+        return await agent_can_handle_images(self.db, agent)
 
     async def _ensure_agent_supports_images(
         self,
@@ -752,24 +576,9 @@ class AgentRouterService:
             return
         raise BusinessException(message=_(error_key))
 
-    @staticmethod
-    def _agent_needs_function_calling(agent: Agent | None) -> bool:
-        return agent_needs_function_calling(agent)
-
-    @staticmethod
-    def _build_router_billing_context(
-        *,
-        router_agent: Agent,
-        tenant_id: int | None,
-        user_id: int | None,
-        user_role: str,
-    ) -> dict[str, Any]:
-        return AgentRouterRuntimeSupport.build_router_billing_context(
-            router_agent=router_agent,
-            tenant_id=tenant_id,
-            user_id=user_id,
-            user_role=user_role,
-        )
+    _build_router_billing_context = staticmethod(
+        AgentRouterRuntimeSupport.build_router_billing_context,
+    )
 
 
 __all__ = ["AgentRouterService", "RouteResult"]

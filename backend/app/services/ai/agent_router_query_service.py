@@ -10,7 +10,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.ai.routing.router import ModelRouter
 from app.configs.service import PLATFORM_TENANT_ID
 from app.core.i18n import _
 from app.enums.agent import (
@@ -26,10 +25,7 @@ from app.models.ai.agent_skill_grant import AgentSkillGrant
 from app.models.ai.skill import Skill
 from app.models.system.agent_assignment import SystemAgentAssignment
 from app.repositories.ai.agent_repository import _tenant_available_condition
-from app.services.ai.agent_router_capability_support import (
-    agent_needs_function_calling,
-    agent_supports_images,
-)
+from app.services.ai.agent_router_capability_support import agent_can_handle_images
 from app.services.ai.agent_service import AgentService
 
 
@@ -186,16 +182,7 @@ class AgentRouterQueryService:
             return False
 
     async def agent_can_handle_images(self, agent: Agent | None) -> bool:
-        if agent is None:
-            return False
-        if agent_supports_images(agent):
-            return True
-        needs_fc = agent_needs_function_calling(agent)
-        return await ModelRouter(self.db).can_handle_attachments(
-            agent,
-            has_image=True,
-            needs_fc=needs_fc,
-        )
+        return await agent_can_handle_images(self.db, agent)
 
     async def resolve_default_assignment(
         self,

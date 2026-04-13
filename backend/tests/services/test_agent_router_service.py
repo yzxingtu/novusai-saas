@@ -372,7 +372,7 @@ async def test_route_accepts_image_turn_when_smart_routing_can_supply_vision_mod
             return True
 
     monkeypatch.setattr(
-        "app.services.ai.agent_router_service.ModelRouter",
+        "app.services.ai.agent_router_capability_support.ModelRouter",
         _FakeModelRouter,
     )
 

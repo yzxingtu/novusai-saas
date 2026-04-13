@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.ai.routing.router import ModelRouter
 from app.ai.tools.semantic_defaults import is_ui_page_tool_name, tool_family_from_name
 from app.models.ai.agent import Agent
 from app.models.ai.agent_skill_grant import AgentSkillGrant
@@ -84,6 +85,19 @@ def agent_needs_function_calling(agent: Agent | None) -> bool:
     return False
 
 
+async def agent_can_handle_images(db: Any, agent: Agent | None) -> bool:
+    if agent is None:
+        return False
+    if agent_supports_images(agent):
+        return True
+    needs_fc = agent_needs_function_calling(agent)
+    return await ModelRouter(db).can_handle_attachments(
+        agent,
+        has_image=True,
+        needs_fc=needs_fc,
+    )
+
+
 def agent_supports_page_operations(agent: Agent | None) -> bool:
     skill_names = agent_skill_names(agent)
     if any(group.issubset(skill_names) for group in PAGE_OPERATION_REQUIRED_SKILL_GROUPS):
@@ -148,6 +162,7 @@ def agent_supports_families(agent: Agent | None, families: list[str]) -> bool:
 __all__ = [
     "BASELINE_RUNTIME_FAMILIES",
     "PAGE_OPERATION_REQUIRED_SKILL_GROUPS",
+    "agent_can_handle_images",
     "agent_needs_function_calling",
     "agent_skill_names",
     "agent_supports_families",
