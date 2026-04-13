@@ -71,12 +71,20 @@ class UsageTracker:
 
     # Lua script: atomically adjust usage (INCRBY + floor-at-zero guard)
     # Lua 脚本：原子调整用量（INCRBY + 不低于 0 保护）
-    # KEYS[1] = usage_key, ARGV[1] = diff
+    # KEYS[1] = usage_key, ARGV[1] = diff, ARGV[2] = expire_seconds
     # Returns adjusted value / 返回调整后的值
     _USAGE_ADJUST_LUA = """
+    local ttl = redis.call('TTL', KEYS[1])
     local new_val = redis.call('INCRBY', KEYS[1], ARGV[1])
+    if ttl < 0 then
+        redis.call('EXPIRE', KEYS[1], tonumber(ARGV[2]))
+    end
     if new_val < 0 then
-        redis.call('SET', KEYS[1], '0', 'KEEPTTL')
+        if ttl >= 0 then
+            redis.call('SET', KEYS[1], '0', 'KEEPTTL')
+        else
+            redis.call('SET', KEYS[1], '0', 'EX', tonumber(ARGV[2]))
+        end
         return 0
     end
     return new_val
@@ -363,13 +371,14 @@ class UsageTracker:
         if resolved is None:
             return
 
-        key, _expire_seconds = resolved
+        key, expire_seconds = resolved
         redis = await get_redis()
         await redis.eval(
             UsageTracker._USAGE_ADJUST_LUA,
             1,
             key,
             str(diff),
+            str(expire_seconds),
         )
 
 

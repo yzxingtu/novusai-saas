@@ -213,3 +213,135 @@ async def test_rate_limit_service_merges_blank_fields_with_model_defaults(mock_d
     assert result['rpm_source'] == 'model'
     assert result['tpm_source'] == 'tenant'
     assert result['source'] == 'tenant'
+
+
+@pytest.mark.asyncio
+async def test_usage_tracker_adjust_usage_for_period_preserves_or_reseeds_ttl() -> None:
+    from app.ai.quota import UsageTracker
+
+    fake_redis = AsyncMock()
+
+    with patch(
+        "app.ai.quota.get_redis",
+        new=AsyncMock(return_value=fake_redis),
+    ):
+        await UsageTracker.adjust_usage_for_period(
+            tenant_id=3,
+            model_id=9,
+            estimated_tokens=120,
+            actual_tokens=80,
+            period="daily",
+            stat_date=date(2026, 3, 23),
+        )
+
+    fake_redis.eval.assert_awaited_once_with(
+        UsageTracker._USAGE_ADJUST_LUA,
+        1,
+        "ai:usage:daily:3:9:2026-03-23",
+        "-40",
+        str(86400 * 2),
+    )
+
+
+@pytest.mark.asyncio
+async def test_usage_recorder_rolls_back_rate_limit_precharge_when_quota_fails(
+    mock_db,
+):
+    from app.ai.quota import QuotaExceeded
+    from app.ai.usage_recorder import UsageRecorder
+
+    recorder = UsageRecorder(mock_db)
+    recorder.quota_manager.check_quota = AsyncMock(
+        side_effect=QuotaExceeded("quota blocked")
+    )
+    reservation = SimpleNamespace(rpm_key="rpm", rpm_member="member", tpm_key="tpm")
+    ai_model = make_mock_model(id=6, rpm_limit=60, tpm_limit=6000)
+
+    with patch(
+        "app.ai.usage_recorder.RateLimiter.check_and_record",
+        new=AsyncMock(return_value=reservation),
+    ) as check_and_record, patch(
+        "app.ai.usage_recorder.RateLimiter.rollback_precharge",
+        new=AsyncMock(),
+    ) as rollback:
+        with pytest.raises(QuotaExceeded):
+            await recorder.check_rate_and_quota(
+                tenant_id=0,
+                model_id=6,
+                ai_model=ai_model,
+                estimated_tokens=300,
+            )
+
+    check_and_record.assert_awaited_once()
+    rollback.assert_awaited_once_with(
+        reservation=reservation,
+        estimated_tokens=300,
+    )
+
+
+@pytest.mark.asyncio
+async def test_usage_recorder_adjusts_tpm_when_estimate_is_zero(mock_db):
+    from app.ai.quota import QuotaCheckResult
+    from app.ai.usage_recorder import UsageMeteringContext, UsageRecorder
+
+    recorder = UsageRecorder(mock_db)
+    recorder.quota_manager.adjust_usage = AsyncMock()
+
+    with patch(
+        "app.ai.usage_recorder.RateLimiter.adjust_tpm_after_response",
+        new=AsyncMock(),
+    ) as adjust_tpm:
+        await recorder.record_usage_and_adjust(
+            tenant_id=5,
+            model_id=12,
+            request_type="chat",
+            input_tokens=0,
+            output_tokens=42,
+            total_tokens=42,
+            cost=0.0,
+            estimated_input=0,
+            latency_ms=10,
+            metering_context=UsageMeteringContext(
+                request_minute_key=123,
+                request_stat_date=date(2026, 3, 23),
+                quota_check=QuotaCheckResult(),
+            ),
+        )
+
+    adjust_tpm.assert_awaited_once_with(
+        tenant_id=5,
+        model_id=12,
+        estimated_tokens=0,
+        actual_tokens=42,
+        request_minute_key=123,
+    )
+
+
+@pytest.mark.asyncio
+async def test_agent_quota_adjust_usage_reseeds_ttl_for_daily_and_monthly_keys() -> None:
+    from app.ai.agent_quota import AgentQuotaConfig, AgentQuotaManager
+
+    fake_redis = AsyncMock()
+    fake_redis.eval = AsyncMock(return_value=10)
+
+    with patch(
+        "app.ai.agent_quota.get_redis",
+        new=AsyncMock(return_value=fake_redis),
+    ):
+        await AgentQuotaManager.adjust_usage(
+            tenant_id=6,
+            agent_id=18,
+            estimated_tokens=120,
+            actual_tokens=80,
+            config=AgentQuotaConfig(daily_token_limit=1000, monthly_token_limit=3000),
+        )
+
+    assert fake_redis.eval.await_count == 2
+    first_call = fake_redis.eval.await_args_list[0].args
+    second_call = fake_redis.eval.await_args_list[1].args
+    assert first_call[0] == AgentQuotaManager._ADJUST_LUA
+    assert first_call[2].startswith("ai:agent_quota:daily:6:18:")
+    assert first_call[4] == str(86400 * 2)
+    assert second_call[0] == AgentQuotaManager._ADJUST_LUA
+    assert second_call[2].startswith("ai:agent_quota:monthly:6:18:")
+    assert second_call[4] == str(86400 * 35)

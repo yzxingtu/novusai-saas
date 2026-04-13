@@ -18,7 +18,11 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.quota import QuotaCheckResult, QuotaExceeded, QuotaManager
-from app.ai.rate_limiter import RateLimiter, RateLimitExceeded
+from app.ai.rate_limiter import (
+    RateLimitExceeded,
+    RateLimitReservation,
+    RateLimiter,
+)
 from app.ai.types import (
     ChatMessage,
     ChatResponse,
@@ -48,6 +52,7 @@ class UsageMeteringContext:
     request_minute_key: int | None = None
     request_stat_date: date | None = None
     quota_check: QuotaCheckResult = QuotaCheckResult()
+    rate_limit_reservation: RateLimitReservation | None = None
 
 
 class UsageRecorder:
@@ -415,8 +420,9 @@ class UsageRecorder:
             rpm_limit = effective["rpm_limit"]
             tpm_limit = effective["tpm_limit"]
 
+        rate_limit_reservation: RateLimitReservation | None = None
         try:
-            await RateLimiter.check_and_record(
+            rate_limit_reservation = await RateLimiter.check_and_record(
                 tenant_id=tenant_id,
                 model_id=model_id,
                 rpm_limit=rpm_limit,
@@ -440,6 +446,10 @@ class UsageRecorder:
                 request_stat_date=metering_context.request_stat_date,
             )
         except QuotaExceeded as e:
+            await RateLimiter.rollback_precharge(
+                reservation=rate_limit_reservation,
+                estimated_tokens=estimated_tokens,
+            )
             logger.warning(
                 "Quota blocked: tenant={} error={}",
                 tenant_id,
@@ -447,7 +457,11 @@ class UsageRecorder:
             )
             raise
 
-        return dataclasses.replace(metering_context, quota_check=quota_check)
+        return dataclasses.replace(
+            metering_context,
+            quota_check=quota_check,
+            rate_limit_reservation=rate_limit_reservation,
+        )
 
     async def record_usage_and_adjust(
         self,
@@ -472,7 +486,7 @@ class UsageRecorder:
             request_stat_date=date.today(),
         )
 
-        if estimated_input > 0:
+        if estimated_input > 0 or total_tokens > 0:
             await RateLimiter.adjust_tpm_after_response(
                 tenant_id=tenant_id,
                 model_id=model_id,

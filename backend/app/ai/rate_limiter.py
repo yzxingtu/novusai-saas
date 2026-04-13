@@ -11,6 +11,7 @@ TPM（每分钟 Token 数）使用独立的 INCRBY 累加计数器。
 
 import os
 import time
+from dataclasses import dataclass
 
 from app.core.i18n import _
 from app.core.logging import LogManager
@@ -18,6 +19,15 @@ from app.core.redis import get_redis
 from app.exceptions.base import BusinessException
 
 logger = LogManager.get_logger("ai.rate_limiter")
+
+
+@dataclass(frozen=True)
+class RateLimitReservation:
+    """Tracks the exact RPM/TPM keys touched during request precharge."""
+
+    rpm_key: str | None = None
+    rpm_member: str | None = None
+    tpm_key: str | None = None
 
 
 class RateLimitExceeded(BusinessException):
@@ -90,7 +100,7 @@ class RateLimiter:
         tpm_limit: int | None = None,
         estimated_tokens: int = 0,
         current_time: int | None = None,
-    ) -> bool:
+    ) -> RateLimitReservation:
         """
         Atomically check and record rate limit (eliminates TOCTOU race).
         原子性检查并记录速率限制（消除 TOCTOU 竞态）。
@@ -116,6 +126,10 @@ class RateLimiter:
         redis = await get_redis()
         current_time = current_time or int(time.time())
         expire_seconds = RateLimiter.WINDOW_SIZE + 10
+
+        rpm_key: str | None = None
+        rpm_member: str | None = None
+        tpm_key: str | None = None
 
         # RPM atomic check + record / RPM 原子检查+记录
         if rpm_limit:
@@ -147,6 +161,7 @@ class RateLimiter:
                         count=rpm_count, limit=rpm_limit
                     )
                 )
+            rpm_member = unique_member
 
         # TPM atomic pre-deduct + check / TPM 原子预扣减+检查
         if tpm_limit and estimated_tokens > 0:
@@ -178,8 +193,34 @@ class RateLimiter:
                         count=tpm_count, limit=tpm_limit
                     )
                 )
+            tpm_key = key_current
 
-        return True
+        return RateLimitReservation(
+            rpm_key=rpm_key,
+            rpm_member=rpm_member,
+            tpm_key=tpm_key,
+        )
+
+    @staticmethod
+    async def rollback_precharge(
+        *,
+        reservation: RateLimitReservation | None,
+        estimated_tokens: int,
+    ) -> None:
+        """Rollback RPM/TPM precharge when a later gate rejects the request."""
+        if reservation is None:
+            return
+
+        redis = await get_redis()
+        if reservation.rpm_key and reservation.rpm_member:
+            await redis.zrem(reservation.rpm_key, reservation.rpm_member)
+        if reservation.tpm_key and estimated_tokens > 0:
+            await redis.eval(
+                RateLimiter._TPM_ADJUST_LUA,
+                1,
+                reservation.tpm_key,
+                str(-estimated_tokens),
+            )
 
     @staticmethod
     async def adjust_tpm_after_response(
@@ -309,6 +350,7 @@ class RateLimiter:
 
 
 __all__ = [
+    "RateLimitReservation",
     "RateLimiter",
     "RateLimitExceeded",
 ]

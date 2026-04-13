@@ -129,11 +129,19 @@ class AgentQuotaManager:
 
     # Lua script: atomically adjust usage (INCRBY + floor-at-zero guard)
     # Lua 脚本：原子调整用量（INCRBY + 不低于 0 保护）
-    # KEYS[1] = key, ARGV[1] = diff
+    # KEYS[1] = key, ARGV[1] = diff, ARGV[2] = expire_seconds
     _ADJUST_LUA = """
+    local ttl = redis.call('TTL', KEYS[1])
     local new_val = redis.call('INCRBY', KEYS[1], ARGV[1])
+    if ttl < 0 then
+        redis.call('EXPIRE', KEYS[1], tonumber(ARGV[2]))
+    end
     if new_val < 0 then
-        redis.call('SET', KEYS[1], '0', 'KEEPTTL')
+        if ttl >= 0 then
+            redis.call('SET', KEYS[1], '0', 'KEEPTTL')
+        else
+            redis.call('SET', KEYS[1], '0', 'EX', tonumber(ARGV[2]))
+        end
         return 0
     end
     return new_val
@@ -197,8 +205,9 @@ class AgentQuotaManager:
     ) -> str:
         return f"{AgentQuotaManager.PREFIX_USER}{tenant_id}:{agent_id}:{user_id}:daily:{stat_date.isoformat()}"
 
-    @staticmethod
+    @classmethod
     async def check_quota(
+        cls,
         tenant_id: int,
         agent_id: int,
         config: AgentQuotaConfig,
@@ -226,8 +235,8 @@ class AgentQuotaManager:
         # Daily quota check (atomic pre-deduct, prevents TOCTOU race)
         # 日配额检查（原子预扣减，防止 TOCTOU 竞态）
         if config.daily_token_limit > 0 and estimated_tokens > 0:
-            daily_key = AgentQuotaManager._daily_key(tenant_id, agent_id, today)
-            result = await AgentQuotaManager._atomic_check_and_record(
+            daily_key = cls._daily_key(tenant_id, agent_id, today)
+            result = await cls._atomic_check_and_record(
                 key=daily_key,
                 estimated_tokens=estimated_tokens,
                 limit=config.daily_token_limit,
@@ -261,7 +270,7 @@ class AgentQuotaManager:
             # Warning check (after successful pre-deduction)
             # 预警检查（在预扣成功后）
             if config.warning_threshold > 0:
-                daily_usage = await AgentQuotaManager.get_daily_usage(
+                daily_usage = await cls.get_daily_usage(
                     tenant_id,
                     agent_id,
                     today,
@@ -279,7 +288,7 @@ class AgentQuotaManager:
 
         # Daily conversation count check / 日对话数检查
         if config.conversations_per_day > 0:
-            conv_count = await AgentQuotaManager.get_daily_conversations(
+            conv_count = await cls.get_daily_conversations(
                 tenant_id,
                 agent_id,
                 today,
@@ -294,13 +303,13 @@ class AgentQuotaManager:
 
         # Monthly quota check (atomic pre-deduct) / 月配额检查（原子预扣减）
         if config.monthly_token_limit > 0 and estimated_tokens > 0:
-            monthly_key = AgentQuotaManager._monthly_key(
+            monthly_key = cls._monthly_key(
                 tenant_id,
                 agent_id,
                 today.year,
                 today.month,
             )
-            result = await AgentQuotaManager._atomic_check_and_record(
+            result = await cls._atomic_check_and_record(
                 key=monthly_key,
                 estimated_tokens=estimated_tokens,
                 limit=config.monthly_token_limit,
@@ -325,9 +334,10 @@ class AgentQuotaManager:
                 # Rollback daily pre-deduction (atomic, prevents negative)
                 # 回滚日配额预扣减（原子操作，防止值为负）
                 if config.daily_token_limit > 0:
-                    await AgentQuotaManager._atomic_adjust(
-                        AgentQuotaManager._daily_key(tenant_id, agent_id, today),
+                    await cls._atomic_adjust(
+                        cls._daily_key(tenant_id, agent_id, today),
                         -estimated_tokens,
+                        expire_seconds=86400 * 2,
                     )
 
                 raise AgentQuotaExceeded(
@@ -339,7 +349,7 @@ class AgentQuotaManager:
 
             # Warning check / 预警检查
             if config.warning_threshold > 0:
-                monthly_usage = await AgentQuotaManager.get_monthly_usage(
+                monthly_usage = await cls.get_monthly_usage(
                     tenant_id,
                     agent_id,
                     today.year,
@@ -359,7 +369,12 @@ class AgentQuotaManager:
         return True
 
     @staticmethod
-    async def _atomic_adjust(key: str, diff: int) -> int:
+    async def _atomic_adjust(
+        key: str,
+        diff: int,
+        *,
+        expire_seconds: int,
+    ) -> int:
         """
         Atomically adjust usage (INCRBY + floor-at-zero guard).
         原子调整用量（INCRBY + 不低于 0 保护）。
@@ -377,6 +392,7 @@ class AgentQuotaManager:
             1,
             key,
             str(diff),
+            str(expire_seconds),
         )
         return int(result)
 
@@ -408,7 +424,11 @@ class AgentQuotaManager:
         # Adjust daily quota / 调整日配额
         if not config or config.daily_token_limit > 0:
             daily_key = AgentQuotaManager._daily_key(tenant_id, agent_id, today)
-            await AgentQuotaManager._atomic_adjust(daily_key, diff)
+            await AgentQuotaManager._atomic_adjust(
+                daily_key,
+                diff,
+                expire_seconds=86400 * 2,
+            )
 
         # Adjust monthly quota / 调整月配额
         if not config or config.monthly_token_limit > 0:
@@ -418,7 +438,11 @@ class AgentQuotaManager:
                 today.year,
                 today.month,
             )
-            await AgentQuotaManager._atomic_adjust(monthly_key, diff)
+            await AgentQuotaManager._atomic_adjust(
+                monthly_key,
+                diff,
+                expire_seconds=86400 * 35,
+            )
 
     @staticmethod
     async def record_usage(
