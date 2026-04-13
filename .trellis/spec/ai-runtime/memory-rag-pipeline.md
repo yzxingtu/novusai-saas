@@ -19,7 +19,8 @@ context pipeline.
 1. Build system and user messages.
 2. Resolve KB bindings and runtime model capabilities.
 3. Plan intents (IntentPlan list).
-4. If a knowledge intent is present, inject RAG context using agent `rag_config`.
+4. If a knowledge intent is present, run the RAG retrieval pipeline
+   (hooks → rewrite → search → rerank → cache) and inject context using agent `rag_config`.
 5. Compute compaction and system prompt additions (date anchors, locale hints).
 6. If memory recall is enabled, inject profile snapshot and vector recall blocks.
 7. Inject system additions into the system message.
@@ -47,6 +48,12 @@ main turn.
 - RAG injection uses the agent-level `rag_config` and validated KB bindings.
 - RAG only executes when a knowledge intent is present and the turn is not
 short-circuited.
+- `BEFORE_KB_SEARCH` hooks may rewrite `query` / `kb_ids` / `top_k` before
+retrieval; `AFTER_KB_SEARCH` hooks may adjust result lists after retrieval.
+- Query rewrite (multi-query / HyDE / none) runs before vector/keyword/hybrid
+search to expand recall.
+- Optional rerank runs after merge to re-score results, then the filtered list
+is cached for reuse.
 - RAG sources and kinds are recorded in diagnostics and capability context.
 
 ## Diagnostics Requirements
