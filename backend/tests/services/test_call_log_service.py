@@ -203,6 +203,34 @@ class TestCallLogCreate:
         assert response_arg["usage"]["total_cost"] == "1.500000"
 
     @pytest.mark.asyncio
+    async def test_log_call_async_truncates_large_response_payloads(self, mock_db):
+        from app.services.ai.call_log_service import CallLogService
+
+        service = CallLogService.__new__(CallLogService)
+        service.db = mock_db
+        service.tenant_id = 1
+
+        with patch("app.tasks.ai.log_ai_call_task.delay") as delay_mock:
+            await service.log_call_async(
+                tenant_id=1,
+                model_id=2,
+                provider_id=3,
+                request_type="chat",
+                request_data={"messages": []},
+                response_data={"content": "x" * 11050},
+                input_tokens=0,
+                output_tokens=0,
+                total_tokens=0,
+                cost=0.0,
+                latency_ms=100,
+                status="success",
+            )
+
+        response_arg = delay_mock.call_args.kwargs["response_data"]
+        assert response_arg["truncated"] is True
+        assert response_arg["preview"].endswith("...truncated")
+
+    @pytest.mark.asyncio
     async def test_log_call_async_injects_caller_snapshot_into_billing_context(
         self,
         mock_db,
