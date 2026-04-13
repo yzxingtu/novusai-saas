@@ -10,25 +10,16 @@ Includes real-time tool call push, confirmation interception, DSML tag cleanup, 
 from __future__ import annotations
 
 import asyncio
-import time
 from collections.abc import AsyncIterator, Awaitable, Callable
-from contextlib import suppress
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
 from app.ai.sse import SSEChunkEncoder
 from app.ai.types import ChatMessage, ChatResponse
 from app.core.logging import LogManager
-from app.core.response import (
-    build_error_event,
-    build_exception_debug,
-    build_public_error_text,
-)
 from app.enums.common import UserRoleEnum
-from app.middleware.trace import trace_id_var
 
 from .base import BaseEngine, log_user_type_for_call_log
-from .budget_guard import BudgetGuard
 from .execution_state_machine import ExecutionStateMachine
 from .failure_classifier import FailureClassifier
 from .stream_completion_support import (
@@ -43,27 +34,14 @@ from .stream_completion_support import (
 from .stream_completion_support import (
     start_on_complete_task as _start_on_complete_task_impl,
 )
-from .stream_error_utils import (
-    resolve_stream_public_error_message as _resolve_stream_public_error_message,
-)
-from .stream_generation_support import (
-    append_partial_assistant_output as _append_partial_assistant_output_impl,
-)
-from .stream_generation_support import build_done_event as _build_done_event_impl
-from .stream_generation_support import (
-    build_initial_events as _build_initial_events_impl,
-)
-from .stream_generation_support import (
-    build_terminal_result as _build_terminal_result_impl,
-)
-from .stream_generation_support import (
-    drain_runtime_events as _drain_runtime_events_impl,
-)
-from .stream_generation_support import (
-    finalize_successful_turn as _finalize_successful_turn_impl,
-)
-from .stream_generation_support import reset_stream_state as _reset_stream_state_impl
+from .stream_execution_support import run_stream_execution
 from .stream_generation_view import StreamGenerationView, ensure_stream_generation_view
+from .stream_llm_round_support import (
+    StreamRoundState,
+    finalize_model_round,
+    handle_stream_chunk,
+    prepare_stream_round,
+)
 from .stream_output_helpers import (
     build_budget_exit_fallback_output as _build_budget_exit_fallback_output_impl,
 )
@@ -213,30 +191,14 @@ class StreamIOAdapter:
         tool_use_policy: ToolUsePolicy,
         **kwargs: Any,
     ) -> ModelRoundResult:
-        aggregated_output = ""
-        aggregated_reasoning = ""
-        aggregated_tool_calls: list[dict[str, Any]] = []
-        total_tokens = 0
-        completion_tokens_used = 0
-        finish_reason = "stop"
-        native_search_observed = False
-
-        generation_view = self.handler._stream_generation_view()
-        runtime_state = generation_view.runtime
         round_kind = str(kwargs.get("breach_retry_result") or "").strip()
-        if round_kind in {"contract_retry", "intent_retry"}:
-            await self.handler._emit_clear_content_if_needed()
-        elif runtime_state.clear_before_next_message:
-            runtime_state.clear_before_next_message = False
-            await self.handler._emit_clear_content_if_needed()
-
-        runtime_context = runtime_state.next_runtime_context
-        runtime_state.next_runtime_context = None
+        runtime_context = await prepare_stream_round(self, round_kind=round_kind)
         req_role = getattr(
             self.handler.request,
             "user_role",
             UserRoleEnum.TENANT_ADMIN.value,
         )
+        state = StreamRoundState()
         async for chunk in self.handler.engine._stream_llm_chunks(
             agent=self.handler.agent,
             messages=messages,
@@ -258,87 +220,13 @@ class StreamIOAdapter:
             tool_use_policy=tool_use_policy,
             **kwargs,
         ):
-            self._sync_runtime_metadata(getattr(chunk, "metadata", None))
-            # Forward web_search keepalive as SSE event to prevent connection timeout
-            # 转发 web_search keepalive 为 SSE 事件防止连接超时
-            chunk_meta = getattr(chunk, "metadata", None)
-            if isinstance(chunk_meta, dict) and chunk_meta.get("web_search_in_progress"):
-                native_search_observed = True
-                await self.handler._emit_runtime_event(
-                    {"event": "status", "status": "web_search_in_progress"}
-                )
-            if chunk.reasoning_delta:
-                aggregated_reasoning += chunk.reasoning_delta
-                generation_view.reasoning_output = aggregated_reasoning
-                await self.handler._emit_runtime_event(
-                    {
-                        "event": "thinking",
-                        "delta": chunk.reasoning_delta,
-                    }
-                )
-            if chunk.delta:
-                aggregated_output += chunk.delta
-                generation_view.visible_stream_content = (
-                    generation_view.visible_stream_content + chunk.delta
-                )
-                generation_view.output = generation_view.visible_stream_content
-                await self.handler._emit_runtime_event(
-                    {
-                        "event": "message",
-                        "delta": chunk.delta,
-                    }
-                )
-            if chunk.tool_calls:
-                aggregated_tool_calls = self.handler._merge_stream_tool_calls(
-                    aggregated_tool_calls,
-                    chunk.tool_calls,
-                )
-            if chunk.total_tokens is not None:
-                total_tokens = int(chunk.total_tokens or 0)
-            if chunk.output_tokens is not None:
-                completion_tokens_used = int(chunk.output_tokens or 0)
-            finish_reason = chunk.finish_reason or finish_reason
+            await handle_stream_chunk(
+                self,
+                state,
+                chunk=chunk,
+            )
 
-        finalized_tool_calls = self.handler._finalize_stream_tool_calls(
-            aggregated_tool_calls,
-        )
-        if completion_tokens_used <= 0:
-            completion_tokens_used = int(total_tokens or 0)
-
-        completion_reason = BudgetGuard.completion_reason(
-            self.handler._state.budget,
-            completion_tokens=completion_tokens_used,
-            total_tokens=total_tokens,
-        )
-        if completion_reason and aggregated_output.strip() and finalized_tool_calls:
-            finalized_tool_calls = []
-            finish_reason = "stop"
-
-        runtime_state.clear_before_next_message = bool(
-            finalized_tool_calls and aggregated_output.strip()
-        )
-        generation_view.total_tokens = int(total_tokens or 0)
-        generation_view.completion_tokens_used = int(completion_tokens_used or 0)
-        response = ChatResponse(
-            message=ChatMessage(
-                role="assistant",
-                content=aggregated_output,
-                reasoning_content=aggregated_reasoning or None,
-                tool_calls=finalized_tool_calls or None,
-            ),
-            total_tokens=total_tokens,
-            output_tokens=completion_tokens_used,
-            finish_reason=(
-                "tool_calls" if finalized_tool_calls else (finish_reason or "stop")
-            ),
-            tool_calls=finalized_tool_calls or None,
-        )
-        return ModelRoundResult(
-            response=response,
-            total_tokens=total_tokens,
-            completion_tokens_used=completion_tokens_used,
-            native_search_observed=native_search_observed,
-        )
+        return finalize_model_round(self, state)
 
     async def handle_tool_calls(
         self,
@@ -777,174 +665,8 @@ class StreamExecutionHandler:
 
     async def generate(self) -> AsyncIterator[str]:
         """SSE event generator main loop / SSE 事件生成器主循环"""
-        messages = self.prep.messages
-        rag_sources = self.prep.rag_sources
-        _optimize_event = self.prep.optimize_event
-        turn_start_message_index = len(messages)
-        generation_view = self._stream_generation_view()
-
-        total_tokens = 0
-        all_tool_results: list[ToolResult] = []
-        output = ""
-        executor_task: asyncio.Task[Any] | None = None
-        _reset_stream_state_impl(generation_view)
-
-        try:
-            self._interrupted_stage = "stream_generating"
-            for initial_event in _build_initial_events_impl(
-                generation_view,
-                optimize_event=_optimize_event,
-            ):
-                yield initial_event
-
-            executor_task = asyncio.create_task(self._run_with_turn_executor())
-            async for queued_event in _drain_runtime_events_impl(
-                generation_view,
-                executor_task=executor_task,
-            ):
-                yield queued_event
-
-            turn_execution = await executor_task
-            output = turn_execution.output
-            total_tokens = turn_execution.total_tokens
-            all_tool_results = list(turn_execution.tool_results)
-            artifacts = _finalize_successful_turn_impl(
-                generation_view,
-                messages=messages,
-                rag_sources=rag_sources,
-                turn_start_message_index=turn_start_message_index,
-                turn_execution=turn_execution,
-                logger=logger,
-            )
-            for immediate_event in artifacts.immediate_events:
-                yield immediate_event
-            for replay_event in artifacts.replay_events:
-                yield replay_event
-
-            on_complete_extra = await self._await_on_complete_before_done(
-                artifacts.result
-            )
-            post_done_callback = self._pop_post_done_callback(on_complete_extra)
-            if post_done_callback is not None:
-                self._schedule_background_callback(post_done_callback)
-            yield _build_done_event_impl(
-                generation_view,
-                artifacts=artifacts,
-                on_complete_extra=on_complete_extra,
-            )
-            yield SSEChunkEncoder.done()
-
-        except Exception as exc:
-            if executor_task is not None and not executor_task.done():
-                executor_task.cancel()
-                with suppress(BaseException):
-                    await executor_task
-            public_error_message = _resolve_stream_public_error_message(exc)
-            logger.error(
-                "Stream execution failed: agent={} error={}",
-                self.agent.id,
-                str(exc),
-                exc_info=True,
-            )
-            try:
-                yield SSEChunkEncoder.encode(
-                    build_error_event(
-                        code="STREAM_EXECUTION_ERROR",
-                        message=public_error_message,
-                        trace_id=trace_id_var.get() or None,
-                        debug=build_exception_debug(exc),
-                        extra={"conversation_id": self.request.conversation_id},
-                    )
-                )
-            except Exception as yield_exc:
-                logger.debug(
-                    "stream_handler error yield skipped (client disconnected?): {}",
-                    yield_exc,
-                )
-
-            # Partial persist: pass accumulated state so history is not lost / 中断时传递已累积状态，避免历史丢失
-            if self.on_complete and not generation_view.runtime.on_complete_called:
-                duration_ms = int((time.perf_counter() - self.start_time) * 1000)
-                partial_output = generation_view.output or output
-                partial_tokens = generation_view.total_tokens
-                if partial_tokens is None:
-                    partial_tokens = total_tokens
-                _append_partial_assistant_output_impl(
-                    messages,
-                    output=partial_output,
-                    reasoning_output=generation_view.reasoning_output,
-                )
-                failed_result = _build_terminal_result_impl(
-                    generation_view,
-                    messages=messages,
-                    rag_sources=rag_sources,
-                    output=partial_output,
-                    total_tokens=partial_tokens,
-                    tool_results=all_tool_results,
-                    duration_ms=duration_ms,
-                    error=build_public_error_text(message=public_error_message),
-                    completion_reason="error",
-                    interrupted=False,
-                    include_provider_state=True,
-                )
-                on_complete_extra = await self._await_on_complete_before_done(
-                    failed_result
-                )
-                post_done_callback = self._pop_post_done_callback(on_complete_extra)
-                if post_done_callback is not None:
-                    self._schedule_background_callback(post_done_callback)
-
-            try:
-                yield SSEChunkEncoder.done()
-            except Exception as yield_done_exc:
-                logger.debug(
-                    "stream_handler done yield skipped (client disconnected?): {}",
-                    yield_done_exc,
-                )
-
-        except BaseException as exc:
-            if executor_task is not None and not executor_task.done():
-                executor_task.cancel()
-                with suppress(BaseException):
-                    await executor_task
-            # Catch CancelledError / GeneratorExit and other non-Exception exceptions / 捕获 CancelledError / GeneratorExit 等非 Exception 异常
-            logger.error(
-                "Stream BaseException: agent={} type={} error={}",
-                self.agent.id,
-                type(exc).__name__,
-                str(exc),
-                exc_info=True,
-            )
-            self._update_turn_progress(interrupted_stage=self._interrupted_stage)
-            if self.on_complete and not generation_view.runtime.on_complete_called:
-                duration_ms = int((time.perf_counter() - self.start_time) * 1000)
-                partial_output = generation_view.output or output
-                partial_tokens = generation_view.total_tokens
-                if partial_tokens is None:
-                    partial_tokens = total_tokens
-                _append_partial_assistant_output_impl(
-                    messages,
-                    output=partial_output,
-                    reasoning_output=generation_view.reasoning_output,
-                )
-                interrupted_result = _build_terminal_result_impl(
-                    generation_view,
-                    messages=messages,
-                    rag_sources=rag_sources,
-                    output=partial_output,
-                    total_tokens=partial_tokens,
-                    tool_results=all_tool_results,
-                    duration_ms=duration_ms,
-                    error=build_public_error_text(
-                        message="Execution interrupted",
-                        detail=f"{type(exc).__name__}: {exc}",
-                    ),
-                    completion_reason="interrupted",
-                    interrupted=True,
-                    include_provider_state=False,
-                )
-                self._schedule_on_complete(interrupted_result)
-            raise  # Must re-raise BaseException / 必须重新抛出 BaseException
+        async for event in run_stream_execution(self, logger=logger):
+            yield event
 
     def _chunk_text_for_streaming(self, text: str, chunk_size: int = 32) -> list[str]:
         return _chunk_text_for_streaming_impl(text, chunk_size=chunk_size)

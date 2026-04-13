@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from app.ai.context import compaction_support, prompt_addition_support
+from app.ai.context import engine_runtime_support
 from app.ai.context.assembly_initial_support import (
     PromptBridge,
     assemble_initial_context_state,
@@ -29,7 +30,6 @@ from app.ai.context.compaction_snapshot_store import ContextCompactionSnapshotSt
 from app.ai.context.contributors import MemoryContributor, RAGContributor
 from app.ai.context.decision_helpers import (
     extract_last_user_text,
-    looks_like_generic_follow_up,
 )
 from app.ai.context.orchestrator import ContextPipelineOrchestrator
 from app.ai.context.pruning import TransientPruner
@@ -55,9 +55,7 @@ logger = LogManager.get_logger("ai.context_engine")
 
 
 def get_context_capability_bridge() -> ContextCapabilityBridge:
-    from app.ai.runtime import context_capability_bridge as capability_bridge_module
-
-    return capability_bridge_module.get_context_capability_bridge()
+    return engine_runtime_support.get_context_capability_bridge()
 
 
 async def load_agent_kb_bindings(
@@ -65,11 +63,11 @@ async def load_agent_kb_bindings(
     agent_id: int,
     tenant_id: int | None,
 ) -> tuple[list[int] | None, dict[int, float]]:
-    """Lazy KB binding seam so importing context engine stays side-effect light."""
-
-    from app.ai.rag_injector import load_agent_kb_bindings as _load_agent_kb_bindings
-
-    return await _load_agent_kb_bindings(db, agent_id, tenant_id)
+    return await engine_runtime_support.load_agent_kb_bindings(
+        db,
+        agent_id,
+        tenant_id,
+    )
 
 
 def get_long_term_memory_provider(
@@ -77,11 +75,10 @@ def get_long_term_memory_provider(
     db: Any,
     tenant_id: int,
 ) -> "LongTermMemoryProvider":
-    """Lazy memory-provider seam retained as the engine-local patch point."""
-
-    from app.services.ai import long_term_memory_provider as long_term_memory_module
-
-    return long_term_memory_module.get_long_term_memory_provider(db=db, tenant_id=tenant_id)
+    return engine_runtime_support.get_long_term_memory_provider(
+        db=db,
+        tenant_id=tenant_id,
+    )
 
 
 @dataclass
@@ -144,26 +141,7 @@ class ConversationContextEngine(ContextEngine):
 
     @staticmethod
     def _should_run_memory_vector_recall(user_text: str) -> bool:
-        normalized = str(user_text or "").strip()
-        if not normalized:
-            return False
-        collapsed = "".join(normalized.lower().split())
-        if collapsed in {
-            "嗯",
-            "嗯嗯",
-            "好",
-            "好的",
-            "收到",
-            "谢谢",
-            "thanks",
-            "thankyou",
-            "ok",
-            "okay",
-        }:
-            return False
-        return not (
-            len(collapsed) < 4 and looks_like_generic_follow_up(normalized)
-        )
+        return engine_runtime_support.should_run_memory_vector_recall(user_text)
 
     def __init__(self, db: AsyncSession, base_engine: PromptBridge) -> None:
         self.db = db
@@ -252,7 +230,7 @@ class ConversationContextEngine(ContextEngine):
         compact_max_summary_chars = int(
             context_config.get("compact_max_summary_chars", 1600) or 1600
         )
-        context_budget = self._resolve_context_budget(context_config)
+        context_budget = resolve_context_budget(context_config)
 
         compact_summary: str | None = None
         system_prompt_additions: list[str] = []
@@ -270,9 +248,10 @@ class ConversationContextEngine(ContextEngine):
         compaction_source_tokens = compaction_support.messages_token_estimate(messages)
         existing_snapshot = await self._load_compaction_snapshot(request)
         web_research_date_anchor = (
-            self._build_web_research_date_anchor(
+            prompt_addition_support.build_web_research_date_anchor(
                 messages,
                 skill_result=skill_result,
+                utc_now_fn=utc_now,
             )
             if intent_flags["has_web_research_intent"]
             else ""
@@ -287,9 +266,9 @@ class ConversationContextEngine(ContextEngine):
                 budget_usage=budget_usage,
             )
         visible_output_locale_hint = (
-            self._build_page_locale_hint(request)
+            prompt_addition_support.build_page_locale_hint(request)
             if intent_flags["has_page_intent"]
-            else self._build_visible_output_locale_hint(request)
+            else prompt_addition_support.build_visible_output_locale_hint(request)
         )
         if visible_output_locale_hint:
             self._append_budgeted_addition(
@@ -316,9 +295,10 @@ class ConversationContextEngine(ContextEngine):
         capability_awareness_categories = list(capability_awareness.categories or [])
         capability_awareness_error = capability_awareness.error
 
-        split_index = self._compaction_split_index(
+        split_index = compaction_support.compaction_split_index(
             messages,
             keep_last_assistants=compact_keep_last_assistants,
+            pruner=self.pruner,
         )
         if split_index is not None and split_index > 1:
             prefix = messages[1:split_index]
@@ -392,7 +372,7 @@ class ConversationContextEngine(ContextEngine):
             or memory_contribution.memory_injected
         )
 
-        messages = self._inject_system_prompt_additions(
+        messages = compaction_support.inject_system_prompt_additions(
             messages,
             system_prompt_additions,
         )
@@ -475,7 +455,9 @@ class ConversationContextEngine(ContextEngine):
             self._compaction_snapshot_written_in_assemble = False
             return
         context_config = getattr(agent, "context_config", None) or {}
-        messages = self._coerce_result_messages(getattr(request, "messages", None))
+        messages = compaction_support.coerce_result_messages(
+            getattr(request, "messages", None)
+        )
         if not messages:
             return
         await self._compact_messages_if_needed(
@@ -494,7 +476,9 @@ class ConversationContextEngine(ContextEngine):
             return
 
         context_config = getattr(agent, "context_config", None) or {}
-        result_messages = self._coerce_result_messages(getattr(result, "messages", None))
+        result_messages = compaction_support.coerce_result_messages(
+            getattr(result, "messages", None)
+        )
         if not result_messages:
             return
 
@@ -502,32 +486,6 @@ class ConversationContextEngine(ContextEngine):
             request=request,
             context_config=context_config,
             messages=result_messages,
-        )
-
-    @staticmethod
-    def _coerce_result_messages(raw_messages: Any) -> list[ChatMessage]:
-        return compaction_support.coerce_result_messages(raw_messages)
-
-    @staticmethod
-    def _inject_system_prompt_additions(
-        messages: list[ChatMessage],
-        additions: list[str],
-    ) -> list[ChatMessage]:
-        return compaction_support.inject_system_prompt_additions(
-            messages,
-            additions,
-        )
-
-    def _compaction_split_index(
-        self,
-        messages: list[ChatMessage],
-        *,
-        keep_last_assistants: int,
-    ) -> int | None:
-        return compaction_support.compaction_split_index(
-            messages,
-            keep_last_assistants=keep_last_assistants,
-            pruner=self.pruner,
         )
 
     @staticmethod
@@ -540,30 +498,6 @@ class ConversationContextEngine(ContextEngine):
             messages,
             max_chars=max_chars,
         )
-
-    def _build_web_research_date_anchor(
-        self,
-        messages: list[ChatMessage],
-        *,
-        skill_result: Any = None,
-    ) -> str:
-        return prompt_addition_support.build_web_research_date_anchor(
-            messages,
-            skill_result=skill_result,
-            utc_now_fn=utc_now,
-        )
-
-    @staticmethod
-    def _build_page_locale_hint(request: ExecutionRequest) -> str:
-        return prompt_addition_support.build_page_locale_hint(request)
-
-    @staticmethod
-    def _build_visible_output_locale_hint(request: ExecutionRequest) -> str:
-        return prompt_addition_support.build_visible_output_locale_hint(request)
-
-    @staticmethod
-    def _resolve_context_budget(context_config: dict[str, Any]) -> dict[str, Any]:
-        return resolve_context_budget(context_config)
 
     def _append_budgeted_addition(
         self,
@@ -593,10 +527,11 @@ class ConversationContextEngine(ContextEngine):
         self,
         request: ExecutionRequest,
     ) -> dict[str, Any] | None:
-        if not request.conversation_id:
-            return None
-        store = ContextCompactionSnapshotStore(self.db, request.tenant_id)
-        return await store.get_snapshot(request.conversation_id)
+        return await engine_runtime_support.load_compaction_snapshot(
+            db=self.db,
+            tenant_id=request.tenant_id,
+            conversation_id=request.conversation_id,
+        )
 
     async def _persist_compaction_snapshot(
         self,
@@ -606,17 +541,10 @@ class ConversationContextEngine(ContextEngine):
         source_message_count: int,
         source_token_estimate: int,
     ) -> None:
-        if not request.conversation_id:
-            return
-        store = ContextCompactionSnapshotStore(self.db, request.tenant_id)
-        existing = await store.get_snapshot(request.conversation_id)
-        if existing and isinstance(existing, dict):
-            prev_summary = (existing.get("summary") or "").strip()
-            new_summary = (summary or "").strip()
-            if prev_summary and prev_summary == new_summary:
-                return
-        await store.upsert_snapshot(
-            request.conversation_id,
+        await engine_runtime_support.persist_compaction_snapshot(
+            db=self.db,
+            tenant_id=request.tenant_id,
+            conversation_id=request.conversation_id,
             summary=summary,
             source_message_count=source_message_count,
             source_token_estimate=source_token_estimate,
@@ -629,37 +557,25 @@ class ConversationContextEngine(ContextEngine):
         context_config: dict[str, Any],
         messages: list[ChatMessage],
     ) -> None:
-        async def _persist_summary(
-            *,
-            summary: str,
-            source_message_count: int,
-            source_token_estimate: int,
-        ) -> None:
-            await self._persist_compaction_snapshot(
-                request=request,
-                summary=summary,
-                source_message_count=source_message_count,
-                source_token_estimate=source_token_estimate,
-            )
+        async def _persist_summary(**kwargs: Any) -> None:
+            await self._persist_compaction_snapshot(request=request, **kwargs)
 
         def _split_index_via_facade(
             candidate_messages: list[ChatMessage],
-            *,
-            keep_last_assistants: int,
-            pruner: Any | None = None,
+            **kwargs: Any,
         ) -> int | None:
-            _ = pruner
-            return self._compaction_split_index(
+            kwargs.pop("pruner", None)
+            return compaction_support.compaction_split_index(
                 candidate_messages,
-                keep_last_assistants=keep_last_assistants,
+                pruner=self.pruner,
+                **kwargs,
             )
 
-        await compaction_support.compact_messages_if_needed(
+        await engine_runtime_support.compact_messages_if_needed(
             context_config=context_config,
             messages=messages,
             persist_snapshot=_persist_summary,
             pruner=self.pruner,
-            messages_token_estimate_fn=compaction_support.messages_token_estimate,
             compaction_split_index_fn=_split_index_via_facade,
             build_compact_summary_fn=self._build_compact_summary,
         )

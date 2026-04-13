@@ -24,6 +24,14 @@ class GatewayCallLogBridge:
     """Decoupled helpers for request diagnostics and immutable billing snapshots."""
 
     @staticmethod
+    def should_meter_usage(tenant_id: int | None) -> bool:
+        return tenant_id is not None and tenant_id > PLATFORM_TENANT_ID
+
+    @staticmethod
+    def should_record_call_log(tenant_id: int | None) -> bool:
+        return tenant_id is not None
+
+    @staticmethod
     def resolve_call_user_type(
         tenant_id: int | None,
         user_type: str | None = None,

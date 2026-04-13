@@ -14,7 +14,6 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.adapters import AdapterRegistry
-from app.ai.adapters.openai_adapter import OpenAIAdapter
 from app.ai.cache import AIResponseCache
 from app.ai.exceptions import ProviderTimeoutError
 from app.ai.failover import FailoverService
@@ -37,26 +36,11 @@ from app.ai.gateway_support import (
 from app.ai.gateway_support import (
     execute_test_model as execute_test_model_impl,
 )
-from app.ai.gateway_support.native_web_search_bridge import (
-    native_web_search_call_status as native_web_search_call_status_impl,
-)
-from app.ai.gateway_support.native_web_search_bridge import (
-    native_web_search_error_status as native_web_search_error_status_impl,
-)
-from app.ai.gateway_support.native_web_search_bridge import (
-    raise_retryable_native_web_search_failure as raise_retryable_native_web_search_failure_impl,
-)
 from app.ai.gateway_support.native_web_search_gateway import (
     execute_native_web_search as execute_native_web_search_impl,
 )
 from app.ai.gateway_support.protocol_adapter_bridge import (
     call_chat_adapter as call_chat_adapter_impl,
-)
-from app.ai.gateway_support.protocol_adapter_bridge import (
-    resolve_adapter_protocol_wire_api as resolve_adapter_protocol_wire_api_impl,
-)
-from app.ai.gateway_support.protocol_adapter_bridge import (
-    resolve_gateway_protocol_wire_api as resolve_gateway_protocol_wire_api_impl,
 )
 from app.ai.gateway_support.protocol_adapter_bridge import (
     stream_chat_adapter as stream_chat_adapter_impl,
@@ -74,7 +58,6 @@ from app.ai.types import (
 )
 from app.ai.usage_recorder import UsageRecorder
 from app.ai.web_search.types import SearchProviderRun
-from app.configs.service import PLATFORM_TENANT_ID
 from app.core.config import settings
 from app.core.i18n import _
 from app.core.logging import LogManager
@@ -126,21 +109,6 @@ class AIGateway:
         return await self.retry_service.execute_with_retry(**kwargs)
 
     @staticmethod
-    def _should_meter_usage(tenant_id: int | None) -> bool:
-        return tenant_id is not None and tenant_id > PLATFORM_TENANT_ID
-
-    @staticmethod
-    def _should_record_call_log(tenant_id: int | None) -> bool:
-        return tenant_id is not None
-
-    @staticmethod
-    def _resolve_call_user_type(
-        tenant_id: int | None,
-        user_type: str | None = None,
-    ) -> str | None:
-        return GatewayCallLogBridge.resolve_call_user_type(tenant_id, user_type)
-
-    @staticmethod
     def _build_request_log_data(
         *,
         messages: list[ChatMessage],
@@ -174,36 +142,6 @@ class AIGateway:
         )
 
     @staticmethod
-    def _warn_policy_not_loaded(
-        *,
-        tools: list[dict] | None,
-        tool_choice: str | None,
-        conversation_id: int | None,
-        agent_id: int | None,
-    ) -> None:
-        GatewayCallLogBridge.warn_policy_not_loaded(
-            tools=tools,
-            tool_choice=tool_choice,
-            conversation_id=conversation_id,
-            agent_id=agent_id,
-        )
-
-    @staticmethod
-    def _resolve_billing_context(
-        tenant_id: int | None,
-        *,
-        user_id: int | None,
-        user_type: str | None,
-        billing_context: dict | None = None,
-    ) -> dict[str, object | None]:
-        return GatewayCallLogBridge.resolve_billing_context(
-            tenant_id,
-            user_id=user_id,
-            user_type=user_type,
-            billing_context=billing_context,
-        )
-
-    @staticmethod
     def _merge_model_provider_snapshots(
         billing_context: dict | None,
         *,
@@ -214,78 +152,6 @@ class AIGateway:
             billing_context,
             provider=provider,
             ai_model=ai_model,
-        )
-
-    @staticmethod
-    def _attach_runtime_metadata(
-        payload: ChatResponse | EmbeddingResponse | ImageGenerationResponse,
-        *,
-        provider: AIProvider,
-        ai_model: AIModel,
-    ) -> None:
-        GatewayCallLogBridge.attach_runtime_metadata(
-            payload,
-            provider=provider,
-            ai_model=ai_model,
-        )
-
-    def _build_adapter_extra(
-        self,
-        *,
-        ai_model: AIModel | None,
-        tenant_id: int | None,
-    ) -> dict[str, object | None]:
-        return {
-            "internal_db": self.db,
-            "internal_tenant_id": tenant_id,
-            "model_config": getattr(ai_model, "config", None),
-        }
-
-    @staticmethod
-    def _resolve_effective_model_request(
-        *,
-        provider: AIProvider,
-        ai_model: AIModel | None,
-        model_code: str,
-        wire_api: str | None = None,
-    ) -> dict[str, Any]:
-        if provider.type == "openai_compatible":
-            return OpenAIAdapter.resolve_effective_model_request(
-                model=model_code,
-                model_config=getattr(ai_model, "config", None),
-                wire_api=wire_api,
-            )
-        return {
-            "logical_model_code": model_code,
-            "upstream_model": model_code,
-            "reasoning_effort": None,
-            "effective_params": {},
-            "applied_overrides": [],
-            "ignored_overrides": [],
-            "ignore_reasons": {},
-            "override_source": "model_code",
-        }
-
-    @staticmethod
-    def _resolve_gateway_protocol_wire_api(
-        provider: AIProvider,
-        *,
-        extra_kwargs: dict[str, Any] | None = None,
-    ) -> str | None:
-        return resolve_gateway_protocol_wire_api_impl(
-            provider,
-            extra_kwargs=extra_kwargs,
-        )
-
-    @staticmethod
-    def _resolve_adapter_protocol_wire_api(
-        adapter: Any,
-        *,
-        wire_api: str | None,
-    ) -> str:
-        return resolve_adapter_protocol_wire_api_impl(
-            adapter,
-            wire_api=wire_api,
         )
 
     async def _call_chat_adapter(
@@ -344,27 +210,6 @@ class AIGateway:
             extra_kwargs=extra_kwargs,
         ):
             yield chunk
-
-    @staticmethod
-    def _raise_retryable_native_web_search_failure(
-        run: SearchProviderRun,
-        *,
-        provider_code: str,
-        model_code: str,
-    ) -> SearchProviderRun:
-        return raise_retryable_native_web_search_failure_impl(
-            run,
-            provider_code=provider_code,
-            model_code=model_code,
-        )
-
-    @staticmethod
-    def _native_web_search_error_status(error: Exception) -> str:
-        return native_web_search_error_status_impl(error)
-
-    @staticmethod
-    def _native_web_search_call_status(status: str) -> str:
-        return native_web_search_call_status_impl(status)
 
     async def native_web_search(
         self,

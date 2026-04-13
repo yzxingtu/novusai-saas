@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from app.ai.gateway_support.adapter_support import resolve_effective_model_request
 from app.ai.types import ChatMessage, TestModelResult
 from app.core.i18n import _
 from app.core.logging import LogManager
@@ -59,7 +60,7 @@ async def execute_test_model(
     is_embedding = ai_model and ai_model.type == "embedding"
 
     start_time = time.time()
-    effective_request = gateway._resolve_effective_model_request(
+    effective_request = resolve_effective_model_request(
         provider=provider,
         ai_model=ai_model,
         model_code=model_code,

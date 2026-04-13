@@ -2,15 +2,21 @@
 
 from __future__ import annotations
 
-from typing import Any, TYPE_CHECKING
+from typing import Any, Callable, TYPE_CHECKING
 
 from app.ai.tools.types import ToolResult
 from app.ai.types import ChatMessage, ChatResponse
 
 from .execution_state_machine import ExecutionStateMachine
+from .recovery_manager import RecoveryManager
 from .tool_execution_helpers import (
     register_tool_failures,
     synthesize_tool_results_from_calls,
+)
+from .turn_executor_contracts import (
+    constrain_retry_policy_to_active_intent,
+    record_contract_breach,
+    suppress_contract_placeholder_response,
 )
 from .turn_executor_helpers import assistant_tool_round_count, register_tool_round_delta
 from .types import ToolUsePolicy
@@ -122,7 +128,353 @@ def build_shortcircuit_fallback_response(
     )
 
 
+async def run_tool_batch_or_update_intents(
+    *,
+    state: ExecutionStateMachine,
+    io: TurnIOAdapter,
+    intent: Any | None,
+    response: ChatResponse | None,
+    tools: list[Any],
+    messages: list[ChatMessage],
+    turn_messages: list[ChatMessage],
+    tool_use_policy: ToolUsePolicy | None,
+    total_tokens: int,
+    completion_tokens_used: int,
+) -> tuple[ChatResponse | None, list[ToolResult], int, int]:
+    if getattr(response, "tool_calls", None) and tools:
+        return await execute_tool_batch(
+            state=state,
+            io=io,
+            response=response,
+            tools=tools,
+            messages=messages,
+            turn_messages=turn_messages,
+            tool_use_policy=tool_use_policy,
+            total_tokens=total_tokens,
+            completion_tokens_used=completion_tokens_used,
+        )
+
+    if tools:
+        fallback_response = build_shortcircuit_fallback_response(
+            intent=intent,
+            response=response,
+            tools=tools,
+            total_tokens=total_tokens,
+            completion_tokens_used=completion_tokens_used,
+        )
+        if fallback_response is not None:
+            return await execute_tool_batch(
+                state=state,
+                io=io,
+                response=fallback_response,
+                tools=tools,
+                messages=messages,
+                turn_messages=turn_messages,
+                tool_use_policy=tool_use_policy,
+                total_tokens=total_tokens,
+                completion_tokens_used=completion_tokens_used,
+            )
+
+    if state.intent_plan:
+        state.intent_plan = RecoveryManager.update_intent_statuses(
+            state.intent_plan,
+            messages=messages,
+            turn_messages=turn_messages,
+            tool_results=[],
+        )
+
+    return response, [], total_tokens, completion_tokens_used
+
+
+async def run_contract_retry_round(
+    *,
+    state: ExecutionStateMachine,
+    io: TurnIOAdapter,
+    agent: Any,
+    request: Any,
+    prep: Any,
+    messages: list[ChatMessage],
+    turn_messages: list[ChatMessage],
+    response: ChatResponse | None,
+    active_policy: ToolUsePolicy | None,
+    active_intent: Any | None,
+    active_tools: list[Any],
+    tools: list[Any],
+    tool_results: list[ToolResult],
+    total_tokens: int,
+    completion_tokens_used: int,
+    emit_round_started: Callable[..., None],
+) -> tuple[
+    ChatResponse | None,
+    list[ToolResult],
+    int,
+    int,
+    ToolUsePolicy | None,
+    list[Any],
+]:
+    contract_tools = list(active_tools or prep.all_tools or tools)
+    if (
+        active_policy is None
+        or not active_policy.retry_on_contract_breach
+        or not contract_tools
+        or tool_results
+    ):
+        return (
+            response,
+            tool_results,
+            total_tokens,
+            completion_tokens_used,
+            active_policy,
+            list(active_tools or []),
+        )
+
+    should_retry = False
+    retry_policy: ToolUsePolicy | None = None
+    breach_type: str | None = None
+    non_intent_breach_type: str | None = None
+
+    if state.intent_plan:
+        breach_type, retry_policy, breach_diagnostics = (
+            io.analyze_post_tool_contract_breach(
+                messages=messages,
+                response=response,
+                current_policy=active_policy,
+                tools=contract_tools,
+                input_variables=request.input_variables,
+            )
+        )
+        if breach_type:
+            record_contract_breach(
+                state,
+                breach_type=breach_type,
+                diagnostics=breach_diagnostics,
+            )
+            response = suppress_contract_placeholder_response(response)
+        if retry_policy is not None:
+            retry_policy = constrain_retry_policy_to_active_intent(
+                retry_policy=retry_policy,
+                breach_type=breach_type,
+                active_intent=active_intent,
+                current_policy=active_policy,
+            )
+            should_retry = True
+    else:
+        should_retry, retry_policy, _breach_response_text = (
+            io.should_retry_tool_contract_breach(
+                response=response,
+                current_policy=active_policy,
+                tools=contract_tools,
+                input_variables=request.input_variables,
+            )
+        )
+        if not should_retry:
+            should_retry, retry_policy, _breach_response_text = (
+                io.should_retry_web_research_contract_breach(
+                    messages=messages,
+                    response=response,
+                    current_policy=active_policy,
+                    tools=contract_tools,
+                    input_variables=request.input_variables,
+                    continuation=prep.continuation_context,
+                )
+            )
+        if should_retry and retry_policy is not None:
+            non_intent_breach_type = (
+                retry_policy.reason or "tool_contract_breach"
+            )
+
+    if should_retry and retry_policy is not None:
+        if non_intent_breach_type:
+            record_contract_breach(
+                state,
+                breach_type=non_intent_breach_type,
+                diagnostics={},
+            )
+        retry_tool_pool = list(prep.all_tools or tools or contract_tools)
+        retry_tools = io.restrict_tools_to_names(
+            retry_tool_pool,
+            retry_policy.allowed_tool_names,
+        )
+        emit_round_started(
+            state,
+            round_kind="contract_retry",
+            policy=retry_policy,
+            tools=retry_tools,
+            reason=retry_policy.reason or "contract_retry",
+        )
+        io.log_tool_contract_diagnostics(
+            agent=agent,
+            messages=messages,
+            response=response,
+            tools=retry_tool_pool,
+            policy=retry_policy,
+            conversation_id=request.conversation_id,
+            breach_type=retry_policy.reason or "contract_breach",
+            retry_result="retrying",
+            continuation=prep.continuation_context,
+        )
+        active_policy = retry_policy
+        active_tools = list(retry_tools or [])
+        retry_round = await io.call_llm(
+            messages=messages,
+            tools=retry_tools or None,
+            tool_use_policy=retry_policy,
+            breach_retry_result="contract_retry",
+        )
+        response = retry_round.response
+        total_tokens += int(retry_round.total_tokens or 0)
+        completion_tokens_used += int(retry_round.completion_tokens_used or 0)
+        state.register_completion_tokens(completion_tokens_used)
+        if getattr(response, "tool_calls", None) and retry_tools:
+            (
+                response,
+                extra_tool_results,
+                total_tokens,
+                completion_tokens_used,
+            ) = await execute_tool_batch(
+                state=state,
+                io=io,
+                response=response,
+                tools=retry_tools,
+                messages=messages,
+                turn_messages=turn_messages,
+                tool_use_policy=retry_policy,
+                total_tokens=total_tokens,
+                completion_tokens_used=completion_tokens_used,
+            )
+            tool_results.extend(extra_tool_results)
+            if state.intent_plan and retry_policy.allowed_tool_names:
+                for intent in state.intent_plan:
+                    if (
+                        intent.status not in {"completed", "failed", "skipped"}
+                        and not intent.allowed_tool_names
+                        and (
+                            retry_policy.family == "none"
+                            or intent.family == retry_policy.family
+                        )
+                    ):
+                        intent.allowed_tool_names = list(
+                            retry_policy.allowed_tool_names
+                        )
+        elif response is not None:
+            response = suppress_contract_placeholder_response(response)
+            io.log_tool_contract_diagnostics(
+                agent=agent,
+                messages=messages,
+                response=response,
+                tools=retry_tools,
+                policy=retry_policy,
+                conversation_id=request.conversation_id,
+                breach_type=retry_policy.reason or "contract_breach",
+                retry_result="failed",
+                continuation=prep.continuation_context,
+            )
+        elif state.intent_plan:
+            state.intent_plan = RecoveryManager.update_intent_statuses(
+                state.intent_plan,
+                messages=messages,
+                turn_messages=turn_messages,
+                tool_results=[],
+            )
+
+    return (
+        response,
+        tool_results,
+        total_tokens,
+        completion_tokens_used,
+        active_policy,
+        list(active_tools or []),
+    )
+
+
+async def maybe_retry_web_research_contract(
+    *,
+    state: ExecutionStateMachine,
+    io: TurnIOAdapter,
+    agent: Any,
+    request: Any,
+    prep: Any,
+    messages: list[ChatMessage],
+    response: ChatResponse | None,
+    active_policy: ToolUsePolicy | None,
+    active_tools: list[Any],
+    tools: list[Any],
+    total_tokens: int,
+    completion_tokens_used: int,
+    emit_round_started: Callable[..., None],
+) -> tuple[ChatResponse | None, int, int, bool, ToolUsePolicy | None]:
+    if response is None or getattr(response, "tool_calls", None):
+        return response, total_tokens, completion_tokens_used, False, active_policy
+
+    contract_tools = list(active_tools or prep.all_tools or tools)
+    should_retry_web_research, web_research_retry_policy, _ = (
+        io.should_retry_web_research_contract_breach(
+            messages=messages,
+            response=response,
+            current_policy=active_policy,
+            tools=contract_tools,
+            input_variables=request.input_variables,
+            continuation=prep.continuation_context,
+        )
+    )
+    if (
+        not should_retry_web_research
+        or web_research_retry_policy is None
+        or web_research_retry_policy.mode != "none"
+        or web_research_retry_policy.allowed_tool_names
+    ):
+        return response, total_tokens, completion_tokens_used, False, active_policy
+
+    record_contract_breach(
+        state,
+        breach_type=(
+            web_research_retry_policy.reason
+            or "web_research_contract_breach"
+        ),
+        diagnostics={},
+    )
+    emit_round_started(
+        state,
+        round_kind="contract_retry",
+        policy=web_research_retry_policy,
+        tools=[],
+        reason=(
+            web_research_retry_policy.reason
+            or "web_research_contract_breach"
+        ),
+    )
+    io.log_tool_contract_diagnostics(
+        agent=agent,
+        messages=messages,
+        response=response,
+        tools=contract_tools,
+        policy=web_research_retry_policy,
+        conversation_id=request.conversation_id,
+        breach_type=(
+            web_research_retry_policy.reason
+            or "web_research_contract_breach"
+        ),
+        retry_result="retrying",
+        continuation=prep.continuation_context,
+    )
+    active_policy = web_research_retry_policy
+    retry_round = await io.call_llm(
+        messages=messages,
+        tools=None,
+        tool_use_policy=web_research_retry_policy,
+        breach_retry_result="contract_retry",
+    )
+    response = retry_round.response
+    total_tokens += int(retry_round.total_tokens or 0)
+    completion_tokens_used += int(retry_round.completion_tokens_used or 0)
+    state.register_completion_tokens(completion_tokens_used)
+    return response, total_tokens, completion_tokens_used, True, active_policy
+
+
 __all__ = [
     "build_shortcircuit_fallback_response",
     "execute_tool_batch",
+    "maybe_retry_web_research_contract",
+    "run_contract_retry_round",
+    "run_tool_batch_or_update_intents",
 ]

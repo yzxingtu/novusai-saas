@@ -10,6 +10,8 @@ from typing import Any
 from fastapi.responses import StreamingResponse
 
 from app.ai.exceptions import AIGatewayError, is_retryable
+from app.ai.gateway_support.adapter_support import build_adapter_extra
+from app.ai.gateway_support.call_log_bridge import GatewayCallLogBridge
 from app.ai.retry_service import MAX_RETRIES, RETRY_BASE_DELAY, RETRY_MULTIPLIER
 from app.ai.sse import SSEStreamingResponse
 from app.ai.types import ChatChunk, ChatMessage, messages_to_dicts
@@ -59,9 +61,9 @@ async def execute_stream_chat(
 
     if not ai_model:
         raise NotFoundException(message=_("ai.error.model_not_found"))
-    should_meter_usage = gateway._should_meter_usage(tenant_id)
-    call_user_type = gateway._resolve_call_user_type(tenant_id, user_type)
-    resolved_billing_context = gateway._resolve_billing_context(
+    should_meter_usage = GatewayCallLogBridge.should_meter_usage(tenant_id)
+    call_user_type = GatewayCallLogBridge.resolve_call_user_type(tenant_id, user_type)
+    resolved_billing_context = GatewayCallLogBridge.resolve_billing_context(
         tenant_id,
         user_id=user_id,
         user_type=call_user_type,
@@ -80,7 +82,7 @@ async def execute_stream_chat(
             ai_model,
             estimated_input,
         )
-    gateway._warn_policy_not_loaded(
+    GatewayCallLogBridge.warn_policy_not_loaded(
         tools=tools,
         tool_choice=tool_choice,
         conversation_id=conversation_id,
@@ -99,9 +101,11 @@ async def execute_stream_chat(
                         api_key=current_key.decrypt_key(),
                         base_url=provider.base_url,
                         provider_config=provider.config,
-                        internal_db=gateway.db,
-                        internal_tenant_id=tenant_id,
-                        model_config=getattr(ai_model, "config", None),
+                        **build_adapter_extra(
+                            db=gateway.db,
+                            ai_model=ai_model,
+                            tenant_id=tenant_id,
+                        ),
                     )
 
                     logger.info(
@@ -217,7 +221,7 @@ async def execute_stream_chat(
                     user_type=call_user_type,
                     agent_id=agent_id,
                     conversation_id=conversation_id,
-                    billing_context=gateway._merge_model_provider_snapshots(
+                    billing_context=GatewayCallLogBridge.merge_model_provider_snapshots(
                         resolved_billing_context,
                         provider=provider,
                         ai_model=ai_model,
@@ -242,9 +246,11 @@ async def execute_stream_chat(
                     api_key=fb_api_key.decrypt_key(),
                     base_url=fb_provider.base_url,
                     provider_config=fb_provider.config,
-                    internal_db=gateway.db,
-                    internal_tenant_id=tenant_id,
-                    model_config=getattr(fallback_model, "config", None),
+                    **build_adapter_extra(
+                        db=gateway.db,
+                        ai_model=fallback_model,
+                        tenant_id=tenant_id,
+                    ),
                 )
 
                 async for chunk in gateway._stream_chat_adapter(
@@ -302,7 +308,7 @@ async def execute_stream_chat(
                     user_type=call_user_type,
                     agent_id=agent_id,
                     conversation_id=conversation_id,
-                    billing_context=gateway._merge_model_provider_snapshots(
+                    billing_context=GatewayCallLogBridge.merge_model_provider_snapshots(
                         resolved_billing_context,
                         provider=provider,
                         ai_model=ai_model,
@@ -339,7 +345,7 @@ async def execute_stream_chat(
                 latency_ms=stream_latency_ms,
                 agent_id=agent_id,
                 conversation_id=conversation_id,
-                billing_context=gateway._merge_model_provider_snapshots(
+                billing_context=GatewayCallLogBridge.merge_model_provider_snapshots(
                     resolved_billing_context,
                     provider=provider,
                     ai_model=ai_model,
@@ -348,7 +354,7 @@ async def execute_stream_chat(
                 route_reason=route_reason,
                 metering_context=metering_context,
                 call_type=call_type,
-                request_data=gateway._build_request_log_data(
+                request_data=GatewayCallLogBridge.build_request_log_data(
                     messages=messages,
                     temperature=temperature,
                     max_tokens=max_tokens,

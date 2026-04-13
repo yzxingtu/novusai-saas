@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 from app.ai.types import ChatMessage, ChatResponse
 
 from .budget_guard import BudgetGuard
+from .stream_generation_view import ensure_stream_generation_view
 from .turn_executor import ModelRoundResult
 
 if TYPE_CHECKING:
@@ -25,12 +26,35 @@ class StreamRoundState:
     native_search_observed: bool = False
 
 
+def _resolve_generation_view(adapter: StreamIOAdapter) -> Any:
+    return ensure_stream_generation_view(adapter.handler)
+
+
+async def prepare_stream_round(
+    adapter: StreamIOAdapter,
+    *,
+    round_kind: str,
+) -> Any:
+    view = _resolve_generation_view(adapter)
+    runtime_state = view.runtime
+    if round_kind in {"contract_retry", "intent_retry"}:
+        await adapter.handler._emit_clear_content_if_needed()
+    elif runtime_state.clear_before_next_message:
+        runtime_state.clear_before_next_message = False
+        await adapter.handler._emit_clear_content_if_needed()
+
+    runtime_context = runtime_state.next_runtime_context
+    runtime_state.next_runtime_context = None
+    return runtime_context
+
+
 async def handle_stream_chunk(
     adapter: StreamIOAdapter,
     state: StreamRoundState,
     *,
     chunk: Any,
 ) -> None:
+    view = _resolve_generation_view(adapter)
     adapter._sync_runtime_metadata(getattr(chunk, "metadata", None))
 
     chunk_meta = getattr(chunk, "metadata", None)
@@ -43,7 +67,7 @@ async def handle_stream_chunk(
     reasoning_delta = getattr(chunk, "reasoning_delta", None)
     if reasoning_delta:
         state.reasoning += reasoning_delta
-        adapter.handler._reasoning_output = state.reasoning
+        view.reasoning_output = state.reasoning
         await adapter.handler._emit_runtime_event(
             {
                 "event": "thinking",
@@ -54,8 +78,8 @@ async def handle_stream_chunk(
     delta = getattr(chunk, "delta", None)
     if delta:
         state.output += delta
-        adapter.handler._visible_stream_content += delta
-        adapter.handler._output = adapter.handler._visible_stream_content
+        view.visible_stream_content = view.visible_stream_content + delta
+        view.output = view.visible_stream_content
         await adapter.handler._emit_runtime_event(
             {
                 "event": "message",
@@ -82,12 +106,13 @@ def finalize_model_round(
     adapter: StreamIOAdapter,
     state: StreamRoundState,
 ) -> ModelRoundResult:
+    view = _resolve_generation_view(adapter)
     finalized_tool_calls = adapter.handler._finalize_stream_tool_calls(state.tool_calls)
     if state.completion_tokens_used <= 0:
         state.completion_tokens_used = int(state.total_tokens or 0)
 
     completion_reason = BudgetGuard.completion_reason(
-        adapter.handler._state.budget,
+        view.state.budget,
         completion_tokens=state.completion_tokens_used,
         total_tokens=state.total_tokens,
     )
@@ -95,11 +120,11 @@ def finalize_model_round(
         finalized_tool_calls = []
         state.finish_reason = "stop"
 
-    adapter.handler._clear_before_next_message = bool(
+    view.runtime.clear_before_next_message = bool(
         finalized_tool_calls and state.output.strip()
     )
-    adapter.handler._total_tokens = int(state.total_tokens or 0)
-    adapter.handler._completion_tokens_used = int(state.completion_tokens_used or 0)
+    view.total_tokens = int(state.total_tokens or 0)
+    view.completion_tokens_used = int(state.completion_tokens_used or 0)
 
     response = ChatResponse(
         message=ChatMessage(
@@ -124,6 +149,7 @@ def finalize_model_round(
 
 
 __all__ = [
+    "prepare_stream_round",
     "StreamRoundState",
     "finalize_model_round",
     "handle_stream_chunk",

@@ -5,6 +5,8 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from app.ai.gateway_support.adapter_support import build_adapter_extra
+from app.ai.gateway_support.call_log_bridge import GatewayCallLogBridge
 from app.ai.types import ImageGenerationResponse
 from app.core.i18n import _
 from app.core.logging import LogManager
@@ -44,10 +46,10 @@ async def execute_image_generation(
         raise NotFoundException(message=_("ai.error.model_not_found"))
 
     model_id = ai_model.id
-    should_meter_usage = gateway._should_meter_usage(tenant_id)
-    should_record_call_log = gateway._should_record_call_log(tenant_id)
-    call_user_type = gateway._resolve_call_user_type(tenant_id, user_type)
-    resolved_billing_context = gateway._resolve_billing_context(
+    should_meter_usage = GatewayCallLogBridge.should_meter_usage(tenant_id)
+    should_record_call_log = GatewayCallLogBridge.should_record_call_log(tenant_id)
+    call_user_type = GatewayCallLogBridge.resolve_call_user_type(tenant_id, user_type)
+    resolved_billing_context = GatewayCallLogBridge.resolve_billing_context(
         tenant_id,
         user_id=user_id,
         user_type=call_user_type,
@@ -81,13 +83,18 @@ async def execute_image_generation(
         tenant_id=tenant_id,
         log_key="ai.log.gateway_image_call",
         adapter_extra={
-            **gateway._build_adapter_extra(
+            **build_adapter_extra(
+                db=gateway.db,
                 ai_model=ai_model,
                 tenant_id=tenant_id,
             ),
         },
     )
-    gateway._attach_runtime_metadata(response, provider=provider, ai_model=ai_model)
+    GatewayCallLogBridge.attach_runtime_metadata(
+        response,
+        provider=provider,
+        ai_model=ai_model,
+    )
 
     latency_ms = int((time.time() - start_time) * 1000)
 
@@ -145,7 +152,7 @@ async def execute_image_generation(
                 user_type=call_user_type,
                 agent_id=agent_id,
                 conversation_id=conversation_id,
-                billing_context=gateway._merge_model_provider_snapshots(
+                billing_context=GatewayCallLogBridge.merge_model_provider_snapshots(
                     resolved_billing_context,
                     provider=provider,
                     ai_model=ai_model,

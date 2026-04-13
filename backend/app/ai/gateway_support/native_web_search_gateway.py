@@ -7,6 +7,13 @@ import time
 from typing import Any
 
 from app.ai.exceptions import AIGatewayError
+from app.ai.gateway_support.adapter_support import build_adapter_extra
+from app.ai.gateway_support.call_log_bridge import GatewayCallLogBridge
+from app.ai.gateway_support.native_web_search_bridge import (
+    native_web_search_call_status,
+    native_web_search_error_status,
+    raise_retryable_native_web_search_failure,
+)
 from app.ai.web_search.types import (
     PROVIDER_MODE_NATIVE,
     STATUS_UNSUPPORTED,
@@ -131,7 +138,8 @@ async def execute_native_web_search(
         api_key=api_key.decrypt_key(),
         base_url=provider.base_url,
         provider_config=provider.config,
-        **gateway._build_adapter_extra(
+        **build_adapter_extra(
+            db=gateway.db,
             ai_model=ai_model,
             tenant_id=tenant_id,
         ),
@@ -146,16 +154,16 @@ async def execute_native_web_search(
             native_attempted=False,
         )
 
-    should_meter_usage = gateway._should_meter_usage(tenant_id)
-    should_record_call_log = gateway._should_record_call_log(tenant_id)
-    call_user_type = gateway._resolve_call_user_type(tenant_id, user_type)
-    resolved_billing_context = gateway._resolve_billing_context(
+    should_meter_usage = GatewayCallLogBridge.should_meter_usage(tenant_id)
+    should_record_call_log = GatewayCallLogBridge.should_record_call_log(tenant_id)
+    call_user_type = GatewayCallLogBridge.resolve_call_user_type(tenant_id, user_type)
+    resolved_billing_context = GatewayCallLogBridge.resolve_billing_context(
         tenant_id,
         user_id=user_id,
         user_type=call_user_type,
         billing_context=billing_context,
     )
-    request_data = gateway._build_request_log_data(
+    request_data = GatewayCallLogBridge.build_request_log_data(
         messages=request_messages,
         temperature=0.0,
         max_tokens=None,
@@ -213,7 +221,7 @@ async def execute_native_web_search(
                 provider_code=provider.code,
                 model_code=model,
             ) from exc
-        return gateway._raise_retryable_native_web_search_failure(
+        return raise_retryable_native_web_search_failure(
             run,
             provider_code=provider.code,
             model_code=model,
@@ -228,7 +236,8 @@ async def execute_native_web_search(
             tenant_id=tenant_id,
             log_key="ai.log.gateway_native_web_search_call",
             adapter_extra={
-                **gateway._build_adapter_extra(
+                **build_adapter_extra(
+                    db=gateway.db,
                     ai_model=ai_model,
                     tenant_id=tenant_id,
                 ),
@@ -237,7 +246,7 @@ async def execute_native_web_search(
         )
     except AIGatewayError as exc:
         latency_ms = int((time.time() - start_time) * 1000)
-        failure_status = gateway._native_web_search_error_status(exc)
+        failure_status = native_web_search_error_status(exc)
         if should_record_call_log:
             try:
                 assert tenant_id is not None
@@ -259,13 +268,13 @@ async def execute_native_web_search(
                     total_tokens=0,
                     cost=0,
                     latency_ms=latency_ms,
-                    status=gateway._native_web_search_call_status(failure_status),
+                    status=native_web_search_call_status(failure_status),
                     error_message=str(exc),
                     user_id=user_id,
                     user_type=call_user_type,
                     agent_id=agent_id,
                     conversation_id=conversation_id,
-                    billing_context=gateway._merge_model_provider_snapshots(
+                    billing_context=GatewayCallLogBridge.merge_model_provider_snapshots(
                         resolved_billing_context,
                         provider=provider,
                         ai_model=ai_model,
@@ -339,12 +348,12 @@ async def execute_native_web_search(
                 total_tokens=run.total_tokens,
                 cost=cost,
                 latency_ms=run.latency_ms,
-                status=gateway._native_web_search_call_status(run.status),
+                status=native_web_search_call_status(run.status),
                 user_id=user_id,
                 user_type=call_user_type,
                 agent_id=agent_id,
                 conversation_id=conversation_id,
-                billing_context=gateway._merge_model_provider_snapshots(
+                billing_context=GatewayCallLogBridge.merge_model_provider_snapshots(
                     resolved_billing_context,
                     provider=provider,
                     ai_model=ai_model,

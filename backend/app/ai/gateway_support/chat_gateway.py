@@ -6,6 +6,8 @@ import time
 from typing import Any
 
 from app.ai.exceptions import AIGatewayError
+from app.ai.gateway_support.adapter_support import build_adapter_extra
+from app.ai.gateway_support.call_log_bridge import GatewayCallLogBridge
 from app.ai.types import ChatMessage, ChatResponse, messages_to_dicts
 from app.ai.usage_mode import resolve_chat_usage
 from app.core.i18n import _
@@ -60,10 +62,10 @@ async def execute_chat(
         raise NotFoundException(message=_("ai.error.model_not_found"))
 
     model_id = ai_model.id
-    should_meter_usage = gateway._should_meter_usage(tenant_id)
-    should_record_call_log = gateway._should_record_call_log(tenant_id)
-    call_user_type = gateway._resolve_call_user_type(tenant_id, user_type)
-    resolved_billing_context = gateway._resolve_billing_context(
+    should_meter_usage = GatewayCallLogBridge.should_meter_usage(tenant_id)
+    should_record_call_log = GatewayCallLogBridge.should_record_call_log(tenant_id)
+    call_user_type = GatewayCallLogBridge.resolve_call_user_type(tenant_id, user_type)
+    resolved_billing_context = GatewayCallLogBridge.resolve_billing_context(
         tenant_id,
         user_id=user_id,
         user_type=call_user_type,
@@ -105,7 +107,7 @@ async def execute_chat(
             estimated_input,
         )
 
-    gateway._warn_policy_not_loaded(
+    GatewayCallLogBridge.warn_policy_not_loaded(
         tools=tools,
         tool_choice=tool_choice,
         conversation_id=conversation_id,
@@ -131,7 +133,8 @@ async def execute_chat(
             ),
             tenant_id=tenant_id,
             adapter_extra={
-                **gateway._build_adapter_extra(
+                **build_adapter_extra(
+                    db=gateway.db,
                     ai_model=ai_model,
                     tenant_id=tenant_id,
                 ),
@@ -168,7 +171,7 @@ async def execute_chat(
                 user_type=call_user_type,
                 agent_id=agent_id,
                 conversation_id=conversation_id,
-                billing_context=gateway._merge_model_provider_snapshots(
+                billing_context=GatewayCallLogBridge.merge_model_provider_snapshots(
                     resolved_billing_context,
                     provider=provider,
                     ai_model=ai_model,
@@ -208,7 +211,8 @@ async def execute_chat(
                 ),
                 tenant_id=tenant_id,
                 adapter_extra={
-                    **gateway._build_adapter_extra(
+                    **build_adapter_extra(
+                        db=gateway.db,
                         ai_model=fallback_model,
                         tenant_id=tenant_id,
                     ),
@@ -253,7 +257,7 @@ async def execute_chat(
                 user_type=call_user_type,
                 agent_id=agent_id,
                 conversation_id=conversation_id,
-                billing_context=gateway._merge_model_provider_snapshots(
+                billing_context=GatewayCallLogBridge.merge_model_provider_snapshots(
                     resolved_billing_context,
                     provider=provider,
                     ai_model=ai_model,
@@ -279,7 +283,11 @@ async def execute_chat(
     total_tokens = usage.total_tokens
 
     cost = cost_calculator.calculate_cost(ai_model, input_tokens, output_tokens)
-    gateway._attach_runtime_metadata(response, provider=provider, ai_model=ai_model)
+    GatewayCallLogBridge.attach_runtime_metadata(
+        response,
+        provider=provider,
+        ai_model=ai_model,
+    )
     response.metadata["usage_mode"] = usage.usage_mode
 
     if should_meter_usage:
@@ -303,7 +311,7 @@ async def execute_chat(
     if should_record_call_log:
         try:
             assert tenant_id is not None
-            request_data = gateway._build_request_log_data(
+            request_data = GatewayCallLogBridge.build_request_log_data(
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
@@ -335,7 +343,7 @@ async def execute_chat(
                 user_type=call_user_type,
                 agent_id=agent_id,
                 conversation_id=conversation_id,
-                billing_context=gateway._merge_model_provider_snapshots(
+                billing_context=GatewayCallLogBridge.merge_model_provider_snapshots(
                     resolved_billing_context,
                     provider=provider,
                     ai_model=ai_model,
