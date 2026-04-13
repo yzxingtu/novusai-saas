@@ -207,9 +207,8 @@ class IntentDomainRules:
         continuation_context: Any | None,
     ) -> list[_IntentSignal]:
         lowered = clause.lower()
-        if cls.explicitly_forbids_tool_usage(lowered) or cls.looks_like_capability_self_report(
-            lowered
-        ):
+        tools_forbidden = cls.explicitly_forbids_tool_usage(lowered)
+        if cls.looks_like_capability_self_report(lowered):
             return []
 
         families = _tool_families(tools, input_variables)
@@ -333,6 +332,9 @@ class IntentDomainRules:
             signals.append(
                 _IntentSignal("web_research", "web_research", "web_research", offset)
             )
+
+        if tools_forbidden:
+            signals = [signal for signal in signals if not signal.requires_tools]
 
         return sorted(signals, key=lambda item: item.position)
 

@@ -57,6 +57,11 @@ def test_intent_domain_rules_suppresses_for_no_tool_or_capability() -> None:
     capability = _detect("你有哪些能力，能不能调用工具", tools=_tools_web())
     assert capability == []
 
+    memory_save = _detect("不要使用任何工具，但请记住这个偏好", tools=_tools_web())
+    assert len(memory_save) == 1
+    assert memory_save[0].kind == "memory_save"
+    assert memory_save[0].requires_tools is False
+
 
 def test_intent_domain_rules_detects_weather_and_time() -> None:
     signals = _detect("北京天气，现在几点", tools=_tools_weather_time())

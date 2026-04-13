@@ -28,6 +28,7 @@ build_done_event_payload = stream_finalization_support.build_done_event_payload
 _finalize_completed_output = stream_generation_support._finalize_completed_output
 _resolve_done_turn_outcome = stream_finalization_support.resolve_done_turn_outcome
 build_initial_events = stream_generation_support.build_initial_events
+build_terminal_result = stream_generation_support.build_terminal_result
 build_sync_success_result = (
     conversation_sync_result_support.build_sync_success_result
 )
@@ -200,6 +201,38 @@ def test_build_result_turn_record_preserves_non_dict_payload() -> None:
     assert result_turn_record["termination_reason"] == "completed"
     assert result_turn_record["protocol_path"] == "responses"
     assert resolved_protocol_path == "responses"
+
+
+def test_build_terminal_result_hides_provider_state_when_disabled() -> None:
+    handler = SimpleNamespace(
+        request=SimpleNamespace(conversation_id=77),
+        prep=SimpleNamespace(stream_runtime=None),
+        start_time=0.0,
+        engine=SimpleNamespace(_messages_to_dicts=messages_to_dicts),
+        _state=_StateStub({"final_output_source": "stream_error"}),
+        _runtime_turn_record=None,
+        _runtime_turn_record_source=None,
+        _runtime_turn_record_overlays={},
+    )
+    handler._state.provider_failure_kind = "provider_unavailable"
+    handler._state.provider_events = [{"kind": "provider_unavailable"}]
+
+    result = build_terminal_result(
+        handler,
+        messages=[],
+        output="partial reply",
+        error="upstream failed",
+        interrupted=False,
+        completion_reason="error",
+        total_tokens=12,
+        duration_ms=34,
+        tool_results=[],
+        rag_sources=None,
+        include_provider_state=False,
+    )
+
+    assert result.provider_failure_kind == "none"
+    assert result.provider_events == []
 
 
 def test_finalize_completed_output_scopes_duplicate_check_to_current_turn() -> None:

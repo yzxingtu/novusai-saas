@@ -1,15 +1,11 @@
 """Focused helpers for StreamExecutionHandler.generate()."""
-
 from __future__ import annotations
-
 import asyncio
 import time
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
-
 from app.ai.sse import SSEChunkEncoder
 from app.ai.types import ChatMessage
-
 from .conversation_result_projector import build_execution_result, build_turn_projection
 from .final_output_policy import resolve_skip_final_assistant
 from .recovery_manager import RecoveryManager
@@ -20,12 +16,13 @@ from .stream_finalization_support import (
     build_result_turn_record,
 )
 from .stream_generation_view import ensure_stream_generation_view
+from .stream_replay_event_support import (
+    build_immediate_turn_events,
+    build_replay_events,
+)
 from .types import ExecutionResult
-
 if TYPE_CHECKING:
     from .turn_executor import TurnExecutionResult
-
-
 def _resolve_generation_view(handler: Any) -> Any:
     explicit = getattr(handler, "_stream_generation_view", None)
     if callable(explicit):
@@ -141,14 +138,6 @@ def sync_response_runtime_metadata(
     return response_metadata
 
 
-def _assistant_message_metadata(
-    action_buttons: list[dict[str, str]] | None,
-) -> dict[str, Any] | None:
-    if action_buttons:
-        return {"action_buttons": action_buttons}
-    return None
-
-
 def _append_assistant_message(
     messages: list[ChatMessage],
     *,
@@ -161,7 +150,7 @@ def _append_assistant_message(
             role="assistant",
             content=output,
             reasoning_content=reasoning_content,
-            metadata=_assistant_message_metadata(action_buttons),
+            metadata={"action_buttons": action_buttons} if action_buttons else None,
         )
     )
 
@@ -343,57 +332,16 @@ def _finalize_completed_output(
     return output, []
 
 
-def _encode_message_events(chunks: list[str]) -> list[str]:
-    return [
-        SSEChunkEncoder.encode(
-            {
-                "event": "message",
-                "delta": chunk,
-            }
-        )
-        for chunk in chunks
-    ]
-
-
 def _build_replay_events(
     handler: Any,
-    *,
-    output: str,
-    final_output_source: str | None,
-    partial_reply_stream_chunks: list[str],
-    completed_reply_stream_chunks: list[str],
+    **kwargs: Any,
 ) -> list[str]:
-    streamed_output = _resolve_generation_view(handler).visible_stream_content.strip()
-    should_clear_replayed_output = _should_clear_replayed_output(
-        streamed_output=streamed_output,
-        finalized_output=str(output or "").strip(),
-        final_output_source=final_output_source,
-        partial_reply_stream_chunks=partial_reply_stream_chunks,
-        completed_reply_stream_chunks=completed_reply_stream_chunks,
-    )
-
-    events: list[str] = []
-    if should_clear_replayed_output:
-        events.append(SSEChunkEncoder.encode({"event": "clear_content"}))
-    events.extend(_encode_message_events(partial_reply_stream_chunks))
-    events.extend(_encode_message_events(completed_reply_stream_chunks))
-    return events
-
-
-def _should_clear_replayed_output(
-    *,
-    streamed_output: str,
-    finalized_output: str,
-    final_output_source: str | None,
-    partial_reply_stream_chunks: list[str],
-    completed_reply_stream_chunks: list[str],
-) -> bool:
-    return bool(
-        streamed_output
-        and finalized_output
-        and finalized_output != streamed_output
-        and final_output_source in {"tool_evidence_completed", "budget_fallback"}
-        and (partial_reply_stream_chunks or completed_reply_stream_chunks)
+    return build_replay_events(
+        streamed_output=_resolve_generation_view(handler).visible_stream_content.strip(),
+        finalized_output=str(kwargs.get("output") or "").strip(),
+        final_output_source=kwargs.get("final_output_source"),
+        partial_reply_stream_chunks=kwargs.get("partial_reply_stream_chunks") or [],
+        completed_reply_stream_chunks=kwargs.get("completed_reply_stream_chunks") or [],
     )
 
 
@@ -415,26 +363,12 @@ def finalize_successful_turn(
     response_metadata = sync_response_runtime_metadata(handler, response=response)
 
     cleaned_output, action_buttons = view.extract_action_buttons(output)
-    immediate_events: list[str] = []
     if action_buttons:
         output = cleaned_output
-        immediate_events.append(
-            SSEChunkEncoder.encode(
-                {
-                    "event": "action_buttons",
-                    "buttons": action_buttons,
-                }
-            )
-        )
-    if rag_sources:
-        immediate_events.append(
-            SSEChunkEncoder.encode(
-                {
-                    "event": "rag_sources",
-                    "sources": rag_sources,
-                }
-            )
-        )
+    immediate_events = build_immediate_turn_events(
+        action_buttons=action_buttons,
+        rag_sources=rag_sources,
+    )
 
     duration_ms = int((time.perf_counter() - view.start_time) * 1000)
     partial = bool(turn_execution.partial)
@@ -534,9 +468,9 @@ def finalize_successful_turn(
     if paused_for_consent:
         result.success = False
 
-    replay_events = _build_replay_events(
-        handler,
-        output=output,
+    replay_events = build_replay_events(
+        streamed_output=view.visible_stream_content.strip(),
+        finalized_output=str(output or "").strip(),
         final_output_source=final_output_source,
         partial_reply_stream_chunks=partial_reply_stream_chunks,
         completed_reply_stream_chunks=completed_reply_stream_chunks,
@@ -642,7 +576,7 @@ def build_terminal_result(
         execution_budget=view.budget_snapshot,
         recovery_history=view.recovery_history_dicts,
         provider_failure_kind=(
-            view.provider_failure_kind or "none"
+            (view.provider_failure_kind or "none")
             if include_provider_state
             else "none"
         ),
