@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.ai.types import ChatMessage
 from app.ai.tools.types import ToolResult
 from tests.services.conftest import make_mock_model
 
@@ -1808,6 +1809,56 @@ class TestThinkingPersistence:
         create_calls = service._message_repo.create.await_args_list
         assert len(create_calls) == 2
         assert [call.args[0]["role"] for call in create_calls] == ["user", "assistant"]
+
+    @pytest.mark.asyncio
+    async def test_persist_chat_messages_aligns_history_without_double_counting_leading_system_messages(
+        self,
+        mock_db,
+    ):
+        from app.services.ai.conversation_service import ConversationService
+
+        conversation = _make_conversation(id=91, message_count=2)
+        result = SimpleNamespace(
+            messages=[
+                {"role": "system", "content": "runtime system"},
+                {"role": "system", "content": "persisted system"},
+                {"role": "user", "content": "old question"},
+                {"role": "user", "content": "new question"},
+                {"role": "assistant", "content": "new answer"},
+            ],
+            tool_results=[],
+            partial=False,
+            interrupted=False,
+            completion_reason="completed",
+            runtime_model_id=None,
+            runtime_model_name=None,
+            runtime_provider_id=None,
+            runtime_provider_name=None,
+        )
+        history_messages = [
+            ChatMessage(role="system", content="persisted system"),
+            ChatMessage(role="user", content="old question"),
+        ]
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service._message_repo = MagicMock()
+        service._message_repo.get_next_sequence = AsyncMock(return_value=1)
+        service._message_repo.create = AsyncMock()
+
+        await service.persist_chat_messages(
+            conversation=conversation,
+            result=result,
+            history_count=2,
+            history_messages=history_messages,
+            agent_id=7,
+        )
+
+        create_calls = service._message_repo.create.await_args_list
+        assert [call.args[0]["role"] for call in create_calls] == ["user", "assistant"]
+        assert create_calls[0].args[0]["content"] == "new question"
 
     @pytest.mark.asyncio
     async def test_update_last_assistant_interaction_state_marks_metadata_and_tool_calls(

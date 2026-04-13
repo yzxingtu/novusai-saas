@@ -15,6 +15,67 @@ from app.enums.agent import MessageRoleEnum
 
 class ConversationMessagePersistenceService:
     @staticmethod
+    def _message_signature(message: ChatMessage | dict[str, Any]) -> tuple[Any, ...]:
+        if isinstance(message, ChatMessage):
+            return (
+                message.role,
+                str(message.content or ""),
+                message.tool_call_id,
+                message.tool_calls or [],
+                message.attachments or [],
+            )
+        return (
+            str(message.get("role") or ""),
+            str(message.get("content") or ""),
+            message.get("tool_call_id"),
+            message.get("tool_calls") or [],
+            message.get("attachments") or [],
+        )
+
+    @classmethod
+    def resolve_new_message_start(
+        cls,
+        *,
+        result_messages: list[dict[str, Any]] | None,
+        history_count: int,
+        history_messages: list[ChatMessage] | None = None,
+    ) -> int:
+        if not result_messages:
+            return 0
+
+        if history_messages:
+            history_signatures = [
+                cls._message_signature(message)
+                for message in history_messages[-history_count:]
+            ]
+            leading_system_count = 0
+            for msg in result_messages:
+                if msg.get("role") == "system":
+                    leading_system_count += 1
+                else:
+                    break
+
+            max_offset = min(leading_system_count, len(result_messages))
+            for offset in range(max_offset + 1):
+                end = offset + len(history_signatures)
+                if end > len(result_messages):
+                    break
+                window = [
+                    cls._message_signature(message)
+                    for message in result_messages[offset:end]
+                ]
+                if window == history_signatures:
+                    return end
+
+        system_count = 0
+        for msg_dict in result_messages:
+            if msg_dict.get("role") == "system":
+                system_count += 1
+            else:
+                break
+        return min(len(result_messages), system_count + max(history_count, 0))
+
+    @staticmethod
     def has_pending_state(
         *,
         tool_calls: list[dict[str, Any]] | None,
@@ -150,19 +211,17 @@ class ConversationMessagePersistenceService:
         conversation: Any,
         result: Any,
         history_count: int,
+        history_messages: list[ChatMessage] | None = None,
         agent_id: int | None = None,
         route_source: str | None = None,
         context_diagnostics: dict[str, Any] | None = None,
         last_run_summary: dict[str, Any] | None = None,
     ) -> tuple[list[dict[str, Any]], int]:
-        # Count leading system messages dynamically (not hard-coded as 1)
-        system_count = 0
-        for msg_dict in result.messages:
-            if msg_dict.get("role") == "system":
-                system_count += 1
-            else:
-                break
-        new_start = system_count + history_count
+        new_start = cls.resolve_new_message_start(
+            result_messages=result.messages,
+            history_count=history_count,
+            history_messages=history_messages,
+        )
         new_messages_raw = result.messages[new_start:]
 
         if not new_messages_raw:

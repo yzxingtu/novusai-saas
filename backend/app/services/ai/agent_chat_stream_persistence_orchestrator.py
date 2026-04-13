@@ -9,12 +9,16 @@ from typing import Any
 from app.ai.engine.types import ExecutionResult
 from app.ai.events.hooks import HookPoint
 from app.ai.json_safe import normalize_json_safe, normalize_json_safe_dict
+from app.ai.types import ChatMessage
 from app.ai.utils.token_estimator import estimate_tokens
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.enums.agent import MessageRoleEnum
 from app.services.ai.agent_chat_stream_runtime_dependencies import (
     AgentChatStreamPersistenceDependencies,
+)
+from app.services.ai.conversation_message_persistence_service import (
+    ConversationMessagePersistenceService,
 )
 
 logger = LogManager.get_logger("ai.agent_chat_service")
@@ -34,6 +38,7 @@ class AgentChatStreamPersistenceOrchestrator:
         message: str,
         first_message: str,
         history_count: int,
+        history_messages: list[ChatMessage],
         seeded_user_message_count: int,
         route_source: str | None,
         interaction_mode_effective: str,
@@ -62,6 +67,7 @@ class AgentChatStreamPersistenceOrchestrator:
         self.message = message
         self.first_message = first_message
         self.history_count = history_count
+        self.history_messages = list(history_messages or [])
         self.seeded_user_message_count = seeded_user_message_count
         self.route_source = route_source
         self.interaction_mode_effective = interaction_mode_effective
@@ -406,12 +412,12 @@ class AgentChatStreamPersistenceOrchestrator:
             context_diagnostics_payload = self.build_context_diagnostics(result)
             last_run_summary_payload = self.build_last_run_summary(result)
 
-            system_count = sum(
-                1 for m in (result.messages or []) if m.get("role") == "system"
+            new_start = ConversationMessagePersistenceService.resolve_new_message_start(
+                result_messages=result.messages or [],
+                history_count=self.history_count,
+                history_messages=self.history_messages,
             )
-            has_new_messages = (result.messages or []) and len(
-                result.messages
-            ) > system_count + self.history_count
+            has_new_messages = bool((result.messages or [])[new_start:])
             if result.success or has_new_messages:
                 try:
                     deps = self._deps()
@@ -430,6 +436,7 @@ class AgentChatStreamPersistenceOrchestrator:
                                         conversation_id=self.conversation_id,
                                         result=result,
                                         history_count=self.history_count,
+                                        history_messages=self.history_messages,
                                         agent_id=self.agent_id,
                                         route_source=self.route_source,
                                         context_diagnostics=context_diagnostics_payload,
@@ -446,6 +453,7 @@ class AgentChatStreamPersistenceOrchestrator:
                                         conversation=cb_conv,
                                         result=result,
                                         history_count=self.history_count,
+                                        history_messages=self.history_messages,
                                         agent_id=self.agent_id,
                                         route_source=self.route_source,
                                         context_diagnostics=context_diagnostics_payload,
