@@ -280,7 +280,7 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
     """
 
     async def _execute() -> dict:
-        from sqlalchemy import func, select
+        from sqlalchemy import select
 
         # Clean up DB connections left from previous event loop (required for Windows --pool=solo)
         # 清理上一次 event loop 残留的 DB 连接（Windows --pool=solo 必需）
@@ -298,6 +298,12 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
 
         from app.ai.gateway import AIGateway
         from app.ai.rag.chunker import get_chunker
+        from app.ai.rag.embedding_resume_support import (
+            EmbeddedChunkSnapshot,
+            build_chunk_rows,
+            plan_embedding_resume,
+            validate_embedding_batch_count,
+        )
         from app.core.database import async_session_factory
         from app.enums.knowledge_base import DocumentStatusEnum
         from app.models.ai.document_chunk import DocumentChunk
@@ -420,16 +426,35 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                         )
                         chunk_data_list = chunker.chunk(pages or [])
 
-                    # Query successfully written chunk count (for checkpoint resume)
-                    # 查询已成功写入的分块数（用于断点续传）
-                    count_stmt = select(func.count(DocumentChunk.id)).where(
+                    # Query successfully written chunk fingerprint prefix (for checkpoint resume)
+                    # 查询已成功写入分块指纹前缀（用于断点续传校验）
+                    existing_stmt = select(
+                        DocumentChunk.chunk_index,
+                        DocumentChunk.content_hash,
+                    ).where(
                         DocumentChunk.document_id == document_id,
                         DocumentChunk.knowledge_base_id == kb.id,
                         DocumentChunk.is_deleted.is_(False),
                         DocumentChunk.embedding.isnot(None),
+                    ).order_by(DocumentChunk.chunk_index.asc())
+                    existing_result = await db.execute(existing_stmt)
+                    existing_chunks = [
+                        EmbeddedChunkSnapshot(
+                            chunk_index=int(row.chunk_index),
+                            content_hash=str(row.content_hash or ""),
+                        )
+                        for row in existing_result
+                    ]
+                    resume_plan = plan_embedding_resume(
+                        chunk_data_list=chunk_data_list,
+                        existing_chunks=existing_chunks,
                     )
-                    count_result = await db.execute(count_stmt)
-                    existing_chunk_count = count_result.scalar() or 0
+                    existing_chunk_count = resume_plan.existing_chunk_count
+                    if resume_plan.restart_required:
+                        logger.warning(
+                            "Embedding resume fingerprint mismatch, restarting from chunk 0 for doc {}",
+                            document_id,
+                        )
                     logger.info(
                         "Resuming embedding from chunk {}/{} for doc {}",
                         existing_chunk_count,
@@ -480,6 +505,10 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                         tenant_id=tenant_id,
                     )
 
+                    validate_embedding_batch_count(
+                        texts=texts,
+                        embeddings=response.embeddings,
+                    )
                     all_embeddings.extend(response.embeddings)
                     total_token_count += response.total_tokens or 0
                     processed_so_far += len(batch)
@@ -513,29 +542,14 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                 write_batch_size = 500
                 for i in range(0, len(chunks_to_embed), write_batch_size):
                     batch = chunks_to_embed[i : i + write_batch_size]
-                    batch_data = []
-                    for idx, cd in enumerate(batch):
-                        embedding_vec = (
-                            all_embeddings[
-                                idx + i
-                            ]  # all_embeddings indexed from 0 corresponding to chunks_to_embed  # 补充说明 / note
-                            if (idx + i) < len(all_embeddings)
-                            else None
-                        )
-                        batch_data.append(
-                            {
-                                "document_id": document_id,
-                                "knowledge_base_id": kb.id,
-                                "chunk_index": cd.chunk_index,
-                                "content": cd.content,
-                                "content_hash": cd.content_hash,
-                                "char_count": cd.char_count,
-                                "token_count": 0,
-                                "embedding": embedding_vec,
-                                "metadata_": cd.metadata,
-                                "tenant_id": tenant_id,
-                            }
-                        )
+                    batch_embeddings = all_embeddings[i : i + len(batch)]
+                    batch_data = build_chunk_rows(
+                        chunks=batch,
+                        embeddings=batch_embeddings,
+                        document_id=document_id,
+                        knowledge_base_id=kb.id,
+                        tenant_id=tenant_id,
+                    )
                     await chunk_repo.create_many(batch_data)
 
                 # ===== 6. Update document statistics / 更新文档统计 =====

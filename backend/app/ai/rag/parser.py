@@ -22,6 +22,8 @@ if TYPE_CHECKING:
     from app.models.ai.knowledge_base import KnowledgeBase
 
 from app.ai.text_semantics import parse_markdown_heading, split_on_blank_lines
+from app.ai.rag.html_section_support import build_html_sections
+from app.ai.rag.url_fetcher import fetch_public_url_text
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.exceptions import BusinessException
@@ -479,52 +481,18 @@ class HtmlParser(DocumentParser):
     async def parse(
         self, file_content: BinaryIO, file_name: str = ""
     ) -> list[ParsedPage]:
-        from bs4 import BeautifulSoup
-
         html_text = file_content.read().decode("utf-8", errors="replace")
-        soup = BeautifulSoup(html_text, "lxml")
-
-        for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
-            tag.decompose()
-
-        pages: list[ParsedPage] = []
-        body = soup.find("body") or soup
-        current_heading: str | None = soup.title.string if soup.title else None
-        current_content: list[str] = []
-
-        for element in body.find_all(
-            ["h1", "h2", "h3", "h4", "h5", "h6", "p", "li", "td"]
-        ):
-            text = element.get_text(strip=True)
-            if not text:
-                continue
-
-            if element.name and element.name.startswith("h"):
-                if current_content:
-                    pages.append(
-                        ParsedPage(
-                            content="\n".join(current_content),
-                            metadata={
-                                "heading": current_heading,
-                                "source": file_name,
-                            },
-                        )
-                    )
-                    current_content = []
-                current_heading = text
-            else:
-                current_content.append(text)
-
-        if current_content:
-            pages.append(
-                ParsedPage(
-                    content="\n".join(current_content),
-                    metadata={
-                        "heading": current_heading,
-                        "source": file_name,
-                    },
-                )
+        sections = build_html_sections(
+            html_text,
+            source=file_name,
+        )
+        pages = [
+            ParsedPage(
+                content=section["content"],
+                metadata=section["metadata"],
             )
+            for section in sections
+        ]
 
         logger.info(
             "HTML parsed: {}, sections={}",
@@ -551,70 +519,25 @@ class UrlParser(DocumentParser):
         file_content stores URL string (UTF-8 encoded).
         file_content 中存储的是 URL 字符串（UTF-8 编码）。
         """
-        import httpx
-        from bs4 import BeautifulSoup
-
         url = file_content.read().decode("utf-8").strip()
         if not url:
             raise BusinessException(
                 message=_("knowledge_base.document.error.parse_failed")
             )
 
-        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-            response = await client.get(url)
-            response.raise_for_status()
-
-        soup = BeautifulSoup(response.text, "lxml")
-
-        # Remove script, style and other non-content tags / 移除脚本、样式等非内容标签
-        for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
-            tag.decompose()
-
-        # Extract body content / 提取正文
-        pages: list[ParsedPage] = []
-        body = soup.find("body")
-        if body:
-            # Split by heading / 按标题分段
-            current_heading: str | None = soup.title.string if soup.title else None
-            current_content: list[str] = []
-
-            for element in body.find_all(
-                ["h1", "h2", "h3", "h4", "h5", "h6", "p", "li", "td"]
-            ):
-                text = element.get_text(strip=True)
-                if not text:
-                    continue
-
-                if element.name and element.name.startswith("h"):
-                    # Heading element: output previous content and start new section / 标题元素：输出之前的内容并开始新段
-                    if current_content:
-                        pages.append(
-                            ParsedPage(
-                                content="\n".join(current_content),
-                                metadata={
-                                    "heading": current_heading,
-                                    "source_url": url,
-                                    "source": file_name or url,
-                                },
-                            )
-                        )
-                        current_content = []
-                    current_heading = text
-                else:
-                    current_content.append(text)
-
-            # Output last section / 输出最后一段
-            if current_content:
-                pages.append(
-                    ParsedPage(
-                        content="\n".join(current_content),
-                        metadata={
-                            "heading": current_heading,
-                            "source_url": url,
-                            "source": file_name or url,
-                        },
-                    )
-                )
+        html_text = await fetch_public_url_text(url)
+        sections = build_html_sections(
+            html_text,
+            source=file_name or url,
+            source_url=url,
+        )
+        pages = [
+            ParsedPage(
+                content=section["content"],
+                metadata=section["metadata"],
+            )
+            for section in sections
+        ]
 
         logger.info(
             "URL parsed: {}, sections={}",
