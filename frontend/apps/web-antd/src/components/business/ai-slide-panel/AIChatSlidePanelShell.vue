@@ -37,6 +37,7 @@ import { usePanelHistory } from './use-panel-history';
 import { usePanelLinkPreview } from './use-panel-link-preview';
 import { usePanelSendMessage } from './use-panel-send-message';
 import { usePanelShellActions } from './use-panel-shell-actions';
+import { usePanelShellBodyBindings } from './use-panel-shell-body-bindings';
 import { usePanelShellContext } from './use-panel-shell-context';
 import { usePanelShellHeaderBindings } from './use-panel-shell-header-bindings';
 import { usePanelShellOverlayBindings } from './use-panel-shell-overlay-bindings';
@@ -393,16 +394,6 @@ async function handleSendMessage() {
   return handleSendMessageRef.value();
 }
 
-function handleKeyDown(e: KeyboardEvent) {
-  if (handleInputKeyDown(e)) {
-    return;
-  }
-  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
-    e.preventDefault();
-    handleSendMessage();
-  }
-}
-
 const {
   cancelEditTitle,
   commitEditTitle,
@@ -513,64 +504,20 @@ const resolvedAttachmentAccept = computed(() =>
     ? chatAcceptAttribute
     : (chatAcceptAttribute as { value: string }).value,
 );
-
-const panelBodyProps = computed(() => ({
-  activeConversationId: activeConversationId.value,
-  agents: agents.value,
-  apiPrefix: props.apiPrefix,
-  attachDisabled: agents.value.length === 0 || sending.value,
-  attachmentAccept: resolvedAttachmentAccept.value,
-  attachmentLimitHint: composerAttachmentLimitHint.value,
-  attachments: composerAttachments.value,
-  boundKnowledgeBases: composerBoundKnowledgeBases.value,
-  chatMessages: chatMessages.value,
-  characterCount: inputMessage.value.length,
-  conversationSearch: conversationSearch.value,
-  conversationsCount: conversations.value.length,
-  conversationsLoading: conversationsLoading.value,
-  countdownNow: countdownNow.value,
-  editingConversationId: editingConversationId.value,
-  editingTitle: editingTitle.value,
-  effectiveSuggestedQuestions: effectiveSuggestedQuestions.value,
-  effectiveWelcomeMessage: effectiveWelcomeMessage.value,
-  exportMenuItems: exportMenuItems.value,
-  getPendingOpsForMessage,
-  getRichTextDraftState,
-  groupedConversations: groupedConversations.value,
-  inputMessage: inputMessage.value,
-  interactionMode: interactionMode.value,
-  isAgentSwitch,
-  mentionCandidates: composerMentionCandidates.value,
-  mentionEmptyHint:
-    mentionCandidates.value.length === 0 &&
-    agentKBBindings.value.length === 0 &&
-    !agentsLoading.value
-      ? $t('common.globalAiChat.mentionKbNoneBound')
-      : $t('common.globalAiChat.mentionAgentEmpty'),
-  mentionLoading: agentsLoading.value,
-  mentionMixedHint: $t('common.globalAiChat.mentionMixedHint'),
-  mentionOpen: mentionOpen.value,
-  registerContainer: registerMessagesContainer,
-  routing: routing.value,
-  screenshotDisabled:
-    agents.value.length === 0 || sending.value || capturing.value,
-  screenshotLoading: capturing.value,
-  selectedAgent: selectedAgent.value,
-  selectedKnowledgeBases: composerSelectedKnowledgeBases.value,
-  sendDisabled: composerSendDisabled.value,
-  sendState: composerSendState.value,
-  sending: sending.value,
-  shiftEnterHint: $t('common.globalAiChat.shiftEnterHint'),
-  showAttachments: props.showAttachments,
-  showHistory: showHistory.value,
-  showInteractionMode: chatMessages.value.length > 0,
-  showScrollToBottom: showScrollToBottom.value,
-  showScrollToTop: showScrollToTop.value,
-  showScreenshotButton: props.showAttachments && supportsVision.value,
-  streaming: streaming.value,
-  totalTokensUsed: totalTokensUsed.value,
-  unassociatedPendingOps: unassociatedPendingOps.value,
-}));
+const mentionEmptyHint = computed(() =>
+  mentionCandidates.value.length === 0 &&
+  agentKBBindings.value.length === 0 &&
+  !agentsLoading.value
+    ? $t('common.globalAiChat.mentionKbNoneBound')
+    : $t('common.globalAiChat.mentionAgentEmpty'),
+);
+const screenshotDisabled = computed(
+  () => agents.value.length === 0 || sending.value || capturing.value,
+);
+const showScreenshotButton = computed(
+  () => props.showAttachments && supportsVision.value,
+);
+const showInteractionMode = computed(() => chatMessages.value.length > 0);
 
 const { capturing, captureAndUpload } = usePageScreenshot();
 
@@ -610,64 +557,97 @@ const overlayBindings = usePanelShellOverlayBindings({
 });
 const { overlayListeners, overlayProps } = overlayBindings;
 
-async function onCopyMessage(content: string) {
-  await copyMessage(content);
-}
-
 function registerMessagesContainer(element: HTMLDivElement | null) {
   messagesContainer.value = element;
 }
 
-const panelBodyListeners = {
+const { panelBodyListeners, panelBodyProps } = usePanelShellBodyBindings({
   actionClick: clickActionButton,
+  activeConversationId,
+  agents,
+  apiPrefix: toRef(props, 'apiPrefix'),
   askSuggested,
+  attachmentAccept: resolvedAttachmentAccept,
+  attachmentLimitHint: composerAttachmentLimitHint,
+  attachments: composerAttachments,
+  attachDisabled: computed(() => agents.value.length === 0 || sending.value),
+  boundKnowledgeBases: composerBoundKnowledgeBases,
   cancelEditTitle,
   captureScreenshot: handleScreenshot,
+  chatMessages,
+  characterCount: computed(() => inputMessage.value.length),
   commitEditTitle,
-  confirm: confirmAction,
-  consentConfirm: confirmConsent,
-  consentReject: rejectConsent,
-  copy: onCopyMessage,
-  deleteConversation: onDeleteConversation,
-  dragover: handleDragOver,
-  drop: handleDrop,
-  edit: editAndResend,
+  composerMentionCandidates,
+  confirmAction,
+  confirmConsent,
+  conversationSearch,
+  conversationsCount: computed(() => conversations.value.length),
+  conversationsLoading,
+  copyMessage,
+  countdownNow,
+  editAndResend,
+  editingConversationId,
+  editingTitle,
+  effectiveSuggestedQuestions,
+  effectiveWelcomeMessage,
+  exportMenuItems,
   fileSelect: handleFileSelect,
-  keydown: handleKeyDown,
+  getPendingOpsForMessage,
+  getRichTextDraftState,
+  groupedConversations,
+  handleDragOver,
+  handleDrop,
+  handleInputKeyDown,
+  handleMessagesScroll,
+  handleOpenUrl,
+  handleSendMessage,
+  inputMessage,
+  interactionMode,
+  isAgentSwitch,
+  mentionEmptyHint,
+  mentionLoading: agentsLoading,
+  mentionMixedHint: $t('common.globalAiChat.mentionMixedHint'),
+  mentionOpen,
   newChat: onStartNewChat,
-  openUrl: handleOpenUrl,
+  onDeleteConversation,
+  onSelectConversation,
+  onSelectMentionCandidate,
   paste: handlePaste,
-  regenerate: regenerateMessage,
-  reject: rejectAction,
+  regenerateMessage,
+  registerMessagesContainer,
+  rejectAction,
+  rejectConsent,
   removeAttachment: removePendingAttachment,
   removeSelectedKnowledgeBase,
   resolvePendingOp: (invokeId: string, allowed: boolean) =>
     aiPanelStore.resolvePageOp(invokeId, allowed),
-  retry: retryLastMessage,
+  retryLastMessage,
   richTextApply: onRichTextApply,
   richTextDiscard: onRichTextDiscard,
   richTextUndo: onRichTextUndo,
-  scroll: handleMessagesScroll,
-  scrollToBottom: () => scrollToBottom(true),
-  scrollToTop: () => scrollToTop(),
-  selectConversation: onSelectConversation,
-  selectMentionCandidate: onSelectMentionCandidate,
-  send: handleSendMessage,
+  routing,
+  screenshotDisabled,
+  screenshotLoading: capturing,
+  scrollToBottom,
+  scrollToTop,
+  selectedAgent,
+  selectedKnowledgeBases: composerSelectedKnowledgeBases,
+  sendDisabled: composerSendDisabled,
+  sending,
+  sendState: composerSendState,
+  shiftEnterHint: $t('common.globalAiChat.shiftEnterHint'),
+  showAttachments: toRef(props, 'showAttachments'),
+  showHistory,
+  showInteractionMode,
+  showScreenshotButton,
+  showScrollToBottom,
+  showScrollToTop,
   startEditTitle,
-  stop: stopGeneration,
-  'update:conversationSearch': (value: string) => {
-    conversationSearch.value = value;
-  },
-  'update:editingTitle': (value: string) => {
-    editingTitle.value = value;
-  },
-  'update:inputMessage': (value: string) => {
-    inputMessage.value = value;
-  },
-  'update:interactionMode': (value: 'confirm' | 'trusted_auto') => {
-    interactionMode.value = value;
-  },
-};
+  stopGeneration,
+  streaming,
+  totalTokensUsed,
+  unassociatedPendingOps,
+});
 
 const {
   dragging,
