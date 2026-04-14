@@ -1,15 +1,7 @@
 <script lang="ts" setup>
 import type { AIPageMode } from '@vben/types';
 
-import {
-  computed,
-  onMounted,
-  onUnmounted,
-  ref,
-  toRef,
-  watch,
-  watchEffect,
-} from 'vue';
+import { computed, ref, toRef } from 'vue';
 
 import { useAIChat } from '#/components/business/ai-chat-panel/use-ai-chat';
 import { useModalDetector } from '#/composables/use-modal-detector';
@@ -40,6 +32,7 @@ import { usePanelShellActions } from './use-panel-shell-actions';
 import { usePanelShellBodyBindings } from './use-panel-shell-body-bindings';
 import { usePanelShellContext } from './use-panel-shell-context';
 import { usePanelShellHeaderBindings } from './use-panel-shell-header-bindings';
+import { usePanelShellLifecycle } from './use-panel-shell-lifecycle';
 import { usePanelShellOverlayBindings } from './use-panel-shell-overlay-bindings';
 import { usePanelWidth } from './use-panel-width';
 import { usePendingPageOps } from './use-pending-page-ops';
@@ -657,59 +650,16 @@ const {
   onDragStart,
 } = usePanelWidth(aiPanelStore);
 
-watch(selectedAgentId, (agentId) => {
-  if (agentId) {
-    ensureAgentVarsLoaded(agentId);
-  }
-  if (
-    manualNewConversationAgentId.value &&
-    agentId !== manualNewConversationAgentId.value
-  ) {
-    manualNewConversationAgentId.value = null;
-  }
-});
-
-watch(
-  [() => aiPanelStore.pinnedAgentId, agents],
-  ([pinnedAgentId, availableAgents]) => {
-    if (
-      pinnedAgentId &&
-      availableAgents.some((agent) => agent.id === pinnedAgentId) &&
-      selectedAgentId.value !== pinnedAgentId
-    ) {
-      selectedAgentId.value = pinnedAgentId;
-    }
-  },
-  { immediate: true },
-);
-
-watch([activeConversationId, selectedAgentId], ([conversationId, agentId]) => {
-  if (conversationId === null) {
-    aiPanelStore.resetConversation();
-    return;
-  }
-  aiPanelStore.setConversation(conversationId, agentId ?? undefined);
-});
-
-watchEffect(() => {
-  const shouldOffset =
-    aiPanelStore.visible &&
-    !aiPanelStore.minimized &&
-    aiPanelStore.mode === 'panel' &&
-    aiPanelStore.docked;
-  const offset = shouldOffset ? `${aiPanelStore.panelWidth}px` : '0px';
-  document.documentElement.style.setProperty('--ai-panel-right-offset', offset);
-});
-
-onMounted(() => {
-  loadSavedWidth();
-  document.addEventListener('mousedown', onDocumentClick);
-});
-
-onUnmounted(() => {
-  cleanup();
-  document.removeEventListener('mousedown', onDocumentClick);
-  document.documentElement.style.removeProperty('--ai-panel-right-offset');
+usePanelShellLifecycle({
+  activeConversationId,
+  agents,
+  cleanup,
+  ensureAgentVarsLoaded,
+  loadSavedWidth,
+  manualNewConversationAgentId,
+  onDocumentClick,
+  panelStore: aiPanelStore,
+  selectedAgentId,
 });
 </script>
 
