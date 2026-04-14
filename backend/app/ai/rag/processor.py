@@ -11,8 +11,8 @@ from __future__ import annotations
 
 import asyncio
 
+from app.ai.rag.processor_document_support import load_and_parse_document
 from app.core.base_model import utc_now
-from app.core.i18n import _
 from app.core.logging import LogManager
 from app.tasks.base import TenantTask, register_task
 
@@ -21,21 +21,6 @@ logger = LogManager.get_logger("ai.rag.processor")
 # Redis progress key template, TTL 1 hour / Redis 进度 Key 模板，TTL 1 小时
 PROGRESS_KEY_TEMPLATE = "kb:doc:progress:{document_id}"
 PROGRESS_TTL = 3600
-
-# Image file types requiring Vision description (must be described when explicitly uploaded, not controlled by extract_images)
-# 需要 Vision 描述的图片文件类型（用户显式上传时必须描述，不受 extract_images 控制）
-_IMAGE_DOC_TYPES: frozenset[str] = frozenset(
-    {"image", "jpg", "jpeg", "png", "webp", "gif"}
-)
-# Audio file types requiring AudioDescriber for RAG / 需要 AudioDescriber 转写的音频类型
-_AUDIO_DOC_TYPES: frozenset[str] = frozenset(
-    {"audio", "mp3", "wav", "m4a", "flac", "aac"}
-)
-# Video file types requiring VideoDescriber for RAG / 需要 VideoDescriber 描述的视频类型
-_VIDEO_DOC_TYPES: frozenset[str] = frozenset(
-    {"video", "mp4", "webm", "mov", "avi", "mkv"}
-)
-
 
 async def _report_progress(
     document_id: int,
@@ -92,148 +77,6 @@ async def _clear_progress(document_id: int) -> None:
         await cache_delete(key)
     except Exception:
         pass
-
-
-async def _load_and_parse_document(db, doc, tenant_id, kb=None) -> list:
-    """
-    Load and parse document content, return non-empty ParsedPage list. / 加载并解析文档内容，返回非空 ParsedPage 列表。
-
-    Unified handling of QA-type and file-type document loading logic,
-    avoiding duplicate code in parse/chunk/embed stages.
-    统一处理 QA 类型和文件类型的文档加载逻辑，
-    避免在解析/分块/嵌入阶段重复相同代码。
-
-    Automatically instantiates VisionDescriber and injects into parser when kb.extract_images=True.
-    Empty ParsedPage (content='') are filtered out and won't enter the chunking stage.
-    当 kb.extract_images=True 时自动实例化 VisionDescriber 并注入解析器。
-    空内容的 ParsedPage（content=''）会被过滤，不进入分块阶段。
-    """
-    from sqlalchemy import select
-
-    from app.ai.rag.parser import QaPairParser, get_parser
-    from app.configs.service import ConfigService
-    from app.enums.knowledge_base import DocumentTypeEnum
-    from app.models.tenant.attachment import Attachment
-    from app.storage import storage_manager
-
-    if doc.file_type == DocumentTypeEnum.QA.value:
-        import json
-
-        qa_data = json.loads(doc.metadata_extra or "{}")
-        qa_parser = QaPairParser()
-        return await qa_parser.parse_qa(
-            question=qa_data.get("question", ""),
-            answer=qa_data.get("answer", ""),
-            file_name=doc.file_name,
-        )
-
-    # Instantiate VisionDescriber on demand:
-    # 1. kb.extract_images=True → Embedded images in PDF/docs also need description extraction
-    # 2. File type itself is an image (explicitly uploaded by user) → Must be described regardless of extract_images setting
-    # 按需实例化 VisionDescriber：
-    # 1. kb.extract_images=True → PDF/文档中的嵌入图片也需要提取描述
-    # 2. 文件类型本身是图片（用户显式上传）→ 无论 extract_images 设置，都必须描述
-    _needs_vision = (
-        kb is not None and getattr(kb, "extract_images", False)
-    ) or doc.file_type in _IMAGE_DOC_TYPES
-    _needs_audio = doc.file_type in _AUDIO_DOC_TYPES
-    _needs_video = doc.file_type in _VIDEO_DOC_TYPES
-
-    vision_describer = None
-    if _needs_vision:
-        from app.ai.rag.vision_describer import VisionDescriber
-
-        vision_describer = VisionDescriber(db, tenant_id)
-
-    audio_describer = None
-    if _needs_audio:
-        from app.ai.rag.audio_describer import AudioDescriber
-
-        audio_describer = AudioDescriber(db, tenant_id)
-
-    video_describer = None
-    if _needs_video:
-        from app.ai.rag.video_describer import VideoDescriber
-
-        video_describer = VideoDescriber(db, tenant_id)
-
-    # Direct text input: content stored in metadata_extra, no attachment
-    # 直接文本输入：content 存储在 metadata_extra 中，无 attachment
-    if not doc.attachment_id and doc.metadata_extra:
-        import io
-
-        parser = get_parser(
-            doc.file_type,
-            vision_describer=vision_describer,
-            audio_describer=audio_describer,
-            video_describer=video_describer,
-            knowledge_base=kb,
-        )
-        pages = await parser.parse(
-            io.BytesIO(doc.metadata_extra.encode("utf-8")),
-            doc.file_name,
-        )
-        return [p for p in pages if p.content.strip()]
-
-    if not doc.attachment_id:
-        raise ValueError("Document has no attachment")
-
-    attachment_stmt = select(Attachment).where(
-        Attachment.id == doc.attachment_id,
-        Attachment.is_deleted.is_(False),
-    )
-    att_result = await db.execute(attachment_stmt)
-    attachment = att_result.scalar_one_or_none()
-    if not attachment:
-        raise ValueError("Attachment not found")
-
-    config_service = ConfigService(db)
-    # Resolve platform storage config (same as AttachmentService) / 解析平台存储配置（与 AttachmentService 一致）
-    driver_name = await config_service.get_platform_config(
-        "platform_storage_driver", default="local"
-    )
-    if str(driver_name) == "local":
-        from app.storage import LOCAL_STORAGE_ROOT
-
-        root_path = str(LOCAL_STORAGE_ROOT)
-    else:
-        root_path = await config_service.get_platform_config(
-            "platform_storage_root_path", default=""
-        )
-    base_url = await config_service.get_platform_config(
-        "platform_storage_base_url", default=None
-    )
-    options = await config_service.get_platform_config(
-        "platform_storage_options", default={}
-    )
-    from app.storage.base import StorageConfig
-
-    storage_config = StorageConfig(
-        driver=str(driver_name),
-        root_path=str(root_path),
-        base_url=base_url,
-        options=options or {},
-    )
-    driver = storage_manager.get_driver(storage_config)
-    file_content = await driver.get(attachment.path)
-
-    parser = get_parser(
-        doc.file_type,
-        vision_describer=vision_describer,
-        audio_describer=audio_describer,
-        video_describer=video_describer,
-        knowledge_base=kb,
-    )
-    pages = await parser.parse(file_content, doc.file_name)
-    parsed_pages = [p for p in pages if p.content.strip()]
-    if parsed_pages:
-        return parsed_pages
-
-    if doc.file_type in _AUDIO_DOC_TYPES:
-        raise ValueError(_("knowledge_base.document.error.audio_text_unavailable"))
-    if doc.file_type in _VIDEO_DOC_TYPES:
-        raise ValueError(_("knowledge_base.document.error.video_text_unavailable"))
-    return parsed_pages
 
 
 async def get_document_progress(document_id: int) -> dict | None:
@@ -360,7 +203,7 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                         document_id, "parsing", 0, tenant_id=tenant_id, kb_id=kb.id
                     )
 
-                    pages = await _load_and_parse_document(db, doc, tenant_id, kb=kb)
+                    pages = await load_and_parse_document(db, doc, tenant_id, kb=kb)
 
                     await _report_progress(
                         document_id, "parsing", 100, tenant_id=tenant_id, kb_id=kb.id
@@ -380,7 +223,7 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                     # If parsing was skipped (resuming from chunking), re-parse is needed
                     # 如果跳过了解析（从 chunking 恢复），需要重新解析
                     if pages is None:
-                        pages = await _load_and_parse_document(
+                        pages = await load_and_parse_document(
                             db, doc, tenant_id, kb=kb
                         )
 
@@ -415,7 +258,7 @@ def process_document(self: TenantTask, tenant_id: int | None, document_id: int) 
                     if chunk_data_list is None:
                         # Re-parse + chunk (skip already completed embedding parts)
                         # 重新解析+分块（跳过 embedding 阶段已完成的部分）
-                        pages = await _load_and_parse_document(
+                        pages = await load_and_parse_document(
                             db, doc, tenant_id, kb=kb
                         )
 
