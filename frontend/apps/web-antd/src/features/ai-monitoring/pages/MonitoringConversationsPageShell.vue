@@ -48,25 +48,6 @@ const modelSelectApi =
 const agentSelectApi =
   props.scope === 'admin' ? getAIAgentSelectApi : getTenantAgentSelectApi;
 
-function getStatusText(status?: null | string) {
-  if (!status) {
-    return '-';
-  }
-  const key = `${props.i18nPrefix}.status_options.${status}`;
-  const translated = $t(key);
-  return translated === key ? status : translated;
-}
-
-function getConversationAgentName(row: MonitoringConversationInfo) {
-  if (row.agent_name) {
-    return row.agent_name;
-  }
-  if (row.agent_id) {
-    return `#${row.agent_id}`;
-  }
-  return '-';
-}
-
 function onProviderChange(providerId: null | number | string | undefined) {
   gridApi.formApi?.setValues({
     'filter[model_id][eq]': undefined,
@@ -154,14 +135,6 @@ const heroChips = computed(() => [
     text: `${$t(`${props.i18nPrefix}.providerName`)} / ${$t(`${props.i18nPrefix}.modelName`)} / ${$t(`${props.i18nPrefix}.status`)}`,
   },
 ]);
-
-function formatTokens(tokens?: null | number) {
-  return Number(tokens || 0).toLocaleString();
-}
-
-function formatCost(cost?: null | number) {
-  return `$${Number(cost || 0).toFixed(4)}`;
-}
 
 function viewDetail(row: MonitoringConversationInfo) {
   detailId.value = row.id;

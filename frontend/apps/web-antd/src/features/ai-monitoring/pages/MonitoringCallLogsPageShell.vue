@@ -151,10 +151,6 @@ function handleOperationClick(payload: { row: MonitoringCallLogInfo }) {
   viewDetail(payload.row);
 }
 
-function formatCost(cost?: null | number) {
-  return `$${Number(cost || 0).toFixed(4)}`;
-}
-
 const columns = computed(() => {
   const base: any[] = [
     {

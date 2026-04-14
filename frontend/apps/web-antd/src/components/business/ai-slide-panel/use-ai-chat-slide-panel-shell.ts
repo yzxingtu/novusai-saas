@@ -66,6 +66,7 @@ export function useAIChatSlidePanelShell(
   const isPinned = computed(
     () => !!aiPanelStore.pinnedAgentId && !!aiPanelStore.pinnedAgentName,
   );
+  const unpinAgentRef = ref<() => void>(() => {});
 
   let openVarsModalRef: (
     vars: ReturnType<typeof getAgentInputVariables>,
@@ -232,7 +233,7 @@ export function useAIChatSlidePanelShell(
     storePendingMessage: toRef(aiPanelStore, 'pendingMessage'),
     streaming,
     totalTokensUsed,
-    unpinAgent: () => unpinAgent(),
+    unpinAgent: () => unpinAgentRef.value(),
     visible: toRef(aiPanelStore, 'visible'),
   });
 
@@ -341,6 +342,7 @@ export function useAIChatSlidePanelShell(
     inputMessage,
     selectedAgent,
   });
+  unpinAgentRef.value = shellActions.unpinAgent;
 
   const bindings = useAIChatSlidePanelShellBindings({
     actionClick: clickActionButton,

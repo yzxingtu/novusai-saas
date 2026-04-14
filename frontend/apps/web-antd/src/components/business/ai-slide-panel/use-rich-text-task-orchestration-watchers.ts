@@ -10,10 +10,11 @@ interface UseRichTextTaskOrchestrationWatchersOptions {
   activeConversationId: Ref<null | number>;
   applyRichTextTaskContext: () => Promise<void>;
   chatMessages: Ref<ChatMessage[]>;
-  currentRichTextDispatchTask: Ref<null | RichTextAITask>;
   flushRichTextTaskQueue: () => void;
+  hasLastAppliedRichTextAction: () => boolean;
   invalidateLastAppliedRichTextAction: () => void;
   isLastAppliedRichTextActionValid: () => boolean;
+  onTaskQueued?: (() => void) | undefined;
   richTextTaskOrchestrationState: ComputedRef<'closed' | 'idle' | 'streaming'>;
   store: {
     clearPendingRichTextTask: (taskId?: string) => void;
@@ -35,7 +36,7 @@ export function useRichTextTaskOrchestrationWatchers(
       if (
         previousConversationId !== undefined &&
         previousConversationId !== conversationId &&
-        options.currentRichTextDispatchTask.value
+        options.hasLastAppliedRichTextAction()
       ) {
         options.invalidateLastAppliedRichTextAction();
       }
@@ -73,6 +74,7 @@ export function useRichTextTaskOrchestrationWatchers(
       if (state === 'streaming') {
         options.store.queueRichTextTask(pendingTask);
         options.store.clearPendingRichTextTask(pendingTask.taskId);
+        options.onTaskQueued?.();
         return;
       }
 

@@ -438,12 +438,13 @@ export function useRichTextTaskOrchestration(
     activeConversationId: options.activeConversationId,
     applyRichTextTaskContext,
     chatMessages: options.chatMessages,
-    currentRichTextDispatchTask,
     flushRichTextTaskQueue,
+    hasLastAppliedRichTextAction: () => !!lastAppliedRichTextAction.value,
     invalidateLastAppliedRichTextAction,
     isLastAppliedRichTextActionValid: () =>
       !lastAppliedRichTextAction.value ||
       isLastAppliedRichTextActionValid(lastAppliedRichTextAction.value),
+    onTaskQueued: options.onTaskQueued,
     richTextTaskOrchestrationState,
     store: options.store,
     syncCurrentRichTextBinding,
