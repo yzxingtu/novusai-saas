@@ -3,11 +3,36 @@ import { describe, expect, it, vi } from 'vitest';
 import * as providerData from '../data';
 
 vi.mock('#/adapter/form', () => ({
-  inputField: vi.fn(),
-  searchInput: vi.fn(),
-  select: vi.fn(),
-  switchField: vi.fn(),
-  textareaField: vi.fn(),
+  inputField: vi.fn((fieldName: string, label: string, options = {}) => ({
+    component: 'Input',
+    fieldName,
+    label,
+    ...options,
+  })),
+  searchInput: vi.fn((fieldName: string, label: string, options = {}) => ({
+    component: 'Input',
+    fieldName,
+    label,
+    ...options,
+  })),
+  select: vi.fn((fieldName: string, label: string, options = {}) => ({
+    component: 'Select',
+    fieldName,
+    label,
+    ...options,
+  })),
+  switchField: vi.fn((fieldName: string, label: string, options = {}) => ({
+    component: 'Switch',
+    fieldName,
+    label,
+    ...options,
+  })),
+  textareaField: vi.fn((fieldName: string, label: string, options = {}) => ({
+    component: 'Textarea',
+    fieldName,
+    label,
+    ...options,
+  })),
   z: {},
 }));
 
@@ -69,6 +94,12 @@ describe('provider connection settings helpers', () => {
     ).toBeNull();
   });
 
+  it('uses the localized fallback label for known adapter types', () => {
+    expect(providerData.getProviderTypeText('openai_compatible')).toBe(
+      'admin.ai.provider.type_options.openai_compatible',
+    );
+  });
+
   it('warns when an openai-compatible base url looks like it is missing /v1', () => {
     expect(
       providerData.hasLikelyMissingProviderApiVersion(
@@ -101,6 +132,13 @@ describe('provider web_search config contracts', () => {
         'native_first_fallback_public',
       );
     }
+  });
+
+  it('hides the type search filter when only one adapter type is available', () => {
+    const schema = providerData.useGridFormSchema();
+
+    expect(schema).toHaveLength(1);
+    expect(schema[0]).toMatchObject({ fieldName: 'name' });
   });
 
   it('validates optional web_search normalize helper when it exists', () => {

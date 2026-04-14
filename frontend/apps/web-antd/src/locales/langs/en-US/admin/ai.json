@@ -34,10 +34,11 @@
   },
   "provider": {
     "title": "Provider Management",
-    "pageDesc": "Manage AI provider connections including API endpoints and status. Drag to adjust priority.",
+    "pageDesc": "Manage AI provider connections including adapter type, API endpoint, protocol, and status. Drag to adjust priority.",
     "name": "Provider Name",
     "code": "Provider Code",
-    "type": "Provider Type",
+    "type": "Adapter Type",
+    "connectionMode": "Connection Mode",
     "baseUrl": "API URL",
     "wireApi": "API Protocol",
     "responsesToolHistoryCompat": "Responses Tool Follow-up Compatibility Mode",
@@ -52,7 +53,7 @@
       "searchName": "Search provider name",
       "inputName": "Enter provider name",
       "inputCode": "Enter provider code",
-      "selectType": "Select provider type",
+      "selectType": "Select adapter type",
       "inputBaseUrl": "Enter API URL",
       "selectWireApi": "Select API protocol",
       "inputDescription": "Enter description"
@@ -83,7 +84,7 @@
       "baseUrl": "The provider's API base URL, e.g. https://api.openai.com/v1. Do not append /responses or /chat/completions; configure the URL and protocol separately",
       "wireApi": "Prefer Chat Completions for legacy integrations, simple chat, and full per-request control; prefer Responses for tool use, multi-step agents, GPT-5 / o-series reasoning, and less client-side state handling. For new integrations, Responses is usually the better default to evaluate first. The chosen wire API will not auto-fix the base URL, which must be entered manually as the provider's API root.",
       "responsesToolHistoryCompat": "Enable this only when follow-up turns after tool calls frequently fail with 500/502 under the Responses protocol. It rewrites tool history into a more conservative text context for better gateway compatibility, but may reduce the model's ability to continue calling tools automatically. Disabled by default and generally not recommended.",
-      "type": "Currently only OpenAI-compatible format is supported. Most AI services (including Anthropic, Azure) are compatible",
+      "type": "This field selects the integration adapter / compatibility format, not the vendor brand. The platform currently connects primarily through the OpenAI-compatible format, which covers many providers and compatible Azure-style endpoints.",
       "isActive": "When disabled, all models under this provider become unavailable and existing API calls will fail"
     },
     "webSearch": {

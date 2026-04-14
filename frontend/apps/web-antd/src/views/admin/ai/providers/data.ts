@@ -29,6 +29,22 @@ import { $t } from '#/locales';
 /** 缓存适配器类型列表 / Cached adapter type list */
 const adapterTypesCache = ref<AdapterTypeInfo[]>([]);
 
+function getFallbackAdapterTypes(): AdapterTypeInfo[] {
+  return [
+    {
+      type: 'openai_compatible',
+      source: 'builtin',
+      display_name: $t('admin.ai.provider.type_options.openai_compatible'),
+    },
+  ];
+}
+
+function getResolvedAdapterTypes(): AdapterTypeInfo[] {
+  return adapterTypesCache.value.length > 0
+    ? adapterTypesCache.value
+    : getFallbackAdapterTypes();
+}
+
 export type OpenAICompatibleWireApi = 'chat_completions' | 'responses';
 export type ResponsesToolHistoryMode = 'structured' | 'text';
 export type ProviderWebSearchStrategy = 'native_first_fallback_public';
@@ -81,9 +97,7 @@ function normalizePublicProviders(value: unknown): PublicWebSearchProvider[] {
       (item): item is PublicWebSearchProvider =>
         item === 'baidu' || item === 'so360',
     );
-  return providers.length > 0
-    ? Array.from(new Set(providers))
-    : ['baidu', 'so360'];
+  return providers.length > 0 ? [...new Set(providers)] : ['baidu', 'so360'];
 }
 
 function readOptionalBoolean(value: unknown): boolean | undefined {
@@ -107,7 +121,10 @@ function readOptionalPositiveInt(value: unknown): number | undefined {
   return value;
 }
 
-function hasOwnField(values: Record<string, unknown>, fieldName: string): boolean {
+function hasOwnField(
+  values: Record<string, unknown>,
+  fieldName: string,
+): boolean {
   return Object.prototype.hasOwnProperty.call(values, fieldName);
 }
 
@@ -142,17 +159,24 @@ function buildVerifiedNativeTargetFromFormValues(
     hasOwnField(values, 'web_search_verified_provider_id') ||
     hasOwnField(values, 'web_search_verified_model_id');
   if (!hasFlatFields) {
-    return normalizeVerifiedNativeTarget(values.web_search_verified_native_target);
+    return normalizeVerifiedNativeTarget(
+      values.web_search_verified_native_target,
+    );
   }
 
   const target: ProviderWebSearchVerifiedTarget = {};
-  const providerId = readOptionalPositiveInt(values.web_search_verified_provider_id);
+  const providerId = readOptionalPositiveInt(
+    values.web_search_verified_provider_id,
+  );
   const providerCode = readOptionalString(
     values.web_search_verified_provider_code,
     50,
   );
   const modelId = readOptionalPositiveInt(values.web_search_verified_model_id);
-  const modelCode = readOptionalString(values.web_search_verified_model_code, 100);
+  const modelCode = readOptionalString(
+    values.web_search_verified_model_code,
+    100,
+  );
 
   if (providerId !== undefined) target.provider_id = providerId;
   if (providerCode !== undefined) target.provider_code = providerCode;
@@ -166,8 +190,8 @@ function mergeProviderWebSearchAdvancedFields(
   nextConfig: ProviderWebSearchConfig,
   source?:
     | null
-    | Record<string, unknown>
-    | ProviderWebSearchConfigWithAdvancedFields,
+    | ProviderWebSearchConfigWithAdvancedFields
+    | Record<string, unknown>,
 ): ProviderWebSearchConfigWithAdvancedFields {
   const merged: ProviderWebSearchConfigWithAdvancedFields = { ...nextConfig };
   if (!source) return merged;
@@ -243,7 +267,8 @@ export function buildProviderWebSearchConfigFromForm(
     hasOwnField(values, 'web_search_verified_model_id') ||
     normalizeVerifiedNativeTarget(values.web_search_verified_native_target) !==
       undefined;
-  const verifiedTargetFromForm = buildVerifiedNativeTargetFromFormValues(values);
+  const verifiedTargetFromForm =
+    buildVerifiedNativeTargetFromFormValues(values);
   const allowUnverifiedFromForm = readOptionalBoolean(
     values.web_search_allow_unverified_runtime_target,
   );
@@ -480,31 +505,28 @@ export async function loadAdapterTypes(): Promise<AdapterTypeInfo[]> {
     adapterTypesCache.value = data;
     return data;
   } catch {
-    return [
-      {
-        type: 'openai_compatible',
-        source: 'builtin',
-        display_name: 'OpenAI Compatible',
-      },
-    ];
+    const fallbackTypes = getFallbackAdapterTypes();
+    adapterTypesCache.value = fallbackTypes;
+    return fallbackTypes;
   }
 }
 
 function getProviderTypeOptions() {
-  const types = adapterTypesCache.value;
-  if (types.length > 0) {
-    return types.map((t) => ({
-      label:
-        t.source === 'plugin' ? `${t.display_name} (Plugin)` : t.display_name,
-      value: t.type,
-    }));
-  }
-  return [
-    {
-      label: $t('admin.ai.provider.type_options.openai_compatible'),
-      value: 'openai_compatible',
-    },
-  ];
+  return getResolvedAdapterTypes().map((adapterType) => ({
+    label:
+      adapterType.source === 'plugin'
+        ? `${getProviderTypeText(adapterType.type)} (Plugin)`
+        : getProviderTypeText(adapterType.type),
+    value: adapterType.type,
+  }));
+}
+
+export function hasMultipleAdapterTypeOptions(): boolean {
+  return getProviderTypeOptions().length > 1;
+}
+
+export function getDefaultProviderType(): string {
+  return getResolvedAdapterTypes()[0]?.type || 'openai_compatible';
 }
 
 /**
@@ -512,8 +534,11 @@ function getProviderTypeOptions() {
  */
 export function getProviderTypeText(type: string | undefined): string {
   if (!type) return '-';
-  const cached = adapterTypesCache.value.find((t) => t.type === type);
-  if (cached) return cached.display_name;
+  const cached = getResolvedAdapterTypes().find((t) => t.type === type);
+  const cachedDisplayName = String(cached?.display_name || '').trim();
+  if (cachedDisplayName && cachedDisplayName !== type) {
+    return cachedDisplayName;
+  }
   switch (type) {
     case 'openai_compatible': {
       return $t('admin.ai.provider.type_options.openai_compatible');
@@ -524,12 +549,25 @@ export function getProviderTypeText(type: string | undefined): string {
   }
 }
 
+function resolveSchemaProviderType(values: Record<string, unknown>): string {
+  return typeof values.type === 'string' && values.type.trim()
+    ? values.type
+    : getDefaultProviderType();
+}
+
 /**
  * 表格列定义
  */
 export function useColumns<T = AIProviderInfo>(
   onActionClick: OnActionClickFn<T>,
+  _onToggleStatus?: unknown,
+  options?: {
+    showProviderTypeColumn?: boolean;
+  },
 ): VxeTableGridOptions['columns'] {
+  const showProviderTypeColumn =
+    options?.showProviderTypeColumn ?? hasMultipleAdapterTypeOptions();
+
   return [
     dragColumn,
     {
@@ -538,20 +576,32 @@ export function useColumns<T = AIProviderInfo>(
       minWidth: 280,
       slots: { default: 'name_cell' },
     },
-    {
-      field: 'type',
-      title: $t('admin.ai.provider.type'),
-      width: 160,
-      align: 'center',
-      slots: { default: 'type_cell' },
-    },
-    {
-      field: 'wire_api',
-      title: $t('admin.ai.provider.wireApi'),
-      width: 180,
-      align: 'center',
-      slots: { default: 'wireApi_cell' },
-    },
+    ...(showProviderTypeColumn
+      ? [
+          {
+            field: 'type',
+            title: $t('admin.ai.provider.type'),
+            width: 160,
+            align: 'center' as const,
+            slots: { default: 'type_cell' },
+          },
+          {
+            field: 'wire_api',
+            title: $t('admin.ai.provider.wireApi'),
+            width: 180,
+            align: 'center' as const,
+            slots: { default: 'wireApi_cell' },
+          },
+        ]
+      : [
+          {
+            field: 'connection_mode',
+            title: $t('admin.ai.provider.connectionMode'),
+            minWidth: 220,
+            align: 'center' as const,
+            slots: { default: 'connection_cell' },
+          },
+        ]),
     {
       field: 'web_search',
       title: $t('admin.ai.provider.webSearch.title'),
@@ -562,18 +612,18 @@ export function useColumns<T = AIProviderInfo>(
       field: 'model_count',
       title: $t('admin.ai.provider.modelCount'),
       width: 100,
-      align: 'center',
+      align: 'center' as const,
       slots: { default: 'modelCount_cell' },
     },
     {
       field: 'is_active',
       title: $t('admin.ai.provider.isActive'),
       width: 130,
-      align: 'center',
+      align: 'center' as const,
       slots: { default: 'isActive_cell' },
     },
     {
-      align: 'center',
+      align: 'center' as const,
       cellRender: {
         attrs: {
           resource: 'ai_provider',
@@ -596,22 +646,27 @@ export function useColumns<T = AIProviderInfo>(
  * 搜索表单 Schema
  */
 export function useGridFormSchema(): VbenFormSchema[] {
-  return [
+  const schema: VbenFormSchema[] = [
     searchInput('name', $t('admin.ai.provider.name'), {
       placeholder: $t('admin.ai.provider.placeholder.searchName'),
     }),
-    select('filter[type][eq]', $t('admin.ai.provider.type'), {
-      options: getProviderTypeOptions(),
-      placeholder: $t('admin.ai.provider.type'),
-    }),
   ];
+  if (hasMultipleAdapterTypeOptions()) {
+    schema.push(
+      select('filter[type][eq]', $t('admin.ai.provider.type'), {
+        options: getProviderTypeOptions(),
+        placeholder: $t('admin.ai.provider.type'),
+      }),
+    );
+  }
+  return schema;
 }
 
 /**
  * 表单 Schema
  */
 export function useFormSchema(isEdit = false): VbenFormSchema[] {
-  return [
+  const schema: VbenFormSchema[] = [
     inputField('name', $t('admin.ai.provider.name'), {
       required: true,
       placeholder: $t('admin.ai.provider.placeholder.inputName'),
@@ -623,14 +678,18 @@ export function useFormSchema(isEdit = false): VbenFormSchema[] {
           }),
         ]
       : []),
-    {
+  ];
+  if (hasMultipleAdapterTypeOptions()) {
+    schema.push({
       ...select('type', $t('admin.ai.provider.type'), {
         options: getProviderTypeOptions(),
         required: true,
         placeholder: $t('admin.ai.provider.placeholder.selectType'),
       }),
       help: $t('admin.ai.provider.help.type'),
-    },
+    });
+  }
+  schema.push(
     {
       component: 'Input',
       componentProps: {
@@ -659,7 +718,7 @@ export function useFormSchema(isEdit = false): VbenFormSchema[] {
       dependencies: {
         triggerFields: ['type'],
         show: (values: Record<string, unknown>) =>
-          values.type === 'openai_compatible',
+          resolveSchemaProviderType(values) === 'openai_compatible',
       },
       help: $t('admin.ai.provider.help.wireApi'),
     },
@@ -674,7 +733,7 @@ export function useFormSchema(isEdit = false): VbenFormSchema[] {
       dependencies: {
         triggerFields: ['type', 'wire_api'],
         show: (values: Record<string, unknown>) =>
-          values.type === 'openai_compatible' &&
+          resolveSchemaProviderType(values) === 'openai_compatible' &&
           values.wire_api === 'responses',
       },
       help: $t('admin.ai.provider.help.responsesToolHistoryCompat'),
@@ -713,7 +772,7 @@ export function useFormSchema(isEdit = false): VbenFormSchema[] {
       rules: z
         .union([z.number(), z.null(), z.undefined()])
         .refine(
-          (value: number | null | undefined) =>
+          (value: null | number | undefined) =>
             value === null ||
             value === undefined ||
             (Number.isInteger(value) && value >= 1 && value <= 10),
@@ -736,7 +795,7 @@ export function useFormSchema(isEdit = false): VbenFormSchema[] {
       rules: z
         .union([z.number(), z.null(), z.undefined()])
         .refine(
-          (value: number | null | undefined) =>
+          (value: null | number | undefined) =>
             value === null ||
             value === undefined ||
             (Number.isInteger(value) && value >= 1 && value <= 120),
@@ -761,7 +820,7 @@ export function useFormSchema(isEdit = false): VbenFormSchema[] {
       rules: z
         .union([z.number(), z.null(), z.undefined()])
         .refine(
-          (value: number | null | undefined) =>
+          (value: null | number | undefined) =>
             value === null ||
             value === undefined ||
             (Number.isInteger(value) && value >= 1 && value <= 120),
@@ -798,7 +857,7 @@ export function useFormSchema(isEdit = false): VbenFormSchema[] {
       dependencies: {
         triggerFields: ['type', 'web_search_enabled'],
         show: (values: Record<string, unknown>) =>
-          values.type === 'openai_compatible' &&
+          resolveSchemaProviderType(values) === 'openai_compatible' &&
           values.web_search_enabled !== false,
       },
       help: $t('admin.ai.provider.webSearch.help.allowUnverifiedRuntimeTarget'),
@@ -816,7 +875,7 @@ export function useFormSchema(isEdit = false): VbenFormSchema[] {
       dependencies: {
         triggerFields: ['type', 'web_search_enabled'],
         show: (values: Record<string, unknown>) =>
-          values.type === 'openai_compatible' &&
+          resolveSchemaProviderType(values) === 'openai_compatible' &&
           values.web_search_enabled !== false,
       },
       help: $t('admin.ai.provider.webSearch.help.verifiedProviderCode'),
@@ -834,7 +893,7 @@ export function useFormSchema(isEdit = false): VbenFormSchema[] {
       dependencies: {
         triggerFields: ['type', 'web_search_enabled'],
         show: (values: Record<string, unknown>) =>
-          values.type === 'openai_compatible' &&
+          resolveSchemaProviderType(values) === 'openai_compatible' &&
           values.web_search_enabled !== false,
       },
       help: $t('admin.ai.provider.webSearch.help.verifiedModelCode'),
@@ -853,7 +912,8 @@ export function useFormSchema(isEdit = false): VbenFormSchema[] {
       }),
       help: $t('admin.ai.provider.help.isActive'),
     },
-  ];
+  );
+  return schema;
 }
 
 /**
@@ -861,7 +921,7 @@ export function useFormSchema(isEdit = false): VbenFormSchema[] {
  */
 export function getFormDefaults(): Record<string, unknown> {
   return {
-    type: 'openai_compatible',
+    type: getDefaultProviderType(),
     wire_api: 'chat_completions',
     responses_tool_history_compat: false,
     web_search_enabled: WEB_SEARCH_DEFAULTS.enabled,

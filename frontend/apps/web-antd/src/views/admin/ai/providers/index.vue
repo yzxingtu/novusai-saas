@@ -5,6 +5,8 @@
  */
 import type { AIProviderInfo } from '#/api/admin/ai';
 
+import { ref } from 'vue';
+
 import { Page } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
@@ -22,13 +24,14 @@ import { toAttachmentImageUrl } from '#/utils/image';
 import AIGatewayQuickStartHero from '../_shared/AIGatewayQuickStartHero.vue';
 import {
   getFormDefaults,
+  getProviderTypeText,
   getProviderWebSearchRuntimeSummary,
   getProviderWebSearchStrategyText,
-  getProviderTypeText,
   getProviderWireApiText,
+  hasMultipleAdapterTypeOptions,
   loadAdapterTypes,
-  resolveProviderWireApi,
   resolveProviderWebSearchConfig,
+  resolveProviderWireApi,
   shouldWarnProviderWebSearchAutoFallback,
   useColumns,
   useGridFormSchema,
@@ -37,7 +40,21 @@ import Form from './modules/form.vue';
 
 defineOptions({ name: 'AIProviderList' });
 
-loadAdapterTypes();
+const showProviderTypeColumn = ref(hasMultipleAdapterTypeOptions());
+let latestActionClick: null | Parameters<typeof useColumns<AIProviderInfo>>[0] =
+  null;
+let latestToggleStatus: Parameters<typeof useColumns<AIProviderInfo>>[1];
+
+function buildColumns(
+  onActionClick: Parameters<typeof useColumns<AIProviderInfo>>[0],
+  onToggleStatus?: Parameters<typeof useColumns<AIProviderInfo>>[1],
+) {
+  latestActionClick = onActionClick;
+  latestToggleStatus = onToggleStatus;
+  return useColumns(onActionClick, onToggleStatus, {
+    showProviderTypeColumn: showProviderTypeColumn.value,
+  });
+}
 
 function getRowWireApi(row: AIProviderInfo) {
   const config =
@@ -89,7 +106,7 @@ const { Grid, FormDrawer, gridApi, onRefresh } = useCrudPage<AIProviderInfo>({
     list: getAIProviderListApi,
     resource: '/admin/ai/providers',
   },
-  columns: useColumns,
+  columns: buildColumns,
   searchSchema: useGridFormSchema(),
   search: {
     defaultOpen: false,
@@ -111,6 +128,22 @@ const { Grid, FormDrawer, gridApi, onRefresh } = useCrudPage<AIProviderInfo>({
 function onFormSuccess() {
   onRefresh();
 }
+
+async function syncAdapterTypePresentation() {
+  await loadAdapterTypes();
+  const nextShowProviderTypeColumn = hasMultipleAdapterTypeOptions();
+  if (nextShowProviderTypeColumn === showProviderTypeColumn.value) {
+    return;
+  }
+  showProviderTypeColumn.value = nextShowProviderTypeColumn;
+  if (latestActionClick) {
+    gridApi.setGridOptions({
+      columns: buildColumns(latestActionClick, latestToggleStatus),
+    });
+  }
+}
+
+void syncAdapterTypePresentation();
 
 // Drag sort / 拖拽排序
 useAutoTableDragSort(() => gridApi.grid, {
@@ -193,6 +226,17 @@ useAutoTableDragSort(() => gridApi.grid, {
           </Tag>
         </template>
 
+        <template #connection_cell="{ row }">
+          <div class="flex flex-wrap justify-center gap-1">
+            <Tag color="blue" class="m-0">
+              {{ getProviderTypeText(row.type) }}
+            </Tag>
+            <Tag v-if="getRowWireApi(row)" color="processing" class="m-0">
+              {{ getProviderWireApiText(getRowWireApi(row)) }}
+            </Tag>
+          </div>
+        </template>
+
         <!-- API 协议列 -->
         <template #wireApi_cell="{ row }">
           <Tag
@@ -208,7 +252,11 @@ useAutoTableDragSort(() => gridApi.grid, {
         <template #webSearch_cell="{ row }">
           <div class="flex flex-col gap-1 py-1">
             <div class="flex flex-wrap items-center gap-1">
-              <Tag :color="getRowWebSearchConfig(row).enabled ? 'success' : 'default'">
+              <Tag
+                :color="
+                  getRowWebSearchConfig(row).enabled ? 'success' : 'default'
+                "
+              >
                 {{
                   getRowWebSearchConfig(row).enabled
                     ? $t('admin.common.enabled')
@@ -231,7 +279,9 @@ useAutoTableDragSort(() => gridApi.grid, {
               }}
             </div>
             <div
-              v-if="shouldWarnProviderWebSearchAutoFallback(row.web_search_runtime)"
+              v-if="
+                shouldWarnProviderWebSearchAutoFallback(row.web_search_runtime)
+              "
               class="text-xs text-amber-600 dark:text-amber-400"
             >
               {{ $t('admin.ai.provider.webSearch.runtime.autoFallbackHint') }}

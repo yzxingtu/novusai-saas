@@ -15,14 +15,16 @@ import { $t } from '#/locales';
 
 import {
   buildProviderWebSearchConfigFromForm,
+  getDefaultProviderType,
   getFormDefaults,
   getProviderWebSearchRuntimeSummary,
   hasForbiddenProviderEndpointSuffix,
   hasLikelyMissingProviderApiVersion,
   isResponsesToolHistoryCompatEnabled,
+  loadAdapterTypes,
   normalizeProviderBaseUrlInput,
-  resolveProviderWireApi,
   resolveProviderWebSearchConfig,
+  resolveProviderWireApi,
   shouldWarnProviderWebSearchAutoFallback,
   useFormSchema,
 } from '../data';
@@ -31,6 +33,7 @@ defineOptions({ name: 'AIProviderForm' });
 
 const emits = defineEmits<{ success: [] }>();
 const configSnapshot = ref<null | Record<string, unknown>>(null);
+const providerTypeSnapshot = ref(getDefaultProviderType());
 const webSearchRuntime = ref<null | ProviderWebSearchRuntime>(null);
 const webSearchRuntimeSummary = computed(() =>
   getProviderWebSearchRuntimeSummary(webSearchRuntime.value),
@@ -49,13 +52,17 @@ const { Drawer, isEdit } = useCrudDrawer<AIProviderInfo>({
   schema: (edit) => useFormSchema(edit),
   defaults: getFormDefaults,
   transform: (values, edit) => {
+    const effectiveProviderType =
+      typeof values.type === 'string' && values.type.trim()
+        ? values.type
+        : providerTypeSnapshot.value;
     const normalizedBaseUrl = normalizeProviderBaseUrlInput(
       typeof values.base_url === 'string' ? values.base_url : null,
     );
     if (
       hasForbiddenProviderEndpointSuffix(
         normalizedBaseUrl,
-        typeof values.type === 'string' ? values.type : null,
+        effectiveProviderType,
       )
     ) {
       message.error(
@@ -66,7 +73,7 @@ const { Drawer, isEdit } = useCrudDrawer<AIProviderInfo>({
     if (
       hasLikelyMissingProviderApiVersion(
         normalizedBaseUrl,
-        typeof values.type === 'string' ? values.type : null,
+        effectiveProviderType,
       )
     ) {
       message.warning(
@@ -75,13 +82,13 @@ const { Drawer, isEdit } = useCrudDrawer<AIProviderInfo>({
     }
 
     const effectiveWireApi = resolveProviderWireApi(
-      typeof values.type === 'string' ? values.type : null,
+      effectiveProviderType,
       typeof values.wire_api === 'string' ? values.wire_api : null,
     );
 
     const nextConfig =
       edit && configSnapshot.value ? { ...configSnapshot.value } : {};
-    if (values.type === 'openai_compatible') {
+    if (effectiveProviderType === 'openai_compatible') {
       nextConfig.wire_api = effectiveWireApi || 'chat_completions';
       if (
         effectiveWireApi === 'responses' &&
@@ -106,7 +113,7 @@ const { Drawer, isEdit } = useCrudDrawer<AIProviderInfo>({
 
     const result: Record<string, unknown> = {
       name: values.name,
-      type: values.type,
+      type: effectiveProviderType,
       base_url: normalizedBaseUrl,
       description: values.description || null,
       icon: values.icon || null,
@@ -119,11 +126,16 @@ const { Drawer, isEdit } = useCrudDrawer<AIProviderInfo>({
     }
     return result;
   },
+  onOpen: async () => {
+    await loadAdapterTypes();
+    providerTypeSnapshot.value = getDefaultProviderType();
+  },
   toFormValues: (data) => {
     configSnapshot.value =
       data.config && typeof data.config === 'object'
         ? { ...data.config }
         : null;
+    providerTypeSnapshot.value = data.type || getDefaultProviderType();
     webSearchRuntime.value = data.web_search_runtime || null;
     const effectiveWireApi = resolveProviderWireApi(
       data.type,
