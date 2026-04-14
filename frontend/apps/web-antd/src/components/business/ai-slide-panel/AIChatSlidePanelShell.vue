@@ -11,8 +11,6 @@ import {
   watchEffect,
 } from 'vue';
 
-import { message } from 'ant-design-vue';
-
 import { useAIChat } from '#/components/business/ai-chat-panel/use-ai-chat';
 import { useModalDetector } from '#/composables/use-modal-detector';
 import {
@@ -25,7 +23,6 @@ import { useAIPanelStore } from '#/store';
 import { usePublicConfigStore } from '#/store/shared/public-config';
 import { getAgentInputVariables } from '#/types/ai-chat';
 import { normalizePageAIMode } from '#/utils/ai-page-capabilities';
-import { getErrorMessage } from '#/utils/error-helpers';
 
 import AgentVarsModal from './AgentVarsModal.vue';
 import AIChatMemoryPanel from './AIChatMemoryPanel.vue';
@@ -38,6 +35,7 @@ import { usePageAICapability } from './use-page-ai-capability';
 import { usePanelComposer } from './use-panel-composer';
 import { usePanelHistory } from './use-panel-history';
 import { usePanelLinkPreview } from './use-panel-link-preview';
+import { usePanelSendMessage } from './use-panel-send-message';
 import { usePanelShellActions } from './use-panel-shell-actions';
 import { usePanelShellContext } from './use-panel-shell-context';
 import { usePanelShellHeaderBindings } from './use-panel-shell-header-bindings';
@@ -227,6 +225,7 @@ const exportMenuItems = computed(() => [
   },
 ]);
 
+const handleSendMessageRef = ref<() => Promise<boolean>>(async () => false);
 const unpinAgentRef = ref<() => void>(() => {});
 
 const { routing, routeMessage } = useAgentRouter({
@@ -252,7 +251,7 @@ const panelShellContext = usePanelShellContext({
   ensureAgentVarsLoaded,
   exportMenuItems,
   fetchConversationMemory,
-  handleSendMessage,
+  handleSendMessage: () => handleSendMessageRef.value(),
   inputMessage,
   isPinned,
   lastMemoryUpdated,
@@ -369,141 +368,29 @@ const interactionModeDowngradeText = computed(() => {
   return reason || '';
 });
 
+const { handleSendMessage: dispatchPanelMessage } = usePanelSendMessage({
+  activeConversationId,
+  agents,
+  allAgentsVariables,
+  currentPageContext,
+  deferSendForMissingVariables,
+  ensureAgentVarsLoaded,
+  forceRerouteNextTurn,
+  inputMessage,
+  isPinned,
+  manualNewConversationAgentId,
+  pageContextKey: toRef(props, 'pageContextKey'),
+  pendingAttachments,
+  pinnedAgentId: toRef(aiPanelStore, 'pinnedAgentId'),
+  routeMessage,
+  selectedAgentId,
+  sendMessage,
+  showRouteNotice,
+});
+handleSendMessageRef.value = dispatchPanelMessage;
+
 async function handleSendMessage() {
-  const text = inputMessage.value.trim();
-  if (!text && pendingAttachments.value.length === 0) return false;
-
-  const hasImageAttachments = pendingAttachments.value.some(
-    (a) => a.type === 'image',
-  );
-  const hasAudioAttachments = pendingAttachments.value.some(
-    (a) => a.type === 'audio',
-  );
-  const hasVideoAttachments = pendingAttachments.value.some(
-    (a) => a.type === 'video',
-  );
-  const hasFileAttachments = pendingAttachments.value.some(
-    (a) => a.type === 'file',
-  );
-  const hasCapabilitySensitiveAttachments =
-    hasImageAttachments || hasAudioAttachments || hasVideoAttachments;
-  const hasAnyAttachments = pendingAttachments.value.length > 0;
-
-  const pageContext = currentPageContext.value;
-
-  // P0: Agent is pinned → skip routing, send directly / 已固定智能体 → 跳过路由，直接发送
-  if (isPinned.value && aiPanelStore.pinnedAgentId) {
-    const pinnedId = aiPanelStore.pinnedAgentId;
-    if (pinnedId !== selectedAgentId.value) {
-      selectedAgentId.value = pinnedId;
-    }
-    const pinnedAgent = agents.value.find((a) => a.id === pinnedId);
-    const pinnedInputVariables = getAgentInputVariables(pinnedAgent);
-    const pinnedRequired = pinnedInputVariables.filter((v) => v.required);
-    if (pinnedRequired.length > 0) {
-      ensureAgentVarsLoaded(pinnedId);
-      const pinnedVars = allAgentsVariables.value[pinnedId] ?? {};
-      const pinnedMissing = pinnedRequired.filter(
-        (v) => !pinnedVars[v.name]?.trim(),
-      );
-      if (pinnedMissing.length > 0) {
-        deferSendForMissingVariables({
-          agentId: pinnedId,
-          agentName: pinnedAgent!.name,
-          pageContext,
-          requiredVars: pinnedInputVariables,
-        });
-        return false;
-      }
-    }
-    return await sendMessage({ agentId: pinnedId, pageContext });
-  }
-
-  const forceReroute = forceRerouteNextTurn.value;
-  if (forceReroute) {
-    forceRerouteNextTurn.value = false;
-  }
-
-  if (
-    !activeConversationId.value &&
-    manualNewConversationAgentId.value &&
-    selectedAgentId.value === manualNewConversationAgentId.value
-  ) {
-    const explicitAgentId = manualNewConversationAgentId.value;
-    manualNewConversationAgentId.value = null;
-    return await sendMessage({ agentId: explicitAgentId, pageContext });
-  }
-
-  if (activeConversationId.value && selectedAgentId.value && !forceReroute) {
-    return await sendMessage({ pageContext });
-  }
-
-  try {
-    // /route 要求 message 非空；仅发图时用占位符 / Route API requires non-empty message
-    const routeMessageText = text || (hasAnyAttachments ? ' ' : '');
-    const result = await routeMessage(
-      routeMessageText,
-      props.pageContextKey,
-      pageContext,
-      {
-        hasAudioAttachments,
-        hasFileAttachments,
-        hasImageAttachments,
-        hasVideoAttachments,
-      },
-      forceReroute,
-    );
-
-    manualNewConversationAgentId.value = null;
-
-    // Update current agent context after explicit routing / 路由后更新当前智能体上下文
-    if (result.agentId !== selectedAgentId.value) {
-      selectedAgentId.value = result.agentId;
-    }
-    const routedPageContext = currentPageContext.value;
-
-    // Show route notice (pinned and default don't show) / 显示路由提示（pinned 和 default 不显示）
-    if (result.routedBy === 'router') {
-      showRouteNotice(
-        $t('common.aiPanel.routedTo', { agent: result.agentName }),
-      );
-    }
-
-    // Check if routed agent has required vars not yet filled / 检查路由到的 agent 是否有必填变量未填
-    const routedAgent = agents.value.find((a) => a.id === result.agentId);
-    const routedInputVariables = getAgentInputVariables(routedAgent);
-    const requiredVars = routedInputVariables.filter((v) => v.required);
-    if (requiredVars.length > 0) {
-      ensureAgentVarsLoaded(result.agentId);
-      const agentVars = allAgentsVariables.value[result.agentId] ?? {};
-      const missing = requiredVars.filter((v) => !agentVars[v.name]?.trim());
-      if (missing.length > 0) {
-        // Defer send: open modal and wait for vars to be filled / 延迟发送：打开弹窗等待变量填写
-        deferSendForMissingVariables({
-          agentId: result.agentId,
-          agentName: routedAgent!.name,
-          pageContext: routedPageContext,
-          requiredVars: routedInputVariables,
-        });
-        return false;
-      }
-    }
-
-    // Send message (using routed agent ID) / 发送消息（使用路由后的智能体 ID）
-    return await sendMessage({
-      agentId: result.agentId,
-      pageContext: routedPageContext,
-    });
-  } catch (error: unknown) {
-    if (selectedAgentId.value && !hasCapabilitySensitiveAttachments) {
-      message.warning($t('common.globalAiChat.routeFailedFallback'));
-      return await sendMessage({ pageContext });
-    }
-
-    const baseMsg = getErrorMessage(error, 'common.http.internalServerError');
-    message.error(`${baseMsg} ${$t('common.globalAiChat.routeFailedHint')}`);
-    return false;
-  }
+  return handleSendMessageRef.value();
 }
 
 function handleKeyDown(e: KeyboardEvent) {
