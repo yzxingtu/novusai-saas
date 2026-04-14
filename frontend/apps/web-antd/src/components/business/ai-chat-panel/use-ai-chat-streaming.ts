@@ -26,6 +26,7 @@ import { $t } from '#/locales';
 import { formatLocalizedList } from './display-formatters';
 import { resolveConversationRequestState } from './conversation-binding';
 import { getAgentInputVariables } from './types';
+import { createAIChatStreamingScroll } from './use-ai-chat-streaming-scroll';
 import {
   runStreamRequest,
   type StreamControl,
@@ -143,47 +144,14 @@ export function useAIChatStreaming(deps: UseAIChatStreamingDeps) {
   /** Deferred auto-confirm flag: set when trusted_auto auto-approves during active stream */
   const deferredAutoConfirm = ref(false);
 
-  const messagesContainer = ref<HTMLElement | null>(null);
-  const userScrolledUp = ref(false);
-  const userNotAtTop = ref(false);
-
-  /**
-   * Smart scroll: only auto-scroll to bottom if user hasn't scrolled up
-   * @param force - if true, always scroll regardless of user position
-   */
-  function scrollToBottom(force = false) {
-    nextTick(() => {
-      const el = messagesContainer.value;
-      if (!el) return;
-      if (force || !userScrolledUp.value) {
-        el.scrollTop = el.scrollHeight;
-      }
-    });
-  }
-
-  function scrollToTop() {
-    nextTick(() => {
-      const el = messagesContainer.value;
-      if (!el) return;
-      el.scrollTop = 0;
-    });
-  }
-
-  /** Check if the user is near the bottom of the scroll container */
-  function isNearBottom(): boolean {
-    const el = messagesContainer.value;
-    if (!el) return true;
-    const threshold = 80;
-    return el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
-  }
-
-  /** Handle scroll events to detect manual user scroll-up */
-  function handleMessagesScroll() {
-    const el = messagesContainer.value;
-    if (!el) return;
-    userScrolledUp.value = !isNearBottom();
-    userNotAtTop.value = el.scrollTop > 80;
-  }
+  const {
+    handleMessagesScroll,
+    messagesContainer,
+    scrollToBottom,
+    scrollToTop,
+    userNotAtTop,
+    userScrolledUp,
+  } = createAIChatStreamingScroll();
 
   /**
    * Abort active SSE stream; call before switching agent/conversation or closing panel.

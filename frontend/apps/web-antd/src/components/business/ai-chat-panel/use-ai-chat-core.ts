@@ -13,21 +13,16 @@ import type { PendingInteractionUpdate } from './use-ai-chat-streaming';
 
 import type { PageContext, RawMessageItem } from '#/api/shared/ai-chat';
 
-import { computed, ref, unref, watch } from 'vue';
-
-import { message } from 'ant-design-vue';
-
-import { getChatAgentsApi } from '#/api/shared/ai-chat';
+import { computed, ref, watch } from 'vue';
 import { useFileUpload } from '#/composables/use-file-upload';
-import { $t } from '#/locales';
 import { useSocketIOStore } from '#/store';
 import { useAIPanelStore } from '#/store/shared/ai-panel';
 import { clearConsents } from '#/utils/ai-consent';
-import { toAvatarDisplayUrl } from '#/utils/image';
 
 import { useAIChatAttachments } from './use-ai-chat-attachments';
 import { useAIChatComposer } from './use-ai-chat-composer';
 import { useAIChatConversations } from './use-ai-chat-conversations';
+import { createAIChatCoreActions } from './use-ai-chat-core-actions';
 import { useAIChatExport } from './use-ai-chat-export';
 import { useAIChatInteractions } from './use-ai-chat-interactions';
 import { useAIChatMemory } from './use-ai-chat-memory';
@@ -302,148 +297,42 @@ export function useAIChat(options: UseAIChatOptions) {
     selectedAgent,
   });
 
-  async function loadAgents(overrideAgentId?: number) {
-    agentsLoading.value = true;
-    try {
-      const prefix = unref(options.apiPrefix) as string;
-      const response = await getChatAgentsApi<AgentItem>(prefix);
-      agents.value = response.items.map((agent) => {
-        const avatar = toAvatarDisplayUrl(agent.avatar ?? undefined);
-        return {
-          ...agent,
-          avatar: avatar || null,
-        };
-      });
-      const firstAgent = response.items[0];
-      if (firstAgent && !selectedAgentId.value) {
-        const initialId = overrideAgentId ?? unref(options.initialAgentId);
-        selectedAgentId.value =
-          initialId && response.items.some((item) => item.id === initialId)
-            ? initialId
-            : firstAgent.id;
-      }
-    } catch {
-      // handled by interceptor / 错误由请求拦截器处理
-    } finally {
-      agentsLoading.value = false;
-    }
-  }
-
-  function selectAgent(agentId: number) {
-    if (selectedAgentId.value === agentId) return;
-    abortActiveStream();
-    clearConsents();
-    selectedAgentId.value = agentId;
-    bumpConversationsRequestSeq();
-    bumpMessagesRequestSeq();
-    resetConversationState();
-    interactionModeEffective.value = interactionMode.value;
-    clearPendingAttachments();
-    clearMentionDraft();
-  }
-
-  /**
-   * Reset chat state / 重置对话状态
-   * @param keepVars - When true (panel open/reopen), session vars are preserved.
-   *                   When false (explicit "+" new chat), session vars are cleared.
-   */
-  function startNewConversation(keepVars = false) {
-    abortActiveStream();
-    clearConsents();
-    bumpMessagesRequestSeq();
-    resetPendingMessages();
-    resetConversationState();
-    interactionModeEffective.value = interactionMode.value;
-    clearMentionDraft();
-    resetMemoryState();
-    if (!keepVars) {
-      resetVariables();
-    }
-  }
-
-  async function copyMessage(content: string) {
-    try {
-      await navigator.clipboard.writeText(content);
-      message.success($t('common.globalAiChat.copySuccess'));
-    } catch {
-      // fallback silently / 剪贴板失败则静默
-    }
-  }
-
-  function editAndResend(msgIndex: number) {
-    if (sending.value || streaming.value) return;
-    const messageItem = chatMessages.value[msgIndex];
-    if (!messageItem || messageItem.role !== 'user') return;
-
-    inputMessage.value = messageItem.content;
-    chatMessages.value.splice(msgIndex);
-    bumpMessagesRequestSeq();
-    clearConversationAnchor();
-    activeConversationId.value = null;
-    activeConversationAgentId.value =
-      typeof selectedAgentId.value === 'number' ? selectedAgentId.value : null;
-  }
-
-  function regenerateMessage(msgIndex: number) {
-    if (sending.value || streaming.value) return;
-    const assistantMessage = chatMessages.value[msgIndex];
-    if (!assistantMessage || assistantMessage.role !== 'assistant') return;
-
-    let userMsgIndex = -1;
-    for (let index = msgIndex - 1; index >= 0; index -= 1) {
-      if (chatMessages.value[index]?.role === 'user') {
-        userMsgIndex = index;
-        break;
-      }
-    }
-    if (userMsgIndex < 0) return;
-
-    const userMessage = chatMessages.value[userMsgIndex];
-    if (!userMessage || userMessage.role !== 'user') return;
-
-    chatMessages.value.splice(msgIndex);
-    bumpMessagesRequestSeq();
-    clearConversationAnchor();
-    activeConversationId.value = null;
-    activeConversationAgentId.value =
-      typeof selectedAgentId.value === 'number' ? selectedAgentId.value : null;
-
-    inputMessage.value = userMessage.content;
-    clearPendingAttachments();
-    if (userMessage.attachments?.length) {
-      pendingAttachments.value = [...userMessage.attachments];
-    }
-    void sendMessage({ silent: true });
-  }
-
-  function stopGeneration() {
-    abortActiveStream(true);
-  }
-
-  function retryLastMessage() {
-    abortActiveStream();
-    const messages = chatMessages.value;
-    if (messages.length < 2) return;
-    const lastMessage = messages.at(-1);
-    if (lastMessage?.role !== 'assistant' || !lastMessage.requestFailedRetry) {
-      return;
-    }
-    const previousMessage = messages.at(-2);
-    if (previousMessage?.role !== 'user') {
-      return;
-    }
-
-    chatMessages.value = messages.slice(0, -1);
-    inputMessage.value = previousMessage.content;
-    if (previousMessage.attachments?.length) {
-      pendingAttachments.value = [...previousMessage.attachments];
-    }
-    void sendMessage({ silent: true });
-  }
-
-  function cleanup() {
-    abortActiveStream();
-  }
+  const {
+    cleanup,
+    copyMessage,
+    editAndResend,
+    loadAgents,
+    regenerateMessage,
+    retryLastMessage,
+    selectAgent,
+    startNewConversation,
+    stopGeneration,
+  } = createAIChatCoreActions({
+    abortActiveStream,
+    activeConversationAgentId,
+    activeConversationId,
+    agents,
+    agentsLoading,
+    bumpConversationsRequestSeq,
+    bumpMessagesRequestSeq,
+    chatMessages,
+    clearConversationAnchor,
+    clearMentionDraft,
+    clearPendingAttachments,
+    inputMessage,
+    interactionMode,
+    interactionModeEffective,
+    options,
+    pendingAttachments,
+    resetConversationState,
+    resetMemoryState,
+    resetPendingMessages,
+    resetVariables,
+    selectedAgentId,
+    sendMessage,
+    sending,
+    streaming,
+  });
 
   return {
     agents,
