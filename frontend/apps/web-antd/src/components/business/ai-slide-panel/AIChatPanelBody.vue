@@ -1,6 +1,8 @@
 <script lang="ts" setup>
 import type { ItemType } from 'ant-design-vue/es/menu';
 
+import type { PendingOpDisplayItem } from './use-pending-page-ops';
+
 import type {
   AgentItem,
   ChatMessage,
@@ -8,8 +10,6 @@ import type {
   RichTextAIApplyTarget,
   RichTextDraftRuntimeState,
 } from '#/types/ai-chat';
-
-import type { PendingOpDisplayItem } from './use-pending-page-ops';
 
 import AIChatComposer from './AIChatComposer.vue';
 import AIChatConversationFooter from './AIChatConversationFooter.vue';
@@ -51,7 +51,7 @@ interface ComposerMentionCandidateItem {
 type ComposerInteractionMode = 'confirm' | 'trusted_auto';
 type ComposerSendState = 'idle' | 'routing' | 'sending' | 'streaming';
 
-const props = withDefaults(
+withDefaults(
   defineProps<{
     activeConversationId?: null | number;
     agents?: AgentItem[];
@@ -61,10 +61,10 @@ const props = withDefaults(
     attachmentLimitHint?: string;
     attachments?: ComposerAttachmentItem[];
     boundKnowledgeBases?: ComposerKnowledgeBaseChip[];
-    chatMessages?: ChatMessage[];
     characterCount?: number;
-    conversationSearch?: string;
+    chatMessages?: ChatMessage[];
     conversationsCount?: number;
+    conversationSearch?: string;
     conversationsLoading?: boolean;
     countdownNow?: number;
     editingConversationId?: null | number;
@@ -92,15 +92,15 @@ const props = withDefaults(
     selectedAgent?: AgentItem | null;
     selectedKnowledgeBases?: ComposerKnowledgeBaseChip[];
     sendDisabled?: boolean;
-    sendState?: ComposerSendState;
     sending?: boolean;
+    sendState?: ComposerSendState;
     shiftEnterHint?: string;
     showAttachments?: boolean;
     showHistory?: boolean;
     showInteractionMode?: boolean;
+    showScreenshotButton?: boolean;
     showScrollToBottom?: boolean;
     showScrollToTop?: boolean;
-    showScreenshotButton?: boolean;
     streaming?: boolean;
     totalTokensUsed?: number;
     unassociatedPendingOps?: PendingOpDisplayItem[];
@@ -179,11 +179,15 @@ const emit = defineEmits<{
   ): void;
   (e: 'richTextDiscard', index: number): void;
   (e: 'richTextUndo', index: number): void;
+  (e: 'registerContainer', element: HTMLDivElement | null): void;
   (e: 'scroll'): void;
   (e: 'scrollToBottom'): void;
   (e: 'scrollToTop'): void;
   (e: 'selectConversation', conversationId: number): void;
-  (e: 'selectMentionCandidate', payload: { id: number; kind: 'knowledge_base' }): void;
+  (
+    e: 'selectMentionCandidate',
+    payload: { id: number; kind: 'knowledge_base' },
+  ): void;
   (e: 'send'): void;
   (e: 'stop'): void;
   (e: 'startEditTitle', conversation: HistoryConversationItem): void;
@@ -285,8 +289,8 @@ const emit = defineEmits<{
       :attachments="attachments"
       :attachment-limit-hint="attachmentLimitHint"
       :show-screenshot-button="showScreenshotButton"
-      :screenshot-disabled="attachDisabled"
-      :screenshot-loading="sending"
+      :screenshot-disabled="screenshotDisabled"
+      :screenshot-loading="screenshotLoading"
       :mention-open="mentionOpen"
       :mention-loading="mentionLoading"
       :mention-mixed-hint="mentionMixedHint"
@@ -306,7 +310,9 @@ const emit = defineEmits<{
       @paste="emit('paste', $event)"
       @capture-screenshot="emit('captureScreenshot')"
       @remove-attachment="emit('removeAttachment', $event)"
-      @remove-selected-knowledge-base="emit('removeSelectedKnowledgeBase', $event)"
+      @remove-selected-knowledge-base="
+        emit('removeSelectedKnowledgeBase', $event)
+      "
       @select-mention-candidate="emit('selectMentionCandidate', $event)"
       @send="emit('send')"
       @stop="emit('stop')"

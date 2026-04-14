@@ -8,20 +8,17 @@
  * Used by both the full-page chat and the global drawer chat.
  */
 import type { AgentItem, ChatMessage, InteractionMode } from './types';
-import type { PageContext, RawMessageItem } from '#/api/shared/ai-chat';
 import type { UseAIChatOptions } from './use-ai-chat-options';
+import type { PendingInteractionUpdate } from './use-ai-chat-streaming';
+
+import type { PageContext, RawMessageItem } from '#/api/shared/ai-chat';
 
 import { computed, ref, unref, watch } from 'vue';
 
 import { message } from 'ant-design-vue';
 
 import { getChatAgentsApi } from '#/api/shared/ai-chat';
-import {
-  normalizePageKey,
-  resolveRoutePageKey,
-} from '#/components/business/ai-runtime/page-key-utils';
 import { useFileUpload } from '#/composables/use-file-upload';
-import { waitForPageSessionJoin } from '#/composables/use-ui-action-channel';
 import { $t } from '#/locales';
 import { useSocketIOStore } from '#/store';
 import { useAIPanelStore } from '#/store/shared/ai-panel';
@@ -35,7 +32,8 @@ import { useAIChatExport } from './use-ai-chat-export';
 import { useAIChatInteractions } from './use-ai-chat-interactions';
 import { useAIChatMemory } from './use-ai-chat-memory';
 import { mergeMessagesForDisplay as mergeMessagesForDisplayHelper } from './use-ai-chat-message-helpers';
-import { useAIChatStreaming, type PendingInteractionUpdate } from './use-ai-chat-streaming';
+import { createAIChatPageOperations } from './use-ai-chat-page-operations';
+import { useAIChatStreaming } from './use-ai-chat-streaming';
 import { useAIChatVariables } from './use-ai-chat-variables';
 
 export type { UseAIChatOptions } from './use-ai-chat-options';
@@ -51,9 +49,11 @@ export function useAIChat(options: UseAIChatOptions) {
   const { validateChatFile, revokePreviewUrls } = useFileUpload();
   const socketIOStore = useSocketIOStore();
   const aiPanelStore = useAIPanelStore();
-  const PAGE_OPERATION_SOCKET_READY_TIMEOUT_MS = 3000;
-  const PAGE_OPERATION_SOCKET_READY_POLL_MS = 100;
-  const PAGE_OPERATION_SOCKET_SETTLE_MS = 250;
+  const { ensurePageOperationChannelReady, hasPageOperations } =
+    createAIChatPageOperations({
+      pageSessionIdGetter: options.pageSessionIdGetter,
+      socketIOStore,
+    });
 
   const interactionMode = ref<InteractionMode>('confirm');
   const interactionModeEffective = ref<InteractionMode>('confirm');
@@ -80,115 +80,14 @@ export function useAIChat(options: UseAIChatOptions) {
   const sendMessage = (sendOptions?: SendMessageOptions) =>
     sendMessageImpl(sendOptions);
 
-  function refreshPageSessionRoom(pageContext?: null | PageContext): void {
-    const pageSessionId = options.pageSessionIdGetter?.();
-    if (!pageSessionId || !socketIOStore.isConnected) return;
-    socketIOStore.emit('page_session_join', {
-      page_session_id: pageSessionId,
-      page_key:
-        normalizePageKey(pageContext?.page_key ?? '') ||
-        resolveRoutePageKey(undefined, window.location.pathname),
-    });
-  }
-
-  function hasInteractivePageContext(pageContext?: null | PageContext): boolean {
-    if (!pageContext?.page_key) {
-      return false;
-    }
-
-    const pageContextRecord = pageContext as unknown as Record<string, unknown>;
-
-    if (
-      typeof pageContextRecord.ui_epoch === 'number' ||
-      Array.isArray(pageContextRecord.surface_stack as unknown[]) ||
-      typeof pageContextRecord.active_surface_id === 'string' ||
-      typeof pageContextRecord.active_form_session_id === 'string'
-    ) {
-      return true;
-    }
-
-    const suggestedTools = pageContextRecord.suggested_tools;
-    return !!(
-      suggestedTools &&
-      typeof suggestedTools === 'object' &&
-      Array.isArray((suggestedTools as Record<string, unknown>).primary) &&
-      ((suggestedTools as Record<string, unknown>).primary as unknown[]).length >
-        0
-    );
-  }
-
-  function hasPageOperations(pageContext?: null | PageContext): boolean {
-    return hasInteractivePageContext(pageContext);
-  }
-
-  function resolveSocketEndpoint(apiPrefix: string): 'admin' | 'tenant' | 'user' {
-    if (apiPrefix.startsWith('/admin')) {
-      return 'admin';
-    }
-    if (apiPrefix.startsWith('/api/user')) {
-      return 'user';
-    }
-    return 'tenant';
-  }
-
-  async function ensurePageOperationChannelReady(
-    apiPrefix: string,
-    pageContext?: null | PageContext,
-  ): Promise<boolean> {
-    if (!hasInteractivePageContext(pageContext) || !options.pageSessionIdGetter) {
-      return true;
-    }
-
-    if (!socketIOStore.isConnected) {
-      socketIOStore.connect?.(resolveSocketEndpoint(apiPrefix));
-
-      const startedAt = Date.now();
-      while (
-        !socketIOStore.isConnected &&
-        Date.now() - startedAt < PAGE_OPERATION_SOCKET_READY_TIMEOUT_MS
-      ) {
-        await new Promise<void>((resolve) => {
-          setTimeout(resolve, PAGE_OPERATION_SOCKET_READY_POLL_MS);
-        });
-      }
-    }
-
-    if (!socketIOStore.isConnected) {
-      return false;
-    }
-
-    refreshPageSessionRoom(pageContext);
-    const pageSessionId = options.pageSessionIdGetter?.() || '';
-    const pageKey =
-      normalizePageKey(pageContext?.page_key ?? '') ||
-      resolveRoutePageKey(undefined, window.location.pathname);
-    if (!pageSessionId || !pageKey) {
-      return false;
-    }
-
-    const joined = await waitForPageSessionJoin(
-      pageSessionId,
-      pageKey,
-      PAGE_OPERATION_SOCKET_READY_TIMEOUT_MS,
-      PAGE_OPERATION_SOCKET_READY_POLL_MS,
-    );
-    if (!joined) {
-      return false;
-    }
-
-    await new Promise<void>((resolve) => {
-      setTimeout(resolve, PAGE_OPERATION_SOCKET_SETTLE_MS);
-    });
-    return true;
-  }
-
   // ============ Agents / 智能体 ============
 
   const agents = ref<AgentItem[]>([]);
   const agentsLoading = ref(false);
   const selectedAgentId = ref<null | number>(null);
   const selectedAgent = computed(
-    () => agents.value.find((agent) => agent.id === selectedAgentId.value) ?? null,
+    () =>
+      agents.value.find((agent) => agent.id === selectedAgentId.value) ?? null,
   );
 
   // ============ Chat Messages / 消息区 ============
@@ -281,7 +180,10 @@ export function useAIChat(options: UseAIChatOptions) {
     () => selectedAgent.value?.model_capabilities?.supports_vision !== false,
   );
   const totalTokensUsed = computed(() =>
-    chatMessages.value.reduce((sum, messageItem) => sum + (messageItem.tokenUsage || 0), 0),
+    chatMessages.value.reduce(
+      (sum, messageItem) => sum + (messageItem.tokenUsage || 0),
+      0,
+    ),
   );
 
   const imageParams = ref({
@@ -478,11 +380,8 @@ export function useAIChat(options: UseAIChatOptions) {
     bumpMessagesRequestSeq();
     clearConversationAnchor();
     activeConversationId.value = null;
-    if (typeof selectedAgentId.value === 'number') {
-      activeConversationAgentId.value = selectedAgentId.value;
-    } else {
-      activeConversationAgentId.value = null;
-    }
+    activeConversationAgentId.value =
+      typeof selectedAgentId.value === 'number' ? selectedAgentId.value : null;
   }
 
   function regenerateMessage(msgIndex: number) {
@@ -506,11 +405,8 @@ export function useAIChat(options: UseAIChatOptions) {
     bumpMessagesRequestSeq();
     clearConversationAnchor();
     activeConversationId.value = null;
-    if (typeof selectedAgentId.value === 'number') {
-      activeConversationAgentId.value = selectedAgentId.value;
-    } else {
-      activeConversationAgentId.value = null;
-    }
+    activeConversationAgentId.value =
+      typeof selectedAgentId.value === 'number' ? selectedAgentId.value : null;
 
     inputMessage.value = userMessage.content;
     clearPendingAttachments();

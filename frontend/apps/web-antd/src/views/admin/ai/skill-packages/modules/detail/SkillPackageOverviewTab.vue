@@ -1,9 +1,4 @@
 <script lang="ts" setup>
-import type {
-  AdminSkillPackageInfo,
-  SkillPackageResolvedToolInfo,
-} from '#/api/admin/skill-packages';
-
 import { IconifyIcon } from '@vben/icons';
 
 import { Alert, Button, Tag } from 'ant-design-vue';
@@ -11,45 +6,30 @@ import { Alert, Button, Tag } from 'ant-design-vue';
 import { $t } from '#/locales';
 import { formatRelativeTime } from '#/utils/common';
 
-interface OverviewStat {
-  icon: string;
-  labelKey: string;
-  value: number | string;
-  valueClass: string;
-}
+import { useSkillPackageDetailContext } from './detail-context';
 
-interface SummaryStat {
-  labelKey: string;
-  value: number | string;
-}
-
-interface Props {
-  focusTab: (tab: string) => void;
-  getPackageRoleColor: (roleKey: null | string | undefined) => string;
-  getPackageRoleText: (roleKey: null | string | undefined) => string;
-  getPackageStatusColor: (isActive: boolean) => string;
-  getPackageStatusText: (isActive: boolean) => string;
-  getRuntimeBindingModeColor: (mode: null | string | undefined) => string;
-  getRuntimeBindingModeText: (mode: null | string | undefined) => string;
-  getSourceSummaryText: (
-    sourceSummary: null | string | undefined,
-    sourcePlugin: null | string | undefined,
-  ) => string;
-  getToolTypeColor: (toolType: null | string | undefined) => string;
-  getToolTypeIcon: (toolType: null | string | undefined) => string;
-  getToolTypeText: (toolType: null | string | undefined) => string;
-  hasValves: boolean;
-  overviewStats: OverviewStat[];
-  pkg: AdminSkillPackageInfo;
-  resolvedTools: SkillPackageResolvedToolInfo[];
-  valveSummaryStats: SummaryStat[];
-}
-
-defineProps<Props>();
+const {
+  focusTab,
+  getPackageRoleColor,
+  getPackageRoleText,
+  getPackageStatusColor,
+  getPackageStatusText,
+  getRuntimeBindingModeColor,
+  getRuntimeBindingModeText,
+  getSourceSummaryText,
+  getToolTypeColor,
+  getToolTypeIcon,
+  getToolTypeText,
+  hasValves,
+  overviewStats,
+  pkg,
+  resolvedTools,
+  valveSummaryStats,
+} = useSkillPackageDetailContext();
 </script>
 
 <template>
-  <div class="flex flex-col gap-5 p-5 pt-3">
+  <div v-if="pkg" class="flex flex-col gap-5 p-5 pt-3">
     <Alert
       :message="$t('admin.ai.skillPackage.detail.runtimeTruthHint')"
       type="info"
@@ -100,7 +80,8 @@ defineProps<Props>();
             </div>
             <div class="mt-1 text-sm leading-relaxed text-foreground">
               {{
-                pkg.description || $t('admin.ai.skillPackage.detail.noDescription')
+                pkg.description ||
+                $t('admin.ai.skillPackage.detail.noDescription')
               }}
             </div>
           </div>

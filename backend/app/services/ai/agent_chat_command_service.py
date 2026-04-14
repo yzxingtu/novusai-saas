@@ -1,11 +1,4 @@
-"""
-Command orchestrators for AgentChatService.
-
-Moves chat/stream write flows out of the facade to keep boundaries explicit:
-- command: chat/stream execution and persistence
-- query: agent availability and KB filtering
-- read-model: turn projection + response assembly
-"""
+"""Command orchestrators for AgentChatService chat and stream writes."""
 
 from __future__ import annotations
 
@@ -19,8 +12,8 @@ from app.ai.constants import (
     DEFAULT_MEMORY_SCENE,
     MEMORY_CHANNEL_SYSTEM,
 )
-from app.ai.engine.types import ExecutionRequest, ExecutionResult
-from app.ai.events.hooks import HookPoint, get_hook_registry
+from app.ai.engine.types import ExecutionRequest
+from app.ai.events.hooks import HookPoint
 from app.ai.types import ChatMessage
 from app.ai.utils.token_estimator import estimate_tokens
 from app.core.i18n import _
@@ -29,6 +22,14 @@ from app.enums.agent import AgentExecutionModeEnum
 from app.enums.common import UserRoleEnum
 from app.exceptions import BusinessException
 from app.schemas.ai.agent_chat import AgentChatResponse, InteractionMode, PageContext
+from app.services.ai.agent_chat_command_ephemeral_support import (
+    execute_ephemeral_stream_chat,
+)
+from app.services.ai.agent_chat_command_preflight_support import (
+    build_user_messages,
+    merge_history_with_user_messages,
+    run_before_agent_chat_hook,
+)
 from app.services.ai.agent_chat_stream_persistence_orchestrator import (
     AgentChatStreamPersistenceOrchestrator,
 )
@@ -76,12 +77,7 @@ class AgentChatCommandService:
         trust_policy_ref: dict[str, Any] | None = None,
         interaction_mode: InteractionMode = "confirm",
     ) -> AgentChatResponse:
-        """
-        Non-streaming chat orchestration.
-
-        Full flow:
-        validate agent -> prepare conversation -> load history -> dispatch -> persist -> respond.
-        """
+        """Non-streaming chat orchestration."""
         start = time.perf_counter()
         variables = PageContext.normalize_variables(variables, page_context)
 
@@ -128,40 +124,21 @@ class AgentChatCommandService:
             max_tokens=ctx_cfg.get("max_history_tokens", 0),
         )
 
-        attach_list = (
-            [a if isinstance(a, dict) else a.model_dump() for a in attachments]
-            if attachments
-            else None
+        user_messages = build_user_messages(
+            batch=None,
+            message=message,
+            attachments=attachments,
         )
-        if message.strip() or attach_list:
-            user_msg = ChatMessage(
-                role="user",
-                content=message,
-                attachments=attach_list,
-            )
-            all_messages = [*history_messages, user_msg]
-        else:
-            all_messages = list(history_messages)
-
-        hook_registry = get_hook_registry()
-        if hook_registry.has_hooks(HookPoint.BEFORE_AGENT_CHAT):
-            hook_ctx = await hook_registry.trigger(
-                HookPoint.BEFORE_AGENT_CHAT,
-                tenant_id=service.tenant_id,
-                agent_id=agent_id,
-                messages=all_messages,
-                config={
-                    "variables": variables,
-                    "knowledge_base_ids": knowledge_base_ids,
-                },
-            )
-            if hook_ctx.get("blocked"):
-                raise BusinessException(
-                    message=hook_ctx.get(
-                        "block_reason", _("agent_chat.error.blocked_by_hook")
-                    )
-                )
-            all_messages = hook_ctx.get("messages", all_messages)
+        all_messages = merge_history_with_user_messages(
+            history_messages, user_messages
+        )
+        hook_registry, all_messages = await run_before_agent_chat_hook(
+            tenant_id=service.tenant_id,
+            agent_id=agent_id,
+            messages=all_messages,
+            variables=variables,
+            knowledge_base_ids=knowledge_base_ids,
+        )
 
         normalized_scene, normalized_channel, normalized_source, memory_enabled = (
             service._resolve_memory_context(
@@ -378,9 +355,7 @@ class AgentChatCommandService:
         trust_policy_ref: dict[str, Any] | None = None,
         interaction_mode: InteractionMode = "confirm",
     ) -> StreamingResponse:
-        """
-        Streaming chat orchestration (returns StreamingResponse).
-        """
+        """Streaming chat orchestration."""
         variables = PageContext.normalize_variables(variables, page_context)
 
         agent = await service._validate_agent(agent_id)
@@ -422,45 +397,21 @@ class AgentChatCommandService:
             max_tokens=ctx_cfg.get("max_history_tokens", 0),
         )
 
-        attach_list = (
-            [a if isinstance(a, dict) else a.model_dump() for a in attachments]
-            if attachments
-            else None
+        user_msgs = build_user_messages(
+            batch=batch,
+            message=message,
+            attachments=attachments,
         )
-        if batch:
-            user_msgs = [
-                ChatMessage(
-                    role="user", content=m, attachments=attach_list if i == 0 else None
-                )
-                for i, m in enumerate(batch)
-            ]
-        elif message.strip() or attach_list:
-            user_msgs = [
-                ChatMessage(role="user", content=message, attachments=attach_list),
-            ]
-        else:
-            user_msgs = []
-        all_messages = [*history_messages, *user_msgs]
-
-        hook_registry = get_hook_registry()
-        if hook_registry.has_hooks(HookPoint.BEFORE_AGENT_CHAT):
-            hook_ctx = await hook_registry.trigger(
-                HookPoint.BEFORE_AGENT_CHAT,
-                tenant_id=service.tenant_id,
-                agent_id=agent_id,
-                messages=all_messages,
-                config={
-                    "variables": variables,
-                    "knowledge_base_ids": knowledge_base_ids,
-                },
-            )
-            if hook_ctx.get("blocked"):
-                raise BusinessException(
-                    message=hook_ctx.get(
-                        "block_reason", _("agent_chat.error.blocked_by_hook")
-                    )
-                )
-            all_messages = hook_ctx.get("messages", all_messages)
+        all_messages = merge_history_with_user_messages(
+            history_messages, user_msgs
+        )
+        hook_registry, all_messages = await run_before_agent_chat_hook(
+            tenant_id=service.tenant_id,
+            agent_id=agent_id,
+            messages=all_messages,
+            variables=variables,
+            knowledge_base_ids=knowledge_base_ids,
+        )
 
         normalized_scene, normalized_channel, normalized_source, memory_enabled = (
             service._resolve_memory_context(
@@ -616,94 +567,19 @@ class AgentChatCommandService:
         user_role_id: int | None = None,
         permissions: set[str] | None = None,
     ) -> StreamingResponse:
-        agent = await service._validate_agent(agent_id)
-        (
-            knowledge_base_ids,
-            dropped_knowledge_base_ids,
-        ) = await service.query_service.sanitize_client_knowledge_base_ids(
-            agent_id,
-            knowledge_base_ids,
-        )
-
-        request_bundle = await service.stream_bootstrap.build_ephemeral_stream_request(
-            agent=agent,
+        return await execute_ephemeral_stream_chat(
+            service=service,
             agent_id=agent_id,
             message=message,
             variables=variables,
             user_id=user_id,
             knowledge_base_ids=knowledge_base_ids,
-            dropped_knowledge_base_ids=dropped_knowledge_base_ids,
             user_role=user_role,
             user_role_id=user_role_id,
             permissions=permissions,
-            billing_context=await service._build_billing_context(
-                agent=agent,
-                user_id=user_id,
-                user_role=user_role,
-                user_role_id=user_role_id,
-            ),
-        )
-        request = request_bundle.request
-        preflight = await service.stream_bootstrap.run_stream_preflight(
-            agent=agent,
-            agent_id=agent_id,
-            request=request,
-            quota_config=request_bundle.quota_config,
-            estimated_tokens=request_bundle.estimated_tokens,
-            user_id=user_id,
-            persist_new_conversation=False,
-            persist_user_messages=None,
-        )
-        lock_token = preflight.lock_token
-
-        async def on_stream_complete(result: ExecutionResult) -> dict[str, Any] | None:
-            try:
-                actual_tokens = result.total_tokens or 0
-                await _service_compat().AgentQuotaManager.adjust_usage(
-                    tenant_id=service.tenant_id,
-                    agent_id=agent_id,
-                    estimated_tokens=request_bundle.estimated_tokens,
-                    actual_tokens=actual_tokens,
-                    config=request_bundle.quota_config,
-                )
-                if user_id and actual_tokens > 0:
-                    await _service_compat().AgentQuotaManager.record_user_usage(
-                        tenant_id=service.tenant_id,
-                        agent_id=agent_id,
-                        user_id=user_id,
-                        tokens=actual_tokens,
-                    )
-                await _service_compat().AgentStatsManager.record_chat(
-                    tenant_id=service.tenant_id,
-                    agent_id=agent_id,
-                    tokens=result.total_tokens,
-                )
-            finally:
-                if lock_token:
-                    await _service_compat().AgentConcurrencyLimiter.release(
-                        tenant_id=service.tenant_id,
-                        agent_id=agent_id,
-                        lock_token=lock_token,
-                    )
-            return None
-
-        engine_bundle = await service.stream_bootstrap.build_stream_engine_bundle(
-            agent=agent,
-            agent_id=agent_id,
-            user_id=user_id,
-            user_role=user_role,
-            permissions=permissions,
-            variables=variables,
-            page_session_id=None,
-            trust_policy_ref=None,
-            interaction_mode="confirm",
-            enable_tool_runtime=False,
-        )
-        engine = engine_bundle.engine
-        return await engine.stream_execute(
-            agent=agent,
-            request=request,
-            on_complete=on_stream_complete,
+            agent_concurrency_limiter=_service_compat().AgentConcurrencyLimiter,
+            agent_quota_manager=_service_compat().AgentQuotaManager,
+            agent_stats_manager=_service_compat().AgentStatsManager,
         )
 
 

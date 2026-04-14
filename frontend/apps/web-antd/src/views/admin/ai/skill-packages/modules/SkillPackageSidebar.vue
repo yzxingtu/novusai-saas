@@ -1,9 +1,21 @@
 <script lang="ts" setup>
 import type { AdminSkillPackageInfo } from '#/api/admin/skill-packages';
 
-import { Badge, Button, Dropdown, Empty, Input, Menu, MenuItem, Space, Spin, Tag, Tooltip } from 'ant-design-vue';
-
 import { IconifyIcon, Plus } from '@vben/icons';
+
+import {
+  Badge,
+  Button,
+  Dropdown,
+  Empty,
+  Input,
+  Menu,
+  MenuItem,
+  Space,
+  Spin,
+  Tag,
+  Tooltip,
+} from 'ant-design-vue';
 
 import { $t } from '#/locales';
 
@@ -44,7 +56,9 @@ defineProps<Props>();
     <div
       class="flex shrink-0 items-center justify-between border-b border-border/50 px-3 py-2"
     >
-      <span class="text-sm font-medium">{{ $t('admin.ai.skillPackage.title') }}</span>
+      <span class="text-sm font-medium">{{
+        $t('admin.ai.skillPackage.title')
+      }}</span>
       <Space :size="4">
         <Tooltip :title="$t('common.recycleBin.title')">
           <Badge :count="recycleBinCount" :offset="[-2, 2]" size="small">
@@ -68,10 +82,7 @@ defineProps<Props>();
             size="small"
             @click="onImportClick"
           >
-            <IconifyIcon
-              icon="lucide:file-input"
-              class="size-4 text-primary"
-            />
+            <IconifyIcon icon="lucide:file-input" class="size-4 text-primary" />
           </Button>
         </Tooltip>
         <Tooltip :title="$t('admin.ai.skillRegistry.title')">
@@ -170,7 +181,12 @@ defineProps<Props>();
                     <Tag
                       :color="getPackageRoleColor(pkg.package_role_key)"
                       class="shrink-0"
-                      style="padding: 0 3px; margin: 0; font-size: 10px; line-height: 14px"
+                      style="
+                        padding: 0 3px;
+                        margin: 0;
+                        font-size: 10px;
+                        line-height: 14px;
+                      "
                     >
                       {{ getPackageRoleText(pkg.package_role_key) }}
                     </Tag>
@@ -178,25 +194,47 @@ defineProps<Props>();
                       v-if="pkg.is_recommended"
                       color="gold"
                       class="shrink-0"
-                      style="padding: 0 3px; margin: 0; font-size: 10px; line-height: 14px"
+                      style="
+                        padding: 0 3px;
+                        margin: 0;
+                        font-size: 10px;
+                        line-height: 14px;
+                      "
                     >
                       {{ $t('admin.ai.skillPackage.isRecommended') }}
                     </Tag>
                   </div>
                   <div class="mt-0.5 flex items-center gap-1.5">
                     <Tag
-                      :color="getRuntimeBindingModeColor(pkg.runtime_binding_mode)"
-                      style="padding: 0 3px; margin: 0; font-size: 10px; line-height: 14px"
+                      :color="
+                        getRuntimeBindingModeColor(pkg.runtime_binding_mode)
+                      "
+                      style="
+                        padding: 0 3px;
+                        margin: 0;
+                        font-size: 10px;
+                        line-height: 14px;
+                      "
                     >
                       {{ getRuntimeBindingModeText(pkg.runtime_binding_mode) }}
                     </Tag>
                     <Tooltip
-                      :title="getSourceSummaryText(pkg.source_summary, pkg.source_plugin)"
+                      :title="
+                        getSourceSummaryText(
+                          pkg.source_summary,
+                          pkg.source_plugin,
+                        )
+                      "
                     >
                       <Tag
                         color="blue"
                         class="shrink-0"
-                        style="padding: 0 3px; margin: 0; font-size: 10px; line-height: 14px"
+                        style="
+                          padding: 0 3px;
+                          margin: 0;
+                          font-size: 10px;
+                          line-height: 14px;
+                        "
                       >
                         {{
                           getSourceSummaryText(
@@ -210,17 +248,27 @@ defineProps<Props>();
                   <div
                     class="mt-1 flex items-center gap-2 text-xs text-muted-foreground"
                   >
-                    <span class="whitespace-nowrap text-xs text-muted-foreground">
+                    <span
+                      class="whitespace-nowrap text-xs text-muted-foreground"
+                    >
                       {{ pkg.skill_count }}
                       {{ $t('admin.ai.skillPackage.detail.skills') }}
                     </span>
-                    <span class="whitespace-nowrap text-xs text-muted-foreground">
-                      {{ pkg.configured_valves_count }}/{{ pkg.valves_field_count }}
+                    <span
+                      class="whitespace-nowrap text-xs text-muted-foreground"
+                    >
+                      {{ pkg.configured_valves_count }}/{{
+                        pkg.valves_field_count
+                      }}
                       {{ $t('admin.ai.skillPackage.detail.envVars') }}
                     </span>
                   </div>
                 </div>
-                <Dropdown :trigger="['click']" placement="bottomRight" @click.stop>
+                <Dropdown
+                  :trigger="['click']"
+                  placement="bottomRight"
+                  @click.stop
+                >
                   <Button
                     type="text"
                     size="small"
@@ -250,14 +298,21 @@ defineProps<Props>();
                       </MenuItem>
                       <MenuItem key="export">
                         <div class="flex items-center gap-2">
-                          <IconifyIcon icon="lucide:download" class="size-3.5" />
-                          <span>{{ $t('admin.ai.skillPackage.exportBtn') }}</span>
+                          <IconifyIcon
+                            icon="lucide:download"
+                            class="size-3.5"
+                          />
+                          <span>{{
+                            $t('admin.ai.skillPackage.exportBtn')
+                          }}</span>
                         </div>
                       </MenuItem>
                       <MenuItem key="clone">
                         <div class="flex items-center gap-2">
                           <IconifyIcon icon="lucide:copy" class="size-3.5" />
-                          <span>{{ $t('admin.ai.skillPackage.cloneBtn') }}</span>
+                          <span>{{
+                            $t('admin.ai.skillPackage.cloneBtn')
+                          }}</span>
                         </div>
                       </MenuItem>
                       <MenuItem v-if="!pkg.is_system" key="edit">
@@ -272,10 +327,7 @@ defineProps<Props>();
                         class="!text-destructive"
                       >
                         <div class="flex items-center gap-2">
-                          <IconifyIcon
-                            icon="lucide:trash-2"
-                            class="size-3.5"
-                          />
+                          <IconifyIcon icon="lucide:trash-2" class="size-3.5" />
                           <span>{{ $t('admin.common.delete') }}</span>
                         </div>
                       </MenuItem>
