@@ -22,13 +22,14 @@ interface PanelStoreLike {
 
 interface UsePanelShellActionsOptions {
   aiPanelStore: PanelStoreLike;
-  handleSendMessage: () => Promise<void>;
+  handleSendMessage: () => boolean | Promise<boolean>;
   inputMessage: Ref<string>;
   selectedAgent: Ref<null | StarterAgentLike>;
 }
 
 export function usePanelShellActions(options: UsePanelShellActionsOptions) {
-  const { aiPanelStore, handleSendMessage, inputMessage, selectedAgent } = options;
+  const { aiPanelStore, handleSendMessage, inputMessage, selectedAgent } =
+    options;
 
   const panelRef = ref<HTMLElement | null>(null);
 

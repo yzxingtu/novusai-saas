@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import type { AIPageMode } from '@vben/types';
-import type { RichTextAITask } from '#/types/ai-chat';
+
 import {
   computed,
   onMounted,
@@ -11,7 +11,8 @@ import {
   watchEffect,
 } from 'vue';
 
-import { Image, message } from 'ant-design-vue';
+import { message } from 'ant-design-vue';
+
 import { useAIChat } from '#/components/business/ai-chat-panel/use-ai-chat';
 import { useModalDetector } from '#/composables/use-modal-detector';
 import {
@@ -25,29 +26,24 @@ import { usePublicConfigStore } from '#/store/shared/public-config';
 import { getAgentInputVariables } from '#/types/ai-chat';
 import { normalizePageAIMode } from '#/utils/ai-page-capabilities';
 import { getErrorMessage } from '#/utils/error-helpers';
-import AIChatContextDiagnosticsDrawer from './AIChatContextDiagnosticsDrawer.vue';
+
 import AgentVarsModal from './AgentVarsModal.vue';
-import AIChatComposer from './AIChatComposer.vue';
-import AIChatConversationFooter from './AIChatConversationFooter.vue';
-import AIChatHistoryPane from './AIChatHistoryPane.vue';
 import AIChatMemoryPanel from './AIChatMemoryPanel.vue';
-import AIChatMessageViewport from './AIChatMessageViewport.vue';
+import AIChatPanelBody from './AIChatPanelBody.vue';
 import AIChatPanelHeader from './AIChatPanelHeader.vue';
-import AIChatPanelMinimizedBubble from './AIChatPanelMinimizedBubble.vue';
+import AIChatPanelOverlays from './AIChatPanelOverlays.vue';
 import AIChatPanelToolbarRow from './AIChatPanelToolbarRow.vue';
-import AIChatTimelineDrawer from './AIChatTimelineDrawer.vue';
 import { useAgentRouter } from './use-agent-router';
 import { usePageAICapability } from './use-page-ai-capability';
 import { usePanelComposer } from './use-panel-composer';
 import { usePanelHistory } from './use-panel-history';
-import { usePanelHeader } from './use-panel-header';
-import { usePanelContextBridge } from './use-panel-context-bridge';
 import { usePanelLinkPreview } from './use-panel-link-preview';
 import { usePanelShellActions } from './use-panel-shell-actions';
-import { usePanelVarsEditor } from './use-panel-vars-editor';
-import { usePendingPageOps } from './use-pending-page-ops';
+import { usePanelShellContext } from './use-panel-shell-context';
+import { usePanelShellHeaderBindings } from './use-panel-shell-header-bindings';
+import { usePanelShellOverlayBindings } from './use-panel-shell-overlay-bindings';
 import { usePanelWidth } from './use-panel-width';
-import { useRichTextTaskOrchestration } from './use-rich-text-task-orchestration';
+import { usePendingPageOps } from './use-pending-page-ops';
 
 defineOptions({ name: 'AIChatSlidePanelShell' });
 
@@ -218,115 +214,104 @@ void handleMessagesScroll;
 void showScrollToBottom;
 void scrollToBottom;
 
-const manualNewConversationAgentId = ref<null | number>(null);
-const showHistory = ref(false);
-const showMemoryPanel = ref(false);
-const forceRerouteNextTurn = ref(false);
-const sendPreparedRichTextTaskRef = ref<
-  (task: RichTextAITask) => Promise<boolean>
->(async () => false);
+const exportMenuItems = computed(() => [
+  {
+    key: 'md',
+    label: $t('common.globalAiChat.exportFormatMarkdown'),
+    onClick: () => exportAsMarkdown(),
+  },
+  {
+    key: 'txt',
+    label: $t('common.globalAiChat.exportFormatPlainText'),
+    onClick: () => exportAsPlainText(),
+  },
+]);
 
-const {
-  deferSendForMissingVariables,
-  onVarsCancel,
-  onVarsConfirm,
-  openVarsModal,
-  varsFormValues,
-  varsModalAgent,
-  varsModalVisible,
-  varsPersist,
-} = usePanelContextBridge({
+const unpinAgentRef = ref<() => void>(() => {});
+
+const { routing, routeMessage } = useAgentRouter({
+  apiPrefix: toRef(props, 'apiPrefix'),
   agents,
+  pinnedAgentId: toRef(aiPanelStore, 'pinnedAgentId'),
+  pinnedAgentName: toRef(aiPanelStore, 'pinnedAgentName'),
   activeConversationId,
-  allAgentsVariables,
+});
+
+const panelShellContext = usePanelShellContext({
+  activeConversationId,
+  agents,
   applyVariables,
-  clearMentionedAgent: () => {},
-  clearPendingRichTextTask: aiPanelStore.clearPendingRichTextTask,
-  clearResolvedPageOps: () => aiPanelStore.clearResolvedPageOps?.(),
+  agentsWithVarsInConversation,
+  allAgentsVariables,
+  apiPrefix: toRef(props, 'apiPrefix'),
   chatMessages,
+  clearConversationMemory,
+  clearResolvedPageOps: () => aiPanelStore.clearResolvedPageOps?.(),
   consumePendingAgentId: () => aiPanelStore.consumePendingAgentId() ?? null,
+  conversations,
   ensureAgentVarsLoaded,
-  forceRerouteNextTurn,
+  exportMenuItems,
+  fetchConversationMemory,
   handleSendMessage,
   inputMessage,
+  isPinned,
+  lastMemoryUpdated,
   loadAgents,
   loadConversationMessages,
   loadConversations,
-  manualNewConversationAgentId,
   onConversationRestored: () => emit('conversationRestored'),
   onMessageSent: () => emit('messageSent'),
+  panelStore: aiPanelStore,
   pendingConversationId: toRef(props, 'pendingConversationId'),
   pendingMessage: toRef(props, 'pendingMessage'),
-  sendMessage,
-  sendPreparedRichTextTask: (task) => sendPreparedRichTextTaskRef.value(task),
+  routing,
+  selectedAgent,
   selectedAgentId,
-  showHistory,
-  showMemoryPanel,
+  sending,
+  sendMessage,
   startNewConversation,
   storePendingAgentId: toRef(aiPanelStore, 'pendingAgentId'),
   storePendingConversationId: toRef(aiPanelStore, 'pendingConversationId'),
   storePendingMessage: toRef(aiPanelStore, 'pendingMessage'),
+  streaming,
+  totalTokensUsed,
+  unpinAgent: () => unpinAgentRef.value(),
   visible: toRef(aiPanelStore, 'visible'),
 });
 
 const {
-  multiVarsFormValues,
-  multiVarsModalVisible,
-  multiVarsPersist,
-  onMultiPersistChange,
-  onMultiVarValueChange,
-  onMultiVarsCancel,
-  onMultiVarsConfirm,
-  onSinglePersistChange,
-  onSingleVarValueChange,
-  openMultiVarsEditor,
-} = usePanelVarsEditor({
-  agentsWithVarsInConversation,
-  allAgentsVariables,
-  applyVariables,
-  ensureAgentVarsLoaded,
-  varsFormValues,
-  varsPersist,
-});
-
-const {
+  agentVarsModalListeners,
+  agentVarsModalProps,
+  canForceReroute,
+  clearRoutingIntent,
+  deferSendForMissingVariables,
+  forceRerouteNextTurn,
   getRichTextDraftState,
+  headerConversationSummary,
+  headerMoreHasAttention,
+  headerMoreMenuItems,
+  hasHeaderVariableValues,
+  manualNewConversationAgentId,
+  onClearMemory,
+  onEditHeaderVars,
   onRichTextApply,
   onRichTextDiscard,
   onRichTextUndo,
-  sendPreparedRichTextTask,
-} = useRichTextTaskOrchestration({
-  activeConversationId,
-  agents,
-  allAgentsVariables,
-  chatMessages,
-  ensureAgentVarsLoaded,
-  inputMessage,
-  loadConversationMessages,
-  manualNewConversationAgentId,
-  onMissingVariables: ({ agentId, agentName, requiredVars, task }) => {
-    deferSendForMissingVariables({
-      agentId,
-      agentName,
-      pageContext: null,
-      requiredVars,
-      richTextTask: task,
-      routeSource: 'rich_text_ai',
-    });
-  },
-  onTaskQueued: () => {
-    message.info($t('common.richTextTaskQueued'));
-  },
-  selectedAgentId,
-  sendMessage,
-  sending,
+  onToggleForceReroute,
+  openVarsModal,
+  refreshTimeline,
+  routeNotice,
+  showContextDrawer,
+  showHeaderMoreMenu,
+  showHeaderVarsButton,
   showHistory,
   showMemoryPanel,
-  startNewConversation,
-  store: aiPanelStore,
-  streaming,
-});
-sendPreparedRichTextTaskRef.value = sendPreparedRichTextTask;
+  showRouteNotice,
+  showTimelineDrawer,
+  timelineItems,
+  timelineLoading,
+  timelineRefreshing,
+} = panelShellContext;
 
 function isAgentSwitch(idx: number): boolean {
   const msg = chatMessages.value[idx];
@@ -339,53 +324,6 @@ function isAgentSwitch(idx: number): boolean {
     }
   }
   return false;
-}
-
-const { routing, routeMessage } = useAgentRouter({
-  apiPrefix: toRef(props, 'apiPrefix'),
-  agents,
-  pinnedAgentId: toRef(aiPanelStore, 'pinnedAgentId'),
-  pinnedAgentName: toRef(aiPanelStore, 'pinnedAgentName'),
-  activeConversationId,
-});
-
-const routeNotice = ref<null | string>(null);
-let routeNoticeTimer: null | ReturnType<typeof setTimeout> = null;
-
-function showRouteNotice(text: string) {
-  routeNotice.value = text;
-  if (routeNoticeTimer) clearTimeout(routeNoticeTimer);
-  routeNoticeTimer = setTimeout(() => {
-    routeNotice.value = null;
-  }, 4000);
-}
-
-const currentConversationAgentName = computed(() => {
-  if (!activeConversationId.value) return '';
-  return (
-    selectedAgent.value?.name ||
-    conversations.value.find((conv) => conv.id === activeConversationId.value)
-      ?.agent_name ||
-    ''
-  );
-});
-
-const canForceReroute = computed(
-  () =>
-    !!activeConversationId.value &&
-    !isPinned.value &&
-    !routing.value &&
-    !sending.value &&
-    !streaming.value,
-);
-
-function clearRoutingIntent() {
-  forceRerouteNextTurn.value = false;
-  manualNewConversationAgentId.value = null;
-}
-
-function onToggleForceReroute() {
-  forceRerouteNextTurn.value = !forceRerouteNextTurn.value;
 }
 
 const pageContextLimitBytes = computed(
@@ -403,21 +341,6 @@ const pageAICapability = usePageAICapability({
   pageContextLimitBytes,
 });
 const currentPageContext = pageAICapability.currentPageContext;
-const pageAIOperationCount = pageAICapability.pageAIOperationCount;
-const expandAllPageAIOperations = pageAICapability.expandAllPageAIOperations;
-const hasExpandablePageAIDetails = pageAICapability.hasExpandablePageAIDetails;
-const hasPageAI = pageAICapability.hasPageAI;
-const pageAIDetailsExpanded = pageAICapability.pageAIDetailsExpanded;
-const pageAIDiagnostics = pageAICapability.pageAIDiagnostics;
-const pageAIFallbackOnly = pageAICapability.pageAIFallbackOnly;
-const pageAIRailTooltip = pageAICapability.pageAIRailTooltip;
-const pageAIRemainingOperationCount =
-  pageAICapability.pageAIRemainingOperationCount;
-const pageAISummary = pageAICapability.pageAISummary;
-const pageAIStatBadges = pageAICapability.pageAIStatBadges;
-const pageAIVisibleOperations = pageAICapability.pageAIVisibleOperations;
-const resolvedPageAITitle = pageAICapability.resolvedPageAITitle;
-const togglePageAIDetails = pageAICapability.togglePageAIDetails;
 
 const interactionModeLabel = computed(() => {
   return interactionModeEffective.value === 'trusted_auto'
@@ -583,19 +506,6 @@ async function handleSendMessage() {
   }
 }
 
-const exportMenuItems = computed(() => [
-  {
-    key: 'md',
-    label: $t('common.globalAiChat.exportFormatMarkdown'),
-    onClick: () => exportAsMarkdown(),
-  },
-  {
-    key: 'txt',
-    label: $t('common.globalAiChat.exportFormatPlainText'),
-    onClick: () => exportAsPlainText(),
-  },
-]);
-
 function handleKeyDown(e: KeyboardEvent) {
   if (handleInputKeyDown(e)) {
     return;
@@ -612,7 +522,6 @@ const {
   conversationSearch,
   editingConversationId,
   editingTitle,
-  filteredConversations,
   groupedConversations,
   onDeleteConversation,
   onSelectConversation,
@@ -640,7 +549,6 @@ const {
   handleToggleMode,
   onDocumentClick,
   panelRef,
-  starterAgent,
   unpinAgent,
 } = usePanelShellActions({
   aiPanelStore,
@@ -648,44 +556,45 @@ const {
   inputMessage,
   selectedAgent,
 });
+void panelRef;
+unpinAgentRef.value = unpinAgent;
 
-const {
+const headerBindings = usePanelShellHeaderBindings({
+  activeConversationId,
+  aiPanelStore,
+  canForceReroute,
+  forceRerouteNextTurn,
   headerConversationSummary,
   headerMoreHasAttention,
   headerMoreMenuItems,
   hasHeaderVariableValues,
-  onClearMemory,
   onEditHeaderVars,
-  refreshTimeline,
-  showContextDrawer,
+  onToggleForceReroute,
+  panelTitle,
+  pageAICapability,
+  routeNotice,
+  routing,
   showHeaderMoreMenu,
   showHeaderVarsButton,
+  showHistory,
+  showContextDrawer,
   showTimelineDrawer,
   timelineItems,
   timelineLoading,
   timelineRefreshing,
-} = usePanelHeader({
-  activeConversationId,
-  agentsWithVarsInConversation,
-  allAgentsVariables,
-  apiPrefix: toRef(props, 'apiPrefix'),
-  chatMessages,
-  clearConversationMemory,
-  currentConversationAgentName,
-  exportMenuItems,
-  fetchConversationMemory,
-  forceRerouteNextTurn,
+  refreshTimeline,
   isPinned,
-  lastMemoryUpdated,
-  loadConversationMessages,
-  onOpenMultiVarsEditor: openMultiVarsEditor,
-  onOpenVarsModal: openVarsModal,
-  routing,
-  selectedAgent,
-  showMemoryPanel,
-  totalTokensUsed,
-  unpinAgent,
+  toggleHistory,
+  togglePageAIDetails: pageAICapability.togglePageAIDetails,
+  expandAllPageAIOperations: pageAICapability.expandAllPageAIOperations,
+  onStartNewChat,
+  handleClose,
+  handleMinimize,
+  handleToggleDock,
+  handleToggleMode,
 });
+const { headerListeners, headerProps, toolbarListeners, toolbarProps } =
+  headerBindings;
 
 const {
   composerAttachmentLimitHint,
@@ -712,6 +621,70 @@ const {
   uploading,
 });
 
+const resolvedAttachmentAccept = computed(() =>
+  typeof chatAcceptAttribute === 'string'
+    ? chatAcceptAttribute
+    : (chatAcceptAttribute as { value: string }).value,
+);
+
+const panelBodyProps = computed(() => ({
+  activeConversationId: activeConversationId.value,
+  agents: agents.value,
+  apiPrefix: props.apiPrefix,
+  attachDisabled: agents.value.length === 0 || sending.value,
+  attachmentAccept: resolvedAttachmentAccept.value,
+  attachmentLimitHint: composerAttachmentLimitHint.value,
+  attachments: composerAttachments.value,
+  boundKnowledgeBases: composerBoundKnowledgeBases.value,
+  chatMessages: chatMessages.value,
+  characterCount: inputMessage.value.length,
+  conversationSearch: conversationSearch.value,
+  conversationsCount: conversations.value.length,
+  conversationsLoading: conversationsLoading.value,
+  countdownNow: countdownNow.value,
+  editingConversationId: editingConversationId.value,
+  editingTitle: editingTitle.value,
+  effectiveSuggestedQuestions: effectiveSuggestedQuestions.value,
+  effectiveWelcomeMessage: effectiveWelcomeMessage.value,
+  exportMenuItems: exportMenuItems.value,
+  getPendingOpsForMessage,
+  getRichTextDraftState,
+  groupedConversations: groupedConversations.value,
+  inputMessage: inputMessage.value,
+  interactionMode: interactionMode.value,
+  isAgentSwitch,
+  mentionCandidates: composerMentionCandidates.value,
+  mentionEmptyHint:
+    mentionCandidates.value.length === 0 &&
+    agentKBBindings.value.length === 0 &&
+    !agentsLoading.value
+      ? $t('common.globalAiChat.mentionKbNoneBound')
+      : $t('common.globalAiChat.mentionAgentEmpty'),
+  mentionLoading: agentsLoading.value,
+  mentionMixedHint: $t('common.globalAiChat.mentionMixedHint'),
+  mentionOpen: mentionOpen.value,
+  registerContainer: registerMessagesContainer,
+  routing: routing.value,
+  screenshotDisabled:
+    agents.value.length === 0 || sending.value || capturing.value,
+  screenshotLoading: capturing.value,
+  selectedAgent: selectedAgent.value,
+  selectedKnowledgeBases: composerSelectedKnowledgeBases.value,
+  sendDisabled: composerSendDisabled.value,
+  sendState: composerSendState.value,
+  sending: sending.value,
+  shiftEnterHint: $t('common.globalAiChat.shiftEnterHint'),
+  showAttachments: props.showAttachments,
+  showHistory: showHistory.value,
+  showInteractionMode: chatMessages.value.length > 0,
+  showScrollToBottom: showScrollToBottom.value,
+  showScrollToTop: showScrollToTop.value,
+  showScreenshotButton: props.showAttachments && supportsVision.value,
+  streaming: streaming.value,
+  totalTokensUsed: totalTokensUsed.value,
+  unassociatedPendingOps: unassociatedPendingOps.value,
+}));
+
 const { capturing, captureAndUpload } = usePageScreenshot();
 
 async function handleScreenshot() {
@@ -731,9 +704,84 @@ async function handleScreenshot() {
 const { handleOpenUrl, previewImageUrl, previewImageVisible } =
   usePanelLinkPreview();
 
+const overlayBindings = usePanelShellOverlayBindings({
+  aiPanelStore,
+  conversationContextDiagnostics,
+  interactionModeDowngraded,
+  interactionModeDowngradeText,
+  interactionModeLabel,
+  interactionModeRequested,
+  lastRunSummary,
+  previewImageUrl,
+  previewImageVisible,
+  refreshTimeline: headerBindings.refreshTimeline,
+  showContextDrawer: headerBindings.showContextDrawer,
+  showTimelineDrawer: headerBindings.showTimelineDrawer,
+  timelineItems: headerBindings.timelineItems,
+  timelineLoading: headerBindings.timelineLoading,
+  timelineRefreshing: headerBindings.timelineRefreshing,
+});
+const { overlayListeners, overlayProps } = overlayBindings;
+
 async function onCopyMessage(content: string) {
   await copyMessage(content);
 }
+
+function registerMessagesContainer(element: HTMLDivElement | null) {
+  messagesContainer.value = element;
+}
+
+const panelBodyListeners = {
+  actionClick: clickActionButton,
+  askSuggested,
+  cancelEditTitle,
+  captureScreenshot: handleScreenshot,
+  commitEditTitle,
+  confirm: confirmAction,
+  consentConfirm: confirmConsent,
+  consentReject: rejectConsent,
+  copy: onCopyMessage,
+  deleteConversation: onDeleteConversation,
+  dragover: handleDragOver,
+  drop: handleDrop,
+  edit: editAndResend,
+  fileSelect: handleFileSelect,
+  keydown: handleKeyDown,
+  newChat: onStartNewChat,
+  openUrl: handleOpenUrl,
+  paste: handlePaste,
+  regenerate: regenerateMessage,
+  reject: rejectAction,
+  removeAttachment: removePendingAttachment,
+  removeSelectedKnowledgeBase,
+  resolvePendingOp: (invokeId: string, allowed: boolean) =>
+    aiPanelStore.resolvePageOp(invokeId, allowed),
+  retry: retryLastMessage,
+  richTextApply: onRichTextApply,
+  richTextDiscard: onRichTextDiscard,
+  richTextUndo: onRichTextUndo,
+  scroll: handleMessagesScroll,
+  scrollToBottom: () => scrollToBottom(true),
+  scrollToTop: () => scrollToTop(),
+  selectConversation: onSelectConversation,
+  selectMentionCandidate: onSelectMentionCandidate,
+  send: handleSendMessage,
+  startEditTitle,
+  stop: stopGeneration,
+  'update:conversationSearch': (value: string) => {
+    conversationSearch.value = value;
+  },
+  'update:editingTitle': (value: string) => {
+    editingTitle.value = value;
+  },
+  'update:inputMessage': (value: string) => {
+    inputMessage.value = value;
+  },
+  'update:interactionMode': (value: 'confirm' | 'trusted_auto') => {
+    interactionMode.value = value;
+  },
+};
+
 const {
   dragging,
   effectivePanelStyle,
@@ -793,7 +841,6 @@ onMounted(() => {
 
 onUnmounted(() => {
   cleanup();
-  if (routeNoticeTimer) clearTimeout(routeNoticeTimer);
   document.removeEventListener('mousedown', onDocumentClick);
   document.documentElement.style.removeProperty('--ai-panel-right-offset');
 });
@@ -820,72 +867,14 @@ onUnmounted(() => {
         ></div>
 
         <AgentVarsModal
-          :single-open="varsModalVisible"
-          :single-agent="varsModalAgent"
-          :single-values="varsFormValues"
-          :single-persist="varsPersist"
-          :multi-open="multiVarsModalVisible"
-          :multi-agents="agentsWithVarsInConversation"
-          :multi-values="multiVarsFormValues"
-          :multi-persist="multiVarsPersist"
-          @single-confirm="onVarsConfirm"
-          @single-cancel="onVarsCancel"
-          @single-value-change="onSingleVarValueChange"
-          @single-persist-change="onSinglePersistChange"
-          @multi-confirm="onMultiVarsConfirm"
-          @multi-cancel="onMultiVarsCancel"
-          @multi-value-change="onMultiVarValueChange"
-          @multi-persist-change="onMultiPersistChange"
+          v-bind="agentVarsModalProps"
+          v-on="agentVarsModalListeners"
         />
 
         <!-- Header -->
-        <AIChatPanelHeader
-          :can-force-reroute="canForceReroute"
-          :docked="aiPanelStore.docked"
-          :force-reroute-next-turn="forceRerouteNextTurn"
-          :has-header-variable-values="hasHeaderVariableValues"
-          :header-conversation-summary="headerConversationSummary"
-          :header-more-has-attention="headerMoreHasAttention"
-          :header-more-menu-items="headerMoreMenuItems"
-          :mode="aiPanelStore.mode"
-          :panel-title="panelTitle"
-          :route-notice="routeNotice"
-          :routing="routing"
-          @close="handleClose"
-          @minimize="handleMinimize"
-          @toggle-dock="handleToggleDock"
-          @toggle-mode="handleToggleMode"
-        />
+        <AIChatPanelHeader v-bind="headerProps" v-on="headerListeners" />
 
-        <AIChatPanelToolbarRow
-          :can-force-reroute="canForceReroute"
-          :force-reroute-next-turn="forceRerouteNextTurn"
-          :has-expandable-page-a-i-details="hasExpandablePageAIDetails"
-          :has-header-variable-values="hasHeaderVariableValues"
-          :has-page-a-i="hasPageAI"
-          :header-more-has-attention="headerMoreHasAttention"
-          :header-more-menu-items="headerMoreMenuItems"
-          :page-a-i-details-expanded="pageAIDetailsExpanded"
-          :page-a-i-diagnostics="pageAIDiagnostics"
-          :page-a-i-fallback-only="pageAIFallbackOnly"
-          :page-a-i-operation-count="pageAIOperationCount"
-          :page-a-i-rail-tooltip="pageAIRailTooltip"
-          :page-a-i-remaining-operation-count="pageAIRemainingOperationCount"
-          :page-a-i-stat-badges="pageAIStatBadges"
-          :page-a-i-summary="pageAISummary"
-          :page-a-i-visible-operations="pageAIVisibleOperations"
-          :resolved-page-a-i-title="resolvedPageAITitle"
-          :show-header-more-menu="showHeaderMoreMenu"
-          :show-header-vars-button="showHeaderVarsButton"
-          :show-history="showHistory"
-          :show-reroute-button="!!activeConversationId && !isPinned"
-          @edit-vars="onEditHeaderVars"
-          @new-chat="onStartNewChat"
-          @toggle-history="toggleHistory"
-          @toggle-page-details="togglePageAIDetails"
-          @toggle-reroute="onToggleForceReroute"
-          @expand-all-operations="expandAllPageAIOperations"
-        />
+        <AIChatPanelToolbarRow v-bind="toolbarProps" v-on="toolbarListeners" />
 
         <!-- Streaming progress bar (T5) -->
         <div
@@ -903,170 +892,11 @@ onUnmounted(() => {
           @clear="onClearMemory"
         />
 
-        <AIChatHistoryPane
-          v-if="showHistory"
-          :active-conversation-id="activeConversationId"
-          :conversation-search="conversationSearch"
-          :conversations-count="conversations.length"
-          :conversations-loading="conversationsLoading"
-          :editing-conversation-id="editingConversationId"
-          :editing-title="editingTitle"
-          :grouped-conversations="groupedConversations"
-          @start-new-chat="onStartNewChat"
-          @update:conversation-search="conversationSearch = $event"
-          @select-conversation="onSelectConversation"
-          @delete-conversation="onDeleteConversation"
-          @start-edit-title="startEditTitle"
-          @update:editing-title="editingTitle = $event"
-          @commit-edit-title="commitEditTitle"
-          @cancel-edit-title="cancelEditTitle"
-        />
-
-        <!-- Chat area (when not showing history) -->
-        <template v-if="!showHistory">
-          <AIChatMessageViewport
-            :api-prefix="props.apiPrefix"
-            :agents="agents"
-            :chat-messages="chatMessages"
-            :countdown-now="countdownNow"
-            :effective-suggested-questions="effectiveSuggestedQuestions"
-            :effective-welcome-message="effectiveWelcomeMessage"
-            :get-pending-ops-for-message="getPendingOpsForMessage"
-            :get-rich-text-draft-state="getRichTextDraftState"
-            :is-agent-switch="isAgentSwitch"
-            :register-container="
-              (element) => {
-                if (
-                  messagesContainer &&
-                  typeof messagesContainer === 'object' &&
-                  'value' in messagesContainer
-                ) {
-                  messagesContainer.value = element;
-                }
-              }
-            "
-            :routing="routing"
-            :selected-agent="selectedAgent"
-            :sending="sending"
-            :show-scroll-to-bottom="showScrollToBottom"
-            :show-scroll-to-top="showScrollToTop"
-            :streaming="streaming"
-            :unassociated-pending-ops="unassociatedPendingOps"
-            @ask-suggested="askSuggested"
-            @copy="onCopyMessage"
-            @confirm="confirmAction"
-            @reject="rejectAction"
-            @consent-confirm="confirmConsent"
-            @consent-reject="rejectConsent"
-            @open-url="handleOpenUrl"
-            @action-click="clickActionButton"
-            @regenerate="regenerateMessage"
-            @edit="editAndResend"
-            @retry="retryLastMessage"
-            @rich-text-apply="onRichTextApply"
-            @rich-text-discard="onRichTextDiscard"
-            @rich-text-undo="onRichTextUndo"
-            @resolve-pending-op="
-              (invokeId, allowed) =>
-                aiPanelStore.resolvePageOp(invokeId, allowed)
-            "
-            @scroll="handleMessagesScroll"
-            @scroll-to-top="scrollToTop()"
-            @scroll-to-bottom="scrollToBottom(true)"
-          />
-
-          <AIChatConversationFooter
-            :message-count="chatMessages.length"
-            :total-tokens-used="totalTokensUsed"
-            :streaming="streaming"
-            :export-menu-items="exportMenuItems"
-          />
-
-          <AIChatComposer
-            :model-value="inputMessage"
-            :disabled="agents.length === 0 || sending"
-            :max-length="32000"
-            :character-count="inputMessage.length"
-            :send-state="composerSendState"
-            :send-disabled="composerSendDisabled"
-            :show-attachments="props.showAttachments"
-            :attach-disabled="agents.length === 0 || sending"
-            :attachment-accept="chatAcceptAttribute"
-            :attachments="composerAttachments"
-            :attachment-limit-hint="composerAttachmentLimitHint"
-            :show-screenshot-button="props.showAttachments && supportsVision"
-            :screenshot-disabled="agents.length === 0 || sending || capturing"
-            :screenshot-loading="capturing"
-            :mention-open="mentionOpen"
-            :mention-loading="agentsLoading"
-            :mention-mixed-hint="$t('common.globalAiChat.mentionMixedHint')"
-            :mention-empty-hint="
-              mentionCandidates.length === 0 &&
-              agentKBBindings.length === 0 &&
-              !agentsLoading
-                ? $t('common.globalAiChat.mentionKbNoneBound')
-                : $t('common.globalAiChat.mentionAgentEmpty')
-            "
-            :mention-candidates="composerMentionCandidates"
-            :bound-knowledge-bases="composerBoundKnowledgeBases"
-            :selected-knowledge-bases="composerSelectedKnowledgeBases"
-            :show-interaction-mode="chatMessages.length > 0"
-            :interaction-mode="interactionMode"
-            :shift-enter-hint="$t('common.globalAiChat.shiftEnterHint')"
-            @update:model-value="inputMessage = $event"
-            @update:interaction-mode="interactionMode = $event"
-            @dragover="handleDragOver"
-            @drop="handleDrop"
-            @file-select="handleFileSelect"
-            @keydown="handleKeyDown"
-            @paste="handlePaste"
-            @capture-screenshot="handleScreenshot"
-            @remove-attachment="removePendingAttachment"
-            @remove-selected-knowledge-base="removeSelectedKnowledgeBase"
-            @select-mention-candidate="onSelectMentionCandidate"
-            @send="handleSendMessage"
-            @stop="stopGeneration"
-          />
-        </template>
+        <AIChatPanelBody v-bind="panelBodyProps" v-on="panelBodyListeners" />
       </div>
     </Transition>
 
-    <AIChatPanelMinimizedBubble
-      :open="aiPanelStore.minimized && !aiPanelStore.visible"
-      :has-unread="aiPanelStore.hasUnread"
-      @restore="aiPanelStore.restore()"
-      @close="aiPanelStore.close()"
-    />
-
-    <AIChatContextDiagnosticsDrawer
-      v-model:open="showContextDrawer"
-      :interaction-mode-label="interactionModeLabel"
-      :interaction-mode-requested="interactionModeRequested"
-      :interaction-mode-downgraded="interactionModeDowngraded"
-      :interaction-mode-downgrade-text="interactionModeDowngradeText"
-      :conversation-context-diagnostics="conversationContextDiagnostics"
-      :last-run-summary="lastRunSummary"
-    />
-
-    <AIChatTimelineDrawer
-      :items="timelineItems"
-      :loading="timelineLoading"
-      :open="showTimelineDrawer"
-      :refreshing="timelineRefreshing"
-      @refresh="refreshTimeline"
-      @update:open="(value) => (showTimelineDrawer = value)"
-    />
-
-    <!-- Hidden Image preview uses antd's built-in zoom/rotate toolbar -->
-    <Image
-      v-if="previewImageUrl"
-      :src="previewImageUrl"
-      :preview="{
-        visible: previewImageVisible,
-        onVisibleChange: (visible: boolean) => (previewImageVisible = visible),
-      }"
-      class="hidden"
-    />
+    <AIChatPanelOverlays v-bind="overlayProps" v-on="overlayListeners" />
   </Teleport>
 </template>
 

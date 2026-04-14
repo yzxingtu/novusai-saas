@@ -9,7 +9,7 @@ interface AgentVariable {
 
 interface ConversationAgentWithVars {
   id: number;
-  input_variables?: AgentVariable[];
+  input_variables?: AgentVariable[] | null;
 }
 
 interface UsePanelVarsEditorOptions {
@@ -36,16 +36,20 @@ export function usePanelVarsEditor(options: UsePanelVarsEditorOptions) {
   } = options;
 
   const multiVarsModalVisible = ref(false);
-  const multiVarsFormValues = reactive<Record<number, Record<string, string>>>({});
+  const multiVarsFormValues = reactive<Record<number, Record<string, string>>>(
+    {},
+  );
   const multiVarsPersist = ref(false);
 
   function openMultiVarsEditor() {
     for (const agent of agentsWithVarsInConversation.value) {
       ensureAgentVarsLoaded(agent.id);
       multiVarsFormValues[agent.id] = { ...allAgentsVariables.value[agent.id] };
+      const currentAgentValues =
+        multiVarsFormValues[agent.id] ?? (multiVarsFormValues[agent.id] = {});
       for (const variable of agent.input_variables ?? []) {
-        if (!multiVarsFormValues[agent.id]![variable.name]) {
-          multiVarsFormValues[agent.id]![variable.name] = variable.default ?? '';
+        if (!currentAgentValues[variable.name]) {
+          currentAgentValues[variable.name] = variable.default ?? '';
         }
       }
     }
@@ -76,10 +80,10 @@ export function usePanelVarsEditor(options: UsePanelVarsEditorOptions) {
     name: string;
     value: string;
   }) {
-    if (!multiVarsFormValues[payload.agentId]) {
-      multiVarsFormValues[payload.agentId] = {};
-    }
-    multiVarsFormValues[payload.agentId]![payload.name] = payload.value;
+    const currentAgentValues =
+      multiVarsFormValues[payload.agentId] ??
+      (multiVarsFormValues[payload.agentId] = {});
+    currentAgentValues[payload.name] = payload.value;
   }
 
   function onMultiPersistChange(value: boolean) {

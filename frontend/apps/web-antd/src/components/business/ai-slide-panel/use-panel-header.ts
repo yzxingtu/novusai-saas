@@ -1,5 +1,6 @@
-import type { ComputedRef, Ref } from 'vue';
 import type { ItemType } from 'ant-design-vue/es/menu';
+
+import type { ComputedRef, Ref } from 'vue';
 
 import type { ConversationTimelineItem } from '#/api/shared/ai-chat';
 import type { AgentItem, ChatMessage, InputVariable } from '#/types/ai-chat';
@@ -22,16 +23,22 @@ interface UsePanelHeaderOptions {
   allAgentsVariables: Ref<Record<number, Record<string, string>>>;
   apiPrefix: Ref<string> | string;
   chatMessages: Ref<ChatMessage[]>;
-  clearConversationMemory: () => Promise<boolean> | boolean;
+  clearConversationMemory: () => boolean | Promise<boolean>;
   currentConversationAgentName: ComputedRef<string>;
   exportMenuItems: ComputedRef<ItemType[]>;
   fetchConversationMemory: () => Promise<unknown> | unknown;
   forceRerouteNextTurn: Ref<boolean>;
   isPinned: ComputedRef<boolean>;
-  lastMemoryUpdated: Ref<null | number | string | boolean>;
-  loadConversationMessages: (conversationId: number) => Promise<unknown> | unknown;
+  lastMemoryUpdated: Ref<boolean | null | number | string>;
+  loadConversationMessages: (
+    conversationId: number,
+  ) => Promise<unknown> | unknown;
   onOpenMultiVarsEditor: () => void;
-  onOpenVarsModal: (vars: InputVariable[], agentId: number, agentName: string) => void;
+  onOpenVarsModal: (
+    vars: InputVariable[],
+    agentId: number,
+    agentName: string,
+  ) => void;
   routing: Ref<boolean>;
   selectedAgent: Ref<AgentItem | null>;
   showMemoryPanel: Ref<boolean>;
@@ -106,7 +113,9 @@ export function usePanelHeader(options: UsePanelHeaderOptions) {
         unref(options.apiPrefix),
         options.activeConversationId.value,
       );
-      await options.loadConversationMessages(options.activeConversationId.value);
+      await options.loadConversationMessages(
+        options.activeConversationId.value,
+      );
       message.success($t('common.saveSuccess'));
     } catch (error) {
       message.error(getErrorMessage(error, $t('common.saveFailed')));
@@ -156,7 +165,8 @@ export function usePanelHeader(options: UsePanelHeaderOptions) {
   const hasHeaderVariableValues = computed(() =>
     options.agentsWithVarsInConversation.value.some(
       (agent) =>
-        Object.keys(options.allAgentsVariables.value[agent.id] ?? {}).length > 0,
+        Object.keys(options.allAgentsVariables.value[agent.id] ?? {}).length >
+        0,
     ),
   );
 
@@ -275,3 +285,5 @@ export function usePanelHeader(options: UsePanelHeaderOptions) {
     timelineRefreshing,
   };
 }
+
+export type UsePanelHeaderReturn = ReturnType<typeof usePanelHeader>;

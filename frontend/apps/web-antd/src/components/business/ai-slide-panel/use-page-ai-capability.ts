@@ -6,11 +6,11 @@ import type { PageOperation } from './page-operation-types';
 
 import { computed, ref, watch } from 'vue';
 
-import { $t } from '#/locales';
 import {
   getRuntimePageContextDiagnostics,
   getRuntimeThinPageContext,
 } from '#/components/business/ai-runtime/runtime-bridge';
+import { $t } from '#/locales';
 import { filterPageOperationsByPolicy } from '#/utils/ai-page-capabilities';
 import { isDevErrorMode } from '#/utils/request/app-env';
 
@@ -154,7 +154,7 @@ export function usePageAICapability(options: UsePageAICapabilityOptions) {
     () => currentPageOperations.value.length,
   );
 
-  const pageAIDiagnostics = computed<PageAIDiagnostics | null>(() => {
+  const pageAIDiagnostics = computed<null | PageAIDiagnostics>(() => {
     if (!SHOW_PAGE_AI_DIAGNOSTICS || !currentPageContext.value) {
       return null;
     }
@@ -234,9 +234,11 @@ export function usePageAICapability(options: UsePageAICapabilityOptions) {
   const pageAIRemainingOperationCount = computed(() => {
     const remaining =
       currentPageOperations.value.length - pageAIVisibleOperations.value.length;
-    return remaining > 0 ? remaining : 0;
+    return Math.max(remaining, 0);
   });
-  const pageAISummary = computed(() => resolveSummary(currentPageContext.value));
+  const pageAISummary = computed(() =>
+    resolveSummary(currentPageContext.value),
+  );
   const resolvedPageAITitle = computed(() => {
     const rawTitle = currentPageContext.value?.page_title?.trim();
     return rawTitle || $t('common.aiPanel.pageAiCurrentPage');
@@ -276,3 +278,5 @@ export function usePageAICapability(options: UsePageAICapabilityOptions) {
     togglePageAIDetails,
   };
 }
+
+export type UsePageAICapabilityReturn = ReturnType<typeof usePageAICapability>;
