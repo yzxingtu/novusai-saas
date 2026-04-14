@@ -8,13 +8,20 @@ Unified output as ChunkData list for embedding and storage.
 
 from __future__ import annotations
 
-import hashlib
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
+from app.ai.rag.chunker_support import (
+    compute_chunk_hash,
+    is_heading_block,
+    is_structured_block,
+    merge_small_pages,
+    prefers_sentence_split,
+    split_semantic_units,
+    with_overlap_seed,
+)
 from app.ai.rag.parser import ParsedPage
 from app.ai.text_semantics import (
-    parse_markdown_heading,
     split_on_blank_lines,
     split_sentences_by_terminal_punctuation,
 )
@@ -32,65 +39,6 @@ class ChunkData:
     char_count: int
     content_hash: str
     metadata: dict = field(default_factory=dict)
-
-
-def _compute_hash(text: str) -> str:
-    """Compute MD5 hash of text / 计算文本 MD5 哈希"""
-    return hashlib.md5(text.encode("utf-8")).hexdigest()
-
-
-_CJK_OUTLINE_NUMERALS = frozenset("一二三四五六七八九十百零")
-
-
-def _looks_like_outline_heading(line: str) -> bool:
-    stripped = (line or "").strip()
-    if not stripped:
-        return False
-    if parse_markdown_heading(stripped) is not None:
-        return True
-
-    if stripped.startswith("第"):
-        idx = 1
-        while idx < len(stripped) and (
-            stripped[idx].isdigit() or stripped[idx] in _CJK_OUTLINE_NUMERALS
-        ):
-            idx += 1
-        if idx > 1 and idx < len(stripped) and stripped[idx] in "章节部分篇条款、.．":
-            return bool(stripped[idx + 1 :].strip())
-
-    idx = 0
-    while idx < len(stripped) and stripped[idx] in _CJK_OUTLINE_NUMERALS:
-        idx += 1
-    if idx > 0 and idx < len(stripped) and stripped[idx] in "、.．":
-        return bool(stripped[idx + 1 :].strip())
-
-    idx = 0
-    while idx < len(stripped) and stripped[idx].isdigit():
-        idx += 1
-    if idx > 0 and idx < len(stripped) and stripped[idx] in ".)、．":
-        return bool(stripped[idx + 1 :].strip())
-
-    if len(stripped) >= 3 and stripped[0].isalpha() and stripped[1] in ".)":
-        return bool(stripped[2:].strip())
-
-    return False
-
-
-def _looks_like_list_item(line: str) -> bool:
-    stripped = (line or "").strip()
-    if not stripped:
-        return False
-    if stripped[0] in {"-", "*", "•"}:
-        return (
-            len(stripped) > 1 and stripped[1].isspace() and bool(stripped[2:].strip())
-        )
-
-    idx = 0
-    while idx < len(stripped) and stripped[idx].isdigit():
-        idx += 1
-    if idx > 0 and idx < len(stripped) and stripped[idx] in ".)、．":
-        return bool(stripped[idx + 1 :].strip())
-    return False
 
 
 class BaseChunker(ABC):
@@ -123,7 +71,7 @@ class BaseChunker(ABC):
             content=content,
             chunk_index=index,
             char_count=len(content),
-            content_hash=_compute_hash(content),
+            content_hash=compute_chunk_hash(content),
             metadata=metadata,
         )
 
@@ -148,78 +96,7 @@ class BaseChunker(ABC):
         Returns:
             Merged ParsedPage list / 合并后的 ParsedPage 列表
         """
-        if not pages:
-            return pages
-
-        merged: list[ParsedPage] = []
-        buf_parts: list[str] = []
-        buf_len = 0
-        buf_metadata: dict = {}
-
-        separator = "\n\n"
-        sep_len = len(separator)
-
-        for page in pages:
-            text = page.content.strip()
-            if not text:
-                continue
-
-            # Single page already reached chunk_size, output independently
-            # 单个 page 已达 chunk_size，独立输出
-            if len(text) >= self.chunk_size:
-                # Flush buffer first / 先输出缓冲区
-                if buf_parts:
-                    merged.append(
-                        ParsedPage(
-                            content=separator.join(buf_parts),
-                            metadata=buf_metadata,
-                        )
-                    )
-                    buf_parts = []
-                    buf_len = 0
-                    buf_metadata = {}
-                merged.append(page)
-                continue
-
-            # Calculate merged length / 计算合并后长度
-            new_len = buf_len + (sep_len if buf_parts else 0) + len(text)
-
-            if new_len <= self.chunk_size:
-                buf_parts.append(text)
-                buf_len = new_len
-                if not buf_metadata:
-                    buf_metadata = page.metadata.copy()
-            else:
-                # Exceeded: output buffer, start new round / 超出：输出缓冲区，开始新一轮
-                if buf_parts:
-                    merged.append(
-                        ParsedPage(
-                            content=separator.join(buf_parts),
-                            metadata=buf_metadata,
-                        )
-                    )
-                buf_parts = [text]
-                buf_len = len(text)
-                buf_metadata = page.metadata.copy()
-
-        # Output remaining / 输出剩余
-        if buf_parts:
-            merged.append(
-                ParsedPage(
-                    content=separator.join(buf_parts),
-                    metadata=buf_metadata,
-                )
-            )
-
-        if len(merged) != len(pages):
-            logger.info(
-                "Merged small pages: {} → {} (chunk_size={})",
-                len(pages),
-                len(merged),
-                self.chunk_size,
-            )
-
-        return merged
+        return merge_small_pages(pages, chunk_size=self.chunk_size)
 
 
 class RecursiveChunker(BaseChunker):
@@ -498,7 +375,7 @@ class SemanticChunker(BaseChunker):
             if not text:
                 continue
 
-            semantic_units = self._split_semantic_units(text)
+            semantic_units = split_semantic_units(text)
             current = ""
             for unit in semantic_units:
                 candidate = current + "\n\n" + unit if current else unit
@@ -518,7 +395,7 @@ class SemanticChunker(BaseChunker):
                     ]
                     splitter = (
                         sentence_chunker
-                        if self._prefers_sentence_split(unit)
+                        if prefers_sentence_split(unit)
                         else recursive_chunker
                     )
                     sub_chunks = splitter.chunk(sub_pages)
@@ -529,7 +406,11 @@ class SemanticChunker(BaseChunker):
                     current = ""
                     continue
 
-                current = self._with_overlap_seed(current, unit)
+                current = with_overlap_seed(
+                    current,
+                    unit,
+                    chunk_overlap=self.chunk_overlap,
+                )
 
             if current:
                 chunks.append(
@@ -540,71 +421,24 @@ class SemanticChunker(BaseChunker):
         logger.info("SemanticChunker: {} pages → {} chunks", len(pages), len(chunks))
         return chunks
 
-    def _split_semantic_units(self, text: str) -> list[str]:
-        blocks = [
-            block.strip() for block in split_on_blank_lines(text) if block.strip()
-        ]
-        if not blocks:
-            return []
-
-        units: list[str] = []
-        pending_heading = ""
-        for block in blocks:
-            block = block.strip()
-            if not block:
-                continue
-
-            if pending_heading:
-                block = pending_heading + "\n" + block
-                pending_heading = ""
-
-            if self._is_heading_block(block):
-                pending_heading = block
-                continue
-
-            if self._is_structured_block(block):
-                units.append(block)
-                continue
-
-            normalized = [
-                sentence.strip()
-                for sentence in split_sentences_by_terminal_punctuation(block)
-                if sentence.strip()
-            ]
-            if normalized:
-                units.extend(normalized)
-            else:
-                units.append(block)
-
-        if pending_heading:
-            units.append(pending_heading)
-
-        return units
-
     def _is_heading_block(self, block: str) -> bool:
-        single_line = "\n" not in block
-        return (
-            single_line
-            and len(block) <= max(120, self.chunk_size // 3)
-            and _looks_like_outline_heading(block)
+        return is_heading_block(
+            block,
+            max_length=max(120, self.chunk_size // 3),
         )
 
     def _is_structured_block(self, block: str) -> bool:
-        if block.startswith("```") and block.endswith("```"):
-            return True
-        if block.count("|") >= 4 or "\t" in block:
-            return True
-        lines = [line.strip() for line in block.splitlines() if line.strip()]
-        return len(lines) >= 2 and all(_looks_like_list_item(line) for line in lines)
+        return is_structured_block(block)
 
     def _prefers_sentence_split(self, block: str) -> bool:
-        return "。" in block or "！" in block or "？" in block or ". " in block
+        return prefers_sentence_split(block)
 
     def _with_overlap_seed(self, current: str, next_unit: str) -> str:
-        if not current or self.chunk_overlap <= 0:
-            return next_unit
-        tail = current[-self.chunk_overlap :]
-        return f"{tail}\n{next_unit}"
+        return with_overlap_seed(
+            current,
+            next_unit,
+            chunk_overlap=self.chunk_overlap,
+        )
 
 
 def get_chunker(

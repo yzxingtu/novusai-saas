@@ -1,12 +1,9 @@
-"""
-Shared SQL analysis helpers for AI runtime guards.
-AI 运行时安全链路共享的 SQL 解析辅助工具。
-"""
+"""Shared SQL analysis helpers for AI runtime guards / AI 运行时 SQL 解析辅助。"""
 
-from __future__ import annotations  # noqa: I001
+from __future__ import annotations
 
-from dataclasses import dataclass
 from collections.abc import Iterable
+from dataclasses import dataclass
 
 import sqlparse
 from sqlparse.sql import (
@@ -592,21 +589,11 @@ def _split_sql_terminator(sql: str) -> tuple[str, str]:
     return stripped, trailing
 
 
-__all__ = [
-    "SQLTableReference",
-    "append_outer_where_conditions",
-    "append_limit_clause",
-    "contains_sql_comments",
-    "extract_called_functions",
-    "extract_group_by_expressions",
-    "extract_select_aggregates",
-    "extract_table_name_list",
-    "extract_table_names",
-    "extract_table_references",
-    "find_keyword_sequences",
-    "has_top_level_limit",
-    "inject_outer_where_conditions",
-    "is_safe_sql_identifier",
-    "parse_sql_statement",
+__all__ = (
+    "SQLTableReference", "append_outer_where_conditions", "append_limit_clause",
+    "contains_sql_comments", "extract_called_functions", "extract_group_by_expressions",
+    "extract_select_aggregates", "extract_table_name_list", "extract_table_names",
+    "extract_table_references", "find_keyword_sequences", "has_top_level_limit",
+    "inject_outer_where_conditions", "is_safe_sql_identifier", "parse_sql_statement",
     "starts_with_select_or_cte",
-]
+)

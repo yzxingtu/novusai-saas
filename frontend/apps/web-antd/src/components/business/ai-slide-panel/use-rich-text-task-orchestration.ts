@@ -16,9 +16,8 @@ import type {
   RichTextDraftRuntimeState,
 } from '#/types/ai-chat';
 
-import { computed, onUnmounted, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 
-import { sourceEditorRegistryVersion } from '#/components/business/rich-text-editor/sourceEditorRegistry';
 import { getAgentInputVariables } from '#/types/ai-chat';
 
 import {
@@ -28,6 +27,7 @@ import {
   isLastAppliedRichTextActionValid,
   undoRichTextTaskInEditor,
 } from './rich-text-task-bridge';
+import { useRichTextTaskOrchestrationWatchers } from './use-rich-text-task-orchestration-watchers';
 
 type RichTextTaskOrchestrationState = 'closed' | 'idle' | 'streaming';
 
@@ -420,101 +420,34 @@ export function useRichTextTaskOrchestration(
     }
   }
 
-  watch(
-    options.activeConversationId,
-    (conversationId, previousConversationId) => {
-      syncCurrentRichTextBinding(conversationId);
+  function syncMessageDraftStates() {
+    for (const message of options.chatMessages.value) {
       if (
-        previousConversationId !== undefined &&
-        previousConversationId !== conversationId &&
-        lastAppliedRichTextAction.value
+        message.role !== 'assistant' ||
+        message.source !== 'rich_text_ai' ||
+        !message.richTextAI ||
+        message.richTextAI.messageClientKey !== message.clientKey
       ) {
-        invalidateLastAppliedRichTextAction();
+        continue;
       }
-    },
-  );
-
-  watch(
-    () =>
-      options.chatMessages.value.map((message) => ({
-        clientKey: message.clientKey,
-        messageClientKey: message.richTextAI?.messageClientKey ?? null,
-        role: message.role,
-        source: message.source ?? null,
-      })),
-    () => {
-      for (const message of options.chatMessages.value) {
-        if (
-          message.role !== 'assistant' ||
-          message.source !== 'rich_text_ai' ||
-          !message.richTextAI ||
-          message.richTextAI.messageClientKey !== message.clientKey
-        ) {
-          continue;
-        }
-        ensureRichTextDraftUiState(message.clientKey);
-      }
-    },
-    { flush: 'post', immediate: true },
-  );
-
-  watch(
-    [
-      richTextTaskOrchestrationState,
-      () => options.store.pendingRichTextTask?.taskId,
-    ],
-    async ([state]) => {
-      const pendingTask = options.store.pendingRichTextTask;
-      if (!pendingTask) {
-        if (state === 'idle') {
-          flushRichTextTaskQueue();
-        }
-        return;
-      }
-
-      if (state === 'streaming') {
-        options.store.queueRichTextTask(pendingTask);
-        options.store.clearPendingRichTextTask(pendingTask.taskId);
-        options.onTaskQueued();
-        return;
-      }
-
-      if (state === 'closed') {
-        options.store.open();
-        return;
-      }
-
-      await applyRichTextTaskContext();
-    },
-    { flush: 'post', immediate: true },
-  );
-
-  watch(
-    [
-      options.activeConversationId,
-      () => options.chatMessages.value.length,
-      options.sending,
-      options.streaming,
-    ],
-    () => {
-      if (richTextTaskOrchestrationState.value === 'idle') {
-        flushRichTextTaskQueue();
-      }
-    },
-    { flush: 'post' },
-  );
-
-  watch(sourceEditorRegistryVersion, () => {
-    if (
-      lastAppliedRichTextAction.value &&
-      !isLastAppliedRichTextActionValid(lastAppliedRichTextAction.value)
-    ) {
-      invalidateLastAppliedRichTextAction();
+      ensureRichTextDraftUiState(message.clientKey);
     }
-  });
+  }
 
-  onUnmounted(() => {
-    invalidateLastAppliedRichTextAction();
+  useRichTextTaskOrchestrationWatchers({
+    activeConversationId: options.activeConversationId,
+    applyRichTextTaskContext,
+    chatMessages: options.chatMessages,
+    currentRichTextDispatchTask,
+    flushRichTextTaskQueue,
+    invalidateLastAppliedRichTextAction,
+    isLastAppliedRichTextActionValid: () =>
+      !lastAppliedRichTextAction.value ||
+      isLastAppliedRichTextActionValid(lastAppliedRichTextAction.value),
+    richTextTaskOrchestrationState,
+    store: options.store,
+    syncCurrentRichTextBinding,
+    syncMessageDraftStates,
   });
 
   return {
