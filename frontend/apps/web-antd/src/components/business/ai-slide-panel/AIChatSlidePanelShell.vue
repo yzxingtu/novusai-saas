@@ -5,10 +5,6 @@ import { computed, ref, toRef } from 'vue';
 
 import { useAIChat } from '#/components/business/ai-chat-panel/use-ai-chat';
 import { useModalDetector } from '#/composables/use-modal-detector';
-import {
-  DEFAULT_PAGE_SCREENSHOT_EXCLUDE_SELECTORS,
-  usePageScreenshot,
-} from '#/composables/use-page-screenshot';
 import { getActivePageSessionId } from '#/composables/use-page-session';
 import { $t } from '#/locales';
 import { useAIPanelStore } from '#/store';
@@ -26,7 +22,6 @@ import { useAgentRouter } from './use-agent-router';
 import { usePageAICapability } from './use-page-ai-capability';
 import { usePanelComposer } from './use-panel-composer';
 import { usePanelHistory } from './use-panel-history';
-import { usePanelLinkPreview } from './use-panel-link-preview';
 import { usePanelSendMessage } from './use-panel-send-message';
 import { usePanelShellActions } from './use-panel-shell-actions';
 import { usePanelShellBodyBindings } from './use-panel-shell-body-bindings';
@@ -34,7 +29,8 @@ import { usePanelShellComputedUI } from './use-panel-shell-computed-ui';
 import { usePanelShellContext } from './use-panel-shell-context';
 import { usePanelShellHeaderBindings } from './use-panel-shell-header-bindings';
 import { usePanelShellLifecycle } from './use-panel-shell-lifecycle';
-import { usePanelShellOverlayBindings } from './use-panel-shell-overlay-bindings';
+import { usePanelShellRuntimeVisuals } from './use-panel-shell-runtime-visuals';
+import { usePanelShellScreenshot } from './use-panel-shell-screenshot';
 import { usePanelWidth } from './use-panel-width';
 import { usePendingPageOps } from './use-pending-page-ops';
 
@@ -81,6 +77,11 @@ const emit = defineEmits<{
 
 const aiPanelStore = useAIPanelStore();
 const publicConfigStore = usePublicConfigStore();
+const apiPrefix = toRef(props, 'apiPrefix');
+const disabledCapabilities = toRef(props, 'disabledCapabilities');
+const pageContextKey = toRef(props, 'pageContextKey');
+const showAttachments = toRef(props, 'showAttachments');
+const uploadUrl = toRef(props, 'uploadUrl');
 const { modalState } = useModalDetector();
 const normalizedPageMode = computed(() => normalizePageAIMode(props.aiMode));
 const pageAIPolicy = computed(() => ({
@@ -103,8 +104,8 @@ const isPinned = computed(
 );
 
 const chat = useAIChat({
-  apiPrefix: toRef(props, 'apiPrefix'),
-  uploadUrl: toRef(props, 'uploadUrl'),
+  apiPrefix,
+  uploadUrl,
   onToolCall: (name: string, output: string) => {
     aiPanelStore.dispatchToolCall(name, output);
   },
@@ -224,7 +225,7 @@ const handleSendMessageRef = ref<() => Promise<boolean>>(async () => false);
 const unpinAgentRef = ref<() => void>(() => {});
 
 const { routing, routeMessage } = useAgentRouter({
-  apiPrefix: toRef(props, 'apiPrefix'),
+  apiPrefix,
   agents,
   pinnedAgentId: toRef(aiPanelStore, 'pinnedAgentId'),
   pinnedAgentName: toRef(aiPanelStore, 'pinnedAgentName'),
@@ -237,7 +238,7 @@ const panelShellContext = usePanelShellContext({
   applyVariables,
   agentsWithVarsInConversation,
   allAgentsVariables,
-  apiPrefix: toRef(props, 'apiPrefix'),
+  apiPrefix,
   chatMessages,
   clearConversationMemory,
   clearResolvedPageOps: () => aiPanelStore.clearResolvedPageOps?.(),
@@ -327,41 +328,14 @@ const pageContextLimitBytes = computed(
 );
 
 const pageAICapability = usePageAICapability({
-  disabledCapabilities: toRef(props, 'disabledCapabilities'),
+  disabledCapabilities,
   modalState,
   normalizedPageMode,
   pageAIPolicy,
-  pageContextKey: toRef(props, 'pageContextKey'),
+  pageContextKey,
   pageContextLimitBytes,
 });
 const currentPageContext = pageAICapability.currentPageContext;
-
-const interactionModeLabel = computed(() => {
-  return interactionModeEffective.value === 'trusted_auto'
-    ? $t('common.globalAiChat.modeTrustedAuto')
-    : $t('common.globalAiChat.modeConfirm');
-});
-
-const interactionModeRequested = computed(() => {
-  return interactionMode.value === 'trusted_auto'
-    ? $t('common.globalAiChat.modeTrustedAuto')
-    : $t('common.globalAiChat.modeConfirm');
-});
-
-const interactionModeDowngraded = computed(() => {
-  return (
-    interactionMode.value === 'trusted_auto' &&
-    interactionModeEffective.value === 'confirm'
-  );
-});
-
-const interactionModeDowngradeText = computed(() => {
-  const reason = String(lastRunSummary.value?.downgrade_reason || '');
-  if (reason === 'missing_runtime_trust_policy') {
-    return $t('common.globalAiChat.trustedAutoDowngradeMissingPolicy');
-  }
-  return reason || '';
-});
 
 const { handleSendMessage: dispatchPanelMessage } = usePanelSendMessage({
   activeConversationId,
@@ -374,7 +348,7 @@ const { handleSendMessage: dispatchPanelMessage } = usePanelSendMessage({
   inputMessage,
   isPinned,
   manualNewConversationAgentId,
-  pageContextKey: toRef(props, 'pageContextKey'),
+  pageContextKey,
   pendingAttachments,
   pinnedAgentId: toRef(aiPanelStore, 'pinnedAgentId'),
   routeMessage,
@@ -488,12 +462,18 @@ const {
   selectedKBIds,
   selectMentionKnowledgeBase,
   sending,
-  showAttachments: toRef(props, 'showAttachments'),
+  showAttachments,
   streaming,
   uploading,
 });
 
-const { capturing, captureAndUpload } = usePageScreenshot();
+const { capturing, handleScreenshot } = usePanelShellScreenshot({
+  apiPrefix,
+  pendingAttachments,
+  supportsVision,
+  uploadUrl,
+});
+
 const {
   mentionEmptyHint,
   resolvedAttachmentAccept,
@@ -509,37 +489,16 @@ const {
   chatMessages,
   mentionCandidates,
   sending,
-  showAttachments: toRef(props, 'showAttachments'),
+  showAttachments,
   supportsVision,
 });
 
-async function handleScreenshot() {
-  if (capturing.value || !supportsVision.value) return;
-  const result = await captureAndUpload({
-    uploadUrl: props.uploadUrl,
-    extraData: props.apiPrefix.includes('/admin')
-      ? { tenant_id: '0' }
-      : undefined,
-    excludeSelectors: [...DEFAULT_PAGE_SCREENSHOT_EXCLUDE_SELECTORS],
-  });
-  if (result) {
-    pendingAttachments.value.push(result.attachment);
-  }
-}
-
-const { handleOpenUrl, previewImageUrl, previewImageVisible } =
-  usePanelLinkPreview();
-
-const overlayBindings = usePanelShellOverlayBindings({
+const overlayBindings = usePanelShellRuntimeVisuals({
   aiPanelStore,
   conversationContextDiagnostics,
-  interactionModeDowngraded,
-  interactionModeDowngradeText,
-  interactionModeLabel,
-  interactionModeRequested,
+  interactionMode,
+  interactionModeEffective,
   lastRunSummary,
-  previewImageUrl,
-  previewImageVisible,
   refreshTimeline: headerBindings.refreshTimeline,
   showContextDrawer: headerBindings.showContextDrawer,
   showTimelineDrawer: headerBindings.showTimelineDrawer,
@@ -547,7 +506,7 @@ const overlayBindings = usePanelShellOverlayBindings({
   timelineLoading: headerBindings.timelineLoading,
   timelineRefreshing: headerBindings.timelineRefreshing,
 });
-const { overlayListeners, overlayProps } = overlayBindings;
+const { handleOpenUrl, overlayListeners, overlayProps } = overlayBindings;
 
 function registerMessagesContainer(element: HTMLDivElement | null) {
   messagesContainer.value = element;
@@ -557,7 +516,7 @@ const { panelBodyListeners, panelBodyProps } = usePanelShellBodyBindings({
   actionClick: clickActionButton,
   activeConversationId,
   agents,
-  apiPrefix: toRef(props, 'apiPrefix'),
+  apiPrefix,
   askSuggested,
   attachmentAccept: resolvedAttachmentAccept,
   attachmentLimitHint: composerAttachmentLimitHint,
@@ -628,7 +587,7 @@ const { panelBodyListeners, panelBodyProps } = usePanelShellBodyBindings({
   sending,
   sendState: composerSendState,
   shiftEnterHint: $t('common.globalAiChat.shiftEnterHint'),
-  showAttachments: toRef(props, 'showAttachments'),
+  showAttachments,
   showHistory,
   showInteractionMode,
   showScreenshotButton,
