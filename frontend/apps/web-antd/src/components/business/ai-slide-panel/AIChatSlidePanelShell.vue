@@ -30,6 +30,7 @@ import { usePanelLinkPreview } from './use-panel-link-preview';
 import { usePanelSendMessage } from './use-panel-send-message';
 import { usePanelShellActions } from './use-panel-shell-actions';
 import { usePanelShellBodyBindings } from './use-panel-shell-body-bindings';
+import { usePanelShellComputedUI } from './use-panel-shell-computed-ui';
 import { usePanelShellContext } from './use-panel-shell-context';
 import { usePanelShellHeaderBindings } from './use-panel-shell-header-bindings';
 import { usePanelShellLifecycle } from './use-panel-shell-lifecycle';
@@ -492,27 +493,25 @@ const {
   uploading,
 });
 
-const resolvedAttachmentAccept = computed(() =>
-  typeof chatAcceptAttribute === 'string'
-    ? chatAcceptAttribute
-    : (chatAcceptAttribute as { value: string }).value,
-);
-const mentionEmptyHint = computed(() =>
-  mentionCandidates.value.length === 0 &&
-  agentKBBindings.value.length === 0 &&
-  !agentsLoading.value
-    ? $t('common.globalAiChat.mentionKbNoneBound')
-    : $t('common.globalAiChat.mentionAgentEmpty'),
-);
-const screenshotDisabled = computed(
-  () => agents.value.length === 0 || sending.value || capturing.value,
-);
-const showScreenshotButton = computed(
-  () => props.showAttachments && supportsVision.value,
-);
-const showInteractionMode = computed(() => chatMessages.value.length > 0);
-
 const { capturing, captureAndUpload } = usePageScreenshot();
+const {
+  mentionEmptyHint,
+  resolvedAttachmentAccept,
+  screenshotDisabled,
+  showInteractionMode,
+  showScreenshotButton,
+} = usePanelShellComputedUI({
+  agentKBBindings,
+  agents,
+  agentsLoading,
+  capturing,
+  chatAcceptAttribute,
+  chatMessages,
+  mentionCandidates,
+  sending,
+  showAttachments: toRef(props, 'showAttachments'),
+  supportsVision,
+});
 
 async function handleScreenshot() {
   if (capturing.value || !supportsVision.value) return;

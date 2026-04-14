@@ -3,7 +3,6 @@ import type {
   AgentItem,
   PendingConfirmation,
   PendingConsent,
-  RagSource,
 } from './types';
 import type { PersistedToolResponseMap } from './use-ai-chat-message-merge-tool-responses';
 import type { AssistantTurnMergeState } from './use-ai-chat-message-merge-turn-state';
@@ -14,9 +13,9 @@ import type { AppErrorInfo } from '#/utils/request';
 import { $t } from '#/locales';
 
 import { collectToolCallsFromAssistantMessage } from './use-ai-chat-message-merge-tool-call-collector';
+import { collectTurnContentMetadata } from './use-ai-chat-message-merge-turn-content';
 import { collectTurnDiagnostics } from './use-ai-chat-message-merge-turn-diagnostics';
 import {
-  appendDistinctMergedTextPart,
   normalizeObjectRecord,
   normalizeOptionalString,
 } from './use-ai-chat-message-normalizers';
@@ -140,68 +139,6 @@ function collectPendingStateFromMetadata(
   }
 }
 
-function collectTurnFlags(
-  state: AssistantTurnMergeState,
-  assistantMetadata: null | Record<string, unknown>,
-  persistedErrorOnly: boolean,
-) {
-  if (
-    !persistedErrorOnly &&
-    (assistantMetadata?.partial || state.turnOutcome === 'partial')
-  ) {
-    state.hasPartial = true;
-  }
-  if (
-    !persistedErrorOnly &&
-    (assistantMetadata?.interrupted ||
-      state.turnTerminationReason === 'interrupted')
-  ) {
-    state.hasInterrupted = true;
-  }
-  if (state.hasInterrupted) {
-    state.hasPartial = true;
-  }
-  if (assistantMetadata?.completion_reason) {
-    state.turnCompletionReason = assistantMetadata.completion_reason as string;
-  }
-  if (!state.turnCompletionReason && state.turnTerminationReason) {
-    state.turnCompletionReason = state.turnTerminationReason;
-  }
-}
-
-function collectTurnText(
-  state: AssistantTurnMergeState,
-  messageItem: RawMessageItem,
-  assistantMetadata: null | Record<string, unknown>,
-  persistedErrorOnly: boolean,
-): boolean {
-  const persistedThinking =
-    typeof assistantMetadata?.thinking_content === 'string'
-      ? assistantMetadata.thinking_content
-      : '';
-  if (persistedThinking.trim()) {
-    appendDistinctMergedTextPart(state.thinkingContentParts, persistedThinking);
-  }
-
-  if (!(messageItem.content && messageItem.content.trim())) {
-    return false;
-  }
-  if (persistedErrorOnly) {
-    return true;
-  }
-  if (messageItem.tool_calls?.length) {
-    if (!persistedThinking.trim()) {
-      appendDistinctMergedTextPart(
-        state.thinkingContentParts,
-        messageItem.content,
-      );
-    }
-  } else {
-    appendDistinctMergedTextPart(state.contentParts, messageItem.content);
-  }
-  return false;
-}
-
 export function processAssistantMessage({
   agents,
   messageItem,
@@ -246,25 +183,10 @@ export function processAssistantMessage({
     state.hasMemoryUpdated = true;
   }
   collectTurnDiagnostics(state, assistantMetadata);
-  collectTurnFlags(
-    state,
+  collectTurnContentMetadata({
     assistantMetadata,
-    persistedErrorState?.errorOnly === true,
-  );
-
-  const skipRemaining =
-    collectTurnText(
-      state,
-      messageItem,
-      assistantMetadata,
-      persistedErrorState?.errorOnly === true,
-    ) === true;
-  if (skipRemaining) {
-    return;
-  }
-
-  const ragSources = assistantMetadata?.rag_sources;
-  if (Array.isArray(ragSources) && ragSources.length > 0) {
-    state.turnRagSources = ragSources as RagSource[];
-  }
+    messageItem,
+    persistedErrorOnly: persistedErrorState?.errorOnly === true,
+    state,
+  });
 }
