@@ -1,6 +1,8 @@
 /**
  * 企业端配额管理 - 表单 Schema 和辅助函数
  */
+import type { TenantQuotaWithUsageInfo } from '#/api/tenant/ai';
+
 import type { VbenFormSchema } from '#/adapter/form';
 
 import {
@@ -125,6 +127,36 @@ export function getRuntimeStatusColor(status: string | undefined): string {
       return 'default';
     }
   }
+}
+
+export type QuotaRuntimeStatus =
+  | 'exceeded'
+  | 'healthy'
+  | 'inactive'
+  | 'warning';
+
+/**
+ * 解析配额运行时状态
+ */
+export function resolveQuotaRuntimeStatus(
+  item: Pick<TenantQuotaWithUsageInfo, 'is_exceeded' | 'is_warning' | 'quota'>,
+): QuotaRuntimeStatus {
+  if (!item.quota.is_active) return 'inactive';
+  if (item.is_exceeded) return 'exceeded';
+  if (item.is_warning) return 'warning';
+  return 'healthy';
+}
+
+/**
+ * 获取配额进度条颜色
+ */
+export function getQuotaProgressColor(
+  item: Pick<TenantQuotaWithUsageInfo, 'is_exceeded' | 'is_warning' | 'quota'>,
+): string {
+  if (!item.quota.is_active) return '#d9d9d9';
+  if (item.is_exceeded) return '#ff4d4f';
+  if (item.is_warning) return '#faad14';
+  return '#52c41a';
 }
 
 /**

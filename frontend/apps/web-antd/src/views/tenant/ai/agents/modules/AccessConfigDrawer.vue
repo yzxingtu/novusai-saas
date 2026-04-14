@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { TenantPermissionRoleInfo } from '#/api/tenant/role';
 import type { TenantUserInfo } from '#/api/tenant/tenant-users';
 import type { IdentitySelectOption } from '#/components/business/identity-display';
 
@@ -41,31 +40,32 @@ import {
   getTenantUserDetailApi,
   getTenantUserIdentitySelectApi,
 } from '#/api/tenant/tenant-users';
-import {
-  IdentityRemoteSelect,
-  normalizeIdentitySelectOption,
-} from '#/components/business/identity-display';
+import { IdentityRemoteSelect } from '#/components/business/identity-display';
 import { $t } from '#/locales';
 
+import {
+  deriveTenantAdminRoleMode,
+  getAccessTypeOptions,
+  mapTenantUserRoleOptions,
+  mergeTenantUserOptions,
+  normalizeIdList,
+  PUB_ALL,
+  PUB_ROLES,
+  PUB_USERS,
+  roleInfoToTreeData,
+  tenantUserToIdentityOption,
+  type PermissionRoleTreeNode,
+  type TenantAccessRoleMode,
+} from './access-config-drawer-support';
+
 defineOptions({ name: 'AccessConfigDrawer' });
-
-interface PermissionRoleTreeNode {
-  disabled?: boolean;
-  key: number;
-  title: string;
-  value: number;
-}
-
-const PUB_ALL = 'all_users';
-const PUB_ROLES = 'tenant_user_roles';
-const PUB_USERS = 'specific_users';
 
 const agentId = ref(0);
 const agentName = ref('');
 const loading = ref(false);
 const saving = ref(false);
 
-const tenantRoleMode = ref<'all' | 'specific'>('all');
+const tenantRoleMode = ref<TenantAccessRoleMode>('all');
 const tenantRoleIds = ref<number[]>([]);
 
 const pubEnabled = ref(false);
@@ -79,87 +79,7 @@ const tenantUserRoleOptions = ref<Array<{ label: string; value: number }>>([]);
 const tenantUserRoleLoading = ref(false);
 const tenantUserOptionCache = ref<Map<number, IdentitySelectOption>>(new Map());
 
-const accessTypeOptions = computed(() => [
-  {
-    label: $t('tenant.ai.agent.publication.accessAllUsers'),
-    value: PUB_ALL,
-  },
-  {
-    label: $t('tenant.ai.agent.publication.accessByUserRoles'),
-    value: PUB_ROLES,
-  },
-  {
-    label: $t('tenant.ai.agent.publication.accessSpecificUsers'),
-    value: PUB_USERS,
-  },
-]);
-
-/** TreeSelect / Select 可能返回 string，统一为 number，避免保存丢数据 / TreeSelect and Select may return strings, normalize to numbers */
-function normalizeIdList(raw: unknown): number[] {
-  if (raw === null || raw === undefined || !Array.isArray(raw)) return [];
-  return raw
-    .map((x) => (typeof x === 'string' ? Number.parseInt(x, 10) : Number(x)))
-    .filter((n) => Number.isFinite(n) && n > 0);
-}
-
-function deriveTenantAdminRoleMode(
-  ids: null | number[] | undefined,
-): 'all' | 'specific' {
-  if (ids === null || ids === undefined || ids.length === 0) return 'all';
-  return 'specific';
-}
-
-function roleInfoToTreeData(
-  roles: TenantPermissionRoleInfo[],
-): PermissionRoleTreeNode[] {
-  return roles.map((r) => ({
-    disabled: !r.isActive,
-    title: r.name,
-    value: r.id,
-    key: r.id,
-  }));
-}
-
-function tenantUserToIdentityOption(
-  user: TenantUserInfo,
-): IdentitySelectOption {
-  const roleName = Object.prototype.hasOwnProperty.call(user, 'displayRoleName')
-    ? user.displayRoleName ?? null
-    : (user.roleName ?? null);
-
-  return normalizeIdentitySelectOption({
-    label: user.nickname || user.displayName || user.username || `#${user.id}`,
-    value: user.id,
-    extra: {
-      avatar: user.avatar || null,
-      displayName: user.displayName || null,
-      isActive: user.isActive,
-      isLeader: user.isLeader,
-      isOwner: user.isOwner,
-      nickname: user.nickname || null,
-      orgNodeId: user.orgNodeId ?? null,
-      orgNodeName: user.orgNodeName || null,
-      roleName,
-      secondaryText: user.username,
-      userType: user.userType || null,
-      username: user.username,
-    },
-  });
-}
-
-function mergeTenantUserOptions(options: IdentitySelectOption[]) {
-  if (options.length === 0) return;
-  const nextCache = new Map(tenantUserOptionCache.value);
-  for (const option of options) {
-    const normalized = normalizeIdentitySelectOption(option);
-    const normalizedValue = Number(normalized.value);
-    if (!Number.isFinite(normalizedValue) || normalizedValue <= 0) {
-      continue;
-    }
-    nextCache.set(normalizedValue, normalized);
-  }
-  tenantUserOptionCache.value = nextCache;
-}
+const accessTypeOptions = computed(() => getAccessTypeOptions());
 
 const tenantUserSelectedOptions = computed<IdentitySelectOption[]>(() =>
   normalizeIdList(pubTenantUserIds.value)
@@ -168,7 +88,10 @@ const tenantUserSelectedOptions = computed<IdentitySelectOption[]>(() =>
 );
 
 function handleTenantUserOptionsLoaded(options: IdentitySelectOption[]) {
-  mergeTenantUserOptions(options);
+  tenantUserOptionCache.value = mergeTenantUserOptions(
+    tenantUserOptionCache.value,
+    options,
+  );
 }
 
 async function loadTenantPermissionRoles() {
@@ -187,10 +110,7 @@ async function loadTenantUserRoleOptions() {
   tenantUserRoleLoading.value = true;
   try {
     const res = await getTenantUserRoleListApi({ 'page[size]': 100 });
-    tenantUserRoleOptions.value = res.items.map((r) => ({
-      label: r.name,
-      value: r.id,
-    }));
+    tenantUserRoleOptions.value = mapTenantUserRoleOptions(res.items);
   } catch {
     /* interceptor */
   } finally {
@@ -217,7 +137,10 @@ async function loadSelectedTenantUserOptions(ids: number[]) {
     )
     .map((result) => tenantUserToIdentityOption(result.value));
 
-  mergeTenantUserOptions(options);
+  tenantUserOptionCache.value = mergeTenantUserOptions(
+    tenantUserOptionCache.value,
+    options,
+  );
 }
 
 const [Drawer, drawerApi] = useVbenDrawer({
