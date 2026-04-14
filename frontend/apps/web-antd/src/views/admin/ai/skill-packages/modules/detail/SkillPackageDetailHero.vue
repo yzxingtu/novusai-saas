@@ -1,37 +1,35 @@
 <script lang="ts" setup>
-import type { AdminSkillPackageInfo } from '#/api/admin/skill-packages';
-
 import { IconifyIcon } from '@vben/icons';
 
 import { Button, Tag } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 
-interface Props {
-  focusTab: (tab: string) => void;
-  getPackageHeroClass: () => string;
-  getPackageIcon: (icon: null | string | undefined) => string;
-  getPackageRoleColor: (roleKey: null | string | undefined) => string;
-  getPackageRoleText: (roleKey: null | string | undefined) => string;
-  getPackageStatusColor: (isActive: boolean) => string;
-  getPackageStatusText: (isActive: boolean) => string;
-  getRuntimeBindingModeColor: (mode: null | string | undefined) => string;
-  getRuntimeBindingModeText: (mode: null | string | undefined) => string;
-  getSourceSummaryText: (
-    sourceSummary: null | string | undefined,
-    sourcePlugin: null | string | undefined,
-  ) => string;
-  goBack: () => void;
-  hasValves: boolean;
-  openWorkspace: (createSkill?: boolean) => void;
-  pkg: AdminSkillPackageInfo;
-}
+import { useSkillPackageDetailContext } from './detail-context';
 
-defineProps<Props>();
+const {
+  focusTab,
+  getPackageHeroClass,
+  getPackageIcon,
+  getPackageRoleColor,
+  getPackageRoleText,
+  getPackageStatusColor,
+  getPackageStatusText,
+  getRuntimeBindingModeColor,
+  getRuntimeBindingModeText,
+  getSourceSummaryText,
+  goBack,
+  hasValves,
+  openWorkspace,
+  pkg,
+} = useSkillPackageDetailContext();
 </script>
 
 <template>
-  <div class="relative overflow-hidden rounded-xl border bg-card shadow-sm">
+  <div
+    v-if="pkg"
+    class="relative overflow-hidden rounded-xl border bg-card shadow-sm"
+  >
     <div
       class="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent"
     ></div>
@@ -72,7 +70,7 @@ defineProps<Props>();
       <div class="flex items-start gap-5">
         <div
           class="flex size-16 shrink-0 items-center justify-center rounded-2xl shadow-sm ring-2 ring-offset-2 ring-offset-card"
-          :class="getPackageHeroClass()"
+          :class="getPackageHeroClass(pkg)"
         >
           <IconifyIcon :icon="getPackageIcon(pkg.avatar)" class="size-8" />
         </div>
@@ -83,7 +81,8 @@ defineProps<Props>();
           </h1>
           <p class="mb-4 text-sm text-muted-foreground">
             {{
-              pkg.description || $t('admin.ai.skillPackage.detail.noDescription')
+              pkg.description ||
+              $t('admin.ai.skillPackage.detail.noDescription')
             }}
           </p>
 
@@ -106,11 +105,7 @@ defineProps<Props>();
             >
               {{ getRuntimeBindingModeText(pkg.runtime_binding_mode) }}
             </Tag>
-            <Tag
-              v-if="pkg.is_recommended"
-              color="gold"
-              class="!mr-0 !text-xs"
-            >
+            <Tag v-if="pkg.is_recommended" color="gold" class="!mr-0 !text-xs">
               <div class="flex items-center gap-1">
                 <IconifyIcon icon="lucide:star" class="size-3" />
                 {{ $t('admin.ai.skillPackage.isRecommended') }}
@@ -119,7 +114,10 @@ defineProps<Props>();
             <div
               class="flex items-center gap-1.5 rounded-lg border border-border/50 bg-background px-3 py-1 text-xs text-foreground"
             >
-              <IconifyIcon icon="lucide:boxes" class="size-3.5 text-primary/70" />
+              <IconifyIcon
+                icon="lucide:boxes"
+                class="size-3.5 text-primary/70"
+              />
               {{ pkg.skill_count }}
               {{ $t('admin.ai.skillPackage.skillCount') }}
             </div>
@@ -136,7 +134,10 @@ defineProps<Props>();
               v-if="pkg.source_plugin"
               class="flex items-center gap-1.5 rounded-lg border border-border/50 bg-background px-3 py-1 text-xs text-foreground"
             >
-              <IconifyIcon icon="lucide:plug" class="size-3.5 text-primary/70" />
+              <IconifyIcon
+                icon="lucide:plug"
+                class="size-3.5 text-primary/70"
+              />
               {{ pkg.source_plugin }}
             </div>
           </div>
