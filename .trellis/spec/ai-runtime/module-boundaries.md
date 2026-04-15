@@ -5,6 +5,15 @@
 Keep the AI runtime modular enough that protocol work, intent/tool orchestration,
 context assembly, and service-facing workflows can evolve independently.
 
+## Governance Limits
+
+- Backend AI production modules should target `<= 600` lines.
+- Provider protocol implementation modules should target `<= 400` lines.
+- Frontend AI `.vue` shells and sections should target `<= 450` lines.
+- Frontend AI `.ts` composables and runtime helpers should target `<= 500` lines.
+- Any AI production file `> 1000` lines is treated as blocking governance debt;
+  new feature work should split the file first instead of growing it further.
+
 ## Runtime Layers (Stable Ownership)
 
 1. Contracts and diagnostics: stable DTOs for intents, budgets, protocol plans,
@@ -50,6 +59,10 @@ its implementation.
 - Public package imports are protected by lazy export facades in `app.ai`,
 `app.ai.engine`, `app.ai.context`, `app.ai.runtime`, and tool packages. Heavy
 imports must stay out of `__init__` modules.
+- Frontend AI runtime and helper public files may remain stable thin facades;
+  newly extracted behavior should continue into companion `*-core`,
+  `*-support`, `*-contracts`, or sibling domain modules instead of re-growing
+  the facade entrypoint.
 - Turn diagnostics flow through TurnRecord and CapabilityBundle. No other layer
 reconstructs protocol path, fallback history, or context sources.
 

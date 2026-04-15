@@ -113,6 +113,16 @@ export async function submitRuntimeForm(args: { confirm?: boolean; formSessionId
 
 #### 3.2 Shared UI Runtime Bridge Boundary
 - The shared bridge is `frontend/.../ai-runtime/runtime-bridge.ts`; it is the only place that builds thin `page_context` from DOM/form/session state.
+- The shared frontend page-runtime package is `frontend/.../ai-runtime/**`.
+  `runtime-bridge.ts` owns thin `page_context` assembly,
+  `form-session-manager.ts` owns form-session tracking,
+  `locator-resolver.ts` owns locator semantics, and
+  `ui-action-executor.ts` owns UI read/write execution and diff reporting.
+  These public files may stay as thin facades, but new logic should land in
+  co-located companion modules such as `*-core.ts`, `*-support.ts`, or
+  `*-contracts.ts` instead of re-expanding the public entrypoint.
+  Pages and generic composables may consume those public helpers, but must not
+  recreate the same domains elsewhere.
 - Pages and CRUD helpers contribute stable page keys, route policy, and form/session hooks only; do not embed DOM, HTML, or UI graph data in `page_context`.
 - Runtime scans must exclude the AI panel (`[data-ai-panel]`) and any subtree with `data-ai="off"`.
 

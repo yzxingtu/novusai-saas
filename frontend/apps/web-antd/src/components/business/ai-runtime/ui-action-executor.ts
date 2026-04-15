@@ -2,233 +2,34 @@ import {
   LocatorResolutionError,
   LocatorResolver,
   type LocatorCandidate,
-  type LocatorResolverOptions,
-  type UIInteractableKind,
 } from './locator-resolver';
+import {
+  buildDiff,
+  DEFAULT_WAIT_TIMEOUT_MS,
+  defaultPageKeyResolver,
+  shouldForceChanged,
+  snapshotUIState,
+} from './ui-action-executor-support';
 import { tAiRuntime, tAiRuntimeSurfaceKind } from './i18n';
 import { evaluateAIActionSecurity } from './security-policy';
 
-export type UIActionType = 'ui_click' | 'ui_open_surface';
+import type {
+  UIActionDiff,
+  UIActionExecutionResult,
+  UIActionExecutorOptions,
+  UIActionInvokePayload,
+  UIStateSnapshot,
+} from './ui-action-executor-contracts';
 
-export type UISurfaceKind = 'drawer' | 'dropdown' | 'modal' | 'page' | 'popover';
-
-export interface UISurfaceSummary {
-  kind: UISurfaceKind;
-  surface_id: string;
-  title: string;
-}
-
-export interface UIActionDiff {
-  active_surface_id: null | string;
-  changed: boolean;
-  page_key_changed: boolean;
-  surfaces_added: UISurfaceSummary[];
-  surfaces_removed: string[];
-  ui_epoch: number;
-}
-
-export interface UIActionInvokePayload {
-  action_type: UIActionType;
-  confirm?: boolean;
-  surface?: {
-    kind?: UISurfaceKind;
-    locator?: string;
-    title?: string;
-  };
-  target_locator?: string;
-  wait_timeout_ms?: number;
-}
-
-export interface UIActionExecutionResult {
-  data?: Record<string, unknown>;
-  diff: UIActionDiff;
-  error?: string;
-  error_type?: string;
-  message: string;
-  success: boolean;
-}
-
-export interface UIActionExecutorOptions {
-  getPageKey?: () => string;
-  getUiEpoch?: () => number;
-  locatorOptions?: LocatorResolverOptions;
-  locatorResolver?: LocatorResolver;
-  setUiEpoch?: (value: number) => void;
-}
-
-interface UIStateSnapshot {
-  activeSurfaceId: null | string;
-  pageKey: string;
-  surfaces: UISurfaceSummary[];
-  uiEpoch: number;
-}
-
-const DEFAULT_WAIT_TIMEOUT_MS = 220;
-
-function normalizeText(value: string): string {
-  return value.replaceAll(/\s+/g, ' ').trim();
-}
-
-function normalizeKey(value: string): string {
-  return normalizeText(value).toLocaleLowerCase();
-}
-
-function uniqueById(surfaces: UISurfaceSummary[]): UISurfaceSummary[] {
-  const map = new Map<string, UISurfaceSummary>();
-  surfaces.forEach((item) => {
-    map.set(item.surface_id, item);
-  });
-  return Array.from(map.values());
-}
-
-function isVisible(element: Element): boolean {
-  if (!(element instanceof HTMLElement)) {
-    return false;
-  }
-  if (element.hidden) {
-    return false;
-  }
-  const style = window.getComputedStyle(element);
-  if (style.display === 'none' || style.visibility === 'hidden') {
-    return false;
-  }
-  return element.getClientRects().length > 0 || style.opacity !== '0';
-}
-
-function resolveSurfaceTitle(root: Element): string {
-  const titleNode = root.querySelector(
-    '.ant-modal-title, .ant-drawer-title, [data-ai-surface-title], h1, h2, h3',
-  );
-  return normalizeText(
-    (titleNode instanceof HTMLElement ? titleNode.innerText : titleNode?.textContent) ||
-      '',
-  );
-}
-
-function buildSurfaceId(kind: UISurfaceKind, root: Element, index: number): string {
-  const customId =
-    root.getAttribute('data-ai-surface-id') || root.getAttribute('id');
-  if (customId) {
-    return `${kind}:${customId}`;
-  }
-  const title = resolveSurfaceTitle(root);
-  if (title) {
-    return `${kind}:${title}`;
-  }
-  return `${kind}:${index}`;
-}
-
-function defaultPageKeyResolver(): string {
-  const fromAttr = document.body.getAttribute('data-page-key');
-  if (fromAttr) {
-    return normalizeKey(fromAttr.replaceAll('/', '.'));
-  }
-  return normalizeKey(window.location.pathname.replace(/^\//, '').replaceAll('/', '.'));
-}
-
-function collectPageSurface(pageKey: string): UISurfaceSummary {
-  const pageTitle =
-    normalizeText(document.title) ||
-    normalizeText(document.querySelector('h1')?.textContent || '') ||
-    pageKey;
-  return {
-    kind: 'page',
-    surface_id: `page:${pageKey || 'unknown'}`,
-    title: pageTitle || tAiRuntime('surfaceTitle.page'),
-  };
-}
-
-function collectOverlaySurfaces(): UISurfaceSummary[] {
-  const overlays: UISurfaceSummary[] = [];
-
-  const drawerNodes = document.querySelectorAll(
-    '.ant-drawer, .ant-drawer-content-wrapper',
-  );
-  drawerNodes.forEach((node, index) => {
-    if (!isVisible(node)) {
-      return;
-    }
-    overlays.push({
-      kind: 'drawer',
-      surface_id: buildSurfaceId('drawer', node, index),
-      title:
-        resolveSurfaceTitle(node) ||
-        tAiRuntime('surfaceTitle.drawer', { index: index + 1 }),
-    });
-  });
-
-  const modalNodes = document.querySelectorAll(
-    '.ant-modal-wrap, .ant-modal, [role="dialog"]',
-  );
-  modalNodes.forEach((node, index) => {
-    if (!isVisible(node)) {
-      return;
-    }
-    overlays.push({
-      kind: 'modal',
-      surface_id: buildSurfaceId('modal', node, index),
-      title:
-        resolveSurfaceTitle(node) ||
-        tAiRuntime('surfaceTitle.modal', { index: index + 1 }),
-    });
-  });
-
-  const dropdownNodes = document.querySelectorAll(
-    '.ant-dropdown, .ant-select-dropdown, [data-ai-surface-kind="dropdown"]',
-  );
-  dropdownNodes.forEach((node, index) => {
-    if (!isVisible(node)) {
-      return;
-    }
-    overlays.push({
-      kind: 'dropdown',
-      surface_id: buildSurfaceId('dropdown', node, index),
-      title:
-        resolveSurfaceTitle(node) ||
-        tAiRuntime('surfaceTitle.dropdown', { index: index + 1 }),
-    });
-  });
-
-  const popoverNodes = document.querySelectorAll(
-    '.ant-popover, [data-ai-surface-kind="popover"]',
-  );
-  popoverNodes.forEach((node, index) => {
-    if (!isVisible(node)) {
-      return;
-    }
-    overlays.push({
-      kind: 'popover',
-      surface_id: buildSurfaceId('popover', node, index),
-      title:
-        resolveSurfaceTitle(node) ||
-        tAiRuntime('surfaceTitle.popover', { index: index + 1 }),
-    });
-  });
-
-  return uniqueById(overlays);
-}
-
-function shouldForceChanged(kind: UIInteractableKind): boolean {
-  return ['link', 'menu_item', 'pagination', 'tab'].includes(kind);
-}
-
-function findAddedSurfaces(
-  before: UISurfaceSummary[],
-  after: UISurfaceSummary[],
-): UISurfaceSummary[] {
-  const beforeIds = new Set(before.map((item) => item.surface_id));
-  return after.filter((item) => !beforeIds.has(item.surface_id));
-}
-
-function findRemovedSurfaces(
-  before: UISurfaceSummary[],
-  after: UISurfaceSummary[],
-): string[] {
-  const afterIds = new Set(after.map((item) => item.surface_id));
-  return before
-    .filter((item) => !afterIds.has(item.surface_id))
-    .map((item) => item.surface_id);
-}
+export type {
+  UIActionDiff,
+  UIActionExecutionResult,
+  UIActionExecutorOptions,
+  UIActionInvokePayload,
+  UIActionType,
+  UISurfaceKind,
+  UISurfaceSummary,
+} from './ui-action-executor-contracts';
 
 export class UIActionExecutor {
   private readonly getPageKey: () => string;
@@ -296,22 +97,12 @@ export class UIActionExecutor {
     after: UIStateSnapshot,
     semanticChanged: boolean,
   ): UIActionDiff {
-    const surfacesAdded = findAddedSurfaces(before.surfaces, after.surfaces);
-    const surfacesRemoved = findRemovedSurfaces(before.surfaces, after.surfaces);
-    const pageKeyChanged = before.pageKey !== after.pageKey;
-    const changed =
-      semanticChanged || pageKeyChanged || surfacesAdded.length > 0 || surfacesRemoved.length > 0;
-    const nextEpoch = changed ? Math.max(before.uiEpoch + 1, after.uiEpoch + 1) : before.uiEpoch;
-    this.setUiEpoch(nextEpoch);
-
-    return {
-      active_surface_id: after.activeSurfaceId,
-      changed,
-      page_key_changed: pageKeyChanged,
-      surfaces_added: surfacesAdded,
-      surfaces_removed: surfacesRemoved,
-      ui_epoch: nextEpoch,
-    };
+    return buildDiff({
+      after,
+      before,
+      semanticChanged,
+      setUiEpoch: this.setUiEpoch,
+    });
   }
 
   private clickElement(element: HTMLElement): void {
@@ -326,7 +117,7 @@ export class UIActionExecutor {
     action: UIActionInvokePayload,
     before: UIStateSnapshot,
   ): Promise<UIActionExecutionResult> {
-    const locator = normalizeText(action.target_locator || '');
+    const locator = String(action.target_locator || '').replaceAll(/\s+/g, ' ').trim();
     if (!locator) {
       return {
         diff: this.buildDiff(before, before, false),
@@ -403,7 +194,9 @@ export class UIActionExecutor {
   ): Promise<UIActionExecutionResult> {
     const surface = action.surface || {};
     const requestedKind = surface.kind;
-    let locator = normalizeText(surface.locator || action.target_locator || '');
+    let locator = String(surface.locator || action.target_locator || '')
+      .replaceAll(/\s+/g, ' ')
+      .trim();
 
     if (!locator && surface.title) {
       locator = `text:${surface.title}`;
@@ -490,18 +283,11 @@ export class UIActionExecutor {
     };
   }
 
-  private snapshot(): UIStateSnapshot {
-    const pageKey = this.getPageKey();
-    const pageSurface = collectPageSurface(pageKey);
-    const overlaySurfaces = collectOverlaySurfaces();
-    const surfaces = [pageSurface, ...overlaySurfaces];
-    const activeSurface = surfaces.at(-1) || pageSurface;
-    return {
-      activeSurfaceId: activeSurface.surface_id,
-      pageKey,
-      surfaces,
-      uiEpoch: this.getUiEpoch(),
-    };
+  private snapshot() {
+    return snapshotUIState({
+      getPageKey: this.getPageKey,
+      getUiEpoch: this.getUiEpoch,
+    });
   }
 
   private async waitForUI(timeoutMs = DEFAULT_WAIT_TIMEOUT_MS): Promise<void> {
