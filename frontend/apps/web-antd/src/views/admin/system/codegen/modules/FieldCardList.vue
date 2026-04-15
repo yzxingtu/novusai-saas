@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { Recordable } from '@vben/types';
 
-import type { PaletteItem } from './ComponentPalette.vue';
+import type { PaletteItem } from './component-palette.types';
 
 import {
   computed,

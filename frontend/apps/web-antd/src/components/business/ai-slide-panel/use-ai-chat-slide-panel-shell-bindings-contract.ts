@@ -2,14 +2,19 @@ import type { ItemType } from 'ant-design-vue/es/menu';
 import type { ComputedRef, Ref } from 'vue';
 
 import type { PendingOpDisplayItem } from './use-pending-page-ops';
+import type {
+  ChatKBBindingInfo,
+  ConversationTimelineItem,
+  MemoryState,
+} from '#/api/shared/ai-chat';
 
 import type {
   AgentItem,
   ChatAttachment,
-  ChatKBBindingInfo,
   ChatMessage,
   ConversationItem,
-  MemoryState,
+  MentionCandidate,
+  MentionKnowledgeBaseBinding,
   RichTextAIApplyMode,
   RichTextAIApplyTarget,
   RichTextDraftRuntimeState,
@@ -29,7 +34,7 @@ export interface UseAIChatSlidePanelShellBindingsOptions {
   askSuggested: (question: string) => void;
   canForceReroute: ComputedRef<boolean>;
   cancelEditTitle: () => void;
-  chatAcceptAttribute: Ref<string>;
+  chatAcceptAttribute: string;
   chatMessages: Ref<ChatMessage[]>;
   cleanup: () => void;
   clearResolvedPageOps?: (() => void) | undefined;
@@ -83,9 +88,7 @@ export interface UseAIChatSlidePanelShellBindingsOptions {
   memoryLoading: Ref<boolean>;
   memoryState: Ref<MemoryState | null>;
   mentionActiveIndex: Ref<number>;
-  mentionCandidates: Ref<
-    Array<{ binding: ChatKBBindingInfo; kind: 'knowledge_base' }>
-  >;
+  mentionCandidates: Readonly<Ref<MentionCandidate[]>>;
   mentionOpen: Ref<boolean>;
   messagesContainer: Ref<HTMLElement | null>;
   onClearMemory: () => void;
@@ -100,10 +103,6 @@ export interface UseAIChatSlidePanelShellBindingsOptions {
   onRichTextDiscard: (index: number) => void;
   onRichTextUndo: (index: number) => void;
   onSelectConversation: (conversationId: number) => void;
-  onSelectMentionCandidate: (payload: {
-    id: number;
-    kind: 'knowledge_base';
-  }) => void;
   onStartNewChat: () => void;
   onToggleForceReroute: () => void;
   pageAICapability: ReturnType<typeof usePageAICapability>;
@@ -117,16 +116,18 @@ export interface UseAIChatSlidePanelShellBindingsOptions {
   removeSelectedKnowledgeBase: (id: number) => void;
   resolvePendingOp: (invokeId: string, allowed: boolean) => void;
   retryLastMessage: (index: number) => void;
-  routeNotice: ComputedRef<string>;
+  routeNotice: Ref<null | string>;
   routing: Ref<boolean>;
   scrollToBottom: (force?: boolean) => void;
   scrollToTop: () => void;
   selectedAgent: Ref<AgentItem | null>;
   selectedAgentId: Ref<null | number>;
   selectedKBIds: Ref<number[]>;
-  selectMentionKnowledgeBase: (binding: ChatKBBindingInfo) => void;
+  selectMentionKnowledgeBase: (
+    binding: Pick<MentionKnowledgeBaseBinding, 'knowledge_base_id'>,
+  ) => void;
   sending: Ref<boolean>;
-  showAttachments: Ref<boolean>;
+  showAttachments: Readonly<Ref<boolean>>;
   showContextDrawer: Ref<boolean>;
   showHeaderMoreMenu: Ref<boolean>;
   showHeaderVarsButton: ComputedRef<boolean>;
@@ -143,7 +144,7 @@ export interface UseAIChatSlidePanelShellBindingsOptions {
   stopGeneration: () => void;
   streaming: Ref<boolean>;
   supportsVision: ComputedRef<boolean>;
-  timelineItems: Ref<unknown[]>;
+  timelineItems: Ref<ConversationTimelineItem[]>;
   timelineLoading: Ref<boolean>;
   timelineRefreshing: Ref<boolean>;
   totalTokensUsed: ComputedRef<number>;

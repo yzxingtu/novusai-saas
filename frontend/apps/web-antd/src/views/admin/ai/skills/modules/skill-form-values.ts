@@ -1,6 +1,9 @@
 import type { AdminSkillInfo } from '#/api/admin/skills';
 
-import type { SkillFormSharedState } from './skill-form-types';
+import type {
+  BuiltinToolInfo,
+  SkillFormSharedState,
+} from './skill-form-types';
 
 interface SkillFormValueOptions extends SkillFormSharedState {
   loadPluginTools?: (skillId: number) => void;

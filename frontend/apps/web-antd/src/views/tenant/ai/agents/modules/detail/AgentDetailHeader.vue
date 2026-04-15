@@ -37,7 +37,9 @@ const avatarDisplayUrl = computed(() => {
   return val ? toAvatarDisplayUrl(val) : '';
 });
 
-const avatarInitial = computed(() => (props.agent.name || '?')[0].toUpperCase());
+const avatarInitial = computed(() =>
+  (props.agent.name || '?').charAt(0).toUpperCase(),
+);
 
 function getExecutionModeIcon(mode: string): string {
   switch (mode) {

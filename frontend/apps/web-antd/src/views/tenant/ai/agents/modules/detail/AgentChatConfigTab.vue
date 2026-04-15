@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import type { AgentInfo } from '#/api/tenant/agents';
 import type { InputVariable } from '#/types/ai-chat';
+import type { VNodeRef } from 'vue';
 
 import { nextTick, ref, watch } from 'vue';
 
@@ -31,6 +32,14 @@ const chatContextMessages = ref(20);
 const chatContextTokens = ref(0);
 const chatLongTermMemoryEnabled = ref(false);
 const chatSystemPromptRef = ref<HTMLTextAreaElement | null>(null);
+
+const setChatSystemPromptRef: VNodeRef = (value) => {
+  const textarea =
+    (value as { resizableTextArea?: { textArea?: HTMLTextAreaElement } } | null)
+      ?.resizableTextArea?.textArea ??
+    ((value as HTMLElement | null)?.querySelector?.('textarea') ?? null);
+  chatSystemPromptRef.value = textarea;
+};
 
 function formatVarChip(name: string) {
   return `{{${name}}}`;
@@ -147,7 +156,7 @@ watch(
         </button>
       </div>
       <Textarea
-        :ref="(el) => (chatSystemPromptRef.value = el as HTMLTextAreaElement | null)"
+        :ref="setChatSystemPromptRef"
         v-model:value="chatSystemPrompt"
         :rows="6"
         :disabled="!isTenantOwned"

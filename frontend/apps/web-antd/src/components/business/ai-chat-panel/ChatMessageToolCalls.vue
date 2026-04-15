@@ -37,7 +37,6 @@ const {
   getToolDisplayState,
   hasPendingOpArgs,
   isPendingOpExpanded,
-  isToolExpanded,
   isToolGroupExpanded,
   isToolRawExpanded,
   now,

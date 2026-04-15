@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { VNodeRef } from 'vue';
+
 import { computed, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
@@ -95,6 +97,11 @@ const {
   loadPackages,
   selectedPackageId,
 });
+
+const setValvesConfigPanelRef: VNodeRef = (value) => {
+  valvesConfigPanelRef.value =
+    value as InstanceType<typeof ValvesConfigPanel> | null;
+};
 
 routeCreateSkillAction.value = onCreateSkill;
 
@@ -213,7 +220,7 @@ const heroChips = computed(() => {
     />
 
     <ValvesConfigPanel
-      ref="valvesConfigPanelRef"
+      :ref="setValvesConfigPanelRef"
       :package-id="selectedPackageId"
       :package-name="selectedPackage?.name"
       i18n-prefix="admin.ai.skillPackage"

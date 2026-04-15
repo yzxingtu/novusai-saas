@@ -1,4 +1,4 @@
-import { TinyColor } from '@ctrl/tinycolor';
+import { TinyColor } from './tinycolor';
 
 /**
  * 将颜色转换为HSL格式。

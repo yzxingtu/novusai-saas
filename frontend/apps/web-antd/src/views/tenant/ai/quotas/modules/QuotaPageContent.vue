@@ -48,6 +48,10 @@ const props = defineProps<{
   rateLimits: TenantRateLimitInfo[];
 }>();
 
+function handleTabChange(tab: string | number) {
+  props.onTabChange(String(tab));
+}
+
 const hasVisibleGlobalQuota = computed(() =>
   props.displayedQuotas.some((item) => item.quota.model_id === null),
 );
@@ -62,7 +66,7 @@ const rateLimitSpinning = computed(
 </script>
 
 <template>
-  <Tabs :active-key="activeTab" @change="onTabChange">
+  <Tabs :active-key="activeTab" @change="handleTabChange">
     <TabPane key="quotas" :tab="$t('tenant.ai.quota.title')">
       <div class="mb-4 grid grid-cols-1 gap-3" :class="quotaAlertGridClass">
         <Alert

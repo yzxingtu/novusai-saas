@@ -75,7 +75,6 @@ export function useUserAIChatPage() {
     sendMessage,
     cleanup,
     clearConversationMemory,
-    clearingMemory,
     fetchConversationMemory,
     exportAsMarkdown,
     exportAsPlainText,

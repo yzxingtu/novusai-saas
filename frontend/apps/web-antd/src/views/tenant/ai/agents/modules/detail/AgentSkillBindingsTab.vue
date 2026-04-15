@@ -3,8 +3,6 @@ import type { AgentSkillGrantInfo } from '#/api/tenant/agents';
 
 import { ref, watch } from 'vue';
 
-import { IconifyIcon } from '@vben/icons';
-
 import { Empty, Spin, Tag } from 'ant-design-vue';
 
 import { getAgentSkillsApi } from '#/api/tenant/agents';

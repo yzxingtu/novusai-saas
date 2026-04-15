@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { VNodeRef } from 'vue';
+
 import { IconifyIcon } from '@vben/icons';
 
 import ChatMessageItem from '#/components/business/ai-chat-panel/ChatMessageItem.vue';
@@ -37,11 +39,15 @@ const {
   editAndResend,
   retryLastMessage,
 } = chat;
+
+const setMessagesContainerRef: VNodeRef = (element) => {
+  messagesContainer.value = element as HTMLElement | null;
+};
 </script>
 
 <template>
   <div
-    :ref="messagesContainer"
+    :ref="setMessagesContainerRef"
     class="flex-1 overflow-y-auto px-4 py-4 sm:px-6"
     @scroll="handleMessagesScroll"
   >

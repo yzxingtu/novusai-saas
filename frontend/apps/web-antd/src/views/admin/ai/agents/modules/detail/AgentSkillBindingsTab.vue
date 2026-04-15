@@ -128,6 +128,13 @@ async function updateConsentMode(bindingId: number, mode: string) {
   }
 }
 
+function handleConsentModeChange(binding: AIAgentSkillGrantInfo, value: string) {
+  if (binding.id === null || binding.id === undefined) {
+    return;
+  }
+  void updateConsentMode(binding.id, value);
+}
+
 async function toggleSkillEnabled(binding: AIAgentSkillGrantInfo) {
   if (binding.id === null || binding.id === undefined) return;
   try {
@@ -244,7 +251,7 @@ watch(
                   </div>
                   <div class="mt-1 text-xs text-muted-foreground">
                     <span>
-                      {{ binding.package_display_name || binding.package_name || '-' }}
+                      {{ binding.package_name || '-' }}
                     </span>
                   </div>
                 </div>
@@ -259,7 +266,7 @@ watch(
                     :value="binding.default_consent_mode"
                     :options="consentModeOptions"
                     class="min-w-[110px]"
-                    @change="(val) => updateConsentMode(binding.id!, String(val))"
+                    @change="(val) => handleConsentModeChange(binding, String(val))"
                   />
                 </div>
                 <Switch

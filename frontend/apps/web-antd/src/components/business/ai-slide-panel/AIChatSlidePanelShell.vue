@@ -47,7 +47,7 @@ const {
   overlayProps,
   panelBodyListeners,
   panelBodyProps,
-  panelRef,
+  setPanelRef,
   showHistory,
   showMemoryPanel,
   streaming,
@@ -62,7 +62,7 @@ const {
     <Transition name="slide-panel">
       <div
         v-if="aiPanelStore.visible"
-        ref="panelRef"
+        :ref="setPanelRef"
         data-ai-panel
         class="fixed right-0 top-0 z-[2001] flex h-full flex-col bg-card shadow-2xl transition-[width] duration-200"
         :class="isFullMode ? '' : 'border-l border-border/50'"

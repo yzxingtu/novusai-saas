@@ -18,7 +18,7 @@ import QuotaPageRateLimitPanel from './QuotaPageRateLimitPanel.vue';
 
 defineOptions({ name: 'AIQuotaPageContent' });
 
-defineProps<{
+const props = defineProps<{
   activeTab: QuotaPageTab;
   onQuotaDelete: (item: AIQuotaDiagnosticInfo) => Promise<void>;
   onQuotaEdit: (item: AIQuotaDiagnosticInfo) => void;
@@ -38,10 +38,14 @@ defineProps<{
   rateLimits: AIRateLimitDiagnosticInfo[];
   rateLimitTotal: number;
 }>();
+
+function handleTabChange(tab: string | number) {
+  props.onTabChange(String(tab));
+}
 </script>
 
 <template>
-  <Tabs :active-key="activeTab" @change="onTabChange">
+  <Tabs :active-key="activeTab" @change="handleTabChange">
     <TabPane key="quotas" :tab="$t('admin.ai.quota.title')">
       <QuotaPageQuotaPanel
         :on-quota-delete="onQuotaDelete"

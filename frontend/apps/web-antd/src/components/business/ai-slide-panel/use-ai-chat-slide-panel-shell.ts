@@ -1,4 +1,5 @@
 import type { AIPageMode } from '@vben/types';
+import type { ComponentPublicInstance } from 'vue';
 
 import { computed, ref, toRef } from 'vue';
 
@@ -46,7 +47,7 @@ export function useAIChatSlidePanelShell(
   const apiPrefix = toRef(props, 'apiPrefix');
   const disabledCapabilities = toRef(props, 'disabledCapabilities');
   const pageContextKey = toRef(props, 'pageContextKey');
-  const showAttachments = toRef(props, 'showAttachments');
+  const showAttachments = computed(() => props.showAttachments ?? true);
   const uploadUrl = toRef(props, 'uploadUrl');
   const { modalState } = useModalDetector();
   const normalizedPageMode = computed(() => normalizePageAIMode(props.aiMode));
@@ -344,6 +345,15 @@ export function useAIChatSlidePanelShell(
   });
   unpinAgentRef.value = shellActions.unpinAgent;
 
+  function setPanelRef(element: ComponentPublicInstance | Element | null) {
+    const resolvedElement =
+      element instanceof Element
+        ? element
+        : ((element?.$el as Element | null | undefined) ?? null);
+    shellActions.panelRef.value =
+      resolvedElement instanceof HTMLElement ? resolvedElement : null;
+  }
+
   const bindings = useAIChatSlidePanelShellBindings({
     actionClick: clickActionButton,
     activeConversationId,
@@ -416,7 +426,6 @@ export function useAIChatSlidePanelShell(
     onRichTextDiscard,
     onRichTextUndo,
     onSelectConversation: history.onSelectConversation,
-    onSelectMentionCandidate,
     onStartNewChat: history.onStartNewChat,
     onToggleForceReroute,
     pageAICapability,
@@ -480,7 +489,7 @@ export function useAIChatSlidePanelShell(
     overlayProps: bindings.overlayProps,
     panelBodyListeners: bindings.panelBodyListeners,
     panelBodyProps: bindings.panelBodyProps,
-    panelRef: shellActions.panelRef,
+    setPanelRef,
     showHistory,
     showMemoryPanel,
     streaming,

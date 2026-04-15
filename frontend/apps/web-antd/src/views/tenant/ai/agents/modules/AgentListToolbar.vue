@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { SelectValue } from 'ant-design-vue/es/select';
+
 import { IconifyIcon } from '@vben/icons';
 
 import {
@@ -35,8 +37,12 @@ function onSearchKeywordChange(value: string) {
   emit('search');
 }
 
-function onStatusChange(value: string | undefined) {
-  emit('update:filterStatus', value);
+function normalizeSelectValue(value: SelectValue) {
+  return typeof value === 'string' ? value : undefined;
+}
+
+function onStatusChange(value: SelectValue) {
+  emit('update:filterStatus', normalizeSelectValue(value));
   emit('search');
 }
 </script>

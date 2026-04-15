@@ -316,8 +316,6 @@ export function useRichTextTaskOrchestration(
   function getRichTextDraftState(
     message: ChatMessage,
   ): null | RichTextDraftRuntimeState {
-    const registryVersion = sourceEditorRegistryVersion.value;
-    void registryVersion;
     if (message.role !== 'assistant' || !message.richTextAI) {
       return null;
     }

@@ -8,11 +8,11 @@ import { computed, onUnmounted, ref, watch } from 'vue';
 export interface PendingOpDisplayItem {
   allowed?: boolean;
   invokeId: string;
-  operationDescription?: string;
+  operationDescription: string;
   operationLabel: string;
-  params?: Record<string, unknown>;
+  params: Record<string, unknown>;
   resolved: boolean;
-  startedAt?: number;
+  startedAt: number;
   toolCallId?: string;
 }
 
@@ -64,11 +64,11 @@ export function usePendingPageOps(options: UsePendingPageOpsOptions) {
     return {
       allowed: op.allowed,
       invokeId: op.invokeId,
-      operationDescription: op.operationDescription,
+      operationDescription: op.operationDescription ?? '',
       operationLabel: op.operationLabel,
-      params: op.params,
+      params: op.params ?? {},
       resolved: op.resolved,
-      startedAt: op.startedAt,
+      startedAt: op.startedAt ?? 0,
       toolCallId: op.toolCallId,
     };
   }

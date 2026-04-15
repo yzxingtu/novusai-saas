@@ -1,4 +1,4 @@
-import type { Ref } from 'vue';
+import type { ComputedRef, Ref } from 'vue';
 
 import type { ChatKBBindingInfo } from '#/api/shared/ai-chat';
 import type { ChatAttachment, MentionCandidate } from '#/types/ai-chat';
@@ -13,7 +13,7 @@ interface UsePanelComposerOptions {
   agentKBBindings: Ref<ChatKBBindingInfo[]>;
   inputMessage: Ref<string>;
   mentionActiveIndex: Ref<number>;
-  mentionCandidates: Ref<MentionCandidate[]>;
+  mentionCandidates: ComputedRef<MentionCandidate[]> | Readonly<Ref<MentionCandidate[]>>;
   pendingAttachments: Ref<ChatAttachment[]>;
   routing: Ref<boolean>;
   selectedKBIds: Ref<number[]>;
@@ -21,7 +21,7 @@ interface UsePanelComposerOptions {
     binding: Pick<ChatKBBindingInfo, 'knowledge_base_id'>,
   ) => void;
   sending: Ref<boolean>;
-  showAttachments: Ref<boolean>;
+  showAttachments: ComputedRef<boolean> | Ref<boolean>;
   streaming: Ref<boolean>;
   uploading: Ref<boolean>;
 }

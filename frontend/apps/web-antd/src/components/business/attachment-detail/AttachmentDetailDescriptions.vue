@@ -1,6 +1,5 @@
 <script lang="ts" setup>
 import type {
-  AttachmentDetailField,
   AttachmentDetailSection,
 } from './types';
 

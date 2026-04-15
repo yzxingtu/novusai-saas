@@ -15,7 +15,7 @@ interface UsePanelShellComputedUIOptions {
   chatMessages: Ref<unknown[]>;
   mentionCandidates: Ref<unknown[]>;
   sending: Ref<boolean>;
-  showAttachments: Ref<boolean>;
+  showAttachments: ComputedRef<boolean> | Ref<boolean>;
   supportsVision: ComputedRef<boolean>;
 }
 

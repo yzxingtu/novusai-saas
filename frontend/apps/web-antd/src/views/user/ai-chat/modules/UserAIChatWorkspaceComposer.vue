@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { VNodeRef } from 'vue';
+
 import { computed } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
@@ -58,6 +60,10 @@ function resolveSelectedKbName(knowledgeBaseId: number) {
     knowledgeBaseId,
   );
 }
+
+const setFileInputRef: VNodeRef = (element) => {
+  fileInput.value = element as HTMLInputElement | null;
+};
 </script>
 
 <template>
@@ -225,13 +231,13 @@ function resolveSelectedKbName(knowledgeBaseId: number) {
               v-for="(candidate, candidateIndex) in mentionCandidates"
               :key="`kb-${candidate.binding.knowledge_base_id}`"
             >
-              <div
-                v-if="
-                  candidateIndex === 0 ||
-                  mentionCandidates[candidateIndex - 1]!.kind !== candidate.kind
-                "
-                class="px-0.5 pt-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60"
-              >
+                <div
+                  v-if="
+                    candidateIndex === 0 ||
+                    mentionCandidates[candidateIndex - 1]?.kind !== candidate.kind
+                  "
+                  class="px-0.5 pt-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60"
+                >
                 {{ $t('common.globalAiChat.mentionSectionKbs') }}
               </div>
               <button
@@ -280,7 +286,7 @@ function resolveSelectedKbName(knowledgeBaseId: number) {
         </Tooltip>
 
         <input
-          :ref="fileInput"
+          :ref="setFileInputRef"
           type="file"
           multiple
           :accept="chatAcceptAttribute"

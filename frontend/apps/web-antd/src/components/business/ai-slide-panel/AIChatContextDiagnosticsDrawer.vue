@@ -7,21 +7,19 @@ defineOptions({ name: 'AIChatContextDiagnosticsDrawer' });
 
 const props = withDefaults(
   defineProps<{
-    conversationContextDiagnostics?: unknown | null;
+    conversationContextDiagnostics?: null | Record<string, unknown>;
     interactionModeDowngraded?: boolean;
     interactionModeDowngradeText?: string;
     interactionModeLabel?: string;
     interactionModeRequested?: string;
-    lastRunSummary?: unknown | null;
+    lastRunSummary?: null | Record<string, unknown>;
     open?: boolean;
   }>(),
   {
-    conversationContextDiagnostics: null,
     interactionModeDowngraded: false,
     interactionModeDowngradeText: '',
     interactionModeLabel: '',
     interactionModeRequested: '',
-    lastRunSummary: null,
     open: false,
   },
 );

@@ -3,8 +3,6 @@ import type { AIAgentInfo } from '#/api/admin/ai';
 
 import { ref, watch } from 'vue';
 
-import { IconifyIcon } from '@vben/icons';
-
 import { Button, InputNumber, Select as ASelect, Switch } from 'ant-design-vue';
 
 import { $t } from '#/locales';

@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { PaletteItem } from './ComponentPalette.vue';
+import type { PaletteItem } from './component-palette.types';
 
 import { computed, onMounted, ref } from 'vue';
 

@@ -1,11 +1,9 @@
 import type { ComputedRef, Ref } from 'vue';
 
 import type { DetailTabKey, PayloadEntry } from './action-log-detail-helpers';
-
 import type {
-  type AdminActionLogDetail,
+  AdminActionLogDetail,
   AdminActionLogItem,
-  getAdminActionLogDetailApi,
 } from '#/api/admin/action-logs';
 import type { AdminExecutionDecisionItem } from '#/api/admin/execution-decisions';
 
@@ -13,6 +11,7 @@ import { computed, ref, watch } from 'vue';
 
 import { message } from 'ant-design-vue';
 
+import { getAdminActionLogDetailApi } from '#/api/admin/action-logs';
 import { getAdminExecutionDecisionDetailApi } from '#/api/admin/execution-decisions';
 import { $t } from '#/locales';
 import { copyToClipboard } from '#/utils/common';

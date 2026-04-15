@@ -66,10 +66,14 @@ export async function finalizeStreamRequest(
           lifecycle.didSseEnd)));
 
   if (shouldSyncConversationHistory) {
+    const syncConversationId = interruptedConversationId;
+    if (syncConversationId === null) {
+      return;
+    }
     const conversationSyncPromise =
       lifecycle.committedConversationSyncPromise ||
       deps.syncConversationAfterInterrupt(
-        interruptedConversationId,
+        syncConversationId,
         lifecycle.interruptedHistoryBaseline,
       );
     await conversationSyncPromise;

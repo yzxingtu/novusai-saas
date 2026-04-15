@@ -185,8 +185,12 @@ export async function runStreamRequest(
     };
 
     pendingInteractionUpdates.value = [];
+    const requestAbortController = deps.streamControl.abortController;
+    if (!requestAbortController) {
+      throw new Error('Stream abort controller was not initialized');
+    }
     await sendChatStreamApi(prefix, targetAgentId, requestBody, {
-      abortController: deps.streamControl.abortController,
+      abortController: requestAbortController,
       async onMessage(rawChunk: string) {
         await parseSSEEvents(rawChunk, sseBuffer, handleSsePayload);
       },

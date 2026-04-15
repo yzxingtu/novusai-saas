@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { VNodeRef } from 'vue';
+
 import { Page } from '@vben/common-ui';
 
 import { Pagination } from 'ant-design-vue';
@@ -47,14 +49,24 @@ const {
   searchKeyword,
   total,
 } = useAgentListPage();
+
+const setAgentFormRef: VNodeRef = (value) => {
+  agentFormRef.value = value as InstanceType<typeof AgentForm> | undefined;
+};
+
+const setRecycleBinRef: VNodeRef = (value) => {
+  recycleBinRef.value = value as
+    | null
+    | { deletedCount: number; open: () => void };
+};
 </script>
 
 <template>
   <Page auto-content-height content-class="flex flex-col gap-4 !p-4">
-    <AgentForm ref="agentFormRef" @success="loadList" />
+    <AgentForm :ref="setAgentFormRef" @success="loadList" />
     <VersionDrawer @success="loadList" />
     <RecycleBinDrawer
-      ref="recycleBinRef"
+      :ref="setRecycleBinRef"
       resource="/admin/ai/agents"
       @restored="loadList"
     />
