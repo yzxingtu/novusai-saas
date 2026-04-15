@@ -12,6 +12,7 @@ from pydantic import Field
 
 from app.core.base_schema import BaseSchema
 from app.core.identity_snapshot import snapshot_has_key, snapshot_value
+from app.operation_log_module_resolution import resolve_operation_log_module
 
 
 def _translate_log_field(key: str, prefix: str) -> str | None:
@@ -148,6 +149,11 @@ class OperationLogResponse(BaseSchema):
     ) -> "OperationLogResponse":
         """从模型创建响应 / Build response from model."""
         identity_fields = _resolve_identity_fields(log, identity_meta)
+        effective_module = resolve_operation_log_module(
+            module=log.module,
+            resource=log.resource,
+            path=log.path,
+        )
         return cls(
             id=log.id,
             trace_id=log.trace_id,
@@ -164,8 +170,8 @@ class OperationLogResponse(BaseSchema):
             is_active=identity_fields["is_active"],
             is_owner=identity_fields["is_owner"],
             is_leader=identity_fields["is_leader"],
-            module=log.module,
-            module_label=_translate_log_field(log.module, "enum.log_module"),
+            module=effective_module,
+            module_label=_translate_log_field(effective_module, "enum.log_module"),
             action=log.action,
             action_label=_translate_log_field(log.action, "enum.operation"),
             resource=log.resource,
@@ -222,6 +228,11 @@ class OperationLogListResponse(BaseSchema):
     ) -> "OperationLogListResponse":
         """从模型创建列表响应 / Build list response from model."""
         identity_fields = _resolve_identity_fields(log, identity_meta)
+        effective_module = resolve_operation_log_module(
+            module=log.module,
+            resource=log.resource,
+            path=log.path,
+        )
         return cls(
             id=log.id,
             trace_id=log.trace_id,
@@ -238,8 +249,8 @@ class OperationLogListResponse(BaseSchema):
             is_active=identity_fields["is_active"],
             is_owner=identity_fields["is_owner"],
             is_leader=identity_fields["is_leader"],
-            module=log.module,
-            module_label=_translate_log_field(log.module, "enum.log_module"),
+            module=effective_module,
+            module_label=_translate_log_field(effective_module, "enum.log_module"),
             action=log.action,
             action_label=_translate_log_field(log.action, "enum.operation"),
             resource=log.resource,

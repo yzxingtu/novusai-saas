@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from app.operation_log_module_resolution import resolve_operation_log_module
+
 
 def build_operation_log_payload(
     *,
@@ -30,13 +32,19 @@ def build_operation_log_payload(
     identity_snapshot: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the repository payload for an operation-log row."""
+    resolved_module = resolve_operation_log_module(
+        module=module,
+        resource=resource,
+        path=path,
+    )
+
     return {
         "tenant_id": tenant_id,
         "user_type": user_type,
         "user_id": user_id,
         "username": username,
         "nickname": nickname,
-        "module": module,
+        "module": resolved_module,
         "action": action,
         "resource": resource,
         "method": method,

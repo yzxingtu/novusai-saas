@@ -31,6 +31,25 @@ def _make_log(**overrides):
 
 
 class TestLogRecord:
+    def test_build_operation_log_payload_infers_module_from_path(self) -> None:
+        from app.services.system.operation_log_service_parts.payloads import (
+            build_operation_log_payload,
+        )
+
+        payload = build_operation_log_payload(
+            tenant_id=None,
+            user_type="admin",
+            user_id=1,
+            username="admin",
+            module=None,
+            action="query",
+            resource=None,
+            method="GET",
+            path="/admin/notifications/unread-count",
+        )
+
+        assert payload["module"] == "notification"
+
     @pytest.mark.asyncio
     async def test_create_log_entry(self, mock_db):
         from app.services.system.operation_log_service import OperationLogService
@@ -204,6 +223,78 @@ class TestLogQuery:
         assert payloads[0]["is_active"] is True
         assert payloads[0]["is_leader"] is True
         assert payloads[0]["is_owner"] is True
+
+    @pytest.mark.asyncio
+    async def test_serialize_logs_backfills_legacy_module_from_path(self, mock_db):
+        from app.services.system.operation_log_service import OperationLogService
+
+        service = OperationLogService.__new__(OperationLogService)
+        service.db = mock_db
+        service.repo = AsyncMock()
+        service._identity_facade = SimpleNamespace(
+            identity_ref=lambda user_type, user_id: (
+                (str(user_type), int(user_id))
+                if user_type is not None and user_id is not None
+                else None
+            ),
+            load_identity_meta_map=AsyncMock(return_value={}),
+        )
+
+        log = _make_log(
+            id=23,
+            user_type="admin",
+            user_id=1,
+            username="admin",
+            nickname="管理员",
+            module=None,
+            resource=None,
+            path="/admin/plugins/weather-widget/api/hourly",
+            trace_id=None,
+            response_code=200,
+            ip=None,
+            created_at=datetime(2026, 4, 5, 0, 0, tzinfo=timezone.utc),
+        )
+
+        payloads = await service.serialize_logs([log])
+
+        assert payloads[0]["module"] == "plugin"
+        assert payloads[0]["module_label"] == "插件"
+
+    @pytest.mark.asyncio
+    async def test_serialize_logs_translates_preference_module_from_path(self, mock_db):
+        from app.services.system.operation_log_service import OperationLogService
+
+        service = OperationLogService.__new__(OperationLogService)
+        service.db = mock_db
+        service.repo = AsyncMock()
+        service._identity_facade = SimpleNamespace(
+            identity_ref=lambda user_type, user_id: (
+                (str(user_type), int(user_id))
+                if user_type is not None and user_id is not None
+                else None
+            ),
+            load_identity_meta_map=AsyncMock(return_value={}),
+        )
+
+        log = _make_log(
+            id=24,
+            user_type="admin",
+            user_id=1,
+            username="admin",
+            nickname="管理员",
+            module=None,
+            resource=None,
+            path="/admin/preferences/me",
+            trace_id=None,
+            response_code=200,
+            ip=None,
+            created_at=datetime(2026, 4, 5, 0, 0, tzinfo=timezone.utc),
+        )
+
+        payloads = await service.serialize_logs([log])
+
+        assert payloads[0]["module"] == "preference"
+        assert payloads[0]["module_label"] == "偏好设置"
 
     @pytest.mark.asyncio
     async def test_get_admin_operators_select_returns_remote_identity_options(
