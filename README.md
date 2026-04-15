@@ -1,5 +1,10 @@
 # NovusAI SaaS
 
+> Status: this repo remains the multi-tenant SaaS source system with `admin`,
+> `tenant`, and `user` product surfaces.
+> Single-instance / `admin + member` split planning or implementation docs must
+> not be kept as canonical docs in this repo.
+
 **Languages:** English · [简体中文](README.zh-CN.md)
 
 Multi-tenant, AI-native SaaS platform with **platform admin**, **tenant**, and **user** apps, **RBAC**, **plugins**, **Agent → Skill → AIGateway** flows, **Socket.IO**, pluggable **attachments**, **codegen**, and **Alembic** migrations.
@@ -224,7 +229,7 @@ In typical **production** settings, these URLs are disabled (`None` when `DEBUG`
 
 | Location | Purpose |
 |----------|---------|
-| [`.cursor/rules/novusai-saas.md`](.cursor/rules/novusai-saas.md) | Rule index: layering, i18n, AI, plugins, RBAC, migrations, trace/monitoring, … |
+| [`.cursor/rules/novusai-saas.md`](.cursor/rules/novusai-saas.md) | Rule index: layering, high cohesion/low coupling, i18n, AI, plugins, RBAC, migrations, trace/monitoring, … |
 | [`.cursor/skills/novusai-saas/SKILL.md`](.cursor/skills/novusai-saas/SKILL.md) | Umbrella skill: stack, constraints, CRUD/AI/plugin entry points |
 | [`.cursor/skills/`](.cursor/skills) | Topic skills (RAG, WebSocket, codegen, attachments, …) |
 | [`docs/guides/backend-development.md`](docs/guides/backend-development.md) | Backend guide |

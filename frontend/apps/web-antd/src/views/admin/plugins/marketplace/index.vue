@@ -23,7 +23,6 @@ import {
 } from 'ant-design-vue';
 
 import { getMarketplaceListApi } from '#/api/admin/plugin-marketplace';
-import { usePageAIRegistration } from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
 
 import { getTierColor, getTierText } from '../data';
@@ -149,44 +148,6 @@ async function handleWizardInstalled() {
   await loadMarketplace();
 }
 
-usePageAIRegistration({
-  pageKey: 'admin.plugins.marketplace',
-  title: () => $t('admin.plugin.marketplace.title'),
-  resource: '/admin/plugins/marketplace',
-  data: () => ({
-    total: total.value,
-  }),
-  operations: [
-    {
-      name: 'refresh_marketplace',
-      label: $t('shared.pageOperation.refreshList'),
-      description: 'Reload the plugin marketplace list',
-      readonly: true,
-      handler: async () => {
-        await loadMarketplace();
-        return { success: true, message: 'Marketplace refreshed' };
-      },
-    },
-    {
-      name: 'search',
-      label: $t('shared.pageOperation.searchPlugins'),
-      description: 'Search plugins in the marketplace',
-      readonly: true,
-      params: {
-        keyword: { type: 'string', description: 'Plugin name keyword' },
-      },
-      handler: async (params) => {
-        searchKeyword.value = (params?.keyword as string) || '';
-        currentPage.value = 1;
-        await loadMarketplace();
-        return {
-          success: true,
-          message: `Searched for: ${searchKeyword.value}`,
-        };
-      },
-    },
-  ],
-});
 </script>
 
 <template>

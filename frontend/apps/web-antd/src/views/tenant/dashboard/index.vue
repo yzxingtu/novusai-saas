@@ -6,7 +6,6 @@ import { useUserStore } from '@vben/stores';
 import { Spin } from 'ant-design-vue';
 
 import PluginDashboardWidgets from '#/components/business/plugin-slots/PluginDashboardWidgets.vue';
-import { usePageAIContext } from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
 import TenantDashboardUsageChart from '#/views/_shared/charts/TenantDashboardUsageChart.vue';
 import DashboardActivityFeed from '#/views/_shared/dashboard/DashboardActivityFeed.vue';
@@ -42,18 +41,6 @@ function goTo(routePath: string) {
   void router.push(routePath);
 }
 
-usePageAIContext({
-  title: () => $t('tenant.dashboard.title'),
-  resource: '/tenant/dashboard',
-  data: () => ({
-    api_calls: stats.value.api_calls,
-    monthly_conversations: stats.value.monthly_conversations,
-    storage_used_mb: stats.value.storage_used_mb,
-    total_agents: stats.value.total_agents,
-    total_tokens: stats.value.total_tokens,
-    total_users: stats.value.total_users,
-  }),
-});
 </script>
 
 <template>

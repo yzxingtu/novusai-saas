@@ -37,23 +37,11 @@ import {
 import { OrgTreeNode, useOrgTree } from '#/components/business/org-tree';
 import { NODE_TYPE_CONFIG } from '#/components/business/org-tree/types';
 import { PermissionPreview } from '#/components/business/permission-preview';
-import {
-  createCreateRecordPageOperation,
-  createOpenCurrentPageOperation,
-  createRefreshPageOperation,
-  createSimplePageOperation,
-} from '#/composables/use-page-ai-operation-helpers';
-import {
-  usePageAIContext,
-  usePageAIOperations,
-} from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
 import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
 import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 
 defineOptions({ name: 'TenantOrganization' });
-
-const AI_PAGE_KEY = 'tenant.system.organization';
 
 const {
   treeData,
@@ -271,86 +259,6 @@ onMounted(async () => {
   if (firstNode) {
     selectedNode.value = firstNode;
   }
-});
-
-usePageAIContext({
-  pageKey: AI_PAGE_KEY,
-  resource: '/tenant/system/organization',
-  data: () => ({
-    expanded_count: expandedIds.value.size,
-    root_node_count: treeData.value.length,
-    selected_node_code: activeNode.value?.code ?? null,
-    selected_node_id: activeNode.value?.id ?? null,
-    selected_node_name: activeNode.value?.name ?? null,
-    selected_node_scope: activeNode.value?.dataScope ?? null,
-    selected_node_type: activeNode.value?.type ?? null,
-  }),
-});
-
-usePageAIOperations({
-  pageKey: AI_PAGE_KEY,
-  operationStrategy: 'append',
-  operations: [
-    createRefreshPageOperation({
-      name: 'refresh_tree',
-      action: async () => {
-        await refreshTree();
-        if (selectedNode.value?.id) {
-          await loadSelectedNodeDetail(selectedNode.value.id);
-        }
-      },
-      description: 'Refresh the organization tree',
-    }),
-    createCreateRecordPageOperation({
-      name: 'create_record',
-      description: 'Open dialog to create a root organization node',
-      action: () => {
-        handleCreateRoot();
-      },
-    }),
-    createSimplePageOperation({
-      name: 'expand_all_nodes',
-      label: $t('tenant.system.organization.expandAll'),
-      description: 'Expand all loaded organization nodes',
-      readonly: true,
-      action: async () => {
-        expandAll();
-      },
-      successMessage: $t('shared.pageOperation.msg.actionCompleted', {
-        target: $t('tenant.system.organization.expandAll'),
-      }),
-    }),
-    createSimplePageOperation({
-      name: 'collapse_all_nodes',
-      label: $t('tenant.system.organization.collapseAll'),
-      description: 'Collapse all organization nodes',
-      readonly: true,
-      action: async () => {
-        collapseAll();
-      },
-      successMessage: $t('shared.pageOperation.msg.actionCompleted', {
-        target: $t('tenant.system.organization.collapseAll'),
-      }),
-    }),
-    createOpenCurrentPageOperation({
-      name: 'edit_selected_node',
-      label: $t('shared.pageOperation.editRecord'),
-      description: 'Open the edit dialog for the selected organization node',
-      available: () => !!activeNode.value,
-      open: async () => {
-        handleEditNode(activeNode.value!);
-      },
-    }),
-    createOpenCurrentPageOperation({
-      name: 'create_child_node',
-      label: $t('tenant.system.organization.addChild'),
-      description: 'Open the create-child dialog for the selected node',
-      available: () => !!selectedNode.value,
-      open: async () => {
-        handleAddChild(selectedNode.value!, selectedNode.value!.type);
-      },
-    }),
-  ],
 });
 </script>
 

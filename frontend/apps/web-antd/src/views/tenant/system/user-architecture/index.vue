@@ -47,14 +47,7 @@ import {
 import IdentityDisplay from '#/components/business/identity-display/IdentityDisplay.vue';
 import {
   buildPageAIFormExtraData,
-  createKeywordSearchPageOperation,
-  createPrefilledCreatePageOperation,
-  createRefreshPageOperation,
 } from '#/composables/use-page-ai-operation-helpers';
-import {
-  usePageAIContext,
-  usePageAIOperations,
-} from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
 import { usePresenceStore } from '#/store';
 import { formatDate, formatRelativeTime } from '#/utils/common';
@@ -65,11 +58,9 @@ import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-inter
 import {
   buildOrganizationOptionLabelMap,
   getRoleFormDefaults,
-  getUserFormDefaults,
   toOrganizationTreeSelectOptions,
   useMemberColumns,
   useMemberSearchSchema,
-  useUserFormSchema,
 } from './data';
 import PermissionDrawer from './modules/PermissionDrawer.vue';
 import UserForm from './modules/UserForm.vue';
@@ -421,10 +412,8 @@ const {
   Grid: MemberGrid,
   gridApi: memberGridApi,
   FormDrawer: MemberFormDrawer,
-  formApi: memberFormApi,
   onRefresh: onMemberRefresh,
   handleToggleStatus: handleMemberToggleStatus,
-  aiPageKey: memberAiPageKey,
 } = useCrudPage<TenantUserInfo>({
   api: {
     list: getUserListForFilters,
@@ -444,7 +433,6 @@ const {
   },
   ai: {
     pageKey: AI_PAGE_KEY,
-    formSchema: (isEdit?: boolean) => useUserFormSchema(Boolean(isEdit)),
   },
 });
 
@@ -469,194 +457,6 @@ watch(
 onMounted(async () => {
   await Promise.all([loadRoles(), loadOrganizationOptions()]);
   presenceStore.loadTenantUserPresence();
-});
-
-usePageAIContext({
-  pageKey: AI_PAGE_KEY,
-  contextStrategy: 'extras',
-  data: () => ({
-    org_filter_id: currentOrgFilterId.value,
-    org_filter_name: currentOrgFilterName.value,
-    permission_role_filter_id: selectedRole.value?.id ?? null,
-    permission_role_filter_name: selectedRole.value?.name ?? null,
-    permission_roles_total: roles.value.length,
-  }),
-});
-
-usePageAIOperations({
-  pageKey: AI_PAGE_KEY,
-  operationStrategy: 'append',
-  operations: [
-    createRefreshPageOperation({
-      name: 'refresh_filters',
-      action: async () => {
-        await refreshFilters();
-      },
-      description: $t(
-        'tenant.system.userArchitecture.aiOperations.refreshFiltersDesc',
-      ),
-    }),
-    createKeywordSearchPageOperation({
-      label: $t('shared.pageOperation.searchByKeyword'),
-      description: $t(
-        'tenant.system.userArchitecture.aiOperations.searchRoleDesc',
-      ),
-      keywordDescription: $t(
-        'tenant.system.userArchitecture.aiOperations.searchRoleKeyword',
-      ),
-      normalize: (keyword) => keyword.toLowerCase(),
-      setKeyword: (keyword) => {
-        roleSearchKeyword.value = keyword;
-      },
-    }),
-    createPrefilledCreatePageOperation({
-      name: 'create_permission_role',
-      label: $t('tenant.system.userArchitecture.createRole'),
-      description: $t(
-        'tenant.system.userArchitecture.aiOperations.createRoleDesc',
-      ),
-      params: {
-        description: {
-          type: 'string',
-          description: $t(
-            'tenant.system.userArchitecture.aiOperations.createRoleParams.description',
-          ),
-        },
-        is_active: {
-          type: 'boolean',
-          description: $t(
-            'tenant.system.userArchitecture.aiOperations.createRoleParams.isActive',
-          ),
-        },
-        name: {
-          type: 'string',
-          description: $t(
-            'tenant.system.userArchitecture.aiOperations.createRoleParams.name',
-          ),
-        },
-        sort_order: {
-          type: 'number',
-          description: $t(
-            'tenant.system.userArchitecture.aiOperations.createRoleParams.sortOrder',
-          ),
-        },
-      },
-      normalizeParams: (params) => {
-        const defaults: Record<string, unknown> = {};
-        if (params?.name) defaults.name = params.name;
-        if (params?.description) defaults.description = params.description;
-        if (typeof params?.sort_order === 'number') {
-          defaults.sort_order = params.sort_order;
-        }
-        if (typeof params?.is_active === 'boolean') {
-          defaults.is_active = params.is_active;
-        }
-        return defaults;
-      },
-      openCreate: async (defaults) => {
-        roleFormApi
-          .setData({
-            mode: 'add' as const,
-            _resource: '/tenant/user-roles',
-            ...buildPageAIFormExtraData({
-              pageKey: AI_PAGE_KEY,
-              baseDefaults: getRoleFormDefaults(),
-              defaults,
-            }),
-          })
-          .open();
-      },
-    }),
-    createPrefilledCreatePageOperation({
-      name: 'create_user',
-      label: $t('tenant.system.user.create'),
-      description: $t(
-        'tenant.system.userArchitecture.aiOperations.createUserDesc',
-      ),
-      params: {
-        email: {
-          type: 'string',
-          description: $t(
-            'tenant.system.userArchitecture.aiOperations.createUserParams.email',
-          ),
-        },
-        is_active: {
-          type: 'boolean',
-          description: $t(
-            'tenant.system.userArchitecture.aiOperations.createUserParams.isActive',
-          ),
-        },
-        nickname: {
-          type: 'string',
-          description: $t(
-            'tenant.system.userArchitecture.aiOperations.createUserParams.nickname',
-          ),
-        },
-        org_node_id: {
-          type: 'number',
-          description: $t(
-            'tenant.system.userArchitecture.aiOperations.createUserParams.orgNodeId',
-          ),
-        },
-        phone: {
-          type: 'string',
-          description: $t(
-            'tenant.system.userArchitecture.aiOperations.createUserParams.phone',
-          ),
-        },
-        role_id: {
-          type: 'number',
-          description: $t(
-            'tenant.system.userArchitecture.aiOperations.createUserParams.roleId',
-          ),
-        },
-        username: {
-          type: 'string',
-          description: $t(
-            'tenant.system.userArchitecture.aiOperations.createUserParams.username',
-          ),
-        },
-      },
-      normalizeParams: (params) => {
-        const fallbackOrgNodeId = currentOrgFilterId.value
-          ? { org_node_id: currentOrgFilterId.value }
-          : {};
-        const fallbackRoleId = selectedRole.value?.id
-          ? { role_id: selectedRole.value.id }
-          : {};
-        return {
-          ...(params?.email ? { email: params.email } : {}),
-          ...(typeof params?.is_active === 'boolean'
-            ? { is_active: params.is_active }
-            : {}),
-          ...(params?.nickname ? { nickname: params.nickname } : {}),
-          ...(typeof params?.org_node_id === 'number'
-            ? { org_node_id: params.org_node_id }
-            : fallbackOrgNodeId),
-          ...(params?.phone ? { phone: params.phone } : {}),
-          ...(typeof params?.role_id === 'number'
-            ? { role_id: params.role_id }
-            : fallbackRoleId),
-          ...(params?.username ? { username: params.username } : {}),
-        };
-      },
-      openCreate: async (defaults) => {
-        const formApi = memberFormApi;
-        if (!formApi) return;
-        formApi
-          .setData({
-            mode: 'add',
-            _resource: '/tenant/users',
-            ...buildPageAIFormExtraData({
-              pageKey: memberAiPageKey ?? AI_PAGE_KEY,
-              baseDefaults: getUserFormDefaults(),
-              defaults,
-            }),
-          })
-          .open();
-      },
-    }),
-  ],
 });
 </script>
 

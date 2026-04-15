@@ -25,7 +25,6 @@ import {
 
 import { useCrudPage } from '#/adapter/vxe-table';
 import { adminApi as admin } from '#/api';
-import { createOpenRecordPageOperation } from '#/composables';
 import { $t } from '#/locales';
 import { useAccess } from '#/utils';
 import {
@@ -35,7 +34,7 @@ import {
   formatRelativeTime,
 } from '#/utils/common';
 
-import { useColumns, useFormSchema, useGridFormSchema } from './data';
+import { useColumns, useGridFormSchema } from './data';
 import DomainsModal from './modules/DomainsModal.vue';
 import ResetPasswordModal from './modules/ResetPasswordModal.vue';
 import TenantAdminPanel from './modules/TenantAdminPanel.vue';
@@ -110,20 +109,6 @@ function openTenantDomains(row: TenantInfo) {
   });
 }
 
-function openTenantDomainCreate(
-  row: TenantInfo,
-  defaults?: { domain?: string; remark?: string },
-) {
-  domainsModalRef.value?.openAddDomain(
-    {
-      tenantId: row.id,
-      tenantName: row.name,
-      tenantCode: row.code,
-    },
-    defaults,
-  );
-}
-
 /**
  * Reset tenant admin password / 重置企业管理员密码
  */
@@ -150,17 +135,6 @@ function openTenantStorageConfig(row: TenantInfo) {
     id: row.id,
     name: row.name,
   });
-}
-
-function getVisibleTenantRows(): TenantInfo[] {
-  const grid = gridApi.grid as unknown as {
-    getTableData?: () => { tableData?: TenantInfo[] };
-  };
-  return (grid?.getTableData?.().tableData ?? []) as TenantInfo[];
-}
-
-function findTenantById(id: number): null | TenantInfo {
-  return getVisibleTenantRows().find((row) => row.id === id) ?? null;
 }
 
 /**
@@ -226,7 +200,7 @@ async function onImpersonateInCurrentTab(row: TenantInfo) {
 }
 
 // Declarative CRUD page (plan dropdown auto-loaded by ApiSelect, export button auto-added) / 声明式 CRUD 页面（套餐下拉由 ApiSelect 自动加载，导出按钮自动添加）
-const { Grid, FormDrawer, ExportModal, onRefresh, handleActionClick, gridApi } =
+const { Grid, FormDrawer, ExportModal, onRefresh, handleActionClick } =
   useCrudPage<TenantInfo>({
     api: {
       list: admin.getTenantListApi,
@@ -265,126 +239,6 @@ const { Grid, FormDrawer, ExportModal, onRefresh, handleActionClick, gridApi } =
       manageDomains: onManageDomains,
       resetPassword: onResetPassword,
       storageConfig: onStorageConfig,
-    },
-    ai: {
-      formSchema: useFormSchema,
-      extra: [
-        createOpenRecordPageOperation({
-          name: 'create_tenant_domain',
-          label: $t('admin.tenant.domain.addDomain'),
-          description:
-            'Open the tenant add-domain drawer by tenant ID and optionally prefill domain or remark / 按企业 ID 打开新增域名抽屉，并可预填域名或备注',
-          readonly: true,
-          params: {
-            tenant_id: {
-              type: 'number',
-              description: 'Tenant ID / 企业 ID',
-              required: true,
-            },
-            domain: {
-              type: 'string',
-              description: 'Domain name to prefill / 预填的域名',
-            },
-            remark: {
-              type: 'string',
-              description: 'Remark to prefill / 预填的备注',
-            },
-          },
-          normalizeParams: (params) => ({
-            tenant_id: Number(params.tenant_id ?? 0),
-            ...(String(params.domain ?? '').trim()
-              ? { domain: String(params.domain).trim() }
-              : {}),
-            ...(String(params.remark ?? '').trim()
-              ? { remark: String(params.remark).trim() }
-              : {}),
-          }),
-          resolveRecord: (params) => findTenantById(params.tenant_id),
-          resolveRecordId: (params) => params.tenant_id,
-          open: async (tenant, params) => {
-            openTenantDomainCreate(tenant, {
-              ...(params.domain ? { domain: params.domain } : {}),
-              ...(params.remark ? { remark: params.remark } : {}),
-            });
-          },
-          successMessage: (_tenant, params) => {
-            const filledKeys = Object.keys(params).filter(
-              (key) => key !== 'tenant_id',
-            );
-            return filledKeys.length > 0
-              ? $t('shared.pageOperation.msg.createFormOpened', {
-                  fields: filledKeys.join(', '),
-                })
-              : $t('shared.pageOperation.msg.createFormOpenedEmpty');
-          },
-        }),
-        createOpenRecordPageOperation({
-          name: 'open_manage_domains',
-          label: $t('admin.tenant.manageDomains'),
-          description:
-            'Open the tenant domain management modal by tenant ID / 按企业 ID 打开企业域名管理弹窗',
-          readonly: true,
-          params: {
-            id: {
-              type: 'number',
-              description: 'Tenant ID / 企业 ID',
-              required: true,
-            },
-          },
-          normalizeParams: (params) => ({
-            id: Number(params.id ?? 0),
-          }),
-          resolveRecord: (params) => findTenantById(params.id),
-          resolveRecordId: (params) => params.id,
-          open: async (tenant) => {
-            openTenantDomains(tenant);
-          },
-        }),
-        createOpenRecordPageOperation({
-          name: 'open_reset_password',
-          label: $t('admin.tenant.resetPassword'),
-          description:
-            'Open the tenant admin password reset modal by tenant ID / 按企业 ID 打开企业管理员重置密码弹窗',
-          readonly: true,
-          params: {
-            id: {
-              type: 'number',
-              description: 'Tenant ID / 企业 ID',
-              required: true,
-            },
-          },
-          normalizeParams: (params) => ({
-            id: Number(params.id ?? 0),
-          }),
-          resolveRecord: (params) => findTenantById(params.id),
-          resolveRecordId: (params) => params.id,
-          open: async (tenant) => {
-            openTenantResetPassword(tenant);
-          },
-        }),
-        createOpenRecordPageOperation({
-          name: 'open_storage_config',
-          label: $t('shared.storage.adminTab.title'),
-          description:
-            'Open the tenant storage configuration drawer by tenant ID / 按企业 ID 打开企业存储配置抽屉',
-          readonly: true,
-          params: {
-            id: {
-              type: 'number',
-              description: 'Tenant ID / 企业 ID',
-              required: true,
-            },
-          },
-          normalizeParams: (params) => ({
-            id: Number(params.id ?? 0),
-          }),
-          resolveRecord: (params) => findTenantById(params.id),
-          resolveRecordId: (params) => params.id,
-          open: async (tenant) => {
-            openTenantStorageConfig(tenant);
-          },
-        }),
-      ],
     },
   });
 </script>

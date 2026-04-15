@@ -29,7 +29,6 @@ import {
   getTaskIconColor,
   normalizeScopeValue,
   useColumns,
-  useFormSchema,
   useGridFormSchema,
 } from './data';
 import Form from './modules/PeriodicTaskForm.vue';
@@ -109,9 +108,6 @@ const {
     trigger: onTriggerTask,
     logs: onViewLogs,
     bindings: onManageBindings,
-  },
-  ai: {
-    formSchema: (isEdit?: boolean) => useFormSchema(Boolean(isEdit)),
   },
 });
 

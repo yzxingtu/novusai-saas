@@ -1,5 +1,9 @@
 # NovusAI SaaS
 
+> 状态说明：这个仓库仍然是当前多租户 SaaS 母本，正式产品面仍是 `admin`、
+> `tenant`、`user` 三端。
+> 单实例 / `admin + member` 拆分规划与实施文档不应继续作为本仓的正式文档保留。
+
 **语言：** [English](README.md) · 简体中文
 
 多租户、AI 优先的 SaaS 平台：包含**平台管理端**、**企业端**、**用户端**，具备 **RBAC**、**插件**、**Agent → Skill → AIGateway** 链路、**Socket.IO**、可插拔**附件**、**代码生成（codegen）** 与 **Alembic** 迁移。
@@ -191,7 +195,7 @@ pnpm build:antd
 
 | 位置 | 用途 |
 |------|------|
-| [`.cursor/rules/novusai-saas.md`](.cursor/rules/novusai-saas.md) | 规则总索引 |
+| [`.cursor/rules/novusai-saas.md`](.cursor/rules/novusai-saas.md) | 规则总索引：分层、高内聚低耦合、i18n、AI、插件、RBAC 等 |
 | [`.cursor/skills/novusai-saas/SKILL.md`](.cursor/skills/novusai-saas/SKILL.md) | 全栈技能入口 |
 | [`.cursor/skills/`](.cursor/skills) | 各专题 SKILL |
 | [`docs/guides/backend-development.md`](docs/guides/backend-development.md) | 后端开发指南 |

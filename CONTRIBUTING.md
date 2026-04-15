@@ -7,7 +7,7 @@ Thank you for your interest in improving this project. This document describes h
 ## Getting started
 
 1. Read [README.md](README.md) for prerequisites and **Quick start** (Docker, backend venv, frontend `pnpm`).
-2. Skim the rule index [`.cursor/rules/novusai-saas.md`](.cursor/rules/novusai-saas.md) so your changes match layering, i18n, and AI/plugin boundaries.
+2. Skim the rule index [`.cursor/rules/novusai-saas.md`](.cursor/rules/novusai-saas.md) so your changes match layering, high cohesion/low coupling, i18n, and AI/plugin boundaries.
 
 ## Branching and pull requests
 

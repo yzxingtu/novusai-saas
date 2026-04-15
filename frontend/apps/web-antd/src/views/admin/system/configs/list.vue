@@ -30,15 +30,7 @@ import {
 import { ConfigForm } from '#/components';
 import ConfigGroupSidebar from '#/components/business/config-group-sidebar/index.vue';
 import PluginSettingsTabs from '#/components/business/plugin-slots/PluginSettingsTabs.vue';
-import {
-  createRefreshPageOperation,
-  createSavePageOperation,
-} from '#/composables/use-page-ai-operation-helpers';
-import {
-  usePageAIContext,
-  usePageAIOperations,
-} from '#/composables/use-page-ai-registration';
-import { $t, $t as t } from '#/locales';
+import { $t as t } from '#/locales';
 
 // Platform storage config dedicated panel / 平台存储配置专用面板
 import PlatformStoragePanel from './modules/PlatformStoragePanel.vue';
@@ -358,31 +350,6 @@ onActivated(() => {
 });
 onBeforeUnmount(() => {
   window.removeEventListener('beforeunload', beforeUnloadHandler);
-});
-
-usePageAIContext({
-  resource: '/admin/system/configs',
-  data: () => ({
-    active_group: activeGroup.value,
-  }),
-});
-
-usePageAIOperations({
-  operationStrategy: 'append',
-  operations: [
-    createRefreshPageOperation({
-      name: 'refresh_configs',
-      label: $t('shared.pageOperation.refreshConfig'),
-      action: loadGroups,
-      description: $t('shared.pageOperation.refreshConfig'),
-    }),
-    createSavePageOperation({
-      name: 'save_config',
-      label: $t('shared.pageOperation.saveConfig'),
-      description: $t('shared.pageOperation.saveConfig'),
-      action: onSave,
-    }),
-  ],
 });
 </script>
 

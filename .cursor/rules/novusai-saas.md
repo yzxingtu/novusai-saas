@@ -25,8 +25,15 @@
 
 ## 不可违反
 
+- 默认遵循“高内聚、低耦合”：页面/组件/Composable/Controller/Service/Repository
+  只承担单一主职责，跨层依赖必须通过既有 contract 或 shared helper，不能旁路直连
+  对方内部实现；详见 `.trellis/spec/guides/code-reuse-thinking-guide.md`
+- 仓库存在广泛并行改动时，必须先建 umbrella task、ownership matrix 和冻结
+  写集，再开子代理/子任务并行推进；详见
+  `.trellis/spec/guides/repo-stabilization-workstreams.md`
 - 禁止把固定模型指令、工具描述、重试引导硬编码进 Python；统一走 `backend/app/ai/prompt_contracts/resources/`
-- 禁止 Controller 写业务逻辑或直接查库
+- 禁止 Controller 写业务逻辑或直接查库；默认不允许在 controller/helper
+  内直接 `db.execute(...)` / `session.execute(...)`
 - 禁止 Service 越权承担 Repository 职责
 - 禁止强制所有任务走重型 Trellis 流程
 - 禁止恢复已退役的 marker loop、archive 自动提交、旧 planner 行为

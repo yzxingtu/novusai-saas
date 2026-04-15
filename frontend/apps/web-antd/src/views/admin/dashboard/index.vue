@@ -6,7 +6,6 @@ import { useUserStore } from '@vben/stores';
 import { Spin } from 'ant-design-vue';
 
 import PluginDashboardWidgets from '#/components/business/plugin-slots/PluginDashboardWidgets.vue';
-import { usePageAIContext } from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
 import AdminDashboardGrowthChart from '#/views/_shared/charts/AdminDashboardGrowthChart.vue';
 import DashboardActivityFeed from '#/views/_shared/dashboard/DashboardActivityFeed.vue';
@@ -25,21 +24,16 @@ const userStore = useUserStore();
 const {
   actionDeck,
   activityEntries,
-  aiOverview,
   growthSummary,
-  health,
   healthTone,
   heroActions,
   infrastructurePanels,
   loading,
   overviewCards,
-  pluginOverview,
   realtimeChips,
   runtimeValue,
   signalCards,
   spotlightCards,
-  stats,
-  storageOverview,
   tenantGrowth,
 } = useAdminDashboard();
 
@@ -47,19 +41,6 @@ function goTo(routePath: string) {
   void router.push(routePath);
 }
 
-usePageAIContext({
-  title: () => $t('admin.dashboard.platformConsole'),
-  data: () => ({
-    active_tenants: stats.value.active_tenants,
-    ai_calls_today: aiOverview.value.today_calls,
-    plugins_enabled: pluginOverview.value.enabled,
-    storage_files: storageOverview.value.total_files,
-    system_health: health.value.status,
-    today_login: stats.value.today_login,
-    total_tenants: stats.value.total_tenants,
-    total_users: stats.value.total_users,
-  }),
-});
 </script>
 
 <template>

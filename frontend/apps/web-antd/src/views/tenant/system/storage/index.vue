@@ -40,20 +40,10 @@ import {
   StorageCredentialForm,
   StorageDriverSelector,
 } from '#/components/business/storage-config';
-import {
-  createRefreshPageOperation,
-  createSavePageOperation,
-  createSimplePageOperation,
-} from '#/composables/use-page-ai-operation-helpers';
-import {
-  usePageAIContext,
-  usePageAIOperations,
-} from '#/composables/use-page-ai-registration';
 import { $t } from '#/locales';
 import { showRequestError } from '#/utils/error-helpers';
 
 defineOptions({ name: 'TenantStorageConfig' });
-const AI_PAGE_KEY = 'tenant.system.storage';
 
 const loading = ref(false);
 const saving = ref(false);
@@ -277,46 +267,6 @@ onActivated(() => {
     return;
   }
   loadData();
-});
-
-usePageAIContext({
-  pageKey: AI_PAGE_KEY,
-  title: () => $t('tenant.system.storage.name'),
-  resource: '/tenant/system/storage',
-  data: () => ({
-    can_self_config: canSelfConfig.value,
-    current_form_driver: selectedDriver.value ?? null,
-    drivers_total: drivers.value.length,
-    effective_driver: effectiveDriver.value,
-    effective_mode: status.value?.effective_mode ?? 'unknown',
-  }),
-});
-
-usePageAIOperations({
-  pageKey: AI_PAGE_KEY,
-  operationStrategy: 'append',
-  operations: [
-    createRefreshPageOperation({
-      name: 'refresh_status',
-      action: loadData,
-      description: 'Reload storage status and driver list',
-    }),
-    createSavePageOperation({
-      name: 'save_config',
-      label: $t('shared.pageOperation.saveConfig'),
-      description:
-        'Save the current storage configuration (only available in custom mode)',
-      action: onSave,
-    }),
-    createSimplePageOperation({
-      name: 'test_connection',
-      label: $t('shared.storage.testConnection'),
-      description:
-        'Test the current storage connection with the selected driver and credentials / 使用当前所选驱动与凭证测试存储连接',
-      readonly: false,
-      action: onTestConnection,
-    }),
-  ],
 });
 </script>
 

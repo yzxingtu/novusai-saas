@@ -14,7 +14,6 @@ import { Card, message, Popover, Tag, Tooltip } from 'ant-design-vue';
 
 import { useAutoTableDragSort, useCrudPage } from '#/adapter/vxe-table';
 import { adminApi as admin } from '#/api';
-import { createOpenRecordPageOperation } from '#/composables';
 import { $t } from '#/locales';
 import {
   copyToClipboard,
@@ -26,7 +25,6 @@ import {
   getBillingCycleText,
   getFormDefaults,
   useColumns,
-  useFormSchema,
   useGridFormSchema,
 } from './data';
 import PermissionsModal from './modules/PermissionsModal.vue';
@@ -58,17 +56,6 @@ function openPlanPermissions(row: TenantPlanInfo) {
   permissionsModalRef.value?.open(row);
 }
 
-function getVisiblePlanRows(): TenantPlanInfo[] {
-  const grid = gridApi.grid as unknown as {
-    getTableData?: () => { tableData?: TenantPlanInfo[] };
-  };
-  return (grid?.getTableData?.().tableData ?? []) as TenantPlanInfo[];
-}
-
-function findPlanById(id: number): null | TenantPlanInfo {
-  return getVisiblePlanRows().find((row) => row.id === id) ?? null;
-}
-
 // Declarative CRUD page (export button auto-added) / 声明式 CRUD 页面（导出按钮自动添加）
 const { Grid, FormDrawer, ExportModal, gridApi, onRefresh } =
   useCrudPage<TenantPlanInfo>({
@@ -95,33 +82,6 @@ const { Grid, FormDrawer, ExportModal, gridApi, onRefresh } =
     createPermission: 'tenant_plan:create',
     customActions: {
       permissions: handleSetPermissions,
-    },
-    ai: {
-      formSchema: useFormSchema,
-      extra: [
-        createOpenRecordPageOperation({
-          name: 'open_plan_permissions',
-          label: $t('admin.tenant.plan.setPermissions'),
-          description:
-            'Open the plan permissions modal by plan ID / 按套餐 ID 打开套餐权限设置弹窗',
-          readonly: true,
-          params: {
-            id: {
-              type: 'number',
-              description: 'Plan ID / 套餐 ID',
-              required: true,
-            },
-          },
-          normalizeParams: (params) => ({
-            id: Number(params.id ?? 0),
-          }),
-          resolveRecord: (params) => findPlanById(params.id),
-          resolveRecordId: (params) => params.id,
-          open: async (plan) => {
-            openPlanPermissions(plan);
-          },
-        }),
-      ],
     },
   });
 

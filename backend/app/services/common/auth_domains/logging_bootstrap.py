@@ -67,8 +67,12 @@ class AuthLoggingBootstrapDomain:
         if not host:
             return ""
         normalized = host.strip().lower()
-        if normalized.startswith("[") and normalized.endswith("]"):
-            normalized = normalized[1:-1]
+        if normalized.startswith("["):
+            closing = normalized.find("]")
+            if closing != -1:
+                return normalized[1:closing]
+        if ":" in normalized and normalized.count(":") == 1:
+            normalized = normalized.rsplit(":", 1)[0]
         return normalized
 
     @classmethod

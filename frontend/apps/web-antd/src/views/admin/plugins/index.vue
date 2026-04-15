@@ -19,16 +19,6 @@ import {
   getPluginListApi,
   updatePluginMenuConfigApi,
 } from '#/api/admin/plugin';
-import {
-  createKeywordSearchPageOperation,
-  createOpenPageOperation,
-  createOpenRecordPageOperation,
-  createRefreshPageOperation,
-} from '#/composables/use-page-ai-operation-helpers';
-import {
-  usePageAIContext,
-  usePageAIOperations,
-} from '#/composables/use-page-ai-registration';
 import { refreshAdminMenusAndPluginRoutes as _refreshRoutes } from '#/composables/use-plugin-admin-refresh';
 import { $t } from '#/locales';
 import { usePluginInstallProgressStore } from '#/store';
@@ -231,10 +221,6 @@ function onDetail(plugin: PluginInfo) {
   openPluginConfigDrawer(plugin);
 }
 
-function findPluginById(pluginId: number): null | PluginInfo {
-  return plugins.value.find((plugin) => plugin.id === pluginId) ?? null;
-}
-
 function getPluginMenuOverrides(plugin: PluginInfo) {
   return ((plugin.config || {}) as Record<string, unknown>).menu_overrides as
     | Record<string, { parent?: string; tenant_parent?: string }>
@@ -407,83 +393,6 @@ function getDependencyStatusText(plugin: PluginInfo): string {
     ? $t('admin.plugin.dependency.installed')
     : $t('admin.plugin.dependency.missing');
 }
-
-usePageAIContext({
-  resource: '/admin/plugins',
-  data: () => ({
-    total_plugins: plugins.value.length,
-    enabled_plugins: plugins.value.filter((p) => p.status === 'enabled').length,
-  }),
-});
-
-usePageAIOperations({
-  operationStrategy: 'append',
-  operations: [
-    createRefreshPageOperation({
-      name: 'refresh_plugins',
-      action: loadPlugins,
-      description: 'Reload the plugin list',
-    }),
-    createKeywordSearchPageOperation({
-      label: $t('shared.pageOperation.searchPlugins'),
-      description: 'Search plugins by keyword',
-      keywordDescription: 'Plugin name keyword',
-      setKeyword: (keyword) => {
-        searchKeyword.value = keyword;
-      },
-    }),
-    createOpenPageOperation({
-      name: 'open_plugin_install_wizard',
-      label: $t('admin.plugin.upload'),
-      description: 'Open the plugin install wizard / 打开插件安装向导',
-      open: async () => {
-        openInstallWizard();
-      },
-      successMessage: () =>
-        $t('shared.pageOperation.msg.createFormOpenedEmpty'),
-    }),
-    createOpenRecordPageOperation({
-      name: 'open_plugin_config',
-      label: $t('admin.plugin.action.detail'),
-      description:
-        'Open the plugin configuration drawer by plugin ID / 按插件 ID 打开插件配置抽屉',
-      params: {
-        id: {
-          type: 'number',
-          description: 'Plugin ID / 插件 ID',
-          required: true,
-        },
-      },
-      normalizeParams: (params) => ({
-        id: Number(params.id ?? 0),
-      }),
-      resolveRecord: (params) => findPluginById(params.id),
-      resolveRecordId: (params) => params.id,
-      open: async (plugin) => {
-        openPluginConfigDrawer(plugin);
-      },
-    }),
-    createOpenRecordPageOperation({
-      name: 'open_plugin_menu_config',
-      label: $t('admin.plugin.menu_config.title'),
-      description:
-        'Open the plugin menu location modal by plugin ID / 按插件 ID 打开插件菜单挂载配置弹窗',
-      params: {
-        id: {
-          type: 'number',
-          description: 'Plugin ID / 插件 ID',
-          required: true,
-        },
-      },
-      normalizeParams: (params) => ({
-        id: Number(params.id ?? 0),
-      }),
-      resolveRecord: (params) => findPluginById(params.id),
-      resolveRecordId: (params) => params.id,
-      open: async (plugin) => openPluginMenuConfig(plugin),
-    }),
-  ],
-});
 
 onUnmounted(() => {
   progressStore.stopListening();

@@ -16,10 +16,6 @@ vi.mock('#/api/admin/plugin-marketplace', () => ({
   getMarketplaceListApi: mockRefs.getMarketplaceListApi,
 }));
 
-vi.mock('#/composables/use-page-ai-registration', () => ({
-  usePageAIRegistration: vi.fn(),
-}));
-
 vi.mock('#/locales', () => ({
   $t: (key: string) => key,
 }));

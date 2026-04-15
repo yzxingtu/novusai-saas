@@ -91,6 +91,7 @@
     "@vben/vsh": "workspace:*",
     "@vitejs/plugin-vue": "catalog:",
     "@vitejs/plugin-vue-jsx": "catalog:",
+    "@vitest/coverage-v8": "3.2.4",
     "@vue/test-utils": "catalog:",
     "autoprefixer": "catalog:",
     "cross-env": "catalog:",

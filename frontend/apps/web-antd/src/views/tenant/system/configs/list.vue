@@ -16,7 +16,6 @@ import {
 import { ConfigForm } from '#/components';
 import ConfigGroupSidebar from '#/components/business/config-group-sidebar/index.vue';
 import PluginSettingsTabs from '#/components/business/plugin-slots/PluginSettingsTabs.vue';
-import { usePageAIContext } from '#/composables/use-page-ai-registration';
 import { $t as t } from '#/locales';
 
 // Storage config dedicated page (lazy-loaded) / 存储配置专用页面
@@ -172,12 +171,6 @@ onBeforeUnmount(() => {
   window.removeEventListener('beforeunload', beforeUnloadHandler);
 });
 
-usePageAIContext({
-  resource: '/tenant/system/configs',
-  data: () => ({
-    total_groups: groups.value.length,
-  }),
-});
 </script>
 
 <template>
