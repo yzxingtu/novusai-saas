@@ -9,7 +9,7 @@ import pytest
 from openai import APIConnectionError, RateLimitError
 
 from app.ai.adapters.openai_adapter import OpenAIAdapter
-from app.ai.adapters.openai_compatible.legacy_orchestrator import (
+from app.ai.adapters.openai_compatible.compat.legacy_protocol_execution import (
     responses_tool_call_fallback_enabled,
 )
 from app.ai.adapters.openai_compatible.protocol_policy import (

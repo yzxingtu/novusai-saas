@@ -1,1 +1,0 @@
-Editor order: 1) ui_get_snapshot to read; 2) prefer ui_fill_form or targeted field actions for partial edits; 3) only write after confirming the exact target; 4) keep metadata/title updates scoped to the intended field.

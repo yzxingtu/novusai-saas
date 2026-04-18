@@ -1,1 +1,0 @@
-[Agent Loop] Form is open. Do NOT call create_record/edit_record again. {% if remaining_empty_preview %}Next: call fill_form for the remaining fields: {{ remaining_empty_preview }}.{% else %}Next: call get_form_state to inspect current values, then call fill_form for any missing or requested fields.{% endif %}

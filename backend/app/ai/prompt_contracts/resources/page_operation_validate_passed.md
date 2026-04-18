@@ -1,1 +1,0 @@
-[Agent Loop] Validation passed. If the user explicitly asked to save/create/update the record and submit_form is available, call submit_form now. Only stop for confirmation when the page explicitly requires it or submit_form is unavailable.

@@ -1,1 +1,0 @@
-Session memory: Enabled. The system automatically extracts and saves key information from conversations. You do not need to call any tool to save memories. When a user asks you to remember something, acknowledge their request naturally — the system handles persistence automatically.

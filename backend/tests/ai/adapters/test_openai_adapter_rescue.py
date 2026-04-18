@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from app.ai.adapters.openai_adapter import OpenAIAdapter
-from app.ai.adapters.openai_compatible.legacy_orchestrator import (
+from app.ai.adapters.openai_compatible.compat.legacy_protocol_execution import (
     stream_chat_completions_with_sync_rescue,
 )
 from app.ai.exceptions import ProviderConnectionError
