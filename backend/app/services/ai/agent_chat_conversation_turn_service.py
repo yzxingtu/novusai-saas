@@ -44,14 +44,12 @@ class AgentChatConversationTurnService:
         effective_mode: str,
         downgrade_reason: str | None,
     ) -> dict[str, Any]:
+        del requested_mode, effective_mode, downgrade_reason
         metadata = dict(conversation_metadata or {})
-        normalized_requested_mode = normalize_requested_interaction_mode(requested_mode)
-        metadata["interaction_mode"] = effective_mode
-        metadata["interaction_mode_requested"] = normalized_requested_mode
-        if downgrade_reason:
-            metadata["interaction_mode_downgrade_reason"] = downgrade_reason
-        else:
-            metadata.pop("interaction_mode_downgrade_reason", None)
+        metadata.pop("interaction_mode", None)
+        metadata.pop("interaction_mode_requested", None)
+        metadata.pop("interaction_mode_effective", None)
+        metadata.pop("interaction_mode_downgrade_reason", None)
         return metadata
 
     @classmethod

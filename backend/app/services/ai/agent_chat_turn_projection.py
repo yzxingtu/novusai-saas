@@ -39,6 +39,7 @@ def build_context_diagnostics(
     interaction_mode_effective: str,
     extractor: TurnMetaExtractor = DEFAULT_TURN_META_EXTRACTOR,
 ) -> dict[str, Any]:
+    del interaction_mode_effective
     turn_meta = extract_turn_meta_from_result(result, extractor=extractor)
     payload: dict[str, Any] = {
         "estimated_tokens": result.total_tokens,
@@ -49,7 +50,6 @@ def build_context_diagnostics(
         "prune_stats": result.prune_stats,
         "rag_source_kinds": list(result.rag_source_kinds or []),
         "last_interrupted": bool(result.interrupted),
-        "interaction_mode_effective": interaction_mode_effective,
         "tool_planner": result.tool_planner,
     }
     if turn_meta.get("turn_outcome"):
@@ -102,11 +102,10 @@ def build_last_run_summary(
     downgrade_reason: str | None,
     extractor: TurnMetaExtractor = DEFAULT_TURN_META_EXTRACTOR,
 ) -> dict[str, Any]:
+    del interaction_mode_effective, downgrade_reason
     turn_meta = extract_turn_meta_from_result(result, extractor=extractor)
     payload: dict[str, Any] = {
         "duration_ms": result.duration_ms,
-        "interaction_mode_effective": interaction_mode_effective,
-        "downgrade_reason": downgrade_reason,
         "runtime_model_name": result.runtime_model_name,
         "runtime_provider_name": result.runtime_provider_name,
         "success": bool(result.success),

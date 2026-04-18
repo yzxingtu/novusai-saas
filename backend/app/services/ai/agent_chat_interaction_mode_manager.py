@@ -70,11 +70,6 @@ class AgentChatInteractionModeManager:
                 {
                     **update,
                     "auto_approve_source": auto_source,
-                    "downgraded_from": (
-                        requested_mode if requested_mode and requested_mode != effective_mode else None
-                    ),
-                    "downgrade_reason": downgrade_reason,
-                    "interaction_mode_effective": effective_mode,
                 }
             )
         return enriched or None

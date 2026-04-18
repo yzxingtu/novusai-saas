@@ -15,7 +15,7 @@ from app.models.ai.action_log import AIActionLog
 from app.models.ai.call_log import AICallLog
 from app.models.ai.execution_decision import ExecutionDecision
 from app.services.ai.agent_chat_interaction_support import (
-    normalize_requested_interaction_mode,
+    strip_legacy_interaction_mode_fields,
 )
 
 
@@ -38,14 +38,11 @@ class ConversationTimelineService:
         conversation: Any,
         messages: list[Any],
     ) -> list[dict[str, Any]]:
-        interaction_mode_effective = normalize_requested_interaction_mode(
-            (getattr(conversation, "metadata_", {}) or {}).get("interaction_mode")
-            or "trusted_auto"
-        )
-
         items: list[dict[str, Any]] = []
         for message in messages:
-            metadata = dict(getattr(message, "metadata_", {}) or {})
+            metadata = strip_legacy_interaction_mode_fields(
+                dict(getattr(message, "metadata_", {}) or {})
+            )
             items.append(
                 {
                     "type": f"message:{message.role}",
@@ -56,7 +53,6 @@ class ConversationTimelineService:
                     "tool_name": message.tool_name,
                     "risk_level": None,
                     "auto_approved": None,
-                    "interaction_mode_effective": interaction_mode_effective,
                     "correlation_key": None,
                     "trace_id": None,
                     "detail_payload": {
@@ -83,7 +79,6 @@ class ConversationTimelineService:
             .all()
         )
         for decision in decisions:
-            evidence = dict(decision.evidence or {})
             items.append(
                 {
                     "type": "execution_decision",
@@ -94,13 +89,11 @@ class ConversationTimelineService:
                     "tool_name": decision.tool_name,
                     "risk_level": decision.risk_level,
                     "auto_approved": bool(decision.auto_approved),
-                    "interaction_mode_effective": (
-                        evidence.get("interaction_mode_effective")
-                        or interaction_mode_effective
-                    ),
                     "correlation_key": decision.correlation_key,
                     "trace_id": None,
-                    "detail_payload": decision.to_dict(),
+                    "detail_payload": strip_legacy_interaction_mode_fields(
+                        decision.to_dict()
+                    ),
                 }
             )
 
@@ -130,7 +123,6 @@ class ConversationTimelineService:
                     "tool_name": action_log.action_name,
                     "risk_level": action_log.action_level,
                     "auto_approved": None,
-                    "interaction_mode_effective": interaction_mode_effective,
                     "correlation_key": None,
                     "trace_id": action_log.trace_id,
                     "detail_payload": action_log.to_dict(),
@@ -163,7 +155,6 @@ class ConversationTimelineService:
                     "tool_name": None,
                     "risk_level": None,
                     "auto_approved": None,
-                    "interaction_mode_effective": interaction_mode_effective,
                     "correlation_key": None,
                     "trace_id": call_log.trace_id,
                     "detail_payload": call_log.to_dict(),
@@ -186,7 +177,6 @@ class ConversationTimelineService:
                     "tool_name": None,
                     "risk_level": None,
                     "auto_approved": None,
-                    "interaction_mode_effective": interaction_mode_effective,
                     "correlation_key": None,
                     "trace_id": None,
                     "detail_payload": call_log_summary,

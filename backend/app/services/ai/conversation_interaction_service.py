@@ -451,31 +451,14 @@ class ConversationInteractionService:
                                 metadata.get("last_run_summary", {}).get("tool_planner")
                                 or {}
                             )
-                        if interaction_mode_requested:
-                            interaction_context[
-                                "interaction_mode_requested"
-                            ] = interaction_mode_requested
-                        if interaction_mode_effective:
-                            interaction_context[
-                                "interaction_mode_effective"
-                            ] = interaction_mode_effective
-                        if interaction_mode_downgrade_reason:
-                            interaction_context[
-                                "interaction_mode_downgrade_reason"
-                            ] = interaction_mode_downgrade_reason
                         if planner_context:
                             interaction_context["tool_planner"] = planner_context
                         if interaction_context:
                             evidence_payload = dict(decision_payload.get("evidence") or {})
                             evidence_payload.update(interaction_context)
                             decision_payload["evidence"] = evidence_payload
-                        mode_tag = (
-                            f"interaction_mode={interaction_mode_effective or 'trusted_auto'}"
-                        )
                         reason = str(decision_payload.get("reason") or "").strip()
-                        decision_payload["reason"] = (
-                            f"{reason}|{mode_tag}" if reason else mode_tag
-                        )
+                        decision_payload["reason"] = reason or "user_confirmation"
                         decision = await decision_service.record_decision(
                             decision_payload
                         )

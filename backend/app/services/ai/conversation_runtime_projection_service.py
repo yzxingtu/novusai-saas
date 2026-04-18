@@ -78,14 +78,12 @@ class ConversationRuntimeProjectionService:
             conversation_metadata.get("last_error")
         )
         compaction_snapshot = await self.get_context_compaction_snapshot(conversation.id)
-        interaction_mode_requested, interaction_mode_effective = (
+        _interaction_mode_requested, interaction_mode_effective = (
             self.read_model_service.extract_interaction_modes(conversation_metadata)
         )
         downgrade_reason = conversation_metadata.get(
             "interaction_mode_downgrade_reason"
         )
-        result["interaction_mode_requested"] = interaction_mode_requested
-        result["interaction_mode_effective"] = interaction_mode_effective
 
         if last_assistant_message is not None:
             result["turn_flow"] = ConversationTurnFlowProjector.project_from_message_payload(
@@ -125,6 +123,7 @@ class ConversationRuntimeProjectionService:
         compaction_snapshot: dict[str, Any] | None,
         interaction_mode_effective: str,
     ) -> dict[str, Any]:
+        del interaction_mode_effective
         metadata = cls._message_metadata(last_assistant_message)
         turn_meta = cls.extract_turn_diagnostics_from_metadata(metadata)
         return {
@@ -141,7 +140,6 @@ class ConversationRuntimeProjectionService:
             "rag_source_kinds": list(metadata.get("rag_source_kinds") or []),
             "last_interrupted": bool(metadata.get("interrupted"))
             or (turn_meta.get("termination_reason") == "interrupted"),
-            "interaction_mode_effective": interaction_mode_effective,
             **cls._shared_turn_projection(turn_meta, metadata=metadata),
         }
 
@@ -153,6 +151,7 @@ class ConversationRuntimeProjectionService:
         interaction_mode_effective: str,
         downgrade_reason: Any,
     ) -> dict[str, Any]:
+        del interaction_mode_effective, downgrade_reason
         metadata = cls._message_metadata(last_assistant_message)
         turn_meta = cls.extract_turn_diagnostics_from_metadata(metadata)
         shared_projection = cls._shared_turn_projection(turn_meta, metadata=metadata)
@@ -170,8 +169,6 @@ class ConversationRuntimeProjectionService:
                 if isinstance(last_assistant_message, dict)
                 else None
             ),
-            "downgrade_reason": downgrade_reason,
-            "interaction_mode_effective": interaction_mode_effective,
             "interrupted": interrupted,
             "provider_name": (
                 last_assistant_message.get("provider_name")

@@ -472,6 +472,58 @@ def test_execute_tool_allows_direct_fetch_url_when_user_explicitly_provides_url(
     assert result.success is True
 
 
+def test_execute_tool_repairs_fetch_url_to_pinned_explicit_url() -> None:
+    class _Sandbox:
+        def __init__(self) -> None:
+            self.calls: list[dict] = []
+
+        async def execute(self, **kwargs):
+            self.calls.append(kwargs)
+            return ToolResult(
+                tool_call_id=kwargs["tool_call_id"],
+                name=kwargs["name"],
+                success=True,
+                output=f"Fetched {kwargs['arguments']['url']}",
+            )
+
+    async def _run() -> tuple[list[dict], ToolResult]:
+        sandbox = _Sandbox()
+        processor = ToolCallProcessor(
+            sandbox=sandbox,  # type: ignore[arg-type]
+            tools=[ToolDefinition(name="fetch_url")],
+        )
+        intent = IntentPlan(
+            intent_id="intent-web",
+            kind="web_research",
+            family="web_research",
+            order=1,
+            user_visible_label="research",
+            source_text="Fetch this URL directly",
+            allowed_tool_names=["fetch_url"],
+            preferred_tool_names=["fetch_url"],
+            completion_signals=["fetch_url"],
+            metadata={"explicit_url": "https://example.com/pinned"},
+        )
+        state = _FakeExecutionState([intent])
+        token = set_current_execution_state_machine(state)
+        try:
+            result, _duration_ms = await processor.execute_tool(
+                "tc_fetch_pinned",
+                "fetch_url",
+                {"url": "https://wrong.example.com", "max_length": 5000},
+                conversation_id=1,
+            )
+        finally:
+            reset_current_execution_state_machine(token)
+        return sandbox.calls, result
+
+    calls, result = asyncio.run(_run())
+
+    assert len(calls) == 1
+    assert calls[0]["arguments"]["url"] == "https://example.com/pinned"
+    assert result.output == "Fetched https://example.com/pinned"
+
+
 def test_check_consent_treats_approved_pending_consent_as_auto_once() -> None:
     processor = ToolCallProcessor(
         sandbox=None,  # type: ignore[arg-type]

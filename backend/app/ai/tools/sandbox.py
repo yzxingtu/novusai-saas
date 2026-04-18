@@ -164,22 +164,18 @@ class ToolSandbox:
 
         self._executors[ToolTypeEnum.CODE_EXECUTION.value] = CodeExecutionExecutor()
         # Page runtime executor (matched by tool name, prioritized over type-based lookup) / 页面 runtime 执行器
-        from app.ai.tools.executors.ui_read_executor import UIReadExecutor
         from app.ai.tools.executors.ui_snapshot_executor import UISnapshotExecutor
         from app.ai.tools.page_runtime.executor import PageRuntimeToolExecutor
         from app.ai.tools.page_runtime.live_bridge import SocketIOPageRuntimeBridge
 
         page_runtime_executor = PageRuntimeToolExecutor(SocketIOPageRuntimeBridge())
         self._named_executors["ui_get_snapshot"] = UISnapshotExecutor()
-        self._named_executors["ui_read_page"] = page_runtime_executor
-        self._named_executors["ui_read_surface"] = page_runtime_executor
         for tool_name in {
+            "ui_read_page",
+            "ui_read_surface",
             "ui_read_region",
             "ui_read_table",
             "ui_list_interactables",
-        }:
-            self._named_executors[tool_name] = UIReadExecutor()
-        for tool_name in {
             "ui_click",
             "ui_open_surface",
             "ui_get_form_state",

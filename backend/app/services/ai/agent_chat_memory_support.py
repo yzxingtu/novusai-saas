@@ -143,9 +143,11 @@ async def persist_session_memory(
     long_term_provider_factory: Callable[..., Any],
     session_memory_service_cls: type,
 ) -> dict[str, list[str]] | None:
-    if not request.memory_enabled:
-        return None
     if not request.conversation_id or not request.user_id:
+        return None
+    session_memory_enabled = bool(request.memory_enabled)
+    long_term_memory_enabled = bool(request.long_term_memory_enabled)
+    if not session_memory_enabled and not long_term_memory_enabled:
         return None
 
     delta = await extract_delta(
@@ -156,19 +158,20 @@ async def persist_session_memory(
     if not any(delta.values()):
         return None
 
-    memory_svc = session_memory_service_cls(tenant_id)
-    await memory_svc.upsert_state(
-        channel=request.memory_channel,
-        source=request.memory_source,
-        agent_id=request.agent_id,
-        user_id=request.user_id,
-        conversation_id=request.conversation_id,
-        event_id=event_id,
-        delta=delta,
-        metadata={"scene": request.memory_scene},
-    )
+    if session_memory_enabled:
+        memory_svc = session_memory_service_cls(tenant_id)
+        await memory_svc.upsert_state(
+            channel=request.memory_channel,
+            source=request.memory_source,
+            agent_id=request.agent_id,
+            user_id=request.user_id,
+            conversation_id=request.conversation_id,
+            event_id=event_id,
+            delta=delta,
+            metadata={"scene": request.memory_scene},
+        )
 
-    if request.long_term_memory_enabled and request.user_id:
+    if long_term_memory_enabled and request.user_id:
         try:
             payload = build_capture_payload(delta)
             if any(payload.values()):

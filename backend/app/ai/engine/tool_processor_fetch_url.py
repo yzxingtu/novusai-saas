@@ -36,6 +36,13 @@ def intent_url_list(intent: Any | None, key: str) -> list[str]:
     return _normalized_url_list(metadata.get(key))
 
 
+def intent_pinned_url(intent: Any | None) -> str:
+    if intent is None:
+        return ""
+    metadata = dict(getattr(intent, "metadata", {}) or {})
+    return str(metadata.get("explicit_url") or "").strip()
+
+
 def _set_intent_url_list(intent: Any | None, key: str, values: list[str]) -> None:
     if intent is None:
         return
@@ -82,6 +89,9 @@ def resolve_fetch_url_candidates(
     requested_url: str,
 ) -> tuple[str | None, list[str], str]:
     normalized_requested_url = str(requested_url or "").strip()
+    pinned_url = intent_pinned_url(intent)
+    if pinned_url:
+        return pinned_url, [], normalized_requested_url
     candidate_urls = intent_url_list(intent, "fetch_url_candidate_urls")
     if not candidate_urls:
         return None, [], normalized_requested_url

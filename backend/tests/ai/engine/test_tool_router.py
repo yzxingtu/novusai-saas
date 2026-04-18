@@ -42,6 +42,18 @@ def _intent(kind: str) -> IntentPlan:
     )
 
 
+def _web_intent(*, metadata: dict | None = None) -> IntentPlan:
+    return IntentPlan(
+        intent_id="intent-web",
+        kind="web_research",
+        family="web_research",
+        order=1,
+        user_visible_label="web_research",
+        source_text="web_research",
+        metadata=dict(metadata or {}),
+    )
+
+
 def test_tool_router_prioritizes_screenshot_tools_over_generic_page_read() -> None:
     decision = ToolRouter.route(
         intents=[_intent("page_screenshot")],
@@ -153,3 +165,28 @@ def test_tool_router_prefers_pagination_tools_for_page_jump_request() -> None:
         "ui_click",
         "ui_list_interactables",
     ]
+
+
+def test_tool_router_pins_explicit_url_web_research_to_fetch_url() -> None:
+    decision = ToolRouter.route(
+        intents=[
+            _web_intent(
+                metadata={
+                    "explicit_url": "https://example.com",
+                    "fetch_only": True,
+                    "prefer_fetch_url": True,
+                }
+            )
+        ],
+        tools=[
+            ToolDefinition(name="web_search"),
+            ToolDefinition(name="fetch_url"),
+        ],
+        budget=_budget(),
+        input_variables={"page_context": {"page_key": "admin.ai.logs"}},
+        user_text="请抓取 https://example.com",
+    )
+
+    assert [tool.name for tool in decision.candidate_tools] == ["fetch_url"]
+    assert decision.intent_allowed_tools["intent-web"] == ["fetch_url"]
+    assert decision.intent_preferred_tools["intent-web"] == ["fetch_url"]

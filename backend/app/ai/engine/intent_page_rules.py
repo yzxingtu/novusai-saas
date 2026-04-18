@@ -23,6 +23,19 @@ has_page_context = _has_page_context
 page_operation_names = _page_operation_names
 
 _EXPLICIT_EXTERNAL_URL_RE = re.compile(r"https?://[^\s<>()\[\]\"']+", re.IGNORECASE)
+_NEGATED_PAGE_REFERENCE_PATTERNS = (
+    re.compile(
+        r"(?:不要|别|不用|不必|无需)[^，,。；;]{0,8}"
+        r"(?:参考|基于|看|查看|读取|分析)?[^，,。；;]{0,4}"
+        r"(?:当前页面|本页面|这个页面|本页|页面内容|页面里|页面上|当前页)"
+    ),
+    re.compile(
+        r"(?:do not|don't|without)[^,.;]{0,16}"
+        r"(?:use|reference|read|inspect|look at)?[^,.;]{0,6}"
+        r"(?:this page|current page|page content|page contents|on this page)",
+        re.IGNORECASE,
+    ),
+)
 
 _PAGE_POINTER_TERMS = (
     "这个页面",
@@ -91,6 +104,28 @@ _PAGE_FORM_WRITE_TERMS = (
     "submit",
     "save",
     "fill",
+)
+_GENERIC_PAGE_FORM_WRITE_TERMS = frozenset(
+    {
+        "创建",
+        "新增",
+        "添加",
+        "修改",
+        "编辑",
+        "删除",
+        "填写",
+        "提交",
+        "保存",
+        "更新",
+        "create",
+        "add",
+        "edit",
+        "update",
+        "delete",
+        "submit",
+        "save",
+        "fill",
+    }
 )
 _PAGE_FORM_READ_TERMS = (
     "表单状态",
@@ -253,6 +288,18 @@ _PAGE_CONTINUE_ACTION_TERMS = (
     "展开",
     "看看",
 )
+_PAGE_WRITE_ANCHOR_TERMS = (
+    *_PAGE_POINTER_TERMS,
+    *_PAGE_SEARCH_QUALIFIER_TERMS,
+    "表单",
+    "字段",
+    "按钮",
+    "菜单",
+    "field",
+    "fields",
+    "button",
+    "menu",
+)
 
 
 def _page_context_from_input_variables(
@@ -376,13 +423,27 @@ def looks_like_page_jump_request(lowered: str) -> bool:
     )
 
 
+def strip_negated_page_references(text: str) -> str:
+    normalized = str(text or "").strip().lower()
+    if not normalized:
+        return ""
+    stripped = normalized
+    for pattern in _NEGATED_PAGE_REFERENCE_PATTERNS:
+        stripped = pattern.sub(" ", stripped)
+    return re.sub(r"\s+", " ", stripped).strip()
+
+
 def looks_like_page_search_request(lowered: str) -> bool:
-    explicit_page_search = first_position(lowered, _PAGE_SEARCH_TERMS) >= 0
+    normalized = strip_negated_page_references(lowered)
+    explicit_page_search = first_position(normalized, _PAGE_SEARCH_TERMS) >= 0
     if explicit_page_search:
         return True
-    if "搜索" not in lowered and "搜" not in lowered and "查找" not in lowered:
+    if "搜索" not in normalized and "搜" not in normalized and "查找" not in normalized:
         return False
-    return first_position(lowered, _PAGE_POINTER_TERMS + _PAGE_SEARCH_QUALIFIER_TERMS) >= 0
+    return (
+        first_position(normalized, _PAGE_POINTER_TERMS + _PAGE_SEARCH_QUALIFIER_TERMS)
+        >= 0
+    )
 
 
 def looks_like_read_only_form_instruction(lowered: str) -> bool:
@@ -425,6 +486,60 @@ def looks_like_field_listing_form_read(
     return any(token in lowered for token in ("当前", "这个", "里面", "哪些", "有哪些"))
 
 
+def _first_matching_term(text: str, candidates: tuple[str, ...]) -> tuple[int, str]:
+    def _match_position(candidate: str) -> int:
+        if candidate.isascii() and any(char.isalpha() for char in candidate):
+            match = re.search(
+                rf"(?<![a-z0-9_-]){re.escape(candidate)}(?![a-z0-9_-])",
+                text,
+                re.IGNORECASE,
+            )
+            return match.start() if match else -1
+        return text.find(candidate)
+
+    best_position = -1
+    best_term = ""
+    for item in candidates:
+        if not item:
+            continue
+        position = _match_position(item)
+        if position < 0:
+            continue
+        if best_position < 0 or position < best_position:
+            best_position = position
+            best_term = item
+    return best_position, best_term
+
+
+def _has_active_form_session(page_context: dict[str, Any] | None) -> bool:
+    if not isinstance(page_context, dict):
+        return False
+    if str(page_context.get("active_form_session_id") or "").strip():
+        return True
+    return isinstance(page_context.get("active_form_summary"), dict)
+
+
+def should_add_page_form_write_signal(
+    *,
+    clause: str,
+    lowered: str,
+    page_context: dict[str, Any] | None,
+    explicit_page_reference: bool,
+) -> bool:
+    _position, matched_term = _first_matching_term(lowered, _PAGE_FORM_WRITE_TERMS)
+    if not matched_term:
+        return False
+    if matched_term not in _GENERIC_PAGE_FORM_WRITE_TERMS:
+        return True
+    if _has_active_form_session(page_context):
+        return True
+    if explicit_page_reference:
+        return True
+    if has_navigation_intent(clause, page_context):
+        return True
+    return first_position(lowered, _PAGE_WRITE_ANCHOR_TERMS) >= 0
+
+
 def detect_page_signal(
     *,
     clause: str,
@@ -432,13 +547,14 @@ def detect_page_signal(
     input_variables: dict[str, Any] | None,
 ) -> PageIntentSignal | None:
     lowered = clause.lower()
+    normalized_page_clause = strip_negated_page_references(lowered)
     if not has_page_context(input_variables):
         return None
     page_context = _page_context_from_input_variables(input_variables)
     explicit_url_position = explicit_external_url_position(clause)
     explicit_page_reference = (
         first_position(
-            lowered,
+            normalized_page_clause,
             _PAGE_POINTER_TERMS
             + _PAGE_FORM_READ_TERMS
             + _PAGE_SEARCH_TERMS
@@ -457,22 +573,31 @@ def detect_page_signal(
     ):
         return None
 
-    page_position = first_position(
-        lowered,
-        _PAGE_POINTER_TERMS
-        + _PAGE_SUMMARY_TERMS
-        + _PAGE_FORM_READ_TERMS
-        + _PAGE_FORM_WRITE_TERMS
-        + _PAGE_NAV_TERMS
-        + _PAGE_SEARCH_TERMS
-        + _PAGE_SCREENSHOT_TERMS
-        + _PAGE_EDITOR_READ_TERMS
-        + _PAGE_EDITOR_WRITE_TERMS
-        + _PAGE_ROW_DETAIL_TERMS
-        + _PAGE_CAPABILITY_TERMS,
+    form_write_position, _matched_form_write_term = _first_matching_term(
+        normalized_page_clause,
+        _PAGE_FORM_WRITE_TERMS,
     )
+    page_position_candidates = [
+        first_position(
+            normalized_page_clause,
+            _PAGE_POINTER_TERMS
+            + _PAGE_SUMMARY_TERMS
+            + _PAGE_FORM_READ_TERMS
+            + _PAGE_NAV_TERMS
+            + _PAGE_SEARCH_TERMS
+            + _PAGE_SCREENSHOT_TERMS
+            + _PAGE_EDITOR_READ_TERMS
+            + _PAGE_EDITOR_WRITE_TERMS
+            + _PAGE_ROW_DETAIL_TERMS
+            + _PAGE_CAPABILITY_TERMS,
+        ),
+        form_write_position,
+    ]
+    page_position = min(
+        position for position in page_position_candidates if position >= 0
+    ) if any(position >= 0 for position in page_position_candidates) else -1
     if page_position < 0 and not any(
-        token in lowered
+        token in normalized_page_clause
         for token in (
             "搜索",
             "查找",
@@ -513,7 +638,7 @@ def detect_page_signal(
             )
         )
 
-    nav_position = first_position(lowered, _PAGE_NAV_TERMS)
+    nav_position = first_position(normalized_page_clause, _PAGE_NAV_TERMS)
     if has_navigation_intent(clause, page_context) or nav_position >= 0:
         add_candidate(
             "page_navigation",
@@ -529,10 +654,14 @@ def detect_page_signal(
         1,
     )
 
-    editor_anchor = lowered.find("编辑器")
-    editor_write_position = first_position(lowered, _PAGE_EDITOR_WRITE_TERMS)
+    editor_anchor = normalized_page_clause.find("编辑器")
+    editor_write_position = first_position(
+        normalized_page_clause,
+        _PAGE_EDITOR_WRITE_TERMS,
+    )
     if editor_anchor >= 0 and any(
-        token in lowered for token in ("修改", "改写", "优化", "润色", "追加", "插入", "标题", "正文")
+        token in normalized_page_clause
+        for token in ("修改", "改写", "优化", "润色", "追加", "插入", "标题", "正文")
     ):
         editor_write_position = (
             editor_anchor
@@ -541,9 +670,12 @@ def detect_page_signal(
         )
     add_candidate("page_editor_write", "page_editor_write", editor_write_position, 2)
 
-    editor_read_position = first_position(lowered, _PAGE_EDITOR_READ_TERMS)
+    editor_read_position = first_position(
+        normalized_page_clause,
+        _PAGE_EDITOR_READ_TERMS,
+    )
     if editor_anchor >= 0 and any(
-        token in lowered for token in ("什么", "内容", "html", "文本")
+        token in normalized_page_clause for token in ("什么", "内容", "html", "文本")
     ):
         editor_read_position = (
             editor_anchor
@@ -552,58 +684,69 @@ def detect_page_signal(
         )
     add_candidate("page_editor_read", "page_editor_read", editor_read_position, 3)
 
-    form_write_position = first_position(lowered, _PAGE_FORM_WRITE_TERMS)
-    if not (editor_anchor >= 0 and editor_write_position >= 0) and not looks_like_read_only_form_instruction(
-        lowered
+    should_add_form_write = should_add_page_form_write_signal(
+        clause=clause,
+        lowered=normalized_page_clause,
+        page_context=page_context,
+        explicit_page_reference=explicit_page_reference,
+    )
+    if (
+        should_add_form_write
+        and not (editor_anchor >= 0 and editor_write_position >= 0)
+        and not looks_like_read_only_form_instruction(normalized_page_clause)
     ):
         add_candidate("page_form_write", "page_form_write", form_write_position, 4)
 
-    form_read_position = first_position(lowered, _PAGE_FORM_READ_TERMS)
-    if looks_like_required_field_form_read(lowered):
-        form_anchor = lowered.find("表单")
+    form_read_position = first_position(normalized_page_clause, _PAGE_FORM_READ_TERMS)
+    if looks_like_required_field_form_read(normalized_page_clause):
+        form_anchor = normalized_page_clause.find("表单")
         if form_anchor < 0:
-            form_anchor = lowered.find("form")
-        required_anchor = lowered.find("必填")
+            form_anchor = normalized_page_clause.find("form")
+        required_anchor = normalized_page_clause.find("必填")
         if required_anchor < 0:
-            required_anchor = lowered.find("required")
+            required_anchor = normalized_page_clause.find("required")
         for anchor in (form_anchor, required_anchor):
             if anchor >= 0 and (form_read_position < 0 or anchor < form_read_position):
                 form_read_position = anchor
-    if looks_like_field_listing_form_read(lowered, page_context):
-        field_anchor = lowered.find("字段")
+    if looks_like_field_listing_form_read(normalized_page_clause, page_context):
+        field_anchor = normalized_page_clause.find("字段")
         if field_anchor < 0:
-            field_anchor = lowered.find("field")
-        form_anchor = lowered.find("表单")
+            field_anchor = normalized_page_clause.find("field")
+        form_anchor = normalized_page_clause.find("表单")
         if form_anchor < 0:
-            form_anchor = lowered.find("form")
+            form_anchor = normalized_page_clause.find("form")
         for anchor in (form_anchor, field_anchor):
             if anchor >= 0 and (form_read_position < 0 or anchor < form_read_position):
                 form_read_position = anchor
     add_candidate("page_form_read", "page_form_read", form_read_position, 5)
 
-    search_position = first_position(lowered, _PAGE_SEARCH_TERMS)
-    if search_position < 0 and looks_like_page_search_request(lowered):
-        search_position = lowered.find("搜索")
+    search_position = first_position(normalized_page_clause, _PAGE_SEARCH_TERMS)
+    if search_position < 0 and looks_like_page_search_request(normalized_page_clause):
+        search_position = normalized_page_clause.find("搜索")
     add_candidate("page_search", "page_search", search_position, 6)
 
     pagination_position = (
-        first_position(lowered, _PAGE_PAGINATION_TERMS)
-        if looks_like_page_jump_request(lowered)
+        first_position(normalized_page_clause, _PAGE_PAGINATION_TERMS)
+        if looks_like_page_jump_request(normalized_page_clause)
         else -1
     )
     add_candidate("page_pagination", "page_pagination", pagination_position, 7)
     add_candidate(
         "page_row_detail",
         "page_row_detail",
-        first_position(lowered, _PAGE_ROW_DETAIL_TERMS),
+        first_position(normalized_page_clause, _PAGE_ROW_DETAIL_TERMS),
         8,
     )
 
+    summary_position = first_position(
+        normalized_page_clause,
+        _PAGE_SUMMARY_TERMS + _PAGE_POINTER_TERMS + _PAGE_CAPABILITY_TERMS,
+    )
+    suppressed_generic_form_write = form_write_position >= 0 and not should_add_form_write
+    if not candidates and suppressed_generic_form_write and summary_position < 0:
+        return None
+
     if not candidates:
-        summary_position = first_position(
-            lowered,
-            _PAGE_SUMMARY_TERMS + _PAGE_POINTER_TERMS + _PAGE_CAPABILITY_TERMS,
-        )
         add_candidate(
             "page_summary",
             "page_summary",

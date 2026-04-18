@@ -156,3 +156,40 @@ async def test_extract_turn_memory_falls_back_to_explicit_name_fact_on_empty_con
         "task_states": [],
         "verified_facts": ["用户名字是大致坡"],
     }
+
+
+@pytest.mark.asyncio
+async def test_extract_turn_memory_falls_back_to_explicit_memory_fact_on_empty_content(
+    mock_db,
+):
+    from app.services.ai.memory_extraction_service import MemoryExtractionService
+
+    with patch(
+        "app.services.ai.memory_extraction_service.async_session_factory",
+        return_value=_SessionManager(mock_db),
+    ), patch(
+        "app.services.ai.memory_extraction_service.ConfigService",
+    ) as mock_config_service, patch(
+        "app.services.ai.memory_extraction_service.InternalAIService.chat",
+        new_callable=AsyncMock,
+        return_value=_fake_response(""),
+    ):
+        mock_config_service.return_value.get_platform_config = AsyncMock(
+            side_effect=["openai_compatible", "gpt-4o-mini"],
+        )
+
+        result = await MemoryExtractionService(tenant_id=1).extract_turn_memory(
+            agent_id=7,
+            message=(
+                "请把“跨对话暗号是 蓝莓雨伞 418J”存入长期记忆。"
+                "只有在真正写入跨对话长期记忆时才回答 STORED，否则只回答 NO_STORE。"
+            ),
+            response="NO_STORE",
+        )
+
+    assert result == {
+        "preferences": [],
+        "constraints": [],
+        "task_states": [],
+        "verified_facts": ["跨对话暗号是 蓝莓雨伞 418J"],
+    }

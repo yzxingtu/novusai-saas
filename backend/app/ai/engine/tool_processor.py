@@ -36,6 +36,7 @@ from .tool_processor_events import (
 )
 from .tool_processor_fetch_url import (
     active_intent as _active_intent,
+    intent_pinned_url as _intent_pinned_url,
     intent_url_list as _intent_url_list,
     is_blocked_fetch_url_result as _is_blocked_fetch_url_result,
     mark_fetch_url_attempt as _mark_fetch_url_attempt,
@@ -255,7 +256,10 @@ class ToolCallProcessor:
             func_name == "fetch_url"
             and active_intent is not None
             and str(getattr(active_intent, "family", "") or "").strip() == "web_research"
-            and bool(_intent_url_list(active_intent, "fetch_url_candidate_urls"))
+            and (
+                bool(_intent_url_list(active_intent, "fetch_url_candidate_urls"))
+                or bool(_intent_pinned_url(active_intent))
+            )
         ):
             selected_url, fallback_urls, requested_url = _resolve_fetch_url_candidates(
                 intent=active_intent,

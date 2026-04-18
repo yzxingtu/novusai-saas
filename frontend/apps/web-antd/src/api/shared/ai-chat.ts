@@ -133,8 +133,6 @@ export interface RawMessageItem {
 export interface ConversationDetailResponse {
   agent_id?: null | number;
   context_diagnostics?: null | Record<string, unknown>;
-  interaction_mode_effective?: InteractionMode;
-  interaction_mode_requested?: InteractionMode;
   last_run_summary?: null | Record<string, unknown>;
   message_list: RawMessageItem[];
 }
@@ -501,7 +499,6 @@ export interface ConversationTimelineItem {
   auto_approved?: boolean;
   correlation_key?: null | string;
   detail_payload?: null | Record<string, unknown>;
-  interaction_mode_effective?: InteractionMode;
   occurred_at: string;
   risk_level?: null | string;
   status: string;

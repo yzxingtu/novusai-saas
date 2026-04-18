@@ -50,6 +50,8 @@ class AgentChatStreamPersistenceOrchestrator:
         lock_token: str,
         hook_registry: Any,
         persist_session_memory: Callable[..., Awaitable[dict[str, list[str]] | None]],
+        commit_stream_memory_writes: Callable[[], Awaitable[None]] | None,
+        rollback_stream_memory_writes: Callable[[], Awaitable[None]] | None,
         build_context_diagnostics: Callable[[ExecutionResult], dict[str, Any]],
         build_last_run_summary: Callable[[ExecutionResult], dict[str, Any]],
         assistant_message_has_visible_reply_payload: Callable[[dict[str, Any]], bool],
@@ -79,6 +81,8 @@ class AgentChatStreamPersistenceOrchestrator:
         self.lock_token = lock_token
         self.hook_registry = hook_registry
         self.persist_session_memory = persist_session_memory
+        self.commit_stream_memory_writes = commit_stream_memory_writes
+        self.rollback_stream_memory_writes = rollback_stream_memory_writes
         self.build_context_diagnostics = build_context_diagnostics
         self.build_last_run_summary = build_last_run_summary
         self.assistant_message_has_visible_reply_payload = (
@@ -167,6 +171,8 @@ class AgentChatStreamPersistenceOrchestrator:
                         event_id=self.memory_event_id,
                     )
                     if memory_delta:
+                        if self.commit_stream_memory_writes is not None:
+                            await self.commit_stream_memory_writes()
                         deps = self._deps()
                         async with deps.session_factory() as mem_db:
                             try:
@@ -183,6 +189,15 @@ class AgentChatStreamPersistenceOrchestrator:
                                 raise
                         extra["memory_updated"] = True
                 except Exception as mem_exc:
+                    if self.rollback_stream_memory_writes is not None:
+                        try:
+                            await self.rollback_stream_memory_writes()
+                        except Exception:
+                            logger.warning(
+                                "Rollback stream memory writes failed: tenant={} conversation={}",
+                                self.tenant_id,
+                                self.conversation_id,
+                            )
                     logger.warning(
                         "Persist stream session memory failed: tenant={} conversation={} err={}",
                         self.tenant_id,

@@ -551,8 +551,91 @@ async def test_prepare_execution_does_not_inherit_page_ops_for_generic_follow_up
             skill_result=skill_result,
         )
 
+    assert prep.continuation_context is not None
+    assert prep.continuation_context.active is False
+    assert prep.continuation_context.family is None
+    assert prep.continuation_context.origin == "none"
     assert [tool.name for tool in prep.tools] == []
     assert prep.tool_use_policy == ToolUsePolicy()
+    assert prep.diagnostics.get("continuation_source") is None
+
+
+@pytest.mark.asyncio
+async def test_prepare_execution_clears_page_continuation_for_long_no_tool_direct_reply() -> (
+    None
+):
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
+    request = ExecutionRequest(
+        agent_id=1,
+        tenant_id=1,
+        user_id=1,
+        messages=[
+            ChatMessage(role="user", content="看看本页面的内容"),
+            ChatMessage(
+                role="assistant",
+                content="",
+                tool_calls=[
+                    {
+                        "id": "call_page_1",
+                        "type": "function",
+                        "function": {
+                            "name": "ui_get_snapshot",
+                            "arguments": "{}",
+                        },
+                        "success": True,
+                    }
+                ],
+            ),
+            ChatMessage(role="tool", content="page context payload"),
+            ChatMessage(role="assistant", content="这里是第一页摘要。"),
+            ChatMessage(
+                role="user",
+                content=(
+                    "CASE-STREAM-UX-0418U 不要使用任何工具。"
+                    "输出 40 行，每行格式为 LINE_XX_0418U，其中 XX 从 01 到 40。"
+                    "不要使用代码块，不要省略。"
+                ),
+            ),
+        ],
+        input_variables={
+            "page_context": {
+                "page_key": "admin.ai.conversations",
+                "ui_epoch": 7,
+                "suggested_tools": {
+                    "primary": [
+                        "ui_get_snapshot",
+                        "ui_read_region",
+                        "ui_read_table",
+                    ],
+                    "secondary": ["ui_list_interactables"],
+                },
+            },
+        },
+    )
+
+    with (
+        patch(
+            "app.ai.rag_injector.load_agent_kb_bindings",
+            new=AsyncMock(return_value=([], {})),
+        ),
+        patch("app.ai.routing.router.ModelRouter", new=_FakeRouter),
+    ):
+        prep = await engine._prepare_execution(
+            _build_agent(),
+            request,
+            skill_result=_build_structured_skill_result(),
+        )
+
+    assert prep.continuation_context is not None
+    assert prep.continuation_context.active is False
+    assert prep.continuation_context.family is None
+    assert prep.continuation_context.origin == "none"
+    assert [intent.kind for intent in prep.intent_plan] == ["direct_reply"]
+    assert prep.tools == []
+    assert prep.tool_use_policy == ToolUsePolicy()
+    assert prep.diagnostics.get("continuation_source") is None
 
 
 @pytest.mark.asyncio

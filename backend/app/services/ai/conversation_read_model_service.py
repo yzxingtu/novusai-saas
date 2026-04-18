@@ -25,6 +25,7 @@ from app.services.ai.conversation_turn_flow_projector import (
 )
 from app.services.ai.agent_chat_interaction_support import (
     normalize_requested_interaction_mode,
+    strip_legacy_interaction_mode_fields,
 )
 from app.services.tenant.attachment_download_service import AttachmentDownloadService
 
@@ -160,6 +161,7 @@ class ConversationReadModelService:
         )
         if hydrated_attachments is not None:
             metadata_payload["attachments"] = hydrated_attachments
+        metadata_payload = strip_legacy_interaction_mode_fields(metadata_payload)
         if metadata_payload:
             msg_dict["metadata"] = metadata_payload
         msg_dict["model_name"] = runtime_meta.get("model_name")
@@ -200,6 +202,9 @@ class ConversationReadModelService:
                 metadata_payload.update(runtime_meta)
                 if hydrated_attachments is not None:
                     metadata_payload["attachments"] = hydrated_attachments
+                metadata_payload = strip_legacy_interaction_mode_fields(
+                    metadata_payload
+                )
                 msg_dict["metadata"] = metadata_payload
             items.append(msg_dict)
         return items
@@ -220,6 +225,7 @@ class ConversationReadModelService:
             if hydrated_attachments is not None:
                 metadata_payload = metadata_payload or {}
                 metadata_payload["attachments"] = hydrated_attachments
+            metadata_payload = strip_legacy_interaction_mode_fields(metadata_payload)
             agent_obj = self._safe_attr(msg, "agent")
             serialized_messages.append(
                 {
@@ -305,6 +311,7 @@ class ConversationReadModelService:
         interaction_mode_effective: str,
         downgrade_reason: Any,
     ) -> dict[str, Any]:
+        del interaction_mode_effective, downgrade_reason
         payload = {
             "context_diagnostics": {
                 "estimated_tokens": None,
@@ -315,7 +322,6 @@ class ConversationReadModelService:
                 "prune_stats": None,
                 "rag_source_kinds": [],
                 "last_interrupted": bool((conversation_last_error or {}).get("partial")),
-                "interaction_mode_effective": interaction_mode_effective,
                 "turn_outcome": "failed" if conversation_last_error else None,
                 "termination_reason": "stream_execution_error"
                 if conversation_last_error
@@ -329,8 +335,6 @@ class ConversationReadModelService:
                 if conversation_last_error
                 else None,
                 "created_at": (conversation_last_error or {}).get("timestamp"),
-                "downgrade_reason": downgrade_reason,
-                "interaction_mode_effective": interaction_mode_effective,
                 "interrupted": bool((conversation_last_error or {}).get("partial")),
                 "provider_name": None,
                 "runtime_model_name": None,

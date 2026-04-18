@@ -107,7 +107,13 @@ async def test_conversation_timeline_service_get_timeline_includes_summary(mock_
         content="hello",
         tool_name=None,
         tool_call_id=None,
-        metadata_={},
+        metadata_={
+            "interaction_mode": "confirm",
+            "nested": {
+                "interaction_mode_effective": "trusted_auto",
+                "keep": "value",
+            },
+        },
         created_at=datetime(2026, 4, 10, 10, 0, tzinfo=timezone.utc),
     )
     decision = SimpleNamespace(
@@ -118,9 +124,21 @@ async def test_conversation_timeline_service_get_timeline_includes_summary(mock_
         risk_level="low",
         auto_approved=False,
         correlation_key="corr-1",
-        evidence={},
+        evidence={
+            "interaction_mode_effective": "trusted_auto",
+            "downgrade_reason": None,
+            "keep": "yes",
+        },
         created_at=datetime(2026, 4, 10, 10, 1, tzinfo=timezone.utc),
-        to_dict=lambda: {"id": 1},
+        to_dict=lambda: {
+            "id": 1,
+            "interaction_mode_effective": "trusted_auto",
+            "evidence": {
+                "interaction_mode_effective": "trusted_auto",
+                "downgrade_reason": "legacy",
+                "keep": "yes",
+            },
+        },
     )
     action_log = SimpleNamespace(
         status="success",
@@ -172,3 +190,15 @@ async def test_conversation_timeline_service_get_timeline_includes_summary(mock_
     assert any(item["type"] == "action_log" for item in items)
     assert any(item["type"] == "call_log" for item in items)
     assert any(item["type"] == "call_log_summary" for item in items)
+    assert all("interaction_mode_effective" not in item for item in items)
+
+    message_item = next(item for item in items if item["type"] == "message:assistant")
+    assert message_item["detail_payload"]["metadata"] == {
+        "nested": {"keep": "value"}
+    }
+
+    decision_item = next(item for item in items if item["type"] == "execution_decision")
+    assert decision_item["detail_payload"] == {
+        "id": 1,
+        "evidence": {"keep": "yes"},
+    }

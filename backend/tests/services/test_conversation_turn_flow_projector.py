@@ -23,7 +23,7 @@ def test_project_from_metadata_maps_elapsed_budget_exit_to_failed_terminal() -> 
     assert answer_assembly["status"] == "error"
 
 
-def test_project_from_metadata_summarizes_thinking_without_raw_detail_lines() -> None:
+def test_project_from_metadata_hides_raw_thinking_summary_from_user_timeline() -> None:
     turn_flow = ConversationTurnFlowProjector.project_from_metadata(
         {
             "thinking_content": (
@@ -36,7 +36,44 @@ def test_project_from_metadata_summarizes_thinking_without_raw_detail_lines() ->
     thinking_stage = next(
         stage for stage in turn_flow["timeline"] if stage["type"] == "thinking"
     )
-    assert thinking_stage["summary"] == "Searching for Opus 4.7 news and official release info."
+    assert thinking_stage["summary"] == "已完成思考与规划"
+    assert thinking_stage["detail_lines"] == []
+
+
+def test_project_from_metadata_sanitizes_existing_raw_thinking_stage_summary() -> None:
+    turn_flow = ConversationTurnFlowProjector.project_from_metadata(
+        {
+            "turn_flow": {
+                "timeline": [
+                    {
+                        "id": "thinking",
+                        "type": "thinking",
+                        "status": "completed",
+                        "title": "已思考",
+                        "summary": "**Considering user compliance**",
+                        "detail_lines": ["**Considering user compliance**"],
+                    }
+                ],
+                "evidence": [],
+                "answer_card": {
+                    "summary": "THREAD_OK_0418W",
+                    "sections": [],
+                    "source_chip_ids": [],
+                },
+                "completion_reason": "completed",
+            },
+            "turn_record": {
+                "turn_outcome": "success",
+                "termination_reason": "completed",
+            },
+        },
+        content="THREAD_OK_0418W",
+    )
+
+    thinking_stage = next(
+        stage for stage in turn_flow["timeline"] if stage["type"] == "thinking"
+    )
+    assert thinking_stage["summary"] == "已完成思考与规划"
     assert thinking_stage["detail_lines"] == []
 
 

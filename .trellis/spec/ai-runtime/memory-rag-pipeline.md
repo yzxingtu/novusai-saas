@@ -40,6 +40,9 @@ request and is surfaced as a context source.
 profile snapshot retrieval.
 - Long-term memory capture happens after the turn in the service layer and
 uses a memory extraction step plus a provider factory.
+- Long-term memory capture may run even when session memory persistence is
+disabled, as long as the request still carries a conversation/user scope and
+`long_term_memory_enabled=true`.
 - Memory extraction failures degrade to empty output and must not break the
 main turn.
 

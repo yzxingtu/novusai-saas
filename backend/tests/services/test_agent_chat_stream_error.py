@@ -868,6 +868,78 @@ async def test_stream_on_complete_reasoning_only_rescue_success_skips_error_mess
 
 
 @pytest.mark.asyncio
+async def test_stream_post_persist_tail_commits_primary_memory_writes_on_success(
+    mock_db,
+):
+    service = await _build_stream_service(mock_db)
+    service._persist_session_memory = AsyncMock(
+        return_value={
+            "preferences": [],
+            "constraints": [],
+            "task_states": [],
+            "verified_facts": ["用户名字是大致坡"],
+        }
+    )
+    on_complete, _hook_registry = await _capture_on_complete(service, mock_db)
+
+    cb_db = AsyncMock()
+    cb_db.commit = AsyncMock()
+    cb_db.rollback = AsyncMock()
+    mem_db = AsyncMock()
+    mem_db.commit = AsyncMock()
+    mem_db.rollback = AsyncMock()
+    conversation = _build_conversation()
+    cb_conv_svc = MagicMock()
+    cb_conv_svc.repo.get_by_id = AsyncMock(return_value=conversation)
+    cb_conv_svc.persist_chat_messages = AsyncMock(return_value=([], 1))
+    cb_conv_svc.update_stats = AsyncMock()
+    mem_conv_svc = MagicMock()
+    mem_conv_svc.mark_memory_updated = AsyncMock(return_value=None)
+    initial_commit_count = mock_db.commit.await_count
+    initial_rollback_count = mock_db.rollback.await_count
+
+    with (
+        patch(
+            "app.services.ai.agent_chat_service.async_session_factory",
+            side_effect=[_SessionManager(cb_db), _SessionManager(mem_db)],
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.ConversationService",
+            side_effect=[cb_conv_svc, mem_conv_svc],
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentQuotaManager.adjust_usage",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentQuotaManager.record_user_usage",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentStatsManager.record_chat",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.BaseEngine._publish_execution_failed",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.BaseEngine._publish_execution_completed",
+            new=AsyncMock(),
+        ),
+    ):
+        extra = await on_complete(_build_success_result())
+        assert extra is not None
+        await extra["__post_done_callback__"]()
+
+    service._persist_session_memory.assert_awaited_once()
+    assert mock_db.commit.await_count == initial_commit_count + 1
+    assert mock_db.rollback.await_count == initial_rollback_count
+    mem_conv_svc.mark_memory_updated.assert_awaited_once_with(100)
+    mem_db.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_stream_on_complete_persists_error_message_when_sanitized_messages_are_empty(
     mock_db,
 ):

@@ -75,6 +75,16 @@ def test_intent_domain_rules_detects_weather_and_time() -> None:
     assert all(signal.shortcircuit for signal in signals)
 
 
+def test_intent_domain_rules_detects_time_query_for_city_time_tool_directive() -> None:
+    signals = _detect(
+        "必须使用 get_current_time 工具获取当前上海时间，只回答 HH:MM；若没有实际调用工具就回答 NO_TOOL。",
+        tools=_tools_weather_time(),
+    )
+
+    assert [signal.kind for signal in signals] == ["time_query"]
+    assert signals[0].shortcircuit is True
+
+
 def test_intent_domain_rules_web_search_and_suppression() -> None:
     suppressed = _detect("不要联网，帮我搜新闻", tools=_tools_web())
     assert suppressed == []
@@ -90,6 +100,21 @@ def test_intent_domain_rules_web_search_and_suppression() -> None:
     weather_fallback = _detect("联网查天气", tools=_tools_web())
     assert len(weather_fallback) == 1
     assert weather_fallback[0].label == "weather_web_research"
+
+
+def test_intent_domain_rules_keeps_explicit_url_fetch_when_only_search_is_forbidden() -> (
+    None
+):
+    signals = _detect(
+        "必须只使用 fetch_url 抓取 https://example.com ，不要联网搜索，也不要参考当前页面。",
+        tools=_tools_web(),
+    )
+
+    assert len(signals) == 1
+    assert signals[0].kind == "web_research"
+    assert signals[0].metadata["explicit_url"] == "https://example.com"
+    assert signals[0].metadata["fetch_only"] is True
+    assert signals[0].metadata["web_search_forbidden"] is True
 
 
 def test_intent_domain_rules_detects_knowledge_query_when_kb_bound() -> None:

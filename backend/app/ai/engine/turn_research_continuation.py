@@ -21,6 +21,7 @@ from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage
 
 from .base_helpers import stable_unique_text_list
+from .intent_page_rules import looks_like_page_follow_up
 from .turn_research_evidence import (
     collect_web_research_evidence,
     extract_recent_successful_tool_names,
@@ -107,11 +108,13 @@ def build_web_research_continuation_context(
         str(last_turn_facts.get("active_intent_kind") or "").strip() or None
     )
     last_tool_family = _tool_family_from_name_unified(last_tool_name, input_variables)
+    page_follow_up_requested = looks_like_page_follow_up(current_user_text)
 
     active = False
     family: str | None = None
     if (
         "page_ops" in continuation_capable_families
+        and page_follow_up_requested
         and (
             last_tool_family == "page_ops"
             or str(active_intent_kind or "").startswith("page_")

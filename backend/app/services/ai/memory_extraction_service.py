@@ -36,6 +36,51 @@ _ENGLISH_NAME_PATTERNS = (
         re.IGNORECASE,
     ),
 )
+_MEMORY_SAVE_REQUEST_TERMS = (
+    "存入记忆",
+    "存入长期记忆",
+    "存到记忆",
+    "存到长期记忆",
+    "保存到记忆",
+    "保存到长期记忆",
+    "记到记忆",
+    "记到长期记忆",
+    "请记住",
+    "帮我记住",
+    "记下来",
+    "remember this",
+    "save to memory",
+)
+_QUOTED_MEMORY_FACT_PATTERN = re.compile(
+    r"[\"“”'‘’](?P<fact>[^\"“”'‘’]{2,160})[\"“”'‘’]"
+)
+_EXPLICIT_MEMORY_FACT_PATTERNS = (
+    re.compile(
+        r"(?:请|请你|帮我|麻烦你)?把\s*[\"“”'‘’]?(?P<fact>.+?)[\"“”'‘’]?\s*"
+        r"(?:存入|存到|保存到|记到)(?:长期)?记忆",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(?:请记住|帮我记住|记下来)\s*(?P<fact>.+)",
+        re.IGNORECASE,
+    ),
+)
+_MEMORY_FACT_STOP_PATTERNS = (
+    re.compile(r"(?:只有在|如果没有|否则|只回答|only answer|otherwise).*$", re.IGNORECASE),
+)
+_PLACEHOLDER_MEMORY_FACTS = {
+    "这个",
+    "这个信息",
+    "这条信息",
+    "这件事",
+    "这条",
+    "这句",
+    "这句话",
+    "这个偏好",
+    "这条偏好",
+    "我的偏好",
+    "偏好",
+}
 
 
 class MemoryExtractionService:
@@ -58,6 +103,10 @@ class MemoryExtractionService:
     def __init__(self, tenant_id: int):
         self.tenant_id = tenant_id
 
+    @classmethod
+    def _empty_delta(cls) -> dict[str, list[str]]:
+        return {key: [] for key in cls.EMPTY_DELTA}
+
     async def extract_turn_memory(
         self,
         *,
@@ -73,7 +122,7 @@ class MemoryExtractionService:
         """
         text = (message or "").strip()
         if not text or len(text) < 4:
-            return self.EMPTY_DELTA.copy()
+            return self._empty_delta()
 
         try:
             async with async_session_factory() as llm_db:
@@ -82,7 +131,7 @@ class MemoryExtractionService:
                     agent_id=agent_id,
                 )
                 if not provider_code or not model_code:
-                    return self.EMPTY_DELTA.copy()
+                    return self._empty_delta()
 
                 llm_response = await InternalAIService(llm_db).chat(
                     provider_code=provider_code,
@@ -201,11 +250,58 @@ class MemoryExtractionService:
 
     @classmethod
     def _fallback_extract_turn_memory(cls, message: str) -> dict[str, list[str]]:
-        result = cls.EMPTY_DELTA.copy()
+        result = cls._empty_delta()
         display_name = cls._extract_display_name(message)
         if display_name:
-            result["verified_facts"] = [f"用户名字是{display_name}"]
+            result["verified_facts"].append(f"用户名字是{display_name}")
+        for fact in cls._extract_explicit_memory_facts(message):
+            if fact not in result["verified_facts"]:
+                result["verified_facts"].append(fact)
         return result
+
+    @classmethod
+    def _extract_explicit_memory_facts(cls, message: str) -> list[str]:
+        text = (message or "").strip()
+        if not text:
+            return []
+        lowered = text.lower()
+        if not any(term in lowered for term in _MEMORY_SAVE_REQUEST_TERMS):
+            return []
+
+        facts: list[str] = []
+
+        def _push(raw_fact: str | None) -> None:
+            fact = cls._sanitize_memory_fact(raw_fact)
+            if fact and fact not in facts:
+                facts.append(fact)
+
+        for match in _QUOTED_MEMORY_FACT_PATTERN.finditer(text):
+            _push(match.group("fact"))
+        for pattern in _EXPLICIT_MEMORY_FACT_PATTERNS:
+            match = pattern.search(text)
+            if not match:
+                continue
+            _push(match.group("fact"))
+
+        return facts[:3]
+
+    @classmethod
+    def _sanitize_memory_fact(cls, raw_fact: str | None) -> str | None:
+        candidate = str(raw_fact or "").strip().strip("\"'“”‘’()（）[]【】")
+        if not candidate:
+            return None
+        for pattern in _MEMORY_FACT_STOP_PATTERNS:
+            candidate = pattern.sub("", candidate).strip()
+        candidate = re.split(r"[\n\r\t。！？!?]", candidate, maxsplit=1)[0]
+        candidate = re.sub(r"^(?:是|为|内容是|信息是|暗号是)\s*", "", candidate).strip()
+        candidate = re.sub(r"\s+", " ", candidate).strip(" ，,：:；;。")
+        if not candidate:
+            return None
+        if candidate in _PLACEHOLDER_MEMORY_FACTS:
+            return None
+        if len(candidate) > 160:
+            candidate = candidate[:160].rstrip()
+        return candidate or None
 
     @classmethod
     def _extract_display_name(cls, message: str) -> str | None:

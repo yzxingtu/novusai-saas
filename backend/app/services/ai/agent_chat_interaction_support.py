@@ -12,6 +12,16 @@ if TYPE_CHECKING:
     from app.schemas.ai.agent_chat import InteractionMode
 
 
+_LEGACY_INTERACTION_MODE_KEYS = {
+    "downgraded_from",
+    "downgrade_reason",
+    "interaction_mode",
+    "interaction_mode_downgrade_reason",
+    "interaction_mode_effective",
+    "interaction_mode_requested",
+}
+
+
 async def resolve_runtime_trust_policy_ref(
     *,
     db: AsyncSession,
@@ -118,6 +128,20 @@ def build_trusted_auto_bootstrap_policy_ref() -> dict[str, Any]:
         "tool_families": ["page_ops", "weather", "web_research"],
         "risk_level_cap": ActionLevelEnum.READ.value,
     }
+
+
+def strip_legacy_interaction_mode_fields(payload: Any) -> Any:
+    if isinstance(payload, list):
+        return [strip_legacy_interaction_mode_fields(item) for item in payload]
+    if not isinstance(payload, dict):
+        return payload
+
+    cleaned: dict[str, Any] = {}
+    for key, value in payload.items():
+        if str(key or "") in _LEGACY_INTERACTION_MODE_KEYS:
+            continue
+        cleaned[key] = strip_legacy_interaction_mode_fields(value)
+    return cleaned
 
 
 def normalize_requested_interaction_mode(

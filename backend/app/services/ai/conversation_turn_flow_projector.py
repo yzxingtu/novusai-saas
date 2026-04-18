@@ -36,6 +36,7 @@ _DEFAULT_STAGE_STATUSES = {"running", "completed", "skipped", "error", "interrup
 _DEFAULT_ERROR_SURFACE_MESSAGE = (
     "The request ended before a final answer was produced."
 )
+_PUBLIC_THINKING_STAGE_SUMMARY = "已完成思考与规划"
 _MISSING_FINAL_ANSWER_SUMMARIES = frozenset(
     {
         "no trusted assistant final answer.",
@@ -64,15 +65,7 @@ def _summarize_thinking_content(value: Any, *, max_length: int = 160) -> str | N
     text = _to_non_empty_str(value)
     if not text:
         return None
-    first_line = next(
-        (line.strip() for line in text.splitlines() if line.strip()),
-        "",
-    )
-    if not first_line:
-        return None
-    if len(first_line) <= max_length:
-        return first_line
-    return f"{first_line[: max_length - 1]}…"
+    return _PUBLIC_THINKING_STAGE_SUMMARY
 
 
 def _to_non_empty_str(value: Any) -> str | None:
@@ -474,14 +467,19 @@ def _normalize_timeline_item(item: Any) -> dict[str, Any] | None:
     status = _to_non_empty_str(item.get("status")) or "completed"
     if status not in _DEFAULT_STAGE_STATUSES:
         status = "completed"
+    summary = _to_non_empty_str(item.get("summary"))
+    detail_lines = _normalize_line_list(item.get("detail_lines"))
+    if stage_type == "thinking":
+        summary = _PUBLIC_THINKING_STAGE_SUMMARY
+        detail_lines = []
     metrics = item.get("metrics")
     return {
         "id": _to_non_empty_str(item.get("id")) or stage_type,
         "type": stage_type,
         "status": status,
         "title": _to_non_empty_str(item.get("title")),
-        "summary": _to_non_empty_str(item.get("summary")),
-        "detail_lines": _normalize_line_list(item.get("detail_lines")),
+        "summary": summary,
+        "detail_lines": detail_lines,
         "started_at_ms": _normalize_optional_int(item.get("started_at_ms")),
         "ended_at_ms": _normalize_optional_int(item.get("ended_at_ms")),
         "duration_ms": _normalize_optional_int(item.get("duration_ms")),
@@ -913,7 +911,7 @@ class ConversationTurnFlowProjector:
                     "type": "thinking",
                     "status": "completed",
                     "title": "已思考",
-                    "summary": thinking_summary or "已完成思考与规划",
+                    "summary": thinking_summary or _PUBLIC_THINKING_STAGE_SUMMARY,
                     "detail_lines": [],
                     "started_at_ms": None,
                     "ended_at_ms": None,

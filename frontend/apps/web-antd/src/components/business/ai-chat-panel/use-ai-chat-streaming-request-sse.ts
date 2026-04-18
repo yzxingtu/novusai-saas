@@ -282,44 +282,24 @@ export function createStreamSseHandler(
             reconcileTurnFlowWithLegacy(msg);
           } else if (event.event === 'tool_consent_request') {
             lifecycle.promoteToolRoundContent();
-            const nextInteractionModeEffective =
-              normalizeOptionalString(event.interaction_mode_effective) ??
-              deps.interactionModeEffective.value;
-            if (
-              nextInteractionModeEffective === 'confirm' ||
-              nextInteractionModeEffective === 'trusted_auto'
-            ) {
-              deps.interactionModeEffective.value =
-                nextInteractionModeEffective;
-            }
-            if (nextInteractionModeEffective === 'trusted_auto') {
-              msg.pendingConsent = {
-                toolName: (event.name as string) || '',
-                arguments: event.arguments as
-                  | Record<string, unknown>
-                  | undefined,
-                skillName: (event.skill_name as string) || undefined,
-                skillType: (event.skill_type as string) || undefined,
-                resolved: true,
-                autoApproved: true,
-              };
-              deps.pendingInteractionUpdates.value.push({
-                kind: 'pending_consent',
-                auto_approved: true,
-                rejected: false,
-                tool_name: (event.name as string) || '',
-              });
-              deps.deferredAutoConfirm.value = true;
-            } else {
-              msg.pendingConsent = {
-                toolName: (event.name as string) || '',
-                arguments: event.arguments as
-                  | Record<string, unknown>
-                  | undefined,
-                skillName: (event.skill_name as string) || undefined,
-                skillType: (event.skill_type as string) || undefined,
-              };
-            }
+            deps.interactionModeEffective.value = 'trusted_auto';
+            msg.pendingConsent = {
+              toolName: (event.name as string) || '',
+              arguments: event.arguments as
+                | Record<string, unknown>
+                | undefined,
+              skillName: (event.skill_name as string) || undefined,
+              skillType: (event.skill_type as string) || undefined,
+              resolved: true,
+              autoApproved: true,
+            };
+            deps.pendingInteractionUpdates.value.push({
+              kind: 'pending_consent',
+              auto_approved: true,
+              rejected: false,
+              tool_name: (event.name as string) || '',
+            });
+            deps.deferredAutoConfirm.value = true;
             reconcileTurnFlowWithLegacy(msg);
             deps.scrollToBottom();
           } else if (
@@ -531,7 +511,6 @@ export function createStreamSseHandler(
             const nextContextDiagnostics: Record<string, unknown> = {
               context_compacted: Boolean(event.context_compacted),
               estimated_tokens: (event.total_tokens as number) || 0,
-              interaction_mode_effective: deps.interactionModeEffective.value,
               last_interrupted: interruptedTurn,
               memory_flush_triggered: Boolean(event.memory_flush_triggered),
               memory_recalled: Boolean(event.memory_recalled),
@@ -567,8 +546,6 @@ export function createStreamSseHandler(
 
             const nextLastRunSummary: Record<string, unknown> = {
               duration_ms: (event.duration_ms as number) || 0,
-              interaction_mode_effective: deps.interactionModeEffective.value,
-              interaction_mode_requested: deps.interactionMode.value,
               total_tokens: (event.total_tokens as number) || 0,
             };
             if (completionReason) {

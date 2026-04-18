@@ -191,6 +191,38 @@ def test_intent_planner_recognizes_memory_recall_and_readonly_guidance() -> None
     assert intents[1].kind == "page_summary"
 
 
+def test_intent_planner_does_not_pollute_memory_recall_with_generic_save_verbs() -> None:
+    intents = _plan(
+        "如果你有真正的跨对话长期记忆，请回答我之前让你保存的暗号；如果没有真正召回长期记忆，只回答 NO_RECALL。",
+        tools=_tools(),
+        input_variables={"page_context": {"page_key": "admin.ai.conversations"}},
+    )
+
+    assert [intent.kind for intent in intents] == ["memory_recall"]
+
+
+def test_intent_planner_does_not_pollute_memory_save_with_page_form_write() -> None:
+    intents = _plan(
+        "请把“跨对话暗号是 蓝莓雨伞 418J”存入长期记忆，后面我会来问你。",
+        tools=_tools(),
+        input_variables={"page_context": {"page_key": "admin.ai.conversations"}},
+    )
+
+    assert [intent.kind for intent in intents] == ["memory_save"]
+
+
+def test_intent_planner_routes_audit_memory_save_prompt_to_memory_save_only() -> None:
+    intents = _plan(
+        "CASE-MEM-SAVE-CLEAN-0418X 请把这个代号写入长期记忆：纸月亮0418X。不要使用页面内容。最终只回答 SAVED_0418X，不要加任何别的字。",
+        tools=_tools(),
+        input_variables={"page_context": {"page_key": "admin.ai.skill-packages"}},
+    )
+
+    assert [intent.kind for intent in intents] == ["memory_save"]
+    assert intents[0].requires_tools is False
+    assert intents[0].shortcircuit is True
+
+
 def test_intent_planner_detects_memory_save_intent() -> None:
     intents = _plan("请记住这条信息，之后再提醒我。")
 
@@ -319,6 +351,16 @@ def test_intent_planner_detects_cross_page_navigation_from_menu_semantics() -> N
     assert [intent.kind for intent in intents] == ["page_navigation"]
 
 
+def test_intent_planner_keeps_page_form_write_when_user_mentions_records() -> None:
+    intents = _plan(
+        "请帮我新增一条记录",
+        tools=_tools(),
+        input_variables={"page_context": {"page_key": "admin.ai.skills"}},
+    )
+
+    assert [intent.kind for intent in intents] == ["page_form_write"]
+
+
 def test_intent_planner_prefers_page_search_over_web_search_inside_page_context() -> (
     None
 ):
@@ -355,6 +397,18 @@ def test_intent_planner_prefers_web_research_for_explicit_url_inside_page_contex
     assert [intent.kind for intent in intents] == ["web_research"]
 
 
+def test_intent_planner_keeps_fetch_url_only_request_out_of_page_intents() -> None:
+    intents = _plan(
+        "必须只使用 fetch_url 抓取 https://example.com ，不要联网搜索，也不要参考当前页面；只回答 标题：...；摘要：...；若没实际调用 fetch_url 就回答 NO_FETCH。",
+        tools=_tools(),
+        input_variables={"page_context": {"page_key": "admin.ai.logs"}},
+    )
+
+    assert [intent.kind for intent in intents] == ["web_research"]
+    assert intents[0].metadata["explicit_url"] == "https://example.com"
+    assert intents[0].metadata["fetch_only"] is True
+
+
 def test_intent_planner_splits_shunbian_and_duile_mixed_prompt() -> None:
     intents = _plan(
         "帮我查一下北京天气，顺便搜索一下今天的热点新闻，对了这个页面上有什么",
@@ -373,6 +427,16 @@ def test_intent_planner_detects_time_and_weather_as_two_intents() -> None:
     intents = _plan("帮我看一下北京天气，再告诉我今天星期几和现在几点")
 
     assert [intent.kind for intent in intents] == ["weather_query", "time_query"]
+
+
+def test_intent_planner_detects_time_tool_directive_for_city_clock() -> None:
+    intents = _plan(
+        "必须使用 get_current_time 工具获取当前上海时间，只回答 HH:MM；若没有实际调用工具就回答 NO_TOOL。",
+        tools=[ToolDefinition(name="get_current_time", description="Current time")],
+    )
+
+    assert [intent.kind for intent in intents] == ["time_query"]
+    assert intents[0].shortcircuit is True
 
 
 def test_intent_planner_detects_now_is_time_phrase_variant() -> None:

@@ -210,10 +210,6 @@ class AgentChatResponse(BaseModel):
         default_factory=list,
         description="Kinds of RAG sources used in this turn",
     )
-    interaction_mode_effective: InteractionMode = Field(
-        "trusted_auto",
-        description="Effective interaction mode for this turn / 本轮生效的交互模式",
-    )
     context_diagnostics: dict[str, Any] | None = Field(
         None,
         description="Context diagnostics for this turn / 本轮上下文诊断",

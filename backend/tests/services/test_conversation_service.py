@@ -176,7 +176,7 @@ class TestGetConversationDetail:
         assert "token=" in attachments[1]["url"]
 
     @pytest.mark.asyncio
-    async def test_conversation_detail_normalizes_legacy_interaction_mode_metadata(
+    async def test_conversation_detail_hides_legacy_interaction_mode_metadata(
         self, mock_db
     ):
         from app.services.ai.conversation_service import ConversationService
@@ -193,7 +193,13 @@ class TestGetConversationDetail:
             "content": "hello",
             "metadata": {},
         }
-        message.metadata_ = {}
+        message.metadata_ = {
+            "interaction_mode_effective": "confirm",
+            "nested": {
+                "interaction_mode_requested": "trusted_auto",
+                "keep": "ok",
+            },
+        }
 
         service = ConversationService.__new__(ConversationService)
         service.db = mock_db
@@ -209,17 +215,12 @@ class TestGetConversationDetail:
 
         detail = await service.get_conversation_detail(1, user_id=1)
 
-        assert detail["interaction_mode_requested"] == "trusted_auto"
-        assert detail["interaction_mode_effective"] == "trusted_auto"
-        assert (
-            detail["context_diagnostics"]["interaction_mode_effective"]
-            == "trusted_auto"
-        )
-        assert (
-            detail["last_run_summary"]["interaction_mode_effective"]
-            == "trusted_auto"
-        )
-        assert detail["last_run_summary"]["downgrade_reason"] is None
+        assert "interaction_mode_requested" not in detail
+        assert "interaction_mode_effective" not in detail
+        assert "interaction_mode_effective" not in detail["context_diagnostics"]
+        assert "interaction_mode_effective" not in detail["last_run_summary"]
+        assert "downgrade_reason" not in detail["last_run_summary"]
+        assert detail["message_list"][0]["metadata"] == {"nested": {"keep": "ok"}}
 
     @pytest.mark.asyncio
     async def test_conversation_detail_surfaces_last_error_when_no_messages_exist(

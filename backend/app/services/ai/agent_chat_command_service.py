@@ -324,7 +324,6 @@ class AgentChatCommandService:
             ),
             prune_stats=prune_stats,
             rag_source_kinds=rag_source_kinds,
-            interaction_mode_effective=interaction_mode_effective,
             context_diagnostics=context_diagnostics_payload,
             last_run_summary=last_run_summary_payload,
         )
@@ -533,6 +532,8 @@ class AgentChatCommandService:
             lock_token=lock_token,
             hook_registry=hook_registry,
             persist_session_memory=service._persist_session_memory,
+            commit_stream_memory_writes=service.db.commit,
+            rollback_stream_memory_writes=service.db.rollback,
             build_context_diagnostics=turn_projector.build_context_diagnostics,
             build_last_run_summary=turn_projector.build_last_run_summary,
             assistant_message_has_visible_reply_payload=service.stream_support.assistant_message_has_visible_reply_payload,

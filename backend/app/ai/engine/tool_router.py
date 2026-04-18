@@ -256,6 +256,25 @@ class ToolRouter:
                 continue
 
             if intent.kind == "web_research":
+                metadata = dict(intent.metadata or {})
+                explicit_url = str(metadata.get("explicit_url") or "").strip()
+                fetch_only = bool(metadata.get("fetch_only")) or bool(explicit_url)
+                prefer_fetch_url = fetch_only or bool(
+                    metadata.get("prefer_fetch_url")
+                )
+                if fetch_only:
+                    if "fetch_url" in tools_by_name:
+                        register(intent, ["fetch_url"], ["fetch_url"])
+                    else:
+                        register(intent, ["web_search"], ["web_search"])
+                    continue
+                if prefer_fetch_url:
+                    register(
+                        intent,
+                        ["fetch_url", "web_search"],
+                        ["fetch_url", "web_search"],
+                    )
+                    continue
                 register(
                     intent,
                     ["web_search", "fetch_url"],

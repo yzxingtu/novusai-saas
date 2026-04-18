@@ -443,6 +443,61 @@ async def test_persist_session_memory_captures_long_term_memory_candidates(mock_
 
 
 @pytest.mark.asyncio
+async def test_persist_session_memory_allows_long_term_capture_without_session_memory(
+    mock_db,
+):
+    from unittest.mock import patch
+
+    from app.services.ai.agent_chat_service import AgentChatService
+
+    service = AgentChatService(mock_db, tenant_id=1)
+    service._extract_memory_delta = AsyncMock(
+        return_value={
+            "preferences": [],
+            "constraints": [],
+            "task_states": [],
+            "verified_facts": ["用户名字是大致坡"],
+        }
+    )
+    provider = MagicMock()
+    provider.capture = AsyncMock(return_value=[])
+
+    request = MagicMock()
+    request.memory_enabled = False
+    request.conversation_id = 100
+    request.user_id = 10
+    request.agent_id = 1
+    request.memory_channel = MemoryChannelEnum.TENANT_CHAT.value
+    request.memory_source = MemorySceneEnum.AI_CHAT_PAGE.value
+    request.memory_scene = MemorySceneEnum.AI_CHAT_PAGE.value
+    request.long_term_memory_enabled = True
+
+    with patch(
+        "app.services.ai.agent_chat_service.get_long_term_memory_provider",
+        return_value=provider,
+    ), patch(
+        "app.services.ai.agent_chat_service.SessionMemoryService.upsert_state",
+        new=AsyncMock(return_value={}),
+    ) as mock_upsert:
+        delta = await service._persist_session_memory(
+            request=request,
+            message="我叫大致坡，请把这个信息存入长期记忆。",
+            response="好的，我会记住。",
+            event_id="memevt:100:test",
+        )
+
+    assert delta is not None
+    mock_upsert.assert_not_awaited()
+    provider.capture.assert_awaited_once()
+    assert provider.capture.await_args.kwargs["items_by_type"] == {
+        "preference": [],
+        "constraint": [],
+        "fact": ["用户名字是大致坡"],
+        "task_summary": [],
+    }
+
+
+@pytest.mark.asyncio
 async def test_chat_passes_explicit_trust_policy_ref_to_execution_request(mock_db):
     from app.services.ai.agent_chat_service import AgentChatService
 
@@ -666,9 +721,6 @@ async def test_stream_chat_updates_pending_consent_state_with_string_owner_type(
                 "rejected": False,
                 "tool_name": "get_current_weather",
                 "auto_approve_source": "execution_trust_policy",
-                "downgraded_from": None,
-                "downgrade_reason": None,
-                "interaction_mode_effective": "trusted_auto",
             }
         ],
         user_id=10,

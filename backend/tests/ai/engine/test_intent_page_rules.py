@@ -108,6 +108,21 @@ def test_detect_page_signal_ignores_explicit_external_url_request() -> None:
     assert signal is None
 
 
+def test_detect_page_signal_ignores_negated_page_reference_for_explicit_url_request() -> (
+    None
+):
+    signal = detect_page_signal(
+        clause=(
+            "必须只使用 fetch_url 抓取 https://example.com ，"
+            "不要联网搜索，也不要参考当前页面"
+        ),
+        offset=0,
+        input_variables={"page_context": {"page_key": "admin.ai.logs"}},
+    )
+
+    assert signal is None
+
+
 def test_detect_page_signal_selects_page_pagination() -> None:
     signal = detect_page_signal(
         clause="下一页",
