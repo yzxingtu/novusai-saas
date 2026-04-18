@@ -141,8 +141,6 @@ async def resolve_interaction_mode(
     logger: Any,
     trust_policy_service_cls: type | None = None,
 ) -> tuple[InteractionMode, dict[str, Any] | None, str | None]:
-    normalized_mode = normalize_requested_interaction_mode(requested_mode)
-
     resolved_ref = await resolve_runtime_trust_policy_ref(
         db=db,
         tenant_id=tenant_id,

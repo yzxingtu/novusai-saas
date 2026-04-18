@@ -306,7 +306,7 @@ class AgentChatStreamBootstrapService:
         variables: dict[str, Any] | None,
         page_session_id: str | None,
         trust_policy_ref: dict[str, Any] | None,
-        interaction_mode: str,
+        interaction_mode: str = "trusted_auto",
         enable_tool_runtime: bool = True,
     ) -> StreamEngineBundle:
         gateway = AIGateway(self.db)

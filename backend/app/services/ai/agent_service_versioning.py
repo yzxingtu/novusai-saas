@@ -65,8 +65,6 @@ async def snapshot_skill_grants(svc: Any, agent_id: int) -> list[dict[str, Any]]
                 grant.skill.package.name if grant.skill and grant.skill.package else None
             ),
             "enabled": grant.enabled,
-            "default_consent_mode": grant.default_consent_mode,
-            "capability_consent_overrides": grant.capability_consent_overrides,
             "sort_order": grant.sort_order,
             "config_override": grant.config_override,
         }
@@ -90,8 +88,6 @@ async def restore_skill_grants(
     from app.models.ai.skill import Skill
 
     valid_items: list[dict[str, Any]] = []
-    default_consent_modes: dict[str, str] = {}
-
     for item in grants_snapshot:
         skill_id = item.get("skill_id")
         if not skill_id:
@@ -106,7 +102,6 @@ async def restore_skill_grants(
             continue
 
         valid_items.append(item)
-        default_consent_modes[str(skill_id)] = item.get("default_consent_mode", "auto")
 
     if not valid_items:
         await grant_svc.delete_all_for_agent(agent_id)
@@ -115,7 +110,6 @@ async def restore_skill_grants(
     grants = await grant_svc.batch_bind(
         agent_id=agent_id,
         skill_ids=[int(item["skill_id"]) for item in valid_items],
-        default_consent_modes=default_consent_modes,
     )
     grant_map = {grant.skill_id: grant for grant in grants}
 
@@ -129,10 +123,6 @@ async def restore_skill_grants(
             grant.id,
             {
                 "enabled": item.get("enabled", True),
-                "default_consent_mode": item.get("default_consent_mode", "auto"),
-                "capability_consent_overrides": item.get(
-                    "capability_consent_overrides"
-                ),
                 "sort_order": item.get("sort_order", 0),
                 "config_override": item.get("config_override"),
             },

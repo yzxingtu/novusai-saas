@@ -91,7 +91,7 @@ class StreamIOAdapter:
         if all(hasattr(request, attr) for attr in required_attrs):
             return request
         payload = dict(getattr(request, "__dict__", {}) or {})
-        payload.setdefault("interaction_mode", "confirm")
+        payload.setdefault("interaction_mode", "trusted_auto")
         payload.setdefault("input_variables", {})
         payload.setdefault("billing_context", None)
         payload.setdefault("tool_use_policy", self.handler.prep.tool_use_policy)

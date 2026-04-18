@@ -1,4 +1,4 @@
-"""Collapse legacy interaction modes to confirm
+"""Collapse legacy interaction modes to trusted_auto
 
 Revision ID: 20260401_int_modes
 Revises: 20260401_drop_ephem_docs
@@ -19,7 +19,8 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 _LEGACY_MODES = {"observe", "suggest"}
-_SUPPORTED_MODES = {"confirm", "trusted_auto"}
+_REMOVED_MODES = {"confirm"}
+_SUPPORTED_MODES = {"trusted_auto"}
 _MODE_KEYS = {
     "interaction_mode",
     "interaction_mode_requested",
@@ -29,8 +30,8 @@ _MODE_KEYS = {
 
 
 def _normalize_mode(value: Any) -> Any:
-    if value in _LEGACY_MODES:
-        return "confirm"
+    if value in _LEGACY_MODES or value in _REMOVED_MODES:
+        return "trusted_auto"
     return value
 
 
@@ -50,7 +51,7 @@ def _normalize_json_payload(value: Any) -> tuple[Any, bool]:
                     changed = True
 
             if key == "interaction_mode_effective" and data[key] not in _SUPPORTED_MODES:
-                data[key] = "confirm"
+                data[key] = "trusted_auto"
                 changed = True
 
             if (
@@ -58,11 +59,13 @@ def _normalize_json_payload(value: Any) -> tuple[Any, bool]:
                 and data[key] is not None
                 and data[key] not in _SUPPORTED_MODES
             ):
-                data[key] = "confirm"
+                data[key] = "trusted_auto"
                 changed = True
 
-            if key == "downgraded_from" and data[key] in _LEGACY_MODES:
-                data[key] = "confirm"
+            if key == "downgraded_from" and (
+                data[key] in _LEGACY_MODES or data[key] in _REMOVED_MODES
+            ):
+                data[key] = "trusted_auto"
                 changed = True
 
         return data, changed
@@ -167,6 +170,6 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # The old values are intentionally not restored; downgrade keeps `confirm`.
-    # / 不恢复旧值；降级时保持 confirm，避免重新引入已移除模式。
+    # The old values are intentionally not restored; downgrade keeps `trusted_auto`.
+    # / 不恢复旧值；降级时保持 trusted_auto，避免重新引入已移除模式。
     return None

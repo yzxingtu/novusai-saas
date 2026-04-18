@@ -50,7 +50,7 @@ def stale_context_guard(
     expected = arguments.get("ui_epoch")
     current = page_context.get("ui_epoch")
     if not isinstance(expected, int) or not isinstance(current, int):
-      return PageRuntimeGuardResult(allowed=True)
+        return PageRuntimeGuardResult(allowed=True)
     if expected == current:
         return PageRuntimeGuardResult(allowed=True)
     return PageRuntimeGuardResult(
@@ -108,13 +108,12 @@ def confirmation_guard(
         )
     if tool_name in {"ui_click", "ui_open_surface"}:
         haystack = " ".join(
-            str(
-                value
-                for value in (
-                    arguments.get("target_locator"),
-                    arguments.get("surface"),
-                )
-            ).lower()
+            str(value or "").strip().lower()
+            for value in (
+                arguments.get("target_locator"),
+                arguments.get("surface"),
+            )
+            if str(value or "").strip()
         )
         if any(keyword in haystack for keyword in _CONFIRM_KEYWORDS):
             return PageRuntimeGuardResult(
@@ -123,4 +122,3 @@ def confirmation_guard(
                 message="Delete-like page actions require confirmation.",
             )
     return PageRuntimeGuardResult(allowed=True)
-

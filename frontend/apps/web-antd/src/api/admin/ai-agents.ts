@@ -129,8 +129,6 @@ export interface AIAgentSkillGrantInfo {
   enabled: boolean;
   config_override: null | Record<string, unknown>;
   sort_order: number;
-  default_consent_mode: string;
-  capability_consent_overrides: null | Record<string, string>;
   skill_name: null | string;
   skill_key: null | string;
   skill_description: null | string;

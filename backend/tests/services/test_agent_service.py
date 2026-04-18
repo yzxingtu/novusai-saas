@@ -356,23 +356,18 @@ class TestRollbackBindings:
             {
                 "skill_id": 11,
                 "enabled": False,
-                "default_consent_mode": "ask",
-                "capability_consent_overrides": {"tool_a": "reject"},
                 "sort_order": 9,
                 "config_override": {"timeout": 30},
             },
             {
                 "skill_id": 22,
                 "enabled": True,
-                "default_consent_mode": "auto",
-                "capability_consent_overrides": None,
                 "sort_order": 3,
                 "config_override": {"region": "cn"},
             },
             {
                 "skill_id": 33,
                 "enabled": True,
-                "default_consent_mode": "auto",
             },
         ]
 
@@ -385,15 +380,12 @@ class TestRollbackBindings:
         grant_service.batch_bind.assert_awaited_once_with(
             agent_id=7,
             skill_ids=[11, 22],
-            default_consent_modes={"11": "ask", "22": "auto"},
         )
         grant_service.delete_all_for_agent.assert_not_awaited()
         assert grant_service.update_grant.await_args_list[0].args == (
             101,
             {
                 "enabled": False,
-                "default_consent_mode": "ask",
-                "capability_consent_overrides": {"tool_a": "reject"},
                 "sort_order": 9,
                 "config_override": {"timeout": 30},
             },
@@ -402,8 +394,6 @@ class TestRollbackBindings:
             102,
             {
                 "enabled": True,
-                "default_consent_mode": "auto",
-                "capability_consent_overrides": None,
                 "sort_order": 3,
                 "config_override": {"region": "cn"},
             },
@@ -441,8 +431,6 @@ class TestVersionRagConfig:
             skill_grant_snapshot=[
                 {
                     "skill_id": 9,
-                    "default_consent_mode": "auto",
-                    "capability_consent_overrides": None,
                 }
             ],
         )
@@ -476,8 +464,6 @@ class TestVersionRagConfig:
             [
                 {
                     "skill_id": 9,
-                    "default_consent_mode": "auto",
-                    "capability_consent_overrides": None,
                 }
             ],
         )

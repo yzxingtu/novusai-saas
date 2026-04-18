@@ -184,11 +184,8 @@ export function useAIChatConversations(deps: UseAIChatConversationsDeps) {
       (res.last_run_summary as null | Record<string, unknown> | undefined) ??
       null;
     lastMemoryUpdated.value = mergedMessages.some((m) => m.memoryUpdated);
-    const nextInteractionModeEffective =
-      res.interaction_mode_effective ?? 'trusted_auto';
-    interactionMode.value =
-      res.interaction_mode_requested ?? nextInteractionModeEffective;
-    interactionModeEffective.value = nextInteractionModeEffective;
+    interactionMode.value = 'trusted_auto';
+    interactionModeEffective.value = 'trusted_auto';
     scrollToBottom(true);
   }
 

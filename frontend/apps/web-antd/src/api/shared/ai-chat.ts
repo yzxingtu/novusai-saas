@@ -477,7 +477,6 @@ export interface AgentChatRequestBody {
   consented_actions?: string[];
   conversation_id?: null | number;
   image_params?: AgentChatImageParams;
-  interaction_mode?: InteractionMode;
   interaction_updates?: Array<{
     action?: string;
     auto_approved?: boolean;
@@ -584,13 +583,11 @@ export interface ChatSkillBindingInfo {
   skill_description?: null | string;
   skill_type?: null | string;
   enabled?: boolean;
-  default_consent_mode?: string;
   package_id: null | number;
   package_name: null | string;
   package_description: null | string;
   package_is_system: boolean;
   is_auto_bound?: boolean;
-  consent_mode?: string;
 }
 
 /**

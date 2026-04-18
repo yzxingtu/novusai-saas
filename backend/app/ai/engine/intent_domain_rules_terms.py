@@ -216,8 +216,11 @@ _KNOWLEDGE_FILLER_SUFFIXES = (
 )
 _MEMORY_SAVE_TERMS = (
     "存入记忆",
+    "存入长期记忆",
     "存到记忆",
+    "存到长期记忆",
     "保存到记忆",
+    "保存到长期记忆",
     "记住这个",
     "记住这句",
     "记住这条",
@@ -227,6 +230,7 @@ _MEMORY_SAVE_TERMS = (
     "把这句记下来",
     "记下来",
     "记到记忆",
+    "记到长期记忆",
     "remember this",
     "save to memory",
 )

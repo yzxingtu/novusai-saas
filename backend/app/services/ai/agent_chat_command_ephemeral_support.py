@@ -121,7 +121,6 @@ async def execute_ephemeral_stream_chat(
         variables=variables,
         page_session_id=None,
         trust_policy_ref=None,
-        interaction_mode="trusted_auto",
         enable_tool_runtime=False,
     )
     return await engine_bundle.engine.stream_execute(

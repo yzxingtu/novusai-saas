@@ -555,6 +555,15 @@ async def test_stream_io_adapter_keeps_finalized_partial_output_over_stream_prev
     assert completion_tokens_used == 18
 
 
+def test_stream_io_adapter_request_defaults_use_trusted_auto() -> None:
+    handler = _build_handler(_FakeEngine())
+    adapter = StreamIOAdapter(handler)
+
+    request_proxy = adapter._request_with_defaults()
+
+    assert request_proxy.interaction_mode == "trusted_auto"
+
+
 @pytest.mark.asyncio
 async def test_stream_handler_syncs_runtime_model_info_to_sandbox_before_tool_calls() -> None:
     runtime_model_info = {

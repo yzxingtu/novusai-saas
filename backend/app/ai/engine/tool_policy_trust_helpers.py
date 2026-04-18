@@ -18,9 +18,11 @@ def apply_execution_trust_policy(
     input_variables: dict[str, Any] | None,
     tool_consent_modes: dict[str, str],
     trust_policy_ref: dict[str, Any] | None,
-    interaction_mode: str = "confirm",
+    interaction_mode: str = "trusted_auto",
 ) -> dict[str, str]:
-    is_trusted_auto = str(interaction_mode or "confirm").strip() == "trusted_auto"
+    is_trusted_auto = (
+        str(interaction_mode or "trusted_auto").strip() == "trusted_auto"
+    )
     has_policy = isinstance(trust_policy_ref, dict)
 
     if not is_trusted_auto:

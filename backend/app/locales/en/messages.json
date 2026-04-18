@@ -638,9 +638,7 @@
             "skill_id": "Skill ID",
             "enabled": "Enabled",
             "config_override": "Config Override",
-            "sort_order": "Sort Order",
-            "default_consent_mode": "Default Consent Mode",
-            "capability_consent_overrides": "Capability Consent Overrides"
+            "sort_order": "Sort Order"
         },
         "error": {
             "already_bound": "This skill is already bound to this agent",

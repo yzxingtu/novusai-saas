@@ -82,6 +82,22 @@ def test_detect_page_signal_treats_required_field_probe_as_form_read() -> None:
     assert signal.kind == "page_form_read"
 
 
+def test_detect_page_signal_treats_active_form_field_listing_as_form_read() -> None:
+    signal = detect_page_signal(
+        clause="当前有哪些字段",
+        offset=0,
+        input_variables={
+            "page_context": {
+                "page_key": "admin.ai.skills",
+                "active_form_session_id": "form-session-1",
+            }
+        },
+    )
+
+    assert signal is not None
+    assert signal.kind == "page_form_read"
+
+
 def test_detect_page_signal_ignores_explicit_external_url_request() -> None:
     signal = detect_page_signal(
         clause="请打开 https://docs.python.org/3/whatsnew/3.13.html 并概括重点",

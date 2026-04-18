@@ -51,3 +51,16 @@ def test_apply_execution_trust_policy_trusted_auto_allows_readonly() -> None:
     )
 
     assert updated["web_search"] == "auto"
+
+
+def test_apply_execution_trust_policy_defaults_to_trusted_auto() -> None:
+    tools = [ToolDefinition(name="web_search")]
+
+    updated = apply_execution_trust_policy(
+        tools=tools,
+        input_variables=None,
+        tool_consent_modes={"web_search": "ask"},
+        trust_policy_ref=None,
+    )
+
+    assert updated["web_search"] == "auto"

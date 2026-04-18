@@ -88,6 +88,13 @@ def _is_runtime_eligible_skill(skill: Any) -> bool:
     return parts.is_runtime_eligible_skill(skill)
 
 
+def _build_time_only_runtime_result() -> SkillResolveResult:
+    return parts.build_time_only_runtime_result(
+        result_factory=SkillResolveResult,
+        apply_tool_semantics=SkillResolver._apply_tool_semantics,
+    )
+
+
 class SkillResolver:
     """
     Skill → ToolDefinition converter / Skill → ToolDefinition 转换器。
@@ -263,10 +270,7 @@ class SkillResolver:
 
     @classmethod
     def _build_time_only_runtime_result(cls) -> SkillResolveResult:
-        return parts.build_time_only_runtime_result(
-            result_factory=SkillResolveResult,
-            apply_tool_semantics=cls._apply_tool_semantics,
-        )
+        return _build_time_only_runtime_result()
 
     def _resolve_builtin(
         self,
@@ -452,7 +456,7 @@ async def resolve_for_agent(
         raise
 
     if not grants:
-        return SkillResolver._build_time_only_runtime_result()
+        return _build_time_only_runtime_result()
 
     skills: list[SkillModel] = []
     skill_config_overrides: dict[int, dict[str, Any]] = {}
@@ -477,7 +481,7 @@ async def resolve_for_agent(
             skill_config_overrides[skill.id] = merged_override
 
     if not skills:
-        return None
+        return _build_time_only_runtime_result()
 
     hook_registry = get_hook_registry()
     if hook_registry.has_hooks(HookPoint.BEFORE_SKILL_RESOLVE):

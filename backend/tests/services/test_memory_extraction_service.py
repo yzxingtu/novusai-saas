@@ -122,3 +122,37 @@ async def test_extract_turn_memory_returns_empty_on_invalid_json(mock_db):
         )
 
     assert result == MemoryExtractionService.EMPTY_DELTA
+
+
+@pytest.mark.asyncio
+async def test_extract_turn_memory_falls_back_to_explicit_name_fact_on_empty_content(
+    mock_db,
+):
+    from app.services.ai.memory_extraction_service import MemoryExtractionService
+
+    with patch(
+        "app.services.ai.memory_extraction_service.async_session_factory",
+        return_value=_SessionManager(mock_db),
+    ), patch(
+        "app.services.ai.memory_extraction_service.ConfigService",
+    ) as mock_config_service, patch(
+        "app.services.ai.memory_extraction_service.InternalAIService.chat",
+        new_callable=AsyncMock,
+        return_value=_fake_response(""),
+    ):
+        mock_config_service.return_value.get_platform_config = AsyncMock(
+            side_effect=["openai_compatible", "gpt-4o-mini"],
+        )
+
+        result = await MemoryExtractionService(tenant_id=1).extract_turn_memory(
+            agent_id=7,
+            message="我叫大致坡，请把这个信息存入长期记忆",
+            response="好的，我会记住。",
+        )
+
+    assert result == {
+        "preferences": [],
+        "constraints": [],
+        "task_states": [],
+        "verified_facts": ["用户名字是大致坡"],
+    }

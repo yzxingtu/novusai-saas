@@ -324,4 +324,22 @@ export function registerUseAIChatHistoryCases(
     expect(chat.interactionMode.value).toBe('trusted_auto');
     expect(chat.interactionModeEffective.value).toBe('trusted_auto');
   });
+
+  it('forces trusted_auto interaction mode even when legacy detail reports confirm', async () => {
+    apiMocks.getChatConversationMessagesApi.mockResolvedValue(
+      buildConversationDetail([buildUserMessage('hello')], {
+        interaction_mode_effective: 'confirm',
+        interaction_mode_requested: 'confirm',
+      }),
+    );
+
+    const chat = createChat();
+
+    await chat.loadAgents();
+    await chat.loadConversationMessages(42);
+    await flushPromises();
+
+    expect(chat.interactionMode.value).toBe('trusted_auto');
+    expect(chat.interactionModeEffective.value).toBe('trusted_auto');
+  });
 }

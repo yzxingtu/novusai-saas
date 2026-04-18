@@ -10,6 +10,7 @@ AgentChatService does not call AIGateway directly.
 from __future__ import annotations
 
 import json
+import re
 
 from app.ai.internal_ai_service import InternalAIService
 from app.ai.prompt_contracts import render_prompt_contract
@@ -21,6 +22,20 @@ from app.enums.ai import CallTypeEnum
 from app.repositories.ai.agent_repository import AgentRepository
 
 logger = LogManager.get_logger("ai.memory_extraction_service")
+
+_CHINESE_NAME_PATTERN = re.compile(
+    r"(?:我叫|叫我|我的名字是|你可以叫我|请叫我|称呼我)\s*[\"'“”‘’]?(?P<name>[\u4e00-\u9fffA-Za-z0-9_.\-·]{1,24})",
+)
+_ENGLISH_NAME_PATTERNS = (
+    re.compile(
+        r"\bmy name is\s+(?P<name>[A-Za-z][A-Za-z0-9_.\-]*(?:\s+[A-Za-z0-9_.\-]+){0,2})",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\bcall me\s+(?P<name>[A-Za-z][A-Za-z0-9_.\-]*(?:\s+[A-Za-z0-9_.\-]+){0,2})",
+        re.IGNORECASE,
+    ),
+)
 
 
 class MemoryExtractionService:
@@ -89,8 +104,9 @@ class MemoryExtractionService:
                     ),
                 )
 
-                result = self._parse_response_content(
-                    llm_response.message.content or "",
+                result = self._extract_with_fallback(
+                    content=llm_response.message.content or "",
+                    message=text,
                 )
 
                 if any(result.values()):
@@ -164,6 +180,58 @@ class MemoryExtractionService:
             message=message[:1500],
             response=(response or "")[:1500],
         )
+
+    @classmethod
+    def _extract_with_fallback(
+        cls,
+        *,
+        content: str,
+        message: str,
+    ) -> dict[str, list[str]]:
+        text = (content or "").strip()
+        if text:
+            try:
+                result = cls._parse_response_content(text)
+                if any(result.values()):
+                    return result
+            except Exception:
+                logger.debug("Memory extraction parse fallback engaged")
+
+        return cls._fallback_extract_turn_memory(message)
+
+    @classmethod
+    def _fallback_extract_turn_memory(cls, message: str) -> dict[str, list[str]]:
+        result = cls.EMPTY_DELTA.copy()
+        display_name = cls._extract_display_name(message)
+        if display_name:
+            result["verified_facts"] = [f"用户名字是{display_name}"]
+        return result
+
+    @classmethod
+    def _extract_display_name(cls, message: str) -> str | None:
+        text = (message or "").strip()
+        if not text:
+            return None
+
+        for pattern in (_CHINESE_NAME_PATTERN, *_ENGLISH_NAME_PATTERNS):
+            match = pattern.search(text)
+            if not match:
+                continue
+            candidate = cls._sanitize_name(match.group("name"))
+            if candidate:
+                return candidate
+        return None
+
+    @staticmethod
+    def _sanitize_name(raw_name: str | None) -> str | None:
+        candidate = str(raw_name or "").strip().strip("\"'“”‘’()（）[]【】")
+        if not candidate:
+            return None
+        candidate = re.split(r"[\n\r\t，,。！？；;:：]", candidate, maxsplit=1)[0]
+        candidate = re.sub(r"\s+", " ", candidate).strip()
+        if not candidate or len(candidate) > 32:
+            return None
+        return candidate
 
     @classmethod
     def _parse_response_content(cls, content: str) -> dict[str, list[str]]:

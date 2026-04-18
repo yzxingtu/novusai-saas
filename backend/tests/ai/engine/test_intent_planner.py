@@ -155,6 +155,21 @@ def test_intent_planner_detects_readonly_form_probe_as_page_form_read() -> None:
     assert [intent.kind for intent in intents] == ["page_form_read"]
 
 
+def test_intent_planner_detects_active_form_field_listing_as_page_form_read() -> None:
+    intents = _plan(
+        "当前有哪些字段",
+        tools=_tools(),
+        input_variables={
+            "page_context": {
+                "page_key": "admin.ai.skills",
+                "active_form_session_id": "form-session-1",
+            }
+        },
+    )
+
+    assert [intent.kind for intent in intents] == ["page_form_read"]
+
+
 def test_intent_planner_recognizes_memory_recall_and_readonly_guidance() -> None:
     user_text = (
         "先回答我刚才让你记住的代号是什么。"

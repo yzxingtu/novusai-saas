@@ -36,6 +36,12 @@ class PageRuntimeToolExecutor(BaseToolExecutor):
         tool_name = _ALIAS_TOOL_NAMES.get(definition.name, definition.name)
         page_context = resolve_page_context(context)
         session_id = resolve_page_session_id(context)
+        bridge_arguments = dict(arguments)
+        if page_context and "_page_context" not in bridge_arguments:
+            bridge_arguments["_page_context"] = dict(page_context)
+        page_key = str(page_context.get("page_key") or "").strip()
+        if page_key and "page_key" not in bridge_arguments:
+            bridge_arguments["page_key"] = page_key
 
         for guard in (
             stale_context_guard(arguments=arguments, page_context=page_context),
@@ -63,7 +69,7 @@ class PageRuntimeToolExecutor(BaseToolExecutor):
             )
 
         result = await self._bridge.invoke(
-            arguments=dict(arguments),
+            arguments=bridge_arguments,
             page_session_id=session_id,
             tool_name=tool_name,
             user_role=context.user_role if context else "tenant_admin",
@@ -80,6 +86,7 @@ class PageRuntimeToolExecutor(BaseToolExecutor):
             or result.get("error")
             or ""
         ).strip()
+        raw_error = str(result.get("error") or "").strip()
         message = str(
             result.get("message")
             or result.get("error")
@@ -89,11 +96,7 @@ class PageRuntimeToolExecutor(BaseToolExecutor):
                 else f"Page runtime action '{tool_name}' failed."
             )
         ).strip()
-        if (
-            not success
-            and error_detail
-            and error_detail not in {message, str(result.get("error") or "").strip()}
-        ):
+        if not success and error_detail and error_detail != message:
             message = f"{message} Detail: {error_detail}".strip()
         if success:
             return ToolResult(
@@ -115,6 +118,7 @@ class PageRuntimeToolExecutor(BaseToolExecutor):
                 {
                     **payload,
                     **({"error_detail": error_detail} if error_detail else {}),
+                    **({"error": raw_error} if raw_error else {}),
                 }
                 if payload or error_detail
                 else None

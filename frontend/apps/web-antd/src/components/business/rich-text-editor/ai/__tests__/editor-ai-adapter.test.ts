@@ -200,7 +200,6 @@ describe('createTiptapEditorAIAdapter', () => {
       42,
       expect.objectContaining({
         conversation_id: null,
-        interaction_mode: 'trusted_auto',
         route_source: 'rich_text_ai',
       }),
       expect.any(Object),

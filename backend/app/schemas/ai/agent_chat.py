@@ -132,10 +132,6 @@ class AgentChatRequest(BaseModel):
         None,
         description="Runtime trust policy reference / 运行时信任策略引用",
     )
-    interaction_mode: InteractionMode = Field(
-        "trusted_auto",
-        description="Interaction mode / 交互模式",
-    )
     image_params: ImageParams | None = Field(
         None,
         description=_("agent_chat.field.image_params"),

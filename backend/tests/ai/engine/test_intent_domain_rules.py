@@ -49,6 +49,11 @@ def test_intent_domain_rules_detects_memory_save_and_recall() -> None:
     assert save[0].requires_tools is False
     assert save[0].shortcircuit is True
 
+    long_term_save = _detect("我叫大致坡，请把这个信息存入长期记忆")
+    assert len(long_term_save) == 1
+    assert long_term_save[0].kind == "memory_save"
+    assert long_term_save[0].shortcircuit is True
+
 
 def test_intent_domain_rules_suppresses_for_no_tool_or_capability() -> None:
     no_tool = _detect("不要使用任何工具，帮我查天气", tools=_tools_weather_time())

@@ -5,6 +5,9 @@ from typing import Any
 
 import pytest
 
+from app.ai.tools.executors.ui_read_executor import UIReadExecutor
+from app.ai.tools.executors.ui_snapshot_executor import UISnapshotExecutor
+from app.ai.tools.page_runtime.executor import PageRuntimeToolExecutor
 from app.ai.tools.sandbox import SandboxConfig, ToolSandbox
 from app.ai.tools.types import ToolDefinition, ToolResult
 
@@ -95,3 +98,33 @@ async def test_tool_sandbox_runtime_model_info_is_optional() -> None:
     assert capture.last_context.runtime_model_id is None
     assert capture.last_context.runtime_model_name is None
     assert capture.last_context.runtime_model_code is None
+
+
+def test_tool_sandbox_wires_live_page_runtime_executor_for_page_tools() -> None:
+    sandbox = ToolSandbox(
+        tenant_id=100,
+        agent_id=200,
+        config=SandboxConfig(),
+    )
+
+    page_runtime_executor = sandbox._named_executors["ui_read_page"]
+
+    assert isinstance(page_runtime_executor, PageRuntimeToolExecutor)
+    assert sandbox._named_executors["ui_read_surface"] is page_runtime_executor
+    for tool_name in {
+        "ui_click",
+        "ui_open_surface",
+        "ui_get_form_state",
+        "ui_set_field",
+        "ui_fill_form",
+        "ui_submit_form",
+    }:
+        assert sandbox._named_executors[tool_name] is page_runtime_executor
+
+    assert isinstance(sandbox._named_executors["ui_get_snapshot"], UISnapshotExecutor)
+    assert isinstance(sandbox._named_executors["ui_read_region"], UIReadExecutor)
+    assert isinstance(sandbox._named_executors["ui_read_table"], UIReadExecutor)
+    assert isinstance(
+        sandbox._named_executors["ui_list_interactables"],
+        UIReadExecutor,
+    )

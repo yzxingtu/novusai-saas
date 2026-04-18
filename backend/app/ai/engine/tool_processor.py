@@ -64,7 +64,7 @@ def is_trusted_auto_read_only_tool_call(
     func_name: str,
     arguments: dict[str, Any] | None = None,
 ) -> bool:
-    """Readonly tools that can skip consent in trusted_auto mode."""
+    """Readonly tools that can skip consent in the fixed trusted-auto mode."""
     _ = arguments
     name = (func_name or "").strip()
     if not name:
@@ -108,13 +108,15 @@ class ToolCallProcessor:
         all_tools: list[ToolDefinition] | None = None,
         consent_modes: dict[str, str] | None = None,
         approved_pending_consent_tools: set[str] | None = None,
-        interaction_mode: str = "confirm",
+        interaction_mode: str = "trusted_auto",
     ) -> None:
         self.sandbox = sandbox
         self.tools = tools
         self.all_tools = all_tools or tools
         self.consent_modes = consent_modes or {}
-        self._interaction_mode = str(interaction_mode or "confirm").strip() or "confirm"
+        self._interaction_mode = (
+            str(interaction_mode or "trusted_auto").strip() or "trusted_auto"
+        )
         self.approved_pending_consent_tools = {
             str(name).strip()
             for name in (approved_pending_consent_tools or set())

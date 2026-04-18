@@ -565,7 +565,6 @@ export class TiptapEditorAIAdapter implements EditorAIAdapter {
       input.agentId,
       {
         conversation_id: input.conversationId,
-        interaction_mode: 'trusted_auto',
         message: input.message,
         route_source: 'rich_text_ai',
       },

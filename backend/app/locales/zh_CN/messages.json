@@ -638,9 +638,7 @@
             "skill_id": "技能ID",
             "enabled": "启用状态",
             "config_override": "配置覆盖",
-            "sort_order": "排序",
-            "default_consent_mode": "默认授权模式",
-            "capability_consent_overrides": "能力授权覆盖"
+            "sort_order": "排序"
         },
         "error": {
             "already_bound": "该技能已绑定到此智能体",

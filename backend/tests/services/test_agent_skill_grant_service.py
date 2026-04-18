@@ -133,6 +133,8 @@ async def test_get_agent_skills_filters_inactive_package_grants(
 
     service.skill_repo.get_by_ids.assert_awaited_once_with([3, 4])
     assert [item["skill_name"] for item in result] == ["active_skill"]
+    assert "default_consent_mode" not in result[0]
+    assert "capability_consent_overrides" not in result[0]
 
 
 @pytest.mark.asyncio
@@ -225,6 +227,8 @@ async def test_get_agent_skills_filters_tenant_invisible_grants(
 
     visible_skill_repo.get_by_ids.assert_awaited_once_with([3, 4])
     assert [item["skill_name"] for item in result] == ["visible_skill"]
+    assert "default_consent_mode" not in result[0]
+    assert "capability_consent_overrides" not in result[0]
 
 
 @pytest.mark.asyncio

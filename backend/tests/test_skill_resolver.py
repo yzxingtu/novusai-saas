@@ -146,7 +146,7 @@ def test_build_params_from_schema_keeps_array_items_schema() -> None:
 
 
 @pytest.mark.asyncio
-async def test_resolve_for_agent_skips_grants_from_inactive_packages(monkeypatch) -> None:
+async def test_resolve_for_agent_falls_back_to_time_tool_when_grants_filter_out() -> None:
     package = SimpleNamespace(
         id=77,
         name="weather-widget",
@@ -178,15 +178,27 @@ async def test_resolve_for_agent_skips_grants_from_inactive_packages(monkeypatch
     db = MagicMock()
     db.execute = AsyncMock(return_value=result)
 
-    resolver_instance = AsyncMock()
-    monkeypatch.setattr(
-        "app.ai.skills.resolver.SkillResolver",
-        lambda db=None: resolver_instance,
-    )
+    agent = SimpleNamespace(id=1, owner_tenant_id=9)
+
+    resolved = await resolve_for_agent(db, agent, tenant_id=9)
+
+    assert resolved is not None
+    assert [tool.name for tool in resolved.tools] == ["get_current_time"]
+    assert resolved.tool_consent_modes == {"get_current_time": "auto"}
+    assert resolved.capability_descriptors[0].name == "get_current_time"
+
+
+@pytest.mark.asyncio
+async def test_resolve_for_agent_returns_time_tool_when_agent_has_no_grants() -> None:
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = []
+    db = MagicMock()
+    db.execute = AsyncMock(return_value=result)
 
     agent = SimpleNamespace(id=1, owner_tenant_id=9)
 
     resolved = await resolve_for_agent(db, agent, tenant_id=9)
 
-    assert resolved is None
-    resolver_instance.resolve.assert_not_awaited()
+    assert resolved is not None
+    assert [tool.name for tool in resolved.tools] == ["get_current_time"]
+    assert resolved.tool_consent_modes == {"get_current_time": "auto"}

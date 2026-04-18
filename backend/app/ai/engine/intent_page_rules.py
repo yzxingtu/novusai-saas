@@ -406,6 +406,25 @@ def looks_like_required_field_form_read(lowered: str) -> bool:
     return any(token in lowered for token in ("必填", "required"))
 
 
+def looks_like_field_listing_form_read(
+    lowered: str,
+    page_context: dict[str, Any] | None,
+) -> bool:
+    has_field_term = any(token in lowered for token in ("字段", "field", "fields"))
+    if not has_field_term:
+        return False
+    if "表单" in lowered or "form" in lowered:
+        return True
+    if not isinstance(page_context, dict):
+        return False
+    active_form_session_id = str(page_context.get("active_form_session_id") or "").strip()
+    active_form_summary = page_context.get("active_form_summary")
+    has_active_form = bool(active_form_session_id) or isinstance(active_form_summary, dict)
+    if not has_active_form:
+        return False
+    return any(token in lowered for token in ("当前", "这个", "里面", "哪些", "有哪些"))
+
+
 def detect_page_signal(
     *,
     clause: str,
@@ -462,6 +481,9 @@ def detect_page_signal(
             "截图",
             "编辑器",
             "表单",
+            "字段",
+            "field",
+            "fields",
             "分页",
             "上一页",
             "下一页",
@@ -545,6 +567,16 @@ def detect_page_signal(
         if required_anchor < 0:
             required_anchor = lowered.find("required")
         for anchor in (form_anchor, required_anchor):
+            if anchor >= 0 and (form_read_position < 0 or anchor < form_read_position):
+                form_read_position = anchor
+    if looks_like_field_listing_form_read(lowered, page_context):
+        field_anchor = lowered.find("字段")
+        if field_anchor < 0:
+            field_anchor = lowered.find("field")
+        form_anchor = lowered.find("表单")
+        if form_anchor < 0:
+            form_anchor = lowered.find("form")
+        for anchor in (form_anchor, field_anchor):
             if anchor >= 0 and (form_read_position < 0 or anchor < form_read_position):
                 form_read_position = anchor
     add_candidate("page_form_read", "page_form_read", form_read_position, 5)

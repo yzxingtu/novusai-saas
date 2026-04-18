@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from app.models.ai.agent import Agent
 
 from app.ai.types import ChatMessage
+from app.ai.context.budget_manager import get_budget_limit
 from app.core.logging import LogManager
 
 logger = LogManager.get_logger("ai.rag_injector")
@@ -254,6 +255,7 @@ async def inject_rag_context(
             system_prompt_tokens=system_tokens,
             max_tokens=agent.max_tokens,
         )
+        rag_budget = min(max(int(rag_budget or 0), 0), get_budget_limit("kb_rag"))
 
         # Build RAG context / 构建 RAG 上下文
         rag_context = builder.build_rag_context(

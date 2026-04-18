@@ -78,3 +78,94 @@ async def test_page_runtime_executor_preserves_error_detail_in_failure_summary()
             "user_role": "tenant_admin",
         }
     ]
+
+
+@pytest.mark.asyncio
+async def test_page_runtime_executor_appends_specific_error_from_error_field() -> None:
+    bridge = StubPageRuntimeBridge(
+        {
+            "success": False,
+            "message": "Action execution failed.",
+            "error": "Target not found: 添加供应商",
+            "error_type": "not_found",
+        }
+    )
+    executor = PageRuntimeToolExecutor(bridge)
+    definition = ToolDefinition(name="ui_click", description="Click ui element")
+    context = ExecutionContext(
+        tenant_id=1,
+        agent_id=2,
+        user_role="tenant_admin",
+        page_session_id="page-session-1",
+    )
+
+    result = await executor.execute(
+        definition,
+        "call-ui-click",
+        {"target_locator": "text:添加供应商"},
+        context,
+    )
+
+    assert result.success is False
+    assert result.error_type == "not_found"
+    assert result.error == (
+        "Action execution failed. Detail: Target not found: 添加供应商"
+    )
+    assert result.summary == result.error
+    assert result.summary_payload is not None
+    assert result.summary_payload["error_detail"] == "Target not found: 添加供应商"
+    assert result.summary_payload["error"] == "Target not found: 添加供应商"
+    assert result.summary_payload["message"] == "Action execution failed."
+    assert result.summary_payload["error_type"] == "not_found"
+
+
+@pytest.mark.asyncio
+async def test_page_runtime_executor_forwards_page_context_and_page_key_to_bridge() -> None:
+    bridge = StubPageRuntimeBridge(
+        {
+            "success": True,
+            "message": "Page runtime action completed.",
+            "data": {"opened_surface_id": "surface:modal"},
+        }
+    )
+    executor = PageRuntimeToolExecutor(bridge)
+    definition = ToolDefinition(
+        name="ui_open_surface",
+        description="Open ui surface",
+    )
+    context = ExecutionContext(
+        tenant_id=1,
+        agent_id=2,
+        user_role="tenant_admin",
+        page_session_id="page-session-1",
+        variables={
+            "page_context": {
+                "page_key": "admin.suppliers",
+                "ui_epoch": 7,
+            }
+        },
+    )
+
+    result = await executor.execute(
+        definition,
+        "call-ui-open",
+        {"target_locator": "text:添加供应商"},
+        context,
+    )
+
+    assert result.success is True
+    assert bridge.calls == [
+        {
+            "arguments": {
+                "_page_context": {
+                    "page_key": "admin.suppliers",
+                    "ui_epoch": 7,
+                },
+                "page_key": "admin.suppliers",
+                "target_locator": "text:添加供应商",
+            },
+            "page_session_id": "page-session-1",
+            "tool_name": "ui_open_surface",
+            "user_role": "tenant_admin",
+        }
+    ]

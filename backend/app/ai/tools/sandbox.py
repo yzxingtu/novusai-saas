@@ -163,12 +163,16 @@ class ToolSandbox:
         from app.ai.tools.executors.code_execution_executor import CodeExecutionExecutor
 
         self._executors[ToolTypeEnum.CODE_EXECUTION.value] = CodeExecutionExecutor()
-        # Page context executor (matched by tool name, prioritized over type-based lookup) / 页面上下文执行器
-        from app.ai.tools.executors.ui_action_executor import UIActionExecutor
+        # Page runtime executor (matched by tool name, prioritized over type-based lookup) / 页面 runtime 执行器
         from app.ai.tools.executors.ui_read_executor import UIReadExecutor
         from app.ai.tools.executors.ui_snapshot_executor import UISnapshotExecutor
+        from app.ai.tools.page_runtime.executor import PageRuntimeToolExecutor
+        from app.ai.tools.page_runtime.live_bridge import SocketIOPageRuntimeBridge
 
+        page_runtime_executor = PageRuntimeToolExecutor(SocketIOPageRuntimeBridge())
         self._named_executors["ui_get_snapshot"] = UISnapshotExecutor()
+        self._named_executors["ui_read_page"] = page_runtime_executor
+        self._named_executors["ui_read_surface"] = page_runtime_executor
         for tool_name in {
             "ui_read_region",
             "ui_read_table",
@@ -183,7 +187,7 @@ class ToolSandbox:
             "ui_fill_form",
             "ui_submit_form",
         }:
-            self._named_executors[tool_name] = UIActionExecutor()
+            self._named_executors[tool_name] = page_runtime_executor
 
     def get_executor(self, tool_type: str) -> BaseToolExecutor | None:
         """Get executor for specified type / 获取指定类型的执行器"""
