@@ -110,7 +110,7 @@ def test_interaction_mode_migration_normalizes_nested_metadata_payloads():
 
 
 @pytest.mark.asyncio
-async def test_resolve_interaction_mode_downgrades_trusted_auto_without_policy(
+async def test_resolve_interaction_mode_bootstraps_trusted_auto_without_policy(
     mock_db,
 ):
     from app.services.ai.agent_chat_service import AgentChatService
@@ -127,9 +127,14 @@ async def test_resolve_interaction_mode_downgrades_trusted_auto_without_policy(
         explicit_trust_policy_ref=None,
     )
 
-    assert effective_mode == "confirm"
-    assert trust_policy_ref is None
-    assert downgrade_reason == "missing_trust_policy"
+    assert effective_mode == "trusted_auto"
+    assert trust_policy_ref == {
+        "policy_ids": [],
+        "allowed_tool_names": [],
+        "tool_families": ["page_ops", "weather", "web_research"],
+        "risk_level_cap": "read",
+    }
+    assert downgrade_reason is None
 
 
 @pytest.mark.asyncio

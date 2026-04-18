@@ -184,6 +184,9 @@ Examples:
 - For AI streaming fallback fixes, validate both "upstream fails before first
   chunk" and "stream returns no meaningful chunk" scenarios so the user never
   receives a silent empty assistant turn.
+- For Responses-stream usage backfill fixes, validate the "terminal event has no
+  usage" path as well: stream completion must stay bounded and fall back to
+  estimated usage instead of waiting through long SDK/provider retries.
 
 ### AI quota, rate limit, or AI logging work
 

@@ -14,6 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.ai.action_log import AIActionLog
 from app.models.ai.call_log import AICallLog
 from app.models.ai.execution_decision import ExecutionDecision
+from app.services.ai.agent_chat_interaction_support import (
+    normalize_requested_interaction_mode,
+)
 
 
 class ConversationTimelineService:
@@ -35,9 +38,9 @@ class ConversationTimelineService:
         conversation: Any,
         messages: list[Any],
     ) -> list[dict[str, Any]]:
-        interaction_mode_effective = str(
+        interaction_mode_effective = normalize_requested_interaction_mode(
             (getattr(conversation, "metadata_", {}) or {}).get("interaction_mode")
-            or "confirm"
+            or "trusted_auto"
         )
 
         items: list[dict[str, Any]] = []

@@ -59,20 +59,51 @@ def test_tool_router_prioritizes_screenshot_tools_over_generic_page_read() -> No
     ]
 
 
-def test_tool_router_keeps_form_write_chain_when_many_page_operations_exist() -> None:
+def test_tool_router_prefers_surface_discovery_before_form_write_when_form_not_open() -> None:
     decision = ToolRouter.route(
         intents=[_intent("page_form_write")],
         tools=_page_tools(),
         budget=_budget(),
-        input_variables={"page_context": {"page_key": "admin.ai.logs"}},
+        input_variables={"page_context": {"page_key": "admin.ai.agents", "ui_epoch": 5}},
         user_text="帮我新增一条记录并提交表单",
     )
 
     assert decision.intent_allowed_tools["intent-page_form_write"] == [
+        "ui_list_interactables",
         "ui_open_surface",
+        "ui_click",
         "ui_get_form_state",
         "ui_fill_form",
         "ui_submit_form",
+    ]
+
+
+def test_tool_router_keeps_form_write_mutation_chain_when_active_form_exists() -> None:
+    decision = ToolRouter.route(
+        intents=[_intent("page_form_write")],
+        tools=_page_tools(),
+        budget=_budget(),
+        input_variables={
+            "page_context": {
+                "page_key": "admin.ai.agents",
+                "active_form_session_id": "form-agent-create",
+                "active_form_summary": {
+                    "form_session_id": "form-agent-create",
+                    "mode": "create",
+                    "stage": "ready_to_submit",
+                    "can_submit": True,
+                },
+            }
+        },
+        user_text="帮我新增一条记录并提交表单",
+    )
+
+    assert decision.intent_allowed_tools["intent-page_form_write"] == [
+        "ui_get_form_state",
+        "ui_fill_form",
+        "ui_set_field",
+        "ui_submit_form",
+        "ui_open_surface",
     ]
 
 

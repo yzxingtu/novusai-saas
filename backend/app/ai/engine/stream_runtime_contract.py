@@ -13,10 +13,7 @@ from app.ai.types import ChatMessage, ChatResponse
 
 from .execution_state_machine import ExecutionStateMachine
 from .recovery_manager import RecoveryManager
-from .stream_runtime_compat import resolve_stream_runtime_hooks
-from .stream_runtime_hooks import (
-    StreamRuntimeHookSource,
-)
+from .stream_runtime_hooks import StreamRuntimeHookSource, build_stream_runtime_hooks
 from .types import ExecutionRequest, ToolUsePolicy
 
 
@@ -156,7 +153,7 @@ def _build_contract_from_hook_source(
 
 
 def build_stream_runtime_contract(engine: Any) -> StreamRuntimeContract:
-    hook_source = resolve_stream_runtime_hooks(
+    hook_source = build_stream_runtime_hooks(
         engine,
         finalize_partial_fallback=finalize_partial_turn_output,
         finalize_completed_fallback=finalize_completed_turn_output,

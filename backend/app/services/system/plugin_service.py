@@ -592,7 +592,19 @@ class PluginService(BaseService[Plugin, PluginRepository]):
                 Plugin.is_deleted.is_(False),
             )
         )
-        plugin_names = [row[0] for row in plugin_result.all()]
+        plugin_names: list[str] = []
+        for row in plugin_result.all():
+            if isinstance(row, str):
+                plugin_names.append(row)
+                continue
+            name = getattr(row, "name", None)
+            if isinstance(name, str) and name.strip():
+                plugin_names.append(name)
+                continue
+            if isinstance(row, (list, tuple)) and row:
+                candidate = row[0]
+                if isinstance(candidate, str) and candidate.strip():
+                    plugin_names.append(candidate)
 
         visible: set[str] = set()
         for plugin_name in plugin_names:

@@ -14,7 +14,10 @@ from app.core.response import build_public_error_text
 from .conversation_result_projector import build_execution_result, build_turn_projection
 from .execution_state_machine import ExecutionStateMachine
 from .failure_classifier import FailureClassifier
-from .final_output_policy import resolve_skip_final_assistant
+from .final_output_policy import (
+    is_trusted_assistant_final_output_source,
+    resolve_skip_final_assistant,
+)
 from .recovery_manager import RecoveryManager
 from .stream_handler import StreamExecutionHandler
 from .types import ExecutionRequest, ExecutionResult
@@ -73,7 +76,10 @@ def build_sync_success_result(
         response_metadata=response_metadata,
         paused_for_consent=paused_for_consent,
     )
-    if output and not skip_final_assistant:
+    allow_final_output_append = partial or is_trusted_assistant_final_output_source(
+        final_output_source
+    )
+    if output and not skip_final_assistant and allow_final_output_append:
         _append_assistant_message(
             messages,
             output=output,

@@ -11,6 +11,7 @@ from app.cli_commands.ai_norm import (
     _normalize_cli_bool,
     _normalize_cli_context_sources,
     _normalize_cli_dict,
+    _normalize_cli_dict_list,
     _normalize_cli_fallback_history,
     _normalize_cli_intent_plan,
     _normalize_cli_optional_string,
@@ -56,7 +57,15 @@ def _build_ai_conversation_compact_diagnostics(snapshot: dict) -> dict:
         ),
         "tool_planner": _normalize_cli_dict(diagnostics.get("tool_planner")),
         "path_decision": _normalize_cli_dict(diagnostics.get("path_decision")),
+        "capability_injection": _normalize_cli_dict(
+            diagnostics.get("capability_injection")
+        ),
         "tool_filtering": _normalize_cli_dict(diagnostics.get("tool_filtering")),
+        "recovery_chain": (
+            _normalize_cli_dict_list(diagnostics.get("recovery_chain"))
+            if isinstance(diagnostics.get("recovery_chain"), list)
+            else None
+        ),
         "intent_plan": intent_plan,
         "unfinished_intents": _normalize_cli_string_list(
             diagnostics.get("unfinished_intents")
@@ -73,6 +82,7 @@ def _build_ai_conversation_compact_diagnostics(snapshot: dict) -> dict:
         ),
         "budget_status": diagnostics.get("budget_status"),
         "budget_exit_reason": diagnostics.get("budget_exit_reason"),
+        "final_output_source": diagnostics.get("final_output_source"),
         "contract_breach_type": diagnostics.get("contract_breach_type"),
         "tool_leak_detected": bool(diagnostics.get("tool_leak_detected")),
         "recovered_via_retry": diagnostics.get("recovered_via_retry"),
@@ -102,6 +112,8 @@ def _render_ai_conversation_diagnostics_text(snapshot: dict) -> str:
             budget_exit_reason=compact.get("budget_exit_reason") or "-",
         ),
     ]
+    if compact.get("final_output_source"):
+        lines.append(f"final_output_source={compact.get('final_output_source')}")
     selected_tools = _normalize_cli_string_list(compact.get("selected_tool_names"))
     lines.append(
         "selected_tools={}".format(", ".join(selected_tools) if selected_tools else "[]")
@@ -123,9 +135,17 @@ def _render_ai_conversation_diagnostics_text(snapshot: dict) -> str:
     path_decision = _normalize_cli_dict(compact.get("path_decision"))
     if path_decision:
         lines.append(f"path_decision={_compact_json_text(path_decision)}")
+    capability_injection = _normalize_cli_dict(compact.get("capability_injection"))
+    if capability_injection:
+        lines.append(
+            f"capability_injection={_compact_json_text(capability_injection)}"
+        )
     tool_filtering = _normalize_cli_dict(compact.get("tool_filtering"))
     if tool_filtering:
         lines.append(f"tool_filtering={_compact_json_text(tool_filtering)}")
+    recovery_chain = compact.get("recovery_chain")
+    if isinstance(recovery_chain, list):
+        lines.append(f"recovery_chain={_compact_json_text(recovery_chain)}")
     intent_plan = _normalize_cli_intent_plan(compact.get("intent_plan"))
     if intent_plan:
         lines.append(

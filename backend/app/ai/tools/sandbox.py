@@ -95,7 +95,7 @@ class ToolSandbox:
         page_session_id: str | None = None,
         conversation_id: int | None = None,
         trust_policy_ref: dict[str, Any] | None = None,
-        interaction_mode: str = "confirm",
+        interaction_mode: str = "trusted_auto",
     ):
         """
         Args:

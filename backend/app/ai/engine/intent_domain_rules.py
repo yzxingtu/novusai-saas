@@ -37,6 +37,8 @@ from app.ai.engine.intent_signal_helpers import (
 )
 from app.ai.tools.types import ToolDefinition
 
+_EXPLICIT_WEB_URL_RE = re.compile(r"https?://[^\s<>()\[\]\"']+", re.IGNORECASE)
+
 
 class IntentDomainRules:
     """Domain-focused intent classification helpers for tool routing."""
@@ -93,6 +95,11 @@ class IntentDomainRules:
         if cls.looks_like_page_search_request(lowered):
             return -1
         return _first_position(lowered, _WEB_NOUN_TERMS)
+
+    @staticmethod
+    def explicit_url_position(clause: str) -> int:
+        match = _EXPLICIT_WEB_URL_RE.search(str(clause or "").strip())
+        return match.start() if match else -1
 
     @staticmethod
     def weather_query_has_city(lowered: str) -> bool:
@@ -275,6 +282,8 @@ class IntentDomainRules:
                     )
                 )
             position = _first_position(lowered, _WEB_TERMS)
+            if position < 0:
+                position = cls.explicit_url_position(clause)
             if position < 0:
                 position = cls.news_like_web_search_position(lowered)
             if position < 0:

@@ -162,7 +162,10 @@ class RecoveryWebResearchGate:
             )
             if str(name or "").strip()
         }
-        if "fetch_url" not in candidate_tool_names:
+        if (
+            "fetch_url" not in candidate_tool_names
+            or "web_search" not in candidate_tool_names
+        ):
             return
         if "web_search" not in successful_tool_names:
             RecoveryWebResearchGate.clear_requires_fetch_url(

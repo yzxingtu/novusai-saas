@@ -181,6 +181,7 @@ def plan_execution_tools(
             intent.preferred_tool_names = preferred
             intent.completion_signals = _intent_completion_signals_impl(
                 intent.family,
+                intent_kind=intent.kind,
                 allowed_tool_names=allowed,
                 preferred_tool_names=preferred,
             )
@@ -213,6 +214,7 @@ def plan_execution_tools(
             first_actionable.preferred_tool_names = list(candidate_tool_names)
             first_actionable.completion_signals = _intent_completion_signals_impl(
                 first_actionable.family,
+                intent_kind=first_actionable.kind,
                 allowed_tool_names=list(candidate_tool_names),
                 preferred_tool_names=list(candidate_tool_names),
             )

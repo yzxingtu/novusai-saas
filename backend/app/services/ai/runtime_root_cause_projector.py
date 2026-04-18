@@ -12,6 +12,10 @@ from app.ai.text_semantics import (
 )
 from app.enums.ai import CallStatusEnum
 from app.models.ai.call_log import AICallLog
+from app.services.ai.conversation_turn_flow_projector import (
+    ConversationTurnFlowProjector,
+)
+from app.services.ai.turn_failure_normalizer import resolve_failure_projection
 
 _BUDGET_TERMINATION_REASONS = {
     "budget_exit",
@@ -26,6 +30,121 @@ _BUDGET_TERMINATION_REASONS = {
 
 
 class RuntimeRootCauseProjector:
+    @staticmethod
+    def _request_scope(metadata: dict[str, Any]) -> dict[str, Any]:
+        nested = metadata.get("request")
+        return dict(nested) if isinstance(nested, dict) else {}
+
+    @staticmethod
+    def _call_log_request_metadata(call_log: AICallLog | None) -> dict[str, Any]:
+        raw = getattr(call_log, "request_metadata", None) if call_log is not None else None
+        return dict(raw) if isinstance(raw, dict) else {}
+
+    @classmethod
+    def _call_log_turn_record(cls, call_log: AICallLog | None) -> dict[str, Any]:
+        metadata = cls._call_log_request_metadata(call_log)
+        request_scope = cls._request_scope(metadata)
+        raw_turn_record = metadata.get("turn_record")
+        if not isinstance(raw_turn_record, dict):
+            raw_turn_record = request_scope.get("turn_record")
+        return dict(raw_turn_record) if isinstance(raw_turn_record, dict) else {}
+
+    @classmethod
+    def _call_log_turn_record_metadata(cls, call_log: AICallLog | None) -> dict[str, Any]:
+        turn_record = cls._call_log_turn_record(call_log)
+        raw_metadata = turn_record.get("metadata")
+        return dict(raw_metadata) if isinstance(raw_metadata, dict) else {}
+
+    @classmethod
+    def _resolve_turn_flow_payload(
+        cls,
+        *,
+        diagnostics: dict[str, Any],
+        conversation_turn: dict[str, Any] | None,
+        call_log: AICallLog | None,
+    ) -> dict[str, Any] | None:
+        assistant_content = (
+            conversation_turn.get("assistant_content")
+            if isinstance(conversation_turn, dict)
+            else None
+        )
+
+        def _normalize(
+            raw_turn_flow: dict[str, Any],
+            metadata: dict[str, Any] | None = None,
+            content: Any = assistant_content,
+        ) -> dict[str, Any] | None:
+            return ConversationTurnFlowProjector.normalize_turn_flow(
+                raw_turn_flow,
+                turn_outcome=(
+                    str(
+                        diagnostics.get("turn_outcome")
+                        or diagnostics.get("conversation_outcome")
+                        or ""
+                    ).strip()
+                    or None
+                ),
+                completion_reason=(
+                    str(
+                        diagnostics.get("termination_reason")
+                        or diagnostics.get("completion_reason")
+                        or ""
+                    ).strip()
+                    or None
+                ),
+                interrupted=bool(diagnostics.get("interrupted")),
+                failure_kind=(
+                    str(diagnostics.get("failure_kind") or "").strip() or None
+                ),
+                final_output_source=(
+                    str(diagnostics.get("final_output_source") or "").strip() or None
+                ),
+                metadata=metadata,
+                content=content,
+            )
+
+        diagnostic_turn_flow = diagnostics.get("turn_flow")
+        if isinstance(diagnostic_turn_flow, dict):
+            return _normalize(dict(diagnostic_turn_flow), diagnostics)
+
+        if isinstance(conversation_turn, dict):
+            conversation_diagnostics = conversation_turn.get("diagnostics")
+            if isinstance(conversation_diagnostics, dict) and isinstance(
+                conversation_diagnostics.get("turn_flow"), dict
+            ):
+                return _normalize(
+                    dict(conversation_diagnostics.get("turn_flow") or {}),
+                    conversation_diagnostics,
+                )
+            conversation_metadata = conversation_turn.get("metadata")
+            if isinstance(conversation_metadata, dict) and isinstance(
+                conversation_metadata.get("turn_flow"), dict
+            ):
+                return _normalize(
+                    dict(conversation_metadata.get("turn_flow") or {}),
+                    conversation_metadata,
+                )
+
+        call_log_turn_record = cls._call_log_turn_record(call_log)
+        if isinstance(call_log_turn_record.get("turn_flow"), dict):
+            return _normalize(
+                dict(call_log_turn_record.get("turn_flow") or {}),
+                call_log_turn_record,
+            )
+
+        call_log_metadata = cls._call_log_request_metadata(call_log)
+        turn_diagnostics = (
+            dict(call_log_metadata.get("turn_diagnostics") or {})
+            if isinstance(call_log_metadata.get("turn_diagnostics"), dict)
+            else {}
+        )
+        if isinstance(turn_diagnostics.get("turn_flow"), dict):
+            return _normalize(
+                dict(turn_diagnostics.get("turn_flow") or {}),
+                turn_diagnostics,
+            )
+        return None
+
     @staticmethod
     def has_meaningful_value(value: Any) -> bool:
         return value not in (None, "", [], {}, ())
@@ -221,9 +340,20 @@ class RuntimeRootCauseProjector:
         diagnostics: dict[str, Any],
         conversation_turn: dict[str, Any] | None,
     ) -> str:
-        del conversation_turn
+        turn_flow = cls._resolve_turn_flow_payload(
+            diagnostics=diagnostics,
+            conversation_turn=conversation_turn,
+            call_log=call_log,
+        )
+        normalized_projection = resolve_failure_projection(
+            diagnostics=diagnostics,
+            turn_flow=turn_flow,
+        )
         conversation_outcome = str(
-            diagnostics.get("conversation_outcome") or diagnostics.get("turn_outcome") or ""
+            normalized_projection.get("turn_outcome")
+            or diagnostics.get("conversation_outcome")
+            or diagnostics.get("turn_outcome")
+            or ""
         ).strip()
         if conversation_outcome in {"failed", "partial"}:
             return "failed"
@@ -236,6 +366,8 @@ class RuntimeRootCauseProjector:
         if diagnostics.get("unfinished_intents"):
             return "failed"
         if cls.has_false_direct_reply_signal(diagnostics):
+            return "failed"
+        if normalized_projection.get("blocks_success_shortcut"):
             return "failed"
         if call_log is None:
             return "success"
@@ -256,15 +388,39 @@ class RuntimeRootCauseProjector:
         error_message = str(
             getattr(call_log, "error_message", "") if call_log is not None else ""
         ).strip()
-        failure_kind = str(diagnostics.get("failure_kind") or "").strip()
+        turn_flow = cls._resolve_turn_flow_payload(
+            diagnostics=diagnostics,
+            conversation_turn=conversation_turn,
+            call_log=call_log,
+        )
+        normalized_projection = resolve_failure_projection(
+            diagnostics=diagnostics,
+            turn_flow=turn_flow,
+        )
+        failure_kind = str(
+            normalized_projection.get("failure_kind")
+            or diagnostics.get("failure_kind")
+            or ""
+        ).strip()
         contract_breach_type = str(
             diagnostics.get("contract_breach_type") or ""
         ).strip()
-        termination_reason = str(diagnostics.get("termination_reason") or "").strip()
-        budget_exit_reason = str(diagnostics.get("budget_exit_reason") or "").strip()
+        termination_reason = str(
+            normalized_projection.get("termination_reason")
+            or diagnostics.get("termination_reason")
+            or ""
+        ).strip()
+        budget_exit_reason = str(
+            normalized_projection.get("budget_exit_reason")
+            or diagnostics.get("budget_exit_reason")
+            or ""
+        ).strip()
         partial_exit_reason = str(diagnostics.get("partial_exit_reason") or "").strip()
         conversation_outcome = str(
-            diagnostics.get("conversation_outcome") or diagnostics.get("turn_outcome") or ""
+            normalized_projection.get("turn_outcome")
+            or diagnostics.get("conversation_outcome")
+            or diagnostics.get("turn_outcome")
+            or ""
         ).strip()
         tool_planner = (
             dict(diagnostics.get("tool_planner") or {})
@@ -280,8 +436,44 @@ class RuntimeRootCauseProjector:
         assistant_claimed_tool_call_without_tool_event = bool(
             diagnostics.get("assistant_claimed_tool_call_without_tool_event")
         )
+        has_budget_exit_signal = bool(
+            failure_kind == "budget_exit"
+            or termination_reason in _BUDGET_TERMINATION_REASONS
+            or budget_exit_reason
+            or partial_exit_reason in _BUDGET_TERMINATION_REASONS
+        )
         research_like = cls.is_research_like_diagnostics(diagnostics)
         false_direct_reply = cls.has_false_direct_reply_signal(diagnostics)
+        has_non_budget_provider_event = any(
+            str(
+                (event.get("kind") if isinstance(event, dict) else event) or ""
+            ).strip()
+            not in {"", "budget_exit"}
+            for event in provider_events
+        )
+        lower_error = error_message.lower()
+        call_log_turn_record = cls._call_log_turn_record(call_log)
+        call_log_turn_record_metadata = cls._call_log_turn_record_metadata(call_log)
+        protocol_fallback_blocked_reason = str(
+            call_log_turn_record_metadata.get("protocol_fallback_blocked_reason") or ""
+        ).strip()
+        stream_failure_error_type = str(
+            call_log_turn_record_metadata.get("stream_failure_error_type") or ""
+        ).strip()
+        stream_failure_chunk_count = call_log_turn_record_metadata.get(
+            "stream_failure_chunk_count",
+        )
+        try:
+            stream_failure_chunk_count = (
+                int(stream_failure_chunk_count)
+                if stream_failure_chunk_count is not None
+                else None
+            )
+        except (TypeError, ValueError):
+            stream_failure_chunk_count = None
+        stream_failure_has_meaningful_chunk = bool(
+            call_log_turn_record_metadata.get("stream_failure_has_meaningful_chunk")
+        )
 
         if assistant_claimed_tool_call_without_tool_event:
             return (
@@ -299,6 +491,14 @@ class RuntimeRootCauseProjector:
                 "Fix explicit time/weather/web intent detection before allowing direct_reply short-circuit.",
                 0.93,
             )
+        if failure_kind == "incomplete_promissory_reply":
+            return (
+                "post_processing",
+                "incomplete_promissory_reply",
+                "The assistant stopped at a promissory page-operation preamble instead of returning the requested page result or a clear not-found conclusion.",
+                "Keep page-op turns open until the assistant emits either a concrete page-search result or an explicit no-result/no-search-UI conclusion.",
+                0.96,
+            )
         if continuation_source == "page_ops" and planner_intent == "direct_reply":
             return (
                 "post_processing",
@@ -310,10 +510,9 @@ class RuntimeRootCauseProjector:
         if (
             call_log is not None
             and str(call_log.status or "") == CallStatusEnum.SUCCESS.value
+            and not normalized_projection.get("blocks_success_shortcut")
             and conversation_outcome not in {"failed", "partial"}
-            and not failure_kind
             and not contract_breach_type
-            and termination_reason not in _BUDGET_TERMINATION_REASONS
         ):
             return (
                 None,
@@ -321,6 +520,17 @@ class RuntimeRootCauseProjector:
                 "The call completed successfully and no blocking failure signal was found.",
                 None,
                 0.98,
+            )
+        if (
+            normalized_projection.get("non_trusted_final_output_source")
+            and not has_budget_exit_signal
+        ):
+            return (
+                "post_processing",
+                "untrusted_final_output_source",
+                "The turn finished with a non-trusted final output source, so the result cannot be treated as a canonical assistant answer.",
+                "Inspect final output salvage and enforce assistant-only final output sources before marking this turn as successful.",
+                0.9,
             )
         if (
             continuation_source == "page_ops"
@@ -380,8 +590,34 @@ class RuntimeRootCauseProjector:
                 "Check intent retry / fetch_url completion criteria before changing downstream formatting.",
                 0.86,
             )
-        lower_error = error_message.lower()
-        if provider_events or any(
+        if (
+            protocol_fallback_blocked_reason == "provider_timeout"
+            or (
+                "timeout" in lower_error
+                and stream_failure_chunk_count == 0
+                and not stream_failure_has_meaningful_chunk
+            )
+            or (
+                stream_failure_error_type == "ProviderTimeoutError"
+                and stream_failure_chunk_count == 0
+                and not stream_failure_has_meaningful_chunk
+            )
+        ):
+            protocol_path = str(
+                call_log_turn_record.get("protocol_path")
+                or diagnostics.get("protocol_path")
+                or ""
+            ).strip()
+            protocol_text = f" via `{protocol_path}`" if protocol_path else ""
+            return (
+                "provider_gateway",
+                "provider_timeout_before_first_meaningful_chunk",
+                "The provider timed out before the first meaningful stream chunk"
+                f"{protocol_text}, and runtime blocked protocol fallback for `provider_timeout`.",
+                "Inspect upstream provider latency/timeout behavior first; this trace failed before visible model output, not during post-processing.",
+                0.97,
+            )
+        if has_non_budget_provider_event or any(
             token in lower_error
             for token in ("provider", "upstream", "timeout", "rate limit", "api key")
         ):
@@ -392,7 +628,10 @@ class RuntimeRootCauseProjector:
                 "Inspect provider events, model routing, and upstream credentials for this trace first.",
                 0.84,
             )
-        if selected_tools or "tool" in failure_kind or "tool" in lower_error:
+        if (
+            not has_budget_exit_signal
+            and (selected_tools or "tool" in failure_kind or "tool" in lower_error)
+        ):
             return (
                 "tool_execution",
                 failure_kind or "tool_execution_failed",
@@ -421,10 +660,14 @@ class RuntimeRootCauseProjector:
                 "Inspect context assembly diagnostics, including KB, memory, and page-context inputs.",
                 0.76,
             )
-        if termination_reason in _BUDGET_TERMINATION_REASONS or budget_exit_reason:
+        if has_budget_exit_signal:
             return (
                 "post_processing",
-                budget_exit_reason or termination_reason or "budget_exit",
+                budget_exit_reason
+                or partial_exit_reason
+                or termination_reason
+                or failure_kind
+                or "budget_exit",
                 "The turn exhausted a runtime budget or exited during finalization.",
                 "Tune runtime budgets or remove the stop-loss path that terminated this turn.",
                 0.8,
@@ -453,6 +696,19 @@ class RuntimeRootCauseProjector:
         conversation_turn: dict[str, Any] | None,
     ) -> list[dict[str, Any]]:
         evidence: list[dict[str, Any]] = []
+        call_log_turn_record = RuntimeRootCauseProjector._call_log_turn_record(call_log)
+        call_log_turn_record_metadata = (
+            RuntimeRootCauseProjector._call_log_turn_record_metadata(call_log)
+        )
+        turn_flow = RuntimeRootCauseProjector._resolve_turn_flow_payload(
+            diagnostics=diagnostics,
+            conversation_turn=conversation_turn,
+            call_log=call_log,
+        )
+        normalized_projection = resolve_failure_projection(
+            diagnostics=diagnostics,
+            turn_flow=turn_flow,
+        )
 
         def append(label: str, value: Any) -> None:
             if value in (None, "", [], {}, ()):
@@ -472,6 +728,31 @@ class RuntimeRootCauseProjector:
         append("continuation_source", diagnostics.get("continuation_source"))
         append("failure_kind", diagnostics.get("failure_kind"))
         append("contract_breach_type", diagnostics.get("contract_breach_type"))
+        append("final_output_source", normalized_projection.get("final_output_source"))
+        append(
+            "turn_flow_terminal_stage_type",
+            normalized_projection.get("turn_flow_terminal_stage_type"),
+        )
+        append(
+            "turn_flow_terminal_stage_status",
+            normalized_projection.get("turn_flow_terminal_stage_status"),
+        )
+        append(
+            "protocol_fallback_blocked_reason",
+            call_log_turn_record_metadata.get("protocol_fallback_blocked_reason"),
+        )
+        append(
+            "stream_failure_chunk_count",
+            call_log_turn_record_metadata.get("stream_failure_chunk_count"),
+        )
+        append(
+            "stream_failure_has_meaningful_chunk",
+            call_log_turn_record_metadata.get("stream_failure_has_meaningful_chunk"),
+        )
+        append(
+            "stream_failure_error_type",
+            call_log_turn_record_metadata.get("stream_failure_error_type"),
+        )
         append(
             "assistant_claimed_tool_call_without_tool_event",
             diagnostics.get("assistant_claimed_tool_call_without_tool_event"),
@@ -484,6 +765,7 @@ class RuntimeRootCauseProjector:
         append("retry_events", diagnostics.get("retry_events"))
         append("provider_events", diagnostics.get("provider_events"))
         append("fallback_history", diagnostics.get("fallback_history"))
+        append("turn_record_protocol_path", call_log_turn_record.get("protocol_path"))
         return evidence
 
     @staticmethod
@@ -533,4 +815,3 @@ class RuntimeRootCauseProjector:
             if action not in deduped:
                 deduped.append(action)
         return deduped[:8]
-

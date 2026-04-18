@@ -66,7 +66,6 @@ class ContextSource:
 class CapabilityBundle:
     tools: list[ToolDefinition] = field(default_factory=list)
     tool_consent_modes: dict[str, str] = field(default_factory=dict)
-    prompt_skill_blocks: list[str] = field(default_factory=list)
     capability_descriptors: list[CapabilityDescriptor] = field(default_factory=list)
     context_sources: list[ContextSource] = field(default_factory=list)
 

@@ -43,7 +43,7 @@ def build_post_tool_retry_policy(
             families.append(family)
 
     for intent in unfinished_intents or []:
-        if intent == "page_summary":
+        if str(intent or "").startswith("page_"):
             family = "page_ops"
         elif intent in {"weather", "rail_ticket_research"}:
             if (

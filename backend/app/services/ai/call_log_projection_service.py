@@ -10,6 +10,7 @@ from app.core.base_model import utc_now
 from app.core.response import serialize_datetime_for_api
 from app.enums.ai import CallStatusEnum
 from app.services.ai.call_log_support import CallLogSupport
+from app.services.ai.turn_failure_normalizer import resolve_failure_projection
 
 
 class CallLogProjectionMixin(CallLogSupport):
@@ -282,6 +283,37 @@ class CallLogProjectionMixin(CallLogSupport):
             termination_reason = (
                 "completed" if status == CallStatusEnum.SUCCESS.value else "error"
             )
+        failure_kind = cls._to_non_empty_str(
+            (turn_record or {}).get("failure_kind")
+            or incoming.get("failure_kind")
+            or turn_record_metadata.get("failure_kind")
+            or turn_record_metadata.get("provider_failure_kind")
+            or req.get("failure_kind")
+        )
+        normalized_failure = resolve_failure_projection(
+            diagnostics={
+                "turn_record": turn_record,
+                "turn_outcome": turn_outcome,
+                "termination_reason": termination_reason,
+                "failure_kind": failure_kind,
+                "error_message": error_message,
+            }
+        )
+        turn_outcome = cls._to_non_empty_str(
+            normalized_failure.get("turn_outcome")
+        ) or turn_outcome
+        termination_reason = cls._to_non_empty_str(
+            normalized_failure.get("termination_reason")
+        ) or termination_reason
+        failure_kind = cls._to_non_empty_str(
+            normalized_failure.get("failure_kind")
+        ) or failure_kind
+        if turn_record:
+            turn_record = dict(turn_record)
+            turn_record["turn_outcome"] = turn_outcome
+            turn_record["termination_reason"] = termination_reason
+            if failure_kind:
+                turn_record["failure_kind"] = failure_kind
 
         diagnostics: dict[str, Any] = {
             "turn_outcome": turn_outcome,
@@ -321,6 +353,8 @@ class CallLogProjectionMixin(CallLogSupport):
             diagnostics["tool_loop_progress"] = tool_loop_progress
         if turn_record:
             diagnostics["turn_record"] = turn_record
+        if failure_kind:
+            diagnostics["failure_kind"] = failure_kind
         if status != CallStatusEnum.SUCCESS.value and error_message:
             diagnostics["error_message"] = error_message
         return diagnostics

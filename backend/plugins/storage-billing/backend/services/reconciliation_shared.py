@@ -340,20 +340,87 @@ def _summarize_daily_charges(rows: list[StorageTenantDailyCharge]) -> dict[str, 
     provider_codes: set[str] = set()
     tenant_ids: set[int] = set()
     source_ids: set[int] = set()
+    provider_totals: dict[str, dict[str, Any]] = {}
+    charge_basis_totals: dict[str, dict[str, Any]] = {}
 
     for row in rows:
-        amount_total += row.amount_total or Decimal("0")
-        usage_total += row.usage_bytes or 0
-        provider_codes.add(_stringify(row.provider_code))
+        row_amount = row.amount_total or Decimal("0")
+        row_usage = row.usage_bytes or 0
+        provider_code = _stringify(row.provider_code)
+        charge_basis = _stringify(row.charge_basis)
+
+        amount_total += row_amount
+        usage_total += row_usage
+        provider_codes.add(provider_code)
         if row.tenant_id is not None:
             tenant_ids.add(int(row.tenant_id))
         if row.source_id is not None:
             source_ids.add(int(row.source_id))
 
+        if provider_code:
+            provider_summary = provider_totals.setdefault(
+                provider_code,
+                {
+                    "provider_code": provider_code,
+                    "row_count": 0,
+                    "usage_bytes": 0,
+                    "amount_total": Decimal("0"),
+                },
+            )
+            provider_summary["row_count"] += 1
+            provider_summary["usage_bytes"] += row_usage
+            provider_summary["amount_total"] += row_amount
+
+        if charge_basis:
+            charge_basis_summary = charge_basis_totals.setdefault(
+                charge_basis,
+                {
+                    "charge_basis": charge_basis,
+                    "row_count": 0,
+                    "usage_bytes": 0,
+                    "amount_total": Decimal("0"),
+                },
+            )
+            charge_basis_summary["row_count"] += 1
+            charge_basis_summary["usage_bytes"] += row_usage
+            charge_basis_summary["amount_total"] += row_amount
+
+    def _serialize_breakdown(
+        items: dict[str, dict[str, Any]],
+        key: str,
+    ) -> list[dict[str, Any]]:
+        serialized: list[dict[str, Any]] = []
+        for item in items.values():
+            serialized.append(
+                {
+                    key: item[key],
+                    "row_count": item["row_count"],
+                    "usage_bytes": item["usage_bytes"],
+                    "amount_total": _serialize_decimal(item["amount_total"]),
+                }
+            )
+        serialized.sort(
+            key=lambda item: (
+                -float(item["amount_total"]),
+                -int(item["usage_bytes"]),
+                str(item[key]),
+            )
+        )
+        return serialized
+
     return {
         "row_count": len(rows),
         "amount_total": _serialize_decimal(amount_total),
+        "total_usage_bytes": usage_total,
         "usage_bytes_total": usage_total,
+        "provider_totals": _serialize_breakdown(
+            provider_totals,
+            "provider_code",
+        ),
+        "charge_basis_totals": _serialize_breakdown(
+            charge_basis_totals,
+            "charge_basis",
+        ),
         "provider_codes": sorted(code for code in provider_codes if code),
         "tenant_count": len(tenant_ids),
         "source_count": len(source_ids),

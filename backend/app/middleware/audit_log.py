@@ -86,6 +86,10 @@ def should_log_request(path: str, method: str) -> bool:
     if method == "OPTIONS":
         return False
 
+    # Root document request is not an auditable business operation / 根路径文档请求不属于业务操作日志
+    if path == "/":
+        return False
+
     # Excluded path prefixes / 排除的路径前缀
     for excluded in EXCLUDED_PATHS:
         if path.startswith(excluded):
@@ -522,10 +526,7 @@ class AuditLogMiddleware:
                 user
                 and state_user_id == user_info.get("user_id")
                 and (
-                    (
-                        expected_tenant_id is None
-                        and state_tenant_id in {None, 0}
-                    )
+                    (expected_tenant_id is None and state_tenant_id in {None, 0})
                     or state_tenant_id == expected_tenant_id
                 )
             )

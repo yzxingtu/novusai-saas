@@ -9,6 +9,7 @@ from app.ai.types import ChatMessage
 
 class RequestPayloadBuilderAdapterProtocol(Protocol):
     config: dict[str, Any]
+    provider_config: dict[str, Any]
 
     def resolve_effective_model_request(
         self,
@@ -117,7 +118,31 @@ def build_responses_reasoning_config(
     return {"summary": "auto"}
 
 
-def convert_tools_for_responses(tools: list[dict]) -> list[dict]:
+def should_use_hosted_web_search_tool(
+    adapter: RequestPayloadBuilderAdapterProtocol,
+) -> bool:
+    provider_config = getattr(adapter, "provider_config", None)
+    if not isinstance(provider_config, dict):
+        raw_provider_config = (
+            adapter.config.get("provider_config")
+            if isinstance(getattr(adapter, "config", None), dict)
+            else None
+        )
+        provider_config = (
+            raw_provider_config if isinstance(raw_provider_config, dict) else {}
+        )
+
+    raw_web_search = provider_config.get("web_search")
+    if not isinstance(raw_web_search, dict):
+        return False
+    return bool(raw_web_search.get("prefer_hosted_tool"))
+
+
+def convert_tools_for_responses(
+    tools: list[dict],
+    *,
+    rewrite_web_search: bool = True,
+) -> list[dict]:
     converted: list[dict] = []
     has_web_search_function = False
 
@@ -125,7 +150,7 @@ def convert_tools_for_responses(tools: list[dict]) -> list[dict]:
         if tool.get("type") == "function" and isinstance(tool.get("function"), dict):
             function = tool["function"]
             func_name = function.get("name", "")
-            if func_name == "web_search":
+            if func_name == "web_search" and rewrite_web_search:
                 has_web_search_function = True
                 continue
             converted.append(
@@ -197,7 +222,10 @@ async def build_responses_request(
     if stream:
         request_params["stream"] = True
     if tools:
-        request_params["tools"] = convert_tools_for_responses(tools)
+        request_params["tools"] = convert_tools_for_responses(
+            tools,
+            rewrite_web_search=should_use_hosted_web_search_tool(adapter),
+        )
     if tool_choice:
         request_params["tool_choice"] = tool_choice
 
@@ -219,5 +247,6 @@ __all__ = [
     "build_responses_reasoning_config",
     "build_responses_request",
     "convert_tools_for_responses",
+    "should_use_hosted_web_search_tool",
     "supports_responses_reasoning_summary",
 ]

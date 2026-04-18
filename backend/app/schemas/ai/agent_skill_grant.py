@@ -26,14 +26,6 @@ class AgentSkillGrantCreate(BaseCreateSchema):
         ge=0,
         description=_("agent_skill_grant.field.sort_order"),
     )
-    default_consent_mode: str = Field(
-        "auto",
-        description=_("agent_skill_grant.field.default_consent_mode"),
-    )
-    capability_consent_overrides: dict[str, str] | None = Field(
-        None,
-        description=_("agent_skill_grant.field.capability_consent_overrides"),
-    )
 
 
 class AgentSkillGrantBatchBindRequest(BaseCreateSchema):
@@ -42,10 +34,6 @@ class AgentSkillGrantBatchBindRequest(BaseCreateSchema):
     skill_ids: list[int] = Field(
         ...,
         description=_("agent_skill_grant.field.skill_id"),
-    )
-    default_consent_modes: dict[str, str] | None = Field(
-        None,
-        description=_("agent_skill_grant.field.default_consent_mode"),
     )
 
 
@@ -64,14 +52,6 @@ class AgentSkillGrantUpdate(BaseUpdateSchema):
         None,
         ge=0,
         description=_("agent_skill_grant.field.sort_order"),
-    )
-    default_consent_mode: str | None = Field(
-        None,
-        description=_("agent_skill_grant.field.default_consent_mode"),
-    )
-    capability_consent_overrides: dict[str, str] | None = Field(
-        None,
-        description=_("agent_skill_grant.field.capability_consent_overrides"),
     )
 
 

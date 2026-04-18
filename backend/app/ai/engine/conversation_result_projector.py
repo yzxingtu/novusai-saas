@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any
 
+from .final_output_policy import is_trusted_assistant_final_output_source
+from .turn_flow_projector import build_turn_flow_view_model
 from .types import ExecutionResult
 
 _TURN_DIAGNOSTIC_KEYS = (
@@ -12,6 +14,9 @@ _TURN_DIAGNOSTIC_KEYS = (
     "budget",
     "budget_status",
     "budget_exit_reason",
+    "elapsed_over_limit",
+    "elapsed_over_limit_ms",
+    "elapsed_limit_ms",
     "candidate_tool_names",
     "retry_events",
     "partial_exit_reason",
@@ -27,6 +32,7 @@ _TURN_DIAGNOSTIC_KEYS = (
     "final_output_source",
     "post_tool_completion_state",
     "auto_fetch_gate_reason",
+    "turn_flow",
 )
 
 
@@ -157,6 +163,49 @@ def build_execution_result(
         if turn_projection is not None
         else (dict(diagnostics) if diagnostics is not None else None)
     )
+    diagnostics_payload = (
+        dict(diagnostics_payload) if isinstance(diagnostics_payload, dict) else {}
+    )
+    turn_record_payload = (
+        turn_projection.turn_record
+        if turn_projection is not None and isinstance(turn_projection.turn_record, dict)
+        else None
+    )
+    existing_turn_flow = diagnostics_payload.get("turn_flow")
+    if not isinstance(existing_turn_flow, dict) and isinstance(turn_record_payload, dict):
+        existing_turn_flow = turn_record_payload.get("turn_flow")
+
+    if not isinstance(existing_turn_flow, dict):
+        resolved_final_output_source = str(
+            diagnostics_payload.get("final_output_source")
+            or (turn_record_payload or {}).get("final_output_source")
+            or ""
+        ).strip() or None
+        turn_flow_output = (
+            str(output or "")
+            if is_trusted_assistant_final_output_source(resolved_final_output_source)
+            else ""
+        )
+        projected_turn_flow = build_turn_flow_view_model(
+            diagnostics_payload=diagnostics_payload,
+            turn_record=turn_record_payload,
+            rag_sources=rag_sources,
+            output=turn_flow_output,
+            completion_reason=completion_reason,
+            interrupted=interrupted,
+            error=error,
+        )
+        diagnostics_payload["turn_flow"] = projected_turn_flow
+        if isinstance(turn_record_payload, dict):
+            turn_record_payload["turn_flow"] = projected_turn_flow
+            turn_record_metadata = dict(turn_record_payload.get("metadata") or {})
+            turn_record_metadata["turn_flow"] = projected_turn_flow
+            orchestration_payload = dict(turn_record_metadata.get("orchestration") or {})
+            orchestration_payload["turn_flow"] = projected_turn_flow
+            turn_record_metadata["orchestration"] = orchestration_payload
+            turn_record_metadata["turn_diagnostics"] = dict(orchestration_payload)
+            turn_record_payload["metadata"] = turn_record_metadata
+
     result = ExecutionResult(
         success=success,
         output=output,
@@ -179,7 +228,7 @@ def build_execution_result(
         memory_recalled=memory_recalled,
         prune_stats=prune_stats,
         tool_planner=tool_planner,
-        turn_record=(turn_projection.turn_record if turn_projection is not None else None),
+        turn_record=turn_record_payload,
         intent_plan=list(intent_plan or []),
         execution_path=execution_path,
         execution_budget=execution_budget,

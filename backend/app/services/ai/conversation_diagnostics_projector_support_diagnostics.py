@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.ai.json_safe import normalize_json_safe_dict
+from app.services.ai.turn_failure_normalizer import derive_budget_projection
 
 
 def _normalize_turn_record_payload(turn_record: Any) -> dict[str, Any] | None:
@@ -132,9 +133,28 @@ def _normalize_provider_events(value: Any) -> list[dict[str, Any]]:
     return normalized
 
 
+def _normalize_dict_list(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    normalized: list[dict[str, Any]] = []
+    for item in value:
+        payload = _normalize_json_dict(item)
+        if not payload:
+            continue
+        normalized.append(dict(payload))
+    return normalized
+
+
 def _pick_truthy(*values: Any) -> Any:
     for value in values:
         if value:
+            return value
+    return None
+
+
+def _pick_first_list(*values: Any) -> list[Any] | None:
+    for value in values:
+        if isinstance(value, list):
             return value
     return None
 
@@ -434,6 +454,52 @@ def extract_turn_diagnostics_from_metadata(
         )
         or {}
     )
+    path_decision = _pick_dict_payload(
+        (turn_record or {}).get("path_decision"),
+        metadata.get("path_decision"),
+        turn_record_diagnostics.get("path_decision"),
+        context_diagnostics.get("path_decision"),
+        last_run_summary.get("path_decision"),
+    )
+    capability_injection = _pick_dict_payload(
+        (turn_record or {}).get("capability_injection"),
+        (turn_record or {}).get("capability_injection_decision"),
+        metadata.get("capability_injection"),
+        metadata.get("capability_injection_decision"),
+        turn_record_diagnostics.get("capability_injection"),
+        turn_record_diagnostics.get("capability_injection_decision"),
+        context_diagnostics.get("capability_injection"),
+        context_diagnostics.get("capability_injection_decision"),
+        last_run_summary.get("capability_injection"),
+        last_run_summary.get("capability_injection_decision"),
+    )
+    tool_filtering = _pick_dict_payload(
+        (turn_record or {}).get("tool_filtering"),
+        metadata.get("tool_filtering"),
+        routing.get("tool_filtering"),
+        turn_record_diagnostics.get("tool_filtering"),
+        context_diagnostics.get("tool_filtering"),
+        last_run_summary.get("tool_filtering"),
+    )
+    recovery_chain = _normalize_dict_list(
+        _pick_first_list(
+            (turn_record or {}).get("recovery_chain"),
+            metadata.get("recovery_chain"),
+            recovery.get("recovery_chain"),
+            turn_record_diagnostics.get("recovery_chain"),
+            (_normalize_json_dict(turn_record_diagnostics.get("recovery")) or {}).get(
+                "recovery_chain"
+            ),
+            context_diagnostics.get("recovery_chain"),
+            (_normalize_json_dict(context_diagnostics.get("recovery")) or {}).get(
+                "recovery_chain"
+            ),
+            last_run_summary.get("recovery_chain"),
+            (_normalize_json_dict(last_run_summary.get("recovery")) or {}).get(
+                "recovery_chain"
+            ),
+        )
+    )
     retry_events = _normalize_retry_events(
         _pick_truthy(
             recovery.get("retry_events"),
@@ -502,6 +568,24 @@ def extract_turn_diagnostics_from_metadata(
         context_diagnostics.get("budget_exit_reason"),
         last_run_summary.get("budget_exit_reason"),
     )
+    budget_projection = derive_budget_projection(
+        budget=budget,
+        budget_status=budget_status,
+        budget_exit_reason=budget_exit_reason,
+        termination_reason=termination_reason,
+    )
+    budget = budget_projection.get("budget") or budget
+    budget_status = budget_projection.get("budget_status") or budget_status
+    budget_exit_reason = (
+        budget_projection.get("budget_exit_reason") or budget_exit_reason
+    )
+    final_output_source = _pick_string(
+        (turn_record or {}).get("final_output_source"),
+        metadata.get("final_output_source"),
+        turn_record_diagnostics.get("final_output_source"),
+        context_diagnostics.get("final_output_source"),
+        last_run_summary.get("final_output_source"),
+    )
 
     return {
         "turn_record": turn_record,
@@ -512,6 +596,10 @@ def extract_turn_diagnostics_from_metadata(
         "selected_skill_names": selected_skill_names,
         "context_sources": context_sources,
         "tool_planner": tool_planner,
+        "path_decision": path_decision,
+        "capability_injection": capability_injection,
+        "tool_filtering": tool_filtering,
+        "recovery_chain": recovery_chain,
         "contract_breach_type": contract_breach_type,
         "tool_leak_detected": tool_leak_detected,
         "assistant_claimed_tool_call_without_tool_event": (
@@ -528,6 +616,7 @@ def extract_turn_diagnostics_from_metadata(
         "budget": budget,
         "budget_status": budget_status,
         "budget_exit_reason": budget_exit_reason,
+        "final_output_source": final_output_source,
         "candidate_tool_names": candidate_tool_names,
         "retry_events": retry_events,
         "partial_exit_reason": partial_exit_reason,

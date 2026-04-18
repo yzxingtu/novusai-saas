@@ -52,13 +52,28 @@ def test_execution_budget_reports_candidate_tool_budget_exceeded() -> None:
     assert budget.first_exceeded_reason() == "candidate_tool_budget_exceeded"
 
 
-def test_execution_budget_ignores_elapsed_budget_exit() -> None:
+def test_execution_budget_reports_elapsed_budget_exit() -> None:
     budget = _budget(elapsed_ms_used=5000)
 
-    assert budget.first_exceeded_reason() is None
-    assert BudgetGuard.pre_model_reason(budget) is None
+    assert budget.first_exceeded_reason() == "elapsed_budget_exceeded"
+    assert BudgetGuard.pre_model_reason(budget) == "elapsed_budget_exceeded"
     assert BudgetGuard.completion_reason(
         budget,
         completion_tokens=10,
         total_tokens=10,
-    ) is None
+    ) == "elapsed_budget_exceeded"
+
+
+def test_execution_budget_elapsed_grace_applies_only_when_explicitly_requested() -> None:
+    budget = _budget(elapsed_ms_used=1100)
+
+    assert budget.first_exceeded_reason() == "elapsed_budget_exceeded"
+    assert budget.finalization_grace_applied is False
+    assert (
+        BudgetGuard.pre_model_reason(
+            budget,
+            allow_finalization_grace=True,
+        )
+        is None
+    )
+    assert budget.finalization_grace_applied is True

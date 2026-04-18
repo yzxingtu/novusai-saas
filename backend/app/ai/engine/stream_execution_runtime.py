@@ -1,3 +1,4 @@
+# FROZEN: do not add new dependencies
 """Execution loop helpers and IO adapter for StreamExecutionHandler.generate()."""
 from __future__ import annotations
 import asyncio
@@ -16,8 +17,9 @@ from app.core.response import (
 from app.enums.common import UserRoleEnum
 from app.middleware.trace import trace_id_var
 from .base import log_user_type_for_call_log
+from .failure_classifier import FailureClassifier
 from .stream_error_utils import resolve_stream_public_error_message
-from .stream_generation_support import (
+from .stream_generation_pipeline import (
     append_partial_assistant_output,
     build_done_event,
     build_initial_events,
@@ -27,12 +29,14 @@ from .stream_generation_support import (
     reset_stream_state,
 )
 from .stream_generation_view import ensure_stream_generation_view
+from .stream_finalization_pipeline import StreamFinalizationArtifacts
 from .stream_llm_round_support import (
     StreamRoundState,
     finalize_model_round,
     handle_stream_chunk,
     prepare_stream_round,
 )
+from .stream_replay_events import build_replay_events
 from .stream_tool_batch_runtime import (
     StreamToolBatchCallbacks,
     StreamToolBatchRuntimeInput,
@@ -189,6 +193,7 @@ class StreamIOAdapter:
             ),
             callbacks=StreamToolBatchCallbacks(
                 emit_event=self.handler._emit_runtime_event,
+                emit_chunk=self.emit_chunk,
                 budget_exit_reason=self.handler._state.budget_exit_reason,
                 register_budget_exit=self.handler._register_budget_exit,
                 build_text_round_response=self.handler._build_text_round_response,
@@ -358,6 +363,11 @@ class StreamIOAdapter:
 
     async def emit_chunk(self, text: str) -> None:
         if text:
+            generation_view = ensure_stream_generation_view(self.handler)
+            generation_view.visible_stream_content = (
+                generation_view.visible_stream_content + text
+            )
+            generation_view.output = generation_view.visible_stream_content
             await self.handler._emit_runtime_event(
                 {
                     "event": "message",
@@ -374,6 +384,180 @@ async def _cancel_executor_task(task: asyncio.Task[Any] | None) -> None:
         await task
 
 
+def _resolve_stream_exception_completion_reason(handler: Any) -> str:
+    state = getattr(handler, "_state", None)
+    if state is None:
+        return "stream_execution_error"
+
+    failure_kind = str(getattr(state, "provider_failure_kind", "") or "").strip().lower()
+    if failure_kind in {"", "none"}:
+        return "stream_execution_error"
+    if failure_kind == "budget_exit":
+        resolver = getattr(state, "budget_exit_reason", None)
+        if callable(resolver):
+            reason = str(resolver() or "").strip()
+            if reason:
+                return reason
+        return "budget_exit"
+    if failure_kind == "provider_timeout":
+        return "provider_timeout"
+    if failure_kind == "provider_unavailable":
+        return "provider_unavailable"
+    if failure_kind in {"provider_http_5xx", "provider_bad_response", "provider_rate_limit"}:
+        return "provider_error"
+    if failure_kind in {"tool_timeout", "tool_execution_error"}:
+        return "tool_error"
+    if failure_kind == "server_interrupt":
+        return "interrupted"
+    return failure_kind
+
+
+def _sync_exception_runtime_metadata(handler: Any, exc: BaseException) -> None:
+    view = ensure_stream_generation_view(handler)
+
+    runtime_model_info = getattr(exc, "_novusai_runtime_model_info", None)
+    if isinstance(runtime_model_info, dict) and runtime_model_info:
+        view.runtime_model_info = dict(runtime_model_info)
+        sandbox = getattr(handler.engine, "sandbox", None)
+        if sandbox is not None and hasattr(sandbox, "set_runtime_model_info"):
+            sandbox.set_runtime_model_info(runtime_model_info)
+
+    runtime_turn_record = getattr(exc, "_novusai_runtime_turn_record", None)
+    if runtime_turn_record is not None:
+        view.replace_runtime_turn_record(runtime_turn_record)
+        return
+
+    protocol_path = str(getattr(exc, "_novusai_runtime_protocol_path", "") or "").strip()
+    if protocol_path:
+        handler._update_turn_progress(protocol_path=protocol_path)
+
+
+def _register_stream_exception_failure(handler: Any, exc: BaseException) -> None:
+    failure_kind, failure_event = FailureClassifier.classify_exception(exc)
+    if failure_kind == "none":
+        return
+
+    event_payload = dict(failure_event or {})
+    protocol_path = str(getattr(exc, "_novusai_runtime_protocol_path", "") or "").strip()
+    if not protocol_path:
+        protocol_path = str(
+            (ensure_stream_generation_view(handler).runtime_turn_record or {}).get(
+                "protocol_path",
+            )
+            or "",
+        ).strip()
+    if protocol_path and "protocol_path" not in event_payload:
+        event_payload["protocol_path"] = protocol_path
+
+    handler._state.register_provider_failure(
+        kind=failure_kind,
+        event=event_payload or None,
+    )
+
+
+def _should_emit_graceful_exception_done(handler: Any) -> bool:
+    state = getattr(handler, "_state", None)
+    if state is None:
+        return False
+    failure_kind = str(getattr(state, "provider_failure_kind", "") or "").strip().lower()
+    return failure_kind not in {"", "none"}
+
+
+async def _build_stream_exception_artifacts(
+    handler: Any,
+    *,
+    messages: list[Any],
+    rag_sources: list[dict[str, Any]] | None,
+    output: str,
+    total_tokens: int,
+    all_tool_results: list[Any],
+    public_error_message: str,
+    completion_reason: str,
+) -> StreamFinalizationArtifacts:
+    view = ensure_stream_generation_view(handler)
+    duration_ms = int((time.perf_counter() - handler.start_time) * 1000)
+    partial_output = str(view.output or output or "").strip()
+    partial_tokens = view.total_tokens
+    if partial_tokens is None:
+        partial_tokens = total_tokens
+    partial_completion_tokens = int(view.completion_tokens_used or 0)
+
+    if not partial_output:
+        partial_output, partial_tokens, partial_completion_tokens = (
+            await handler.runtime_contract.finalize_partial_output(
+                agent=handler.agent,
+                request=handler.request,
+                prep=handler.prep,
+                messages=messages,
+                response=None,
+                state=handler._state,
+                tool_results=all_tool_results,
+                reason=completion_reason,
+                total_tokens=partial_tokens,
+                completion_tokens_used=partial_completion_tokens,
+                selected_skill_names=[],
+                context_sources=[],
+            )
+        )
+
+    partial_output = str(partial_output or "").strip()
+    if partial_output:
+        view.output = partial_output
+        append_partial_assistant_output(
+            messages,
+            output=partial_output,
+            reasoning_output=view.reasoning_output,
+        )
+
+    failed_result = build_terminal_result(
+        handler,
+        messages=messages,
+        rag_sources=rag_sources,
+        output=partial_output,
+        total_tokens=partial_tokens,
+        tool_results=all_tool_results,
+        duration_ms=duration_ms,
+        error=build_public_error_text(message=public_error_message),
+        completion_reason=completion_reason,
+        interrupted=False,
+        include_provider_state=True,
+    )
+    diagnostics_payload = dict(failed_result.diagnostics or {})
+    turn_record = dict(failed_result.turn_record or {})
+    resolved_protocol_path = str(
+        turn_record.get("protocol_path")
+        or diagnostics_payload.get("protocol_path")
+        or "",
+    ).strip()
+
+    replay_events: list[str] = []
+    if partial_output:
+        streamed_output = view.visible_stream_content.strip()
+        partial_reply_stream_chunks = (
+            view.chunk_text_for_streaming(partial_output)
+            if view.should_replay_finalized_output(
+                streamed_output=streamed_output,
+                finalized_output=partial_output,
+            )
+            else []
+        )
+        replay_events = build_replay_events(
+            streamed_output=streamed_output,
+            finalized_output=partial_output,
+            final_output_source=diagnostics_payload.get("final_output_source"),
+            partial_reply_stream_chunks=partial_reply_stream_chunks,
+            completed_reply_stream_chunks=[],
+        )
+
+    return StreamFinalizationArtifacts(
+        result=failed_result,
+        diagnostics_payload=diagnostics_payload,
+        response_metadata={},
+        resolved_protocol_path=resolved_protocol_path,
+        replay_events=replay_events,
+    )
+
+
 async def _handle_stream_exception(
     handler: Any,
     *,
@@ -387,6 +571,9 @@ async def _handle_stream_exception(
     logger: Any,
 ) -> AsyncIterator[str]:
     await _cancel_executor_task(executor_task)
+    _sync_exception_runtime_metadata(handler, exc)
+    _register_stream_exception_failure(handler, exc)
+    completion_reason = _resolve_stream_exception_completion_reason(handler)
 
     public_error_message = resolve_stream_public_error_message(exc)
     logger.error(
@@ -395,6 +582,45 @@ async def _handle_stream_exception(
         str(exc),
         exc_info=True,
     )
+    view = ensure_stream_generation_view(handler)
+    if _should_emit_graceful_exception_done(handler):
+        try:
+            artifacts = await _build_stream_exception_artifacts(
+                handler,
+                messages=messages,
+                rag_sources=rag_sources,
+                output=output,
+                total_tokens=total_tokens,
+                all_tool_results=all_tool_results,
+                public_error_message=public_error_message,
+                completion_reason=completion_reason,
+            )
+            on_complete_extra: dict[str, Any] | None = None
+            if handler.on_complete and not view.runtime.on_complete_called:
+                on_complete_extra = await handler._await_on_complete_before_done(
+                    artifacts.result
+                )
+                post_done_callback = handler._pop_post_done_callback(on_complete_extra)
+                if post_done_callback is not None:
+                    handler._schedule_background_callback(post_done_callback)
+
+            for replay_event in artifacts.replay_events:
+                yield replay_event
+            yield build_done_event(
+                handler,
+                artifacts=artifacts,
+                on_complete_extra=on_complete_extra,
+            )
+            yield SSEChunkEncoder.done()
+            return
+        except Exception as graceful_exc:
+            logger.warning(
+                "Graceful stream exception finalization failed: agent={} error={}",
+                getattr(handler.agent, "id", None),
+                str(graceful_exc),
+                exc_info=True,
+            )
+
     try:
         yield SSEChunkEncoder.encode(
             build_error_event(
@@ -411,7 +637,6 @@ async def _handle_stream_exception(
             yield_exc,
         )
 
-    view = ensure_stream_generation_view(handler)
     if handler.on_complete and not view.runtime.on_complete_called:
         duration_ms = int((time.perf_counter() - handler.start_time) * 1000)
         partial_output = view.output or output
@@ -432,7 +657,7 @@ async def _handle_stream_exception(
             tool_results=all_tool_results,
             duration_ms=duration_ms,
             error=build_public_error_text(message=public_error_message),
-            completion_reason="error",
+            completion_reason=completion_reason,
             interrupted=False,
             include_provider_state=True,
         )

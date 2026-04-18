@@ -9,13 +9,21 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from app.ai.context.budget_manager import (
+    DEFAULT_CONTEXT_BUDGET_LIMITS,
+    truncate_text_to_token_limit,
+)
 from app.ai.utils.token_estimator import estimate_tokens
 
 _DEFAULT_CONTEXT_PROMPT_BUDGET_TOKENS = 8000
 _DEFAULT_CONTEXT_OUTPUT_RESERVE_RATIO = 0.25
 _DEFAULT_SYSTEM_ADDITIONS_BUDGET_TOKENS = 1600
-_DEFAULT_CAPABILITY_BLOCK_BUDGET_TOKENS = 500
-_DEFAULT_MEMORY_BLOCK_BUDGET_TOKENS = 400
+_DEFAULT_CAPABILITY_BLOCK_BUDGET_TOKENS = DEFAULT_CONTEXT_BUDGET_LIMITS[
+    "capability_manifest"
+]
+_DEFAULT_MEMORY_BLOCK_BUDGET_TOKENS = DEFAULT_CONTEXT_BUDGET_LIMITS[
+    "session_memory"
+]
 _DEFAULT_COMPACT_SUMMARY_BUDGET_TOKENS = 700
 _DEFAULT_DATE_ANCHOR_BUDGET_TOKENS = 160
 _DEFAULT_PAGE_LOCALE_BUDGET_TOKENS = 96
@@ -97,7 +105,9 @@ def append_budgeted_addition(
         min(int(per_item_token_limit or remaining_total), remaining_total),
     )
     original_tokens = estimate_tokens(normalized)
-    trimmed = (trim_text_fn or trim_text_to_token_limit)(normalized, effective_limit)
+    trimmed = (trim_text_fn or truncate_text_to_token_limit)(
+        normalized, effective_limit
+    )
     if not trimmed:
         budget_usage.setdefault("skipped_sections", []).append(category)
         return
@@ -107,28 +117,7 @@ def append_budgeted_addition(
     if original_tokens > estimate_tokens(trimmed):
         budget_usage.setdefault("trimmed_sections", []).append(category)
 
-
-def trim_text_to_token_limit(text: str, token_limit: int) -> str:
-    normalized = str(text or "").strip()
-    if not normalized or token_limit <= 0:
-        return ""
-    if estimate_tokens(normalized) <= token_limit:
-        return normalized
-
-    low = 0
-    high = len(normalized)
-    best = ""
-    while low <= high:
-        mid = (low + high) // 2
-        candidate = normalized[:mid].rstrip()
-        if mid < len(normalized):
-            candidate = candidate.rstrip(" .,;:") + "\n..."
-        if estimate_tokens(candidate) <= token_limit:
-            best = candidate
-            low = mid + 1
-        else:
-            high = mid - 1
-    return best
+trim_text_to_token_limit = truncate_text_to_token_limit
 
 
 __all__ = [

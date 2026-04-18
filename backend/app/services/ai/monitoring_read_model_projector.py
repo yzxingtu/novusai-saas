@@ -15,6 +15,13 @@ from app.schemas.ai.monitoring import MonitoringActorInfo
 from app.services.ai.conversation_diagnostics_projector import (
     ConversationDiagnosticsProjector,
 )
+from app.services.ai.conversation_turn_flow_projector import (
+    ConversationTurnFlowProjector,
+)
+from app.services.ai.turn_failure_normalizer import (
+    derive_budget_projection,
+    resolve_failure_projection,
+)
 
 
 class MonitoringReadModelProjector:
@@ -73,6 +80,50 @@ class MonitoringReadModelProjector:
                 }
             )
         return normalized
+
+    @classmethod
+    def _resolve_turn_flow_payload(
+        cls,
+        *,
+        request_metadata: dict[str, Any],
+        request_payload: dict[str, Any],
+        diagnostics: dict[str, Any],
+        turn_record: dict[str, Any],
+        turn_record_diagnostics: dict[str, Any],
+        turn_outcome: str | None,
+        termination_reason: str | None,
+        failure_kind: str | None,
+        final_output_source: str | None,
+    ) -> dict[str, Any] | None:
+        def _normalize(
+            raw_turn_flow: Any,
+            metadata: dict[str, Any] | None = None,
+        ) -> dict[str, Any] | None:
+            if not isinstance(raw_turn_flow, dict):
+                return None
+            return ConversationTurnFlowProjector.normalize_turn_flow(
+                raw_turn_flow,
+                turn_outcome=turn_outcome,
+                completion_reason=termination_reason,
+                interrupted=bool(
+                    diagnostics.get("interrupted") or diagnostics.get("partial")
+                ),
+                failure_kind=failure_kind,
+                final_output_source=final_output_source,
+                metadata=metadata,
+            )
+
+        for raw_turn_flow, metadata in (
+            (diagnostics.get("turn_flow"), diagnostics),
+            (turn_record.get("turn_flow"), turn_record),
+            (turn_record_diagnostics.get("turn_flow"), turn_record_diagnostics),
+            (request_payload.get("turn_flow"), request_payload),
+            (request_metadata.get("turn_flow"), request_metadata),
+        ):
+            projected = _normalize(raw_turn_flow, metadata if isinstance(metadata, dict) else None)
+            if projected is not None:
+                return projected
+        return None
 
     @classmethod
     def extract_call_trace_diagnostics(cls, request_metadata: Any) -> dict[str, Any]:
@@ -168,6 +219,17 @@ class MonitoringReadModelProjector:
                 else None
             )
         )
+        raw_budget_status = ConversationDiagnosticsProjector.to_non_empty_str(
+            (budget or {}).get("status")
+            or turn_record.get("budget_status")
+            or diagnostics.get("budget_status")
+        )
+        raw_budget_exit_reason = ConversationDiagnosticsProjector.to_non_empty_str(
+            (budget or {}).get("exit_reason")
+            or turn_record.get("budget_exit_reason")
+            or diagnostics.get("budget_exit_reason")
+            or ((tool_loop_progress or {}).get("budget_exit_reason"))
+        )
         termination_reason = ConversationDiagnosticsProjector.to_non_empty_str(
             turn_record.get("termination_reason")
             or diagnostics.get("termination_reason")
@@ -193,11 +255,125 @@ class MonitoringReadModelProjector:
                 "tool_round_failed",
             }:
                 turn_outcome = "failed"
+        raw_failure_kind = ConversationDiagnosticsProjector.to_non_empty_str(
+            turn_record.get("failure_kind")
+            or failures.get("failure_kind")
+            or diagnostics.get("failure_kind")
+        )
+        raw_final_output_source = ConversationDiagnosticsProjector.to_non_empty_str(
+            turn_record.get("final_output_source")
+            or diagnostics.get("final_output_source")
+            or turn_record_diagnostics.get("final_output_source")
+        )
+        contract_breach_type = ConversationDiagnosticsProjector.to_non_empty_str(
+            turn_record_metadata.get("contract_breach_type")
+            or diagnostics.get("contract_breach_type")
+            or turn_record_diagnostics.get("contract_breach_type")
+        )
+        unfinished_intents = ConversationDiagnosticsProjector.normalize_string_list(
+            turn_record_metadata.get("unfinished_intents")
+            or turn_record.get("unfinished_intents")
+            or recovery.get("unfinished_intents")
+            or diagnostics.get("unfinished_intents")
+        )
+        budget_projection = derive_budget_projection(
+            budget=budget,
+            budget_status=raw_budget_status,
+            budget_exit_reason=raw_budget_exit_reason,
+            termination_reason=termination_reason,
+        )
+        budget = ConversationDiagnosticsProjector.normalize_json_dict(
+            budget_projection.get("budget")
+        ) or budget
+        turn_flow = cls._resolve_turn_flow_payload(
+            request_metadata=request_metadata,
+            request_payload=request_payload,
+            diagnostics=diagnostics,
+            turn_record=turn_record,
+            turn_record_diagnostics=turn_record_diagnostics,
+            turn_outcome=turn_outcome,
+            termination_reason=termination_reason,
+            failure_kind=raw_failure_kind,
+            final_output_source=raw_final_output_source,
+        )
+        normalized_failure = resolve_failure_projection(
+            diagnostics={
+                "turn_outcome": turn_outcome,
+                "conversation_outcome": ConversationDiagnosticsProjector.to_non_empty_str(
+                    turn_record.get("conversation_outcome")
+                    or diagnostics.get("conversation_outcome")
+                    or turn_record_diagnostics.get("conversation_outcome")
+                    or turn_outcome
+                ),
+                "termination_reason": termination_reason,
+                "failure_kind": raw_failure_kind,
+                "budget": budget or None,
+                "budget_exit_reason": budget_projection.get("budget_exit_reason")
+                or raw_budget_exit_reason,
+                "final_output_source": raw_final_output_source,
+                "contract_breach_type": contract_breach_type,
+                "assistant_claimed_tool_call_without_tool_event": bool(
+                    turn_record_metadata.get(
+                        "assistant_claimed_tool_call_without_tool_event"
+                    )
+                    or turn_record.get(
+                        "assistant_claimed_tool_call_without_tool_event"
+                    )
+                    or diagnostics.get(
+                        "assistant_claimed_tool_call_without_tool_event"
+                    )
+                    or turn_record_diagnostics.get(
+                        "assistant_claimed_tool_call_without_tool_event"
+                    )
+                ),
+                "unfinished_intents": unfinished_intents,
+            },
+            turn_flow=turn_flow,
+        )
+        turn_outcome = (
+            ConversationDiagnosticsProjector.to_non_empty_str(
+                normalized_failure.get("turn_outcome")
+            )
+            or turn_outcome
+        )
+        termination_reason = (
+            ConversationDiagnosticsProjector.to_non_empty_str(
+                normalized_failure.get("termination_reason")
+            )
+            or termination_reason
+        )
         conversation_outcome = ConversationDiagnosticsProjector.to_non_empty_str(
             turn_record.get("conversation_outcome")
             or diagnostics.get("conversation_outcome")
             or turn_record_diagnostics.get("conversation_outcome")
             or turn_outcome
+        )
+        failure_kind = (
+            ConversationDiagnosticsProjector.to_non_empty_str(
+                normalized_failure.get("failure_kind")
+            )
+            or raw_failure_kind
+        )
+        final_output_source = (
+            ConversationDiagnosticsProjector.to_non_empty_str(
+                normalized_failure.get("final_output_source")
+            )
+            or raw_final_output_source
+        )
+        budget_status = ConversationDiagnosticsProjector.to_non_empty_str(
+            budget_projection.get("budget_status")
+        )
+        budget_exit_reason = (
+            ConversationDiagnosticsProjector.to_non_empty_str(
+                normalized_failure.get("budget_exit_reason")
+            )
+            or ConversationDiagnosticsProjector.to_non_empty_str(
+                budget_projection.get("budget_exit_reason")
+            )
+            or raw_budget_exit_reason
+        )
+        conversation_outcome = ConversationDiagnosticsProjector.to_non_empty_str(
+            conversation_outcome or turn_outcome
         )
 
         return {
@@ -237,17 +413,9 @@ class MonitoringReadModelProjector:
                 or turn_record_diagnostics.get("intent_plan")
             ),
             "budget": budget or None,
-            "budget_status": ConversationDiagnosticsProjector.to_non_empty_str(
-                (budget or {}).get("status")
-                or turn_record.get("budget_status")
-                or diagnostics.get("budget_status")
-            ),
-            "budget_exit_reason": ConversationDiagnosticsProjector.to_non_empty_str(
-                (budget or {}).get("exit_reason")
-                or turn_record.get("budget_exit_reason")
-                or diagnostics.get("budget_exit_reason")
-                or ((tool_loop_progress or {}).get("budget_exit_reason"))
-            ),
+            "budget_status": budget_status,
+            "budget_exit_reason": budget_exit_reason,
+            "final_output_source": final_output_source,
             "candidate_tool_names": ConversationDiagnosticsProjector.normalize_string_list(
                 turn_record.get("candidate_tool_names")
                 or routing.get("candidate_tool_names")
@@ -270,11 +438,7 @@ class MonitoringReadModelProjector:
                 or recovery.get("partial_exit_reason")
                 or diagnostics.get("partial_exit_reason")
             ),
-            "failure_kind": ConversationDiagnosticsProjector.to_non_empty_str(
-                turn_record.get("failure_kind")
-                or failures.get("failure_kind")
-                or diagnostics.get("failure_kind")
-            ),
+            "failure_kind": failure_kind,
             "provider_events": ConversationDiagnosticsProjector.normalize_provider_events(
                 turn_record.get("provider_events")
                 or failures.get("provider_events")
@@ -312,11 +476,7 @@ class MonitoringReadModelProjector:
                 ),
                 None,
             ),
-            "contract_breach_type": ConversationDiagnosticsProjector.to_non_empty_str(
-                turn_record_metadata.get("contract_breach_type")
-                or diagnostics.get("contract_breach_type")
-                or turn_record_diagnostics.get("contract_breach_type")
-            ),
+            "contract_breach_type": contract_breach_type,
             "tool_leak_detected": bool(
                 turn_record_metadata.get("tool_leak_detected")
                 or diagnostics.get("tool_leak_detected")
@@ -335,12 +495,7 @@ class MonitoringReadModelProjector:
                     "assistant_claimed_tool_call_without_tool_event"
                 )
             ),
-            "unfinished_intents": ConversationDiagnosticsProjector.normalize_string_list(
-                turn_record_metadata.get("unfinished_intents")
-                or turn_record.get("unfinished_intents")
-                or recovery.get("unfinished_intents")
-                or diagnostics.get("unfinished_intents")
-            ),
+            "unfinished_intents": unfinished_intents,
             "leaked_tool_names": ConversationDiagnosticsProjector.normalize_string_list(
                 turn_record_metadata.get("leaked_tool_names")
                 or diagnostics.get("leaked_tool_names")
@@ -523,4 +678,3 @@ class MonitoringReadModelProjector:
                 live_actor.is_leader if live_actor else None,
             ),
         )
-

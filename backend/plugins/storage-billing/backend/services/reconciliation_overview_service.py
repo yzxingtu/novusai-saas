@@ -46,9 +46,18 @@ from .reconciliation_shared import (
 class StorageBillingOverviewService:
     """Read-only overview helpers. / 只读概览服务。"""
 
-    def __init__(self, db: Any | None, host_read: Any | None = None) -> None:
+    def __init__(
+        self,
+        db: Any | None,
+        host_read: Any | None = None,
+        *,
+        provider_profile_service_factory: Any | None = None,
+    ) -> None:
         self._db = db
         self._host_read = host_read
+        self._provider_profile_service_factory = (
+            provider_profile_service_factory or StorageBillingProviderProfileService
+        )
 
     @classmethod
     def from_context(cls, ctx) -> StorageBillingOverviewService:
@@ -197,7 +206,7 @@ class StorageBillingOverviewService:
                 ).scalar_one()
                 or 0
             )
-            profile_service = StorageBillingProviderProfileService(
+            profile_service = self._provider_profile_service_factory(
                 _ConfigContext(self._load_plugin_config, self._host_read),
                 host_read=self._host_read,
             )

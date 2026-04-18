@@ -37,7 +37,6 @@ class CapabilityFragment:
 
     tools: list[ToolDefinition] = field(default_factory=list)
     tool_consent_modes: dict[str, str] = field(default_factory=dict)
-    prompt_skill_blocks: list[str] = field(default_factory=list)
     capability_descriptors: list[CapabilityDescriptor] = field(default_factory=list)
     context_sources: list[ContextSource] = field(default_factory=list)
 
@@ -128,19 +127,16 @@ class CapabilityRegistry:
         if isinstance(fragment, CapabilityBundle):
             tools = fragment.tools
             consent_modes = fragment.tool_consent_modes
-            prompt_blocks = fragment.prompt_skill_blocks
             descriptors = fragment.capability_descriptors
             context_sources = fragment.context_sources
         else:
             tools = fragment.tools
             consent_modes = fragment.tool_consent_modes
-            prompt_blocks = fragment.prompt_skill_blocks
             descriptors = fragment.capability_descriptors
             context_sources = fragment.context_sources
 
         cls._merge_tools(bundle, tools)
         bundle.tool_consent_modes.update(consent_modes or {})
-        cls._merge_prompt_blocks(bundle, prompt_blocks or [])
         cls._merge_descriptors(bundle, descriptors or [])
         cls._merge_context_sources(bundle, context_sources or [])
 
@@ -159,16 +155,6 @@ class CapabilityRegistry:
                 bundle.tools.append(tool)
             else:
                 bundle.tools[idx] = tool
-
-    @staticmethod
-    def _merge_prompt_blocks(bundle: CapabilityBundle, blocks: list[str]) -> None:
-        seen = set(bundle.prompt_skill_blocks)
-        for block in blocks:
-            normalized = (block or "").strip()
-            if not normalized or normalized in seen:
-                continue
-            seen.add(normalized)
-            bundle.prompt_skill_blocks.append(normalized)
 
     @staticmethod
     def _merge_descriptors(

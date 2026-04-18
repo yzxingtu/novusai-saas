@@ -133,7 +133,7 @@ class AgentChatRequest(BaseModel):
         description="Runtime trust policy reference / 运行时信任策略引用",
     )
     interaction_mode: InteractionMode = Field(
-        "confirm",
+        "trusted_auto",
         description="Interaction mode / 交互模式",
     )
     image_params: ImageParams | None = Field(
@@ -215,7 +215,7 @@ class AgentChatResponse(BaseModel):
         description="Kinds of RAG sources used in this turn",
     )
     interaction_mode_effective: InteractionMode = Field(
-        "confirm",
+        "trusted_auto",
         description="Effective interaction mode for this turn / 本轮生效的交互模式",
     )
     context_diagnostics: dict[str, Any] | None = Field(

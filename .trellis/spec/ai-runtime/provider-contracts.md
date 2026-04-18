@@ -47,6 +47,11 @@ caller tries to set either guard to false, adapters must raise
 `ProviderError(invalid_runtime_guard)`.
 - `_runtime_force_wire_api` and guard keys are consumed at the adapter boundary
 and must not be forwarded downstream as ordinary provider kwargs.
+- Responses stream usage backfill is best-effort only. If a terminal
+  `response.output_text.done` or `response.completed` event omits usage,
+  adapters may issue one bounded retrieve call with retries disabled, then must
+  fall back to estimated usage instead of delaying stream completion behind
+  long provider-side retry loops.
 
 ## Ownership
 

@@ -50,6 +50,60 @@ class TestLogRecord:
 
         assert payload["module"] == "notification"
 
+    def test_resolve_operation_log_module_skips_public_scope_segments(self) -> None:
+        from app.operation_log_module_resolution import resolve_operation_log_module
+
+        assert (
+            resolve_operation_log_module(
+                module=None,
+                resource=None,
+                path="/api/public/attachments/26/image",
+            )
+            == "attachment"
+        )
+
+    def test_resolve_operation_log_module_maps_plugin_asset_paths_to_plugin(
+        self,
+    ) -> None:
+        from app.operation_log_module_resolution import resolve_operation_log_module
+
+        assert (
+            resolve_operation_log_module(
+                module=None,
+                resource=None,
+                path="/plugin-assets/weather-widget/icon.png",
+            )
+            == "plugin"
+        )
+
+    def test_resolve_operation_log_module_backfills_legacy_w_module_from_path(
+        self,
+    ) -> None:
+        from app.operation_log_module_resolution import resolve_operation_log_module
+
+        assert (
+            resolve_operation_log_module(
+                module="w",
+                resource=None,
+                path="/admin/ws/presence",
+            )
+            == "presence"
+        )
+
+    def test_resolve_operation_log_module_maps_public_platform_config_path(
+        self,
+    ) -> None:
+        from app.operation_log_module_resolution import resolve_operation_log_module
+
+        assert (
+            resolve_operation_log_module(
+                module=None,
+                resource=None,
+                path="/api/public/platform/config",
+            )
+            == "platform_config"
+        )
+
     @pytest.mark.asyncio
     async def test_create_log_entry(self, mock_db):
         from app.services.system.operation_log_service import OperationLogService
@@ -156,7 +210,9 @@ class TestLogQuery:
         assert payloads[0]["is_owner"] is True
 
     @pytest.mark.asyncio
-    async def test_serialize_logs_prefers_identity_snapshot_over_live_meta(self, mock_db):
+    async def test_serialize_logs_prefers_identity_snapshot_over_live_meta(
+        self, mock_db
+    ):
         from app.services.system.operation_log_service import OperationLogService
 
         service = OperationLogService.__new__(OperationLogService)
@@ -295,6 +351,118 @@ class TestLogQuery:
 
         assert payloads[0]["module"] == "preference"
         assert payloads[0]["module_label"] == "偏好设置"
+
+    @pytest.mark.asyncio
+    async def test_serialize_logs_translates_dashboard_module(self, mock_db):
+        from app.services.system.operation_log_service import OperationLogService
+
+        service = OperationLogService.__new__(OperationLogService)
+        service.db = mock_db
+        service.repo = AsyncMock()
+        service._identity_facade = SimpleNamespace(
+            identity_ref=lambda user_type, user_id: (
+                (str(user_type), int(user_id))
+                if user_type is not None and user_id is not None
+                else None
+            ),
+            load_identity_meta_map=AsyncMock(return_value={}),
+        )
+
+        log = _make_log(
+            id=25,
+            user_type="admin",
+            user_id=1,
+            username="admin",
+            nickname="管理员",
+            module="dashboard",
+            resource=None,
+            path="/admin/dashboard/overview",
+            trace_id=None,
+            response_code=200,
+            ip=None,
+            created_at=datetime(2026, 4, 5, 0, 0, tzinfo=timezone.utc),
+        )
+
+        payloads = await service.serialize_logs([log])
+
+        assert payloads[0]["module"] == "dashboard"
+        assert payloads[0]["module_label"] == "仪表盘"
+
+    @pytest.mark.asyncio
+    async def test_serialize_logs_translates_recycle_bin_action(self, mock_db):
+        from app.services.system.operation_log_service import OperationLogService
+
+        service = OperationLogService.__new__(OperationLogService)
+        service.db = mock_db
+        service.repo = AsyncMock()
+        service._identity_facade = SimpleNamespace(
+            identity_ref=lambda user_type, user_id: (
+                (str(user_type), int(user_id))
+                if user_type is not None and user_id is not None
+                else None
+            ),
+            load_identity_meta_map=AsyncMock(return_value={}),
+        )
+
+        log = _make_log(
+            id=26,
+            user_type="admin",
+            user_id=1,
+            username="admin",
+            nickname="管理员",
+            module="ai_agent",
+            action="recycle_bin",
+            resource="ai_agent:recycle_bin",
+            path="/admin/ai/agents/recycle-bin/count",
+            trace_id=None,
+            response_code=200,
+            ip=None,
+            created_at=datetime(2026, 4, 5, 0, 0, tzinfo=timezone.utc),
+        )
+
+        payloads = await service.serialize_logs([log])
+
+        assert payloads[0]["action"] == "recycle_bin"
+        assert payloads[0]["action_label"] == "回收站"
+
+    @pytest.mark.asyncio
+    async def test_serialize_logs_backfills_presence_module_from_legacy_w_value(
+        self,
+        mock_db,
+    ):
+        from app.services.system.operation_log_service import OperationLogService
+
+        service = OperationLogService.__new__(OperationLogService)
+        service.db = mock_db
+        service.repo = AsyncMock()
+        service._identity_facade = SimpleNamespace(
+            identity_ref=lambda user_type, user_id: (
+                (str(user_type), int(user_id))
+                if user_type is not None and user_id is not None
+                else None
+            ),
+            load_identity_meta_map=AsyncMock(return_value={}),
+        )
+
+        log = _make_log(
+            id=27,
+            user_type="admin",
+            user_id=1,
+            username="admin",
+            nickname="管理员",
+            module="w",
+            resource=None,
+            path="/admin/ws/presence",
+            trace_id=None,
+            response_code=200,
+            ip=None,
+            created_at=datetime(2026, 4, 5, 0, 0, tzinfo=timezone.utc),
+        )
+
+        payloads = await service.serialize_logs([log])
+
+        assert payloads[0]["module"] == "presence"
+        assert payloads[0]["module_label"] == "在线状态"
 
     @pytest.mark.asyncio
     async def test_get_admin_operators_select_returns_remote_identity_options(

@@ -132,6 +132,14 @@ def page_context_payload(input_variables: dict[str, Any] | None) -> dict[str, An
     return page_context if isinstance(page_context, dict) else None
 
 
+def page_context_has_active_form(page_context: Mapping[str, Any] | None) -> bool:
+    if not isinstance(page_context, Mapping):
+        return False
+    if str(page_context.get("active_form_session_id") or "").strip():
+        return True
+    return isinstance(page_context.get("active_form_summary"), Mapping)
+
+
 def _normalize_tool_name_list(raw: Any) -> list[str]:
     if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes)):
         return []
@@ -156,9 +164,7 @@ def page_context_has_runtime_state(page_context: Mapping[str, Any] | None) -> bo
         return True
     if str(page_context.get("active_surface_id") or "").strip():
         return True
-    if str(page_context.get("active_form_session_id") or "").strip():
-        return True
-    return isinstance(page_context.get("active_form_summary"), Mapping)
+    return page_context_has_active_form(page_context)
 
 
 def page_context_available_ui_tools(
@@ -194,9 +200,7 @@ def page_context_available_ui_tools(
         inferred.append("ui_open_surface")
 
     active_form_summary = page_context.get("active_form_summary")
-    has_active_form = bool(str(page_context.get("active_form_session_id") or "").strip())
-    if isinstance(active_form_summary, Mapping):
-        has_active_form = True
+    has_active_form = page_context_has_active_form(page_context)
     if has_active_form:
         inferred.extend(["ui_get_form_state", "ui_set_field", "ui_fill_form"])
         stage = (

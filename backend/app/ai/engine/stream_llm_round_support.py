@@ -12,7 +12,7 @@ from .stream_generation_view import ensure_stream_generation_view
 from .turn_executor import ModelRoundResult
 
 if TYPE_CHECKING:
-    from .stream_execution_support import StreamIOAdapter
+    from .stream_execution_runtime import StreamIOAdapter
 
 
 @dataclass(slots=True)

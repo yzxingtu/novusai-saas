@@ -35,6 +35,7 @@ class StreamToolBatchRuntimeInput:
 @dataclass(slots=True)
 class StreamToolBatchCallbacks:
     emit_event: Callable[[dict[str, Any]], Awaitable[None]]
+    emit_chunk: Callable[[str], Awaitable[None]]
     budget_exit_reason: Callable[[], str | None]
     register_budget_exit: Callable[[str | None], None]
     build_text_round_response: Callable[..., ChatResponse]
@@ -181,6 +182,16 @@ async def _apply_single_result(
             name_override=func_name,
         )
     )
+    result_summary = str(result.summary or "").strip()
+    current_response_text = str(runtime.response.message.content or "").strip()
+    if (
+        result.success
+        and result_summary
+        and follow_up_message is None
+        and not current_response_text
+        and result.name in {"fetch_url", "web_search"}
+    ):
+        await callbacks.emit_chunk(result_summary)
     if tool_message is not None:
         runtime.messages.append(tool_message)
     if follow_up_message is not None:
@@ -459,6 +470,8 @@ async def run_stream_tool_batch(
         runtime.messages.extend(state.follow_up_messages)
 
     if state.page_op_aborted:
+        if state.output_override:
+            await callbacks.emit_chunk(state.output_override)
         text_response = callbacks.build_text_round_response(
             content=state.output_override or "",
             reasoning_content=runtime.reasoning_content or "",

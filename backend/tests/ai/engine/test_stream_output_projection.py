@@ -14,13 +14,13 @@ if "app.ai.engine" not in sys.modules:
     engine_pkg.__path__ = [str(ENGINE_DIR)]
     sys.modules["app.ai.engine"] = engine_pkg
 
-stream_output_helpers = import_module("app.ai.engine.stream_output_helpers")
-assistant_message_has_content = stream_output_helpers.assistant_message_has_content
-build_budget_exit_fallback_output = stream_output_helpers.build_budget_exit_fallback_output
-current_turn_has_finalized_output = stream_output_helpers.current_turn_has_finalized_output
-is_streamed_prefix_expansion = stream_output_helpers.is_streamed_prefix_expansion
+stream_output_projection = import_module("app.ai.engine.stream_output_projection")
+assistant_message_has_content = stream_output_projection.assistant_message_has_content
+build_budget_exit_fallback_output = stream_output_projection.build_budget_exit_fallback_output
+current_turn_has_finalized_output = stream_output_projection.current_turn_has_finalized_output
+is_streamed_prefix_expansion = stream_output_projection.is_streamed_prefix_expansion
 should_preserve_streamed_assistant_output = (
-    stream_output_helpers.should_preserve_streamed_assistant_output
+    stream_output_projection.should_preserve_streamed_assistant_output
 )
 
 
@@ -80,7 +80,7 @@ def test_should_preserve_streamed_assistant_output_only_for_prefix_expansion() -
 def test_build_budget_exit_fallback_output_uses_resolved_locale(
     monkeypatch,
 ) -> None:
-    helpers = stream_output_helpers
+    helpers = stream_output_projection
 
     monkeypatch.setattr(helpers, "resolve_budget_exit_locale", lambda _input: "zh-CN")
     monkeypatch.setattr(

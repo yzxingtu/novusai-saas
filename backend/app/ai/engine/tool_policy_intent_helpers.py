@@ -13,11 +13,78 @@ from .intent_runtime_accessors import (
     resolve_intent_plan_view,
     resolve_requested_intents_from_input_variables,
 )
+from .system_prompt_intent_helpers import intent_completion_signals
 from .tool_policy_semantics import tool_semantic_family
 from .turn_research_helpers import (
     collect_web_research_evidence,
     extract_recent_successful_tool_names,
 )
+
+
+def _push_unique(items: list[str], value: str) -> None:
+    normalized = str(value or "").strip()
+    if normalized and normalized not in items:
+        items.append(normalized)
+
+
+def _normalize_page_intent_name(kind: str | None) -> str:
+    normalized = str(kind or "").strip()
+    return normalized if normalized.startswith("page_") else ""
+
+
+def _merge_active_page_intent(
+    intents: list[str],
+    *,
+    input_variables: dict[str, Any] | None,
+) -> list[str]:
+    merged: list[str] = []
+    for intent_name in intents:
+        _push_unique(merged, intent_name)
+
+    active_intent_kind = _normalize_page_intent_name(
+        resolve_active_intent_kind_from_input_variables(input_variables)
+    )
+    if not active_intent_kind:
+        return merged
+
+    has_page_intent = any(intent.startswith("page_") for intent in merged)
+    if active_intent_kind == "page_summary" and has_page_intent:
+        return merged
+
+    if active_intent_kind != "page_summary":
+        replaced: list[str] = []
+        inserted = False
+        for intent_name in merged:
+            if intent_name == "page_summary":
+                if not inserted:
+                    replaced.append(active_intent_kind)
+                    inserted = True
+                continue
+            _push_unique(replaced, intent_name)
+        merged = replaced
+
+    _push_unique(merged, active_intent_kind)
+    return merged
+
+
+def _requested_page_intents(
+    input_variables: dict[str, Any] | None,
+) -> list[str]:
+    intents: list[str] = []
+    planned = resolve_intent_plan_view(input_variables)
+    for intent in planned:
+        if intent.family != "page_ops" or not intent.requires_tools:
+            continue
+        _push_unique(intents, _normalize_page_intent_name(intent.kind))
+    if intents:
+        return _merge_active_page_intent(intents, input_variables=input_variables)
+
+    requested = resolve_requested_intents_from_input_variables(input_variables)
+    for intent_name in requested:
+        normalized = _normalize_page_intent_name(intent_name)
+        if normalized.startswith("page_"):
+            _push_unique(intents, normalized)
+    return _merge_active_page_intent(intents, input_variables=input_variables)
 
 
 def detect_requested_turn_intents(
@@ -34,12 +101,23 @@ def detect_requested_turn_intents(
     if not planned:
         requested = resolve_requested_intents_from_input_variables(input_variables)
         if requested:
-            return requested
+            requested_intents = [str(intent_name or "").strip() for intent_name in requested]
+            if any(
+                _normalize_page_intent_name(intent_name) for intent_name in requested_intents
+            ):
+                return _merge_active_page_intent(
+                    requested_intents,
+                    input_variables=input_variables,
+                )
+            return requested_intents
         active_intent_kind = resolve_active_intent_kind_from_input_variables(
             input_variables
         )
         if active_intent_kind and str(active_intent_kind).startswith("page_"):
-            return ["page_summary"]
+            normalized_active_page_intent = _normalize_page_intent_name(
+                active_intent_kind
+            )
+            return [normalized_active_page_intent] if normalized_active_page_intent else []
         if mentions_weather(normalized):
             has_weather_capability = any(
                 tool_semantic_family(tool, input_variables) == "weather" for tool in tools
@@ -66,7 +144,9 @@ def detect_requested_turn_intents(
             _push("weather")
             continue
         if intent.family == "page_ops":
-            _push("page_summary")
+            normalized_page_intent = _normalize_page_intent_name(intent.kind)
+            if normalized_page_intent:
+                _push(normalized_page_intent)
             continue
         if intent.kind == "web_research":
             label = str(intent.user_visible_label or "").strip()
@@ -107,7 +187,19 @@ def collect_completed_turn_intents(
     ):
         completed.add("weather")
 
-    if successful_tool_names & {
+    requested_page_intents = _requested_page_intents(input_variables)
+    if requested_page_intents:
+        successful_names_ordered = list(successful_tool_names)
+        for intent_name in requested_page_intents:
+            completion_signals = intent_completion_signals(
+                "page_ops",
+                intent_kind=intent_name,
+                allowed_tool_names=successful_names_ordered,
+                preferred_tool_names=successful_names_ordered,
+            )
+            if successful_tool_names & set(completion_signals):
+                completed.add(intent_name)
+    elif successful_tool_names & {
         "ui_get_snapshot",
         "ui_read_region",
         "ui_read_table",

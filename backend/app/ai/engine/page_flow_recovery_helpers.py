@@ -10,8 +10,28 @@ from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.types import ChatMessage
 
 from .base_helpers import tool_call_name as _tool_call_name_impl
+from .tool_router import ToolRouter
 from .tool_policy_helpers import first_page_intent_kind as _first_page_intent_kind_impl
-from .turn_research_helpers import extract_last_user_text as _extract_last_user_text_impl
+from .turn_research_helpers import (
+    extract_last_user_text as _extract_last_user_text_impl,
+)
+
+
+def _is_missing_active_form_result(result: ToolResult) -> bool:
+    if result.success or result.name != "ui_get_form_state":
+        return False
+    if str(result.error_type or "").strip() == "form_session_not_found":
+        return True
+    lowered_error = str(result.error or "").strip().lower()
+    return any(
+        token in lowered_error
+        for token in (
+            "active form",
+            "form session",
+            "no form session",
+            "未找到活动中的表单会话",
+        )
+    )
 
 
 def build_page_no_progress_recovery(
@@ -31,6 +51,7 @@ def build_page_no_progress_recovery(
 
     from app.ai.tools.semantic_defaults import (
         page_context_available_ui_tools,
+        page_context_has_active_form,
         page_context_payload,
     )
 
@@ -56,7 +77,23 @@ def build_page_no_progress_recovery(
     snapshot_calls = [result for result in tool_results if result.name == "ui_get_snapshot"]
     repeated_snapshot = len(snapshot_calls) > 1
     only_snapshot_round = set(round_tool_names) == {"ui_get_snapshot"}
-    if not repeated_snapshot and not only_snapshot_round:
+    failed_page_navigation_action = any(
+        not result.success and result.name in {"ui_click", "ui_open_surface"}
+        for result in tool_results
+    )
+    navigation_action_no_progress = (
+        page_intent_kind == "page_navigation" and failed_page_navigation_action
+    )
+    missing_form_session_no_progress = (
+        page_intent_kind == "page_form_write"
+        and any(_is_missing_active_form_result(result) for result in tool_results)
+    )
+    if (
+        not repeated_snapshot
+        and not only_snapshot_round
+        and not navigation_action_no_progress
+        and not missing_form_session_no_progress
+    ):
         return None, [], {}
 
     available_tool_names = {tool.name for tool in tools}
@@ -90,15 +127,33 @@ def build_page_no_progress_recovery(
             "ui_read_region",
             "ui_get_snapshot",
         ],
-        "page_form_write": [
-            "ui_fill_form",
-            "ui_set_field",
-            "ui_submit_form",
-        ],
         "page_screenshot": [
             "ui_get_snapshot",
         ],
     }
+    if page_intent_kind == "page_form_read" and not page_context_has_active_form(page_context):
+        recovery_preferences["page_form_read"] = [
+            "ui_list_interactables",
+            "ui_click",
+            "ui_open_surface",
+            "ui_get_form_state",
+            "ui_read_region",
+            "ui_get_snapshot",
+        ]
+    if page_intent_kind == "page_form_write":
+        if page_context_has_active_form(page_context):
+            recovery_preferences["page_form_write"] = [
+                "ui_fill_form",
+                "ui_set_field",
+                "ui_submit_form",
+            ]
+        else:
+            recovery_preferences["page_form_write"] = list(
+                ToolRouter.page_intent_tool_preferences(
+                    "page_form_write",
+                    input_variables=input_variables,
+                )[1]
+            )
     preferred_tool_names = [
         name
         for name in recovery_preferences.get(page_intent_kind, [])
@@ -108,9 +163,16 @@ def build_page_no_progress_recovery(
         return None, [], {}
 
     page_key = str(page_context.get("page_key") or "").strip()
-    recovery_reason = (
-        "repeated_ui_get_snapshot" if repeated_snapshot else "page_snapshot_only_round"
-    )
+    if navigation_action_no_progress:
+        recovery_reason = "page_navigation_failed_no_progress"
+    elif missing_form_session_no_progress:
+        recovery_reason = "page_form_session_missing"
+    else:
+        recovery_reason = (
+            "repeated_ui_get_snapshot"
+            if repeated_snapshot
+            else "page_snapshot_only_round"
+        )
     hint = render_contract("page_flow_recovery")
     return (
         hint,

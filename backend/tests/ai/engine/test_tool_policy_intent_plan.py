@@ -123,6 +123,30 @@ def test_detect_requested_turn_intents_uses_runtime_intent_facts(
     assert intents == ["weather", "page_summary"]
 
 
+def test_detect_requested_turn_intents_prefers_active_page_intent_over_stale_summary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _fail_plan_turn(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("IntentPlanner.plan_turn should not be called")
+
+    monkeypatch.setattr(IntentPlanner, "plan_turn", _fail_plan_turn)
+
+    input_variables = {
+        "_runtime_intent_facts": {
+            "requested_intents": ["weather", "page_summary"],
+            "active_intent_kind": "page_navigation",
+        }
+    }
+
+    intents = detect_requested_turn_intents(
+        "先查天气，再去供应商页面",
+        tools=[ToolDefinition(name="ui_open_surface")],
+        input_variables=input_variables,
+    )
+
+    assert intents == ["weather", "page_navigation"]
+
+
 def test_first_page_intent_kind_uses_runtime_intent_facts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -169,6 +193,38 @@ def test_collect_completed_turn_intents_tracks_rail_search_evidence() -> None:
     )
 
     assert "rail_ticket_research" in completed
+
+
+def test_collect_completed_turn_intents_uses_active_page_intent_over_stale_summary() -> None:
+    messages = [
+        ChatMessage(
+            role="assistant",
+            content="",
+            tool_calls=[
+                {
+                    "function": {
+                        "name": "ui_get_snapshot",
+                        "arguments": {},
+                    },
+                    "success": True,
+                }
+            ],
+        )
+    ]
+
+    completed = collect_completed_turn_intents(
+        messages,
+        tools=[],
+        input_variables={
+            "_runtime_intent_facts": {
+                "requested_intents": ["page_summary"],
+                "active_intent_kind": "page_navigation",
+            }
+        },
+    )
+
+    assert "page_summary" not in completed
+    assert "page_navigation" not in completed
 
 
 def test_collect_completed_turn_intents_tracks_rail_fetch_evidence() -> None:

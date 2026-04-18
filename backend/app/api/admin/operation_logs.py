@@ -142,6 +142,67 @@ class AdminOperationLogController(GlobalController):
                 message=_("common.success"),
             )
 
+        @router.get(
+            "/export", summary="导出操作日志 CSV / Export operation logs as CSV"
+        )
+        @action_read("action.operation_log.list")
+        async def export_logs(
+            request: Request,
+            db: DbSession,
+            spec: QueryParams,
+            current_admin: ActiveAdmin,
+        ):
+            """
+            导出操作日志为 CSV（最多 10000 条） / Export operation logs as CSV (max 10000 records)
+
+            支持与列表相同的筛选参数 / Supports same filter params as list
+
+            权限 / Permission: operation_log:list
+            """
+            from app.core.csv_export import MAX_EXPORT_ROWS, csv_streaming_response
+
+            spec.size = MAX_EXPORT_ROWS
+            spec.page = 1
+            service = OperationLogService(db)
+            items, _total = await service.query_admin_logs_by_permission(
+                admin=current_admin,
+                spec=spec,
+            )
+            serialized_items = await service.serialize_logs(items)
+
+            rows = [
+                {
+                    "id": item.get("id", ""),
+                    "username": item.get("display_name")
+                    or item.get("nickname")
+                    or item.get("username")
+                    or "",
+                    "module": item.get("module_label") or item.get("module") or "-",
+                    "action": item.get("action_label") or item.get("action") or "-",
+                    "ip": item.get("ip") or "",
+                    "response_code": item.get("response_code", ""),
+                    "created_at": (
+                        item.get("created_at")
+                        if isinstance(item.get("created_at"), str)
+                        else serialize_datetime_for_api(item.get("created_at"))
+                        or str(item.get("created_at", ""))
+                    ),
+                }
+                for item in serialized_items
+            ]
+
+            columns = [
+                {"field": "id", "header": "ID"},
+                {"field": "username", "header": _("operation_log.username")},
+                {"field": "module", "header": _("operation_log.module")},
+                {"field": "action", "header": _("operation_log.action")},
+                {"field": "ip", "header": "IP"},
+                {"field": "response_code", "header": _("operation_log.response_code")},
+                {"field": "created_at", "header": _("common.createdAt")},
+            ]
+
+            return csv_streaming_response(rows, columns, "operation_logs.csv")
+
         @router.get("/{log_id}", summary="获取操作日志详情 / Get operation log detail")
         @action_read("action.operation_log.detail")
         async def get_log(
@@ -170,61 +231,6 @@ class AdminOperationLogController(GlobalController):
                 data=await service.serialize_log(log),
                 message=_("common.success"),
             )
-
-        @router.get(
-            "/export", summary="导出操作日志 CSV / Export operation logs as CSV"
-        )
-        @action_read("action.operation_log.list")
-        async def export_logs(
-            request: Request,
-            db: DbSession,
-            spec: QueryParams,
-            current_admin: ActiveAdmin,
-        ):
-            """
-            导出操作日志为 CSV（最多 10000 条） / Export operation logs as CSV (max 10000 records)
-
-            支持与列表相同的筛选参数 / Supports same filter params as list
-
-            权限 / Permission: operation_log:list
-            """
-            from app.core.csv_export import MAX_EXPORT_ROWS, csv_streaming_response
-
-            spec.size = MAX_EXPORT_ROWS
-            spec.page = 1
-            service = OperationLogService(db)
-            items, _ = await service.query_admin_logs_by_permission(
-                admin=current_admin,
-                spec=spec,
-            )
-
-            rows = [
-                {
-                    "id": item.id,
-                    "username": getattr(item, "username", ""),
-                    "module": getattr(item, "module", ""),
-                    "action": getattr(item, "action", ""),
-                    "ip": getattr(item, "ip", ""),
-                    "response_code": getattr(item, "response_code", ""),
-                    "created_at": serialize_datetime_for_api(
-                        getattr(item, "created_at", None)
-                    )
-                    or str(getattr(item, "created_at", "")),
-                }
-                for item in items
-            ]
-
-            columns = [
-                {"field": "id", "header": "ID"},
-                {"field": "username", "header": _("operation_log.username")},
-                {"field": "module", "header": _("operation_log.module")},
-                {"field": "action", "header": _("operation_log.action")},
-                {"field": "ip", "header": "IP"},
-                {"field": "response_code", "header": _("operation_log.response_code")},
-                {"field": "created_at", "header": _("common.createdAt")},
-            ]
-
-            return csv_streaming_response(rows, columns, "operation_logs.csv")
 
         @router.delete("", summary="批量删除操作日志 / Batch delete operation logs")
         @action_delete("action.operation_log.delete")

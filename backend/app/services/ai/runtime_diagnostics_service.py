@@ -192,6 +192,10 @@ class RuntimeDiagnosticsService:
                 conversation_id=conversation_id,
                 turn=turn,
             )
+            if call_log is not None:
+                conversation_turn = await self._resolve_conversation_turn_for_call_log(
+                    call_log=call_log
+                )
 
         if call_log is None and conversation_turn is None:
             raise NotFoundException(message="AI call log not found")
@@ -355,6 +359,15 @@ class RuntimeDiagnosticsService:
             conversation_id=conversation_id,
             turn=turn,
         )
+
+    async def _resolve_conversation_turn_for_call_log(
+        self,
+        *,
+        call_log: AICallLog | None,
+    ) -> dict[str, Any] | None:
+        return await RuntimeDiagnosticsQueryService(
+            self
+        ).resolve_conversation_turn_for_call_log(call_log=call_log)
 
     async def _resolve_call_log(
         self,

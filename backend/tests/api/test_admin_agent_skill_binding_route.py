@@ -57,13 +57,13 @@ async def test_update_skill_binding_uses_grant_id_keyword() -> None:
             db,
             59,
             16,
-            AgentSkillGrantUpdate(default_consent_mode="ask"),
+            AgentSkillGrantUpdate(enabled=False),
             admin,
         )
 
     grant_service.update_grant.assert_awaited_once_with(
         grant_id=16,
-        data={"default_consent_mode": "ask"},
+        data={"enabled": False},
     )
     db.commit.assert_awaited_once()
     assert response["code"] == 0

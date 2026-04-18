@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from importlib import import_module
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -12,9 +13,12 @@ from app.ai.engine.conversation_result_projector import (
     build_turn_projection,
     coerce_turn_record_payload,
 )
+from app.ai.engine.final_output_policy import build_untrusted_final_output_fallback
 from app.ai.engine.types import ExecutionRequest, PreparedExecution
 from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage, ChatResponse
+
+conversation_entrypoints_module = import_module("app.ai.engine.conversation_entrypoints")
 
 
 @dataclass
@@ -130,8 +134,70 @@ def test_build_execution_result_accepts_explicit_diagnostics_without_projection(
         diagnostics={"failure_kind": "provider_timeout"},
     )
 
-    assert result.diagnostics == {"failure_kind": "provider_timeout"}
+    assert result.diagnostics["failure_kind"] == "provider_timeout"
+    assert isinstance(result.diagnostics.get("turn_flow"), dict)
     assert result.turn_record is None
+
+
+def test_build_execution_result_sanitizes_untrusted_output_for_turn_flow(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, str] = {}
+
+    def _fake_build_turn_flow_view_model(**kwargs):
+        captured["output"] = str(kwargs.get("output") or "")
+        return {
+            "timeline": [],
+            "evidence": [],
+            "answer_card": {},
+            "completion_reason": "completed",
+            "interrupted": False,
+            "error_surface": None,
+        }
+
+    monkeypatch.setattr(
+        "app.ai.engine.conversation_result_projector.build_turn_flow_view_model",
+        _fake_build_turn_flow_view_model,
+    )
+
+    projection = build_turn_projection(
+        raw_turn_record={},
+        diagnostics_payload={"final_output_source": "tool_evidence_completed"},
+        execution_path="fast",
+        completion_reason="completed",
+        partial=False,
+        final_output_source="tool_evidence_completed",
+    )
+    build_execution_result(
+        success=True,
+        output="fetched snippet should not be trusted answer",
+        messages=[],
+        tool_results=[],
+        total_tokens=0,
+        duration_ms=0,
+        conversation_id=None,
+        runtime_model_info=None,
+        completion_reason="completed",
+        turn_projection=projection,
+    )
+
+    assert captured["output"] == ""
+
+
+def test_build_untrusted_final_output_fallback_returns_safe_text() -> None:
+    fallback = build_untrusted_final_output_fallback(
+        auto_fetch_gate_reason="search_not_successful"
+    )
+    assert fallback == ""
+    assert "http" not in fallback.lower()
+
+    no_results = build_untrusted_final_output_fallback(
+        auto_fetch_gate_reason="search_no_results_completed"
+    )
+    assert no_results == ""
+
+    generic_fallback = build_untrusted_final_output_fallback()
+    assert generic_fallback.strip()
 
 
 @pytest.mark.asyncio
@@ -182,7 +248,8 @@ async def test_conversation_engine_execute_projects_turn_result_with_shared_help
 
     with pytest.MonkeyPatch.context() as mp:
         mp.setattr(
-            "app.ai.engine.conversation_entrypoints.TurnExecutor.run",
+            conversation_entrypoints_module.TurnExecutor,
+            "run",
             AsyncMock(side_effect=_fake_run),
         )
         result = await engine.execute(

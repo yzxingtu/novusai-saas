@@ -156,7 +156,7 @@ class UserAgentChatController(BaseController):
                 trust_policy_ref=data.trust_policy_ref.model_dump()
                 if data.trust_policy_ref
                 else None,
-                interaction_mode=data.interaction_mode,
+                interaction_mode="trusted_auto",
             )
 
             return success(data=result.model_dump())
@@ -228,7 +228,7 @@ class UserAgentChatController(BaseController):
                 trust_policy_ref=data.trust_policy_ref.model_dump()
                 if data.trust_policy_ref
                 else None,
-                interaction_mode=data.interaction_mode,
+                interaction_mode="trusted_auto",
             )
 
         # ========================================

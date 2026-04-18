@@ -5,6 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from app.ai.tools.semantic_defaults import (
+    page_context_has_active_form,
+    page_context_payload,
+)
 from app.ai.tools.types import ToolDefinition
 
 from .types import ExecutionBudget, IntentPlan
@@ -28,10 +32,10 @@ class ToolRouter:
         ),
         "page_navigation": (
             [
-                "ui_get_snapshot",
                 "ui_list_interactables",
                 "ui_click",
                 "ui_open_surface",
+                "ui_get_snapshot",
             ],
             [
                 "ui_list_interactables",
@@ -88,20 +92,6 @@ class ToolRouter:
                 "ui_get_snapshot",
             ],
         ),
-        "page_form_write": (
-            [
-                "ui_open_surface",
-                "ui_get_form_state",
-                "ui_fill_form",
-                "ui_submit_form",
-            ],
-            [
-                "ui_fill_form",
-                "ui_submit_form",
-                "ui_get_form_state",
-                "ui_open_surface",
-            ],
-        ),
         "page_screenshot": (
             [
                 "ui_get_snapshot",
@@ -133,6 +123,78 @@ class ToolRouter:
             ],
         ),
     }
+
+    @classmethod
+    def page_intent_tool_preferences(
+        cls,
+        intent_kind: str,
+        *,
+        input_variables: dict[str, Any] | None = None,
+    ) -> tuple[list[str], list[str]]:
+        if intent_kind == "page_form_read":
+            page_context = page_context_payload(input_variables)
+            if page_context_has_active_form(page_context):
+                return cls._PAGE_INTENT_TOOL_MAP.get(intent_kind, ([], []))
+
+            return (
+                [
+                    "ui_list_interactables",
+                    "ui_click",
+                    "ui_open_surface",
+                    "ui_get_form_state",
+                    "ui_read_region",
+                    "ui_get_snapshot",
+                ],
+                [
+                    "ui_list_interactables",
+                    "ui_click",
+                    "ui_open_surface",
+                    "ui_get_form_state",
+                    "ui_read_region",
+                    "ui_get_snapshot",
+                ],
+            )
+
+        if intent_kind != "page_form_write":
+            return cls._PAGE_INTENT_TOOL_MAP.get(intent_kind, ([], []))
+
+        page_context = page_context_payload(input_variables)
+        if page_context_has_active_form(page_context):
+            return (
+                [
+                    "ui_get_form_state",
+                    "ui_fill_form",
+                    "ui_set_field",
+                    "ui_submit_form",
+                    "ui_open_surface",
+                ],
+                [
+                    "ui_fill_form",
+                    "ui_set_field",
+                    "ui_submit_form",
+                    "ui_get_form_state",
+                    "ui_open_surface",
+                ],
+            )
+
+        return (
+            [
+                "ui_list_interactables",
+                "ui_open_surface",
+                "ui_click",
+                "ui_get_form_state",
+                "ui_fill_form",
+                "ui_submit_form",
+            ],
+            [
+                "ui_list_interactables",
+                "ui_open_surface",
+                "ui_click",
+                "ui_get_form_state",
+                "ui_fill_form",
+                "ui_submit_form",
+            ],
+        )
 
     @classmethod
     def route(
@@ -201,8 +263,11 @@ class ToolRouter:
                 )
                 continue
 
-            if intent.kind in cls._PAGE_INTENT_TOOL_MAP:
-                names, preferred = cls._PAGE_INTENT_TOOL_MAP[intent.kind]
+            if intent.kind in cls._PAGE_INTENT_TOOL_MAP or intent.kind == "page_form_write":
+                names, preferred = cls.page_intent_tool_preferences(
+                    intent.kind,
+                    input_variables=input_variables,
+                )
                 register(intent, names, preferred)
                 continue
 

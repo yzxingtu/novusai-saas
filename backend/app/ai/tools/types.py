@@ -232,7 +232,7 @@ class ExecutionContext:
     variables: dict[str, Any] = field(default_factory=dict)
     page_session_id: str | None = None
     conversation_id: int | None = None
-    interaction_mode: str = "confirm"
+    interaction_mode: str = "trusted_auto"
     runtime_provider_id: int | None = None
     runtime_provider_name: str | None = None
     runtime_model_id: int | None = None

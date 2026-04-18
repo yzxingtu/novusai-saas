@@ -131,8 +131,13 @@ async def run_tool_followup(
         total_tokens=total_tokens,
     )
     if completion_reason:
+        grace_active = bool(
+            execution_budget is not None
+            and bool(getattr(execution_budget, "finalization_grace_applied", False))
+        )
         if (
             completion_reason == "elapsed_budget_exceeded"
+            and grace_active
             and not next_response.tool_calls
             and str(next_response.message.content or "").strip()
         ):

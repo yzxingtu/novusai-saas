@@ -163,6 +163,21 @@ class ExecutionStateMachine:
                 "exit_reason": normalized_exit_reason,
                 "tool_rounds_used": int(usage.get("tool_rounds_used") or 0),
                 "completion_tokens_used": int(usage.get("completion_tokens_used") or 0),
+                "elapsed_ms_used": int(usage.get("elapsed_ms_used") or 0),
+                "elapsed_limit_ms": int(
+                    snapshot.get("elapsed_limit_ms")
+                    or usage.get("elapsed_limit_ms")
+                    or 0
+                ),
+                "elapsed_over_limit": bool(
+                    snapshot.get("elapsed_over_limit")
+                    or usage.get("elapsed_over_limit")
+                ),
+                "elapsed_over_limit_ms": int(
+                    snapshot.get("elapsed_over_limit_ms")
+                    or usage.get("elapsed_over_limit_ms")
+                    or 0
+                ),
                 "tool_result_bytes_used": int(usage.get("tool_result_bytes_used") or 0),
             },
         )

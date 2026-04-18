@@ -75,6 +75,7 @@ class AIProviderWebSearchConfig(BaseModel):
         default_factory=lambda: ["baidu", "so360"],
         min_length=1,
     )
+    prefer_hosted_tool: bool = False
     allow_unverified_runtime_target: bool = False
     verified_native_target: "AIProviderWebSearchVerifiedTarget | None" = None
 

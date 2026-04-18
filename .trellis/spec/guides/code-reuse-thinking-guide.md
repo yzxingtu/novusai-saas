@@ -87,7 +87,9 @@ We already ship shared helpers for:
   `transformAttachmentInfo`)
 - Backend tenants (`TenantController`, `TenantService`, `TenantRepository`)
 - Responses (`success()`, `error()`, `build_error_payload()`)
-- UI Runtime/page operation extensions (`use-ai-operations`, `use-ui-action-channel`, protocol-aligned page metadata, etc.)
+- UI Runtime/page operation extensions (`use-page-ai-operation-helpers`,
+  `use-form-state-tracker`, `use-ui-action-channel`, protocol-aligned page
+  metadata, etc.)
 
 Examples:
 
@@ -99,7 +101,7 @@ Examples:
 - Shared CRUD composables:
   `frontend/apps/web-antd/src/composables/use-crud-list.ts`,
   `frontend/apps/web-antd/src/composables/use-crud-form.ts`, and
-  `frontend/apps/web-antd/src/composables/use-ai-operations.ts`
+  `frontend/apps/web-antd/src/composables/use-page-ai-operation-helpers.ts`
 - Tenant stack sample: `backend/app/api/tenant/domains.py` → `TenantService` →
   `TenantRepository` → `success()`
 
@@ -200,8 +202,9 @@ Examples & anti-pattern:
 ### Plugin + UI Runtime Helpers
 
 - Extend UI behavior through shared runtime helpers such as
-  `use-ai-operations.ts` and `use-ui-action-channel.ts`, not through legacy
-  `ai.extra` / page-level registration fallback.
+  `use-page-ai-operation-helpers.ts`, `use-form-state-tracker.ts`, and
+  `use-ui-action-channel.ts`, not through legacy page registries or ad-hoc
+  bridge channels.
 - Keep page context payloads thin and serializable, and use `ui_get_snapshot`
   plus `ui_read_*` for on-demand detail reads.
 - Reuse `use-ui-action-channel.ts` for `ui_*` action handling and avoid
@@ -212,7 +215,8 @@ Examples & anti-pattern:
 Examples & anti-pattern:
 
 - `frontend/apps/web-antd/src/views/admin/ai/agents/index.vue`
-- `frontend/apps/web-antd/src/composables/use-ai-operations.ts`
+- `frontend/apps/web-antd/src/composables/use-page-ai-operation-helpers.ts`
+- `frontend/apps/web-antd/src/composables/use-form-state-tracker.ts`
 - Anti-pattern: manually wiring ad-hoc runtime action pipelines, legacy bridge
   channels, or plugin runtime gating.
 

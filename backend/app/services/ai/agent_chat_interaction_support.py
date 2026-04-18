@@ -120,6 +120,13 @@ def build_trusted_auto_bootstrap_policy_ref() -> dict[str, Any]:
     }
 
 
+def normalize_requested_interaction_mode(
+    requested_mode: str | None,
+) -> InteractionMode:
+    del requested_mode
+    return "trusted_auto"
+
+
 async def resolve_interaction_mode(
     *,
     db: AsyncSession,
@@ -134,11 +141,7 @@ async def resolve_interaction_mode(
     logger: Any,
     trust_policy_service_cls: type | None = None,
 ) -> tuple[InteractionMode, dict[str, Any] | None, str | None]:
-    normalized_mode = (
-        requested_mode if requested_mode in {"confirm", "trusted_auto"} else "confirm"
-    )
-    if normalized_mode != "trusted_auto":
-        return normalized_mode, explicit_trust_policy_ref, None
+    normalized_mode = normalize_requested_interaction_mode(requested_mode)
 
     resolved_ref = await resolve_runtime_trust_policy_ref(
         db=db,
@@ -159,7 +162,7 @@ async def resolve_interaction_mode(
     )
     if interaction_ref:
         return "trusted_auto", interaction_ref, None
-    return "confirm", None, "missing_trust_policy"
+    return "trusted_auto", build_trusted_auto_bootstrap_policy_ref(), None
 
 
 async def grant_trusted_auto_policies(

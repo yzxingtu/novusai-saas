@@ -20,6 +20,12 @@ from app.enums.agent import MessageRoleEnum
 from app.models.ai.agent_conversation import AgentConversation
 from app.models.ai.conversation_message import ConversationMessage
 from app.models.tenant.attachment import Attachment
+from app.services.ai.conversation_turn_flow_projector import (
+    ConversationTurnFlowProjector,
+)
+from app.services.ai.agent_chat_interaction_support import (
+    normalize_requested_interaction_mode,
+)
 from app.services.tenant.attachment_download_service import AttachmentDownloadService
 
 if TYPE_CHECKING:
@@ -146,18 +152,27 @@ class ConversationReadModelService:
             msg_dict["agent_name"] = None
             msg_dict["agent_avatar"] = None
         runtime_meta = msg.metadata_ if isinstance(msg.metadata_, dict) else {}
+        metadata_payload = dict(msg_dict.get("metadata") or {})
+        if runtime_meta:
+            metadata_payload.update(runtime_meta)
         hydrated_attachments = await self.hydrate_chat_attachments(
             runtime_meta.get("attachments")
         )
         if hydrated_attachments is not None:
-            metadata_payload = dict(msg_dict.get("metadata") or {})
             metadata_payload["attachments"] = hydrated_attachments
+        if metadata_payload:
             msg_dict["metadata"] = metadata_payload
         msg_dict["model_name"] = runtime_meta.get("model_name")
         if not msg_dict["model_name"] and getattr(msg, "model", None) is not None:
             msg_dict["model_name"] = msg.model.name
         msg_dict["provider_id"] = runtime_meta.get("provider_id")
         msg_dict["provider_name"] = runtime_meta.get("provider_name")
+        turn_flow = ConversationTurnFlowProjector.project_from_message_payload(msg_dict)
+        if turn_flow is not None:
+            msg_dict["turn_flow"] = turn_flow
+            metadata_payload = dict(msg_dict.get("metadata") or {})
+            metadata_payload["turn_flow"] = turn_flow
+            msg_dict["metadata"] = metadata_payload
         return msg_dict
 
     async def serialize_conversation_messages(
@@ -268,12 +283,18 @@ class ConversationReadModelService:
         conversation_metadata: dict[str, Any] | None,
     ) -> tuple[str, str]:
         metadata = conversation_metadata if isinstance(conversation_metadata, dict) else {}
-        interaction_mode_requested = str(
+        raw_requested_mode = str(
             metadata.get("interaction_mode_requested")
             or metadata.get("interaction_mode")
-            or "confirm"
+            or "trusted_auto"
         )
-        interaction_mode_effective = str(metadata.get("interaction_mode") or "confirm")
+        raw_effective_mode = str(metadata.get("interaction_mode") or "trusted_auto")
+        interaction_mode_requested = normalize_requested_interaction_mode(
+            raw_requested_mode
+        )
+        interaction_mode_effective = normalize_requested_interaction_mode(
+            raw_effective_mode
+        )
         return interaction_mode_requested, interaction_mode_effective
 
     @staticmethod
@@ -324,6 +345,9 @@ class ConversationReadModelService:
         }
         if conversation_last_error:
             payload["last_error"] = conversation_last_error
+        payload["turn_flow"] = ConversationTurnFlowProjector.build_error_only_turn_flow(
+            conversation_last_error=conversation_last_error
+        )
         return payload
 
     @staticmethod

@@ -1,3 +1,4 @@
+# FROZEN: do not add new dependencies
 """Focused helpers for stream finalization payloads and turn records."""
 
 from __future__ import annotations
@@ -5,8 +6,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from app.middleware.trace import trace_id_var
+
 from .conversation_result_projector import coerce_turn_record_payload
 from .stream_generation_view import ensure_stream_generation_view
+from .turn_flow_projector import resolve_final_stage_status
 from .types import ExecutionResult
 
 
@@ -73,9 +77,20 @@ def build_done_event_payload(
     on_complete_extra: dict[str, Any] | None,
 ) -> dict[str, Any]:
     diagnostics_payload = artifacts.diagnostics_payload
+    turn_record = artifacts.result.turn_record or diagnostics_payload
+    turn_flow = None
+    if isinstance(turn_record, dict):
+        turn_flow = turn_record.get("turn_flow")
+    if not isinstance(turn_flow, dict) and isinstance(diagnostics_payload, dict):
+        turn_flow = diagnostics_payload.get("turn_flow")
+    completion_reason = artifacts.result.completion_reason
     return {
         "event": "done",
         "conversation_id": getattr(request, "conversation_id", None),
+        "trace_id": trace_id_var.get() or None,
+        "completion_reason": completion_reason,
+        "turn_flow_complete": True,
+        "final_stage_status": resolve_final_stage_status(turn_flow),
         "total_tokens": artifacts.result.total_tokens,
         "duration_ms": artifacts.result.duration_ms,
         "context_compacted": artifacts.result.context_compacted,
@@ -83,12 +98,12 @@ def build_done_event_payload(
         "memory_recalled": artifacts.result.memory_recalled,
         "prune_stats": artifacts.result.prune_stats,
         "rag_source_kinds": artifacts.result.rag_source_kinds,
-        "turn_record": artifacts.result.turn_record or diagnostics_payload,
+        "turn_record": turn_record,
         "turn_outcome": resolve_done_turn_outcome(
             diagnostics_payload=diagnostics_payload,
             turn_record=artifacts.result.turn_record,
         ),
-        "termination_reason": artifacts.result.completion_reason,
+        "termination_reason": completion_reason,
         "protocol_path": artifacts.resolved_protocol_path,
         "selected_tool_names": (
             diagnostics_payload.get("selected_tool_names")

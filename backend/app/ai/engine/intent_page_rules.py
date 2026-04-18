@@ -22,6 +22,8 @@ first_position = _first_position
 has_page_context = _has_page_context
 page_operation_names = _page_operation_names
 
+_EXPLICIT_EXTERNAL_URL_RE = re.compile(r"https?://[^\s<>()\[\]\"']+", re.IGNORECASE)
+
 _PAGE_POINTER_TERMS = (
     "这个页面",
     "当前页面",
@@ -96,6 +98,10 @@ _PAGE_FORM_READ_TERMS = (
     "读取表单",
     "查看表单",
     "当前表单",
+    "必填项",
+    "必填字段",
+    "required fields",
+    "required field",
     "form state",
     "form options",
     "read form",
@@ -249,6 +255,15 @@ _PAGE_CONTINUE_ACTION_TERMS = (
 )
 
 
+def _page_context_from_input_variables(
+    input_variables: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    if not isinstance(input_variables, dict):
+        return None
+    page_context = input_variables.get("page_context")
+    return page_context if isinstance(page_context, dict) else None
+
+
 def looks_like_short_directive_follow_up(text: str) -> bool:
     normalized = re.sub(r"\s+", "", str(text or "").strip().lower())
     if not normalized:
@@ -278,12 +293,13 @@ def page_continuation_intent_kind(
     continuation_context: Any | None,
 ) -> str:
     lowered = clause.lower()
+    page_context = _page_context_from_input_variables(input_variables)
     if first_position(lowered, _PAGE_CONTINUE_SCREENSHOT_TERMS) >= 0 or (
         first_position(lowered, _PAGE_SCREENSHOT_TERMS) >= 0
         and looks_like_page_follow_up(lowered)
     ):
         return "page_screenshot"
-    if has_navigation_intent(clause, None) or any(
+    if has_navigation_intent(clause, page_context) or any(
         token in lowered for token in ("点进去", "点开", "打开", "进入", "展开")
     ):
         return "page_navigation"
@@ -379,6 +395,17 @@ def looks_like_read_only_form_instruction(lowered: str) -> bool:
     )
 
 
+def explicit_external_url_position(clause: str) -> int:
+    match = _EXPLICIT_EXTERNAL_URL_RE.search(str(clause or "").strip())
+    return match.start() if match else -1
+
+
+def looks_like_required_field_form_read(lowered: str) -> bool:
+    if "表单" not in lowered and "form" not in lowered:
+        return False
+    return any(token in lowered for token in ("必填", "required"))
+
+
 def detect_page_signal(
     *,
     clause: str,
@@ -387,6 +414,28 @@ def detect_page_signal(
 ) -> PageIntentSignal | None:
     lowered = clause.lower()
     if not has_page_context(input_variables):
+        return None
+    page_context = _page_context_from_input_variables(input_variables)
+    explicit_url_position = explicit_external_url_position(clause)
+    explicit_page_reference = (
+        first_position(
+            lowered,
+            _PAGE_POINTER_TERMS
+            + _PAGE_FORM_READ_TERMS
+            + _PAGE_SEARCH_TERMS
+            + _PAGE_SCREENSHOT_TERMS
+            + _PAGE_EDITOR_READ_TERMS
+            + _PAGE_EDITOR_WRITE_TERMS
+            + _PAGE_ROW_DETAIL_TERMS
+            + _PAGE_CAPABILITY_TERMS,
+        )
+        >= 0
+    )
+    if (
+        explicit_url_position >= 0
+        and not explicit_page_reference
+        and not has_navigation_intent(clause, page_context)
+    ):
         return None
 
     page_position = first_position(
@@ -443,7 +492,7 @@ def detect_page_signal(
         )
 
     nav_position = first_position(lowered, _PAGE_NAV_TERMS)
-    if has_navigation_intent(clause, None) or nav_position >= 0:
+    if has_navigation_intent(clause, page_context) or nav_position >= 0:
         add_candidate(
             "page_navigation",
             "page_navigation",
@@ -487,12 +536,18 @@ def detect_page_signal(
     ):
         add_candidate("page_form_write", "page_form_write", form_write_position, 4)
 
-    add_candidate(
-        "page_form_read",
-        "page_form_read",
-        first_position(lowered, _PAGE_FORM_READ_TERMS),
-        5,
-    )
+    form_read_position = first_position(lowered, _PAGE_FORM_READ_TERMS)
+    if looks_like_required_field_form_read(lowered):
+        form_anchor = lowered.find("表单")
+        if form_anchor < 0:
+            form_anchor = lowered.find("form")
+        required_anchor = lowered.find("必填")
+        if required_anchor < 0:
+            required_anchor = lowered.find("required")
+        for anchor in (form_anchor, required_anchor):
+            if anchor >= 0 and (form_read_position < 0 or anchor < form_read_position):
+                form_read_position = anchor
+    add_candidate("page_form_read", "page_form_read", form_read_position, 5)
 
     search_position = first_position(lowered, _PAGE_SEARCH_TERMS)
     if search_position < 0 and looks_like_page_search_request(lowered):
@@ -539,6 +594,7 @@ __all__ = [
     "looks_like_page_follow_up",
     "looks_like_page_jump_request",
     "looks_like_page_search_request",
+    "looks_like_required_field_form_read",
     "looks_like_read_only_form_instruction",
     "page_continuation_intent_kind",
     "page_operation_names",

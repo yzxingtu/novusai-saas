@@ -469,7 +469,9 @@ class ConversationInteractionService:
                             evidence_payload = dict(decision_payload.get("evidence") or {})
                             evidence_payload.update(interaction_context)
                             decision_payload["evidence"] = evidence_payload
-                        mode_tag = f"interaction_mode={interaction_mode_effective or 'confirm'}"
+                        mode_tag = (
+                            f"interaction_mode={interaction_mode_effective or 'trusted_auto'}"
+                        )
                         reason = str(decision_payload.get("reason") or "").strip()
                         decision_payload["reason"] = (
                             f"{reason}|{mode_tag}" if reason else mode_tag

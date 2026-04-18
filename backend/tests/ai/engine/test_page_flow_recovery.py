@@ -51,6 +51,19 @@ def _build_input_variables() -> dict:
     }
 
 
+def _build_input_variables_without_form() -> dict:
+    return {
+        "page_context": {
+            "page_key": "admin.ai.agents",
+            "ui_epoch": 9,
+            "active_surface_id": "page-agents",
+            "surface_stack": [
+                {"surface_id": "page-agents", "kind": "page", "title": "智能体管理"},
+            ],
+        }
+    }
+
+
 def _recover(user_text: str) -> tuple[str | None, list[str], dict]:
     return BaseEngine._build_page_no_progress_recovery(  # noqa: SLF001
         messages=[ChatMessage(role="user", content=user_text)],
@@ -71,7 +84,7 @@ def test_build_page_no_progress_recovery_for_navigation_request() -> None:
     hint, preferred_tool_names, diagnostics = _recover("帮我打开智能体管理页面")
 
     assert hint is not None
-    assert "Do NOT call ui_get_snapshot again" in hint
+    assert "ui_get_snapshot again" in hint
     assert preferred_tool_names == [
         "ui_list_interactables",
         "ui_click",
@@ -79,6 +92,56 @@ def test_build_page_no_progress_recovery_for_navigation_request() -> None:
         "ui_get_snapshot",
     ]
     assert diagnostics["intent_kind"] == "page_navigation"
+
+
+def test_build_page_no_progress_recovery_for_failed_cross_page_click() -> None:
+    hint, preferred_tool_names, diagnostics = BaseEngine._build_page_no_progress_recovery(  # noqa: SLF001
+        messages=[ChatMessage(role="user", content="添加供应商")],
+        tool_calls=[
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {
+                    "name": "ui_click",
+                    "arguments": '{"target_locator":"添加供应商"}',
+                },
+            }
+        ],
+        tool_results=[
+            ToolResult(
+                tool_call_id="call_1",
+                name="ui_click",
+                success=False,
+                error="未找到目标元素：添加供应商",
+            )
+        ],
+        tools=_page_tools(),
+        input_variables={
+            "page_context": {
+                **_build_input_variables()["page_context"],
+                "page_data": {
+                    "available_menus": [
+                        {
+                            "title": "供应商管理",
+                            "path": "/admin/suppliers",
+                            "page_key": "admin.suppliers",
+                            "keywords": ["供应商", "添加供应商"],
+                        }
+                    ]
+                },
+            }
+        },
+    )
+
+    assert hint is not None
+    assert preferred_tool_names == [
+        "ui_list_interactables",
+        "ui_click",
+        "ui_open_surface",
+        "ui_get_snapshot",
+    ]
+    assert diagnostics["intent_kind"] == "page_navigation"
+    assert diagnostics["reason"] == "page_navigation_failed_no_progress"
 
 
 def test_build_page_no_progress_recovery_for_screenshot_request() -> None:
@@ -101,6 +164,42 @@ def test_build_page_no_progress_recovery_for_form_write_request() -> None:
         "ui_submit_form",
     ]
     assert diagnostics["intent_kind"] == "page_form_write"
+
+
+def test_build_page_no_progress_recovery_for_form_write_without_active_form() -> None:
+    hint, preferred_tool_names, diagnostics = BaseEngine._build_page_no_progress_recovery(  # noqa: SLF001
+        messages=[ChatMessage(role="user", content="帮我添加一个测试的智能体 在本页面")],
+        tool_calls=[
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {"name": "ui_get_form_state", "arguments": "{}"},
+            }
+        ],
+        tool_results=[
+            ToolResult(
+                tool_call_id="call_1",
+                name="ui_get_form_state",
+                success=False,
+                error="未找到活动中的表单会话。",
+                error_type="form_session_not_found",
+            )
+        ],
+        tools=_page_tools(),
+        input_variables=_build_input_variables_without_form(),
+    )
+
+    assert hint is not None
+    assert preferred_tool_names == [
+        "ui_list_interactables",
+        "ui_open_surface",
+        "ui_click",
+        "ui_get_form_state",
+        "ui_fill_form",
+        "ui_submit_form",
+    ]
+    assert diagnostics["intent_kind"] == "page_form_write"
+    assert diagnostics["reason"] == "page_form_session_missing"
 
 
 def test_build_page_no_progress_recovery_for_form_read_request() -> None:

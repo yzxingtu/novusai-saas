@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from app.middleware.audit_log import AuditLogMiddleware
+from app.middleware.audit_log import AuditLogMiddleware, should_log_request
 
 
 @pytest.mark.asyncio
@@ -65,3 +65,7 @@ async def test_audit_log_collects_chunked_json_response_metadata() -> None:
     assert captured["status_code"] == 500
     assert captured["response_code"] == 5000
     assert captured["response_message"] == "failed"
+
+
+def test_should_log_request_skips_root_document_path() -> None:
+    assert should_log_request("/", "GET") is False

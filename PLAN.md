@@ -75,13 +75,14 @@
 |---|---|
 | 3296 | `frontend/apps/web-antd/src/components/business/ai-chat-panel/use-ai-chat.ts` |
 | 3023 | `frontend/apps/web-antd/src/components/business/ai-chat-panel/ChatMessageItem.vue` |
-| 2222 | `frontend/apps/web-antd/src/composables/use-ai-operations.ts` |
 | 2173 | `frontend/apps/web-antd/src/views/admin/ai/agents/detail.vue` |
 | 2072 | `frontend/apps/web-antd/src/views/tenant/ai/agents/detail.vue` |
 | 1796 | `frontend/apps/web-antd/src/views/user/ai-chat/index.vue` |
 | 1769 | `frontend/apps/web-antd/src/components/business/ai-slide-panel/AIChatSlidePanel.vue` |
 | 1246 | `frontend/apps/web-antd/src/features/ai-monitoring/pages/MonitoringConversationDrawer.vue` |
 | 1161 | `frontend/apps/web-antd/src/features/ai-monitoring/pages/MonitoringUsagePage.vue` |
+
+- 历史条目 `frontend/apps/web-antd/src/composables/use-ai-operations.ts` 已在后续重构中拆分清退，现由 `use-page-ai-operation-helpers*.ts` 系列承接。
 
 ## 新架构目标
 
@@ -159,4 +160,3 @@
   - 前端任何文件
 - 必做拆分：
   - `engine/base.py` 拆成 `engine_shared/` 包
- 

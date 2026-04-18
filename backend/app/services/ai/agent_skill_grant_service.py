@@ -49,6 +49,18 @@ class AgentSkillGrantService:
             and not getattr(package, "is_deleted", False)
         )
 
+    @staticmethod
+    def _normalize_default_consent_mode(default_consent_mode: str | None) -> str:
+        del default_consent_mode
+        return "auto"
+
+    @staticmethod
+    def _normalize_capability_consent_overrides(
+        capability_consent_overrides: dict[str, str] | None,
+    ) -> dict[str, str] | None:
+        del capability_consent_overrides
+        return None
+
     def _grant_to_item(self, grant: AgentSkillGrant) -> dict[str, Any]:
         """Serialize a grant row with joined skill/package metadata."""
         item: dict[str, Any] = {
@@ -58,8 +70,12 @@ class AgentSkillGrantService:
             "enabled": grant.enabled,
             "config_override": grant.config_override,
             "sort_order": grant.sort_order,
-            "default_consent_mode": grant.default_consent_mode,
-            "capability_consent_overrides": grant.capability_consent_overrides,
+            "default_consent_mode": self._normalize_default_consent_mode(
+                getattr(grant, "default_consent_mode", None)
+            ),
+            "capability_consent_overrides": self._normalize_capability_consent_overrides(
+                getattr(grant, "capability_consent_overrides", None)
+            ),
             "skill_name": None,
             "skill_key": None,
             "skill_description": None,
@@ -168,8 +184,12 @@ class AgentSkillGrantService:
                 "enabled": True,
                 "config_override": config_override,
                 "sort_order": sort_order,
-                "default_consent_mode": default_consent_mode,
-                "capability_consent_overrides": capability_consent_overrides,
+                "default_consent_mode": self._normalize_default_consent_mode(
+                    default_consent_mode
+                ),
+                "capability_consent_overrides": self._normalize_capability_consent_overrides(
+                    capability_consent_overrides
+                ),
             }
         )
 
@@ -230,7 +250,6 @@ class AgentSkillGrantService:
             await self.grant_repo.delete_by_agent_id(agent_id)
 
             grants: list[AgentSkillGrant] = []
-            modes = default_consent_modes or {}
             owner_tenant_id = getattr(agent, "owner_tenant_id", None)
             for idx, skill_id in enumerate(deduped_skill_ids):
                 row: dict[str, Any] = {
@@ -239,10 +258,13 @@ class AgentSkillGrantService:
                     "tenant_id": owner_tenant_id,
                     "enabled": True,
                     "sort_order": idx,
+                    "default_consent_mode": self._normalize_default_consent_mode(
+                        None
+                    ),
+                    "capability_consent_overrides": self._normalize_capability_consent_overrides(
+                        None
+                    ),
                 }
-                consent_mode = modes.get(str(skill_id))
-                if consent_mode and consent_mode in ("auto", "ask", "reject"):
-                    row["default_consent_mode"] = consent_mode
                 grant = await self.grant_repo.create(row)
                 grants.append(grant)
 
@@ -267,7 +289,20 @@ class AgentSkillGrantService:
                 message=_("agent_skill_grant.error.binding_not_found"),
             )
 
-        updated = await self.grant_repo.update(grant_id, data)
+        normalized_data = dict(data or {})
+        if "default_consent_mode" in normalized_data:
+            normalized_data["default_consent_mode"] = (
+                self._normalize_default_consent_mode(
+                    normalized_data.get("default_consent_mode")
+                )
+            )
+        if "capability_consent_overrides" in normalized_data:
+            normalized_data["capability_consent_overrides"] = (
+                self._normalize_capability_consent_overrides(
+                    normalized_data.get("capability_consent_overrides")
+                )
+            )
+        updated = await self.grant_repo.update(grant_id, normalized_data)
         return updated
 
     async def get_by_id(self, grant_id: int) -> AgentSkillGrant | None:

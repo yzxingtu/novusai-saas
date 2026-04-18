@@ -412,9 +412,32 @@ class TurnDiagnostics:
             "state_history": list(state_history or []),
         }
         if budget_snapshot is not None:
+            budget_usage = (
+                TurnDiagnostics._as_dict(budget_snapshot.get("usage"))
+                if isinstance(budget_snapshot, dict)
+                else {}
+            )
             payload["budget"] = budget_snapshot
             payload["budget_status"] = budget_snapshot.get("status")
             payload["budget_exit_reason"] = budget_snapshot.get("exit_reason")
+            payload["elapsed_over_limit"] = bool(
+                budget_snapshot.get("elapsed_over_limit")
+                or budget_usage.get("elapsed_over_limit")
+            )
+            payload["elapsed_over_limit_ms"] = TurnDiagnostics._as_int(
+                budget_snapshot.get("elapsed_over_limit_ms"),
+                TurnDiagnostics._as_int(
+                    budget_usage.get("elapsed_over_limit_ms"),
+                    0,
+                ),
+            )
+            payload["elapsed_limit_ms"] = TurnDiagnostics._as_int(
+                budget_snapshot.get("elapsed_limit_ms"),
+                TurnDiagnostics._as_int(
+                    budget_usage.get("elapsed_limit_ms"),
+                    0,
+                ),
+            )
         if cache_insights is not None:
             payload["cache_hits"] = dict(cache_insights)
         return payload

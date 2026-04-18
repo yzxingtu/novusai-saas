@@ -36,8 +36,12 @@ if TYPE_CHECKING:
     )
     from app.services.system.system_log_service import (
         LogCategoryInfo,
+        LogContentLineItem,
         LogContentPage,
         LogFileInfo,
+        LogSearchScope,
+        LOG_SCOPE_CATEGORY,
+        LOG_SCOPE_CURRENT_FILE,
         SystemLogService,
     )
     from app.services.system.task_binding_service import TaskBindingService
@@ -78,8 +82,12 @@ __all__ = [
     "TaskBindingService",
     "TaskDefinitionService",
     "LogCategoryInfo",
+    "LogContentLineItem",
     "LogContentPage",
     "LogFileInfo",
+    "LogSearchScope",
+    "LOG_SCOPE_CATEGORY",
+    "LOG_SCOPE_CURRENT_FILE",
     "SystemLogService",
     "TaskLogService",
     "TaskManagerService",
@@ -113,8 +121,12 @@ _LAZY_EXPORTS = {
     "TaskBindingService": "app.services.system.task_binding_service",
     "TaskDefinitionService": "app.services.system.task_definition_service",
     "LogCategoryInfo": "app.services.system.system_log_service",
+    "LogContentLineItem": "app.services.system.system_log_service",
     "LogContentPage": "app.services.system.system_log_service",
     "LogFileInfo": "app.services.system.system_log_service",
+    "LogSearchScope": "app.services.system.system_log_service",
+    "LOG_SCOPE_CATEGORY": "app.services.system.system_log_service",
+    "LOG_SCOPE_CURRENT_FILE": "app.services.system.system_log_service",
     "SystemLogService": "app.services.system.system_log_service",
     "TaskLogService": "app.services.system.task_log_service",
     "TaskManagerService": "app.services.system.task_manager_service",

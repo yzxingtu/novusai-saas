@@ -578,7 +578,19 @@ class TestConversationQueries:
                     ],
                 },
                 "metadata": {"topic": "demo"},
-                "message_list": [{"role": "user", "content": "hello"}],
+                "message_list": [
+                    {
+                        "role": "assistant",
+                        "content": "天气晴朗",
+                        "metadata": {
+                            "turn_record": {
+                                "termination_reason": "completed",
+                                "execution_path": "deep",
+                                "selected_tool_names": ["get_current_weather"],
+                            }
+                        },
+                    }
+                ],
             }
         )
 
@@ -724,6 +736,109 @@ class TestConversationQueries:
                 }
             ],
         }
+        assert detail.message_list[0]["turn_flow"]["timeline"][-1]["type"] == "completed"
+        assert detail.message_list[0]["turn_flow"]["completion_reason"] == "completed"
+
+    @pytest.mark.asyncio
+    async def test_get_conversation_detail_normalizes_provider_failure_after_partial_progress(
+        self, mock_db
+    ):
+        from app.services.ai.monitoring_service import MonitoringService
+
+        now = _utc_dt()
+        conversation = SimpleNamespace(
+            id=5,
+            tenant_id=11,
+            agent_id=9,
+            owner_type="tenant_user",
+            user_id=7,
+            title="Thread",
+            status="active",
+            created_at=now,
+            updated_at=now,
+        )
+        conversation_service = MagicMock()
+        conversation_service.get_by_id = AsyncMock(return_value=conversation)
+        conversation_service.get_conversation_detail = AsyncMock(
+            return_value={
+                "agent_name": "Writer",
+                "agent_avatar": "writer.png",
+                "message_count": 1,
+                "token_count": 20,
+                "cost": 0.1,
+                "context_diagnostics": {},
+                "last_run_summary": {},
+                "metadata": {"topic": "demo"},
+                "message_list": [
+                    {
+                        "role": "assistant",
+                        "content": "已输出部分内容",
+                        "metadata": {
+                            "turn_record": {
+                                "turn_outcome": "partial",
+                                "termination_reason": "provider_failure_after_partial_progress",
+                                "metadata": {
+                                    "turn_diagnostics": {
+                                        "failures": {
+                                            "failure_kind": "provider_http_5xx",
+                                        }
+                                    }
+                                },
+                            },
+                            "turn_flow": {
+                                "timeline": [
+                                    {
+                                        "id": "answer_assembly",
+                                        "type": "answer_assembly",
+                                        "status": "completed",
+                                        "title": "答案生成",
+                                        "summary": "已生成最终答复",
+                                    },
+                                    {
+                                        "id": "terminal",
+                                        "type": "completed",
+                                        "status": "completed",
+                                        "title": "本轮结束",
+                                        "summary": "provider_failure_after_partial_progress",
+                                    },
+                                ],
+                                "completion_reason": "provider_failure_after_partial_progress",
+                                "interrupted": False,
+                                "error_surface": None,
+                            },
+                        },
+                    }
+                ],
+            }
+        )
+
+        service = MonitoringService.__new__(MonitoringService)
+        service.db = mock_db
+        service._load_conversation_usage_map = AsyncMock(return_value={})
+        service._load_conversation_actor_snapshot_map = AsyncMock(return_value={})
+        service._load_actor_map = AsyncMock(return_value={})
+        service._load_tenant_names = AsyncMock(return_value={11: "Tenant A"})
+        mock_db.execute = AsyncMock(return_value=_result_with_all([]))
+
+        with patch.object(
+            MonitoringService,
+            "ConversationService",
+            return_value=conversation_service,
+        ):
+            detail = await service.get_conversation_detail(
+                MonitoringService.tenant_scope(11),
+                conversation_id=5,
+            )
+
+        turn_flow = detail.message_list[0]["turn_flow"]
+        answer_assembly = next(
+            stage for stage in turn_flow["timeline"] if stage["type"] == "answer_assembly"
+        )
+        assert turn_flow["completion_reason"] == "provider_failure_after_partial_progress"
+        assert answer_assembly["status"] == "error"
+        assert turn_flow["timeline"][-1]["type"] == "failed"
+        assert turn_flow["timeline"][-1]["status"] == "error"
+        assert turn_flow["error_surface"]["message"]
 
     @pytest.mark.asyncio
     async def test_get_conversation_detail_raises_when_tenant_conversation_missing(

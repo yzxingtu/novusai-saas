@@ -206,60 +206,46 @@ async def test_build_stream_runtime_contract_uses_base_engine_bridge_before_lega
 
 
 @pytest.mark.asyncio
-async def test_build_stream_runtime_contract_keeps_legacy_private_name_compatibility_for_stub_engines() -> (
+async def test_build_stream_runtime_contract_uses_default_helpers_without_implicit_hook_probe() -> (
     None
 ):
-    calls: list[str] = []
-
-    class _LegacyStub:
+    class _ImplicitHelperStub:
         @staticmethod
         def _truncate_tool_calls_after_navigation(tool_calls):
-            calls.append("truncate")
             return list(tool_calls), False
 
         @staticmethod
         def _should_retry_tool_contract_breach(**kwargs):
             _ = kwargs
-            calls.append("retry")
-            return False, None, "legacy"
+            return True, None, "implicit"
 
-        @staticmethod
-        def _should_retry_web_research_contract_breach(**kwargs):
-            _ = kwargs
-            calls.append("web")
-            return False, None, "legacy-web"
-
-        @staticmethod
-        def _analyze_post_tool_contract_breach(**kwargs):
-            _ = kwargs
-            calls.append("analyze")
-            return "legacy", None, {"source": "legacy"}
-
-        @staticmethod
-        def _restrict_tools_to_names(tools, allowed):
-            calls.append("restrict")
-            return [tools, allowed]
-
-        @staticmethod
-        def _log_tool_contract_diagnostics(**kwargs):
-            _ = kwargs
-            calls.append("log")
-
-    contract = build_stream_runtime_contract(_LegacyStub())
+    contract = build_stream_runtime_contract(_ImplicitHelperStub())
 
     assert contract.should_retry_tool_contract_breach(
-        response=None,
+        response=ChatResponse(message=ChatMessage(role="assistant", content="")),
         current_policy=ToolUsePolicy(),
         tools=[],
         input_variables=None,
-    ) == (False, None, "legacy")
+    ) == (False, None, "")
     assert contract.analyze_post_tool_contract_breach(
         messages=[],
         response=ChatResponse(message=ChatMessage(role="assistant", content="ok")),
         current_policy=ToolUsePolicy(),
         tools=[],
         input_variables=None,
-    ) == ("legacy", None, {"source": "legacy"})
+    ) == (
+        None,
+        None,
+        {
+            "tool_leak_detected": False,
+            "assistant_claimed_tool_call_without_tool_event": False,
+            "leaked_tool_names": [],
+            "requested_intents": [],
+            "completed_intents": [],
+            "unfinished_intents": [],
+            "native_web_search_evidence": False,
+        },
+    )
     contract.log_tool_contract_diagnostics(test=True)
 
     partial = await contract.finalize_partial_output(**_build_runtime_kwargs())
@@ -267,90 +253,9 @@ async def test_build_stream_runtime_contract_keeps_legacy_private_name_compatibi
 
     assert partial == ("ok", 7, 7)
     assert completed == ("ok", 7, 7)
-    assert calls == ["retry", "analyze", "log"]
-
-
-def test_build_stream_runtime_contract_ignores_partial_public_legacy_overrides() -> None:
-    class _MixedStub:
-        @staticmethod
-        def should_retry_tool_contract_breach(**kwargs):
-            _ = kwargs
-            return False, None, "public"
-
-        @staticmethod
-        def _should_retry_tool_contract_breach(**kwargs):
-            _ = kwargs
-            return True, None, "private"
-
-    contract = build_stream_runtime_contract(_MixedStub())
-
-    assert contract.should_retry_tool_contract_breach(
-        response=None,
-        current_policy=ToolUsePolicy(),
-        tools=[],
-        input_variables=None,
-    ) == (True, None, "private")
-
-
-@pytest.mark.asyncio
-async def test_build_stream_runtime_contract_prefers_public_legacy_helpers_when_surface_is_complete() -> (
-    None
-):
-    class _PublicSurfaceStub:
-        @staticmethod
-        def truncate_tool_calls_after_navigation(tool_calls):
-            return list(tool_calls), False
-
-        @staticmethod
-        def should_retry_tool_contract_breach(**kwargs):
-            _ = kwargs
-            return False, None, "public"
-
-        @staticmethod
-        def should_retry_web_research_contract_breach(**kwargs):
-            _ = kwargs
-            return False, None, "public-web"
-
-        @staticmethod
-        def analyze_post_tool_contract_breach(**kwargs):
-            _ = kwargs
-            return "public", None, {"source": "public"}
-
-        @staticmethod
-        def restrict_tools_to_names(tools, allowed):
-            return [tools, allowed]
-
-        @staticmethod
-        def log_tool_contract_diagnostics(**kwargs):
-            _ = kwargs
-
-        @staticmethod
-        async def finalize_partial_output(**kwargs):
-            _ = kwargs
-            return "public partial", 5, 3
-
-        @staticmethod
-        async def finalize_completed_output(**kwargs):
-            _ = kwargs
-            return "public completed", 6, 4
-
-        @staticmethod
-        def _should_retry_tool_contract_breach(**kwargs):
-            _ = kwargs
-            return True, None, "private"
-
-    contract = build_stream_runtime_contract(_PublicSurfaceStub())
-
-    assert contract.should_retry_tool_contract_breach(
-        response=None,
-        current_policy=ToolUsePolicy(),
-        tools=[],
-        input_variables=None,
-    ) == (False, None, "public")
-    assert await contract.finalize_partial_output(**_build_runtime_kwargs()) == (
-        "public partial",
-        5,
-        3,
+    assert contract.truncate_tool_calls_after_navigation([{"id": "x"}]) == (
+        [{"id": "x"}],
+        False,
     )
 
 

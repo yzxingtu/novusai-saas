@@ -22,6 +22,9 @@ from app.services.ai.monitoring_call_trace_projector import (
 from app.services.ai.monitoring_query_dependencies import (
     resolve_monitoring_conversation_query_dependencies,
 )
+from app.services.ai.conversation_turn_flow_projector import (
+    ConversationTurnFlowProjector,
+)
 
 if TYPE_CHECKING:
     from app.services.ai.monitoring_service import MonitoringScope, MonitoringService
@@ -212,6 +215,24 @@ class MonitoringConversationQueryService:
             message_skip=message_skip,
             message_limit=message_limit,
         )
+        normalized_message_list: list[dict[str, object]] = []
+        for item in detail.get("message_list") or []:
+            if not isinstance(item, dict):
+                continue
+            payload = dict(item)
+            projected_turn_flow = ConversationTurnFlowProjector.project_from_message_payload(
+                payload
+            )
+            if projected_turn_flow is not None:
+                payload["turn_flow"] = projected_turn_flow
+                metadata_payload = (
+                    dict(payload.get("metadata") or {})
+                    if isinstance(payload.get("metadata"), dict)
+                    else {}
+                )
+                metadata_payload["turn_flow"] = projected_turn_flow
+                payload["metadata"] = metadata_payload
+            normalized_message_list.append(payload)
         usage = (await base._load_conversation_usage_map(scope, {conversation_id})).get(
             conversation_id, {}
         )
@@ -315,6 +336,6 @@ class MonitoringConversationQueryService:
             context_diagnostics=detail.get("context_diagnostics"),
             last_run_summary=detail.get("last_run_summary"),
             metadata=detail.get("metadata"),
-            message_list=detail.get("message_list") or [],
+            message_list=normalized_message_list,
             call_trace=call_trace,
         )

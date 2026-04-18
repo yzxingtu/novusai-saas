@@ -145,6 +145,16 @@ def test_intent_planner_detects_page_summary_when_page_context_is_present() -> N
     assert intents[0].shortcircuit is True
 
 
+def test_intent_planner_detects_readonly_form_probe_as_page_form_read() -> None:
+    intents = _plan(
+        "请帮我点击添加技能，看看表单里有哪些必填项，但不要提交",
+        tools=_tools(),
+        input_variables={"page_context": {"page_key": "admin.ai.skills"}},
+    )
+
+    assert [intent.kind for intent in intents] == ["page_form_read"]
+
+
 def test_intent_planner_recognizes_memory_recall_and_readonly_guidance() -> None:
     user_text = (
         "先回答我刚才让你记住的代号是什么。"
@@ -269,6 +279,31 @@ def test_intent_planner_detects_page_row_detail_request() -> None:
     assert [intent.kind for intent in intents] == ["page_row_detail"]
 
 
+def test_intent_planner_detects_cross_page_navigation_from_menu_semantics() -> None:
+    intents = _plan(
+        "添加供应商",
+        tools=_tools(),
+        input_variables={
+            "page_context": {
+                "page_key": "admin.ai.conversations",
+                "page_data": {
+                    "available_menus": [
+                        {
+                            "title": "供应商管理",
+                            "path": "/admin/suppliers",
+                            "page_key": "admin.suppliers",
+                            "description": "管理供应商并新增供应商",
+                            "keywords": ["供应商", "添加供应商"],
+                        }
+                    ]
+                },
+            }
+        },
+    )
+
+    assert [intent.kind for intent in intents] == ["page_navigation"]
+
+
 def test_intent_planner_prefers_page_search_over_web_search_inside_page_context() -> (
     None
 ):
@@ -286,6 +321,18 @@ def test_intent_planner_keeps_generic_search_as_web_research_inside_page_context
 ):
     intents = _plan(
         "帮我搜索一下2026年中国新能源汽车销量排行",
+        tools=_tools(),
+        input_variables={"page_context": {"page_key": "admin.ai.logs"}},
+    )
+
+    assert [intent.kind for intent in intents] == ["web_research"]
+
+
+def test_intent_planner_prefers_web_research_for_explicit_url_inside_page_context() -> (
+    None
+):
+    intents = _plan(
+        "请打开 https://docs.python.org/3/whatsnew/3.13.html 并概括重点，要求基于实际抓取内容回答",
         tools=_tools(),
         input_variables={"page_context": {"page_key": "admin.ai.logs"}},
     )

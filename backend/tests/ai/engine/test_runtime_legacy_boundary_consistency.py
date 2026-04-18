@@ -8,12 +8,12 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from app.ai.adapters.openai_compatible.compat.legacy_context_builder import (
+    LegacyEntrypointGuardSnapshot,
+)
 from app.ai.adapters.openai_compatible.compat.legacy_entrypoint_facade import (
     execute_legacy_adapter_chat_entrypoint,
     execute_legacy_adapter_stream_entrypoint,
-)
-from app.ai.adapters.openai_compatible.compat.legacy_context_builder import (
-    LegacyEntrypointGuardSnapshot,
 )
 from app.ai.adapters.openai_compatible.compat.legacy_protocol_execution_helpers import (
     execute_legacy_chat,
@@ -34,6 +34,7 @@ from app.ai.runtime.contracts import (
 )
 from app.ai.runtime.protocol_runner import ProtocolRunner
 from app.ai.runtime.types import CapabilityBundle, TurnRecord
+from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.types import ChatChunk, ChatMessage, ChatResponse
 
 
@@ -567,6 +568,93 @@ def test_sync_runtime_adapter_prefers_explicit_hooks() -> None:
         input_variables=None,
     ) == (False, None, "explicit")
     assert hook_calls == ["retry"]
+
+
+@pytest.mark.asyncio
+async def test_sync_runtime_adapter_uses_shared_tool_batch_runtime() -> None:
+    class _Sandbox:
+        async def execute(
+            self,
+            tool_call_id: str,
+            name: str,
+            arguments: dict[str, Any],
+            definitions: list[ToolDefinition],
+            conversation_id: int,
+        ) -> ToolResult:
+            _ = definitions, conversation_id
+            return ToolResult(
+                tool_call_id=tool_call_id,
+                name=name,
+                success=True,
+                output=f"snapshot:{arguments.get('page_key')}",
+            )
+
+    async def _legacy_handle_tool_calls(**_kwargs: Any) -> None:
+        raise AssertionError("legacy sync tool loop should not be used")
+
+    adapter = _SyncIOAdapter(
+        engine=SimpleNamespace(
+            sandbox=_Sandbox(),
+            _handle_tool_calls=_legacy_handle_tool_calls,
+        ),
+        agent=SimpleNamespace(id=1),
+        request=SimpleNamespace(
+            tenant_id=1,
+            conversation_id=9,
+            interaction_mode="confirm",
+            interaction_updates=None,
+        ),
+        prep=SimpleNamespace(
+            all_tools=[ToolDefinition(name="ui_get_snapshot", description="Read page")],
+            tool_consent_modes={},
+        ),
+        selected_skill_names=[],
+        context_sources=[],
+        runtime_contract=build_stream_runtime_contract(SimpleNamespace()),
+    )
+
+    response = ChatResponse(
+        message=ChatMessage(
+            role="assistant",
+            content="",
+            tool_calls=[
+                {
+                    "id": "call_page",
+                    "type": "function",
+                    "function": {
+                        "name": "ui_get_snapshot",
+                        "arguments": '{"page_key":"admin.ai.conversations"}',
+                    },
+                }
+            ],
+        ),
+        tool_calls=[
+            {
+                "id": "call_page",
+                "type": "function",
+                "function": {
+                    "name": "ui_get_snapshot",
+                    "arguments": '{"page_key":"admin.ai.conversations"}',
+                },
+            }
+        ],
+    )
+
+    result = await adapter.handle_tool_calls(
+        response=response,
+        tools=[ToolDefinition(name="ui_get_snapshot", description="Read page")],
+        messages=[ChatMessage(role="user", content="继续看页面")],
+        starting_total_tokens=3,
+        starting_completion_tokens=3,
+    )
+
+    assert result.response is None
+    assert [tool_result.name for tool_result in result.tool_results] == [
+        "ui_get_snapshot"
+    ]
+    assert result.tool_results[0].output == "snapshot:admin.ai.conversations"
+    assert result.total_tokens == 3
+    assert result.completion_tokens_used == 3
 
 
 @pytest.mark.asyncio

@@ -7,6 +7,9 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.enums.agent import ConversationOwnerTypeEnum
+from app.services.ai.agent_chat_interaction_support import (
+    normalize_requested_interaction_mode,
+)
 
 ResolveInteractionModeFn = Callable[
     ...,
@@ -42,8 +45,9 @@ class AgentChatConversationTurnService:
         downgrade_reason: str | None,
     ) -> dict[str, Any]:
         metadata = dict(conversation_metadata or {})
+        normalized_requested_mode = normalize_requested_interaction_mode(requested_mode)
         metadata["interaction_mode"] = effective_mode
-        metadata["interaction_mode_requested"] = requested_mode
+        metadata["interaction_mode_requested"] = normalized_requested_mode
         if downgrade_reason:
             metadata["interaction_mode_downgrade_reason"] = downgrade_reason
         else:
@@ -66,15 +70,16 @@ class AgentChatConversationTurnService:
         interaction_mode_manager: Any,
         grant_trusted_auto_policies: Callable[..., Awaitable[None]],
     ) -> list[dict[str, Any]] | None:
+        normalized_requested_mode = normalize_requested_interaction_mode(requested_mode)
         conversation.metadata_ = cls.build_conversation_interaction_metadata(
             dict(conversation.metadata_ or {}),
-            requested_mode=requested_mode,
+            requested_mode=normalized_requested_mode,
             effective_mode=interaction_mode_effective,
             downgrade_reason=interaction_mode_downgrade_reason,
         )
         enriched_updates = interaction_mode_manager.enrich_interaction_updates(
             interaction_updates,
-            requested_mode=requested_mode,
+            requested_mode=normalized_requested_mode,
             effective_mode=interaction_mode_effective,
             downgrade_reason=interaction_mode_downgrade_reason,
         )
@@ -85,7 +90,7 @@ class AgentChatConversationTurnService:
             enriched_updates,
             user_id=user_id,
             owner_type=conversation_owner_type,
-            interaction_mode_requested=requested_mode,
+            interaction_mode_requested=normalized_requested_mode,
             interaction_mode_effective=interaction_mode_effective,
             interaction_mode_downgrade_reason=interaction_mode_downgrade_reason,
         )
@@ -117,12 +122,13 @@ class AgentChatConversationTurnService:
     ) -> PreparedConversationTurn:
         is_new_conversation = conversation_id is None
         conversation_owner_type = ConversationOwnerTypeEnum.from_user_role(user_role)
+        normalized_requested_mode = normalize_requested_interaction_mode(requested_mode)
         (
             interaction_mode_effective,
             resolved_trust_policy_ref,
             interaction_mode_downgrade_reason,
         ) = await resolve_interaction_mode(
-            requested_mode=requested_mode,
+            requested_mode=normalized_requested_mode,
             conversation_id=conversation_id,
             agent_id=agent_id,
             operator_id=user_id,
@@ -142,7 +148,7 @@ class AgentChatConversationTurnService:
             agent_id=agent_id,
             user_id=user_id,
             conversation_owner_type=conversation_owner_type,
-            requested_mode=requested_mode,
+            requested_mode=normalized_requested_mode,
             interaction_mode_effective=interaction_mode_effective,
             interaction_mode_downgrade_reason=interaction_mode_downgrade_reason,
             interaction_updates=interaction_updates,

@@ -4,7 +4,8 @@
 提供文件日志的查看、下载、删除接口 / Provides file log viewing, downloading, and deletion endpoints
 """
 
-from datetime import datetime
+from datetime import date, datetime
+from typing import Literal
 
 from fastapi import HTTPException, Query, Request, status
 from fastapi.responses import FileResponse
@@ -46,13 +47,31 @@ class LogFileResponse(BaseModel):
     is_current: bool = Field(..., description=_("api.param.is_current"))
 
 
+class LogContentLineItemResponse(BaseModel):
+    """日志行项响应 / Log content line item response"""
+
+    file_name: str = Field(..., description=_("api.param.filename"))
+    line_number: int = Field(..., description=_("api.param.line_number"))
+    content: str = Field(..., description=_("api.param.content"))
+
+
 class LogContentResponse(BaseModel):
     """日志内容响应 / Log content response"""
 
+    filename: str = Field(..., description=_("api.param.filename"))
+    category: str = Field(..., description=_("api.param.log_category"))
+    scope: Literal["current_file", "category"] = Field(
+        ..., description=_("api.param.scope")
+    )
     lines: list[str] = Field(..., description=_("api.param.lines"))
+    items: list[LogContentLineItemResponse] = Field(
+        ..., description=_("api.param.items")
+    )
     total_lines: int = Field(..., description=_("api.param.total_lines"))
+    total_entries: int = Field(..., description=_("api.param.total"))
+    searched_files: int = Field(..., description=_("api.param.total_files"))
     page: int = Field(..., description=_("api.param.page"))
-    page_size: int = Field(..., description=_("api.param.lines_per_page"))
+    page_size: int = Field(..., description=_("api.param.page_size"))
     has_more: bool = Field(..., description=_("api.param.has_more"))
 
 
@@ -200,24 +219,43 @@ class AdminSystemLogController(GlobalController):
             filename: str,
             page: int = Query(1, ge=1, description=_("api.param.page")),
             page_size: int = Query(
-                100, ge=1, le=500, description=_("api.param.lines_per_page")
+                100, ge=1, le=500, description=_("api.param.page_size")
             ),
             reverse: bool = Query(True, description=_("api.param.reverse")),
+            keyword: str | None = Query(None, description=_("api.param.search")),
+            start_date: date | None = Query(
+                None, description=_("api.param.start_date")
+            ),
+            end_date: date | None = Query(None, description=_("api.param.end_date")),
+            scope: Literal["current_file", "category"] = Query(
+                "current_file",
+                description=_("api.param.scope"),
+            ),
         ):
             """
             分页读取日志文件内容 / Read log file content with pagination
 
-            默认最新的日志在前（倒序）
-            Default: newest logs first (reverse order)
+            支持关键词、日期范围，以及当前文件/分类全量检索。
+            Supports keyword/date-range filters and current-file/category-wide search.
 
             Permission: system_log:read
             """
+            if start_date and end_date and start_date > end_date:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=_("system_log.invalid_date_range"),
+                )
+
             service = SystemLogService()
             content = service.read_log_file(
                 filename=filename,
                 page=page,
                 page_size=page_size,
                 reverse=reverse,
+                keyword=keyword,
+                start_date=start_date,
+                end_date=end_date,
+                scope=scope,
             )
 
             if content is None:
@@ -228,8 +266,21 @@ class AdminSystemLogController(GlobalController):
 
             return success(
                 data=LogContentResponse(
+                    filename=content.filename,
+                    category=content.category,
+                    scope=content.scope,
                     lines=content.lines,
+                    items=[
+                        LogContentLineItemResponse(
+                            file_name=item.file_name,
+                            line_number=item.line_number,
+                            content=item.content,
+                        )
+                        for item in content.items
+                    ],
                     total_lines=content.total_lines,
+                    total_entries=content.total_entries,
+                    searched_files=content.searched_files,
                     page=content.page,
                     page_size=content.page_size,
                     has_more=content.has_more,

@@ -10,7 +10,9 @@ from .reconciliation_driver_support import (
     StorageBillingReconciliationDriverSupportMixin,
 )
 from .reconciliation_execution import StorageBillingReconciliationExecutionMixin
-from .reconciliation_overview_service import StorageBillingOverviewService
+from .reconciliation_overview_service import (
+    StorageBillingOverviewService as BaseStorageBillingOverviewService,
+)
 from .reconciliation_run_queries import StorageBillingReconciliationRunQueryMixin
 from .reconciliation_schedule import StorageBillingReconciliationScheduleMixin
 from .reconciliation_shared import (
@@ -70,6 +72,17 @@ class StorageBillingReconciliationService(
     @staticmethod
     def _resolve_billing_month(raw_value: object | None):
         return _resolve_billing_month(raw_value)
+
+
+class StorageBillingOverviewService(BaseStorageBillingOverviewService):
+    """Compatibility facade that preserves module-local dependency patch seams."""
+
+    def __init__(self, db: Any | None, host_read: Any | None = None) -> None:
+        super().__init__(
+            db,
+            host_read=host_read,
+            provider_profile_service_factory=StorageBillingProviderProfileService,
+        )
 
 
 __all__ = [

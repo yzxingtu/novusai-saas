@@ -64,6 +64,7 @@ from app.ai.engine.stream_handler import (  # noqa: E402
 )
 from app.ai.engine.turn_executor import TurnExecutionResult  # noqa: E402
 from app.ai.engine.types import IntentPlan, ToolUsePolicy  # noqa: E402
+from app.ai.exceptions import ProviderTimeoutError  # noqa: E402
 from app.ai.tools.types import ToolDefinition, ToolResult  # noqa: E402
 from app.ai.types import ChatChunk, ChatMessage, ChatResponse  # noqa: E402
 from app.middleware.trace import trace_id_var  # noqa: E402
@@ -335,6 +336,32 @@ class _BrokenStreamEngine(_FakeEngine):
     async def _stream_llm_chunks(self, **kwargs):
         _ = kwargs
         raise RuntimeError("provider boom")
+        yield  # pragma: no cover
+
+
+class _BrokenProviderTimeoutEngine(_FakeEngine):
+    async def _stream_llm_chunks(self, **kwargs):
+        _ = kwargs
+        exc = ProviderTimeoutError(message="Request timed out.")
+        exc._novusai_runtime_turn_record = {
+            "turn_outcome": "failed",
+            "termination_reason": "error",
+            "protocol_path": "responses",
+            "metadata": {
+                "protocol_fallback_blocked_reason": "provider_timeout",
+                "stream_failure_chunk_count": 0,
+                "stream_failure_has_meaningful_chunk": False,
+                "stream_failure_error_type": "ProviderTimeoutError",
+            },
+        }
+        exc._novusai_runtime_model_info = {
+            "provider_id": 10,
+            "provider_name": "响应云",
+            "model_id": 9,
+            "model_name": "gpt-5.4",
+        }
+        exc._novusai_runtime_protocol_path = "responses"
+        raise exc
         yield  # pragma: no cover
 
 
@@ -842,6 +869,41 @@ async def test_stream_handler_done_event_includes_turn_record_fields() -> None:
 
 
 @pytest.mark.asyncio
+async def test_stream_handler_preserves_runtime_protocol_for_zero_chunk_provider_timeout() -> None:
+    from app.ai.engine.types import ExecutionResult
+
+    captured: list[ExecutionResult] = []
+    completed = asyncio.Event()
+
+    async def on_complete(result: ExecutionResult) -> None:
+        captured.append(result)
+        completed.set()
+
+    handler = _build_handler(_BrokenProviderTimeoutEngine())
+    handler.on_complete = on_complete
+
+    events: list[dict] = []
+    async for raw in handler.generate():
+        if raw.strip().startswith("data: {"):
+            events.append(_parse_sse_payload(raw))
+
+    await asyncio.wait_for(completed.wait(), timeout=1)
+
+    assert len(captured) == 1
+    result = captured[0]
+    assert result.turn_record["protocol_path"] == "responses"
+    assert result.turn_record["failure_kind"] == "provider_timeout"
+    assert result.turn_record["conversation_outcome"] == "failed"
+    assert result.provider_failure_kind == "provider_timeout"
+    assert not any(event.get("error") is True for event in events)
+    assert any(event.get("event") == "done" for event in events)
+    fallback_text = "".join(
+        event.get("delta", "") for event in events if event.get("event") == "message"
+    )
+    assert fallback_text
+
+
+@pytest.mark.asyncio
 async def test_stream_handler_budget_exit_after_tool_round_still_emits_final_message():
     """预算退出在工具轮后仍要保留最终 assistant 文本输出。"""
     engine = _FakeEngine(
@@ -1189,6 +1251,8 @@ async def test_stream_handler_with_tools_emits_thinking_before_round_finishes():
     assert first["event"] == "conversation"
 
     thinking = _parse_sse_payload(await asyncio.wait_for(agen.__anext__(), timeout=0.2))
+    while thinking.get("event") == "turn_stage":
+        thinking = _parse_sse_payload(await asyncio.wait_for(agen.__anext__(), timeout=0.2))
     assert thinking["event"] == "thinking"
     assert thinking["delta"] == "先"
 
@@ -3018,15 +3082,52 @@ async def test_done_waits_for_on_complete_and_merges_callback_extra():
     handler.on_complete = on_complete
 
     done_payload: dict | None = None
+    seen_turn_stage = False
     async for raw in handler.generate():
         if not raw.strip().startswith("data: {"):
             continue
         payload = _parse_sse_payload(raw)
+        if payload.get("event") == "turn_stage":
+            seen_turn_stage = True
         if payload.get("event") == "done":
             order.append("done")
             done_payload = payload
 
     assert order == ["on_complete_start", "on_complete_done", "done"]
+    assert seen_turn_stage is True
     assert done_payload is not None
     assert done_payload.get("persistence_committed") is True
     assert done_payload.get("persisted_message_count") == 2
+    assert done_payload.get("completion_reason") == "completed"
+    assert done_payload.get("turn_flow_complete") is True
+    assert done_payload.get("final_stage_status") == "completed"
+    assert "trace_id" in done_payload
+
+
+@pytest.mark.asyncio
+async def test_stream_emits_tool_selection_skipped_stage_when_optimizer_selects_zero():
+    engine = _FakeEngine(
+        call_llm_responses=[
+            ChatResponse(
+                message=ChatMessage(role="assistant", content="已完成"),
+                tool_calls=None,
+                total_tokens=12,
+            ),
+        ],
+    )
+    handler = _build_handler(engine)
+    handler.prep.optimize_event = {"total": 15, "selected": 0, "execution_path": "normal"}
+
+    stage_updates: list[dict] = []
+    async for raw in handler.generate():
+        if not raw.strip().startswith("data: {"):
+            continue
+        payload = _parse_sse_payload(raw)
+        if payload.get("event") == "turn_stage_update":
+            stage_updates.append(payload)
+
+    assert any(
+        (event.get("stage") or {}).get("type") == "tool_selection"
+        and (event.get("stage") or {}).get("status") == "skipped"
+        for event in stage_updates
+    )

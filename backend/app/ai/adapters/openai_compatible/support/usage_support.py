@@ -11,6 +11,22 @@ from app.core.logging import LogManager
 
 logger = LogManager.get_logger("ai")
 
+RESPONSES_USAGE_RETRIEVE_TIMEOUT_SECONDS = 2.0
+
+
+def _build_usage_retrieve_client(client: Any) -> Any:
+    """Prefer a no-retry, short-timeout client for post-stream usage backfill."""
+    with_options = getattr(client, "with_options", None)
+    if not callable(with_options):
+        return client
+    try:
+        return with_options(
+            timeout=RESPONSES_USAGE_RETRIEVE_TIMEOUT_SECONDS,
+            max_retries=0,
+        )
+    except TypeError:
+        return client
+
 
 async def retrieve_responses_usage(
     *,
@@ -21,12 +37,17 @@ async def retrieve_responses_usage(
     """Fallback when a terminal Responses stream event omitted usage."""
     if not response_id:
         return (None, None, None)
+    usage_client = _build_usage_retrieve_client(client)
+    retrieve = getattr(getattr(usage_client, "responses", None), "retrieve", None)
+    if not callable(retrieve):
+        return (None, None, None)
     try:
-        response = await client.responses.retrieve(response_id)
+        response = await retrieve(response_id)
     except Exception as exc:  # noqa: BLE001
         logger.warning(
-            "Responses usage retrieve failed: response_id={} error={}",
+            "Responses usage retrieve failed: response_id={} timeout_seconds={} error={}",
             response_id,
+            RESPONSES_USAGE_RETRIEVE_TIMEOUT_SECONDS,
             str(exc),
         )
         return (None, None, None)

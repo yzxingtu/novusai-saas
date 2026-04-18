@@ -70,11 +70,16 @@ def _build_runtime(
 def _build_callbacks(
     *,
     events: list[dict],
+    emitted_chunks: list[str] | None = None,
     budget_exit_reason=None,
     registered_budget_exit: list[str | None] | None = None,
 ) -> StreamToolBatchCallbacks:
     async def emit_event(payload: dict) -> None:
         events.append(payload)
+
+    async def emit_chunk(text: str) -> None:
+        if emitted_chunks is not None:
+            emitted_chunks.append(text)
 
     def register_budget_exit(reason: str | None) -> None:
         if registered_budget_exit is not None:
@@ -82,6 +87,7 @@ def _build_callbacks(
 
     return StreamToolBatchCallbacks(
         emit_event=emit_event,
+        emit_chunk=emit_chunk,
         budget_exit_reason=budget_exit_reason or (lambda: None),
         register_budget_exit=register_budget_exit,
         build_text_round_response=_build_text_round_response,
@@ -326,10 +332,11 @@ async def test_run_stream_tool_batch_aborts_after_consecutive_page_parse_failure
         starting_completion_tokens=30,
     )
     events: list[dict] = []
+    emitted_chunks: list[str] = []
 
     result = await run_stream_tool_batch(
         runtime=runtime,
-        callbacks=_build_callbacks(events=events),
+        callbacks=_build_callbacks(events=events, emitted_chunks=emitted_chunks),
     )
 
     assert result.page_op_aborted is True
@@ -337,6 +344,7 @@ async def test_run_stream_tool_batch_aborts_after_consecutive_page_parse_failure
     assert result.response.message.content == result.output_override
     assert len(result.tool_results) == 3
     assert len([event for event in events if event.get("event") == "tool_call"]) == 3
+    assert emitted_chunks == [result.output_override]
 
 
 @pytest.mark.asyncio

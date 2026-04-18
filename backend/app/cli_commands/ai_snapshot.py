@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from app.cli_commands import state as S
 from app.cli_commands.ai_norm import (
-    _compact_json_text,
     _extract_turn_diagnostics_from_call_log_metadata,
     _normalize_cli_bool,
     _normalize_cli_call_log_row,
@@ -17,9 +16,129 @@ from app.cli_commands.ai_norm import (
     _normalize_cli_retry_events,
     _normalize_cli_string_list,
 )
+from app.services.ai.conversation_turn_flow_projector import (
+    ConversationTurnFlowProjector,
+)
+from app.services.ai.turn_failure_normalizer import (
+    derive_budget_projection,
+    resolve_failure_projection,
+)
 
 _BACKEND_DIR = S._BACKEND_DIR
 settings = S.settings
+
+
+def _resolve_assistant_turn_flow(last_assistant: object) -> dict | None:
+    if not isinstance(last_assistant, dict):
+        return None
+    projected = ConversationTurnFlowProjector.project_from_message_payload(last_assistant)
+    return dict(projected) if isinstance(projected, dict) else None
+
+
+def _resolve_turn_flow_terminal_stage(turn_flow: object) -> dict:
+    if not isinstance(turn_flow, dict):
+        return {}
+    timeline = turn_flow.get("timeline")
+    if not isinstance(timeline, list) or not timeline:
+        return {}
+    for item in reversed(timeline):
+        if not isinstance(item, dict):
+            continue
+        stage_type = _normalize_cli_optional_string(item.get("type"))
+        if stage_type in {"completed", "failed"}:
+            return dict(item)
+    last_stage = timeline[-1]
+    return dict(last_stage) if isinstance(last_stage, dict) else {}
+
+
+def _apply_turn_flow_diagnostics_parity(
+    snapshot: dict,
+    *,
+    last_assistant: object = None,
+) -> dict:
+    if not isinstance(snapshot, dict):
+        return {}
+    hydrated = dict(snapshot)
+    diagnostics = (
+        dict(hydrated.get("diagnostics") or {})
+        if isinstance(hydrated.get("diagnostics"), dict)
+        else {}
+    )
+    assistant_message = last_assistant
+    if not isinstance(assistant_message, dict):
+        recent_messages = (
+            hydrated.get("recent_messages") or hydrated.get("message_list") or []
+        )
+        if isinstance(recent_messages, list):
+            assistant_message = next(
+                (
+                    item
+                    for item in reversed(recent_messages)
+                    if isinstance(item, dict) and item.get("role") == "assistant"
+                ),
+                None,
+            )
+
+    turn_flow = _resolve_assistant_turn_flow(assistant_message)
+    normalized_projection = resolve_failure_projection(
+        diagnostics=diagnostics,
+        turn_flow=turn_flow,
+    )
+    if turn_flow:
+        terminal_stage = _resolve_turn_flow_terminal_stage(turn_flow)
+        diagnostics["turn_flow_terminal_stage_type"] = _normalize_cli_optional_string(
+            terminal_stage.get("type")
+        )
+        diagnostics["turn_flow_terminal_stage_status"] = _normalize_cli_optional_string(
+            terminal_stage.get("status")
+        )
+    elif normalized_projection.get("turn_flow_terminal_stage_type"):
+        diagnostics["turn_flow_terminal_stage_type"] = _normalize_cli_optional_string(
+            normalized_projection.get("turn_flow_terminal_stage_type")
+        )
+        diagnostics["turn_flow_terminal_stage_status"] = _normalize_cli_optional_string(
+            normalized_projection.get("turn_flow_terminal_stage_status")
+        )
+
+    normalized_termination_reason = _normalize_cli_optional_string(
+        normalized_projection.get("termination_reason")
+    )
+    if normalized_termination_reason:
+        diagnostics["termination_reason"] = normalized_termination_reason
+    normalized_turn_outcome = _normalize_cli_optional_string(
+        normalized_projection.get("turn_outcome")
+    )
+    if normalized_turn_outcome:
+        diagnostics["turn_outcome"] = normalized_turn_outcome
+    normalized_failure_kind = _normalize_cli_optional_string(
+        normalized_projection.get("failure_kind")
+    )
+    if normalized_failure_kind:
+        diagnostics["failure_kind"] = normalized_failure_kind
+    normalized_budget_exit_reason = _normalize_cli_optional_string(
+        normalized_projection.get("budget_exit_reason")
+    )
+    if normalized_budget_exit_reason:
+        diagnostics["budget_exit_reason"] = normalized_budget_exit_reason
+    normalized_final_output_source = _normalize_cli_optional_string(
+        normalized_projection.get("final_output_source")
+    )
+    if normalized_final_output_source:
+        diagnostics["final_output_source"] = normalized_final_output_source
+
+    if isinstance(assistant_message, dict) and turn_flow:
+        assistant_message["turn_flow"] = turn_flow
+        metadata = (
+            dict(assistant_message.get("metadata") or {})
+            if isinstance(assistant_message.get("metadata"), dict)
+            else {}
+        )
+        metadata["turn_flow"] = turn_flow
+        assistant_message["metadata"] = metadata
+
+    hydrated["diagnostics"] = diagnostics
+    return hydrated
+
 
 async def _load_ai_conversation_snapshot(
     conversation_id: int,
@@ -630,6 +749,19 @@ async def _load_ai_conversation_snapshot(
             ).strip()
             or None
         )
+        final_output_source = (
+            str(
+                turn_record.get("final_output_source")
+                or assistant_metadata.get("final_output_source")
+                or assistant_context_diagnostics.get("final_output_source")
+                or assistant_last_run_summary.get("final_output_source")
+                or detail_context_diagnostics.get("final_output_source")
+                or detail_last_run_summary.get("final_output_source")
+                or latest_call_log_diagnostics.get("final_output_source")
+                or ""
+            ).strip()
+            or None
+        )
         provider_events = (
             _normalize_cli_provider_events(turn_record.get("provider_events"))
             or _normalize_cli_provider_events(assistant_metadata.get("provider_events"))
@@ -792,6 +924,13 @@ async def _load_ai_conversation_snapshot(
                         "budget": row_diagnostics.get("budget"),
                         "budget_status": row_diagnostics.get("budget_status"),
                         "budget_exit_reason": row_diagnostics.get("budget_exit_reason"),
+                        "final_output_source": row_diagnostics.get("final_output_source"),
+                        "path_decision": row_diagnostics.get("path_decision"),
+                        "capability_injection": row_diagnostics.get(
+                            "capability_injection"
+                        ),
+                        "tool_filtering": row_diagnostics.get("tool_filtering"),
+                        "recovery_chain": row_diagnostics.get("recovery_chain"),
                         "intent_plan": row_diagnostics.get("intent_plan"),
                         "retry_events": row_diagnostics.get("retry_events"),
                         "partial_exit_reason": row_diagnostics.get(
@@ -811,7 +950,7 @@ async def _load_ai_conversation_snapshot(
                 )
             )
 
-        return {
+        snapshot = {
             "conversation": {
                 "id": detail.get("id", conversation_id),
                 "tenant_id": detail.get("tenant_id", conversation.tenant_id),
@@ -855,6 +994,7 @@ async def _load_ai_conversation_snapshot(
                 "retry_events": retry_events,
                 "partial_exit_reason": partial_exit_reason,
                 "failure_kind": failure_kind,
+                "final_output_source": final_output_source,
                 "provider_events": provider_events,
                 "turn_outcome": turn_outcome,
                 "termination_reason": termination_reason,
@@ -894,6 +1034,10 @@ async def _load_ai_conversation_snapshot(
                 ),
             },
         }
+        return _apply_turn_flow_diagnostics_parity(
+            snapshot,
+            last_assistant=last_assistant,
+        )
 
 
 def _hydrate_ai_conversation_snapshot(snapshot: dict) -> dict:
@@ -1003,6 +1147,19 @@ def _hydrate_ai_conversation_snapshot(snapshot: dict) -> dict:
                 return _normalize_cli_dict(value)
         return {}
 
+    def _first_list_of_dicts(*values: object) -> list[dict] | None:
+        for value in values:
+            if not isinstance(value, list):
+                continue
+            normalized: list[dict] = []
+            for item in value:
+                payload = _normalize_cli_dict(item)
+                if not payload:
+                    continue
+                normalized.append(payload)
+            return normalized
+        return None
+
     diagnostics["last_assistant_message_id"] = diagnostics.get(
         "last_assistant_message_id"
     ) or (last_assistant or {}).get("id")
@@ -1016,6 +1173,33 @@ def _hydrate_ai_conversation_snapshot(snapshot: dict) -> dict:
             call_log_turn_record,
         )
         or None
+    )
+    turn_record = (
+        dict(diagnostics.get("turn_record") or {})
+        if isinstance(diagnostics.get("turn_record"), dict)
+        else {}
+    )
+    turn_record_metadata = (
+        dict(turn_record.get("metadata") or {})
+        if isinstance(turn_record.get("metadata"), dict)
+        else {}
+    )
+    turn_record_diagnostics = (
+        dict(turn_record_metadata.get("turn_diagnostics") or {})
+        if isinstance(turn_record_metadata.get("turn_diagnostics"), dict)
+        else {}
+    )
+    assistant_recovery = _normalize_cli_dict(assistant_metadata.get("recovery"))
+    assistant_context_recovery = _normalize_cli_dict(
+        assistant_context_diagnostics.get("recovery")
+    )
+    assistant_summary_recovery = _normalize_cli_dict(
+        assistant_last_run_summary.get("recovery")
+    )
+    turn_record_routing = _normalize_cli_dict(turn_record_diagnostics.get("routing"))
+    turn_record_recovery = _normalize_cli_dict(turn_record_diagnostics.get("recovery"))
+    latest_call_log_recovery = _normalize_cli_dict(
+        latest_call_log_diagnostics.get("recovery")
     )
     diagnostics["execution_path"] = _first_string(
         diagnostics.get("execution_path"),
@@ -1039,14 +1223,48 @@ def _hydrate_ai_conversation_snapshot(snapshot: dict) -> dict:
         assistant_metadata.get("path_decision"),
         assistant_context_diagnostics.get("path_decision"),
         assistant_last_run_summary.get("path_decision"),
+        turn_record.get("path_decision"),
+        turn_record_diagnostics.get("path_decision"),
         latest_call_log_diagnostics.get("path_decision"),
+    )
+    diagnostics["capability_injection"] = _first_dict(
+        diagnostics.get("capability_injection"),
+        assistant_metadata.get("capability_injection"),
+        assistant_metadata.get("capability_injection_decision"),
+        assistant_context_diagnostics.get("capability_injection"),
+        assistant_context_diagnostics.get("capability_injection_decision"),
+        assistant_last_run_summary.get("capability_injection"),
+        assistant_last_run_summary.get("capability_injection_decision"),
+        turn_record.get("capability_injection"),
+        turn_record.get("capability_injection_decision"),
+        turn_record_diagnostics.get("capability_injection"),
+        turn_record_diagnostics.get("capability_injection_decision"),
+        latest_call_log_diagnostics.get("capability_injection"),
+        latest_call_log_diagnostics.get("capability_injection_decision"),
     )
     diagnostics["tool_filtering"] = _first_dict(
         diagnostics.get("tool_filtering"),
         assistant_metadata.get("tool_filtering"),
         assistant_context_diagnostics.get("tool_filtering"),
         assistant_last_run_summary.get("tool_filtering"),
+        turn_record.get("tool_filtering"),
+        turn_record_diagnostics.get("tool_filtering"),
+        turn_record_routing.get("tool_filtering"),
         latest_call_log_diagnostics.get("tool_filtering"),
+    )
+    diagnostics["recovery_chain"] = _first_list_of_dicts(
+        diagnostics.get("recovery_chain"),
+        assistant_metadata.get("recovery_chain"),
+        assistant_recovery.get("recovery_chain"),
+        assistant_context_diagnostics.get("recovery_chain"),
+        assistant_context_recovery.get("recovery_chain"),
+        assistant_last_run_summary.get("recovery_chain"),
+        assistant_summary_recovery.get("recovery_chain"),
+        turn_record.get("recovery_chain"),
+        turn_record_diagnostics.get("recovery_chain"),
+        turn_record_recovery.get("recovery_chain"),
+        latest_call_log_diagnostics.get("recovery_chain"),
+        latest_call_log_recovery.get("recovery_chain"),
     )
     diagnostics["intent_plan"] = (
         _normalize_cli_intent_plan(diagnostics.get("intent_plan"))
@@ -1112,6 +1330,34 @@ def _hydrate_ai_conversation_snapshot(snapshot: dict) -> dict:
         diagnostics.get("termination_reason")
         if str(diagnostics.get("termination_reason") or "").endswith("_budget_exceeded")
         else None,
+    )
+    budget_projection = derive_budget_projection(
+        budget=diagnostics.get("budget"),
+        budget_status=diagnostics.get("budget_status"),
+        budget_exit_reason=diagnostics.get("budget_exit_reason"),
+        termination_reason=diagnostics.get("termination_reason"),
+    )
+    diagnostics["budget"] = budget_projection.get("budget") or diagnostics.get("budget")
+    diagnostics["budget_status"] = (
+        budget_projection.get("budget_status") or diagnostics.get("budget_status")
+    )
+    diagnostics["budget_exit_reason"] = (
+        budget_projection.get("budget_exit_reason")
+        or diagnostics.get("budget_exit_reason")
+    )
+    diagnostics["failure_kind"] = _first_string(
+        diagnostics.get("failure_kind"),
+        assistant_metadata.get("failure_kind"),
+        assistant_context_diagnostics.get("failure_kind"),
+        assistant_last_run_summary.get("failure_kind"),
+        latest_call_log_diagnostics.get("failure_kind"),
+    )
+    diagnostics["final_output_source"] = _first_string(
+        diagnostics.get("final_output_source"),
+        assistant_metadata.get("final_output_source"),
+        assistant_context_diagnostics.get("final_output_source"),
+        assistant_last_run_summary.get("final_output_source"),
+        latest_call_log_diagnostics.get("final_output_source"),
     )
     diagnostics["partial_exit_reason"] = _first_string(
         diagnostics.get("partial_exit_reason"),
@@ -1254,4 +1500,7 @@ def _hydrate_ai_conversation_snapshot(snapshot: dict) -> dict:
         "none",
     )
     hydrated["diagnostics"] = diagnostics
-    return hydrated
+    return _apply_turn_flow_diagnostics_parity(
+        hydrated,
+        last_assistant=last_assistant,
+    )

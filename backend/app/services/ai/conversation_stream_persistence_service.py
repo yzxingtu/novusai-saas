@@ -24,12 +24,12 @@ class ConversationStreamPersistenceService:
         conversation_id: int,
         result: ExecutionResult,
         history_count: int,
-        history_messages: list[ChatMessage] | None,
         agent_id: int | None,
         route_source: str | None,
         context_diagnostics: dict[str, Any] | None,
         last_run_summary: dict[str, Any] | None,
         current_agent: Any,
+        history_messages: list[Any] | None = None,
     ) -> int:
         conversation = await self.service.repo.get_by_id(conversation_id)
         if conversation is None:

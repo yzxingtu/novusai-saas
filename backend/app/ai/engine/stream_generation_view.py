@@ -8,16 +8,16 @@ from typing import Any
 
 from app.ai.types import ChatMessage
 
-from .stream_output_helpers import (
+from .stream_output_projection import (
     current_turn_has_finalized_output as _current_turn_has_finalized_output_impl,
 )
-from .stream_output_helpers import (
+from .stream_output_projection import (
     last_visible_assistant_content as _last_visible_assistant_content_impl,
 )
-from .stream_output_helpers import (
+from .stream_output_projection import (
     should_preserve_streamed_assistant_output as _should_preserve_streamed_assistant_output_impl,
 )
-from .stream_output_helpers import (
+from .stream_output_projection import (
     should_replay_finalized_output as _should_replay_finalized_output_impl,
 )
 from .stream_tool_call_helpers import (
@@ -223,7 +223,7 @@ class StreamGenerationRuntimeStateView:
 
 @dataclass(slots=True)
 class StreamGenerationView:
-    """Explicit dependency bundle for stream_generation_support."""
+    """Explicit dependency bundle for stream generation helpers."""
 
     request: Any
     start_time: float
@@ -571,7 +571,7 @@ def build_stream_generation_view(source: Any) -> StreamGenerationView:
 
 
 def ensure_stream_generation_view(source: Any) -> StreamGenerationView:
-    """Compat alias used by stream_generation_support."""
+    """Compat alias used by stream generation helpers."""
 
     return build_stream_generation_view(source)
 

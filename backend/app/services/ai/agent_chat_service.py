@@ -350,7 +350,7 @@ class AgentChatService:
         route_source: str | None = None,
         interaction_updates: list[dict[str, Any]] | None = None,
         trust_policy_ref: dict[str, Any] | None = None,
-        interaction_mode: InteractionMode = "confirm",
+        interaction_mode: InteractionMode = "trusted_auto",
     ) -> AgentChatResponse:
         return await AgentChatCommandService.chat(
             self,
@@ -403,7 +403,7 @@ class AgentChatService:
         route_source: str | None = None,
         interaction_updates: list[dict[str, Any]] | None = None,
         trust_policy_ref: dict[str, Any] | None = None,
-        interaction_mode: InteractionMode = "confirm",
+        interaction_mode: InteractionMode = "trusted_auto",
     ) -> StreamingResponse:
         return await AgentChatCommandService.stream_chat(
             self,

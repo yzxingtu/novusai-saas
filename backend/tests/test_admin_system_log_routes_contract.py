@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -13,7 +13,11 @@ from app.core.deps import get_current_active_admin, get_db
 
 def _load_system_logs_module():
     module_path = (
-        Path(__file__).resolve().parent.parent / "app" / "api" / "admin" / "system_logs.py"
+        Path(__file__).resolve().parent.parent
+        / "app"
+        / "api"
+        / "admin"
+        / "system_logs.py"
     )
     spec = importlib.util.spec_from_file_location(
         "test_admin_system_logs_module",
@@ -77,8 +81,25 @@ def _read_missing_file(*_args, **_kwargs):
 
 def _read_demo_file(*_args, **_kwargs):
     return SimpleNamespace(
+        filename="app.log",
+        category="app",
+        scope="current_file",
         lines=["line-1", "line-2"],
+        items=[
+            SimpleNamespace(
+                file_name="app.log",
+                line_number=1,
+                content="line-1",
+            ),
+            SimpleNamespace(
+                file_name="app.log",
+                line_number=2,
+                content="line-2",
+            ),
+        ],
         total_lines=2,
+        total_entries=1,
+        searched_files=1,
         page=1,
         page_size=100,
         has_more=False,
@@ -253,8 +274,75 @@ def test_system_log_read_route_returns_log_payload(monkeypatch) -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["code"] == 0
+    assert payload["data"]["filename"] == "app.log"
+    assert payload["data"]["category"] == "app"
     assert payload["data"]["lines"] == ["line-1", "line-2"]
+    assert payload["data"]["items"][0]["file_name"] == "app.log"
     assert payload["data"]["total_lines"] == 2
+
+
+def test_system_log_read_route_passes_search_filters(monkeypatch) -> None:
+    from app.services.system import SystemLogService
+
+    system_logs_module = _load_system_logs_module()
+    monkeypatch.setattr(system_logs_module.AdminSystemLogController, "_instance", None)
+    monkeypatch.setattr(system_logs_module.AdminSystemLogController, "_router", None)
+
+    captured: dict[str, object] = {}
+
+    def _read_with_filters(_self, **kwargs):
+        captured.update(kwargs)
+        return _read_demo_file()
+
+    monkeypatch.setattr(SystemLogService, "read_log_file", _read_with_filters)
+
+    app = _build_test_app(SimpleNamespace(), system_logs_module)
+
+    with TestClient(app) as client:
+        response = client.get(
+            "/system-logs/files/app.log/content",
+            params={
+                "page": 2,
+                "page_size": 50,
+                "reverse": "false",
+                "keyword": "trace",
+                "start_date": "2026-04-10",
+                "end_date": "2026-04-12",
+                "scope": "category",
+            },
+        )
+
+    assert response.status_code == 200
+    assert captured == {
+        "filename": "app.log",
+        "page": 2,
+        "page_size": 50,
+        "reverse": False,
+        "keyword": "trace",
+        "start_date": date(2026, 4, 10),
+        "end_date": date(2026, 4, 12),
+        "scope": "category",
+    }
+
+
+def test_system_log_read_route_rejects_invalid_date_range(monkeypatch) -> None:
+    system_logs_module = _load_system_logs_module()
+    monkeypatch.setattr(system_logs_module.AdminSystemLogController, "_instance", None)
+    monkeypatch.setattr(system_logs_module.AdminSystemLogController, "_router", None)
+
+    app = _build_test_app(SimpleNamespace(), system_logs_module)
+
+    with TestClient(app) as client:
+        response = client.get(
+            "/system-logs/files/app.log/content",
+            params={
+                "start_date": "2026-04-12",
+                "end_date": "2026-04-10",
+            },
+        )
+
+    assert response.status_code == 400
+    assert response.json()["detail"]
 
 
 def test_system_log_download_route_returns_file_response(monkeypatch) -> None:

@@ -149,6 +149,7 @@ def ai_root_cause(
 ) -> None:
     """Analyze runtime root cause / 运行时根因分析。"""
     os.chdir(_BACKEND_DIR)
+    _ensure_utf8_stdio()
     normalized_trace_id = _normalize_cli_identifier(trace_id)
     from app.exceptions import AppException, NotFoundException
 

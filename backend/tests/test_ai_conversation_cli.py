@@ -231,6 +231,37 @@ def _sample_snapshot_with_call_log_turn_record_fallback() -> dict:
     return snapshot
 
 
+def _sample_snapshot_with_call_log_provider_failure_metadata() -> dict:
+    snapshot = _sample_snapshot()
+    snapshot["recent_messages"][1]["metadata"] = {
+        "model_name": "gpt-5.4-xhigh",
+        "provider_name": "响应云",
+    }
+    snapshot["recent_call_logs"][0].update(
+        {
+            "status": "failed",
+            "error_message": "Connection error.",
+            "turn_outcome": "failed",
+            "termination_reason": "error",
+            "protocol_path": "responses",
+            "turn_record": {
+                "turn_outcome": "failed",
+                "termination_reason": "error",
+                "protocol_path": "responses",
+                "metadata": {
+                    "protocol_fallback_blocked_reason": "provider_connection_error",
+                    "stream_failure_error_type": "ProviderConnectionError",
+                },
+            },
+        }
+    )
+    snapshot["diagnostics"] = {
+        "last_assistant_message_id": 3235,
+        "last_assistant_sequence": 18,
+    }
+    return snapshot
+
+
 def test_ai_conversation_show_json_success(monkeypatch) -> None:
     from app.cli import cli
 
@@ -406,6 +437,30 @@ def test_ai_conversation_show_text_omits_none_contract_breach_type(monkeypatch) 
     assert "None" not in result.output
 
 
+def test_ai_conversation_show_text_normalizes_call_log_provider_failure_summary(
+    monkeypatch,
+) -> None:
+    from app.cli import cli
+
+    monkeypatch.setattr(
+        "app.cli._run_async",
+        _return_value(_sample_snapshot_with_call_log_provider_failure_metadata()),
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["ai", "conversation", "show", "563"],
+    )
+
+    assert result.exit_code == 0
+    assert (
+        "summary: outcome=failed termination_reason=provider_unavailable protocol_path=responses"
+        in result.output
+    )
+    assert "summary: outcome=failed termination_reason=error protocol_path=responses" not in result.output
+
+
 def test_ai_conversation_show_text_renders_diagnostic(monkeypatch) -> None:
     from app.cli import cli
 
@@ -482,3 +537,35 @@ def test_ai_root_cause_json_handles_missing_call_log(monkeypatch) -> None:
     assert result.exit_code == 1
     assert '"code": "ai_root_cause_not_found"' in result.output
     assert '"message": "AI call log not found"' in result.output
+
+
+def test_ai_root_cause_enables_utf8_stdio(monkeypatch) -> None:
+    from app.cli import cli
+
+    events: list[str] = []
+
+    async def _fake_operation(*args, **kwargs):
+        assert events and events[0] == "utf8"
+        events.append("operation")
+        return {
+            "status": "failed",
+            "failure_layer": "post_processing",
+            "cause_code": "incomplete_promissory_reply",
+        }
+
+    monkeypatch.setattr("app.cli._run_ai_runtime_cli_operation", _fake_operation)
+    monkeypatch.setattr(
+        "app.cli._ensure_utf8_stdio",
+        lambda: events.append("utf8"),
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["ai", "root-cause", "--call-log-id", "3665", "--json"],
+    )
+
+    assert result.exit_code == 0
+    assert events[0] == "utf8"
+    assert "operation" in events
+    assert '"cause_code": "incomplete_promissory_reply"' in result.output

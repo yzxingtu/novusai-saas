@@ -6,8 +6,10 @@ import pytest
 from app.ai.engine import tool_processor as tool_processor_mod
 from app.ai.engine.conversation import ConversationEngine
 from app.ai.engine.execution_state_machine import ExecutionStateMachine
+from app.ai.engine.final_output_policy import build_untrusted_final_output_fallback
 from app.ai.engine.recovery_manager import RecoveryManager
 from app.ai.engine.stream_handler import StreamExecutionHandler
+from app.ai.engine.turn_executor_completion import finalize_turn_execution
 from app.ai.engine.types import (
     ExecutionBudget,
     ExecutionRequest,
@@ -159,7 +161,16 @@ def _install_fake_weather_processor(
 async def test_budget_exit_with_tool_results_uses_cached_partial_output(
     monkeypatch,
 ) -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    sandbox = MagicMock()
+    sandbox.execute = AsyncMock(
+        return_value=ToolResult(
+            tool_call_id="tc_weather",
+            name="get_current_weather",
+            success=True,
+            output='{"city":"西安","condition":"多云","temperature":"18C"}',
+        )
+    )
+    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=sandbox)
     prep = PreparedExecution(
         messages=[ChatMessage(role="user", content="帮我查一下西安现在的天气")],
         tools=[ToolDefinition(name="get_current_weather", description="Current weather")],
@@ -205,42 +216,6 @@ async def test_budget_exit_with_tool_results_uses_cached_partial_output(
         ]
     )
 
-    async def _fake_handle_tool_calls(*, messages, response, **kwargs):
-        _ = kwargs
-        messages.append(
-            ChatMessage(
-                role="assistant",
-                content="",
-                tool_calls=[{**response.tool_calls[0], "success": True}],
-            )
-        )
-        messages.append(
-            ChatMessage(
-                role="tool",
-                content='{"city":"西安","condition":"多云","temperature":"18C"}',
-                tool_call_id="tc_weather",
-            )
-        )
-        return (
-            ChatResponse(
-                message=ChatMessage(role="assistant", content=""),
-                total_tokens=8,
-                output_tokens=0,
-            ),
-            [
-                ToolResult(
-                    tool_call_id="tc_weather",
-                    name="get_current_weather",
-                    success=True,
-                    output='{"city":"西安","condition":"多云","temperature":"18C"}',
-                )
-            ],
-            8,
-            8,
-        )
-
-    engine._handle_tool_calls = AsyncMock(side_effect=_fake_handle_tool_calls)
-
     sync_calls = {"count": 0}
 
     def _force_budget_exit(self) -> None:
@@ -265,17 +240,107 @@ async def test_budget_exit_with_tool_results_uses_cached_partial_output(
         ),
     )
 
-    # Elapsed budget is diagnostic-only and does not trigger partial exit.
-    # The follow-up synthesis round runs and produces a completed result.
-    assert result.partial is False
-    assert result.success is True
-    assert result.completion_reason == "completed"
+    # Elapsed budget is a real stop-loss and exits through budget semantics.
+    assert result.partial is True
+    assert result.success is False
+    assert result.completion_reason == "elapsed_budget_exceeded"
+    assert result.provider_failure_kind == "budget_exit"
     assert result.output == "西安现在多云，气温约 18C。"
     assert result.execution_budget is not None
+    assert result.execution_budget["status"] == "exited"
+    assert result.execution_budget["exit_reason"] == "elapsed_budget_exceeded"
     assert result.execution_budget["limits"]["finalization_grace_ms"] == 15000
     assert result.execution_budget["usage"]["finalization_grace_applied"] is False
-    # 2 calls: tool selection + follow-up synthesis
-    assert len(engine._call_llm.await_args_list) == 2
+    assert result.execution_budget["elapsed_over_limit"] is True
+    assert result.execution_budget["elapsed_over_limit_ms"] > 0
+    # Elapsed stop-loss prevents the follow-up synthesis call.
+    assert len(engine._call_llm.await_args_list) == 1
+
+
+@pytest.mark.asyncio
+async def test_finalize_turn_execution_replaces_untrusted_tool_evidence_with_safe_fallback() -> None:
+    prep = PreparedExecution(
+        messages=[ChatMessage(role="user", content="latest updates?")],
+        intent_plan=[
+            IntentPlan(
+                intent_id="intent-web",
+                kind="web_research",
+                family="web_research",
+                order=1,
+                user_visible_label="web_research",
+                source_text="latest updates?",
+                status="completed",
+                requires_tools=True,
+                allow_text_response=True,
+                completion_signals=["web_search", "fetch_url"],
+                metadata={"auto_fetch_gate_reason": "search_not_successful"},
+            )
+        ],
+        execution_path="fast",
+        execution_budget=_make_budget(),
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+
+    class _FallbackIO:
+        async def call_llm(self, **_kwargs):
+            raise AssertionError("call_llm should not run in this scenario")
+
+        async def finalize_partial_output(self, **_kwargs):
+            raise AssertionError("partial finalization should not run in this scenario")
+
+        async def finalize_completed_output(self, **kwargs):
+            return (
+                "raw fetched snippet",
+                int(kwargs.get("total_tokens") or 0),
+                int(kwargs.get("completion_tokens_used") or 0),
+            )
+
+    response = ChatResponse(
+        message=ChatMessage(role="assistant", content=""),
+        total_tokens=0,
+        output_tokens=0,
+    )
+    def _emit_round_started(*_args, **_kwargs):
+        return None
+
+    (
+        output,
+        partial,
+        paused_for_consent,
+        _completion_reason,
+        final_output_source,
+        _total_tokens,
+        _completion_tokens_used,
+        finalized_response,
+    ) = await finalize_turn_execution(
+        state=state,
+        io=_FallbackIO(),
+        messages=[ChatMessage(role="user", content="latest updates?")],
+        response=response,
+        decision=None,
+        tool_results=[],
+        total_tokens=0,
+        completion_tokens_used=0,
+        ran_post_tool_follow_up=False,
+        emit_round_started=_emit_round_started,
+    )
+
+    expected_fallback = build_untrusted_final_output_fallback(
+        auto_fetch_gate_reason="search_not_successful"
+    )
+    assert partial is False
+    assert paused_for_consent is False
+    assert final_output_source == "tool_evidence_completed"
+    assert output == expected_fallback
+    assert (finalized_response.message.content or "").strip() == expected_fallback
+    assert state.preparation_diagnostics["post_tool_completion_state"] == (
+        "search_not_successful"
+    )
+    assert state.preparation_diagnostics["search_not_successful_untrusted_output"] is True
+    assert state.preparation_diagnostics["stripped_untrusted_final_output"] is True
+    assert (
+        state.preparation_diagnostics["untrusted_final_output_fallback_applied"] is True
+    )
 
 
 @pytest.mark.asyncio
@@ -415,7 +480,8 @@ async def test_handle_tool_calls_keeps_completed_final_answer_even_if_budget_is_
     )
 
     assert final_response is not None
-    assert final_response.message.content == "凤凰今天晴，气温 7.5°C。"
+    assert (final_response.message.content or "").strip() == ""
+    assert budget.finalization_grace_applied is False
     assert [result.success for result in tool_results] == [False, True]
     assert total_tokens == 18
     assert completion_tokens == 12

@@ -35,18 +35,19 @@ async def test_admin_refresh_plugin_schedules_calls_service(
     )
     monkeypatch.setattr(
         AdminPluginController,
-        "get_service",
+        "get_workflow_service",
         lambda _self, _db: service,
     )
 
     endpoint = _get_endpoint("/plugins/{plugin_id}/refresh-schedules", "POST")
     db = AsyncMock()
-    db.commit = AsyncMock()
     admin = SimpleNamespace(id=3)
 
     response = await endpoint(8, db, admin)
 
-    service.refresh_plugin_schedules.assert_awaited_once_with(8, operator_id=3)
-    db.commit.assert_awaited_once()
+    service.refresh_plugin_schedules.assert_awaited_once_with(
+        plugin_id=8,
+        admin_id=3,
+    )
     assert response["message"]
     assert response["data"]["mode"] == "recover_error"

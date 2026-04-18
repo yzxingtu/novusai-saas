@@ -193,7 +193,9 @@ def test_list_operators_route_returns_paged_payload(monkeypatch) -> None:
     app = _build_test_app(AsyncMock(), operation_logs_module)
 
     with TestClient(app) as client:
-        response = client.get("/operation-logs/operators?page=1&page_size=10&search=ali")
+        response = client.get(
+            "/operation-logs/operators?page=1&page_size=10&search=ali"
+        )
 
     assert response.status_code == 200
     payload = response.json()
@@ -207,3 +209,66 @@ def test_list_operators_route_returns_paged_payload(monkeypatch) -> None:
         page=1,
         page_size=10,
     )
+
+
+def test_export_logs_route_uses_serialized_labels(monkeypatch) -> None:
+    from app.services.system.operation_log_service import OperationLogService
+
+    operation_logs_module = _load_operation_logs_module()
+    monkeypatch.setattr(
+        operation_logs_module.AdminOperationLogController,
+        "_instance",
+        None,
+    )
+    monkeypatch.setattr(
+        operation_logs_module.AdminOperationLogController,
+        "_router",
+        None,
+    )
+
+    def fake_init(self, db) -> None:
+        self.db = db
+        self.repo = OperationLogRepository(db)
+
+    query_admin_logs = AsyncMock(
+        return_value=(
+            [SimpleNamespace(id=11, path="/api/public/attachments/26/image")],
+            1,
+        )
+    )
+    serialize_logs = AsyncMock(
+        return_value=[
+            {
+                "id": 11,
+                "display_name": "管理员",
+                "username": "admin",
+                "module": "attachment",
+                "module_label": "附件",
+                "action": "query",
+                "action_label": "查询",
+                "ip": "127.0.0.1",
+                "response_code": 0,
+                "created_at": "2026-04-15T15:17:50+00:00",
+            }
+        ]
+    )
+
+    monkeypatch.setattr(OperationLogService, "__init__", fake_init)
+    monkeypatch.setattr(
+        OperationLogService,
+        "query_admin_logs_by_permission",
+        query_admin_logs,
+    )
+    monkeypatch.setattr(OperationLogService, "serialize_logs", serialize_logs)
+
+    app = _build_test_app(AsyncMock(), operation_logs_module)
+
+    with TestClient(app) as client:
+        response = client.get("/operation-logs/export")
+
+    assert response.status_code == 200
+    assert "text/csv" in response.headers["content-type"]
+    content = response.content.decode("utf-8-sig")
+    assert "附件" in content
+    assert "查询" in content
+    assert "attachment" not in content

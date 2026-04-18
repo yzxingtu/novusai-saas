@@ -7,13 +7,31 @@ Provides file log query, read, download functions.
 
 import os
 import re
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
-from typing import NamedTuple
+from typing import Literal, NamedTuple
 
 from app.core.config import settings
 from app.core.logging import LogManager
 from app.enums.log import LogCategoryEnum
+
+LogSearchScope = Literal["current_file", "category"]
+
+LOG_SCOPE_CURRENT_FILE: LogSearchScope = "current_file"
+LOG_SCOPE_CATEGORY: LogSearchScope = "category"
+
+_LOG_HEADER_PATTERN = re.compile(
+    r"^(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+\|\s+(?P<level>[^|]+?)\s+\|"
+)
+
+
+class ParsedLogFilename(NamedTuple):
+    """解析后的日志文件名信息 / Parsed log filename metadata."""
+
+    category: str
+    file_date: date | None
+    has_rotation_suffix: bool
+    is_legacy_current: bool
 
 
 class LogFileInfo(NamedTuple):
@@ -36,14 +54,38 @@ class LogCategoryInfo(NamedTuple):
     total_size: int
 
 
+class LogContentLineItem(NamedTuple):
+    """日志行项 / Log content line item."""
+
+    file_name: str
+    line_number: int
+    content: str
+
+
 class LogContentPage(NamedTuple):
     """日志内容分页结果 / Log content paged result."""
 
+    filename: str
+    category: str
+    scope: LogSearchScope
     lines: list[str]
+    items: list[LogContentLineItem]
     total_lines: int
+    total_entries: int
+    searched_files: int
     page: int
     page_size: int
     has_more: bool
+
+
+class LogEntry(NamedTuple):
+    """日志块 / Parsed log entry."""
+
+    file_name: str
+    start_line: int
+    lines: list[str]
+    timestamp: datetime | None
+    level: str | None
 
 
 class SystemLogService:
@@ -110,42 +152,218 @@ class SystemLogService:
             return False
 
         try:
-            # 解析为绝对路径 / Resolve absolute path
             resolved_path = file_path.resolve()
             resolved_log_dir = self._log_dir.resolve()
-
-            # 检查是否在日志目录内 / Check path inside log directory
             return str(resolved_path).startswith(str(resolved_log_dir))
         except (OSError, ValueError):
             return False
 
-    def _parse_log_filename(self, filename: str) -> tuple[str, str | None]:
+    def _parse_log_filename(self, filename: str) -> ParsedLogFilename | None:
         """
-        解析日志文件名，提取分类与后缀 / Parse log filename to extract category and suffix.
+        解析日志文件名，提取分类与日期信息 / Parse log filename metadata.
 
-        支持的格式（与 RotatingFileHandler 实际产出一致）：
-        - {category}.log — 当前活动日志，suffix 为 None
-        - {category}.log.{数字} — 按大小轮转的备份（如 .1, .2），suffix 为数字串
-        - {category}.log.YYYY-MM-DD — 按日期命名的历史备份（兼容），suffix 为日期串
-
-        Parse log filename to extract category and suffix (current vs backup).
+        兼容以下格式：
+        - {category}.log
+        - {category}.log.{n}
+        - {category}.log.YYYY-MM-DD
+        - {category}.YYYY-MM-DD.log
+        - {category}.YYYY-MM-DD.log.{n}
         """
-        # 当前活动文件：仅 {category}.log
         match = re.match(r"^([a-z_]+)\.log$", filename)
         if match:
-            return match.group(1), None
+            return ParsedLogFilename(
+                category=match.group(1),
+                file_date=None,
+                has_rotation_suffix=False,
+                is_legacy_current=True,
+            )
 
-        # 按大小轮转的备份：{category}.log.1, .2, ...
         match = re.match(r"^([a-z_]+)\.log\.(\d+)$", filename)
         if match:
-            return match.group(1), match.group(2)
+            return ParsedLogFilename(
+                category=match.group(1),
+                file_date=None,
+                has_rotation_suffix=True,
+                is_legacy_current=False,
+            )
 
-        # 按日期命名的备份：{category}.log.2026-01-20（兼容）
         match = re.match(r"^([a-z_]+)\.log\.(\d{4}-\d{2}-\d{2})$", filename)
         if match:
-            return match.group(1), match.group(2)
+            return ParsedLogFilename(
+                category=match.group(1),
+                file_date=date.fromisoformat(match.group(2)),
+                has_rotation_suffix=True,
+                is_legacy_current=False,
+            )
 
-        return "", None
+        match = re.match(r"^([a-z_]+)\.(\d{4}-\d{2}-\d{2})\.log$", filename)
+        if match:
+            return ParsedLogFilename(
+                category=match.group(1),
+                file_date=date.fromisoformat(match.group(2)),
+                has_rotation_suffix=False,
+                is_legacy_current=False,
+            )
+
+        match = re.match(r"^([a-z_]+)\.(\d{4}-\d{2}-\d{2})\.log\.(\d+)$", filename)
+        if match:
+            return ParsedLogFilename(
+                category=match.group(1),
+                file_date=date.fromisoformat(match.group(2)),
+                has_rotation_suffix=True,
+                is_legacy_current=False,
+            )
+
+        return None
+
+    def _get_log_glob_patterns(self, category: str) -> list[str]:
+        """获取分类日志文件 glob 模式 / Get glob patterns for one category."""
+        return [
+            f"{category}.log*",
+            f"{category}.*.log",
+            f"{category}.*.log.*",
+        ]
+
+    def _collect_category_log_paths(self, category: str) -> list[Path]:
+        """收集某一分类下的日志文件 / Collect log paths for one category."""
+        if self._log_dir is None:
+            return []
+
+        collected: dict[str, Path] = {}
+        for pattern in self._get_log_glob_patterns(category):
+            for file_path in self._log_dir.glob(pattern):
+                if not file_path.is_file():
+                    continue
+                parsed = self._parse_log_filename(file_path.name)
+                if parsed is None or parsed.category != category:
+                    continue
+                try:
+                    resolved = str(file_path.resolve())
+                except OSError:
+                    resolved = str(file_path)
+                collected[resolved] = file_path
+        return list(collected.values())
+
+    def _get_current_daily_log_name(
+        self,
+        category: str,
+        *,
+        today: date | None = None,
+    ) -> str:
+        """获取当前按日拆分的日志文件名 / Get current daily log filename."""
+        current_day = today or datetime.now().date()
+        return f"{category}.{current_day.isoformat()}.log"
+
+    def _is_current_log_file(self, filename: str, parsed: ParsedLogFilename) -> bool:
+        """判断文件是否为当前活动日志文件 / Check whether file is active."""
+        if self._log_dir is None or parsed.has_rotation_suffix:
+            return False
+
+        today = datetime.now().date()
+        current_daily_name = self._get_current_daily_log_name(
+            parsed.category, today=today
+        )
+        current_daily_exists = (self._log_dir / current_daily_name).exists()
+
+        if filename == current_daily_name and parsed.file_date == today:
+            return True
+
+        return parsed.is_legacy_current and not current_daily_exists
+
+    def _parse_log_header(self, line: str) -> tuple[datetime | None, str | None]:
+        """解析日志头 / Parse log line header."""
+        match = _LOG_HEADER_PATTERN.match(line)
+        if match is None:
+            return None, None
+
+        timestamp = match.group("timestamp")
+        level = match.group("level").strip().upper()
+
+        try:
+            return datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S"), level
+        except ValueError:
+            return None, None
+
+    def _read_entries_from_file(self, file_path: Path) -> list[LogEntry]:
+        """按日志块读取文件 / Read file into grouped log entries."""
+        entries: list[LogEntry] = []
+        current_lines: list[str] = []
+        current_timestamp: datetime | None = None
+        current_level: str | None = None
+        current_start_line = 1
+
+        with open(file_path, encoding="utf-8", errors="replace") as file_obj:
+            for line_number, raw_line in enumerate(file_obj, start=1):
+                line = raw_line.rstrip("\n\r")
+                timestamp, level = self._parse_log_header(line)
+
+                if timestamp is not None:
+                    if current_lines:
+                        entries.append(
+                            LogEntry(
+                                file_name=file_path.name,
+                                start_line=current_start_line,
+                                lines=current_lines,
+                                timestamp=current_timestamp,
+                                level=current_level,
+                            )
+                        )
+                    current_lines = [line]
+                    current_timestamp = timestamp
+                    current_level = level
+                    current_start_line = line_number
+                    continue
+
+                if not current_lines:
+                    current_start_line = line_number
+                current_lines.append(line)
+
+        if current_lines:
+            entries.append(
+                LogEntry(
+                    file_name=file_path.name,
+                    start_line=current_start_line,
+                    lines=current_lines,
+                    timestamp=current_timestamp,
+                    level=current_level,
+                )
+            )
+
+        return entries
+
+    def _entry_matches(
+        self,
+        entry: LogEntry,
+        *,
+        keyword: str | None,
+        start_date: date | None,
+        end_date: date | None,
+    ) -> bool:
+        """判断日志块是否匹配筛选条件 / Check whether one log entry matches."""
+        normalized_keyword = (keyword or "").strip().lower()
+        if normalized_keyword and not any(
+            normalized_keyword in line.lower() for line in entry.lines
+        ):
+            return False
+
+        if start_date is None and end_date is None:
+            return True
+
+        if entry.timestamp is None:
+            return False
+
+        entry_date = entry.timestamp.date()
+        if start_date is not None and entry_date < start_date:
+            return False
+        return end_date is None or entry_date <= end_date
+
+    def _sort_paths_by_mtime(self, paths: list[Path], *, reverse: bool) -> list[Path]:
+        """按修改时间排序文件路径 / Sort paths by modification time."""
+        return sorted(
+            paths,
+            key=lambda path: (path.stat().st_mtime, path.name),
+            reverse=reverse,
+        )
 
     def list_categories(self) -> list[LogCategoryInfo]:
         """
@@ -158,24 +376,15 @@ class SystemLogService:
 
         for category in LogCategoryEnum:
             category_value = category.value
-
-            # 统计该分类的文件数和总大小 / Count files and total size for category
-            file_count = 0
-            total_size = 0
-
-            if self._log_dir:
-                for file_path in self._log_dir.glob(f"{category_value}.log*"):
-                    if file_path.is_file():
-                        file_count += 1
-                        total_size += file_path.stat().st_size
+            files = self.list_log_files(category=category_value)
 
             categories.append(
                 LogCategoryInfo(
                     code=category_value,
                     name=self._CATEGORY_NAMES.get(category_value, category_value),
                     description=self._CATEGORY_DESCRIPTIONS.get(category_value, ""),
-                    file_count=file_count,
-                    total_size=total_size,
+                    file_count=len(files),
+                    total_size=sum(file.size for file in files),
                 )
             )
 
@@ -197,41 +406,29 @@ class SystemLogService:
         if self._log_dir is None:
             return []
 
+        target_categories = (
+            [category] if category else [cat.value for cat in LogCategoryEnum]
+        )
         files: list[LogFileInfo] = []
 
-        # 确定要搜索的模式 / Resolve search glob pattern
-        if category:
-            patterns = [f"{category}.log*"]
-        else:
-            patterns = [f"{cat.value}.log*" for cat in LogCategoryEnum]
-
-        for pattern in patterns:
-            for file_path in self._log_dir.glob(pattern):
-                if not file_path.is_file():
-                    continue
-
-                # 解析文件名 / Parse filename
-                parsed_category, date_str = self._parse_log_filename(file_path.name)
-                if not parsed_category:
-                    continue
-
-                # 如果指定了分类，验证匹配 / If category filter set, validate match
-                if category and parsed_category != category:
+        for category_value in target_categories:
+            for file_path in self._collect_category_log_paths(category_value):
+                parsed = self._parse_log_filename(file_path.name)
+                if parsed is None:
                     continue
 
                 stat = file_path.stat()
                 files.append(
                     LogFileInfo(
                         name=file_path.name,
-                        category=parsed_category,
+                        category=parsed.category,
                         size=stat.st_size,
                         modified_at=datetime.fromtimestamp(stat.st_mtime),
-                        is_current=(date_str is None),
+                        is_current=self._is_current_log_file(file_path.name, parsed),
                     )
                 )
 
-        # 按修改时间倒序排序 / Sort by mtime descending
-        files.sort(key=lambda f: f.modified_at, reverse=True)
+        files.sort(key=lambda item: item.modified_at, reverse=True)
         return files
 
     def read_log_file(
@@ -240,61 +437,103 @@ class SystemLogService:
         page: int = 1,
         page_size: int = 100,
         reverse: bool = True,
+        keyword: str | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
+        scope: LogSearchScope = LOG_SCOPE_CURRENT_FILE,
     ) -> LogContentPage | None:
         """
         分页读取日志文件内容 / Read log file content (paginated).
 
-        Args:
-            filename: 日志文件名
-            page: 页码（从 1 开始）
-            page_size: 每页行数
-            reverse: 是否倒序（最新的在前）
-
-        Returns:
-            日志内容分页结果，文件不存在或路径不安全时返回 None
+        按日志块分页，便于日期范围和关键词检索时保留堆栈上下文。
+        Paginates by log entry blocks so filtered traceback context stays intact.
         """
         if self._log_dir is None:
             return None
 
-        file_path = self._log_dir / filename
+        parsed_filename = self._parse_log_filename(filename)
+        if parsed_filename is None:
+            return None
 
-        # 安全验证 / Safety validation
+        file_path = self._log_dir / filename
         if not self._validate_path(file_path):
             return None
 
-        if not file_path.exists() or not file_path.is_file():
-            return None
+        if scope == LOG_SCOPE_CURRENT_FILE:
+            if not file_path.exists() or not file_path.is_file():
+                return None
+            source_files = [file_path]
+        else:
+            source_files = self._collect_category_log_paths(parsed_filename.category)
+            if not source_files:
+                return LogContentPage(
+                    filename=filename,
+                    category=parsed_filename.category,
+                    scope=scope,
+                    lines=[],
+                    items=[],
+                    total_lines=0,
+                    total_entries=0,
+                    searched_files=0,
+                    page=page,
+                    page_size=page_size,
+                    has_more=False,
+                )
+            source_files = self._sort_paths_by_mtime(source_files, reverse=reverse)
 
-        try:
-            # 读取所有行 / Read all lines
-            with open(file_path, encoding="utf-8", errors="replace") as f:
-                all_lines = f.readlines()
+        page_start = (page - 1) * page_size
+        page_end = page_start + page_size
 
-            total_lines = len(all_lines)
+        items: list[LogContentLineItem] = []
+        total_entries = 0
+        total_lines = 0
+        searched_files = 0
 
-            # 倒序处理 / Process in reverse order
-            if reverse:
-                all_lines = all_lines[::-1]
+        for source_file in source_files:
+            searched_files += 1
+            try:
+                entries = self._read_entries_from_file(source_file)
+            except OSError:
+                continue
 
-            # 分页 / Pagination
-            start = (page - 1) * page_size
-            end = start + page_size
-            page_lines = all_lines[start:end]
+            ordered_entries = reversed(entries) if reverse else entries
+            for entry in ordered_entries:
+                if not self._entry_matches(
+                    entry,
+                    keyword=keyword,
+                    start_date=start_date,
+                    end_date=end_date,
+                ):
+                    continue
 
-            # 去除每行末尾的换行符 / Strip trailing newline per line
-            page_lines = [line.rstrip("\n\r") for line in page_lines]
+                if page_start <= total_entries < page_end:
+                    items.extend(
+                        LogContentLineItem(
+                            file_name=entry.file_name,
+                            line_number=entry.start_line + offset,
+                            content=line,
+                        )
+                        for offset, line in enumerate(entry.lines)
+                    )
 
-            has_more = end < total_lines
+                total_entries += 1
+                total_lines += len(entry.lines)
 
-            return LogContentPage(
-                lines=page_lines,
-                total_lines=total_lines,
-                page=page,
-                page_size=page_size,
-                has_more=has_more,
-            )
-        except OSError:
-            return None
+        has_more = total_entries > page_end
+
+        return LogContentPage(
+            filename=filename,
+            category=parsed_filename.category,
+            scope=scope,
+            lines=[item.content for item in items],
+            items=items,
+            total_lines=total_lines,
+            total_entries=total_entries,
+            searched_files=searched_files,
+            page=page,
+            page_size=page_size,
+            has_more=has_more,
+        )
 
     def get_log_file_path(self, filename: str) -> Path | None:
         """
@@ -311,7 +550,6 @@ class SystemLogService:
 
         file_path = self._log_dir / filename
 
-        # 安全验证 / Safety validation
         if not self._validate_path(file_path):
             return None
 
@@ -324,7 +562,7 @@ class SystemLogService:
         """
         删除日志文件 / Delete log file.
 
-        注意：不允许删除当前活动日志文件（{category}.log）
+        注意：不允许删除当前活动日志文件。
 
         Args:
             filename: 日志文件名
@@ -336,18 +574,17 @@ class SystemLogService:
             return False
 
         file_path = self._log_dir / filename
-
-        # 安全验证 / Safety validation
         if not self._validate_path(file_path):
             return False
 
         if not file_path.exists() or not file_path.is_file():
             return False
 
-        # 不允许删除当前活动日志文件 / Cannot delete the current active log file
-        parsed_category, date_str = self._parse_log_filename(filename)
-        if date_str is None:
-            # 当前活动日志文件，不允许删除 / Current active log file cannot be deleted
+        parsed = self._parse_log_filename(filename)
+        if parsed is None:
+            return False
+
+        if self._is_current_log_file(filename, parsed):
             return False
 
         try:
@@ -386,7 +623,11 @@ class SystemLogService:
 
 __all__ = [
     "SystemLogService",
-    "LogFileInfo",
     "LogCategoryInfo",
+    "LogContentLineItem",
     "LogContentPage",
+    "LogFileInfo",
+    "LogSearchScope",
+    "LOG_SCOPE_CATEGORY",
+    "LOG_SCOPE_CURRENT_FILE",
 ]

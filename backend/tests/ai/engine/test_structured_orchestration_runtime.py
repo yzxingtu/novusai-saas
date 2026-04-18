@@ -215,6 +215,210 @@ def test_post_tool_contract_breach_keeps_page_intent_when_page_not_executed() ->
     assert "ui_get_snapshot" in retry_policy.allowed_tool_names
 
 
+def test_post_tool_contract_breach_native_web_evidence_keeps_page_intent_pending() -> (
+    None
+):
+    response = ChatResponse(
+        message=ChatMessage(
+            role="assistant",
+            content="我已经根据抓取到的网页内容整理了天气信息。",
+        ),
+        tool_calls=None,
+        raw_response={
+            "output": [
+                {
+                    "type": "message",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": "我已经根据抓取到的网页内容整理了天气信息。",
+                            "annotations": [
+                                {
+                                    "type": "url_citation",
+                                    "url": "https://weather.example.com/beijing",
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ]
+        },
+    )
+
+    breach_type, retry_policy, diagnostics = BaseEngine._analyze_post_tool_contract_breach(
+        messages=[ChatMessage(role="user", content="查一下北京天气，再看看当前页面")],
+        response=response,
+        current_policy=ToolUsePolicy(
+            family="web_research",
+            mode="required",
+            allowed_tool_names=["web_search", "fetch_url"],
+        ),
+        tools=_mixed_tools(),
+        input_variables={
+            **_page_context(),
+            "_runtime_intent_facts": {
+                "requested_intents": ["weather", "page_summary"],
+            },
+        },
+    )
+
+    assert breach_type == "unfinished_multi_intent_reply"
+    assert retry_policy is not None
+    assert diagnostics["completed_intents"] == ["weather"]
+    assert diagnostics["unfinished_intents"] == ["page_summary"]
+    assert diagnostics["native_web_search_evidence"] is True
+
+
+def test_post_tool_contract_breach_retries_cross_page_navigation_after_snapshot_only() -> (
+    None
+):
+    tools = [
+        _tool("ui_get_snapshot", "Read page"),
+        _tool("ui_list_interactables", "List interactables"),
+        _tool("ui_click", "Click ui"),
+        _tool("ui_open_surface", "Open surface"),
+    ]
+    user_text = "添加供应商"
+    input_variables = {
+        "page_context": {
+            "page_key": "admin.ai.conversations",
+            "page_title": "对话管理",
+            "page_session_id": "session-conversations",
+            "ui_epoch": 3,
+            "page_data": {
+                "available_menus": [
+                    {
+                        "title": "供应商管理",
+                        "path": "/admin/suppliers",
+                        "page_key": "admin.suppliers",
+                        "keywords": ["供应商", "添加供应商"],
+                    }
+                ]
+            },
+            "suggested_tools": {
+                "primary": [
+                    "ui_get_snapshot",
+                    "ui_list_interactables",
+                    "ui_click",
+                    "ui_open_surface",
+                ]
+            },
+        }
+    }
+    intent_plan = IntentPlanner.plan_turn(
+        messages=[ChatMessage(role="user", content=user_text)],
+        tools=tools,
+        input_variables=input_variables,
+        continuation_context=None,
+    )
+    input_variables = {
+        **input_variables,
+        "_runtime_intent_plan": [intent.to_dict() for intent in intent_plan],
+    }
+    messages = [
+        ChatMessage(role="user", content=user_text),
+        ChatMessage(
+            role="assistant",
+            content="",
+            tool_calls=[
+                {
+                    "success": True,
+                    "function": {"name": "ui_get_snapshot"},
+                }
+            ],
+        ),
+    ]
+    response = ChatResponse(
+        message=ChatMessage(role="assistant", content="我先帮你看一下当前页面。"),
+        tool_calls=None,
+    )
+
+    breach_type, retry_policy, diagnostics = BaseEngine._analyze_post_tool_contract_breach(
+        messages=messages,
+        response=response,
+        current_policy=ToolUsePolicy(
+            family="page_ops",
+            mode="required",
+            allowed_tool_names=[
+                "ui_get_snapshot",
+                "ui_list_interactables",
+                "ui_click",
+                "ui_open_surface",
+            ],
+        ),
+        tools=tools,
+        input_variables=input_variables,
+    )
+
+    assert breach_type == "unfinished_multi_intent_reply"
+    assert retry_policy is not None
+    assert retry_policy.family == "page_ops"
+    assert diagnostics["requested_intents"] == ["page_navigation"]
+    assert diagnostics["unfinished_intents"] == ["page_navigation"]
+    assert "ui_list_interactables" in retry_policy.allowed_tool_names
+    assert "ui_open_surface" in retry_policy.allowed_tool_names
+
+
+def test_recovery_manager_keeps_page_navigation_pending_after_snapshot_only() -> None:
+    intents = [
+        _intent(
+            "intent-1",
+            kind="page_navigation",
+            family="page_ops",
+            order=1,
+            allowed_tool_names=[
+                "ui_list_interactables",
+                "ui_click",
+                "ui_open_surface",
+                "ui_get_snapshot",
+            ],
+        )
+    ]
+
+    updated = RecoveryManager.update_intent_statuses(
+        intents,
+        messages=[
+            ChatMessage(
+                role="assistant",
+                content="",
+                tool_calls=[
+                    {
+                        "success": True,
+                        "function": {"name": "ui_get_snapshot"},
+                    }
+                ],
+            )
+        ],
+        tool_results=[
+            ToolResult(
+                tool_call_id="call-page",
+                name="ui_get_snapshot",
+                success=True,
+                output='{"ui_epoch": 5}',
+            )
+        ],
+    )
+
+    assert updated[0].status == "pending"
+    assert updated[0].completed_by_tool_names == []
+
+    decision = RecoveryManager.decide(
+        updated,
+        budget=BudgetGuard.build_default("deep", intent_count=1),
+    )
+
+    assert decision is not None
+    assert decision.action == "retry_intent"
+
+    message = RecoveryManager.build_recovery_message(
+        decision=decision,
+        intents=updated,
+    )
+
+    assert "do NOT call ui_get_snapshot again" in message.content
+    assert "ui_list_interactables" in message.content
+
+
 def test_path_selector_routes_fast_normal_and_deep_by_intent_shape() -> None:
     fast = PathSelector.select(
         [_intent("intent-1", kind="page_summary", family="page_ops", order=1)]
@@ -279,6 +483,53 @@ def test_tool_router_caps_mixed_candidates_and_preserves_page_summary_focus() ->
         "fetch_url",
         "ui_get_snapshot",
     }
+
+
+def test_tool_router_allows_open_and_read_tools_for_page_form_read_without_active_form() -> (
+    None
+):
+    budget = ExecutionBudget(
+        max_prompt_tokens=4000,
+        max_completion_tokens=1000,
+        max_tool_rounds=2,
+        max_elapsed_ms=10000,
+        max_retry_per_intent=1,
+        max_candidate_tools=8,
+        max_tool_result_bytes=4096,
+    )
+    intents = [
+        _intent("intent-1", kind="page_form_read", family="page_ops", order=1)
+    ]
+    tools = [
+        _tool("ui_list_interactables", "List interactables"),
+        _tool("ui_click", "Click ui"),
+        _tool("ui_open_surface", "Open surface"),
+        _tool("ui_get_form_state", "Get form state"),
+        _tool("ui_read_region", "Read region"),
+        _tool("ui_get_snapshot", "Read page"),
+    ]
+
+    decision = ToolRouter.route(
+        intents=intents,
+        tools=tools,
+        budget=budget,
+        input_variables={
+            "page_context": {
+                "page_key": "admin.ai.skills",
+                "ui_epoch": 2,
+            }
+        },
+        user_text="点击添加技能，看看表单里有哪些必填项，但不要提交",
+    )
+
+    assert decision.intent_allowed_tools["intent-1"] == [
+        "ui_list_interactables",
+        "ui_click",
+        "ui_open_surface",
+        "ui_get_form_state",
+        "ui_read_region",
+        "ui_get_snapshot",
+    ]
 
 
 def test_budget_guard_registers_preparation_and_detects_candidate_budget_exit() -> None:

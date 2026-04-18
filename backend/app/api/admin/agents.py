@@ -466,8 +466,6 @@ class AdminAgentController(GlobalController):
                 skill_id=data.skill_id,
                 config_override=data.config_override,
                 sort_order=data.sort_order,
-                default_consent_mode=data.default_consent_mode,
-                capability_consent_overrides=data.capability_consent_overrides,
             )
             await db.commit()
             return created(data=grant_service.serialize_grant_public(grant))
@@ -491,7 +489,6 @@ class AdminAgentController(GlobalController):
             grants = await grant_service.batch_bind(
                 agent_id=agent_id,
                 skill_ids=data.skill_ids,
-                default_consent_modes=data.default_consent_modes,
             )
             await db.commit()
             return success(
@@ -509,7 +506,7 @@ class AdminAgentController(GlobalController):
             admin: ActiveAdmin,
         ):
             """
-            更新技能绑定（enabled / config_override / sort_order / default_consent_mode）
+            更新技能绑定（enabled / config_override / sort_order）
 
             权限: ai_agent:update_skill_binding
             """

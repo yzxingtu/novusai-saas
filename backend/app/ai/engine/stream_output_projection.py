@@ -1,3 +1,4 @@
+# FROZEN: do not add new dependencies
 """Pure-ish stream output and round-limit helpers."""
 
 from __future__ import annotations
@@ -8,6 +9,8 @@ from app.ai.page_locale import resolve_page_locale
 from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage, ChatResponse
 from app.core.i18n import _
+
+from .final_output_policy import is_trusted_assistant_final_output_source
 
 
 def tool_loop_round_limit(handler: Any, tools: list[ToolDefinition]) -> int:
@@ -107,7 +110,7 @@ def should_preserve_streamed_assistant_output(
     streamed_output: str,
     finalized_output: str,
 ) -> bool:
-    if final_output_source != "assistant":
+    if not is_trusted_assistant_final_output_source(final_output_source):
         return False
     return is_streamed_prefix_expansion(
         streamed_output=streamed_output,

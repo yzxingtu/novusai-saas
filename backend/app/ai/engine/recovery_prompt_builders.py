@@ -81,11 +81,25 @@ def build_recovery_message(
         for intent in intents
         if intent.intent_id in decision.unfinished_intent_ids
     ]
+    target_intent = next(
+        (
+            intent
+            for intent in intents
+            if intent.intent_id == decision.target_intent_id
+        ),
+        None,
+    )
+    breach_guidance = "Only finish the remaining intent(s) listed below.\n"
+    if target_intent is not None and str(target_intent.kind or "").strip() == "page_navigation":
+        breach_guidance = (
+            f"{render_prompt_contract('page_flow_recovery')}\n"
+            "Only finish the remaining intent(s) listed below.\n"
+        )
     return ChatMessage(
         role="system",
         content=render_prompt_contract(
             "contract_recovery",
-            breach_guidance="Only finish the remaining intent(s) listed below.\n",
+            breach_guidance=breach_guidance,
             unfinished_line=(
                 f"Unfinished requested intents: {', '.join(unfinished)}.\n"
                 if unfinished

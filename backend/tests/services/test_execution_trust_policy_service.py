@@ -48,7 +48,10 @@ def test_execution_trust_policy_allows_family_with_safe_write_cap() -> None:
 
 
 def test_base_engine_uses_runtime_trust_policy_helper_only() -> None:
-    source = Path("app/ai/engine/base.py").read_text(encoding="utf-8")
+    backend_root = Path(__file__).resolve().parents[2]
+    source = (
+        backend_root / "app/ai/engine/tool_policy_trust_helpers.py"
+    ).read_text(encoding="utf-8")
 
     assert "app.services.ai.execution_trust_policy_service" not in source
     assert "app.ai.runtime.execution_trust_policy" in source

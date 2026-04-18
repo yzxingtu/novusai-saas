@@ -14,8 +14,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.ai.types import ChatMessage
 from app.ai.tools.types import ToolResult
+from app.ai.types import ChatMessage
 from tests.services.conftest import make_mock_model
 
 
@@ -176,7 +176,9 @@ class TestGetConversationDetail:
         assert "token=" in attachments[1]["url"]
 
     @pytest.mark.asyncio
-    async def test_conversation_detail_includes_interaction_mode_metadata(self, mock_db):
+    async def test_conversation_detail_normalizes_legacy_interaction_mode_metadata(
+        self, mock_db
+    ):
         from app.services.ai.conversation_service import ConversationService
 
         conversation = _make_conversation()
@@ -208,9 +210,15 @@ class TestGetConversationDetail:
         detail = await service.get_conversation_detail(1, user_id=1)
 
         assert detail["interaction_mode_requested"] == "trusted_auto"
-        assert detail["interaction_mode_effective"] == "confirm"
-        assert detail["context_diagnostics"]["interaction_mode_effective"] == "confirm"
-        assert detail["last_run_summary"]["interaction_mode_effective"] == "confirm"
+        assert detail["interaction_mode_effective"] == "trusted_auto"
+        assert (
+            detail["context_diagnostics"]["interaction_mode_effective"]
+            == "trusted_auto"
+        )
+        assert (
+            detail["last_run_summary"]["interaction_mode_effective"]
+            == "trusted_auto"
+        )
         assert detail["last_run_summary"]["downgrade_reason"] is None
 
     @pytest.mark.asyncio
@@ -249,6 +257,8 @@ class TestGetConversationDetail:
         assert detail["context_diagnostics"]["persistence_error"] is True
         assert detail["last_run_summary"]["error_message"] == "服务器内部错误"
         assert detail["last_error"]["partial"] is True
+        assert detail["turn_flow"]["completion_reason"] == "stream_execution_error"
+        assert detail["turn_flow"]["timeline"][-1]["type"] == "failed"
 
     @pytest.mark.asyncio
     async def test_conversation_detail_surfaces_selected_skills_and_interrupted_signal(
@@ -299,6 +309,8 @@ class TestGetConversationDetail:
         ]
         assert detail["context_diagnostics"]["last_interrupted"] is True
         assert detail["last_run_summary"]["interrupted"] is True
+        assert detail["message_list"][0]["turn_flow"]["completion_reason"] == "interrupted"
+        assert detail["message_list"][0]["turn_flow"]["interrupted"] is True
 
     @pytest.mark.asyncio
     async def test_conversation_detail_uses_latest_assistant_for_diagnostics_even_when_page_is_older(
@@ -375,6 +387,79 @@ class TestGetConversationDetail:
         assert detail["last_run_summary"]["termination_reason"] == (
             "tool_round_budget_exceeded"
         )
+        assert detail["message_list"][0]["turn_flow"]["timeline"][-1]["type"] == "completed"
+
+    @pytest.mark.asyncio
+    async def test_conversation_detail_normalizes_provider_failure_after_partial_progress_turn_flow(
+        self, mock_db
+    ):
+        from app.services.ai.conversation_service import ConversationService
+
+        conversation = _make_conversation()
+        conversation.metadata_ = {"interaction_mode": "confirm"}
+        message = _make_message(role="assistant", content="已输出部分内容")
+        message.to_dict.return_value = {
+            "id": 1,
+            "role": "assistant",
+            "content": "已输出部分内容",
+            "metadata": {
+                "turn_record": {
+                    "turn_outcome": "partial",
+                    "termination_reason": "provider_failure_after_partial_progress",
+                    "metadata": {
+                        "turn_diagnostics": {
+                            "failures": {
+                                "failure_kind": "provider_http_5xx",
+                            }
+                        }
+                    },
+                },
+                "turn_flow": {
+                    "timeline": [
+                        {
+                            "id": "answer_assembly",
+                            "type": "answer_assembly",
+                            "status": "completed",
+                            "title": "答案生成",
+                            "summary": "已生成最终答复",
+                        },
+                        {
+                            "id": "terminal",
+                            "type": "completed",
+                            "status": "completed",
+                            "title": "本轮结束",
+                            "summary": "provider_failure_after_partial_progress",
+                        },
+                    ],
+                    "completion_reason": "provider_failure_after_partial_progress",
+                    "interrupted": False,
+                    "error_surface": None,
+                },
+            },
+        }
+        message.metadata_ = message.to_dict.return_value["metadata"]
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service.get_accessible_conversation = AsyncMock(return_value=conversation)
+        service._message_repo = MagicMock()
+        service._message_repo.get_by_conversation = AsyncMock(return_value=[message])
+        service._message_repo.count_by_conversation = AsyncMock(return_value=1)
+        mock_db.execute = AsyncMock(return_value=SimpleNamespace(scalars=lambda: []))
+
+        detail = await service.get_conversation_detail(1, user_id=1)
+
+        turn_flow = detail["message_list"][0]["turn_flow"]
+        answer_assembly = next(
+            stage for stage in turn_flow["timeline"] if stage["type"] == "answer_assembly"
+        )
+        assert turn_flow["completion_reason"] == "provider_failure_after_partial_progress"
+        assert answer_assembly["status"] == "error"
+        assert turn_flow["timeline"][-1]["type"] == "failed"
+        assert turn_flow["timeline"][-1]["status"] == "error"
+        assert turn_flow["error_surface"]["message"]
 
 
 class TestGetServiceForConversation:
@@ -1282,6 +1367,8 @@ class TestThinkingPersistence:
             is False
         )
         assert assistant_payload["metadata_"]["last_run_summary"] == last_summary
+        assert assistant_payload["metadata_"]["turn_flow"]["timeline"][-1]["type"] == "completed"
+        assert assistant_payload["metadata_"]["turn_flow"]["answer_card"]["summary"] == "最终答复"
 
     @pytest.mark.asyncio
     async def test_persist_chat_messages_normalizes_nested_runtime_metadata_to_json_safe(
@@ -2173,6 +2260,33 @@ def test_extract_turn_diagnostics_reads_extended_runtime_fields_from_nested_turn
                     "leaked_tool_names": ["web_search"],
                     "recovered_via_retry": False,
                     "turn_diagnostics": {
+                        "path_decision": {
+                            "path": "deep",
+                            "reason": "multi_intent",
+                            "all_shortcircuit": False,
+                            "intent_count": 2,
+                        },
+                        "capability_injection_decision": {
+                            "skills_injected": False,
+                            "kb_injected": False,
+                            "memory_injected": False,
+                            "page_injected": True,
+                            "bypass_reason": None,
+                        },
+                        "tool_filtering": {
+                            "all_tools_count": 15,
+                            "candidate_tools_count": 4,
+                            "filtering_reason": "intent_scoped",
+                        },
+                        "recovery_chain": [
+                            {
+                                "step": 1,
+                                "action": "retry_intent",
+                                "target_intent": "intent-3",
+                                "reason": "unfinished_intent_retry",
+                                "provider_failure_kind": "provider_http_5xx",
+                            }
+                        ],
                         "routing": {
                             "candidate_tool_names": [
                                 "get_current_weather",
@@ -2227,6 +2341,33 @@ def test_extract_turn_diagnostics_reads_extended_runtime_fields_from_nested_turn
     assert payload["failure_kind"] == "provider_http_5xx"
     assert payload["provider_events"] == [
         {"kind": "provider_http_5xx", "status_code": 503}
+    ]
+    assert payload["path_decision"] == {
+        "path": "deep",
+        "reason": "multi_intent",
+        "all_shortcircuit": False,
+        "intent_count": 2,
+    }
+    assert payload["capability_injection"] == {
+        "skills_injected": False,
+        "kb_injected": False,
+        "memory_injected": False,
+        "page_injected": True,
+        "bypass_reason": None,
+    }
+    assert payload["tool_filtering"] == {
+        "all_tools_count": 15,
+        "candidate_tools_count": 4,
+        "filtering_reason": "intent_scoped",
+    }
+    assert payload["recovery_chain"] == [
+        {
+            "step": 1,
+            "action": "retry_intent",
+            "target_intent": "intent-3",
+            "reason": "unfinished_intent_retry",
+            "provider_failure_kind": "provider_http_5xx",
+        }
     ]
     assert payload["last_tool_name"] == "ui_get_snapshot"
     assert payload["last_page_key"] == "admin.ai.dashboard"
@@ -2438,3 +2579,5 @@ async def test_conversation_detail_surfaces_extended_runtime_diagnostics(mock_db
     ]
     assert detail["last_run_summary"]["execution_path"] == "deep"
     assert detail["last_run_summary"]["budget_status"] == "exited"
+    assert detail["message_list"][0]["turn_flow"]["completion_reason"] == "budget_exit"
+    assert detail["message_list"][0]["turn_flow"]["timeline"][-1]["type"] == "failed"

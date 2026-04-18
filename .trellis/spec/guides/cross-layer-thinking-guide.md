@@ -84,8 +84,10 @@ check whether the page fits an existing entry point before adding low-level
 wiring:
 
 1. `useCrudPage`
-2. `useCrudList` (+ shared runtime helpers such as `use-ai-operations.ts` when
-   the page needs protocol-aligned metadata or form/session hooks)
+2. `useCrudList` (+ shared runtime helpers such as
+   `use-page-ai-operation-helpers.ts`, `use-form-state-tracker.ts`, and
+   `use-ui-action-channel.ts` when the page needs protocol-aligned metadata or
+   form/session hooks)
 3. thin `page_context` + UI Runtime `ui_*` tools path for non-CRUD pages
 
 ### Dev-only Bootstrap Credential Contract

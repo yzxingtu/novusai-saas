@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, MutableMapping
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from app.ai.runtime.types import (
     CapabilityBundle,
@@ -15,6 +15,131 @@ from app.ai.runtime.types import (
 from app.ai.types import ChatChunk, ChatMessage, ChatResponse
 
 PAGE_CONTEXT_KEY = "page_context"
+
+
+TurnFlowStageType = Literal[
+    "thinking",
+    "tool_selection",
+    "tool_execution",
+    "retrieval",
+    "answer_assembly",
+    "completed",
+    "failed",
+]
+TurnFlowStageStatus = Literal[
+    "running",
+    "completed",
+    "skipped",
+    "error",
+    "interrupted",
+]
+TurnEvidenceKind = Literal["web", "knowledge_base", "tool", "page", "memory"]
+
+
+@dataclass
+class TurnFlowStage:
+    """Stable per-stage timeline item for UI-facing turn-flow rendering."""
+
+    id: str
+    type: TurnFlowStageType
+    status: TurnFlowStageStatus
+    title: str
+    summary: str | None = None
+    detail_lines: list[str] = field(default_factory=list)
+    started_at_ms: int | None = None
+    ended_at_ms: int | None = None
+    duration_ms: int | None = None
+    metrics: dict[str, Any] = field(default_factory=dict)
+    tool_call_ids: list[str] = field(default_factory=list)
+    source_refs: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "type": self.type,
+            "status": self.status,
+            "title": self.title,
+            "summary": self.summary,
+            "detail_lines": list(self.detail_lines or []),
+            "started_at_ms": self.started_at_ms,
+            "ended_at_ms": self.ended_at_ms,
+            "duration_ms": self.duration_ms,
+            "metrics": dict(self.metrics or {}),
+            "tool_call_ids": list(self.tool_call_ids or []),
+            "source_refs": list(self.source_refs or []),
+        }
+
+
+@dataclass
+class TurnEvidenceItem:
+    """Stable evidence card item for UI-facing turn-flow rendering."""
+
+    id: str
+    kind: TurnEvidenceKind
+    title: str
+    url: str | None = None
+    snippet: str | None = None
+    badge: str | None = None
+    score: float | None = None
+    tool_call_id: str | None = None
+    source_ref: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "kind": self.kind,
+            "title": self.title,
+            "url": self.url,
+            "snippet": self.snippet,
+            "badge": self.badge,
+            "score": self.score,
+            "tool_call_id": self.tool_call_id,
+            "source_ref": self.source_ref,
+        }
+
+
+@dataclass
+class TurnAnswerCard:
+    """Stable answer-card contract projected from one assistant turn."""
+
+    summary: str
+    sections: list[dict[str, Any]] = field(default_factory=list)
+    source_chip_ids: list[str] = field(default_factory=list)
+    confidence_label: str | None = None
+    follow_up_suggestions: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "summary": self.summary,
+            "sections": list(self.sections or []),
+            "source_chip_ids": list(self.source_chip_ids or []),
+            "confidence_label": self.confidence_label,
+            "follow_up_suggestions": list(self.follow_up_suggestions or []),
+        }
+
+
+@dataclass
+class TurnFlowViewModel:
+    """Stable user-facing turn-flow contract shared by stream/history surfaces."""
+
+    timeline: list[TurnFlowStage] = field(default_factory=list)
+    evidence: list[TurnEvidenceItem] = field(default_factory=list)
+    answer_card: TurnAnswerCard | None = None
+    completion_reason: str | None = None
+    interrupted: bool = False
+    error_surface: dict[str, Any] | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "timeline": [item.to_dict() for item in (self.timeline or [])],
+            "evidence": [item.to_dict() for item in (self.evidence or [])],
+            "answer_card": self.answer_card.to_dict() if self.answer_card else None,
+            "completion_reason": self.completion_reason,
+            "interrupted": bool(self.interrupted),
+            "error_surface": (
+                dict(self.error_surface) if isinstance(self.error_surface, dict) else None
+            ),
+        }
 
 
 @dataclass(frozen=True)

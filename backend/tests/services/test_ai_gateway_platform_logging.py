@@ -472,6 +472,52 @@ async def test_call_log_service_log_call_async_injects_runtime_turn_fields(mock_
     assert request_payload["turn_record"]["protocol_path"] == "responses"
 
 
+@pytest.mark.asyncio
+async def test_call_log_service_log_call_async_normalizes_provider_connection_failure(
+    mock_db,
+):
+    from app.enums.ai import CallStatusEnum
+    from app.services.ai.call_log_service import CallLogService
+
+    service = CallLogService(mock_db)
+
+    with patch("app.tasks.ai.log_ai_call_task.delay") as delay_mock:
+        await service.log_call_async(
+            tenant_id=PLATFORM_TENANT_ID,
+            model_id=33,
+            provider_id=11,
+            request_type="chat",
+            request_data={"messages": [{"role": "user", "content": "hello"}]},
+            response_data={"error": "Connection error."},
+            input_tokens=0,
+            output_tokens=0,
+            total_tokens=0,
+            cost=0.0,
+            latency_ms=123,
+            status=CallStatusEnum.FAILED.value,
+            error_message="Connection error.",
+            turn_record={
+                "turn_outcome": "failed",
+                "termination_reason": "error",
+                "protocol_path": "responses",
+                "metadata": {
+                    "protocol_fallback_blocked_reason": "provider_connection_error",
+                    "stream_failure_error_type": "ProviderConnectionError",
+                },
+            },
+        )
+
+    delay_mock.assert_called_once()
+    request_payload = delay_mock.call_args.kwargs["request_data"]
+    diagnostics = request_payload["turn_diagnostics"]
+
+    assert diagnostics["turn_outcome"] == "failed"
+    assert diagnostics["termination_reason"] == "provider_unavailable"
+    assert diagnostics["failure_kind"] == "provider_unavailable"
+    assert request_payload["turn_record"]["termination_reason"] == "provider_unavailable"
+    assert request_payload["turn_record"]["failure_kind"] == "provider_unavailable"
+
+
 def test_cli_conversation_summary_renders_runtime_turn_and_call_log_diagnostics() -> None:
     from app.cli import _render_ai_conversation_text
 

@@ -32,27 +32,27 @@ from .stream_completion_support import (
 from .stream_completion_support import (
     start_on_complete_task as _start_on_complete_task_impl,
 )
-from .stream_execution_support import StreamIOAdapter, run_stream_execution
+from .stream_execution_runtime import StreamIOAdapter, run_stream_execution
 from .stream_generation_view import StreamGenerationView, ensure_stream_generation_view
-from .stream_output_helpers import (
+from .stream_output_projection import (
     build_budget_exit_fallback_output as _build_budget_exit_fallback_output_impl,
 )
-from .stream_output_helpers import (
+from .stream_output_projection import (
     build_text_round_response as _build_text_round_response_impl,
 )
-from .stream_output_helpers import (
+from .stream_output_projection import (
     current_turn_has_finalized_output as _current_turn_has_finalized_output_impl,
 )
-from .stream_output_helpers import (
+from .stream_output_projection import (
     last_visible_assistant_content as _last_visible_assistant_content_impl,
 )
-from .stream_output_helpers import (
+from .stream_output_projection import (
     should_preserve_streamed_assistant_output as _should_preserve_streamed_assistant_output_impl,
 )
-from .stream_output_helpers import (
+from .stream_output_projection import (
     should_replay_finalized_output as _should_replay_finalized_output_impl,
 )
-from .stream_output_helpers import (
+from .stream_output_projection import (
     tool_loop_round_limit as _tool_loop_round_limit_impl,
 )
 from .stream_runtime_contract import build_stream_runtime_contract
@@ -92,6 +92,7 @@ from .stream_tool_call_helpers import (
 from .stream_tool_call_helpers import (
     normalize_stream_tool_call as _normalize_stream_tool_call_impl,
 )
+from .turn_flow_projector import mirror_canonical_events_from_legacy
 from .turn_executor import TurnExecutor
 from .types import (
     ExecutionRequest,
@@ -320,6 +321,8 @@ class StreamExecutionHandler:
 
     async def _emit_runtime_event(self, payload: dict[str, Any]) -> None:
         await self._event_queue.put(SSEChunkEncoder.encode(payload))
+        for canonical_payload in mirror_canonical_events_from_legacy(payload):
+            await self._event_queue.put(SSEChunkEncoder.encode(canonical_payload))
 
     async def _emit_clear_content_if_needed(self) -> None:
         generation_view = self._stream_generation_view()

@@ -780,6 +780,74 @@ async def test_prepare_execution_selects_page_ops_for_page_capability_request() 
 
 
 @pytest.mark.asyncio
+async def test_prepare_execution_prefers_form_discovery_when_no_active_form_exists() -> None:
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
+    request = ExecutionRequest(
+        agent_id=59,
+        tenant_id=0,
+        user_id=1,
+        messages=[
+            ChatMessage(
+                role="user",
+                content="帮我添加一个测试的智能体 在本页面",
+            ),
+        ],
+        input_variables={
+            "page_context": {
+                "page_key": "admin.ai.agents",
+                "ui_epoch": 9,
+                "active_surface_id": "page-agents",
+                "surface_stack": [
+                    {
+                        "surface_id": "page-agents",
+                        "kind": "page",
+                        "title": "智能体管理",
+                    }
+                ],
+                "suggested_tools": {
+                    "primary": ["ui_list_interactables", "ui_open_surface"],
+                    "secondary": ["ui_click", "ui_get_snapshot"],
+                },
+            },
+        },
+    )
+
+    with (
+        patch(
+            "app.ai.rag_injector.load_agent_kb_bindings",
+            new=AsyncMock(return_value=([], {})),
+        ),
+        patch("app.ai.routing.router.ModelRouter", new=_FakeRouter),
+    ):
+        prep = await engine._prepare_execution(
+            _build_agent(),
+            request,
+            skill_result=_build_structured_skill_result(),
+        )
+
+    assert [intent.kind for intent in prep.intent_plan] == ["page_form_write"]
+    assert prep.tool_use_policy.family == "page_ops"
+    assert prep.tool_use_policy.allowed_tool_names == [
+        "ui_list_interactables",
+        "ui_open_surface",
+        "ui_click",
+        "ui_get_form_state",
+        "ui_fill_form",
+        "ui_submit_form",
+    ]
+    assert [tool.name for tool in prep.tools] == [
+        "ui_list_interactables",
+        "ui_open_surface",
+        "ui_click",
+        "ui_get_form_state",
+        "ui_fill_form",
+        "ui_submit_form",
+    ]
+
+
+@pytest.mark.asyncio
 async def test_prepare_execution_routes_weather_requests_to_weather_family(
     mock_db,
 ) -> None:

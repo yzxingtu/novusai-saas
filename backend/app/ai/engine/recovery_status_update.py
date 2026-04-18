@@ -12,6 +12,9 @@ from .recovery_tool_result_helpers import (
     successful_tool_names,
 )
 from .recovery_web_research_gate import RecoveryWebResearchGate
+from .system_prompt_intent_helpers import (
+    intent_completion_signals as resolve_intent_completion_signals,
+)
 from .types import IntentPlan
 
 
@@ -44,7 +47,19 @@ def update_intent_statuses(
             tool_results=tool_results,
             successful_tool_names=completed_tool_names,
         )
-        completion_signals = set(clone.completion_signals or clone.allowed_tool_names)
+        normalized_completion_signals = resolve_intent_completion_signals(
+            clone.family,
+            intent_kind=clone.kind,
+            allowed_tool_names=list(clone.allowed_tool_names or []),
+            preferred_tool_names=list(clone.preferred_tool_names or []),
+        )
+        if clone.family == "page_ops" or normalized_completion_signals:
+            clone.completion_signals = list(normalized_completion_signals)
+        completion_signals = (
+            set(clone.completion_signals)
+            if clone.family == "page_ops"
+            else set(clone.completion_signals or clone.allowed_tool_names)
+        )
         if clone.family == "none" or not clone.requires_tools:
             clone.status = "completed"
         elif RecoveryWebResearchGate.is_completed_web_research_no_result(

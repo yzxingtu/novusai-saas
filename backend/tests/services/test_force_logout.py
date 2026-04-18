@@ -29,8 +29,14 @@ class TestAuthServiceForceLogout:
         })
         mock_redis.delete = AsyncMock(return_value=1)
 
-        with patch("app.core.redis.get_redis_client", return_value=mock_redis), \
-             patch("app.services.common.auth_service.revoke_token", new_callable=AsyncMock) as mock_revoke, \
+        with patch(
+            "app.services.common.auth_domains.session_password.get_redis_client",
+            return_value=mock_redis,
+        ), \
+             patch(
+                 "app.services.common.auth_domains.session_password.revoke_token",
+                 new_callable=AsyncMock,
+             ) as mock_revoke, \
              patch("app.sio.presence.PresenceManager.set_offline", new_callable=AsyncMock) as mock_offline, \
              patch("app.core.sio_bridge.emit_force_logout", new_callable=AsyncMock) as mock_emit:
             service = AuthService(mock_db)
@@ -71,8 +77,14 @@ class TestAuthServiceForceLogout:
         from app.services.common.auth_service import AuthService
 
         mock_redis.hgetall = AsyncMock(return_value={})
-        with patch("app.core.redis.get_redis_client", return_value=mock_redis), \
-             patch("app.services.common.auth_service.revoke_token", new_callable=AsyncMock) as mock_revoke, \
+        with patch(
+            "app.services.common.auth_domains.session_password.get_redis_client",
+            return_value=mock_redis,
+        ), \
+             patch(
+                 "app.services.common.auth_domains.session_password.revoke_token",
+                 new_callable=AsyncMock,
+             ) as mock_revoke, \
              patch("app.sio.presence.PresenceManager.set_offline", new_callable=AsyncMock) as mock_offline, \
              patch("app.core.sio_bridge.emit_force_logout", new_callable=AsyncMock) as mock_emit:
             service = AuthService(mock_db)

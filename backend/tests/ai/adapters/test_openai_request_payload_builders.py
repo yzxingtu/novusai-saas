@@ -12,8 +12,9 @@ from app.ai.types import ChatMessage
 
 
 class _BuilderAdapterStub:
-    def __init__(self) -> None:
+    def __init__(self, provider_config: dict | None = None) -> None:
         self.config = {}
+        self.provider_config = provider_config or {}
 
     def resolve_effective_model_request(
         self,
@@ -107,3 +108,33 @@ async def test_build_responses_request_keeps_required_tool_choice() -> None:
     assert request["model"] == "gpt-5.4"
     assert request["tool_choice"] == "required"
     assert request["reasoning"] == {"effort": "xhigh", "summary": "auto"}
+    assert request["tools"] == [
+        {
+            "type": "function",
+            "name": "web_search",
+            "description": None,
+            "parameters": {},
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_build_responses_request_rewrites_web_search_only_when_provider_opts_in() -> None:
+    adapter = _BuilderAdapterStub(
+        provider_config={"web_search": {"prefer_hosted_tool": True}}
+    )
+
+    request = await build_responses_request(
+        adapter=adapter,
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+        tools=[{"type": "function", "function": {"name": "web_search", "parameters": {}}}],
+        tool_choice="required",
+        kwargs={},
+        reasoning_summary_model_prefixes=("gpt-5",),
+    )
+
+    assert request["tool_choice"] == "required"
+    assert request["tools"] == [
+        {"type": "web_search", "search_context_size": "medium"}
+    ]

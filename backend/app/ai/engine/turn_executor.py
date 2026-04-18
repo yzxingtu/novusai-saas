@@ -418,6 +418,14 @@ class TurnExecutor:
             emit_round_started=_emit_round_started_impl,
         )
 
+        if (
+            not partial
+            and not paused_for_consent
+            and final_output_source == "tool_evidence_completed"
+            and state.preparation_diagnostics.get("stripped_untrusted_final_output")
+        ):
+            output = ""
+
         return TurnExecutionResult(
             output=str(output or ""),
             total_tokens=int(total_tokens or 0),

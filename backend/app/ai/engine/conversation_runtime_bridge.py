@@ -26,6 +26,25 @@ from .model_policy import build_model_request_overrides
 from .types import ToolUsePolicy
 
 
+def _attach_runtime_failure_metadata(
+    exc: BaseException,
+    *,
+    runtime_info: dict[str, Any] | None,
+    query_engine: Any | None,
+) -> None:
+    if isinstance(runtime_info, dict) and runtime_info:
+        setattr(exc, "_novusai_runtime_model_info", dict(runtime_info))
+
+    turn_record = getattr(query_engine, "turn_record", None) if query_engine is not None else None
+    if turn_record is None:
+        return
+
+    setattr(exc, "_novusai_runtime_turn_record", turn_record)
+    protocol_path = str(getattr(turn_record, "protocol_path", "") or "").strip()
+    if protocol_path:
+        setattr(exc, "_novusai_runtime_protocol_path", protocol_path)
+
+
 async def call_runtime_query_turn(
     engine: Any,
     *,
@@ -256,6 +275,11 @@ async def stream_llm_chunks(
                     )
                     yield chunk
             except Exception as runtime_stream_exc:  # noqa: BLE001
+                _attach_runtime_failure_metadata(
+                    runtime_stream_exc,
+                    runtime_info=runtime_info,
+                    query_engine=query_engine,
+                )
                 turn_record_metadata = dict(
                     getattr(
                         getattr(query_engine, "turn_record", None),
@@ -290,6 +314,11 @@ async def stream_llm_chunks(
                     )
                 raise
     except Exception as exc:  # noqa: BLE001
+        _attach_runtime_failure_metadata(
+            exc,
+            runtime_info=runtime_info,
+            query_engine=query_engine,
+        )
         active_logger = engine_logger or getattr(engine, "logger", None)
         if active_logger is not None:
             active_logger.error(

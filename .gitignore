@@ -314,5 +314,13 @@ test_doc.txt
 # Codex / local workflow screenshots (do not commit)
 .codex-artifacts/
 
+# Local audit / debug artifacts (do not commit)
+/.codex-temp/
+/backend/.codex-temp/
+/frontend/lint-output.txt
+/output_openapi.json
+/.claude/settings.local.json
+/temp.txt
+
 # Vben upstream snapshots (generated locally/CI only)
 frontend/.vendor/

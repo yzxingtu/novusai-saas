@@ -1287,11 +1287,9 @@ async def test_turn_executor_allows_final_follow_up_after_fetch_candidates_exhau
     )
 
     assert result.partial is False
-    assert result.output == (
-        "AI News Daily - curated AI headlines.；"
-        "TodayAiNews - The latest AI news and articles."
-    )
+    assert result.output == ""
     assert result.final_output_source == "tool_evidence_completed"
+    assert state.preparation_diagnostics["stripped_untrusted_final_output"] is True
     assert not io.finalize_calls
     assert state.provider_failure_kind == "none"
     assert not any(
@@ -1506,8 +1504,9 @@ async def test_turn_executor_uses_completed_tool_evidence_after_fetch_without_re
         agent=SimpleNamespace(id=1),
     )
 
-    assert result.output == "AI Daily - Latest AI headlines and analysis."
+    assert result.output == ""
     assert result.final_output_source == "tool_evidence_completed"
+    assert state.preparation_diagnostics["stripped_untrusted_final_output"] is True
     assert len(io.call_history) == 1
     assert io.finalize_completed_calls
     assert not any(
@@ -1927,9 +1926,12 @@ async def test_turn_executor_completes_web_search_no_results_without_auto_fetch(
         agent=SimpleNamespace(id=1),
     )
 
-    assert result.output
-    assert "没有找到" in result.output
+    assert result.output == ""
     assert result.final_output_source == "tool_evidence_completed"
+    assert state.preparation_diagnostics["stripped_untrusted_final_output"] is True
+    assert state.preparation_diagnostics["post_tool_completion_state"] == (
+        "completed_no_result"
+    )
     assert len(io.call_history) == 1
     assert not any(
         call.get("breach_retry_result") == "post_tool_follow_up_retry"
@@ -1945,6 +1947,86 @@ async def test_turn_executor_completes_web_search_no_results_without_auto_fetch(
     assert state.intent_plan[0].metadata["auto_fetch_gate_reason"] == (
         "search_no_results_completed"
     )
+
+
+@pytest.mark.asyncio
+async def test_turn_executor_does_not_promote_search_not_successful_tool_evidence() -> None:
+    tools = [
+        ToolDefinition(name="web_search", description="Search"),
+        ToolDefinition(name="fetch_url", description="Fetch"),
+    ]
+    intents = [
+        _build_intent(
+            intent_id="intent-web",
+            kind="web_research",
+            family="web_research",
+            allowed_tool_names=["web_search", "fetch_url"],
+        )
+    ]
+    prep = _build_prep(
+        tools=tools,
+        intents=intents,
+        tool_use_policy=ToolUsePolicy(
+            family="web_research",
+            mode="required",
+            allowed_tool_names=["web_search", "fetch_url"],
+            retry_on_contract_breach=False,
+            reason="web_research",
+        ),
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    io = _FakeIOAdapter(
+        model_rounds=[
+            _assistant_response(
+                "",
+                tool_calls=[
+                    {
+                        "id": "call_search",
+                        "type": "function",
+                        "function": {
+                            "name": "web_search",
+                            "arguments": '{"query":"today ai news","max_results":5}',
+                        },
+                    }
+                ],
+            )
+        ],
+        tool_batch=ToolBatchResult(
+            response=None,
+            tool_results=[
+                ToolResult(
+                    tool_call_id="call_fetch",
+                    name="fetch_url",
+                    success=True,
+                    summary="Fetched fallback snippet",
+                ),
+            ],
+            total_tokens=8,
+            completion_tokens_used=8,
+        ),
+    )
+
+    result = await TurnExecutor.run(
+        state=state,
+        io=io,
+        prep=prep,
+        request=SimpleNamespace(
+            input_variables={},
+            conversation_id=1215,
+        ),
+        agent=SimpleNamespace(id=1),
+    )
+
+    assert result.output == ""
+    assert result.final_output_source == "tool_evidence_completed"
+    assert state.preparation_diagnostics["auto_fetch_gate_reason"] == (
+        "search_not_successful"
+    )
+    assert state.preparation_diagnostics["post_tool_completion_state"] == (
+        "search_not_successful"
+    )
+    assert state.preparation_diagnostics["search_not_successful_untrusted_output"] is True
+    assert state.preparation_diagnostics["stripped_untrusted_final_output"] is True
 
 
 @pytest.mark.asyncio

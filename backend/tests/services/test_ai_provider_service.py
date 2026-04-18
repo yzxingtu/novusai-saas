@@ -79,6 +79,24 @@ def test_validate_provider_payload_fills_web_search_defaults() -> None:
     assert web_search.get("native_timeout_seconds") == 20
     assert web_search.get("public_timeout_seconds") == 15
     assert web_search.get("public_providers") == ["baidu", "so360"]
+    assert web_search.get("prefer_hosted_tool") is False
+
+
+def test_validate_provider_payload_accepts_hosted_web_search_opt_in() -> None:
+    payload = {
+        "type": "openai_compatible",
+        "config": {
+            "web_search": {
+                "enabled": True,
+                "prefer_hosted_tool": True,
+            }
+        },
+    }
+
+    validated = AIProviderService._validate_provider_payload(payload)
+    web_search = (validated.get("config") or {}).get("web_search") or {}
+
+    assert web_search.get("prefer_hosted_tool") is True
 
 
 def test_validate_provider_payload_rejects_invalid_web_search_strategy() -> None:

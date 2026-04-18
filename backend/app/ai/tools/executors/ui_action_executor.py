@@ -220,7 +220,9 @@ class UIActionExecutor(BaseToolExecutor):
 
         duration_ms = int((time.perf_counter() - start) * 1000)
         success = bool(result.get("success", False))
-        message = _normalize_public_message(result.get("message"))
+        message = _normalize_public_message(
+            result.get("message") if success else result.get("error")
+        ) or _normalize_public_message(result.get("message"))
         error_type = str(result.get("error_type") or "").strip()
         diff = result.get("diff") if isinstance(result.get("diff"), dict) else None
         data = result.get("data") if isinstance(result.get("data"), dict) else None
@@ -242,7 +244,12 @@ class UIActionExecutor(BaseToolExecutor):
                 duration_ms=duration_ms,
             )
 
+        error_detail = _normalize_public_message(
+            result.get("error_detail") or result.get("detail")
+        )
         error_text = message or _("tool.ui.action.failed", action=action_name)
+        if error_detail and error_detail not in error_text:
+            error_text = f"{error_text} ({error_detail})"
         return ToolResult(
             tool_call_id=tool_call_id,
             name=definition.name,
@@ -250,7 +257,15 @@ class UIActionExecutor(BaseToolExecutor):
             error=error_text,
             error_type=error_type or "execution_failed",
             summary=error_text,
-            summary_payload={"data": data, "diff": diff} if (data or diff) else None,
+            summary_payload=(
+                {
+                    **({"data": data} if data else {}),
+                    **({"diff": diff} if diff else {}),
+                    **({"error_detail": error_detail} if error_detail else {}),
+                }
+                if (data or diff or error_detail)
+                else None
+            ),
             duration_ms=duration_ms,
         )
 

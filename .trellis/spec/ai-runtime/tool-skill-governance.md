@@ -109,7 +109,9 @@ export async function submitRuntimeForm(args: { confirm?: boolean; formSessionId
 - Candidate tool and skill sets are capped per turn; avoid exposing whole families for convenience.
 - Overlapping skills resolve by scope, not by stacking.
 - Page runtime tools stay separate from generic tool families.
+- `page_form_write` routing must be runtime-state aware: when no active form session exists, expose discovery/open tools (`ui_list_interactables`, `ui_open_surface`, `ui_click`) before form mutation tools so the model can find and open the create/edit surface first; when an active form exists, prioritize form read/write tools instead.
 - Web-search orchestration stays separate from generic provider chat logic.
+- Responses request builders must preserve the builtin function `web_search` by default so the runtime web-search orchestrator keeps its native/public fallback chain. Rewriting that function into provider-hosted `{"type":"web_search"}` is allowed only when `provider.config.web_search.prefer_hosted_tool` is explicitly true.
 
 #### 3.2 Shared UI Runtime Bridge Boundary
 - The shared bridge is `frontend/.../ai-runtime/runtime-bridge.ts`; it is the only place that builds thin `page_context` from DOM/form/session state.

@@ -10,6 +10,9 @@ from app.ai.utils.token_estimator import estimate_tokens
 from app.core.base_model import utc_now
 from app.enums.agent import MessageRoleEnum
 from app.services.ai.conversation_message_persistence_support import build_turn_persistence_context, resolve_new_message_start
+from app.services.ai.conversation_turn_flow_projector import (
+    ConversationTurnFlowProjector,
+)
 
 class ConversationMessagePersistenceService:
     @classmethod
@@ -441,6 +444,14 @@ class ConversationMessagePersistenceService:
                     metadata["context_sources"] = service._normalize_json_safe(
                         turn_context_sources
                     )
+                metadata["turn_flow"] = service._normalize_json_safe(
+                    ConversationTurnFlowProjector.project_from_metadata(
+                        metadata,
+                        content=content,
+                        tool_calls=tool_calls,
+                        token_count=token_estimate,
+                    )
+                )
 
             metadata = service._normalize_json_safe_dict(metadata)
 

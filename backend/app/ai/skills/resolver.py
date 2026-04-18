@@ -456,8 +456,6 @@ async def resolve_for_agent(
 
     skills: list[SkillModel] = []
     skill_config_overrides: dict[int, dict[str, Any]] = {}
-    default_consent_by_skill: dict[int, str] = {}
-    capability_overrides_by_skill: dict[int, dict[str, str]] = {}
     package_name_by_skill: dict[int, str] = {}
 
     for grant in grants:
@@ -477,15 +475,6 @@ async def resolve_for_agent(
             merged_override.update(grant.config_override)
         if merged_override:
             skill_config_overrides[skill.id] = merged_override
-
-        default_consent_by_skill[skill.id] = getattr(
-            grant,
-            "default_consent_mode",
-            "auto",
-        )
-        overrides = getattr(grant, "capability_consent_overrides", None)
-        if overrides and isinstance(overrides, dict):
-            capability_overrides_by_skill[skill.id] = overrides
 
     if not skills:
         return None
@@ -510,12 +499,7 @@ async def resolve_for_agent(
         skill_id = tool.source_skill_id
         if not skill_id:
             continue
-        default_mode = default_consent_by_skill.get(skill_id, "auto")
-        overrides = capability_overrides_by_skill.get(skill_id, {})
-        resolve_result.tool_consent_modes[tool.name] = overrides.get(
-            tool.name,
-            default_mode,
-        )
+        resolve_result.tool_consent_modes[tool.name] = "auto"
         if skill_id in package_name_by_skill:
             tool.source_package_name = package_name_by_skill[skill_id]
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
@@ -15,6 +15,9 @@ from app.ai.adapters.openai_compatible.compat.legacy_protocol_execution import (
 from app.ai.adapters.openai_compatible.protocol_policy import (
     should_fallback_from_responses_error,
     should_skip_sync_rescue_after_stream_error,
+)
+from app.ai.adapters.openai_compatible.support.usage_support import (
+    RESPONSES_USAGE_RETRIEVE_TIMEOUT_SECONDS,
 )
 from app.ai.exceptions import (
     ProviderConnectionError,
@@ -2573,6 +2576,74 @@ async def test_stream_chat_responses_output_text_done_retrieves_usage_when_event
 
 
 @pytest.mark.asyncio
+async def test_stream_chat_responses_output_text_done_uses_fast_usage_backfill_client() -> None:
+    class _FakeResponsesStream:
+        def __init__(self, events):
+            self._events = events
+            self.aclose_called = False
+
+        def __aiter__(self):
+            self._iter = iter(self._events)
+            return self
+
+        async def __anext__(self):
+            try:
+                return next(self._iter)
+            except StopIteration as exc:
+                raise StopAsyncIteration from exc
+
+        async def aclose(self) -> None:
+            self.aclose_called = True
+
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+    created_response = SimpleNamespace(id="resp_123")
+    retrieved_response = SimpleNamespace(
+        usage=SimpleNamespace(input_tokens=17, output_tokens=9, total_tokens=26),
+    )
+    rs = _FakeResponsesStream([
+        SimpleNamespace(type="response.created", response=created_response),
+        SimpleNamespace(type="response.output_text.delta", delta="A"),
+        SimpleNamespace(type="response.output_text.done", text="", usage=None),
+    ])
+    retrieve_mock = AsyncMock(return_value=retrieved_response)
+    with_options_mock = MagicMock(
+        return_value=SimpleNamespace(
+            responses=SimpleNamespace(retrieve=retrieve_mock),
+        )
+    )
+    base_retrieve_mock = AsyncMock()
+    adapter.client = SimpleNamespace(
+        with_options=with_options_mock,
+        responses=SimpleNamespace(
+            create=_FakeResponses(rs).create,
+            retrieve=base_retrieve_mock,
+        ),
+        chat=SimpleNamespace(completions=_FakeChatCompletions(None)),
+    )
+
+    chunks = []
+    async for chunk in adapter.stream_chat(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-x",
+    ):
+        chunks.append(chunk)
+
+    assert "".join(c.delta for c in chunks) == "A"
+    assert chunks[-1].total_tokens == 26
+    with_options_mock.assert_called_once_with(
+        timeout=RESPONSES_USAGE_RETRIEVE_TIMEOUT_SECONDS,
+        max_retries=0,
+    )
+    retrieve_mock.assert_awaited_once_with("resp_123")
+    base_retrieve_mock.assert_not_called()
+    assert rs.aclose_called is True
+
+
+@pytest.mark.asyncio
 async def test_stream_chat_responses_output_text_done_estimates_usage_when_retrieve_unavailable() -> None:
     class _FakeResponsesStream:
         def __init__(self, events):
@@ -3028,8 +3099,40 @@ async def test_build_responses_request_forwards_required_tool_choice() -> None:
     )
 
     assert request["tool_choice"] == "required"
-    assert request["tools"][0]["type"] == "web_search"
-    assert request["tools"][0]["search_context_size"] == "medium"
+    assert request["tools"] == [
+        {
+            "type": "function",
+            "name": "web_search",
+            "description": None,
+            "parameters": {},
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_build_responses_request_uses_hosted_web_search_only_when_provider_opts_in() -> None:
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={
+            "wire_api": "responses",
+            "web_search": {"prefer_hosted_tool": True},
+        },
+    )
+
+    request = await adapter._build_responses_request(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+        tools=[
+            {"type": "function", "function": {"name": "web_search", "parameters": {}}},
+        ],
+        tool_choice="required",
+    )
+
+    assert request["tool_choice"] == "required"
+    assert request["tools"] == [
+        {"type": "web_search", "search_context_size": "medium"}
+    ]
 
 
 @pytest.mark.asyncio

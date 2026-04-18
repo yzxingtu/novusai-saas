@@ -23,6 +23,14 @@ from .turn_research_helpers import (
 from .types import ToolUsePolicy
 
 
+def _native_web_completed_intents(requested_intents: list[str]) -> list[str]:
+    return [
+        intent
+        for intent in requested_intents
+        if intent in {"weather", "rail_ticket_research"}
+    ]
+
+
 def analyze_post_tool_contract_breach(
     *,
     messages: list[ChatMessage],
@@ -58,7 +66,7 @@ def analyze_post_tool_contract_breach(
         and any(intent not in completed_intents for intent in requested_intents)
         and response_has_native_web_search_evidence(response)
     ):
-        completed_intents.update(requested_intents)
+        completed_intents.update(_native_web_completed_intents(requested_intents))
         native_web_search_evidence = True
     unfinished_intents = [
         intent for intent in requested_intents if intent not in completed_intents

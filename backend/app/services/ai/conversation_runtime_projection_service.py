@@ -9,6 +9,10 @@ from app.ai.json_safe import normalize_json_safe_dict
 from app.services.ai.conversation_diagnostics_projector import (
     ConversationDiagnosticsProjector,
 )
+from app.services.ai.conversation_turn_flow_projector import (
+    ConversationTurnFlowProjector,
+)
+from app.services.ai.turn_failure_normalizer import resolve_failure_projection
 
 
 class ConversationRuntimeProjectionService:
@@ -84,6 +88,9 @@ class ConversationRuntimeProjectionService:
         result["interaction_mode_effective"] = interaction_mode_effective
 
         if last_assistant_message is not None:
+            result["turn_flow"] = ConversationTurnFlowProjector.project_from_message_payload(
+                last_assistant_message
+            )
             result["context_diagnostics"] = self.build_context_diagnostics_payload(
                 last_assistant_message,
                 compaction_snapshot=compaction_snapshot,
@@ -135,7 +142,7 @@ class ConversationRuntimeProjectionService:
             "last_interrupted": bool(metadata.get("interrupted"))
             or (turn_meta.get("termination_reason") == "interrupted"),
             "interaction_mode_effective": interaction_mode_effective,
-            **cls._shared_turn_projection(turn_meta),
+            **cls._shared_turn_projection(turn_meta, metadata=metadata),
         }
 
     @classmethod
@@ -148,9 +155,11 @@ class ConversationRuntimeProjectionService:
     ) -> dict[str, Any]:
         metadata = cls._message_metadata(last_assistant_message)
         turn_meta = cls.extract_turn_diagnostics_from_metadata(metadata)
+        shared_projection = cls._shared_turn_projection(turn_meta, metadata=metadata)
         completion_reason = turn_meta.get("termination_reason") or metadata.get(
             "completion_reason"
         )
+        completion_reason = shared_projection.get("termination_reason") or completion_reason
         interrupted = bool(metadata.get("interrupted")) or (
             completion_reason == "interrupted"
         )
@@ -174,7 +183,7 @@ class ConversationRuntimeProjectionService:
                 if isinstance(last_assistant_message, dict)
                 else None
             ),
-            **cls._shared_turn_projection(turn_meta),
+            **shared_projection,
         }
 
     @staticmethod
@@ -189,10 +198,19 @@ class ConversationRuntimeProjectionService:
     @staticmethod
     def _shared_turn_projection(
         turn_meta: dict[str, Any],
+        *,
+        metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        projection = resolve_failure_projection(
+            diagnostics=turn_meta,
+            turn_flow=(metadata or {}).get("turn_flow")
+            if isinstance((metadata or {}).get("turn_flow"), dict)
+            else None,
+        )
         return {
-            "turn_outcome": turn_meta.get("turn_outcome"),
-            "termination_reason": turn_meta.get("termination_reason"),
+            "turn_outcome": projection.get("turn_outcome") or turn_meta.get("turn_outcome"),
+            "termination_reason": projection.get("termination_reason")
+            or turn_meta.get("termination_reason"),
             "protocol_path": turn_meta.get("protocol_path"),
             "tool_planner": turn_meta.get("tool_planner"),
             "selected_tool_names": turn_meta.get("selected_tool_names") or [],
@@ -205,11 +223,14 @@ class ConversationRuntimeProjectionService:
             "intent_plan": turn_meta.get("intent_plan") or [],
             "budget": turn_meta.get("budget"),
             "budget_status": turn_meta.get("budget_status"),
-            "budget_exit_reason": turn_meta.get("budget_exit_reason"),
+            "budget_exit_reason": projection.get("budget_exit_reason")
+            or turn_meta.get("budget_exit_reason"),
             "candidate_tool_names": turn_meta.get("candidate_tool_names") or [],
             "retry_events": turn_meta.get("retry_events") or [],
             "partial_exit_reason": turn_meta.get("partial_exit_reason"),
-            "failure_kind": turn_meta.get("failure_kind"),
+            "failure_kind": projection.get("failure_kind") or turn_meta.get("failure_kind"),
+            "final_output_source": projection.get("final_output_source")
+            or turn_meta.get("final_output_source"),
             "provider_events": turn_meta.get("provider_events") or [],
             "contract_breach_type": turn_meta.get("contract_breach_type"),
             "tool_leak_detected": bool(turn_meta.get("tool_leak_detected")),

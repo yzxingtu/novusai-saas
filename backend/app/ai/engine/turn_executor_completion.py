@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Literal
 
 from app.ai.tools.types import ToolResult
 from app.ai.types import ChatMessage, ChatResponse
 
 from .execution_state_machine import ExecutionStateMachine
+from .final_output_policy import (
+    build_untrusted_final_output_fallback,
+    is_trusted_assistant_final_output_source,
+)
 from .recovery_manager import RecoveryManager
 from .types import ToolUsePolicy
 
@@ -76,6 +80,8 @@ def post_tool_completion_state(
 ) -> str:
     if final_output_source == "tool_evidence_completed":
         auto_fetch_gate_reason = latest_auto_fetch_gate_reason(state)
+        if auto_fetch_gate_reason == "search_not_successful":
+            return "search_not_successful"
         if auto_fetch_gate_reason == "search_no_results_completed":
             return "completed_no_result"
         return "tool_evidence_completed"
@@ -290,6 +296,26 @@ async def finalize_turn_execution(
         )
     )
     auto_fetch_gate_reason = latest_auto_fetch_gate_reason(state)
+    trusted_final_output = bool(str(output or "").strip()) and (
+        is_trusted_assistant_final_output_source(final_output_source)
+    )
+    if (
+        not partial
+        and not paused_for_consent
+        and not trusted_final_output
+        and final_output_source in {"tool_evidence_completed", "budget_fallback"}
+    ):
+        fallback_output = build_untrusted_final_output_fallback(
+            auto_fetch_gate_reason=auto_fetch_gate_reason,
+        )
+        if auto_fetch_gate_reason == "search_not_successful":
+            state.preparation_diagnostics["search_not_successful_untrusted_output"] = True
+        state.preparation_diagnostics["stripped_untrusted_final_output"] = True
+        state.preparation_diagnostics["untrusted_final_output_fallback_applied"] = True
+        output = fallback_output
+        if response is not None and getattr(response, "message", None) is not None:
+            response.message.content = fallback_output
+
     if auto_fetch_gate_reason:
         state.preparation_diagnostics["auto_fetch_gate_reason"] = (
             auto_fetch_gate_reason

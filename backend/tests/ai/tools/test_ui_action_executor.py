@@ -148,3 +148,59 @@ async def test_ui_open_surface_failure_propagates_error_type(
     assert result.success is False
     assert result.error_type == "surface_not_opened"
     assert "No new modal found" in result.error
+
+
+@pytest.mark.asyncio
+async def test_ui_click_failure_appends_error_detail_to_summary_payload(
+    executor: UIActionExecutor,
+    click_definition: ToolDefinition,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.sio import page_session as page_session_module
+
+    invoke_mock = AsyncMock(
+        return_value={
+            "success": False,
+            "message": "UI action execution failed.",
+            "error": "Target not found",
+            "error_detail": 'Unable to locate element "添加供应商".',
+            "error_type": "not_found",
+            "diff": {
+                "changed": False,
+                "ui_epoch": 2,
+                "surfaces_added": [],
+                "surfaces_removed": [],
+                "page_key_changed": False,
+                "active_surface_id": "page:admin.ai.agents",
+            },
+        }
+    )
+    monkeypatch.setattr(page_session_module, "invoke_ui_action", invoke_mock, raising=False)
+
+    context = ExecutionContext(
+        tenant_id=1,
+        agent_id=2,
+        user_role="tenant_admin",
+        page_session_id="ps-click-detail",
+    )
+    result = await executor.execute(
+        click_definition,
+        "call-ui-click-detail",
+        {"target_locator": "text:添加供应商"},
+        context,
+    )
+
+    assert result.success is False
+    assert result.error_type == "not_found"
+    assert result.error == 'Target not found (Unable to locate element "添加供应商".)'
+    assert result.summary_payload == {
+        "diff": {
+            "changed": False,
+            "ui_epoch": 2,
+            "surfaces_added": [],
+            "surfaces_removed": [],
+            "page_key_changed": False,
+            "active_surface_id": "page:admin.ai.agents",
+        },
+        "error_detail": 'Unable to locate element "添加供应商".',
+    }

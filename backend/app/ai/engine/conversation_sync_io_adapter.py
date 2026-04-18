@@ -10,6 +10,7 @@ from app.ai.types import ChatMessage, ChatResponse
 from app.models.ai.agent import Agent
 
 from .base import log_user_type_for_call_log
+from .conversation_sync_io_support import handle_sync_tool_calls
 from .execution_state_machine import ExecutionStateMachine
 from .model_policy import build_model_request_overrides
 from .turn_executor import ModelRoundResult, ToolBatchResult
@@ -76,29 +77,18 @@ class _SyncIOAdapter:
         messages: list[ChatMessage],
         **kwargs: Any,
     ) -> ToolBatchResult:
-        outcome = await self.engine._handle_tool_calls(
+        return await handle_sync_tool_calls(
             agent=self.agent,
+            engine=self.engine,
+            request=self.request,
+            prep=self.prep,
             messages=messages,
             response=response,
             tools=tools,
-            all_tools=self.prep.all_tools,
-            request=self.request,
-            route_result=self.prep.route_result,
-            tool_consent_modes=self.prep.tool_consent_modes,
-            continuation_context=self.prep.continuation_context,
             selected_skill_names=self.selected_skill_names,
             context_sources=self.context_sources,
-            execution_budget=self.prep.execution_budget,
+            runtime_contract=self.runtime_contract,
             **kwargs,
-        )
-        normalized_response, tool_results, total_tokens, completion_tokens_used = (
-            self.engine._normalize_tool_call_outcome(outcome)
-        )
-        return ToolBatchResult(
-            response=normalized_response,
-            tool_results=list(tool_results),
-            total_tokens=total_tokens,
-            completion_tokens_used=completion_tokens_used,
         )
 
     async def finalize_partial_output(

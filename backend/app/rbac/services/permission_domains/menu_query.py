@@ -7,7 +7,6 @@ from sqlalchemy import select
 from app.enums.rbac import PermissionScope
 from app.models import Admin, Permission, TenantAdmin, TenantUser
 from app.schemas.common import MenuResponse
-from app.services.system.plugin_service import PluginService
 
 if TYPE_CHECKING:
     from app.rbac.services.permission_service import PermissionService
@@ -51,6 +50,8 @@ class PermissionMenuDomain:
         self,
         tenant_admin: TenantAdmin,
     ) -> list[MenuResponse]:
+        from app.services.system.plugin_service import PluginService
+
         all_permissions = await self._service.get_enabled_permissions_by_scope(
             PermissionScope.TENANT.value
         )
@@ -168,4 +169,3 @@ class PermissionMenuDomain:
             permissions_for_tree,
             user_permission_codes,
         )
-

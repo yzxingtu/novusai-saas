@@ -115,6 +115,15 @@ class ExecutionBudget:
     retries_by_intent: dict[str, int] = field(default_factory=dict)
     finalization_grace_applied: bool = False
 
+    def _effective_elapsed_limit_ms(self) -> int:
+        base_limit = max(0, int(self.max_elapsed_ms or 0))
+        if (
+            not self.finalization_grace_applied
+            or int(self.finalization_grace_ms or 0) <= 0
+        ):
+            return base_limit
+        return base_limit + int(self.finalization_grace_ms or 0)
+
     def apply_finalization_grace(self) -> bool:
         if self.finalization_grace_ms <= 0 or self.finalization_grace_applied:
             return False
@@ -131,8 +140,11 @@ class ExecutionBudget:
             return "completion_budget_exceeded"
         if self.max_tool_rounds and self.tool_rounds_used > self.max_tool_rounds:
             return "tool_round_budget_exceeded"
-        # Elapsed time remains diagnostic-only. Cutting off an otherwise valid
-        # turn after tools already finished proved more harmful than helpful.
+        if (
+            self.max_elapsed_ms
+            and self.elapsed_ms_used > self._effective_elapsed_limit_ms()
+        ):
+            return "elapsed_budget_exceeded"
         if (
             self.max_tool_result_bytes
             and self.tool_result_bytes_used > self.max_tool_result_bytes
@@ -147,6 +159,12 @@ class ExecutionBudget:
 
     def snapshot(self) -> dict[str, Any]:
         exit_reason = self.first_exceeded_reason()
+        elapsed_limit_ms = self._effective_elapsed_limit_ms()
+        elapsed_ms_used = max(0, int(self.elapsed_ms_used or 0))
+        elapsed_over_limit_ms = (
+            max(0, elapsed_ms_used - elapsed_limit_ms) if self.max_elapsed_ms else 0
+        )
+        elapsed_over_limit = bool(elapsed_over_limit_ms > 0)
         return {
             "status": "exited" if exit_reason else "ok",
             "exit_reason": exit_reason,
@@ -164,13 +182,19 @@ class ExecutionBudget:
                 "prompt_tokens_used": self.prompt_tokens_used,
                 "completion_tokens_used": self.completion_tokens_used,
                 "tool_rounds_used": self.tool_rounds_used,
-                "elapsed_ms_used": self.elapsed_ms_used,
+                "elapsed_ms_used": elapsed_ms_used,
+                "elapsed_limit_ms": elapsed_limit_ms,
+                "elapsed_over_limit": elapsed_over_limit,
+                "elapsed_over_limit_ms": elapsed_over_limit_ms,
                 "tool_result_bytes_used": self.tool_result_bytes_used,
                 "candidate_tools_count": self.candidate_tools_count,
                 "retries_by_intent": dict(self.retries_by_intent),
                 "finalization_grace_applied": self.finalization_grace_applied,
             },
             "exceeded_reason": exit_reason,
+            "elapsed_limit_ms": elapsed_limit_ms,
+            "elapsed_over_limit": elapsed_over_limit,
+            "elapsed_over_limit_ms": elapsed_over_limit_ms,
         }
 
 
@@ -239,7 +263,7 @@ class ExecutionRequest:
     knowledge_base_ids: list[int] | None = None
     system_prompt_additions: list[str] = field(default_factory=list)
     trust_policy_ref: dict[str, Any] | None = None
-    interaction_mode: str = "confirm"
+    interaction_mode: str = "trusted_auto"
     attachments: list[dict[str, Any]] | None = None
     consented_actions: list[str] | None = None
     interaction_updates: list[dict[str, Any]] | None = None

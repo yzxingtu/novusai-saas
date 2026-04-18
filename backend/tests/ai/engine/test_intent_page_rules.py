@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from app.ai.engine.intent_page_rules import (
     detect_page_continuation_signal,
     detect_page_signal,
+    looks_like_required_field_form_read,
     looks_like_page_jump_request,
     looks_like_page_search_request,
     looks_like_read_only_form_instruction,
@@ -70,6 +71,27 @@ def test_detect_page_signal_respects_readonly_form_hint() -> None:
     assert signal.kind == "page_form_read"
 
 
+def test_detect_page_signal_treats_required_field_probe_as_form_read() -> None:
+    signal = detect_page_signal(
+        clause="请帮我点击添加技能，看看表单里有哪些必填项，但不要提交",
+        offset=0,
+        input_variables={"page_context": {"page_key": "admin.ai.skills"}},
+    )
+
+    assert signal is not None
+    assert signal.kind == "page_form_read"
+
+
+def test_detect_page_signal_ignores_explicit_external_url_request() -> None:
+    signal = detect_page_signal(
+        clause="请打开 https://docs.python.org/3/whatsnew/3.13.html 并概括重点",
+        offset=0,
+        input_variables={"page_context": {"page_key": "admin.ai.logs"}},
+    )
+
+    assert signal is None
+
+
 def test_detect_page_signal_selects_page_pagination() -> None:
     signal = detect_page_signal(
         clause="下一页",
@@ -85,3 +107,4 @@ def test_page_rule_helpers_cover_jump_search_readonly() -> None:
     assert looks_like_page_jump_request("下一页")
     assert looks_like_page_search_request("在页面里搜索")
     assert looks_like_read_only_form_instruction("先不要创建")
+    assert looks_like_required_field_form_read("看看表单里有哪些必填项")

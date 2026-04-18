@@ -30,6 +30,28 @@ class RuntimeDiagnosticsQueryService:
     def __init__(self, service: RuntimeDiagnosticsService) -> None:
         self.service = service
 
+    @staticmethod
+    def _logical_turn_key(log: AICallLog) -> str:
+        trace_id = str(getattr(log, "trace_id", "") or "").strip()
+        if trace_id:
+            return f"trace:{trace_id}"
+        return f"log:{getattr(log, 'id', 0)}"
+
+    @classmethod
+    def _group_logs_by_turn(
+        cls,
+        logs: list[AICallLog],
+    ) -> list[list[AICallLog]]:
+        grouped: dict[str, list[AICallLog]] = {}
+        ordered_keys: list[str] = []
+        for log in logs:
+            key = cls._logical_turn_key(log)
+            if key not in grouped:
+                grouped[key] = []
+                ordered_keys.append(key)
+            grouped[key].append(log)
+        return [grouped[key] for key in ordered_keys]
+
     async def aggregate_recent_failures(
         self,
         *,
@@ -140,9 +162,49 @@ class RuntimeDiagnosticsQueryService:
             .order_by(AICallLog.created_at.asc(), AICallLog.id.asc())
         )
         logs = list(result.scalars().all())
-        if turn <= 0 or turn > len(logs):
+        groups = self._group_logs_by_turn(logs)
+        if turn <= 0 or turn > len(groups):
             return None
-        return logs[turn - 1]
+        return groups[turn - 1][-1]
+
+    async def resolve_conversation_turn_for_call_log(
+        self,
+        *,
+        call_log: AICallLog | None,
+    ) -> dict[str, Any] | None:
+        if call_log is None:
+            return None
+        conversation_id = getattr(call_log, "conversation_id", None)
+        if conversation_id is None:
+            return None
+        result = await self.service.db.execute(
+            select(AICallLog)
+            .where(
+                AICallLog.conversation_id == conversation_id,
+                AICallLog.is_deleted.is_(False),
+            )
+            .order_by(AICallLog.created_at.asc(), AICallLog.id.asc())
+        )
+        logs = list(result.scalars().all())
+        key = self._logical_turn_key(call_log)
+        groups = self._group_logs_by_turn(logs)
+        turn = next(
+            (
+                index + 1
+                for index, group in enumerate(groups)
+                if group and self._logical_turn_key(group[0]) == key
+            ),
+            None,
+        )
+        if turn is None:
+            return None
+        try:
+            return await self.resolve_conversation_turn(
+                conversation_id=conversation_id,
+                turn=turn,
+            )
+        except NotFoundException:
+            return None
 
     async def resolve_call_log(
         self,
@@ -190,9 +252,10 @@ class RuntimeDiagnosticsQueryService:
                 .order_by(AICallLog.created_at.asc(), AICallLog.id.asc())
             )
             logs = list(result.scalars().all())
-            if turn <= 0 or turn > len(logs):
+            groups = self._group_logs_by_turn(logs)
+            if turn <= 0 or turn > len(groups):
                 raise NotFoundException(message="AI call log not found")
-            return logs[turn - 1]
+            return groups[turn - 1][-1]
 
         raise BusinessException(
             message="trace_id, call_log_id, or conversation_id+turn is required"

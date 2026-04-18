@@ -19,7 +19,6 @@ Each log automatically includes trace_id from TraceIdMiddleware's ContextVar.
 import atexit
 import contextlib
 import logging
-import os
 import signal
 import sys
 from pathlib import Path
@@ -29,10 +28,12 @@ from loguru import logger
 from app.core.config import settings
 from app.enums.log import LogCategoryEnum
 
-# Windows: 多进程共享同一日志文件时，Loguru 轮转会触发 os.rename，导致 PermissionError。
-# 在 Windows 上禁用轮转；Linux 生产环境保持按大小轮转。
-# Windows: Disable rotation to avoid PermissionError when multi-process shares same log file.
-_ROTATION = None if os.name == "nt" else "10 MB"
+# 保持活动日志文件名稳定（app.log / task.log 等），并继续按天轮转历史文件。
+# 这能兼容系统日志读取、trace 检索与现有测试所依赖的文件名约定。
+# Keep active log filenames stable (app.log / task.log / ...) while still
+# rotating daily so downstream log readers and tests can rely on the canonical
+# current-file names.
+_DAILY_ROTATION = "00:00"
 
 # Log levels / 日志级别
 LOG_LEVELS = {
@@ -190,21 +191,25 @@ class LogManager:
 
         # 文件输出 / File sinks
         if enable_file:
+
+            def _log_path(category: str) -> Path:
+                return cls._log_dir / f"{category}.log"
+
             # app.log / 主应用日志文件
             logger.add(
-                cls._log_dir / "app.log",
+                _log_path("app"),
                 format=file_fmt,
                 level=cls._log_level,
-                rotation=_ROTATION,
+                rotation=_DAILY_ROTATION,
                 retention=30,
                 filter=lambda r: r["extra"].get("category") in (None, "app", "error"),
             )
             # error.log (ERROR+ only) / 仅 ERROR 及以上
             logger.add(
-                cls._log_dir / "error.log",
+                _log_path("error"),
                 format=file_fmt,
                 level="ERROR",
-                rotation=_ROTATION,
+                rotation=_DAILY_ROTATION,
                 retention=90,
                 filter=lambda r: r["extra"].get("category") in (None, "app", "error"),
             )
@@ -219,10 +224,10 @@ class LogManager:
                 LogCategoryEnum.IMPERSONATE,
             ]:
                 logger.add(
-                    cls._log_dir / f"{cat.value}.log",
+                    _log_path(cat.value),
                     format=file_fmt,
                     level=cls._log_level,
-                    rotation=_ROTATION,
+                    rotation=_DAILY_ROTATION,
                     retention=30,
                     filter=lambda r, c=cat.value: r["extra"].get("category") == c,
                 )

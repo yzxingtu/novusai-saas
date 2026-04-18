@@ -88,7 +88,10 @@ async def set_memory_disabled(
     if agent.owner_tenant_id != svc.tenant_id:
         raise BusinessException(message=_("agent.error.system_protected"))
 
-    override_repo = AgentMemoryOverrideRepository(svc.db, svc.tenant_id)
+    if hasattr(svc, "_get_memory_override_repo"):
+        override_repo = svc._get_memory_override_repo()
+    else:
+        override_repo = AgentMemoryOverrideRepository(svc.db, svc.tenant_id)
     existing = await override_repo.get_by_agent_id(agent_id)
 
     if disabled:
@@ -106,6 +109,8 @@ async def set_memory_disabled(
         if existing:
             await override_repo.delete(existing.id, soft=False)
 
+    if hasattr(svc, "get_memory_config"):
+        return await svc.get_memory_config(agent_id)
     return await get_memory_config(svc, agent_id)
 
 
@@ -145,4 +150,6 @@ async def set_memory_enabled(
         raise NotFoundException(message=_("agent.error.not_found"))
 
     await svc.repo.update(agent_id, {"memory_enabled": bool(enabled)})
+    if hasattr(svc, "get_memory_config"):
+        return await svc.get_memory_config(agent_id)
     return await get_admin_memory_config(svc, agent_id)

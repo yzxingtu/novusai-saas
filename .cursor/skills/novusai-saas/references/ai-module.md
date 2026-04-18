@@ -307,49 +307,49 @@ tools_schema = skill_result.to_openai_tools()
 
 ### 页面感知与页面操作（Page Awareness & Operations）
 
-页面感知采用方案 C（混合），三层架构：
+当前页面感知已经切到共享 UI Runtime `ui_*` 工具链：
 
-- **Layer 1**：`page_context` 通过 `input_variables` 注入 system prompt，提供基础感知
-- **Layer 2**：系统级 builtin skill `get_page_context` 进入 LLM function calling tools schema，提供深度上下文
-- **Layer 3**：系统级 builtin skill `invoke_page_operation` 通过 WebSocket 双向通信执行前端页面操作（M310 新增）
+- **Layer 1**：`page_context` 通过 `input_variables` 注入运行时，提供薄摘要态页面感知
+- **Layer 2**：`ui_read_page` / `ui_get_snapshot` / `ui_read_surface` / `ui_read_region` / `ui_read_table` / `ui_list_interactables` 提供按需读取
+- **Layer 3**：`ui_click` / `ui_open_surface` / `ui_get_form_state` / `ui_set_field` / `ui_fill_form` / `ui_submit_form` 在共享安全策略下执行页面操作
+
+> 旧的 registry + dedicated page-op 架构已退役，只应存在于历史归档材料，
+> 不得再作为新实现依据。
 
 #### 前端接入点
 
-- 页面通过 `registerPageContext(key, resolver)` 注册页面上下文解析器
-- 页面通过 `registerPageOperations(key, operations)` 注册页面可执行操作（含 `handler` 回调）
-- 路由通过 `route.meta.ai` 声明页面 AI 策略，例如 `mode`、`pageContextKey`、`pageOperationsKey`
-- 发送消息前统一调用 `resolvePageContext()`，将结果作为 `page_context` 写入聊天请求体
-- 发送消息时携带 `page_session_id`，用于 WebSocket 操作通道定位
-- `PageSessionManager` 监听 `page_operation_invoke` 事件，执行操作后通过 `page_operation_result` 回传
+- 路由通过 `route.meta.ai` 声明页面 AI 策略。
+- `layouts/basic.vue` 通过 `ensureGlobalUIRuntime({ getRoute })` 初始化共享 Runtime。
+- 页面上下文统一由 `frontend/apps/web-antd/src/components/business/ai-runtime/runtime-bridge.ts` 生成：
+  - `getRuntimeThinPageContext()`
+  - `getRuntimeSnapshot()`
+  - `readRuntimeSurface()`
+  - `readRuntimeRegion()`
+  - `readRuntimeTable()`
+  - `listRuntimeInteractables()`
+- CRUD 页面通过 `useCrudPage` / `useCrudList` 以及
+  `use-page-ai-operation-helpers.ts`、`use-form-state-tracker.ts` 接入。
+- 富文本页面通过 `editor-page-ai-exposure.ts` /
+  `editor-page-ai-operations.ts` / `editor-ai-adapter.ts` 暴露特定能力。
 
 #### 后端接入点
 
-- `AgentChatService.chat()` / `stream_chat()` 接收 `page_context` + `page_session_id`
-- `PageContext.normalize_variables()` 将其收口到 `ExecutionRequest.input_variables["page_context"]`
-- `resolve_for_agent()` 负责从 `AgentSkillGrant` 直接加载 Agent 当前有效的 Skill 集合
-- `SkillResolver._resolve_builtin()` 从 `config.tools` 生成 `ToolDefinition`（含 `get_page_context` 和 `invoke_page_operation`）
-- `BaseEngine._prepare_execution()` 收集 `skill_result.tools`
-- `page_tool_expander.py` 会在工具优化前，把编辑器操作与高频页面操作展开为专用 `pageop_*` tools
-- `to_openai_tools()` 将工具转为模型可见的 function schema
-- `PageOperationExecutor` 通过 `invoke_page_operation()` 创建 asyncio.Future，经 Socket.IO 下发操作指令到前端
-- `PageSessionMixin` 管理 page_session 房间加入/离开，处理操作结果回调
-- `capture_screenshot` 属于页面操作而非普通上传按钮逻辑；截图成功后，后端必须把附件作为内部多模态消息注入下一轮 LLM，且持久化阶段要跳过该内部消息
+- `AgentChatService.chat()` / `stream_chat()` 接收 thin `page_context`。
+- `PageContext.normalize_variables()` 将其收口到 `ExecutionRequest.input_variables["page_context"]`。
+- `resolve_for_agent()` 负责从 `AgentSkillGrant` 直接加载 Agent 当前有效 Skill 集合。
+- page-runtime 工具定义收口在 `backend/app/ai/tools/page_runtime/definitions.py`。
+- `PageRuntimeToolExecutor` 位于 `backend/app/ai/tools/page_runtime/executor.py`，并把 `ui_get_snapshot` 兼容映射到 `ui_read_page`。
+- live sandbox 当前仍有过渡期 legacy executor wiring，但对外工具协议已经是 `ui_*`。
 
 #### 关键规则
 
-- **仅注册 Executor 不算完成** — 必须同时存在 `SkillPackage + Skill`，并通过 `AgentSkillGrant` 进入运行时工具集合
-- **工具参数 JSON 容错**：`tool_processor.parse_arguments` 在 `json.loads` 失败后需调用 `_try_repair_json` 尝试修复（尾部逗号、缺失括号等常见畸形），避免 LLM 输出小错误导致工具调用直接失败
-- `_PROTECTED_TOOL_NAMES` 白名单保护 `get_page_context`、`invoke_page_operation`、`list_page_operations` 不被工具优化器过滤
-- `pageop_*` 不再只用于富文本编辑器；`search`、`refresh_list`、`read_visible_rows`、`read_row_detail`、`get_form_state`、`fill_form`、`validate_form`、`get_form_options`、分页等高频页面操作也应优先展开
-- **tool-first 原则**：有专用 `pageop_*` 时，模型优先直调专用工具；仅对未展开的剩余操作使用 `invoke_page_operation`
-- `capture_screenshot` 只允许在当前运行模型支持视觉时执行；默认先使用文本页面上下文，避免滥用截图
-- `readonly=true` 操作直接执行，`readonly=false` 操作前端弹出确认对话框
-- 操作确认超时 60s，超时后自动清理 pending 确认卡片与结果等待链路
-- 前端页面操作通道必须按 `invoke_id` 做幂等保护；重复事件应等待首个执行完成后回放缓存结果，禁止重复执行或重复弹确认
-- 页面操作通道必须校验 `event.page_key` 是否等于当前活动页面 key；不匹配时返回 `page_key_mismatch`，禁止误操作错误页面
-- Agent Loop 链式自动确认只允许在当前页面会话内短时复用；页面会话切换、leave 或断线时必须清空链式确认状态
-- 后端 `get_active_session_id()` 只在 `(scope, user_id, page_key)` 存在唯一活跃 `page_session_id` 时才允许 fallback 恢复；多标签页歧义场景必须返回 `None`
-- 已覆盖 29 页面（Admin 19 + Tenant 10），标准操作类型：`refresh_list`、`refresh_dashboard`、`export_data`、`navigate_to`
+- **仅注册 Executor 不算完成** — 必须同时存在 `SkillPackage + Skill`，并通过 `AgentSkillGrant` 进入运行时工具集合。
+- `page_context` 必须保持 summary-first；不要塞 DOM、整页 HTML 或完整 UI graph。
+- 需要细节时优先使用 `ui_read_page` / `ui_get_snapshot` / `ui_read_surface` / `ui_read_region` / `ui_read_table` / `ui_list_interactables`。
+- `ui_epoch` 是 stale-context 保护字段，前端运行时在 route / surface / graph 变化时递增。
+- `readonly=true` 的页面操作走读工具；写工具必须受 security policy 与确认策略约束。
+- 不得复活旧 registry、旧 dedicated page-op 展开层、旧 slide-panel page registry，或旧全局页面操作 helper family。
+- 富文本页面能力沿用 `editor-page-ai-*` 与 `editor-ai-adapter.ts`，不要再接回旧 runtime registry skeleton。
 
 #### SkillPackage 目录与资源作用域规则
 
@@ -384,33 +384,28 @@ tools_schema = skill_result.to_openai_tools()
 
 ```text
 前端页面
-  ├── registerPageContext(key, resolver)
-  ├── registerPageOperations(key, operations)  ← 含 handler 回调
-  └── route.meta.ai = { mode, pageContextKey }
+  ├── route.meta.ai
+  ├── ensureGlobalUIRuntime({ getRoute })
+  └── getRuntimeThinPageContext()
 
 用户发消息
-  → resolvePageContext() → page_context
+  → getRuntimeThinPageContext() → page_context
   → POST /chat/stream { page_context, page_session_id }
   → AgentChatService.chat()
   → PageContext.normalize_variables()
   → ExecutionRequest.input_variables["page_context"]
   → resolve_for_agent()
-  → SkillResolver._resolve_builtin()
-  → to_openai_tools()
+  → page-runtime `ui_*` tools
 
 Layer 2（上下文读取）:
-  → LLM 调用 get_page_context
-  → ToolSandbox → PageContextExecutor
-  → 返回页面结构化数据
+  → LLM 调用 ui_read_page / ui_get_snapshot / ui_read_surface / ui_read_region / ui_read_table / ui_list_interactables
+  → ToolSandbox → page runtime executor / runtime bridge
+  → 返回摘要或结构化页面数据
 
 Layer 3（操作执行）:
-  → LLM 调用 invoke_page_operation
-  → ToolSandbox → PageOperationExecutor
-  → invoke_page_operation() 创建 asyncio.Future
-  → Socket.IO emit("page_operation_invoke") → page_session 房间
-  → 前端 PageSessionManager 执行 handler
-  → Socket.IO emit("page_operation_result") 回传
-  → Future resolve → ToolResult 返回给 LLM
+  → LLM 调用 ui_click / ui_open_surface / ui_get_form_state / ui_set_field / ui_fill_form / ui_submit_form
+  → ToolSandbox → page runtime executor
+  → 前端 shared UI Runtime 执行并返回 ToolResult
 ```
 
 ### RAG 检索 (`rag/retriever.py`)

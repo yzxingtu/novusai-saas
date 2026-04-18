@@ -86,9 +86,7 @@ def decide(
             completed_intent_ids=completed,
             unfinished_intent_ids=[intent.intent_id for intent in unfinished],
             reason=budget_exit_reason,
-            provider_failure_kind=(
-                "budget_exit" if provider_failure_kind == "none" else provider_failure_kind
-            ),
+            provider_failure_kind="budget_exit",
         )
     if provider_failure_kind == "budget_exit":
         return RecoveryDecision(

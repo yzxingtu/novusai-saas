@@ -1,28 +1,58 @@
+# FROZEN: do not add new dependencies
 """Focused helpers for StreamExecutionHandler.generate()."""
 from __future__ import annotations
+
 import asyncio
 import time
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
+
 from app.ai.sse import SSEChunkEncoder
 from app.ai.types import ChatMessage
+from app.core.i18n import _
+
 from .conversation_result_projector import build_execution_result, build_turn_projection
-from .final_output_policy import resolve_skip_final_assistant
+from .final_output_policy import (
+    build_untrusted_final_output_fallback,
+    is_trusted_assistant_final_output_source,
+    resolve_skip_final_assistant,
+)
 from .recovery_manager import RecoveryManager
 from .stream_error_utils import trace_payload as _trace_payload
-from .stream_finalization_support import (
+from .stream_finalization_pipeline import (
     StreamFinalizationArtifacts,
     build_done_event_payload,
     build_result_turn_record,
 )
 from .stream_generation_view import ensure_stream_generation_view
-from .stream_replay_event_support import (
+from .stream_replay_events import (
     build_immediate_turn_events,
     build_replay_events,
 )
+from .turn_flow_projector import (
+    build_initial_turn_flow_events,
+    build_turn_answer_card_event,
+    build_turn_flow_view_model,
+)
 from .types import ExecutionResult
+
 if TYPE_CHECKING:
     from .turn_executor import TurnExecutionResult
+
+
+_PARTIAL_FAILURE_COMPLETION_REASONS = frozenset(
+    {
+        "error",
+        "provider_failure_after_partial_progress",
+        "provider_timeout",
+        "provider_unavailable",
+        "provider_error",
+        "tool_error",
+        "tool_round_failed",
+        "stream_execution_error",
+        "terminal_failure",
+    }
+)
 def _resolve_generation_view(handler: Any) -> Any:
     explicit = getattr(handler, "_stream_generation_view", None)
     if callable(explicit):
@@ -86,6 +116,9 @@ def build_initial_events(
                 else optimize_event
             )
         )
+
+    for canonical_event in build_initial_turn_flow_events(optimize_event=optimize_event):
+        events.append(SSEChunkEncoder.encode(_trace_payload(canonical_event)))
 
     return events
 
@@ -171,6 +204,70 @@ def _resolve_turn_output(
     return streamed_output
 
 
+def _normalize_token(value: Any) -> str:
+    return str(value or "").strip().lower()
+
+
+def _is_partial_failure_salvage_risk(
+    *,
+    completion_reason: str,
+    provider_failure_kind: str | None,
+) -> bool:
+    normalized_reason = _normalize_token(completion_reason)
+    normalized_failure_kind = _normalize_token(provider_failure_kind)
+    if normalized_reason in _PARTIAL_FAILURE_COMPLETION_REASONS:
+        return True
+    return bool(
+        normalized_failure_kind
+        and normalized_failure_kind not in {"none", "budget_exit"}
+    )
+
+
+def _outputs_overlap(left: str, right: str) -> bool:
+    normalized_left = str(left or "").strip()
+    normalized_right = str(right or "").strip()
+    if not normalized_left or not normalized_right:
+        return False
+    return (
+        normalized_left == normalized_right
+        or normalized_left.startswith(normalized_right)
+        or normalized_right.startswith(normalized_left)
+    )
+
+
+def _resolve_trustworthy_partial_failure_output(
+    *,
+    finalized_output: str,
+    visible_assistant_output: str,
+    streamed_output: str,
+) -> str:
+    if finalized_output and (
+        _outputs_overlap(finalized_output, visible_assistant_output)
+        or _outputs_overlap(finalized_output, streamed_output)
+    ):
+        return finalized_output
+    if visible_assistant_output and (
+        not streamed_output or _outputs_overlap(visible_assistant_output, streamed_output)
+    ):
+        return visible_assistant_output
+    if streamed_output:
+        return streamed_output
+    return ""
+
+
+def _safe_partial_failure_output() -> str:
+    return str(_("common.server_error") or "").strip() or (
+        "The assistant could not finish this turn. Please retry."
+    )
+
+
+def _is_generic_untrusted_fallback_output(output: str) -> bool:
+    normalized_output = str(output or "").strip()
+    if not normalized_output:
+        return False
+    return normalized_output == build_untrusted_final_output_fallback()
+
+
 def _append_output_if_missing(
     *,
     handler: Any,
@@ -222,14 +319,27 @@ def _finalize_partial_output(
         stream_local_output=stream_local_output,
         finalized_output=finalized_output,
     )
+    failure_salvage_risk = _is_partial_failure_salvage_risk(
+        completion_reason=completion_reason,
+        provider_failure_kind=view.provider_failure_kind,
+    )
+    if failure_salvage_risk:
+        output = _resolve_trustworthy_partial_failure_output(
+            finalized_output=finalized_output,
+            visible_assistant_output=visible_assistant_output,
+            streamed_output=streamed_output,
+        )
     if not output and view.provider_failure_kind == "budget_exit":
         output = view.build_budget_exit_fallback_output(tool_results=tool_results)
     elif not output:
-        output = RecoveryManager.build_partial_output(
-            view.intent_plan,
-            reason=completion_reason or "return_partial",
-            provider_failure_kind=view.provider_failure_kind,
-        )
+        if failure_salvage_risk:
+            output = _safe_partial_failure_output()
+        else:
+            output = RecoveryManager.build_partial_output(
+                view.intent_plan,
+                reason=completion_reason or "return_partial",
+                provider_failure_kind=view.provider_failure_kind,
+            )
 
     view.output = output
     _append_output_if_missing(
@@ -257,7 +367,7 @@ def _finalize_paused_output(
     action_buttons: list[dict[str, str]] | None,
     skip_final_assistant: bool,
 ) -> tuple[str, list[str]]:
-    view = ensure_stream_generation_view(handler)
+    view = _resolve_generation_view(handler)
     current_turn_messages = messages[turn_start_message_index:]
     visible_assistant_output = view.last_visible_assistant_content(current_turn_messages)
     streamed_output = view.visible_stream_content.strip()
@@ -297,9 +407,57 @@ def _finalize_completed_output(
     action_buttons: list[dict[str, str]] | None,
     final_output_source: str | None,
 ) -> tuple[str, list[str]]:
-    view = ensure_stream_generation_view(handler)
+    view = _resolve_generation_view(handler)
+    current_turn_messages = messages[turn_start_message_index:]
     streamed_output = view.visible_stream_content.strip()
     finalized_output = str(output or "").strip()
+    trusted_final_source = is_trusted_assistant_final_output_source(final_output_source)
+    if not trusted_final_source:
+        trusted_stream_output = (
+            view.last_visible_assistant_content(current_turn_messages) or streamed_output
+        )
+        if (
+            trusted_stream_output
+            and finalized_output
+            and not _is_generic_untrusted_fallback_output(finalized_output)
+            and not _outputs_overlap(finalized_output, trusted_stream_output)
+        ):
+            output = finalized_output
+            if response is not None and getattr(response, "message", None) is not None:
+                response.message.content = finalized_output
+            _append_output_if_missing(
+                handler=handler,
+                messages=messages,
+                current_turn_messages=current_turn_messages,
+                output=finalized_output,
+                streamed_output=streamed_output,
+                action_buttons=action_buttons,
+                skip_final_assistant=False,
+            )
+            replay_chunks = (
+                view.chunk_text_for_streaming(finalized_output)
+                if view.should_replay_finalized_output(
+                    streamed_output=streamed_output,
+                    finalized_output=finalized_output,
+                )
+                else []
+            )
+            return output, replay_chunks
+
+        output = trusted_stream_output
+        if response is not None and getattr(response, "message", None) is not None:
+            response.message.content = trusted_stream_output
+        _append_output_if_missing(
+            handler=handler,
+            messages=messages,
+            current_turn_messages=current_turn_messages,
+            output=trusted_stream_output,
+            streamed_output=streamed_output,
+            action_buttons=action_buttons,
+            skip_final_assistant=not bool(trusted_stream_output),
+        )
+        return output, []
+
     if view.should_preserve_streamed_assistant_output(
         final_output_source=final_output_source,
         streamed_output=streamed_output,
@@ -320,7 +478,7 @@ def _finalize_completed_output(
     _append_output_if_missing(
         handler=handler,
         messages=messages,
-        current_turn_messages=messages[turn_start_message_index:],
+        current_turn_messages=current_turn_messages,
         output=output,
         streamed_output=streamed_output,
         action_buttons=action_buttons,
@@ -360,6 +518,11 @@ def finalize_successful_turn(
     tool_results = list(turn_execution.tool_results)
     view.completion_tokens_used = turn_execution.completion_tokens_used
     response = turn_execution.response
+    response_output = str(
+        getattr(getattr(response, "message", None), "content", None) or ""
+    ).strip()
+    if not str(output or "").strip() and response_output:
+        output = response_output
     response_metadata = sync_response_runtime_metadata(handler, response=response)
 
     cleaned_output, action_buttons = view.extract_action_buttons(output)
@@ -400,7 +563,10 @@ def finalize_successful_turn(
             action_buttons=action_buttons,
             skip_final_assistant=skip_final_assistant,
         )
-    elif output and not skip_final_assistant:
+    elif (
+        (str(output or "").strip() or view.visible_stream_content.strip())
+        and not skip_final_assistant
+    ):
         output, completed_reply_stream_chunks = _finalize_completed_output(
             handler,
             messages=messages,
@@ -428,6 +594,24 @@ def finalize_successful_turn(
         protocol_path=resolved_protocol_path,
     )
     diagnostics_payload = turn_projection.diagnostics
+    turn_flow = build_turn_flow_view_model(
+        diagnostics_payload=diagnostics_payload,
+        turn_record=turn_projection.turn_record,
+        rag_sources=rag_sources,
+        output=str(output or ""),
+        completion_reason=completion_reason,
+        interrupted=paused_for_consent,
+        error=None,
+    )
+    diagnostics_payload["turn_flow"] = turn_flow
+    turn_projection.turn_record["turn_flow"] = turn_flow
+    turn_record_metadata = dict(turn_projection.turn_record.get("metadata") or {})
+    turn_record_metadata["turn_flow"] = turn_flow
+    turn_projection.turn_record["metadata"] = turn_record_metadata
+
+    answer_card_event = build_turn_answer_card_event(turn_flow)
+    if answer_card_event is not None:
+        immediate_events.append(SSEChunkEncoder.encode(_trace_payload(answer_card_event)))
 
     result = build_execution_result(
         success=not partial,
@@ -549,6 +733,20 @@ def build_terminal_result(
         final_output_source=final_output_source,
         protocol_path=resolved_protocol_path,
     )
+    turn_flow = build_turn_flow_view_model(
+        diagnostics_payload=turn_projection.diagnostics,
+        turn_record=turn_projection.turn_record,
+        rag_sources=rag_sources,
+        output=str(output or ""),
+        completion_reason=completion_reason,
+        interrupted=interrupted,
+        error=error,
+    )
+    turn_projection.diagnostics["turn_flow"] = turn_flow
+    turn_projection.turn_record["turn_flow"] = turn_flow
+    turn_record_metadata = dict(turn_projection.turn_record.get("metadata") or {})
+    turn_record_metadata["turn_flow"] = turn_flow
+    turn_projection.turn_record["metadata"] = turn_record_metadata
 
     return build_execution_result(
         success=False,
