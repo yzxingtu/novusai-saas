@@ -149,7 +149,10 @@ const {
                     <div class="truncate text-sm font-semibold text-foreground">
                       {{ getAgentDisplayName(data) }}
                     </div>
-                    <div v-if="data.agent_id" class="text-xs text-muted-foreground">
+                    <div
+                      v-if="data.agent_id"
+                      class="text-xs text-muted-foreground"
+                    >
                       #{{ data.agent_id }}
                     </div>
                   </div>
@@ -219,15 +222,21 @@ const {
                   <Descriptions.Item :label="$t('tenant.ai.actionLog.id')">
                     {{ data.id }}
                   </Descriptions.Item>
-                  <Descriptions.Item :label="$t('tenant.ai.actionLog.createdAt')">
+                  <Descriptions.Item
+                    :label="$t('tenant.ai.actionLog.createdAt')"
+                  >
                     {{ formatDate(data.created_at) }}
                   </Descriptions.Item>
-                  <Descriptions.Item :label="$t('tenant.ai.actionLog.actionName')">
+                  <Descriptions.Item
+                    :label="$t('tenant.ai.actionLog.actionName')"
+                  >
                     <code class="rounded bg-accent px-1.5 py-0.5 text-xs">
                       {{ data.action_name }}
                     </code>
                   </Descriptions.Item>
-                  <Descriptions.Item :label="$t('tenant.ai.actionLog.actionType')">
+                  <Descriptions.Item
+                    :label="$t('tenant.ai.actionLog.actionType')"
+                  >
                     <Tag :color="getTypeColor(data.action_type)">
                       {{ getTypeText(data.action_type) }}
                     </Tag>
@@ -244,7 +253,9 @@ const {
                       {{ getStatusText(data.status) }}
                     </Tag>
                   </Descriptions.Item>
-                  <Descriptions.Item :label="$t('tenant.ai.actionLog.agentName')">
+                  <Descriptions.Item
+                    :label="$t('tenant.ai.actionLog.agentName')"
+                  >
                     <div class="flex items-center gap-2">
                       <Avatar
                         v-if="getAgentAvatarUrl(data.agent_avatar)"
@@ -266,7 +277,9 @@ const {
                       </span>
                     </div>
                   </Descriptions.Item>
-                  <Descriptions.Item :label="$t('tenant.ai.actionLog.operatorId')">
+                  <Descriptions.Item
+                    :label="$t('tenant.ai.actionLog.operatorId')"
+                  >
                     <IdentityTrigger
                       :avatar-size="24"
                       :model="getOperatorIdentityModel(data)"
@@ -276,7 +289,9 @@ const {
                   <Descriptions.Item :label="$t('tenant.ai.actionLog.traceId')">
                     <code>{{ data.trace_id || '-' }}</code>
                   </Descriptions.Item>
-                  <Descriptions.Item :label="$t('tenant.ai.actionLog.toolCallId')">
+                  <Descriptions.Item
+                    :label="$t('tenant.ai.actionLog.toolCallId')"
+                  >
                     <code>{{ data.tool_call_id || '-' }}</code>
                   </Descriptions.Item>
                   <Descriptions.Item
@@ -355,7 +370,10 @@ const {
             </div>
           </Tabs.TabPane>
 
-          <Tabs.TabPane key="request" :tab="$t('tenant.ai.actionLog.requestTab')">
+          <Tabs.TabPane
+            key="request"
+            :tab="$t('tenant.ai.actionLog.requestTab')"
+          >
             <ActionLogPayloadCard
               :copy-payload="copyPayload"
               :empty-description="$t('tenant.ai.actionLog.noRequestData')"
@@ -398,7 +416,10 @@ const {
                 :message="$t('tenant.ai.actionLog.errorMessage')"
                 :description="errorPayloadText"
               />
-              <Empty v-else :description="$t('tenant.ai.actionLog.noErrorData')" />
+              <Empty
+                v-else
+                :description="$t('tenant.ai.actionLog.noErrorData')"
+              />
             </Card>
           </Tabs.TabPane>
         </Tabs>

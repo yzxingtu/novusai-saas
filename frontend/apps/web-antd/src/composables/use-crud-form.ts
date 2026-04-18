@@ -30,7 +30,7 @@ import { useVbenDrawer } from '@vben/common-ui';
 import { $t } from '#/locales';
 import { requestClient } from '#/utils/request';
 
-import { extractFormParams } from './use-ai-operations';
+import { extractFormParams } from './form-schema-ai-descriptors';
 import { formStateTracker } from './use-form-state-tracker';
 
 // ============ 字段映射工具函数 / field mapping helpers ============

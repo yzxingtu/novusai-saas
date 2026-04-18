@@ -3,13 +3,12 @@
  */
 import type { Locator, Page } from '@playwright/test';
 
+import type { ChatTurnMetrics } from './common/sse-helpers';
+
 import { expect, test } from '@playwright/test';
 
 import { hasAdminCredentials, loginAsAdmin } from './common/admin-auth';
-import {
-  interceptChatSSE,
-  type ChatTurnMetrics,
-} from './common/sse-helpers';
+import { interceptChatSSE } from './common/sse-helpers';
 
 const adminEnabled = hasAdminCredentials();
 
@@ -102,7 +101,7 @@ const TRUSTED_AUTO_LABEL = /受信自动|trusted\s*auto/i;
 const UI_SETTLE_TIMEOUT = 20_000;
 
 function normalizeCompactText(value: string) {
-  return value.replace(/\s+/g, '').trim();
+  return value.replaceAll(/\s+/g, '').trim();
 }
 
 function readToolNames(metrics: ChatTurnMetrics) {
@@ -136,7 +135,11 @@ function isTimeTool(name: string) {
 
 function isSearchTool(name: string) {
   const normalized = normalizeToolName(name);
-  return normalized === 'fetch_url' || normalized === 'web_search';
+  return (
+    normalized === 'fetch_url' ||
+    normalized === 'web_search' ||
+    normalized === 'native_web_search'
+  );
 }
 
 function isPageTool(name: string) {
@@ -420,7 +423,7 @@ async function attachCaseMetrics(
       {
         caseId: resolveCurrentCaseId(),
         prompts,
-        turns: turns.map(buildTurnAttachment),
+        turns: turns.map((turn) => buildTurnAttachment(turn)),
       },
       null,
       2,
@@ -443,9 +446,7 @@ async function ensureAIPanelOpen(page: Page) {
     return;
   }
 
-  const commandInput = page
-    .locator(COMMAND_INPUT_SELECTOR)
-    .first();
+  const commandInput = page.locator(COMMAND_INPUT_SELECTOR).first();
   const commandVisible = await commandInput.isVisible().catch(() => false);
   if (commandVisible) {
     return;
@@ -458,11 +459,9 @@ async function ensureAIPanelOpen(page: Page) {
     .first();
   const triggerVisible = await trigger.isVisible().catch(() => false);
 
-  if (triggerVisible) {
-    await trigger.click();
-  } else {
-    await page.keyboard.press('Control+k').catch(() => undefined);
-  }
+  await (triggerVisible
+    ? trigger.click()
+    : page.keyboard.press('Control+k').catch(() => undefined));
 
   await expect(commandInput).toBeVisible({ timeout: 10_000 });
 }
@@ -499,7 +498,9 @@ async function isVisibleAndEnabled(locator: Locator) {
 }
 
 async function clickLatestVisiblePanelButton(page: Page, name: RegExp) {
-  const buttons = page.locator(CHAT_PANEL_SELECTOR).getByRole('button', { name });
+  const buttons = page
+    .locator(CHAT_PANEL_SELECTOR)
+    .getByRole('button', { name });
   const count = await buttons.count();
 
   for (let index = count - 1; index >= 0; index -= 1) {
@@ -528,7 +529,10 @@ async function enableTrustedAutoMode(page: Page) {
     }
 
     const className = (await button.getAttribute('class')) ?? '';
-    if (className.includes('bg-primary/10') || className.includes('text-primary')) {
+    if (
+      className.includes('bg-primary/10') ||
+      className.includes('text-primary')
+    ) {
       return true;
     }
 
@@ -607,7 +611,10 @@ async function waitForObservedTurn(
   const monitor = (async () => {
     const deadline = Date.now() + timeout;
 
-    while (!monitorStopped && Date.now() < deadline) {
+    while (Date.now() < deadline) {
+      if (monitorStopped) {
+        break;
+      }
       if (preferTrustedAuto) {
         await enableTrustedAutoMode(page);
       }
@@ -705,9 +712,7 @@ async function runChatTurnSequence(
   return turns;
 }
 
-function registerSingleTurnScenarios(
-  scenarios: readonly SingleTurnScenario[],
-) {
+function registerSingleTurnScenarios(scenarios: readonly SingleTurnScenario[]) {
   for (const scenario of scenarios) {
     test(`${scenario.id} — ${scenario.name}`, async ({ page }) => {
       test.setTimeout(
@@ -805,7 +810,7 @@ test.describe('AI Chat E2E', () => {
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 20);
-          expectTool(metrics, (name) => name === 'web_search', 'Expected web_search');
+          expectTool(metrics, isSearchTool, 'Expected search tool');
         },
       },
     ]);
@@ -827,7 +832,13 @@ test.describe('AI Chat E2E', () => {
             'Expected page context read tool call',
           );
           expect(
-            responseContainsAny(metrics, [/页面/, /智能体/, /列表/, /按钮/, /操作/]),
+            responseContainsAny(metrics, [
+              /页面/,
+              /智能体/,
+              /列表/,
+              /按钮/,
+              /操作/,
+            ]),
           ).toBe(true);
         },
       },
@@ -845,7 +856,13 @@ test.describe('AI Chat E2E', () => {
             'Expected page awareness tool call',
           );
           expect(
-            responseContainsAny(metrics, [/按钮/, /操作/, /筛选/, /模型/, /页面/]),
+            responseContainsAny(metrics, [
+              /按钮/,
+              /操作/,
+              /筛选/,
+              /模型/,
+              /页面/,
+            ]),
           ).toBe(true);
         },
       },
@@ -990,7 +1007,11 @@ test.describe('AI Chat E2E', () => {
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 30);
-          expectToolCountAtLeast(metrics, 3, 'Expected at least three tool calls');
+          expectToolCountAtLeast(
+            metrics,
+            3,
+            'Expected at least three tool calls',
+          );
           expectToolFamilies(metrics, ['weather', 'search', 'page']);
         },
       },
@@ -1049,11 +1070,12 @@ test.describe('AI Chat E2E', () => {
 
       expectDistinctToolFamiliesAtLeast(secondTurn, 3);
       expect(
-        secondTurn.toolCalls.some((toolCall) =>
-          isTimeTool(toolCall.name) ||
-          isWeatherTool(toolCall.name) ||
-          isSearchTool(toolCall.name) ||
-          isPageReadTool(toolCall.name),
+        secondTurn.toolCalls.some(
+          (toolCall) =>
+            isTimeTool(toolCall.name) ||
+            isWeatherTool(toolCall.name) ||
+            isSearchTool(toolCall.name) ||
+            isPageReadTool(toolCall.name),
         ),
       ).toBe(true);
       expect(secondTurn.fullResponse).not.toContain('[PARTIAL EXIT]');
@@ -1232,7 +1254,9 @@ test.describe('AI Chat E2E', () => {
   });
 
   test.describe('N: Session stress', () => {
-    test('N1 — ten quick turns keep one conversation alive', async ({ page }) => {
+    test('N1 — ten quick turns keep one conversation alive', async ({
+      page,
+    }) => {
       test.setTimeout(EXTENDED_CHAT_TIMEOUT * 8);
       const prompts = Array.from(
         { length: 10 },
@@ -1271,13 +1295,19 @@ test.describe('AI Chat E2E', () => {
   });
 
   test.describe('O: Ambiguous intent inference', () => {
-    test('O1 — pure implied weather intent does not crash', async ({ page }) => {
+    test('O1 — pure implied weather intent does not crash', async ({
+      page,
+    }) => {
       test.setTimeout(DEFAULT_CHAT_TIMEOUT + TURN_TIMEOUT_BUFFER);
       const metrics = await runChatTurn(page, '深圳好热啊');
 
       expectGracefulResponse(metrics, 4);
       if (metrics.toolCalls.length > 0) {
-        expectTool(metrics, isWeatherTool, 'Expected weather tool when a tool is used');
+        expectTool(
+          metrics,
+          isWeatherTool,
+          'Expected weather tool when a tool is used',
+        );
       }
     });
 
@@ -1307,7 +1337,11 @@ test.describe('AI Chat E2E', () => {
         verify: (metrics) => {
           expectGracefulResponse(metrics, 8);
           if (metrics.toolCalls.length > 0) {
-            expectTool(metrics, isWeatherTool, 'Expected weather tool when routed');
+            expectTool(
+              metrics,
+              isWeatherTool,
+              'Expected weather tool when routed',
+            );
           }
         },
       },
@@ -1403,14 +1437,17 @@ test.describe('AI Chat E2E', () => {
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 8);
-          expectTool(metrics, isPageSearchTool, 'Expected page search tool call');
+          expectTool(
+            metrics,
+            isPageSearchTool,
+            'Expected page search tool call',
+          );
         },
       },
       {
         id: 'P4',
         name: 'search -> read -> paginate chain stays complete',
-        prompt:
-          '帮我搜索一下最近的记录，看看搜出来多少条，然后翻到第二页看看',
+        prompt: '帮我搜索一下最近的记录，看看搜出来多少条，然后翻到第二页看看',
         route: ROUTES.conversations,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
@@ -1501,12 +1538,7 @@ test.describe('AI Chat E2E', () => {
       const [weatherTurn, searchTurn, pageTurn, pageSearchTurn] =
         await runChatTurnSequence(
           page,
-          [
-            '北京天气',
-            '搜索最新新闻',
-            '当前页面',
-            '帮我搜索表格',
-          ],
+          ['北京天气', '搜索最新新闻', '当前页面', '帮我搜索表格'],
           { route: ROUTES.agents, timeout: DEFAULT_CHAT_TIMEOUT },
         );
 
@@ -1516,7 +1548,11 @@ test.describe('AI Chat E2E', () => {
         (name) => name === 'web_search',
         'Expected web search skill trigger',
       );
-      expectTool(pageTurn, isPageReadTool, 'Expected page awareness skill trigger');
+      expectTool(
+        pageTurn,
+        isPageReadTool,
+        'Expected page awareness skill trigger',
+      );
       expectTool(
         pageSearchTurn,
         isPageSearchTool,
@@ -1547,7 +1583,10 @@ test.describe('AI Chat E2E', () => {
 
     test('S3 — unsupported email skill degrades honestly', async ({ page }) => {
       test.setTimeout(DEFAULT_CHAT_TIMEOUT + TURN_TIMEOUT_BUFFER);
-      const metrics = await runChatTurn(page, '帮我发一封邮件给 test@example.com');
+      const metrics = await runChatTurn(
+        page,
+        '帮我发一封邮件给 test@example.com',
+      );
 
       expectGracefulResponse(metrics, 6);
       expectNoTool(
@@ -1647,7 +1686,9 @@ test.describe('AI Chat E2E', () => {
         verify: (metrics) => {
           expectGracefulResponse(metrics, 8);
           expect(
-            metrics.toolCalls.some((toolCall) => toolCall.name === 'edit_record') ||
+            metrics.toolCalls.some(
+              (toolCall) => toolCall.name === 'edit_record',
+            ) ||
               metrics.toolConsentRequests.length > 0 ||
               metrics.confirmationRequests.length > 0 ||
               metrics.actionButtons.length > 0,
@@ -1804,7 +1845,11 @@ test.describe('AI Chat E2E', () => {
 
       expectGracefulResponse(firstTurn, 4);
       expectGracefulResponse(secondTurn, 4);
-      expectTool(firstTurn, isPageSearchTool, 'Expected search tool on first turn');
+      expectTool(
+        firstTurn,
+        isPageSearchTool,
+        'Expected search tool on first turn',
+      );
       expectTool(
         secondTurn,
         (name) =>

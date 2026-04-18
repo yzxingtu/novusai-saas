@@ -1,9 +1,8 @@
+import type { UIActionDiff } from '#/components/business/ai-runtime/ui-action-executor';
+
 import { onScopeDispose, watch } from 'vue';
 
-import {
-  normalizePageKey,
-  resolveRoutePageKey,
-} from '#/components/business/ai-slide-panel';
+import { tAiRuntime } from '#/components/business/ai-runtime/i18n';
 import {
   fillRuntimeForm,
   getRuntimeFormState,
@@ -15,10 +14,14 @@ import {
   submitRuntimeForm,
 } from '#/components/business/ai-runtime/runtime-bridge';
 import {
-  UIActionExecutor,
-  type UIActionDiff,
-} from '#/components/business/ai-runtime/ui-action-executor';
-import { tAiRuntime } from '#/components/business/ai-runtime/i18n';
+  getRuntimeEpochFloor,
+  setRuntimeEpochFloor,
+} from '#/components/business/ai-runtime/ui-epoch-floor';
+import { UIActionExecutor } from '#/components/business/ai-runtime/ui-action-executor';
+import {
+  normalizePageKey,
+  resolveRoutePageKey,
+} from '#/components/business/ai-slide-panel';
 import { getActivePageSessionId } from '#/composables/use-page-session';
 import { getSocketTraceId } from '#/composables/use-socketio';
 import { router } from '#/router';
@@ -29,14 +32,13 @@ const RECENT_RESULT_TTL_MS = 90_000;
 
 type UIActionType =
   | 'ui_click'
-  | 'ui_open_surface'
-  | 'ui_get_form_state'
-  | 'ui_set_field'
   | 'ui_fill_form'
+  | 'ui_get_form_state'
+  | 'ui_open_surface'
+  | 'ui_set_field'
   | 'ui_submit_form';
 
 let currentJoinedRoom = '';
-let uiEpochValue = 0;
 let lastJoinedSessionAck: null | {
   pageKey: string;
   pageSessionId: string;
@@ -44,7 +46,10 @@ let lastJoinedSessionAck: null | {
 } = null;
 
 const inFlightRequests = new Map<string, Promise<void>>();
-const recentRequestResults = new Map<string, { eventName: string; payload: Record<string, unknown> }>();
+const recentRequestResults = new Map<
+  string,
+  { eventName: string; payload: Record<string, unknown> }
+>();
 const recentRequestTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 export interface UIActionInvokeEvent {
@@ -161,7 +166,9 @@ function replayResult(
   eventName: string,
   requestId: string,
 ): boolean {
-  const cached = recentRequestResults.get(requestCacheKey(eventName, requestId));
+  const cached = recentRequestResults.get(
+    requestCacheKey(eventName, requestId),
+  );
   if (!cached) {
     return false;
   }
@@ -225,10 +232,8 @@ export function useUIActionChannel(): void {
     resolveRoutePageKey(router.currentRoute.value, window.location.pathname);
   const actionExecutor = new UIActionExecutor({
     getPageKey: resolveCurrentPageKey,
-    getUiEpoch: () => uiEpochValue,
-    setUiEpoch: (nextEpoch) => {
-      uiEpochValue = nextEpoch;
-    },
+    getUiEpoch: getRuntimeEpochFloor,
+    setUiEpoch: setRuntimeEpochFloor,
   });
 
   async function runDeduped(
@@ -283,7 +288,7 @@ export function useUIActionChannel(): void {
         ? { target_locator: String(event.target_locator) }
         : {}),
       ...(event.trace_id ? { trace_id: String(event.trace_id) } : {}),
-      ...(typeof event.value !== 'undefined' ? { value: event.value } : {}),
+      ...(event.value === undefined ? {} : { value: event.value }),
       ...(typeof event.wait_timeout_ms === 'number'
         ? { wait_timeout_ms: event.wait_timeout_ms }
         : {}),
@@ -310,7 +315,9 @@ export function useUIActionChannel(): void {
         }
 
         if (actionType === 'ui_get_form_state') {
-          const result = await getRuntimeFormState(normalizedEvent.form_session_id);
+          const result = await getRuntimeFormState(
+            normalizedEvent.form_session_id,
+          );
           return {
             ...(result.data ? { data: result.data } : {}),
             ...(result.error ? { error: result.error } : {}),
@@ -402,11 +409,13 @@ export function useUIActionChannel(): void {
       try {
         return {
           request_id: requestId,
-          snapshot: getRuntimeSnapshot(event.mode === 'full' ? 'full' : 'compact') as unknown as Record<string, unknown>,
+          snapshot: getRuntimeSnapshot(
+            event.mode === 'full' ? 'full' : 'compact',
+          ) as unknown as Record<string, unknown>,
           success: true,
           trace_id: buildTraceId(event.trace_id),
         } satisfies UISnapshotResultEvent;
-      } catch (error) {
+      } catch {
         return {
           error: tAiRuntime('snapshotFailed'),
           error_type: 'snapshot_failed',
@@ -433,7 +442,7 @@ export function useUIActionChannel(): void {
           success: true,
           trace_id: buildTraceId(event.trace_id),
         } satisfies GenericSocketResult;
-      } catch (error) {
+      } catch {
         return {
           error: tAiRuntime('readRegionFailed'),
           error_type: 'read_region_failed',
@@ -464,7 +473,7 @@ export function useUIActionChannel(): void {
           success: true,
           trace_id: buildTraceId(event.trace_id),
         } satisfies GenericSocketResult;
-      } catch (error) {
+      } catch {
         return {
           error: tAiRuntime('readTableFailed'),
           error_type: 'read_table_failed',
@@ -476,7 +485,9 @@ export function useUIActionChannel(): void {
     });
   }
 
-  async function handleListInteractablesRequest(rawData: unknown): Promise<void> {
+  async function handleListInteractablesRequest(
+    rawData: unknown,
+  ): Promise<void> {
     const event = rawData as Partial<UIListInteractablesRequestEvent>;
     const requestId = String(event?.request_id || '').trim();
     if (!requestId) {
@@ -492,7 +503,7 @@ export function useUIActionChannel(): void {
           success: true,
           trace_id: buildTraceId(event.trace_id),
         } satisfies GenericSocketResult;
-      } catch (error) {
+      } catch {
         return {
           error: tAiRuntime('listInteractablesFailed'),
           error_type: 'list_interactables_failed',

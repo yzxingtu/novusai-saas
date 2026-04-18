@@ -14,7 +14,9 @@ defineProps<{
 
 <template>
   <article class="rounded-2xl border border-border/70 bg-card p-4 shadow-sm">
-    <div class="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground">
+    <div
+      class="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground"
+    >
       <IconifyIcon :icon="icon" class="size-4 text-primary" />
       <span>{{ title }}</span>
     </div>

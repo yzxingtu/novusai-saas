@@ -30,12 +30,41 @@ const searchFallbackNotice = computed(() =>
     ? getSearchFallbackNotice(props.toolItem.searchSummary)
     : null,
 );
+
+const hasSearchTechnicalDetails = computed(() => {
+  const summary = props.toolItem.searchSummary;
+  if (!summary) return false;
+  return Boolean(
+    summary.provider ||
+    summary.selectedBackend ||
+    summary.fallbackReason ||
+    summary.nativeFailureKind ||
+    summary.providerChain?.length,
+  );
+});
+
+function getSearchResultDomain(url: string): string {
+  const normalized = url.trim();
+  if (!normalized) return '';
+  try {
+    const hostname = new URL(normalized).hostname.replace(/^www\./iu, '');
+    return hostname || normalized;
+  } catch {
+    const fallbackDomain = normalized
+      .replace(/^https?:\/\//iu, '')
+      .split(/[/?#]/u)[0]
+      ?.trim();
+    return fallbackDomain || normalized;
+  }
+}
 </script>
 
 <template>
   <div :class="compact ? 'px-2 py-1 text-[10px]' : 'px-2.5 py-1.5 text-[11px]'">
     <div
-      v-if="toolItem.tc.arguments && Object.keys(toolItem.tc.arguments).length > 0"
+      v-if="
+        toolItem.tc.arguments && Object.keys(toolItem.tc.arguments).length > 0
+      "
       class="mb-1"
     >
       <span class="font-medium text-muted-foreground/60">{{
@@ -51,10 +80,11 @@ const searchFallbackNotice = computed(() =>
       v-if="toolItem.searchSummary"
       class="mb-1 rounded bg-background/70 px-1.5 py-1 text-foreground/80"
     >
-      <div class="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
-        <span class="font-medium">{{ $t('common.globalAiChat.toolSearchResults') }}</span>
-        <span v-if="toolItem.searchSummary.provider">{{
-          getSearchProviderLabel(toolItem.searchSummary.provider)
+      <div
+        class="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground"
+      >
+        <span class="font-medium">{{
+          $t('common.globalAiChat.toolSearchResults')
         }}</span>
         <span v-if="toolItem.searchSummary.status">{{
           getSearchStatusLabel(toolItem.searchSummary.status)
@@ -73,36 +103,58 @@ const searchFallbackNotice = computed(() =>
         {{ searchFallbackNotice }}
       </div>
       <div
-        v-if="
-          toolItem.searchSummary.selectedBackend ||
-          toolItem.searchSummary.fallbackReason ||
-          toolItem.searchSummary.nativeFailureKind ||
-          toolItem.searchSummary.providerChain?.length
-        "
-        class="mt-1 space-y-0.5 text-[10px] text-muted-foreground"
+        v-if="hasSearchTechnicalDetails"
+        class="mt-1 rounded border border-border/30 bg-accent/10 px-1.5 py-1"
       >
-        <div v-if="toolItem.searchSummary.selectedBackend">
-          <span class="font-medium">{{ $t('common.globalAiChat.toolSearchBackend') }}</span>
-          <code class="ml-1 break-all">{{ toolItem.searchSummary.selectedBackend }}</code>
-        </div>
-        <div v-if="toolItem.searchSummary.providerChain?.length">
-          <span class="font-medium">{{
-            $t('common.globalAiChat.toolSearchProviderChain')
-          }}</span>
-          <code class="ml-1 break-all">{{ toolItem.searchSummary.providerChain.join(' -> ') }}</code>
-        </div>
-        <div v-if="toolItem.searchSummary.nativeFailureKind">
-          <span class="font-medium">{{
-            $t('common.globalAiChat.toolSearchNativeFailure')
-          }}</span>
-          <code class="ml-1 break-all">{{ toolItem.searchSummary.nativeFailureKind }}</code>
-        </div>
-        <div v-if="toolItem.searchSummary.fallbackReason">
-          <span class="font-medium">{{
-            $t('common.globalAiChat.toolSearchFallbackReason')
-          }}</span>
-          <code class="ml-1 break-all">{{ toolItem.searchSummary.fallbackReason }}</code>
-        </div>
+        <details>
+          <summary
+            class="cursor-pointer select-none text-[10px] font-medium text-muted-foreground"
+          >
+            {{ $t('common.globalAiChat.toolSearchTechnicalDetails') }}
+          </summary>
+          <div class="mt-1 space-y-0.5 text-[10px] text-muted-foreground">
+            <div v-if="toolItem.searchSummary.provider">
+              <span class="font-medium">{{
+                $t('common.globalAiChat.toolSearchProvider')
+              }}</span>
+              <code class="ml-1 break-all">{{
+                getSearchProviderLabel(toolItem.searchSummary.provider)
+              }}</code>
+            </div>
+            <div v-if="toolItem.searchSummary.selectedBackend">
+              <span class="font-medium">{{
+                $t('common.globalAiChat.toolSearchBackend')
+              }}</span>
+              <code class="ml-1 break-all">{{
+                toolItem.searchSummary.selectedBackend
+              }}</code>
+            </div>
+            <div v-if="toolItem.searchSummary.providerChain?.length">
+              <span class="font-medium">{{
+                $t('common.globalAiChat.toolSearchProviderChain')
+              }}</span>
+              <code class="ml-1 break-all">{{
+                toolItem.searchSummary.providerChain.join(' -> ')
+              }}</code>
+            </div>
+            <div v-if="toolItem.searchSummary.nativeFailureKind">
+              <span class="font-medium">{{
+                $t('common.globalAiChat.toolSearchNativeFailure')
+              }}</span>
+              <code class="ml-1 break-all">{{
+                toolItem.searchSummary.nativeFailureKind
+              }}</code>
+            </div>
+            <div v-if="toolItem.searchSummary.fallbackReason">
+              <span class="font-medium">{{
+                $t('common.globalAiChat.toolSearchFallbackReason')
+              }}</span>
+              <code class="ml-1 break-all">{{
+                toolItem.searchSummary.fallbackReason
+              }}</code>
+            </div>
+          </div>
+        </details>
       </div>
       <div
         v-if="toolItem.searchSummary.failureReason"
@@ -110,7 +162,10 @@ const searchFallbackNotice = computed(() =>
       >
         {{ toolItem.searchSummary.failureReason }}
       </div>
-      <ul v-else-if="toolItem.searchSummary.items.length > 0" class="mt-1 space-y-1">
+      <ul
+        v-else-if="toolItem.searchSummary.items.length > 0"
+        class="mt-1 space-y-1"
+      >
         <li
           v-for="(searchItem, searchIndex) in toolItem.searchSummary.items"
           :key="`${toolItem.index}-${searchIndex}-${searchItem.url}`"
@@ -126,8 +181,13 @@ const searchFallbackNotice = computed(() =>
             <div class="text-[11px] font-medium text-foreground">
               {{ searchItem.title }}
             </div>
-            <div class="mt-0.5 break-all text-[10px] text-muted-foreground">
-              {{ searchItem.url }}
+            <div
+              class="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground"
+            >
+              <IconifyIcon icon="lucide:globe" class="size-2.5 shrink-0" />
+              <span class="truncate">{{
+                getSearchResultDomain(searchItem.url)
+              }}</span>
             </div>
           </a>
           <div
@@ -155,7 +215,9 @@ const searchFallbackNotice = computed(() =>
       class="mb-1 rounded bg-slate-950/95 px-1.5 py-1 font-mono text-[10px] text-slate-100"
     >
       <div class="flex items-center gap-2">
-        <span class="font-medium text-slate-300">{{ $t('common.globalAiChat.toolSql') }}</span>
+        <span class="font-medium text-slate-300">{{
+          $t('common.globalAiChat.toolSql')
+        }}</span>
         <button
           type="button"
           class="inline-flex items-center gap-1 rounded border border-slate-700/80 px-1.5 py-px text-[10px] text-slate-300 transition-colors hover:border-slate-500 hover:text-white"
@@ -165,11 +227,15 @@ const searchFallbackNotice = computed(() =>
           {{ $t('common.globalAiChat.copySql') }}
         </button>
       </div>
-      <pre class="mt-0.5 max-h-40 overflow-y-auto whitespace-pre-wrap break-all">{{
-        toolItem.structuredOutput.sql
-      }}</pre>
+      <pre
+        class="mt-0.5 max-h-40 overflow-y-auto whitespace-pre-wrap break-all"
+        >{{ toolItem.structuredOutput.sql }}</pre
+      >
     </div>
-    <div v-if="toolItem.structuredOutput.raw" class="rounded bg-accent/20 text-muted-foreground">
+    <div
+      v-if="toolItem.structuredOutput.raw"
+      class="rounded bg-accent/20 text-muted-foreground"
+    >
       <button
         type="button"
         class="flex w-full items-center gap-1 px-1.5 py-1 text-left transition-colors hover:bg-accent/30"

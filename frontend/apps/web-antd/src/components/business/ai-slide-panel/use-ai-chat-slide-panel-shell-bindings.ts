@@ -1,8 +1,8 @@
+import type { UseAIChatSlidePanelShellBindingsOptions } from './use-ai-chat-slide-panel-shell-bindings-contract';
+
 import { computed } from 'vue';
 
 import { $t } from '#/locales';
-
-import type { UseAIChatSlidePanelShellBindingsOptions } from './use-ai-chat-slide-panel-shell-bindings-contract';
 
 import { usePanelComposer } from './use-panel-composer';
 import { usePanelShellBodyBindings } from './use-panel-shell-body-bindings';
@@ -48,7 +48,8 @@ export function useAIChatSlidePanelShellBindings(
       }
     },
     togglePageAIDetails: options.pageAICapability.togglePageAIDetails,
-    expandAllPageAIOperations: options.pageAICapability.expandAllPageAIOperations,
+    expandAllPageAIOperations:
+      options.pageAICapability.expandAllPageAIOperations,
     onStartNewChat: options.onStartNewChat,
     handleClose: options.handleClose,
     handleMinimize: options.handleMinimize,
@@ -92,7 +93,6 @@ export function useAIChatSlidePanelShellBindings(
     mentionEmptyHint,
     resolvedAttachmentAccept,
     screenshotDisabled,
-    showInteractionMode,
     showScreenshotButton,
   } = usePanelShellComputedUI({
     agentKBBindings: options.agentKBBindings,
@@ -100,7 +100,6 @@ export function useAIChatSlidePanelShellBindings(
     agentsLoading: options.agentsLoading,
     capturing,
     chatAcceptAttribute: options.chatAcceptAttribute,
-    chatMessages: options.chatMessages,
     mentionCandidates: options.mentionCandidates,
     sending: options.sending,
     showAttachments: options.showAttachments,
@@ -110,8 +109,6 @@ export function useAIChatSlidePanelShellBindings(
   const overlayBindings = usePanelShellRuntimeVisuals({
     aiPanelStore: options.aiPanelStore,
     conversationContextDiagnostics: options.conversationContextDiagnostics,
-    interactionMode: options.interactionMode,
-    interactionModeEffective: options.interactionModeEffective,
     lastRunSummary: options.lastRunSummary,
     refreshTimeline: headerBindings.refreshTimeline,
     showContextDrawer: headerBindings.showContextDrawer,
@@ -168,7 +165,6 @@ export function useAIChatSlidePanelShellBindings(
     handleOpenUrl: overlayBindings.handleOpenUrl,
     handleSendMessage: options.handleSendMessage,
     inputMessage: options.inputMessage,
-    interactionMode: options.interactionMode,
     isAgentSwitch: options.isAgentSwitch,
     mentionEmptyHint,
     mentionLoading: options.agentsLoading,
@@ -203,7 +199,6 @@ export function useAIChatSlidePanelShellBindings(
     shiftEnterHint: $t('common.globalAiChat.shiftEnterHint'),
     showAttachments: options.showAttachments,
     showHistory: options.showHistory,
-    showInteractionMode,
     showScreenshotButton,
     showScrollToBottom: options.showScrollToBottom,
     showScrollToTop: options.showScrollToTop,
@@ -214,8 +209,13 @@ export function useAIChatSlidePanelShellBindings(
     unassociatedPendingOps: options.unassociatedPendingOps,
   });
 
-  const { dragging, effectivePanelStyle, isFullMode, loadSavedWidth, onDragStart } =
-    usePanelWidth(options.aiPanelStore);
+  const {
+    dragging,
+    effectivePanelStyle,
+    isFullMode,
+    loadSavedWidth,
+    onDragStart,
+  } = usePanelWidth(options.aiPanelStore);
 
   usePanelShellLifecycle({
     activeConversationId: options.activeConversationId,

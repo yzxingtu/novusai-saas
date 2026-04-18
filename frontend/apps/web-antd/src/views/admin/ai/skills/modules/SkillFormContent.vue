@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { BuiltinToolInfo, SkillFormSharedState } from './skill-form-types';
+
 import type { AdminSkillInfo, PluginToolDefinition } from '#/api/admin/skills';
 
 import { computed, ref, watch } from 'vue';
@@ -8,14 +10,13 @@ import { getSkillDetailApi, getSkillToolsApi } from '#/api/admin/skills';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 
-import SkillFormToolPanels from './SkillFormToolPanels.vue';
 import { createSkillFormSchema } from './skill-form-schema';
-import type { BuiltinToolInfo, SkillFormSharedState } from './skill-form-types';
 import {
   buildSkillFormPayload,
   getSkillFormDefaults,
   toSkillFormValues,
 } from './skill-form-values';
+import SkillFormToolPanels from './SkillFormToolPanels.vue';
 
 defineOptions({ name: 'AdminSkillFormContent' });
 

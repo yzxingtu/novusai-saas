@@ -9,11 +9,11 @@ import { IconifyIcon } from '@vben/icons';
 import {
   Button,
   InputNumber,
+  message,
   Popconfirm,
   Spin,
   Switch,
   Tag,
-  message,
 } from 'ant-design-vue';
 
 import {
@@ -34,11 +34,11 @@ import { $t } from '#/locales';
 import { showRequestError } from '#/utils/error-helpers';
 
 const props = defineProps<{
-  agentId: number;
   active: boolean;
-  isTenantOwned: boolean;
-  isPlatformAssignedAgent: boolean;
+  agentId: number;
   canManageKnowledgeBases: boolean;
+  isPlatformAssignedAgent: boolean;
+  isTenantOwned: boolean;
 }>();
 
 const kbBindings = ref<AgentKBBindingInfo[]>([]);
@@ -103,7 +103,10 @@ function getKbChunkStrategyText(strategy: null | string | undefined): string {
 }
 
 function getKbOwnerText(binding: AgentKBBindingInfo): string {
-  if (binding.kb_owner_tenant_id === null || binding.kb_owner_tenant_id === undefined) {
+  if (
+    binding.kb_owner_tenant_id === null ||
+    binding.kb_owner_tenant_id === undefined
+  ) {
     return $t('tenant.ai.agent.detail.kbOwnerPlatform');
   }
   return binding.kb_owner_tenant_name || `#${binding.kb_owner_tenant_id}`;
@@ -114,7 +117,9 @@ function openKBBindingPicker() {
   kbPickerOpen.value = true;
 }
 
-async function onKBBindingPickerConfirm(drafts: AgentKnowledgeBaseBindingDraftItem[]) {
+async function onKBBindingPickerConfirm(
+  drafts: AgentKnowledgeBaseBindingDraftItem[],
+) {
   try {
     await batchBindKBsApi(
       props.agentId,
@@ -262,22 +267,35 @@ watch(
               <div
                 class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-blue-500/10"
               >
-                <IconifyIcon icon="lucide:book-open" class="size-4 text-blue-500" />
+                <IconifyIcon
+                  icon="lucide:book-open"
+                  class="size-4 text-blue-500"
+                />
               </div>
               <div class="min-w-0 flex-1">
                 <div class="flex flex-wrap items-center gap-2">
                   <span class="text-sm font-medium">
                     {{ b.kb_name || `#${b.knowledge_base_id}` }}
                   </span>
-                  <Tag v-if="isKbBindingReadonly(b)" color="orange" class="!mr-0 !text-[10px]">
+                  <Tag
+                    v-if="isKbBindingReadonly(b)"
+                    color="orange"
+                    class="!mr-0 !text-[10px]"
+                  >
                     {{ $t('tenant.ai.agent.detail.kbPlatformBadge') }}
                   </Tag>
-                  <Tag v-if="b.kb_document_count != null" class="!mr-0 !text-[10px]">
+                  <Tag
+                    v-if="b.kb_document_count != null"
+                    class="!mr-0 !text-[10px]"
+                  >
                     {{ b.kb_document_count }}
                     {{ $t('tenant.ai.agent.detail.kbDocCount') }}
                   </Tag>
                 </div>
-                <p v-if="b.kb_description" class="mt-0.5 truncate text-xs text-muted-foreground">
+                <p
+                  v-if="b.kb_description"
+                  class="mt-0.5 truncate text-xs text-muted-foreground"
+                >
                   {{ b.kb_description }}
                 </p>
                 <div class="mt-1 flex flex-wrap gap-1.5">
@@ -285,11 +303,17 @@ watch(
                     {{ $t('tenant.ai.agent.detail.kbCreatorTenant') }}:
                     {{ getKbOwnerText(b) }}
                   </Tag>
-                  <Tag v-if="b.kb_embedding_model_name" class="!mr-0 !text-[10px]">
+                  <Tag
+                    v-if="b.kb_embedding_model_name"
+                    class="!mr-0 !text-[10px]"
+                  >
                     {{ $t('tenant.ai.agent.detail.kbEmbeddingModel') }}:
                     {{ b.kb_embedding_model_name }}
                   </Tag>
-                  <Tag v-if="b.kb_embedding_dimensions != null" class="!mr-0 !text-[10px]">
+                  <Tag
+                    v-if="b.kb_embedding_dimensions != null"
+                    class="!mr-0 !text-[10px]"
+                  >
                     {{ $t('tenant.ai.agent.detail.kbEmbeddingDimensions') }}:
                     {{ b.kb_embedding_dimensions }}
                   </Tag>
@@ -313,7 +337,9 @@ watch(
                   size="small"
                   :disabled="!canManageKnowledgeBases || isKbBindingReadonly(b)"
                   class="!w-20"
-                  @change="(val) => val != null && updateKBWeight(b.id, Number(val))"
+                  @change="
+                    (val) => val != null && updateKBWeight(b.id, Number(val))
+                  "
                 />
               </div>
               <Switch
@@ -335,7 +361,9 @@ watch(
                 <Switch
                   :checked="Boolean(b.platform_suppressed)"
                   size="small"
-                  :loading="platformKbSuppressLoadingKbId === b.knowledge_base_id"
+                  :loading="
+                    platformKbSuppressLoadingKbId === b.knowledge_base_id
+                  "
                   :aria-label="`${$t('tenant.ai.agent.detail.kbPlatformOptOut')}: ${
                     b.kb_name ?? b.knowledge_base_id
                   }`"
@@ -370,7 +398,9 @@ watch(
           <div class="mt-4 text-sm font-semibold text-foreground">
             {{ $t('tenant.ai.agent.kbPicker.emptySelected') }}
           </div>
-          <div class="mx-auto mt-2 max-w-xl text-xs leading-6 text-muted-foreground">
+          <div
+            class="mx-auto mt-2 max-w-xl text-xs leading-6 text-muted-foreground"
+          >
             {{ $t('tenant.ai.agent.kbPicker.detailEmptyHint') }}
           </div>
           <Button

@@ -2,6 +2,11 @@ import type { Ref } from 'vue';
 import type { Router } from 'vue-router';
 
 import type {
+  GenerateNextStepKey,
+  GenerateResultPayload,
+} from './workflow-helpers';
+
+import type {
   CodegenConfigInfo,
   CodegenVersionItem,
   PreviewResult,
@@ -32,8 +37,6 @@ import {
   buildGenerateNextSteps,
   formatConflictItem,
   parseImportedYaml,
-  type GenerateNextStepKey,
-  type GenerateResultPayload,
 } from './workflow-helpers';
 
 export type { GenerateResultPayload } from './workflow-helpers';

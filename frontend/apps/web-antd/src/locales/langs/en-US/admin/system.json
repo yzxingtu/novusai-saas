@@ -195,6 +195,10 @@
     "running": "Running",
     "searchFiles": "Search Files",
     "searchContent": "Grep...",
+    "searchScope": "Search Scope",
+    "searchScopeCurrentFile": "Current File",
+    "searchScopeCategory": "All Files In Category",
+    "searchedFiles": "Files Scanned",
     "autoScroll": "Tail",
     "noSelectedFile": "No File Selected",
     "selectFileTip": "Select a log file to view content",
@@ -205,6 +209,17 @@
     "darkTheme": "Dark Reader",
     "lightTheme": "Light Reader",
     "matches": "Matches",
+    "keyword": "Keyword",
+    "dateRange": "Date Range",
+    "startDate": "Start Date",
+    "endDate": "End Date",
+    "totalEntries": "Log Entries",
+    "applyFilters": "Run Search",
+    "resetFilters": "Reset Filters",
+    "noSearchResults": "No matching log results",
+    "noSearchResultsDesc": "Try a broader keyword, a narrower date range, or switch between current-file and category-wide search.",
+    "noContentDesc": "This log file does not have any readable content yet. Try refreshing again in a moment.",
+    "categoryScopeHint": "Category-wide search runs on the server against every log file inside the current category.",
     "emptySearch": "No log files match the current filter",
     "toggleTheme": "Toggle Theme",
     "messages": {
@@ -438,9 +453,13 @@
     },
     "placeholder": {
       "searchTaskName": "Search task name",
+      "searchTaskId": "Search task ID",
+      "searchHandlerPath": "Search handler path",
       "searchQueue": "Search queue",
       "allStatus": "All Status",
-      "allTenant": "All Tenants"
+      "allTenant": "All Tenants",
+      "startDate": "Start Date",
+      "endDate": "End Date"
     }
   },
   "periodicTask": {

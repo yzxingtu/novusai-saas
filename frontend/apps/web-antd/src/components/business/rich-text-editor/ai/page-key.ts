@@ -8,4 +8,3 @@ export function normalizeRuntimePageKey(raw: string): string {
     .replace(/^\//, '')
     .replaceAll('/', '.');
 }
-

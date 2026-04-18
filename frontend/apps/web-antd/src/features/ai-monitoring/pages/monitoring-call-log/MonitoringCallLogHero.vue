@@ -53,7 +53,9 @@ const metricCards = computed(() =>
   <section
     class="rounded-[20px] border border-border/70 bg-gradient-to-br from-primary/10 via-background to-background px-5 py-4 shadow-sm"
   >
-    <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+    <div
+      class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between"
+    >
       <div class="min-w-0">
         <div class="flex flex-wrap items-center gap-2">
           <span

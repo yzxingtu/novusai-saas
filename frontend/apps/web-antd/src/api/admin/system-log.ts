@@ -7,6 +7,8 @@ import type { ApiRequestOptions } from '#/utils/request';
 import { downloadBlob } from '#/utils/download';
 import { requestClient } from '#/utils/request';
 
+export type SystemLogSearchScope = 'category' | 'current_file';
+
 // ============================================================
 // Type definitions / 类型定义
 // ============================================================
@@ -62,11 +64,30 @@ export interface SystemLogFile {
   isCurrent?: boolean;
 }
 
+/** Log line item (backend raw format) / 日志行项目（后端原始格式） */
+export interface SystemLogContentItemRaw {
+  file_name: string;
+  line_number: number;
+  content: string;
+}
+
+/** Log line item (frontend format) / 日志行项目（前端格式） */
+export interface SystemLogContentItem {
+  content: string;
+  fileName: string;
+  lineNumber: number;
+}
+
 /** Log file content response (backend raw format) / 日志文件内容响应（后端原始格式） */
 export interface SystemLogContentRaw {
   filename: string;
+  category: string;
+  scope: SystemLogSearchScope;
   lines: string[];
+  items: SystemLogContentItemRaw[];
   total_lines: number;
+  total_entries: number;
+  searched_files: number;
   page: number;
   page_size: number;
   has_more: boolean;
@@ -75,11 +96,26 @@ export interface SystemLogContentRaw {
 /** Log file content response (frontend format) / 日志文件内容响应（前端格式） */
 export interface SystemLogContent {
   filename: string;
+  category: string;
+  scope: SystemLogSearchScope;
   lines: string[];
+  items: SystemLogContentItem[];
   totalLines: number;
+  totalEntries: number;
+  searchedFiles: number;
   page: number;
   pageSize: number;
   hasMore: boolean;
+}
+
+export interface GetSystemLogContentParams {
+  end_date?: string;
+  keyword?: string;
+  page?: number;
+  page_size?: number;
+  reverse?: boolean;
+  scope?: SystemLogSearchScope;
+  start_date?: string;
 }
 
 // ============================================================
@@ -125,11 +161,26 @@ function transformFile(raw: SystemLogFileRaw): SystemLogFile {
   };
 }
 
+function transformContentItem(
+  raw: SystemLogContentItemRaw,
+): SystemLogContentItem {
+  return {
+    content: raw.content,
+    fileName: raw.file_name,
+    lineNumber: raw.line_number,
+  };
+}
+
 function transformContent(raw: SystemLogContentRaw): SystemLogContent {
   return {
     filename: raw.filename,
+    category: raw.category,
+    scope: raw.scope,
     lines: raw.lines,
+    items: raw.items.map((item) => transformContentItem(item)),
     totalLines: raw.total_lines,
+    totalEntries: raw.total_entries,
+    searchedFiles: raw.searched_files,
     page: raw.page,
     pageSize: raw.page_size,
     hasMore: raw.has_more,
@@ -191,7 +242,7 @@ export async function getSystemLogFilesApi(
  */
 export async function getSystemLogContentApi(
   filename: string,
-  params?: { page?: number; page_size?: number; reverse?: boolean },
+  params?: GetSystemLogContentParams,
   options?: ApiRequestOptions,
 ): Promise<SystemLogContent> {
   const raw = await requestClient.get<SystemLogContentRaw>(

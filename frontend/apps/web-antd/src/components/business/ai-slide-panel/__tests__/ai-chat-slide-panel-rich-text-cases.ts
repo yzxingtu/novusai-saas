@@ -24,9 +24,7 @@ type PanelStore = ReturnType<typeof createAIPanelStore>;
 
 interface RegisterSlidePanelRichTextCasesOptions {
   getAiPanelStore: () => PanelStore;
-  mountPanel: (
-    overrides?: PanelMountOverrides,
-  ) => {
+  mountPanel: (overrides?: PanelMountOverrides) => {
     unmount: () => void;
   };
   setAiPanelStore: (store: PanelStore) => void;
@@ -114,7 +112,9 @@ export function registerSlidePanelRichTextCases(
         taskId: 'rich-text-queue-2',
       }),
     );
-    expect(getAiPanelStore().queuedRichTextTask?.taskId).toBe('rich-text-queue-2');
+    expect(getAiPanelStore().queuedRichTextTask?.taskId).toBe(
+      'rich-text-queue-2',
+    );
     expect(getAiPanelStore().pendingRichTextTask).toBeNull();
     expect(sendMessageMock).not.toHaveBeenCalled();
     expect(antMessageMocks.info).toHaveBeenCalledWith(
@@ -150,7 +150,9 @@ export function registerSlidePanelRichTextCases(
     });
     await flushPanel();
 
-    expect(getAiPanelStore().queuedRichTextTask?.taskId).toBe('rich-text-flush-1');
+    expect(getAiPanelStore().queuedRichTextTask?.taskId).toBe(
+      'rich-text-flush-1',
+    );
 
     getAiPanelStore().clearPendingRichTextTask.mockClear();
     getAiPanelStore().promoteQueuedRichTextTask.mockClear();
@@ -303,12 +305,11 @@ export function registerSlidePanelRichTextCases(
       taskId: 'rich-text-conversation-switch',
     });
     createSourceEditorMock(task);
-    const { activeConversationId, wrapper } = await mountRichTextOrchestrationHarness(
-      {
+    const { activeConversationId, wrapper } =
+      await mountRichTextOrchestrationHarness({
         activeConversationId: 42,
         chatMessages: [createRichTextMessage(task)],
-      },
-    );
+      });
 
     await flushPanel();
 

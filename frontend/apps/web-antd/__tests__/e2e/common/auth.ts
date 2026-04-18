@@ -1,5 +1,7 @@
 import type { Page } from '@playwright/test';
 
+import process from 'node:process';
+
 import { createTenantSession, getDevBootstrapSecret } from './session';
 
 const TENANT_ADMIN_USERNAME = process.env.TENANT_ADMIN_USERNAME;
@@ -9,7 +11,9 @@ const TENANT_ADMIN_TENANT_CODE = process.env.TENANT_ADMIN_TENANT_CODE;
 export function hasTenantCredentials() {
   return Boolean(
     getDevBootstrapSecret('tenant') ||
-      (TENANT_ADMIN_USERNAME && TENANT_ADMIN_PASSWORD && TENANT_ADMIN_TENANT_CODE),
+    (TENANT_ADMIN_USERNAME &&
+      TENANT_ADMIN_PASSWORD &&
+      TENANT_ADMIN_TENANT_CODE),
   );
 }
 

@@ -7,7 +7,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { formStateTracker } from '#/composables/use-form-state-tracker';
 
-import { fillRuntimeForm, getRuntimeSnapshot, submitRuntimeForm } from '../runtime-bridge';
+import {
+  fillRuntimeForm,
+  getRuntimeSnapshot,
+  submitRuntimeForm,
+} from '../runtime-bridge';
 import { UIActionExecutor } from '../ui-action-executor';
 
 vi.mock('#/locales', () => ({
@@ -25,9 +29,9 @@ vi.mock('#/components/business/ai-runtime/page-key-utils', () => ({
   resolveRoutePageKey: (_route: unknown, pathname?: string) => {
     const normalizedPath = (pathname || '/').trim();
     const pageKey = normalizedPath
-      .replace(/[?#].*$/g, '')
+      .replaceAll(/[?#].*$/g, '')
       .replace(/^\/+/, '')
-      .replace(/\/+/g, '.');
+      .replaceAll(/\/+/g, '.');
     return pageKey || 'root';
   },
 }));
@@ -41,14 +45,17 @@ const WARMUP_COUNT = 2;
 const FORM_FIELD_COUNT = 20;
 
 function nowInMs(): number {
-  if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+  if (
+    typeof performance !== 'undefined' &&
+    typeof performance.now === 'function'
+  ) {
     return performance.now();
   }
   return Date.now();
 }
 
 function percentile(values: number[], ratio: number): number {
-  const sorted = [...values].sort((left, right) => left - right);
+  const sorted = [...values].toSorted((left, right) => left - right);
   const clamped = Math.min(Math.max(ratio, 0), 1);
   const index = Math.min(
     sorted.length - 1,
@@ -120,7 +127,7 @@ function setupFixedDom(pageKey: string, fieldCount: number): void {
     return `<input name="${field}" data-testid="${field}" />`;
   }).join('');
 
-  document.body.setAttribute('data-page-key', pageKey);
+  document.body.dataset.pageKey = pageKey;
   document.body.innerHTML = `
     <main>
       <button data-testid="perf-toggle-drawer">Toggle Drawer</button>
@@ -144,11 +151,14 @@ function setupFixedDom(pageKey: string, fieldCount: number): void {
     const drawer = document.createElement('div');
     drawer.className = 'ant-drawer';
     drawer.innerHTML = '<div class="ant-drawer-title">Perf Drawer</div>';
-    document.body.appendChild(drawer);
+    document.body.append(drawer);
   });
 }
 
-function setupTrackedForm(pageKey: string, fieldCount: number): {
+function setupTrackedForm(
+  pageKey: string,
+  fieldCount: number,
+): {
   formApiState: { submitCount: number; values: Record<string, unknown> };
   sessionId: string;
   updates: Record<string, string>;
@@ -228,9 +238,9 @@ describe('ui-runtime performance acceptance', () => {
         formSessionId: sessionId,
       });
       expect(result.success).toBe(true);
-      expect((result.data?.fields_updated as string[] | undefined)?.length).toBe(
-        FORM_FIELD_COUNT,
-      );
+      expect(
+        (result.data?.fields_updated as string[] | undefined)?.length,
+      ).toBe(FORM_FIELD_COUNT);
     });
 
     const submitMetric = await measureAsyncMetric(async () => {

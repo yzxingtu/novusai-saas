@@ -197,7 +197,9 @@ function buildQuickRows(detail: IdentityDetail): IdentityPresentationRow[] {
   return rows;
 }
 
-function buildDetailOverviewRows(detail: IdentityDetail): IdentityPresentationRow[] {
+function buildDetailOverviewRows(
+  detail: IdentityDetail,
+): IdentityPresentationRow[] {
   const rows = [
     createRow(
       'username',
@@ -238,7 +240,9 @@ function buildDetailOverviewRows(detail: IdentityDetail): IdentityPresentationRo
   return rows;
 }
 
-function buildDetailAccountRows(detail: IdentityDetail): IdentityPresentationRow[] {
+function buildDetailAccountRows(
+  detail: IdentityDetail,
+): IdentityPresentationRow[] {
   return [
     {
       key: 'status',
@@ -294,7 +298,10 @@ export function buildIdentitySummaryRows(
 }
 
 export function buildIdentityStatusChips(
-  detail: Pick<IdentityDetail, 'isActive' | 'isLeader' | 'isOwner' | 'userType' | 'userTypeLabel'>,
+  detail: Pick<
+    IdentityDetail,
+    'isActive' | 'isLeader' | 'isOwner' | 'userType' | 'userTypeLabel'
+  >,
 ): IdentityStatusChip[] {
   const chips: IdentityStatusChip[] = [];
   const seen = new Set<string>();
@@ -375,7 +382,10 @@ export function buildIdentityActivityRows(
 }
 
 export function buildIdentityAuxiliaryItems(
-  detail: Pick<IdentityDetail, 'displayName' | 'email' | 'tenantName' | 'username'>,
+  detail: Pick<
+    IdentityDetail,
+    'displayName' | 'email' | 'tenantName' | 'username'
+  >,
 ): string[] {
   const resolvedTitle = normalizeText(
     resolveIdentityDisplayTitle({

@@ -12,7 +12,10 @@ export interface CreateVueRouterAdapterOptions {
 }
 
 function normalizePageKey(raw: string): string {
-  const normalized = raw.trim().replaceAll(/[?#].*$/g, '').replaceAll(/\/+/g, '/');
+  const normalized = raw
+    .trim()
+    .replaceAll(/[?#].*$/g, '')
+    .replaceAll(/\/+/g, '/');
   if (!normalized || normalized === '/') {
     return 'root';
   }
@@ -20,7 +23,8 @@ function normalizePageKey(raw: string): string {
 }
 
 export function routeToPageSurface(route: UIRouteLike): UIPageSurfaceInput {
-  const routeName = typeof route.name === 'string' && route.name.length > 0 ? route.name : null;
+  const routeName =
+    typeof route.name === 'string' && route.name.length > 0 ? route.name : null;
   const fullPath = route.fullPath || '/';
   const pageKey = normalizePageKey(routeName ?? fullPath);
   const titleFromMeta =

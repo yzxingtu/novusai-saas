@@ -4,7 +4,14 @@ import type {
   MonitoringUsageDashboard,
 } from '../../api';
 
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from 'vue';
 
 import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
 
@@ -24,8 +31,8 @@ const props = defineProps<{
   i18nPrefix: string;
   rangeLabel: string;
   scopeLabel: string;
-  totalCalls: number;
   topModel: MonitoringUsageBreakdownItem | null;
+  totalCalls: number;
 }>();
 
 const callChartRef = ref();

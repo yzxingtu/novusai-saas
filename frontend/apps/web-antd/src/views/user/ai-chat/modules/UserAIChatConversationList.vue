@@ -89,11 +89,7 @@ const { activeConversationId, conversationsLoading } = chat;
               <span v-if="conv.agent_name">{{
                 conv.agent_name.charAt(0).toUpperCase()
               }}</span>
-              <IconifyIcon
-                v-else
-                icon="lucide:message-square"
-                class="size-3"
-              />
+              <IconifyIcon v-else icon="lucide:message-square" class="size-3" />
             </div>
             <div class="flex min-w-0 flex-1 flex-col">
               <template v-if="editingConversationId === conv.id">
@@ -113,9 +109,7 @@ const { activeConversationId, conversationsLoading } = chat;
               <template v-else>
                 <span
                   class="truncate text-[13px]"
-                  :class="
-                    activeConversationId === conv.id ? 'font-medium' : ''
-                  "
+                  :class="activeConversationId === conv.id ? 'font-medium' : ''"
                 >
                   {{ conv.title || `#${conv.id}` }}
                 </span>

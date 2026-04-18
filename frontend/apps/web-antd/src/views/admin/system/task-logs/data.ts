@@ -5,7 +5,7 @@ import type { VbenFormSchema } from '#/adapter/form';
 import type { OnActionClickFn, VxeTableGridOptions } from '#/adapter/vxe-table';
 import type { adminApi } from '#/api';
 
-import { searchInput, select } from '#/adapter/form';
+import { searchDateRange, searchInput, select } from '#/adapter/form';
 import { getTenantSelectApi } from '#/api/admin/tenant';
 import { $t } from '#/locales';
 
@@ -92,18 +92,26 @@ export function getBindingContextText(
 
 export function getOwnerContextText(
   ownerTenantId: null | number | undefined,
+  ownerTenantName?: null | string,
 ): string {
   if (!ownerTenantId) {
     return $t('admin.system.taskLog.relation.ownerPlatform');
+  }
+  if (ownerTenantName) {
+    return `${ownerTenantName} (#${ownerTenantId})`;
   }
   return `${$t('admin.system.taskLog.ownerTenantId')} #${ownerTenantId}`;
 }
 
 export function getEffectiveContextText(
   effectiveTenantId: null | number | undefined,
+  effectiveTenantName?: null | string,
 ): string {
   if (!effectiveTenantId) {
     return $t('admin.system.taskLog.relation.effectivePlatform');
+  }
+  if (effectiveTenantName) {
+    return `${effectiveTenantName} (#${effectiveTenantId})`;
   }
   return `${$t('admin.system.taskLog.effectiveTenantId')} #${effectiveTenantId}`;
 }
@@ -156,6 +164,11 @@ export function getQueueColor(queue: string | undefined): string {
   }
 }
 
+export function getQueueText(queue: null | string | undefined): string {
+  if (!queue) return '-';
+  return $t(`admin.system.taskLog.queueNames.${queue}`, queue);
+}
+
 function getStatusOptions() {
   return [
     { label: $t('admin.system.taskLog.status.pending'), value: 'pending' },
@@ -166,6 +179,16 @@ function getStatusOptions() {
   ];
 }
 
+function getQueueOptions() {
+  return [
+    { label: getQueueText('default'), value: 'default' },
+    { label: getQueueText('high_priority'), value: 'high_priority' },
+    { label: getQueueText('ai_gateway'), value: 'ai_gateway' },
+    { label: getQueueText('scheduled'), value: 'scheduled' },
+    { label: getQueueText('notification'), value: 'notification' },
+  ];
+}
+
 export function useColumns<T = TaskLogInfo>(
   onActionClick: OnActionClickFn<T>,
 ): VxeTableGridOptions['columns'] {
@@ -173,17 +196,18 @@ export function useColumns<T = TaskLogInfo>(
     {
       field: 'taskName',
       title: $t('admin.system.taskLog.taskName'),
-      minWidth: 320,
+      minWidth: 360,
       slots: {
         default: 'taskName_cell',
       },
     },
     {
-      field: 'relation',
-      title: $t('admin.system.taskLog.relationInfo'),
-      minWidth: 280,
+      field: 'queue',
+      title: $t('admin.system.taskLog.queue'),
+      width: 180,
+      align: 'center',
       slots: {
-        default: 'relation_cell',
+        default: 'queue_cell',
       },
     },
     {
@@ -207,7 +231,7 @@ export function useColumns<T = TaskLogInfo>(
     {
       field: 'result',
       title: $t('admin.system.taskLog.resultSummary'),
-      minWidth: 260,
+      minWidth: 300,
       slots: {
         default: 'result_cell',
       },
@@ -259,22 +283,32 @@ export function useGridFormSchema(): VbenFormSchema[] {
     searchInput('task_name', $t('admin.system.taskLog.taskName'), {
       placeholder: $t('admin.system.taskLog.placeholder.searchTaskName'),
     }),
+    searchInput('task_id', $t('admin.system.taskLog.taskId'), {
+      placeholder: $t('admin.system.taskLog.placeholder.searchTaskId'),
+    }),
+    searchInput('handler_path', $t('admin.system.taskLog.handlerPath'), {
+      placeholder: $t('admin.system.taskLog.placeholder.searchHandlerPath'),
+    }),
     select('filter[status][eq]', $t('admin.system.taskLog.status.label'), {
       options: getStatusOptions(),
       placeholder: $t('admin.system.taskLog.placeholder.allStatus'),
     }),
-    searchInput('queue', $t('admin.system.taskLog.queue'), {
+    select('filter[queue]', $t('admin.system.taskLog.queue'), {
+      options: getQueueOptions(),
       placeholder: $t('admin.system.taskLog.placeholder.searchQueue'),
-      op: 'eq',
     }),
-    select(
-      'filter[effective_tenant_id][eq]',
-      $t('admin.system.taskLog.tenantName'),
-      {
-        api: getTenantSelectApi,
-        params: { is_active: 'true' },
-        placeholder: $t('admin.system.taskLog.placeholder.allTenant'),
-      },
-    ),
+    select('filter[tenant_id][eq]', $t('admin.system.taskLog.tenantName'), {
+      api: getTenantSelectApi,
+      params: { is_active: 'true' },
+      placeholder: $t('admin.system.taskLog.placeholder.allTenant'),
+    }),
+    searchDateRange({
+      field: 'created_at',
+      label: $t('admin.system.taskLog.createdAt'),
+      placeholder: [
+        $t('admin.system.taskLog.placeholder.startDate'),
+        $t('admin.system.taskLog.placeholder.endDate'),
+      ],
+    }),
   ];
 }

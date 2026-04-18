@@ -1,13 +1,16 @@
 import type { ItemType } from 'ant-design-vue/es/menu';
+
 import type { ComputedRef, Ref } from 'vue';
 
+import type { usePageAICapability } from './use-page-ai-capability';
 import type { PendingOpDisplayItem } from './use-pending-page-ops';
+
 import type {
   ChatKBBindingInfo,
   ConversationTimelineItem,
   MemoryState,
 } from '#/api/shared/ai-chat';
-
+import type { useAIPanelStore } from '#/store';
 import type {
   AgentItem,
   ChatAttachment,
@@ -19,9 +22,6 @@ import type {
   RichTextAIApplyTarget,
   RichTextDraftRuntimeState,
 } from '#/types/ai-chat';
-
-import type { usePageAICapability } from './use-page-ai-capability';
-import type { useAIPanelStore } from '#/store';
 
 export interface UseAIChatSlidePanelShellBindingsOptions {
   actionClick: (index: number, value: string) => void;
@@ -137,9 +137,9 @@ export interface UseAIChatSlidePanelShellBindingsOptions {
   showScrollToTop: Ref<boolean>;
   showTimelineDrawer: Ref<boolean>;
   startEditTitle: (conversation: {
+    agent_name?: null | string;
     id: number;
     title?: null | string;
-    agent_name?: null | string;
   }) => void;
   stopGeneration: () => void;
   streaming: Ref<boolean>;

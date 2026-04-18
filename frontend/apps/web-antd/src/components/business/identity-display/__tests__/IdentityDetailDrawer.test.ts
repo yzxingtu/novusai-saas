@@ -216,7 +216,7 @@ vi.mock('@vben/icons', async () => {
   };
 });
 
-describe('IdentityDetailDrawer', () => {
+describe('identityDetailDrawer', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     presenceMocks.ensurePresenceLoaded.mockResolvedValue(true);
@@ -265,9 +265,9 @@ describe('IdentityDetailDrawer', () => {
     expect(wrapper.text()).toContain('Nova Tenant');
     expect(wrapper.find('[data-testid="alert"]').exists()).toBe(true);
     expect(
-      wrapper.findComponent({ name: 'IdentitySummaryCard' }).props(
-        'showOnlineStatus',
-      ),
+      wrapper
+        .findComponent({ name: 'IdentitySummaryCard' })
+        .props('showOnlineStatus'),
     ).toBe(true);
   });
 

@@ -91,7 +91,7 @@ const {
           :title="$t('user.aiChat.varsModal.editVars')"
         >
           <button
-            class="flex h-8 items-center gap-1 rounded-lg px-2 text-xs font-medium text-primary transition-colors hover:bg-primary/8"
+            class="hover:bg-primary/8 flex h-8 items-center gap-1 rounded-lg px-2 text-xs font-medium text-primary transition-colors"
             @click="openSelectedAgentVarsModal"
           >
             <IconifyIcon icon="lucide:sliders-horizontal" class="size-3.5" />

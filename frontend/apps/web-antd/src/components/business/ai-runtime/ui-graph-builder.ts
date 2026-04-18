@@ -1,27 +1,30 @@
-import {
-  createDefaultComponentAdapters,
-  type CreateDefaultAdaptersOptions,
-} from './component-adapters';
-import { DOMScanner } from './dom-scanner';
+import type { CreateDefaultAdaptersOptions } from './component-adapters';
 import type {
   DOMScanMode,
   DOMScanResult,
+  UIComponentAdapter,
   UIGraph,
+  UIGraphBuilderOptions,
   UIGraphBuildInput,
   UIGraphBuildResult,
-  UIGraphBuilderOptions,
   UIGraphNode,
-  UIComponentAdapter,
   UIOverlaySurfaceInput,
   UIPageSurfaceInput,
   UIRouteLike,
 } from './types';
 
+import { createDefaultComponentAdapters } from './component-adapters';
+import { DOMScanner } from './dom-scanner';
+
 const EMPTY_ROUTE = '/';
-const AI_EXCLUDE_SELECTOR = '[data-ai="off"],[data-ai-panel]';
+const AI_EXCLUDE_SELECTOR =
+  '[data-ai="off"],[data-ai-disabled],[data-ai-panel]';
 
 function nowInMs(): number {
-  if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+  if (
+    typeof performance !== 'undefined' &&
+    typeof performance.now === 'function'
+  ) {
     return performance.now();
   }
   return Date.now();
@@ -32,12 +35,14 @@ function createPageFallback(
   document: Document,
 ): UIPageSurfaceInput {
   const pathFromRoute = route?.fullPath || EMPTY_ROUTE;
-  const pageKey = pathFromRoute
-    .replaceAll(/[?#].*$/g, '')
-    .replaceAll(/\/+/g, '/')
-    .replaceAll('/', ':')
-    .replaceAll(/^:+|:+$/g, '') || 'root';
-  const titleFromRoute = typeof route?.meta?.title === 'string' ? route.meta.title : '';
+  const pageKey =
+    pathFromRoute
+      .replaceAll(/[?#].*$/g, '')
+      .replaceAll(/\/+/g, '/')
+      .replaceAll('/', ':')
+      .replaceAll(/^:+|:+$/g, '') || 'root';
+  const titleFromRoute =
+    typeof route?.meta?.title === 'string' ? route.meta.title : '';
   const title = titleFromRoute.trim() || document.title || pageKey;
   return {
     key: `page:${pageKey}`,
@@ -55,11 +60,13 @@ function nodeKey(node: UIGraphNode): string {
 }
 
 function sortAdapters(adapters: UIComponentAdapter[]): UIComponentAdapter[] {
-  return [...adapters].sort((left, right) => right.priority - left.priority);
+  return [...adapters].toSorted(
+    (left, right) => right.priority - left.priority,
+  );
 }
 
 function sortNodes(nodes: UIGraphNode[]): UIGraphNode[] {
-  return [...nodes].sort((left, right) => {
+  return [...nodes].toSorted((left, right) => {
     if (left.kind !== right.kind) {
       return left.kind.localeCompare(right.kind);
     }
@@ -90,7 +97,7 @@ function escapeSelectorValue(value: string): string {
   const escaper =
     typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
       ? CSS.escape
-      : (raw: string) => raw.replaceAll('"', '\\"');
+      : (raw: string) => raw.replaceAll('"', String.raw`\"`);
   return escaper(value);
 }
 
@@ -110,15 +117,15 @@ export interface UIGraphBuilderConstructorOptions extends UIGraphBuilderOptions 
 }
 
 export class UIGraphBuilder {
+  private adapters: UIComponentAdapter[];
+
   private readonly document: Document;
+
+  private readonly includeDomFallbackInCompact: boolean;
 
   private readonly root: ParentNode;
 
   private readonly scanner: DOMScanner;
-
-  private readonly includeDomFallbackInCompact: boolean;
-
-  private adapters: UIComponentAdapter[];
 
   constructor(options: UIGraphBuilderConstructorOptions = {}) {
     this.document = options.document ?? document;
@@ -218,7 +225,7 @@ export class UIGraphBuilder {
       });
     }
 
-    const nodes = sortNodes(Array.from(nodeMap.values()));
+    const nodes = sortNodes([...nodeMap.values()]);
     const graph: UIGraph = this.createGraph(
       mode,
       nodes,
@@ -229,9 +236,27 @@ export class UIGraphBuilder {
     );
     return {
       graph,
-      overlays: Array.from(overlayMap.values()),
+      overlays: [...overlayMap.values()],
       page: page ?? createPageFallback(route, this.document),
     };
+  }
+
+  buildDeepSnapshot(
+    input: Omit<UIGraphBuildInput, 'mode'> = {},
+  ): UIGraphBuildResult {
+    return this.build({
+      ...input,
+      mode: 'full',
+    });
+  }
+
+  buildThinSnapshot(
+    input: Omit<UIGraphBuildInput, 'mode'> = {},
+  ): UIGraphBuildResult {
+    return this.build({
+      ...input,
+      mode: 'compact',
+    });
   }
 
   getAdapters(): UIComponentAdapter[] {
@@ -239,70 +264,16 @@ export class UIGraphBuilder {
   }
 
   registerAdapter(adapter: UIComponentAdapter): void {
-    this.adapters = sortAdapters(
-      this.adapters.filter((item) => item.id !== adapter.id).concat(adapter),
-    );
+    this.adapters = sortAdapters([
+      ...this.adapters.filter((item) => item.id !== adapter.id),
+      adapter,
+    ]);
   }
 
   unregisterAdapter(adapterId: string): boolean {
     const before = this.adapters.length;
     this.adapters = this.adapters.filter((adapter) => adapter.id !== adapterId);
     return this.adapters.length !== before;
-  }
-
-  private isAIExcludedElement(element: Element): boolean {
-    return (
-      element.matches(AI_EXCLUDE_SELECTOR) ||
-      element.closest(AI_EXCLUDE_SELECTOR) !== null
-    );
-  }
-
-  private resolveNodeElement(locator: string): HTMLElement | null {
-    const normalized = normalizeText(locator);
-    if (!normalized) {
-      return null;
-    }
-
-    const prefixed = [
-      ['ai-id:', `[data-ai-id="${escapeSelectorValue(normalized.slice(6))}"]`],
-      ['testid:', `[data-testid="${escapeSelectorValue(normalized.slice(7))}"]`],
-      ['id:', `#${escapeSelectorValue(normalized.slice(3))}`],
-      ['name:', `[name="${escapeSelectorValue(normalized.slice(5))}"]`],
-      ['href:', `a[href="${escapeSelectorValue(normalized.slice(5))}"]`],
-    ] as const;
-    for (const [prefix, selector] of prefixed) {
-      if (!normalized.startsWith(prefix)) {
-        continue;
-      }
-      try {
-        const candidates = Array.from(
-          this.root.querySelectorAll<HTMLElement>(selector),
-        );
-        return candidates.find((element) => isElementVisible(element)) ?? null;
-      } catch {
-        return null;
-      }
-    }
-
-    const cssSelector = normalized.startsWith('css:')
-      ? normalized.slice(4)
-      : normalized;
-    try {
-      const candidates = Array.from(
-        this.root.querySelectorAll<HTMLElement>(cssSelector),
-      );
-      return candidates.find((element) => isElementVisible(element)) ?? null;
-    } catch {
-      return null;
-    }
-  }
-
-  private shouldExcludeNode(node: UIGraphNode): boolean {
-    const element = this.resolveNodeElement(node.locator);
-    if (!element) {
-      return false;
-    }
-    return this.isAIExcludedElement(element);
   }
 
   private createGraph(
@@ -328,5 +299,63 @@ export class UIGraphBuilder {
         usedDomFallback,
       },
     };
+  }
+
+  private isAIExcludedElement(element: Element): boolean {
+    return (
+      element.matches(AI_EXCLUDE_SELECTOR) ||
+      element.closest(AI_EXCLUDE_SELECTOR) !== null
+    );
+  }
+
+  private resolveNodeElement(locator: string): HTMLElement | null {
+    const normalized = normalizeText(locator);
+    if (!normalized) {
+      return null;
+    }
+
+    const prefixed = [
+      ['ai-id:', `[data-ai-id="${escapeSelectorValue(normalized.slice(6))}"]`],
+      [
+        'testid:',
+        `[data-testid="${escapeSelectorValue(normalized.slice(7))}"]`,
+      ],
+      ['id:', `#${escapeSelectorValue(normalized.slice(3))}`],
+      ['name:', `[name="${escapeSelectorValue(normalized.slice(5))}"]`],
+      ['href:', `a[href="${escapeSelectorValue(normalized.slice(5))}"]`],
+    ] as const;
+    for (const [prefix, selector] of prefixed) {
+      if (!normalized.startsWith(prefix)) {
+        continue;
+      }
+      try {
+        const candidates = [
+          ...this.root.querySelectorAll<HTMLElement>(selector),
+        ];
+        return candidates.find((element) => isElementVisible(element)) ?? null;
+      } catch {
+        return null;
+      }
+    }
+
+    const cssSelector = normalized.startsWith('css:')
+      ? normalized.slice(4)
+      : normalized;
+    try {
+      const candidates = [
+        ...this.root.querySelectorAll<HTMLElement>(cssSelector),
+      ];
+      return candidates.find((element) => isElementVisible(element)) ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  private shouldExcludeNode(node: UIGraphNode): boolean {
+    const element = this.resolveNodeElement(node.locator);
+    if (!element) {
+      return false;
+    }
+    return this.isAIExcludedElement(element);
   }
 }

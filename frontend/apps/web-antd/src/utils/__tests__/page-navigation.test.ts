@@ -51,23 +51,25 @@ describe('page-navigation', () => {
     };
     mocks.pushMock.mockReset();
     mocks.resolveRuntimePageContextMock.mockReset();
-    mocks.resolveRuntimePageContextMock.mockImplementation((pageKey: string) => ({
-      page_key: pageKey,
-      page_title: 'Resolved Page',
-      suggested_tools: {
-        primary: ['ui_get_snapshot', 'ui_list_interactables'],
-        reason: 'test_runtime',
-        secondary: ['ui_read_region'],
-      },
-      surface_stack: [
-        {
-          kind: 'page',
-          surface_id: `page:${pageKey}`,
-          title: 'Resolved Page',
+    mocks.resolveRuntimePageContextMock.mockImplementation(
+      (pageKey: string) => ({
+        page_key: pageKey,
+        page_title: 'Resolved Page',
+        suggested_tools: {
+          primary: ['ui_get_snapshot', 'ui_list_interactables'],
+          reason: 'test_runtime',
+          secondary: ['ui_read_region'],
         },
-      ],
-      ui_epoch: 1,
-    }));
+        surface_stack: [
+          {
+            kind: 'page',
+            surface_id: `page:${pageKey}`,
+            title: 'Resolved Page',
+          },
+        ],
+        ui_epoch: 1,
+      }),
+    );
   });
 
   afterEach(() => {

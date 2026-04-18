@@ -44,18 +44,17 @@ import type {
   DependencyGroup,
 } from '#/components/business/dependency-block-modal/service';
 
-import {
-  computed,
-  defineComponent,
-  h,
-  ref,
-} from 'vue';
+import { computed, defineComponent, h, ref } from 'vue';
 import { useRoute } from 'vue-router';
 
 import { useVbenDrawer, useVbenModal } from '@vben/common-ui';
 
 import { message, Modal } from 'ant-design-vue';
 
+import {
+  normalizePageKey,
+  resolveRoutePageKey,
+} from '#/components/business/ai-runtime/page-key-utils';
 import {
   showDependencyBlockModal,
   showDependencyPreviewModal,
@@ -70,7 +69,6 @@ import { requestClient } from '#/utils/request';
 
 import { CrudGrid, RecycleBinDrawer, useExportModal } from './components';
 import { useGridSearchFormOptions, useVbenVxeGrid } from './use-vxe-grid';
-import { normalizePageKey, resolveRoutePageKey } from '#/components/business/ai-runtime/page-key-utils';
 
 /** Dependency blocked error code / 依赖阻止错误码 */
 const DEPENDENCY_BLOCKED_CODE = 4221;
@@ -157,10 +155,8 @@ export function useCrudPage<T extends BaseRow = BaseRow>(
   const defaultPageKey = computed(() => {
     if (!aiEnabled) return '';
     const fallbackPath =
-      typeof window !== 'undefined' ? window.location.pathname : '';
-    return normalizePageKey(
-      resolveRoutePageKey(route, fallbackPath),
-    );
+      typeof window === 'undefined' ? '' : window.location.pathname;
+    return normalizePageKey(resolveRoutePageKey(route, fallbackPath));
   });
   const injectedPageKey = computed(
     () => explicitPageKey.value || defaultPageKey.value,

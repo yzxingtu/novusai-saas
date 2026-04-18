@@ -2,6 +2,7 @@
 import type { ChatAttachment, ChatMessage } from './types';
 
 import { IconifyIcon } from '@vben/icons';
+
 import { Tooltip } from 'ant-design-vue';
 
 import { $t } from '#/locales';
@@ -46,7 +47,10 @@ function onUserAttachmentImageError(event: Event, att: ChatAttachment) {
         class="flex flex-wrap justify-end"
         :class="compact ? 'mb-1 gap-1' : 'mb-1.5 gap-1.5'"
       >
-        <template v-for="(att, ati) in msg.attachments" :key="`${ati}-${att.url}`">
+        <template
+          v-for="(att, ati) in msg.attachments"
+          :key="`${ati}-${att.url}`"
+        >
           <img
             v-if="att.type === 'image'"
             :src="att.preview || att.url"
@@ -84,13 +88,20 @@ function onUserAttachmentImageError(event: Event, att: ChatAttachment) {
             target="_blank"
             rel="noopener noreferrer"
             class="flex items-center rounded-lg bg-primary-foreground/10 text-primary-foreground hover:bg-primary-foreground/20"
-            :class="compact ? 'gap-1 px-1.5 py-0.5 text-[11px]' : 'gap-1.5 px-2 py-1 text-xs'"
+            :class="
+              compact
+                ? 'gap-1 px-1.5 py-0.5 text-[11px]'
+                : 'gap-1.5 px-2 py-1 text-xs'
+            "
           >
             <IconifyIcon
               :icon="getFileIcon(att.name || '', att.mime_type)"
               :class="compact ? 'size-3' : 'size-3.5'"
             />
-            <span :class="compact ? 'max-w-[80px]' : 'max-w-[120px]'" class="truncate">
+            <span
+              :class="compact ? 'max-w-[80px]' : 'max-w-[120px]'"
+              class="truncate"
+            >
               {{ att.name || $t('common.globalAiChat.file') }}
             </span>
           </a>
@@ -107,7 +118,10 @@ function onUserAttachmentImageError(event: Event, att: ChatAttachment) {
         class="mt-0.5 flex items-center justify-end gap-0.5 transition-opacity duration-200"
         :class="compact ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'"
       >
-        <span v-if="msg.created_at" class="mr-0.5 text-[10px] tabular-nums text-muted-foreground/40">
+        <span
+          v-if="msg.created_at"
+          class="mr-0.5 text-[10px] tabular-nums text-muted-foreground/40"
+        >
           {{ formatTimeOnly(msg.created_at) }}
         </span>
         <Tooltip :title="$t('common.globalAiChat.copy')">

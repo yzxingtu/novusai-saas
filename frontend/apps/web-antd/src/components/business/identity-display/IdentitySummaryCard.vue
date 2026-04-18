@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { IdentitySummaryMode } from './detail-presentation';
 import type { IdentityDetail, IdentityDetailRequest } from './identity-detail';
 import type { IdentityDisplayModel } from './types';
 
@@ -17,7 +18,6 @@ import {
   buildIdentitySummaryRows,
   resolveIdentityPrimaryContextLabel,
   resolveIdentityPrimaryContextValue,
-  type IdentitySummaryMode,
 } from './detail-presentation';
 import {
   createIdentityDetailPreview,
@@ -36,6 +36,24 @@ interface IdentityPresenceTarget {
   userId: number;
   userType: 'admin' | 'tenant_admin' | 'tenant_user';
 }
+
+defineOptions({ name: 'IdentitySummaryCard' });
+
+const props = withDefaults(
+  defineProps<{
+    detailRequest?: IdentityDetailRequest | null;
+    mode?: Extract<IdentitySummaryMode, 'embedded' | 'quick'>;
+    model: IdentityDetail | IdentityDisplayModel;
+    showOnlineStatus?: boolean;
+    showRows?: boolean;
+  }>(),
+  {
+    detailRequest: null,
+    mode: 'embedded',
+    showOnlineStatus: false,
+    showRows: true,
+  },
+);
 
 function toFiniteNumber(value: unknown): null | number {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
@@ -100,29 +118,11 @@ function resolvePresenceTarget(
   return null;
 }
 
-defineOptions({ name: 'IdentitySummaryCard' });
-
-const props = withDefaults(
-  defineProps<{
-    detailRequest?: IdentityDetailRequest | null;
-    model: IdentityDetail | IdentityDisplayModel;
-    mode?: Extract<IdentitySummaryMode, 'embedded' | 'quick'>;
-    showOnlineStatus?: boolean;
-    showRows?: boolean;
-  }>(),
-  {
-    detailRequest: null,
-    mode: 'embedded',
-    showOnlineStatus: false,
-    showRows: true,
-  },
-);
-
 const presenceStore = usePresenceStore();
 
 const previewDetail = computed<IdentityDetail>(() =>
   createIdentityDetailPreview({
-    ...(props.detailRequest ?? {}),
+    ...props.detailRequest,
     fallback: mergeIdentityDetailFallbacks(
       props.detailRequest?.fallback,
       props.model,
@@ -136,7 +136,9 @@ const resolvedTitle = computed(() =>
 );
 
 const avatarValue = computed(() => previewDetail.value.avatar?.trim() || '');
-const avatarText = computed(() => resolveIdentityAvatarText(previewDetail.value));
+const avatarText = computed(() =>
+  resolveIdentityAvatarText(previewDetail.value),
+);
 const isIconAvatar = computed(() =>
   /^[a-z0-9-]+:[a-z0-9-]+$/i.test(avatarValue.value),
 );
@@ -201,7 +203,8 @@ watch(
 );
 
 const showPresenceIndicator = computed(
-  () => props.showOnlineStatus && presenceResolved.value && !!presenceTarget.value,
+  () =>
+    props.showOnlineStatus && presenceResolved.value && !!presenceTarget.value,
 );
 
 const presenceOnline = computed(() => {
@@ -209,7 +212,11 @@ const presenceOnline = computed(() => {
   if (!target || !presenceResolved.value) {
     return false;
   }
-  return presenceStore.isOnline(target.userType, target.userId, target.tenantId);
+  return presenceStore.isOnline(
+    target.userType,
+    target.userId,
+    target.tenantId,
+  );
 });
 </script>
 
@@ -232,7 +239,11 @@ const presenceOnline = computed(() => {
           :size="48"
           class="identity-summary-card__avatar identity-summary-card__avatar--fallback"
         >
-          <IconifyIcon v-if="isIconAvatar" :icon="avatarValue" class="size-4.5" />
+          <IconifyIcon
+            v-if="isIconAvatar"
+            :icon="avatarValue"
+            class="size-4.5"
+          />
           <template v-else>
             {{ avatarText }}
           </template>
@@ -296,10 +307,7 @@ const presenceOnline = computed(() => {
       </div>
     </div>
 
-    <dl
-      v-if="summaryRows.length > 0"
-      class="identity-summary-card__meta-list"
-    >
+    <dl v-if="summaryRows.length > 0" class="identity-summary-card__meta-list">
       <div
         v-for="item in summaryRows"
         :key="item.key"
@@ -327,8 +335,11 @@ const presenceOnline = computed(() => {
 
 .identity-summary-card--embedded {
   padding: 14px;
-  background:
-    linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--accent) / 30%) 100%);
+  background: linear-gradient(
+    135deg,
+    hsl(var(--background)) 0%,
+    hsl(var(--accent) / 30%) 100%
+  );
   border: 1px solid hsl(var(--border) / 70%);
   border-radius: 18px;
   box-shadow: 0 10px 24px -20px rgb(15 23 42 / 35%);
@@ -345,8 +356,8 @@ const presenceOnline = computed(() => {
 }
 
 .identity-summary-card__avatar-wrap {
-  flex: 0 0 auto;
   position: relative;
+  flex: 0 0 auto;
 }
 
 .identity-summary-card__avatar {
@@ -355,7 +366,7 @@ const presenceOnline = computed(() => {
 
 .identity-summary-card__avatar--fallback {
   color: hsl(var(--primary));
-  background: hsl(var(--primary) / 0.12);
+  background: hsl(var(--primary) / 12%);
 }
 
 .identity-summary-card__main {
@@ -376,11 +387,11 @@ const presenceOnline = computed(() => {
 
 .identity-summary-card__title {
   overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 15px;
   font-weight: 600;
   line-height: 1.4;
   color: hsl(var(--foreground));
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -408,8 +419,8 @@ const presenceOnline = computed(() => {
   max-width: 100%;
   padding: 3px 10px;
   color: hsl(var(--primary));
-  background: hsl(var(--primary) / 0.09);
-  border: 1px solid hsl(var(--primary) / 0.18);
+  background: hsl(var(--primary) / 9%);
+  border: 1px solid hsl(var(--primary) / 18%);
   border-radius: 9999px;
 }
 
@@ -421,9 +432,9 @@ const presenceOnline = computed(() => {
 .identity-summary-card__context-label,
 .identity-summary-card__context-value {
   overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 11px;
   line-height: 1.4;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -450,8 +461,8 @@ const presenceOnline = computed(() => {
 }
 
 .identity-summary-card__auxiliary-item:not(:last-child)::after {
-  content: '·';
   margin-left: 10px;
+  content: '·';
   opacity: 0.6;
 }
 
@@ -478,10 +489,10 @@ const presenceOnline = computed(() => {
 
 .identity-summary-card__meta-value {
   margin: 0;
-  overflow-wrap: anywhere;
   font-size: 12px;
   font-weight: 500;
   line-height: 1.5;
   color: hsl(var(--foreground));
+  overflow-wrap: anywhere;
 }
 </style>

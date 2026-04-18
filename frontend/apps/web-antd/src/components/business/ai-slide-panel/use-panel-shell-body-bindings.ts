@@ -14,7 +14,6 @@ import type {
 
 import { computed } from 'vue';
 
-type ComposerInteractionMode = 'confirm' | 'trusted_auto';
 type ComposerSendState = 'idle' | 'routing' | 'sending' | 'streaming';
 
 interface HistoryConversationItem {
@@ -92,7 +91,6 @@ interface UsePanelShellBodyBindingsOptions {
   handleOpenUrl: (url: string) => void;
   handleSendMessage: () => Promise<boolean>;
   inputMessage: Ref<string>;
-  interactionMode: Ref<ComposerInteractionMode>;
   isAgentSwitch: (index: number) => boolean;
   mentionEmptyHint: ComputedRef<string>;
   mentionLoading: Ref<boolean>;
@@ -134,7 +132,6 @@ interface UsePanelShellBodyBindingsOptions {
   shiftEnterHint: string;
   showAttachments: Ref<boolean>;
   showHistory: Ref<boolean>;
-  showInteractionMode: ComputedRef<boolean>;
   showScreenshotButton: ComputedRef<boolean>;
   showScrollToBottom: Ref<boolean>;
   showScrollToTop: Ref<boolean>;
@@ -172,7 +169,6 @@ export function usePanelShellBodyBindings(
     getRichTextDraftState: options.getRichTextDraftState,
     groupedConversations: options.groupedConversations.value,
     inputMessage: options.inputMessage.value,
-    interactionMode: options.interactionMode.value,
     isAgentSwitch: options.isAgentSwitch,
     mentionCandidates: options.composerMentionCandidates.value,
     mentionEmptyHint: options.mentionEmptyHint.value,
@@ -191,7 +187,6 @@ export function usePanelShellBodyBindings(
     shiftEnterHint: options.shiftEnterHint,
     showAttachments: options.showAttachments.value,
     showHistory: options.showHistory.value,
-    showInteractionMode: options.showInteractionMode.value,
     showScreenshotButton: options.showScreenshotButton.value,
     showScrollToBottom: options.showScrollToBottom.value,
     showScrollToTop: options.showScrollToTop.value,
@@ -258,9 +253,6 @@ export function usePanelShellBodyBindings(
     },
     'update:inputMessage': (value: string) => {
       options.inputMessage.value = value;
-    },
-    'update:interactionMode': (value: ComposerInteractionMode) => {
-      options.interactionMode.value = value;
     },
   };
 

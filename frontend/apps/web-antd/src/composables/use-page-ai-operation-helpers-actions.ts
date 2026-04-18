@@ -3,8 +3,8 @@ import type {
   SuccessMessageInput,
 } from './use-page-ai-operation-helpers-core';
 
-import { router } from '#/router';
 import { $t } from '#/locales';
+import { router } from '#/router';
 
 import {
   createParameterizedPageOperation,
@@ -97,7 +97,8 @@ export function createRefreshPageOperation(
   return createSimplePageOperation({
     name: options.name ?? 'refresh_list',
     label: options.label ?? $t('shared.pageOperation.refreshList'),
-    description: options.description ?? $t('shared.pageOperation.desc.refreshList'),
+    description:
+      options.description ?? $t('shared.pageOperation.desc.refreshList'),
     readonly: true,
     successMessage: options.successMessage,
     action: async () => options.action(),
@@ -108,7 +109,8 @@ export function createSavePageOperation(options: SavePageOperationOptions) {
   return createSimplePageOperation({
     name: options.name ?? 'save_changes',
     label: options.label ?? $t('shared.pageOperation.save'),
-    description: options.description ?? $t('shared.pageOperation.desc.saveChanges'),
+    description:
+      options.description ?? $t('shared.pageOperation.desc.saveChanges'),
     readonly: false,
     successMessage: options.successMessage,
     action: async () => options.action(),
@@ -121,7 +123,8 @@ export function createCreateRecordPageOperation(
   return createSimplePageOperation({
     name: options.name ?? 'create_record',
     label: options.label ?? $t('shared.pageOperation.createRecord'),
-    description: options.description ?? $t('shared.pageOperation.desc.openCreateForm'),
+    description:
+      options.description ?? $t('shared.pageOperation.desc.openCreateForm'),
     readonly: false,
     successMessage:
       options.successMessage ??
@@ -143,7 +146,8 @@ export function createKeywordSearchPageOperation(
       keyword: {
         type: 'string',
         description:
-          options.keywordDescription ?? $t('shared.pageOperation.param.keyword'),
+          options.keywordDescription ??
+          $t('shared.pageOperation.param.keyword'),
       },
     },
     successMessage: (params) =>
@@ -158,7 +162,9 @@ export function createKeywordSearchPageOperation(
       ),
     action: async (params) => {
       const rawKeyword = String(params.keyword ?? '').trim();
-      const keyword = options.normalize ? options.normalize(rawKeyword) : rawKeyword;
+      const keyword = options.normalize
+        ? options.normalize(rawKeyword)
+        : rawKeyword;
       options.setKeyword(keyword);
       return await options.action?.(keyword);
     },
@@ -176,7 +182,11 @@ export function createStructuredSearchPageOperation<
     readonly: true,
     params: options.params,
     successMessage: (params) =>
-      resolveMessage(options.successMessage, defaultSearchMessage(params), params),
+      resolveMessage(
+        options.successMessage,
+        defaultSearchMessage(params),
+        params,
+      ),
     action: async (rawParams) => {
       const params = options.normalizeParams
         ? options.normalizeParams(rawParams)
@@ -193,7 +203,8 @@ export function createPrefilledCreatePageOperation<
     name: options.name ?? 'create_record',
     label: options.label ?? $t('shared.pageOperation.createRecord'),
     description:
-      options.description ?? $t('shared.pageOperation.desc.openCreateWithDefaults'),
+      options.description ??
+      $t('shared.pageOperation.desc.openCreateWithDefaults'),
     readonly: false,
     params: options.params,
     successMessage: (params) =>
@@ -219,7 +230,8 @@ export function createOpenPageOperation(options: OpenPageOperationOptions) {
   return createSimplePageOperation({
     name: options.name ?? 'open_page',
     label: options.label ?? $t('shared.pageOperation.navigateTo'),
-    description: options.description ?? $t('shared.pageOperation.desc.openPage'),
+    description:
+      options.description ?? $t('shared.pageOperation.desc.openPage'),
     readonly: true,
     successMessage: options.successMessage,
     action: async () => {
@@ -240,7 +252,8 @@ export function createOpenCurrentPageOperation(
     name: options.name ?? 'open_current',
     label: options.label ?? $t('shared.pageOperation.viewDetail'),
     description:
-      options.description ?? $t('shared.pageOperation.desc.openCurrentSelection'),
+      options.description ??
+      $t('shared.pageOperation.desc.openCurrentSelection'),
     readonly: true,
     successMessage: options.successMessage,
     action: async () => {

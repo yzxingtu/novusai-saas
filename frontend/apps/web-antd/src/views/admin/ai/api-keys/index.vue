@@ -30,11 +30,7 @@ import {
 } from '#/utils/scope-helpers';
 
 import AIGatewayQuickStartHero from '../_shared/AIGatewayQuickStartHero.vue';
-import {
-  getFormDefaults,
-  useColumns,
-  useGridFormSchema,
-} from './data';
+import { getFormDefaults, useColumns, useGridFormSchema } from './data';
 import Form from './modules/form.vue';
 
 defineOptions({ name: 'AIApiKeyList' });

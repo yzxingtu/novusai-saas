@@ -27,29 +27,29 @@ interface SimpleOperationOptions extends BaseOperationOptions {
   action: (params: AnyRecord) => OperationExecutionResult;
 }
 
-export interface RichTextRuntimeOperationResult {
+export interface RichTextPageAIOperationResult {
   data?: Record<string, unknown>;
   error_type?: string;
   message: string;
   success: boolean;
 }
 
-export type RichTextRuntimeOperationHandler = (
+export type RichTextPageAIOperationHandler = (
   params: Record<string, unknown>,
-) =>
-  | Promise<RichTextRuntimeOperationResult>
-  | RichTextRuntimeOperationResult;
+) => Promise<RichTextPageAIOperationResult> | RichTextPageAIOperationResult;
 
-export interface RichTextRuntimeOperation {
+export interface RichTextPageAIOperation {
   description?: string;
-  handler?: RichTextRuntimeOperationHandler;
+  handler?: RichTextPageAIOperationHandler;
   label: string;
   name: string;
   params?: Record<string, unknown>;
   readonly: boolean;
 }
 
-function isOperationResult(value: unknown): value is RichTextRuntimeOperationResult {
+function isOperationResult(
+  value: unknown,
+): value is RichTextPageAIOperationResult {
   return (
     !!value &&
     typeof value === 'object' &&
@@ -74,7 +74,7 @@ function normalizeExecutionResult<TParams extends AnyRecord>(input: {
   params: TParams;
   result: Awaited<OperationExecutionResult>;
   successMessage?: SuccessMessageInput<[TParams]>;
-}): RichTextRuntimeOperationResult {
+}): RichTextPageAIOperationResult {
   if (isOperationResult(input.result)) {
     return input.result;
   }
@@ -98,7 +98,7 @@ function normalizeExecutionResult<TParams extends AnyRecord>(input: {
 
 function createOperationHandler<TParams extends AnyRecord>(
   options: ParameterizedOperationOptions<TParams>,
-): RichTextRuntimeOperationHandler {
+): RichTextPageAIOperationHandler {
   return async (rawParams) => {
     const params = rawParams as TParams;
     const result = await options.action(params);
@@ -113,11 +113,9 @@ function createOperationHandler<TParams extends AnyRecord>(
   };
 }
 
-export function createParameterizedRuntimeOperation<
+export function createParameterizedPageAIOperation<
   TParams extends AnyRecord = AnyRecord,
->(
-  options: ParameterizedOperationOptions<TParams>,
-): RichTextRuntimeOperation {
+>(options: ParameterizedOperationOptions<TParams>): RichTextPageAIOperation {
   return {
     name: options.name,
     label: options.label,
@@ -128,10 +126,10 @@ export function createParameterizedRuntimeOperation<
   };
 }
 
-export function createSimpleRuntimeOperation(
+export function createSimplePageAIOperation(
   options: SimpleOperationOptions,
-): RichTextRuntimeOperation {
-  return createParameterizedRuntimeOperation({
+): RichTextPageAIOperation {
+  return createParameterizedPageAIOperation({
     ...options,
     params: undefined,
   });

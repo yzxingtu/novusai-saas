@@ -1,21 +1,25 @@
-import {
-  createDefaultComponentAdapters,
-  createVueRouterAdapter,
-} from './component-adapters';
-import { UIGraphBuilder } from './ui-graph-builder';
-import { UIEpochManager } from './ui-epoch-manager';
-import { UISurfaceTracker } from './surface-tracker';
 import type {
   UIComponentAdapter,
   UIOverlaySurfaceInput,
   UIRouteLike,
+  UIRuntimeIncrementalInput,
   UIRuntimeOptions,
   UIRuntimeRebuildInput,
   UIRuntimeSnapshot,
   UIRuntimeState,
+  UIRuntimeSurfaceNodeRead,
+  UIRuntimeSurfaceReadResult,
   UISurface,
   UISurfaceSyncInput,
 } from './types';
+
+import {
+  createDefaultComponentAdapters,
+  createVueRouterAdapter,
+} from './component-adapters';
+import { UISurfaceTracker } from './surface-tracker';
+import { UIEpochManager } from './ui-epoch-manager';
+import { UIGraphBuilder } from './ui-graph-builder';
 
 const EMPTY_GRAPH: UIRuntimeState['ui_graph'] = {
   builtAt: 0,
@@ -62,6 +66,20 @@ function cloneSurface(surface: UISurface): UISurface {
   };
 }
 
+function cloneGraph(
+  graph: UIRuntimeState['ui_graph'],
+): UIRuntimeState['ui_graph'] {
+  return {
+    ...graph,
+    nodes: graph.nodes.map((node) => ({
+      ...node,
+      ...(node.extensions ? { extensions: { ...node.extensions } } : {}),
+      ...(node.metadata ? { metadata: { ...node.metadata } } : {}),
+    })),
+    stats: { ...graph.stats },
+  };
+}
+
 function normalizeText(value: string): string {
   return value.replaceAll(/\s+/g, ' ').trim();
 }
@@ -70,7 +88,7 @@ function escapeSelectorValue(value: string): string {
   if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
     return CSS.escape(value);
   }
-  return value.replaceAll('"', '\\"');
+  return value.replaceAll('"', String.raw`\"`);
 }
 
 function isElementVisible(element: HTMLElement): boolean {
@@ -85,12 +103,22 @@ function isElementVisible(element: HTMLElement): boolean {
 }
 
 function isAIExcludedElement(element: Element): boolean {
-  let cursor: null | Element = element;
+  let cursor: HTMLElement | null =
+    element instanceof HTMLElement ? element : null;
   while (cursor) {
     if (cursor.matches(AI_PANEL_SELECTOR)) {
       return true;
     }
-    const dataAI = cursor.getAttribute('data-ai');
+    const disabledValue = cursor.dataset.aiDisabled;
+    if (
+      typeof disabledValue === 'string' &&
+      !['0', 'false', 'no', 'off'].includes(
+        disabledValue.trim().toLocaleLowerCase(),
+      )
+    ) {
+      return true;
+    }
+    const dataAI = cursor.dataset.ai;
     if (typeof dataAI === 'string') {
       const hasOffDirective = dataAI
         .split(/\s+/)
@@ -135,9 +163,9 @@ function queryLocatorCandidates(locator: string): LocatorCandidates {
       continue;
     }
     try {
-      return classifyCandidates(
-        Array.from(document.querySelectorAll<HTMLElement>(selector)),
-      );
+      return classifyCandidates([
+        ...document.querySelectorAll<HTMLElement>(selector),
+      ]);
     } catch {
       return {
         allowedVisible: [],
@@ -155,11 +183,10 @@ function queryLocatorCandidates(locator: string): LocatorCandidates {
       };
     }
     return classifyCandidates(
-      Array.from(document.querySelectorAll<HTMLElement>('body *')).filter(
-        (element) =>
-          normalizeText(element.innerText || element.textContent || '')
-            .toLocaleLowerCase()
-            .includes(query),
+      [...document.querySelectorAll<HTMLElement>('body *')].filter((element) =>
+        normalizeText(element.innerText || element.textContent || '')
+          .toLocaleLowerCase()
+          .includes(query),
       ),
     );
   }
@@ -168,9 +195,9 @@ function queryLocatorCandidates(locator: string): LocatorCandidates {
     ? normalized.slice(4)
     : normalized;
   try {
-    return classifyCandidates(
-      Array.from(document.querySelectorAll<HTMLElement>(cssSelector)),
-    );
+    return classifyCandidates([
+      ...document.querySelectorAll<HTMLElement>(cssSelector),
+    ]);
   } catch {
     return {
       allowedVisible: [],
@@ -213,7 +240,9 @@ function bindGraphSurfaceIds(
       return;
     }
 
-    let nextSurfaceId = validIds.has(node.surfaceId ?? '') ? node.surfaceId : undefined;
+    let nextSurfaceId = validIds.has(node.surfaceId ?? '')
+      ? node.surfaceId
+      : undefined;
     if (!nextSurfaceId) {
       const element = candidates.allowedVisible[0] ?? null;
       if (element) {
@@ -255,26 +284,136 @@ function bindGraphSurfaceIds(
   };
 }
 
+function patchGraphNodes(
+  graph: UIRuntimeState['ui_graph'],
+  input: UIRuntimeIncrementalInput['nodePatch'],
+): UIRuntimeState['ui_graph'] {
+  if (!input) {
+    return graph;
+  }
+
+  const removedIds = new Set(input.removedIds);
+  const removedLocators = new Set(input.removedLocators);
+  const nodesById = new Map(
+    graph.nodes
+      .filter(
+        (node) =>
+          !removedIds.has(node.id) && !removedLocators.has(node.locator),
+      )
+      .map((node) => [node.id, { ...node }]),
+  );
+
+  input.updated?.forEach((patch) => {
+    const existing = nodesById.get(patch.id);
+    if (!existing) {
+      return;
+    }
+    nodesById.set(patch.id, {
+      ...existing,
+      ...patch,
+      metadata:
+        existing.metadata || patch.metadata
+          ? {
+              ...existing.metadata,
+              ...patch.metadata,
+            }
+          : undefined,
+      extensions:
+        existing.extensions || patch.extensions
+          ? {
+              ...existing.extensions,
+              ...patch.extensions,
+            }
+          : undefined,
+    });
+  });
+
+  input.added?.forEach((node) => {
+    nodesById.set(node.id, {
+      ...node,
+      ...(node.metadata ? { metadata: { ...node.metadata } } : {}),
+      ...(node.extensions ? { extensions: { ...node.extensions } } : {}),
+    });
+  });
+
+  const nextNodes = [...nodesById.values()].toSorted((left, right) => {
+    if (left.kind !== right.kind) {
+      return left.kind.localeCompare(right.kind);
+    }
+    return left.locator.localeCompare(right.locator);
+  });
+
+  return {
+    ...graph,
+    nodes: nextNodes,
+    stats: {
+      ...graph.stats,
+      totalNodeCount: nextNodes.length,
+    },
+  };
+}
+
+function resolveNodeRead(
+  node: UIRuntimeState['ui_graph']['nodes'][number],
+): UIRuntimeSurfaceNodeRead {
+  const candidates = queryLocatorCandidates(node.locator);
+  const element = candidates.allowedVisible[0] ?? null;
+  const text = normalizeText(element?.innerText || element?.textContent || '');
+  const content =
+    element instanceof HTMLInputElement ||
+    element instanceof HTMLTextAreaElement ||
+    element instanceof HTMLSelectElement
+      ? normalizeText(
+          element.value ||
+            (element instanceof HTMLInputElement ||
+            element instanceof HTMLTextAreaElement
+              ? element.placeholder
+              : '') ||
+            '',
+        )
+      : text;
+
+  return {
+    children_count: element?.children.length,
+    content: content || undefined,
+    disabled: node.disabled,
+    interactable: !node.disabled,
+    kind: node.kind,
+    label: node.label,
+    locator: node.locator,
+    node_id: node.id,
+    role: element?.getAttribute('role') || undefined,
+    surface_id: node.surfaceId,
+    text: text || node.label,
+    title:
+      normalizeText(
+        element?.getAttribute('aria-label') ||
+          element?.getAttribute('title') ||
+          '',
+      ) || undefined,
+  };
+}
+
 export class UIRuntime {
   private readonly epochManager = new UIEpochManager();
 
-  private readonly graphBuilder: UIGraphBuilder;
-
-  private readonly surfaceTracker = new UISurfaceTracker();
-
   private readonly getRoute?: () => null | UIRouteLike;
+
+  private readonly graphBuilder: UIGraphBuilder;
 
   private graphSignature = createGraphSignature(EMPTY_GRAPH);
 
-  private routeFingerprintValue = '';
-
   private route: null | UIRouteLike = null;
+
+  private routeFingerprintValue = '';
 
   private state: UIRuntimeState = {
     surface_stack: [],
     ui_epoch: 0,
     ui_graph: EMPTY_GRAPH,
   };
+
+  private readonly surfaceTracker = new UISurfaceTracker();
 
   constructor(options: UIRuntimeOptions = {}) {
     const baseAdapters =
@@ -284,10 +423,15 @@ export class UIRuntime {
           getRoute: options.getRoute,
         },
       });
-    const hasRouterAdapter = baseAdapters.some((adapter) => adapter.id === 'vue-router');
+    const hasRouterAdapter = baseAdapters.some(
+      (adapter) => adapter.id === 'vue-router',
+    );
     const adapters = hasRouterAdapter
       ? baseAdapters
-      : [createVueRouterAdapter({ getRoute: options.getRoute }), ...baseAdapters];
+      : [
+          createVueRouterAdapter({ getRoute: options.getRoute }),
+          ...baseAdapters,
+        ];
     this.graphBuilder = new UIGraphBuilder({
       adapters,
       document: options.document,
@@ -300,13 +444,51 @@ export class UIRuntime {
     this.routeFingerprintValue = routeFingerprint(this.route);
   }
 
+  applyIncrementalUpdate(
+    input: UIRuntimeIncrementalInput = {},
+  ): UIRuntimeSnapshot {
+    const routeChanged = this.applyRoute(input.route ?? this.route);
+    const surfaceDelta = input.surfaceSync
+      ? this.surfaceTracker.sync(input.surfaceSync)
+      : null;
+    const nextSurfaceStack = this.surfaceTracker.getStack();
+    const nextGraph = bindGraphSurfaceIds(
+      patchGraphNodes(cloneGraph(this.state.ui_graph), input.nodePatch),
+      nextSurfaceStack,
+    );
+    const nextSignature = createGraphSignature(nextGraph);
+    const graphChanged = nextSignature !== this.graphSignature;
+    if (graphChanged) {
+      this.graphSignature = nextSignature;
+    }
+
+    if (graphChanged || routeChanged || surfaceDelta?.changed) {
+      this.epochManager.bump('manual', {
+        mode: input.mode ?? nextGraph.mode,
+      });
+    }
+
+    this.state = {
+      surface_stack: nextSurfaceStack,
+      ui_epoch: this.epochManager.current(),
+      ui_graph: nextGraph,
+    };
+    return this.getSnapshot();
+  }
+
   closeSurface(surfaceId: string): UIRuntimeSnapshot {
     const removed = this.surfaceTracker.closeSurfaceById(surfaceId);
     if (removed.length > 0) {
       this.epochManager.bump('surface_closed', {
         count: removed.length,
       });
-      this.refreshStateEpochOnly();
+      const nextSurfaceStack = this.surfaceTracker.getStack();
+      this.state = {
+        ...this.state,
+        surface_stack: nextSurfaceStack,
+        ui_epoch: this.epochManager.current(),
+        ui_graph: bindGraphSurfaceIds(this.state.ui_graph, nextSurfaceStack),
+      };
     }
     return this.getSnapshot();
   }
@@ -318,13 +500,11 @@ export class UIRuntime {
   getSnapshot(): UIRuntimeSnapshot {
     return {
       active_surface: this.surfaceTracker.getActiveSurface(),
-      surface_stack: this.state.surface_stack.map((surface) => cloneSurface(surface)),
+      surface_stack: this.state.surface_stack.map((surface) =>
+        cloneSurface(surface),
+      ),
       ui_epoch: this.state.ui_epoch,
-      ui_graph: {
-        ...this.state.ui_graph,
-        nodes: this.state.ui_graph.nodes.map((node) => ({ ...node })),
-        stats: { ...this.state.ui_graph.stats },
-      },
+      ui_graph: cloneGraph(this.state.ui_graph),
     };
   }
 
@@ -344,8 +524,51 @@ export class UIRuntime {
       kind: input.kind,
       key: input.key,
     });
-    this.refreshStateEpochOnly();
+    const nextSurfaceStack = this.surfaceTracker.getStack();
+    this.state = {
+      ...this.state,
+      surface_stack: nextSurfaceStack,
+      ui_epoch: this.epochManager.current(),
+      ui_graph: bindGraphSurfaceIds(this.state.ui_graph, nextSurfaceStack),
+    };
     return this.getSnapshot();
+  }
+
+  readPage(mode: 'compact' | 'full' = 'compact'): UIRuntimeSnapshot {
+    return this.rebuildGraph({
+      mode,
+      route: this.getRoute?.() ?? this.route,
+    });
+  }
+
+  readSurface(
+    surfaceId?: string,
+    mode: 'compact' | 'full' = 'full',
+  ): UIRuntimeSurfaceReadResult {
+    const snapshot = this.rebuildGraph({
+      mode,
+      route: this.getRoute?.() ?? this.route,
+    });
+    const surface =
+      (surfaceId
+        ? snapshot.surface_stack.find((item) => item.id === surfaceId)
+        : null) ??
+      snapshot.active_surface ??
+      snapshot.surface_stack.at(-1) ??
+      null;
+    const targetSurfaceId = surface?.id;
+    const nodes = snapshot.ui_graph.nodes
+      .filter((node) => !targetSurfaceId || node.surfaceId === targetSurfaceId)
+      .map((node) => resolveNodeRead(node));
+
+    return {
+      active_surface: snapshot.active_surface,
+      mode,
+      nodes,
+      surface,
+      surface_stack: snapshot.surface_stack.map((item) => cloneSurface(item)),
+      ui_epoch: snapshot.ui_epoch,
+    };
   }
 
   rebuildGraph(input: UIRuntimeRebuildInput = {}): UIRuntimeSnapshot {
@@ -408,7 +631,13 @@ export class UIRuntime {
         removed: delta.removed.length,
         updated: delta.updated.length,
       });
-      this.refreshStateEpochOnly();
+      const nextSurfaceStack = this.surfaceTracker.getStack();
+      this.state = {
+        ...this.state,
+        surface_stack: nextSurfaceStack,
+        ui_epoch: this.epochManager.current(),
+        ui_graph: bindGraphSurfaceIds(this.state.ui_graph, nextSurfaceStack),
+      };
     }
     return this.getSnapshot();
   }
@@ -425,14 +654,6 @@ export class UIRuntime {
       this.route = nextRoute;
     }
     return changed;
-  }
-
-  private refreshStateEpochOnly(): void {
-    this.state = {
-      ...this.state,
-      surface_stack: this.surfaceTracker.getStack(),
-      ui_epoch: this.epochManager.current(),
-    };
   }
 }
 

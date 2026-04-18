@@ -132,7 +132,7 @@ vi.mock('@vben/icons', async () => {
   };
 });
 
-describe('IdentityQuickCard', () => {
+describe('identityQuickCard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     presenceMocks.ensurePresenceLoaded.mockResolvedValue(true);
@@ -169,9 +169,9 @@ describe('IdentityQuickCard', () => {
     expect(wrapper.text()).toContain('Nova Tenant');
     expect(wrapper.text()).toContain('buyer@example.com');
     expect(
-      wrapper.findComponent({ name: 'IdentitySummaryCard' }).props(
-        'showOnlineStatus',
-      ),
+      wrapper
+        .findComponent({ name: 'IdentitySummaryCard' })
+        .props('showOnlineStatus'),
     ).toBe(true);
   });
 

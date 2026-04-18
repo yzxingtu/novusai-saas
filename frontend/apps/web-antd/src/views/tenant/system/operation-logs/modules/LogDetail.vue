@@ -3,6 +3,7 @@
  * 操作日志详情抽屉（企业端）
  */
 import type { tenantApi } from '#/api';
+import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 
 import { computed, ref } from 'vue';
 
@@ -22,7 +23,6 @@ import { IdentitySummaryCard } from '#/components/business/identity-display';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
-import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 
 import {
   getMethodColor,
@@ -118,23 +118,23 @@ const userIdentityMeta = computed<IdentityDetailMeta>(() => ({
       <template v-if="detail">
         <!-- 用户信息 -->
         <div class="mb-4">
-        <div class="mb-2 flex items-center gap-2 text-base font-medium">
-          <IconifyIcon icon="lucide:user" class="text-primary" />
-          {{ $t('tenant.system.operationLog.userInfo') }}
-        </div>
-        <IdentityTrigger
-          v-if="userIdentityModel"
-          :model="userIdentityModel"
-          :meta="userIdentityMeta"
-        >
-          <template #default="{ detailRequest }">
-            <IdentitySummaryCard
-              :detail-request="detailRequest"
-              :model="userIdentityModel"
-              mode="embedded"
-            />
-          </template>
-        </IdentityTrigger>
+          <div class="mb-2 flex items-center gap-2 text-base font-medium">
+            <IconifyIcon icon="lucide:user" class="text-primary" />
+            {{ $t('tenant.system.operationLog.userInfo') }}
+          </div>
+          <IdentityTrigger
+            v-if="userIdentityModel"
+            :model="userIdentityModel"
+            :meta="userIdentityMeta"
+          >
+            <template #default="{ detailRequest }">
+              <IdentitySummaryCard
+                :detail-request="detailRequest"
+                :model="userIdentityModel"
+                mode="embedded"
+              />
+            </template>
+          </IdentityTrigger>
         </div>
 
         <Divider class="!my-4" />
@@ -147,10 +147,14 @@ const userIdentityMeta = computed<IdentityDetailMeta>(() => ({
           </div>
           <Descriptions :column="2" bordered size="small">
             <DescriptionsItem :label="$t('tenant.system.operationLog.module')">
-              <Tag color="blue">{{ detail.module }}</Tag>
+              <Tag color="blue">
+                {{ detail.moduleLabel || detail.module || '-' }}
+              </Tag>
             </DescriptionsItem>
             <DescriptionsItem :label="$t('tenant.system.operationLog.action')">
-              <Tag color="purple">{{ detail.action }}</Tag>
+              <Tag color="purple">
+                {{ detail.actionLabel || detail.action || '-' }}
+              </Tag>
             </DescriptionsItem>
             <DescriptionsItem :label="$t('tenant.system.operationLog.method')">
               <Tag :color="getMethodColor(detail.method)">

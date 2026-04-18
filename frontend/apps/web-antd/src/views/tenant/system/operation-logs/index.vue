@@ -4,6 +4,7 @@
  * 操作日志列表页面（企业端）
  */
 import type { tenantApi } from '#/api';
+import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 
@@ -11,9 +12,8 @@ import { Card, Tag, Tooltip } from 'ant-design-vue';
 
 import { useCrudPage } from '#/adapter/vxe-table';
 import { tenantApi as tenant } from '#/api';
-import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
-import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 import { formatDate, formatRelativeTime } from '#/utils/common';
+import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
 
 import {
   getMethodColor,
@@ -127,12 +127,12 @@ const { Grid, gridApi } = useCrudPage<OperationLogInfo>({
 
         <!-- 模块列 -->
         <template #module_cell="{ row }">
-          <Tag color="blue">{{ row.moduleLabel || row.module }}</Tag>
+          <Tag color="blue">{{ row.moduleLabel || row.module || '-' }}</Tag>
         </template>
 
         <!-- 操作类型列 -->
         <template #action_cell="{ row }">
-          <Tag color="purple">{{ row.actionLabel || row.action }}</Tag>
+          <Tag color="purple">{{ row.actionLabel || row.action || '-' }}</Tag>
         </template>
 
         <!-- 请求方法列 -->

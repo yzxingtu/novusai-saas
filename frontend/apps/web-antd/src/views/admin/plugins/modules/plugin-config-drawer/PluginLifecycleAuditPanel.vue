@@ -6,10 +6,10 @@ import { IconifyIcon } from '@vben/icons';
 import { Button } from 'ant-design-vue';
 
 const props = defineProps<{
-  pluginId: number;
   loading: boolean;
-  payload: PluginLifecycleAuditReport | null;
   onRefresh: (pluginId: number) => Promise<void> | void;
+  payload: null | PluginLifecycleAuditReport;
+  pluginId: number;
   prettyJson: (value: unknown) => string;
 }>();
 </script>
@@ -32,13 +32,17 @@ const props = defineProps<{
     </div>
     <template v-else-if="props.payload">
       <div class="mb-3 grid grid-cols-1 gap-2 md:grid-cols-2">
-        <div class="rounded-lg border border-border/60 bg-background/70 px-3 py-2">
+        <div
+          class="rounded-lg border border-border/60 bg-background/70 px-3 py-2"
+        >
           <div class="text-[11px] text-muted-foreground">Runtime Kind</div>
           <div class="mt-1 text-sm font-medium text-foreground">
             {{ String(props.payload.runtime_kind || '-') }}
           </div>
         </div>
-        <div class="rounded-lg border border-border/60 bg-background/70 px-3 py-2">
+        <div
+          class="rounded-lg border border-border/60 bg-background/70 px-3 py-2"
+        >
           <div class="text-[11px] text-muted-foreground">Degraded Reason</div>
           <div class="mt-1 text-sm font-medium text-foreground">
             {{ String(props.payload.degraded_reason || '-') }}
@@ -47,7 +51,8 @@ const props = defineProps<{
       </div>
       <pre
         class="max-h-56 overflow-auto rounded-lg border border-border/60 bg-accent/30 p-3 font-mono text-xs leading-5"
-      >{{ props.prettyJson(props.payload) }}</pre>
+        >{{ props.prettyJson(props.payload) }}</pre
+      >
     </template>
     <div v-else class="text-xs text-muted-foreground">
       Lifecycle audit data is unavailable.

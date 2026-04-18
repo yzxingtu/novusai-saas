@@ -18,6 +18,7 @@ import {
   getEffectiveContextText,
   getOwnerContextText,
   getQueueColor,
+  getQueueText,
   getRunKindText,
   getStatusColor,
   getTriggerSourceText,
@@ -96,12 +97,7 @@ const { Drawer, detailData: detail } = useCrudDrawer<TaskLogDetailInfo>({
           </DescriptionsItem>
           <DescriptionsItem :label="$t('admin.system.taskLog.queue')">
             <Tag :color="getQueueColor(detail.queue)">
-              {{
-                $t(
-                  `admin.system.taskLog.queueNames.${detail.queue}`,
-                  detail.queue,
-                )
-              }}
+              {{ getQueueText(detail.queue) }}
             </Tag>
           </DescriptionsItem>
           <DescriptionsItem :label="$t('admin.system.taskLog.retryCount')">
@@ -138,12 +134,19 @@ const { Drawer, detailData: detail } = useCrudDrawer<TaskLogDetailInfo>({
             {{ getBindingContextText(detail.bindingId) }}
           </DescriptionsItem>
           <DescriptionsItem :label="$t('admin.system.taskLog.ownerTenantId')">
-            {{ getOwnerContextText(detail.ownerTenantId) }}
+            {{
+              getOwnerContextText(detail.ownerTenantId, detail.ownerTenantName)
+            }}
           </DescriptionsItem>
           <DescriptionsItem
             :label="$t('admin.system.taskLog.effectiveTenantId')"
           >
-            {{ getEffectiveContextText(detail.effectiveTenantId) }}
+            {{
+              getEffectiveContextText(
+                detail.effectiveTenantId,
+                detail.effectiveTenantName,
+              )
+            }}
           </DescriptionsItem>
         </Descriptions>
       </div>

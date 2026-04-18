@@ -1,9 +1,10 @@
+import type { Mock } from 'vitest';
+
 import type { useAIChat } from '../use-ai-chat';
 
 import { flushPromises } from '@vue/test-utils';
 
 import { expect, it, vi } from 'vitest';
-import type { Mock } from 'vitest';
 
 import {
   buildAgent,
@@ -307,14 +308,10 @@ export function registerUseAIChatHistoryCases(
     expect(chat.interactionMode.value).toBe('trusted_auto');
   });
 
-  it('keeps trusted_auto requested mode when backend detail reports an effective confirm downgrade', async () => {
+  it('keeps trusted_auto interaction mode when backend detail reports trusted_auto', async () => {
     apiMocks.getChatConversationMessagesApi.mockResolvedValue(
       buildConversationDetail([buildUserMessage('hello')], {
-        interaction_mode_effective: 'confirm',
-        interaction_mode_requested: 'trusted_auto',
-        last_run_summary: {
-          downgrade_reason: 'missing_runtime_trust_policy',
-        },
+        interaction_mode_effective: 'trusted_auto',
       }),
     );
 
@@ -325,6 +322,6 @@ export function registerUseAIChatHistoryCases(
     await flushPromises();
 
     expect(chat.interactionMode.value).toBe('trusted_auto');
-    expect(chat.interactionModeEffective.value).toBe('confirm');
+    expect(chat.interactionModeEffective.value).toBe('trusted_auto');
   });
 }

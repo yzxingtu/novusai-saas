@@ -1,13 +1,21 @@
+import type {
+  UIAdapterResult,
+  UIComponentAdapter,
+  UIGraphNode,
+} from '../types';
+
 import {
   buildElementLocator,
   isElementVisible,
   readElementLabel,
 } from '../dom-scanner';
-import type { UIAdapterResult, UIComponentAdapter, UIGraphNode } from '../types';
 
 export const ANTD_MENU_ADAPTER_ID = 'antd-menu';
 
-function toMenuNode(element: HTMLElement, priority: number): UIGraphNode | null {
+function toMenuNode(
+  element: HTMLElement,
+  priority: number,
+): null | UIGraphNode {
   if (!isElementVisible(element)) {
     return null;
   }

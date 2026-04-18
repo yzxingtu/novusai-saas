@@ -21,13 +21,13 @@ import {
   Upload,
 } from 'ant-design-vue';
 
+import { getTenantAdminIdentityDetailApi } from '#/api/tenant/admins';
 import { smartUploadFile } from '#/api/tenant/attachment';
 import {
   getTenantAdminInfoApi,
   tenantChangePasswordApi,
   updateTenantProfileApi,
 } from '#/api/tenant/auth';
-import { getTenantAdminIdentityDetailApi } from '#/api/tenant/admins';
 import { IdentityDisplay } from '#/components/business/identity-display';
 import { $t } from '#/locales';
 import { toAvatarDisplayUrl } from '#/utils/image';
@@ -84,7 +84,8 @@ const displayName = computed(
   () => form.value.nickname || form.value.username || '-',
 );
 const showUsernameLine = computed(
-  () => Boolean(form.value.username) && displayName.value !== form.value.username,
+  () =>
+    Boolean(form.value.username) && displayName.value !== form.value.username,
 );
 const showSupplementaryInfo = computed(
   () =>
@@ -117,10 +118,7 @@ function applyIdentityState(detail?: {
   };
 }
 
-function syncUserStoreProfile(updates: {
-  avatar?: string;
-  realName?: string;
-}) {
+function syncUserStoreProfile(updates: { avatar?: string; realName?: string }) {
   if (!userStore.userInfo) {
     return;
   }
@@ -308,10 +306,7 @@ onMounted(() => {
                         v-if="form.tenantName"
                         class="inline-flex items-center gap-1.5"
                       >
-                        <IconifyIcon
-                          icon="lucide:building-2"
-                          class="size-4"
-                        />
+                        <IconifyIcon icon="lucide:building-2" class="size-4" />
                         <span class="truncate">{{ form.tenantName }}</span>
                       </span>
                     </div>

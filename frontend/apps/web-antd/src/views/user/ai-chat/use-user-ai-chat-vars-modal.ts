@@ -1,5 +1,7 @@
 import type { Ref } from 'vue';
 
+import type { VarsModalAgent } from './modules/ai-chat-context';
+
 import type { InputVariable } from '#/types/ai-chat';
 
 import { reactive, ref } from 'vue';
@@ -8,8 +10,6 @@ import { message } from 'ant-design-vue';
 
 import { formatLocalizedList } from '#/components/business/ai-chat-panel/display-formatters';
 import { $t } from '#/locales';
-
-import type { VarsModalAgent } from './modules/ai-chat-context';
 
 interface PendingSendState {
   agentId: number;
@@ -27,15 +27,13 @@ interface UseUserAIChatVarsModalOptions {
   sendMessage: (options: {
     agentId: number;
     routeSource?: null | string;
-  }) => void | Promise<boolean>;
+  }) => boolean | Promise<boolean> | Promise<undefined> | undefined;
 }
 
-export function useUserAIChatVarsModal(
-  options: UseUserAIChatVarsModalOptions,
-) {
+export function useUserAIChatVarsModal(options: UseUserAIChatVarsModalOptions) {
   const varsModalVisible = ref(false);
   const varsFormValues = reactive<Record<string, string>>({});
-  const varsModalAgent = ref<VarsModalAgent | null>(null);
+  const varsModalAgent = ref<null | VarsModalAgent>(null);
   const varsPersist = ref(false);
   const pendingSendState = ref<null | PendingSendState>(null);
 
@@ -57,12 +55,17 @@ export function useUserAIChatVarsModal(
   }
 
   function onVarsConfirm() {
-    const required = varsModalAgent.value?.vars.filter((item) => item.required) ?? [];
-    const missing = required.filter((item) => !varsFormValues[item.name]?.trim());
+    const required =
+      varsModalAgent.value?.vars.filter((item) => item.required) ?? [];
+    const missing = required.filter(
+      (item) => !varsFormValues[item.name]?.trim(),
+    );
     if (missing.length > 0) {
       message.warning(
         $t('user.aiChat.varsModal.fillRequired', {
-          fields: formatLocalizedList(missing.map((item) => item.label || item.name)),
+          fields: formatLocalizedList(
+            missing.map((item) => item.label || item.name),
+          ),
         }),
       );
       return;

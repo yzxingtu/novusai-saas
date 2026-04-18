@@ -1,7 +1,8 @@
 <script lang="ts" setup>
+import type { VNodeRef } from 'vue';
+
 import type { AIAgentInfo } from '#/api/admin/ai';
 import type { InputVariable } from '#/types/ai-chat';
-import type { VNodeRef } from 'vue';
 
 import { nextTick, ref, watch } from 'vue';
 
@@ -17,10 +18,10 @@ import {
 } from '#/utils/ai-starter-questions';
 
 const props = defineProps<{
-  agent: AIAgentInfo;
-  saving: boolean;
   active: boolean;
+  agent: AIAgentInfo;
   onSaveFields: (fields: Record<string, unknown>) => Promise<void>;
+  saving: boolean;
 }>();
 
 const chatWelcome = ref('');
@@ -34,9 +35,10 @@ const chatSystemPromptRef = ref<HTMLTextAreaElement | null>(null);
 
 const setChatSystemPromptRef: VNodeRef = (value) => {
   const textarea =
-    (value as { resizableTextArea?: { textArea?: HTMLTextAreaElement } } | null)
+    (value as null | { resizableTextArea?: { textArea?: HTMLTextAreaElement } })
       ?.resizableTextArea?.textArea ??
-    ((value as HTMLElement | null)?.querySelector?.('textarea') ?? null);
+    (value as HTMLElement | null)?.querySelector?.('textarea') ??
+    null;
   chatSystemPromptRef.value = textarea;
 };
 
@@ -96,7 +98,8 @@ async function saveChatConfig() {
     ...(isSystem ? {} : { system_prompt: chatSystemPrompt.value || null }),
     welcome_message: chatWelcome.value || null,
     suggested_questions: parseStarterQuestionsInput(chatSuggestions.value),
-    input_variables: chatInputVars.value.length > 0 ? chatInputVars.value : null,
+    input_variables:
+      chatInputVars.value.length > 0 ? chatInputVars.value : null,
     context_config: buildMergedContextConfig(),
   });
 }
@@ -165,7 +168,9 @@ watch(
     </div>
     <div class="rounded-xl border bg-accent/30 p-5">
       <div class="mb-3 flex items-center gap-2">
-        <div class="flex size-7 items-center justify-center rounded-lg bg-green-500/10">
+        <div
+          class="flex size-7 items-center justify-center rounded-lg bg-green-500/10"
+        >
           <IconifyIcon icon="lucide:smile" class="size-4 text-green-500" />
         </div>
         <label class="text-sm font-medium">{{
@@ -181,7 +186,9 @@ watch(
     </div>
     <div class="rounded-xl border bg-accent/30 p-5">
       <div class="mb-3 flex items-center gap-2">
-        <div class="flex size-7 items-center justify-center rounded-lg bg-cyan-500/10">
+        <div
+          class="flex size-7 items-center justify-center rounded-lg bg-cyan-500/10"
+        >
           <IconifyIcon icon="lucide:help-circle" class="size-4 text-cyan-500" />
         </div>
         <label class="text-sm font-medium">{{
@@ -198,7 +205,9 @@ watch(
     </div>
     <div class="rounded-xl border bg-accent/30 p-5">
       <div class="mb-3 flex items-center gap-2">
-        <div class="flex size-7 items-center justify-center rounded-lg bg-violet-500/10">
+        <div
+          class="flex size-7 items-center justify-center rounded-lg bg-violet-500/10"
+        >
           <IconifyIcon icon="lucide:variable" class="size-4 text-violet-500" />
         </div>
         <label class="text-sm font-medium">{{
@@ -209,7 +218,9 @@ watch(
     </div>
     <div class="rounded-xl border bg-accent/30 p-5">
       <div class="mb-3 flex items-center gap-2">
-        <div class="flex size-7 items-center justify-center rounded-lg bg-amber-500/10">
+        <div
+          class="flex size-7 items-center justify-center rounded-lg bg-amber-500/10"
+        >
           <IconifyIcon icon="lucide:history" class="size-4 text-amber-500" />
         </div>
         <label class="text-sm font-medium">{{
@@ -234,13 +245,21 @@ watch(
           <label class="mb-1 block text-xs text-muted-foreground">{{
             $t('admin.ai.agent.contextConfig.maxHistoryMessages')
           }}</label>
-          <InputNumber v-model:value="chatContextMessages" :min="0" class="w-full" />
+          <InputNumber
+            v-model:value="chatContextMessages"
+            :min="0"
+            class="w-full"
+          />
         </div>
         <div>
           <label class="mb-1 block text-xs text-muted-foreground">{{
             $t('admin.ai.agent.contextConfig.maxHistoryTokens')
           }}</label>
-          <InputNumber v-model:value="chatContextTokens" :min="0" class="w-full" />
+          <InputNumber
+            v-model:value="chatContextTokens"
+            :min="0"
+            class="w-full"
+          />
         </div>
       </div>
     </div>

@@ -5,10 +5,10 @@ import { computed, effectScope, nextTick, ref, shallowRef } from 'vue';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
-  clearRichTextRuntimeAdapterRegistry,
-  collectRichTextRuntimeContextData,
-  listRichTextRuntimeOperations,
-} from '../ai/runtime-adapter-registry';
+  clearRichTextPageAIExposures,
+  collectRichTextPageAIContextData,
+  listRichTextPageAIOperations,
+} from '../ai/editor-page-ai-exposure';
 import { useEditorPageOps } from '../useEditorPageOps';
 
 vi.mock('@vben/locales', async (importOriginal) => {
@@ -155,7 +155,7 @@ function createMutableEditorStub() {
 
 describe('useEditorPageOps', () => {
   afterEach(() => {
-    clearRichTextRuntimeAdapterRegistry();
+    clearRichTextPageAIExposures();
   });
 
   it('registers runtime context and operations for the current page key', () => {
@@ -168,7 +168,7 @@ describe('useEditorPageOps', () => {
       });
     });
 
-    const context = collectRichTextRuntimeContextData('tenant.docs.detail');
+    const context = collectRichTextPageAIContextData('tenant.docs.detail');
     expect(context.entity_name).toBe('common.richTextEditor');
     expect(context.entity_description_append).toBe(
       'common.editorRuntimeDescription',
@@ -176,14 +176,14 @@ describe('useEditorPageOps', () => {
     expect(context.has_editor).toBe(true);
     expect(context.editor_editable).toBe(true);
 
-    const names = listRichTextRuntimeOperations('tenant.docs.detail').map(
+    const names = listRichTextPageAIOperations('tenant.docs.detail').map(
       (op) => op.name,
     );
     expect(names).toContain('get_editor_html');
     expect(names).toContain('replace_content');
 
     scope.stop();
-    expect(listRichTextRuntimeOperations('tenant.docs.detail')).toHaveLength(0);
+    expect(listRichTextPageAIOperations('tenant.docs.detail')).toHaveLength(0);
   });
 
   it('only exposes readonly editor operations when editor is not editable', () => {
@@ -196,7 +196,7 @@ describe('useEditorPageOps', () => {
       });
     });
 
-    const names = listRichTextRuntimeOperations('tenant.docs.editor').map(
+    const names = listRichTextPageAIOperations('tenant.docs.editor').map(
       (op) => op.name,
     );
     expect(names).toContain('get_editor_html');
@@ -221,14 +221,14 @@ describe('useEditorPageOps', () => {
       });
     });
 
-    expect(listRichTextRuntimeOperations('tenant.docs.toggle').length).toBeGreaterThan(
-      0,
-    );
+    expect(
+      listRichTextPageAIOperations('tenant.docs.toggle').length,
+    ).toBeGreaterThan(0);
 
     enabled.value = false;
     await nextTick();
 
-    expect(listRichTextRuntimeOperations('tenant.docs.toggle')).toHaveLength(0);
+    expect(listRichTextPageAIOperations('tenant.docs.toggle')).toHaveLength(0);
 
     scope.stop();
   });
@@ -245,7 +245,7 @@ describe('useEditorPageOps', () => {
       });
     });
 
-    const operations = listRichTextRuntimeOperations('tenant.docs.mutation');
+    const operations = listRichTextPageAIOperations('tenant.docs.mutation');
     const insertOp = operations.find((op) => op.name === 'insert_content');
     const appendOp = operations.find((op) => op.name === 'append_content');
 
@@ -285,7 +285,7 @@ describe('useEditorPageOps', () => {
       });
     });
 
-    const operations = listRichTextRuntimeOperations('tenant.docs.commands');
+    const operations = listRichTextPageAIOperations('tenant.docs.commands');
     const formatOp = operations.find((op) => op.name === 'format_text');
     const headingOp = operations.find((op) => op.name === 'set_heading');
     const listOp = operations.find((op) => op.name === 'toggle_list');

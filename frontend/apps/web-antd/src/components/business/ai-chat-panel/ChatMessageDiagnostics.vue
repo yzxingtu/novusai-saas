@@ -19,13 +19,13 @@ function normalizeDiagnosticText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-const BENIGN_TURN_OUTCOMES = new Set(['success', 'partial']);
+const BENIGN_TURN_OUTCOMES = new Set(['partial', 'success']);
 const BENIGN_TERMINATION_REASONS = new Set([
-  'completed',
-  'stop',
-  'interrupted',
   'budget_exit',
+  'completed',
   'consent_pause',
+  'interrupted',
+  'stop',
 ]);
 
 interface ContextSourceDisplayItem {
@@ -98,11 +98,11 @@ const diagnosticContextSources = computed<ContextSourceDisplayItem[]>(() => {
 const hasTurnDiagnostics = computed(() => {
   return Boolean(
     diagnosticTurnOutcome.value ||
-      diagnosticTerminationReason.value ||
-      diagnosticProtocolPath.value ||
-      diagnosticSelectedTools.value.length > 0 ||
-      diagnosticSelectedSkills.value.length > 0 ||
-      diagnosticContextSources.value.length > 0,
+    diagnosticTerminationReason.value ||
+    diagnosticProtocolPath.value ||
+    diagnosticSelectedTools.value.length > 0 ||
+    diagnosticSelectedSkills.value.length > 0 ||
+    diagnosticContextSources.value.length > 0,
   );
 });
 const shouldShowTurnDiagnostics = computed(() => {
@@ -119,18 +119,17 @@ const shouldShowTurnDiagnostics = computed(() => {
   }
 
   const normalizedOutcome = diagnosticTurnOutcome.value.toLowerCase();
-  if (normalizedOutcome) {
-    if (!BENIGN_TURN_OUTCOMES.has(normalizedOutcome)) {
-      return true;
-    }
+  if (normalizedOutcome && !BENIGN_TURN_OUTCOMES.has(normalizedOutcome)) {
+    return true;
   }
 
   const normalizedTerminationReason =
     diagnosticTerminationReason.value.toLowerCase();
-  if (normalizedTerminationReason) {
-    if (!BENIGN_TERMINATION_REASONS.has(normalizedTerminationReason)) {
-      return true;
-    }
+  if (
+    normalizedTerminationReason &&
+    !BENIGN_TERMINATION_REASONS.has(normalizedTerminationReason)
+  ) {
+    return true;
   }
 
   return false;
@@ -141,7 +140,9 @@ const shouldShowTurnDiagnostics = computed(() => {
   <div
     v-if="shouldShowTurnDiagnostics"
     class="rounded-xl border border-border/30 bg-accent/10"
-    :class="compact ? 'mb-1 space-y-1 px-2 py-1.5' : 'mb-2 space-y-1.5 px-3 py-2'"
+    :class="
+      compact ? 'mb-1 space-y-1 px-2 py-1.5' : 'mb-2 space-y-1.5 px-3 py-2'
+    "
   >
     <div class="flex flex-wrap items-center gap-1.5">
       <span
@@ -151,7 +152,9 @@ const shouldShowTurnDiagnostics = computed(() => {
         <span class="font-mono text-[10px] text-muted-foreground">{{
           $t('common.globalAiChat.diagnosticTurnOutcomeLabel')
         }}</span>
-        <span class="font-medium text-foreground">{{ diagnosticTurnOutcome }}</span>
+        <span class="font-medium text-foreground">{{
+          diagnosticTurnOutcome
+        }}</span>
       </span>
       <span
         v-if="diagnosticTerminationReason"
@@ -171,10 +174,15 @@ const shouldShowTurnDiagnostics = computed(() => {
         <span class="font-mono text-[10px] text-muted-foreground">{{
           $t('common.globalAiChat.diagnosticProtocolPathLabel')
         }}</span>
-        <span class="font-medium text-foreground">{{ diagnosticProtocolPath }}</span>
+        <span class="font-medium text-foreground">{{
+          diagnosticProtocolPath
+        }}</span>
       </span>
     </div>
-    <div v-if="diagnosticSelectedTools.length > 0" class="flex flex-wrap items-center gap-1.5">
+    <div
+      v-if="diagnosticSelectedTools.length > 0"
+      class="flex flex-wrap items-center gap-1.5"
+    >
       <span class="font-mono text-[10px] text-muted-foreground">{{
         $t('common.globalAiChat.diagnosticSelectedToolsLabel')
       }}</span>
@@ -186,7 +194,10 @@ const shouldShowTurnDiagnostics = computed(() => {
         {{ toolName }}
       </span>
     </div>
-    <div v-if="diagnosticSelectedSkills.length > 0" class="flex flex-wrap items-center gap-1.5">
+    <div
+      v-if="diagnosticSelectedSkills.length > 0"
+      class="flex flex-wrap items-center gap-1.5"
+    >
       <span class="font-mono text-[10px] text-muted-foreground">{{
         $t('common.globalAiChat.diagnosticSelectedSkillsLabel')
       }}</span>
@@ -198,7 +209,10 @@ const shouldShowTurnDiagnostics = computed(() => {
         {{ skillName }}
       </span>
     </div>
-    <div v-if="diagnosticContextSources.length > 0" class="flex flex-wrap items-center gap-1.5">
+    <div
+      v-if="diagnosticContextSources.length > 0"
+      class="flex flex-wrap items-center gap-1.5"
+    >
       <span class="font-mono text-[10px] text-muted-foreground">{{
         $t('common.globalAiChat.diagnosticContextSourcesLabel')
       }}</span>

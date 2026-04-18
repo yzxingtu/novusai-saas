@@ -63,10 +63,7 @@ function progressStatus(isExceeded: boolean, isWarning: boolean) {
               <div
                 class="flex size-10 items-center justify-center rounded-2xl bg-primary/10"
               >
-                <IconifyIcon
-                  icon="lucide:shield"
-                  class="size-5 text-primary"
-                />
+                <IconifyIcon icon="lucide:shield" class="size-5 text-primary" />
               </div>
               <div class="min-w-0">
                 <div class="truncate text-base font-semibold text-foreground">

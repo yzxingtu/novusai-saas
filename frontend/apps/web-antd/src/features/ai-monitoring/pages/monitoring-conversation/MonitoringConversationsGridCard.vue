@@ -1,7 +1,7 @@
 <script lang="ts" setup>
-import type { MonitoringConversationInfo, MonitoringScope } from '../../api';
-
 import type { Component } from 'vue';
+
+import type { MonitoringConversationInfo, MonitoringScope } from '../../api';
 
 import { IconifyIcon } from '@vben/icons';
 

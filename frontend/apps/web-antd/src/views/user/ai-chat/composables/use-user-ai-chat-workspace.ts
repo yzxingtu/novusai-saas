@@ -1,7 +1,8 @@
+import type { UserAIChatWorkspaceContext } from '../modules/user-ai-chat-workspace-context';
+
 import { ref } from 'vue';
 
 import { useUserAIChatContext } from '../modules/ai-chat-context';
-import type { UserAIChatWorkspaceContext } from '../modules/user-ai-chat-workspace-context';
 
 export function useUserAIChatWorkspace(): UserAIChatWorkspaceContext {
   const page = useUserAIChatContext();

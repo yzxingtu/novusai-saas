@@ -68,9 +68,7 @@ function parseRgbChannel(input: string) {
   const trimmed = input.trim();
   if (trimmed.endsWith('%')) {
     const value = Number.parseFloat(trimmed);
-    return Number.isFinite(value)
-      ? roundChannel((value / 100) * 255)
-      : null;
+    return Number.isFinite(value) ? roundChannel((value / 100) * 255) : null;
   }
   const value = Number.parseFloat(trimmed);
   return Number.isFinite(value) ? roundChannel(value) : null;
@@ -146,7 +144,7 @@ function rgbToHsl(r: number, g: number, b: number): Omit<HslColor, 'a'> {
     }
   }
 
-  hue = Math.round(((hue * 60) + 360) % 360);
+  hue = Math.round((hue * 60 + 360) % 360);
   const lightness = (max + min) / 2;
   const saturation =
     delta === 0 ? 0 : delta / (1 - Math.abs(2 * lightness - 1));
@@ -167,7 +165,9 @@ function parseHexColor(input: string): null | RgbaColor {
   const expand = (token: string) => token + token;
   if (normalized.length === 3 || normalized.length === 4) {
     const chars = [...normalized];
-    const [r = '', g = '', b = '', a = 'f'] = chars.map(expand);
+    const [r = '', g = '', b = '', a = 'f'] = chars.map((token) =>
+      expand(token),
+    );
     return {
       r: Number.parseInt(r, 16),
       g: Number.parseInt(g, 16),
@@ -190,9 +190,7 @@ function parseHexColor(input: string): null | RgbaColor {
 }
 
 function parseRgbColor(input: string): null | RgbaColor {
-  const match = input
-    .trim()
-    .match(/^rgba?\((.*)\)$/i);
+  const match = input.trim().match(/^rgba?\((.*)\)$/i);
   if (!match) {
     return null;
   }
@@ -228,9 +226,7 @@ function parseRgbColor(input: string): null | RgbaColor {
 }
 
 function parseHslColor(input: string): null | RgbaColor {
-  const match = input
-    .trim()
-    .match(/^hsla?\((.*)\)$/i);
+  const match = input.trim().match(/^hsla?\((.*)\)$/i);
   if (!match) {
     return null;
   }
@@ -278,7 +274,7 @@ function normalizeDomColor(input: string) {
   }
 
   if (document.body) {
-    document.body.appendChild(element);
+    document.body.append(element);
     const computedColor = globalThis.getComputedStyle?.(element).color || null;
     element.remove();
     return computedColor || element.style.color || null;
@@ -328,14 +324,14 @@ function toHexChannel(value: number) {
 }
 
 export class TinyColor {
+  get isValid() {
+    return this.#rgba !== null;
+  }
+
   #rgba: null | RgbaColor;
 
   constructor(color?: string) {
     this.#rgba = parseColor(color);
-  }
-
-  get isValid() {
-    return this.#rgba !== null;
   }
 
   isDark() {

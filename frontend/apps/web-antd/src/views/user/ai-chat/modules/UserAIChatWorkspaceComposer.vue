@@ -159,7 +159,7 @@ const setFileInputRef: VNodeRef = (element) => {
       <span
         v-for="binding in agentKBBindings"
         :key="binding.knowledge_base_id"
-        class="inline-flex items-center rounded-full bg-primary/8 px-1.5 py-0.5 text-[10px] leading-tight text-primary/70"
+        class="bg-primary/8 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] leading-tight text-primary/70"
       >
         {{
           formatKnowledgeBaseName(binding.kb_name, binding.knowledge_base_id)
@@ -231,13 +231,13 @@ const setFileInputRef: VNodeRef = (element) => {
               v-for="(candidate, candidateIndex) in mentionCandidates"
               :key="`kb-${candidate.binding.knowledge_base_id}`"
             >
-                <div
-                  v-if="
-                    candidateIndex === 0 ||
-                    mentionCandidates[candidateIndex - 1]?.kind !== candidate.kind
-                  "
-                  class="px-0.5 pt-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60"
-                >
+              <div
+                v-if="
+                  candidateIndex === 0 ||
+                  mentionCandidates[candidateIndex - 1]?.kind !== candidate.kind
+                "
+                class="px-0.5 pt-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60"
+              >
                 {{ $t('common.globalAiChat.mentionSectionKbs') }}
               </div>
               <button

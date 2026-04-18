@@ -8,10 +8,10 @@ import { Button, InputNumber } from 'ant-design-vue';
 import { $t } from '#/locales';
 
 const props = defineProps<{
-  agent: AIAgentInfo;
-  saving: boolean;
   active: boolean;
+  agent: AIAgentInfo;
   onSaveFields: (fields: Record<string, unknown>) => Promise<void>;
+  saving: boolean;
 }>();
 
 const quotaConversationsPerDay = ref<number | undefined>(undefined);
@@ -25,12 +25,14 @@ function initQuota() {
   const qc = (props.agent.quota_config ?? {}) as Record<string, unknown>;
   quotaConversationsPerDay.value =
     (qc.conversations_per_day as number | undefined) ?? undefined;
-  quotaTokensPerDay.value = (qc.tokens_per_day as number | undefined) ?? undefined;
+  quotaTokensPerDay.value =
+    (qc.tokens_per_day as number | undefined) ?? undefined;
   quotaTokensPerMonth.value =
     (qc.tokens_per_month as number | undefined) ?? undefined;
   quotaMaxTurns.value =
     (qc.max_turns_per_conversation as number | undefined) ?? undefined;
-  quotaMaxConcurrent.value = (qc.max_concurrent as number | undefined) ?? undefined;
+  quotaMaxConcurrent.value =
+    (qc.max_concurrent as number | undefined) ?? undefined;
   quotaUserConversationsPerDay.value =
     (qc.user_conversations_per_day as number | undefined) ?? undefined;
 }
@@ -78,19 +80,31 @@ watch(
         <label class="mb-2 block text-xs text-muted-foreground">{{
           $t('admin.ai.agent.quotaConfig.conversationsPerDay')
         }}</label>
-        <InputNumber v-model:value="quotaConversationsPerDay" :min="0" class="w-full" />
+        <InputNumber
+          v-model:value="quotaConversationsPerDay"
+          :min="0"
+          class="w-full"
+        />
       </div>
       <div class="rounded-xl border bg-accent/30 p-4">
         <label class="mb-2 block text-xs text-muted-foreground">{{
           $t('admin.ai.agent.quotaConfig.tokensPerDay')
         }}</label>
-        <InputNumber v-model:value="quotaTokensPerDay" :min="0" class="w-full" />
+        <InputNumber
+          v-model:value="quotaTokensPerDay"
+          :min="0"
+          class="w-full"
+        />
       </div>
       <div class="rounded-xl border bg-accent/30 p-4">
         <label class="mb-2 block text-xs text-muted-foreground">{{
           $t('admin.ai.agent.quotaConfig.tokensPerMonth')
         }}</label>
-        <InputNumber v-model:value="quotaTokensPerMonth" :min="0" class="w-full" />
+        <InputNumber
+          v-model:value="quotaTokensPerMonth"
+          :min="0"
+          class="w-full"
+        />
       </div>
       <div class="rounded-xl border bg-accent/30 p-4">
         <label class="mb-2 block text-xs text-muted-foreground">{{
@@ -102,13 +116,21 @@ watch(
         <label class="mb-2 block text-xs text-muted-foreground">{{
           $t('admin.ai.agent.quotaConfig.maxConcurrent')
         }}</label>
-        <InputNumber v-model:value="quotaMaxConcurrent" :min="0" class="w-full" />
+        <InputNumber
+          v-model:value="quotaMaxConcurrent"
+          :min="0"
+          class="w-full"
+        />
       </div>
       <div class="rounded-xl border bg-accent/30 p-4">
         <label class="mb-2 block text-xs text-muted-foreground">{{
           $t('admin.ai.agent.quotaConfig.userConversationsPerDay')
         }}</label>
-        <InputNumber v-model:value="quotaUserConversationsPerDay" :min="0" class="w-full" />
+        <InputNumber
+          v-model:value="quotaUserConversationsPerDay"
+          :min="0"
+          class="w-full"
+        />
       </div>
     </div>
     <div class="mt-5">

@@ -1,8 +1,8 @@
 import type { Ref } from 'vue';
 
-import type { MemoryState } from '#/api/shared/ai-chat';
-
 import type { UseAIChatOptions } from './use-ai-chat-options';
+
+import type { MemoryState } from '#/api/shared/ai-chat';
 
 import { ref, unref } from 'vue';
 

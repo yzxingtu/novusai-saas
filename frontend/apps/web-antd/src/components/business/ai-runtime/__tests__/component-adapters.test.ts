@@ -1,5 +1,7 @@
 // @vitest-environment happy-dom
 
+import type { UIAdapterContext } from '../types';
+
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
@@ -7,18 +9,21 @@ import {
   ANTD_DRAWER_ADAPTER_ID,
   ANTD_MENU_ADAPTER_ID,
   ANTD_MODAL_ADAPTER_ID,
+  ANTD_PAGINATION_ADAPTER_ID,
+  ANTD_TABLE_ADAPTER_ID,
   ANTD_TABS_ADAPTER_ID,
   createAntdButtonAdapter,
   createAntdDrawerAdapter,
   createAntdMenuAdapter,
   createAntdModalAdapter,
+  createAntdPaginationAdapter,
+  createAntdTableAdapter,
   createAntdTabsAdapter,
   createDefaultComponentAdapters,
   DEFAULT_COMPONENT_ADAPTER_PRIORITIES,
   VUE_ROUTER_ADAPTER_ID,
 } from '../component-adapters';
 import { tAiRuntime } from '../i18n';
-import type { UIAdapterContext } from '../types';
 
 function createAdapterContext(
   root: ParentNode = document.body,
@@ -56,7 +61,9 @@ describe('component adapters', () => {
       ANTD_MODAL_ADAPTER_ID,
       ANTD_DRAWER_ADAPTER_ID,
       ANTD_MENU_ADAPTER_ID,
+      ANTD_TABLE_ADAPTER_ID,
       ANTD_TABS_ADAPTER_ID,
+      ANTD_PAGINATION_ADAPTER_ID,
       ANTD_BUTTON_ADAPTER_ID,
     ]);
 
@@ -65,7 +72,9 @@ describe('component adapters', () => {
       DEFAULT_COMPONENT_ADAPTER_PRIORITIES[ANTD_MODAL_ADAPTER_ID],
       DEFAULT_COMPONENT_ADAPTER_PRIORITIES[ANTD_DRAWER_ADAPTER_ID],
       DEFAULT_COMPONENT_ADAPTER_PRIORITIES[ANTD_MENU_ADAPTER_ID],
+      DEFAULT_COMPONENT_ADAPTER_PRIORITIES[ANTD_TABLE_ADAPTER_ID],
       DEFAULT_COMPONENT_ADAPTER_PRIORITIES[ANTD_TABS_ADAPTER_ID],
+      DEFAULT_COMPONENT_ADAPTER_PRIORITIES[ANTD_PAGINATION_ADAPTER_ID],
       DEFAULT_COMPONENT_ADAPTER_PRIORITIES[ANTD_BUTTON_ADAPTER_ID],
     ]);
 
@@ -204,6 +213,93 @@ describe('component adapters', () => {
     });
     expect(settingsNode?.metadata).toEqual({
       active: false,
+    });
+  });
+
+  it('collects table nodes with row and column metadata', () => {
+    document.body.innerHTML = `
+      <section class="ant-table-wrapper" data-testid="table-wrapper">
+        <div class="ant-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Role</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>Alice</td><td>Admin</td></tr>
+              <tr><td>Bob</td><td>Editor</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <div class="ant-table" style="display:none">
+        <table><tbody><tr><td>Hidden</td></tr></tbody></table>
+      </div>
+    `;
+
+    const result = createAntdTableAdapter(68).collect(createAdapterContext());
+    const nodes = result.nodes ?? [];
+
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0]).toMatchObject({
+      adapterId: ANTD_TABLE_ADAPTER_ID,
+      kind: 'table',
+      locator: '[data-testid="table-wrapper"]',
+      priority: 68,
+    });
+    expect(nodes[0]?.metadata).toMatchObject({
+      columnCount: 2,
+      rowCount: 2,
+      tag: 'table',
+    });
+  });
+
+  it('collects pagination nodes, de-duplicates entries and keeps active metadata', () => {
+    document.body.innerHTML = `
+      <ul class="ant-pagination">
+        <li class="ant-pagination-prev ant-pagination-disabled" aria-disabled="true" data-testid="page-prev">
+          <button>Previous</button>
+        </li>
+        <li class="ant-pagination-item ant-pagination-item-active" data-testid="page-1">1</li>
+        <li class="ant-pagination-item" data-testid="page-1">duplicate 1</li>
+        <li class="ant-pagination-item" data-testid="page-2">2</li>
+        <li class="ant-pagination-next" data-testid="page-next">
+          <button>Next</button>
+        </li>
+      </ul>
+    `;
+
+    const result = createAntdPaginationAdapter(58).collect(
+      createAdapterContext(),
+    );
+    const nodes = result.nodes ?? [];
+
+    expect(nodes).toHaveLength(4);
+    expect(nodes.map((node) => node.locator)).toEqual([
+      '[data-testid="page-prev"]',
+      '[data-testid="page-1"]',
+      '[data-testid="page-2"]',
+      '[data-testid="page-next"]',
+    ]);
+    expect(nodes[0]).toMatchObject({
+      adapterId: ANTD_PAGINATION_ADAPTER_ID,
+      disabled: true,
+      kind: 'button',
+      priority: 58,
+    });
+    expect(nodes[0]?.metadata).toMatchObject({
+      active: false,
+      page: 'Previous',
+    });
+    expect(nodes[1]?.metadata).toMatchObject({
+      active: true,
+      page: '1',
+    });
+    expect(nodes[3]?.metadata).toMatchObject({
+      active: false,
+      page: 'Next',
     });
   });
 

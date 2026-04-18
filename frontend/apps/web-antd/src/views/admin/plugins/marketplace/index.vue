@@ -147,7 +147,6 @@ async function handleInstall(plugin: MarketplacePluginItem) {
 async function handleWizardInstalled() {
   await loadMarketplace();
 }
-
 </script>
 
 <template>

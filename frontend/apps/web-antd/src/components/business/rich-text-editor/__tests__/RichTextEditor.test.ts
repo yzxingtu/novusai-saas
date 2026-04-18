@@ -9,7 +9,6 @@ import RichTextEditor from '../RichTextEditor.vue';
 const mocks = vi.hoisted(() => ({
   handleImageDrop: vi.fn(() => false),
   handleImagePaste: vi.fn(() => false),
-  launchRichTextTask: vi.fn(),
   registerSourceEditor: vi.fn(),
   updateSourceEditorRevision: vi.fn(),
   useEditorPageOps: vi.fn(),
@@ -51,10 +50,6 @@ vi.mock('../toolbar/MiniToolbar.vue', () => ({
     props: ['editor', 'upload'],
     template: '<div class="mini-toolbar-stub"></div>',
   },
-}));
-
-vi.mock('../ai/launchRichTextTask', () => ({
-  launchRichTextTask: mocks.launchRichTextTask,
 }));
 
 vi.mock('../sourceEditorRegistry', () => ({
@@ -111,7 +106,6 @@ describe('richTextEditor', () => {
     getRevisionMock.mockClear();
     mocks.handleImageDrop.mockClear();
     mocks.handleImagePaste.mockClear();
-    mocks.launchRichTextTask.mockClear();
     mocks.registerSourceEditor.mockReset();
     mocks.updateSourceEditorRevision.mockReset();
     mocks.useEditorPageOps.mockReset();

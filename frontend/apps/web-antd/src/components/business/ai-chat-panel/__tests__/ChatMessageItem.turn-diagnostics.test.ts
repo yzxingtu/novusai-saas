@@ -64,12 +64,12 @@ vi.mock('#/utils/request', () => ({
 
 describe('chatMessageItem turn diagnostics', () => {
   function mountMessage(
-    msg: Partial<
-      InstanceType<typeof ChatMessageItem>['$props']['msg']
-    > = {},
+    msg: Partial<InstanceType<typeof ChatMessageItem>['$props']['msg']> = {},
+    props: Partial<InstanceType<typeof ChatMessageItem>['$props']> = {},
   ) {
     return mount(ChatMessageItem, {
       props: {
+        apiPrefix: '/admin',
         index: 0,
         msg: {
           clientKey: 'assistant-turn-diagnostics',
@@ -77,6 +77,7 @@ describe('chatMessageItem turn diagnostics', () => {
           role: 'assistant',
           ...msg,
         },
+        ...props,
       },
       global: {
         stubs: {
@@ -132,7 +133,6 @@ describe('chatMessageItem turn diagnostics', () => {
     expect(rendered).not.toContain(
       'common.globalAiChat.diagnosticTerminationReasonLabel',
     );
-    expect(rendered).not.toContain('interrupted');
     expect(rendered).not.toContain(
       'common.globalAiChat.diagnosticSelectedSkillsLabel',
     );
@@ -219,7 +219,29 @@ describe('chatMessageItem turn diagnostics', () => {
     expect(rendered).not.toContain(
       'common.globalAiChat.diagnosticTurnOutcomeLabel',
     );
-    expect(rendered).not.toContain('failed');
+    expect(rendered).not.toContain(
+      'common.globalAiChat.diagnosticSelectedToolsLabel',
+    );
+    expect(rendered).not.toContain('web_search');
+  });
+
+  it('hides diagnostics outside the admin surface', () => {
+    const wrapper = mountMessage(
+      {
+        requestFailedRetry: true,
+        selectedToolNames: ['web_search'],
+        terminationReason: 'tool_error',
+        turnOutcome: 'failed',
+      },
+      {
+        apiPrefix: '/tenant',
+      },
+    );
+
+    const rendered = wrapper.text();
+    expect(rendered).not.toContain(
+      'common.globalAiChat.diagnosticTurnOutcomeLabel',
+    );
     expect(rendered).not.toContain(
       'common.globalAiChat.diagnosticSelectedToolsLabel',
     );

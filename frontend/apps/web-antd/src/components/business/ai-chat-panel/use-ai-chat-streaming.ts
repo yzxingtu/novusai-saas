@@ -8,6 +8,10 @@ import type {
   InteractionMode,
 } from './types';
 import type { UseAIChatOptions } from './use-ai-chat-options';
+import type {
+  StreamControl,
+  StreamRequestDeps,
+} from './use-ai-chat-streaming-request';
 import type { PendingInteractionUpdate } from './use-ai-chat-streaming-types';
 
 import type {
@@ -23,15 +27,11 @@ import { message } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 
-import { formatLocalizedList } from './display-formatters';
 import { resolveConversationRequestState } from './conversation-binding';
+import { formatLocalizedList } from './display-formatters';
 import { getAgentInputVariables } from './types';
+import { runStreamRequest } from './use-ai-chat-streaming-request';
 import { createAIChatStreamingScroll } from './use-ai-chat-streaming-scroll';
-import {
-  runStreamRequest,
-  type StreamControl,
-  type StreamRequestDeps,
-} from './use-ai-chat-streaming-request';
 
 export type { PendingInteractionUpdate } from './use-ai-chat-streaming-types';
 

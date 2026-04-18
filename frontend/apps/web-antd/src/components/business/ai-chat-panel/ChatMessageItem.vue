@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import type { PendingPageOpForDisplay } from './pending-page-op';
 import type {
   AgentItem,
   ChatMessage,
@@ -6,12 +7,12 @@ import type {
   RichTextAIApplyTarget,
   RichTextDraftRuntimeState,
 } from './types';
-import type { PendingPageOpForDisplay } from './pending-page-op';
+
+import type { TurnFlowState } from '#/components/business/ai-chat-kernel/TurnFlowState';
 
 import ChatMessageItemShell from './ChatMessageItemShell.vue';
 
 defineOptions({ name: 'ChatMessageItem' });
-
 
 const props = withDefaults(
   defineProps<{
@@ -20,6 +21,7 @@ const props = withDefaults(
     compact?: boolean;
     countdownNow?: number;
     index: number;
+    kernelState?: null | TurnFlowState;
     msg: ChatMessage;
     pendingOps?: PendingPageOpForDisplay[];
     richTextState?: null | RichTextDraftRuntimeState;
@@ -31,6 +33,7 @@ const props = withDefaults(
     agents: () => [],
     compact: false,
     countdownNow: undefined,
+    kernelState: null,
     selectedAgent: null,
     showAgentSwitch: false,
     pendingOps: () => [],

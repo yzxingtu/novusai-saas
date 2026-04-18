@@ -82,7 +82,8 @@ const displayName = computed(
   () => form.value.nickname || form.value.username || '-',
 );
 const showUsernameLine = computed(
-  () => Boolean(form.value.username) && displayName.value !== form.value.username,
+  () =>
+    Boolean(form.value.username) && displayName.value !== form.value.username,
 );
 const showSupplementaryInfo = computed(
   () => showUsernameLine.value || Boolean(form.value.email),
@@ -112,10 +113,7 @@ function applyIdentityState(detail?: {
   };
 }
 
-function syncUserStoreProfile(updates: {
-  avatar?: string;
-  realName?: string;
-}) {
+function syncUserStoreProfile(updates: { avatar?: string; realName?: string }) {
   if (!userStore.userInfo) {
     return;
   }

@@ -5,7 +5,7 @@ import { computed, ref } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
-import { Button, Tag, Upload, Spin, message } from 'ant-design-vue';
+import { Button, message, Spin, Tag, Upload } from 'ant-design-vue';
 
 import { smartUploadFile } from '#/api/tenant/attachment';
 import { $t } from '#/locales';
@@ -17,16 +17,20 @@ import {
   getScopeText,
 } from '#/utils/scope-helpers';
 
-import { getExecutionModeText, getStatusColor, getStatusText } from '../../data';
+import {
+  getExecutionModeText,
+  getStatusColor,
+  getStatusText,
+} from '../../data';
 
 const props = defineProps<{
   agent: AgentInfo;
-  isTenantOwned: boolean;
   isRoutingEnabled: boolean;
+  isTenantOwned: boolean;
   onBack: () => void;
-  onOpenVersionHistory: () => void;
-  onOpenAccessConfig: () => void;
   onJumpToRoutingTab: () => void;
+  onOpenAccessConfig: () => void;
+  onOpenVersionHistory: () => void;
   onSaveFields: (fields: Record<string, unknown>) => Promise<void>;
 }>();
 

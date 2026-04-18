@@ -60,7 +60,10 @@ export class LocatorResolver {
     this.fuzzyThreshold = options.fuzzyThreshold ?? 0.7;
   }
 
-  findCandidates(locator: string, limit = this.candidateLimit): LocatorCandidate[] {
+  findCandidates(
+    locator: string,
+    limit = this.candidateLimit,
+  ): LocatorCandidate[] {
     const normalized = normalizeQuery(locator);
     return this.collectCandidates()
       .map((record) => {
@@ -68,12 +71,15 @@ export class LocatorResolver {
         return record;
       })
       .filter((record) => record.candidate.score > 0.25)
-      .sort(compareByScore)
+      .toSorted(compareByScore)
       .slice(0, limit)
       .map((record) => record.candidate);
   }
 
-  resolve(locator: string, options: ResolveLocatorOptions = {}): LocatorResolution {
+  resolve(
+    locator: string,
+    options: ResolveLocatorOptions = {},
+  ): LocatorResolution {
     const query = normalizeText(locator);
     if (!query) {
       throw new LocatorResolutionError(
@@ -100,8 +106,9 @@ export class LocatorResolver {
     }
 
     const fuzzyMatches = this.resolveFuzzy(query);
-    if (fuzzyMatches.length === 1) {
-      return fuzzyMatches[0]!;
+    const firstFuzzyMatch = fuzzyMatches[0];
+    if (fuzzyMatches.length === 1 && firstFuzzyMatch) {
+      return firstFuzzyMatch;
     }
     if (fuzzyMatches.length > 1) {
       throw new LocatorResolutionError(
@@ -124,7 +131,7 @@ export class LocatorResolver {
   resolveOrNull(
     locator: string,
     options: ResolveLocatorOptions = {},
-  ): null | LocatorResolution {
+  ): LocatorResolution | null {
     try {
       return this.resolve(locator, options);
     } catch {
@@ -145,14 +152,14 @@ export class LocatorResolver {
       failOnMultiple?: boolean;
       locatorForError?: string;
     } = {},
-  ): null | LocatorResolution {
+  ): LocatorResolution | null {
     let elements: NodeListOf<HTMLElement>;
     try {
       elements = this.root.querySelectorAll<HTMLElement>(selector);
     } catch {
       return null;
     }
-    const visibleMatches = Array.from(elements).filter(
+    const visibleMatches = [...elements].filter(
       (element) => this.includeHidden || isElementVisible(element),
     );
     if (visibleMatches.length === 0) {
@@ -170,14 +177,17 @@ export class LocatorResolver {
         tAiRuntime('locatorAmbiguous', { locator }),
       );
     }
-    const element = visibleMatches[0]!;
+    const element = visibleMatches[0];
+    if (!element) {
+      return null;
+    }
     return {
       candidate: toCandidateRecord(element).candidate,
       element,
     };
   }
 
-  private resolveExact(locator: string): null | LocatorResolution {
+  private resolveExact(locator: string): LocatorResolution | null {
     if (locator.startsWith('css:')) {
       return this.resolveBySelector(locator.slice(4), {
         failOnMultiple: true,
@@ -191,7 +201,9 @@ export class LocatorResolver {
       });
     }
     if (locator.startsWith('id:')) {
-      return this.resolveBySelector(`#${escapeSelectorValue(locator.slice(3))}`);
+      return this.resolveBySelector(
+        `#${escapeSelectorValue(locator.slice(3))}`,
+      );
     }
     if (locator.startsWith('testid:')) {
       return this.resolveBySelector(
@@ -223,8 +235,9 @@ export class LocatorResolver {
     const matches = this.collectCandidates().filter((record) =>
       record.searchable.has(exactText),
     );
-    if (matches.length === 1) {
-      return matches[0]!;
+    const firstMatch = matches[0];
+    if (matches.length === 1 && firstMatch) {
+      return firstMatch;
     }
     return null;
   }
@@ -237,18 +250,23 @@ export class LocatorResolver {
         return record;
       })
       .filter((record) => record.candidate.score >= this.fuzzyThreshold)
-      .sort(compareByScore);
+      .toSorted(compareByScore);
 
     if (ranked.length === 0) {
       return [];
     }
-    if (ranked.length === 1) {
-      const top = ranked[0]!;
+    const top = ranked[0];
+    if (ranked.length === 1 && top) {
       return [{ candidate: top.candidate, element: top.element }];
     }
 
-    const top = ranked[0]!;
-    const second = ranked[1]!;
+    if (!top) {
+      return [];
+    }
+    const second = ranked[1];
+    if (!second) {
+      return [{ candidate: top.candidate, element: top.element }];
+    }
     if (top.candidate.score - second.candidate.score <= 0.06) {
       return ranked.slice(0, this.candidateLimit).map((record) => ({
         candidate: record.candidate,

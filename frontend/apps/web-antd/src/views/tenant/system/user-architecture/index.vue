@@ -3,6 +3,7 @@ import type { OrganizationTreeSelectOption } from './data';
 
 import type { TenantUserRoleInfo } from '#/api/tenant/tenant-user-roles';
 import type { TenantUserInfo } from '#/api/tenant/tenant-users';
+import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 
 import { computed, h, nextTick, onMounted, ref, watch } from 'vue';
 
@@ -45,15 +46,12 @@ import {
   toggleTenantUserStatusApi,
 } from '#/api/tenant/tenant-users';
 import IdentityDisplay from '#/components/business/identity-display/IdentityDisplay.vue';
-import {
-  buildPageAIFormExtraData,
-} from '#/composables/use-page-ai-operation-helpers';
+import { buildPageAIFormExtraData } from '#/composables/use-page-ai-operation-helpers';
 import { $t } from '#/locales';
 import { usePresenceStore } from '#/store';
 import { formatDate, formatRelativeTime } from '#/utils/common';
 import { showRequestError } from '#/utils/error-helpers';
 import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
-import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 
 import {
   buildOrganizationOptionLabelMap,

@@ -8,11 +8,11 @@ import { Button, InputNumber } from 'ant-design-vue';
 import { $t } from '#/locales';
 
 const props = defineProps<{
-  agent: AgentInfo;
-  saving: boolean;
   active: boolean;
+  agent: AgentInfo;
   isTenantOwned: boolean;
   onSaveFields: (fields: Record<string, unknown>) => Promise<void>;
+  saving: boolean;
 }>();
 
 const quotaConversationsPerDay = ref(0);

@@ -85,6 +85,153 @@ export interface RagSource {
   knowledge_base_name?: null | string;
 }
 
+export type TurnFlowStageType =
+  | 'answer_assembly'
+  | 'completed'
+  | 'failed'
+  | 'retrieval'
+  | 'thinking'
+  | 'tool_execution'
+  | 'tool_selection';
+
+export type TurnFlowStageStatus =
+  | 'completed'
+  | 'error'
+  | 'interrupted'
+  | 'running'
+  | 'skipped';
+
+export interface TurnFlowStage {
+  detailLines?: string[];
+  durationMs?: number;
+  endedAtMs?: number;
+  id: string;
+  metrics?: Record<string, number | string>;
+  sourceRefs?: string[];
+  startedAtMs?: number;
+  status: TurnFlowStageStatus;
+  summary?: string;
+  title?: string;
+  toolCallIds?: string[];
+  type: TurnFlowStageType;
+}
+
+export type TurnFlowEvidenceKind =
+  | 'knowledge_base'
+  | 'memory'
+  | 'page'
+  | 'tool'
+  | 'web';
+
+export interface TurnFlowEvidenceItem {
+  badge?: string;
+  id: string;
+  kind: TurnFlowEvidenceKind;
+  score?: number;
+  snippet?: string;
+  sourceRef?: string;
+  title?: string;
+  toolCallId?: string;
+  url?: string;
+}
+
+export interface TurnFlowAnswerCardSection {
+  body?: string;
+  bullets?: string[];
+  content?: string;
+  id?: string;
+  title?: string;
+}
+
+export interface TurnFlowAnswerCard {
+  confidenceLabel?: string;
+  followUpSuggestions?: string[];
+  sections?: TurnFlowAnswerCardSection[];
+  sourceChipIds?: string[];
+  summary?: string;
+}
+
+export interface TurnFlowErrorSurface {
+  debugMessage?: string;
+  detail?: string;
+  error?: string;
+  errorType?: string;
+  message?: string;
+  reason?: string;
+  summary?: string;
+  traceId?: string;
+}
+
+export interface TurnFlowViewModel {
+  answerCard?: TurnFlowAnswerCard;
+  complete?: boolean;
+  completionReason?: string;
+  evidence: TurnFlowEvidenceItem[];
+  finalStageStatus?: TurnFlowStageStatus;
+  interrupted?: boolean;
+  timeline: TurnFlowStage[];
+  traceId?: string;
+  errorSurface?: TurnFlowErrorSurface;
+}
+
+export interface TurnFlowStagePayload extends Partial<TurnFlowStage> {
+  detail_lines?: string[];
+  duration_ms?: number;
+  ended_at_ms?: number;
+  source_refs?: string[];
+  stage_id?: string;
+  stage_type?: TurnFlowStageType;
+  started_at_ms?: number;
+  tool_call_ids?: string[];
+}
+
+export interface TurnFlowEvidenceItemPayload extends Partial<TurnFlowEvidenceItem> {
+  source_ref?: string;
+  tool_call_id?: string;
+}
+
+export type TurnFlowAnswerCardSectionPayload =
+  Partial<TurnFlowAnswerCardSection>;
+
+export interface TurnFlowAnswerCardPayload {
+  confidence_label?: string;
+  follow_up_suggestions?: string[];
+  confidenceLabel?: string;
+  followUpSuggestions?: string[];
+  sections?: Array<string | TurnFlowAnswerCardSectionPayload>;
+  source_chip_ids?: string[];
+  sourceChipIds?: string[];
+  summary?: string;
+}
+
+export interface TurnFlowErrorSurfacePayload extends Partial<TurnFlowErrorSurface> {
+  debug_message?: string;
+  error_type?: string;
+  trace_id?: string;
+}
+
+export interface TurnFlowViewPayload extends Partial<
+  Omit<
+    TurnFlowViewModel,
+    'answerCard' | 'errorSurface' | 'evidence' | 'timeline'
+  >
+> {
+  answerCard?: null | TurnFlowAnswerCardPayload;
+  answer_card?: null | TurnFlowAnswerCardPayload;
+  completion_reason?: string;
+  errorSurface?: null | TurnFlowErrorSurfacePayload;
+  error_surface?: null | TurnFlowErrorSurfacePayload;
+  evidence?: TurnFlowEvidenceItemPayload[];
+  failure_kind?: string;
+  final_stage_status?: TurnFlowStageStatus;
+  sources?: TurnFlowEvidenceItemPayload[];
+  stages?: TurnFlowStagePayload[];
+  timeline?: TurnFlowStagePayload[];
+  trace_id?: string;
+  turn_flow_complete?: boolean;
+  turn_outcome?: string;
+}
+
 export interface ChatAttachment {
   attachment_id?: number;
   type: 'audio' | 'file' | 'image' | 'video';
@@ -239,6 +386,8 @@ export interface ChatMessage {
   content: string;
   /** Streaming thinking/reasoning content shown separately from final answer / 与最终答复分开展示的思考内容 */
   thinkingContent?: string;
+  /** Unified turn flow read-model used by timeline/evidence UI / 统一轮次流程读模型 */
+  turnFlow?: TurnFlowViewPayload;
   streaming?: boolean;
   tokenUsage?: number;
   durationMs?: number;

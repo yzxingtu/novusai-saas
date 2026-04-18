@@ -13,7 +13,9 @@ interface UsePanelComposerOptions {
   agentKBBindings: Ref<ChatKBBindingInfo[]>;
   inputMessage: Ref<string>;
   mentionActiveIndex: Ref<number>;
-  mentionCandidates: ComputedRef<MentionCandidate[]> | Readonly<Ref<MentionCandidate[]>>;
+  mentionCandidates:
+    | ComputedRef<MentionCandidate[]>
+    | Readonly<Ref<MentionCandidate[]>>;
   pendingAttachments: Ref<ChatAttachment[]>;
   routing: Ref<boolean>;
   selectedKBIds: Ref<number[]>;
@@ -92,8 +94,7 @@ export function usePanelComposer(options: UsePanelComposerOptions) {
   );
 
   const composerAttachmentLimitHint = computed(() =>
-    options.showAttachments.value &&
-    options.pendingAttachments.value.length > 0
+    options.showAttachments.value && options.pendingAttachments.value.length > 0
       ? $t('common.globalAiChat.attachmentCount', {
           count: options.pendingAttachments.value.length,
           max: 5,

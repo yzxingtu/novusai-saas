@@ -1,12 +1,13 @@
 <script lang="ts" setup>
 import type { VNodeRef } from 'vue';
 
+import type { RateLimitFormExposed } from './composables/use-ai-quota-page';
+
 import { Page } from '@vben/common-ui';
 
 import { Card } from 'ant-design-vue';
 
 import { useAIQuotaPage } from './composables/use-ai-quota-page';
-import type { RateLimitFormExposed } from './composables/use-ai-quota-page';
 import QuotaPageContent from './modules/QuotaPageContent.vue';
 import QuotaPageFilters from './modules/QuotaPageFilters.vue';
 import QuotaPageSummary from './modules/QuotaPageSummary.vue';

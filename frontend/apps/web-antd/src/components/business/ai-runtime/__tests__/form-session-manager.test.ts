@@ -1,11 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  FormSessionManager,
-  inferFormMode,
-} from '../form-session-manager';
 import { createAntdFormSessionInput } from '../component-adapters/antd-form';
 import { createVbenFormSessionInput } from '../component-adapters/vben-form';
+import { FormSessionManager, inferFormMode } from '../form-session-manager';
 
 describe('form-session-manager', () => {
   it('infers create mode from URL first', () => {
@@ -126,13 +123,36 @@ describe('form-session-manager', () => {
       fields: [{ name: 'title', value: 'B' }],
     });
 
-    expect(manager.getActiveSession()?.form_session_id).toBe(second.form_session_id);
+    expect(manager.getActiveSession()?.form_session_id).toBe(
+      second.form_session_id,
+    );
     expect(manager.getActiveSession('surface-A')?.form_session_id).toBe(
       first.form_session_id,
     );
-    expect(manager.getActiveFieldDescriptors('surface-A').map((f) => f.name)).toEqual(
-      ['name'],
-    );
+    expect(
+      manager.getActiveFieldDescriptors('surface-A').map((f) => f.name),
+    ).toEqual(['name']);
     expect(manager.getFieldDescriptor('session-B', 'title')?.value).toBe('B');
+  });
+
+  it('returns page-aware session summaries without field payloads', () => {
+    const manager = new FormSessionManager();
+
+    manager.upsertSession({
+      form_session_id: 'session-summary',
+      surface_id: 'surface-summary',
+      page_key: 'admin.ai.agents',
+      current_url: '/admin/ai/agents/create',
+      fields: [{ name: 'name', value: 'Agent A' }],
+    });
+
+    expect(manager.getSessionSummary('session-summary')).toMatchObject({
+      current_url: '/admin/ai/agents/create',
+      form_session_id: 'session-summary',
+      page_key: 'admin.ai.agents',
+      surface_id: 'surface-summary',
+    });
+    expect(manager.listSessionSummaries()).toHaveLength(1);
+    expect(manager.listSessionSummaries()[0]).not.toHaveProperty('fields');
   });
 });

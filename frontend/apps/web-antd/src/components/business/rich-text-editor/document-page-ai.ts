@@ -1,13 +1,13 @@
 import type { MaybeRefOrGetter } from 'vue';
 
-import type { RichTextRuntimeOperation } from './ai/runtime-operation-types';
+import type { RichTextPageAIOperation } from './ai/editor-page-ai-operations';
 
 import { toValue } from 'vue';
 
 import {
-  registerRichTextRuntimeProvider,
-  waitForRichTextRuntimeOperation,
-} from './ai/runtime-adapter-registry';
+  registerRichTextPageAIExposure,
+  waitForRichTextPageAIOperation,
+} from './ai/editor-page-ai-exposure';
 import { normalizeRuntimePageKey } from './ai/page-key';
 
 export interface RegisterRichTextDocumentPageAIOptions {
@@ -24,7 +24,7 @@ export interface RegisterRichTextDocumentPageAIOptions {
   entityDescriptionAppend?: MaybeRefOrGetter<string | undefined>;
   excerptLength?: number;
   extraData?: MaybeRefOrGetter<Record<string, unknown> | undefined>;
-  operations?: MaybeRefOrGetter<RichTextRuntimeOperation[] | undefined>;
+  operations?: MaybeRefOrGetter<RichTextPageAIOperation[] | undefined>;
   pageKey: MaybeRefOrGetter<string>;
   saving?: MaybeRefOrGetter<boolean | null | undefined>;
   wordCount?: MaybeRefOrGetter<null | number | undefined>;
@@ -51,7 +51,7 @@ export function registerRichTextDocumentPageAI(
   }
 
   const providerId = `rich-text-document:${pageKey}:${Math.random().toString(36).slice(2, 10)}`;
-  return registerRichTextRuntimeProvider({
+  return registerRichTextPageAIExposure({
     providerId,
     pageKey,
     priority: 40,
@@ -106,7 +106,7 @@ export async function waitForRichTextEditorOperations(
   pageKey: string,
   options: WaitForRichTextEditorOperationsOptions = {},
 ): Promise<boolean> {
-  return waitForRichTextRuntimeOperation(normalizeRuntimePageKey(pageKey), {
+  return waitForRichTextPageAIOperation(normalizeRuntimePageKey(pageKey), {
     operationName: options.operationName ?? DEFAULT_EDITOR_OPERATION_NAME,
     pollMs: options.pollMs ?? DEFAULT_POLL_MS,
     timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,

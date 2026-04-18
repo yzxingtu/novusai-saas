@@ -43,6 +43,6 @@ export class UIEpochManager {
 
   reset(value = 0): void {
     this.epoch = Math.max(0, value);
-    this.records.splice(0, this.records.length);
+    this.records.splice(0);
   }
 }

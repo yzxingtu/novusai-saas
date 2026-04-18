@@ -33,14 +33,18 @@ test.describe('Admin Organization smoke', () => {
       page.getByRole('button', { name: '添加已有账号' }),
     ).toHaveCount(0);
 
-    const identityTrigger = page.locator('.member-panel .identity-profile-trigger').first();
+    const identityTrigger = page
+      .locator('.member-panel .identity-profile-trigger')
+      .first();
     if ((await identityTrigger.count()) > 0) {
       await identityTrigger.hover();
       await expect(
         page.locator('.identity-summary-card[data-mode="quick"]').first(),
       ).toBeVisible();
       await identityTrigger.click();
-      await expect(page.locator('.ant-drawer [data-section="overview"]')).toBeVisible();
+      await expect(
+        page.locator('.ant-drawer [data-section="overview"]'),
+      ).toBeVisible();
     }
 
     expect(consoleErrors).toEqual([]);
@@ -73,14 +77,18 @@ test.describe('Tenant Organization smoke', () => {
       page.getByRole('button', { name: '添加已有账号' }),
     ).toHaveCount(0);
 
-    const identityTrigger = page.locator('.member-panel .identity-profile-trigger').first();
+    const identityTrigger = page
+      .locator('.member-panel .identity-profile-trigger')
+      .first();
     if ((await identityTrigger.count()) > 0) {
       await identityTrigger.hover();
       await expect(
         page.locator('.identity-summary-card[data-mode="quick"]').first(),
       ).toBeVisible();
       await identityTrigger.click();
-      await expect(page.locator('.ant-drawer [data-section="overview"]')).toBeVisible();
+      await expect(
+        page.locator('.ant-drawer [data-section="overview"]'),
+      ).toBeVisible();
     }
 
     expect(consoleErrors).toEqual([]);

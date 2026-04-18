@@ -1,6 +1,7 @@
 import type { ComputedRef, Ref } from 'vue';
 
 import type { DetailTabKey, PayloadEntry } from './action-log-detail-helpers';
+
 import type {
   AdminActionLogDetail,
   AdminActionLogItem,

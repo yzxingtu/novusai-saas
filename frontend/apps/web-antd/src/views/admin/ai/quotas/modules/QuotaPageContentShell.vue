@@ -7,12 +7,10 @@ import type {
   AIRateLimitInfo,
 } from '#/api/admin/ai';
 
-import {
-  TabPane,
-  Tabs,
-} from 'ant-design-vue';
+import { TabPane, Tabs } from 'ant-design-vue';
 
 import { $t } from '#/locales';
+
 import QuotaPageQuotaPanel from './QuotaPageQuotaPanel.vue';
 import QuotaPageRateLimitPanel from './QuotaPageRateLimitPanel.vue';
 
@@ -39,7 +37,7 @@ const props = defineProps<{
   rateLimitTotal: number;
 }>();
 
-function handleTabChange(tab: string | number) {
+function handleTabChange(tab: number | string) {
   props.onTabChange(String(tab));
 }
 </script>

@@ -11,6 +11,7 @@ export type PublicWebSearchProvider = 'baidu' | 'so360';
 
 export interface ProviderWebSearchConfigWithAdvancedFields extends ProviderWebSearchConfig {
   allow_unverified_runtime_target?: boolean;
+  prefer_hosted_tool?: boolean;
   verified_native_target?: null | ProviderWebSearchVerifiedTarget;
 }
 
@@ -158,6 +159,13 @@ function mergeProviderWebSearchAdvancedFields(
     merged.allow_unverified_runtime_target = allowUnverified;
   }
 
+  const preferHostedTool = readOptionalBoolean(
+    (source as Record<string, unknown>).prefer_hosted_tool,
+  );
+  if (preferHostedTool !== undefined) {
+    merged.prefer_hosted_tool = preferHostedTool;
+  }
+
   const verifiedTarget = normalizeVerifiedNativeTarget(
     (source as Record<string, unknown>).verified_native_target,
   );
@@ -259,6 +267,7 @@ export function buildProviderWebSearchConfigFromForm(
     },
     hasExplicitAdvancedFields
       ? {
+          ...existingConfig,
           allow_unverified_runtime_target: allowUnverifiedFromForm ?? false,
           verified_native_target: verifiedTargetFromForm,
         }

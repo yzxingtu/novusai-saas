@@ -39,7 +39,7 @@ export function toAbsoluteApiUrl(url: null | string | undefined): string {
 
   if (normalized.startsWith('//')) {
     const protocol =
-      typeof window !== 'undefined' ? window.location.protocol : 'http:';
+      typeof window === 'undefined' ? 'http:' : window.location.protocol;
     return `${protocol}${normalized}`;
   }
 

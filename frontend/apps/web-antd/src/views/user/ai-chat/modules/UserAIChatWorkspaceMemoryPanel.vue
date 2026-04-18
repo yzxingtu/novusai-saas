@@ -51,7 +51,9 @@ const memorySections = computed(() =>
       class="shrink-0 border-b border-border/30 bg-muted/5 px-4 py-3"
     >
       <div class="mb-2.5 flex items-center justify-between">
-        <div class="flex items-center gap-1.5 text-xs font-medium text-foreground">
+        <div
+          class="flex items-center gap-1.5 text-xs font-medium text-foreground"
+        >
           <IconifyIcon icon="lucide:brain" class="size-3.5 text-primary" />
           {{ $t('common.globalAiChat.memoryUpdated') }}
         </div>
@@ -97,7 +99,9 @@ const memorySections = computed(() =>
               :key="index"
               class="flex items-start gap-1.5 pl-1"
             >
-              <span class="mt-1.5 size-1 shrink-0 rounded-full bg-primary/40"></span>
+              <span
+                class="mt-1.5 size-1 shrink-0 rounded-full bg-primary/40"
+              ></span>
               {{ item }}
             </li>
           </ul>

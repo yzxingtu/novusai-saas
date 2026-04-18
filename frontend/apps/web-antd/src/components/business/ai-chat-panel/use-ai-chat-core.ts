@@ -14,6 +14,7 @@ import type { PendingInteractionUpdate } from './use-ai-chat-streaming';
 import type { PageContext, RawMessageItem } from '#/api/shared/ai-chat';
 
 import { computed, ref, watch } from 'vue';
+
 import { useFileUpload } from '#/composables/use-file-upload';
 import { useSocketIOStore } from '#/store';
 import { useAIPanelStore } from '#/store/shared/ai-panel';
@@ -50,8 +51,8 @@ export function useAIChat(options: UseAIChatOptions) {
       socketIOStore,
     });
 
-  const interactionMode = ref<InteractionMode>('confirm');
-  const interactionModeEffective = ref<InteractionMode>('confirm');
+  const interactionMode = ref<InteractionMode>('trusted_auto');
+  const interactionModeEffective = ref<InteractionMode>('trusted_auto');
 
   watch(
     interactionMode,

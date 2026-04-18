@@ -120,7 +120,9 @@ function resolveMonitoringDisplayRoleName(
       (source as MonitoringActorRoleSource).display_role_name,
     );
   }
-  if (Object.prototype.hasOwnProperty.call(source, 'caller_display_role_name')) {
+  if (
+    Object.prototype.hasOwnProperty.call(source, 'caller_display_role_name')
+  ) {
     return normalizeText(
       (
         source as Pick<
@@ -143,13 +145,17 @@ function resolveMonitoringDisplayRoleName(
   );
 }
 
-function resolveCallerUsername(source: MonitoringCallerIdentitySource): string | undefined {
-  if (normalizeText(source.caller_display_name) || normalizeText(source.caller_nickname)) {
+function resolveCallerUsername(
+  source: MonitoringCallerIdentitySource,
+): string | undefined {
+  if (
+    normalizeText(source.caller_display_name) ||
+    normalizeText(source.caller_nickname)
+  ) {
     return normalizeText(source.caller_username);
   }
   return (
-    normalizeText(source.caller_username) ||
-    normalizeText(source.caller_name)
+    normalizeText(source.caller_username) || normalizeText(source.caller_name)
   );
 }
 

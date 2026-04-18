@@ -1,18 +1,4 @@
-import {
-  LocatorResolutionError,
-  LocatorResolver,
-  type LocatorCandidate,
-} from './locator-resolver';
-import {
-  buildDiff,
-  DEFAULT_WAIT_TIMEOUT_MS,
-  defaultPageKeyResolver,
-  shouldForceChanged,
-  snapshotUIState,
-} from './ui-action-executor-support';
-import { tAiRuntime, tAiRuntimeSurfaceKind } from './i18n';
-import { evaluateAIActionSecurity } from './security-policy';
-
+import type { LocatorCandidate } from './locator-resolver';
 import type {
   UIActionDiff,
   UIActionExecutionResult,
@@ -20,6 +6,18 @@ import type {
   UIActionInvokePayload,
   UIStateSnapshot,
 } from './ui-action-executor-contracts';
+
+import { tAiRuntime, tAiRuntimeSurfaceKind } from './i18n';
+import { LocatorResolutionError, LocatorResolver } from './locator-resolver';
+import { getCurrentRouteSecurityPolicy } from './runtime-bridge-core';
+import { evaluateAIActionSecurity } from './security-policy';
+import {
+  buildDiff,
+  DEFAULT_WAIT_TIMEOUT_MS,
+  defaultPageKeyResolver,
+  shouldForceChanged,
+  snapshotUIState,
+} from './ui-action-executor-support';
 
 export type {
   UIActionDiff,
@@ -50,7 +48,9 @@ export class UIActionExecutor {
       options.locatorResolver ?? new LocatorResolver(options.locatorOptions);
   }
 
-  async execute(action: UIActionInvokePayload): Promise<UIActionExecutionResult> {
+  async execute(
+    action: UIActionInvokePayload,
+  ): Promise<UIActionExecutionResult> {
     const before = this.snapshot();
     try {
       if (action.action_type === 'ui_click') {
@@ -65,7 +65,9 @@ export class UIActionExecutor {
           actionType: action.action_type,
         }),
         error_type: 'invalid_action_type',
-        message: tAiRuntime('actionExecutionFailed'),
+        message: tAiRuntime('unsupportedActionType', {
+          actionType: action.action_type,
+        }),
         success: false,
       };
     } catch (error) {
@@ -78,15 +80,16 @@ export class UIActionExecutor {
           diff: this.buildDiff(before, this.snapshot(), false),
           error: error.message,
           error_type: error.code,
-          message: tAiRuntime('actionExecutionFailed'),
+          message: error.message,
           success: false,
         };
       }
+      const message = error instanceof Error ? error.message : String(error);
       return {
         diff: this.buildDiff(before, this.snapshot(), false),
-        error: error instanceof Error ? error.message : String(error),
+        error: message,
         error_type: 'internal_error',
-        message: tAiRuntime('actionExecutionFailed'),
+        message,
         success: false,
       };
     }
@@ -106,10 +109,9 @@ export class UIActionExecutor {
   }
 
   private clickElement(element: HTMLElement): void {
-    const clickTarget =
-      element.matches('.ant-pagination-item')
-        ? (element.querySelector('a,button') as HTMLElement | null) || element
-        : element;
+    const clickTarget = element.matches('.ant-pagination-item')
+      ? (element.querySelector('a,button') as HTMLElement | null) || element
+      : element;
     clickTarget.click();
   }
 
@@ -117,13 +119,16 @@ export class UIActionExecutor {
     action: UIActionInvokePayload,
     before: UIStateSnapshot,
   ): Promise<UIActionExecutionResult> {
-    const locator = String(action.target_locator || '').replaceAll(/\s+/g, ' ').trim();
+    const locator = String(action.target_locator || '')
+      .replaceAll(/\s+/g, ' ')
+      .trim();
     if (!locator) {
+      const message = tAiRuntime('uiClickRequiresTargetLocator');
       return {
         diff: this.buildDiff(before, before, false),
-        error: tAiRuntime('uiClickRequiresTargetLocator'),
+        error: message,
         error_type: 'invalid_input',
-        message: tAiRuntime('actionExecutionFailed'),
+        message,
         success: false,
       };
     }
@@ -131,12 +136,13 @@ export class UIActionExecutor {
     const resolved = this.locatorResolver.resolve(locator);
     if (resolved.candidate.disabled) {
       const target = resolved.candidate.label || locator;
+      const message = tAiRuntime('targetDisabled', { target });
       return {
         data: { candidates: [resolved.candidate] satisfies LocatorCandidate[] },
         diff: this.buildDiff(before, before, false),
-        error: tAiRuntime('targetDisabled', { target }),
+        error: message,
         error_type: 'element_disabled',
-        message: tAiRuntime('actionExecutionFailed'),
+        message,
         success: false,
       };
     }
@@ -144,24 +150,27 @@ export class UIActionExecutor {
     const security = evaluateAIActionSecurity({
       actionKind: 'ui_click',
       element: resolved.element,
+      routePolicy: getCurrentRouteSecurityPolicy(),
     });
     if (!security.allowed) {
       const target = resolved.candidate.label || locator;
+      const message = tAiRuntime('targetBlockedByPolicy', { target });
       return {
         diff: this.buildDiff(before, before, false),
-        error: tAiRuntime('targetBlockedByPolicy', { target }),
+        error: message,
         error_type: security.reason || 'policy_blocked',
-        message: tAiRuntime('actionExecutionFailed'),
+        message,
         success: false,
       };
     }
     if (security.requireConfirm && !action.confirm) {
       const target = resolved.candidate.label || locator;
+      const message = tAiRuntime('targetRequiresConfirmation', { target });
       return {
         diff: this.buildDiff(before, before, false),
-        error: tAiRuntime('targetRequiresConfirmation', { target }),
+        error: message,
         error_type: 'confirmation_required',
-        message: tAiRuntime('actionExecutionFailed'),
+        message,
         success: false,
       };
     }
@@ -202,11 +211,12 @@ export class UIActionExecutor {
       locator = `text:${surface.title}`;
     }
     if (!locator) {
+      const message = tAiRuntime('uiOpenSurfaceRequiresLocator');
       return {
         diff: this.buildDiff(before, before, false),
-        error: tAiRuntime('uiOpenSurfaceRequiresLocator'),
+        error: message,
         error_type: 'invalid_input',
-        message: tAiRuntime('actionExecutionFailed'),
+        message,
         success: false,
       };
     }
@@ -214,11 +224,12 @@ export class UIActionExecutor {
     const resolved = this.locatorResolver.resolve(locator);
     if (resolved.candidate.disabled) {
       const target = resolved.candidate.label || locator;
+      const message = tAiRuntime('targetDisabled', { target });
       return {
         diff: this.buildDiff(before, before, false),
-        error: tAiRuntime('targetDisabled', { target }),
+        error: message,
         error_type: 'element_disabled',
-        message: tAiRuntime('actionExecutionFailed'),
+        message,
         success: false,
       };
     }
@@ -226,24 +237,27 @@ export class UIActionExecutor {
     const security = evaluateAIActionSecurity({
       actionKind: 'ui_open_surface',
       element: resolved.element,
+      routePolicy: getCurrentRouteSecurityPolicy(),
     });
     if (!security.allowed) {
       const target = resolved.candidate.label || locator;
+      const message = tAiRuntime('targetBlockedByPolicy', { target });
       return {
         diff: this.buildDiff(before, before, false),
-        error: tAiRuntime('targetBlockedByPolicy', { target }),
+        error: message,
         error_type: security.reason || 'policy_blocked',
-        message: tAiRuntime('actionExecutionFailed'),
+        message,
         success: false,
       };
     }
     if (security.requireConfirm && !action.confirm) {
       const target = resolved.candidate.label || locator;
+      const message = tAiRuntime('targetRequiresConfirmation', { target });
       return {
         diff: this.buildDiff(before, before, false),
-        error: tAiRuntime('targetRequiresConfirmation', { target }),
+        error: message,
         error_type: 'confirmation_required',
-        message: tAiRuntime('actionExecutionFailed'),
+        message,
         success: false,
       };
     }
@@ -259,16 +273,17 @@ export class UIActionExecutor {
       ? added.some((item) => item.kind === requestedKind)
       : added.length > 0;
     if (!kindMatched) {
+      const message = requestedKind
+        ? tAiRuntime('noNewRequestedSurfaceDetected', {
+            kind: tAiRuntimeSurfaceKind(requestedKind),
+            locator,
+          })
+        : tAiRuntime('noNewSurfaceDetected', { locator });
       return {
         diff,
-        error: requestedKind
-          ? tAiRuntime('noNewRequestedSurfaceDetected', {
-              kind: tAiRuntimeSurfaceKind(requestedKind),
-              locator,
-            })
-          : tAiRuntime('noNewSurfaceDetected', { locator }),
+        error: message,
         error_type: 'surface_not_opened',
-        message: tAiRuntime('actionExecutionFailed'),
+        message,
         success: false,
       };
     }

@@ -1,5 +1,8 @@
 <script lang="ts" setup>
-import type { AIRateLimitDiagnosticInfo, AIRateLimitInfo } from '#/api/admin/ai';
+import type {
+  AIRateLimitDiagnosticInfo,
+  AIRateLimitInfo,
+} from '#/api/admin/ai';
 
 import { IconifyIcon } from '@vben/icons';
 
@@ -75,10 +78,7 @@ function progressStatus(isExceeded: boolean, isWarning: boolean) {
               <div
                 class="flex size-10 items-center justify-center rounded-2xl bg-success/10"
               >
-                <IconifyIcon
-                  icon="lucide:timer"
-                  class="size-5 text-success"
-                />
+                <IconifyIcon icon="lucide:timer" class="size-5 text-success" />
               </div>
               <div class="min-w-0">
                 <div class="truncate text-base font-semibold text-foreground">

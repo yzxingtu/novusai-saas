@@ -1,17 +1,17 @@
 import type { Ref } from 'vue';
 
 import type {
-  ConversationDetailResponse,
-  RawMessageItem,
-} from '#/api/shared/ai-chat';
-
-import type {
   AgentItem,
   ChatMessage,
   ConversationItem,
   InteractionMode,
 } from './types';
 import type { UseAIChatOptions } from './use-ai-chat-options';
+
+import type {
+  ConversationDetailResponse,
+  RawMessageItem,
+} from '#/api/shared/ai-chat';
 
 import { ref, unref } from 'vue';
 
@@ -185,7 +185,7 @@ export function useAIChatConversations(deps: UseAIChatConversationsDeps) {
       null;
     lastMemoryUpdated.value = mergedMessages.some((m) => m.memoryUpdated);
     const nextInteractionModeEffective =
-      res.interaction_mode_effective ?? 'confirm';
+      res.interaction_mode_effective ?? 'trusted_auto';
     interactionMode.value =
       res.interaction_mode_requested ?? nextInteractionModeEffective;
     interactionModeEffective.value = nextInteractionModeEffective;

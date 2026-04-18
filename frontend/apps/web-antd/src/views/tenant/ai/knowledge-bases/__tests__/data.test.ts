@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { isTenantOwnedKnowledgeBase } from '../data';
+
 vi.mock('#/adapter/form', () => ({
   inputField: vi.fn(),
   numberField: vi.fn(),
@@ -16,8 +18,6 @@ vi.mock('#/api/tenant/ai', () => ({
 vi.mock('#/locales', () => ({
   $t: (key: string) => key,
 }));
-
-import { isTenantOwnedKnowledgeBase } from '../data';
 
 describe('tenant knowledge base ownership helper', () => {
   it('treats tenant-owned knowledge bases as manageable', () => {

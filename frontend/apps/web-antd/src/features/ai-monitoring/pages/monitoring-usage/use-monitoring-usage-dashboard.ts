@@ -13,11 +13,7 @@ import dayjs from 'dayjs';
 import { $t } from '#/locales';
 
 import { getMonitoringUsageDashboard } from '../../api';
-import {
-  formatCost,
-  formatNumber,
-  formatPercent,
-} from './formatters';
+import { formatCost, formatNumber, formatPercent } from './formatters';
 
 type DateRange = [Dayjs, Dayjs];
 
@@ -70,7 +66,9 @@ export function useMonitoringUsageDashboard(options: UsageDashboardOptions) {
   ]);
 
   const totalCalls = computed(() => dashboard.value?.summary.total_calls ?? 0);
-  const totalTokens = computed(() => dashboard.value?.summary.total_tokens ?? 0);
+  const totalTokens = computed(
+    () => dashboard.value?.summary.total_tokens ?? 0,
+  );
   const totalCost = computed(() => dashboard.value?.summary.total_cost ?? 0);
   const averageTokensPerCall = computed(() => {
     if (!totalCalls.value) {
@@ -85,7 +83,9 @@ export function useMonitoringUsageDashboard(options: UsageDashboardOptions) {
   );
 
   const activePresetLabel = computed(() => {
-    const matched = presets.value.find((preset) => isPresetActive(preset.value));
+    const matched = presets.value.find((preset) =>
+      isPresetActive(preset.value),
+    );
     return matched?.label ?? $t(`${options.i18nPrefix}.snapshot.customRange`);
   });
 
@@ -109,10 +109,11 @@ export function useMonitoringUsageDashboard(options: UsageDashboardOptions) {
   );
   const busiestDay = computed(() => {
     const daily = dashboard.value?.daily_stats ?? [];
-    if (daily.length === 0) {
+    const firstDay = daily[0];
+    if (!firstDay) {
       return null;
     }
-    let busiest = daily[0]!;
+    let busiest = firstDay;
     for (const item of daily.slice(1)) {
       if (item.call_count > busiest.call_count) {
         busiest = item;

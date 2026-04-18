@@ -355,12 +355,6 @@
     "skillPackageBindings": "技能包绑定",
     "availablePackages": "可用技能包",
     "packageUnavailable": "技能包 #{id} 已停用或不可用",
-    "consentMode": "工具授权模式",
-    "consentModeOptions": {
-      "auto": "自动执行",
-      "ask": "需要确认",
-      "reject": "禁止执行"
-    },
     "skillCount": "技能包",
     "hasWelcomeMessage": "已配置开场白",
     "sharedPackageTag": "平台共享",

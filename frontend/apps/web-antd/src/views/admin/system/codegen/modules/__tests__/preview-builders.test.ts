@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { buildGridColumns, getMockCellValue } from '../preview-builders';
+
 vi.mock('#/locales', () => ({
   $t: (key: string) => key,
 }));
@@ -17,8 +19,6 @@ vi.mock('#/adapter/vxe-table', () => ({
   dragColumn: { field: '__drag__' },
   seqColumn: { field: '__seq__' },
 }));
-
-import { buildGridColumns, getMockCellValue } from '../preview-builders';
 
 describe('preview builders', () => {
   it('falls back to non-list-visible fields when all are hidden', () => {

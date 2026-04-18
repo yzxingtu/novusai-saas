@@ -87,7 +87,7 @@ function normalizeText(value: unknown, maxLength: number): string | undefined {
   if (typeof value !== 'string') {
     return undefined;
   }
-  const normalized = value.replace(/\s+/g, ' ').trim();
+  const normalized = value.replaceAll(/\s+/g, ' ').trim();
   if (!normalized) {
     return undefined;
   }
@@ -148,7 +148,7 @@ function normalizeFormSessions(
       remaining_required_fields: Array.isArray(form.remaining_required_fields)
         ? form.remaining_required_fields
             .map((field) => normalizeText(field, 128))
-            .filter((field): field is string => Boolean(field))
+            .filter((field): field is string => typeof field === 'string')
             .slice(0, 32)
         : [],
     });
@@ -178,8 +178,7 @@ function normalizeNodes(
       ? options.compactNodeLimit
       : options.compactNodeLimit * 2;
 
-  for (let index = 0; index < nodes.length; index++) {
-    const node = nodes[index];
+  for (const [index, node] of nodes.entries()) {
     if (!node) {
       continue;
     }
@@ -220,15 +219,17 @@ function normalizeNodes(
 }
 
 function estimateInteractables(nodes: UISnapshotNode[]): number {
-  return nodes.reduce((count, node) => {
+  let count = 0;
+  for (const node of nodes) {
     if (node.interactable) {
-      return count + 1;
+      count += 1;
+      continue;
     }
     if (['button', 'input', 'link', 'select', 'switch'].includes(node.kind)) {
-      return count + 1;
+      count += 1;
     }
-    return count;
-  }, 0);
+  }
+  return count;
 }
 
 function compactByBudget(
@@ -283,6 +284,27 @@ export class UISnapshotGenerator {
     };
   }
 
+  buildThinPageContext(args: {
+    locale?: string;
+    pageKey: string;
+    pageSessionId?: string;
+    pageTitle?: string;
+    snapshot: UISnapshot;
+  }): PageContext {
+    return {
+      active_form_session_id: args.snapshot.active_form_session_id,
+      active_form_summary: args.snapshot.active_form_summary,
+      active_surface_id: args.snapshot.active_surface_id,
+      locale: args.locale,
+      page_key: args.pageKey,
+      page_session_id: args.pageSessionId,
+      page_title: args.pageTitle,
+      suggested_tools: args.snapshot.suggested_tools,
+      surface_stack: args.snapshot.surface_stack,
+      ui_epoch: args.snapshot.ui_epoch,
+    };
+  }
+
   generateSnapshot(
     input: UISnapshotInput,
     mode: UISnapshotMode = 'compact',
@@ -313,7 +335,7 @@ export class UISnapshotGenerator {
             )
               ? input.active_form_summary.remaining_required_fields
                   .map((field) => normalizeText(field, 128))
-                  .filter((field): field is string => Boolean(field))
+                  .filter((field): field is string => typeof field === 'string')
                   .slice(0, 32)
               : [],
           }
@@ -338,27 +360,6 @@ export class UISnapshotGenerator {
     return {
       ...budgeted,
       size_bytes: byteSize(budgeted),
-    };
-  }
-
-  buildThinPageContext(args: {
-    locale?: string;
-    pageKey: string;
-    pageSessionId?: string;
-    pageTitle?: string;
-    snapshot: UISnapshot;
-  }): PageContext {
-    return {
-      active_form_session_id: args.snapshot.active_form_session_id,
-      active_form_summary: args.snapshot.active_form_summary,
-      active_surface_id: args.snapshot.active_surface_id,
-      locale: args.locale,
-      page_key: args.pageKey,
-      page_session_id: args.pageSessionId,
-      page_title: args.pageTitle,
-      suggested_tools: args.snapshot.suggested_tools,
-      surface_stack: args.snapshot.surface_stack,
-      ui_epoch: args.snapshot.ui_epoch,
     };
   }
 }

@@ -193,7 +193,6 @@ function onCopy(text: string) {
   copyToClipboard(text);
   message.success($t('common.copied'));
 }
-
 </script>
 
 <template>

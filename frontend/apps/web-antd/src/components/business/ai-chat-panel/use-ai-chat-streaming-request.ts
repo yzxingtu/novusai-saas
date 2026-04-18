@@ -143,7 +143,7 @@ export async function runStreamRequest(
       } as AppErrorInfo;
       message.warning(reconnectError.message);
       lifecycle.applyAssistantError(reconnectError);
-      lifecycle.finalizeMessage();
+      lifecycle.terminalizeMessage();
       return;
     }
 
@@ -178,7 +178,6 @@ export async function runStreamRequest(
         : {}),
       ...(pageContext ? { page_context: pageContext } : {}),
       ...(routeSource ? { route_source: routeSource } : {}),
-      interaction_mode: interactionMode.value,
       ...(options.pageSessionIdGetter
         ? { page_session_id: options.pageSessionIdGetter() || null }
         : {}),
@@ -211,7 +210,7 @@ export async function runStreamRequest(
           lifecycle.shouldSyncInterruptedConversation ||
           lifecycle.hasReceivedStreamPayload;
         lifecycle.applyAssistantError(appError);
-        lifecycle.finalizeMessage();
+        lifecycle.terminalizeMessage();
       },
     });
   } catch (error: unknown) {
@@ -233,7 +232,7 @@ export async function runStreamRequest(
       'AbortError'
     ) {
       lifecycle.applyAssistantError(normalizedError);
-      lifecycle.finalizeMessage();
+      lifecycle.terminalizeMessage();
     }
   } finally {
     await finalizeStreamRequest(deps, lifecycle);

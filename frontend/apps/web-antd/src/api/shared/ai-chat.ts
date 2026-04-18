@@ -66,6 +66,7 @@ export interface RawMessageItem {
   }> | null;
   tool_call_id?: null | string;
   tool_name?: null | string;
+  turn_flow?: null | Record<string, unknown>;
   metadata?: null | {
     action_buttons?: Array<{
       label: string;
@@ -123,6 +124,7 @@ export interface RawMessageItem {
     tool_success?: boolean;
     tool_summary?: string;
     tool_summary_payload?: Record<string, unknown>;
+    turn_flow?: Record<string, unknown>;
     turn_outcome?: string;
     turn_record?: TurnRecordPayload;
   };

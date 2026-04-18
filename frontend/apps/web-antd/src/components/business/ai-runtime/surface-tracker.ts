@@ -70,11 +70,11 @@ function toOverlayDraft(
 }
 
 export class UISurfaceTracker {
-  private readonly surfacesByKey = new Map<string, UISurface>();
+  private sequence = 0;
 
   private readonly stackKeys: string[] = [];
 
-  private sequence = 0;
+  private readonly surfacesByKey = new Map<string, UISurface>();
 
   closeSurfaceById(surfaceId: string): UISurface[] {
     const key = this.findKeyById(surfaceId);
@@ -94,7 +94,9 @@ export class UISurfaceTracker {
       this.surfacesByKey.delete(removableKey);
     });
 
-    this.rewriteStack(this.stackKeys.filter((stackKey) => !toRemoveKeys.has(stackKey)));
+    this.rewriteStack(
+      this.stackKeys.filter((stackKey) => !toRemoveKeys.has(stackKey)),
+    );
     return removed;
   }
 
@@ -110,7 +112,7 @@ export class UISurfaceTracker {
   getStack(): UISurface[] {
     return this.stackKeys
       .map((key) => this.surfacesByKey.get(key))
-      .filter((surface): surface is UISurface => Boolean(surface))
+      .filter((surface): surface is UISurface => surface !== undefined)
       .map((surface) => cloneSurface(surface));
   }
 
@@ -157,7 +159,7 @@ export class UISurfaceTracker {
 
     const desiredKeys = new Set(desiredOrder);
     const removed: UISurface[] = [];
-    Array.from(this.surfacesByKey.keys()).forEach((existingKey) => {
+    [...this.surfacesByKey.keys()].forEach((existingKey) => {
       if (desiredKeys.has(existingKey)) {
         return;
       }
@@ -169,7 +171,9 @@ export class UISurfaceTracker {
       this.surfacesByKey.delete(existingKey);
     });
 
-    this.rewriteStack(desiredOrder.filter((key) => this.surfacesByKey.has(key)));
+    this.rewriteStack(
+      desiredOrder.filter((key) => this.surfacesByKey.has(key)),
+    );
 
     return {
       added,
@@ -193,7 +197,7 @@ export class UISurfaceTracker {
           if (!surface.parentId) {
             return;
           }
-          const parent = Array.from(this.surfacesByKey.values()).find(
+          const parent = [...this.surfacesByKey.values()].find(
             (item) => item.id === surface.parentId,
           );
           if (!parent || !removableKeys.has(parent.key)) {
@@ -206,6 +210,11 @@ export class UISurfaceTracker {
     }
 
     return removableKeys;
+  }
+
+  private createSurfaceId(kind: UISurface['kind']): string {
+    this.sequence += 1;
+    return `surface:${kind}:${this.sequence}`;
   }
 
   private ensureSurface(
@@ -264,13 +273,8 @@ export class UISurfaceTracker {
     };
   }
 
-  private createSurfaceId(kind: UISurface['kind']): string {
-    this.sequence += 1;
-    return `surface:${kind}:${this.sequence}`;
-  }
-
   private findKeyById(surfaceId: string): null | string {
-    const match = Array.from(this.surfacesByKey.entries()).find(
+    const match = [...this.surfacesByKey.entries()].find(
       ([, surface]) => surface.id === surfaceId,
     );
     return match?.[0] ?? null;

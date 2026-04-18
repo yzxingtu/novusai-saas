@@ -4,6 +4,7 @@ import type { MemoryState } from '#/api/shared/ai-chat';
 import { computed } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
+
 import { Spin, Tooltip } from 'ant-design-vue';
 
 import { $t } from '#/locales';
@@ -74,7 +75,9 @@ const isEmpty = computed(
       class="shrink-0 border-b border-border/30 bg-muted/5 px-4 py-3"
     >
       <div class="mb-2.5 flex items-center justify-between">
-        <div class="flex items-center gap-1.5 text-xs font-medium text-foreground">
+        <div
+          class="flex items-center gap-1.5 text-xs font-medium text-foreground"
+        >
           <IconifyIcon icon="lucide:brain" class="size-3.5 text-primary" />
           {{ $t('common.globalAiChat.memoryUpdated') }}
         </div>

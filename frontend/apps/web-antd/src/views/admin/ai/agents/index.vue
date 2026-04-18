@@ -55,9 +55,10 @@ const setAgentFormRef: VNodeRef = (value) => {
 };
 
 const setRecycleBinRef: VNodeRef = (value) => {
-  recycleBinRef.value = value as
-    | null
-    | { deletedCount: number; open: () => void };
+  recycleBinRef.value = value as null | {
+    deletedCount: number;
+    open: () => void;
+  };
 };
 </script>
 

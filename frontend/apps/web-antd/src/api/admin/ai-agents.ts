@@ -147,14 +147,11 @@ export interface AIAgentSkillGrantRequest {
   skill_id: number;
   config_override?: null | Record<string, unknown>;
   sort_order?: number;
-  default_consent_mode?: string;
-  capability_consent_overrides?: null | Record<string, string>;
 }
 
 /** Batch grant request / 批量授权请求 */
 export interface AIAgentSkillBatchGrantRequest {
   skill_ids: number[];
-  default_consent_modes?: Record<string, string>;
 }
 
 /** Update skill grant request / 更新技能授权请求 */
@@ -162,8 +159,6 @@ export interface AIAgentSkillGrantUpdateRequest {
   enabled?: boolean | null;
   config_override?: null | Record<string, unknown>;
   sort_order?: null | number;
-  default_consent_mode?: null | string;
-  capability_consent_overrides?: null | Record<string, string>;
 }
 
 // ============================================================

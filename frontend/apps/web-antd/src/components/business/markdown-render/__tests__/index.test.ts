@@ -16,7 +16,7 @@ vi.mock('#/locales', () => ({
   $t: (key: string) => key,
 }));
 
-describe('MarkdownRender', () => {
+describe('markdownRender', () => {
   it('formats standalone source lines as labeled links', () => {
     const wrapper = mount(MarkdownRender, {
       props: {
@@ -65,5 +65,23 @@ describe('MarkdownRender', () => {
     );
     expect(links[0]?.attributes('target')).toBe('_blank');
     expect(links[0]?.attributes('rel')).toBe('noopener noreferrer');
+  });
+
+  it('renders bare markdown urls as readable anchor text while preserving href', () => {
+    const rawUrl = 'https://example.com/path/to/article?foo=bar&baz=qux';
+    const wrapper = mount(MarkdownRender, {
+      props: {
+        content: `请参考这个链接：\n${rawUrl}`,
+      },
+    });
+
+    const links = wrapper.findAll('a');
+    expect(links).toHaveLength(1);
+    expect(links[0]?.attributes('href')).toBe(rawUrl);
+    expect(links[0]?.attributes('target')).toBe('_blank');
+    expect(links[0]?.attributes('rel')).toBe('noopener noreferrer');
+    expect((links[0]?.text() ?? '').trim()).toContain('example.com');
+    expect((links[0]?.text() ?? '').trim()).not.toBe(rawUrl);
+    expect(wrapper.text()).not.toContain(rawUrl);
   });
 });

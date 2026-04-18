@@ -2,7 +2,7 @@ import type { ConversationItem } from './types';
 
 const EMPTY_CONVERSATION_VISIBLE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
-function parseTimestamp(value: null | string | undefined): number | null {
+function parseTimestamp(value: null | string | undefined): null | number {
   if (!value) {
     return null;
   }

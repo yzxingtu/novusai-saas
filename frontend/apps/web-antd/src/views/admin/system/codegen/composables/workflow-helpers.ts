@@ -79,17 +79,12 @@ export function buildCodegenSavePayload(
     display_name: displayName,
     display_name_en: String(json.display_name_en ?? '').trim() || resource,
     module,
-    name:
-      String(json.name ?? '').trim() ||
-      displayName ||
-      options.unnamedLabel,
+    name: String(json.name ?? '').trim() || displayName || options.unnamedLabel,
     resource,
   };
 }
 
-export function parseImportedYaml(
-  raw: string,
-): null | Record<string, unknown> {
+export function parseImportedYaml(raw: string): null | Record<string, unknown> {
   const parsed = yaml.load(raw);
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     return null;

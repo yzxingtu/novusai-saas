@@ -29,6 +29,7 @@ import yaml from 'highlight.js/lib/languages/yaml';
 import MarkdownIt from 'markdown-it';
 
 import { $t } from '#/locales';
+import { getUrlDisplayLabel, isHttpUrl } from '#/utils/url-display';
 
 defineOptions({ name: 'MarkdownRender' });
 
@@ -53,9 +54,6 @@ type FenceState = null | {
   length: number;
 };
 
-const STANDALONE_SOURCE_LINK_RE =
-  /^(\s*)([-*]\s+)?(.+?)\s*[：:]\s*(https?:\/\/\S+)\s*$/u;
-const FENCED_CODE_BLOCK_RE = /^ {0,3}(`{3,}|~{3,})(.*)$/u;
 // Register common languages / 注册常用语言
 hljs.registerLanguage('javascript', javascript);
 hljs.registerLanguage('js', javascript);
@@ -114,18 +112,128 @@ md.renderer.rules.link_open = function (tokens, idx, options, env, self) {
   tokens[idx]?.attrJoin('class', 'md-inline-link');
   tokens[idx]?.attrSet('target', '_blank');
   tokens[idx]?.attrSet('rel', 'noopener noreferrer');
+  const href = tokens[idx]?.attrGet('href');
+  if (href && !tokens[idx]?.attrGet('title')) {
+    tokens[idx]?.attrSet('title', href);
+  }
   return defaultRender(tokens, idx, options, env, self);
 };
 
+const defaultTextRender =
+  md.renderer.rules.text ||
+  function (tokens, idx) {
+    return md.utils.escapeHtml(tokens[idx]?.content ?? '');
+  };
+
+md.renderer.rules.text = function (tokens, idx, options, env, self) {
+  const current = tokens[idx];
+  const prev = tokens[idx - 1];
+  const next = tokens[idx + 1];
+  const text = current?.content ?? '';
+  const isLinkifiedBareUrl =
+    prev?.type === 'link_open' &&
+    next?.type === 'link_close' &&
+    prev.markup === 'linkify' &&
+    next.markup === 'linkify' &&
+    isHttpUrl(text.trim());
+
+  if (isLinkifiedBareUrl) {
+    return md.utils.escapeHtml(getUrlDisplayLabel(text));
+  }
+  return defaultTextRender(tokens, idx, options, env, self);
+};
+
 function parseFenceState(line: string): FenceState {
-  const marker = line.match(FENCED_CODE_BLOCK_RE)?.[1];
-  if (!marker) {
+  let offset = 0;
+  while (offset < line.length && offset < 3 && line[offset] === ' ') {
+    offset += 1;
+  }
+  const markerChar = line[offset];
+  if (markerChar !== '`' && markerChar !== '~') {
+    return null;
+  }
+  let length = 0;
+  while (line[offset + length] === markerChar) {
+    length += 1;
+  }
+  if (length < 3) {
     return null;
   }
 
   return {
-    character: marker[0] as '`' | '~',
-    length: marker.length,
+    character: markerChar,
+    length,
+  };
+}
+
+function countLeadingSpaces(line: string): number {
+  let count = 0;
+  while (count < line.length && line[count] === ' ') {
+    count += 1;
+  }
+  return count;
+}
+
+function isIndentedCodeLine(line: string): boolean {
+  return line.startsWith('\t') || countLeadingSpaces(line) >= 4;
+}
+
+function readLinePrefix(line: string) {
+  let index = 0;
+  while (index < line.length && /\s/u.test(line[index] ?? '')) {
+    index += 1;
+  }
+  const indent = line.slice(0, index);
+  let bullet = '';
+  let content = line.slice(index);
+  if (
+    (content.startsWith('-') || content.startsWith('*')) &&
+    /\s/u.test(content[1] ?? '')
+  ) {
+    bullet = `${content[0]} `;
+    content = content.slice(2).trimStart();
+  }
+  return { bullet, content, indent };
+}
+
+function findUrlStart(text: string): number {
+  const httpIndex = text.indexOf('http://');
+  const httpsIndex = text.indexOf('https://');
+  if (httpIndex === -1) {
+    return httpsIndex;
+  }
+  if (httpsIndex === -1) {
+    return httpIndex;
+  }
+  return Math.min(httpIndex, httpsIndex);
+}
+
+function parseStandaloneSourceLinkLine(line: string) {
+  const { bullet, content, indent } = readLinePrefix(line);
+  const trimmed = content.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const urlStart = findUrlStart(trimmed);
+  if (urlStart <= 0) {
+    return null;
+  }
+  const rawLabel = trimmed.slice(0, urlStart).trimEnd();
+  const rawUrl = trimmed.slice(urlStart).trim();
+  if (
+    !isHttpUrl(rawUrl) ||
+    !(rawLabel.endsWith(':') || rawLabel.endsWith('：'))
+  ) {
+    return null;
+  }
+  const label = rawLabel.slice(0, -1).trim();
+  if (!label) {
+    return null;
+  }
+  return {
+    label,
+    prefix: `${indent}${bullet || '- '}`,
+    url: rawUrl,
   };
 }
 
@@ -149,24 +257,15 @@ function normalizeStandaloneSourceLinks(content: string): string {
         return line;
       }
 
-      if (activeFence || /^( {4,}|\t)/u.test(line)) {
+      if (activeFence || isIndentedCodeLine(line)) {
         return line;
       }
 
-      const match = line.match(STANDALONE_SOURCE_LINK_RE);
-      if (!match) {
+      const parsed = parseStandaloneSourceLinkLine(line);
+      if (!parsed) {
         return line;
       }
-
-      const [, indent = '', bullet = '', rawLabel = '', rawUrl = ''] = match;
-      const label = rawLabel.trim();
-      const url = rawUrl.trim();
-      if (!label || !url) {
-        return line;
-      }
-
-      const prefix = `${indent}${bullet || '- '}`;
-      return `${prefix}[${label}](${url})`;
+      return `${parsed.prefix}[${parsed.label}](${parsed.url})`;
     })
     .join('\n');
 }
@@ -274,10 +373,10 @@ const renderedHtml = computed(() => {
 }
 
 .markdown-render a {
-  color: hsl(var(--primary) / 92%);
   font-weight: 500;
+  color: hsl(var(--primary) / 92%);
+  overflow-wrap: anywhere;
   text-decoration: none;
-  word-break: break-word;
   border-radius: 6px;
   box-shadow: inset 0 -1px 0 hsl(var(--primary) / 28%);
   transition:

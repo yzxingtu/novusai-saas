@@ -1,8 +1,8 @@
 import type {
   IdentityDetailRequest,
   IdentityDetailScope,
+  IdentityDisplayModel,
 } from '#/components/business/identity-display';
-import type { IdentityDisplayModel } from '#/components/business/identity-display';
 
 import {
   closeIdentityDetailDialog,
@@ -66,13 +66,19 @@ export function createIdentityDetailRequest(
       tenantName: meta?.tenantName,
       updatedAt: meta?.updatedAt,
       userType:
-        meta?.subjectType ?? meta?.userType ?? payload.model.userType ?? undefined,
+        meta?.subjectType ??
+        meta?.userType ??
+        payload.model.userType ??
+        undefined,
       username: meta?.username ?? payload.model.username ?? undefined,
     }),
     id: payload.model.id,
     scope: meta?.scope || inferScopeFromLocation(),
     subjectType:
-      meta?.subjectType ?? meta?.userType ?? payload.model.userType ?? undefined,
+      meta?.subjectType ??
+      meta?.userType ??
+      payload.model.userType ??
+      undefined,
     tenantId: meta?.tenantId,
     tenantName: meta?.tenantName,
   };

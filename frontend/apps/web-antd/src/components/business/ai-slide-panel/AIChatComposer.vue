@@ -7,7 +7,6 @@ import { Input, Spin, Tooltip } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 
-type ComposerInteractionMode = 'confirm' | 'trusted_auto';
 type ComposerSendState = 'idle' | 'routing' | 'sending' | 'streaming';
 
 interface ComposerAttachmentItem {
@@ -40,7 +39,6 @@ const props = withDefaults(
     boundKnowledgeBases?: ComposerKnowledgeBaseChip[];
     characterCount?: number;
     disabled?: boolean;
-    interactionMode?: ComposerInteractionMode;
     maxLength?: number;
     mentionCandidates?: ComposerMentionCandidateItem[];
     mentionEmptyHint?: string;
@@ -55,7 +53,6 @@ const props = withDefaults(
     sendState?: ComposerSendState;
     shiftEnterHint?: string;
     showAttachments?: boolean;
-    showInteractionMode?: boolean;
     showScreenshotButton?: boolean;
   }>(),
   {
@@ -66,7 +63,6 @@ const props = withDefaults(
     boundKnowledgeBases: () => [],
     characterCount: 0,
     disabled: false,
-    interactionMode: 'confirm',
     maxLength: 32_000,
     mentionCandidates: () => [],
     mentionEmptyHint: '',
@@ -81,7 +77,6 @@ const props = withDefaults(
     sendState: 'idle',
     shiftEnterHint: '',
     showAttachments: true,
-    showInteractionMode: false,
     showScreenshotButton: false,
   },
 );
@@ -101,7 +96,6 @@ const emit = defineEmits<{
   ): void;
   (e: 'send'): void;
   (e: 'stop'): void;
-  (e: 'update:interactionMode', value: ComposerInteractionMode): void;
   (e: 'update:modelValue', value: string): void;
 }>();
 
@@ -110,16 +104,6 @@ const inputModel = computed({
   get: () => props.modelValue,
   set: (value: string) => emit('update:modelValue', value),
 });
-const resolvedInteractionMode = computed<ComposerInteractionMode>(
-  () => props.interactionMode ?? 'confirm',
-);
-const interactionModeOptions: Array<{
-  label: string;
-  value: ComposerInteractionMode;
-}> = [
-  { label: $t('common.globalAiChat.modeConfirm'), value: 'confirm' },
-  { label: $t('common.globalAiChat.modeTrustedAuto'), value: 'trusted_auto' },
-];
 
 function openFilePicker() {
   fileInputEl.value?.click();
@@ -197,44 +181,6 @@ function onSendClick() {
       class="mb-1 text-[10px] text-muted-foreground/70"
     >
       {{ attachmentLimitHint }}
-    </div>
-
-    <div
-      v-if="showInteractionMode"
-      class="mb-1 flex items-center justify-between"
-    >
-      <div class="flex items-center gap-1">
-        <span class="text-[10px] text-muted-foreground/70">
-          {{ $t('common.globalAiChat.interactionModeLabel') }}
-        </span>
-        <div
-          class="flex items-center gap-1 rounded-full border border-border/60 bg-muted/20 p-1"
-        >
-          <button
-            v-for="option in interactionModeOptions"
-            :key="option.value"
-            type="button"
-            class="rounded-full px-2 py-0.5 text-[10px] transition-colors"
-            :class="
-              resolvedInteractionMode === option.value
-                ? 'bg-primary/10 text-primary'
-                : 'text-muted-foreground hover:text-foreground'
-            "
-            @click="emit('update:interactionMode', option.value)"
-          >
-            {{ option.label }}
-          </button>
-        </div>
-        <Tooltip :title="$t('common.globalAiChat.interactionModeHint')">
-          <IconifyIcon
-            icon="lucide:info"
-            class="size-2.5 text-muted-foreground/60"
-          />
-        </Tooltip>
-      </div>
-      <span class="text-[10px] text-muted-foreground/40">
-        {{ shiftEnterHint }}
-      </span>
     </div>
 
     <div
@@ -438,7 +384,7 @@ function onSendClick() {
 
       <div class="flex justify-end px-1 pb-0.5">
         <span class="text-[10px] text-muted-foreground/60">
-          {{ characterCount }} / {{ maxLength }}
+          {{ shiftEnterHint }} · {{ characterCount }} / {{ maxLength }}
         </span>
       </div>
     </div>

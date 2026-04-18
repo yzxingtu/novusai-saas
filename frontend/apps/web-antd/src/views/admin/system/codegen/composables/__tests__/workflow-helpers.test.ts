@@ -40,10 +40,7 @@ describe('codegen workflow helpers', () => {
         },
         success: true,
       }),
-    ).toEqual([
-      'migrationNoChanges',
-      'reviewCode',
-    ]);
+    ).toEqual(['migrationNoChanges', 'reviewCode']);
   });
 
   it('builds save payloads with trimmed fields and sensible fallbacks', () => {

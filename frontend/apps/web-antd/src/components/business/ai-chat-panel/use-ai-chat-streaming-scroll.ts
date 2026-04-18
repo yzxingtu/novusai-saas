@@ -10,7 +10,8 @@ export function createAIChatStreamingScroll() {
     if (!element) return true;
     const threshold = 80;
     return (
-      element.scrollHeight - element.scrollTop - element.clientHeight < threshold
+      element.scrollHeight - element.scrollTop - element.clientHeight <
+      threshold
     );
   }
 

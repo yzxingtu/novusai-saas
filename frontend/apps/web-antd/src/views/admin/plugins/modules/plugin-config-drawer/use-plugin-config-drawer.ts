@@ -131,9 +131,7 @@ export function usePluginConfigDrawer(options: UsePluginConfigDrawerOptions) {
     const manifest = isRecord(plugin.value.manifest)
       ? plugin.value.manifest
       : undefined;
-    const scope =
-      plugin.value.scope ||
-      manifest?.scope;
+    const scope = plugin.value.scope || manifest?.scope;
     return scopeNeedsAssignment(String(scope || ''));
   });
 
@@ -166,31 +164,33 @@ export function usePluginConfigDrawer(options: UsePluginConfigDrawerOptions) {
       const prop = rawProp;
       const titleRaw = prop.title;
       const descRaw = prop.description;
-      const title =
-        isRecord(titleRaw)
-          ? (titleRaw as Record<string, string>)[locale] ||
-            (titleRaw as Record<string, string>).en ||
-            key
-          : String(titleRaw || key);
-      const description =
-        isRecord(descRaw)
-          ? (descRaw as Record<string, string>)[locale] ||
-            (descRaw as Record<string, string>).en ||
-            ''
-          : String(descRaw || '');
-      return [{
-        key,
-        format: typeof prop.format === 'string' ? prop.format : undefined,
-        type: String(prop.type || 'string'),
-        title,
-        description,
-        default: prop.default,
-        enum: Array.isArray(prop.enum)
-          ? prop.enum.filter((item): item is string => typeof item === 'string')
-          : undefined,
-        minimum: typeof prop.minimum === 'number' ? prop.minimum : undefined,
-        maximum: typeof prop.maximum === 'number' ? prop.maximum : undefined,
-      }];
+      const title = isRecord(titleRaw)
+        ? (titleRaw as Record<string, string>)[locale] ||
+          (titleRaw as Record<string, string>).en ||
+          key
+        : String(titleRaw || key);
+      const description = isRecord(descRaw)
+        ? (descRaw as Record<string, string>)[locale] ||
+          (descRaw as Record<string, string>).en ||
+          ''
+        : String(descRaw || '');
+      return [
+        {
+          key,
+          format: typeof prop.format === 'string' ? prop.format : undefined,
+          type: String(prop.type || 'string'),
+          title,
+          description,
+          default: prop.default,
+          enum: Array.isArray(prop.enum)
+            ? prop.enum.filter(
+                (item): item is string => typeof item === 'string',
+              )
+            : undefined,
+          minimum: typeof prop.minimum === 'number' ? prop.minimum : undefined,
+          maximum: typeof prop.maximum === 'number' ? prop.maximum : undefined,
+        },
+      ];
     });
   });
 

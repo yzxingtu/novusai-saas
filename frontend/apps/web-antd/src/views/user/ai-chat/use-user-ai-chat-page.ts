@@ -1,3 +1,5 @@
+import type { ConversationGroup } from './modules/ai-chat-context';
+
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
@@ -8,15 +10,12 @@ import { $t } from '#/locales';
 import { getAgentInputVariables } from '#/types/ai-chat';
 import { normalizeStarterQuestions } from '#/utils/ai-starter-questions';
 
-import {
-  provideUserAIChatContext,
-  type ConversationGroup,
-} from './modules/ai-chat-context';
+import { provideUserAIChatContext } from './modules/ai-chat-context';
+import { useUserAIChatVarsModal } from './use-user-ai-chat-vars-modal';
 import {
   parsePositiveQueryNumber,
   parseQueryText,
 } from './user-ai-chat-route-query';
-import { useUserAIChatVarsModal } from './use-user-ai-chat-vars-modal';
 
 const API_PREFIX = '/api/user';
 const UPLOAD_URL = '/api/user/attachments/upload';
@@ -260,8 +259,9 @@ export function useUserAIChatPage() {
   );
   const activeConversation = computed(
     () =>
-      conversations.value.find((item) => item.id === activeConversationId.value) ??
-      null,
+      conversations.value.find(
+        (item) => item.id === activeConversationId.value,
+      ) ?? null,
   );
   const workspaceHighlights = computed(() => [
     {

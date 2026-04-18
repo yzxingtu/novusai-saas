@@ -1,13 +1,11 @@
-import type { ChatMessage } from './types';
 import type { SearchSummary } from './tool-call-search-utils';
-import { getToolCallSummaryPayload } from './tool-call-search-utils';
+import type { ChatMessage } from './types';
 
 import { $t } from '#/locales';
 
-export type {
-  SearchResultItem,
-  SearchSummary,
-} from './tool-call-search-utils';
+import { getToolCallSummaryPayload } from './tool-call-search-utils';
+
+export type { SearchResultItem, SearchSummary } from './tool-call-search-utils';
 export {
   getSearchFallbackNotice,
   getSearchProviderLabel,
@@ -178,9 +176,11 @@ function parseToolOutputPayload(
   }
 }
 
-
 export function getStructuredToolOutput(
-  tc: Pick<NonNullable<ChatMessage['toolCalls']>[number], 'output' | 'summaryPayload'>,
+  tc: Pick<
+    NonNullable<ChatMessage['toolCalls']>[number],
+    'output' | 'summaryPayload'
+  >,
 ): StructuredToolOutput {
   const summaryPayload = getToolCallSummaryPayload(tc);
   const payloadExplanation =
@@ -342,7 +342,10 @@ export function getToolTargetBadges(
     pushBadge('common.globalAiChat.toolTargetMetrics', summaryPayload.metrics);
   }
   if (Array.isArray(summaryPayload?.group_by)) {
-    pushBadge('common.globalAiChat.toolTargetGrouping', summaryPayload.group_by);
+    pushBadge(
+      'common.globalAiChat.toolTargetGrouping',
+      summaryPayload.group_by,
+    );
   }
   if (Array.isArray(summaryPayload?.filters)) {
     const normalizedFilters = summaryPayload.filters.map((item) => {
@@ -375,9 +378,9 @@ export function hasToolCardDetails(
 ) {
   return Boolean(
     tc.output ||
-      tc.error ||
-      tc.summaryPayload ||
-      (tc.arguments && Object.keys(tc.arguments).length > 0),
+    tc.error ||
+    tc.summaryPayload ||
+    (tc.arguments && Object.keys(tc.arguments).length > 0),
   );
 }
 

@@ -12,7 +12,7 @@ import PageAIRail from './PageAIRail.vue';
 
 defineOptions({ name: 'AIChatPanelToolbarRow' });
 
-const props = withDefaults(
+withDefaults(
   defineProps<{
     canForceReroute?: boolean;
     forceRerouteNextTurn?: boolean;

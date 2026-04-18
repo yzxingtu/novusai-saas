@@ -30,6 +30,7 @@ export interface ProviderWebSearchConfig {
   native_timeout_seconds: number;
   public_timeout_seconds: number;
   public_providers: PublicWebSearchProvider[];
+  prefer_hosted_tool?: boolean;
   verified_native_target?: null | ProviderWebSearchVerifiedTarget;
 }
 

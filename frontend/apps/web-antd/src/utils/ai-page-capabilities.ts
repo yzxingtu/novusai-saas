@@ -22,6 +22,12 @@ export type PageAICapabilityKey =
   | 'submit';
 
 export const NAVIGATION_ONLY_OPERATION_NAMES = new Set([
+  'list_available_menus',
+  'navigate_menu',
+  'open_current',
+  'open_page',
+  'read_row_detail',
+  'read_visible_rows',
   'ui_get_snapshot',
   'ui_list_interactables',
   'ui_read_region',
@@ -40,9 +46,17 @@ const CAPABILITY_TO_OPERATION_NAMES: Record<
   Exclude<PageAICapabilityKey, 'context' | 'custom'>,
   string[]
 > = {
-  content: ['ui_get_snapshot', 'ui_read_region'],
-  detail: ['ui_open_surface', 'ui_click'],
+  content: [
+    'read_row_detail',
+    'read_visible_rows',
+    'ui_get_snapshot',
+    'ui_read_region',
+  ],
+  detail: ['open_current', 'open_page', 'ui_open_surface', 'ui_click'],
   editor: [
+    'edit_record',
+    'fill_form',
+    'submit_form',
     'ui_click',
     'ui_set_field',
     'ui_fill_form',
@@ -50,15 +64,37 @@ const CAPABILITY_TO_OPERATION_NAMES: Record<
     'ui_get_form_state',
   ],
   form: [
+    'get_form_state',
+    'fill_form',
+    'submit_form',
     'ui_get_form_state',
     'ui_set_field',
     'ui_fill_form',
     'ui_submit_form',
   ],
-  list_read: ['ui_get_snapshot', 'ui_read_table', 'ui_read_region'],
-  pagination: ['ui_click', 'ui_open_surface'],
-  search: ['ui_set_field', 'ui_fill_form', 'ui_click'],
-  submit: ['ui_submit_form'],
+  list_read: [
+    'read_row_detail',
+    'read_visible_rows',
+    'ui_get_snapshot',
+    'ui_read_table',
+    'ui_read_region',
+  ],
+  pagination: [
+    'go_to_page',
+    'next_page',
+    'prev_page',
+    'set_page_size',
+    'ui_click',
+    'ui_open_surface',
+  ],
+  search: [
+    'clear_search',
+    'search',
+    'ui_set_field',
+    'ui_fill_form',
+    'ui_click',
+  ],
+  submit: ['submit_form', 'ui_submit_form'],
 };
 
 // --- String / number list normalizers / 字符串与数字列表规范化 ---

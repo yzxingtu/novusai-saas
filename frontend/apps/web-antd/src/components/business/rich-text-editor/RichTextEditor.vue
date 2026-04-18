@@ -1,6 +1,10 @@
 <script lang="ts" setup>
 import type { JSONContent } from '@tiptap/core';
 
+import type {
+  EditorAIAdapter,
+  EditorAIPreviewResult,
+} from './ai/editor-ai-adapter';
 import type { RichTextEditorProps } from './types';
 
 import { computed, getCurrentInstance, onBeforeUnmount, ref, watch } from 'vue';
@@ -8,9 +12,14 @@ import { computed, getCurrentInstance, onBeforeUnmount, ref, watch } from 'vue';
 import { $t } from '@vben/locales';
 
 import { EditorContent } from '@tiptap/vue-3';
+import { message } from 'ant-design-vue';
 
+import AIPreviewOverlay from './ai/ai-preview-overlay.vue';
 import AIBubbleMenu from './ai/AIBubbleMenu.vue';
-import { launchRichTextTask } from './ai/launchRichTextTask';
+import {
+  createTiptapEditorAIAdapter,
+  getEditorAIErrorMessage,
+} from './ai/tiptap-adapter';
 import {
   registerSourceEditor,
   updateSourceEditorRevision,
@@ -123,6 +132,12 @@ const {
 const aiEntryEnabled = computed(
   () => props.ai !== false && !!props.pageKey && !!editor.value,
 );
+const aiAdapter = ref<EditorAIAdapter | null>(null);
+const aiBusy = ref(false);
+const aiPreview = ref<EditorAIPreviewResult | null>(null);
+const canUndoAiOperation = computed(
+  () => aiAdapter.value?.canUndoLastOperation() ?? false,
+);
 
 watch(
   () => props.modelValue,
@@ -137,6 +152,25 @@ watch(
       }
     }
   },
+);
+
+watch(
+  [editor, () => props.pageKey, () => props.contextTitle],
+  ([editorInstance, pageKey, contextTitle]) => {
+    if (!editorInstance || !pageKey) {
+      aiAdapter.value = null;
+      return;
+    }
+
+    aiAdapter.value = createTiptapEditorAIAdapter({
+      contextTitle,
+      editor: editorInstance,
+      editorInstanceId,
+      getRevision,
+      pageKey,
+    });
+  },
+  { immediate: true },
 );
 
 watch(
@@ -241,15 +275,66 @@ function toggleSourceMode() {
 }
 
 async function handleAiAction(feature: string) {
-  if (!editor.value || !props.pageKey) return;
-  await launchRichTextTask({
-    editor: editor.value,
-    editorInstanceId,
-    feature,
-    getRevision,
-    pageKey: props.pageKey,
-    contextTitle: props.contextTitle,
-  });
+  if (!aiAdapter.value || aiBusy.value) return;
+
+  aiBusy.value = true;
+  try {
+    aiPreview.value = await aiAdapter.value.previewOperation({
+      contextTitle: props.contextTitle,
+      feature,
+    });
+  } catch (error) {
+    message.error(getEditorAIErrorMessage(error));
+  } finally {
+    aiBusy.value = false;
+  }
+}
+
+async function applyAiPreview(mode: 'formatted' | 'plain') {
+  if (!aiAdapter.value || !aiPreview.value || aiBusy.value) {
+    return;
+  }
+
+  aiBusy.value = true;
+  try {
+    const result = await aiAdapter.value.applyOperation({
+      ...aiPreview.value,
+      mode,
+    });
+
+    if (!result.applied) {
+      const reasonKey =
+        result.reason === 'selection_changed'
+          ? 'common.richTextDraftSelectionChanged'
+          : 'common.pleaseRetry';
+      message.warning($t(reasonKey));
+      return;
+    }
+
+    aiPreview.value = null;
+  } catch {
+    message.error($t('common.pleaseRetry'));
+  } finally {
+    aiBusy.value = false;
+  }
+}
+
+function closeAiPreview() {
+  aiPreview.value = null;
+}
+
+function undoAiPreview() {
+  if (!aiAdapter.value) {
+    return;
+  }
+
+  const undone = aiAdapter.value.undoLastAIOperation();
+  if (!undone) {
+    message.warning($t('common.pleaseRetry'));
+    return;
+  }
+
+  aiPreview.value = null;
 }
 
 function focusEditorEnd() {
@@ -274,7 +359,7 @@ defineExpose({
 
 <template>
   <!-- Full mode -->
-  <div v-if="isFull" class="rte-editor flex h-full flex-col">
+  <div v-if="isFull" class="rte-editor relative flex h-full flex-col">
     <EditorToolbar
       v-if="toolbar !== false"
       :editor="editor!"
@@ -314,10 +399,20 @@ defineExpose({
     </div>
 
     <AIBubbleMenu
-      v-if="aiEntryEnabled"
+      v-if="aiEntryEnabled && !aiPreview"
       :editor="editor!"
-      :loading="false"
+      :loading="aiBusy"
       @action="handleAiAction"
+    />
+
+    <AIPreviewOverlay
+      v-if="aiPreview"
+      :preview="aiPreview"
+      :loading="aiBusy"
+      :can-undo="canUndoAiOperation"
+      @apply="applyAiPreview"
+      @close="closeAiPreview"
+      @undo="undoAiPreview"
     />
 
     <div
@@ -328,7 +423,7 @@ defineExpose({
   </div>
 
   <!-- Compact mode -->
-  <div v-else class="rte-editor rte-compact">
+  <div v-else class="rte-editor rte-compact relative">
     <MiniToolbar v-if="toolbar !== false" :editor="editor" :upload="upload" />
 
     <div
@@ -339,10 +434,20 @@ defineExpose({
     </div>
 
     <AIBubbleMenu
-      v-if="aiEntryEnabled"
+      v-if="aiEntryEnabled && !aiPreview"
       :editor="editor!"
-      :loading="false"
+      :loading="aiBusy"
       @action="handleAiAction"
+    />
+
+    <AIPreviewOverlay
+      v-if="aiPreview"
+      :preview="aiPreview"
+      :loading="aiBusy"
+      :can-undo="canUndoAiOperation"
+      @apply="applyAiPreview"
+      @close="closeAiPreview"
+      @undo="undoAiPreview"
     />
   </div>
 </template>

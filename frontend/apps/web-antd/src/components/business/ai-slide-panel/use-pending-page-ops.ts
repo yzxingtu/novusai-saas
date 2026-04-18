@@ -80,7 +80,7 @@ export function usePendingPageOps(options: UsePendingPageOpsOptions) {
     }
     return options.pendingPageOps.value
       .filter((op) => !op.resolved && op.toolCallId && ids.has(op.toolCallId))
-      .map(toDisplayItem);
+      .map((op) => toDisplayItem(op));
   }
 
   const unassociatedPendingOps = computed<PendingOpDisplayItem[]>(() =>
@@ -90,7 +90,7 @@ export function usePendingPageOps(options: UsePendingPageOpsOptions) {
           !op.resolved &&
           (!op.toolCallId || !allToolCallIds.value.has(op.toolCallId)),
       )
-      .map(toDisplayItem),
+      .map((op) => toDisplayItem(op)),
   );
 
   return {

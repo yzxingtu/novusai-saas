@@ -12,7 +12,6 @@ interface UsePanelShellComputedUIOptions {
   agentsLoading: Ref<boolean>;
   capturing: Ref<boolean>;
   chatAcceptAttribute: ChatAcceptAttribute;
-  chatMessages: Ref<unknown[]>;
   mentionCandidates: Ref<unknown[]>;
   sending: Ref<boolean>;
   showAttachments: ComputedRef<boolean> | Ref<boolean>;
@@ -47,15 +46,10 @@ export function usePanelShellComputedUI(
     () => options.showAttachments.value && options.supportsVision.value,
   );
 
-  const showInteractionMode = computed(
-    () => options.chatMessages.value.length > 0,
-  );
-
   return {
     mentionEmptyHint,
     resolvedAttachmentAccept,
     screenshotDisabled,
-    showInteractionMode,
     showScreenshotButton,
   };
 }

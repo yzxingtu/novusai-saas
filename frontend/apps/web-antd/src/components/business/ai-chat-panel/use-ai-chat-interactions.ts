@@ -16,7 +16,7 @@ interface UseAIChatInteractionsDeps {
     pageContext?: null | PageContext;
     routeSource?: null | string;
     silent?: boolean;
-  }) => Promise<boolean> | void;
+  }) => boolean | Promise<boolean> | Promise<undefined> | undefined;
 }
 
 export function useAIChatInteractions(deps: UseAIChatInteractionsDeps) {

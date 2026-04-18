@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import type { PendingPageOpForDisplay } from './pending-page-op';
 import type {
   AgentItem,
   ChatMessage,
@@ -6,7 +7,8 @@ import type {
   RichTextAIApplyTarget,
   RichTextDraftRuntimeState,
 } from './types';
-import type { PendingPageOpForDisplay } from './pending-page-op';
+
+import type { TurnFlowState } from '#/components/business/ai-chat-kernel/TurnFlowState';
 
 import ChatMessageAssistantMessage from './ChatMessageAssistantMessage.vue';
 import ChatMessageUserMessage from './ChatMessageUserMessage.vue';
@@ -20,6 +22,7 @@ const props = withDefaults(
     /** Current timestamp for 60s countdown display (fallback: local now) / 用于 60s 倒计时的当前时间戳 */
     countdownNow?: number;
     index: number;
+    kernelState?: null | TurnFlowState;
     msg: ChatMessage;
     /** Pending page ops for this message (filtered by toolCallId) / 本消息关联的待确认操作 */
     pendingOps?: PendingPageOpForDisplay[];
@@ -33,6 +36,7 @@ const props = withDefaults(
     agents: () => [],
     compact: false,
     countdownNow: undefined,
+    kernelState: null,
     selectedAgent: null,
     showAgentSwitch: false,
     pendingOps: () => [],

@@ -1,8 +1,8 @@
-import type { RichTextRuntimeOperationResult } from './runtime-operation-types';
+import type { RichTextPageAIOperationResult } from './editor-page-ai-operations';
 
 import { $t } from '@vben/locales';
 
-import { createParameterizedRuntimeOperation } from './runtime-operation-types';
+import { createParameterizedPageAIOperation } from './editor-page-ai-operations';
 
 const CONTENT_FORMATS = ['html', 'markdown'] as const;
 type EditorContentFormat = (typeof CONTENT_FORMATS)[number];
@@ -31,8 +31,8 @@ interface ResolvedEditorContentInput {
 }
 
 type EditorContentInputResult =
-  | RichTextRuntimeOperationResult
-  | ResolvedEditorContentInput;
+  | ResolvedEditorContentInput
+  | RichTextPageAIOperationResult;
 
 interface CreateEditorContentMutationOperationOptions {
   contentDescription?: string;
@@ -42,8 +42,8 @@ interface CreateEditorContentMutationOperationOptions {
   execute: (
     content: ResolvedEditorContentInput,
   ) =>
-    | Promise<RichTextRuntimeOperationResult | string>
-    | RichTextRuntimeOperationResult
+    | Promise<RichTextPageAIOperationResult | string>
+    | RichTextPageAIOperationResult
     | string;
   label: string;
   name: string;
@@ -118,7 +118,7 @@ export function resolveEditorContentInput(
 
 export function isEditorContentInputError(
   value: EditorContentInputResult,
-): value is RichTextRuntimeOperationResult {
+): value is RichTextPageAIOperationResult {
   return (
     !!value &&
     typeof value === 'object' &&
@@ -130,7 +130,7 @@ export function isEditorContentInputError(
 export function createEditorContentMutationOperation(
   options: CreateEditorContentMutationOperationOptions,
 ) {
-  return createParameterizedRuntimeOperation({
+  return createParameterizedPageAIOperation({
     name: options.name,
     label: options.label,
     description: options.description,
@@ -155,7 +155,7 @@ export function createEditorContentMutationOperation(
         'success' in result &&
         typeof result.success === 'boolean'
       ) {
-        return result as RichTextRuntimeOperationResult;
+        return result as RichTextPageAIOperationResult;
       }
 
       if (typeof result === 'string' && result.trim()) {

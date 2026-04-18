@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { UISurfaceTracker } from '../surface-tracker';
 
-describe('UISurfaceTracker', () => {
+describe('uISurfaceTracker', () => {
   it('sync tracks added/updated/removed and page metadata/route changes', () => {
     const tracker = new UISurfaceTracker();
 
@@ -109,8 +109,10 @@ describe('UISurfaceTracker', () => {
 
     expect(changed.changed).toBe(true);
     expect(changed.added).toHaveLength(0);
-    expect(changed.removed.map((surface) => surface.key)).toEqual(['drawer:filters']);
-    expect(changed.updated.map((surface) => surface.key).sort()).toEqual([
+    expect(changed.removed.map((surface) => surface.key)).toEqual([
+      'drawer:filters',
+    ]);
+    expect(changed.updated.map((surface) => surface.key).toSorted()).toEqual([
       'modal:editor',
       'page:agents',
     ]);
@@ -189,7 +191,7 @@ describe('UISurfaceTracker', () => {
     ]);
 
     const removed = tracker.closeSurfaceById(parent.id);
-    expect(removed.map((surface) => surface.key).sort()).toEqual([
+    expect(removed.map((surface) => surface.key).toSorted()).toEqual([
       'dropdown:grandchild',
       'modal:parent',
       'popover:child',

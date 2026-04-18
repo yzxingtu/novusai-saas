@@ -1,12 +1,11 @@
-import type { ApiRequestOptions } from '#/utils/request';
 import type {
   TenantUserInfo,
   TenantUserInfoRaw,
 } from '#/api/tenant/tenant-users';
-
-import { requestClient } from '#/utils/request';
+import type { ApiRequestOptions } from '#/utils/request';
 
 import { transformUserInfo } from '#/api/tenant/tenant-users';
+import { requestClient } from '#/utils/request';
 
 const API_PREFIX = '/admin/tenants';
 

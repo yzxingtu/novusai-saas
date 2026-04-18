@@ -1,26 +1,20 @@
-import type { AdminIdentityDetail } from '#/api/admin/users';
+import type { IdentityDisplayModel, IdentityValue } from './types';
+
 import type { TenantAdminIdentityDetail as AdminTenantAdminIdentityDetail } from '#/api/admin/tenant';
+import type { AdminIdentityDetail } from '#/api/admin/users';
 import type { TenantAdminIdentityDetail } from '#/api/tenant/admins';
 import type { TenantUserInfo } from '#/api/tenant/tenant-users';
 
-import {
-  getTenantAdminDetailApi as getAdminTenantAdminDetailApi,
-} from '#/api/admin/tenant';
-import {
-  getAdminTenantUserIdentityDetailApi,
-} from '#/api/admin/tenant-users';
+import { getTenantAdminDetailApi as getAdminTenantAdminDetailApi } from '#/api/admin/tenant';
+import { getAdminTenantUserIdentityDetailApi } from '#/api/admin/tenant-users';
 import { getAdminIdentityDetailApi } from '#/api/admin/users';
-import { $t } from '#/locales';
-import {
-  getTenantAdminIdentityDetailApi,
-} from '#/api/tenant/admins';
+import { getTenantAdminIdentityDetailApi } from '#/api/tenant/admins';
 import { getTenantUserDetailApi } from '#/api/tenant/tenant-users';
+import { $t } from '#/locales';
 
 import {
   createIdentityDisplayModel,
   resolveIdentityDisplayTitle,
-  type IdentityDisplayModel,
-  type IdentityValue,
 } from './types';
 
 export type IdentityDetailScope = 'admin' | 'tenant';
@@ -33,8 +27,7 @@ export type IdentitySubjectType =
   | 'tenant_user'
   | 'unknown';
 
-export interface IdentityDetail
-  extends Omit<IdentityDisplayModel, 'id'> {
+export interface IdentityDetail extends Omit<IdentityDisplayModel, 'id'> {
   approvalStatus?: null | string;
   createdAt?: null | string;
   detailScope?: IdentityDetailScope;
@@ -179,10 +172,7 @@ export function toIdentityDetailFallback(
 
 export function mergeIdentityDetailFallbacks(
   ...sources: Array<
-    | IdentityDisplayModel
-    | null
-    | Partial<IdentityDetail>
-    | undefined
+    IdentityDisplayModel | null | Partial<IdentityDetail> | undefined
   >
 ): Partial<IdentityDetail> | undefined {
   const merged: Partial<IdentityDetail> = {};
@@ -213,8 +203,8 @@ function normalizeIdentityDetail(
   detail?: null | Partial<IdentityDetail>,
 ): IdentityDetail {
   const merged = {
-    ...(request.fallback ?? {}),
-    ...(detail ?? {}),
+    ...request.fallback,
+    ...detail,
   };
   const displayModel = createIdentityDisplayModel({
     avatar: merged.avatar,
@@ -230,8 +220,7 @@ function normalizeIdentityDetail(
     realName: merged.realName,
     roleName: merged.roleName,
     secondaryText:
-      merged.secondaryText ??
-      firstNonEmpty(merged.username, merged.email),
+      merged.secondaryText ?? firstNonEmpty(merged.username, merged.email),
     userType: merged.userType,
     userTypeLabel: merged.userTypeLabel,
     username: merged.username,
@@ -246,7 +235,8 @@ function normalizeIdentityDetail(
     approvalStatus: merged.approvalStatus,
     createdAt: merged.createdAt,
     detailScope: request.scope,
-    displayName: displayModel.displayName || resolveIdentityDisplayTitle(displayModel),
+    displayName:
+      displayModel.displayName || resolveIdentityDisplayTitle(displayModel),
     email: merged.email,
     id: merged.id ?? request.id,
     isSuper: merged.isSuper,
@@ -285,7 +275,9 @@ function getIdentityDetailFetcher(
     return null;
   }
   const subjectType = normalizeIdentitySubjectType(request.subjectType);
-  return identityDetailFetchers.get(registryKey(request.scope, subjectType)) ?? null;
+  return (
+    identityDetailFetchers.get(registryKey(request.scope, subjectType)) ?? null
+  );
 }
 
 function canRequestIdentityDetail(id: IdentityValue): id is number {
@@ -351,7 +343,9 @@ export function getIdentityStatusLabel(isActive?: boolean): string {
     : $t('shared.common.statusEnabled');
 }
 
-function mapAdminIdentityDetail(detail: AdminIdentityDetail): Partial<IdentityDetail> {
+function mapAdminIdentityDetail(
+  detail: AdminIdentityDetail,
+): Partial<IdentityDetail> {
   return {
     avatar: detail.avatar,
     createdAt: detail.created_at,
@@ -401,7 +395,9 @@ function mapTenantAdminIdentityDetail(
   };
 }
 
-function mapTenantUserIdentityDetail(detail: TenantUserInfo): Partial<IdentityDetail> {
+function mapTenantUserIdentityDetail(
+  detail: TenantUserInfo,
+): Partial<IdentityDetail> {
   return {
     approvalStatus: detail.approvalStatus,
     avatar: detail.avatar,
@@ -443,10 +439,7 @@ function registerBuiltInIdentityDetailFetchers() {
       return null;
     }
     return mapTenantAdminIdentityDetail(
-      await getAdminTenantAdminDetailApi(
-        request.tenantId,
-        Number(request.id),
-      ),
+      await getAdminTenantAdminDetailApi(request.tenantId, Number(request.id)),
     );
   });
 
@@ -469,7 +462,9 @@ function registerBuiltInIdentityDetailFetchers() {
   );
 
   registerIdentityDetailFetcher('tenant', 'tenant_user', async (request) =>
-    mapTenantUserIdentityDetail(await getTenantUserDetailApi(Number(request.id))),
+    mapTenantUserIdentityDetail(
+      await getTenantUserDetailApi(Number(request.id)),
+    ),
   );
 }
 

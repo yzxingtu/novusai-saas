@@ -125,7 +125,10 @@ const {
           </div>
         </section>
 
-        <section v-if="isAdmin" class="mt-5 grid items-start gap-5 xl:grid-cols-2">
+        <section
+          v-if="isAdmin"
+          class="mt-5 grid items-start gap-5 xl:grid-cols-2"
+        >
           <MonitoringUsageTopSectionCard
             v-for="section in topSections"
             :key="section.key"

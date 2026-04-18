@@ -1,13 +1,14 @@
+import type { UIAdapterResult, UIComponentAdapter } from '../types';
+
 import { isElementVisible } from '../dom-scanner';
 import { tAiRuntime } from '../i18n';
-import type { UIAdapterResult, UIComponentAdapter } from '../types';
 
 export const ANTD_MODAL_ADAPTER_ID = 'antd-modal';
 
 function resolveModalKey(element: HTMLElement, index: number): string {
   const candidate =
-    element.getAttribute('data-ai-surface-id') ??
-    element.getAttribute('data-testid') ??
+    element.dataset.aiSurfaceId ??
+    element.dataset.testid ??
     element.getAttribute('id');
   if (candidate) {
     return `modal:${candidate}`;
@@ -29,7 +30,9 @@ export function createAntdModalAdapter(priority = 80): UIComponentAdapter {
       const overlays: NonNullable<UIAdapterResult['overlays']> = [];
       let index = 0;
       context.document
-        .querySelectorAll<HTMLElement>('.ant-modal-root .ant-modal-wrap, .ant-modal')
+        .querySelectorAll<HTMLElement>(
+          '.ant-modal-root .ant-modal-wrap, .ant-modal',
+        )
         .forEach((element) => {
           if (!isElementVisible(element)) {
             return;

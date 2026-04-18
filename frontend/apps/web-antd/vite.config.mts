@@ -1,6 +1,8 @@
+import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 import { defineConfig } from '@vben/vite-config';
+
 import { loadEnv } from 'vite';
 
 // @ts-ignore — dual vite versions in monorepo cause Plugin type mismatch

@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import type { MonitoringConversationDetail, MonitoringScope } from '../../api';
+
 import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 
 import { computed } from 'vue';

@@ -1,11 +1,12 @@
+import type { FormSession } from './form-session-manager';
+import type { RuntimeSnapshotResult } from './runtime-bridge-core';
+import type { UISnapshotMode } from './ui-snapshot-generator';
+
 import type {
   ActiveFormSummary,
   PageContext,
   PageContextSuggestedTools,
 } from '#/api/shared/ai-chat';
-
-import type { FormSession } from './form-session-manager';
-import type { UISnapshotMode } from './ui-snapshot-generator';
 
 import { formStateTracker } from '#/composables/use-form-state-tracker';
 import { getActivePageSessionId } from '#/composables/use-page-session';
@@ -15,21 +16,21 @@ import { resolveRuntimeLocale } from '#/locales/runtime-locale';
 import {
   byteSize,
   ensureRuntimeInstance,
+  getCurrentRouteSecurityPolicy,
   normalizeText,
   queryElementByLocator,
   readFormLikeElementValue,
-  resolveCurrentRoute,
   resolvePageTitle,
   resolveRuntimePageKey,
-  type RuntimeSnapshotResult,
 } from './runtime-bridge-core';
 import { readValueForAI, resolveAISecurityPolicy } from './security-policy';
+import { getRuntimeEpochFloor } from './ui-epoch-floor';
 import { UISnapshotGenerator } from './ui-snapshot-generator';
 
 const snapshotGenerator = new UISnapshotGenerator();
 
 export function toFormSummary(
-  session: null | FormSession,
+  session: FormSession | null,
 ): ActiveFormSummary | undefined {
   if (!session) {
     return undefined;
@@ -57,12 +58,12 @@ export function getTrackedFormSessions(): FormSession[] {
   return formStateTracker
     .getTrackedKeys()
     .map((pageKey) => formStateTracker.getSession(pageKey))
-    .filter((session): session is FormSession => Boolean(session));
+    .filter((session): session is FormSession => session !== null);
 }
 
 export function resolveActiveFormSessionForPage(
   pageKey: string,
-): null | FormSession {
+): FormSession | null {
   const normalizedPageKey = pageKey.trim();
   const tracker = formStateTracker as {
     getActiveSession?: (surfaceId?: string) => FormSession | null;
@@ -143,11 +144,13 @@ export function buildSnapshot(
   mode: UISnapshotMode = 'compact',
 ): RuntimeSnapshotResult {
   const runtime = ensureRuntimeInstance();
-  const runtimeSnapshot = runtime.rebuildGraph({
-    mode,
-    route: resolveCurrentRoute(),
-  });
+  const runtimeSnapshot = runtime.readPage(mode);
+  const effectiveUiEpoch = Math.max(
+    runtimeSnapshot.ui_epoch,
+    getRuntimeEpochFloor(),
+  );
   const pageKey = resolveRuntimePageKey();
+  const routePolicy = getCurrentRouteSecurityPolicy();
   const formSessions = getTrackedFormSessions();
   const activeFormSummary = toFormSummary(
     resolveActiveFormSessionForPage(pageKey),
@@ -180,6 +183,7 @@ export function buildSnapshot(
                 element instanceof HTMLSelectElement
                   ? element.type || undefined
                   : undefined,
+              routePolicy,
             })
           : null;
         const content =
@@ -220,7 +224,7 @@ export function buildSnapshot(
         surface_id: surface.id,
         title: surface.title,
       })),
-      ui_epoch: runtimeSnapshot.ui_epoch,
+      ui_epoch: effectiveUiEpoch,
     },
     mode,
   );
@@ -267,4 +271,33 @@ export function getRuntimePageContextDiagnostics(): Record<string, unknown> {
 
 export function getRuntimeSnapshot(mode: UISnapshotMode = 'compact') {
   return buildSnapshot(mode).snapshot;
+}
+
+export function getRuntimePageSnapshot(mode: UISnapshotMode = 'compact') {
+  return buildSnapshot(mode);
+}
+
+export function readRuntimeSurface(
+  surfaceId?: string,
+): Record<string, unknown> {
+  const runtime = ensureRuntimeInstance();
+  const surfaceRead = runtime.readSurface(surfaceId, 'full');
+  return {
+    active_surface_id: surfaceRead.active_surface?.id,
+    mode: surfaceRead.mode,
+    nodes: surfaceRead.nodes,
+    surface: surfaceRead.surface
+      ? {
+          kind: surfaceRead.surface.kind,
+          surface_id: surfaceRead.surface.id,
+          title: surfaceRead.surface.title,
+        }
+      : null,
+    surface_stack: surfaceRead.surface_stack.map((surface) => ({
+      kind: surface.kind,
+      surface_id: surface.id,
+      title: surface.title,
+    })),
+    ui_epoch: surfaceRead.ui_epoch,
+  };
 }

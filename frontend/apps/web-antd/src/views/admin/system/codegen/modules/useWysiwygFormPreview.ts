@@ -106,7 +106,9 @@ export function useWysiwygFormPreview() {
     () =>
       formItemsWithDividers.value.filter(
         (item) =>
-          !item.divider && item.type !== '__divider__' && Boolean(item.required),
+          !item.divider &&
+          item.type !== '__divider__' &&
+          Boolean(item.required),
       ).length,
   );
   const previewBadges = computed(() => [
@@ -151,7 +153,9 @@ export function useWysiwygFormPreview() {
     if (isRichText && typeof def === 'string') {
       return {
         type: 'doc',
-        content: [{ type: 'paragraph', content: [{ type: 'text', text: def }] }],
+        content: [
+          { type: 'paragraph', content: [{ type: 'text', text: def }] },
+        ],
       };
     }
     return def;
@@ -265,7 +269,9 @@ export function useWysiwygFormPreview() {
           .filter(Boolean),
       );
       for (const key of Object.keys(formValues)) {
-        if (!currentNames.has(key)) delete formValues[key];
+        if (!currentNames.has(key)) {
+          formValues[key] = undefined;
+        }
       }
       for (const f of items) {
         if (f.divider || f.type === '__divider__') continue;
@@ -541,7 +547,7 @@ export function useWysiwygFormPreview() {
 
   function handleCancel() {
     Object.keys(formValues).forEach((k) => {
-      delete formValues[k];
+      formValues[k] = undefined;
     });
   }
 
@@ -590,6 +596,4 @@ export function useWysiwygFormPreview() {
   };
 }
 
-export type WysiwygFormPreviewState = ReturnType<
-  typeof useWysiwygFormPreview
->;
+export type WysiwygFormPreviewState = ReturnType<typeof useWysiwygFormPreview>;

@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { resolveApiUrl } from '#/utils/api-url';
+
 vi.mock('@vben/hooks', () => ({
   useAppConfig: vi.fn(() => ({
     apiURL: '',
   })),
 }));
-
-import { resolveApiUrl } from '#/utils/api-url';
 
 describe('resolveApiUrl', () => {
   it('returns an empty string when api url config is missing', () => {

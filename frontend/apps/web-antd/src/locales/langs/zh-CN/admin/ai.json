@@ -717,15 +717,9 @@
       "longTermMemoryHint": "开启后，将可持久化的洞察写入 MemoryRecord 并按需渐进召回；需同智能体会话记忆已启用。"
     },
     "skillPackageBindings": "技能包绑定",
-    "consentMode": "工具授权模式",
-    "consentModeOptions": {
-      "auto": "自动执行",
-      "ask": "需要确认",
-      "reject": "禁止执行"
-    },
     "skillPicker": {
       "title": "选择技能绑定",
-      "subtitle": "按技能、技能包和来源快速筛选候选项，并为每个技能设置默认授权模式。",
+      "subtitle": "按技能、技能包和来源快速筛选候选项，并统一维护当前智能体的技能绑定。",
       "searchPlaceholder": "搜索技能名、Key、描述或技能包名",
       "packageFilter": "按技能包筛选",
       "onlyActive": "仅启用技能",
@@ -741,11 +735,10 @@
       "packageMatches": "{count} 项",
       "selectedBadge": "已选中",
       "selectionSummary": "{skills} 个技能 / {packages} 个技能包",
-      "selectionHint": "从左侧候选区勾选技能后，这里会保留选择，并允许你逐项设置默认授权模式。",
+      "selectionHint": "从左侧候选区勾选技能后，这里会保留选择，方便你统一检查本次要保存的技能列表。",
       "formEmptyHint": "当前还没有为这个智能体配置技能。建议至少选择一个可直接运行的技能。",
       "detailEmptyHint": "这个智能体当前没有任何技能授权。点击上方按钮后，可按技能包筛选、分页选择并统一保存。",
-      "defaultConsentMode": "默认授权模式",
-      "replaceNotice": "确认保存时会整体替换当前技能授权，请先在右侧确认每项的默认授权模式。",
+      "replaceNotice": "确认保存时会整体替换当前技能授权，请先在右侧确认要保留的技能列表。",
       "paginationTotal": "共 {count} 项",
       "emptyCandidates": "没有匹配的技能",
       "emptySelected": "尚未选择技能",

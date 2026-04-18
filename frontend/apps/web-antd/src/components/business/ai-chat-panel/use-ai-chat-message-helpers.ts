@@ -29,3 +29,14 @@ export {
   normalizeOptionalString,
   normalizeStringList,
 } from './use-ai-chat-message-normalizers';
+export {
+  applyCanonicalDoneEvent,
+  applyCanonicalTurnAnswerCardEvent,
+  applyCanonicalTurnEvidenceEvent,
+  applyCanonicalTurnStageEvent,
+  applyLegacyFieldsFromTurnFlow,
+  buildTurnFlowFromDiagnosticsPayload,
+  mergeTurnFlow,
+  normalizeTurnFlowViewModel,
+  reconcileTurnFlowWithLegacy,
+} from './use-ai-chat-turn-flow';

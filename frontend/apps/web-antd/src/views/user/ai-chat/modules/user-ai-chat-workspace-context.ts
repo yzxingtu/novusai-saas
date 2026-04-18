@@ -1,7 +1,8 @@
 import type { InjectionKey, Ref } from 'vue';
-import { inject, provide } from 'vue';
 
 import type { UserAIChatContext } from './ai-chat-context';
+
+import { inject, provide } from 'vue';
 
 export interface UserAIChatWorkspaceContext {
   page: UserAIChatContext;

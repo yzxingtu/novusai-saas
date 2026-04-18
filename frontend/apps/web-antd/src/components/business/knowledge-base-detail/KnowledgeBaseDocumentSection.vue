@@ -1,6 +1,7 @@
 <script lang="ts" setup>
-import type { KnowledgeBaseDocProgressInfo } from '#/composables/use-knowledge-base-detail-tools';
 import type { KnowledgeBaseDocumentRow } from './types';
+
+import type { KnowledgeBaseDocProgressInfo } from '#/composables/use-knowledge-base-detail-tools';
 
 import { IconifyIcon } from '@vben/icons';
 

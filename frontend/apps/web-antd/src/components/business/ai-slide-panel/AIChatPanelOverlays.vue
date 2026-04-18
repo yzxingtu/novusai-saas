@@ -13,10 +13,6 @@ withDefaults(
   defineProps<{
     conversationContextDiagnostics?: null | Record<string, unknown>;
     hasUnread?: boolean;
-    interactionModeDowngraded?: boolean;
-    interactionModeDowngradeText?: string;
-    interactionModeLabel?: string;
-    interactionModeRequested?: string;
     lastRunSummary?: null | Record<string, unknown>;
     minimizedOpen?: boolean;
     previewImageUrl?: null | string;
@@ -30,10 +26,6 @@ withDefaults(
   {
     conversationContextDiagnostics: null,
     hasUnread: false,
-    interactionModeDowngraded: false,
-    interactionModeDowngradeText: '',
-    interactionModeLabel: '',
-    interactionModeRequested: '',
     lastRunSummary: null,
     minimizedOpen: false,
     previewImageUrl: null,
@@ -66,10 +58,6 @@ const emit = defineEmits<{
 
   <AIChatContextDiagnosticsDrawer
     :open="showContextDrawer"
-    :interaction-mode-label="interactionModeLabel"
-    :interaction-mode-requested="interactionModeRequested"
-    :interaction-mode-downgraded="interactionModeDowngraded"
-    :interaction-mode-downgrade-text="interactionModeDowngradeText"
     :conversation-context-diagnostics="conversationContextDiagnostics"
     :last-run-summary="lastRunSummary"
     @update:open="emit('update:showContextDrawer', $event)"

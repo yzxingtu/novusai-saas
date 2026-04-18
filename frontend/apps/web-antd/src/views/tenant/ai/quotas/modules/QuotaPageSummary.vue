@@ -1,8 +1,5 @@
 <script lang="ts" setup>
-import type {
-  HeroChip,
-  HeroMetric,
-} from '../composables/use-ai-quota-page';
+import type { HeroChip, HeroMetric } from '../composables/use-ai-quota-page';
 
 import { Spin } from 'ant-design-vue';
 

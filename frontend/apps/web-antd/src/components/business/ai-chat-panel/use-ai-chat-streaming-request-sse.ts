@@ -14,6 +14,10 @@ import {
   formatLocalizedList,
 } from './display-formatters';
 import {
+  applyCanonicalDoneEvent,
+  applyCanonicalTurnAnswerCardEvent,
+  applyCanonicalTurnEvidenceEvent,
+  applyCanonicalTurnStageEvent,
   finalizeNativeSearchToolCall,
   isTurnFailure,
   normalizeContextSources,
@@ -21,6 +25,7 @@ import {
   normalizeOptionalString,
   normalizeStringList,
   normalizeTurnRecord,
+  reconcileTurnFlowWithLegacy,
   removeNativeSearchToolCall,
   resolveNativeSearchToolStatus,
   upsertNativeSearchToolCall,
@@ -43,13 +48,42 @@ export async function parseSSEEvents(
       let needFlush = false;
       try {
         const ev = JSON.parse(data) as { event?: string };
-        needFlush = ev.event === 'message' || ev.event === 'thinking';
+        needFlush =
+          ev.event === 'message' ||
+          ev.event === 'thinking' ||
+          ev.event === 'turn_answer_card' ||
+          ev.event === 'turn_evidence' ||
+          ev.event === 'turn_stage' ||
+          ev.event === 'turn_stage_update';
       } catch {
         needFlush = true;
       }
       if (needFlush) await nextTick();
     }
   }
+}
+
+function isDraftClearContentEventAllowed(messageItem: {
+  error?: unknown;
+  streaming?: boolean;
+  turnFlow?: unknown;
+}): boolean {
+  if (messageItem.streaming !== true || messageItem.error) {
+    return false;
+  }
+  const turnFlowRecord = normalizeObjectRecord(messageItem.turnFlow);
+  return !(
+    turnFlowRecord?.complete === true ||
+    turnFlowRecord?.turn_flow_complete === true
+  );
+}
+
+function resolveToolCallEventId(
+  event: Record<string, unknown>,
+): string | undefined {
+  return normalizeOptionalString(
+    event.tool_call_id ?? event.toolCallId ?? event.id,
+  );
 }
 
 export function createStreamSseHandler(
@@ -66,10 +100,17 @@ export function createStreamSseHandler(
       };
       const msg = lifecycle.getAssistantMessage();
       if (!msg) return;
+      if (lifecycle.didTerminalizeMessage) {
+        return;
+      }
 
       switch (event.event) {
         case 'clear_content': {
+          if (!isDraftClearContentEventAllowed(msg)) {
+            break;
+          }
           msg.content = '';
+          reconcileTurnFlowWithLegacy(msg);
           break;
         }
         case 'optimizing_tools': {
@@ -77,12 +118,14 @@ export function createStreamSseHandler(
             total: (event.total as number) || 0,
             selected: (event.selected as number) || 0,
           };
+          reconcileTurnFlowWithLegacy(msg);
           deps.scrollToBottom();
           break;
         }
         case 'thinking': {
           if (event.delta) {
             msg.thinkingContent = `${msg.thinkingContent || ''}${event.delta}`;
+            reconcileTurnFlowWithLegacy(msg);
             deps.scrollToBottom();
           }
           break;
@@ -93,16 +136,31 @@ export function createStreamSseHandler(
             msg.toolCalls = removeNativeSearchToolCall(msg.toolCalls);
           }
           if (!msg.toolCalls) msg.toolCalls = [];
-          let existing = msg.toolCalls.findLast(
-            (toolCall) =>
-              toolCall.name === event.name && toolCall.status === 'running',
-          );
-          if (!existing) {
+          const toolCallId = resolveToolCallEventId(event);
+          let existing =
+            (toolCallId
+              ? msg.toolCalls.findLast(
+                  (toolCall) =>
+                    toolCall.id === toolCallId && toolCall.status === 'running',
+                )
+              : undefined) ??
+            (toolCallId
+              ? msg.toolCalls.findLast((toolCall) => toolCall.id === toolCallId)
+              : undefined) ??
+            msg.toolCalls.findLast(
+              (toolCall) =>
+                toolCall.name === event.name && toolCall.status === 'running',
+            ) ??
+            msg.toolCalls.findLast((toolCall) => toolCall.status === 'running');
+          if (!existing && toolCallId) {
             existing = msg.toolCalls.findLast(
-              (toolCall) => toolCall.status === 'running',
+              (toolCall) => toolCall.id === toolCallId,
             );
           }
           if (existing) {
+            if (toolCallId && !existing.id) {
+              existing.id = toolCallId;
+            }
             existing.status = event.success ? 'success' : 'error';
             existing.durationMs = event.duration_ms as number | undefined;
             existing.output = event.output as string | undefined;
@@ -126,6 +184,7 @@ export function createStreamSseHandler(
               existing.resultLink = event.result_link as string;
           } else {
             msg.toolCalls.push({
+              id: toolCallId,
               name: event.name as string,
               status: event.success ? 'success' : 'error',
               durationMs: event.duration_ms as number | undefined,
@@ -147,6 +206,7 @@ export function createStreamSseHandler(
               (event.output as string) ?? '',
             );
           }
+          reconcileTurnFlowWithLegacy(msg);
           deps.scrollToBottom();
           break;
         }
@@ -156,15 +216,52 @@ export function createStreamSseHandler(
             msg.toolCalls = removeNativeSearchToolCall(msg.toolCalls);
           }
           if (!msg.toolCalls) msg.toolCalls = [];
-          msg.toolCalls.push({
-            id: event.id as string,
-            name: event.name as string,
-            status: 'running',
-            arguments: event.arguments as Record<string, unknown> | undefined,
-            skillName: (event.skill_name as string) || undefined,
-            skillType: (event.skill_type as string) || undefined,
-            startedAt: Date.now(),
-          });
+          const toolCallId = resolveToolCallEventId(event);
+          const existing =
+            (toolCallId
+              ? msg.toolCalls.findLast((toolCall) => toolCall.id === toolCallId)
+              : undefined) ?? undefined;
+          if (existing) {
+            existing.name = event.name as string;
+            existing.status = 'running';
+            existing.arguments = event.arguments as
+              | Record<string, unknown>
+              | undefined;
+            existing.skillName = (event.skill_name as string) || undefined;
+            existing.skillType = (event.skill_type as string) || undefined;
+            existing.startedAt = Date.now();
+          } else {
+            msg.toolCalls.push({
+              id: toolCallId,
+              name: event.name as string,
+              status: 'running',
+              arguments: event.arguments as Record<string, unknown> | undefined,
+              skillName: (event.skill_name as string) || undefined,
+              skillType: (event.skill_type as string) || undefined,
+              startedAt: Date.now(),
+            });
+          }
+          reconcileTurnFlowWithLegacy(msg);
+          deps.scrollToBottom();
+          break;
+        }
+        case 'turn_answer_card': {
+          applyCanonicalTurnAnswerCardEvent(msg, event);
+          deps.scrollToBottom();
+          break;
+        }
+        case 'turn_evidence': {
+          applyCanonicalTurnEvidenceEvent(msg, event);
+          deps.scrollToBottom();
+          break;
+        }
+        case 'turn_stage': {
+          applyCanonicalTurnStageEvent(msg, event);
+          deps.scrollToBottom();
+          break;
+        }
+        case 'turn_stage_update': {
+          applyCanonicalTurnStageEvent(msg, event);
           deps.scrollToBottom();
           break;
         }
@@ -182,6 +279,7 @@ export function createStreamSseHandler(
                 (event.name as string) ||
                 undefined,
             };
+            reconcileTurnFlowWithLegacy(msg);
           } else if (event.event === 'tool_consent_request') {
             lifecycle.promoteToolRoundContent();
             const nextInteractionModeEffective =
@@ -222,6 +320,7 @@ export function createStreamSseHandler(
                 skillType: (event.skill_type as string) || undefined,
               };
             }
+            reconcileTurnFlowWithLegacy(msg);
             deps.scrollToBottom();
           } else if (
             event.event === 'status' &&
@@ -232,6 +331,7 @@ export function createStreamSseHandler(
               msg.toolCalls,
               'running',
             );
+            reconcileTurnFlowWithLegacy(msg);
             deps.scrollToBottom();
           } else if (
             event.event === 'knowledge_base_feedback' &&
@@ -262,6 +362,7 @@ export function createStreamSseHandler(
             lifecycle.updateConversation(event.conversation_id as number);
           } else if (event.event === 'action_buttons' && event.buttons) {
             msg.actionButtons = event.buttons as typeof msg.actionButtons;
+            reconcileTurnFlowWithLegacy(msg);
             deps.scrollToBottom();
           } else if (event.event === 'image_result' && event.url) {
             if (!msg.imageResults) msg.imageResults = [];
@@ -270,11 +371,14 @@ export function createStreamSseHandler(
               isBase64: Boolean(event.is_base64),
               revisedPrompt: (event.revised_prompt as string) || undefined,
             });
+            reconcileTurnFlowWithLegacy(msg);
             deps.scrollToBottom();
           } else if (event.event === 'rag_sources' && event.sources) {
             msg.ragSources = event.sources as typeof msg.ragSources;
+            reconcileTurnFlowWithLegacy(msg);
           } else if (event.event === 'message' && event.delta) {
             msg.content += event.delta as string;
+            reconcileTurnFlowWithLegacy(msg);
             deps.scrollToBottom();
           } else if (event.event === 'done') {
             lifecycle.didReceiveDoneEvent = true;
@@ -301,7 +405,7 @@ export function createStreamSseHandler(
               : undefined;
 
             const turnRecordRaw = normalizeObjectRecord(event.turn_record);
-            const turnRecord = normalizeTurnRecord(event.turn_record);
+            let turnRecord = normalizeTurnRecord(event.turn_record);
             const turnOutcome =
               normalizeOptionalString(event.turn_outcome) ??
               turnRecord?.turn_outcome;
@@ -338,6 +442,40 @@ export function createStreamSseHandler(
               contextSourcesFromEvent.length > 0
                 ? contextSourcesFromEvent
                 : (turnRecord?.context_sources ?? []);
+            const failureKind =
+              normalizeOptionalString(
+                event.failure_kind ?? event.failureKind,
+              ) ??
+              normalizeOptionalString(
+                turnRecordRaw?.failure_kind ?? turnRecordRaw?.failureKind,
+              ) ??
+              normalizeOptionalString(
+                normalizeObjectRecord(turnRecordRaw?.metadata)?.failure_kind ??
+                  normalizeObjectRecord(turnRecordRaw?.metadata)?.failureKind,
+              );
+            if (failureKind) {
+              turnRecord = {
+                ...turnRecord,
+                ...(turnOutcome ? { turn_outcome: turnOutcome } : {}),
+                ...(terminationReason
+                  ? { termination_reason: terminationReason }
+                  : {}),
+                ...(protocolPath ? { protocol_path: protocolPath } : {}),
+                ...(selectedToolNames.length > 0
+                  ? { selected_tool_names: selectedToolNames }
+                  : {}),
+                ...(selectedSkillNames.length > 0
+                  ? { selected_skill_names: selectedSkillNames }
+                  : {}),
+                ...(contextSources.length > 0
+                  ? { context_sources: contextSources }
+                  : {}),
+                metadata: {
+                  ...turnRecord?.metadata,
+                  failure_kind: failureKind,
+                },
+              };
+            }
             const nativeSearchStatus =
               resolveNativeSearchToolStatus(turnRecordRaw);
 
@@ -379,10 +517,16 @@ export function createStreamSseHandler(
               msg.partial = true;
             }
             if (
-              isTurnFailure(turnOutcome, terminationReason ?? completionReason)
+              isTurnFailure(
+                turnOutcome,
+                terminationReason ?? completionReason,
+              ) ||
+              (turnOutcome === 'partial' && !!failureKind)
             ) {
               msg.requestFailedRetry = true;
             }
+            applyCanonicalDoneEvent(msg, event);
+            reconcileTurnFlowWithLegacy(msg);
 
             const nextContextDiagnostics: Record<string, unknown> = {
               context_compacted: Boolean(event.context_compacted),
@@ -416,6 +560,9 @@ export function createStreamSseHandler(
             if (contextSources.length > 0) {
               nextContextDiagnostics.context_sources = contextSources;
             }
+            if (failureKind) {
+              nextContextDiagnostics.failure_kind = failureKind;
+            }
             deps.conversationContextDiagnostics.value = nextContextDiagnostics;
 
             const nextLastRunSummary: Record<string, unknown> = {
@@ -448,6 +595,9 @@ export function createStreamSseHandler(
             if (contextSources.length > 0) {
               nextLastRunSummary.context_sources = contextSources;
             }
+            if (failureKind) {
+              nextLastRunSummary.failure_kind = failureKind;
+            }
             deps.lastRunSummary.value = nextLastRunSummary;
 
             if (event.conversation_id) {
@@ -460,7 +610,7 @@ export function createStreamSseHandler(
             if (deps.options.onStreamComplete) {
               deps.options.onStreamComplete();
             }
-            lifecycle.finalizeMessage();
+            lifecycle.terminalizeMessage();
             deps.streaming.value = false;
             deps.sending.value = false;
             void deps.loadConversations();
@@ -477,6 +627,10 @@ export function createStreamSseHandler(
               lifecycle.hasReceivedStreamPayload ||
               lifecycle.streamConversationId !== null;
             lifecycle.applyAssistantError(normalizeSseEventError(event, $t));
+            lifecycle.terminalizeMessage();
+            deps.streaming.value = false;
+            deps.sending.value = false;
+            void deps.loadConversations();
           }
         }
       }

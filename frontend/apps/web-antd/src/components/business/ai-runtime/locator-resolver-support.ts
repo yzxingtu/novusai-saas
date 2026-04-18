@@ -29,7 +29,15 @@ const SEMANTIC_HINTS: Record<UIInteractableKind, string[]> = {
   generic: [],
   link: ['link', 'href', '链接', '跳转'],
   menu_item: ['menu', '菜单', '导航', '入口'],
-  pagination: ['page', 'pagination', 'next', 'prev', '分页', '下一页', '上一页'],
+  pagination: [
+    'page',
+    'pagination',
+    'next',
+    'prev',
+    '分页',
+    '下一页',
+    '上一页',
+  ],
   tab: ['tab', '标签', '选项卡'],
 };
 
@@ -53,7 +61,7 @@ export function escapeSelectorValue(value: string): string {
   const escaper =
     typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
       ? CSS.escape
-      : (raw: string) => raw.replaceAll('"', '\\"');
+      : (raw: string) => raw.replaceAll('"', String.raw`\"`);
   return escaper(value);
 }
 
@@ -81,7 +89,7 @@ function isElementDisabled(element: HTMLElement): boolean {
 
 function resolveElementLabel(element: HTMLElement): string {
   const preferred =
-    element.getAttribute('data-ai-label') ||
+    element.dataset.aiLabel ||
     element.getAttribute('aria-label') ||
     element.getAttribute('title') ||
     element.getAttribute('name');
@@ -136,18 +144,18 @@ function fallbackLocatorByDomPath(element: HTMLElement): string {
     return `id:${element.id}`;
   }
   const tag = element.tagName.toLocaleLowerCase();
-  const index = Array.from(
-    element.parentElement?.querySelectorAll(tag) || [],
-  ).indexOf(element);
+  const index = [
+    ...(element.parentElement?.querySelectorAll(tag) || []),
+  ].indexOf(element);
   return `css:${tag}:nth-of-type(${Math.max(index + 1, 1)})`;
 }
 
 function buildLocator(element: HTMLElement): string {
-  const aiId = element.getAttribute('data-ai-id');
+  const aiId = element.dataset.aiId;
   if (aiId) {
     return `ai-id:${aiId}`;
   }
-  const testId = element.getAttribute('data-testid');
+  const testId = element.dataset.testid;
   if (testId) {
     return `testid:${testId}`;
   }
@@ -177,15 +185,15 @@ export function toCandidateRecord(element: HTMLElement): CandidateRecord {
   const label = resolveElementLabel(element);
   const locator = buildLocator(element);
   const disabled = isElementDisabled(element);
-  const searchable = new Set<string>();
-
-  searchable.add(normalizeQuery(locator));
-  searchable.add(normalizeQuery(label));
-  searchable.add(normalizeQuery(element.id || ''));
-  searchable.add(normalizeQuery(element.getAttribute('data-ai-id') || ''));
-  searchable.add(normalizeQuery(element.getAttribute('data-testid') || ''));
-  searchable.add(normalizeQuery(element.getAttribute('name') || ''));
-  searchable.add(normalizeQuery(element.getAttribute('href') || ''));
+  const searchable = new Set<string>([
+    normalizeQuery(element.dataset.aiId || ''),
+    normalizeQuery(element.dataset.testid || ''),
+    normalizeQuery(element.getAttribute('href') || ''),
+    normalizeQuery(element.getAttribute('name') || ''),
+    normalizeQuery(element.id || ''),
+    normalizeQuery(label),
+    normalizeQuery(locator),
+  ]);
 
   return {
     candidate: {
@@ -259,7 +267,9 @@ export function collectCandidates(args: {
   const records: CandidateRecord[] = [];
   const seen = new Set<HTMLElement>();
 
-  const elements = args.root.querySelectorAll<HTMLElement>(INTERACTABLE_SELECTOR);
+  const elements = args.root.querySelectorAll<HTMLElement>(
+    INTERACTABLE_SELECTOR,
+  );
   elements.forEach((element) => {
     if (seen.has(element)) {
       return;

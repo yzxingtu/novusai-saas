@@ -1,3 +1,5 @@
+import type { SkillFormValues } from './skill-form-types';
+
 import {
   inputField,
   numberField,
@@ -6,8 +8,6 @@ import {
   textareaField,
 } from '#/adapter/form';
 import { $t } from '#/locales';
-
-import type { SkillFormValues } from './skill-form-types';
 
 function isHttp(values: SkillFormValues) {
   return values.type === 'http';
@@ -135,10 +135,14 @@ function buildHttpSchema() {
       },
     },
     {
-      ...textareaField('http_headers', $t('admin.ai.skill.httpConfig.headers'), {
-        placeholder: $t('admin.ai.skill.httpConfig.headersPlaceholder'),
-        rows: 3,
-      }),
+      ...textareaField(
+        'http_headers',
+        $t('admin.ai.skill.httpConfig.headers'),
+        {
+          placeholder: $t('admin.ai.skill.httpConfig.headersPlaceholder'),
+          rows: 3,
+        },
+      ),
       dependencies: {
         triggerFields: ['type'],
         if: (values: SkillFormValues) => isHttp(values),
@@ -183,9 +187,13 @@ function buildHttpSchema() {
       },
     },
     {
-      ...inputField('http_auth_token', $t('admin.ai.skill.httpConfig.authToken'), {
-        placeholder: $t('admin.ai.skill.httpConfig.authTokenPlaceholder'),
-      }),
+      ...inputField(
+        'http_auth_token',
+        $t('admin.ai.skill.httpConfig.authToken'),
+        {
+          placeholder: $t('admin.ai.skill.httpConfig.authTokenPlaceholder'),
+        },
+      ),
       dependencies: {
         triggerFields: ['type', 'http_auth_type'],
         if: (values: SkillFormValues) => isHttpBearer(values),
@@ -341,7 +349,10 @@ function buildEmailSchema() {
       },
     },
     {
-      ...switchField('email_allow_cc', $t('admin.ai.skill.emailConfig.allowCc')),
+      ...switchField(
+        'email_allow_cc',
+        $t('admin.ai.skill.emailConfig.allowCc'),
+      ),
       dependencies: {
         triggerFields: ['type'],
         if: (values: SkillFormValues) => isEmail(values),

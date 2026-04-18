@@ -3,7 +3,10 @@ import type { AssistantTurnMergeState } from './use-ai-chat-message-merge-turn-s
 
 import type { RawMessageItem } from '#/api/shared/ai-chat';
 
-import { appendDistinctMergedTextPart } from './use-ai-chat-message-normalizers';
+import {
+  appendDistinctMergedTextPart,
+  normalizeOptionalString,
+} from './use-ai-chat-message-normalizers';
 
 function collectTurnFlags(
   state: AssistantTurnMergeState,
@@ -62,6 +65,34 @@ function collectTurnText(
       );
     }
   } else {
+    const hasTerminalSignal =
+      normalizeOptionalString(assistantMetadata?.completion_reason) ||
+      normalizeOptionalString(assistantMetadata?.termination_reason) ||
+      normalizeOptionalString(assistantMetadata?.turn_outcome) ||
+      normalizeOptionalString(
+        (messageItem.turn_flow as Record<string, unknown> | undefined)
+          ?.completion_reason,
+      ) ||
+      normalizeOptionalString(
+        (assistantMetadata?.turn_flow as Record<string, unknown> | undefined)
+          ?.completion_reason,
+      ) ||
+      (messageItem.turn_flow as Record<string, unknown> | undefined)
+        ?.complete === true ||
+      (messageItem.turn_flow as Record<string, unknown> | undefined)
+        ?.turn_flow_complete === true ||
+      (assistantMetadata?.turn_flow as Record<string, unknown> | undefined)
+        ?.complete === true ||
+      (assistantMetadata?.turn_flow as Record<string, unknown> | undefined)
+        ?.turn_flow_complete === true;
+    if (hasTerminalSignal) {
+      state.trustedFinalContent = messageItem.content;
+      state.contentParts = [messageItem.content];
+      return false;
+    }
+    if (state.trustedFinalContent) {
+      return false;
+    }
     appendDistinctMergedTextPart(state.contentParts, messageItem.content);
   }
   return false;

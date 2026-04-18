@@ -107,6 +107,7 @@ export const LUCIDE_ICON_NAMES = [
   "external-link",
   "eye",
   "file",
+  "file-check-2",
   "file-code",
   "file-code-2",
   "file-input",
@@ -442,6 +443,7 @@ export const LUCIDE_ICON_IDS = [
   "lucide:external-link",
   "lucide:eye",
   "lucide:file",
+  "lucide:file-check-2",
   "lucide:file-code",
   "lucide:file-code-2",
   "lucide:file-input",
@@ -1069,6 +1071,10 @@ export const LUCIDE_ICON_SUBSET = {
     },
     "file": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z\"/><path d=\"M14 2v5a1 1 0 0 0 1 1h5\"/></g>"
+    },
+    "file-check-2": {
+      "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M4 22h14a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v4\"/><path d=\"M14 2v4a2 2 0 0 0 2 2h4M3 15l2 2l4-4\"/></g>",
+      "hidden": true
     },
     "file-code": {
       "body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z\"/><path d=\"M14 2v5a1 1 0 0 0 1 1h5m-10 4.5L8 15l2 2.5m4-5l2 2.5l-2 2.5\"/></g>"

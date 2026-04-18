@@ -32,7 +32,9 @@ export interface SimpleOperationOptions extends BaseOperationOptions {
   action: (params: AnyRecord) => OperationExecutionResult;
 }
 
-export function isPageOperationResult(value: unknown): value is PageOperationResult {
+export function isPageOperationResult(
+  value: unknown,
+): value is PageOperationResult {
   return (
     !!value &&
     typeof value === 'object' &&
@@ -152,9 +154,9 @@ export function defaultRecordNotFoundMessage(
 ): string {
   return identifier === null || identifier === undefined || identifier === ''
     ? $t('shared.pageOperation.msg.recordNotFound')
-    : ($t('shared.pageOperation.msg.recordNotFoundInList', {
+    : $t('shared.pageOperation.msg.recordNotFoundInList', {
         id: identifier,
-      }) || `${operationLabel}: record ${identifier} not found`);
+      }) || `${operationLabel}: record ${identifier} not found`;
 }
 
 export function createParameterizedPageOperation<

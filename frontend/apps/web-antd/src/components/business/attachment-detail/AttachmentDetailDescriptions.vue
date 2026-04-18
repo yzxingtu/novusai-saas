@@ -1,7 +1,5 @@
 <script lang="ts" setup>
-import type {
-  AttachmentDetailSection,
-} from './types';
+import type { AttachmentDetailSection } from './types';
 
 import { Descriptions, DescriptionsItem, Tag } from 'ant-design-vue';
 

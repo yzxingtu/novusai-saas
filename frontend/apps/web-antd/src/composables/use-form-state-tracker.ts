@@ -23,6 +23,7 @@
  */
 
 import type { EnhancedFormFieldDescriptor } from './ai-operation-types';
+
 import type {
   FormFieldDescriptor,
   FormSession,
@@ -98,32 +99,9 @@ function toRuntimeFieldDescriptors(
  */
 class FormStateTrackerImpl {
   private _entries = new Map<string, TrackerEntry>();
+  private _formSessions = new FormSessionManager();
   private _sessionIdByPageKey = new Map<string, string>();
   private _sessionIdCounter = 0;
-  private _formSessions = new FormSessionManager();
-
-  getActiveFieldDescriptors(surfaceIdOrPageKey?: string): FormFieldDescriptor[] {
-    return this.getActiveSession(surfaceIdOrPageKey)?.fields ?? [];
-  }
-
-  getActiveSession(surfaceIdOrPageKey?: string): FormSession | null {
-    if (!surfaceIdOrPageKey) {
-      return this._formSessions.getActiveSession();
-    }
-    const sessionId = this.resolveSessionId(surfaceIdOrPageKey);
-    if (sessionId) {
-      return this._formSessions.getSession(sessionId);
-    }
-    return this._formSessions.getActiveSession(surfaceIdOrPageKey);
-  }
-
-  getActiveSessionByPageKey(pageKey: string): FormSession | null {
-    const sessionId = this._sessionIdByPageKey.get(pageKey);
-    if (!sessionId) {
-      return null;
-    }
-    return this._formSessions.getSession(sessionId);
-  }
 
   /**
    * Clear all entries (for testing/reset)
@@ -145,6 +123,31 @@ class FormStateTrackerImpl {
       return;
     }
     this.closeBySessionId(sessionId);
+  }
+
+  getActiveFieldDescriptors(
+    surfaceIdOrPageKey?: string,
+  ): FormFieldDescriptor[] {
+    return this.getActiveSession(surfaceIdOrPageKey)?.fields ?? [];
+  }
+
+  getActiveSession(surfaceIdOrPageKey?: string): FormSession | null {
+    if (!surfaceIdOrPageKey) {
+      return this._formSessions.getActiveSession();
+    }
+    const sessionId = this.resolveSessionId(surfaceIdOrPageKey);
+    if (sessionId) {
+      return this._formSessions.getSession(sessionId);
+    }
+    return this._formSessions.getActiveSession(surfaceIdOrPageKey);
+  }
+
+  getActiveSessionByPageKey(pageKey: string): FormSession | null {
+    const sessionId = this._sessionIdByPageKey.get(pageKey);
+    if (!sessionId) {
+      return null;
+    }
+    return this._formSessions.getSession(sessionId);
   }
 
   /**
@@ -179,6 +182,18 @@ class FormStateTrackerImpl {
       return this.getSingleEntry()?.formApi ?? null;
     }
     return null;
+  }
+
+  getSession(pageKey: string): FormSession | null {
+    const sessionId = this.resolveSessionId(pageKey);
+    if (!sessionId) {
+      return null;
+    }
+    return this._formSessions.getSession(sessionId);
+  }
+
+  getSessionId(pageKey: string): null | string {
+    return this._sessionIdByPageKey.get(pageKey) ?? null;
   }
 
   /**
@@ -272,14 +287,6 @@ class FormStateTrackerImpl {
     return [...this._sessionIdByPageKey.keys()];
   }
 
-  getSessionId(pageKey: string): null | string {
-    return this._sessionIdByPageKey.get(pageKey) ?? null;
-  }
-
-  listSessions(): FormSession[] {
-    return this._formSessions.listSessions();
-  }
-
   /**
    * Check if a form is currently open for a page
    * 检查页面是否有表单打开
@@ -296,6 +303,10 @@ class FormStateTrackerImpl {
   isOpenWithFallback(pageKey: string): boolean {
     if (this.resolveSessionId(pageKey)) return true;
     return this._entries.size === 1;
+  }
+
+  listSessions(): FormSession[] {
+    return this._formSessions.listSessions();
   }
 
   /**
@@ -353,24 +364,6 @@ class FormStateTrackerImpl {
     return this._formSessions.updateFieldValues(sessionId, values);
   }
 
-  getSession(pageKey: string): FormSession | null {
-    const sessionId = this.resolveSessionId(pageKey);
-    if (!sessionId) {
-      return null;
-    }
-    return this._formSessions.getSession(sessionId);
-  }
-
-  private getSingleEntry(): null | TrackerEntry {
-    const firstEntry = this._entries.entries().next().value;
-    return firstEntry ? firstEntry[1] : null;
-  }
-
-  private getSingleSessionId(): null | string {
-    const firstEntry = this._entries.keys().next().value;
-    return typeof firstEntry === 'string' ? firstEntry : null;
-  }
-
   private closeBySessionId(sessionId: string): void {
     const entry = this._entries.get(sessionId);
     if (!entry) {
@@ -388,9 +381,9 @@ class FormStateTrackerImpl {
     this._sessionIdCounter += 1;
     const normalizedPageKey = pageKey
       .trim()
-      .replaceAll(/[^a-zA-Z0-9_.-]+/g, '-')
+      .replaceAll(/[^\w.-]+/g, '-')
       .replaceAll(/-+/g, '-')
-      .replaceAll(/(^-|-$)/g, '');
+      .replaceAll(/^-|-$/g, '');
     const base = normalizedPageKey || 'form';
     return `${base}__session_${Date.now()}_${this._sessionIdCounter}`;
   }
@@ -401,6 +394,16 @@ class FormStateTrackerImpl {
       return null;
     }
     return this._entries.get(sessionId) ?? null;
+  }
+
+  private getSingleEntry(): null | TrackerEntry {
+    const firstEntry = this._entries.entries().next().value;
+    return firstEntry ? firstEntry[1] : null;
+  }
+
+  private getSingleSessionId(): null | string {
+    const firstEntry = this._entries.keys().next().value;
+    return typeof firstEntry === 'string' ? firstEntry : null;
   }
 
   private resolveSessionId(pageKeyOrSessionId: string): null | string {

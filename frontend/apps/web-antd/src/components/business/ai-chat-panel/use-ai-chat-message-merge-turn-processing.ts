@@ -19,6 +19,10 @@ import {
   normalizeObjectRecord,
   normalizeOptionalString,
 } from './use-ai-chat-message-normalizers';
+import {
+  mergeTurnFlow,
+  normalizeTurnFlowViewModel,
+} from './use-ai-chat-turn-flow';
 
 function resolvePersistedAssistantError(
   metadata: null | Record<string, unknown>,
@@ -177,6 +181,32 @@ export function processAssistantMessage({
   }
 
   collectPendingStateFromMetadata(state, assistantMetadata);
+  const persistedTurnFlow = normalizeTurnFlowViewModel(
+    messageItem.turn_flow ?? assistantMetadata?.turn_flow,
+  );
+  if (persistedTurnFlow) {
+    state.turnFlow = mergeTurnFlow(state.turnFlow, persistedTurnFlow);
+    if (persistedTurnFlow.completionReason) {
+      state.turnCompletionReason = persistedTurnFlow.completionReason;
+    }
+    if (persistedTurnFlow.interrupted) {
+      state.hasInterrupted = true;
+      state.hasPartial = true;
+      state.turnTerminationReason =
+        state.turnTerminationReason || 'interrupted';
+    }
+    if (persistedTurnFlow.finalStageStatus === 'error') {
+      state.turnOutcome = 'failed';
+      state.turnTerminationReason =
+        state.turnTerminationReason || state.turnCompletionReason || 'error';
+    } else if (persistedTurnFlow.finalStageStatus === 'interrupted') {
+      state.hasInterrupted = true;
+      state.hasPartial = true;
+      state.turnOutcome = state.turnOutcome || 'partial';
+      state.turnTerminationReason =
+        state.turnTerminationReason || 'interrupted';
+    }
+  }
   collectToolCallsFromAssistantMessage(state, messageItem, toolResponseMap);
 
   if (assistantMetadata?.memory_updated) {

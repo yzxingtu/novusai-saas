@@ -3,8 +3,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  DOMScanner,
   buildElementLocator,
+  DOMScanner,
   inferNodeKindFromElement,
   readElementLabel,
 } from '../dom-scanner';
@@ -13,11 +13,13 @@ import { tAiRuntime } from '../i18n';
 describe('dom-scanner helpers', () => {
   it('buildElementLocator resolves locator by priority and escapes values', () => {
     const aiElement = document.createElement('button');
-    aiElement.setAttribute('data-ai-id', 'save"btn\\main');
-    expect(buildElementLocator(aiElement)).toBe('[data-ai-id="save\\"btn\\\\main"]');
+    aiElement.dataset.aiId = String.raw`save"btn\main`;
+    expect(buildElementLocator(aiElement)).toBe(
+      String.raw`[data-ai-id="save\"btn\\main"]`,
+    );
 
     const testIdElement = document.createElement('button');
-    testIdElement.setAttribute('data-testid', 'submit');
+    testIdElement.dataset.testid = 'submit';
     expect(buildElementLocator(testIdElement)).toBe('[data-testid="submit"]');
 
     const idElement = document.createElement('button');
@@ -41,7 +43,9 @@ describe('dom-scanner helpers', () => {
     `;
     const fallbackElement = wrapper.querySelectorAll('span')[1];
     expect(fallbackElement).toBeTruthy();
-    expect(buildElementLocator(fallbackElement as Element)).toContain('span:nth-of-type(2)');
+    expect(buildElementLocator(fallbackElement as HTMLElement)).toContain(
+      'span:nth-of-type(2)',
+    );
   });
 
   it('inferNodeKindFromElement recognizes common interactive kinds', () => {
@@ -102,7 +106,7 @@ describe('dom-scanner helpers', () => {
   });
 });
 
-describe('DOMScanner.scan', () => {
+describe('dOMScanner.scan', () => {
   it('supports surfaces-only mode and collects overlay keys/title fallback', () => {
     document.body.innerHTML = `
       <div class="ant-modal-root">
@@ -137,7 +141,9 @@ describe('DOMScanner.scan', () => {
     expect(result.scannedElements).toBe(0);
     expect(result.truncated).toBe(false);
 
-    const overlayMap = new Map(result.overlays.map((overlay) => [overlay.key, overlay]));
+    const overlayMap = new Map(
+      result.overlays.map((overlay) => [overlay.key, overlay]),
+    );
     expect(result.overlays).toHaveLength(4);
     expect(overlayMap.get('modal:main-modal')?.title).toBe('审批弹窗');
     expect(overlayMap.get('drawer:settings-drawer')?.title).toBe(
@@ -165,7 +171,7 @@ describe('DOMScanner.scan', () => {
       maxNodes: 20,
       visibleOnly: true,
     });
-    const root = document.getElementById('scan-root');
+    const root = document.querySelector('#scan-root');
     expect(root).toBeTruthy();
 
     const result = scanner.scan({
@@ -176,9 +182,13 @@ describe('DOMScanner.scan', () => {
 
     const locators = result.nodes.map((node) => node.locator);
     expect(locators).toContain('[data-testid="depth-1"]');
-    expect(locators.some((locator) => locator.includes('hidden-item'))).toBe(false);
+    expect(locators.some((locator) => locator.includes('hidden-item'))).toBe(
+      false,
+    );
     expect(locators.some((locator) => locator.includes('depth-2'))).toBe(false);
-    expect(result.nodes.every((node) => node.surfaceId === 'surface:page:1')).toBe(true);
+    expect(
+      result.nodes.every((node) => node.surfaceId === 'surface:page:1'),
+    ).toBe(true);
     expect(result.truncated).toBe(false);
   });
 

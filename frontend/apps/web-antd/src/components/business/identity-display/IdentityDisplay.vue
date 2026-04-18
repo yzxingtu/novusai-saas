@@ -331,24 +331,24 @@ function resolveBadgeToneClass(color?: string): string {
 
 <style scoped>
 .identity-display__content {
-  align-items: flex-start;
   display: flex;
   flex-direction: column;
   gap: 3px;
+  align-items: flex-start;
   min-width: 0;
   text-align: left;
 }
 
 .identity-display__heading {
-  align-items: flex-start;
   display: flex;
   gap: 4px 6px;
+  align-items: flex-start;
   justify-content: flex-start;
-  line-height: 1.15;
-  max-width: 100%;
-  min-width: 0;
-  text-align: left;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  line-height: 1.15;
+  text-align: left;
 }
 
 .identity-display__heading--wrap {
@@ -356,19 +356,19 @@ function resolveBadgeToneClass(color?: string): string {
 }
 
 .identity-display__heading--nowrap {
-  align-items: center;
   flex-wrap: nowrap;
   gap: 4px;
+  align-items: center;
 }
 
 .identity-display__title {
-  color: rgb(17 24 39);
   flex: 0 1 auto;
-  max-width: 100%;
   min-width: 0;
+  max-width: 100%;
   overflow: hidden;
-  text-align: left;
   text-overflow: ellipsis;
+  color: rgb(17 24 39);
+  text-align: left;
   white-space: nowrap;
 }
 
@@ -385,13 +385,13 @@ function resolveBadgeToneClass(color?: string): string {
 }
 
 .identity-display__badge-list {
-  align-items: flex-start;
-  align-self: flex-start;
   display: flex;
   gap: 2px;
+  align-items: flex-start;
+  align-self: flex-start;
   justify-content: flex-start;
-  max-width: 100%;
   min-width: 0;
+  max-width: 100%;
 }
 
 .identity-display__badge-list--wrap {
@@ -400,96 +400,108 @@ function resolveBadgeToneClass(color?: string): string {
 }
 
 .identity-display__badge-list--nowrap {
-  align-items: center;
-  align-self: center;
   flex: 0 0 auto;
   flex-wrap: nowrap;
   gap: 1px;
+  align-items: center;
+  align-self: center;
   max-width: none;
 }
 
 .identity-display__indicator {
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
   appearance: none;
+  cursor: pointer;
   background: transparent;
   border: none;
   border-radius: 9999px;
-  cursor: pointer;
-  display: inline-flex;
-  height: 18px;
-  justify-content: center;
-  padding: 0;
   transition:
     color 0.15s ease,
     background-color 0.15s ease,
     transform 0.15s ease;
-  width: 18px;
 }
 
 .identity-display__indicator:hover,
 .identity-display__indicator:focus-visible {
-  background: var(--identity-indicator-bg);
   outline: none;
+  background: var(--identity-indicator-bg);
   transform: translateY(-0.5px);
 }
 
 .identity-display__indicator--default {
-  --identity-indicator-bg: rgb(243 244 246 / 0.92);
+  --identity-indicator-bg: rgb(243 244 246 / 92%);
+
   color: rgb(107 114 128);
 }
 
 .identity-display__indicator--blue {
-  --identity-indicator-bg: rgb(239 246 255 / 0.95);
+  --identity-indicator-bg: rgb(239 246 255 / 95%);
+
   color: rgb(37 99 235);
 }
 
 .identity-display__indicator--gold {
-  --identity-indicator-bg: rgb(255 247 237 / 0.95);
+  --identity-indicator-bg: rgb(255 247 237 / 95%);
+
   color: rgb(217 119 6);
 }
 
 .identity-display__indicator--green {
-  --identity-indicator-bg: rgb(236 253 245 / 0.95);
+  --identity-indicator-bg: rgb(236 253 245 / 95%);
+
   color: rgb(5 150 105);
 }
 
 .identity-display__indicator--red {
-  --identity-indicator-bg: rgb(254 242 242 / 0.95);
+  --identity-indicator-bg: rgb(254 242 242 / 95%);
+
   color: rgb(220 38 38);
 }
 
 .identity-display__indicator--purple {
-  --identity-indicator-bg: rgb(245 243 255 / 0.95);
+  --identity-indicator-bg: rgb(245 243 255 / 95%);
+
   color: rgb(124 58 237);
 }
 
 .dark .identity-display__indicator--default {
-  --identity-indicator-bg: rgb(31 41 55 / 0.95);
+  --identity-indicator-bg: rgb(31 41 55 / 95%);
+
   color: rgb(209 213 219);
 }
 
 .dark .identity-display__indicator--blue {
-  --identity-indicator-bg: rgb(30 41 59 / 0.95);
+  --identity-indicator-bg: rgb(30 41 59 / 95%);
+
   color: rgb(147 197 253);
 }
 
 .dark .identity-display__indicator--gold {
-  --identity-indicator-bg: rgb(120 53 15 / 0.2);
+  --identity-indicator-bg: rgb(120 53 15 / 20%);
+
   color: rgb(252 211 77);
 }
 
 .dark .identity-display__indicator--green {
-  --identity-indicator-bg: rgb(6 78 59 / 0.22);
+  --identity-indicator-bg: rgb(6 78 59 / 22%);
+
   color: rgb(110 231 183);
 }
 
 .dark .identity-display__indicator--red {
-  --identity-indicator-bg: rgb(69 10 10 / 0.22);
+  --identity-indicator-bg: rgb(69 10 10 / 22%);
+
   color: rgb(252 165 165);
 }
 
 .dark .identity-display__indicator--purple {
-  --identity-indicator-bg: rgb(59 7 100 / 0.2);
+  --identity-indicator-bg: rgb(59 7 100 / 20%);
+
   color: rgb(196 181 253);
 }
 
@@ -500,17 +512,17 @@ function resolveBadgeToneClass(color?: string): string {
 }
 
 .identity-display__org-chip {
-  align-items: center;
-  background: hsl(var(--primary) / 0.1);
-  border: 1px solid hsl(var(--primary) / 0.22);
-  border-radius: 9999px;
-  color: hsl(var(--primary));
   display: inline-flex;
   gap: 4px;
-  max-width: 100%;
+  align-items: center;
   min-width: 0;
+  max-width: 100%;
   padding: 1px 8px;
+  color: hsl(var(--primary));
   text-align: left;
+  background: hsl(var(--primary) / 10%);
+  border: 1px solid hsl(var(--primary) / 22%);
+  border-radius: 9999px;
 }
 
 .identity-display__org-icon {
@@ -519,25 +531,25 @@ function resolveBadgeToneClass(color?: string): string {
 
 .identity-display__org-text {
   display: inline-block;
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 1.35;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.35;
   white-space: nowrap;
 }
 
 .identity-display__secondary {
-  color: rgb(107 114 128);
   line-height: 1.35;
+  color: rgb(107 114 128);
   text-align: left;
 }
 
 .identity-display {
   justify-content: flex-start;
-  text-align: left;
   width: 100%;
+  text-align: left;
 }
 
 .dark .identity-display__secondary {

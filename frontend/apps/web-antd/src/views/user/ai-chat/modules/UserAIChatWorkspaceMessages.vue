@@ -1,12 +1,19 @@
 <script lang="ts" setup>
 import type { VNodeRef } from 'vue';
 
+import type { TurnFlowState } from '#/components/business/ai-chat-kernel/TurnFlowState';
+import type { ChatMessage } from '#/types/ai-chat';
+
+import { computed } from 'vue';
+
 import { IconifyIcon } from '@vben/icons';
 
+import { buildTurnFlowState } from '#/components/business/ai-chat-kernel/TurnFlowState';
 import ChatMessageItem from '#/components/business/ai-chat-panel/ChatMessageItem.vue';
 import { $t } from '#/locales';
 
 import { useUserAIChatWorkspaceContext } from './user-ai-chat-workspace-context';
+import { toTurnFlowFirstChatMessage } from './user-chat-message-normalizer';
 
 const workspace = useUserAIChatWorkspaceContext();
 const {
@@ -43,6 +50,71 @@ const {
 const setMessagesContainerRef: VNodeRef = (element) => {
   messagesContainer.value = element as HTMLElement | null;
 };
+
+function normalizeIdentityPart(value: unknown): string | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function hashIdentityParts(parts: string[]): string {
+  let hash = 2_166_136_261;
+  const joined = parts.join('\u001F');
+  for (let index = 0; index < joined.length; index += 1) {
+    hash ^= joined.codePointAt(index) ?? 0;
+    hash = Math.imul(hash, 16_777_619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function resolveMessageRenderKey(message: ChatMessage): string {
+  const messageRecord = message as unknown as Record<string, unknown>;
+  const persistedIdentity = [
+    messageRecord.message_id,
+    messageRecord.messageId,
+    messageRecord.id,
+  ]
+    .map((value) => normalizeIdentityPart(value))
+    .find(Boolean);
+  if (persistedIdentity) {
+    return `persisted:${persistedIdentity}`;
+  }
+  const normalizedClientKey = normalizeIdentityPart(message.clientKey);
+  if (normalizedClientKey) {
+    return `client:${normalizedClientKey}`;
+  }
+  return `fallback:${hashIdentityParts([
+    message.role,
+    normalizeIdentityPart(messageRecord.sequence) ?? '',
+    normalizeIdentityPart(message.created_at) ?? '',
+  ])}`;
+}
+
+const displayMessages = computed(() =>
+  chatMessages.value.map((message) => {
+    const normalized = toTurnFlowFirstChatMessage(message);
+    if (streaming.value) {
+      return normalized;
+    }
+    return {
+      ...normalized,
+      streaming: false,
+    } satisfies ChatMessage;
+  }),
+);
+
+const messageRenderEntries = computed(() =>
+  displayMessages.value.map((message) => ({
+    kernelState: buildTurnFlowState(message) as TurnFlowState,
+    key: resolveMessageRenderKey(message),
+    message,
+  })),
+);
 </script>
 
 <template>
@@ -108,26 +180,31 @@ const setMessagesContainerRef: VNodeRef = (element) => {
     </div>
 
     <div class="mx-auto max-w-3xl space-y-3">
-      <ChatMessageItem
-        v-for="(msg, index) in chatMessages"
-        :key="index"
-        :msg="msg"
-        :index="index"
-        :api-prefix="apiPrefix"
-        :agents="agents"
-        :selected-agent="selectedAgent"
-        :show-agent-switch="workspace.isAgentSwitch(index)"
-        @copy="workspace.onCopyMessage"
-        @confirm="confirmAction"
-        @reject="rejectAction"
-        @consent-confirm="confirmConsent"
-        @consent-reject="rejectConsent"
-        @open-url="workspace.openImagePreview"
-        @action-click="clickActionButton"
-        @regenerate="regenerateMessage"
-        @edit="editAndResend"
-        @retry="retryLastMessage"
-      />
+      <div
+        v-for="(entry, index) in messageRenderEntries"
+        :key="entry.key"
+        class="space-y-1.5"
+      >
+        <ChatMessageItem
+          :msg="entry.message"
+          :index="index"
+          :api-prefix="apiPrefix"
+          :agents="agents"
+          :selected-agent="selectedAgent"
+          :kernel-state="entry.kernelState"
+          :show-agent-switch="workspace.isAgentSwitch(index)"
+          @copy="workspace.onCopyMessage"
+          @confirm="confirmAction"
+          @reject="rejectAction"
+          @consent-confirm="confirmConsent"
+          @consent-reject="rejectConsent"
+          @open-url="workspace.openImagePreview"
+          @action-click="clickActionButton"
+          @regenerate="regenerateMessage"
+          @edit="editAndResend"
+          @retry="retryLastMessage"
+        />
+      </div>
     </div>
 
     <div class="sticky bottom-2 z-10 flex justify-center gap-2">

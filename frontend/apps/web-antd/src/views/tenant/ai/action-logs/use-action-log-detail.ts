@@ -2,10 +2,7 @@ import type { ComputedRef, Ref } from 'vue';
 
 import type { DetailTabKey, PayloadEntry } from './action-log-detail-helpers';
 
-import type {
-  ActionLogDetail,
-  ActionLogItem,
-} from '#/api/tenant/action-logs';
+import type { ActionLogDetail, ActionLogItem } from '#/api/tenant/action-logs';
 import type { ExecutionDecisionItem } from '#/api/tenant/execution-decisions';
 
 import { computed, ref, watch } from 'vue';

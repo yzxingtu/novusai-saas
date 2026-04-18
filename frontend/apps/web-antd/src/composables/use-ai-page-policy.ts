@@ -16,6 +16,7 @@
  * ```
  */
 import type { AIPageMode } from '@vben/types';
+
 import type { AIRouteSecurityPolicy } from '#/components/business/ai-runtime/security-policy';
 
 import { computed, ref, watchEffect } from 'vue';
@@ -31,25 +32,25 @@ import { useAIPermission } from './use-ai-permission';
 
 type RouteAIMeta = {
   act?: string;
-  confirmActionKinds?: string | string[];
   confirm_action_kinds?: string | string[];
-  dataAi?: 'off' | 'on';
-  dataAiAct?: 'allow' | 'off';
-  dataAiRead?: 'allow' | 'mask' | 'off';
-  dataAiSubmit?: 'allow' | 'off';
+  confirmActionKinds?: string | string[];
   data_ai?: 'off' | 'on';
   data_ai_act?: 'allow' | 'off';
   data_ai_read?: 'allow' | 'mask' | 'off';
   data_ai_submit?: 'allow' | 'off';
-  disabledActionKinds?: string | string[];
+  dataAi?: 'off' | 'on';
+  dataAiAct?: 'allow' | 'off';
+  dataAiRead?: 'allow' | 'mask' | 'off';
+  dataAiSubmit?: 'allow' | 'off';
   disabled_action_kinds?: string | string[];
+  disabledActionKinds?: string | string[];
   disabledCapabilities?: string | string[];
   disabledOperations?: string | string[];
   mode?: AIPageMode;
   pageContextKey?: string;
   read?: string;
-  sensitiveFieldRead?: 'mask' | 'off';
   sensitive_field_read?: 'mask' | 'off';
+  sensitiveFieldRead?: 'mask' | 'off';
   submit?: string;
 };
 

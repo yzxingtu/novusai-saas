@@ -1,3 +1,4 @@
+import type { TurnFlowViewModel } from '#/types/ai-chat';
 import type { ApiRequestOptions } from '#/utils/request';
 
 import { requestClient } from '#/utils/request';
@@ -70,13 +71,27 @@ export interface MonitoringConversationMessage {
   content: null | string;
   created_at: string;
   id: number;
-  metadata?: null | Record<string, unknown>;
+  metadata?: MonitoringConversationMessageMetadata | null;
   role: string;
   sequence: number;
   token_count: null | number;
+  turn_flow?: MonitoringTurnFlowPayload | null;
   tool_call_id?: null | string;
   tool_calls?: null | unknown[];
   tool_name?: null | string;
+}
+
+export type MonitoringTurnFlowPayload =
+  | Record<string, unknown>
+  | TurnFlowViewModel;
+
+export interface MonitoringConversationMessageMetadata extends Record<
+  string,
+  unknown
+> {
+  attachments?: unknown[];
+  turn_flow?: MonitoringTurnFlowPayload | null;
+  turnFlow?: MonitoringTurnFlowPayload;
 }
 
 export interface MonitoringIntentPlanItem {

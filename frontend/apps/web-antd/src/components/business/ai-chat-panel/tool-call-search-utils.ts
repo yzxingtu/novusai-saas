@@ -64,7 +64,9 @@ export function getSearchSummary(
       ? summaryPayload.provider.trim()
       : '';
   const status =
-    typeof summaryPayload.status === 'string' ? summaryPayload.status.trim() : '';
+    typeof summaryPayload.status === 'string'
+      ? summaryPayload.status.trim()
+      : '';
   const failureReason =
     typeof summaryPayload.failure_reason === 'string'
       ? summaryPayload.failure_reason.trim()
@@ -83,12 +85,12 @@ export function getSearchSummary(
       : '';
   const providerChain = toStringList(summaryPayload.provider_chain);
   const items = toSearchResultItems(summaryPayload.items);
-  const resultCount =
-    typeof summaryPayload.result_count === 'number'
-      ? summaryPayload.result_count
-      : items.length > 0
-        ? items.length
-        : undefined;
+  let resultCount: number | undefined;
+  if (typeof summaryPayload.result_count === 'number') {
+    resultCount = summaryPayload.result_count;
+  } else if (items.length > 0) {
+    resultCount = items.length;
+  }
 
   if (
     !provider &&
@@ -138,11 +140,11 @@ export function getSearchFallbackNotice(summary: SearchSummary): null | string {
 
 export function getSearchProviderLabel(provider?: string) {
   switch (provider) {
-    case 'native_hosted': {
-      return $t('common.globalAiChat.toolSearchSourceNative');
-    }
     case 'baidu_public': {
       return $t('common.globalAiChat.toolSearchSourceBaidu');
+    }
+    case 'native_hosted': {
+      return $t('common.globalAiChat.toolSearchSourceNative');
     }
     case 'so360_public': {
       return $t('common.globalAiChat.toolSearchSource360');

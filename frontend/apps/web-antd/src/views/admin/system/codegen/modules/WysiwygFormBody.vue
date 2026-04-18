@@ -110,14 +110,17 @@ const {
           <div
             v-else
             class="flex flex-col gap-2 rounded-[20px] border border-border/70 bg-background px-4 py-4 transition-colors"
-            :class="[isFieldSelected(f) && 'border-primary ring-2 ring-primary/15']"
+            :class="[
+              isFieldSelected(f) && 'border-primary ring-2 ring-primary/15',
+            ]"
             @mousedown="onFieldClick(f)"
           >
             <label class="text-xs text-muted-foreground">
               <span v-if="f.required" class="mr-0.5 text-destructive">*</span>
               <Tooltip v-if="f.comment" :title="f.comment">
                 <span>{{
-                  getFieldLabel(f) || $t('admin.system.codegen.property.unnamed')
+                  getFieldLabel(f) ||
+                  $t('admin.system.codegen.property.unnamed')
                 }}</span>
               </Tooltip>
               <span v-else>{{
@@ -179,7 +182,9 @@ const {
               "
               :value="getSelectValue(f)"
               :options="getEnumOptions(f)"
-              :mode="(f._comp as string) === 'checkbox' ? 'multiple' : undefined"
+              :mode="
+                (f._comp as string) === 'checkbox' ? 'multiple' : undefined
+              "
               :placeholder="
                 getFieldPlaceholder(
                   f,
@@ -231,7 +236,9 @@ const {
                 class="flex min-h-[80px] items-center justify-center gap-2 rounded border border-dashed border-border bg-muted/30"
                 :class="isMultiple(f) ? 'flex-row flex-wrap' : ''"
               >
-                <div class="flex flex-col items-center justify-center gap-1 py-4">
+                <div
+                  class="flex flex-col items-center justify-center gap-1 py-4"
+                >
                   <IconifyIcon
                     icon="lucide:image-plus"
                     class="size-8 text-muted-foreground"
@@ -273,7 +280,9 @@ const {
                 class="flex min-h-[64px] items-center justify-center gap-2 rounded border border-dashed border-border bg-muted/30"
                 :class="isMultiple(f) ? 'flex-row flex-wrap' : ''"
               >
-                <div class="flex flex-col items-center justify-center gap-1 py-3">
+                <div
+                  class="flex flex-col items-center justify-center gap-1 py-3"
+                >
                   <IconifyIcon
                     icon="lucide:file-plus"
                     class="size-6 text-muted-foreground"
@@ -317,7 +326,9 @@ const {
               <RichTextEditor
                 :model-value="getRichTextValue(f)"
                 :default-value="richTextDefaultDoc"
-                :placeholder="getFieldPlaceholder(f, 'common.editorPlaceholder')"
+                :placeholder="
+                  getFieldPlaceholder(f, 'common.editorPlaceholder')
+                "
                 mode="compact"
                 :toolbar="true"
                 :ai="getRichTextAi(f)"
@@ -529,7 +540,9 @@ const {
               "
               @update:value="(value) => setFormValue(f, value)"
             />
-            <span v-if="f.help_text" class="mt-0.5 text-xs text-muted-foreground"
+            <span
+              v-if="f.help_text"
+              class="mt-0.5 text-xs text-muted-foreground"
               >{{ f.help_text }}</span
             >
           </div>

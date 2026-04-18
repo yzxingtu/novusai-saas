@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import type { UISnapshotInput } from '../ui-snapshot-generator';
 
 import type { PageContextSuggestedTool } from '#/api/shared/ai-chat';
-import type { UISnapshotInput } from '../ui-snapshot-generator';
+
+import { describe, expect, it } from 'vitest';
 
 import { UISnapshotGenerator } from '../ui-snapshot-generator';
 
@@ -70,9 +71,9 @@ describe('ui-snapshot-generator', () => {
     expect(snapshot.mode).toBe('compact');
     expect(snapshot.size_bytes).toBeLessThanOrEqual(4 * 1024);
     expect(snapshot.nodes.length).toBeGreaterThan(0);
-    expect(
-      snapshot.nodes.every((node) => typeof node.content === 'undefined'),
-    ).toBe(true);
+    expect(snapshot.nodes.every((node) => node.content === undefined)).toBe(
+      true,
+    );
     expect(snapshot.interactables_count).toBeGreaterThan(0);
   });
 
@@ -289,7 +290,10 @@ describe('ui-snapshot-generator', () => {
       compactNodeLimit: 160,
       textPreviewLength: 140,
     });
-    const compactSnapshot = clippingGenerator.generateSnapshot(buildInput(80), 'compact');
+    const compactSnapshot = clippingGenerator.generateSnapshot(
+      buildInput(80),
+      'compact',
+    );
 
     expect(compactSnapshot.truncated).toBe(true);
     expect(compactSnapshot.nodes.length).toBeLessThan(80);

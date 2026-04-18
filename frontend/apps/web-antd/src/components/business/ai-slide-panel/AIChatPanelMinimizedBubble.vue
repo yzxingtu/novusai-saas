@@ -5,7 +5,7 @@ import { $t } from '#/locales';
 
 defineOptions({ name: 'AIChatPanelMinimizedBubble' });
 
-const props = defineProps<{
+defineProps<{
   hasUnread: boolean;
   open: boolean;
 }>();
@@ -27,10 +27,7 @@ const emit = defineEmits<{
       <span class="text-sm font-medium">
         {{ $t('common.aiPanel.title') }}
       </span>
-      <span
-        v-if="hasUnread"
-        class="size-2 rounded-full bg-destructive"
-      ></span>
+      <span v-if="hasUnread" class="size-2 rounded-full bg-destructive"></span>
       <IconifyIcon
         icon="lucide:x"
         class="ml-1 size-3.5 opacity-60 hover:opacity-100"

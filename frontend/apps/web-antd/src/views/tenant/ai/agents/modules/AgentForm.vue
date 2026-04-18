@@ -226,22 +226,6 @@ void loadModelLimits();
           >
             {{ skill.package_name }}
           </ATag>
-          <ATag
-            :color="
-              skill.default_consent_mode === 'auto'
-                ? 'green'
-                : skill.default_consent_mode === 'ask'
-                  ? 'orange'
-                  : 'red'
-            "
-            class="!m-0 shrink-0 !text-[10px]"
-          >
-            {{
-              $t(
-                `tenant.ai.agent.consentModeOptions.${skill.default_consent_mode}`,
-              )
-            }}
-          </ATag>
         </div>
       </div>
     </div>

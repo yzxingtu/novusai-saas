@@ -80,7 +80,8 @@ export function useAIChatVariables(
     );
     return agents.value.filter(
       (agent) =>
-        agentIdsInChat.has(agent.id) && getAgentInputVariables(agent).length > 0,
+        agentIdsInChat.has(agent.id) &&
+        getAgentInputVariables(agent).length > 0,
     );
   });
 

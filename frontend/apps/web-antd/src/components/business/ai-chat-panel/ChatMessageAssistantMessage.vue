@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import type { PendingPageOpForDisplay } from './pending-page-op';
 import type {
   AgentItem,
   ChatMessage,
@@ -6,14 +7,18 @@ import type {
   RichTextAIApplyTarget,
   RichTextDraftRuntimeState,
 } from './types';
-import type { PendingPageOpForDisplay } from './pending-page-op';
+
+import type { TurnFlowState } from '#/components/business/ai-chat-kernel/TurnFlowState';
 
 import { computed } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
+
 import { Button } from 'ant-design-vue';
 
 import { AgentProfilePopover } from '#/components/business/agent-profile-popover';
+import ChatMessageKernel from '#/components/business/ai-chat-kernel/ChatMessageKernel.vue';
+import { buildTurnFlowState } from '#/components/business/ai-chat-kernel/TurnFlowState';
 import RichTextDraftCard from '#/components/business/ai-chat-panel/RichTextDraftCard.vue';
 import { $t } from '#/locales';
 
@@ -21,10 +26,6 @@ import ChatMessageContentBlock from './ChatMessageContentBlock.vue';
 import ChatMessageDiagnostics from './ChatMessageDiagnostics.vue';
 import ChatMessageErrorCard from './ChatMessageErrorCard.vue';
 import ChatMessageFooter from './ChatMessageFooter.vue';
-import ChatMessagePendingConsentCard from './ChatMessagePendingConsentCard.vue';
-import ChatMessageRagSources from './ChatMessageRagSources.vue';
-import ChatMessageThinkingBlock from './ChatMessageThinkingBlock.vue';
-import ChatMessageToolCalls from './ChatMessageToolCalls.vue';
 
 const props = withDefaults(
   defineProps<{
@@ -35,6 +36,7 @@ const props = withDefaults(
     /** Current timestamp for 60s countdown display (fallback: local now) / 用于 60s 倒计时的当前时间戳 */
     countdownNow?: number;
     index: number;
+    kernelState?: null | TurnFlowState;
     msg: ChatMessage;
     /** Pending page ops for this message (filtered by toolCallId) / 本消息关联的待确认操作 */
     pendingOps?: PendingPageOpForDisplay[];
@@ -48,6 +50,7 @@ const props = withDefaults(
     agents: () => [],
     compact: false,
     countdownNow: undefined,
+    kernelState: null,
     selectedAgent: null,
     showAgentSwitch: false,
     pendingOps: () => [],
@@ -115,6 +118,10 @@ const msgModelName = computed(
 const isMentionRoute = computed(() => props.msg.routeSource === 'mention');
 const showRouteBadge = computed(
   () => !!msgAgentName.value && (props.showAgentSwitch || isMentionRoute.value),
+);
+const isAdminMode = computed(() => props.apiPrefix.startsWith('/admin'));
+const resolvedKernelState = computed(
+  () => props.kernelState ?? buildTurnFlowState(props.msg, props.pendingOps),
 );
 
 function pickRichTextDraftCopyContent(
@@ -189,8 +196,14 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
 
       <div class="min-w-0">
         <!-- Agent name + model label -->
-        <div v-if="msgAgentName && msg.agent_id" :class="compact ? 'mb-0.5' : 'mb-1'">
-          <span :class="compact ? 'text-[10px]' : 'text-xs'" class="font-medium text-muted-foreground">
+        <div
+          v-if="msgAgentName && msg.agent_id"
+          :class="compact ? 'mb-0.5' : 'mb-1'"
+        >
+          <span
+            :class="compact ? 'text-[10px]' : 'text-xs'"
+            class="font-medium text-muted-foreground"
+          >
             {{ msgAgentName }}
           </span>
           <span
@@ -201,36 +214,24 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
           </span>
         </div>
 
-        <ChatMessageThinkingBlock :msg="msg" :index="index" :compact="compact" />
-
-        <!-- Optimizing tools indicator -->
-        <div
-          v-if="msg.optimizingTools"
-          class="flex items-center rounded-lg bg-accent/50 text-muted-foreground"
-          :class="
-            compact
-              ? 'mb-1 gap-1.5 px-2 py-1 text-[11px]'
-              : 'mb-2 gap-2 px-3 py-1.5 text-xs'
-          "
+        <ChatMessageKernel
+          :admin-mode="isAdminMode"
+          :compact="compact"
+          :countdown-now="countdownNow"
+          :msg="msg"
+          :pending-ops="pendingOps"
+          :state="resolvedKernelState"
+          @copy="(content) => emit('copy', content)"
+          @confirm="emit('confirm', props.index)"
+          @reject="emit('reject', props.index)"
+          @consent-confirm="emit('consentConfirm', props.index)"
+          @consent-reject="emit('consentReject', props.index)"
         >
-          <span
-            class="text-primary"
-            :class="
-              compact
-                ? 'icon-[lucide--sparkles] h-3 w-3'
-                : 'icon-[lucide--sparkles] h-3.5 w-3.5'
-            "
-          ></span>
-          <span>{{
-            $t('common.globalAiChat.optimizingTools', {
-              total: msg.optimizingTools.total,
-              selected: msg.optimizingTools.selected,
-            })
-          }}</span>
-        </div>
-
+          <template #diagnostics>
+            <ChatMessageDiagnostics :msg="msg" :compact="compact" />
+          </template>
+        </ChatMessageKernel>
         <ChatMessageErrorCard :msg="msg" :compact="compact" />
-        <ChatMessageDiagnostics :msg="msg" :compact="compact" />
         <ChatMessageContentBlock :msg="msg" :index="index" :compact="compact" />
 
         <!-- SSE error retry -->
@@ -239,20 +240,15 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
           class="mt-1 flex items-center gap-1.5"
           :class="compact ? 'text-[11px]' : 'text-xs'"
         >
-          <Button type="link" size="small" class="!p-0 !text-primary" @click="emit('retry', index)">
+          <Button
+            type="link"
+            size="small"
+            class="!p-0 !text-primary"
+            @click="emit('retry', index)"
+          >
             {{ $t('common.globalAiChat.retry') }}
           </Button>
         </div>
-
-        <ChatMessageToolCalls
-          v-if="msg.toolCalls?.length"
-          :msg="msg"
-          :index="index"
-          :compact="compact"
-          :pending-ops="pendingOps"
-          :countdown-now="countdownNow"
-          @copy="(content) => emit('copy', content)"
-        />
 
         <!-- Generated images -->
         <div
@@ -267,7 +263,9 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
           >
             <img
               :src="img.isBase64 ? `data:image/png;base64,${img.url}` : img.url"
-              :alt="img.revisedPrompt || $t('common.globalAiChat.generatedImage')"
+              :alt="
+                img.revisedPrompt || $t('common.globalAiChat.generatedImage')
+              "
               class="cursor-pointer object-cover transition-transform hover:scale-105"
               :class="compact ? 'max-h-48 max-w-56' : 'max-h-64 max-w-72'"
               @click="
@@ -278,7 +276,9 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
               "
             />
             <a
-              :href="img.isBase64 ? `data:image/png;base64,${img.url}` : img.url"
+              :href="
+                img.isBase64 ? `data:image/png;base64,${img.url}` : img.url
+              "
               :download="img.isBase64 ? 'generated-image.png' : undefined"
               target="_blank"
               rel="noopener noreferrer"
@@ -307,85 +307,19 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
           :task="msg.richTextAI"
           :state="richTextState"
           :compact="compact"
-          @apply="(target, mode) => emit('richTextApply', props.index, target, mode)"
+          @apply="
+            (target, mode) => emit('richTextApply', props.index, target, mode)
+          "
           @copy="(mode) => emit('copy', getRichTextDraftCopyContent(mode))"
           @discard="emit('richTextDiscard', props.index)"
           @undo="emit('richTextUndo', props.index)"
         />
 
-        <!-- Confirmation card -->
-        <div
-          v-if="msg.pendingConfirmation && !msg.streaming"
-          class="rounded-lg border border-warning/40 bg-warning/5"
-          :class="compact ? 'mt-1.5 px-3 py-2' : 'mt-2 px-4 py-3'"
-        >
-          <div
-            class="flex items-center font-medium text-foreground"
-            :class="compact ? 'mb-1.5 gap-1.5 text-xs' : 'mb-2 gap-2 text-sm'"
-          >
-            <IconifyIcon icon="lucide:shield-question" class="size-4 text-warning" />
-            <span>{{ $t('common.globalAiChat.confirmationTitle') }}</span>
-          </div>
-          <div
-            v-if="msg.pendingConfirmation.preview"
-            class="overflow-y-auto rounded-md bg-accent/50"
-            :class="
-              compact
-                ? 'mb-2 max-h-32 px-2 py-1.5 text-[10px]'
-                : 'mb-3 max-h-40 px-3 py-2 text-xs'
-            "
-          >
-            <table class="w-full text-left">
-              <tr
-                v-for="(val, key) in msg.pendingConfirmation.preview"
-                :key="String(key)"
-                class="border-b border-border/30 last:border-0"
-              >
-                <td class="whitespace-nowrap py-0.5 pr-3 font-medium text-foreground/70">
-                  {{ key }}
-                </td>
-                <td class="break-all py-0.5 text-muted-foreground">
-                  {{ typeof val === 'object' ? JSON.stringify(val) : val }}
-                </td>
-              </tr>
-            </table>
-          </div>
-          <div v-if="!msg.pendingConfirmation.resolved" class="flex items-center gap-2">
-            <Button type="primary" size="small" @click="emit('confirm', props.index)">
-              <template #icon>
-                <IconifyIcon icon="lucide:check" :class="compact ? 'size-3' : 'size-3.5'" />
-              </template>
-              {{ $t('common.globalAiChat.confirmBtn') }}
-            </Button>
-            <Button size="small" danger @click="emit('reject', props.index)">
-              <template #icon>
-                <IconifyIcon icon="lucide:x" :class="compact ? 'size-3' : 'size-3.5'" />
-              </template>
-              {{ $t('common.globalAiChat.rejectBtn') }}
-            </Button>
-          </div>
-          <div v-else :class="compact ? 'text-[11px]' : 'text-xs'" class="text-muted-foreground">
-            <IconifyIcon
-              icon="lucide:check-circle"
-              class="mr-1 inline text-success"
-              :class="compact ? 'size-3' : 'size-3.5'"
-            />
-            {{ $t('common.globalAiChat.confirmationResolved') }}
-          </div>
-        </div>
-
-        <ChatMessagePendingConsentCard
-          :msg="msg"
-          :compact="compact"
-          @consent-confirm="emit('consentConfirm', props.index)"
-          @consent-reject="emit('consentReject', props.index)"
-        />
-
-        <ChatMessageRagSources :msg="msg" :compact="compact" />
-
         <!-- Action Buttons -->
         <div
-          v-if="msg.actionButtons && msg.actionButtons.length > 0 && !msg.streaming"
+          v-if="
+            msg.actionButtons && msg.actionButtons.length > 0 && !msg.streaming
+          "
           class="flex flex-wrap"
           :class="compact ? 'mt-1.5 gap-1.5' : 'mt-2 gap-2'"
         >
@@ -394,7 +328,11 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
             :key="bi"
             size="small"
             :type="
-              btn.style === 'primary' ? 'primary' : btn.style === 'danger' ? 'default' : 'default'
+              btn.style === 'primary'
+                ? 'primary'
+                : btn.style === 'danger'
+                  ? 'default'
+                  : 'default'
             "
             :danger="btn.style === 'danger'"
             :disabled="!!msg.actionButtonsUsed"

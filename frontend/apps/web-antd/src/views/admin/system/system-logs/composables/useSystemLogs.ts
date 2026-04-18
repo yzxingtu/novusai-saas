@@ -1,3 +1,5 @@
+import type { Dayjs } from 'dayjs';
+
 import type { adminApi } from '#/api';
 
 import {
@@ -27,9 +29,11 @@ interface CategoryVisual {
 
 interface RenderedLogLine {
   content: string;
+  fileName: string;
   isMatch: boolean;
   isStackTrace: boolean;
   level: string;
+  lineNumber: number;
   originalLine: string;
   timestamp: string;
 }
@@ -131,10 +135,13 @@ function createSystemLogsContext() {
   const logContent = ref<adminApi.SystemLogContent | null>(null);
 
   const fileSearchQuery = ref('');
-  const contentSearchQuery = ref('');
+  const searchKeyword = ref('');
+  const searchDateRange = ref<[Dayjs, Dayjs] | undefined>();
+  const searchScope = ref<adminApi.SystemLogSearchScope>('current_file');
   const autoScroll = ref(true);
   const isDarkTheme = ref(true);
   const logContainerRef = ref<HTMLDivElement | null>(null);
+
   const activeCategoryMeta = computed(() => {
     return (
       categories.value.find(
@@ -151,16 +158,41 @@ function createSystemLogsContext() {
     );
   });
 
+  const hasDateRange = computed(() => {
+    return Boolean(searchDateRange.value?.[0] && searchDateRange.value?.[1]);
+  });
+
+  const hasActiveFilters = computed(() => {
+    return Boolean(
+      searchKeyword.value.trim() ||
+      hasDateRange.value ||
+      searchScope.value === 'category',
+    );
+  });
+
+  const isCategoryScope = computed(() => searchScope.value === 'category');
+
   const renderedLines = computed<RenderedLogLine[]>(() => {
     if (!logContent.value) return [];
-    const query = contentSearchQuery.value.trim().toLowerCase();
+    const query = searchKeyword.value.trim().toLowerCase();
+    const fallbackItems = logContent.value.lines.map((line, index) => ({
+      content: line,
+      fileName: logContent.value?.filename ?? '',
+      lineNumber: index + 1,
+    }));
+    const items =
+      logContent.value.items.length > 0
+        ? logContent.value.items
+        : fallbackItems;
 
-    return logContent.value.lines.map((line) => {
-      const parsed = parseLogLine(line);
+    return items.map((item) => {
+      const parsed = parseLogLine(item.content);
       return {
         ...parsed,
-        originalLine: line,
-        isMatch: query.length > 0 && line.toLowerCase().includes(query),
+        fileName: item.fileName,
+        lineNumber: item.lineNumber,
+        originalLine: item.content,
+        isMatch: query.length > 0 && item.content.toLowerCase().includes(query),
       };
     });
   });
@@ -172,8 +204,12 @@ function createSystemLogsContext() {
     ),
   );
 
-  const displayedLineCount = computed(
-    () => logContent.value?.lines.length ?? 0,
+  const displayedLineCount = computed(() => renderedLines.value.length);
+
+  const searchScopeLabelKey = computed(() =>
+    searchScope.value === 'category'
+      ? 'admin.system.systemLog.searchScopeCategory'
+      : 'admin.system.systemLog.searchScopeCurrentFile',
   );
 
   const toolbarMetrics = computed(() => {
@@ -243,7 +279,10 @@ function createSystemLogsContext() {
 
   function parseLogLine(
     line: string,
-  ): Omit<RenderedLogLine, 'isMatch' | 'originalLine'> {
+  ): Omit<
+    RenderedLogLine,
+    'fileName' | 'isMatch' | 'lineNumber' | 'originalLine'
+  > {
     const parts = line.split('|');
     if (parts.length >= 3) {
       const timestamp = (parts[0] ?? '').trim();
@@ -367,13 +406,34 @@ function createSystemLogsContext() {
     }
   }
 
-  function getLineNumber(index: number): number {
-    if (!logContent.value) return index + 1;
-    return index + 1 + (logContent.value.page - 1) * logContent.value.pageSize;
+  function shouldShowFileBadge(line: RenderedLogLine): boolean {
+    if (searchScope.value === 'category') return true;
+    return line.fileName !== (selectedFile.value?.filename ?? '');
   }
 
   function scrollReaderToTop() {
     logContainerRef.value?.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function getSearchParams(page: number): adminApi.GetSystemLogContentParams {
+    const params: adminApi.GetSystemLogContentParams = {
+      page,
+      page_size: LOG_PAGE_SIZE,
+      reverse: true,
+      scope: searchScope.value,
+    };
+
+    const keyword = searchKeyword.value.trim();
+    if (keyword) {
+      params.keyword = keyword;
+    }
+
+    if (searchDateRange.value?.[0] && searchDateRange.value?.[1]) {
+      params.start_date = searchDateRange.value[0].format('YYYY-MM-DD');
+      params.end_date = searchDateRange.value[1].format('YYYY-MM-DD');
+    }
+
+    return params;
   }
 
   async function loadStats() {
@@ -461,17 +521,17 @@ function createSystemLogsContext() {
     contentLoading.value = true;
     try {
       const page = nextPage && logContent.value ? logContent.value.page + 1 : 1;
-      const result = await admin.getSystemLogContentApi(file.filename, {
-        page,
-        page_size: LOG_PAGE_SIZE,
-        reverse: true,
-      });
+      const result = await admin.getSystemLogContentApi(
+        file.filename,
+        getSearchParams(page),
+      );
 
       logContent.value =
         nextPage && logContent.value
           ? {
               ...result,
               lines: [...logContent.value.lines, ...result.lines],
+              items: [...logContent.value.items, ...result.items],
             }
           : result;
 
@@ -528,9 +588,21 @@ function createSystemLogsContext() {
     } catch {}
   }
 
+  function buildCopyAllText(): string {
+    if (!logContent.value) return '';
+
+    return renderedLines.value
+      .map((line) =>
+        searchScope.value === 'category'
+          ? `[${line.fileName}:${line.lineNumber}] ${line.originalLine}`
+          : line.originalLine,
+      )
+      .join('\n');
+  }
+
   async function onCopyAll() {
     if (!logContent.value) return;
-    const success = await copyToClipboard(logContent.value.lines.join('\n'));
+    const success = await copyToClipboard(buildCopyAllText());
     if (success) {
       message.success(t('admin.system.systemLog.messages.copyAllSuccess'));
     } else {
@@ -564,6 +636,17 @@ function createSystemLogsContext() {
     await onRefresh();
   }
 
+  async function onApplyFilters() {
+    await onRefreshCurrent();
+  }
+
+  async function onResetFilters() {
+    searchKeyword.value = '';
+    searchDateRange.value = undefined;
+    searchScope.value = 'current_file';
+    await onRefreshCurrent();
+  }
+
   watch(activeCategory, (value, oldValue) => {
     if (value && value !== oldValue) {
       void loadFiles();
@@ -587,7 +670,13 @@ function createSystemLogsContext() {
     selectedFile,
     logContent,
     fileSearchQuery,
-    contentSearchQuery,
+    searchKeyword,
+    searchDateRange,
+    searchScope,
+    hasDateRange,
+    hasActiveFilters,
+    isCategoryScope,
+    searchScopeLabelKey,
     autoScroll,
     isDarkTheme,
     logContainerRef,
@@ -606,7 +695,7 @@ function createSystemLogsContext() {
     getIconButtonClass,
     getLevelBadgeClass,
     getContentClass,
-    getLineNumber,
+    shouldShowFileBadge,
     scrollReaderToTop,
     loadStats,
     loadCategories,
@@ -621,5 +710,7 @@ function createSystemLogsContext() {
     onCopyLine,
     onRefresh,
     onRefreshCurrent,
+    onApplyFilters,
+    onResetFilters,
   } as const;
 }

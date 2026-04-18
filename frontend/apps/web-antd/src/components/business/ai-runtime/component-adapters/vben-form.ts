@@ -22,6 +22,7 @@ export interface VbenFormSchemaLike {
 export interface BuildVbenFormSessionInputOptions {
   form_session_id?: string;
   surface_id: string;
+  page_key?: string;
   entity_name?: string;
   form_name?: string;
   mode?: FormSessionMode;
@@ -57,7 +58,8 @@ function buildDescriptor(
   return {
     name: fieldName,
     label: field.label ?? fieldName,
-    required: !!field.required || !!field.rules?.some((rule) => !!rule.required),
+    required:
+      !!field.required || !!field.rules?.some((rule) => !!rule.required),
     disabled: isDisabled,
     readonly: isReadonly,
     type: field.component?.toLowerCase(),
@@ -94,6 +96,7 @@ export function createVbenFormSessionInput(
   return {
     form_session_id: options.form_session_id,
     surface_id: options.surface_id,
+    page_key: options.page_key,
     entity_name: options.entity_name,
     form_name: options.form_name,
     mode: options.mode,

@@ -170,7 +170,6 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('beforeunload', beforeUnloadHandler);
 });
-
 </script>
 
 <template>

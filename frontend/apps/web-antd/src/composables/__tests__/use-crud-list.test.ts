@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
 /* eslint-disable vue/one-component-per-file */
+import type { UseCrudListOptions } from '../use-crud-list';
+
 import { flushPromises, mount } from '@vue/test-utils';
 import { defineComponent, nextTick } from 'vue';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-import type { UseCrudListOptions } from '../use-crud-list';
 
 import { useCrudList } from '../use-crud-list';
 
@@ -17,17 +17,17 @@ type Item = {
 };
 
 type TestVm = {
-  FormDrawer: unknown;
   currentPage: number;
   filteredList: Item[];
   formApi: null | {
     open: ReturnType<typeof vi.fn>;
     setData: ReturnType<typeof vi.fn>;
   };
+  FormDrawer: unknown;
   handleMenuAction: (code: string, row: Item) => void;
   list: Item[];
-  loadList: () => Promise<void>;
   loading: boolean;
+  loadList: () => Promise<void>;
   onCreate: () => void;
   onDelete: (row: Item) => Promise<void>;
   onEdit: (row: Item) => void;

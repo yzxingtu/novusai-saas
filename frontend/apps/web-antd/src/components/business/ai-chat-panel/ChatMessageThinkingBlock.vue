@@ -23,7 +23,10 @@ const props = withDefaults(
 const THINKING_AUTO_COLLAPSE_DELAY_MS = 180;
 const thinkingExpandedMap = ref<Record<number, boolean>>({});
 const thinkingAutoCollapseMap = ref<Record<number, boolean>>({});
-const thinkingAutoCollapseTimers = new Map<number, ReturnType<typeof setTimeout>>();
+const thinkingAutoCollapseTimers = new Map<
+  number,
+  ReturnType<typeof setTimeout>
+>();
 
 function setThinkingAutoCollapse(idx: number, active: boolean) {
   const next = { ...thinkingAutoCollapseMap.value };
@@ -71,8 +74,8 @@ function clearAllThinkingAutoCollapseTimers() {
 function isThinkingExpanded(idx: number) {
   return Boolean(
     (props.msg.streaming && props.msg.thinkingContent) ||
-      thinkingAutoCollapseMap.value[idx] ||
-      thinkingExpandedMap.value[idx],
+    thinkingAutoCollapseMap.value[idx] ||
+    thinkingExpandedMap.value[idx],
   );
 }
 
@@ -90,7 +93,11 @@ watch(
   () => [props.msg.streaming, props.index] as const,
   ([streaming, idx], oldVal) => {
     const prevStreaming = oldVal?.[0];
-    if (prevStreaming === true && streaming === false && typeof idx === 'number') {
+    if (
+      prevStreaming === true &&
+      streaming === false &&
+      typeof idx === 'number'
+    ) {
       scheduleThinkingAutoCollapse(idx);
       return;
     }
@@ -138,7 +145,11 @@ onUnmounted(clearAllThinkingAutoCollapseTimers);
   </div>
 
   <!-- Thinking content (streamed separately from final answer). Less prominent; auto-collapse when done; expandable. -->
-  <div v-if="msg.thinkingContent" class="relative" :class="compact ? 'mb-1.5' : 'mb-2'">
+  <div
+    v-if="msg.thinkingContent"
+    class="relative"
+    :class="compact ? 'mb-1.5' : 'mb-2'"
+  >
     <button
       :aria-expanded="isThinkingExpanded(index)"
       data-testid="thinking-toggle"
@@ -167,10 +178,16 @@ onUnmounted(clearAllThinkingAutoCollapseTimers);
           }}
         </span>
 
-        <span v-if="msg.streaming" class="typing-dots thinking-status-dots shrink-0"
+        <span
+          v-if="msg.streaming"
+          class="typing-dots thinking-status-dots shrink-0"
           ><span></span><span></span><span></span
         ></span>
-        <span v-else aria-hidden="true" class="size-1.5 shrink-0 rounded-full bg-primary/35">
+        <span
+          v-else
+          aria-hidden="true"
+          class="size-1.5 shrink-0 rounded-full bg-primary/35"
+        >
         </span>
       </span>
 
@@ -195,11 +212,18 @@ onUnmounted(clearAllThinkingAutoCollapseTimers);
           class="thinking-sheet-card mt-2 transition-transform duration-200"
           :class="compact ? 'ml-1.5 px-3 py-2.5' : 'ml-2 px-3.5 py-3'"
           :style="{
-            transform: isThinkingExpanded(index) ? 'translateY(0)' : 'translateY(-6px)',
+            transform: isThinkingExpanded(index)
+              ? 'translateY(0)'
+              : 'translateY(-6px)',
           }"
         >
-          <div class="thinking-markdown leading-5.5 text-muted-foreground/82 text-xs">
-            <MarkdownRender :content="msg.thinkingContent" :streaming="!!msg.streaming && !msg.content" />
+          <div
+            class="thinking-markdown leading-5.5 text-muted-foreground/82 text-xs"
+          >
+            <MarkdownRender
+              :content="msg.thinkingContent"
+              :streaming="!!msg.streaming && !msg.content"
+            />
           </div>
         </div>
       </div>

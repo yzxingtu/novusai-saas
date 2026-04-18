@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import type { MonitoringConversationDetail, MonitoringScope } from '../../api';
+
 import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 
 import { computed } from 'vue';
@@ -117,7 +118,11 @@ const actorIdentityMeta = computed<IdentityDetailMeta>(() => ({
               :icon="String(detail.agent_avatar)"
               class="size-4 text-primary"
             />
-            <Avatar v-else :size="24" class="bg-primary/10 text-xs text-primary">
+            <Avatar
+              v-else
+              :size="24"
+              class="bg-primary/10 text-xs text-primary"
+            >
               {{ getInitialLetter(detailAgentName) }}
             </Avatar>
             <span>{{ detailAgentName }}</span>

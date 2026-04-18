@@ -16,7 +16,7 @@ export interface SSEEvent {
  * AI 聊天 SSE done 事件载荷。
  */
 export interface SSEDonePayload {
-  completion_reason?: string | null;
+  completion_reason?: null | string;
   context_compacted: boolean;
   conversation_id: number;
   duration_ms: number;
@@ -24,9 +24,9 @@ export interface SSEDonePayload {
   memory_recalled: boolean;
   prune_stats?: JsonRecord | null;
   rag_source_kinds: string[];
-  termination_reason?: string | null;
+  termination_reason?: null | string;
   total_tokens: number;
-  trace_id?: string | null;
+  trace_id?: null | string;
 }
 
 /**
@@ -58,6 +58,8 @@ export interface ToolCallAudit {
   summary: null | string;
   summary_payload: unknown;
 }
+
+const NATIVE_WEB_SEARCH_TOOL_NAME = 'native_web_search';
 
 /**
  * Consent request event captured from the stream.
@@ -109,14 +111,14 @@ export interface ChatTurnMetrics {
   completionReason: null | string;
   confirmationRequests: ConfirmationRequest[];
   contentType: string;
-  conversationId: number | null;
-  donePayload: SSEDonePayload | null;
+  conversationId: null | number;
+  donePayload: null | SSEDonePayload;
   errors: string[];
   events: SSEEvent[];
   executionPath: null | string;
   fullResponse: string;
   isTrueStream: boolean;
-  optimizingTools: OptimizingToolsEvent | null;
+  optimizingTools: null | OptimizingToolsEvent;
   redundantSteps: string[];
   selectedSkillNames: string[];
   toolCalls: ToolCallAudit[];
@@ -189,7 +191,11 @@ function parseSSEEvents(raw: string): SSEEvent[] {
   return events;
 }
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string) {
+function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  message: string,
+) {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
       reject(new Error(message));
@@ -274,17 +280,20 @@ function mergeToolCallWithStart(
     output: readString(payload.output),
     package_name:
       startEvent?.package_name ?? readString(payload.package_name) ?? null,
-    skill_name: startEvent?.skill_name ?? readString(payload.skill_name) ?? null,
+    skill_name:
+      startEvent?.skill_name ?? readString(payload.skill_name) ?? null,
     success:
-      typeof payload.success === 'boolean' ? payload.success : Boolean(payload.output),
+      typeof payload.success === 'boolean'
+        ? payload.success
+        : Boolean(payload.output),
     summary: readString(payload.summary),
     summary_payload: payload.summary_payload,
   } satisfies ToolCallAudit;
 }
 
 function installChatStreamCapture() {
-  const globalWindow = window as Window &
-    typeof globalThis & {
+  const globalWindow = window as typeof globalThis &
+    Window & {
       __aiChatStreamCaptureInstalled?: boolean;
       __aiChatStreamRecords?: CapturedChatStream[];
     };
@@ -347,8 +356,8 @@ async function ensureChatStreamCapture(page: Page) {
 async function readChatStreamCount(page: Page) {
   return page
     .evaluate(() => {
-      const globalWindow = window as Window &
-        typeof globalThis & {
+      const globalWindow = window as typeof globalThis &
+        Window & {
           __aiChatStreamRecords?: CapturedChatStream[];
         };
       return globalWindow.__aiChatStreamRecords?.length ?? 0;
@@ -374,8 +383,8 @@ export async function interceptChatSSE(
       page
         .waitForFunction(
           (index) => {
-            const globalWindow = window as Window &
-              typeof globalThis & {
+            const globalWindow = window as typeof globalThis &
+              Window & {
                 __aiChatStreamRecords?: CapturedChatStream[];
               };
             const record = globalWindow.__aiChatStreamRecords?.[index];
@@ -386,8 +395,8 @@ export async function interceptChatSSE(
         )
         .then(async () => {
           return page.evaluate((index) => {
-            const globalWindow = window as Window &
-              typeof globalThis & {
+            const globalWindow = window as typeof globalThis &
+              Window & {
                 __aiChatStreamRecords?: CapturedChatStream[];
               };
             return globalWindow.__aiChatStreamRecords?.[index] ?? null;
@@ -408,11 +417,11 @@ export async function interceptChatSSE(
     const finishedAt = Date.now();
     const events = parseSSEEvents(rawBody);
 
-    let conversationId: number | null = null;
+    let conversationId: null | number = null;
     let fullResponse = '';
-    let donePayload: SSEDonePayload | null = null;
+    let donePayload: null | SSEDonePayload = null;
     let executionPath: null | string = null;
-    let optimizingTools: OptimizingToolsEvent | null = null;
+    let optimizingTools: null | OptimizingToolsEvent = null;
     let traceId: null | string = null;
     let completionReason: null | string = null;
 
@@ -424,6 +433,7 @@ export async function interceptChatSSE(
     const confirmationRequests: ConfirmationRequest[] = [];
     const selectedSkillNames = new Set<string>();
     const pendingStarts = new Map<string, ToolStartEvent[]>();
+    let sawNativeWebSearchProgress = false;
 
     if (capture.error) {
       errors.push(capture.error);
@@ -465,7 +475,10 @@ export async function interceptChatSSE(
       }
 
       if (payloadEvent === 'conversation') {
-        conversationId = readNumber(payload.conversation_id, conversationId ?? 0);
+        conversationId = readNumber(
+          payload.conversation_id,
+          conversationId ?? 0,
+        );
         if (conversationId === 0) {
           conversationId = null;
         }
@@ -552,6 +565,14 @@ export async function interceptChatSSE(
         continue;
       }
 
+      if (
+        payloadEvent === 'status' &&
+        readString(payload.status) === 'web_search_in_progress'
+      ) {
+        sawNativeWebSearchProgress = true;
+        continue;
+      }
+
       if (payloadEvent === 'error') {
         errors.push(
           readString(payload.message) ??
@@ -559,6 +580,32 @@ export async function interceptChatSSE(
             JSON.stringify(payload),
         );
       }
+    }
+
+    if (
+      sawNativeWebSearchProgress &&
+      !toolCalls.some(
+        (toolCall) =>
+          toolCall.name === 'web_search' ||
+          toolCall.name === NATIVE_WEB_SEARCH_TOOL_NAME,
+      )
+    ) {
+      toolCalls.unshift({
+        arguments: null,
+        duration_ms: 0,
+        error: errors[0] ?? null,
+        error_type: errors.length > 0 ? 'native_search_error' : null,
+        name: NATIVE_WEB_SEARCH_TOOL_NAME,
+        output: null,
+        package_name: null,
+        skill_name: null,
+        success: errors.length === 0,
+        summary: null,
+        summary_payload: {
+          provider: 'native_hosted',
+          status: errors.length === 0 ? 'success' : 'error',
+        },
+      });
     }
 
     const ttfb = Math.max(0, responseAt - requestAt);

@@ -4,6 +4,7 @@
  * 操作日志列表页面
  */
 import type { adminApi } from '#/api';
+import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 
 import { computed, ref } from 'vue';
 
@@ -21,10 +22,9 @@ import {
 
 import { useCrudPage } from '#/adapter/vxe-table';
 import { adminApi as admin } from '#/api';
-import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
-import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 import { $t } from '#/locales';
 import { formatDate, formatRelativeTime } from '#/utils/common';
+import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
 
 import {
   createOperationLogIdentityModel,
@@ -142,12 +142,12 @@ function buildOperationLogMeta(row: OperationLogInfo): IdentityDetailMeta {
 
         <!-- 模块列 -->
         <template #module_cell="{ row }">
-          <Tag color="blue">{{ row.moduleLabel || row.module }}</Tag>
+          <Tag color="blue">{{ row.moduleLabel || row.module || '-' }}</Tag>
         </template>
 
         <!-- 操作类型列 -->
         <template #action_cell="{ row }">
-          <Tag color="purple">{{ row.actionLabel || row.action }}</Tag>
+          <Tag color="purple">{{ row.actionLabel || row.action || '-' }}</Tag>
         </template>
 
         <!-- 请求方法列 -->

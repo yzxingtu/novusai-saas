@@ -1,7 +1,9 @@
+import type { PendingPageOpForDisplay } from './pending-page-op';
+import type { ToolDisplayItem } from './tool-call-utils';
+import type { ChatMessage } from './types';
+
 import { computed, onUnmounted, ref, watch } from 'vue';
 
-import type { ChatMessage } from './types';
-import type { PendingPageOpForDisplay } from './pending-page-op';
 import {
   getSearchSummary,
   getStructuredToolOutput,
@@ -9,7 +11,6 @@ import {
   getToolTargetBadges,
   hasToolCardDetails,
   isRuntimePageToolName,
-  type ToolDisplayItem,
 } from './tool-call-utils';
 
 interface UseChatMessageToolCallsProps {

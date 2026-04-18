@@ -1,8 +1,9 @@
 import type { ComputedRef, InjectionKey, Ref } from 'vue';
-import { inject, provide } from 'vue';
 
 import type { useAIChat } from '#/components/business/ai-chat-panel/use-ai-chat';
 import type { ConversationItem, InputVariable } from '#/types/ai-chat';
+
+import { inject, provide } from 'vue';
 
 export interface ConversationGroup {
   label: string;
@@ -35,7 +36,7 @@ export interface UserAIChatContext {
   conversationSearch: Ref<string>;
   groupedConversations: ComputedRef<ConversationGroup[]>;
   exportMenuItems: ComputedRef<ExportMenuItem[]>;
-  editingConversationId: Ref<number | null>;
+  editingConversationId: Ref<null | number>;
   editingTitle: Ref<string>;
   showMemoryPanel: Ref<boolean>;
   showWorkspaceHero: ComputedRef<boolean>;
@@ -47,7 +48,7 @@ export interface UserAIChatContext {
   selectedAgentVarsConfigured: ComputedRef<boolean>;
   varsModalVisible: Ref<boolean>;
   varsFormValues: Record<string, string>;
-  varsModalAgent: Ref<VarsModalAgent | null>;
+  varsModalAgent: Ref<null | VarsModalAgent>;
   varsPersist: Ref<boolean>;
   onSelectConversation: (convId: number) => void;
   onDeleteConversation: (convId: number) => void;

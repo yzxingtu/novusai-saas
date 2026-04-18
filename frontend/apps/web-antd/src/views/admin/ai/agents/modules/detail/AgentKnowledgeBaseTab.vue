@@ -7,14 +7,14 @@ import { computed, ref, watch } from 'vue';
 import { IconifyIcon } from '@vben/icons';
 
 import {
+  Alert,
   Button,
   InputNumber,
+  message,
   Popconfirm,
   Spin,
   Switch,
   Tag,
-  Alert,
-  message,
 } from 'ant-design-vue';
 
 import {
@@ -33,9 +33,9 @@ import { $t } from '#/locales';
 import { showRequestError } from '#/utils/error-helpers';
 
 const props = defineProps<{
+  active: boolean;
   agent: AIAgentInfo;
   agentId: number;
-  active: boolean;
 }>();
 
 const kbBindings = ref<AIAgentKBBindingInfo[]>([]);
@@ -43,7 +43,9 @@ const kbBindingsLoading = ref(false);
 const kbPickerOpen = ref(false);
 const kbPickerDrafts = ref<AgentKnowledgeBaseBindingDraftItem[]>([]);
 const kbBindingScopeCount = computed(() => {
-  const keys = new Set(kbBindings.value.map((binding) => binding.kb_scope || 'unknown'));
+  const keys = new Set(
+    kbBindings.value.map((binding) => binding.kb_scope || 'unknown'),
+  );
   return keys.size;
 });
 
@@ -80,7 +82,10 @@ function getKbChunkStrategyText(strategy: null | string | undefined): string {
 }
 
 function getKbOwnerText(binding: AIAgentKBBindingInfo): string {
-  if (binding.kb_owner_tenant_id === null || binding.kb_owner_tenant_id === undefined) {
+  if (
+    binding.kb_owner_tenant_id === null ||
+    binding.kb_owner_tenant_id === undefined
+  ) {
     return $t('admin.ai.agent.detail.kbOwnerPlatform');
   }
   return binding.kb_owner_tenant_name || `#${binding.kb_owner_tenant_id}`;
@@ -91,7 +96,9 @@ function openKBBindingPicker() {
   kbPickerOpen.value = true;
 }
 
-async function onKBBindingPickerConfirm(drafts: AgentKnowledgeBaseBindingDraftItem[]) {
+async function onKBBindingPickerConfirm(
+  drafts: AgentKnowledgeBaseBindingDraftItem[],
+) {
   try {
     await batchBindAIAgentKBsApi(props.agentId, kbDraftsToBatchPayload(drafts));
     message.success($t('admin.ai.agent.detail.saveSuccess'));
@@ -213,19 +220,28 @@ watch(
               <div
                 class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-blue-500/10"
               >
-                <IconifyIcon icon="lucide:book-open" class="size-4 text-blue-500" />
+                <IconifyIcon
+                  icon="lucide:book-open"
+                  class="size-4 text-blue-500"
+                />
               </div>
               <div class="min-w-0 flex-1">
                 <div class="flex items-center gap-2">
                   <span class="text-sm font-medium">
                     {{ b.kb_name || `#${b.knowledge_base_id}` }}
                   </span>
-                  <Tag v-if="b.kb_document_count != null" class="!mr-0 !text-[10px]">
+                  <Tag
+                    v-if="b.kb_document_count != null"
+                    class="!mr-0 !text-[10px]"
+                  >
                     {{ b.kb_document_count }}
                     {{ $t('admin.ai.agent.detail.kbDocCount') }}
                   </Tag>
                 </div>
-                <p v-if="b.kb_description" class="mt-0.5 truncate text-xs text-muted-foreground">
+                <p
+                  v-if="b.kb_description"
+                  class="mt-0.5 truncate text-xs text-muted-foreground"
+                >
                   {{ b.kb_description }}
                 </p>
                 <div class="mt-1 flex flex-wrap gap-1.5">
@@ -233,11 +249,17 @@ watch(
                     {{ $t('admin.ai.agent.detail.kbCreatorTenant') }}:
                     {{ getKbOwnerText(b) }}
                   </Tag>
-                  <Tag v-if="b.kb_embedding_model_name" class="!mr-0 !text-[10px]">
+                  <Tag
+                    v-if="b.kb_embedding_model_name"
+                    class="!mr-0 !text-[10px]"
+                  >
                     {{ $t('admin.ai.agent.detail.kbEmbeddingModel') }}:
                     {{ b.kb_embedding_model_name }}
                   </Tag>
-                  <Tag v-if="b.kb_embedding_dimensions != null" class="!mr-0 !text-[10px]">
+                  <Tag
+                    v-if="b.kb_embedding_dimensions != null"
+                    class="!mr-0 !text-[10px]"
+                  >
                     {{ $t('admin.ai.agent.detail.kbEmbeddingDimensions') }}:
                     {{ b.kb_embedding_dimensions }}
                   </Tag>
@@ -260,7 +282,9 @@ watch(
                   :step="0.1"
                   size="small"
                   class="!w-20"
-                  @change="(val) => val != null && updateKBWeight(b.id, Number(val))"
+                  @change="
+                    (val) => val != null && updateKBWeight(b.id, Number(val))
+                  "
                 />
               </div>
               <Switch
@@ -295,7 +319,9 @@ watch(
           <div class="mt-4 text-sm font-semibold text-foreground">
             {{ $t('admin.ai.agent.kbPicker.emptySelected') }}
           </div>
-          <div class="mx-auto mt-2 max-w-xl text-xs leading-6 text-muted-foreground">
+          <div
+            class="mx-auto mt-2 max-w-xl text-xs leading-6 text-muted-foreground"
+          >
             {{ $t('admin.ai.agent.kbPicker.detailEmptyHint') }}
           </div>
           <Button class="mt-5" type="primary" @click="openKBBindingPicker">

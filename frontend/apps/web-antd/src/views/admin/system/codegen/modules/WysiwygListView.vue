@@ -64,12 +64,12 @@ type WysiwygQuickSearchPayload = {
 };
 
 type SearchFormValue =
-  | string
-  | number
+  | Array<unknown>
   | boolean
   | null
-  | undefined
-  | Array<unknown>;
+  | number
+  | string
+  | undefined;
 
 type SearchFormValues = Record<string, SearchFormValue>;
 type QuickSearchUpdateValues = Record<string, string | undefined>;

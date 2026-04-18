@@ -25,7 +25,9 @@ const remainingSeconds = computed(() =>
   Math.max(
     0,
     60 -
-      Math.floor(((props.countdownNow ?? props.now) - (props.op.startedAt || 0)) / 1000),
+      Math.floor(
+        ((props.countdownNow ?? props.now) - (props.op.startedAt || 0)) / 1000,
+      ),
   ),
 );
 </script>
@@ -33,7 +35,11 @@ const remainingSeconds = computed(() =>
 <template>
   <div
     class="mt-1 overflow-hidden rounded-lg border"
-    :class="op.resolved ? 'border-border/20 bg-accent/10' : 'border-warning/30 bg-warning/5'"
+    :class="
+      op.resolved
+        ? 'border-border/20 bg-accent/10'
+        : 'border-warning/30 bg-warning/5'
+    "
   >
     <div
       v-if="op.resolved"
@@ -46,8 +52,12 @@ const remainingSeconds = computed(() =>
         :class="op.allowed ? 'text-green-600' : 'text-red-500'"
       />
       <span class="truncate text-muted-foreground">
-        <span class="font-medium text-foreground/60">{{ op.operationLabel }}</span>
-        <span v-if="op.operationDescription" class="ml-1 text-muted-foreground/60"
+        <span class="font-medium text-foreground/60">{{
+          op.operationLabel
+        }}</span>
+        <span
+          v-if="op.operationDescription"
+          class="ml-1 text-muted-foreground/60"
           >{{ op.operationDescription }}</span
         >
       </span>
@@ -68,17 +78,33 @@ const remainingSeconds = computed(() =>
       </span>
     </div>
     <template v-else>
-      <div class="flex items-center gap-1.5 px-2.5 py-1.5" :class="compact ? 'text-[10px]' : 'text-[11px]'">
-        <IconifyIcon icon="lucide:shield-alert" class="size-3.5 shrink-0 text-warning" />
+      <div
+        class="flex items-center gap-1.5 px-2.5 py-1.5"
+        :class="compact ? 'text-[10px]' : 'text-[11px]'"
+      >
+        <IconifyIcon
+          icon="lucide:shield-alert"
+          class="size-3.5 shrink-0 text-warning"
+        />
         <div class="min-w-0 flex-1">
           <div class="truncate font-medium text-foreground/80">
             {{ op.operationLabel }}
           </div>
-          <div v-if="op.operationDescription" class="truncate text-muted-foreground/60">
+          <div
+            v-if="op.operationDescription"
+            class="truncate text-muted-foreground/60"
+          >
             {{ op.operationDescription }}
           </div>
-          <div class="mt-0.5 text-muted-foreground/50" :class="compact ? 'text-[9px]' : 'text-[10px]'">
-            {{ $t('shared.pageOperation.confirmCountdown', { seconds: remainingSeconds }) }}
+          <div
+            class="mt-0.5 text-muted-foreground/50"
+            :class="compact ? 'text-[9px]' : 'text-[10px]'"
+          >
+            {{
+              $t('shared.pageOperation.confirmCountdown', {
+                seconds: remainingSeconds,
+              })
+            }}
           </div>
         </div>
         <div class="flex shrink-0 items-center gap-1">

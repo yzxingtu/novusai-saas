@@ -1,10 +1,10 @@
 // @vitest-environment happy-dom
 
+import type { PageContextSuggestedTool } from '#/api/shared/ai-chat';
+
 import { effectScope, ref } from 'vue';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-import type { PageContextSuggestedTool } from '#/api/shared/ai-chat';
 
 import { useAgentRouter } from '../use-agent-router';
 

@@ -8,11 +8,11 @@ import { Button } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 
-import IdentitySummaryCard from './IdentitySummaryCard.vue';
 import {
   createIdentityDetailPreview,
   mergeIdentityDetailFallbacks,
 } from './identity-detail';
+import IdentitySummaryCard from './IdentitySummaryCard.vue';
 import { openIdentityDetailDialog } from './use-identity-detail-dialog';
 
 defineOptions({ name: 'IdentityQuickCard' });
@@ -31,7 +31,7 @@ const props = withDefaults(
 
 const previewDetail = computed<IdentityDetail>(() =>
   createIdentityDetailPreview({
-    ...(props.detailRequest ?? {}),
+    ...props.detailRequest,
     fallback: mergeIdentityDetailFallbacks(
       props.detailRequest?.fallback,
       props.model,
@@ -48,7 +48,7 @@ const canOpenDetail = computed(
 
 async function handleOpenDetail() {
   await openIdentityDetailDialog({
-    ...(props.detailRequest ?? {}),
+    ...props.detailRequest,
     fallback: mergeIdentityDetailFallbacks(
       props.detailRequest?.fallback,
       previewDetail.value,

@@ -1,4 +1,7 @@
-import type { LocatorResolver, LocatorResolverOptions } from './locator-resolver';
+import type {
+  LocatorResolver,
+  LocatorResolverOptions,
+} from './locator-resolver';
 import type { UISurfaceKind } from './types';
 
 export type UIActionType = 'ui_click' | 'ui_open_surface';

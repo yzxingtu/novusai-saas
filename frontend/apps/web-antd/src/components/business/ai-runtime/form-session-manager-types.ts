@@ -26,6 +26,8 @@ export interface FormFieldDescriptor {
 export interface FormSession {
   form_session_id: string;
   surface_id: string;
+  page_key?: string;
+  current_url?: string;
   entity_name: string;
   mode: FormSessionMode;
   stage: FormSessionStage;
@@ -55,6 +57,7 @@ export interface InferFormModeInput {
 export interface UpsertFormSessionInput {
   form_session_id?: string;
   surface_id: string;
+  page_key?: string;
   entity_name?: string;
   form_name?: string;
   mode?: FormSessionMode;

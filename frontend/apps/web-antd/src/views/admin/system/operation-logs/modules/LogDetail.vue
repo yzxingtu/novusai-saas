@@ -3,6 +3,7 @@
  * 操作日志详情抽屉
  */
 import type { adminApi } from '#/api';
+import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 
 import { computed } from 'vue';
 
@@ -12,11 +13,10 @@ import { Descriptions, DescriptionsItem, Divider, Tag } from 'ant-design-vue';
 
 import { getOperationLogDetailApi } from '#/api/admin/operation-log';
 import { IdentitySummaryCard } from '#/components/business/identity-display';
-import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
-import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
+import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
 
 import {
   createOperationLogIdentityModel,
@@ -121,10 +121,14 @@ function buildDetailMeta(value: OperationLogInfo): IdentityDetailMeta {
         </div>
         <Descriptions :column="2" bordered size="small">
           <DescriptionsItem :label="$t('admin.system.operationLog.module')">
-            <Tag color="blue">{{ detail.module }}</Tag>
+            <Tag color="blue">
+              {{ detail.moduleLabel || detail.module || '-' }}
+            </Tag>
           </DescriptionsItem>
           <DescriptionsItem :label="$t('admin.system.operationLog.action')">
-            <Tag color="purple">{{ detail.action }}</Tag>
+            <Tag color="purple">
+              {{ detail.actionLabel || detail.action || '-' }}
+            </Tag>
           </DescriptionsItem>
           <DescriptionsItem :label="$t('admin.system.operationLog.method')">
             <Tag :color="getMethodColor(detail.method)">

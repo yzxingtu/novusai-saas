@@ -1,4 +1,7 @@
-import type { AnyRecord, SuccessMessageInput } from './use-page-ai-operation-helpers-core';
+import type {
+  AnyRecord,
+  SuccessMessageInput,
+} from './use-page-ai-operation-helpers-core';
 
 import { $t } from '#/locales';
 
@@ -76,7 +79,10 @@ export function createOpenRecordPageOperation<
           success: false,
           message:
             options.notFoundMessage?.(params) ??
-            defaultRecordNotFoundMessage(label, options.resolveRecordId?.(params)),
+            defaultRecordNotFoundMessage(
+              label,
+              options.resolveRecordId?.(params),
+            ),
           error_type: 'record_not_found',
         };
       }
@@ -133,7 +139,8 @@ export function createViewDetailPageOperation(
     params: {
       id: {
         type: 'number',
-        description: options.idDescription ?? $t('shared.pageOperation.param.recordId'),
+        description:
+          options.idDescription ?? $t('shared.pageOperation.param.recordId'),
         required: true,
       },
     },

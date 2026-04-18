@@ -19,7 +19,6 @@ import { $t } from '#/locales';
 import { showRequestError } from '#/utils/error-helpers';
 
 import AccessConfigDrawer from './modules/AccessConfigDrawer.vue';
-import VersionHistoryDrawer from './modules/VersionHistory.vue';
 import AgentChatConfigTab from './modules/detail/AgentChatConfigTab.vue';
 import AgentDetailHeader from './modules/detail/AgentDetailHeader.vue';
 import AgentKnowledgeBaseTab from './modules/detail/AgentKnowledgeBaseTab.vue';
@@ -29,6 +28,7 @@ import AgentQuotaTab from './modules/detail/AgentQuotaTab.vue';
 import AgentRagConfigTab from './modules/detail/AgentRagConfigTab.vue';
 import AgentRoutingConfigTab from './modules/detail/AgentRoutingConfigTab.vue';
 import AgentSkillBindingsTab from './modules/detail/AgentSkillBindingsTab.vue';
+import VersionHistoryDrawer from './modules/VersionHistory.vue';
 
 defineOptions({ name: 'TenantAgentDetail' });
 

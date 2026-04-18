@@ -32,7 +32,17 @@ export async function finalizeStreamRequest(
     deps.streamControl.lifecycle = null;
   }
   deps.userScrolledUp.value = false;
-  lifecycle.finalizeMessage();
+  const shouldMarkInterruptedOnFinalize =
+    !lifecycle.didReceiveDoneEvent &&
+    !lifecycle.didTerminalizeMessage &&
+    (lifecycle.streamLifecycle?.abortReason === 'context_switch' ||
+      lifecycle.streamLifecycle?.abortReason === 'user' ||
+      lifecycle.shouldSyncInterruptedConversation ||
+      lifecycle.didSseEnd ||
+      lifecycle.hasReceivedStreamPayload);
+  lifecycle.terminalizeMessage({
+    markInterrupted: shouldMarkInterruptedOnFinalize,
+  });
 
   const shouldReloadConversationList =
     lifecycle.shouldSyncCommittedConversation ||

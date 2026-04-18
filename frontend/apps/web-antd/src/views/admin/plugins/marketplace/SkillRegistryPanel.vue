@@ -209,7 +209,9 @@ async function installOfficialStarterPacks() {
     } catch {
       // Fallback to local install/upgrade flow when sync endpoint is absent or unavailable.
       await loadPackages();
-      const packageMap = new Map(packages.value.map((item) => [item.slug, item]));
+      const packageMap = new Map(
+        packages.value.map((item) => [item.slug, item]),
+      );
       for (const slug of OFFICIAL_STARTER_PACK_SLUGS) {
         const item = packageMap.get(slug);
         if (item?.can_upgrade) {

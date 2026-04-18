@@ -13,7 +13,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { Page, useVbenDrawer } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
 
-import { Empty, Spin, TabPane, Tabs, message } from 'ant-design-vue';
+import { Empty, message, Spin, TabPane, Tabs } from 'ant-design-vue';
 
 import { getAIAgentDetailApi, updateAIAgentApi } from '#/api/admin/ai';
 import { $t } from '#/locales';
@@ -144,7 +144,10 @@ function openVersionHistory() {
             <TabPane key="overview">
               <template #tab>
                 <span class="flex items-center gap-1.5 px-1">
-                  <IconifyIcon icon="lucide:layout-dashboard" class="size-3.5" />
+                  <IconifyIcon
+                    icon="lucide:layout-dashboard"
+                    class="size-3.5"
+                  />
                   {{ $t('admin.ai.agent.detail.overview') }}
                 </span>
               </template>

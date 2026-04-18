@@ -20,6 +20,7 @@ export interface AIRouteSecurityPolicy {
 
 export interface AIDataPolicyDirective {
   act?: AIToggleAccess;
+  aiDisabled?: boolean;
   aiOff?: boolean;
   read?: AIReadAccess;
   submit?: AIToggleAccess;
@@ -94,7 +95,7 @@ const DEFAULT_SENSITIVE_FIELD_RULES: Record<
   file_upload: { read: OFF, act: OFF, submit: OFF },
 };
 
-function normalizeList(values?: string[] | string): string[] {
+function normalizeList(values?: string | string[]): string[] {
   if (!values) return [];
   if (Array.isArray(values)) {
     return [
@@ -138,19 +139,30 @@ function normalizeAttrValue(value: null | string): string {
     .toLowerCase();
 }
 
+function isDisabledDirective(value: null | string): boolean {
+  if (value === null) {
+    return false;
+  }
+  const normalized = normalizeAttrValue(value);
+  if (!normalized) {
+    return true;
+  }
+  return !['0', 'false', 'no', 'off'].includes(normalized);
+}
+
 function scanAncestorAttr(
   element: AIElementPolicySource | null | undefined,
   attrName: string,
-): string {
+): null | string {
   let current = element;
   while (current) {
-    const value = normalizeAttrValue(current.getAttribute(attrName));
-    if (value) {
-      return value;
+    const rawValue = current.getAttribute(attrName);
+    if (rawValue !== null) {
+      return normalizeAttrValue(rawValue);
     }
     current = current.parentElement ?? null;
   }
-  return '';
+  return null;
 }
 
 function extractFieldNameHint(
@@ -167,7 +179,11 @@ function extractFieldNameHint(
     element.getAttribute('autocomplete'),
     typeof element.className === 'string' ? element.className : '',
   ]
-    .map((item) => String(item ?? '').trim().toLowerCase())
+    .map((item) =>
+      String(item ?? '')
+        .trim()
+        .toLowerCase(),
+    )
     .filter(Boolean);
   return hints.join(' ');
 }
@@ -185,13 +201,13 @@ function detectSensitiveFieldCategory(
   if (['file'].includes(fieldType)) {
     return 'file_upload';
   }
-  if (['password', 'passcode', 'passwd'].includes(fieldType)) {
+  if (['passcode', 'passwd', 'password'].includes(fieldType)) {
     return 'password';
   }
 
   const fieldNameHint = extractFieldNameHint(input) ?? '';
   if (
-    /(captcha|otp|one[-_\s]?time[-_\s]?password|verification[-_\s]?code|verify[-_\s]?code)/.test(
+    /captcha|otp|one[-_\s]?time[-_\s]?password|verification[-_\s]?code|verify[-_\s]?code/.test(
       fieldNameHint,
     )
   ) {
@@ -199,30 +215,34 @@ function detectSensitiveFieldCategory(
   }
 
   if (
-    /(token|api[-_\s]?key|secret|access[-_\s]?key|client[-_\s]?secret|private[-_\s]?key)/.test(
+    /token|api[-_\s]?key|secret|access[-_\s]?key|client[-_\s]?secret|private[-_\s]?key/.test(
       fieldNameHint,
     )
   ) {
     return 'token';
   }
 
-  if (/(upload|uploader)/.test(fieldNameHint)) {
+  if (/upload(?:er)?/.test(fieldNameHint)) {
     return 'file_upload';
   }
 
   return undefined;
 }
 
-function toDirective(input: ResolveAISecurityPolicyInput): AIDataPolicyDirective {
+function toDirective(
+  input: ResolveAISecurityPolicyInput,
+): AIDataPolicyDirective {
   const explicit = input.directives ?? {};
   const element = input.element;
 
   const aiValue = scanAncestorAttr(element, 'data-ai');
+  const aiDisabledValue = scanAncestorAttr(element, 'data-ai-disabled');
   const readValue = scanAncestorAttr(element, 'data-ai-read');
   const actValue = scanAncestorAttr(element, 'data-ai-act');
   const submitValue = scanAncestorAttr(element, 'data-ai-submit');
 
   return {
+    aiDisabled: explicit.aiDisabled ?? isDisabledDirective(aiDisabledValue),
     aiOff: explicit.aiOff ?? aiValue === OFF,
     read: explicit.read ?? normalizeReadAccess(readValue),
     act: explicit.act ?? normalizeToggleAccess(actValue),
@@ -295,7 +315,11 @@ export function normalizeActionKind(raw?: string): string {
   ) {
     return 'mutate';
   }
-  if (value.includes('click') || value.includes('open') || value.includes('navigate')) {
+  if (
+    value.includes('click') ||
+    value.includes('open') ||
+    value.includes('navigate')
+  ) {
     return 'click';
   }
   return value;
@@ -351,9 +375,13 @@ export function resolveAISecurityPolicy(
   const directive = toDirective(input);
 
   const blockedReasons: string[] = [];
-  const visible = routePolicy?.enabled !== false && !directive.aiOff;
+  const visible =
+    routePolicy?.enabled !== false && !directive.aiOff && !directive.aiDisabled;
   if (routePolicy?.enabled === false) {
     blockedReasons.push('route_ai_disabled');
+  }
+  if (directive.aiDisabled) {
+    blockedReasons.push('data_ai_disabled');
   }
   if (directive.aiOff) {
     blockedReasons.push('data_ai_off');
@@ -363,11 +391,7 @@ export function resolveAISecurityPolicy(
   let actAccess: AIToggleAccess = routePolicy?.act ?? 'allow';
   let submitAccess: AIToggleAccess = routePolicy?.submit ?? 'allow';
 
-  if (!visible) {
-    readAccess = OFF;
-    actAccess = OFF;
-    submitAccess = OFF;
-  } else {
+  if (visible) {
     if (routePolicy?.read === OFF) {
       blockedReasons.push('route_read_off');
     } else if (routePolicy?.read === MASK) {
@@ -393,6 +417,10 @@ export function resolveAISecurityPolicy(
       submitAccess = OFF;
       blockedReasons.push('data_ai_submit_off');
     }
+  } else {
+    readAccess = OFF;
+    actAccess = OFF;
+    submitAccess = OFF;
   }
 
   if (visible && actionIsBlockedByRoute({ actionKind, routePolicy })) {

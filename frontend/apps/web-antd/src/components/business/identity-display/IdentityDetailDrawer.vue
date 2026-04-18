@@ -159,10 +159,10 @@ const sections = computed(() => {
 
 .identity-detail-drawer__value {
   margin: 0;
-  overflow-wrap: anywhere;
   font-size: 12px;
   font-weight: 500;
   line-height: 1.5;
   color: hsl(var(--foreground));
+  overflow-wrap: anywhere;
 }
 </style>

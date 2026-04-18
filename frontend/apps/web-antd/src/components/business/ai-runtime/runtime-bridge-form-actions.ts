@@ -1,4 +1,5 @@
 import type { FormFieldDescriptor, FormSession } from './form-session-manager';
+import type { RuntimeFormActionResult } from './runtime-bridge-core';
 
 import { nextTick } from 'vue';
 
@@ -6,28 +7,32 @@ import { formStateTracker } from '#/composables/use-form-state-tracker';
 
 import { tAiRuntime } from './i18n';
 import {
+  getCurrentRouteSecurityPolicy,
   queryElementByLocator,
   resolveRuntimePageKey,
-  type RuntimeFormActionResult,
 } from './runtime-bridge-core';
 import { resolveActiveFormSessionForPage } from './runtime-bridge-snapshot';
 import { readValueForAI, resolveAISecurityPolicy } from './security-policy';
 
-function resolveFormSession(formSessionId?: string): null | FormSession {
+function resolveFormSession(formSessionId?: string): FormSession | null {
   if (formSessionId?.trim()) {
     return formStateTracker.getSession(formSessionId.trim());
   }
   return resolveActiveFormSessionForPage(resolveRuntimePageKey());
 }
 
-function serializeFormField(field: FormFieldDescriptor): Record<string, unknown> {
+function serializeFormField(
+  field: FormFieldDescriptor,
+): Record<string, unknown> {
   const element =
     queryElementByLocator(`name:${field.name}`) ??
     queryElementByLocator(`id:${field.name}`);
+  const routePolicy = getCurrentRouteSecurityPolicy();
   const decision = resolveAISecurityPolicy({
     element,
     fieldName: field.name,
     fieldType: field.type,
+    routePolicy,
   });
   const safeValue = readValueForAI(field.value, decision);
   return {
@@ -37,7 +42,7 @@ function serializeFormField(field: FormFieldDescriptor): Record<string, unknown>
     readonly: !!field.readonly,
     required: !!field.required,
     type: field.type,
-    ...(safeValue !== undefined ? { value: safeValue } : {}),
+    ...(safeValue === undefined ? {} : { value: safeValue }),
   };
 }
 
@@ -79,9 +84,12 @@ async function applyFormValues(
     };
   }
 
-  const fieldsByName = new Map(session.fields.map((field) => [field.name, field]));
+  const fieldsByName = new Map(
+    session.fields.map((field) => [field.name, field]),
+  );
   const writableUpdates: Record<string, unknown> = {};
-  const fieldsFailed: Array<{ field: string; error: string }> = [];
+  const fieldsFailed: Array<{ error: string; field: string }> = [];
+  const routePolicy = getCurrentRouteSecurityPolicy();
 
   for (const [fieldName, value] of Object.entries(updates)) {
     const descriptor = fieldsByName.get(fieldName);
@@ -91,6 +99,23 @@ async function applyFormValues(
     }
     if (descriptor.disabled || descriptor.readonly) {
       fieldsFailed.push({ field: fieldName, error: 'field_not_writable' });
+      continue;
+    }
+    const element =
+      queryElementByLocator(`name:${fieldName}`) ??
+      queryElementByLocator(`id:${fieldName}`);
+    const security = resolveAISecurityPolicy({
+      actionKind: 'ui_fill_form',
+      element,
+      fieldName,
+      fieldType: descriptor.type,
+      routePolicy,
+    });
+    if (!security.canAct) {
+      fieldsFailed.push({
+        field: fieldName,
+        error: security.blockedReasons[0] || 'policy_blocked',
+      });
       continue;
     }
     writableUpdates[fieldName] = value;
@@ -118,7 +143,10 @@ async function applyFormValues(
     // Keep applied values when the form is still stabilizing.
   }
   const updatedSession =
-    formStateTracker.setSessionFieldValues(session.form_session_id, currentValues) ??
+    formStateTracker.setSessionFieldValues(
+      session.form_session_id,
+      currentValues,
+    ) ??
     formStateTracker.getSession(session.form_session_id) ??
     session;
 
@@ -197,6 +225,23 @@ export async function submitRuntimeForm(args: {
       success: false,
     };
   }
+  const submitSecurity = resolveAISecurityPolicy({
+    actionKind: 'ui_submit_form',
+    routePolicy: getCurrentRouteSecurityPolicy(),
+  });
+  const canSubmit = submitSecurity.canSubmit ?? submitSecurity.canAct ?? false;
+  const blockedReasons = submitSecurity.blockedReasons ?? [];
+  if (!canSubmit) {
+    return {
+      data: {
+        form_session: buildFormStateData(session),
+      },
+      error: tAiRuntime('formSubmissionBlockedByPolicy'),
+      error_type: blockedReasons[0] || 'policy_blocked',
+      message: tAiRuntime('formSubmissionBlockedByPolicy'),
+      success: false,
+    };
+  }
   if (session.submit_policy === 'confirm' && !args.confirm) {
     return {
       data: {
@@ -218,7 +263,10 @@ export async function submitRuntimeForm(args: {
     // Ignore when the form closes immediately after submit.
   }
   const updatedSession =
-    formStateTracker.setSessionFieldValues(session.form_session_id, currentValues) ??
+    formStateTracker.setSessionFieldValues(
+      session.form_session_id,
+      currentValues,
+    ) ??
     formStateTracker.getSession(session.form_session_id) ??
     session;
   return {

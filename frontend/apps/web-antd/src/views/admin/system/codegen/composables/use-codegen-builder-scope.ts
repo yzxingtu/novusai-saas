@@ -21,7 +21,9 @@ function toRecord(value: unknown): BuilderRecord {
 }
 
 function toRecordArray(value: unknown): BuilderRecord[] {
-  return Array.isArray(value) ? value.filter(isRecord) : [];
+  return Array.isArray(value)
+    ? value.filter((item): item is BuilderRecord => isRecord(item))
+    : [];
 }
 
 function getEndpointScope(value: unknown): '' | 'admin' | 'tenant' {

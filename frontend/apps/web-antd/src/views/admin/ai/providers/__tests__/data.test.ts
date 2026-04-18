@@ -177,6 +177,7 @@ describe('provider web_search config contracts', () => {
         public_timeout_seconds: 15,
         public_providers: ['baidu', 'so360'],
         allow_unverified_runtime_target: true,
+        prefer_hosted_tool: true,
         verified_native_target: {
           provider_code: 'openai',
           model_code: 'gpt-5.4',
@@ -185,6 +186,7 @@ describe('provider web_search config contracts', () => {
     });
 
     expect(resolved.allow_unverified_runtime_target).toBe(true);
+    expect(resolved.prefer_hosted_tool).toBe(true);
     expect(resolved.verified_native_target).toEqual({
       provider_code: 'openai',
       model_code: 'gpt-5.4',
@@ -209,6 +211,7 @@ describe('provider web_search config contracts', () => {
         public_timeout_seconds: 15,
         public_providers: ['baidu', 'so360'],
         allow_unverified_runtime_target: false,
+        prefer_hosted_tool: true,
         verified_native_target: {
           provider_id: 10,
           model_code: 'gpt-5.4',
@@ -220,6 +223,7 @@ describe('provider web_search config contracts', () => {
     expect(built.max_results_cap).toBe(5);
     expect(built.public_providers).toEqual(['baidu']);
     expect(built.allow_unverified_runtime_target).toBe(false);
+    expect(built.prefer_hosted_tool).toBe(true);
     expect(built.verified_native_target).toEqual({
       provider_id: 10,
       model_code: 'gpt-5.4',
@@ -267,6 +271,7 @@ describe('provider web_search config contracts', () => {
         public_timeout_seconds: 15,
         public_providers: ['baidu', 'so360'],
         allow_unverified_runtime_target: true,
+        prefer_hosted_tool: true,
         verified_native_target: {
           provider_code: 'openai',
           model_code: 'gpt-5.4',
@@ -275,6 +280,7 @@ describe('provider web_search config contracts', () => {
     );
 
     expect(built.allow_unverified_runtime_target).toBe(false);
+    expect(built.prefer_hosted_tool).toBe(true);
     expect(built.verified_native_target).toBeNull();
   });
 

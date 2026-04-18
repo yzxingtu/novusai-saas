@@ -1,4 +1,9 @@
 <script setup lang="ts">
+import type {
+  PermissionRoleTreeNode,
+  TenantAccessRoleMode,
+} from './access-config-drawer-support';
+
 import type { TenantUserInfo } from '#/api/tenant/tenant-users';
 import type { IdentitySelectOption } from '#/components/business/identity-display';
 
@@ -54,8 +59,6 @@ import {
   PUB_USERS,
   roleInfoToTreeData,
   tenantUserToIdentityOption,
-  type PermissionRoleTreeNode,
-  type TenantAccessRoleMode,
 } from './access-config-drawer-support';
 
 defineOptions({ name: 'AccessConfigDrawer' });
@@ -84,7 +87,7 @@ const accessTypeOptions = computed(() => getAccessTypeOptions());
 const tenantUserSelectedOptions = computed<IdentitySelectOption[]>(() =>
   normalizeIdList(pubTenantUserIds.value)
     .map((id) => tenantUserOptionCache.value.get(id))
-    .filter((option): option is IdentitySelectOption => Boolean(option)),
+    .filter((option): option is IdentitySelectOption => option !== undefined),
 );
 
 function handleTenantUserOptionsLoaded(options: IdentitySelectOption[]) {
@@ -130,9 +133,7 @@ async function loadSelectedTenantUserOptions(ids: number[]) {
 
   const options = results
     .filter(
-      (
-        result,
-      ): result is PromiseFulfilledResult<TenantUserInfo> =>
+      (result): result is PromiseFulfilledResult<TenantUserInfo> =>
         result.status === 'fulfilled',
     )
     .map((result) => tenantUserToIdentityOption(result.value));

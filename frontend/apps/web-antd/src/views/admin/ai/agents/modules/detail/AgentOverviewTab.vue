@@ -5,7 +5,7 @@ import { ref, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
-import { Button, Spin, Switch, Tag, Textarea, message } from 'ant-design-vue';
+import { Button, message, Spin, Switch, Tag, Textarea } from 'ant-design-vue';
 
 import {
   getAIAgentMemoryConfigApi,
@@ -18,11 +18,11 @@ import { getScopeColor, getScopeText } from '#/utils/scope-helpers';
 import { getExecutionModeText, getStatusText } from '../../data';
 
 const props = defineProps<{
+  active: boolean;
   agent: AIAgentInfo;
   agentId: number;
-  saving: boolean;
-  active: boolean;
   onSaveFields: (fields: Record<string, unknown>) => Promise<void>;
+  saving: boolean;
 }>();
 
 const editingPrompt = ref(false);
@@ -278,7 +278,12 @@ watch(
           <Button size="small" @click="initPrompt">
             {{ $t('common.cancel') }}
           </Button>
-          <Button size="small" type="primary" :loading="saving" @click="savePrompt">
+          <Button
+            size="small"
+            type="primary"
+            :loading="saving"
+            @click="savePrompt"
+          >
             {{ $t('common.save') }}
           </Button>
         </div>

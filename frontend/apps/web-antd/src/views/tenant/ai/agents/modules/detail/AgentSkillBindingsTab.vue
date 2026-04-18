@@ -8,8 +8,8 @@ import { Empty, Spin, Tag } from 'ant-design-vue';
 import { getAgentSkillsApi } from '#/api/tenant/agents';
 
 const props = defineProps<{
-  agentId: number;
   active: boolean;
+  agentId: number;
 }>();
 
 const bindings = ref<AgentSkillGrantInfo[]>([]);
@@ -77,29 +77,17 @@ watch(
                     </Tag>
                   </div>
                   <p
-                    v-if="binding.skill_description || binding.package_description"
+                    v-if="
+                      binding.skill_description || binding.package_description
+                    "
                     class="mt-0.5 truncate text-xs text-muted-foreground"
                   >
-                    {{ binding.skill_description || binding.package_description }}
+                    {{
+                      binding.skill_description || binding.package_description
+                    }}
                   </p>
                 </div>
               </div>
-              <Tag
-                :color="
-                  binding.default_consent_mode === 'auto'
-                    ? 'green'
-                    : binding.default_consent_mode === 'ask'
-                      ? 'orange'
-                      : 'red'
-                "
-                class="!mr-0 !text-[10px]"
-              >
-                {{
-                  $t(
-                    `tenant.ai.agent.consentModeOptions.${binding.default_consent_mode}`,
-                  )
-                }}
-              </Tag>
             </div>
           </div>
         </div>

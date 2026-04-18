@@ -6,15 +6,15 @@ function normalizeListItem(value: null | string | undefined): string {
 
 function resolveListLocale(): string {
   const documentLocale =
-    typeof document !== 'undefined'
-      ? document.documentElement?.lang?.trim()
-      : '';
+    typeof document === 'undefined'
+      ? ''
+      : document.documentElement?.lang?.trim();
   if (documentLocale) {
     return documentLocale;
   }
 
   const navigatorLocale =
-    typeof navigator !== 'undefined' ? navigator.language?.trim() : '';
+    typeof navigator === 'undefined' ? '' : navigator.language?.trim();
   if (navigatorLocale) {
     return navigatorLocale;
   }
@@ -25,7 +25,7 @@ function resolveListLocale(): string {
 export function formatLocalizedList(
   values: Array<null | string | undefined>,
 ): string {
-  const items = values.map(normalizeListItem).filter(Boolean);
+  const items = values.map((value) => normalizeListItem(value)).filter(Boolean);
   if (items.length === 0) {
     return '';
   }

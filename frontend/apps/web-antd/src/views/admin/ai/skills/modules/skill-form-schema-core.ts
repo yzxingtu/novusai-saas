@@ -1,3 +1,5 @@
+import type { SkillFormSharedState, SkillFormValues } from './skill-form-types';
+
 import {
   inputField,
   numberField,
@@ -8,8 +10,6 @@ import {
 import { getSkillPackageSelectApi } from '#/api/admin/skill-packages';
 import { parseToolkitApi } from '#/api/admin/skills';
 import { $t } from '#/locales';
-
-import type { SkillFormSharedState, SkillFormValues } from './skill-form-types';
 
 function getSkillTypeOptions(currentType?: string) {
   const predefined = [
@@ -23,7 +23,10 @@ function getSkillTypeOptions(currentType?: string) {
     },
   ];
 
-  if (currentType && !predefined.some((option) => option.value === currentType)) {
+  if (
+    currentType &&
+    !predefined.some((option) => option.value === currentType)
+  ) {
     const key = `admin.ai.skill.type_options.${currentType}`;
     const translated = $t(key);
     const fallbackLabel = currentType

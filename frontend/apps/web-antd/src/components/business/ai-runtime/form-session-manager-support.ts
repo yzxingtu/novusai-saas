@@ -82,7 +82,7 @@ function singularize(segment: string): string {
   return lower;
 }
 
-function inferEntityFromPath(path: string): string | null {
+function inferEntityFromPath(path: string): null | string {
   const [pathPart = ''] = path.split('?');
   const segments = pathPart
     .split('/')
@@ -107,7 +107,7 @@ function inferEntityFromPath(path: string): string | null {
 }
 
 function inferRecordIdFromPath(path: string): FormRecordId | null {
-  const match = path.match(/\/(\d+)(?=\/(edit|view|detail)|$)/i);
+  const match = path.match(/\/(\d+)(?=\/(?:edit|view|detail)|$)/i);
   if (!match || !match[1]) return null;
   return Number(match[1]);
 }
@@ -139,14 +139,16 @@ export function inferEntityName(input: InferEntityNameInput): string {
   if (input.form_name?.trim()) {
     const fromForm = input.form_name
       .replace(/Form$/i, '')
-      .replace(/-/g, '_')
+      .replaceAll('-', '_')
       .trim();
     if (fromForm) {
       return fromForm.toLowerCase();
     }
   }
 
-  const inferredFromPath = inferEntityFromPath(normalizePath(input.current_url));
+  const inferredFromPath = inferEntityFromPath(
+    normalizePath(input.current_url),
+  );
   return inferredFromPath ?? 'unknown_entity';
 }
 
@@ -184,7 +186,7 @@ export function inferFormMode(input: InferFormModeInput): FormSessionMode {
   return 'unknown';
 }
 
-export function toSessionMode(mode: FormSessionMode | 'add'): FormSessionMode {
+export function toSessionMode(mode: 'add' | FormSessionMode): FormSessionMode {
   return mode === 'add' ? 'create' : mode;
 }
 
@@ -220,7 +222,7 @@ export function computeCanSubmit(entry: SessionEntry): boolean {
 }
 
 export function toSortedArray(values: Set<string>): string[] {
-  return [...values].sort((left, right) => left.localeCompare(right));
+  return [...values].toSorted((left, right) => left.localeCompare(right));
 }
 
 export function inferSessionRecordId(input: {

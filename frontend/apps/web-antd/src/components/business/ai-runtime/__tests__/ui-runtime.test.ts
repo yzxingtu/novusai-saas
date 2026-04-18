@@ -1,17 +1,18 @@
 // @vitest-environment happy-dom
 
+import type { UIComponentAdapter } from '../types';
+
 import { describe, expect, it } from 'vitest';
 
-import { UIGraphBuilder } from '../ui-graph-builder';
 import { UISurfaceTracker } from '../surface-tracker';
+import { UIGraphBuilder } from '../ui-graph-builder';
 import { createUIRuntime } from '../ui-runtime';
-import type { UIComponentAdapter } from '../types';
 
 function createStaticAdapter(options: {
   id: string;
+  label: string;
   locator: string;
   priority: number;
-  label: string;
 }): UIComponentAdapter {
   return {
     id: options.id,
@@ -75,9 +76,11 @@ describe('ui-runtime phase-1 infrastructure', () => {
     const fallbackGraph = fallbackBuilder.build({
       mode: 'compact',
     });
-    expect(fallbackGraph.graph.nodes.some((node) => node.locator.includes('dom-save'))).toBe(
-      true,
-    );
+    expect(
+      fallbackGraph.graph.nodes.some((node) =>
+        node.locator.includes('dom-save'),
+      ),
+    ).toBe(true);
     expect(fallbackGraph.graph.stats.usedDomFallback).toBe(true);
   });
 
@@ -136,7 +139,9 @@ describe('ui-runtime phase-1 infrastructure', () => {
       },
     });
 
-    expect(second.removed.some((surface) => surface.kind === 'drawer')).toBe(true);
+    expect(second.removed.some((surface) => surface.kind === 'drawer')).toBe(
+      true,
+    );
     expect(tracker.getStack().map((surface) => surface.kind)).toEqual([
       'page',
       'modal',
@@ -237,10 +242,14 @@ describe('ui-runtime phase-1 infrastructure', () => {
       },
     });
     const snapshot = runtime.initialize();
-    const pageSurface = snapshot.surface_stack.find((surface) => surface.kind === 'page');
+    const pageSurface = snapshot.surface_stack.find(
+      (surface) => surface.kind === 'page',
+    );
     expect(pageSurface).toBeTruthy();
 
-    const pageNode = snapshot.ui_graph.nodes.find((node) => node.locator.includes('#page-action'));
+    const pageNode = snapshot.ui_graph.nodes.find((node) =>
+      node.locator.includes('#page-action'),
+    );
     expect(pageNode).toBeTruthy();
     expect(pageNode?.surfaceId).toBe(pageSurface?.id);
 
@@ -273,7 +282,9 @@ describe('ui-runtime phase-1 infrastructure', () => {
     });
 
     const snapshot = runtime.initialize();
-    const pageSurface = snapshot.surface_stack.find((surface) => surface.kind === 'page');
+    const pageSurface = snapshot.surface_stack.find(
+      (surface) => surface.kind === 'page',
+    );
     expect(pageSurface).toBeTruthy();
     const adapterNode = snapshot.ui_graph.nodes.find(
       (node) => node.locator === 'testid:adapter-page-action',
@@ -333,8 +344,102 @@ describe('ui-runtime phase-1 infrastructure', () => {
     const snapshot = runtime.initialize();
     const locators = snapshot.ui_graph.nodes.map((node) => node.locator);
 
-    expect(locators.some((locator) => locator.includes('#safe-action'))).toBe(true);
-    expect(locators.some((locator) => locator.includes('#off-action'))).toBe(false);
-    expect(locators.some((locator) => locator.includes('#panel-action'))).toBe(false);
+    expect(locators.some((locator) => locator.includes('#safe-action'))).toBe(
+      true,
+    );
+    expect(locators.some((locator) => locator.includes('#off-action'))).toBe(
+      false,
+    );
+    expect(locators.some((locator) => locator.includes('#panel-action'))).toBe(
+      false,
+    );
+  });
+
+  it('excludes data-ai-disabled regions from runtime graph and surface binding', () => {
+    document.body.innerHTML = `
+      <div data-ai-disabled>
+        <button id="disabled-action">Disabled Action</button>
+      </div>
+      <button id="safe-action-2">Safe Action</button>
+    `;
+
+    const runtime = createUIRuntime({
+      adapters: [],
+      includeDomFallbackInCompact: false,
+    });
+    const snapshot = runtime.initialize();
+    const locators = snapshot.ui_graph.nodes.map((node) => node.locator);
+
+    expect(
+      locators.some((locator) => locator.includes('#disabled-action')),
+    ).toBe(false);
+    expect(locators.some((locator) => locator.includes('#safe-action-2'))).toBe(
+      true,
+    );
+  });
+
+  it('supports incremental node updates without rebuilding the full graph', () => {
+    const runtime = createUIRuntime({
+      adapters: [
+        createStaticAdapter({
+          id: 'incremental-base',
+          label: 'Base',
+          locator: 'testid:base',
+          priority: 50,
+        }),
+      ],
+    });
+
+    const initial = runtime.initialize();
+    const pageSurface = initial.surface_stack.find(
+      (surface) => surface.kind === 'page',
+    );
+    const updated = runtime.applyIncrementalUpdate({
+      nodePatch: {
+        added: [
+          {
+            disabled: false,
+            id: 'patch:pagination:2',
+            kind: 'pagination',
+            label: 'Page 2',
+            locator: 'testid:page-2',
+            source: 'adapter',
+            surfaceId: pageSurface?.id,
+            visible: true,
+          },
+        ],
+      },
+    });
+
+    expect(updated.ui_epoch).toBeGreaterThan(initial.ui_epoch);
+    expect(
+      updated.ui_graph.nodes.some((node) => node.kind === 'pagination'),
+    ).toBe(true);
+  });
+
+  it('reads deep surface snapshots on demand', () => {
+    document.body.innerHTML = `
+      <button data-testid="open-modal">Open</button>
+      <div class="ant-modal" data-ai-surface-id="reader-modal">
+        <div class="ant-modal-title">Reader Modal</div>
+        <button data-testid="modal-save">Save</button>
+      </div>
+    `;
+
+    const runtime = createUIRuntime({
+      adapters: [],
+      includeDomFallbackInCompact: true,
+    });
+    const snapshot = runtime.initialize();
+    const modalSurface = snapshot.surface_stack.find(
+      (surface) => surface.key === 'modal:reader-modal',
+    );
+
+    const read = runtime.readSurface(modalSurface?.id);
+    expect(read.surface?.id).toBe(modalSurface?.id);
+    expect(read.nodes.some((node) => node.locator.includes('modal-save'))).toBe(
+      true,
+    );
+    expect(read.nodes.some((node) => node.content || node.text)).toBe(true);
   });
 });

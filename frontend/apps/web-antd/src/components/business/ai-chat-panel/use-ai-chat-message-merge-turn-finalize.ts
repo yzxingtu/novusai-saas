@@ -9,6 +9,7 @@ import {
   resolveNativeSearchToolStatus,
   upsertNativeSearchToolCall,
 } from './use-ai-chat-message-native-search';
+import { reconcileTurnFlowWithLegacy } from './use-ai-chat-turn-flow';
 
 function resolveMergedToolCalls(
   state: AssistantTurnMergeState,
@@ -51,6 +52,8 @@ export function buildAssistantMessageFromState(
   state: AssistantTurnMergeState,
 ): ChatMessage {
   const mergedToolCalls = resolveMergedToolCalls(state);
+  const mergedContent =
+    state.trustedFinalContent ?? state.contentParts.join('\n\n');
   const assistantMessage: ChatMessage = {
     agent_avatar: state.turnAgentAvatar,
     agent_description: state.turnAgentDescription,
@@ -59,9 +62,7 @@ export function buildAssistantMessageFromState(
     clientKey: `persisted-assistant-${state.startIndex}-${
       state.turnCreatedAt ?? ''
     }`,
-    content: state.turnPersistedErrorOnly
-      ? ''
-      : state.contentParts.join('\n\n'),
+    content: state.turnPersistedErrorOnly ? '' : mergedContent,
     model_name: state.turnModelName,
     role: 'assistant',
     routeSource: state.turnRouteSource,
@@ -140,5 +141,9 @@ export function buildAssistantMessageFromState(
     delete assistantMessage.partial;
     delete assistantMessage.interrupted;
   }
+  if (state.turnFlow) {
+    assistantMessage.turnFlow = state.turnFlow;
+  }
+  reconcileTurnFlowWithLegacy(assistantMessage);
   return assistantMessage;
 }

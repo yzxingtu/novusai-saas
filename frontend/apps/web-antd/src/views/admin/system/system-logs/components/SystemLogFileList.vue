@@ -54,6 +54,7 @@ const summaryText = computed(
       <div class="mt-3">
         <Input
           v-model:value="fileSearchQuery"
+          name="system-log-file-search"
           :placeholder="t('admin.system.systemLog.searchFiles')"
           allow-clear
           size="small"

@@ -1,7 +1,9 @@
+/* eslint-disable vue/one-component-per-file */
 // @vitest-environment happy-dom
 import { mount } from '@vue/test-utils';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defineComponent, h, ref } from 'vue';
+
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import SystemLogToolbar from '../components/SystemLogToolbar.vue';
 
@@ -17,7 +19,7 @@ type SystemLogCategory = {
 
 function createContext() {
   return {
-    activeCategoryMeta: ref<SystemLogCategory | null>(null),
+    activeCategoryMeta: ref<null | SystemLogCategory>(null),
     downloadingFile: ref<null | string>(null),
     getCategoryVisual: vi.fn(() => ({
       icon: 'lucide:file-code-2',
@@ -30,7 +32,7 @@ function createContext() {
     onCopyAll: vi.fn(),
     onDownload: vi.fn(),
     onRefresh: vi.fn(),
-    selectedFile: ref<SystemLogFile | null>(null),
+    selectedFile: ref<null | SystemLogFile>(null),
     statsLoading: ref(false),
     toolbarMetrics: ref([
       {
@@ -80,7 +82,11 @@ vi.mock('ant-design-vue', () => ({
     },
     setup(props, { slots }) {
       return () =>
-        h('div', { 'data-spinning': String(props.spinning) }, slots.default?.());
+        h(
+          'div',
+          { 'data-spinning': String(props.spinning) },
+          slots.default?.(),
+        );
     },
   }),
 }));
@@ -89,7 +95,7 @@ beforeEach(() => {
   contextState.current = createContext();
 });
 
-describe('SystemLogToolbar slice', () => {
+describe('systemLogToolbar slice', () => {
   it('renders chips for file, category, and live status', () => {
     contextState.current.selectedFile.value = {
       filename: 'app.log',

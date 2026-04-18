@@ -1,4 +1,4 @@
-import type { ComputedRef, Ref } from 'vue';
+import type { Ref } from 'vue';
 
 import type { ConversationTimelineItem } from '#/api/shared/ai-chat';
 
@@ -13,10 +13,6 @@ interface UsePanelShellOverlayBindingsOptions {
     visible: boolean;
   };
   conversationContextDiagnostics: Ref<null | Record<string, unknown>>;
-  interactionModeDowngraded: ComputedRef<boolean>;
-  interactionModeDowngradeText: ComputedRef<string>;
-  interactionModeLabel: ComputedRef<string>;
-  interactionModeRequested: ComputedRef<string>;
   lastRunSummary: Ref<null | Record<string, unknown>>;
   previewImageUrl: Ref<null | string> | Ref<string>;
   previewImageVisible: Ref<boolean>;
@@ -35,10 +31,6 @@ export function usePanelShellOverlayBindings(
     conversationContextDiagnostics:
       options.conversationContextDiagnostics.value,
     hasUnread: options.aiPanelStore.hasUnread,
-    interactionModeDowngraded: options.interactionModeDowngraded.value,
-    interactionModeDowngradeText: options.interactionModeDowngradeText.value,
-    interactionModeLabel: options.interactionModeLabel.value,
-    interactionModeRequested: options.interactionModeRequested.value,
     lastRunSummary: options.lastRunSummary.value,
     minimizedOpen:
       options.aiPanelStore.minimized && !options.aiPanelStore.visible,

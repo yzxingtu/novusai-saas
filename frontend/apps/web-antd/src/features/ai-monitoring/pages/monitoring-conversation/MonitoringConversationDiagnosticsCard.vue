@@ -13,6 +13,7 @@ import { IconifyIcon } from '@vben/icons';
 
 import { Card, Empty, Tag } from 'ant-design-vue';
 
+import { getTurnFlowForDisplay } from '#/components/business/ai-chat-panel/chat-message-turn-flow';
 import { $t } from '#/locales';
 
 import {
@@ -24,6 +25,7 @@ import {
   formatTokens,
   hasEntries,
 } from './helpers';
+import { toMonitoringChatMessage } from './monitoring-chat-message-adapter';
 
 defineOptions({ name: 'MonitoringConversationDiagnosticsCard' });
 
@@ -31,6 +33,11 @@ const props = defineProps<{
   detail: MonitoringConversationDetail;
   i18nPrefix: string;
 }>();
+
+function asOptionalString(value: unknown): string | undefined {
+  const normalized = asString(value);
+  return normalized || undefined;
+}
 
 function translateOption(
   group: string,
@@ -45,6 +52,39 @@ function translateOption(
   return translated === key ? raw : translated;
 }
 
+const canonicalTurnFlowDiagnostics = computed(() => {
+  for (
+    let index = props.detail.message_list.length - 1;
+    index >= 0;
+    index -= 1
+  ) {
+    const normalizedMessage = toMonitoringChatMessage(
+      props.detail.message_list[index]!,
+    );
+    if (!normalizedMessage.turnFlow) {
+      continue;
+    }
+    const flow = getTurnFlowForDisplay(normalizedMessage);
+    if (flow.timeline.length === 0) {
+      continue;
+    }
+    const terminalStage = flow.timeline[flow.timeline.length - 1];
+    return {
+      completion_reason: asOptionalString(flow.completionReason),
+      failure_kind: asOptionalString(flow.failureKind),
+      final_stage_status:
+        asOptionalString(flow.finalStageStatus) ||
+        asOptionalString(terminalStage?.status),
+      turn_flow_complete:
+        typeof flow.turnFlowComplete === 'boolean'
+          ? flow.turnFlowComplete
+          : undefined,
+      turn_outcome: asOptionalString(flow.turnOutcome),
+    };
+  }
+  return null;
+});
+
 const runtimeDiagnostics = computed<MonitoringRuntimeDiagnostics | null>(() => {
   const metadata = asRecord(props.detail.metadata);
   const contextDiagnostics =
@@ -57,6 +97,22 @@ const runtimeDiagnostics = computed<MonitoringRuntimeDiagnostics | null>(() => {
     ...contextDiagnostics,
     ...lastRunSummary,
   } as MonitoringRuntimeDiagnostics;
+  const canonical = canonicalTurnFlowDiagnostics.value;
+  if (canonical?.failure_kind) {
+    merged.failure_kind = canonical.failure_kind;
+  }
+  if (canonical?.completion_reason) {
+    merged.partial_exit_reason = canonical.completion_reason;
+  }
+  if (canonical?.final_stage_status) {
+    merged.final_stage_status = canonical.final_stage_status;
+  }
+  if (canonical?.turn_outcome) {
+    merged.turn_outcome = canonical.turn_outcome;
+  }
+  if (typeof canonical?.turn_flow_complete === 'boolean') {
+    merged.turn_flow_complete = canonical.turn_flow_complete;
+  }
   return hasEntries(merged) ? merged : null;
 });
 
@@ -322,11 +378,7 @@ const diagnosticsDetailRows = computed(() => {
             v-if="candidateToolNames.length > 0"
             class="monitoring-tag-list mt-3"
           >
-            <Tag
-              v-for="tool in candidateToolNames"
-              :key="tool"
-              color="purple"
-            >
+            <Tag v-for="tool in candidateToolNames" :key="tool" color="purple">
               {{ tool }}
             </Tag>
           </div>
@@ -384,7 +436,10 @@ const diagnosticsDetailRows = computed(() => {
                 <Tag color="gold">
                   {{ formatTagValue(event.kind || event.reason) }}
                 </Tag>
-                <span v-if="event.attempt != null" class="text-xs text-muted-foreground">
+                <span
+                  v-if="event.attempt != null"
+                  class="text-xs text-muted-foreground"
+                >
                   #{{ event.attempt }}
                 </span>
               </div>

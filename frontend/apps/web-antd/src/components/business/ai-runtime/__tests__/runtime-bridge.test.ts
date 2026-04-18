@@ -54,6 +54,10 @@ type LoadRuntimeBridgeOptions = {
   }) => Record<string, unknown>;
   documentTitle?: string;
   formApis?: Record<string, Record<string, unknown>>;
+  generateSnapshotImpl?: (
+    input: Record<string, unknown>,
+    mode?: string,
+  ) => Record<string, unknown>;
   html?: string;
   pageSessionId?: null | string;
   resolveRoutePageKeyImpl?: (
@@ -76,7 +80,9 @@ type LoadRuntimeBridgeOptions = {
   uiEpoch?: number;
 };
 
-function createSession(overrides: Partial<MockFormSession> = {}): MockFormSession {
+function createSession(
+  overrides: Partial<MockFormSession> = {},
+): MockFormSession {
   return {
     can_submit: true,
     entity_name: 'User',
@@ -112,23 +118,28 @@ async function loadRuntimeBridge(options: LoadRuntimeBridgeOptions = {}) {
     name: 'runtime-bridge',
   };
   const uiEpoch = options.uiEpoch ?? 7;
-  const surfaceStack =
-    options.surfaceStack ??
-    [
-      {
-        kind: 'page',
-        surface_id: 'surface-page',
-        title: 'Runtime Bridge',
-      },
-    ];
-  const activeSurfaceId = options.activeSurfaceId ?? surfaceStack[0]?.surface_id ?? 'surface-page';
+  const surfaceStack = options.surfaceStack ?? [
+    {
+      kind: 'page',
+      surface_id: 'surface-page',
+      title: 'Runtime Bridge',
+    },
+  ];
+  const activeSurfaceId =
+    options.activeSurfaceId ?? surfaceStack[0]?.surface_id ?? 'surface-page';
 
   const sessions = new Map(
-    (options.sessions ?? []).map((session) => [session.form_session_id, session]),
+    (options.sessions ?? []).map((session) => [
+      session.form_session_id,
+      session,
+    ]),
   );
   const activeSessionIdByPageKey = options.activeSessionIdByPageKey ?? {};
   const formApis = new Map(
-    Object.entries(options.formApis ?? {}).map(([sessionId, formApi]) => [sessionId, formApi]),
+    Object.entries(options.formApis ?? {}).map(([sessionId, formApi]) => [
+      sessionId,
+      formApi,
+    ]),
   );
 
   const formStateTracker = {
@@ -150,28 +161,32 @@ async function loadRuntimeBridge(options: LoadRuntimeBridgeOptions = {}) {
     }),
     getFormApi: vi.fn((sessionId: string) => formApis.get(sessionId) ?? null),
     getSession: vi.fn((sessionId: string) => sessions.get(sessionId) ?? null),
-    getSessionId: vi.fn((pageKey: string) => activeSessionIdByPageKey[pageKey] ?? null),
+    getSessionId: vi.fn(
+      (pageKey: string) => activeSessionIdByPageKey[pageKey] ?? null,
+    ),
     getTrackedKeys: vi.fn(() => Object.keys(activeSessionIdByPageKey)),
     listSessions: vi.fn(() => [...sessions.values()]),
-    setSessionFieldValues: vi.fn((sessionId: string, values: Record<string, unknown>) => {
-      const session = sessions.get(sessionId);
-      if (!session) {
-        return null;
-      }
-      const updatedSession = {
-        ...session,
-        fields: session.fields.map((field) =>
-          Object.prototype.hasOwnProperty.call(values, field.name)
-            ? {
-                ...field,
-                value: values[field.name],
-              }
-            : field,
-        ),
-      };
-      sessions.set(sessionId, updatedSession);
-      return updatedSession;
-    }),
+    setSessionFieldValues: vi.fn(
+      (sessionId: string, values: Record<string, unknown>) => {
+        const session = sessions.get(sessionId);
+        if (!session) {
+          return null;
+        }
+        const updatedSession = {
+          ...session,
+          fields: session.fields.map((field) =>
+            Object.prototype.hasOwnProperty.call(values, field.name)
+              ? {
+                  ...field,
+                  value: values[field.name],
+                }
+              : field,
+          ),
+        };
+        sessions.set(sessionId, updatedSession);
+        return updatedSession;
+      },
+    ),
   };
 
   const runtimeGraphNodes =
@@ -212,14 +227,52 @@ async function loadRuntimeBridge(options: LoadRuntimeBridgeOptions = {}) {
   const resolveRoutePageKey = vi.fn(
     options.resolveRoutePageKeyImpl ??
       ((routeLike?: { path?: string }, explicitPageKey?: string) =>
-        explicitPageKey ? `page:${explicitPageKey}` : `route:${routeLike?.path ?? route.fullPath}`),
+        explicitPageKey
+          ? `page:${explicitPageKey}`
+          : `route:${routeLike?.path ?? route.fullPath}`),
   );
   const getActivePageSessionId = vi.fn(() => options.pageSessionId ?? null);
   const createUIRuntime = vi.fn(() => ({
     initialize: vi.fn(() => runtimeSnapshot),
+    readPage: vi.fn(() => runtimeSnapshot),
+    readSurface: vi.fn(() => ({
+      active_surface: runtimeSnapshot.active_surface,
+      mode: 'full',
+      nodes: (options.snapshotNodes ?? []).map((node, index) => ({
+        disabled: false,
+        interactable: !!node.interactable,
+        kind: node.kind as never,
+        label: node.summary,
+        locator: node.locator,
+        node_id: `read-node-${index + 1}`,
+        surface_id: node.surface_id,
+        text: node.summary,
+      })),
+      surface: surfaceStack[0]
+        ? {
+            id: surfaceStack[0].surface_id,
+            key: surfaceStack[0].surface_id,
+            kind: surfaceStack[0].kind as never,
+            openedAt: 0,
+            title: surfaceStack[0].title,
+            updatedAt: 0,
+          }
+        : null,
+      surface_stack: surfaceStack.map((surface) => ({
+        id: surface.surface_id,
+        key: surface.surface_id,
+        kind: surface.kind as never,
+        openedAt: 0,
+        title: surface.title,
+        updatedAt: 0,
+      })),
+      ui_epoch: uiEpoch,
+    })),
     rebuildGraph: vi.fn(() => runtimeSnapshot),
   }));
-  const generateSnapshot = vi.fn(() => snapshot);
+  const generateSnapshot = vi.fn(
+    options.generateSnapshotImpl ?? (() => snapshot),
+  );
   const buildThinPageContext = vi.fn(
     options.buildThinPageContextImpl ??
       (({
@@ -248,25 +301,25 @@ async function loadRuntimeBridge(options: LoadRuntimeBridgeOptions = {}) {
       element,
     }: {
       actionKind?: string;
-      element?: Element | null;
+      element?: HTMLElement | null;
     }) => ({
       canAct:
-        element?.getAttribute('data-can-act') !== 'false' &&
-        actionKind !== 'blocked-action',
-      canRead: element?.getAttribute('data-read') !== 'deny',
-      readAccess: element?.getAttribute('data-read') === 'deny' ? 'deny' : 'allow',
-      requireConfirm: element?.getAttribute('data-confirm') === 'true',
+        element?.dataset.canAct !== 'false' && actionKind !== 'blocked-action',
+      canRead: element?.dataset.read !== 'deny',
+      readAccess: element?.dataset.read === 'deny' ? 'deny' : 'allow',
+      requireConfirm: element?.dataset.confirm === 'true',
     }),
   );
-  const readValueForAI = vi.fn((value: unknown, decision?: { readAccess?: string }) => {
-    if (decision?.readAccess === 'deny') {
-      return undefined;
-    }
-    return String(value ?? '');
-  });
-  const tAiRuntime = vi.fn(
-    (key: string, params?: Record<string, unknown>) =>
-      params?.locator ? `${key}:${String(params.locator)}` : key,
+  const readValueForAI = vi.fn(
+    (value: unknown, decision?: { readAccess?: string }) => {
+      if (decision?.readAccess === 'deny') {
+        return undefined;
+      }
+      return String(value ?? '');
+    },
+  );
+  const tAiRuntime = vi.fn((key: string, params?: Record<string, unknown>) =>
+    params?.locator ? `${key}:${String(params.locator)}` : key,
   );
 
   vi.doMock('#/components/business/ai-runtime/page-key-utils', () => ({
@@ -277,6 +330,19 @@ async function loadRuntimeBridge(options: LoadRuntimeBridgeOptions = {}) {
   }));
   vi.doMock('#/composables/use-page-session', () => ({
     getActivePageSessionId,
+  }));
+  vi.doMock('#/composables/use-ai-page-policy', () => ({
+    currentRouteAISecurityPolicy: {
+      value: {
+        act: 'allow',
+        confirmActionKinds: [],
+        disabledActionKinds: [],
+        enabled: true,
+        read: 'allow',
+        sensitiveFieldRead: 'off',
+        submit: 'allow',
+      },
+    },
   }));
   vi.doMock('#/locales', () => ({
     $t: vi.fn((key: string) => `locale:${key}`),
@@ -335,6 +401,27 @@ describe('runtime-bridge', () => {
 
   it('initializes the global runtime once and returns thin context, diagnostics, and snapshot data', async () => {
     const { mocks, runtimeBridge } = await loadRuntimeBridge({
+      generateSnapshotImpl: (thinSnapshot) => ({
+        active_surface_id: thinSnapshot.active_surface_id,
+        interactables_count: Array.isArray(thinSnapshot.nodes)
+          ? thinSnapshot.nodes.length
+          : 0,
+        nodes: Array.isArray(thinSnapshot.nodes)
+          ? thinSnapshot.nodes.map((node) => ({
+              interactable: node.interactable,
+              kind: node.kind,
+              locator: node.locator,
+              summary:
+                typeof node.label === 'string' ? node.label : undefined,
+              surface_id: node.surface_id,
+            }))
+          : [],
+        surface_stack: Array.isArray(thinSnapshot.surface_stack)
+          ? thinSnapshot.surface_stack
+          : [],
+        ui_epoch:
+          typeof thinSnapshot.ui_epoch === 'number' ? thinSnapshot.ui_epoch : 0,
+      }),
       pageSessionId: 'page-session-1',
       route: {
         fullPath: '/admin/ai/runtime',
@@ -378,7 +465,8 @@ describe('runtime-bridge', () => {
     expect(firstRuntime).toBe(secondRuntime);
     expect(mocks.createUIRuntime).toHaveBeenCalledTimes(1);
 
-    const pageContext = runtimeBridge.getRuntimeThinPageContext('explicit-page');
+    const pageContext =
+      runtimeBridge.getRuntimeThinPageContext('explicit-page');
     expect(pageContext).toMatchObject({
       locale: 'en-US',
       page_key: 'page:explicit-page',
@@ -420,6 +508,23 @@ describe('runtime-bridge', () => {
           title: 'Runtime Bridge',
         },
       ],
+      ui_epoch: 19,
+    });
+
+    const epochFloor = await import('../ui-epoch-floor');
+    epochFloor.setRuntimeEpochFloor(27);
+
+    expect(runtimeBridge.getRuntimeSnapshot().ui_epoch).toBe(27);
+    expect(runtimeBridge.getRuntimePageContextDiagnostics().ui_epoch).toBe(27);
+
+    expect(runtimeBridge.readRuntimeSurface('surface-page')).toMatchObject({
+      active_surface_id: 'surface-page',
+      mode: 'full',
+      surface: {
+        kind: 'page',
+        surface_id: 'surface-page',
+        title: 'Runtime Bridge',
+      },
       ui_epoch: 19,
     });
   });
@@ -755,7 +860,7 @@ describe('runtime-bridge', () => {
         },
       ],
       surface_id: 'surface-modal',
-      truncated: true,
+      truncated: false,
     });
   });
 
@@ -857,7 +962,43 @@ describe('runtime-bridge', () => {
         },
       ],
       surface_id: 'surface-page',
-      truncated: true,
+      truncated: false,
+    });
+  });
+
+  it('returns truncated false when a surface filter has no matching interactables', async () => {
+    const { runtimeBridge } = await loadRuntimeBridge({
+      html: `
+        <button data-testid="save-btn">Save</button>
+      `,
+      snapshotNodes: [
+        {
+          interactable: true,
+          kind: 'button',
+          locator: 'testid:save-btn',
+          summary: 'Save',
+          surface_id: 'surface-modal',
+        },
+      ],
+      surfaceStack: [
+        {
+          kind: 'page',
+          surface_id: 'surface-page',
+          title: 'Runtime Bridge',
+        },
+        {
+          kind: 'modal',
+          surface_id: 'surface-modal',
+          title: 'Editor',
+        },
+      ],
+    });
+
+    expect(runtimeBridge.listRuntimeInteractables('surface-page')).toEqual({
+      count: 0,
+      items: [],
+      surface_id: 'surface-page',
+      truncated: false,
     });
   });
 

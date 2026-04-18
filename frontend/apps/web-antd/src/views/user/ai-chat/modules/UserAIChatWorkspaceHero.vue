@@ -33,7 +33,7 @@ const { selectedAgent } = chat;
     >
       <div class="space-y-4">
         <div
-          class="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/8 px-3 py-1 text-xs font-medium text-primary"
+          class="bg-primary/8 inline-flex items-center gap-2 rounded-full border border-primary/20 px-3 py-1 text-xs font-medium text-primary"
         >
           <IconifyIcon icon="lucide:messages-square" class="size-3.5" />
           {{ $t('user.aiChat.workspace.badge') }}

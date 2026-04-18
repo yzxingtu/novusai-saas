@@ -4,18 +4,20 @@ export {
   type RuntimeFormActionResult,
 } from './runtime-bridge-core';
 export {
-  getRuntimePageContextDiagnostics,
-  getRuntimeSnapshot,
-  getRuntimeThinPageContext,
-} from './runtime-bridge-snapshot';
+  fillRuntimeForm,
+  getRuntimeFormState,
+  setRuntimeFormField,
+  submitRuntimeForm,
+} from './runtime-bridge-form-actions';
 export {
   listRuntimeInteractables,
   readRuntimeRegion,
   readRuntimeTable,
 } from './runtime-bridge-readers';
 export {
-  fillRuntimeForm,
-  getRuntimeFormState,
-  setRuntimeFormField,
-  submitRuntimeForm,
-} from './runtime-bridge-form-actions';
+  getRuntimePageContextDiagnostics,
+  getRuntimePageSnapshot,
+  getRuntimeSnapshot,
+  getRuntimeThinPageContext,
+  readRuntimeSurface,
+} from './runtime-bridge-snapshot';

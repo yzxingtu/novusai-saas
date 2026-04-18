@@ -7,13 +7,12 @@ import { computed, ref, watch } from 'vue';
 import { IconifyIcon } from '@vben/icons';
 
 import {
-  Select as ASelect,
   Button,
+  message,
   Popconfirm,
   Spin,
   Switch,
   Tag,
-  message,
 } from 'ant-design-vue';
 
 import {
@@ -32,8 +31,8 @@ import { getSkillTypeColor, getSkillTypeIcon } from '#/utils/ai-helpers';
 import { showRequestError } from '#/utils/error-helpers';
 
 const props = defineProps<{
-  agentId: number;
   active: boolean;
+  agentId: number;
 }>();
 
 const bindings = ref<AIAgentSkillGrantInfo[]>([]);
@@ -48,12 +47,6 @@ const bindingPackageCount = computed(() => {
   );
   return keys.size;
 });
-
-const consentModeOptions = [
-  { label: $t('admin.ai.agent.consentModeOptions.auto'), value: 'auto' },
-  { label: $t('admin.ai.agent.consentModeOptions.ask'), value: 'ask' },
-  { label: $t('admin.ai.agent.consentModeOptions.reject'), value: 'reject' },
-];
 
 function getSkillSourceTag(
   binding: AIAgentSkillGrantInfo,
@@ -96,9 +89,14 @@ function openSkillBindingPicker() {
   skillPickerOpen.value = true;
 }
 
-async function onSkillBindingPickerConfirm(drafts: AgentSkillBindingDraftItem[]) {
+async function onSkillBindingPickerConfirm(
+  drafts: AgentSkillBindingDraftItem[],
+) {
   try {
-    await batchBindAIAgentSkillsApi(props.agentId, draftsToBatchPayload(drafts));
+    await batchBindAIAgentSkillsApi(
+      props.agentId,
+      draftsToBatchPayload(drafts),
+    );
     message.success($t('admin.ai.agent.detail.saveSuccess'));
     await loadBindings();
   } catch (error) {
@@ -114,25 +112,6 @@ async function unbindSkill(skillId: number) {
   } catch (error) {
     showRequestError(error, 'common.saveFailed');
   }
-}
-
-async function updateConsentMode(bindingId: number, mode: string) {
-  try {
-    await updateAIAgentSkillGrantApi(props.agentId, bindingId, {
-      default_consent_mode: mode,
-    });
-    await loadBindings();
-    message.success($t('admin.ai.agent.detail.saveSuccess'));
-  } catch (error) {
-    showRequestError(error, 'common.saveFailed');
-  }
-}
-
-function handleConsentModeChange(binding: AIAgentSkillGrantInfo, value: string) {
-  if (binding.id === null || binding.id === undefined) {
-    return;
-  }
-  void updateConsentMode(binding.id, value);
 }
 
 async function toggleSkillEnabled(binding: AIAgentSkillGrantInfo) {
@@ -236,7 +215,9 @@ watch(
                       {{ binding.skill_name || `#${binding.skill_id}` }}
                     </span>
                     <Tag
-                      :color="getSkillTypeColor(binding.skill_type || 'toolkit')"
+                      :color="
+                        getSkillTypeColor(binding.skill_type || 'toolkit')
+                      "
                       class="!mr-0 !text-[10px]"
                     >
                       {{ getSkillTypeText(binding.skill_type || undefined) }}
@@ -257,18 +238,6 @@ watch(
                 </div>
               </div>
               <div class="flex items-center gap-3">
-                <div class="flex items-center gap-2">
-                  <span class="text-xs text-muted-foreground">{{
-                    $t('admin.ai.agent.detail.consentMode')
-                  }}</span>
-                  <ASelect
-                    size="small"
-                    :value="binding.default_consent_mode"
-                    :options="consentModeOptions"
-                    class="min-w-[110px]"
-                    @change="(val) => handleConsentModeChange(binding, String(val))"
-                  />
-                </div>
                 <Switch
                   :checked="binding.enabled"
                   size="small"
@@ -302,7 +271,9 @@ watch(
           <div class="mt-4 text-sm font-semibold text-foreground">
             {{ $t('admin.ai.agent.skillPicker.emptySelected') }}
           </div>
-          <div class="mx-auto mt-2 max-w-xl text-xs leading-6 text-muted-foreground">
+          <div
+            class="mx-auto mt-2 max-w-xl text-xs leading-6 text-muted-foreground"
+          >
             {{ $t('admin.ai.agent.skillPicker.detailEmptyHint') }}
           </div>
           <Button class="mt-5" type="primary" @click="openSkillBindingPicker">

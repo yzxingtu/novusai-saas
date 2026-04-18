@@ -4,6 +4,7 @@ import type {
   PendingConsent,
   RagSource,
   ToolCallEvent,
+  TurnFlowViewModel,
 } from './types';
 
 import type {
@@ -19,6 +20,7 @@ export interface AssistantTurnMergeState {
   hasPartial: boolean;
   startIndex: number;
   thinkingContentParts: string[];
+  trustedFinalContent: null | string;
   toolCalls: ToolCallEvent[];
   turnActionButtons?: ActionButton[];
   turnActionButtonsUsed: boolean;
@@ -37,6 +39,7 @@ export interface AssistantTurnMergeState {
   turnPendingConsent?: PendingConsent;
   turnPersistedError?: AppErrorInfo;
   turnPersistedErrorOnly: boolean;
+  turnFlow?: TurnFlowViewModel;
   turnProtocolPath?: string;
   turnRagSources?: RagSource[];
   turnRecordPayload: null | TurnRecordPayload;
@@ -57,6 +60,7 @@ export function createInitialAssistantTurnState(
     hasPartial: false,
     startIndex,
     thinkingContentParts: [],
+    trustedFinalContent: null,
     toolCalls: [],
     turnActionButtonsUsed: false,
     turnAgentAvatar: null,
@@ -69,6 +73,7 @@ export function createInitialAssistantTurnState(
     turnLastRunSummaryRaw: null,
     turnModelName: null,
     turnPersistedErrorOnly: false,
+    turnFlow: undefined,
     turnRecordPayload: null,
     turnRecordRaw: null,
     turnRouteSource: null,

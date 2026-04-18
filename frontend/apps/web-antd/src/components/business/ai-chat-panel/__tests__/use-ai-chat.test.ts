@@ -281,17 +281,21 @@ describe('useAIChat interrupted stream recovery', () => {
           buildUserMessage('查今天AI新闻', {
             created_at: '2026-04-07T12:00:00Z',
           }),
-          buildAssistantMessage('并发 Session 超限：当前 3 个（限制：3 个）。', {
-            created_at: '2026-04-07T12:00:01Z',
-            metadata: {
-              error: true,
-              error_debug_message: '并发 Session 超限：当前 3 个（限制：3 个）。',
-              error_message: '并发 Session 超限：当前 3 个（限制：3 个）。',
-              error_only: true,
-              error_trace_id: 'trace-stream-1044',
-              error_type: 'stream_execution_error',
+          buildAssistantMessage(
+            '并发 Session 超限：当前 3 个（限制：3 个）。',
+            {
+              created_at: '2026-04-07T12:00:01Z',
+              metadata: {
+                error: true,
+                error_debug_message:
+                  '并发 Session 超限：当前 3 个（限制：3 个）。',
+                error_message: '并发 Session 超限：当前 3 个（限制：3 个）。',
+                error_only: true,
+                error_trace_id: 'trace-stream-1044',
+                error_type: 'stream_execution_error',
+              },
             },
-          }),
+          ),
         ],
         {
           context_diagnostics: {
@@ -353,7 +357,7 @@ describe('useAIChat interrupted stream recovery', () => {
             },
           }),
         ],
-        { interaction_mode_effective: 'confirm' },
+        { interaction_mode_effective: 'trusted_auto' },
       ),
     );
     apiMocks.sendChatStreamApi.mockImplementation(
@@ -417,7 +421,7 @@ describe('useAIChat interrupted stream recovery', () => {
             },
           }),
         ],
-        { interaction_mode_effective: 'confirm' },
+        { interaction_mode_effective: 'trusted_auto' },
       ),
     );
     apiMocks.sendChatStreamApi.mockImplementation(
@@ -477,10 +481,10 @@ describe('useAIChat interrupted stream recovery', () => {
     ).toBe(true);
   });
 
-  it('restores confirm interactionMode from backend conversation detail', async () => {
+  it('restores trusted_auto interactionMode from backend conversation detail', async () => {
     apiMocks.getChatConversationMessagesApi.mockResolvedValue(
       buildConversationDetail([buildUserMessage('hello')], {
-        interaction_mode_effective: 'confirm',
+        interaction_mode_effective: 'trusted_auto',
       }),
     );
 
@@ -490,7 +494,7 @@ describe('useAIChat interrupted stream recovery', () => {
     await chat.loadConversationMessages(42);
     await flushPromises();
 
-    expect(chat.interactionMode.value).toBe('confirm');
+    expect(chat.interactionMode.value).toBe('trusted_auto');
   });
 
   it('sends auto_approved interaction update when trusted_auto auto-approves tool consent', async () => {
@@ -549,10 +553,10 @@ describe('useAIChat interrupted stream recovery', () => {
         tool_name: 'web_search',
       },
     ]);
-    expect(autoApproveBody?.interaction_mode).toBe('trusted_auto');
+    expect(autoApproveBody).not.toHaveProperty('interaction_mode');
   });
 
-  it('preserves trusted_auto on consent approval resend after a confirm downgrade', async () => {
+  it('auto-approves consent resend without surfacing pending consent state', async () => {
     let streamCallCount = 0;
     apiMocks.getChatConversationMessagesApi.mockResolvedValue(
       buildConversationDetail(
@@ -568,8 +572,7 @@ describe('useAIChat interrupted stream recovery', () => {
           }),
         ],
         {
-          interaction_mode_effective: 'confirm',
-          interaction_mode_requested: 'trusted_auto',
+          interaction_mode_effective: 'trusted_auto',
         },
       ),
     );
@@ -590,7 +593,7 @@ describe('useAIChat interrupted stream recovery', () => {
           await options.onMessage(
             sseEvent({
               event: 'tool_consent_request',
-              interaction_mode_effective: 'confirm',
+              interaction_mode_effective: 'trusted_auto',
               name: 'get_current_weather',
               arguments: { city: '北京' },
             }),
@@ -617,24 +620,18 @@ describe('useAIChat interrupted stream recovery', () => {
     await flushPromises();
 
     expect(chat.interactionMode.value).toBe('trusted_auto');
-    expect(chat.interactionModeEffective.value).toBe('confirm');
-    expect(chat.chatMessages.value.at(-1)?.pendingConsent?.toolName).toBe(
-      'get_current_weather',
-    );
-
-    chat.confirmConsent(chat.chatMessages.value.length - 1);
-    await flushPromises();
-    await vi.advanceTimersByTimeAsync(1000);
-    await flushPromises();
+    expect(chat.interactionModeEffective.value).toBe('trusted_auto');
+    expect(chat.chatMessages.value.at(-1)?.pendingConsent).toBeUndefined();
 
     const consentBody = apiMocks.sendChatStreamApi.mock.calls.at(-1)?.[2] as
       | Record<string, unknown>
       | undefined;
     expect(apiMocks.sendChatStreamApi).toHaveBeenCalledTimes(2);
-    expect(consentBody?.interaction_mode).toBe('trusted_auto');
+    expect(consentBody).not.toHaveProperty('interaction_mode');
     expect(consentBody?.interaction_updates).toEqual([
       {
         kind: 'pending_consent',
+        auto_approved: true,
         rejected: false,
         tool_name: 'get_current_weather',
       },
@@ -700,6 +697,360 @@ describe('useAIChat interrupted stream recovery', () => {
       tables: ['ai_call_logs', 'tenants'],
       tool_kind: 'query_records',
     });
+  });
+
+  it('parses canonical turn flow SSE events and keeps legacy fallback fields usable', async () => {
+    apiMocks.sendChatStreamApi.mockImplementation(
+      async (
+        _prefix: string,
+        _agentId: number,
+        _body: Record<string, unknown>,
+        options: {
+          onMessage: (chunk: string) => Promise<void>;
+        },
+      ) => {
+        await options.onMessage(
+          sseEvent({ event: 'conversation', conversation_id: 42 }),
+        );
+        await options.onMessage(
+          sseEvent({
+            event: 'turn_stage',
+            id: 'thinking-1',
+            status: 'running',
+            summary: '先理解用户问题',
+            title: 'Thinking',
+            type: 'thinking',
+          }),
+        );
+        await options.onMessage(
+          sseEvent({
+            detail_lines: ['先识别上下文', '再决定工具路径'],
+            event: 'turn_stage_update',
+            id: 'thinking-1',
+            status: 'completed',
+          }),
+        );
+        await options.onMessage(
+          sseEvent({
+            event: 'turn_stage',
+            id: 'tool-selection-1',
+            metrics: { selected: 0, total: 15 },
+            status: 'skipped',
+            type: 'tool_selection',
+          }),
+        );
+        await options.onMessage(
+          sseEvent({
+            event: 'turn_evidence',
+            id: 'source-kb-1',
+            kind: 'knowledge_base',
+            snippet: '命中知识库政策条目',
+            title: '企业知识库',
+          }),
+        );
+        await options.onMessage(
+          sseEvent({
+            answer_card: {
+              sections: [
+                { body: '可执行方案如下', id: 'section-1', title: '结论' },
+              ],
+              source_chip_ids: ['source-kb-1'],
+              summary: '建议先走标准流程',
+            },
+            event: 'turn_answer_card',
+          }),
+        );
+        await options.onMessage(
+          sseEvent({ event: 'message', delta: '最终答复。' }),
+        );
+        await options.onMessage(
+          sseEvent({
+            completion_reason: 'completed',
+            event: 'done',
+            final_stage_status: 'completed',
+            total_tokens: 16,
+            trace_id: 'trace-turn-flow-canonical',
+            turn_flow_complete: true,
+          }),
+        );
+      },
+    );
+
+    const chat = createChat();
+
+    await chat.loadAgents();
+    chat.inputMessage.value = '请给出执行方案';
+    await chat.sendMessage({ routeSource: 'turn-flow-canonical-test' });
+    await flushPromises();
+
+    const assistantMessage = chat.chatMessages.value.find(
+      (msg) => msg.role === 'assistant',
+    );
+    expect(
+      assistantMessage?.turnFlow?.timeline?.map((stage) => stage.type),
+    ).toEqual(
+      expect.arrayContaining(['thinking', 'tool_selection', 'completed']),
+    );
+    expect(assistantMessage?.turnFlow?.answerCard?.summary).toBe(
+      '建议先走标准流程',
+    );
+    expect(assistantMessage?.turnFlow?.traceId).toBe(
+      'trace-turn-flow-canonical',
+    );
+    expect(assistantMessage?.optimizingTools).toEqual({
+      selected: 0,
+      total: 15,
+    });
+    expect(assistantMessage?.thinkingContent).toContain('先理解用户问题');
+    expect(assistantMessage?.ragSources?.[0]?.doc_name).toBe('企业知识库');
+  });
+
+  it('suppresses legacy semantic duplicates when canonical turn stages exist', async () => {
+    apiMocks.sendChatStreamApi.mockImplementation(
+      async (
+        _prefix: string,
+        _agentId: number,
+        _body: Record<string, unknown>,
+        options: {
+          onMessage: (chunk: string) => Promise<void>;
+        },
+      ) => {
+        await options.onMessage(
+          sseEvent({ event: 'conversation', conversation_id: 42 }),
+        );
+        await options.onMessage(
+          sseEvent({
+            event: 'turn_stage',
+            id: 'thinking-stage-1',
+            status: 'running',
+            summary: '先判断问题范围',
+            type: 'thinking',
+          }),
+        );
+        await options.onMessage(
+          sseEvent({
+            detail_lines: ['内部细节 1', '内部细节 2'],
+            event: 'turn_stage_update',
+            id: 'thinking-stage-1',
+            status: 'completed',
+            type: 'thinking',
+          }),
+        );
+        await options.onMessage(
+          sseEvent({
+            event: 'turn_stage',
+            id: 'tool-selection-stage-1',
+            metrics: { selected: 0, total: 9 },
+            status: 'skipped',
+            type: 'tool_selection',
+          }),
+        );
+        await options.onMessage(
+          sseEvent({
+            event: 'turn_stage',
+            id: 'tool-execution-stage-1',
+            metrics: { running: 1, total: 1 },
+            status: 'running',
+            type: 'tool_execution',
+          }),
+        );
+        await options.onMessage(
+          sseEvent({
+            event: 'optimizing_tools',
+            selected: 0,
+            total: 9,
+          }),
+        );
+        await options.onMessage(
+          sseEvent({
+            event: 'tool_start',
+            id: 'tc-dedupe-1',
+            name: 'query_records',
+          }),
+        );
+        await options.onMessage(
+          sseEvent({
+            event: 'tool_call',
+            id: 'tc-dedupe-1',
+            name: 'query_records',
+            success: true,
+          }),
+        );
+        await options.onMessage(
+          sseEvent({
+            event: 'turn_stage_update',
+            id: 'tool-execution-stage-1',
+            metrics: { running: 0, total: 1 },
+            status: 'completed',
+            type: 'tool_execution',
+          }),
+        );
+        await options.onMessage(
+          sseEvent({ event: 'message', delta: '最终答复。' }),
+        );
+        await options.onMessage(
+          sseEvent({
+            completion_reason: 'completed',
+            event: 'done',
+            final_stage_status: 'completed',
+            total_tokens: 9,
+          }),
+        );
+      },
+    );
+
+    const chat = createChat();
+
+    await chat.loadAgents();
+    chat.inputMessage.value = '请继续';
+    await chat.sendMessage({ routeSource: 'turn-flow-dedupe-semantics-test' });
+    await flushPromises();
+
+    const assistantMessage = chat.chatMessages.value.find(
+      (msg) => msg.role === 'assistant',
+    );
+    const timeline = assistantMessage?.turnFlow?.timeline ?? [];
+    expect(timeline.filter((stage) => stage.type === 'thinking')).toHaveLength(
+      1,
+    );
+    expect(
+      timeline.filter((stage) => stage.type === 'tool_selection'),
+    ).toHaveLength(1);
+    expect(
+      timeline.filter((stage) => stage.type === 'tool_execution'),
+    ).toHaveLength(1);
+    expect(
+      timeline.some((stage) =>
+        [
+          'legacy-thinking',
+          'legacy-tool-execution',
+          'legacy-tool-selection',
+        ].includes(stage.id ?? ''),
+      ),
+    ).toBe(false);
+    expect(assistantMessage?.thinkingContent).toBe('先判断问题范围');
+  });
+
+  it('projects provider_failure_after_partial_progress as failed/error terminal state', async () => {
+    apiMocks.sendChatStreamApi.mockImplementation(
+      async (
+        _prefix: string,
+        _agentId: number,
+        _body: Record<string, unknown>,
+        options: {
+          onMessage: (chunk: string) => Promise<void>;
+        },
+      ) => {
+        await options.onMessage(
+          sseEvent({ event: 'conversation', conversation_id: 42 }),
+        );
+        await options.onMessage(
+          sseEvent({ event: 'message', delta: '这是已生成的部分答复。' }),
+        );
+        await options.onMessage(
+          sseEvent({
+            completion_reason: 'provider_failure_after_partial_progress',
+            event: 'done',
+            failure_kind: 'provider_error',
+            final_stage_status: 'completed',
+            total_tokens: 11,
+            turn_outcome: 'partial',
+          }),
+        );
+      },
+    );
+
+    const chat = createChat();
+
+    await chat.loadAgents();
+    chat.inputMessage.value = '总结一下';
+    await chat.sendMessage({ routeSource: 'turn-flow-provider-failure-test' });
+    await flushPromises();
+
+    const assistantMessage = chat.chatMessages.value.find(
+      (msg) => msg.role === 'assistant',
+    );
+    const timeline = assistantMessage?.turnFlow?.timeline ?? [];
+    const answerAssemblyStage = timeline.find(
+      (stage) => stage.type === 'answer_assembly',
+    );
+    expect(assistantMessage?.turnFlow?.finalStageStatus).toBe('error');
+    expect(assistantMessage?.turnFlow?.completionReason).toBe(
+      'provider_failure_after_partial_progress',
+    );
+    expect(answerAssemblyStage?.status).toBe('error');
+    expect(
+      timeline.some(
+        (stage) => stage.type === 'failed' && stage.status === 'error',
+      ),
+    ).toBe(true);
+    expect(timeline.some((stage) => stage.status === 'running')).toBe(false);
+  });
+
+  it('clears stale running turn stages after lifecycle finalization marks orphaned tools as error', async () => {
+    apiMocks.sendChatStreamApi.mockImplementation(
+      async (
+        _prefix: string,
+        _agentId: number,
+        _body: Record<string, unknown>,
+        options: {
+          onMessage: (chunk: string) => Promise<void>;
+        },
+      ) => {
+        await options.onMessage(
+          sseEvent({ event: 'conversation', conversation_id: 42 }),
+        );
+        await options.onMessage(
+          sseEvent({
+            event: 'turn_stage',
+            id: 'tool-execution-running-stage',
+            metrics: { running: 1, total: 1 },
+            status: 'running',
+            type: 'tool_execution',
+          }),
+        );
+        await options.onMessage(
+          sseEvent({
+            event: 'tool_start',
+            id: 'tc-orphan-1',
+            name: 'query_records',
+          }),
+        );
+        await options.onMessage(
+          sseEvent({
+            completion_reason: 'provider_timeout',
+            event: 'done',
+            final_stage_status: 'error',
+            total_tokens: 5,
+            turn_flow_complete: true,
+          }),
+        );
+      },
+    );
+
+    const chat = createChat();
+
+    await chat.loadAgents();
+    chat.inputMessage.value = '开始执行';
+    await chat.sendMessage({ routeSource: 'turn-flow-finalize-orphan-test' });
+    await flushPromises();
+
+    const assistantMessage = chat.chatMessages.value.find(
+      (msg) => msg.role === 'assistant',
+    );
+    const timeline = assistantMessage?.turnFlow?.timeline ?? [];
+    expect(assistantMessage?.toolCalls?.[0]?.status).toBe('error');
+    expect(
+      timeline.find((stage) => stage.id === 'tool-execution-running-stage')
+        ?.status,
+    ).toBe('error');
+    expect(assistantMessage?.turnFlow?.finalStageStatus).toBe('error');
+    expect(
+      timeline.some(
+        (stage) => stage.type === 'failed' && stage.status === 'error',
+      ),
+    ).toBe(true);
+    expect(timeline.some((stage) => stage.status === 'running')).toBe(false);
   });
 
   it('surfaces native web search progress as a visible tool card', async () => {
@@ -793,7 +1144,9 @@ describe('useAIChat interrupted stream recovery', () => {
       tool_kind: 'query_records',
     });
     expect(assistantMessage?.pendingConfirmation?.table).toBe('ai_call_logs');
-    expect(assistantMessage?.pendingConfirmation?.toolName).toBe('query_records');
+    expect(assistantMessage?.pendingConfirmation?.toolName).toBe(
+      'query_records',
+    );
     expect(assistantMessage?.pendingConsent?.toolName).toBe('query_records');
     expect(assistantMessage?.actionButtons?.[0]?.label).toBe('查看明细');
   });
@@ -839,6 +1192,134 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(assistantMessage?.content).toBe(
       '广州今天多云，气温 24 到 29 摄氏度。',
     );
+    expect(
+      assistantMessage?.turnFlow?.timeline?.map((stage) => stage.type),
+    ).toEqual(
+      expect.arrayContaining(['thinking', 'tool_execution', 'answer_assembly']),
+    );
+  });
+
+  it('backfills turnFlow from legacy persisted metadata when turn_flow is missing', async () => {
+    apiMocks.getChatConversationMessagesApi.mockResolvedValue(
+      buildConversationDetail([
+        buildUserMessage('查一下企业知识库策略'),
+        buildAssistantMessage('可以按规范执行。', {
+          metadata: {
+            completion_reason: 'completed',
+            context_sources: [{ kind: 'knowledge_base', name: 'policy_kb' }],
+            rag_sources: [
+              {
+                doc_id: 11,
+                doc_name: '合规流程文档',
+                score: 0.92,
+                snippet: '流程要求先审计后执行',
+                source_kind: 'formal_kb',
+              },
+            ],
+            selected_tool_names: ['query_records'],
+            thinking_content: '先检查可用上下文，再输出最终建议。',
+            turn_outcome: 'success',
+          },
+          tool_calls: [
+            {
+              function: { name: 'query_records' },
+              id: 'tc_legacy_flow_1',
+              success: true,
+              summary: '查询到匹配记录',
+            },
+          ],
+        }),
+      ]),
+    );
+
+    const chat = createChat();
+
+    await chat.loadAgents();
+    await chat.loadConversationMessages(42);
+    await flushPromises();
+
+    const assistantMessage = chat.chatMessages.value.find(
+      (msg) => msg.role === 'assistant',
+    );
+    expect(assistantMessage?.turnFlow).toBeTruthy();
+    expect(
+      assistantMessage?.turnFlow?.timeline?.map((stage) => stage.type),
+    ).toEqual(
+      expect.arrayContaining([
+        'thinking',
+        'tool_selection',
+        'tool_execution',
+        'retrieval',
+        'completed',
+      ]),
+    );
+    expect(assistantMessage?.turnFlow?.completionReason).toBe('completed');
+    expect(assistantMessage?.thinkingContent).toContain('先检查可用上下文');
+    expect(assistantMessage?.toolCalls?.[0]?.name).toBe('query_records');
+    expect(assistantMessage?.ragSources?.[0]?.doc_name).toBe('合规流程文档');
+  });
+
+  it('keeps persisted turn_flow during history merge and exposes legacy fallbacks', async () => {
+    apiMocks.getChatConversationMessagesApi.mockResolvedValue(
+      buildConversationDetail([
+        buildUserMessage('给我一份回放摘要'),
+        buildAssistantMessage('历史答复。', {
+          turn_flow: {
+            answer_card: {
+              summary: '历史结构化摘要',
+            },
+            completion_reason: 'completed',
+            evidence: [
+              {
+                id: 'kb-source-1',
+                kind: 'knowledge_base',
+                snippet: '来自知识库条目',
+                title: '知识库 A',
+              },
+            ],
+            timeline: [
+              {
+                detail_lines: ['先读取上下文', '再输出答复'],
+                id: 'thinking-legacy',
+                status: 'completed',
+                type: 'thinking',
+              },
+              {
+                id: 'tool-select-legacy',
+                metrics: { selected: 0, total: 12 },
+                status: 'skipped',
+                type: 'tool_selection',
+              },
+            ],
+          },
+        }),
+      ]),
+    );
+
+    const chat = createChat();
+
+    await chat.loadAgents();
+    await chat.loadConversationMessages(42);
+    await flushPromises();
+
+    const assistantMessage = chat.chatMessages.value.find(
+      (msg) => msg.role === 'assistant',
+    );
+    expect(assistantMessage?.turnFlow?.completionReason).toBe('completed');
+    expect(assistantMessage?.turnFlow?.answerCard?.summary).toBe(
+      '历史结构化摘要',
+    );
+    expect(
+      assistantMessage?.turnFlow?.timeline?.map((stage) => stage.id),
+    ).toEqual(
+      expect.arrayContaining(['thinking-legacy', 'tool-select-legacy']),
+    );
+    expect(assistantMessage?.thinkingContent).toBeUndefined();
+    expect(assistantMessage?.optimizingTools).toEqual({
+      selected: 0,
+      total: 12,
+    });
+    expect(assistantMessage?.ragSources?.[0]?.doc_name).toBe('知识库 A');
   });
 
   it('deduplicates repeated persisted assistant content blocks inside one merged turn', async () => {
@@ -862,6 +1343,211 @@ describe('useAIChat interrupted stream recovery', () => {
       (msg) => msg.role === 'assistant',
     );
     expect(assistantMessage?.content).toBe('这是同一段总结。');
+  });
+
+  it('keeps terminal assistant content stable when late clear_content/message chunks arrive', async () => {
+    apiMocks.sendChatStreamApi.mockImplementation(
+      async (
+        _prefix: string,
+        _agentId: number,
+        _body: Record<string, unknown>,
+        options: {
+          onMessage: (chunk: string) => Promise<void>;
+        },
+      ) => {
+        await options.onMessage(
+          sseEvent({ event: 'conversation', conversation_id: 42 }),
+        );
+        await options.onMessage(
+          sseEvent({ event: 'message', delta: '可信最终答复' }),
+        );
+        await options.onMessage(
+          sseEvent({
+            completion_reason: 'completed',
+            event: 'done',
+            total_tokens: 9,
+            turn_flow_complete: true,
+          }),
+        );
+        await options.onMessage(sseEvent({ event: 'clear_content' }));
+        await options.onMessage(
+          sseEvent({ event: 'message', delta: '污染片段' }),
+        );
+      },
+    );
+
+    const chat = createChat();
+
+    await chat.loadAgents();
+    chat.inputMessage.value = '测试终态污染';
+    await chat.sendMessage({
+      routeSource: 'terminal-clear-content-guard-test',
+    });
+    await flushPromises();
+
+    const assistantMessage = chat.chatMessages.value.find(
+      (msg) => msg.role === 'assistant',
+    );
+    expect(assistantMessage?.content).toBe('可信最终答复');
+    expect(assistantMessage?.streaming).toBeFalsy();
+  });
+
+  it('terminalizes immediately on SSE event.error and ignores late deltas', async () => {
+    apiMocks.getChatConversationMessagesApi.mockResolvedValue(
+      buildConversationDetail([
+        buildUserMessage('测试 event.error'),
+        buildAssistantMessage('部分输出', {
+          metadata: {
+            completion_reason: 'error',
+            turn_outcome: 'failed',
+          },
+        }),
+      ]),
+    );
+    apiMocks.sendChatStreamApi.mockImplementation(
+      async (
+        _prefix: string,
+        _agentId: number,
+        _body: Record<string, unknown>,
+        options: {
+          onEnd?: () => Promise<void>;
+          onMessage: (chunk: string) => Promise<void>;
+        },
+      ) => {
+        await options.onMessage(
+          sseEvent({ event: 'conversation', conversation_id: 42 }),
+        );
+        await options.onMessage(
+          sseEvent({ event: 'message', delta: '部分输出' }),
+        );
+        await options.onMessage(
+          sseEvent({
+            conversation_id: 42,
+            error: 'upstream exploded',
+            error_type: 'stream_execution_error',
+          }),
+        );
+        await options.onMessage(
+          sseEvent({ event: 'message', delta: '晚到增量' }),
+        );
+        if (options.onEnd) {
+          await options.onEnd();
+        }
+      },
+    );
+
+    const chat = createChat();
+
+    await chat.loadAgents();
+    chat.inputMessage.value = '测试 event.error';
+    await chat.sendMessage({ routeSource: 'event-error-terminalize-test' });
+    await flushPromises();
+
+    const assistantMessage = chat.chatMessages.value.find(
+      (msg) => msg.role === 'assistant',
+    );
+    expect(assistantMessage?.content).toBe('部分输出');
+    expect(assistantMessage?.requestFailedRetry).toBe(true);
+    expect(assistantMessage?.streaming).toBeFalsy();
+    expect(
+      (assistantMessage?.turnFlow?.timeline ?? []).some(
+        (stage) => stage.status === 'running',
+      ),
+    ).toBe(false);
+  });
+
+  it('matches tool_call completion by tool_call_id before name-based fallback', async () => {
+    apiMocks.sendChatStreamApi.mockImplementation(
+      async (
+        _prefix: string,
+        _agentId: number,
+        _body: Record<string, unknown>,
+        options: {
+          onMessage: (chunk: string) => Promise<void>;
+        },
+      ) => {
+        await options.onMessage(
+          sseEvent({ event: 'conversation', conversation_id: 42 }),
+        );
+        await options.onMessage(
+          sseEvent({
+            event: 'tool_start',
+            id: 'tc-id-1',
+            name: 'query_records',
+          }),
+        );
+        await options.onMessage(
+          sseEvent({
+            event: 'tool_start',
+            id: 'tc-id-2',
+            name: 'query_records',
+          }),
+        );
+        await options.onMessage(
+          sseEvent({
+            event: 'tool_call',
+            id: 'tc-id-1',
+            name: 'query_records',
+            output: 'first result',
+            success: true,
+          }),
+        );
+        await options.onMessage(
+          sseEvent({
+            completion_reason: 'completed',
+            event: 'done',
+            total_tokens: 7,
+            turn_flow_complete: true,
+          }),
+        );
+      },
+    );
+
+    const chat = createChat();
+
+    await chat.loadAgents();
+    chat.inputMessage.value = '测试 tool_call_id 匹配';
+    await chat.sendMessage({ routeSource: 'tool-call-id-match-test' });
+    await flushPromises();
+
+    const assistantMessage = chat.chatMessages.value.find(
+      (msg) => msg.role === 'assistant',
+    );
+    const toolCallById = new Map(
+      (assistantMessage?.toolCalls ?? []).map((toolCall) => [
+        toolCall.id,
+        toolCall,
+      ]),
+    );
+    expect(toolCallById.get('tc-id-1')?.status).toBe('success');
+    expect(toolCallById.get('tc-id-1')?.output).toBe('first result');
+    expect(toolCallById.get('tc-id-2')?.status).toBe('error');
+  });
+
+  it('prefers trusted final assistant content over concatenated intermediate history parts', async () => {
+    apiMocks.getChatConversationMessagesApi.mockResolvedValue(
+      buildConversationDetail([
+        buildUserMessage('总结一下过程'),
+        buildAssistantMessage('中间步骤片段'),
+        buildAssistantMessage('可信最终答复', {
+          metadata: {
+            completion_reason: 'completed',
+            turn_outcome: 'success',
+          },
+        }),
+      ]),
+    );
+
+    const chat = createChat();
+
+    await chat.loadAgents();
+    await chat.loadConversationMessages(42);
+    await flushPromises();
+
+    const assistantMessage = chat.chatMessages.value.find(
+      (msg) => msg.role === 'assistant',
+    );
+    expect(assistantMessage?.content).toBe('可信最终答复');
   });
 
   it('marks persisted native web search progress cards as error when the turn ended early', async () => {
@@ -1112,7 +1798,7 @@ describe('useAIChat interrupted stream recovery', () => {
         tool_name: 'query_records',
       },
     ]);
-    expect(consentBody?.interaction_mode).toBe('trusted_auto');
+    expect(consentBody).not.toHaveProperty('interaction_mode');
     expect(consentBody?.message).toBe('');
 
     chat.inputMessage.value = '查看明细';

@@ -10,7 +10,7 @@ import {
 describe('security-policy', () => {
   it('applies mask behavior from data-ai-read=mask', () => {
     const input = document.createElement('input');
-    input.setAttribute('data-ai-read', 'mask');
+    input.dataset.aiRead = 'mask';
 
     const decision = resolveAISecurityPolicy({ element: input });
     const value = readValueForAI('secret-token', decision);
@@ -23,7 +23,7 @@ describe('security-policy', () => {
 
   it('blocks actions when data-ai-act=off', () => {
     const button = document.createElement('button');
-    button.setAttribute('data-ai-act', 'off');
+    button.dataset.aiAct = 'off';
 
     const result = evaluateAIActionSecurity({
       actionKind: 'ui_click',
@@ -36,7 +36,7 @@ describe('security-policy', () => {
 
   it('blocks submit when data-ai-submit=off', () => {
     const form = document.createElement('form');
-    form.setAttribute('data-ai-submit', 'off');
+    form.dataset.aiSubmit = 'off';
 
     const result = evaluateAIActionSecurity({
       actionKind: 'ui_submit_form',
@@ -58,4 +58,3 @@ describe('security-policy', () => {
     expect(result.requireConfirm).toBe(true);
   });
 });
-

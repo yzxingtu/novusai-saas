@@ -1,3 +1,4 @@
+import type { SessionEntry } from './form-session-manager-support';
 import type {
   FormFieldDescriptor,
   FormRecordId,
@@ -20,9 +21,9 @@ import {
   normalizeSessionPath,
   toSessionMode,
   toSortedArray,
-  type SessionEntry,
 } from './form-session-manager-support';
 
+export { inferEntityName, inferFormMode } from './form-session-manager-support';
 export type {
   FormFieldDescriptor,
   FormRecordId,
@@ -34,11 +35,10 @@ export type {
   InferFormModeInput,
   UpsertFormSessionInput,
 } from './form-session-manager-types';
-export { inferEntityName, inferFormMode } from './form-session-manager-support';
 
 export class FormSessionManager {
-  private activeSessionId: null | string = null;
   private activeSessionBySurfaceId = new Map<string, string>();
+  private activeSessionId: null | string = null;
   private counter = 0;
   private sessions = new Map<string, SessionEntry>();
 
@@ -99,6 +99,15 @@ export class FormSessionManager {
     };
   }
 
+  getSessionSummary(formSessionId: string): null | Omit<FormSession, 'fields'> {
+    const session = this.getSession(formSessionId);
+    if (!session) {
+      return null;
+    }
+    const { fields: _fields, ...summary } = session;
+    return summary;
+  }
+
   listSessions(): FormSession[] {
     const snapshots: FormSession[] = [];
     for (const entry of this.sessions.values()) {
@@ -108,6 +117,12 @@ export class FormSessionManager {
       }
     }
     return snapshots;
+  }
+
+  listSessionSummaries(): Array<Omit<FormSession, 'fields'>> {
+    return this.listSessions().map(
+      ({ fields: _fields, ...summary }) => summary,
+    );
   }
 
   markFailed(formSessionId: string): FormSession | null {
@@ -260,6 +275,8 @@ export class FormSessionManager {
     const session: FormSession = {
       form_session_id: formSessionId,
       surface_id: input.surface_id,
+      page_key: input.page_key?.trim() || undefined,
+      current_url: input.current_url,
       entity_name: inferEntityName({
         current_url: input.current_url,
         entity_name: input.entity_name,
@@ -287,11 +304,13 @@ export class FormSessionManager {
     this.sessions.set(formSessionId, entry);
     this.activeSessionId = formSessionId;
     this.activeSessionBySurfaceId.set(input.surface_id, formSessionId);
-    return this.getSession(formSessionId) ?? {
-      ...session,
-      fields: session.fields.map((field) => ({ ...field })),
-      remaining_required_fields: [...session.remaining_required_fields],
-    };
+    return (
+      this.getSession(formSessionId) ?? {
+        ...session,
+        fields: session.fields.map((field) => ({ ...field })),
+        remaining_required_fields: [...session.remaining_required_fields],
+      }
+    );
   }
 
   private commitComputedState(
@@ -302,7 +321,9 @@ export class FormSessionManager {
       ...field,
     }));
     entry.session.can_submit = computeCanSubmit(entry);
-    entry.session.remaining_required_fields = toSortedArray(entry.remainingRequired);
+    entry.session.remaining_required_fields = toSortedArray(
+      entry.remainingRequired,
+    );
     entry.session.stage = stageOverride ?? computeRuntimeStage(entry);
     entry.session.updated_at = Date.now();
   }

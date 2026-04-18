@@ -15,6 +15,8 @@ import { defineComponent, ref } from 'vue';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { buildTurnFlowState } from '#/components/business/ai-chat-kernel/TurnFlowState';
+
 import ChatMessageItem from '../ChatMessageItem.vue';
 
 interface PendingPageOpTest {
@@ -61,6 +63,15 @@ function createAssistantMsg(toolCalls: ChatMessage['toolCalls']): ChatMessage {
     role: 'assistant',
     content: '',
     toolCalls,
+  };
+}
+
+function createTurnFlow(
+  value: Record<string, unknown>,
+): NonNullable<ChatMessage['turnFlow']> {
+  return {
+    evidence: [],
+    ...(value as NonNullable<ChatMessage['turnFlow']>),
   };
 }
 
@@ -534,7 +545,7 @@ describe('chatMessageItem', () => {
       wrapper.get('[data-testid="thinking-body"]').attributes('style'),
     ).toContain('grid-template-rows: 1fr');
 
-    vi.advanceTimersByTime(200);
+    vi.advanceTimersByTime(220);
     await wrapper.vm.$nextTick();
 
     expect(
@@ -805,14 +816,14 @@ describe('chatMessageItem', () => {
     expect(wrapper.text()).toContain(
       'common.globalAiChat.toolSearchStatusSuccess',
     );
-    expect(wrapper.text()).toContain(
-      'common.globalAiChat.toolSearchBackend',
-    );
+    expect(wrapper.text()).toContain('common.globalAiChat.toolSearchBackend');
     expect(wrapper.text()).toContain('public:baidu');
     expect(wrapper.text()).toContain(
       'common.globalAiChat.toolSearchProviderChain',
     );
-    expect(wrapper.text()).toContain('native:provider_1:gpt-5.4 -> public:baidu');
+    expect(wrapper.text()).toContain(
+      'native:provider_1:gpt-5.4 -> public:baidu',
+    );
     expect(wrapper.text()).toContain(
       'common.globalAiChat.toolSearchFallbackReason',
     );
@@ -827,7 +838,7 @@ describe('chatMessageItem', () => {
     );
     expect(wrapper.text()).toContain('unsupported');
     expect(wrapper.text()).toContain('示例搜索结果一');
-    expect(wrapper.text()).toContain('https://example.com/result-1');
+    expect(wrapper.text()).not.toContain('https://example.com/result-1');
     expect(wrapper.text()).toContain('第一条摘要内容');
 
     const resultLink = wrapper.get(
@@ -836,6 +847,8 @@ describe('chatMessageItem', () => {
     expect(resultLink.attributes('href')).toBe('https://example.com/result-1');
     expect(resultLink.attributes('target')).toBe('_blank');
     expect(resultLink.attributes('rel')).toBe('noopener noreferrer');
+    expect(resultLink.text()).toContain('示例搜索结果一');
+    expect(resultLink.text()).not.toContain('https://example.com/result-1');
   });
 
   it('does not display a fake zero result count for native search summaries without counts', async () => {
@@ -873,9 +886,9 @@ describe('chatMessageItem', () => {
     expect(wrapper.text()).toContain(
       'common.globalAiChat.toolSearchStatusSuccess',
     );
-    expect(wrapper.find('[data-testid="tool-search-result-count"]').exists()).toBe(
-      false,
-    );
+    expect(
+      wrapper.find('[data-testid="tool-search-result-count"]').exists(),
+    ).toBe(false);
   });
 
   it('tool group card collapses when all tools are completed', async () => {
@@ -973,6 +986,1120 @@ describe('chatMessageItem', () => {
     await wrapper.vm.$nextTick();
 
     expect(body.attributes('style') ?? '').toContain('grid-template-rows: 0fr');
+  });
+
+  it('renders turn timeline and answer evidence card from turnFlow payload', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: {
+          clientKey: 'assistant-turn-flow-payload',
+          role: 'assistant',
+          content: '最终答案',
+          turnFlow: createTurnFlow({
+            timeline: [
+              {
+                id: 'stage-tool-selection',
+                type: 'tool_selection',
+                status: 'skipped',
+                summary: '15 个工具中筛选了 0 个',
+              },
+              {
+                id: 'stage-answer',
+                type: 'answer_assembly',
+                status: 'completed',
+                summary: '已完成答案整理',
+              },
+            ],
+            evidence: [
+              {
+                id: 'evidence-web-1',
+                kind: 'web',
+                title: '示例来源',
+                url: 'https://example.com/ref',
+              },
+            ],
+            answerCard: {
+              summary: '已按可验证来源整理结论',
+              sections: [
+                {
+                  title: '核心结论',
+                  body: '这是结构化结论摘要',
+                },
+              ],
+              sourceChipIds: ['evidence-web-1'],
+            },
+          }),
+        },
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: true,
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    expect(
+      wrapper.find('[data-testid="chat-message-kernel-timeline"]').exists(),
+    ).toBe(true);
+    expect(
+      wrapper.find('[data-testid="chat-message-kernel-evidence"]').exists(),
+    ).toBe(true);
+    expect(wrapper.text()).toContain('15 个工具中筛选了 0 个');
+    expect(wrapper.text()).toContain('已按可验证来源整理结论');
+    expect(wrapper.text()).not.toContain('https://example.com/ref');
+
+    const evidenceLink = wrapper.get(
+      '[data-testid="chat-message-kernel-evidence"] a',
+    );
+    expect(evidenceLink.attributes('href')).toBe('https://example.com/ref');
+    expect(evidenceLink.text()).toContain('示例来源');
+    expect(evidenceLink.text()).not.toContain('https://example.com/ref');
+  });
+
+  it('extracts and deduplicates answer evidence chips by source ids in shared message ui', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: {
+          clientKey: 'assistant-turn-flow-evidence-dedupe',
+          role: 'assistant',
+          content: '最终答案',
+          turnFlow: createTurnFlow({
+            timeline: [
+              {
+                id: 'stage-answer',
+                type: 'answer_assembly',
+                status: 'completed',
+                summary: '已完成答案整理',
+              },
+            ],
+            evidence: [
+              {
+                id: 'evidence-web-1',
+                kind: 'web',
+                title: '来源一',
+                url: 'https://example.com/ref-1',
+              },
+              {
+                id: 'evidence-web-2',
+                kind: 'web',
+                title: '来源二',
+                url: 'https://example.com/ref-2',
+              },
+            ],
+            answerCard: {
+              summary: '按证据卡片输出',
+              sourceChipIds: [
+                'evidence-web-2',
+                'evidence-web-2',
+                'missing-id',
+                'evidence-web-1',
+              ],
+            },
+          }),
+        },
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: true,
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    const evidenceLinks = wrapper
+      .get('[data-testid="chat-message-kernel-evidence"]')
+      .findAll('a');
+    expect(evidenceLinks.length).toBeGreaterThanOrEqual(2);
+    expect(
+      evidenceLinks.map((link) => link.get('.min-w-0.truncate').text()),
+    ).toEqual(expect.arrayContaining(['来源一', '来源二']));
+  });
+
+  it('uses compact evidence pill fallback labels when evidence title is a raw URL', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: {
+          clientKey: 'assistant-turn-flow-evidence-url-fallback',
+          role: 'assistant',
+          content: '最终答案',
+          turnFlow: createTurnFlow({
+            timeline: [
+              {
+                id: 'stage-answer',
+                type: 'answer_assembly',
+                status: 'completed',
+                summary: '已完成答案整理',
+              },
+            ],
+            evidence: [
+              {
+                id: 'evidence-web-url-only',
+                kind: 'web',
+                title: 'https://news.example.com/path/to/source',
+                url: 'https://news.example.com/path/to/source',
+              },
+            ],
+            answerCard: {
+              sourceChipIds: ['evidence-web-url-only'],
+              summary: '按证据来源输出',
+            },
+          }),
+        },
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: true,
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    const evidenceLink = wrapper.get(
+      '[data-testid="chat-message-kernel-evidence"] a',
+    );
+    expect(evidenceLink.attributes('href')).toBe(
+      'https://news.example.com/path/to/source',
+    );
+    const labelText = evidenceLink.get('.min-w-0.truncate').text();
+    expect(labelText).toContain('news.example.com');
+    expect(labelText).not.toContain('https://news.example.com/path/to/source');
+  });
+
+  it('extracts trailing source blocks from content into evidence pills without repeating raw urls in the message body', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: {
+          clientKey: 'assistant-turn-flow-content-tail-references',
+          role: 'assistant',
+          content: `这是整理后的结论。
+
+来源：
+- 官方公告：https://example.com/path/to/policy`,
+          turnFlow: createTurnFlow({
+            timeline: [
+              {
+                id: 'stage-answer',
+                type: 'answer_assembly',
+                status: 'completed',
+                summary: '已完成答案整理',
+              },
+            ],
+          }),
+        },
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: {
+            props: ['content'],
+            template: '<div data-testid="markdown-body">{{ content }}</div>',
+          },
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.get('[data-testid="markdown-body"]').text()).toContain(
+      '这是整理后的结论。',
+    );
+    expect(wrapper.get('[data-testid="markdown-body"]').text()).not.toContain(
+      'https://example.com/path/to/policy',
+    );
+
+    const evidenceLink = wrapper.get(
+      '[data-testid="chat-message-kernel-evidence"] a',
+    );
+    expect(evidenceLink.attributes('href')).toBe(
+      'https://example.com/path/to/policy',
+    );
+    expect(evidenceLink.text()).toContain('官方公告');
+    expect(evidenceLink.text()).not.toContain(
+      'https://example.com/path/to/policy',
+    );
+  });
+
+  it('prefers canonical thinking summaries and suppresses raw thinking detail dumps', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: {
+          clientKey: 'assistant-turn-flow-thinking-summary',
+          role: 'assistant',
+          content: '',
+          turnFlow: createTurnFlow({
+            timeline: [
+              {
+                id: 'stage-thinking',
+                type: 'thinking',
+                status: 'completed',
+                summary: '已完成思考摘要',
+                detailLines: [
+                  'Raw private reasoning should not render as primary UX.',
+                ],
+              },
+            ],
+          }),
+        },
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: true,
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain('已完成思考摘要');
+    expect(wrapper.text()).not.toContain(
+      'Raw private reasoning should not render as primary UX.',
+    );
+  });
+
+  it('accepts answer card sections using content field from backend turn_flow', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: {
+          clientKey: 'assistant-turn-flow-answer-content',
+          role: 'assistant',
+          content: '最终答案',
+          turnFlow: createTurnFlow({
+            timeline: [
+              {
+                id: 'stage-answer',
+                type: 'answer_assembly',
+                status: 'completed',
+              },
+            ],
+            answerCard: {
+              summary: '结构化结论',
+              sections: [
+                {
+                  title: '政策要点',
+                  content: '后端返回的是 content 字段',
+                },
+              ],
+            },
+          }),
+        },
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: true,
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    expect(
+      wrapper.find('[data-testid="chat-message-kernel-evidence"]').exists(),
+    ).toBe(true);
+    expect(wrapper.text()).toContain('政策要点');
+    expect(wrapper.text()).toContain('后端返回的是 content 字段');
+  });
+
+  it('shows a provisional answer evidence card while answer_assembly is still streaming', async () => {
+    const liveMessage: ChatMessage = {
+      clientKey: 'assistant-turn-flow-provisional-answer-card',
+      role: 'assistant',
+      content: '',
+      streaming: true,
+      turnFlow: createTurnFlow({
+        timeline: [
+          {
+            id: 'stage-answer',
+            type: 'answer_assembly',
+            status: 'running',
+            summary: '正在整理本轮结果',
+            detailLines: ['提炼核心结论', '补充执行建议'],
+          },
+        ],
+      }),
+    };
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: liveMessage,
+        kernelState: buildTurnFlowState(liveMessage),
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: true,
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    expect(
+      wrapper.find('[data-testid="chat-message-kernel-evidence"]').exists(),
+    ).toBe(true);
+    expect(
+      wrapper.find('[data-testid="chat-message-kernel-evidence-live-state"]')
+        .exists(),
+    ).toBe(true);
+    expect(wrapper.text()).toContain('正在整理本轮结果');
+    expect(wrapper.text()).toContain('提炼核心结论');
+    expect(wrapper.text()).toContain('补充执行建议');
+
+    const settledMessage: ChatMessage = {
+      clientKey: 'assistant-turn-flow-provisional-answer-card',
+      role: 'assistant',
+      content: '最终答案',
+      streaming: false,
+      turnFlow: createTurnFlow({
+        timeline: [
+          {
+            id: 'stage-answer',
+            type: 'answer_assembly',
+            status: 'completed',
+            summary: '已完成答案整理',
+            detailLines: ['提炼核心结论', '补充执行建议'],
+          },
+        ],
+      }),
+    };
+    await wrapper.setProps({
+      msg: settledMessage,
+      kernelState: buildTurnFlowState(settledMessage),
+    });
+    await wrapper.vm.$nextTick();
+
+    expect(
+      wrapper.find('[data-testid="chat-message-kernel-evidence"]').exists(),
+    ).toBe(true);
+    expect(wrapper.text()).toContain('已完成答案整理');
+
+    const canonicalMessage: ChatMessage = {
+      clientKey: 'assistant-turn-flow-provisional-answer-card',
+      role: 'assistant',
+      content: '最终答案',
+      streaming: false,
+      turnFlow: createTurnFlow({
+        timeline: [
+          {
+            id: 'stage-answer',
+            type: 'answer_assembly',
+            status: 'completed',
+            summary: '已完成答案整理',
+          },
+        ],
+        answerCard: {
+          summary: '这是正式 answerCard 摘要',
+          sections: [
+            {
+              title: '结果整理',
+              body: '这是正式结构化整理内容',
+            },
+          ],
+        },
+      }),
+    };
+    await wrapper.setProps({
+      msg: canonicalMessage,
+      kernelState: buildTurnFlowState(canonicalMessage),
+    });
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain('这是正式 answerCard 摘要');
+    expect(wrapper.text()).toContain('这是正式结构化整理内容');
+    expect(
+      wrapper.find('[data-testid="chat-message-kernel-evidence-live-state"]')
+        .exists(),
+    ).toBe(false);
+  });
+
+  it('normalizes partial-failed terminal turnFlow stages into failed + error semantics', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: {
+          clientKey: 'assistant-turn-flow-partial-failed',
+          role: 'assistant',
+          content: '',
+          turnFlow: createTurnFlow({
+            completionReason: 'provider_failure_after_partial_progress',
+            error_surface: {
+              message: 'Provider failed after partial progress.',
+            },
+            failure_kind: 'provider_failure_after_partial_progress',
+            timeline: [
+              {
+                id: 'stage-answer',
+                type: 'answer_assembly',
+                status: 'completed',
+                summary: '已完成答案整理',
+              },
+              {
+                id: 'stage-terminal',
+                type: 'completed',
+                status: 'completed',
+                summary: '本轮流程已完成',
+              },
+            ],
+            turn_outcome: 'partial',
+          }),
+        },
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: true,
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain(
+      'common.globalAiChat.turnStageType.failed',
+    );
+    expect(wrapper.text()).toContain(
+      'common.globalAiChat.turnStageStatus.error',
+    );
+    expect(wrapper.text()).not.toContain(
+      'common.globalAiChat.turnStageStatus.completed',
+    );
+    expect(wrapper.text()).toContain('Provider failed after partial progress.');
+  });
+
+  it('supplements canonical timeline with a skipped tool-selection record when selected=0', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: {
+          clientKey: 'assistant-turn-flow-skipped-selection-supplement',
+          role: 'assistant',
+          content: '',
+          optimizingTools: {
+            selected: 0,
+            total: 12,
+          },
+          turnFlow: createTurnFlow({
+            timeline: [
+              {
+                id: 'stage-thinking',
+                type: 'thinking',
+                status: 'completed',
+                summary: '已完成思考摘要',
+              },
+              {
+                id: 'stage-answer',
+                type: 'answer_assembly',
+                status: 'completed',
+                summary: '正在组织回复',
+              },
+            ],
+          }),
+        },
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: true,
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain('common.globalAiChat.optimizingTools');
+    expect(wrapper.text()).toContain(
+      'common.globalAiChat.turnStageStatus.skipped',
+    );
+    expect(
+      wrapper.get('[data-testid="turn-stage-body-1"]').attributes('style') ??
+        '',
+    ).toContain('grid-template-rows: 0fr');
+  });
+
+  it('forwards skipped stage transitions into the kernel timeline when stage has body content', async () => {
+    vi.useFakeTimers();
+    const initialMessage: ChatMessage = {
+      clientKey: 'assistant-turn-flow-skipped',
+      role: 'assistant',
+      content: '',
+      streaming: true,
+      turnFlow: createTurnFlow({
+        timeline: [
+          {
+            id: 'stage-tool-selection',
+            type: 'tool_selection',
+            status: 'running',
+            summary: '正在筛选工具',
+            detailLines: ['正在筛选候选工具'],
+          },
+        ],
+      }),
+    };
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: initialMessage,
+        kernelState: buildTurnFlowState(initialMessage),
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: true,
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    expect(
+      wrapper.get('[data-testid="turn-stage-body-0"]').attributes('style') ??
+        '',
+    ).toContain('grid-template-rows: 1fr');
+
+    const nextMessage: ChatMessage = {
+      clientKey: 'assistant-turn-flow-skipped',
+      role: 'assistant',
+      content: '',
+      streaming: false,
+      turnFlow: createTurnFlow({
+        timeline: [
+          {
+            id: 'stage-tool-selection',
+            type: 'tool_selection',
+            status: 'skipped',
+            summary: '15 个工具中筛选了 0 个',
+            detailLines: ['本轮无需调用工具，直接进入答案整理'],
+          },
+        ],
+      }),
+    };
+    await wrapper.setProps({
+      msg: nextMessage,
+      kernelState: buildTurnFlowState(nextMessage),
+    });
+    await wrapper.vm.$nextTick();
+
+    expect(
+      wrapper.get('[data-testid="turn-stage-body-0"]').attributes('style') ??
+        '',
+    ).toContain('grid-template-rows: 1fr');
+
+    expect(wrapper.text()).toContain('15 个工具中筛选了 0 个');
+  });
+
+  it('forwards answer_assembly transitions into the kernel timeline when stage has body content', async () => {
+    vi.useFakeTimers();
+    const initialMessage: ChatMessage = {
+      clientKey: 'assistant-turn-flow-answer-assembly-collapse-delay',
+      role: 'assistant',
+      content: '',
+      streaming: true,
+      turnFlow: createTurnFlow({
+        timeline: [
+          {
+            id: 'stage-answer',
+            type: 'answer_assembly',
+            status: 'running',
+            summary: '正在组织答案',
+            detailLines: ['正在根据检索结果整理答案结构'],
+          },
+        ],
+      }),
+    };
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: initialMessage,
+        kernelState: buildTurnFlowState(initialMessage),
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: true,
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    expect(
+      wrapper.get('[data-testid="turn-stage-body-0"]').attributes('style') ??
+        '',
+    ).toContain('grid-template-rows: 1fr');
+
+    const nextMessage: ChatMessage = {
+      clientKey: 'assistant-turn-flow-answer-assembly-collapse-delay',
+      role: 'assistant',
+      content: '最终答案',
+      streaming: false,
+      turnFlow: createTurnFlow({
+        timeline: [
+          {
+            id: 'stage-answer',
+            type: 'answer_assembly',
+            status: 'completed',
+            summary: '已完成答案整理',
+            detailLines: ['已完成段落组织与措辞润色'],
+          },
+          {
+            id: 'stage-terminal',
+            type: 'completed',
+            status: 'completed',
+            summary: '本轮完成',
+          },
+        ],
+      }),
+    };
+    await wrapper.setProps({
+      msg: nextMessage,
+      kernelState: buildTurnFlowState(nextMessage),
+    });
+    await wrapper.vm.$nextTick();
+
+    expect(
+      wrapper.get('[data-testid="turn-stage-body-0"]').attributes('style') ??
+        '',
+    ).toContain('grid-template-rows: 1fr');
+
+    expect(wrapper.text()).toContain('已完成答案整理');
+
+    vi.advanceTimersByTime(220);
+    await wrapper.vm.$nextTick();
+
+    expect(
+      wrapper.get('[data-testid="turn-stage-body-0"]').attributes('style') ??
+        '',
+    ).toContain('grid-template-rows: 0fr');
+  });
+
+  it('keeps interrupted terminal stages compact when the kernel timeline rerenders through ChatMessageItem', async () => {
+    vi.useFakeTimers();
+    const initialMessage: ChatMessage = {
+      clientKey: 'assistant-turn-flow-interrupted-terminal-expanded',
+      role: 'assistant',
+      content: '',
+      streaming: true,
+      turnFlow: createTurnFlow({
+        timeline: [
+          {
+            id: 'stage-answer',
+            type: 'answer_assembly',
+            status: 'running',
+            summary: '正在组织答案',
+            detailLines: ['正在生成最终答复草稿'],
+          },
+        ],
+      }),
+    };
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: initialMessage,
+        kernelState: buildTurnFlowState(initialMessage),
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: true,
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    const nextMessage: ChatMessage = {
+      clientKey: 'assistant-turn-flow-interrupted-terminal-expanded',
+      role: 'assistant',
+      content: '部分答案',
+      streaming: false,
+      turnFlow: createTurnFlow({
+        timeline: [
+          {
+            id: 'stage-answer',
+            type: 'answer_assembly',
+            status: 'interrupted',
+            summary: '答复生成中断',
+            detailLines: ['模型输出在中途被中断'],
+          },
+          {
+            id: 'stage-terminal',
+            type: 'failed',
+            status: 'interrupted',
+            summary: 'interrupted',
+            detailLines: ['用户主动停止了本轮生成'],
+          },
+        ],
+      }),
+    };
+    await wrapper.setProps({
+      msg: nextMessage,
+      kernelState: buildTurnFlowState(nextMessage),
+    });
+    await wrapper.vm.$nextTick();
+
+    expect(
+      wrapper.get('[data-testid="turn-stage-body-0"]').attributes('style') ??
+        '',
+    ).toContain('grid-template-rows: 1fr');
+
+    expect(
+      wrapper.get('[data-testid="turn-stage-body-1"]').attributes('style') ??
+        '',
+    ).toContain('grid-template-rows: 0fr');
+
+    expect(wrapper.text()).toContain('答复生成中断');
+  });
+
+  it('eliminates stale running badges when non-streaming turnFlow already has terminal hints', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: {
+          clientKey: 'assistant-turn-flow-non-streaming-terminal-hints',
+          role: 'assistant',
+          content: '最终答案',
+          streaming: false,
+          turnFlow: createTurnFlow({
+            timeline: [
+              {
+                id: 'stage-tool-execution',
+                type: 'tool_execution',
+                status: 'running',
+                summary: '工具还在运行',
+                detailLines: ['旧状态残留：running'],
+              },
+              {
+                id: 'stage-answer',
+                type: 'answer_assembly',
+                status: 'completed',
+                summary: '已完成答案整理',
+              },
+            ],
+          }),
+        },
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: true,
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    const firstStageToggle = wrapper.get('[data-testid="turn-stage-toggle-0"]');
+    expect(firstStageToggle.text()).toContain(
+      'common.globalAiChat.turnStageStatus.completed',
+    );
+    expect(firstStageToggle.text()).not.toContain(
+      'common.globalAiChat.turnStageStatus.running',
+    );
+  });
+
+  it('shows meaningful live progress copy for canonical running stages without raw detail lines', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: {
+          clientKey: 'assistant-turn-flow-live-progress-1216',
+          role: 'assistant',
+          content: '',
+          streaming: true,
+          turnFlow: createTurnFlow({
+            timeline: [
+              {
+                id: 'stage-tool-execution',
+                type: 'tool_execution',
+                status: 'running',
+                metrics: {
+                  provider: 'native:provider_1:gpt-5.4',
+                },
+              },
+              {
+                id: 'stage-retrieval',
+                type: 'retrieval',
+                status: 'running',
+                metrics: {
+                  source_count: 2,
+                },
+              },
+            ],
+          }),
+        },
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: true,
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain('common.globalAiChat.toolSearchProvider');
+    expect(wrapper.text()).toContain('native:provider_1:gpt-5.4');
+    expect(wrapper.text()).toContain(
+      'common.globalAiChat.turnRetrievalSummary',
+    );
+    expect(
+      wrapper.get('[data-testid="turn-stage-body-0"]').attributes('style') ??
+        '',
+    ).toContain('grid-template-rows: 1fr');
+  });
+
+  it('keeps single-stage completed answer_assembly collapsed in completed history', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: {
+          clientKey: 'assistant-turn-flow-answer-only-history',
+          role: 'assistant',
+          content: '最终答案',
+          turnFlow: createTurnFlow({
+            timeline: [
+              {
+                id: 'stage-answer',
+                type: 'answer_assembly',
+                status: 'completed',
+                summary: '已完成答案整理',
+              },
+            ],
+          }),
+        },
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: true,
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    expect(
+      wrapper.get('[data-testid="turn-stage-body-0"]').attributes('style') ??
+        '',
+    ).toContain('grid-template-rows: 0fr');
+  });
+
+  it('keeps historical answer_assembly stages compact by default after completion', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: {
+          clientKey: 'assistant-turn-flow-answer-assembly-history-collapsed',
+          role: 'assistant',
+          content: '最终答案',
+          turnFlow: createTurnFlow({
+            timeline: [
+              {
+                id: 'stage-thinking',
+                type: 'thinking',
+                status: 'completed',
+                summary: '已完成思考',
+              },
+              {
+                id: 'stage-answer',
+                type: 'answer_assembly',
+                status: 'completed',
+                summary: '已完成答案整理',
+              },
+              {
+                id: 'stage-terminal',
+                type: 'completed',
+                status: 'completed',
+                summary: '本轮完成',
+              },
+            ],
+          }),
+        },
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: true,
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    expect(
+      wrapper.get('[data-testid="turn-stage-body-1"]').attributes('style') ??
+        '',
+    ).toContain('grid-template-rows: 0fr');
+  });
+
+  it('keeps skipped-only tool-selection stages compact when loading completed history', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: {
+          clientKey: 'assistant-turn-flow-skipped-history',
+          role: 'assistant',
+          content: '',
+          turnFlow: createTurnFlow({
+            timeline: [
+              {
+                id: 'stage-tool-selection',
+                type: 'tool_selection',
+                status: 'skipped',
+                summary: '15 个工具中筛选了 0 个',
+              },
+            ],
+          }),
+        },
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: true,
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    expect(
+      wrapper.get('[data-testid="turn-stage-body-0"]').attributes('style') ??
+        '',
+    ).toContain('grid-template-rows: 0fr');
+  });
+
+  it('falls back to legacy thinking/tool/rag fields when turnFlow is missing', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: {
+          clientKey: 'assistant-legacy-fallback',
+          role: 'assistant',
+          content: '最终答复',
+          thinkingContent: '先做分析，再给答案。',
+          optimizingTools: { selected: 0, total: 15 },
+          toolCalls: [{ name: 'web_search', status: 'success' }],
+          ragSources: [
+            {
+              doc_name: '来源文档',
+              doc_id: 1,
+              score: 0.92,
+              snippet: '来源摘要',
+            },
+          ],
+        },
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: true,
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    expect(
+      wrapper.find('[data-testid="chat-message-kernel-timeline"]').exists(),
+    ).toBe(true);
+    expect(wrapper.text()).toContain('common.globalAiChat.optimizingTools');
+    expect(wrapper.text()).toContain('common.globalAiChat.ragSources');
+  });
+
+  it('prefers prepared content body over raw content in the shared content block', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: {
+          clientKey: 'assistant-prepared-content-body',
+          role: 'assistant' as const,
+          content: 'raw content from persistence',
+          metadata: {
+            prepared_content_body: 'prepared display content',
+          },
+          preparedContentBody: 'prepared display content',
+          prepared_content_body: 'prepared display content',
+        } as ChatMessage & {
+          metadata: { prepared_content_body: string };
+          prepared_content_body: string;
+          preparedContentBody: string;
+        },
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: {
+            props: ['content'],
+            template:
+              '<div data-testid="markdown-render-content">{{ content }}</div>',
+          },
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    const renderedMarkdownBlocks = wrapper.findAll(
+      '[data-testid="markdown-render-content"]',
+    );
+    expect(
+      renderedMarkdownBlocks.some((block) =>
+        block.text().includes('prepared display content'),
+      ),
+    ).toBe(true);
   });
 
   it('shows a folded-message hint for very long replies', async () => {

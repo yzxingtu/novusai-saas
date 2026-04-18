@@ -5,6 +5,7 @@ import type {
   TenantOrgNodeType,
 } from '#/api/tenant/organization';
 import type { OrgTreeNodeData } from '#/components/business/org-tree';
+import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 
 import { computed, onMounted, ref, watch } from 'vue';
 
@@ -39,7 +40,6 @@ import { NODE_TYPE_CONFIG } from '#/components/business/org-tree/types';
 import { PermissionPreview } from '#/components/business/permission-preview';
 import { $t } from '#/locales';
 import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
-import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 
 defineOptions({ name: 'TenantOrganization' });
 

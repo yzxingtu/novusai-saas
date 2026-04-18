@@ -34,8 +34,8 @@ import {
   getTypeColor,
   getTypeText,
 } from '../../data';
-import PluginLifecycleAuditPanel from './PluginLifecycleAuditPanel.vue';
 import { usePluginConfigDrawerContext } from './context';
+import PluginLifecycleAuditPanel from './PluginLifecycleAuditPanel.vue';
 
 const {
   plugin,

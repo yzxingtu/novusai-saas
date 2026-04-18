@@ -72,7 +72,7 @@ export function tenantUserToIdentityOption(
   user: TenantUserInfo,
 ): IdentitySelectOption {
   const roleName = Object.prototype.hasOwnProperty.call(user, 'displayRoleName')
-    ? user.displayRoleName ?? null
+    ? (user.displayRoleName ?? null)
     : (user.roleName ?? null);
 
   return normalizeIdentitySelectOption({

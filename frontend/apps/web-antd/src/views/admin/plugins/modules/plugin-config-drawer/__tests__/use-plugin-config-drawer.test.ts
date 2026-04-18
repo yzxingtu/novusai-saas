@@ -59,7 +59,9 @@ const mockRefs = vi.hoisted(() => {
     revokePluginLicenseApi: vi.fn(),
     rollbackPluginApi: vi.fn(),
     routerPush: vi.fn(),
-    scopeNeedsAssignment: vi.fn((scope: string) => scope === 'selected_tenants'),
+    scopeNeedsAssignment: vi.fn(
+      (scope: string) => scope === 'selected_tenants',
+    ),
     t: vi.fn((key: string) => key),
     unassignPluginTenantApi: vi.fn(),
     updatePluginConfigApi: vi.fn(),
@@ -116,8 +118,7 @@ vi.mock('#/components/business/scope-select', () => ({
 
 vi.mock('#/composables/use-plugin-admin-refresh', () => ({
   handleDisableError: mockRefs.handleDisableError,
-  refreshAdminMenusAndPluginRoutes:
-    mockRefs.refreshAdminMenusAndPluginRoutes,
+  refreshAdminMenusAndPluginRoutes: mockRefs.refreshAdminMenusAndPluginRoutes,
 }));
 
 vi.mock('#/locales', () => ({
@@ -287,7 +288,9 @@ describe('usePluginConfigDrawer', () => {
       locale: 'zh-CN',
     });
     expect(mockRefs.getPluginTenantsApi).toHaveBeenCalledWith(12);
-    expect(mockRefs.getTenantListApi).toHaveBeenCalledWith({ 'page[size]': 200 });
+    expect(mockRefs.getTenantListApi).toHaveBeenCalledWith({
+      'page[size]': 200,
+    });
     expect(drawer.plugin.value?.display_name).toBe('Detail Plugin');
     expect(drawer.needsTenantAssignment.value).toBe(true);
     expect(drawer.pluginHasAiFeatures.value).toBe(true);

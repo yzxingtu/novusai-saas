@@ -1,11 +1,11 @@
 <script lang="ts" setup>
+import type { BuiltinToolInfo } from './skill-form-types';
+
 import type { PluginToolDefinition } from '#/api/admin/skills';
 
 import { Divider, Tag } from 'ant-design-vue';
 
 import { $t } from '#/locales';
-
-import type { BuiltinToolInfo } from './skill-form-types';
 
 defineOptions({ name: 'AdminSkillFormToolPanels' });
 

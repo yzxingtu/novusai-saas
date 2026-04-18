@@ -1,19 +1,20 @@
 // @vitest-environment happy-dom
 
 import { mount } from '@vue/test-utils';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defineComponent, h, nextTick, ref } from 'vue';
+
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import FilePicker from '../FilePicker.vue';
 
 type UploadTask = {
-  uid: string;
-  name: string;
-  file: { type: string };
-  size: number;
-  percent: number;
-  status: 'pending' | 'uploading' | 'success' | 'error';
   error?: string;
+  file: { type: string };
+  name: string;
+  percent: number;
+  size: number;
+  status: 'error' | 'pending' | 'success' | 'uploading';
+  uid: string;
 };
 
 const ModalStub = defineComponent({
@@ -227,8 +228,7 @@ vi.mock('ant-design-vue', () => {
       },
     },
     setup(props) {
-      return () =>
-        h('div', { 'data-percent': String(props.percent) });
+      return () => h('div', { 'data-percent': String(props.percent) });
     },
   });
 
@@ -287,7 +287,8 @@ vi.mock('ant-design-vue', () => {
   const UploadDragger = defineComponent({
     name: 'UploadDraggerStub',
     setup(_, { slots }) {
-      return () => h('div', { 'data-testid': 'upload-dragger' }, slots.default?.());
+      return () =>
+        h('div', { 'data-testid': 'upload-dragger' }, slots.default?.());
     },
   });
 
@@ -310,7 +311,7 @@ vi.mock('ant-design-vue', () => {
   };
 });
 
-describe('FilePicker shell slice', () => {
+describe('filePicker shell slice', () => {
   beforeEach(() => {
     coreState.current = createCoreState();
   });
@@ -375,9 +376,7 @@ describe('FilePicker shell slice', () => {
     const getConfirmButton = () =>
       wrapper
         .findAll('button')
-        .find((button) =>
-          button.text().includes('shared.common.select'),
-        );
+        .find((button) => button.text().includes('shared.common.select'));
 
     const confirmButton = getConfirmButton();
     if (!confirmButton) {

@@ -10,11 +10,7 @@ import { Card, Empty, Tag, Timeline } from 'ant-design-vue';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 
-import {
-  formatCost,
-  formatTokens,
-  traceStatusColor,
-} from './helpers';
+import { formatCost, formatTokens, traceStatusColor } from './helpers';
 
 defineOptions({ name: 'MonitoringConversationCallTraceCard' });
 
@@ -23,20 +19,19 @@ const props = defineProps<{
   i18nPrefix: string;
 }>();
 
-const successfulCallCount = computed(() =>
-  props.callTrace.filter((trace) => trace.status === 'success').length,
+const successfulCallCount = computed(
+  () => props.callTrace.filter((trace) => trace.status === 'success').length,
 );
 
-const failedCallCount = computed(() =>
-  props.callTrace.filter((trace) => trace.status !== 'success').length,
+const failedCallCount = computed(
+  () => props.callTrace.filter((trace) => trace.status !== 'success').length,
 );
 
 const averageLatency = computed(() => {
   const latencyList = props.callTrace
     .map((trace) => trace.latency_ms)
     .filter(
-      (latency): latency is number =>
-        latency !== null && latency !== undefined,
+      (latency): latency is number => latency !== null && latency !== undefined,
     );
   if (latencyList.length === 0) {
     return null;

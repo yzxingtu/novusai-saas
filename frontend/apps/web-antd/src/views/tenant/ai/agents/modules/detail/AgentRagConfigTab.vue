@@ -3,16 +3,16 @@ import type { AgentInfo } from '#/api/tenant/agents';
 
 import { ref, watch } from 'vue';
 
-import { Button, InputNumber, Select as ASelect, Switch } from 'ant-design-vue';
+import { Select as ASelect, Button, InputNumber, Switch } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 
 const props = defineProps<{
-  agent: AgentInfo;
-  saving: boolean;
   active: boolean;
+  agent: AgentInfo;
   isTenantOwned: boolean;
   onSaveFields: (fields: Record<string, unknown>) => Promise<void>;
+  saving: boolean;
 }>();
 
 const ragTopK = ref(5);

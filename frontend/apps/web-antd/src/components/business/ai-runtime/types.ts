@@ -9,6 +9,7 @@ export type UINodeKind =
   | 'link'
   | 'menu-item'
   | 'modal'
+  | 'pagination'
   | 'popover'
   | 'radio'
   | 'select'
@@ -18,15 +19,20 @@ export type UINodeKind =
 
 export type UINodeSource = 'adapter' | 'dom-fallback';
 
-export type UISurfaceKind = 'page' | 'drawer' | 'modal' | 'dropdown' | 'popover';
+export type UISurfaceKind =
+  | 'drawer'
+  | 'dropdown'
+  | 'modal'
+  | 'page'
+  | 'popover';
 
 export type UIEpochReason =
   | 'graph_rebuilt'
+  | 'manual'
   | 'route_changed'
   | 'surface_closed'
   | 'surface_opened'
-  | 'surface_synced'
-  | 'manual';
+  | 'surface_synced';
 
 export type DOMScanMode = 'full' | 'surfaces-only';
 
@@ -201,6 +207,20 @@ export interface UIRuntimeRebuildInput {
   route?: null | UIRouteLike;
 }
 
+export interface UIRuntimeIncrementalNodePatch {
+  added?: UIGraphNode[];
+  removedIds?: string[];
+  removedLocators?: string[];
+  updated?: Array<Partial<UIGraphNode> & Pick<UIGraphNode, 'id'>>;
+}
+
+export interface UIRuntimeIncrementalInput {
+  mode?: UIGraphBuildMode;
+  nodePatch?: UIRuntimeIncrementalNodePatch;
+  route?: null | UIRouteLike;
+  surfaceSync?: UISurfaceSyncInput;
+}
+
 export interface UIRuntimeState {
   surface_stack: UISurface[];
   ui_epoch: number;
@@ -209,4 +229,28 @@ export interface UIRuntimeState {
 
 export interface UIRuntimeSnapshot extends UIRuntimeState {
   active_surface: null | UISurface;
+}
+
+export interface UIRuntimeSurfaceNodeRead {
+  children_count?: number;
+  content?: string;
+  disabled: boolean;
+  interactable: boolean;
+  kind: UINodeKind;
+  label?: string;
+  locator: string;
+  node_id: string;
+  role?: string;
+  surface_id?: string;
+  text?: string;
+  title?: string;
+}
+
+export interface UIRuntimeSurfaceReadResult {
+  active_surface: null | UISurface;
+  mode: UIGraphBuildMode;
+  nodes: UIRuntimeSurfaceNodeRead[];
+  surface: null | UISurface;
+  surface_stack: UISurface[];
+  ui_epoch: number;
 }

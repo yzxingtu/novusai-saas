@@ -8,9 +8,9 @@ import { Popover } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 
+import { mergeIdentityDetailFallbacks } from './identity-detail';
 import IdentityDisplay from './IdentityDisplay.vue';
 import IdentityQuickCard from './IdentityQuickCard.vue';
-import { mergeIdentityDetailFallbacks } from './identity-detail';
 import { resolveIdentityDisplayTitle } from './types';
 import { openIdentityDetailDialog } from './use-identity-detail-dialog';
 
@@ -48,7 +48,7 @@ const supportsHoverQuickCard = ref(false);
 const mediaCleanups: Array<() => void> = [];
 
 const mergedDetailRequest = computed<IdentityDetailRequest>(() => ({
-  ...(props.detailRequest ?? {}),
+  ...props.detailRequest,
   fallback: mergeIdentityDetailFallbacks(
     props.detailRequest?.fallback,
     props.model,
@@ -66,7 +66,10 @@ const triggerAriaLabel = computed(
 );
 
 function bindMediaQuery(query: string, onChange: () => void) {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+  if (
+    typeof window === 'undefined' ||
+    typeof window.matchMedia !== 'function'
+  ) {
     return;
   }
 
@@ -75,7 +78,9 @@ function bindMediaQuery(query: string, onChange: () => void) {
 
   if (typeof mediaQuery.addEventListener === 'function') {
     mediaQuery.addEventListener('change', listener);
-    mediaCleanups.push(() => mediaQuery.removeEventListener('change', listener));
+    mediaCleanups.push(() =>
+      mediaQuery.removeEventListener('change', listener),
+    );
   } else if (typeof mediaQuery.addListener === 'function') {
     mediaQuery.addListener(listener);
     mediaCleanups.push(() => mediaQuery.removeListener(listener));
@@ -83,7 +88,10 @@ function bindMediaQuery(query: string, onChange: () => void) {
 }
 
 function updateHoverSupport() {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+  if (
+    typeof window === 'undefined' ||
+    typeof window.matchMedia !== 'function'
+  ) {
     supportsHoverQuickCard.value = false;
     return;
   }
@@ -128,10 +136,7 @@ onBeforeUnmount(() => {
     overlay-class-name="identity-profile-trigger__popover"
   >
     <template #content>
-      <IdentityQuickCard
-        :detail-request="mergedDetailRequest"
-        :model="model"
-      />
+      <IdentityQuickCard :detail-request="mergedDetailRequest" :model="model" />
     </template>
 
     <button
@@ -168,16 +173,16 @@ onBeforeUnmount(() => {
 <style scoped>
 .identity-profile-trigger {
   display: inline-flex;
+  align-items: stretch;
+  justify-content: flex-start;
   width: 100%;
   min-width: 0;
   padding: 0;
   text-align: left;
+  appearance: none;
   cursor: pointer;
   background: transparent;
   border: none;
-  justify-content: flex-start;
-  align-items: stretch;
-  appearance: none;
 }
 
 .identity-profile-trigger:disabled {
@@ -186,7 +191,7 @@ onBeforeUnmount(() => {
 }
 
 .identity-profile-trigger:focus-visible {
-  outline: 2px solid rgb(14 165 233 / 0.4);
+  outline: 2px solid rgb(14 165 233 / 40%);
   outline-offset: 3px;
   border-radius: 18px;
 }

@@ -1,15 +1,14 @@
-import type { AdminSkillInfo } from '#/api/admin/skills';
+import type { BuiltinToolInfo, SkillFormSharedState } from './skill-form-types';
 
-import type {
-  BuiltinToolInfo,
-  SkillFormSharedState,
-} from './skill-form-types';
+import type { AdminSkillInfo } from '#/api/admin/skills';
 
 interface SkillFormValueOptions extends SkillFormSharedState {
   loadPluginTools?: (skillId: number) => void;
 }
 
-export function getSkillFormDefaults(state: SkillFormSharedState): Record<string, unknown> {
+export function getSkillFormDefaults(
+  state: SkillFormSharedState,
+): Record<string, unknown> {
   state.isPluginSkill.value = false;
   state.pluginSourceName.value = '';
   state.pluginTools.value = [];
@@ -136,8 +135,9 @@ export function buildSkillFormPayload(values: Record<string, unknown>) {
           : null;
       break;
     }
-    default:
+    default: {
       break;
+    }
   }
 
   const result: Record<string, unknown> = {

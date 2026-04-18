@@ -9,10 +9,10 @@ import { RecycleBinDrawer } from '#/adapter/vxe-table/components';
 import AIPageHeroCard from '#/components/business/ai-page-hero/AIPageHeroCard.vue';
 
 import { useAgentListPage } from './composables/use-agent-list-page';
+import AgentForm from './modules/AgentForm.vue';
 import AgentListGrid from './modules/AgentListGrid.vue';
 import AgentListPublishModal from './modules/AgentListPublishModal.vue';
 import AgentListToolbar from './modules/AgentListToolbar.vue';
-import AgentForm from './modules/AgentForm.vue';
 
 defineOptions({ name: 'TenantAgentList' });
 
@@ -40,9 +40,10 @@ const setAgentFormRef: VNodeRef = (value) => {
 };
 
 const setRecycleBinRef: VNodeRef = (value) => {
-  recycleBinRef.value = value as
-    | null
-    | { deletedCount: number; open: () => void };
+  recycleBinRef.value = value as null | {
+    deletedCount: number;
+    open: () => void;
+  };
 };
 </script>
 

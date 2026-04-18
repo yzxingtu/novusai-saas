@@ -20,8 +20,5 @@ const forwardListeners = {
 </script>
 
 <template>
-  <MonitoringConversationDrawerShell
-    v-bind="props"
-    v-on="forwardListeners"
-  />
+  <MonitoringConversationDrawerShell v-bind="props" v-on="forwardListeners" />
 </template>

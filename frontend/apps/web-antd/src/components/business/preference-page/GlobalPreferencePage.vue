@@ -169,7 +169,10 @@ async function onSaveNotif() {
 
 <template>
   <Page auto-content-height>
-    <div data-preference-scroll-container class="flex h-full flex-col gap-6 overflow-auto pb-4">
+    <div
+      data-preference-scroll-container
+      class="flex h-full flex-col gap-6 overflow-auto pb-4"
+    >
       <section
         class="relative overflow-hidden rounded-[28px] border border-border/70 bg-card shadow-sm"
       >
@@ -242,12 +245,14 @@ async function onSaveNotif() {
                   {{ item.value }}
                 </div>
               </div>
-              </div>
             </div>
           </div>
+        </div>
       </section>
 
-      <section class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_380px]">
+      <section
+        class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_380px]"
+      >
         <div class="min-w-0">
           <Spin :spinning="loading">
             <PreferenceForm v-model="formData" />

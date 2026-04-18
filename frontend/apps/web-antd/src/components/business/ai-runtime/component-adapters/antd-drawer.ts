@@ -1,13 +1,14 @@
+import type { UIAdapterResult, UIComponentAdapter } from '../types';
+
 import { isElementVisible } from '../dom-scanner';
 import { tAiRuntime } from '../i18n';
-import type { UIAdapterResult, UIComponentAdapter } from '../types';
 
 export const ANTD_DRAWER_ADAPTER_ID = 'antd-drawer';
 
 function resolveDrawerKey(element: HTMLElement, index: number): string {
   const candidate =
-    element.getAttribute('data-ai-surface-id') ??
-    element.getAttribute('data-testid') ??
+    element.dataset.aiSurfaceId ??
+    element.dataset.testid ??
     element.getAttribute('id');
   if (candidate) {
     return `drawer:${candidate}`;

@@ -99,8 +99,9 @@ const {
 });
 
 const setValvesConfigPanelRef: VNodeRef = (value) => {
-  valvesConfigPanelRef.value =
-    value as InstanceType<typeof ValvesConfigPanel> | null;
+  valvesConfigPanelRef.value = value as InstanceType<
+    typeof ValvesConfigPanel
+  > | null;
 };
 
 routeCreateSkillAction.value = onCreateSkill;

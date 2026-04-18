@@ -67,7 +67,7 @@ function getOperatorTypeColor(operatorType: null | string | undefined): string {
 }
 
 function getOperatorDisplayName(
-  log: null | ActionLogOperatorSource | undefined,
+  log: ActionLogOperatorSource | null | undefined,
 ): string {
   return (
     log?.operator_display_name ||
@@ -116,7 +116,7 @@ export function getAgentDisplayName(log: ActionLogAgentSource): string {
 }
 
 export function getOperatorIdentityModel(
-  log: null | ActionLogOperatorSource | undefined,
+  log: ActionLogOperatorSource | null | undefined,
 ) {
   const typeText = getOperatorTypeText(log?.operator_type);
 
@@ -148,7 +148,7 @@ export function getOperatorIdentityModel(
 }
 
 export function buildOperatorMeta(
-  log: null | ActionLogOperatorSource | undefined,
+  log: ActionLogOperatorSource | null | undefined,
 ): IdentityDetailMeta {
   return {
     createdAt: log?.created_at,

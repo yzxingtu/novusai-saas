@@ -3,15 +3,15 @@ import type { AIAgentInfo } from '#/api/admin/ai';
 
 import { ref, watch } from 'vue';
 
-import { Button, InputNumber, Select as ASelect, Switch } from 'ant-design-vue';
+import { Select as ASelect, Button, InputNumber, Switch } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 
 const props = defineProps<{
-  agent: AIAgentInfo;
-  saving: boolean;
   active: boolean;
+  agent: AIAgentInfo;
   onSaveFields: (fields: Record<string, unknown>) => Promise<void>;
+  saving: boolean;
 }>();
 
 const ragTopK = ref(5);

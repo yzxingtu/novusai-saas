@@ -195,6 +195,10 @@
     "running": "运行中",
     "searchFiles": "搜索文件",
     "searchContent": "搜索内容...",
+    "searchScope": "检索范围",
+    "searchScopeCurrentFile": "当前文件",
+    "searchScopeCategory": "分类下所有文件",
+    "searchedFiles": "扫描文件数",
     "autoScroll": "自动滚动",
     "noSelectedFile": "未选择文件",
     "selectFileTip": "请选择左侧日志文件查看内容",
@@ -205,6 +209,17 @@
     "darkTheme": "深色阅读",
     "lightTheme": "浅色阅读",
     "matches": "命中",
+    "keyword": "关键词",
+    "dateRange": "日期范围",
+    "startDate": "开始日期",
+    "endDate": "结束日期",
+    "totalEntries": "日志块数",
+    "applyFilters": "执行检索",
+    "resetFilters": "重置条件",
+    "noSearchResults": "没有匹配的日志结果",
+    "noSearchResultsDesc": "试试放宽关键词、缩短日期范围，或切换到当前文件/分类全量检索。",
+    "noContentDesc": "当前日志文件暂时没有可显示的内容，可以刷新后再试。",
+    "categoryScopeHint": "当前按分类范围检索，会在该分类下的全部日志文件里执行服务端搜索。",
     "emptySearch": "当前筛选条件下没有匹配的日志文件",
     "toggleTheme": "切换主题",
     "messages": {
@@ -438,9 +453,13 @@
     },
     "placeholder": {
       "searchTaskName": "搜索任务名称",
+      "searchTaskId": "搜索任务 ID",
+      "searchHandlerPath": "搜索处理器路径",
       "searchQueue": "搜索队列",
       "allStatus": "全部状态",
-      "allTenant": "全部企业"
+      "allTenant": "全部企业",
+      "startDate": "开始日期",
+      "endDate": "结束日期"
     }
   },
   "periodicTask": {

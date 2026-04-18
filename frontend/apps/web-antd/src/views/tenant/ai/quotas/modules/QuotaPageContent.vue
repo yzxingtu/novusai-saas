@@ -48,7 +48,7 @@ const props = defineProps<{
   rateLimits: TenantRateLimitInfo[];
 }>();
 
-function handleTabChange(tab: string | number) {
+function handleTabChange(tab: number | string) {
   props.onTabChange(String(tab));
 }
 
@@ -110,7 +110,9 @@ const rateLimitSpinning = computed(
                     />
                   </div>
                   <div class="min-w-0">
-                    <div class="truncate text-base font-semibold text-foreground">
+                    <div
+                      class="truncate text-base font-semibold text-foreground"
+                    >
                       {{
                         item.quota.model_name ||
                         (item.quota.model_id
@@ -281,7 +283,9 @@ const rateLimitSpinning = computed(
                     />
                   </div>
                   <div class="min-w-0">
-                    <div class="truncate text-base font-semibold text-foreground">
+                    <div
+                      class="truncate text-base font-semibold text-foreground"
+                    >
                       {{
                         item.model_name ||
                         `${$t('tenant.ai.rateLimit.modelId')} #${item.model_id}`
@@ -343,7 +347,8 @@ const rateLimitSpinning = computed(
                     {{ $t('tenant.ai.rateLimit.configured') }}
                   </span>
                   <span class="font-medium">
-                    RPM {{ item.rpm_limit ?? $t('tenant.ai.rateLimit.noLimit') }}
+                    RPM
+                    {{ item.rpm_limit ?? $t('tenant.ai.rateLimit.noLimit') }}
                     / TPM
                     {{
                       item.tpm_limit == null
@@ -424,7 +429,9 @@ const rateLimitSpinning = computed(
                     class="!mr-0"
                   >
                     RPM
-                    {{ getSourceText(effectiveRateLimitMap[item.id]?.rpm_source) }}
+                    {{
+                      getSourceText(effectiveRateLimitMap[item.id]?.rpm_source)
+                    }}
                   </Tag>
                   <Tag
                     :color="
@@ -433,7 +440,9 @@ const rateLimitSpinning = computed(
                     class="!mr-0"
                   >
                     TPM
-                    {{ getSourceText(effectiveRateLimitMap[item.id]?.tpm_source) }}
+                    {{
+                      getSourceText(effectiveRateLimitMap[item.id]?.tpm_source)
+                    }}
                   </Tag>
                 </span>
               </div>

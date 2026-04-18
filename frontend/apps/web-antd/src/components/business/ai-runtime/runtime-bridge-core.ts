@@ -1,12 +1,15 @@
-import type { PageContext } from '#/api/shared/ai-chat';
-
+import type { AIRouteSecurityPolicy } from './security-policy';
 import type { UIRouteLike } from './types';
+import type { UIRuntime } from './ui-runtime';
 import type { UISnapshot } from './ui-snapshot-generator';
 
+import type { PageContext } from '#/api/shared/ai-chat';
+
 import { resolveRoutePageKey } from '#/components/business/ai-runtime/page-key-utils';
+import { currentRouteAISecurityPolicy } from '#/composables/use-ai-page-policy';
 import { $t } from '#/locales';
 
-import { createUIRuntime, type UIRuntime } from './ui-runtime';
+import { createUIRuntime } from './ui-runtime';
 
 export interface EnsureGlobalUIRuntimeOptions {
   getRoute?: () => null | UIRouteLike;
@@ -44,7 +47,7 @@ export function escapeSelectorValue(value: string): string {
   if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
     return CSS.escape(value);
   }
-  return value.replaceAll('"', '\\"');
+  return value.replaceAll('"', String.raw`\"`);
 }
 
 export function resolveCurrentRoute(): null | UIRouteLike {
@@ -76,6 +79,18 @@ export function resolvePageTitle(pageKey: string): string {
   return normalizeText(document.title || pageKey, 200) || pageKey;
 }
 
+export function getCurrentRouteSecurityPolicy(): AIRouteSecurityPolicy {
+  return {
+    ...currentRouteAISecurityPolicy.value,
+    confirmActionKinds: [
+      ...(currentRouteAISecurityPolicy.value.confirmActionKinds ?? []),
+    ],
+    disabledActionKinds: [
+      ...(currentRouteAISecurityPolicy.value.disabledActionKinds ?? []),
+    ],
+  };
+}
+
 export function ensureRuntimeInstance(): UIRuntime {
   if (!globalRuntime) {
     globalRuntime = createUIRuntime({
@@ -96,13 +111,17 @@ export function ensureGlobalUIRuntime(
 }
 
 export function ensureElementVisible(
-  element: null | HTMLElement,
+  element: HTMLElement | null,
 ): element is HTMLElement {
   if (!element) {
     return false;
   }
   const style = window.getComputedStyle(element);
-  if (element.hidden || style.display === 'none' || style.visibility === 'hidden') {
+  if (
+    element.hidden ||
+    style.display === 'none' ||
+    style.visibility === 'hidden'
+  ) {
     return false;
   }
   return element.getClientRects().length > 0 || style.opacity !== '0';
@@ -113,7 +132,7 @@ export function queryElementsByText(text: string): HTMLElement[] {
   if (!normalized) {
     return [];
   }
-  return Array.from(document.querySelectorAll<HTMLElement>('body *')).filter(
+  return [...document.querySelectorAll<HTMLElement>('body *')].filter(
     (element) => {
       if (!ensureElementVisible(element)) {
         return false;
@@ -125,7 +144,7 @@ export function queryElementsByText(text: string): HTMLElement[] {
   );
 }
 
-export function queryElementByLocator(locator: string): null | HTMLElement {
+export function queryElementByLocator(locator: string): HTMLElement | null {
   const normalized = normalizeText(locator);
   if (!normalized) {
     return null;

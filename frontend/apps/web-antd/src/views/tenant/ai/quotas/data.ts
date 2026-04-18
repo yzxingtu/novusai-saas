@@ -1,9 +1,8 @@
+import type { VbenFormSchema } from '#/adapter/form';
 /**
  * 企业端配额管理 - 表单 Schema 和辅助函数
  */
 import type { TenantQuotaWithUsageInfo } from '#/api/tenant/ai';
-
-import type { VbenFormSchema } from '#/adapter/form';
 
 import {
   dividerField,

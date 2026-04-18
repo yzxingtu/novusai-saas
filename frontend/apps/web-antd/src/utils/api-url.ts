@@ -7,7 +7,10 @@ function normalizeApiUrl(url: null | string | undefined): string {
 }
 
 function normalizeHostname(hostname: string): string {
-  return hostname.trim().replace(/^\[|\]$/g, '').toLowerCase();
+  return hostname
+    .trim()
+    .replaceAll(/^\[|\]$/g, '')
+    .toLowerCase();
 }
 
 function isLoopbackHostname(hostname: string): boolean {

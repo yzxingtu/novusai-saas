@@ -15,11 +15,11 @@ import {
 import { $t } from '#/locales';
 
 const props = defineProps<{
-  agent: AgentInfo;
-  saving: boolean;
   active: boolean;
+  agent: AgentInfo;
   isTenantOwned: boolean;
   onSaveFields: (fields: Record<string, unknown>) => Promise<void>;
+  saving: boolean;
 }>();
 
 const modelTemp = ref(0.7);
@@ -106,7 +106,9 @@ watch(
               class="size-4 text-orange-500"
             />
           </div>
-          <label class="text-sm font-medium">{{ $t('tenant.ai.agent.temperature') }}</label>
+          <label class="text-sm font-medium">{{
+            $t('tenant.ai.agent.temperature')
+          }}</label>
         </div>
         <p class="mb-2 text-xs text-muted-foreground">
           {{ $t('tenant.ai.agent.help.temperature') }}
@@ -128,7 +130,9 @@ watch(
           >
             <IconifyIcon icon="lucide:hash" class="size-4 text-blue-500" />
           </div>
-          <label class="text-sm font-medium">{{ $t('tenant.ai.agent.maxTokens') }}</label>
+          <label class="text-sm font-medium">{{
+            $t('tenant.ai.agent.maxTokens')
+          }}</label>
         </div>
         <p class="mb-2 text-xs text-muted-foreground">
           {{ $t('tenant.ai.agent.help.maxTokens') }}
@@ -149,7 +153,9 @@ watch(
           >
             <IconifyIcon icon="lucide:percent" class="size-4 text-purple-500" />
           </div>
-          <label class="text-sm font-medium">{{ $t('tenant.ai.agent.topP') }}</label>
+          <label class="text-sm font-medium">{{
+            $t('tenant.ai.agent.topP')
+          }}</label>
         </div>
         <p class="mb-2 text-xs text-muted-foreground">
           {{ $t('tenant.ai.agent.help.topP') }}

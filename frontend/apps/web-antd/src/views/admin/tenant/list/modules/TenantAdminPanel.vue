@@ -5,6 +5,7 @@
  */
 import type { TenantAdminItem } from '#/api/admin/tenant';
 import type { IdentityDisplayBadge } from '#/components/business/identity-display';
+import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 
 import { onMounted, ref } from 'vue';
 
@@ -32,7 +33,6 @@ import { useAccess } from '#/utils';
 import { formatRelativeTime } from '#/utils/common';
 import { showRequestError } from '#/utils/error-helpers';
 import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
-import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 
 import { createAdminIdentityModel } from '../../../_shared/identity';
 import TenantAdminForm from './TenantAdminForm.vue';

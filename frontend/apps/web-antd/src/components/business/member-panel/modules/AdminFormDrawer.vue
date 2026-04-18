@@ -261,7 +261,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
     }
 
     const data = drawerApi.getData() as
-      | (MemberPanelMember & { mode?: string; lockOrgNode?: boolean })
+      | (MemberPanelMember & { lockOrgNode?: boolean; mode?: string })
       | undefined;
     isEdit.value = data?.mode === 'edit';
     recordId.value = data?.id;

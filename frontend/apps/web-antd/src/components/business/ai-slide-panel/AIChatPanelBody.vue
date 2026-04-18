@@ -48,7 +48,6 @@ interface ComposerMentionCandidateItem {
   title: string;
 }
 
-type ComposerInteractionMode = 'confirm' | 'trusted_auto';
 type ComposerSendState = 'idle' | 'routing' | 'sending' | 'streaming';
 
 withDefaults(
@@ -78,7 +77,6 @@ withDefaults(
     ) => null | RichTextDraftRuntimeState;
     groupedConversations?: HistoryConversationGroup[];
     inputMessage?: string;
-    interactionMode?: ComposerInteractionMode;
     isAgentSwitch: (index: number) => boolean;
     mentionCandidates?: ComposerMentionCandidateItem[];
     mentionEmptyHint?: string;
@@ -97,7 +95,6 @@ withDefaults(
     shiftEnterHint?: string;
     showAttachments?: boolean;
     showHistory?: boolean;
-    showInteractionMode?: boolean;
     showScreenshotButton?: boolean;
     showScrollToBottom?: boolean;
     showScrollToTop?: boolean;
@@ -126,7 +123,6 @@ withDefaults(
     exportMenuItems: () => [],
     groupedConversations: () => [],
     inputMessage: '',
-    interactionMode: 'confirm',
     mentionCandidates: () => [],
     mentionEmptyHint: '',
     mentionLoading: false,
@@ -144,7 +140,6 @@ withDefaults(
     shiftEnterHint: '',
     showAttachments: true,
     showHistory: false,
-    showInteractionMode: false,
     showScrollToBottom: false,
     showScrollToTop: false,
     showScreenshotButton: false,
@@ -194,7 +189,6 @@ const emit = defineEmits<{
   (e: 'update:conversationSearch', value: string): void;
   (e: 'update:editingTitle', value: string): void;
   (e: 'update:inputMessage', value: string): void;
-  (e: 'update:interactionMode', value: ComposerInteractionMode): void;
   (e: 'dragover', event: DragEvent): void;
   (e: 'drop', event: DragEvent): void;
   (e: 'fileSelect', event: Event): void;
@@ -298,11 +292,8 @@ const emit = defineEmits<{
       :mention-candidates="mentionCandidates"
       :bound-knowledge-bases="boundKnowledgeBases"
       :selected-knowledge-bases="selectedKnowledgeBases"
-      :show-interaction-mode="showInteractionMode"
-      :interaction-mode="interactionMode"
       :shift-enter-hint="shiftEnterHint"
       @update:model-value="emit('update:inputMessage', $event)"
-      @update:interaction-mode="emit('update:interactionMode', $event)"
       @dragover="emit('dragover', $event)"
       @drop="emit('drop', $event)"
       @file-select="emit('fileSelect', $event)"

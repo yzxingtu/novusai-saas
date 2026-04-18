@@ -1,7 +1,7 @@
 import type {
-  RichTextRuntimeOperation,
-  RichTextRuntimeOperationResult,
-} from './runtime-operation-types';
+  RichTextPageAIOperation,
+  RichTextPageAIOperationResult,
+} from './editor-page-ai-operations';
 
 import { ref } from 'vue';
 
@@ -9,16 +9,16 @@ import { $t } from '@vben/locales';
 
 import { normalizeRuntimePageKey } from './page-key';
 
-export interface RichTextRuntimeProvider {
+export interface RichTextPageAIExposure {
   editorInstanceId?: string;
   getContextData?: () => Record<string, unknown>;
-  getOperations?: () => RichTextRuntimeOperation[];
+  getOperations?: () => RichTextPageAIOperation[];
   pageKey: string;
   priority?: number;
   providerId: string;
 }
 
-export interface WaitForRichTextRuntimeOperationOptions {
+export interface WaitForRichTextPageAIOperationOptions {
   operationName?: string;
   pollMs?: number;
   timeoutMs?: number;
@@ -29,16 +29,16 @@ const DEFAULT_EDITOR_OPERATION_NAME = 'get_editor_html';
 const DEFAULT_POLL_MS = 80;
 const DEFAULT_TIMEOUT_MS = 2000;
 
-const providers = new Map<string, RichTextRuntimeProvider>();
-export const richTextRuntimeRegistryVersion = ref(0);
+const pageAIExposures = new Map<string, RichTextPageAIExposure>();
+export const richTextPageAIExposureVersion = ref(0);
 
-function bumpRegistryVersion() {
-  richTextRuntimeRegistryVersion.value += 1;
+function bumpExposureVersion() {
+  richTextPageAIExposureVersion.value += 1;
 }
 
 function stableProviderOrder(
-  a: RichTextRuntimeProvider,
-  b: RichTextRuntimeProvider,
+  a: RichTextPageAIExposure,
+  b: RichTextPageAIExposure,
 ): number {
   const priorityDiff = (b.priority ?? 0) - (a.priority ?? 0);
   if (priorityDiff !== 0) return priorityDiff;
@@ -51,7 +51,7 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 
 function listProvidersForPage(pageKey: string, editorInstanceId?: string) {
   const normalizedPageKey = normalizeRuntimePageKey(pageKey);
-  return [...providers.values()]
+  return [...pageAIExposures.values()]
     .filter((provider) => {
       if (normalizeRuntimePageKey(provider.pageKey) !== normalizedPageKey) {
         return false;
@@ -60,46 +60,47 @@ function listProvidersForPage(pageKey: string, editorInstanceId?: string) {
         return true;
       }
       return (
-        !provider.editorInstanceId || provider.editorInstanceId === editorInstanceId
+        !provider.editorInstanceId ||
+        provider.editorInstanceId === editorInstanceId
       );
     })
-    .sort(stableProviderOrder);
+    .toSorted(stableProviderOrder);
 }
 
-export function clearRichTextRuntimeAdapterRegistry() {
-  providers.clear();
-  bumpRegistryVersion();
+export function clearRichTextPageAIExposures() {
+  pageAIExposures.clear();
+  bumpExposureVersion();
 }
 
-export function registerRichTextRuntimeProvider(
-  provider: RichTextRuntimeProvider,
+export function registerRichTextPageAIExposure(
+  provider: RichTextPageAIExposure,
 ): () => void {
-  providers.set(provider.providerId, provider);
-  bumpRegistryVersion();
+  pageAIExposures.set(provider.providerId, provider);
+  bumpExposureVersion();
 
   return () => {
-    const current = providers.get(provider.providerId);
+    const current = pageAIExposures.get(provider.providerId);
     if (!current) return;
-    providers.delete(provider.providerId);
-    bumpRegistryVersion();
+    pageAIExposures.delete(provider.providerId);
+    bumpExposureVersion();
   };
 }
 
-export function listRichTextRuntimeProviders(
+export function listRichTextPageAIExposures(
   pageKey?: string,
   editorInstanceId?: string,
-): RichTextRuntimeProvider[] {
+): RichTextPageAIExposure[] {
   if (!pageKey) {
-    return [...providers.values()].sort(stableProviderOrder);
+    return [...pageAIExposures.values()].toSorted(stableProviderOrder);
   }
   return listProvidersForPage(pageKey, editorInstanceId);
 }
 
-export function listRichTextRuntimeOperations(
+export function listRichTextPageAIOperations(
   pageKey: string,
   editorInstanceId?: string,
-): RichTextRuntimeOperation[] {
-  const deduped = new Map<string, RichTextRuntimeOperation>();
+): RichTextPageAIOperation[] {
+  const deduped = new Map<string, RichTextPageAIOperation>();
 
   for (const provider of listProvidersForPage(pageKey, editorInstanceId)) {
     const operations = provider.getOperations?.() ?? [];
@@ -114,7 +115,7 @@ export function listRichTextRuntimeOperations(
   return [...deduped.values()];
 }
 
-export function collectRichTextRuntimeContextData(
+export function collectRichTextPageAIContextData(
   pageKey: string,
   editorInstanceId?: string,
 ): Record<string, unknown> {
@@ -129,17 +130,19 @@ export function collectRichTextRuntimeContextData(
   return merged;
 }
 
-export async function executeRichTextRuntimeOperation(input: {
+export async function executeRichTextPageAIOperation(input: {
   editorInstanceId?: string;
   operationName: string;
   pageKey: string;
   params?: Record<string, unknown>;
-}): Promise<RichTextRuntimeOperationResult> {
-  const operations = listRichTextRuntimeOperations(
+}): Promise<RichTextPageAIOperationResult> {
+  const operations = listRichTextPageAIOperations(
     input.pageKey,
     input.editorInstanceId,
   );
-  const operation = operations.find((item) => item.name === input.operationName);
+  const operation = operations.find(
+    (item) => item.name === input.operationName,
+  );
 
   if (!operation || !operation.handler) {
     const normalizedPageKey = normalizeRuntimePageKey(input.pageKey);
@@ -156,9 +159,9 @@ export async function executeRichTextRuntimeOperation(input: {
   return operation.handler(input.params ?? {});
 }
 
-export async function waitForRichTextRuntimeOperation(
+export async function waitForRichTextPageAIOperation(
   pageKey: string,
-  options: WaitForRichTextRuntimeOperationOptions = {},
+  options: WaitForRichTextPageAIOperationOptions = {},
 ): Promise<boolean> {
   const operationName = options.operationName ?? DEFAULT_EDITOR_OPERATION_NAME;
   const pollMs = options.pollMs ?? DEFAULT_POLL_MS;
@@ -166,7 +169,7 @@ export async function waitForRichTextRuntimeOperation(
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
-    const operations = listRichTextRuntimeOperations(pageKey);
+    const operations = listRichTextPageAIOperations(pageKey);
     if (operations.some((operation) => operation.name === operationName)) {
       return true;
     }
@@ -175,7 +178,7 @@ export async function waitForRichTextRuntimeOperation(
 
   if (options.warnOnTimeout !== false) {
     console.warn(
-      '[RichTextRuntimeAdapter] waitForRichTextRuntimeOperation timed out for "%s" while waiting for "%s".',
+      '[RichTextPageAI] waitForRichTextPageAIOperation timed out for "%s" while waiting for "%s".',
       pageKey,
       operationName,
     );

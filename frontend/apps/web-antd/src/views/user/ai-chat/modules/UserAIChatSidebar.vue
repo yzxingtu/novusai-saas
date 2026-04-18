@@ -8,12 +8,8 @@ import { $t } from '#/locales';
 import { useUserAIChatContext } from './ai-chat-context';
 import UserAIChatConversationList from './UserAIChatConversationList.vue';
 
-const {
-  conversationSearch,
-  onSelectAgent,
-  onStartNewChat,
-  chat,
-} = useUserAIChatContext();
+const { conversationSearch, onSelectAgent, onStartNewChat, chat } =
+  useUserAIChatContext();
 const { agents, agentsLoading, selectedAgentId, conversations } = chat;
 </script>
 

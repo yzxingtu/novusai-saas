@@ -1,5 +1,7 @@
 import type { Page } from '@playwright/test';
 
+import process from 'node:process';
+
 import { createAdminSession, getDevBootstrapSecret } from './session';
 
 const ADMIN_USERNAME =
@@ -8,7 +10,9 @@ const ADMIN_PASSWORD =
   process.env.ADMIN_PASSWORD || process.env.PLATFORM_ADMIN_PASSWORD;
 
 export function hasAdminCredentials() {
-  return Boolean(getDevBootstrapSecret('admin') || (ADMIN_USERNAME && ADMIN_PASSWORD));
+  return Boolean(
+    getDevBootstrapSecret('admin') || (ADMIN_USERNAME && ADMIN_PASSWORD),
+  );
 }
 
 function getAdminCredentials() {

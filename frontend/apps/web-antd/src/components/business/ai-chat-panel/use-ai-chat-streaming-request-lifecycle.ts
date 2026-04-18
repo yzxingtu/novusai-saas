@@ -7,11 +7,16 @@ import type {
 import type { AppErrorInfo } from '#/utils/request';
 
 import { moveStreamingContentToThinking } from './chat-input-utils';
+import {
+  reconcileTurnFlowWithLegacy,
+  settleTurnFlowAfterLifecycleFinalize,
+} from './use-ai-chat-turn-flow';
 
 export interface StreamRequestLifecycle {
   assistantIdx: number;
   committedConversationSyncPromise: null | Promise<void>;
   didReceiveDoneEvent: boolean;
+  didTerminalizeMessage: boolean;
   didSseEnd: boolean;
   doneAbortTimer: null | ReturnType<typeof setTimeout>;
   hasReceivedStreamPayload: boolean;
@@ -25,10 +30,10 @@ export interface StreamRequestLifecycle {
   targetAgentId: number;
   applyAssistantError: (appError: AppErrorInfo) => void;
   clearDoneAbortTimer: () => void;
-  finalizeMessage: () => void;
   getAssistantMessage: () => ChatMessage | undefined;
   promoteToolRoundContent: () => void;
   scheduleDoneAbort: () => void;
+  terminalizeMessage: (options?: { markInterrupted?: boolean }) => void;
   triggerCommittedConversationSync: () => void;
   updateConversation: (conversationId: null | number) => void;
 }
@@ -50,6 +55,7 @@ export function createStreamRequestLifecycle(
     assistantIdx,
     committedConversationSyncPromise: null,
     didReceiveDoneEvent: false,
+    didTerminalizeMessage: false,
     didSseEnd: false,
     doneAbortTimer: null,
     hasReceivedStreamPayload: false,
@@ -75,6 +81,7 @@ export function createStreamRequestLifecycle(
       msg.terminationReason = msg.terminationReason || 'error';
       msg.turnOutcome = msg.turnOutcome || 'failed';
       msg.completionReason = msg.completionReason || 'error';
+      reconcileTurnFlowWithLegacy(msg);
     },
     clearDoneAbortTimer() {
       if (lifecycle.doneAbortTimer) {
@@ -82,30 +89,48 @@ export function createStreamRequestLifecycle(
         lifecycle.doneAbortTimer = null;
       }
     },
-    finalizeMessage() {
+    terminalizeMessage(options) {
+      if (lifecycle.didTerminalizeMessage) {
+        return;
+      }
       const msg = lifecycle.getAssistantMessage();
       if (!msg) {
+        lifecycle.didTerminalizeMessage = true;
         return;
+      }
+      if (options?.markInterrupted) {
+        msg.interrupted = true;
+        msg.partial = true;
+        msg.terminationReason = msg.terminationReason || 'interrupted';
+        msg.turnOutcome = msg.turnOutcome || 'partial';
+        msg.completionReason = msg.completionReason || 'interrupted';
       }
       msg.streaming = false;
-      if (!msg.toolCalls) {
-        return;
-      }
-      const orphaned = msg.toolCalls.filter((tc) => tc.status === 'running');
-      if (orphaned.length > 0) {
-        console.warn(
-          '[use-ai-chat] finalizeMessage: orphaned running tool(s), marking as error',
-          orphaned.map((toolCall) => ({
-            id: toolCall.id,
-            name: toolCall.name,
-          })),
-        );
-      }
-      for (const toolCall of msg.toolCalls) {
-        if (toolCall.status === 'running') {
-          toolCall.status = 'error';
+      let hadOrphanedRunningTools = false;
+      if (msg.toolCalls) {
+        const orphaned = msg.toolCalls.filter((tc) => tc.status === 'running');
+        if (orphaned.length > 0) {
+          hadOrphanedRunningTools = true;
+          console.warn(
+            '[use-ai-chat] finalizeMessage: orphaned running tool(s), marking as error',
+            orphaned.map((toolCall) => ({
+              id: toolCall.id,
+              name: toolCall.name,
+            })),
+          );
+        }
+        for (const toolCall of msg.toolCalls) {
+          if (toolCall.status === 'running') {
+            toolCall.status = 'error';
+          }
         }
       }
+      if (hadOrphanedRunningTools) {
+        msg.turnOutcome = msg.turnOutcome || 'failed';
+        msg.completionReason = msg.completionReason || 'tool_error';
+      }
+      lifecycle.didTerminalizeMessage = true;
+      settleTurnFlowAfterLifecycleFinalize(msg);
     },
     getAssistantMessage() {
       return deps.chatMessages.value[lifecycle.assistantIdx];

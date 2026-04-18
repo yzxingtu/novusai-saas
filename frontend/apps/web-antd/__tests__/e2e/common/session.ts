@@ -1,8 +1,9 @@
+import type { APIRequestContext, Page } from '@playwright/test';
+
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import process from 'node:process';
 import { fileURLToPath } from 'node:url';
-
-import type { APIRequestContext, Page } from '@playwright/test';
 
 import { expect, request } from '@playwright/test';
 
@@ -50,25 +51,25 @@ const SECRET_VARIABLES: Record<AuthEndpoint, string> = {
 const REPO_ROOT = resolve(CURRENT_DIR, '../../../../../..');
 const BACKEND_ENV_PATH = resolve(REPO_ROOT, 'backend', '.env');
 
-let backendEnvVars: Record<string, string> | null = null;
+let backendEnvVars: null | Record<string, string> = null;
 
 function loadBackendEnv() {
   if (backendEnvVars) return backendEnvVars;
   try {
     const contents = readFileSync(BACKEND_ENV_PATH, 'utf8');
-    backendEnvVars = contents.split(/\r?\n/).reduce<Record<string, string>>(
-      (acc, line) => {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith('#')) {
-          return acc;
-        }
-        const [key, ...valueParts] = trimmed.split('=');
-        if (!key) return acc;
-        acc[key.trim()] = valueParts.join('=').trim();
-        return acc;
-      },
-      {},
-    );
+    const envValues: Record<string, string> = {};
+    for (const line of contents.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) {
+        continue;
+      }
+      const [key, ...valueParts] = trimmed.split('=');
+      if (!key) {
+        continue;
+      }
+      envValues[key.trim()] = valueParts.join('=').trim();
+    }
+    backendEnvVars = envValues;
   } catch {
     backendEnvVars = {};
   }
@@ -84,10 +85,7 @@ export function getDevBootstrapSecret(endpoint: AuthEndpoint) {
   return process.env[key] || getBackendEnvValue(key);
 }
 
-async function tryDevBootstrap(
-  endpoint: AuthEndpoint,
-  api: APIRequestContext,
-) {
+async function tryDevBootstrap(endpoint: AuthEndpoint, api: APIRequestContext) {
   const secret = getDevBootstrapSecret(endpoint);
   if (!secret) return null;
   const response = await api.post(`/${endpoint}/auth/dev/bootstrap`, {
@@ -130,7 +128,9 @@ async function fetchTokens(
     const response = await api.post(`/${endpoint}/auth/login`, {
       data: payload,
     });
-    expect(response.ok(), `Expected ${endpoint} login API to succeed`).toBe(true);
+    expect(response.ok(), `Expected ${endpoint} login API to succeed`).toBe(
+      true,
+    );
     const body = (await response.json()) as LoginResponse;
     expect(body.code, `Expected ${endpoint} login code to be 0`).toBe(0);
     expect(

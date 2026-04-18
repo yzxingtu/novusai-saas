@@ -34,14 +34,14 @@ export function useAdminFormSchema(options: {
   apiPrefix?: 'admin' | 'tenant';
   /** Whether in edit mode / 是否编辑模式 */
   isEdit?: boolean;
+  /** Whether to lock assignment to the current node (create mode) / 是否在新建时锁定组织节点 */
+  lockOrgNode?: boolean;
   /** Current org node ID (for default selection) / 当前组织节点 ID（用于默认选中） */
   nodeId?: null | number;
   /** Org node name (for default display) / 组织节点名称（用于默认显示） */
   nodeName?: string;
   /** Org tree API (for node selection) / 组织树 API（可选择节点） */
   orgTreeApi?: OrgTreeApi;
-  /** Whether to lock assignment to the current node (create mode) / 是否在新建时锁定组织节点 */
-  lockOrgNode?: boolean;
   /** Permission role options / 权限角色选项 */
   roleOptions?: MemberRoleOption[];
 }): VbenFormSchema[] {

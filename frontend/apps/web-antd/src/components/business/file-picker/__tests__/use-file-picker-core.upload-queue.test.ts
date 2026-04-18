@@ -1,3 +1,7 @@
+import type { UnwrapRef } from 'vue';
+
+import type { FilePickerProps, UploadTask } from '../types';
+
 // @vitest-environment happy-dom
 import { flushPromises, mount } from '@vue/test-utils';
 import { defineComponent } from 'vue';
@@ -6,10 +10,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FILE_PICKER_BATCH_SIZE_THRESHOLD } from '../file-picker-contracts';
 import { useFilePickerCore } from '../use-file-picker-core';
-
-import type { UnwrapRef } from 'vue';
-
-import type { FilePickerProps, UploadTask } from '../types';
 
 const mockAdminApi = vi.hoisted(() => ({
   batchUploadAttachmentsApi: vi.fn(),
@@ -171,7 +171,9 @@ afterEach(() => {
 
 describe('use-file-picker-core upload queue', () => {
   it('creates queued tasks when handling custom uploads', async () => {
-    let resolveUpload: (value: { attachment?: { id: number } }) => void;
+    let resolveUpload:
+      | ((value: { attachment?: { id: number } }) => void)
+      | undefined;
     const uploadPromise = new Promise<{ attachment?: { id: number } }>(
       (resolve) => {
         resolveUpload = resolve;
@@ -180,10 +182,7 @@ describe('use-file-picker-core upload queue', () => {
     mockAdminApi.smartUploadFile.mockReturnValue(uploadPromise);
 
     const { vm } = mountHarness();
-    const file = createFile(
-      'large.bin',
-      FILE_PICKER_BATCH_SIZE_THRESHOLD + 1,
-    );
+    const file = createFile('large.bin', FILE_PICKER_BATCH_SIZE_THRESHOLD + 1);
     const onSuccess = vi.fn();
 
     vm.handleCustomUpload({ file, onSuccess });
@@ -196,12 +195,17 @@ describe('use-file-picker-core upload queue', () => {
     expect(vm.uploadTasks[0]?.name).toBe('large.bin');
     expect(vm.uploadTasks[0]?.status).toBe('uploading');
 
-    resolveUpload!({ attachment: { id: 10 } });
+    if (!resolveUpload) {
+      throw new Error('Expected upload resolver to be initialized');
+    }
+    resolveUpload({ attachment: { id: 10 } });
     await flushPromises();
   });
 
   it('batches small files and queues large files during drop uploads', async () => {
-    let resolveUpload: (value: { attachment?: { id: number } }) => void;
+    let resolveUpload:
+      | ((value: { attachment?: { id: number } }) => void)
+      | undefined;
     const uploadPromise = new Promise<{ attachment?: { id: number } }>(
       (resolve) => {
         resolveUpload = resolve;
@@ -258,7 +262,10 @@ describe('use-file-picker-core upload queue', () => {
       ]),
     );
 
-    resolveUpload!({ attachment: { id: 200 } });
+    if (!resolveUpload) {
+      throw new Error('Expected upload resolver to be initialized');
+    }
+    resolveUpload({ attachment: { id: 200 } });
   });
 
   it('selects uploaded ids and refreshes the list after success', async () => {
@@ -297,7 +304,9 @@ describe('use-file-picker-core upload queue', () => {
     expect(vm.uploadTasks.map((task) => task.status)).toEqual(
       expect.arrayContaining(['pending', 'error', 'uploading']),
     );
-    expect(vm.uploadTasks.some((task) => task.status === 'success')).toBe(false);
+    expect(vm.uploadTasks.some((task) => task.status === 'success')).toBe(
+      false,
+    );
     expect(vm.uploadTasks.some((task) => task.status === 'cancelled')).toBe(
       false,
     );
@@ -307,7 +316,9 @@ describe('use-file-picker-core upload queue', () => {
   });
 
   it('retries all error tasks and restarts uploads', async () => {
-    let resolveUpload: (value: { attachment?: { id: number } }) => void;
+    let resolveUpload:
+      | ((value: { attachment?: { id: number } }) => void)
+      | undefined;
     const uploadPromise = new Promise<{ attachment?: { id: number } }>(
       (resolve) => {
         resolveUpload = resolve;
@@ -329,6 +340,9 @@ describe('use-file-picker-core upload queue', () => {
       true,
     );
 
-    resolveUpload!({ attachment: { id: 301 } });
+    if (!resolveUpload) {
+      throw new Error('Expected upload resolver to be initialized');
+    }
+    resolveUpload({ attachment: { id: 301 } });
   });
 });

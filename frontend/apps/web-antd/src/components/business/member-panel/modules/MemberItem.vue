@@ -2,6 +2,7 @@
 import type { MemberPanelMember } from '../types';
 
 import type { IdentityDisplayModel } from '#/components/business/identity-display';
+import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 
 import { computed } from 'vue';
 
@@ -13,7 +14,6 @@ import { IdentityDisplay } from '#/components/business/identity-display';
 import { $t } from '#/locales';
 import { formatDate } from '#/utils/common';
 import IdentityTrigger from '#/views/_shared/identity/IdentityTrigger.vue';
-import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-interactions';
 
 const props = withDefaults(
   defineProps<{
@@ -239,7 +239,6 @@ function handleForceLogout() {
           </template>
         </Button>
       </Tooltip>
-
     </div>
   </div>
 </template>

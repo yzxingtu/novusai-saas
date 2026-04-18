@@ -91,6 +91,7 @@ function closeDrawer() {
           <MonitoringConversationMessagesCard
             :i18n-prefix="i18nPrefix"
             :messages="detail.message_list"
+            :scope="scope"
           />
           <MonitoringConversationCallTraceCard
             :call-trace="detail.call_trace"
@@ -102,4 +103,6 @@ function closeDrawer() {
   </Drawer>
 </template>
 
-<style src="./monitoring-conversation/monitoring-conversation-drawer.css"></style>
+<style
+  src="./monitoring-conversation/monitoring-conversation-drawer.css"
+></style>

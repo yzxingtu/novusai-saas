@@ -11,10 +11,10 @@ import { Modal } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 
-import WysiwygFormBody from './WysiwygFormBody.vue';
-import WysiwygFormHeader from './WysiwygFormHeader.vue';
 import { useWysiwygFormPreview } from './useWysiwygFormPreview';
 import { wysiwygFormContextKey } from './wysiwyg-form-context';
+import WysiwygFormBody from './WysiwygFormBody.vue';
+import WysiwygFormHeader from './WysiwygFormHeader.vue';
 
 defineOptions({ name: 'WysiwygFormView' });
 

@@ -91,10 +91,7 @@ function resolveBooleanExtra(
   return typeof fallbackValue === 'boolean' ? fallbackValue : undefined;
 }
 
-function hasObjectKey(
-  extra: Record<string, unknown>,
-  key: string,
-): boolean {
+function hasObjectKey(extra: Record<string, unknown>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(extra, key);
 }
 
@@ -202,25 +199,25 @@ function getIdentity(option: IdentityOptionLike | undefined) {
 }
 
 .identity-remote-select :deep(.ant-select-selection-item) {
-  align-items: center;
   display: flex;
-  height: auto !important;
+  align-items: center;
   justify-content: flex-start;
-  max-width: 100%;
-  min-width: 0;
-  text-align: left;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  height: auto !important;
+  text-align: left;
 }
 
 .identity-remote-select :deep(.ant-select-selection-item-content) {
+  width: 100%;
   min-width: 0;
   text-align: left;
-  width: 100%;
 }
 
 .identity-remote-select :deep(.ant-select-selection-overflow) {
-  align-items: flex-start;
   gap: 4px;
+  align-items: flex-start;
 }
 
 .identity-remote-select :deep(.ant-select-selection-overflow-item) {

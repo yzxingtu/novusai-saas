@@ -2,6 +2,7 @@ import type { UISnapshot } from './ui-snapshot-generator';
 
 import { tAiRuntime } from './i18n';
 import {
+  getCurrentRouteSecurityPolicy,
   normalizeText,
   queryElementByLocator,
   readFormLikeElementValue,
@@ -13,7 +14,9 @@ function findSurfaceIdForElement(
   element: HTMLElement,
   snapshot: UISnapshot,
 ): string | undefined {
-  const selectors: Array<[string, UISnapshot['surface_stack'][number]['kind']]> = [
+  const selectors: Array<
+    [string, UISnapshot['surface_stack'][number]['kind']]
+  > = [
     ['.ant-popover', 'popover'],
     ['.ant-dropdown, .ant-select-dropdown', 'dropdown'],
     ['.ant-modal, .ant-modal-wrap, [role="dialog"]', 'modal'],
@@ -23,7 +26,11 @@ function findSurfaceIdForElement(
     if (!element.closest(selector)) {
       continue;
     }
-    for (let index = snapshot.surface_stack.length - 1; index >= 0; index -= 1) {
+    for (
+      let index = snapshot.surface_stack.length - 1;
+      index >= 0;
+      index -= 1
+    ) {
       const surface = snapshot.surface_stack[index];
       if (surface?.kind === kind) {
         return surface.surface_id;
@@ -34,6 +41,7 @@ function findSurfaceIdForElement(
 }
 
 function readElementText(element: HTMLElement): string | undefined {
+  const routePolicy = getCurrentRouteSecurityPolicy();
   const decision = resolveAISecurityPolicy({
     element,
     fieldName: element.getAttribute('name') || undefined,
@@ -43,6 +51,7 @@ function readElementText(element: HTMLElement): string | undefined {
       element instanceof HTMLSelectElement
         ? element.type || undefined
         : undefined,
+    routePolicy,
   });
   if (
     element instanceof HTMLInputElement ||
@@ -63,13 +72,15 @@ function readRegionItems(
   element: HTMLElement,
 ): Array<{ label?: string; value?: string }> {
   const items: Array<{ label?: string; value?: string }> = [];
-  const labels = element.querySelectorAll<HTMLElement>('label,[data-label],dt,th');
+  const labels = element.querySelectorAll<HTMLElement>(
+    'label,[data-label],dt,th',
+  );
   labels.forEach((labelElement) => {
     if (items.length >= 50) {
       return;
     }
     const label = normalizeText(
-      labelElement.getAttribute('data-label') ||
+      labelElement.dataset.label ||
         labelElement.innerText ||
         labelElement.textContent ||
         '',
@@ -107,7 +118,8 @@ export function readRuntimeRegion(locator: string): Record<string, unknown> {
     normalizeText(
       element.getAttribute('aria-label') ||
         element.getAttribute('title') ||
-        element.querySelector('h1,h2,h3,h4,.ant-card-head-title')?.textContent ||
+        element.querySelector('h1,h2,h3,h4,.ant-card-head-title')
+          ?.textContent ||
         '',
       200,
     ) || undefined;
@@ -127,26 +139,30 @@ export function readRuntimeTable(args: {
   pageSize?: number;
 }): Record<string, unknown> {
   const element = queryElementByLocator(args.locator);
-  const table = element?.matches('table') ? element : element?.querySelector('table');
+  const table = element?.matches('table')
+    ? element
+    : element?.querySelector('table');
   if (!(table instanceof HTMLTableElement)) {
-    throw new Error(tAiRuntime('tableLocatorNotFound', { locator: args.locator }));
+    throw new TypeError(
+      tAiRuntime('tableLocatorNotFound', { locator: args.locator }),
+    );
   }
   const snapshot = buildSnapshot('compact').snapshot;
   const page = Math.max(args.page ?? 1, 1);
   const pageSize = Math.max(Math.min(args.pageSize ?? 20, 100), 1);
-  const headerCells = filterTableCells(
-    Array.from(table.querySelectorAll<HTMLElement>('thead th')),
-  );
+  const headerCells = filterTableCells([
+    ...table.querySelectorAll<HTMLElement>('thead th'),
+  ]);
   const headers =
     headerCells.length > 0
       ? headerCells
-      : filterTableCells(
-          Array.from(table.querySelectorAll<HTMLElement>('tbody tr:first-child td')),
-        );
-  const allRows = Array.from(table.querySelectorAll<HTMLTableRowElement>('tbody tr'));
+      : filterTableCells([
+          ...table.querySelectorAll<HTMLElement>('tbody tr:first-child td'),
+        ]);
+  const allRows = [...table.querySelectorAll<HTMLTableRowElement>('tbody tr')];
   const startIndex = (page - 1) * pageSize;
   const rows = allRows.slice(startIndex, startIndex + pageSize).map((row) => {
-    const cells = Array.from(row.querySelectorAll<HTMLElement>('td'));
+    const cells = [...row.querySelectorAll<HTMLElement>('td')];
     const values = filterTableCells(cells);
     const normalizedRow: Record<string, unknown> = {};
     values.forEach((value, index) => {
@@ -170,12 +186,21 @@ export function readRuntimeTable(args: {
 export function listRuntimeInteractables(
   surfaceId?: string,
 ): Record<string, unknown> {
+  const routePolicy = getCurrentRouteSecurityPolicy();
   const snapshot = buildSnapshot('compact').snapshot;
-  const items = snapshot.nodes
+  const matchingItems = snapshot.nodes
     .filter(
       (node) =>
         node.interactable ||
-        ['button', 'input', 'link', 'select', 'tab'].includes(node.kind),
+        [
+          'button',
+          'input',
+          'link',
+          'pagination',
+          'select',
+          'tab',
+          'table',
+        ].includes(node.kind),
     )
     .filter((node) => !surfaceId || node.surface_id === surfaceId)
     .map((node) => {
@@ -183,6 +208,7 @@ export function listRuntimeInteractables(
       const decision = resolveAISecurityPolicy({
         actionKind: node.kind === 'button' ? 'click' : node.kind,
         element,
+        routePolicy,
       });
       return {
         enabled: !node.kind || decision.canAct,
@@ -192,12 +218,12 @@ export function listRuntimeInteractables(
         requires_confirmation: decision.requireConfirm,
         surface_id: node.surface_id,
       };
-    })
-    .slice(0, 200);
+    });
+  const items = matchingItems.slice(0, 200);
   return {
     count: items.length,
     items,
     surface_id: surfaceId,
-    truncated: snapshot.nodes.length > items.length,
+    truncated: matchingItems.length > items.length,
   };
 }

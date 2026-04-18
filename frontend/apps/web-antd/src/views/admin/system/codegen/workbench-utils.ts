@@ -61,7 +61,10 @@ export function buildWorkbenchItemMessage(item: CodegenWorkbenchItem): string {
   return $t('admin.system.codegen.workbench.neverGenerated');
 }
 
-export function getActionErrorMessage(error: unknown, fallback: string): string {
+export function getActionErrorMessage(
+  error: unknown,
+  fallback: string,
+): string {
   const response = (
     error as {
       message?: string;
@@ -207,7 +210,9 @@ export function getWorkbenchFilterConfig(
   return {
     label: stat?.label ?? $t('admin.system.codegen.workbench.recentIssues'),
     hint: stat?.hint ?? $t('admin.system.codegen.workbench.recentIssuesHint'),
-    mode: isStatusWorkbenchFilter(key) ? ('table' as const) : ('panel' as const),
+    mode: isStatusWorkbenchFilter(key)
+      ? ('table' as const)
+      : ('panel' as const),
   };
 }
 

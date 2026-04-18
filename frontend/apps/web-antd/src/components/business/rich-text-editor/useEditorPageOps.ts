@@ -1,13 +1,14 @@
 /**
- * Rich text editor runtime adapter registration.
- * 富文本编辑器 runtime 专项适配器注册。
+ * Rich text editor page-AI exposure registration.
+ * 富文本编辑器 page-AI 暴露能力注册。
  *
- * This module no longer registers operations into legacy page-operation
- * registries. Instead, it exposes editor capabilities through the new runtime
- * adapter provider registry.
+ * This module no longer participates in legacy page-operation registries.
+ * Instead, it exposes editor context and callable operations through the
+ * shared page-AI exposure seam.
  */
 
 import type { Editor } from '@tiptap/core';
+
 import type { MaybeRefOrGetter, ShallowRef } from 'vue';
 
 import { toValue, watchEffect } from 'vue';
@@ -22,22 +23,20 @@ import {
   createEditorEnumCommandOperation,
   resolveEditorEnumParam,
   resolveEditorIntParam,
-} from './ai/runtime-command-helpers';
+} from './ai/editor-command-helpers';
 import {
   buildEditorContentParams,
   createEditorContentMutationOperation,
   getEditorContentFormat,
   isEditorContentInputError,
   resolveEditorContentInput,
-} from './ai/runtime-content-helpers';
+} from './ai/editor-content-helpers';
+import {
+  createParameterizedPageAIOperation,
+  createSimplePageAIOperation,
+} from './ai/editor-page-ai-operations';
+import { registerRichTextPageAIExposure } from './ai/editor-page-ai-exposure';
 import { normalizeRuntimePageKey } from './ai/page-key';
-import {
-  registerRichTextRuntimeProvider,
-} from './ai/runtime-adapter-registry';
-import {
-  createParameterizedRuntimeOperation,
-  createSimpleRuntimeOperation,
-} from './ai/runtime-operation-types';
 import { validateReplaceContentParams } from './replaceContentValidator';
 
 const md = new MarkdownIt({ html: true, breaks: true });
@@ -142,7 +141,9 @@ const LIST_TYPES = ['bullet', 'ordered'] as const;
 const TEXT_ALIGN_OPTIONS = ['left', 'center', 'right', 'justify'] as const;
 const LINK_ACTIONS = ['set', 'unset'] as const;
 
-function getTextFormatLabel(cmd: (typeof TEXT_FORMAT_COMMANDS)[number]): string {
+function getTextFormatLabel(
+  cmd: (typeof TEXT_FORMAT_COMMANDS)[number],
+): string {
   const keyMap: Record<(typeof TEXT_FORMAT_COMMANDS)[number], string> = {
     bold: 'common.bold',
     italic: 'common.italic',
@@ -162,9 +163,7 @@ function getListTypeLabel(type: (typeof LIST_TYPES)[number]): string {
   return $t(keyMap[type]);
 }
 
-function getTextAlignLabel(
-  align: (typeof TEXT_ALIGN_OPTIONS)[number],
-): string {
+function getTextAlignLabel(align: (typeof TEXT_ALIGN_OPTIONS)[number]): string {
   const keyMap: Record<(typeof TEXT_ALIGN_OPTIONS)[number], string> = {
     left: 'common.alignLeft',
     center: 'common.alignCenter',
@@ -207,7 +206,7 @@ export function useEditorPageOps(
 
     const editorInstanceId = resolveRuntimeEditorId(editor);
     const providerId = `rich-text-editor:${pageKey}:${editorInstanceId}`;
-    const unregister = registerRichTextRuntimeProvider({
+    const unregister = registerRichTextPageAIExposure({
       providerId,
       pageKey,
       editorInstanceId,
@@ -228,7 +227,7 @@ export function useEditorPageOps(
       getOperations: () => {
         const allowMutations = toValue(options.editable) !== false;
         const editorOps = [
-          createSimpleRuntimeOperation({
+          createSimplePageAIOperation({
             name: 'get_editor_text',
             label: $t('common.getEditorText'),
             description: $t('common.editorToolDesc.getEditorText'),
@@ -245,7 +244,7 @@ export function useEditorPageOps(
               };
             },
           }),
-          createSimpleRuntimeOperation({
+          createSimplePageAIOperation({
             name: 'get_editor_html',
             label: $t('common.getEditorHTML'),
             description: $t('common.editorToolDesc.getEditorHtml'),
@@ -256,8 +255,7 @@ export function useEditorPageOps(
               const maxLen = 8000;
               const cut = html.length <= maxLen ? html : html.slice(0, maxLen);
               const lastClose = cut.lastIndexOf('>');
-              const safe =
-                lastClose === -1 ? cut : cut.slice(0, lastClose + 1);
+              const safe = lastClose === -1 ? cut : cut.slice(0, lastClose + 1);
               const hint = $t('common.editorToolDesc.replaceSectionHint');
               return {
                 success: true,
@@ -268,7 +266,7 @@ export function useEditorPageOps(
               };
             },
           }),
-          createSimpleRuntimeOperation({
+          createSimplePageAIOperation({
             name: 'get_selection',
             label: $t('common.getSelection'),
             description: $t('common.editorToolDesc.getSelection'),
@@ -301,7 +299,7 @@ export function useEditorPageOps(
               return $t('common.editorOp.insertedChars', { count: raw.length });
             },
           }),
-          createParameterizedRuntimeOperation({
+          createParameterizedPageAIOperation({
             name: 'replace_content',
             label: $t('common.replaceContent'),
             description: $t('common.editorToolDesc.replaceContent'),
@@ -342,7 +340,7 @@ export function useEditorPageOps(
               };
             },
           }),
-          createParameterizedRuntimeOperation({
+          createParameterizedPageAIOperation({
             name: 'replace_section',
             label: $t('common.replaceSection'),
             description: $t('common.editorToolDesc.replaceSection'),
@@ -398,13 +396,14 @@ export function useEditorPageOps(
                 const excerpt = currentHtml.slice(0, snippetLen);
                 return {
                   success: false,
-                  message: `${$t(
-                    'common.editorOp.oldHtmlNotFound',
-                  )} ${$t('common.editorToolDesc.currentDocumentExcerpt', {
-                    count: snippetLen,
-                    excerpt,
-                    suffix: currentHtml.length > snippetLen ? '...' : '',
-                  })}`,
+                  message: `${$t('common.editorOp.oldHtmlNotFound')} ${$t(
+                    'common.editorToolDesc.currentDocumentExcerpt',
+                    {
+                      count: snippetLen,
+                      excerpt,
+                      suffix: currentHtml.length > snippetLen ? '...' : '',
+                    },
+                  )}`,
                   error_type: 'target_not_found',
                 };
               }
@@ -435,12 +434,9 @@ export function useEditorPageOps(
                   error instanceof Error ? error.message : String(error);
                 return {
                   success: false,
-                  message: $t(
-                    'common.editorOp.replacementInvalidStructure',
-                    {
-                      error: errMsg,
-                    },
-                  ),
+                  message: $t('common.editorOp.replacementInvalidStructure', {
+                    error: errMsg,
+                  }),
                   error_type: 'invalid_html',
                 };
               }
@@ -467,7 +463,7 @@ export function useEditorPageOps(
               return $t('common.editorOp.appendedChars', { count: raw.length });
             },
           }),
-          createSimpleRuntimeOperation({
+          createSimplePageAIOperation({
             name: 'select_all',
             label: $t('common.selectAll'),
             description: $t('common.editorToolDesc.selectAll'),
@@ -480,7 +476,7 @@ export function useEditorPageOps(
               };
             },
           }),
-          createSimpleRuntimeOperation({
+          createSimplePageAIOperation({
             name: 'undo',
             label: $t('common.undo'),
             description: $t('common.editorToolDesc.undo'),
@@ -495,7 +491,7 @@ export function useEditorPageOps(
               };
             },
           }),
-          createSimpleRuntimeOperation({
+          createSimplePageAIOperation({
             name: 'redo',
             label: $t('common.redo'),
             description: $t('common.editorToolDesc.redo'),
@@ -539,7 +535,7 @@ export function useEditorPageOps(
               }),
             failureMessage: $t('common.editorOp.formatFailed'),
           }),
-          createSimpleRuntimeOperation({
+          createSimplePageAIOperation({
             name: 'clear_formatting',
             label: $t('common.clearFormatting'),
             description: $t('common.editorToolDesc.clearFormatting'),
@@ -552,13 +548,15 @@ export function useEditorPageOps(
               };
             },
           }),
-          createParameterizedRuntimeOperation({
+          createParameterizedPageAIOperation({
             name: 'set_heading',
             label: $t('common.setHeading'),
             description: $t('common.editorToolDesc.setHeading'),
             readonly: false,
             params: {
-              level: buildEditorNumberParam($t('common.editorParam.headingLevel')),
+              level: buildEditorNumberParam(
+                $t('common.editorParam.headingLevel'),
+              ),
             },
             action: async (params) => {
               const level = resolveEditorIntParam(params.level, {
@@ -593,7 +591,7 @@ export function useEditorPageOps(
               }),
             failureMessage: $t('common.editorOp.formatFailed'),
           }),
-          createSimpleRuntimeOperation({
+          createSimplePageAIOperation({
             name: 'toggle_blockquote',
             label: $t('common.toggleBlockquote'),
             description: $t('common.editorToolDesc.toggleBlockquote'),
@@ -606,7 +604,7 @@ export function useEditorPageOps(
               };
             },
           }),
-          createSimpleRuntimeOperation({
+          createSimplePageAIOperation({
             name: 'toggle_code_block',
             label: $t('common.toggleCodeBlock'),
             description: $t('common.editorToolDesc.toggleCodeBlock'),
@@ -619,7 +617,7 @@ export function useEditorPageOps(
               };
             },
           }),
-          createSimpleRuntimeOperation({
+          createSimplePageAIOperation({
             name: 'insert_horizontal_rule',
             label: $t('common.insertHorizontalRule'),
             description: $t('common.editorToolDesc.insertHorizontalRule'),
@@ -650,7 +648,7 @@ export function useEditorPageOps(
               }),
             failureMessage: $t('common.editorOp.formatFailed'),
           }),
-          createParameterizedRuntimeOperation({
+          createParameterizedPageAIOperation({
             name: 'manage_link',
             label: $t('common.manageLink'),
             description: $t('common.editorToolDesc.manageLink'),
@@ -679,7 +677,12 @@ export function useEditorPageOps(
                 };
               }
               if (action === 'unset') {
-                editor.chain().focus().extendMarkRange('link').unsetLink().run();
+                editor
+                  .chain()
+                  .focus()
+                  .extendMarkRange('link')
+                  .unsetLink()
+                  .run();
                 return {
                   success: true,
                   message: $t('common.editorOp.linkRemoved'),
@@ -704,7 +707,7 @@ export function useEditorPageOps(
               };
             },
           }),
-          createParameterizedRuntimeOperation({
+          createParameterizedPageAIOperation({
             name: 'insert_table',
             label: $t('common.insertTable'),
             description: $t('common.editorToolDesc.insertTable'),

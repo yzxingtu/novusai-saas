@@ -44,6 +44,7 @@
     "precheck:dep": "pnpm run tooling:stub",
     "check:dep": "vsh check-dep",
     "check:type": "turbo run typecheck",
+    "type-check": "pnpm run check:type",
     "clean": "node ./scripts/clean.mjs",
     "commit": "czg",
     "predev": "pnpm run tooling:stub",

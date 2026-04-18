@@ -1,7 +1,8 @@
+import type { useRichTextTaskOrchestration } from '../use-rich-text-task-orchestration';
+
 import type { PageContext } from '#/api/shared/ai-chat';
 import type { SourceEditorRegistration } from '#/components/business/rich-text-editor/types';
 import type { AgentItem, ChatMessage, RichTextAITask } from '#/types/ai-chat';
-import type { useRichTextTaskOrchestration } from '../use-rich-text-task-orchestration';
 
 import { flushPromises, mount } from '@vue/test-utils';
 import { defineComponent, reactive, ref } from 'vue';
@@ -121,7 +122,10 @@ export interface MockAIPanelStore {
   visible: boolean;
 }
 
-export function requireElement<T>(value: null | T | undefined, message: string): T {
+export function requireElement<T>(
+  value: null | T | undefined,
+  message: string,
+): T {
   expect(value).toBeTruthy();
   if (value === null || value === undefined) {
     throw new Error(message);
@@ -333,25 +337,25 @@ export async function flushPanel() {
 
 export type PanelMountOverrides = {
   attachTo?: Element;
-  global?: { stubs?: Record<string, unknown> } & Record<string, unknown>;
+  global?: Record<string, unknown> & { stubs?: Record<string, unknown> };
   props?: Record<string, unknown>;
 };
 
 export function createPanelMountOptions(overrides: PanelMountOverrides = {}) {
   const stubs = {
     ChatMessageItem: true,
-    ...(overrides.global?.stubs ?? {}),
+    ...overrides.global?.stubs,
   };
 
   return {
     props: {
       apiPrefix: '/tenant',
       uploadUrl: '/upload',
-      ...(overrides.props ?? {}),
+      ...overrides.props,
     },
     attachTo: overrides.attachTo ?? document.body,
     global: {
-      ...(overrides.global ?? {}),
+      ...overrides.global,
       stubs,
     },
   };
@@ -575,8 +579,9 @@ export async function createUseAIChatMock() {
       selectedAgentId: selectedAgentIdValue,
       selectedAgent: vue.computed(
         () =>
-          agents.value.find((agent) => agent.id === selectedAgentIdValue.value) ??
-          null,
+          agents.value.find(
+            (agent) => agent.id === selectedAgentIdValue.value,
+          ) ?? null,
       ),
       loadAgents: loadAgentsMock,
       conversations,
@@ -610,7 +615,8 @@ export async function createUseAIChatMock() {
       handleInputKeyDown: vi.fn(() => false),
       selectMentionAgent: vi.fn(),
       selectMentionKnowledgeBase: vi.fn(),
-      removeSelectedKnowledgeBase: composerInteractionState.removeSelectedKnowledgeBase,
+      removeSelectedKnowledgeBase:
+        composerInteractionState.removeSelectedKnowledgeBase,
       selectedKBIds: composerInteractionState.selectedKBIds,
       clearMentionedAgent: vi.fn(),
       cleanup: vi.fn(),
@@ -627,8 +633,10 @@ export async function createUseAIChatMock() {
       rejectAction: vi.fn(),
       confirmConsent: vi.fn(),
       rejectConsent: vi.fn(),
-      interactionMode: vue.ref<'confirm' | 'trusted_auto'>('confirm'),
-      interactionModeEffective: vue.ref<'confirm' | 'trusted_auto'>('confirm'),
+      interactionMode: vue.ref<'confirm' | 'trusted_auto'>('trusted_auto'),
+      interactionModeEffective: vue.ref<'confirm' | 'trusted_auto'>(
+        'trusted_auto',
+      ),
       clickActionButton: vi.fn(),
       regenerateMessage: vi.fn(),
       editAndResend: vi.fn(),
@@ -659,7 +667,8 @@ export async function createSourceEditorRegistryMock() {
   return {
     prepareRichTextContent: sourceEditorMockState.prepareRichTextContent,
     resolveSourceEditor: (pageKey: string, editorInstanceId: string) =>
-      sourceEditorMockState.editors.get(`${pageKey}::${editorInstanceId}`) ?? null,
+      sourceEditorMockState.editors.get(`${pageKey}::${editorInstanceId}`) ??
+      null,
     sourceEditorRegistryVersion: sourceEditorMockState.version,
   };
 }
@@ -687,7 +696,10 @@ export function createUsePageSessionMock() {
 
 export function createUsePageScreenshotMock() {
   return {
-    DEFAULT_PAGE_SCREENSHOT_EXCLUDE_SELECTORS: ['[data-ai-panel]', '.ant-message'],
+    DEFAULT_PAGE_SCREENSHOT_EXCLUDE_SELECTORS: [
+      '[data-ai-panel]',
+      '.ant-message',
+    ],
     usePageScreenshot: () => ({
       captureAndUpload: vi.fn(),
       capturing: ref(false),
@@ -716,7 +728,8 @@ export function createRuntimeBridgeMock() {
     }),
     getRuntimeThinPageContext: (explicitPageKey?: string) => {
       const context = pageContextValue.value;
-      const pageKey = explicitPageKey?.trim() || context?.page_key?.trim() || '';
+      const pageKey =
+        explicitPageKey?.trim() || context?.page_key?.trim() || '';
       if (!pageKey) {
         return null;
       }

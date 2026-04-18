@@ -1,16 +1,21 @@
+import type {
+  UIAdapterResult,
+  UIComponentAdapter,
+  UIGraphNode,
+} from '../types';
+
 import {
   buildElementLocator,
   isElementVisible,
   readElementLabel,
 } from '../dom-scanner';
-import type { UIAdapterResult, UIComponentAdapter, UIGraphNode } from '../types';
 
 export const ANTD_BUTTON_ADAPTER_ID = 'antd-button';
 
 function createButtonNode(
   element: HTMLElement,
   priority: number,
-): UIGraphNode | null {
+): null | UIGraphNode {
   if (!isElementVisible(element)) {
     return null;
   }
@@ -42,7 +47,9 @@ export function createAntdButtonAdapter(priority = 50): UIComponentAdapter {
       const nodes: UIGraphNode[] = [];
       const seen = new Set<string>();
       context.root
-        .querySelectorAll<HTMLElement>('button.ant-btn, .ant-btn[role="button"]')
+        .querySelectorAll<HTMLElement>(
+          'button.ant-btn, .ant-btn[role="button"]',
+        )
         .forEach((element) => {
           const node = createButtonNode(element, priority);
           if (!node) {

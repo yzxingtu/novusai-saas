@@ -1,5 +1,6 @@
-import type { AIPageMode } from '@vben/types';
 import type { ComponentPublicInstance } from 'vue';
+
+import type { AIPageMode } from '@vben/types';
 
 import { computed, ref, toRef } from 'vue';
 
@@ -13,13 +14,13 @@ import { getAgentInputVariables } from '#/types/ai-chat';
 import { normalizePageAIMode } from '#/utils/ai-page-capabilities';
 
 import { useAgentRouter } from './use-agent-router';
+import { useAIChatSlidePanelShellBindings } from './use-ai-chat-slide-panel-shell-bindings';
 import { usePageAICapability } from './use-page-ai-capability';
 import { usePanelHistory } from './use-panel-history';
 import { usePanelSendMessage } from './use-panel-send-message';
 import { usePanelShellActions } from './use-panel-shell-actions';
 import { usePanelShellContext } from './use-panel-shell-context';
 import { usePendingPageOps } from './use-pending-page-ops';
-import { useAIChatSlidePanelShellBindings } from './use-ai-chat-slide-panel-shell-bindings';
 
 export interface AIChatSlidePanelShellProps {
   aiMode?: AIPageMode;
@@ -34,8 +35,7 @@ export interface AIChatSlidePanelShellProps {
 }
 
 export interface AIChatSlidePanelShellEmit {
-  (event: 'conversationRestored'): void;
-  (event: 'messageSent'): void;
+  (event: 'conversationRestored' | 'messageSent'): void;
 }
 
 export function useAIChatSlidePanelShell(

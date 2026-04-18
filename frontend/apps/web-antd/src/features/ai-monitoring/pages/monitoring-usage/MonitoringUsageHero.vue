@@ -2,15 +2,29 @@
 import type { Dayjs } from 'dayjs';
 
 import type { MonitoringScope } from '../../api';
+import type { DateRange } from './use-monitoring-usage-dashboard';
 
 import { Button, DatePicker } from 'ant-design-vue';
 
 import AIPageHeroCard from '#/components/business/ai-page-hero/AIPageHeroCard.vue';
 import { $t } from '#/locales';
 
-import type { DateRange } from './use-monitoring-usage-dashboard';
-
 defineOptions({ name: 'MonitoringUsageHero' });
+
+defineProps<{
+  dateRange: DateRange;
+  heroChips: HeroChip[];
+  heroMetrics: HeroMetric[];
+  i18nPrefix: string;
+  presets: PresetOption[];
+  scope: MonitoringScope;
+  title: string;
+}>();
+
+const emits = defineEmits<{
+  preset: [range: DateRange];
+  rangeChange: [range: DateRange];
+}>();
 
 interface PresetOption {
   key: string;
@@ -31,21 +45,6 @@ interface HeroChip {
   text: string;
 }
 
-defineProps<{
-  dateRange: DateRange;
-  heroChips: HeroChip[];
-  heroMetrics: HeroMetric[];
-  i18nPrefix: string;
-  presets: PresetOption[];
-  scope: MonitoringScope;
-  title: string;
-}>();
-
-const emits = defineEmits<{
-  preset: [range: DateRange];
-  'range-change': [range: DateRange];
-}>();
-
 function handleDateChange(value: [Dayjs, Dayjs] | [string, string] | null) {
   if (!value) {
     return;
@@ -53,7 +52,7 @@ function handleDateChange(value: [Dayjs, Dayjs] | [string, string] | null) {
   if (typeof value[0] === 'string' || typeof value[1] === 'string') {
     return;
   }
-  emits('range-change', value as DateRange);
+  emits('rangeChange', value as DateRange);
 }
 </script>
 

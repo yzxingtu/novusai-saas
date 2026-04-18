@@ -14,8 +14,8 @@ import type { IdentityDetailMeta } from '#/views/_shared/identity/identity-inter
 
 import { computed, onMounted, ref } from 'vue';
 
-import { createIdentityDisplayModel } from '#/components/business/identity-display';
 import { getTenantDashboardOverviewApi } from '#/api/tenant/dashboard';
+import { createIdentityDisplayModel } from '#/components/business/identity-display';
 import { $t } from '#/locales';
 import {
   useNotificationStore,
@@ -31,11 +31,14 @@ import {
   getSocketStatusTone,
 } from '#/views/_shared/dashboard/utils';
 
-type TenantDashboardActivityItem =
-  TenantDashboardOverview['recent_activities'][number] &
-    DashboardActivityIdentitySource;
+type TenantDashboardActivityItem = DashboardActivityIdentitySource &
+  TenantDashboardOverview['recent_activities'][number];
 
-const DASHBOARD_IDENTITY_TYPES = new Set(['admin', 'tenant_admin', 'tenant_user']);
+const DASHBOARD_IDENTITY_TYPES = new Set([
+  'admin',
+  'tenant_admin',
+  'tenant_user',
+]);
 
 function resolveActivityRoleName(
   activity: DashboardActivityIdentitySource,
@@ -46,7 +49,9 @@ function resolveActivityRoleName(
   return activity.role_name?.trim() || undefined;
 }
 
-function hasActivityActorName(activity: DashboardActivityIdentitySource): boolean {
+function hasActivityActorName(
+  activity: DashboardActivityIdentitySource,
+): boolean {
   return [activity.display_name, activity.nickname, activity.username].some(
     (value) => typeof value === 'string' && value.trim().length > 0,
   );
@@ -85,12 +90,14 @@ function buildDashboardActivityActor(
     meta: buildActivityIdentityMeta(activity),
     model: createIdentityDisplayModel({
       avatar: activity.avatar ?? undefined,
-      displayName: hasActorName ? activity.display_name ?? undefined : systemLabel,
+      displayName: hasActorName
+        ? (activity.display_name ?? undefined)
+        : systemLabel,
       id: activity.user_id ?? `tenant-dashboard-activity-${activity.id}`,
       isActive: activity.is_active,
       isLeader: activity.is_leader,
       isOwner: activity.is_owner,
-      nickname: activity.nickname ?? (!hasActorName ? systemLabel : undefined),
+      nickname: activity.nickname ?? (hasActorName ? undefined : systemLabel),
       orgNodeId: activity.org_node_id ?? undefined,
       orgNodeName: activity.org_node_name ?? undefined,
       roleName,
@@ -455,8 +462,9 @@ export function useTenantDashboard() {
         actor: buildDashboardActivityActor(nextActivity, systemActorLabel),
         createdAt: nextActivity.created_at,
         detail:
-          [nextActivity.module, nextActivity.action].filter(Boolean).join(' / ') ||
-          $t('tenant.dashboard.cockpit.unknownModule'),
+          [nextActivity.module, nextActivity.action]
+            .filter(Boolean)
+            .join(' / ') || $t('tenant.dashboard.cockpit.unknownModule'),
         id: nextActivity.id,
         method: nextActivity.method,
         path: nextActivity.path,

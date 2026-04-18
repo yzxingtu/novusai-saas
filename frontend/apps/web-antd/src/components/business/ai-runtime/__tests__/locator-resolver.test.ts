@@ -2,10 +2,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import {
-  LocatorResolutionError,
-  LocatorResolver,
-} from '../locator-resolver';
+import { LocatorResolutionError, LocatorResolver } from '../locator-resolver';
 
 describe('locatorResolver', () => {
   const expectLocatorError = (
@@ -37,10 +34,14 @@ describe('locatorResolver', () => {
     `;
 
     const resolver = new LocatorResolver();
-    expect(resolver.resolve('css:#create-agent').element.id).toBe('create-agent');
+    expect(resolver.resolve('css:#create-agent').element.id).toBe(
+      'create-agent',
+    );
     expect(resolver.resolve('#create-agent').element.id).toBe('create-agent');
     expect(resolver.resolve('id:create-agent').element.id).toBe('create-agent');
-    expect(resolver.resolve('name:agentCreate').element.id).toBe('create-agent');
+    expect(resolver.resolve('name:agentCreate').element.id).toBe(
+      'create-agent',
+    );
     expect(resolver.resolve('testid:create-agent-testid').element.id).toBe(
       'create-agent',
     );
@@ -103,9 +104,9 @@ describe('locatorResolver', () => {
       resolver.resolve('subm');
     }, 'ambiguous');
     expect(typed.candidates.length).toBeGreaterThan(1);
-    expect(typed.candidates.every((item) => item.label.includes('Submit'))).toBe(
-      true,
-    );
+    expect(
+      typed.candidates.every((item) => item.label.includes('Submit')),
+    ).toBe(true);
   });
 
   it('throws ambiguous for css-like exact locator when multiple visible elements match', () => {
@@ -122,12 +123,12 @@ describe('locatorResolver', () => {
     }, 'ambiguous');
 
     expect(typed.candidates.length).toBeGreaterThan(1);
-    expect(typed.candidates.some((item) => item.locator === 'id:first-match')).toBe(
-      true,
-    );
-    expect(typed.candidates.some((item) => item.locator === 'id:second-match')).toBe(
-      true,
-    );
+    expect(
+      typed.candidates.some((item) => item.locator === 'id:first-match'),
+    ).toBe(true);
+    expect(
+      typed.candidates.some((item) => item.locator === 'id:second-match'),
+    ).toBe(true);
   });
 
   it('returns null from resolveOrNull when resolution fails', () => {
@@ -135,7 +136,9 @@ describe('locatorResolver', () => {
     const resolver = new LocatorResolver();
 
     expect(resolver.resolveOrNull('id:save-btn')?.element.id).toBe('save-btn');
-    expect(resolver.resolveOrNull('id:missing-btn', { allowFuzzy: false })).toBeNull();
+    expect(
+      resolver.resolveOrNull('id:missing-btn', { allowFuzzy: false }),
+    ).toBeNull();
   });
 
   it('respects hidden filtering and includeHidden override', () => {
@@ -147,16 +150,24 @@ describe('locatorResolver', () => {
     const defaultResolver = new LocatorResolver();
     const includeHiddenResolver = new LocatorResolver({ includeHidden: true });
 
-    expect(defaultResolver.resolveOrNull('id:hidden-btn', { allowFuzzy: false })).toBeNull();
     expect(
-      defaultResolver.findCandidates('hidden').some((item) => item.locator === 'id:hidden-btn'),
+      defaultResolver.resolveOrNull('id:hidden-btn', { allowFuzzy: false }),
+    ).toBeNull();
+    expect(
+      defaultResolver
+        .findCandidates('hidden')
+        .some((item) => item.locator === 'id:hidden-btn'),
     ).toBe(false);
 
     expect(
-      includeHiddenResolver.resolveOrNull('id:hidden-btn', { allowFuzzy: false })?.element.id,
+      includeHiddenResolver.resolveOrNull('id:hidden-btn', {
+        allowFuzzy: false,
+      })?.element.id,
     ).toBe('hidden-btn');
     expect(
-      includeHiddenResolver.findCandidates('hidden').some((item) => item.locator === 'id:hidden-btn'),
+      includeHiddenResolver
+        .findCandidates('hidden')
+        .some((item) => item.locator === 'id:hidden-btn'),
     ).toBe(true);
   });
 
@@ -177,11 +188,13 @@ describe('locatorResolver', () => {
     const saveCandidates = resolver.findCandidates('sav', 5);
 
     expect(saveCandidates[0]?.locator).toBe('id:save-enabled');
-    expect(saveCandidates.find((item) => item.locator === 'id:save-disabled')?.disabled).toBe(
-      true,
-    );
     expect(
-      saveCandidates.find((item) => item.locator === 'id:save-aria-disabled')?.disabled,
+      saveCandidates.find((item) => item.locator === 'id:save-disabled')
+        ?.disabled,
+    ).toBe(true);
+    expect(
+      saveCandidates.find((item) => item.locator === 'id:save-aria-disabled')
+        ?.disabled,
     ).toBe(true);
 
     expect(resolver.resolve('href:/help').candidate.kind).toBe('link');

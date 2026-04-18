@@ -1,21 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('#/locales', () => ({
-  $t: (key: string) => key,
-}));
-
-vi.mock('#/utils/common', () => ({
-  formatDate: (value: string | null | undefined) =>
-    value ? `date:${value}` : null,
-  formatRelativeTime: (value: string | null | undefined) =>
-    value ? `relative:${value}` : null,
-}));
-
-vi.mock('../data', () => ({
-  getManifestStatusText: (present: boolean) =>
-    present ? 'manifest.present' : 'manifest.absent',
-}));
-
 import {
   buildWorkbenchItemMessage,
   buildWorkbenchStats,
@@ -23,6 +7,22 @@ import {
   getActiveWorkbenchItems,
   getWorkbenchFilterConfig,
 } from '../workbench-utils';
+
+vi.mock('#/locales', () => ({
+  $t: (key: string) => key,
+}));
+
+vi.mock('#/utils/common', () => ({
+  formatDate: (value: null | string | undefined) =>
+    value ? `date:${value}` : null,
+  formatRelativeTime: (value: null | string | undefined) =>
+    value ? `relative:${value}` : null,
+}));
+
+vi.mock('../data', () => ({
+  getManifestStatusText: (present: boolean) =>
+    present ? 'manifest.present' : 'manifest.absent',
+}));
 
 describe('codegen workbench utils', () => {
   it('builds item messages from errors, delete guards, and generation time', () => {

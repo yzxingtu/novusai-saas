@@ -12,6 +12,7 @@ import { defineComponent } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import AIChatSlidePanel from '../AIChatSlidePanel.vue';
+import { registerSlidePanelRichTextCases } from './ai-chat-slide-panel-rich-text-cases';
 import {
   activeConversationIdValue,
   antMessageMocks,
@@ -34,21 +35,22 @@ import {
   startNewConversationMock,
   supportsVisionValue,
 } from './ai-chat-slide-panel-test-helpers';
-import { registerSlidePanelRichTextCases } from './ai-chat-slide-panel-rich-text-cases';
+
 let aiPanelStore: ReturnType<typeof createAIPanelStore>;
 
 vi.mock('@vben/icons', async () => {
-  const { createIconifyMock } = await import('./ai-chat-slide-panel-test-helpers');
+  const { createIconifyMock } =
+    await import('./ai-chat-slide-panel-test-helpers');
   return createIconifyMock();
 });
 vi.mock('#/utils/image', async () => {
-  const { createImageMock } = await import('./ai-chat-slide-panel-test-helpers');
+  const { createImageMock } =
+    await import('./ai-chat-slide-panel-test-helpers');
   return createImageMock();
 });
 vi.mock('ant-design-vue', async () => {
-  const { createAntDesignVueMock } = await import(
-    './ai-chat-slide-panel-test-helpers'
-  );
+  const { createAntDesignVueMock } =
+    await import('./ai-chat-slide-panel-test-helpers');
   return createAntDesignVueMock();
 });
 
@@ -79,56 +81,48 @@ vi.mock('#/locales', () => ({
 }));
 
 vi.mock('#/components/business/ai-chat-panel/use-ai-chat', async () => {
-  const { createUseAIChatMock } = await import(
-    './ai-chat-slide-panel-test-helpers'
-  );
+  const { createUseAIChatMock } =
+    await import('./ai-chat-slide-panel-test-helpers');
   return createUseAIChatMock();
 });
 
 vi.mock(
   '#/components/business/rich-text-editor/sourceEditorRegistry',
   async () => {
-    const { createSourceEditorRegistryMock } = await import(
-      './ai-chat-slide-panel-test-helpers'
-    );
+    const { createSourceEditorRegistryMock } =
+      await import('./ai-chat-slide-panel-test-helpers');
     return createSourceEditorRegistryMock();
   },
 );
 
 vi.mock('../use-agent-router', async () => {
-  const { createUseAgentRouterMock } = await import(
-    './ai-chat-slide-panel-test-helpers'
-  );
+  const { createUseAgentRouterMock } =
+    await import('./ai-chat-slide-panel-test-helpers');
   return createUseAgentRouterMock();
 });
 vi.mock('#/composables/use-modal-detector', async () => {
-  const { createUseModalDetectorMock } = await import(
-    './ai-chat-slide-panel-test-helpers'
-  );
+  const { createUseModalDetectorMock } =
+    await import('./ai-chat-slide-panel-test-helpers');
   return createUseModalDetectorMock();
 });
 vi.mock('#/composables/use-page-session', async () => {
-  const { createUsePageSessionMock } = await import(
-    './ai-chat-slide-panel-test-helpers'
-  );
+  const { createUsePageSessionMock } =
+    await import('./ai-chat-slide-panel-test-helpers');
   return createUsePageSessionMock();
 });
 vi.mock('#/composables/use-page-screenshot', async () => {
-  const { createUsePageScreenshotMock } = await import(
-    './ai-chat-slide-panel-test-helpers'
-  );
+  const { createUsePageScreenshotMock } =
+    await import('./ai-chat-slide-panel-test-helpers');
   return createUsePageScreenshotMock();
 });
 vi.mock('#/composables/use-form-state-tracker', async () => {
-  const { createFormStateTrackerMock } = await import(
-    './ai-chat-slide-panel-test-helpers'
-  );
+  const { createFormStateTrackerMock } =
+    await import('./ai-chat-slide-panel-test-helpers');
   return createFormStateTrackerMock();
 });
 vi.mock('#/components/business/ai-runtime/runtime-bridge', async () => {
-  const { createRuntimeBridgeMock } = await import(
-    './ai-chat-slide-panel-test-helpers'
-  );
+  const { createRuntimeBridgeMock } =
+    await import('./ai-chat-slide-panel-test-helpers');
   return createRuntimeBridgeMock();
 });
 

@@ -370,12 +370,12 @@ onMounted(() => {
               <div class="mb-2 text-xs font-medium uppercase text-gray-500">
                 {{ $t('shared.memberPanel.leader') }}
               </div>
-                <MemberItem
-                  :api-prefix="apiPrefix"
-                  :member="leaderInfo"
-                  :is-leader="true"
-                  :show-online-status="showOnlineStatus"
-                  :online="isMemberOnline(leaderInfo.id)"
+              <MemberItem
+                :api-prefix="apiPrefix"
+                :member="leaderInfo"
+                :is-leader="true"
+                :show-online-status="showOnlineStatus"
+                :online="isMemberOnline(leaderInfo.id)"
                 @edit="handleEditMember"
                 @force-logout="handleForceLogout"
                 @reset-password="handleResetPassword"
@@ -390,10 +390,10 @@ onMounted(() => {
               </div>
             </template>
             <!-- Other members / 其他成员 -->
-        <MemberItem
-          v-for="member in members.filter((m) =>
-            !searchText && leaderInfo ? m.id !== leaderInfo.id : true,
-          )"
+            <MemberItem
+              v-for="member in members.filter((m) =>
+                !searchText && leaderInfo ? m.id !== leaderInfo.id : true,
+              )"
               :key="member.id"
               :api-prefix="apiPrefix"
               :member="member"

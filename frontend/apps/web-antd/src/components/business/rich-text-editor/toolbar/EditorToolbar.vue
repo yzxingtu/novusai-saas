@@ -267,9 +267,7 @@ function onInsertLink() {
     <!-- Source code / 源码模式 -->
     <ToolbarButton
       icon="lucide:code-xml"
-      :title="
-        sourceMode ? $t('common.wysiwyg') : $t('common.sourceCode')
-      "
+      :title="sourceMode ? $t('common.wysiwyg') : $t('common.sourceCode')"
       :active="sourceMode"
       @click="emit('toggleSource')"
     />

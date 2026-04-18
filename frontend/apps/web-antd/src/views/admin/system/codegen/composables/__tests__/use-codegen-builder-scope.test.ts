@@ -1,4 +1,5 @@
 import { reactive } from 'vue';
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 type BuilderRecord = Record<string, unknown>;
@@ -12,14 +13,12 @@ const storeState = reactive<{
 function deepMerge(target: BuilderRecord, patch: BuilderRecord): BuilderRecord {
   const result: BuilderRecord = { ...target };
   for (const [key, value] of Object.entries(patch)) {
-    if (
-      value !== null
-      && typeof value === 'object'
-      && !Array.isArray(value)
-    ) {
+    if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
       const current = result[key];
       result[key] = deepMerge(
-        typeof current === 'object' && current !== null && !Array.isArray(current)
+        typeof current === 'object' &&
+          current !== null &&
+          !Array.isArray(current)
           ? (current as BuilderRecord)
           : {},
         value as BuilderRecord,
@@ -65,7 +64,8 @@ describe('useCodegenBuilderScope', () => {
   });
 
   it('ignores malformed model and endpoint entries while preserving valid tenant scope', async () => {
-    const { useCodegenBuilderScope } = await import('../use-codegen-builder-scope');
+    const { useCodegenBuilderScope } =
+      await import('../use-codegen-builder-scope');
 
     storeState.configJson = {
       endpoints: [
@@ -105,7 +105,8 @@ describe('useCodegenBuilderScope', () => {
   });
 
   it('syncs base class from normalized endpoint scopes when enabling admin scope', async () => {
-    const { useCodegenBuilderScope } = await import('../use-codegen-builder-scope');
+    const { useCodegenBuilderScope } =
+      await import('../use-codegen-builder-scope');
 
     storeState.configJson = {
       endpoints: [{ route_prefix: '/orders', scope: 'tenant' }],

@@ -29,7 +29,8 @@ vi.mock('../IdentityDisplay.vue', () => ({
   default: {
     name: 'IdentityDisplayStub',
     props: ['model'],
-    template: '<div data-testid="identity-display">{{ model.nickname || model.username }}</div>',
+    template:
+      '<div data-testid="identity-display">{{ model.nickname || model.username }}</div>',
   },
 }));
 
@@ -50,20 +51,20 @@ vi.mock('ant-design-vue', async () => {
   };
 });
 
-function setMatchMediaState(options: {
-  hover: boolean;
-  pointerFine: boolean;
-}) {
-  const matchMedia = vi.fn((query: string) => ({
-    addEventListener: vi.fn(),
-    matches:
-      query === '(hover: hover)'
-        ? options.hover
-        : query === '(pointer: fine)'
-          ? options.pointerFine
-          : false,
-    removeEventListener: vi.fn(),
-  }));
+function setMatchMediaState(options: { hover: boolean; pointerFine: boolean }) {
+  const matchMedia = vi.fn((query: string) => {
+    let matches = false;
+    if (query === '(hover: hover)') {
+      matches = options.hover;
+    } else if (query === '(pointer: fine)') {
+      matches = options.pointerFine;
+    }
+    return {
+      addEventListener: vi.fn(),
+      matches,
+      removeEventListener: vi.fn(),
+    };
+  });
 
   Object.defineProperty(window, 'matchMedia', {
     configurable: true,
@@ -72,7 +73,7 @@ function setMatchMediaState(options: {
   });
 }
 
-describe('IdentityProfileTrigger', () => {
+describe('identityProfileTrigger', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });

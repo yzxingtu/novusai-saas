@@ -37,7 +37,10 @@ const showDebugError = computed(
       />
       <div class="min-w-0 flex-1">
         <p class="break-words text-foreground">{{ msg.error.message }}</p>
-        <p v-if="msg.error.traceId" class="mt-1 font-mono text-[11px] text-muted-foreground">
+        <p
+          v-if="msg.error.traceId"
+          class="mt-1 font-mono text-[11px] text-muted-foreground"
+        >
           {{
             $t('common.globalAiChat.traceIdValue', {
               traceId: msg.error.traceId,

@@ -2,8 +2,10 @@ import type { RouteLocationNormalizedLoaded } from 'vue-router';
 
 import type { MenuNavigationEntry } from './menu-navigation';
 
-import type { PageContext } from '#/api/shared/ai-chat';
-import type { PageContextSuggestedTool } from '#/api/shared/ai-chat';
+import type {
+  PageContext,
+  PageContextSuggestedTool,
+} from '#/api/shared/ai-chat';
 import type { PageOperation } from '#/components/business/ai-runtime/page-operation-types';
 
 import { nextTick } from 'vue';
@@ -13,9 +15,9 @@ import {
   resolveRoutePageKey,
 } from '#/components/business/ai-runtime/page-key-utils';
 import { getRuntimeThinPageContext } from '#/components/business/ai-runtime/runtime-bridge';
+import { getActivePageSessionId } from '#/composables/use-page-session';
 import { $t } from '#/locales';
 import { resolveRuntimeLocale } from '#/locales/runtime-locale';
-import { getActivePageSessionId } from '#/composables/use-page-session';
 import { router } from '#/router';
 import {
   canExposePageOperations,
@@ -262,9 +264,7 @@ function serializeAvailableOperations(
     ...(pageContext?.suggested_tools?.secondary ?? []),
   ];
   const normalizedToolNames =
-    candidateToolNames.length > 0
-      ? candidateToolNames
-      : [...BASELINE_UI_TOOLS];
+    candidateToolNames.length > 0 ? candidateToolNames : [...BASELINE_UI_TOOLS];
 
   const operations: PageOperation[] = [];
   const seen = new Set<string>();
@@ -353,8 +353,8 @@ function buildNavigationResultPayload(
   const availableOperationNames = availableOperations
     .map((operation) => String(operation.name ?? '').trim())
     .filter(Boolean);
-  const suggestedToolNames = availableOperationNames.filter(
-    isPageContextSuggestedTool,
+  const suggestedToolNames = availableOperationNames.filter((operationName) =>
+    isPageContextSuggestedTool(operationName),
   );
   const suggestedTools =
     basePageContext.suggested_tools ??
@@ -456,9 +456,13 @@ function hasThinContextSignals(pageContext: null | PageContext): boolean {
   return false;
 }
 
-function hasAvailableUITools(operations: Array<Record<string, unknown>>): boolean {
+function hasAvailableUITools(
+  operations: Array<Record<string, unknown>>,
+): boolean {
   return operations.some((operation) =>
-    String(operation.name ?? '').trim().startsWith('ui_'),
+    String(operation.name ?? '')
+      .trim()
+      .startsWith('ui_'),
   );
 }
 

@@ -52,13 +52,17 @@ const detailFields = computed(() =>
   <section
     class="mt-4 rounded-2xl border border-border/70 bg-card px-4 py-4 shadow-sm"
   >
-    <div class="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+    <div
+      class="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground"
+    >
       <IconifyIcon icon="lucide:list-tree" class="size-4 text-primary" />
       <span>{{ drawerTitle }}</span>
     </div>
 
     <div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-      <div class="rounded-xl border border-border/60 bg-background/70 px-3 py-3">
+      <div
+        class="rounded-xl border border-border/60 bg-background/70 px-3 py-3"
+      >
         <div class="text-xs text-muted-foreground">
           {{ $t(`${i18nPrefix}.agentName`) }}
         </div>
@@ -85,7 +89,10 @@ const detailFields = computed(() =>
             <div class="truncate text-sm font-semibold text-foreground">
               {{ detailAgentName }}
             </div>
-            <div v-if="detail.conversation_id" class="text-xs text-muted-foreground">
+            <div
+              v-if="detail.conversation_id"
+              class="text-xs text-muted-foreground"
+            >
               #{{ detail.conversation_id }}
             </div>
           </div>
@@ -107,7 +114,10 @@ const detailFields = computed(() =>
         </template>
       </IdentityTrigger>
 
-      <div v-else class="rounded-xl border border-border/60 bg-background/70 px-3 py-3">
+      <div
+        v-else
+        class="rounded-xl border border-border/60 bg-background/70 px-3 py-3"
+      >
         <div class="text-xs text-muted-foreground">
           {{ $t(`${i18nPrefix}.callerName`) }}
         </div>

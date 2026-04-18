@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { AgentSkillBindingDraftItem, ConsentMode } from './types';
+import type { AgentSkillBindingDraftItem } from './types';
 
 /**
  * Admin agent skill binding picker (search, package filter, pagination, consent drafts).
@@ -79,12 +79,6 @@ const packageSearch = ref('');
 const packagePage = ref(1);
 const packageHasMore = ref(false);
 const packageTotal = ref(0);
-
-const consentOptions = computed(() => [
-  { label: $t('admin.ai.agent.consentModeOptions.auto'), value: 'auto' },
-  { label: $t('admin.ai.agent.consentModeOptions.ask'), value: 'ask' },
-  { label: $t('admin.ai.agent.consentModeOptions.reject'), value: 'reject' },
-]);
 const selectedCount = computed(() => working.value.length);
 const selectedPackageCount = computed(() => {
   const keys = new Set(
@@ -148,7 +142,7 @@ function toggleOption(opt: AdminSkillSelectOption) {
   if (idx >= 0) {
     working.value.splice(idx, 1);
   } else {
-    working.value.push(selectOptionToDraft(opt, 'auto'));
+    working.value.push(selectOptionToDraft(opt));
   }
 }
 
@@ -156,14 +150,6 @@ function removeDraft(skillId: number) {
   const idx = findWorkingIndex(skillId);
   if (idx >= 0) {
     working.value.splice(idx, 1);
-  }
-}
-
-function setConsent(skillId: number, mode: ConsentMode) {
-  const idx = findWorkingIndex(skillId);
-  if (idx >= 0) {
-    const next = { ...working.value[idx]!, default_consent_mode: mode };
-    working.value.splice(idx, 1, next);
   }
 }
 
@@ -773,20 +759,6 @@ watch(pageSize, () => {
                     {{ $t('admin.ai.agent.skillPicker.remove') }}
                   </Button>
                 </div>
-                <div
-                  class="mt-3 text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground"
-                >
-                  {{ $t('admin.ai.agent.skillPicker.defaultConsentMode') }}
-                </div>
-                <Select
-                  class="mt-1.5 w-full"
-                  size="small"
-                  :value="d.default_consent_mode"
-                  :options="consentOptions"
-                  @update:value="
-                    (v) => setConsent(d.skill_id, v as ConsentMode)
-                  "
-                />
               </div>
             </div>
           </div>

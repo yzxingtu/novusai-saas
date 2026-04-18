@@ -16,9 +16,11 @@ function resolveTenantHost() {
   const tenantCode = (process.env.TENANT_ADMIN_TENANT_CODE || '').trim();
   if (tenantCode) {
     const suffix =
-      (process.env.TENANT_ADMIN_DOMAIN_SUFFIX ||
+      (
+        process.env.TENANT_ADMIN_DOMAIN_SUFFIX ||
         process.env.TENANT_DOMAIN_SUFFIX ||
-        '.app.local').trim() || '.app.local';
+        '.app.local'
+      ).trim() || '.app.local';
     const normalizedSuffix = suffix.startsWith('.') ? suffix : `.${suffix}`;
     return `${tenantCode}${normalizedSuffix}`.toLowerCase();
   }

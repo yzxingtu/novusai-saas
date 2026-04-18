@@ -64,7 +64,9 @@ describe('formStateTracker', () => {
     }
 
     expect(formStateTracker.getFormApi(sessionId)).toBe(formApi);
-    expect(formStateTracker.getSession(sessionId)?.form_session_id).toBe(sessionId);
+    expect(formStateTracker.getSession(sessionId)?.form_session_id).toBe(
+      sessionId,
+    );
     expect(formStateTracker.getSession(sessionId)?.surface_id).toBe(sessionId);
 
     const session = formStateTracker.setSessionFieldValues(sessionId, {

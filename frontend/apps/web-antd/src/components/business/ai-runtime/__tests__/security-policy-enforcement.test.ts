@@ -10,7 +10,7 @@ import {
 describe('security-policy enforcement', () => {
   it('hides and blocks nodes marked with data-ai=off', () => {
     const region = document.createElement('div');
-    region.setAttribute('data-ai', 'off');
+    region.dataset.ai = 'off';
 
     const decision = resolveAISecurityPolicy({
       element: region,
@@ -25,6 +25,25 @@ describe('security-policy enforcement', () => {
     expect(decision.canRead).toBe(false);
     expect(action.allowed).toBe(false);
     expect(action.reason).toBe('data_ai_off');
+  });
+
+  it('hides and blocks nodes marked with data-ai-disabled', () => {
+    const region = document.createElement('div');
+    region.dataset.aiDisabled = '';
+
+    const decision = resolveAISecurityPolicy({
+      element: region,
+      actionKind: 'ui_click',
+    });
+    const action = evaluateAIActionSecurity({
+      element: region,
+      actionKind: 'ui_click',
+    });
+
+    expect(decision.visible).toBe(false);
+    expect(decision.canRead).toBe(false);
+    expect(action.allowed).toBe(false);
+    expect(action.reason).toBe('data_ai_disabled');
   });
 
   it('treats password/token/captcha/file fields as unreadable by default', () => {

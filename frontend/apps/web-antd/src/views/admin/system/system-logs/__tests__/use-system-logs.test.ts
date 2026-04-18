@@ -1,10 +1,10 @@
+import type { adminApi } from '#/api';
+
 // @vitest-environment happy-dom
 import { flushPromises, mount } from '@vue/test-utils';
 import { defineComponent, nextTick } from 'vue';
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-import type { adminApi } from '#/api';
 
 import { provideSystemLogsContext } from '../composables/useSystemLogs';
 
@@ -41,6 +41,7 @@ type SystemLogsVm = ReturnType<typeof provideSystemLogsContext>;
 type SystemLogCategory = adminApi.SystemLogCategory;
 type SystemLogContent = adminApi.SystemLogContent;
 type SystemLogFile = adminApi.SystemLogFile;
+type SystemLogSearchScope = adminApi.SystemLogSearchScope;
 type SystemLogStats = adminApi.SystemLogStats;
 
 const DEFAULT_STATS: SystemLogStats = {
@@ -50,7 +51,7 @@ const DEFAULT_STATS: SystemLogStats = {
 };
 
 function mountHarness(): SystemLogsVm {
-  let context: SystemLogsVm | null = null;
+  let context: null | SystemLogsVm = null;
   mount(
     defineComponent({
       name: 'SystemLogsHarness',
@@ -94,13 +95,23 @@ function createContent(
   lines: string[],
   page = 1,
   hasMore = false,
+  scope: SystemLogSearchScope = 'current_file',
 ): SystemLogContent {
   return {
+    category: 'app',
     filename,
     hasMore,
+    items: lines.map((line, index) => ({
+      content: line,
+      fileName: filename,
+      lineNumber: index + 1,
+    })),
     lines,
     page,
     pageSize: 120,
+    scope,
+    searchedFiles: scope === 'category' ? 2 : 1,
+    totalEntries: lines.length,
     totalLines: lines.length,
   };
 }
@@ -236,7 +247,12 @@ describe('useSystemLogs', () => {
       mockAdminApi.getSystemLogContentApi.mock.calls.at(-1) ?? [];
 
     expect(filename).toBe('app.log');
-    expect(params).toEqual({ page: 2, page_size: 120, reverse: true });
+    expect(params).toEqual({
+      page: 2,
+      page_size: 120,
+      reverse: true,
+      scope: 'current_file',
+    });
     expect(vm.logContent.value?.lines).toEqual(['first', 'second']);
     expect(vm.logContent.value?.page).toBe(2);
   });
@@ -252,9 +268,89 @@ describe('useSystemLogs', () => {
     ]);
 
     await nextTick();
-    vm.contentSearchQuery.value = 'error';
+    vm.searchKeyword.value = 'error';
     await nextTick();
 
     expect(vm.matchedLineCount.value).toBe(2);
+  });
+
+  it('passes keyword, date range, and category scope to the backend search', async () => {
+    const appFile = createFile('app.log', 'app');
+    mockAdminApi.getSystemLogCategoriesApi.mockResolvedValue([
+      createCategory('app'),
+    ]);
+    mockAdminApi.getSystemLogFilesApi.mockResolvedValue([appFile]);
+    mockAdminApi.getSystemLogContentApi.mockResolvedValue(
+      createContent(
+        'app.log',
+        ['2026-04-12 09:00:00 | INFO | trace'],
+        1,
+        false,
+      ),
+    );
+
+    const vm = mountHarness();
+    await flushPromises();
+
+    vm.searchKeyword.value = 'trace';
+    vm.searchScope.value = 'category';
+    vm.searchDateRange.value = [
+      {
+        format: () => '2026-04-10',
+      } as never,
+      {
+        format: () => '2026-04-12',
+      } as never,
+    ];
+
+    await vm.onApplyFilters();
+    await flushPromises();
+
+    const [filename, params] =
+      mockAdminApi.getSystemLogContentApi.mock.calls.at(-1) ?? [];
+
+    expect(filename).toBe('app.log');
+    expect(params).toEqual({
+      end_date: '2026-04-12',
+      keyword: 'trace',
+      page: 1,
+      page_size: 120,
+      reverse: true,
+      scope: 'category',
+      start_date: '2026-04-10',
+    });
+  });
+
+  it('renders backend line metadata for category-wide results', async () => {
+    const vm = mountHarness();
+    await flushPromises();
+
+    vm.logContent.value = {
+      ...createContent(
+        'app.log',
+        ['2026-04-12 12:34:56 | INFO | first'],
+        1,
+        false,
+        'category',
+      ),
+      items: [
+        {
+          content: '2026-04-12 12:34:56 | INFO | first',
+          fileName: 'app.2026-04-12.log',
+          lineNumber: 42,
+        },
+      ],
+    };
+
+    await nextTick();
+
+    const firstLine = vm.renderedLines.value[0];
+    if (!firstLine) {
+      throw new Error('Expected a rendered log line');
+    }
+
+    expect(firstLine.fileName).toBe('app.2026-04-12.log');
+    expect(firstLine.lineNumber).toBe(42);
+    expect(vm.shouldShowFileBadge(firstLine)).toBe(true);
   });
 });

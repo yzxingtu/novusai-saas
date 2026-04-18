@@ -2,6 +2,13 @@ import type { MonitoringActorInfo, MonitoringCallLogInfo } from '../api';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import {
+  createMonitoringActorDetailMeta,
+  createMonitoringActorIdentityModel,
+  createMonitoringCallerDetailMeta,
+  createMonitoringCallerIdentityModel,
+} from '../identity';
+
 vi.mock('#/components/business/identity-display', () => ({
   createIdentityDisplayModel: (model: Record<string, unknown>) => {
     const displayName =
@@ -11,7 +18,8 @@ vi.mock('#/components/business/identity-display', () => ({
       `#${String(model.id ?? '-')}`;
 
     const secondaryText =
-      typeof model.username === 'string' && model.username.trim() !== displayName
+      typeof model.username === 'string' &&
+      model.username.trim() !== displayName
         ? model.username.trim()
         : '';
 
@@ -39,13 +47,6 @@ vi.mock('#/components/business/identity-display', () => ({
     }
   },
 }));
-
-import {
-  createMonitoringActorDetailMeta,
-  createMonitoringActorIdentityModel,
-  createMonitoringCallerDetailMeta,
-  createMonitoringCallerIdentityModel,
-} from '../identity';
 
 vi.mock('#/locales', () => ({
   $t: (key: string) => key,

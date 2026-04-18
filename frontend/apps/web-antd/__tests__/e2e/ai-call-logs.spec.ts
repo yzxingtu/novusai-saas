@@ -32,9 +32,15 @@ test.describe('Tenant AI Call Logs smoke', () => {
         page.locator('.identity-summary-card[data-mode="quick"]').first(),
       ).toBeVisible();
       await identityTrigger.click();
-      await expect(page.locator('.ant-drawer [data-section="overview"]')).toBeVisible();
-      await expect(page.locator('.ant-drawer [data-section="account"]')).toBeVisible();
-      await expect(page.locator('.ant-drawer [data-section="activity"]')).toBeVisible();
+      await expect(
+        page.locator('.ant-drawer [data-section="overview"]'),
+      ).toBeVisible();
+      await expect(
+        page.locator('.ant-drawer [data-section="account"]'),
+      ).toBeVisible();
+      await expect(
+        page.locator('.ant-drawer [data-section="activity"]'),
+      ).toBeVisible();
     }
 
     expect(consoleErrors).toEqual([]);

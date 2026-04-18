@@ -55,8 +55,9 @@ export function buildRouteCachePageDataFingerprint(
   if (typeof activeSurfaceId === 'string' && activeSurfaceId) {
     thinContext.active_surface_id = activeSurfaceId;
   }
-  const activeFormSessionId = (pageContext as unknown as Record<string, unknown>)
-    .active_form_session_id;
+  const activeFormSessionId = (
+    pageContext as unknown as Record<string, unknown>
+  ).active_form_session_id;
   if (typeof activeFormSessionId === 'string' && activeFormSessionId) {
     thinContext.active_form_session_id = activeFormSessionId;
   }

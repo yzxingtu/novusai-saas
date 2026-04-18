@@ -1,6 +1,6 @@
 <script lang="ts" setup>
-import type { ChatMessage } from './types';
 import type { PendingPageOpForDisplay } from './pending-page-op';
+import type { ChatMessage } from './types';
 
 import { IconifyIcon } from '@vben/icons';
 
@@ -70,7 +70,9 @@ const {
       type="button"
       class="flex w-full cursor-pointer select-none items-center text-left transition-colors hover:bg-accent/20"
       :class="
-        compact ? 'gap-1 px-2 py-1 text-[11px]' : 'gap-1.5 px-2.5 py-1.5 text-xs'
+        compact
+          ? 'gap-1 px-2 py-1 text-[11px]'
+          : 'gap-1.5 px-2.5 py-1.5 text-xs'
       "
       data-testid="tool-group-toggle"
       @click="toggleToolGroupExpand(index)"
@@ -110,7 +112,10 @@ const {
           <IconifyIcon icon="lucide:check" class="size-2.5" />
           {{ toolGroupSummary.success }}
         </span>
-        <span v-if="toolGroupSummary.error" class="flex items-center gap-0.5 text-red-500">
+        <span
+          v-if="toolGroupSummary.error"
+          class="flex items-center gap-0.5 text-red-500"
+        >
           <IconifyIcon icon="lucide:x" class="size-2.5" />
           {{ toolGroupSummary.error }}
         </span>
@@ -121,7 +126,9 @@ const {
         style="transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1)"
         :class="compact ? 'size-2.5' : 'size-3'"
         :style="{
-          transform: isToolGroupExpanded(index) ? 'rotate(180deg)' : 'rotate(0deg)',
+          transform: isToolGroupExpanded(index)
+            ? 'rotate(180deg)'
+            : 'rotate(0deg)',
         }"
       />
     </button>
@@ -141,12 +148,19 @@ const {
           class="border-t border-border/20 transition-opacity duration-200"
           :style="{ opacity: isToolGroupExpanded(index) ? 1 : 0 }"
         ></div>
-        <div class="tc-timeline relative" :class="compact ? 'px-2 py-1 pl-5' : 'px-2.5 py-1.5 pl-6'">
+        <div
+          class="tc-timeline relative"
+          :class="compact ? 'px-2 py-1 pl-5' : 'px-2.5 py-1.5 pl-6'"
+        >
           <!-- Timeline vertical line -->
           <div
             v-if="msg.toolCalls.length > 1"
             class="absolute w-px bg-border/40"
-            :class="compact ? 'bottom-1 left-[8px] top-1' : 'bottom-1.5 left-[9px] top-1.5'"
+            :class="
+              compact
+                ? 'bottom-1 left-[8px] top-1'
+                : 'bottom-1.5 left-[9px] top-1.5'
+            "
           ></div>
 
           <div
@@ -156,7 +170,10 @@ const {
             :class="toolItem.index > 0 ? (compact ? 'mt-0.5' : 'mt-1') : ''"
           >
             <!-- Timeline dot -->
-            <div class="absolute z-[1]" :class="compact ? '-left-3 top-[5px]' : '-left-4 top-[7px]'">
+            <div
+              class="absolute z-[1]"
+              :class="compact ? '-left-3 top-[5px]' : '-left-4 top-[7px]'"
+            >
               <span
                 v-if="toolItem.tc.status === 'running'"
                 class="tc-dot-pulse block rounded-full bg-primary"
@@ -182,7 +199,9 @@ const {
                 type="button"
                 class="flex w-full select-none items-center text-left"
                 :class="[
-                  compact ? 'gap-1 px-2 py-[3px] text-[11px]' : 'gap-1.5 px-2.5 py-1 text-xs',
+                  compact
+                    ? 'gap-1 px-2 py-[3px] text-[11px]'
+                    : 'gap-1.5 px-2.5 py-1 text-xs',
                   toolItem.hasDetails ? 'cursor-pointer' : 'cursor-default',
                 ]"
                 :data-testid="`tool-call-toggle-${toolItem.index}`"
@@ -203,10 +222,17 @@ const {
                 >
                   <IconifyIcon
                     v-if="toolItem.tc.status !== 'running'"
-                    :icon="toolItem.tc.status === 'success' ? 'lucide:check' : 'lucide:x'"
+                    :icon="
+                      toolItem.tc.status === 'success'
+                        ? 'lucide:check'
+                        : 'lucide:x'
+                    "
                     class="size-2.5"
                   />
-                  <span v-else class="tc-dot-pulse mr-0.5 inline-block size-1.5 rounded-full bg-current"></span>
+                  <span
+                    v-else
+                    class="tc-dot-pulse mr-0.5 inline-block size-1.5 rounded-full bg-current"
+                  ></span>
                   {{
                     toolItem.tc.status === 'running'
                       ? getToolDisplayState(toolItem.tc) === 'waiting_confirm'
@@ -222,14 +248,19 @@ const {
                 <span class="min-w-0 flex-1 text-muted-foreground">
                   <span class="block truncate">
                     <template v-if="toolItem.tc.skillName">
-                      <span class="font-medium text-foreground/60">{{ toolItem.tc.skillName }}</span>
+                      <span class="font-medium text-foreground/60">{{
+                        toolItem.tc.skillName
+                      }}</span>
                       <span class="mx-0.5 text-muted-foreground/30">›</span>
                     </template>
                     <span class="text-foreground/70">{{
                       toolItem.tc.displayName || toolItem.tc.name
                     }}</span>
                     <span
-                      v-if="toolItem.headlineSummary && toolItem.tc.status === 'success'"
+                      v-if="
+                        toolItem.headlineSummary &&
+                        toolItem.tc.status === 'success'
+                      "
                       class="ml-1 text-muted-foreground/50"
                       >— {{ toolItem.headlineSummary }}</span
                     >
@@ -247,8 +278,12 @@ const {
                       :key="`${badge.labelKey}-${badge.value}`"
                       class="inline-flex max-w-full items-center gap-1 rounded-full border border-border/30 bg-background/70 px-1.5 py-px"
                     >
-                      <span class="shrink-0 text-muted-foreground/55">{{ $t(badge.labelKey) }}</span>
-                      <span class="truncate text-foreground/75">{{ badge.value }}</span>
+                      <span class="shrink-0 text-muted-foreground/55">{{
+                        $t(badge.labelKey)
+                      }}</span>
+                      <span class="truncate text-foreground/75">{{
+                        badge.value
+                      }}</span>
                     </span>
                   </span>
                 </span>
@@ -267,7 +302,11 @@ const {
                   icon="lucide:chevron-down"
                   class="shrink-0 text-muted-foreground/30 transition-transform duration-200"
                   :class="compact ? 'size-2.5' : 'size-3'"
-                  :style="{ transform: toolItem.expanded ? 'rotate(180deg)' : 'rotate(0deg)' }"
+                  :style="{
+                    transform: toolItem.expanded
+                      ? 'rotate(180deg)'
+                      : 'rotate(0deg)',
+                  }"
                 />
               </button>
 
@@ -295,7 +334,9 @@ const {
 
             <!-- Inline confirmation card (for this tool call) / 内联确认卡片（对应本工具调用） -->
             <ToolCallPendingOpCard
-              v-for="op in (pendingOps || []).filter((o) => o.toolCallId === toolItem.tc.id)"
+              v-for="op in (pendingOps || []).filter(
+                (o) => o.toolCallId === toolItem.tc.id,
+              )"
               :key="op.invokeId"
               :compact="compact"
               :countdown-now="countdownNow"
@@ -303,7 +344,9 @@ const {
               :has-args="hasPendingOpArgs(op.params)"
               :now="now"
               :op="op"
-              @resolve="(allowed) => aiPanelStore.resolvePageOp(op.invokeId, allowed)"
+              @resolve="
+                (allowed) => aiPanelStore.resolvePageOp(op.invokeId, allowed)
+              "
               @toggle-args="togglePendingOpExpand(op.invokeId)"
             />
 

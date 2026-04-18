@@ -5,21 +5,15 @@ import { $t } from '#/locales';
 
 defineOptions({ name: 'AIChatContextDiagnosticsDrawer' });
 
-const props = withDefaults(
+withDefaults(
   defineProps<{
     conversationContextDiagnostics?: null | Record<string, unknown>;
-    interactionModeDowngraded?: boolean;
-    interactionModeDowngradeText?: string;
-    interactionModeLabel?: string;
-    interactionModeRequested?: string;
     lastRunSummary?: null | Record<string, unknown>;
     open?: boolean;
   }>(),
   {
-    interactionModeDowngraded: false,
-    interactionModeDowngradeText: '',
-    interactionModeLabel: '',
-    interactionModeRequested: '',
+    conversationContextDiagnostics: null,
+    lastRunSummary: null,
     open: false,
   },
 );
@@ -37,28 +31,6 @@ const emit = defineEmits<{
     @update:open="(value: boolean) => emit('update:open', value)"
   >
     <div class="space-y-4">
-      <div class="rounded-2xl border border-border/60 bg-muted/10 p-3">
-        <div class="text-xs font-medium text-muted-foreground">
-          {{ $t('common.globalAiChat.interactionModeLabel') }}
-        </div>
-        <div class="mt-1 text-sm font-semibold text-foreground">
-          {{ interactionModeLabel }}
-        </div>
-        <div
-          v-if="interactionModeDowngraded"
-          class="mt-2 rounded-xl border border-amber-300/50 bg-amber-50 px-3 py-2 text-xs text-amber-800"
-        >
-          <div class="font-medium">
-            {{ $t('common.globalAiChat.trustedAutoDowngraded') }}
-          </div>
-          <div class="mt-1">
-            {{ interactionModeRequested }} -> {{ interactionModeLabel }}
-          </div>
-          <div v-if="interactionModeDowngradeText" class="mt-1 text-[11px]">
-            {{ interactionModeDowngradeText }}
-          </div>
-        </div>
-      </div>
       <div
         v-if="conversationContextDiagnostics"
         class="rounded-2xl border border-border/60 bg-muted/10 p-3"

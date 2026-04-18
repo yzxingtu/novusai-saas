@@ -1,4 +1,10 @@
 <script lang="ts" setup>
+import type {
+  WorkbenchFilterKey,
+  WorkbenchFocusItem,
+  WorkbenchStat,
+} from './workbench-utils';
+
 /**
  * 代码生成器工作台 / Codegen workbench
  *
@@ -61,9 +67,6 @@ import {
   getFocusSeverityIcon,
   getWorkbenchFilterConfig,
   isStatusWorkbenchFilter,
-  type WorkbenchFilterKey,
-  type WorkbenchFocusItem,
-  type WorkbenchStat,
 } from './workbench-utils';
 
 defineOptions({ name: 'AdminSystemCodegenList' });
@@ -93,10 +96,7 @@ const activeWorkbenchConfig = computed(() =>
 );
 
 const activeWorkbenchItems = computed<WorkbenchFocusItem[]>(() =>
-  getActiveWorkbenchItems(
-    workbenchSummary.value,
-    activeWorkbenchFilter.value,
-  ),
+  getActiveWorkbenchItems(workbenchSummary.value, activeWorkbenchFilter.value),
 );
 
 const activeWorkbenchCount = computed(() => {

@@ -23,7 +23,8 @@ vi.mock('#/api/admin/tenant', () => ({
 }));
 
 vi.mock('#/api/admin/tenant-users', () => ({
-  getAdminTenantUserIdentityDetailApi: apiMocks.getAdminTenantUserIdentityDetailApi,
+  getAdminTenantUserIdentityDetailApi:
+    apiMocks.getAdminTenantUserIdentityDetailApi,
 }));
 
 vi.mock('#/api/tenant/admins', () => ({

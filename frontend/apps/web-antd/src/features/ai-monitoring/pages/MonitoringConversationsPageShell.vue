@@ -19,8 +19,8 @@ import AIPageHeroCard from '#/components/business/ai-page-hero/AIPageHeroCard.vu
 import { $t } from '#/locales';
 
 import { getMonitoringConversationList } from '../api';
-import MonitoringConversationDrawer from './MonitoringConversationDrawer.vue';
 import MonitoringConversationsGridCard from './monitoring-conversation/MonitoringConversationsGridCard.vue';
+import MonitoringConversationDrawer from './MonitoringConversationDrawer.vue';
 
 const props = defineProps<{
   i18nPrefix: string;

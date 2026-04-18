@@ -1,13 +1,18 @@
+import type {
+  UIAdapterResult,
+  UIComponentAdapter,
+  UIGraphNode,
+} from '../types';
+
 import {
   buildElementLocator,
   isElementVisible,
   readElementLabel,
 } from '../dom-scanner';
-import type { UIAdapterResult, UIComponentAdapter, UIGraphNode } from '../types';
 
 export const ANTD_TABS_ADAPTER_ID = 'antd-tabs';
 
-function toTabNode(element: HTMLElement, priority: number): UIGraphNode | null {
+function toTabNode(element: HTMLElement, priority: number): null | UIGraphNode {
   if (!isElementVisible(element)) {
     return null;
   }
@@ -35,14 +40,16 @@ export function createAntdTabsAdapter(priority = 60): UIComponentAdapter {
     collect(context): UIAdapterResult {
       const nodes: UIGraphNode[] = [];
       const seen = new Set<string>();
-      context.root.querySelectorAll<HTMLElement>('.ant-tabs-tab').forEach((element) => {
-        const node = toTabNode(element, priority);
-        if (!node || seen.has(node.locator)) {
-          return;
-        }
-        seen.add(node.locator);
-        nodes.push(node);
-      });
+      context.root
+        .querySelectorAll<HTMLElement>('.ant-tabs-tab')
+        .forEach((element) => {
+          const node = toTabNode(element, priority);
+          if (!node || seen.has(node.locator)) {
+            return;
+          }
+          seen.add(node.locator);
+          nodes.push(node);
+        });
       return {
         nodes,
       };

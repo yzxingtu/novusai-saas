@@ -41,19 +41,17 @@ vi.mock('ant-design-vue', () => {
 });
 
 describe('aiChatComposer', () => {
-  it('renders only confirm and trusted_auto interaction modes', async () => {
+  it('does not render interaction-mode controls', async () => {
     const wrapper = mount(AIChatComposer, {
       props: {
-        interactionMode: 'confirm',
         modelValue: '',
-        showInteractionMode: true,
+        shiftEnterHint: 'common.globalAiChat.shiftEnterHint',
       },
     });
 
     const text = wrapper.text();
-    expect(text).toContain('common.globalAiChat.modeConfirm');
-    expect(text).toContain('common.globalAiChat.modeTrustedAuto');
-    expect(text).not.toContain('common.globalAiChat.modeObserve');
-    expect(text).not.toContain('common.globalAiChat.modeSuggest');
+    expect(text).not.toContain('common.globalAiChat.modeConfirm');
+    expect(text).not.toContain('common.globalAiChat.modeTrustedAuto');
+    expect(text).toContain('common.globalAiChat.shiftEnterHint');
   });
 });

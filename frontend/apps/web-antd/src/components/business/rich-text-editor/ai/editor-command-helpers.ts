@@ -1,8 +1,8 @@
-import type { RichTextRuntimeOperation } from './runtime-operation-types';
+import type { RichTextPageAIOperation } from './editor-page-ai-operations';
 
 import { $t } from '#/locales';
 
-import { createParameterizedRuntimeOperation } from './runtime-operation-types';
+import { createParameterizedPageAIOperation } from './editor-page-ai-operations';
 
 type EnumValueSet<TValues extends readonly string[]> = TValues[number];
 
@@ -112,8 +112,8 @@ export function createEditorEnumCommandOperation<
   TValues extends readonly string[],
 >(
   options: CreateEditorEnumCommandOperationOptions<TValues>,
-): RichTextRuntimeOperation {
-  return createParameterizedRuntimeOperation({
+): RichTextPageAIOperation {
+  return createParameterizedPageAIOperation({
     name: options.name,
     label: options.label,
     description: options.description,
@@ -155,4 +155,3 @@ export function createEditorEnumCommandOperation<
     },
   });
 }
-

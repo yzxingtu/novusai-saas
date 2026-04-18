@@ -40,7 +40,6 @@ const {
 function goTo(routePath: string) {
   void router.push(routePath);
 }
-
 </script>
 
 <template>

@@ -1,8 +1,6 @@
 <script lang="ts" setup>
-import type {
-  MonitoringScope,
-  MonitoringUsageBreakdownItem,
-} from '../../api';
+import type { MonitoringScope, MonitoringUsageBreakdownItem } from '../../api';
+import type { UsageSection } from './use-monitoring-usage-dashboard';
 
 import { IconifyIcon } from '@vben/icons';
 
@@ -22,7 +20,6 @@ import {
   maxCallCount,
   progressWidth,
 } from './formatters';
-import type { UsageSection } from './use-monitoring-usage-dashboard';
 
 defineOptions({ name: 'MonitoringUsageTopSectionCard' });
 
@@ -31,8 +28,8 @@ defineProps<{
   i18nPrefix: string;
   scope: MonitoringScope;
   section: UsageSection;
-  tenantId?: number | null;
-  tenantName?: string | null;
+  tenantId?: null | number;
+  tenantName?: null | string;
   totalCalls: number;
 }>();
 </script>

@@ -1,25 +1,26 @@
 <script setup lang="ts">
-import type { IdentityValue } from '#/components/business/identity-display/types';
 import type { IdentitySelectOption } from '#/components/business/identity-display';
+import type { IdentityValue } from '#/components/business/identity-display/types';
 
 import { computed, ref } from 'vue';
 
-import { message } from 'ant-design-vue';
 import { useVbenDrawer } from '@vben/common-ui';
+
+import { message } from 'ant-design-vue';
+
+import { getAdminIdentitySelectApi } from '#/api/admin/users';
+import { getTenantAdminIdentitySelectApi } from '#/api/tenant/admins';
 import {
   IdentityRemoteSelect,
   normalizeIdentitySelectOption,
 } from '#/components/business/identity-display';
-
-import { getAdminIdentitySelectApi } from '#/api/admin/users';
-import { getTenantAdminIdentitySelectApi } from '#/api/tenant/admins';
 import { $t } from '#/locales';
 
 const props = withDefaults(
   defineProps<{
-    apiPrefix?: 'admin' | 'tenant';
-    nodeId?: number | null;
     addMembers: (adminIds: number[]) => Promise<boolean>;
+    apiPrefix?: 'admin' | 'tenant';
+    nodeId?: null | number;
   }>(),
   {
     apiPrefix: 'admin',
@@ -52,7 +53,7 @@ const selectedOptions = computed<IdentitySelectOption[]>(() => {
   const ids = normalizeIdList(selectedValues.value);
   return ids
     .map((id) => optionCache.value.get(id))
-    .filter((opt): opt is IdentitySelectOption => Boolean(opt));
+    .filter((option): option is IdentitySelectOption => option !== undefined);
 });
 
 const [Drawer, drawerApi] = useVbenDrawer({
@@ -105,7 +106,7 @@ function handleOptionsLoaded(options: IdentitySelectOption[]) {
 }
 
 function normalizeIdList(
-  raw: IdentityValue[] | IdentityValue | null | undefined,
+  raw: IdentityValue | IdentityValue[] | null | undefined,
 ) {
   if (!raw) return [];
   const list = Array.isArray(raw) ? raw : [raw];

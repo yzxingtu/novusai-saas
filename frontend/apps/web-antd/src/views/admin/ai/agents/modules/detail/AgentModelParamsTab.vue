@@ -15,10 +15,10 @@ import {
 import { $t } from '#/locales';
 
 const props = defineProps<{
-  agent: AIAgentInfo;
-  saving: boolean;
   active: boolean;
+  agent: AIAgentInfo;
   onSaveFields: (fields: Record<string, unknown>) => Promise<void>;
+  saving: boolean;
 }>();
 
 const modelTemp = ref(0.7);
@@ -153,7 +153,9 @@ watch(
           >
             <IconifyIcon icon="lucide:percent" class="size-4 text-purple-500" />
           </div>
-          <label class="text-sm font-medium">{{ $t('admin.ai.agent.topP') }}</label>
+          <label class="text-sm font-medium">{{
+            $t('admin.ai.agent.topP')
+          }}</label>
         </div>
         <p class="mb-2 text-xs text-muted-foreground">
           {{ $t('admin.ai.agent.help.topP') }}

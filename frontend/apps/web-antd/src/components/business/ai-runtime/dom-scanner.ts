@@ -1,8 +1,8 @@
 import type {
   DOMScanInput,
   DOMScanMode,
-  DOMScanResult,
   DOMScannerOptions,
+  DOMScanResult,
   UIGraphNode,
   UINodeKind,
   UIOverlaySurfaceInput,
@@ -22,27 +22,37 @@ const INTERACTABLE_SELECTOR = [
   'a[href]',
   'input',
   'select',
+  'table',
   'textarea',
   '[role="button"]',
   '[role="menuitem"]',
   '[role="tab"]',
+  '.ant-pagination-item',
+  '.ant-pagination-prev',
+  '.ant-pagination-next',
 ].join(',');
 
 const AI_PANEL_SELECTOR = '[data-ai-panel]';
 
 function nowInMs(): number {
-  if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+  if (
+    typeof performance !== 'undefined' &&
+    typeof performance.now === 'function'
+  ) {
     return performance.now();
   }
   return Date.now();
 }
 
-function readTrimmedText(text: null | string | undefined, maxLength: number): string {
+function readTrimmedText(
+  text: null | string | undefined,
+  maxLength: number,
+): string {
   return (text ?? '').replaceAll(/\s+/g, ' ').trim().slice(0, maxLength);
 }
 
 function toAttrValue(value: string): string {
-  return value.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
+  return value.replaceAll('\\', '\\\\').replaceAll('"', String.raw`\"`);
 }
 
 export function isElementVisible(element: HTMLElement): boolean {
@@ -57,26 +67,35 @@ export function isElementVisible(element: HTMLElement): boolean {
     return false;
   }
   const className = element.className;
-  if (typeof className === 'string') {
-    if (
-      className.includes('hidden') ||
+  if (
+    typeof className === 'string' &&
+    (className.includes('hidden') ||
       className.includes('ant-modal-hidden') ||
       className.includes('ant-dropdown-hidden') ||
-      className.includes('ant-popover-hidden')
-    ) {
-      return false;
-    }
+      className.includes('ant-popover-hidden'))
+  ) {
+    return false;
   }
   return true;
 }
 
 function isAIExcluded(element: Element): boolean {
-  let cursor: null | Element = element;
+  let cursor: HTMLElement | null =
+    element instanceof HTMLElement ? element : null;
   while (cursor) {
     if (cursor.matches(AI_PANEL_SELECTOR)) {
       return true;
     }
-    const dataAI = cursor.getAttribute('data-ai');
+    const disabledValue = cursor.dataset.aiDisabled;
+    if (
+      typeof disabledValue === 'string' &&
+      !['0', 'false', 'no', 'off'].includes(
+        disabledValue.trim().toLocaleLowerCase(),
+      )
+    ) {
+      return true;
+    }
+    const dataAI = cursor.dataset.ai;
     if (typeof dataAI === 'string') {
       const hasOffDirective = dataAI
         .split(/\s+/)
@@ -90,12 +109,12 @@ function isAIExcluded(element: Element): boolean {
   return false;
 }
 
-export function buildElementLocator(element: Element): string {
-  const aiId = element.getAttribute('data-ai-id');
+export function buildElementLocator(element: HTMLElement): string {
+  const aiId = element.dataset.aiId;
   if (aiId) {
     return `[data-ai-id="${toAttrValue(aiId)}"]`;
   }
-  const testId = element.getAttribute('data-testid');
+  const testId = element.dataset.testid;
   if (testId) {
     return `[data-testid="${toAttrValue(testId)}"]`;
   }
@@ -114,7 +133,7 @@ export function buildElementLocator(element: Element): string {
   return buildPathLocator(element);
 }
 
-export function inferNodeKindFromElement(element: Element): UINodeKind {
+export function inferNodeKindFromElement(element: HTMLElement): UINodeKind {
   const tag = element.tagName.toLowerCase();
   const role = element.getAttribute('role');
   const className = element.className;
@@ -125,6 +144,15 @@ export function inferNodeKindFromElement(element: Element): UINodeKind {
   }
   if (classText.includes('ant-tabs-tab') || role === 'tab') {
     return 'tab';
+  }
+  if (
+    classText.includes('ant-pagination') ||
+    element.closest('.ant-pagination')
+  ) {
+    return 'pagination';
+  }
+  if (tag === 'table' || classText.includes('ant-table')) {
+    return 'table';
   }
   if (tag === 'a') {
     return 'link';
@@ -152,7 +180,7 @@ export function inferNodeKindFromElement(element: Element): UINodeKind {
 }
 
 export function readElementLabel(
-  element: Element,
+  element: HTMLElement,
   maxLength = DEFAULT_DOM_SCANNER_OPTIONS.textMaxLength,
 ): string | undefined {
   const attrCandidates = [
@@ -172,7 +200,7 @@ export function readElementLabel(
 
 function buildPathLocator(element: Element): string {
   const parts: string[] = [];
-  let cursor: null | Element = element;
+  let cursor: Element | null = element;
   let depth = 0;
   while (cursor && depth < 4) {
     const tag = cursor.tagName.toLowerCase();
@@ -181,7 +209,7 @@ function buildPathLocator(element: Element): string {
       parts.unshift(tag);
       break;
     }
-    const siblings = Array.from(parentElement.children).filter(
+    const siblings = [...parentElement.children].filter(
       (candidate: Element) => candidate.tagName === cursor?.tagName,
     );
     if (siblings.length <= 1) {
@@ -200,7 +228,10 @@ function isDisabled(element: Element): boolean {
   if (!('hasAttribute' in element)) {
     return false;
   }
-  if (element.hasAttribute('disabled') || element.getAttribute('aria-disabled') === 'true') {
+  if (
+    element.hasAttribute('disabled') ||
+    element.getAttribute('aria-disabled') === 'true'
+  ) {
     return true;
   }
   return false;
@@ -214,7 +245,7 @@ function resolveRoot(input: DOMScanInput): ParentNode {
 }
 
 function createNodeFromElement(
-  element: Element,
+  element: HTMLElement,
   maxLength: number,
   activeSurfaceId: null | string,
 ): UIGraphNode {
@@ -240,7 +271,11 @@ function uniqueNodeKey(node: UIGraphNode): string {
   return `${node.kind}|${node.locator}`;
 }
 
-function readSurfaceTitle(element: Element, fallback: string, maxLength: number): string {
+function readSurfaceTitle(
+  element: Element,
+  fallback: string,
+  maxLength: number,
+): string {
   const selectors = [
     '.ant-modal-title',
     '.ant-drawer-title',
@@ -250,7 +285,8 @@ function readSurfaceTitle(element: Element, fallback: string, maxLength: number)
   ];
   for (const selector of selectors) {
     const target = element.querySelector(selector);
-    const labelText = target?.getAttribute('aria-label') ?? target?.getAttribute('title');
+    const labelText =
+      target?.getAttribute('aria-label') ?? target?.getAttribute('title');
     const text = readTrimmedText(target?.textContent ?? labelText, maxLength);
     if (text) {
       return text;
@@ -259,10 +295,14 @@ function readSurfaceTitle(element: Element, fallback: string, maxLength: number)
   return fallback;
 }
 
-function buildOverlayKey(kind: UIOverlaySurfaceInput['kind'], element: Element, index: number): string {
+function buildOverlayKey(
+  kind: UIOverlaySurfaceInput['kind'],
+  element: HTMLElement,
+  index: number,
+): string {
   const candidate =
-    element.getAttribute('data-ai-surface-id') ??
-    element.getAttribute('data-testid') ??
+    element.dataset.aiSurfaceId ??
+    element.dataset.testid ??
     element.getAttribute('id');
   if (candidate) {
     return `${kind}:${candidate}`;
@@ -270,7 +310,10 @@ function buildOverlayKey(kind: UIOverlaySurfaceInput['kind'], element: Element, 
   return `${kind}:dom:${index}`;
 }
 
-function collectOverlays(document: Document, maxLength: number): UIOverlaySurfaceInput[] {
+function collectOverlays(
+  document: Document,
+  maxLength: number,
+): UIOverlaySurfaceInput[] {
   const overlays: UIOverlaySurfaceInput[] = [];
   const definitions: Array<{
     fallbackTitle: string;
@@ -342,7 +385,10 @@ export class DOMScanner {
 
   scan(input: DOMScanInput, mode: DOMScanMode = 'full'): DOMScanResult {
     const start = nowInMs();
-    const overlays = collectOverlays(input.document, this.options.textMaxLength);
+    const overlays = collectOverlays(
+      input.document,
+      this.options.textMaxLength,
+    );
     if (mode === 'surfaces-only') {
       return {
         durationMs: nowInMs() - start,
@@ -384,9 +430,11 @@ export class DOMScanner {
         continue;
       }
       scannedElements += 1;
-      const isVisible = !(element instanceof HTMLElement) || isElementVisible(element);
+      const isVisible =
+        !(element instanceof HTMLElement) || isElementVisible(element);
 
       if (
+        element instanceof HTMLElement &&
         element.matches(INTERACTABLE_SELECTOR) &&
         (!this.options.visibleOnly || isVisible)
       ) {
@@ -411,7 +459,7 @@ export class DOMScanner {
         continue;
       }
 
-      const children = Array.from(element.children);
+      const children = [...element.children];
       children.forEach((child) => {
         if (!(child instanceof Element)) {
           return;

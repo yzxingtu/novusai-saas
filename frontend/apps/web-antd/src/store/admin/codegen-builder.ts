@@ -164,12 +164,8 @@ export const useCodegenBuilderStore = defineStore(
     function safeClone<T>(value: T): T {
       try {
         return structuredClone(value);
-      } catch (error) {
-        try {
-          return JSON.parse(JSON.stringify(value));
-        } catch {
-          return value;
-        }
+      } catch {
+        return value;
       }
     }
 

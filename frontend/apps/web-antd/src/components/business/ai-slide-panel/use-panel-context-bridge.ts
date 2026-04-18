@@ -1,7 +1,6 @@
 import type { Ref } from 'vue';
 
 import type { PageContext } from '#/api/shared/ai-chat';
-
 import type { InputVariable, RichTextAITask } from '#/types/ai-chat';
 
 import { computed, onMounted, reactive, ref, watch } from 'vue';

@@ -21,8 +21,8 @@ import { useAccessStore, useTabbarStore, useUserStore } from '@vben/stores';
 
 import { message, Popover, Tooltip } from 'ant-design-vue';
 
-import { AIChatSlidePanel } from '#/components/business/ai-slide-panel';
 import { ensureGlobalUIRuntime } from '#/components/business/ai-runtime/runtime-bridge';
+import { AIChatSlidePanel } from '#/components/business/ai-slide-panel';
 import CacheClearModal from '#/components/business/cache-clear-modal/CacheClearModal.vue';
 import { CommandBar } from '#/components/business/command-bar';
 import NotificationPanel from '#/components/business/notification-panel/NotificationPanel.vue';
@@ -31,13 +31,13 @@ import PluginFloatingPanels from '#/components/business/plugin-slots/PluginFloat
 import ReLoginForm from '#/components/business/re-login-form/ReLoginForm.vue';
 import { useCurrentPageAIPolicy } from '#/composables';
 import { usePageSession } from '#/composables/use-page-session';
-import { useUIActionChannel } from '#/composables/use-ui-action-channel';
 import {
   refreshPluginSlots,
   resetPluginRoutesReady,
   usePluginFrontendInit,
 } from '#/composables/use-plugin-frontend-init';
 import { usePreferenceSync } from '#/composables/use-preference-sync';
+import { useUIActionChannel } from '#/composables/use-ui-action-channel';
 import { $t, $te } from '#/locales';
 import { generateAccess } from '#/router/access';
 import { accessRoutes } from '#/router/routes';
@@ -102,6 +102,9 @@ const {
   effectiveMode,
   pageContextKey,
 } = useCurrentPageAIPolicy();
+// Keep a single policy chain:
+// route.meta.ai -> useCurrentPageAIPolicy -> basic.vue -> AIChatSlidePanel -> usePageAICapability.
+// Do not introduce an alternate page-policy path inside panel shells.
 
 const apiPrefix = computed(() => {
   const path = router.currentRoute.value.path;

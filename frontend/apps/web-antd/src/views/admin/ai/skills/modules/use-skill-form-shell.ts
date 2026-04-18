@@ -1,7 +1,6 @@
-import type {
-  AdminSkillInfo,
-  PluginToolDefinition,
-} from '#/api/admin/skills';
+import type { BuiltinToolInfo, SkillFormSharedState } from './skill-form-types';
+
+import type { AdminSkillInfo, PluginToolDefinition } from '#/api/admin/skills';
 
 import { computed, ref, watch } from 'vue';
 
@@ -11,10 +10,6 @@ import { useCrudDrawer } from '#/composables';
 import { $t } from '#/locales';
 
 import { createSkillFormSchema } from './skill-form-schema';
-import type {
-  BuiltinToolInfo,
-  SkillFormSharedState,
-} from './skill-form-types';
 import {
   getSkillFormDefaults,
   toSkillFormValues,

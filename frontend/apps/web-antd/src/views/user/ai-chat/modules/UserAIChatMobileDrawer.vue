@@ -57,7 +57,9 @@ function closeMobileSidebar() {
           <div
             class="flex size-7 shrink-0 items-center justify-center rounded-lg text-[10px] font-medium"
             :class="
-              selectedAgentId === agent.id ? 'bg-primary/15 text-primary' : 'bg-muted/60'
+              selectedAgentId === agent.id
+                ? 'bg-primary/15 text-primary'
+                : 'bg-muted/60'
             "
           >
             <img

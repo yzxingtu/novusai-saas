@@ -717,15 +717,9 @@
       "longTermMemoryHint": "When enabled, durable insights are captured into MemoryRecord and recalled progressively; requires session memory to be on for the same agent."
     },
     "skillPackageBindings": "Skill Package Bindings",
-    "consentMode": "Tool Consent Mode",
-    "consentModeOptions": {
-      "auto": "Auto Execute",
-      "ask": "Require Confirmation",
-      "reject": "Deny Execution"
-    },
     "skillPicker": {
       "title": "Select skill bindings",
-      "subtitle": "Search by skill, package, and source, then set the default consent mode for each selected skill.",
+      "subtitle": "Search by skill, package, and source, then manage the current agent's granted skills in one pass.",
       "searchPlaceholder": "Search skill name, key, description, or package",
       "packageFilter": "Filter by package",
       "onlyActive": "Active skills only",
@@ -741,11 +735,10 @@
       "packageMatches": "{count} items",
       "selectedBadge": "Selected",
       "selectionSummary": "{skills} skills / {packages} packages",
-      "selectionHint": "Selected skills stay here across pages, and you can adjust the default consent mode for each one.",
+      "selectionHint": "Selected skills stay here across pages so you can review the exact list before saving.",
       "formEmptyHint": "No skills are configured for this agent yet. It is usually better to grant at least one directly runnable skill.",
       "detailEmptyHint": "This agent currently has no granted skills. Use the button above to filter by package, browse pages, and save in one pass.",
-      "defaultConsentMode": "Default Consent Mode",
-      "replaceNotice": "Saving will replace the current skill grants as a whole, so confirm the default consent mode for every selected skill first.",
+      "replaceNotice": "Saving replaces the current skill grants as a whole, so review the selected skills on the right before confirming.",
       "paginationTotal": "{count} items",
       "emptyCandidates": "No matching skills",
       "emptySelected": "No skills selected",

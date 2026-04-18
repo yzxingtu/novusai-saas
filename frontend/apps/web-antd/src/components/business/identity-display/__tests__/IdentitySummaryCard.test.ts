@@ -107,7 +107,7 @@ vi.mock('@vben/icons', async () => {
   };
 });
 
-describe('IdentitySummaryCard presence indicator', () => {
+describe('identitySummaryCard presence indicator', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     presenceMocks.ensurePresenceLoaded.mockResolvedValue(true);
@@ -210,7 +210,9 @@ describe('IdentitySummaryCard presence indicator', () => {
       'admin',
       9,
     );
-    expect(wrapper.find('[data-testid="presence-indicator"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="presence-indicator"]').exists()).toBe(
+      true,
+    );
   });
 
   it('hides the indicator when admin tenant-user identities do not include tenantId', async () => {
@@ -234,6 +236,8 @@ describe('IdentitySummaryCard presence indicator', () => {
     await flushPromises();
 
     expect(presenceMocks.ensurePresenceLoaded).not.toHaveBeenCalled();
-    expect(wrapper.find('[data-testid="presence-indicator"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="presence-indicator"]').exists()).toBe(
+      false,
+    );
   });
 });

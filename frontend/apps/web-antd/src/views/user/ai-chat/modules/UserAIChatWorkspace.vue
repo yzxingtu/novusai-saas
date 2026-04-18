@@ -1,12 +1,12 @@
 <script lang="ts" setup>
+import { useUserAIChatWorkspace } from '../composables/use-user-ai-chat-workspace';
+import { provideUserAIChatWorkspaceContext } from './user-ai-chat-workspace-context';
 import UserAIChatWorkspaceComposer from './UserAIChatWorkspaceComposer.vue';
 import UserAIChatWorkspaceHeader from './UserAIChatWorkspaceHeader.vue';
 import UserAIChatWorkspaceImagePreview from './UserAIChatWorkspaceImagePreview.vue';
 import UserAIChatWorkspaceMemoryPanel from './UserAIChatWorkspaceMemoryPanel.vue';
 import UserAIChatWorkspaceMessages from './UserAIChatWorkspaceMessages.vue';
 import UserAIChatWorkspaceTokenUsage from './UserAIChatWorkspaceTokenUsage.vue';
-import { provideUserAIChatWorkspaceContext } from './user-ai-chat-workspace-context';
-import { useUserAIChatWorkspace } from '../composables/use-user-ai-chat-workspace';
 
 const workspace = useUserAIChatWorkspace();
 

@@ -24,6 +24,7 @@ export interface AntdFormFieldLike {
 export interface BuildAntdFormSessionInputOptions {
   form_session_id?: string;
   surface_id: string;
+  page_key?: string;
   entity_name?: string;
   form_name?: string;
   mode?: FormSessionMode;
@@ -38,7 +39,7 @@ export interface BuildAntdFormSessionInputOptions {
 
 function getPathValue(
   source: Record<string, unknown> | undefined,
-  path: Array<string | number>,
+  path: Array<number | string>,
 ): unknown {
   if (!source) return undefined;
   let cursor: unknown = source;
@@ -53,7 +54,7 @@ function getPathValue(
 
 function normalizeFieldName(name: AntdFormFieldLike['name']): string {
   if (Array.isArray(name)) {
-    return name.map((segment) => String(segment)).join('.');
+    return name.map(String).join('.');
   }
   return String(name);
 }
@@ -96,6 +97,7 @@ export function createAntdFormSessionInput(
   return {
     form_session_id: options.form_session_id,
     surface_id: options.surface_id,
+    page_key: options.page_key,
     entity_name: options.entity_name,
     form_name: options.form_name,
     mode: options.mode,

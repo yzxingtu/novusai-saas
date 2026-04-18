@@ -5,7 +5,7 @@ import { computed, ref } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
-import { Alert, Button, Tag, Upload, Spin, message } from 'ant-design-vue';
+import { Alert, Button, message, Spin, Tag, Upload } from 'ant-design-vue';
 
 import { smartUploadFile } from '#/api/admin/attachment';
 import { $t } from '#/locales';
@@ -29,9 +29,9 @@ const props = defineProps<{
   agent: AIAgentInfo;
   isRoutingEnabled: boolean;
   onBack: () => void;
-  onOpenVersionHistory: () => void;
-  onOpenAccessConfig: () => void;
   onJumpToRoutingTab: () => void;
+  onOpenAccessConfig: () => void;
+  onOpenVersionHistory: () => void;
   onSaveFields: (fields: Record<string, unknown>) => Promise<void>;
 }>();
 
@@ -276,7 +276,12 @@ async function removeAvatar() {
               }}</span>
             </button>
           </div>
-          <Alert v-if="agent.source_plugin" type="info" show-icon class="mt-3 text-sm">
+          <Alert
+            v-if="agent.source_plugin"
+            type="info"
+            show-icon
+            class="mt-3 text-sm"
+          >
             <template #message>
               {{
                 `${$t('admin.ai.skillPackage.sourcePlugin')}：${

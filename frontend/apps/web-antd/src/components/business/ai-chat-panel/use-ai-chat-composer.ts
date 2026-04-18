@@ -1,9 +1,9 @@
 import type { Ref } from 'vue';
 
-import type { ChatKBBindingInfo } from '#/api/shared/ai-chat';
-
 import type { MentionCandidate } from './types';
 import type { UseAIChatOptions } from './use-ai-chat-options';
+
+import type { ChatKBBindingInfo } from '#/api/shared/ai-chat';
 
 import { computed, ref, unref, watch } from 'vue';
 
