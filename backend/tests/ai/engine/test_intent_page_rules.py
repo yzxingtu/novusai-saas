@@ -3,10 +3,10 @@ from types import SimpleNamespace
 from app.ai.engine.intent_page_rules import (
     detect_page_continuation_signal,
     detect_page_signal,
-    looks_like_required_field_form_read,
     looks_like_page_jump_request,
     looks_like_page_search_request,
     looks_like_read_only_form_instruction,
+    looks_like_required_field_form_read,
 )
 
 
@@ -46,6 +46,19 @@ def test_detect_page_continuation_signal_prefers_screenshot() -> None:
 
     assert signal is not None
     assert signal.kind == "page_screenshot"
+    assert signal.shortcircuit is False
+
+
+def test_detect_page_continuation_signal_prefers_row_detail_with_ui_tools() -> None:
+    signal = detect_page_continuation_signal(
+        clause="看这个区域",
+        offset=0,
+        input_variables={"page_context": {"page_key": "admin.ai.logs"}},
+        continuation_context=_continuation_context(),
+    )
+
+    assert signal is not None
+    assert signal.kind == "page_row_detail"
     assert signal.shortcircuit is False
 
 

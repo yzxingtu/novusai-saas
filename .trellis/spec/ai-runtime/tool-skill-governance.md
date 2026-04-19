@@ -175,6 +175,10 @@ export async function submitRuntimeForm(args: { confirm?: boolean; formSessionId
 - Optional fields: `page_title`, `locale`, `page_session_id`, `active_form_summary`, `active_form_session_id`, `surface_stack`, `ui_epoch`, `suggested_tools`.
 - `page_context.page_data` is optional, summary-first, and is the only allowed seam for compact navigation metadata such as `navigation_catalog` and `navigation_context`.
 - `page_context.page_data` is a strict compact contract. Unknown keys are invalid request payload, not silently ignored runtime hints.
+- `/ai/agent-chat/{agent_id}/chat` and `/ai/agent-chat/route` must preserve the
+  same request-boundary contract: unknown `page_data` keys fail validation,
+  while malformed `navigation_catalog` items are filtered instead of taking
+  down the whole turn.
 
 #### 3.4 Summary-First Constraint
 - `getRuntimeThinPageContext()` always uses `compact` snapshots; only summary fields flow into `page_context`.
@@ -186,6 +190,10 @@ export async function submitRuntimeForm(args: { confirm?: boolean; formSessionId
 - Read tools: `ui_get_snapshot`, `ui_list_interactables`, `ui_read_region`, `ui_read_table`, `ui_get_form_state`.
 - Write tools: `ui_click`, `ui_open_surface`, `ui_set_field`, `ui_fill_form`, `ui_submit_form`.
 - `serializeAvailableOperations` filters operations via route AI policy and `filterPageOperationsByPolicy`; `PageContextSuggestedTool` is limited to the UI tool set.
+- Frontend capability filters, pending-op display, and tool-call chips must
+  treat canonical `ui_*` names as the only live page-runtime tool truth.
+  Legacy names such as `navigate_menu`, `open_page`, `read_visible_rows`,
+  `fill_form`, and `submit_form` are no longer part of the live runtime path.
 - `security-policy` enforces `data-ai*` directives and route policy; `evaluateAIActionSecurity` blocks and requires confirmation for dangerous action kinds; `submitRuntimeForm` enforces `submit_policy === 'confirm'`.
 
 #### 3.6 Budget Governance

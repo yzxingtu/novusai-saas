@@ -183,14 +183,15 @@ _PAGE_DETAIL_OPERATION_TERMS = (
     "可见记录",
     "列表明细",
     "表格明细",
-    "read_current_view",
-    "read_visible_rows",
-    "create_record",
+    "ui_click",
+    "ui_open_surface",
+    "ui_read_region",
+    "ui_read_table",
     "bind",
     "grant",
-    "fill_form",
-    "submit_form",
-    "get_form_",
+    "ui_fill_form",
+    "ui_submit_form",
+    "ui_get_form_",
 )
 _WEB_SEARCH_PREFIXES = ("search results for:",)
 _FETCH_URL_PREFIXES = ("content from http://", "content from https://")

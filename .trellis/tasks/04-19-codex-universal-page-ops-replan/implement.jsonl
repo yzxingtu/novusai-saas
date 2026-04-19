@@ -1,0 +1,59 @@
+{"file": ".trellis/spec/ai-runtime/index.md", "reason": "Canonical AI runtime owner boundaries for this redesign"}
+{"file": ".trellis/spec/ai-runtime/intent-routing.md", "reason": "Current page intent taxonomy and routing rules"}
+{"file": ".trellis/spec/ai-runtime/tool-skill-governance.md", "reason": "Thin page_context and page tool exposure governance"}
+{"file": ".trellis/spec/ai-runtime/recovery-stop-loss.md", "reason": "Canonical retry, consent, and stop-loss expectations"}
+{"file": ".trellis/spec/ai-runtime/context-budget.md", "reason": "Budget constraints for page/runtime/context injection"}
+{"file": ".trellis/spec/ai-runtime/memory-rag-pipeline.md", "reason": "Canonical memory capture/recall boundaries and thread-level governance direction"}
+{"file": ".trellis/spec/ai-runtime/frontend-ai-shell.md", "reason": "Single page-AI frontend chain that must remain the only live path"}
+{"file": "backend/app/ai/engine/tool_router.py", "reason": "Current static page-intent tool routing that needs state-driven convergence"}
+{"file": "backend/app/ai/engine/page_flow_recovery_helpers.py", "reason": "Current page no-progress recovery seam to replace with structured state transitions"}
+{"file": "backend/app/ai/engine/turn_executor_completion.py", "reason": "Current completion and partial-exit logic that still centers text instead of page progress"}
+{"file": "backend/app/ai/skills/resolver_parts/semantics.py", "reason": "Legacy page tool semantic family still active in runtime vocabulary"}
+{"file": "backend/app/models/ai/skill.py", "reason": "Current skill model still carries skill_md and transitional runtime metadata seams"}
+{"file": "backend/app/ai/runtime/context_assembler.py", "reason": "Current slice landed: live skill descriptors now normalize to capability_pack and selected_skill_names derive from execution-backed tool bindings"}
+{"file": "backend/app/ai/context/orchestrator.py", "reason": "Current slice landed: runtime memory flags now separate explicit memory intent from memory_context_enabled policy"}
+{"file": "backend/app/ai/capabilities/description_builder.py", "reason": "Current slice landed: capability descriptions no longer echo suggested_tools and catalog-only skill descriptors stay out of live summaries"}
+{"file": "backend/app/ai/engine/prepare_execution_runtime_helpers.py", "reason": "Current slice landed: runtime capability hint injection now follows memory_context_enabled instead of explicit memory intent only"}
+{"file": "backend/app/ai/engine/system_prompt_capability_decisions.py", "reason": "Current slice landed: capability injection decisions now treat memory_context_enabled as the memory owner seam"}
+{"file": "backend/app/ai/engine/system_prompt_intent_helpers.py", "reason": "Current slice landed: exported gating flags now include runtime memory-owner fields for downstream runtime helpers"}
+{"file": "frontend/apps/web-antd/src/components/business/ai-runtime/runtime-bridge-snapshot.ts", "reason": "Existing thin page_context, suggested_tools, ui_epoch, and surface snapshot facts"}
+{"file": "frontend/apps/web-antd/src/components/business/ai-runtime/ui-runtime.ts", "reason": "Existing structured UI runtime facts and incremental diff support"}
+{"file": "frontend/apps/web-antd/src/composables/use-form-state-tracker.ts", "reason": "Current pageKey/session-based form identity seam that needs redesign"}
+{"file": "frontend/apps/web-antd/src/components/business/ai-slide-panel/use-page-ai-capability.ts", "reason": "Current frontend still uses suggested_tools as UX affordance and must stay read-model only"}
+{"file": ".trellis/tasks/04-08-ui-runtime-universal-page-awareness/prd.md", "reason": "Previous page-runtime task whose assumptions must be updated instead of copied forward"}
+{"file": ".trellis/tasks/04-17-ai-dialogue-codex-rebuild/info.md", "reason": "Previous Codex-style runtime rebuild task to preserve stable goals but discard stale assumptions"}
+{"file": "C:/Users/Administrator/Downloads/codex-main/codex-rs/core/src/session/turn.rs", "reason": "Reference turn loop showing unified event-driven tool orchestration"}
+{"file": "C:/Users/Administrator/Downloads/codex-main/codex-rs/core/src/tools/router.rs", "reason": "Reference tool payload routing without page-specific branching"}
+{"file": "C:/Users/Administrator/Downloads/codex-main/codex-rs/core/src/mcp_tool_exposure.rs", "reason": "Reference dynamic tool exposure model for MCP/browser capabilities"}
+{"file": "C:/Users/Administrator/Downloads/codex-main/codex-rs/core/src/tools/orchestrator.rs", "reason": "Reference unified approval/retry/orchestration owner"}
+{"file": "C:/Users/Administrator/Downloads/codex-main/codex-rs/core/src/skills.rs", "reason": "Reference skill-pack explicit mention, dependency resolution, and turn-scoped injection model"}
+{"file": "C:/Users/Administrator/Downloads/codex-main/codex-rs/core/src/stream_events_utils.rs", "reason": "Reference external-context memory pollution guard in the unified turn runtime"}
+{"file": "C:/Users/Administrator/Downloads/codex-main/codex-rs/core/src/memories/README.md", "reason": "Reference startup memory pipeline and thread-level memory ownership model"}
+{"file": "backend/app/ai/context/orchestrator.py", "reason": "Current slice: let long-term memory participate in ordinary turns via runtime flags instead of explicit memory_recall wording only"}
+{"file": "backend/app/ai/runtime/types.py", "reason": "Current slice: selected skill truth now filters descriptor-only packs without execution tools"}
+{"file": "backend/app/ai/skills/resolver.py", "reason": "Current slice: runtime-selected skill names now resolve from execution-backed capability surfaces"}
+{"file": "backend/app/ai/runtime/context_assembler.py", "reason": "Current slice: capability assembly now derives selected skill names from live execution surfaces and preserves tool-backed metadata"}
+{"file": "backend/app/ai/capabilities/description_builder.py", "reason": "Current slice: page capability descriptions no longer echo suggested_tools and skill descriptions skip catalog-only descriptors"}
+{"file": ".trellis/spec/ai-runtime/tool-skill-governance.md", "reason": "Canonical spec updated for execution-backed skill truth and suggested_tools-free capability descriptions"}
+{"file": ".trellis/spec/ai-runtime/memory-rag-pipeline.md", "reason": "Canonical spec updated for runtime-flag-driven generic memory recall and explicit-recall profile snapshots"}
+{"file": ".trellis/spec/ai-runtime/context-budget.md", "reason": "Canonical budget spec updated to reflect bounded ordinary-turn memory recall"}
+{"file": "backend/app/ai/engine/tool_router.py", "reason": "Current slice: page workflow plans now derive navigation/detail/form/editor stages from active surface and overlay runtime facts"}
+{"file": "backend/app/ai/engine/prepare_execution_tool_helpers.py", "reason": "Current slice: prepare_execution now writes page_workflow_stage/page_workflow_state into IntentPlan.metadata"}
+{"file": "backend/app/ai/engine/system_prompt_intent_helpers.py", "reason": "Current slice: page intent completion contracts are now stage-aware instead of tool-name-only"}
+{"file": "backend/app/ai/engine/recovery_status_update.py", "reason": "Current slice: recovery status updates now require action-plus-verify or submit-only completion for relevant page workflows"}
+{"file": "backend/app/ai/engine/tool_policy_intent_helpers.py", "reason": "Current slice: contract-breach detection now reuses stage-aware page completion contracts instead of generic tool intersections"}
+{"file": "backend/app/ai/engine/page_flow_recovery_helpers.py", "reason": "Current slice: no-progress page recovery now narrows tools using canonical workflow stage/state"}
+{"file": ".trellis/spec/ai-runtime/recovery-stop-loss.md", "reason": "Canonical spec updated for stage-aware page stop-loss and recovery metadata reuse"}
+{"file": "frontend/apps/web-antd/src/utils/menu-navigation.ts", "reason": "Current slice: shared compact navigation_catalog helper now owns navigation_context/page_data assembly instead of page-local fallback glue"}
+{"file": "frontend/apps/web-antd/src/components/business/ai-runtime/runtime-bridge-snapshot.ts", "reason": "Current slice: thin page_context now carries compact navigation_catalog metadata from the shared runtime owner"}
+{"file": "frontend/apps/web-antd/src/utils/page-navigation.ts", "reason": "Current slice: navigation tool results now reuse the canonical compact navigation page-data seam"}
+{"file": "backend/app/ai/navigation_semantics.py", "reason": "Current slice: backend navigation intent semantics now require navigation_catalog as the only live menu truth"}
+{"file": "backend/app/ai/tools/page_runtime/navigation.py", "reason": "Current slice: navigation candidate resolution now reuses canonical semantic scoring instead of a duplicated menu matcher"}
+{"file": "frontend/apps/web-antd/src/composables/use-form-state-tracker.ts", "reason": "Current slice: form tracker runtime-facing APIs now center session/surface identity, with page-key retained only for compat lookups"}
+{"file": "backend/app/schemas/ai/agent_chat.py", "reason": "Current slice: PageContext now formally models compact page_data so navigation_catalog/navigation_context survive request normalization"}
+{"file": "backend/tests/test_admin_agent_chat_routes_contract.py", "reason": "Current slice: transport-level sentinel tests lock strict page_data validation and malformed navigation_catalog filtering across /ai/agent-chat endpoints"}
+{"file": "backend/app/ai/engine/intent_page_rules.py", "reason": "Current slice: page continuation intent now follows canonical ui_* detail tools instead of stale legacy page-op names"}
+{"file": "backend/app/ai/text_semantics_terms.py", "reason": "Current slice: page detail semantic terms now align with canonical ui_* runtime vocabulary rather than legacy operation names"}
+{"file": "frontend/apps/web-antd/src/utils/ai-page-capabilities.ts", "reason": "Current slice: navigation-only and capability filters now treat only canonical ui_* tool names as live page-runtime truth"}
+{"file": "frontend/apps/web-antd/src/components/business/ai-chat-panel/tool-call-utils.ts", "reason": "Current slice: pending-op/tool-call display now recognizes only ui_* runtime page tools on the live path"}
+{"file": ".trellis/spec/ai-runtime/frontend-ai-shell.md", "reason": "Canonical spec updated to forbid frontend display/policy helpers from re-emitting legacy non-ui page-op names"}

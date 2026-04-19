@@ -90,6 +90,9 @@ No page-level component or composable may introduce an alternate policy parser.
   the canonical frontend owner for compact navigation metadata
   (`page_data.navigation_catalog` / `page_data.navigation_context`) carried in
   thin page context.
+- AI panel display helpers and policy filters must not re-emit legacy
+  non-`ui_` page-operation names. Live page-operation chips, pending-op state,
+  and navigation-only allowlists recognize only canonical `ui_*` runtime tools.
 - Read-model: `PageContext` and related structures (from shared API types)
   are treated as read-models. UI code must not reconstruct or mutate them
   outside the runtime bridge.

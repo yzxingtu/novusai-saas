@@ -193,10 +193,10 @@ class FormStateTrackerImpl {
   }
 
   /**
-   * Get the FormApi for a page (for fill_form / submit_form).
+   * Get the FormApi for a page (for ui_fill_form / ui_submit_form).
    * Falls back to the only open entry if the exact pageKey has no match
    * and exactly one form is currently tracked.
-   * 获取页面的 FormApi（用于 fill_form / submit_form）。
+   * 获取页面的 FormApi（用于 ui_fill_form / ui_submit_form）。
    * 精确 key 无匹配且仅一个表单被追踪时，回退到该表单。
    */
   getFormApi(pageKey: string): null | TrackableFormApi {

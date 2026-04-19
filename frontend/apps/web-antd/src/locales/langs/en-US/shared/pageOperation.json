@@ -128,7 +128,7 @@
     "visibleRowsRead": "Read {count} visible row(s) from the current page",
     "rowDetailRead": "Read detail for record {id}",
     "formNotOpen": "Form is not open. Use create_record or edit_record first.",
-    "formAlreadyOpen": "Form is already open. Continue with get_form_state, fill_form, or submit_form.",
+    "formAlreadyOpen": "Form is already open. Continue with ui_get_form_state, ui_fill_form, or ui_submit_form.",
     "noValidFields": "No valid fields to fill. Known fields: {fields}",
     "fillFormResult": "Filled {count} field(s) successfully",
     "fillFormPartial": "Filled {count} field(s), {mismatch} may need attention",

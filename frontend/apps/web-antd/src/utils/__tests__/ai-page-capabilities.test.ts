@@ -14,19 +14,16 @@ describe('ai-page-capabilities', () => {
   it('merges disabled capabilities with explicit operation names', () => {
     expect(
       mergeDisabledOperations({
-        disabledCapabilities: ['search', 'pagination'],
+        disabledCapabilities: ['search', 'pagination', 'submit'],
         disabledOperations: ['sync_policies'],
-        legacyDisabledOperations: ['read_visible_rows'],
       }),
     ).toEqual(
       expect.arrayContaining([
-        'clear_search',
-        'go_to_page',
-        'next_page',
-        'prev_page',
-        'read_visible_rows',
-        'search',
-        'set_page_size',
+        'ui_click',
+        'ui_fill_form',
+        'ui_open_surface',
+        'ui_set_field',
+        'ui_submit_form',
         'sync_policies',
       ]),
     );
@@ -34,9 +31,9 @@ describe('ai-page-capabilities', () => {
 
   it('filters operations by mode and disabled capabilities', () => {
     const operations = [
-      { name: 'search' },
-      { name: 'navigate_menu' },
-      { name: 'next_page' },
+      { name: 'ui_fill_form' },
+      { name: 'ui_open_surface' },
+      { name: 'ui_submit_form' },
       { name: 'sync_policies' },
     ];
 
@@ -49,14 +46,24 @@ describe('ai-page-capabilities', () => {
     expect(
       filterPageOperationsByPolicy(operations, {
         mode: 'operate',
-        disabledCapabilities: ['search', 'pagination'],
+        disabledCapabilities: ['form', 'submit'],
       }),
-    ).toEqual([{ name: 'navigate_menu' }, { name: 'sync_policies' }]);
+    ).toEqual([{ name: 'ui_open_surface' }, { name: 'sync_policies' }]);
+  });
 
+  it('keeps navigation_only constrained to canonical ui tools', () => {
     expect(
-      filterPageOperationsByPolicy(operations, {
-        mode: 'navigation_only',
-      }),
-    ).toEqual([{ name: 'navigate_menu' }]);
+      filterPageOperationsByPolicy(
+        [
+          { name: 'navigate_menu' },
+          { name: 'ui_click' },
+          { name: 'ui_open_surface' },
+          { name: 'ui_fill_form' },
+        ],
+        {
+          mode: 'navigation_only',
+        },
+      ),
+    ).toEqual([{ name: 'ui_click' }, { name: 'ui_open_surface' }]);
   });
 });

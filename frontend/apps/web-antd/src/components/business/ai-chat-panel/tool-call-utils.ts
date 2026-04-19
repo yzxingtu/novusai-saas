@@ -384,27 +384,6 @@ export function hasToolCardDetails(
   );
 }
 
-const RUNTIME_PAGE_TOOL_NAMES = new Set([
-  'capture_screenshot',
-  'clear_search',
-  'create_record',
-  'edit_record',
-  'fill_form',
-  'get_form_options',
-  'get_form_state',
-  'go_to_page',
-  'list_available_menus',
-  'navigate_menu',
-  'next_page',
-  'prev_page',
-  'read_row_detail',
-  'read_visible_rows',
-  'refresh_list',
-  'search',
-  'set_page_size',
-  'submit_form',
-]);
-
 export function isRuntimePageToolName(name: string): boolean {
-  return name.startsWith('ui_') || RUNTIME_PAGE_TOOL_NAMES.has(name);
+  return name.startsWith('ui_');
 }

@@ -296,6 +296,14 @@ _PAGE_CONTINUE_ACTION_TERMS = (
     "展开",
     "看看",
 )
+_PAGE_ROW_DETAIL_TOOL_NAMES = frozenset(
+    {
+        "ui_click",
+        "ui_open_surface",
+        "ui_read_region",
+        "ui_read_table",
+    }
+)
 _PAGE_WRITE_ANCHOR_TERMS = (
     *_PAGE_POINTER_TERMS,
     *_PAGE_SEARCH_QUALIFIER_TERMS,
@@ -370,7 +378,7 @@ def page_continuation_intent_kind(
         token in lowered for token in ("区域", "明细", "详情")
     ):
         page_ops = page_operation_names(input_variables)
-        if {"read_visible_rows", "read_row_detail", "open_row_detail"} & page_ops:
+        if _PAGE_ROW_DETAIL_TOOL_NAMES & page_ops:
             return "page_row_detail"
     active_intent_kind = str(
         getattr(continuation_context, "active_intent_kind", "") or ""
