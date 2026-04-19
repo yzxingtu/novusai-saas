@@ -64,6 +64,11 @@ class ConversationInteractionService:
         interaction_mode_effective: str | None = None,
         interaction_mode_downgrade_reason: str | None = None,
     ) -> int:
+        _ = (
+            interaction_mode_requested,
+            interaction_mode_effective,
+            interaction_mode_downgrade_reason,
+        )
         if not updates:
             return 0
 
@@ -103,9 +108,12 @@ class ConversationInteractionService:
             tool_calls: list | None,
             action: str | None,
             table: str | None,
+            tool_name: str | None,
         ) -> bool:
             pending = metadata.get("pending_confirmation")
             if isinstance(pending, dict):
+                if tool_name and pending.get("tool_name") not in (None, tool_name):
+                    return False
                 if action and pending.get("action") not in (None, action):
                     return False
                 return not (table and pending.get("table") not in (None, table))
@@ -115,6 +123,13 @@ class ConversationInteractionService:
                         continue
                     nested = tc.get("pending_confirmation")
                     if not isinstance(nested, dict):
+                        continue
+                    nested_tool_name = str(
+                        nested.get("tool_name")
+                        or ((tc.get("function") or {}).get("name"))
+                        or ""
+                    ).strip()
+                    if tool_name and nested_tool_name not in {"", tool_name}:
                         continue
                     if action and nested.get("action") not in (None, action):
                         continue
@@ -128,9 +143,12 @@ class ConversationInteractionService:
             tool_calls: list | None,
             action: str | None,
             table: str | None,
+            tool_name: str | None,
         ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
             pending = metadata.get("pending_confirmation")
             if isinstance(pending, dict):
+                if tool_name and pending.get("tool_name") not in (None, tool_name):
+                    return None, None
                 if action and pending.get("action") not in (None, action):
                     return None, None
                 if table and pending.get("table") not in (None, table):
@@ -142,6 +160,13 @@ class ConversationInteractionService:
                         continue
                     nested = tc.get("pending_confirmation")
                     if not isinstance(nested, dict):
+                        continue
+                    nested_tool_name = str(
+                        nested.get("tool_name")
+                        or ((tc.get("function") or {}).get("name"))
+                        or ""
+                    ).strip()
+                    if tool_name and nested_tool_name not in {"", tool_name}:
                         continue
                     if action and nested.get("action") not in (None, action):
                         continue
@@ -216,12 +241,14 @@ class ConversationInteractionService:
                         tool_calls,
                         raw_update.get("action"),
                         raw_update.get("table"),
+                        raw_update.get("tool_name"),
                     )
                     matched = _match_pending_confirmation(
                         metadata,
                         tool_calls,
                         raw_update.get("action"),
                         raw_update.get("table"),
+                        raw_update.get("tool_name"),
                     )
                     if matched:
                         pending = dict(metadata.get("pending_confirmation") or {})

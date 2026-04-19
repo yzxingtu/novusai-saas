@@ -268,9 +268,9 @@ export interface ToolCallEvent {
 }
 
 export interface PendingConfirmation {
-  action: string;
-  table: string;
+  action?: string;
   preview?: Record<string, unknown>;
+  table?: string;
   toolName?: string;
   /** Whether the user has responded (confirmed or rejected) / 用户是否已响应 */
   resolved?: boolean;

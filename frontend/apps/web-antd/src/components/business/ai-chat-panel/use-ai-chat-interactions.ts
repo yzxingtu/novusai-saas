@@ -29,13 +29,18 @@ export function useAIChatInteractions(deps: UseAIChatInteractionsDeps) {
     const msg = chatMessages.value[msgIndex];
     if (!msg?.pendingConfirmation || msg.pendingConfirmation.resolved) return;
     msg.pendingConfirmation.resolved = true;
-    pendingInteractionUpdates.value.push({
-      action: msg.pendingConfirmation.action,
+    const update: PendingInteractionUpdate = {
       kind: 'pending_confirmation',
       rejected: false,
-      table: msg.pendingConfirmation.table,
       tool_name: msg.pendingConfirmation.toolName,
-    });
+    };
+    if (msg.pendingConfirmation.action) {
+      update.action = msg.pendingConfirmation.action;
+    }
+    if (msg.pendingConfirmation.table) {
+      update.table = msg.pendingConfirmation.table;
+    }
+    pendingInteractionUpdates.value.push(update);
     sendMessage({ silent: true });
   }
 
@@ -43,13 +48,18 @@ export function useAIChatInteractions(deps: UseAIChatInteractionsDeps) {
     const msg = chatMessages.value[msgIndex];
     if (!msg?.pendingConfirmation || msg.pendingConfirmation.resolved) return;
     msg.pendingConfirmation.resolved = true;
-    pendingInteractionUpdates.value.push({
-      action: msg.pendingConfirmation.action,
+    const update: PendingInteractionUpdate = {
       kind: 'pending_confirmation',
       rejected: true,
-      table: msg.pendingConfirmation.table,
       tool_name: msg.pendingConfirmation.toolName,
-    });
+    };
+    if (msg.pendingConfirmation.action) {
+      update.action = msg.pendingConfirmation.action;
+    }
+    if (msg.pendingConfirmation.table) {
+      update.table = msg.pendingConfirmation.table;
+    }
+    pendingInteractionUpdates.value.push(update);
     sendMessage({ silent: true });
   }
 

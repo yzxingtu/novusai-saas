@@ -200,6 +200,11 @@ export async function submitRuntimeForm(args: { confirm?: boolean; formSessionId
   Legacy values such as `fill_field`, `fill_form`, and `submit_form` are
   compatibility-only inputs if older route config still carries them; shared
   defaults must not keep re-emitting those names.
+- Pending-confirmation replay across frontend and backend should treat
+  `tool_name` as the canonical live match key. Legacy `action` / `table`
+  fields may remain as evidence or replay compatibility metadata, but
+  `interaction_updates` and persistence matching must not depend on those older
+  page-op semantics when `tool_name` is present.
 - Page-operation helper factories outside the shared UI runtime must not silently
   default to legacy live-ish names such as `create_record`, `open_page`,
   `open_current`, or `read_row_detail`. If a page still needs those helpers, it

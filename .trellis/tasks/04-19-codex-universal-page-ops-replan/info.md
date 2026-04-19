@@ -160,6 +160,7 @@
 15. `backend/tests/test_admin_agent_chat_routes_contract.py` 已补上 `/ai/agent-chat` 传输层哨兵测试：未知 `page_data` key 会在 schema 边界直接返回 `422`，而夹带坏条目的 `navigation_catalog` 会在进入 route/chat 逻辑前被过滤，防止任意一个坏菜单条目拖垮整轮请求。
 16. `frontend/apps/web-antd/src/utils/ai-page-capabilities.ts`、`frontend/apps/web-antd/src/components/business/ai-chat-panel/tool-call-utils.ts` 已停止把 `navigate_menu`、`open_page`、`read_visible_rows`、`fill_form`、`submit_form` 等 legacy 名字视为 live page-runtime truth；当前 capability filtering、pending-op 展示与 navigation-only allowlist 仅识别 canonical `ui_*` 工具名。
 17. `frontend/apps/web-antd/src/composables/use-ai-page-policy.ts` 已将 route-security 默认写入动作收敛到 canonical `ui_set_field` / `ui_fill_form` / `ui_submit_form`；`use-page-ai-operation-helpers-*` 中原先会静默产出 `create_record` / `open_page` / `read_row_detail` 等 legacy 默认名的 helper 现已要求显式 `name`，避免新代码继续无意识复活旧 seam。
+18. `backend/app/services/ai/conversation_interaction_service.py`、`frontend/apps/web-antd/src/components/business/ai-chat-panel/use-ai-chat-interactions.ts` 与消息合并层已把 `pending_confirmation` 的 live match key 收敛到 `tool_name`：前后端都不再要求依赖 `action/table` 才能完成确认回传，旧字段仅保留为证据与历史兼容信息。
 
 ### Phase 5: Context-Budget Alignment
 

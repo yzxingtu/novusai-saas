@@ -2086,6 +2086,59 @@ class TestThinkingPersistence:
         assert second_payload["status"] == "auto_approved"
 
     @pytest.mark.asyncio
+    async def test_update_last_assistant_interaction_state_matches_pending_confirmation_by_tool_name(
+        self, mock_db
+    ):
+        from app.services.ai.conversation_service import ConversationService
+
+        assistant = _make_message(
+            id=303,
+            role="assistant",
+            content="需要确认",
+            tool_calls=[
+                {
+                    "id": "tc_confirm_3",
+                    "function": {"name": "ui_open_surface", "arguments": "{}"},
+                    "pending_confirmation": {
+                        "preview": {"target": "create-agent"},
+                        "tool_name": "ui_open_surface",
+                    },
+                }
+            ],
+        )
+        assistant.metadata_ = {
+            "pending_confirmation": {
+                "preview": {"target": "create-agent"},
+                "tool_name": "ui_open_surface",
+            }
+        }
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service.repo.get_by_id = AsyncMock(return_value=_make_conversation(id=188))
+        service._message_repo = MagicMock()
+        service._message_repo.get_last_n_messages = AsyncMock(return_value=[assistant])
+        service._message_repo.update = AsyncMock()
+
+        updated = await service.update_last_assistant_interaction_state(
+            conversation_id=188,
+            updates=[
+                {
+                    "kind": "pending_confirmation",
+                    "rejected": False,
+                    "tool_name": "ui_open_surface",
+                }
+            ],
+        )
+
+        assert updated == 1
+        final_update = service._message_repo.update.await_args_list[-1].args[1]
+        assert final_update["metadata_"]["pending_confirmation"]["resolved"] is True
+        assert final_update["tool_calls"][0]["pending_confirmation"]["resolved"] is True
+
+    @pytest.mark.asyncio
     async def test_update_last_assistant_interaction_state_also_writes_ai_action_log(
         self, mock_db
     ):

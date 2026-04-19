@@ -10,13 +10,29 @@ function resolvePendingConfirmationFromToolCall(
   pendingValue: Record<string, unknown>,
   fallbackToolName = '',
 ): PendingConfirmation {
-  return {
-    action: String(pendingValue.action || ''),
-    preview: pendingValue.preview as Record<string, unknown> | undefined,
-    table: String(pendingValue.table || ''),
-    toolName: String(
+  const action =
+    typeof pendingValue.action === 'string' && pendingValue.action.trim()
+      ? pendingValue.action.trim()
+      : undefined;
+  const table =
+    typeof pendingValue.table === 'string' && pendingValue.table.trim()
+      ? pendingValue.table.trim()
+      : undefined;
+  const toolName =
+    typeof (pendingValue.tool_name || pendingValue.toolName || fallbackToolName) ===
+      'string' &&
+    String(
       pendingValue.tool_name || pendingValue.toolName || fallbackToolName,
-    ),
+    ).trim()
+      ? String(
+          pendingValue.tool_name || pendingValue.toolName || fallbackToolName,
+        ).trim()
+      : undefined;
+  return {
+    ...(action ? { action } : {}),
+    preview: pendingValue.preview as Record<string, unknown> | undefined,
+    ...(table ? { table } : {}),
+    ...(toolName ? { toolName } : {}),
   };
 }
 

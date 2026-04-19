@@ -1816,6 +1816,53 @@ describe('useAIChat interrupted stream recovery', () => {
     ]);
   });
 
+  it('sends tool_name-first pending confirmation updates without empty legacy fields', async () => {
+    apiMocks.sendChatStreamApi.mockImplementation(
+      async (
+        _prefix: string,
+        _agentId: number,
+        _body: Record<string, unknown>,
+        options: {
+          onMessage: (chunk: string) => Promise<void>;
+        },
+      ) => {
+        await options.onMessage(
+          sseEvent({ event: 'conversation', conversation_id: 42 }),
+        );
+        await options.onMessage(sseEvent({ event: 'done', total_tokens: 18 }));
+      },
+    );
+
+    const chat = createChat();
+
+    await chat.loadAgents();
+    chat.chatMessages.value = [
+      {
+        clientKey: 'assistant-confirm-message',
+        role: 'assistant',
+        content: '需要继续打开表面',
+        pendingConfirmation: {
+          toolName: 'ui_open_surface',
+        },
+      },
+    ];
+
+    chat.confirmAction(0);
+    await flushPromises();
+
+    const confirmBody = apiMocks.sendChatStreamApi.mock.calls.at(-1)?.[2] as
+      | Record<string, unknown>
+      | undefined;
+
+    expect(confirmBody?.interaction_updates).toEqual([
+      {
+        kind: 'pending_confirmation',
+        rejected: false,
+        tool_name: 'ui_open_surface',
+      },
+    ]);
+  });
+
   it('merges queued ai-panel interaction updates into the next request body', async () => {
     apiMocks.sendChatStreamApi.mockImplementation(
       async (
@@ -1837,7 +1884,6 @@ describe('useAIChat interrupted stream recovery', () => {
 
     aiPanelStoreMocks.consumeInteractionUpdates.mockReturnValue([
       {
-        action: 'create_record',
         kind: 'pending_confirmation',
         rejected: false,
         tool_name: 'ui_open_surface',
@@ -1859,7 +1905,6 @@ describe('useAIChat interrupted stream recovery', () => {
 
     expect(requestBody?.interaction_updates).toEqual([
       {
-        action: 'create_record',
         kind: 'pending_confirmation',
         rejected: false,
         tool_name: 'ui_open_surface',

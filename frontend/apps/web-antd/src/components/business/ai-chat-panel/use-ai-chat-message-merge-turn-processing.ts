@@ -58,12 +58,17 @@ function resolvePersistedAssistantError(
 function resolvePendingConfirmationFromMetadata(
   pendingValue: Record<string, unknown>,
 ): PendingConfirmation {
+  const action = normalizeOptionalString(pendingValue.action);
+  const table = normalizeOptionalString(pendingValue.table);
+  const toolName = normalizeOptionalString(
+    pendingValue.tool_name || pendingValue.toolName,
+  );
   return {
-    action: String(pendingValue.action || ''),
+    ...(action ? { action } : {}),
     preview: pendingValue.preview as Record<string, unknown> | undefined,
     resolved: pendingValue.resolved as boolean | undefined,
-    table: String(pendingValue.table || ''),
-    toolName: String(pendingValue.tool_name || pendingValue.toolName || ''),
+    ...(table ? { table } : {}),
+    ...(toolName ? { toolName } : {}),
   };
 }
 
