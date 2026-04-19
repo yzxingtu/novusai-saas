@@ -79,7 +79,7 @@ describe('security-policy enforcement', () => {
     const form = document.createElement('form');
 
     const action = evaluateAIActionSecurity({
-      actionKind: 'submit_form',
+      actionKind: 'ui_submit_form',
       element: form,
       routePolicy: {
         enabled: true,

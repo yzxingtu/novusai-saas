@@ -49,7 +49,10 @@ vi.mock('#/utils/ai-page-capabilities', () => ({
     return value ? [value] : [];
   },
   normalizePageAIMode: (mode?: string, fallback = 'operate') =>
-    mode === 'disabled' || mode === 'context_only' || mode === 'operate'
+    mode === 'disabled' ||
+    mode === 'context_only' ||
+    mode === 'navigation_only' ||
+    mode === 'operate'
       ? mode
       : fallback,
 }));
@@ -121,6 +124,44 @@ describe('useCurrentPageAIPolicy', () => {
     expect(policy.aiEnabled.value).toBe(false);
     expect(policy.effectiveMode.value).toBe('disabled');
     expect(policy.pageContextKey.value).toBe('tenant.ai.chat');
+
+    scope.stop();
+  });
+
+  it('emits canonical ui_* form action kinds into the runtime security policy', async () => {
+    const scope = effectScope();
+    const module = await import('../use-ai-page-policy');
+    mockRefs.routeMeta.value = {
+      ai: {
+        disabledCapabilities: ['form', 'submit'],
+        mode: 'navigation_only',
+      },
+    };
+
+    let policy!: ReturnType<typeof module.useCurrentPageAIPolicy>;
+    scope.run(() => {
+      policy = module.useCurrentPageAIPolicy();
+    });
+    await nextTick();
+
+    expect(policy.routeSecurityPolicy.value.disabledActionKinds).toEqual(
+      expect.arrayContaining([
+        'create_record',
+        'delete_record',
+        'edit_record',
+        'replace_content',
+        'replace_section',
+        'ui_fill_form',
+        'ui_set_field',
+        'ui_submit_form',
+      ]),
+    );
+    expect(policy.routeSecurityPolicy.value.disabledActionKinds).not.toEqual(
+      expect.arrayContaining(['fill_field', 'fill_form', 'submit_form']),
+    );
+    expect(module.currentRouteAISecurityPolicy.value.disabledActionKinds).toEqual(
+      expect.arrayContaining(['ui_fill_form', 'ui_set_field', 'ui_submit_form']),
+    );
 
     scope.stop();
   });

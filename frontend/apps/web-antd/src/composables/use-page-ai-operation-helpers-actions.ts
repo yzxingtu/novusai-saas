@@ -33,7 +33,7 @@ interface CreateRecordPageOperationOptions {
   action: () => Promise<unknown> | unknown;
   description?: string;
   label?: string;
-  name?: string;
+  name: string;
   successMessage?: (() => string) | string;
 }
 
@@ -65,7 +65,7 @@ interface PrefilledCreatePageOperationOptions<
 > {
   description?: string;
   label?: string;
-  name?: string;
+  name: string;
   normalizeParams?: (params: AnyRecord) => TParams;
   openCreate: (params: TParams) => Promise<unknown> | unknown;
   params?: Record<string, unknown>;
@@ -75,7 +75,7 @@ interface PrefilledCreatePageOperationOptions<
 interface OpenPageOperationOptions {
   description?: string;
   label?: string;
-  name?: string;
+  name: string;
   open?: () => Promise<unknown> | unknown;
   successMessage?: (() => string) | string;
   to?: string;
@@ -85,10 +85,23 @@ interface OpenCurrentPageOperationOptions {
   available?: () => boolean;
   description?: string;
   label?: string;
-  name?: string;
+  name: string;
   open: () => Promise<unknown> | unknown;
   successMessage?: (() => string) | string;
   unavailableMessage?: string;
+}
+
+function requireExplicitOperationName(
+  helperName: string,
+  name: string,
+): string {
+  const normalized = String(name || '').trim();
+  if (normalized) {
+    return normalized;
+  }
+  throw new Error(
+    `${helperName} requires an explicit operation name. Use canonical ui_* names or an intentional page-local alias.`,
+  );
 }
 
 export function createRefreshPageOperation(
@@ -120,8 +133,12 @@ export function createSavePageOperation(options: SavePageOperationOptions) {
 export function createCreateRecordPageOperation(
   options: CreateRecordPageOperationOptions,
 ) {
+  const operationName = requireExplicitOperationName(
+    'createCreateRecordPageOperation',
+    options.name,
+  );
   return createSimplePageOperation({
-    name: options.name ?? 'create_record',
+    name: operationName,
     label: options.label ?? $t('shared.pageOperation.createRecord'),
     description:
       options.description ?? $t('shared.pageOperation.desc.openCreateForm'),
@@ -199,8 +216,12 @@ export function createStructuredSearchPageOperation<
 export function createPrefilledCreatePageOperation<
   TParams extends AnyRecord = AnyRecord,
 >(options: PrefilledCreatePageOperationOptions<TParams>) {
+  const operationName = requireExplicitOperationName(
+    'createPrefilledCreatePageOperation',
+    options.name,
+  );
   return createParameterizedPageOperation<TParams>({
-    name: options.name ?? 'create_record',
+    name: operationName,
     label: options.label ?? $t('shared.pageOperation.createRecord'),
     description:
       options.description ??
@@ -227,8 +248,12 @@ export function createPrefilledCreatePageOperation<
 }
 
 export function createOpenPageOperation(options: OpenPageOperationOptions) {
+  const operationName = requireExplicitOperationName(
+    'createOpenPageOperation',
+    options.name,
+  );
   return createSimplePageOperation({
-    name: options.name ?? 'open_page',
+    name: operationName,
     label: options.label ?? $t('shared.pageOperation.navigateTo'),
     description:
       options.description ?? $t('shared.pageOperation.desc.openPage'),
@@ -248,8 +273,12 @@ export function createOpenPageOperation(options: OpenPageOperationOptions) {
 export function createOpenCurrentPageOperation(
   options: OpenCurrentPageOperationOptions,
 ) {
+  const operationName = requireExplicitOperationName(
+    'createOpenCurrentPageOperation',
+    options.name,
+  );
   return createSimplePageOperation({
-    name: options.name ?? 'open_current',
+    name: operationName,
     label: options.label ?? $t('shared.pageOperation.viewDetail'),
     description:
       options.description ??

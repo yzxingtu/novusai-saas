@@ -127,7 +127,7 @@
     "screenshotFailed": "Page screenshot failed. Continue with text page context for now or retry later",
     "visibleRowsRead": "Read {count} visible row(s) from the current page",
     "rowDetailRead": "Read detail for record {id}",
-    "formNotOpen": "Form is not open. Use create_record or edit_record first.",
+    "formNotOpen": "Form is not open. Open the create or edit form surface first.",
     "formAlreadyOpen": "Form is already open. Continue with ui_get_form_state, ui_fill_form, or ui_submit_form.",
     "noValidFields": "No valid fields to fill. Known fields: {fields}",
     "fillFormResult": "Filled {count} field(s) successfully",

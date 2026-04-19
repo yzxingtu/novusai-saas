@@ -51,7 +51,7 @@ interface ViewDetailPageOperationOptions {
   description?: string;
   idDescription?: string;
   label?: string;
-  name?: string;
+  name: string;
   openDetail: (id: number) => Promise<unknown> | unknown;
   successMessage?: SuccessMessageInput<[number]>;
 }
@@ -130,7 +130,7 @@ export function createViewDetailPageOperation(
   options: ViewDetailPageOperationOptions,
 ) {
   return createParameterizedPageOperation<{ id: number | string }>({
-    name: options.name ?? 'read_row_detail',
+    name: options.name,
     label: options.label ?? $t('shared.pageOperation.viewDetail'),
     description:
       options.description ??

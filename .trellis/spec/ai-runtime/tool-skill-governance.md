@@ -194,6 +194,16 @@ export async function submitRuntimeForm(args: { confirm?: boolean; formSessionId
   treat canonical `ui_*` names as the only live page-runtime tool truth.
   Legacy names such as `navigate_menu`, `open_page`, `read_visible_rows`,
   `fill_form`, and `submit_form` are no longer part of the live runtime path.
+- Frontend route-security bridges should emit canonical form-write action kinds
+  (`ui_set_field`, `ui_fill_form`, `ui_submit_form`) when projecting live
+  runtime policy into `disabledActionKinds` / `confirmActionKinds`.
+  Legacy values such as `fill_field`, `fill_form`, and `submit_form` are
+  compatibility-only inputs if older route config still carries them; shared
+  defaults must not keep re-emitting those names.
+- Page-operation helper factories outside the shared UI runtime must not silently
+  default to legacy live-ish names such as `create_record`, `open_page`,
+  `open_current`, or `read_row_detail`. If a page still needs those helpers, it
+  must pass an explicit operation name instead of reviving a hidden default seam.
 - `security-policy` enforces `data-ai*` directives and route policy; `evaluateAIActionSecurity` blocks and requires confirmation for dangerous action kinds; `submitRuntimeForm` enforces `submit_policy === 'confirm'`.
 
 #### 3.6 Budget Governance

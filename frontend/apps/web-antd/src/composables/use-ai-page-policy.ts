@@ -195,13 +195,13 @@ export function useCurrentPageAIPolicy() {
       disabledActionKinds.push(
         'create_record',
         'edit_record',
-        'fill_field',
-        'fill_form',
-        'submit_form',
+        'ui_set_field',
+        'ui_fill_form',
+        'ui_submit_form',
       );
     }
     if (disabledCapabilitySet.has('submit')) {
-      disabledActionKinds.push('submit_form');
+      disabledActionKinds.push('ui_submit_form');
     }
     if (disabledCapabilitySet.has('editor')) {
       disabledActionKinds.push(
@@ -225,11 +225,11 @@ export function useCurrentPageAIPolicy() {
         'create_record',
         'delete_record',
         'edit_record',
-        'fill_field',
-        'fill_form',
+        'ui_set_field',
+        'ui_fill_form',
         'replace_content',
         'replace_section',
-        'submit_form',
+        'ui_submit_form',
       );
     }
 

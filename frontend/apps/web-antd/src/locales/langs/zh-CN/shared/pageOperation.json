@@ -127,7 +127,7 @@
     "screenshotFailed": "页面截图失败，请先继续使用文本页面上下文或稍后重试",
     "visibleRowsRead": "已读取当前页的 {count} 条可见记录",
     "rowDetailRead": "已读取记录 {id} 的详情",
-    "formNotOpen": "表单未打开。请先使用 create_record 或 edit_record 打开表单。",
+    "formNotOpen": "表单未打开。请先打开创建或编辑表单界面。",
     "formAlreadyOpen": "表单已打开，请继续执行 ui_get_form_state、ui_fill_form 或 ui_submit_form。",
     "noValidFields": "没有有效字段可填充。已知字段：{fields}",
     "fillFormResult": "已填充 {count} 个字段",
