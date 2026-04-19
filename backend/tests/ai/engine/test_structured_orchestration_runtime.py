@@ -70,6 +70,7 @@ def _intent(
     label: str | None = None,
     status: str = "pending",
     allowed_tool_names: list[str] | None = None,
+    metadata: dict | None = None,
 ) -> IntentPlan:
     return IntentPlan(
         intent_id=intent_id,
@@ -81,6 +82,7 @@ def _intent(
         status=status,
         allowed_tool_names=list(allowed_tool_names or []),
         completion_signals=list(allowed_tool_names or []),
+        metadata=dict(metadata or {}),
     )
 
 
@@ -286,7 +288,7 @@ def test_post_tool_contract_breach_retries_cross_page_navigation_after_snapshot_
             "page_session_id": "session-conversations",
             "ui_epoch": 3,
             "page_data": {
-                "available_menus": [
+                "navigation_catalog": [
                     {
                         "title": "供应商管理",
                         "path": "/admin/suppliers",
@@ -417,6 +419,153 @@ def test_recovery_manager_keeps_page_navigation_pending_after_snapshot_only() ->
 
     assert "do NOT call ui_get_snapshot again" in message.content
     assert "ui_list_interactables" in message.content
+
+
+def test_recovery_manager_completes_page_navigation_after_action_then_snapshot() -> None:
+    intents = [
+        _intent(
+            "intent-1",
+            kind="page_navigation",
+            family="page_ops",
+            order=1,
+            allowed_tool_names=[
+                "ui_list_interactables",
+                "ui_click",
+                "ui_open_surface",
+                "ui_get_snapshot",
+            ],
+            metadata={"page_workflow_stage": "discover_navigation_target"},
+        )
+    ]
+
+    updated = RecoveryManager.update_intent_statuses(
+        intents,
+        messages=[
+            ChatMessage(
+                role="assistant",
+                content="",
+                tool_calls=[
+                    {
+                        "success": True,
+                        "function": {"name": "ui_click"},
+                    },
+                    {
+                        "success": True,
+                        "function": {"name": "ui_get_snapshot"},
+                    },
+                ],
+            )
+        ],
+        tool_results=[
+            ToolResult(
+                tool_call_id="call-nav-1",
+                name="ui_click",
+                success=True,
+                summary_payload={"diff": {"surface_changed": True}},
+            ),
+            ToolResult(
+                tool_call_id="call-nav-2",
+                name="ui_get_snapshot",
+                success=True,
+                output='{"ui_epoch": 6}',
+            ),
+        ],
+    )
+
+    assert updated[0].status == "completed"
+    assert updated[0].completed_by_tool_names == ["ui_click", "ui_get_snapshot"]
+
+
+def test_recovery_manager_keeps_submit_stage_form_write_pending_after_fill_only() -> None:
+    intents = [
+        _intent(
+            "intent-1",
+            kind="page_form_write",
+            family="page_ops",
+            order=1,
+            allowed_tool_names=[
+                "ui_get_form_state",
+                "ui_fill_form",
+                "ui_set_field",
+                "ui_submit_form",
+                "ui_open_surface",
+            ],
+            metadata={"page_workflow_stage": "submit_active_form"},
+        )
+    ]
+
+    updated = RecoveryManager.update_intent_statuses(
+        intents,
+        messages=[
+            ChatMessage(
+                role="assistant",
+                content="",
+                tool_calls=[
+                    {
+                        "success": True,
+                        "function": {"name": "ui_fill_form"},
+                    }
+                ],
+            )
+        ],
+        tool_results=[
+            ToolResult(
+                tool_call_id="call-form-1",
+                name="ui_fill_form",
+                success=True,
+            )
+        ],
+    )
+
+    assert updated[0].status == "pending"
+    assert updated[0].completed_by_tool_names == []
+
+
+def test_recovery_manager_keeps_row_detail_pending_after_open_without_read() -> None:
+    intents = [
+        _intent(
+            "intent-1",
+            kind="page_row_detail",
+            family="page_ops",
+            order=1,
+            allowed_tool_names=[
+                "ui_list_interactables",
+                "ui_click",
+                "ui_open_surface",
+                "ui_read_region",
+                "ui_read_table",
+                "ui_get_snapshot",
+            ],
+            metadata={"page_workflow_stage": "open_detail_surface"},
+        )
+    ]
+
+    updated = RecoveryManager.update_intent_statuses(
+        intents,
+        messages=[
+            ChatMessage(
+                role="assistant",
+                content="",
+                tool_calls=[
+                    {
+                        "success": True,
+                        "function": {"name": "ui_open_surface"},
+                    }
+                ],
+            )
+        ],
+        tool_results=[
+            ToolResult(
+                tool_call_id="call-detail-1",
+                name="ui_open_surface",
+                success=True,
+                summary_payload={"diff": {"surface_changed": True}},
+            )
+        ],
+    )
+
+    assert updated[0].status == "pending"
+    assert updated[0].completed_by_tool_names == []
 
 
 def test_path_selector_routes_fast_normal_and_deep_by_intent_shape() -> None:

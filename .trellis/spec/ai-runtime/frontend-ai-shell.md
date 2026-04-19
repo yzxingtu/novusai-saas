@@ -86,7 +86,10 @@ No page-level component or composable may introduce an alternate policy parser.
   re-growing orchestration inline.
 - Runtime bridge: `runtime-bridge.ts` is the only owner of DOM-driven page
   context assembly (snapshot, form state, page key, security policy).
-  It provides read-only accessors for `PageContext` and diagnostics.
+  It provides read-only accessors for `PageContext` and diagnostics, and it is
+  the canonical frontend owner for compact navigation metadata
+  (`page_data.navigation_catalog` / `page_data.navigation_context`) carried in
+  thin page context.
 - Read-model: `PageContext` and related structures (from shared API types)
   are treated as read-models. UI code must not reconstruct or mutate them
   outside the runtime bridge.

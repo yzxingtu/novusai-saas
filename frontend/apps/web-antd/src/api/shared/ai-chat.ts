@@ -450,11 +450,36 @@ export interface PageContextSuggestedTools {
   secondary?: PageContextSuggestedTool[];
 }
 
+export interface PageContextNavigationCatalogEntry {
+  breadcrumb: string[];
+  capabilities?: string[];
+  category?: string;
+  description?: string;
+  endpoint: string;
+  keywords?: string[];
+  page_key: string;
+  path: string;
+  title: string;
+}
+
+export interface PageContextPageData {
+  locale?: string;
+  navigation_catalog?: PageContextNavigationCatalogEntry[];
+  navigation_context?: {
+    breadcrumb: string[];
+    endpoint: string;
+    page_key: string;
+    path: string;
+  };
+  [key: string]: unknown;
+}
+
 export interface PageContext {
   active_form_session_id?: string;
   active_form_summary?: ActiveFormSummary;
   active_surface_id?: string;
   locale?: string;
+  page_data?: PageContextPageData;
   page_key: string;
   page_session_id?: string;
   page_title?: string;

@@ -20,6 +20,7 @@ from app.ai.runtime.context_assembler import (
     get_context_assembler,
 )
 from app.ai.runtime.contracts import (
+    PAGE_CONTEXT_KEY,
     ContextCapabilityAwareness,
     ContextCapabilityBridge,
     ContextCapabilityFinalization,
@@ -28,7 +29,6 @@ from app.ai.runtime.contracts import (
 from app.ai.runtime.manifest import AIRuntimeInventoryService
 from app.ai.runtime.types import CapabilityBundle
 from app.core.logging import LogManager
-from app.ai.runtime.contracts import PAGE_CONTEXT_KEY
 from app.services.ai.capability_awareness_config import (
     get_tenant_capability_awareness_settings,
 )
@@ -192,7 +192,7 @@ class DefaultContextCapabilityBridge(ContextCapabilityBridge):
                 if page_description:
                     capability_descriptions.append(page_description)
 
-            if intent_flags.get("has_memory_intent"):
+            if intent_flags.get("memory_context_enabled"):
                 memory_description = capability_builder.build_memory_description(
                     memory_enabled=request.memory_enabled,
                     long_term_memory_enabled=long_term_memory_enabled,
@@ -308,7 +308,7 @@ class DefaultContextCapabilityBridge(ContextCapabilityBridge):
                     False,
                 ),
                 include_page_context_hint=intent_flags.get("has_page_intent", False),
-                include_memory_hint=intent_flags.get("has_memory_intent", False),
+                include_memory_hint=intent_flags.get("memory_context_enabled", False),
             ),
         )
 

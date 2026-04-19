@@ -10,8 +10,8 @@ from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.types import ChatMessage
 
 from .base_helpers import tool_call_name as _tool_call_name_impl
-from .tool_router import ToolRouter
 from .tool_policy_helpers import first_page_intent_kind as _first_page_intent_kind_impl
+from .tool_router import ToolRouter
 from .turn_research_helpers import (
     extract_last_user_text as _extract_last_user_text_impl,
 )
@@ -34,6 +34,30 @@ def _is_missing_active_form_result(result: ToolResult) -> bool:
     )
 
 
+def _trim_recovery_tool_names(
+    *,
+    preferred_tool_names: list[str],
+    repeated_snapshot: bool,
+    only_snapshot_round: bool,
+    navigation_action_no_progress: bool,
+    missing_form_session_no_progress: bool,
+) -> list[str]:
+    trimmed = list(preferred_tool_names)
+    if repeated_snapshot or only_snapshot_round or navigation_action_no_progress:
+        without_snapshot = [name for name in trimmed if name != "ui_get_snapshot"]
+        if without_snapshot:
+            trimmed = without_snapshot
+    if missing_form_session_no_progress:
+        without_form_mutation = [
+            name
+            for name in trimmed
+            if name not in {"ui_fill_form", "ui_set_field", "ui_submit_form"}
+        ]
+        if without_form_mutation:
+            trimmed = without_form_mutation
+    return trimmed
+
+
 def build_page_no_progress_recovery(
     *,
     messages: list[ChatMessage],
@@ -51,7 +75,6 @@ def build_page_no_progress_recovery(
 
     from app.ai.tools.semantic_defaults import (
         page_context_available_ui_tools,
-        page_context_has_active_form,
         page_context_payload,
     )
 
@@ -100,65 +123,41 @@ def build_page_no_progress_recovery(
     available_ui_tools = page_context_available_ui_tools(
         page_context, available_tool_names=available_tool_names
     )
-    recovery_preferences = {
-        "page_navigation": [
-            "ui_list_interactables",
-            "ui_click",
-            "ui_open_surface",
-            "ui_get_snapshot",
-        ],
-        "page_search": [
+    workflow_plan = ToolRouter.page_intent_tool_plan(
+        page_intent_kind,
+        input_variables=input_variables,
+    )
+    recovery_tool_names = list(workflow_plan.preferred_names)
+    if repeated_snapshot or only_snapshot_round or navigation_action_no_progress:
+        recovery_tool_names = list(workflow_plan.allowed_names)
+    if (
+        page_intent_kind == "page_form_write"
+        and workflow_plan.workflow_state.has_active_form
+    ):
+        recovery_tool_names = [
+            "ui_fill_form",
+            "ui_set_field",
+            "ui_submit_form",
+        ]
+    if (
+        page_intent_kind == "page_row_detail"
+        and workflow_plan.workflow_stage == "read_detail_surface"
+    ):
+        recovery_tool_names = [
             "ui_read_region",
-            "ui_list_interactables",
-            "ui_click",
-        ],
-        "page_pagination": [
             "ui_read_table",
-            "ui_click",
-            "ui_list_interactables",
-        ],
-        "page_row_detail": [
-            "ui_read_region",
-            "ui_read_table",
-            "ui_get_snapshot",
-        ],
-        "page_form_read": [
-            "ui_get_form_state",
-            "ui_read_region",
-            "ui_get_snapshot",
-        ],
-        "page_screenshot": [
-            "ui_get_snapshot",
-        ],
-    }
-    if page_intent_kind == "page_form_read" and not page_context_has_active_form(page_context):
-        recovery_preferences["page_form_read"] = [
-            "ui_list_interactables",
-            "ui_click",
-            "ui_open_surface",
-            "ui_get_form_state",
-            "ui_read_region",
             "ui_get_snapshot",
         ]
-    if page_intent_kind == "page_form_write":
-        if page_context_has_active_form(page_context):
-            recovery_preferences["page_form_write"] = [
-                "ui_fill_form",
-                "ui_set_field",
-                "ui_submit_form",
-            ]
-        else:
-            recovery_preferences["page_form_write"] = list(
-                ToolRouter.page_intent_tool_preferences(
-                    "page_form_write",
-                    input_variables=input_variables,
-                )[1]
-            )
     preferred_tool_names = [
-        name
-        for name in recovery_preferences.get(page_intent_kind, [])
-        if name in available_ui_tools
+        name for name in recovery_tool_names if name in available_ui_tools
     ]
+    preferred_tool_names = _trim_recovery_tool_names(
+        preferred_tool_names=preferred_tool_names,
+        repeated_snapshot=repeated_snapshot,
+        only_snapshot_round=only_snapshot_round,
+        navigation_action_no_progress=navigation_action_no_progress,
+        missing_form_session_no_progress=missing_form_session_no_progress,
+    )
     if not preferred_tool_names:
         return None, [], {}
 
@@ -183,6 +182,8 @@ def build_page_no_progress_recovery(
             "current_page_key": page_key,
             "preferred_tool_names": preferred_tool_names,
             "round_tool_names": round_tool_names,
+            "workflow_stage": workflow_plan.workflow_stage,
+            "workflow_state": workflow_plan.workflow_state.to_dict(),
         },
     )
 

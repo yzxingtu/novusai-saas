@@ -69,6 +69,12 @@ export interface NavigationContextData {
   path: string;
 }
 
+export interface NavigationPageData {
+  navigation_catalog?: SerializedMenuNavigationEntry[];
+  navigation_context: NavigationContextData;
+  [key: string]: unknown;
+}
+
 export interface SerializedMenuNavigationEntry {
   breadcrumb: string[];
   capabilities?: string[];
@@ -108,6 +114,10 @@ function normalizeSearchText(value: string): string {
 
 function compactSearchText(value: string): string {
   return normalizeSearchText(value).replaceAll(' ', '');
+}
+
+function normalizeComparablePath(value: string): string {
+  return String(value || '').split(/[?#]/, 1)[0] || '';
 }
 
 function buildLoosePattern(input: string): null | RegExp {
@@ -455,11 +465,16 @@ export function resolveMenuNavigationTarget(
   }
 
   const currentPageKey = normalizePageKey(options.currentPageKey ?? '');
-  const currentPath = normalizeSearchText(options.currentPath ?? '');
+  const currentPath = normalizeSearchText(
+    normalizeComparablePath(options.currentPath ?? ''),
+  );
   if (currentPageKey && currentPageKey === normalizePageKey(top.pageKey)) {
     return { entry: top, kind: 'already_on_page' };
   }
-  if (currentPath && currentPath === normalizeSearchText(top.path)) {
+  if (
+    currentPath &&
+    currentPath === normalizeSearchText(normalizeComparablePath(top.path))
+  ) {
     return { entry: top, kind: 'already_on_page' };
   }
 
@@ -533,9 +548,11 @@ export function findMenuNavigationEntryByPath(
   entries: MenuNavigationEntry[],
   path: string,
 ): MenuNavigationEntry | undefined {
-  const normalizedPath = normalizeSearchText(path);
+  const normalizedPath = normalizeSearchText(normalizeComparablePath(path));
   return entries.find(
-    (entry) => normalizeSearchText(entry.path) === normalizedPath,
+    (entry) =>
+      normalizeSearchText(normalizeComparablePath(entry.path)) ===
+      normalizedPath,
   );
 }
 
@@ -545,19 +562,58 @@ export function buildNavigationContext(options: {
   currentPath: string;
   entries: MenuNavigationEntry[];
 }): NavigationContextData {
+  const normalizedCurrentPath = normalizeComparablePath(options.currentPath);
+  const normalizedActivePath = normalizeComparablePath(options.activePath ?? '');
   const currentPageKey = normalizePageKey(
-    options.currentPageKey ?? options.currentPath,
+    options.currentPageKey ?? normalizedCurrentPath,
   );
   const activeEntry =
-    findMenuNavigationEntryByPath(options.entries, options.currentPath) ??
-    (options.activePath
-      ? findMenuNavigationEntryByPath(options.entries, options.activePath)
+    findMenuNavigationEntryByPath(options.entries, normalizedCurrentPath) ??
+    (normalizedActivePath
+      ? findMenuNavigationEntryByPath(options.entries, normalizedActivePath)
       : undefined);
 
   return {
     breadcrumb: activeEntry?.breadcrumb ?? [],
-    endpoint: getEndpointFromPath(options.currentPath),
+    endpoint: getEndpointFromPath(normalizedCurrentPath),
     page_key: currentPageKey,
-    path: options.currentPath,
+    path: normalizedCurrentPath,
+  };
+}
+
+export function buildCompactNavigationPageData(options: {
+  activePath?: string;
+  currentPageKey?: string;
+  currentPath: string;
+  entries: MenuNavigationEntry[];
+  maxCapabilitiesPerEntry?: number;
+  maxEntries?: number;
+  maxKeywordsPerEntry?: number;
+}): NavigationPageData | undefined {
+  const navigationContext = buildNavigationContext({
+    activePath: options.activePath,
+    currentPageKey: options.currentPageKey,
+    currentPath: options.currentPath,
+    entries: options.entries,
+  });
+  const navigationCatalog = buildCompactMenuNavigationCatalog(options.entries, {
+    maxCapabilitiesPerEntry: options.maxCapabilitiesPerEntry,
+    maxEntries: options.maxEntries,
+    maxKeywordsPerEntry: options.maxKeywordsPerEntry,
+  });
+
+  if (
+    navigationCatalog.length === 0 &&
+    navigationContext.breadcrumb.length === 0 &&
+    !navigationContext.path
+  ) {
+    return undefined;
+  }
+
+  return {
+    ...(navigationCatalog.length > 0
+      ? { navigation_catalog: navigationCatalog }
+      : {}),
+    navigation_context: navigationContext,
   };
 }

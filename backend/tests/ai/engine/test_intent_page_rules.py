@@ -82,6 +82,17 @@ def test_detect_page_signal_treats_required_field_probe_as_form_read() -> None:
     assert signal.kind == "page_form_read"
 
 
+def test_detect_page_signal_treats_skill_binding_as_form_write() -> None:
+    signal = detect_page_signal(
+        clause="帮我给这个页面的智能体绑定几个技能测试一下",
+        offset=0,
+        input_variables={"page_context": {"page_key": "admin.ai.agent.detail"}},
+    )
+
+    assert signal is not None
+    assert signal.kind == "page_form_write"
+
+
 def test_detect_page_signal_treats_active_form_field_listing_as_form_read() -> None:
     signal = detect_page_signal(
         clause="当前有哪些字段",

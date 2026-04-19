@@ -145,4 +145,73 @@ describe('useAgentRouter', () => {
 
     scope.stop();
   });
+
+  it('busts route cache when compact navigation page data changes', async () => {
+    const scope = effectScope();
+
+    await scope.run(async () => {
+      const { routeMessage } = useAgentRouter({
+        activeConversationId: ref(null),
+        agents: ref([]),
+        apiPrefix: ref('/tenant'),
+        pinnedAgentId: ref(null),
+        pinnedAgentName: ref(null),
+      });
+
+      await routeMessage('帮我切到智能体页面', undefined, {
+        page_data: {
+          navigation_catalog: [
+            {
+              breadcrumb: ['Dashboard'],
+              endpoint: 'tenant',
+              page_key: 'tenant.dashboard',
+              path: '/tenant/dashboard',
+              title: 'Dashboard',
+            },
+          ],
+          navigation_context: {
+            breadcrumb: ['Dashboard'],
+            endpoint: 'tenant',
+            page_key: 'tenant.dashboard',
+            path: '/tenant/dashboard',
+          },
+        },
+        page_key: 'tenant.dashboard',
+        page_title: 'Dashboard',
+      });
+
+      await routeMessage('帮我切到智能体页面', undefined, {
+        page_data: {
+          navigation_catalog: [
+            {
+              breadcrumb: ['Dashboard'],
+              endpoint: 'tenant',
+              page_key: 'tenant.dashboard',
+              path: '/tenant/dashboard',
+              title: 'Dashboard',
+            },
+            {
+              breadcrumb: ['AI', 'Agents'],
+              endpoint: 'tenant',
+              page_key: 'tenant.ai.agents',
+              path: '/tenant/ai/agents',
+              title: 'Agents',
+            },
+          ],
+          navigation_context: {
+            breadcrumb: ['Dashboard'],
+            endpoint: 'tenant',
+            page_key: 'tenant.dashboard',
+            path: '/tenant/dashboard',
+          },
+        },
+        page_key: 'tenant.dashboard',
+        page_title: 'Dashboard',
+      });
+
+      expect(routeMessageApiMock).toHaveBeenCalledTimes(2);
+    });
+
+    scope.stop();
+  });
 });

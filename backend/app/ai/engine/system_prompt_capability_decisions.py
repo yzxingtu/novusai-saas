@@ -58,7 +58,12 @@ def resolve_capability_injection_decision(
                 "session_memory" in active_context_source_kinds
                 or "long_term_memory" in active_context_source_kinds
             )
-            and bool(intent_flags.get("has_memory_intent"))
+            and bool(
+                intent_flags.get(
+                    "memory_context_enabled",
+                    intent_flags.get("has_memory_intent"),
+                )
+            )
         )
     )
     decision["page_injected"] = bool(

@@ -227,6 +227,97 @@ def test_collect_completed_turn_intents_uses_active_page_intent_over_stale_summa
     assert "page_navigation" not in completed
 
 
+def test_collect_completed_turn_intents_keeps_navigation_pending_until_action_and_verify() -> None:
+    messages = [
+        ChatMessage(
+            role="assistant",
+            content="",
+            tool_calls=[
+                {
+                    "function": {
+                        "name": "ui_get_snapshot",
+                        "arguments": {},
+                    },
+                    "success": True,
+                }
+            ],
+        )
+    ]
+
+    completed = collect_completed_turn_intents(
+        messages,
+        tools=[],
+        input_variables={
+            "_runtime_intent_plan": [
+                {
+                    **_intent_payload(
+                        intent_id="intent-1",
+                        kind="page_navigation",
+                        family="page_ops",
+                        order=1,
+                        label="page_navigation",
+                        source_text="添加供应商",
+                    ),
+                    "metadata": {
+                        "page_workflow_stage": "discover_navigation_target",
+                    },
+                }
+            ]
+        },
+    )
+
+    assert "page_navigation" not in completed
+
+
+def test_collect_completed_turn_intents_marks_navigation_complete_after_click_and_verify() -> None:
+    messages = [
+        ChatMessage(
+            role="assistant",
+            content="",
+            tool_calls=[
+                {
+                    "function": {
+                        "name": "ui_click",
+                        "arguments": {"target_locator": "添加供应商"},
+                    },
+                    "success": True,
+                },
+                {
+                    "function": {
+                        "name": "ui_get_snapshot",
+                        "arguments": {},
+                    },
+                    "success": True,
+                },
+            ],
+        )
+    ]
+
+    completed = collect_completed_turn_intents(
+        messages,
+        tools=[],
+        input_variables={
+            "_runtime_intent_plan": [
+                {
+                    **_intent_payload(
+                        intent_id="intent-1",
+                        kind="page_navigation",
+                        family="page_ops",
+                        order=1,
+                        label="page_navigation",
+                        source_text="添加供应商",
+                    ),
+                    "metadata": {
+                        "page_workflow_stage": "discover_navigation_target",
+                    },
+                }
+            ]
+        },
+    )
+
+    assert "page_navigation" in completed
+
+
 def test_collect_completed_turn_intents_tracks_rail_fetch_evidence() -> None:
     messages = [
         ChatMessage(

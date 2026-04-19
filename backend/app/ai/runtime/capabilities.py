@@ -12,7 +12,12 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.ai.runtime.types import CapabilityBundle, CapabilityDescriptor, ContextSource
+from app.ai.runtime.types import (
+    CapabilityBundle,
+    CapabilityDescriptor,
+    ContextSource,
+    is_skill_descriptor_kind,
+)
 from app.ai.tools.types import ToolDefinition
 
 
@@ -169,8 +174,8 @@ class CapabilityRegistry:
             normalized_source = str(descriptor.source or "").strip()
             if not normalized_name:
                 continue
-            if descriptor.kind == "prompt_skill":
-                seen_keys.add((descriptor.kind, normalized_name))
+            if is_skill_descriptor_kind(descriptor.kind):
+                seen_keys.add(("skill_descriptor", normalized_name))
             seen_keys.add((descriptor.kind, normalized_name, normalized_source))
         for descriptor in descriptors:
             normalized_name = str(descriptor.name or "").strip()
@@ -180,8 +185,8 @@ class CapabilityRegistry:
             descriptor.name = normalized_name
             descriptor.source = normalized_source
             key = (
-                (descriptor.kind, normalized_name)
-                if descriptor.kind == "prompt_skill"
+                ("skill_descriptor", normalized_name)
+                if is_skill_descriptor_kind(descriptor.kind)
                 else (descriptor.kind, normalized_name, normalized_source)
             )
             if key in seen_keys:

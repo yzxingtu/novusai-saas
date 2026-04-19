@@ -87,6 +87,38 @@ export function buildRouteCachePageDataFingerprint(
       stage: summary.stage,
     };
   }
+  const pageData = (pageContext as unknown as Record<string, unknown>).page_data;
+  if (pageData && typeof pageData === 'object') {
+    const navigationContext = (
+      pageData as Record<string, unknown>
+    ).navigation_context;
+    if (navigationContext && typeof navigationContext === 'object') {
+      const context = navigationContext as Record<string, unknown>;
+      thinContext.navigation_context = {
+        breadcrumb: Array.isArray(context.breadcrumb)
+          ? context.breadcrumb.slice(0, 4)
+          : [],
+        page_key: context.page_key,
+        path: context.path,
+      };
+    }
+    const navigationCatalog = (
+      pageData as Record<string, unknown>
+    ).navigation_catalog;
+    if (Array.isArray(navigationCatalog) && navigationCatalog.length > 0) {
+      thinContext.navigation_catalog = navigationCatalog.slice(0, 8).map((item) => {
+        if (!item || typeof item !== 'object') {
+          return item;
+        }
+        const entry = item as Record<string, unknown>;
+        return {
+          page_key: entry.page_key,
+          path: entry.path,
+          title: entry.title,
+        };
+      });
+    }
+  }
 
   return _simpleHash(JSON.stringify(thinContext));
 }

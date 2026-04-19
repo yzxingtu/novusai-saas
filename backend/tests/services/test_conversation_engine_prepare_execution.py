@@ -920,6 +920,13 @@ async def test_prepare_execution_prefers_form_discovery_when_no_active_form_exis
         "ui_fill_form",
         "ui_submit_form",
     ]
+    assert prep.intent_plan[0].metadata["page_workflow_stage"] == (
+        "discover_form_before_write"
+    )
+    assert prep.intent_plan[0].completion_signals == [
+        "ui_fill_form",
+        "ui_submit_form",
+    ]
     assert [tool.name for tool in prep.tools] == [
         "ui_list_interactables",
         "ui_open_surface",
@@ -1789,16 +1796,25 @@ async def test_prepare_execution_builds_compaction_snapshot_sidecar_when_thresho
 
     snap_store: dict[str, Any] = {}
 
-    async def fake_get_snapshot(_cid: int) -> dict[str, Any] | None:
+    async def fake_get_snapshot(
+        *,
+        db: Any,
+        tenant_id: int | None,
+        conversation_id: int | None,
+    ) -> dict[str, Any] | None:
+        _ = db, tenant_id, conversation_id
         return snap_store.get("snap")
 
     async def fake_upsert_snapshot(
-        _cid: int,
         *,
+        db: Any,
+        tenant_id: int | None,
+        conversation_id: int | None,
         summary: str,
         source_message_count: int,
         source_token_estimate: int,
     ) -> dict[str, Any]:
+        _ = db, tenant_id, conversation_id
         snap = {
             "summary": summary,
             "source_message_count": source_message_count,
@@ -1819,11 +1835,11 @@ async def test_prepare_execution_builds_compaction_snapshot_sidecar_when_thresho
             return_value="Facade summary",
         ) as build_compact_summary,
         patch(
-            "app.ai.context.engine.ContextCompactionSnapshotStore.get_snapshot",
+            "app.ai.context.engine_runtime_support.load_compaction_snapshot",
             new=AsyncMock(side_effect=fake_get_snapshot),
         ),
         patch(
-            "app.ai.context.engine.ContextCompactionSnapshotStore.upsert_snapshot",
+            "app.ai.context.engine_runtime_support.persist_compaction_snapshot",
             new=AsyncMock(side_effect=fake_upsert_snapshot),
         ) as upsert_snapshot,
     ):
@@ -2094,7 +2110,7 @@ async def test_prepare_execution_skips_runtime_capability_summary_when_dynamic_a
         capability_descriptors=[
             CapabilityDescriptor(
                 name="Research Skill",
-                kind="prompt_skill",
+                kind="capability_pack",
                 source="skill_package:research",
                 description="Search and fetch public information",
                 metadata={"family": "web_research"},
@@ -2152,7 +2168,7 @@ async def test_prepare_execution_keeps_runtime_capability_summary_when_dynamic_a
         capability_descriptors=[
             CapabilityDescriptor(
                 name="Research Skill",
-                kind="prompt_skill",
+                kind="capability_pack",
                 source="skill_package:research",
                 description="Search public information",
                 metadata={"family": "web_research"},
@@ -2427,12 +2443,12 @@ async def test_prepare_execution_deduplicates_selected_skill_names_in_capability
         capability_descriptors=[
             CapabilityDescriptor(
                 name="Plugin Research Skill",
-                kind="prompt_skill",
+                kind="capability_pack",
                 source="skill_package:plugin.research",
             ),
             CapabilityDescriptor(
                 name="Plugin Research Skill",
-                kind="prompt_skill",
+                kind="capability_pack",
                 source="skill_package:plugin.research.v2",
             ),
         ],
@@ -3038,3 +3054,7 @@ async def test_prepare_execution_editor_write_keeps_editor_mutation_tools() -> N
         "ui_fill_form",
         "ui_submit_form",
     ]
+    assert prep.intent_plan[0].metadata["page_workflow_stage"] == (
+        "submit_active_editor"
+    )
+    assert prep.intent_plan[0].completion_signals == ["ui_submit_form"]

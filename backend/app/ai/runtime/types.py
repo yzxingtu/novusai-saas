@@ -9,7 +9,12 @@ from typing import Any, Literal
 
 from app.ai.tools.types import ToolDefinition
 
-CapabilityKind = Literal["prompt_skill", "execution_tool", "context_provider"]
+CapabilityKind = Literal[
+    "capability_pack",
+    "prompt_skill",
+    "execution_tool",
+    "context_provider",
+]
 ProtocolPath = Literal["responses", "chat_completions", "sync_chat_completions"]
 TurnOutcome = Literal["success", "partial", "failed", "tool_round_failed"]
 TerminationReason = Literal[
@@ -31,6 +36,11 @@ TerminationReason = Literal[
     "awaiting_user_consent",
     "error",
 ]
+
+
+def is_skill_descriptor_kind(kind: str | None) -> bool:
+    normalized = str(kind or "").strip()
+    return normalized in {"capability_pack", "prompt_skill"}
 
 
 @dataclass
@@ -75,11 +85,44 @@ class CapabilityBundle:
 
     @property
     def selected_skill_names(self) -> list[str]:
-        return [
-            descriptor.name
-            for descriptor in self.capability_descriptors
-            if descriptor.kind == "prompt_skill"
-        ]
+        return collect_selected_skill_names(
+            descriptors=self.capability_descriptors,
+            tools=self.tools,
+        )
+
+
+def prompt_skill_descriptor_is_live(descriptor: Any) -> bool:
+    kind = str(getattr(descriptor, "kind", "") or "").strip()
+    name = str(getattr(descriptor, "name", "") or "").strip()
+    if not is_skill_descriptor_kind(kind) or not name:
+        return False
+
+    metadata = getattr(descriptor, "metadata", {}) or {}
+    return not (
+        isinstance(metadata, dict) and metadata.get("has_execution_tools") is False
+    )
+
+
+def collect_selected_skill_names(
+    *,
+    descriptors: list[Any] | None = None,
+    tools: list[Any] | None = None,
+) -> list[str]:
+    names: list[str] = []
+
+    for descriptor in descriptors or []:
+        if not prompt_skill_descriptor_is_live(descriptor):
+            continue
+        skill_name = str(getattr(descriptor, "name", "") or "").strip()
+        if skill_name and skill_name not in names:
+            names.append(skill_name)
+
+    for tool in tools or []:
+        skill_name = str(getattr(tool, "source_skill_name", "") or "").strip()
+        if skill_name and skill_name not in names:
+            names.append(skill_name)
+
+    return names
 
 
 @dataclass

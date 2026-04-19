@@ -361,6 +361,199 @@ class SuggestedTools(BaseModel):
         return self
 
 
+class NavigationCatalogEntry(BaseModel):
+    """Compact navigation entry for thin page_data / 薄 page_data 的紧凑导航条目。"""
+
+    model_config = ConfigDict(extra="ignore")
+
+    title: str = Field(
+        ...,
+        min_length=1,
+        max_length=200,
+        description="Navigation title / 导航标题",
+    )
+    path: str = Field(
+        ...,
+        min_length=1,
+        max_length=240,
+        description="Navigation path / 导航路径",
+    )
+    page_key: str = Field(
+        ...,
+        min_length=1,
+        max_length=200,
+        description="Navigation page key / 导航页面键",
+    )
+    description: str | None = Field(
+        None,
+        max_length=240,
+        description="Navigation description / 导航描述",
+    )
+    category: str | None = Field(
+        None,
+        max_length=120,
+        description="Navigation category / 导航分类",
+    )
+    endpoint: str | None = Field(
+        None,
+        max_length=240,
+        description="Navigation endpoint / 导航端点",
+    )
+    keywords: list[str] = Field(
+        default_factory=list,
+        description="Navigation keywords / 导航关键词",
+    )
+    capabilities: list[str] = Field(
+        default_factory=list,
+        description="Navigation capabilities / 导航能力标签",
+    )
+    breadcrumb: list[str] = Field(
+        default_factory=list,
+        description="Navigation breadcrumb / 导航面包屑",
+    )
+
+    @model_validator(mode="after")
+    def normalize_entry(self) -> NavigationCatalogEntry:
+        self.title = self.title.strip()[:200]
+        self.path = self.path.strip()[:240]
+        self.page_key = self.page_key.strip()[:200]
+        if self.description is not None:
+            description = self.description.strip()
+            self.description = description[:240] if description else None
+        if self.category is not None:
+            category = self.category.strip()
+            self.category = category[:120] if category else None
+        if self.endpoint is not None:
+            endpoint = self.endpoint.strip()
+            self.endpoint = endpoint[:240] if endpoint else None
+        self.keywords = _normalize_compact_string_list(self.keywords, max_items=12)
+        self.capabilities = _normalize_compact_string_list(
+            self.capabilities,
+            max_items=12,
+        )
+        self.breadcrumb = _normalize_compact_string_list(self.breadcrumb, max_items=8)
+        return self
+
+
+class NavigationContext(BaseModel):
+    """Compact navigation context for thin page_data / 薄 page_data 的导航上下文。"""
+
+    model_config = ConfigDict(extra="ignore")
+
+    breadcrumb: list[str] = Field(
+        default_factory=list,
+        description="Navigation breadcrumb / 导航面包屑",
+    )
+    endpoint: str | None = Field(
+        None,
+        max_length=240,
+        description="Current endpoint / 当前端点",
+    )
+    page_key: str | None = Field(
+        None,
+        max_length=200,
+        description="Current page key / 当前页面键",
+    )
+    path: str | None = Field(
+        None,
+        max_length=240,
+        description="Current path / 当前路径",
+    )
+
+    @model_validator(mode="after")
+    def normalize_context(self) -> NavigationContext:
+        self.breadcrumb = _normalize_compact_string_list(self.breadcrumb, max_items=8)
+        if self.endpoint is not None:
+            endpoint = self.endpoint.strip()
+            self.endpoint = endpoint[:240] if endpoint else None
+        if self.page_key is not None:
+            page_key = self.page_key.strip()
+            self.page_key = page_key[:200] if page_key else None
+        if self.path is not None:
+            path = self.path.strip()
+            self.path = path[:240] if path else None
+        return self
+
+
+class PageContextPageData(BaseModel):
+    """Summary-first page data extension / summary-first 页面扩展数据。"""
+
+    model_config = ConfigDict(extra="ignore")
+
+    locale: str | None = Field(
+        None,
+        max_length=32,
+        description="Page-data locale / page_data 语言",
+    )
+    entity_description: str | None = Field(
+        None,
+        max_length=240,
+        description="Entity description summary / 实体描述摘要",
+    )
+    navigation_catalog: list[NavigationCatalogEntry] = Field(
+        default_factory=list,
+        description="Compact navigation catalog / 紧凑导航目录",
+    )
+    navigation_context: NavigationContext | None = Field(
+        None,
+        description="Compact navigation context / 紧凑导航上下文",
+    )
+
+    @model_validator(mode="after")
+    def normalize_page_data(self) -> PageContextPageData:
+        if self.locale is not None:
+            locale = self.locale.strip()
+            self.locale = locale[:32] if locale else None
+        if self.entity_description is not None:
+            entity_description = self.entity_description.strip()
+            self.entity_description = (
+                entity_description[:240] if entity_description else None
+            )
+
+        normalized_catalog: list[NavigationCatalogEntry] = []
+        seen_catalog_keys: set[tuple[str, str]] = set()
+        for entry in self.navigation_catalog:
+            dedupe_key = (entry.page_key, entry.path)
+            if dedupe_key in seen_catalog_keys:
+                continue
+            seen_catalog_keys.add(dedupe_key)
+            normalized_catalog.append(entry)
+            if len(normalized_catalog) >= 32:
+                break
+        self.navigation_catalog = normalized_catalog
+
+        if self.navigation_context and not (
+            self.navigation_context.breadcrumb
+            or self.navigation_context.endpoint
+            or self.navigation_context.page_key
+            or self.navigation_context.path
+        ):
+            self.navigation_context = None
+
+        return self
+
+
+def _normalize_compact_string_list(
+    values: list[str],
+    *,
+    max_items: int,
+) -> list[str]:
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for item in values:
+        text = str(item or "").strip()
+        if not text:
+            continue
+        dedupe_key = text.lower()
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+        normalized.append(text[:200])
+        if len(normalized) >= max_items:
+            break
+    return normalized
+
+
 class PageContext(BaseModel):
     """统一页面上下文（贯穿 Router 路由决策与标准 Agent 聊天执行链） / Unified page context (Router + Agent chat chain)."""
 
@@ -409,6 +602,10 @@ class PageContext(BaseModel):
     active_form_summary: ActiveFormSummary | None = Field(
         None,
         description="Active form summary / 活跃表单摘要",
+    )
+    page_data: PageContextPageData | None = Field(
+        None,
+        description="Compact page data / 紧凑页面数据",
     )
     suggested_tools: SuggestedTools | None = Field(
         None,
@@ -479,6 +676,14 @@ class PageContext(BaseModel):
                 )
             elif not self.active_form_session_id:
                 self.active_form_session_id = self.active_form_summary.form_session_id
+
+        if self.page_data and not (
+            self.page_data.locale
+            or self.page_data.entity_description
+            or self.page_data.navigation_catalog
+            or self.page_data.navigation_context
+        ):
+            self.page_data = None
 
         if self.suggested_tools and not self.suggested_tools.primary:
             self.suggested_tools = None

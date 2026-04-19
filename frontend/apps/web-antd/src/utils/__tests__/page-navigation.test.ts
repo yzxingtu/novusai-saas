@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { navigateToPathWithContext } from '../page-navigation';
 
 const mocks = vi.hoisted(() => ({
+  accessMenus: [] as Array<Record<string, unknown>>,
   currentRouteValue: {
     meta: {},
     path: '/admin/dashboard',
@@ -43,8 +44,37 @@ vi.mock('#/locales/runtime-locale', () => ({
   resolveRuntimeLocale: () => 'zh-CN',
 }));
 
+vi.mock('@vben/stores', () => ({
+  useAccessStore: () => ({
+    accessMenus: mocks.accessMenus,
+  }),
+}));
+
 describe('page-navigation', () => {
   beforeEach(() => {
+    mocks.accessMenus = [
+      {
+        meta: {
+          title: 'Dashboard',
+        },
+        name: 'Dashboard',
+        path: '/admin/dashboard',
+      },
+      {
+        meta: {
+          ai: {
+            capabilities: ['create_agent'],
+            category: 'AI',
+            description: 'Manage agents',
+            keywords: ['agent', 'assistant'],
+            pageContextKey: 'admin.ai.agents',
+          },
+          title: '智能体',
+        },
+        name: '智能体',
+        path: '/admin/ai/agents',
+      },
+    ];
     mocks.currentRouteValue = {
       meta: {},
       path: '/admin/dashboard',
@@ -120,6 +150,26 @@ describe('page-navigation', () => {
     expect(result.data?.page_session_id).toBe('page-session-2');
     expect(result.data?.page_context).toMatchObject({
       locale: 'zh-CN',
+      page_data: {
+        navigation_catalog: [
+          expect.objectContaining({
+            page_key: 'admin.dashboard',
+            path: '/admin/dashboard',
+            title: 'locale:Dashboard',
+          }),
+          expect.objectContaining({
+            page_key: 'admin.ai.agents',
+            path: '/admin/ai/agents',
+            title: 'locale:智能体',
+          }),
+        ],
+        navigation_context: {
+          breadcrumb: ['locale:智能体'],
+          endpoint: 'admin',
+          page_key: 'admin.ai.agents',
+          path: '/admin/ai/agents',
+        },
+      },
       page_key: 'admin.ai.agents',
     });
     expect(result.data?.navigation_target).toMatchObject({
@@ -130,6 +180,9 @@ describe('page-navigation', () => {
     expect(result.data?.can_auto_continue).toBe(true);
     expect(result.data?.navigation_target).toMatchObject({
       title: 'locale:智能体',
+    });
+    expect(result.data?.ui_navigation).toMatchObject({
+      navigation_catalog_count: 2,
     });
   });
 
@@ -149,7 +202,8 @@ describe('page-navigation', () => {
       page_key: 'admin.ai.agents',
       page_title: 'Resolved Page',
       suggested_tools: {
-        primary: [],
+        primary: ['ui_get_snapshot', 'ui_list_interactables'],
+        reason: 'suggestion_only_context',
       },
     });
 
@@ -163,6 +217,13 @@ describe('page-navigation', () => {
     expect(result.data?.destination_ready).toBe(false);
     expect(result.data?.can_auto_continue).toBe(false);
     expect(result.data?.destination_ready_reason).toBe('destination_not_ready');
+    expect(
+      (
+        result.data?.ui_navigation as
+          | undefined
+          | { available_operation_names?: string[] }
+      )?.available_operation_names,
+    ).toEqual([]);
   });
 
   it('returns permission_denied when navigation ends on a forbidden route', async () => {

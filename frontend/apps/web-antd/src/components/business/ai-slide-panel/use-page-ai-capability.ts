@@ -13,6 +13,12 @@ import {
 import { $t } from '#/locales';
 import { filterPageOperationsByPolicy } from '#/utils/ai-page-capabilities';
 import { isDevErrorMode } from '#/utils/request/app-env';
+import {
+  buildPageOperation,
+  buildRuntimePageOperationNames,
+  buildSuggestedPageOperationNames,
+  hasRuntimePageState,
+} from '#/utils/runtime-page-operations';
 
 type ThinPageContextValue = ReturnType<typeof getRuntimeThinPageContext>;
 
@@ -46,55 +52,6 @@ interface UsePageAICapabilityOptions {
 
 function pageModeDisablesContext(mode: AIPageMode): boolean {
   return mode === 'disabled';
-}
-
-const UI_TOOL_META: Record<
-  string,
-  Omit<PageOperation, 'description' | 'handler' | 'label' | 'name'>
-> = {
-  ui_click: { readonly: false },
-  ui_fill_form: { readonly: false },
-  ui_get_form_state: { readonly: true },
-  ui_get_snapshot: { readonly: true },
-  ui_list_interactables: { readonly: true },
-  ui_open_surface: { readonly: false },
-  ui_read_region: { readonly: true },
-  ui_read_table: { readonly: true },
-  ui_set_field: { readonly: false },
-  ui_submit_form: { readonly: false },
-};
-
-function toToolLabel(name: string): string {
-  if (!name) {
-    return '';
-  }
-  const fallback = name
-    .replace(/^ui_/, '')
-    .split('_')
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-  const key = `common.aiPanel.toolLabel.${name}`;
-  const translated = $t(key);
-  return translated === key ? fallback : translated;
-}
-
-function toToolDescription(name: string): string {
-  const key = `common.aiPanel.toolDesc.${name}`;
-  const translated = $t(key);
-  return translated === key ? toToolLabel(name) : translated;
-}
-
-function buildToolOperation(name: string): null | PageOperation {
-  const normalizedName = String(name || '').trim();
-  if (!normalizedName.startsWith('ui_')) {
-    return null;
-  }
-  return {
-    name: normalizedName,
-    label: toToolLabel(normalizedName),
-    description: toToolDescription(normalizedName),
-    readonly: UI_TOOL_META[normalizedName]?.readonly ?? true,
-  };
 }
 
 function resolveSummary(context: ThinPageContextValue): string {
@@ -135,13 +92,13 @@ export function usePageAICapability(options: UsePageAICapabilityOptions) {
       return [];
     }
     const candidateNames = [
-      ...(context.suggested_tools?.primary ?? []),
-      ...(context.suggested_tools?.secondary ?? []),
+      ...buildRuntimePageOperationNames(context),
+      ...buildSuggestedPageOperationNames(context),
     ];
     const operations: PageOperation[] = [];
     const seen = new Set<string>();
     for (const name of candidateNames) {
-      const operation = buildToolOperation(name);
+      const operation = buildPageOperation(name);
       if (!operation || seen.has(operation.name)) {
         continue;
       }
@@ -169,7 +126,13 @@ export function usePageAICapability(options: UsePageAICapabilityOptions) {
 
   const pageAIFallbackOnly = computed(() => {
     const reason = currentPageContext.value?.suggested_tools?.reason || '';
-    return reason.includes('fallback');
+    if (reason.includes('fallback')) {
+      return true;
+    }
+    return (
+      !hasRuntimePageState(currentPageContext.value) &&
+      buildSuggestedPageOperationNames(currentPageContext.value).length > 0
+    );
   });
   const hasPageAI = computed(() => !!currentPageContext.value);
   const pageAIDetailsExpanded = ref(false);

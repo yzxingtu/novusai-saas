@@ -96,6 +96,7 @@ def _build_tool_plan(tool_name: str = "web_search") -> PreparedExecutionToolPlan
             "has_knowledge_intent": False,
             "has_page_intent": False,
             "has_memory_intent": False,
+            "memory_context_enabled": False,
         },
         explicit_requested_families=["web_research"],
         execution_path="normal",

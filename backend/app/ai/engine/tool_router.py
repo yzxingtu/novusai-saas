@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -22,6 +23,50 @@ class ToolRoutingDecision:
 
     def candidate_tool_names(self) -> list[str]:
         return [tool.name for tool in self.candidate_tools]
+
+
+@dataclass(frozen=True)
+class PageWorkflowState:
+    active_form_stage: str = ""
+    active_surface_id: str = ""
+    active_surface_kind: str = ""
+    can_submit_form: bool = False
+    has_active_form: bool = False
+    has_active_surface: bool = False
+    has_overlay_surface: bool = False
+    has_surface_stack: bool = False
+    has_thin_runtime_state: bool = False
+    page_key: str = ""
+    surface_stack_depth: int = 0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "active_form_stage": self.active_form_stage,
+            "active_surface_id": self.active_surface_id,
+            "active_surface_kind": self.active_surface_kind,
+            "can_submit_form": self.can_submit_form,
+            "has_active_form": self.has_active_form,
+            "has_active_surface": self.has_active_surface,
+            "has_overlay_surface": self.has_overlay_surface,
+            "has_surface_stack": self.has_surface_stack,
+            "has_thin_runtime_state": self.has_thin_runtime_state,
+            "page_key": self.page_key,
+            "surface_stack_depth": self.surface_stack_depth,
+        }
+
+
+@dataclass(frozen=True)
+class PageIntentToolPlan:
+    allowed_names: list[str] = field(default_factory=list)
+    preferred_names: list[str] = field(default_factory=list)
+    workflow_stage: str = "idle"
+    workflow_state: PageWorkflowState = field(default_factory=PageWorkflowState)
+
+    def to_metadata(self) -> dict[str, Any]:
+        return {
+            "page_workflow_stage": self.workflow_stage,
+            "page_workflow_state": self.workflow_state.to_dict(),
+        }
 
 
 class ToolRouter:
@@ -125,76 +170,278 @@ class ToolRouter:
     }
 
     @classmethod
+    def _surface_stack_entries(
+        cls,
+        page_context: Mapping[str, Any],
+    ) -> list[Mapping[str, Any]]:
+        raw_stack = page_context.get("surface_stack")
+        if not isinstance(raw_stack, list):
+            return []
+        return [entry for entry in raw_stack if isinstance(entry, Mapping)]
+
+    @classmethod
+    def _resolve_active_surface_kind(
+        cls,
+        *,
+        active_surface_id: str,
+        surface_stack: list[Mapping[str, Any]],
+    ) -> str:
+        if not surface_stack:
+            return ""
+        if active_surface_id:
+            for entry in reversed(surface_stack):
+                surface_id = str(entry.get("surface_id") or "").strip()
+                if surface_id and surface_id == active_surface_id:
+                    return str(entry.get("kind") or "").strip()
+        return str(surface_stack[-1].get("kind") or "").strip()
+
+    @classmethod
+    def resolve_page_workflow_state(
+        cls,
+        *,
+        input_variables: dict[str, Any] | None = None,
+    ) -> PageWorkflowState:
+        page_context = page_context_payload(input_variables)
+        if not isinstance(page_context, Mapping):
+            return PageWorkflowState()
+        active_form_summary = (
+            page_context.get("active_form_summary")
+            if isinstance(page_context.get("active_form_summary"), Mapping)
+            else {}
+        )
+        active_form_stage = str(active_form_summary.get("stage") or "").strip()
+        surface_stack = cls._surface_stack_entries(page_context)
+        active_surface_id = str(page_context.get("active_surface_id") or "").strip()
+        has_surface_stack = bool(surface_stack)
+        has_active_surface = bool(active_surface_id)
+        has_active_form = page_context_has_active_form(page_context)
+        active_surface_kind = cls._resolve_active_surface_kind(
+            active_surface_id=active_surface_id,
+            surface_stack=surface_stack,
+        )
+        overlay_surface_entries = [
+            entry
+            for entry in surface_stack
+            if str(entry.get("kind") or "").strip()
+            not in {"", "page"}
+        ]
+        return PageWorkflowState(
+            active_form_stage=active_form_stage,
+            active_surface_id=active_surface_id,
+            active_surface_kind=active_surface_kind,
+            can_submit_form=bool(active_form_summary.get("can_submit")),
+            has_active_form=has_active_form,
+            has_active_surface=has_active_surface,
+            has_overlay_surface=bool(overlay_surface_entries),
+            has_surface_stack=has_surface_stack,
+            has_thin_runtime_state=bool(
+                isinstance(page_context.get("ui_epoch"), int)
+                or has_surface_stack
+                or has_active_surface
+                or has_active_form
+            ),
+            page_key=str(page_context.get("page_key") or "").strip(),
+            surface_stack_depth=len(surface_stack),
+        )
+
+    @classmethod
+    def page_intent_tool_plan(
+        cls,
+        intent_kind: str,
+        *,
+        input_variables: dict[str, Any] | None = None,
+    ) -> PageIntentToolPlan:
+        workflow_state = cls.resolve_page_workflow_state(
+            input_variables=input_variables
+        )
+        if intent_kind == "page_navigation":
+            allowed_names = [
+                "ui_list_interactables",
+                "ui_click",
+                "ui_open_surface",
+                "ui_get_snapshot",
+            ]
+            preferred_names = (
+                [
+                    "ui_get_snapshot",
+                    "ui_list_interactables",
+                    "ui_click",
+                    "ui_open_surface",
+                ]
+                if workflow_state.has_overlay_surface
+                else list(allowed_names)
+            )
+            return PageIntentToolPlan(
+                allowed_names=allowed_names,
+                preferred_names=preferred_names,
+                workflow_stage=(
+                    "verify_navigation_result"
+                    if workflow_state.has_overlay_surface
+                    else "discover_navigation_target"
+                ),
+                workflow_state=workflow_state,
+            )
+
+        if intent_kind == "page_form_read":
+            if workflow_state.has_active_form:
+                allowed_names = [
+                    "ui_get_form_state",
+                    "ui_read_region",
+                    "ui_get_snapshot",
+                ]
+                return PageIntentToolPlan(
+                    allowed_names=allowed_names,
+                    preferred_names=list(allowed_names),
+                    workflow_stage="read_active_form",
+                    workflow_state=workflow_state,
+                )
+            allowed_names = [
+                "ui_list_interactables",
+                "ui_click",
+                "ui_open_surface",
+                "ui_get_form_state",
+                "ui_read_region",
+                "ui_get_snapshot",
+            ]
+            return PageIntentToolPlan(
+                allowed_names=allowed_names,
+                preferred_names=list(allowed_names),
+                workflow_stage="discover_form_surface",
+                workflow_state=workflow_state,
+            )
+
+        if intent_kind == "page_form_write":
+            if workflow_state.has_active_form:
+                allowed_names = [
+                    "ui_get_form_state",
+                    "ui_fill_form",
+                    "ui_set_field",
+                    "ui_submit_form",
+                    "ui_open_surface",
+                ]
+                preferred_names = [
+                    "ui_fill_form",
+                    "ui_set_field",
+                    "ui_submit_form",
+                    "ui_get_form_state",
+                    "ui_open_surface",
+                ]
+                return PageIntentToolPlan(
+                    allowed_names=allowed_names,
+                    preferred_names=preferred_names,
+                    workflow_stage=(
+                        "submit_active_form"
+                        if workflow_state.can_submit_form
+                        or workflow_state.active_form_stage == "ready_to_submit"
+                        else "fill_active_form"
+                    ),
+                    workflow_state=workflow_state,
+                )
+            allowed_names = [
+                "ui_list_interactables",
+                "ui_open_surface",
+                "ui_click",
+                "ui_get_form_state",
+                "ui_fill_form",
+                "ui_submit_form",
+            ]
+            return PageIntentToolPlan(
+                allowed_names=allowed_names,
+                preferred_names=list(allowed_names),
+                workflow_stage="discover_form_before_write",
+                workflow_state=workflow_state,
+            )
+
+        if intent_kind == "page_row_detail":
+            if workflow_state.has_overlay_surface:
+                allowed_names = [
+                    "ui_read_region",
+                    "ui_read_table",
+                    "ui_get_snapshot",
+                    "ui_click",
+                    "ui_open_surface",
+                ]
+                preferred_names = [
+                    "ui_read_region",
+                    "ui_read_table",
+                    "ui_get_snapshot",
+                    "ui_click",
+                    "ui_open_surface",
+                ]
+                return PageIntentToolPlan(
+                    allowed_names=allowed_names,
+                    preferred_names=preferred_names,
+                    workflow_stage="read_detail_surface",
+                    workflow_state=workflow_state,
+                )
+            allowed_names = [
+                "ui_list_interactables",
+                "ui_click",
+                "ui_open_surface",
+                "ui_read_region",
+                "ui_read_table",
+                "ui_get_snapshot",
+            ]
+            return PageIntentToolPlan(
+                allowed_names=allowed_names,
+                preferred_names=list(allowed_names),
+                workflow_stage="open_detail_surface",
+                workflow_state=workflow_state,
+            )
+
+        if intent_kind == "page_editor_write":
+            allowed_names = [
+                "ui_open_surface",
+                "ui_fill_form",
+                "ui_submit_form",
+            ]
+            preferred_names = (
+                [
+                    "ui_fill_form",
+                    "ui_submit_form",
+                    "ui_open_surface",
+                ]
+                if workflow_state.has_active_form
+                else list(allowed_names)
+            )
+            workflow_stage = "discover_editor_surface"
+            if workflow_state.has_active_form:
+                workflow_stage = (
+                    "submit_active_editor"
+                    if workflow_state.can_submit_form
+                    or workflow_state.active_form_stage == "ready_to_submit"
+                    else "edit_active_editor"
+                )
+            return PageIntentToolPlan(
+                allowed_names=allowed_names,
+                preferred_names=preferred_names,
+                workflow_stage=workflow_stage,
+                workflow_state=workflow_state,
+            )
+
+        allowed_names, preferred_names = cls._PAGE_INTENT_TOOL_MAP.get(
+            intent_kind,
+            ([], []),
+        )
+        return PageIntentToolPlan(
+            allowed_names=list(allowed_names),
+            preferred_names=list(preferred_names),
+            workflow_stage="intent_static_tools",
+            workflow_state=workflow_state,
+        )
+
+    @classmethod
     def page_intent_tool_preferences(
         cls,
         intent_kind: str,
         *,
         input_variables: dict[str, Any] | None = None,
     ) -> tuple[list[str], list[str]]:
-        if intent_kind == "page_form_read":
-            page_context = page_context_payload(input_variables)
-            if page_context_has_active_form(page_context):
-                return cls._PAGE_INTENT_TOOL_MAP.get(intent_kind, ([], []))
-
-            return (
-                [
-                    "ui_list_interactables",
-                    "ui_click",
-                    "ui_open_surface",
-                    "ui_get_form_state",
-                    "ui_read_region",
-                    "ui_get_snapshot",
-                ],
-                [
-                    "ui_list_interactables",
-                    "ui_click",
-                    "ui_open_surface",
-                    "ui_get_form_state",
-                    "ui_read_region",
-                    "ui_get_snapshot",
-                ],
-            )
-
-        if intent_kind != "page_form_write":
-            return cls._PAGE_INTENT_TOOL_MAP.get(intent_kind, ([], []))
-
-        page_context = page_context_payload(input_variables)
-        if page_context_has_active_form(page_context):
-            return (
-                [
-                    "ui_get_form_state",
-                    "ui_fill_form",
-                    "ui_set_field",
-                    "ui_submit_form",
-                    "ui_open_surface",
-                ],
-                [
-                    "ui_fill_form",
-                    "ui_set_field",
-                    "ui_submit_form",
-                    "ui_get_form_state",
-                    "ui_open_surface",
-                ],
-            )
-
-        return (
-            [
-                "ui_list_interactables",
-                "ui_open_surface",
-                "ui_click",
-                "ui_get_form_state",
-                "ui_fill_form",
-                "ui_submit_form",
-            ],
-            [
-                "ui_list_interactables",
-                "ui_open_surface",
-                "ui_click",
-                "ui_get_form_state",
-                "ui_fill_form",
-                "ui_submit_form",
-            ],
+        plan = cls.page_intent_tool_plan(
+            intent_kind,
+            input_variables=input_variables,
         )
+        return list(plan.allowed_names), list(plan.preferred_names)
 
     @classmethod
     def route(
@@ -206,7 +453,6 @@ class ToolRouter:
         input_variables: dict[str, Any] | None,
         user_text: str = "",
     ) -> ToolRoutingDecision:
-        _ = input_variables
         tools_by_name = {tool.name: tool for tool in tools}
         candidate_names: list[str] = []
         intent_allowed: dict[str, list[str]] = {}
@@ -319,4 +565,9 @@ class ToolRouter:
         )
 
 
-__all__ = ["ToolRouter", "ToolRoutingDecision"]
+__all__ = [
+    "PageIntentToolPlan",
+    "PageWorkflowState",
+    "ToolRouter",
+    "ToolRoutingDecision",
+]

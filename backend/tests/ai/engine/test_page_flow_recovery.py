@@ -89,9 +89,9 @@ def test_build_page_no_progress_recovery_for_navigation_request() -> None:
         "ui_list_interactables",
         "ui_click",
         "ui_open_surface",
-        "ui_get_snapshot",
     ]
     assert diagnostics["intent_kind"] == "page_navigation"
+    assert diagnostics["workflow_stage"] == "verify_navigation_result"
 
 
 def test_build_page_no_progress_recovery_for_failed_cross_page_click() -> None:
@@ -120,7 +120,7 @@ def test_build_page_no_progress_recovery_for_failed_cross_page_click() -> None:
             "page_context": {
                 **_build_input_variables()["page_context"],
                 "page_data": {
-                    "available_menus": [
+                    "navigation_catalog": [
                         {
                             "title": "供应商管理",
                             "path": "/admin/suppliers",
@@ -138,10 +138,10 @@ def test_build_page_no_progress_recovery_for_failed_cross_page_click() -> None:
         "ui_list_interactables",
         "ui_click",
         "ui_open_surface",
-        "ui_get_snapshot",
     ]
     assert diagnostics["intent_kind"] == "page_navigation"
     assert diagnostics["reason"] == "page_navigation_failed_no_progress"
+    assert diagnostics["workflow_state"]["has_active_surface"] is True
 
 
 def test_build_page_no_progress_recovery_for_screenshot_request() -> None:
@@ -164,6 +164,7 @@ def test_build_page_no_progress_recovery_for_form_write_request() -> None:
         "ui_submit_form",
     ]
     assert diagnostics["intent_kind"] == "page_form_write"
+    assert diagnostics["workflow_stage"] == "submit_active_form"
 
 
 def test_build_page_no_progress_recovery_for_form_write_without_active_form() -> None:
@@ -195,11 +196,11 @@ def test_build_page_no_progress_recovery_for_form_write_without_active_form() ->
         "ui_open_surface",
         "ui_click",
         "ui_get_form_state",
-        "ui_fill_form",
-        "ui_submit_form",
     ]
     assert diagnostics["intent_kind"] == "page_form_write"
     assert diagnostics["reason"] == "page_form_session_missing"
+    assert diagnostics["workflow_stage"] == "discover_form_before_write"
+    assert diagnostics["workflow_state"]["has_active_form"] is False
 
 
 def test_build_page_no_progress_recovery_for_form_read_request() -> None:
@@ -209,7 +210,6 @@ def test_build_page_no_progress_recovery_for_form_read_request() -> None:
     assert preferred_tool_names == [
         "ui_get_form_state",
         "ui_read_region",
-        "ui_get_snapshot",
     ]
     assert diagnostics["intent_kind"] == "page_form_read"
 
@@ -221,9 +221,36 @@ def test_build_page_no_progress_recovery_for_row_detail_request() -> None:
     assert preferred_tool_names == [
         "ui_read_region",
         "ui_read_table",
-        "ui_get_snapshot",
     ]
     assert diagnostics["intent_kind"] == "page_row_detail"
+    assert diagnostics["workflow_stage"] == "read_detail_surface"
+
+
+def test_build_page_no_progress_recovery_for_row_detail_without_overlay_prefers_open_first() -> None:
+    hint, preferred_tool_names, diagnostics = BaseEngine._build_page_no_progress_recovery(  # noqa: SLF001
+        messages=[ChatMessage(role="user", content="查看这条记录详情")],
+        tool_calls=[
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {"name": "ui_get_snapshot", "arguments": "{}"},
+            }
+        ],
+        tool_results=[_snapshot_result()],
+        tools=_page_tools(),
+        input_variables=_build_input_variables_without_form(),
+    )
+
+    assert hint is not None
+    assert preferred_tool_names == [
+        "ui_list_interactables",
+        "ui_click",
+        "ui_open_surface",
+        "ui_read_region",
+        "ui_read_table",
+    ]
+    assert diagnostics["workflow_stage"] == "open_detail_surface"
+    assert diagnostics["workflow_state"]["has_overlay_surface"] is False
 
 
 def test_build_page_no_progress_recovery_for_pagination_request() -> None:

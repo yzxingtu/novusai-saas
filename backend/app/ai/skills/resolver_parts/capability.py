@@ -37,7 +37,7 @@ def build_skill_capability_descriptors(skills: list[Any]) -> list[CapabilityDesc
         descriptors.append(
             CapabilityDescriptor(
                 name=skill_name,
-                kind="prompt_skill",
+                kind="capability_pack",
                 source=source,
                 description=str(getattr(skill, "description", "") or ""),
                 metadata=metadata,
@@ -63,7 +63,7 @@ def enrich_skill_capability_descriptors_with_tools(
             bucket.append(tool_name)
 
     for descriptor in descriptors:
-        if descriptor.kind != "prompt_skill":
+        if str(descriptor.kind or "").strip() not in {"capability_pack", "prompt_skill"}:
             continue
         skill_name = str(descriptor.name or "").strip()
         if not skill_name:
@@ -75,4 +75,3 @@ def enrich_skill_capability_descriptors_with_tools(
             "resolved_tool_count": len(resolved_tool_names),
             "has_execution_tools": bool(resolved_tool_names),
         }
-

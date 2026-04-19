@@ -91,6 +91,7 @@ async def test_assemble_initial_context_state_keeps_bundle_and_flags() -> None:
             "all_shortcircuit": False,
             "has_knowledge_intent": True,
             "has_memory_intent": False,
+            "memory_context_enabled": False,
             "has_page_intent": False,
         }
 

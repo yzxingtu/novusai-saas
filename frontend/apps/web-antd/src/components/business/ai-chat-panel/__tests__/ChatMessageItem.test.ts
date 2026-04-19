@@ -2102,6 +2102,66 @@ describe('chatMessageItem', () => {
     ).toBe(true);
   });
 
+  it('hides persisted body text when the turn failed with untrusted final output', async () => {
+    const leakedSnippet = 'Fetched reddit.json leaked snippet';
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: {
+          clientKey: 'assistant-untrusted-final-output-history',
+          role: 'assistant' as const,
+          content: leakedSnippet,
+          turnFlow: createTurnFlow({
+            completion_reason: 'completed',
+            error_surface: {
+              error_type: 'untrusted_final_output_source',
+              message: '这些来源被系统中断了，请稍后再试。',
+            },
+            final_stage_status: 'error',
+            timeline: [
+              {
+                id: 'stage-answer',
+                type: 'answer_assembly',
+                status: 'error',
+                summary: '答复生成失败',
+              },
+              {
+                id: 'stage-terminal',
+                type: 'failed',
+                status: 'error',
+                summary: 'completed',
+              },
+            ],
+          }),
+        },
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: {
+            props: ['content'],
+            template:
+              '<div data-testid="markdown-render-content">{{ content }}</div>',
+          },
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    const renderedMarkdownBlocks = wrapper.findAll(
+      '[data-testid="markdown-render-content"]',
+    );
+    expect(
+      renderedMarkdownBlocks.some((block) =>
+        block.text().includes(leakedSnippet),
+      ),
+    ).toBe(false);
+    expect(wrapper.text()).not.toContain(leakedSnippet);
+  });
+
   it('shows a folded-message hint for very long replies', async () => {
     const wrapper = mount(ChatMessageItem, {
       props: {

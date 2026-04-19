@@ -18,8 +18,13 @@ from app.ai.runtime.capabilities import (
     CapabilityFragment,
     CapabilityRegistry,
 )
-from app.ai.runtime.types import CapabilityBundle, CapabilityDescriptor, ContextSource
 from app.ai.runtime.contracts import PAGE_CONTEXT_KEY
+from app.ai.runtime.types import (
+    CapabilityBundle,
+    CapabilityDescriptor,
+    ContextSource,
+    collect_selected_skill_names,
+)
 from app.services.ai.model_capability_lookup import resolve_runtime_model_capabilities
 
 
@@ -161,7 +166,7 @@ class ContextAssembler:
             provider_names.append("page_context")
         if not flags.all_shortcircuit and flags.has_knowledge_intent:
             provider_names.append("knowledge_base")
-        if flags.has_memory_intent or has_session_memory_context:
+        if flags.memory_context_enabled or has_session_memory_context:
             provider_names.append("memory")
         provider_names.append("runtime_model")
         return provider_names
@@ -188,11 +193,10 @@ class ContextAssembler:
             descriptors = ContextAssembler._build_skill_descriptors_from_tools(tools)
 
         selected_skill_names = ContextAssembler._stable_unique_names(
-            [
-                descriptor.name
-                for descriptor in descriptors
-                if descriptor.kind == "prompt_skill"
-            ]
+            collect_selected_skill_names(
+                descriptors=descriptors,
+                tools=tools,
+            )
         )
         context_sources: list[ContextSource] = []
         if tools or selected_skill_names:
@@ -458,8 +462,10 @@ class ContextAssembler:
     def _build_skill_descriptors_from_tools(
         tools: list[Any],
     ) -> list[CapabilityDescriptor]:
-        seen: set[tuple[str, str]] = set()
         descriptors: list[CapabilityDescriptor] = []
+        grouped_tool_names: dict[tuple[str, str], list[str]] = {}
+        skill_metadata: dict[tuple[str, str], dict[str, Any]] = {}
+
         for tool in tools:
             skill_name = str(getattr(tool, "source_skill_name", "") or "").strip()
             if not skill_name:
@@ -467,18 +473,31 @@ class ContextAssembler:
             source = str(getattr(tool, "source_package_name", "") or "").strip()
             source = f"skill_package:{source}" if source else "skill_resolver"
             key = (skill_name, source)
-            if key in seen:
-                continue
-            seen.add(key)
+            tool_name = str(getattr(tool, "name", "") or "").strip()
+            bucket = grouped_tool_names.setdefault(key, [])
+            if tool_name and tool_name not in bucket:
+                bucket.append(tool_name)
+            skill_metadata.setdefault(
+                key,
+                {
+                    "skill_id": getattr(tool, "source_skill_id", None),
+                    "skill_type": getattr(tool, "source_skill_type", None),
+                },
+            )
+
+        for (skill_name, source), resolved_tool_names in grouped_tool_names.items():
+            metadata = dict(skill_metadata.get((skill_name, source)) or {})
             descriptors.append(
                 CapabilityDescriptor(
                     name=skill_name,
-                    kind="prompt_skill",
+                    kind="capability_pack",
                     source=source,
                     description="Resolved from tool bindings.",
                     metadata={
-                        "skill_id": getattr(tool, "source_skill_id", None),
-                        "skill_type": getattr(tool, "source_skill_type", None),
+                        **metadata,
+                        "resolved_tool_names": list(resolved_tool_names),
+                        "resolved_tool_count": len(resolved_tool_names),
+                        "has_execution_tools": bool(resolved_tool_names),
                     },
                 )
             )

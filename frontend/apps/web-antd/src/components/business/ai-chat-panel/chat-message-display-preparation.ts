@@ -373,10 +373,29 @@ function resolvePreparedBodyMarkdown(msg: ChatMessage) {
   return normalizeOptionalString(msg.content);
 }
 
+function shouldSuppressUntrustedFailureBody(
+  flow: ReturnType<typeof getTurnFlowForDisplay>,
+): boolean {
+  const errorType = normalizeOptionalString(flow.errorSurface?.errorType);
+  const failureKind = normalizeOptionalString(flow.failureKind);
+  return (
+    errorType === 'untrusted_final_output_source' ||
+    failureKind === 'untrusted_final_output_source'
+  );
+}
+
 export function prepareMessageContent(
   msg: ChatMessage,
 ): PreparedMessageContent {
   const flow = getTurnFlowForDisplay(msg);
+  if (shouldSuppressUntrustedFailureBody(flow)) {
+    return {
+      bodyMarkdown: '',
+      references: [],
+      suppressed: true,
+    };
+  }
+
   const extracted = extractTailReferences(resolvePreparedBodyMarkdown(msg));
   const references = mergeReferences(
     flow.evidence.map((item) => toEvidenceReference(item)),
@@ -385,6 +404,7 @@ export function prepareMessageContent(
   return {
     bodyMarkdown: extracted.bodyMarkdown,
     references,
+    suppressed: false,
   };
 }
 

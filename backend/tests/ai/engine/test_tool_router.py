@@ -90,6 +90,55 @@ def test_tool_router_prefers_surface_discovery_before_form_write_when_form_not_o
     ]
 
 
+def test_tool_router_prefers_form_surface_discovery_before_form_read_when_form_not_open() -> None:
+    decision = ToolRouter.route(
+        intents=[_intent("page_form_read")],
+        tools=_page_tools(),
+        budget=_budget(),
+        input_variables={"page_context": {"page_key": "admin.ai.agents", "ui_epoch": 5}},
+        user_text="先打开编辑表单并读取字段",
+    )
+
+    assert decision.intent_allowed_tools["intent-page_form_read"] == [
+        "ui_list_interactables",
+        "ui_click",
+        "ui_open_surface",
+        "ui_get_form_state",
+        "ui_read_region",
+        "ui_get_snapshot",
+    ]
+
+
+def test_tool_router_prefers_snapshot_verification_when_navigation_surface_is_already_open() -> None:
+    plan = ToolRouter.page_intent_tool_plan(
+        "page_navigation",
+        input_variables={
+            "page_context": {
+                "page_key": "admin.suppliers",
+                "ui_epoch": 7,
+                "active_surface_id": "drawer-create-supplier",
+                "surface_stack": [
+                    {"surface_id": "page-suppliers", "kind": "page"},
+                    {
+                        "surface_id": "drawer-create-supplier",
+                        "kind": "drawer",
+                    },
+                ],
+            }
+        },
+    )
+
+    assert plan.workflow_stage == "verify_navigation_result"
+    assert plan.preferred_names == [
+        "ui_get_snapshot",
+        "ui_list_interactables",
+        "ui_click",
+        "ui_open_surface",
+    ]
+    assert plan.workflow_state.has_overlay_surface is True
+    assert plan.workflow_state.active_surface_kind == "drawer"
+
+
 def test_tool_router_keeps_form_write_mutation_chain_when_active_form_exists() -> None:
     decision = ToolRouter.route(
         intents=[_intent("page_form_write")],
@@ -119,6 +168,33 @@ def test_tool_router_keeps_form_write_mutation_chain_when_active_form_exists() -
     ]
 
 
+def test_tool_router_opens_row_detail_surface_before_read_when_no_overlay_exists() -> None:
+    plan = ToolRouter.page_intent_tool_plan(
+        "page_row_detail",
+        input_variables={
+            "page_context": {
+                "page_key": "admin.ai.logs",
+                "ui_epoch": 3,
+                "active_surface_id": "page-logs",
+                "surface_stack": [
+                    {"surface_id": "page-logs", "kind": "page"},
+                ],
+            }
+        },
+    )
+
+    assert plan.workflow_stage == "open_detail_surface"
+    assert plan.allowed_names == [
+        "ui_list_interactables",
+        "ui_click",
+        "ui_open_surface",
+        "ui_read_region",
+        "ui_read_table",
+        "ui_get_snapshot",
+    ]
+    assert plan.workflow_state.surface_stack_depth == 1
+
+
 def test_tool_router_keeps_editor_tools_when_many_page_operations_exist() -> None:
     decision = ToolRouter.route(
         intents=[_intent("page_editor_write")],
@@ -145,6 +221,9 @@ def test_tool_router_prefers_row_detail_tools_for_detail_request() -> None:
     )
 
     assert decision.intent_preferred_tools["intent-page_row_detail"] == [
+        "ui_list_interactables",
+        "ui_click",
+        "ui_open_surface",
         "ui_read_region",
         "ui_read_table",
         "ui_get_snapshot",

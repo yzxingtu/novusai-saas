@@ -66,6 +66,7 @@ export interface TrackableFormApi {
 interface TrackerEntry {
   pageKey: string;
   sessionId: string;
+  surfaceId: string;
   mode: 'add' | 'edit' | 'view';
   formApi: null | TrackableFormApi;
   fieldDescriptors: Record<string, EnhancedFormFieldDescriptor>;
@@ -101,6 +102,7 @@ class FormStateTrackerImpl {
   private _entries = new Map<string, TrackerEntry>();
   private _formSessions = new FormSessionManager();
   private _sessionIdByPageKey = new Map<string, string>();
+  private _sessionIdBySurfaceId = new Map<string, string>();
   private _sessionIdCounter = 0;
 
   /**
@@ -110,6 +112,7 @@ class FormStateTrackerImpl {
   clear(): void {
     this._entries.clear();
     this._sessionIdByPageKey.clear();
+    this._sessionIdBySurfaceId.clear();
     this._formSessions.clear();
   }
 
@@ -118,11 +121,26 @@ class FormStateTrackerImpl {
    * 标记页面表单为关闭状态
    */
   close(pageKey: string): void {
-    const sessionId = this.resolveSessionId(pageKey);
+    const sessionId = this.resolveSessionIdFromIdentifier(pageKey);
     if (!sessionId) {
       return;
     }
-    this.closeBySessionId(sessionId);
+    this.closeSessionById(sessionId);
+  }
+
+  closeBySessionId(sessionId: string): void {
+    if (!sessionId.trim()) {
+      return;
+    }
+    this.closeSessionById(sessionId.trim());
+  }
+
+  closeBySurfaceId(surfaceId: string): void {
+    const sessionId = this.resolveSessionIdBySurfaceId(surfaceId);
+    if (!sessionId) {
+      return;
+    }
+    this.closeSessionById(sessionId);
   }
 
   getActiveFieldDescriptors(
@@ -135,7 +153,7 @@ class FormStateTrackerImpl {
     if (!surfaceIdOrPageKey) {
       return this._formSessions.getActiveSession();
     }
-    const sessionId = this.resolveSessionId(surfaceIdOrPageKey);
+    const sessionId = this.resolveSessionIdFromIdentifier(surfaceIdOrPageKey);
     if (sessionId) {
       return this._formSessions.getSession(sessionId);
     }
@@ -144,6 +162,14 @@ class FormStateTrackerImpl {
 
   getActiveSessionByPageKey(pageKey: string): FormSession | null {
     const sessionId = this._sessionIdByPageKey.get(pageKey);
+    if (!sessionId) {
+      return null;
+    }
+    return this._formSessions.getSession(sessionId);
+  }
+
+  getActiveSessionBySurfaceId(surfaceId: string): FormSession | null {
+    const sessionId = this._sessionIdBySurfaceId.get(surfaceId);
     if (!sessionId) {
       return null;
     }
@@ -185,7 +211,43 @@ class FormStateTrackerImpl {
   }
 
   getSession(pageKey: string): FormSession | null {
-    const sessionId = this.resolveSessionId(pageKey);
+    const sessionId = this.resolveSessionIdFromIdentifier(pageKey);
+    if (!sessionId) {
+      return null;
+    }
+    return this._formSessions.getSession(sessionId);
+  }
+
+  getFormApiBySessionId(sessionId: string): null | TrackableFormApi {
+    return this._entries.get(sessionId.trim())?.formApi ?? null;
+  }
+
+  getFormApiBySurfaceId(surfaceId: string): null | TrackableFormApi {
+    const sessionId = this.resolveSessionIdBySurfaceId(surfaceId);
+    if (!sessionId) {
+      return null;
+    }
+    return this.getFormApiBySessionId(sessionId);
+  }
+
+  getSessionByPageKey(pageKey: string): FormSession | null {
+    const sessionId = this.resolveSessionIdByPageKey(pageKey);
+    if (!sessionId) {
+      return null;
+    }
+    return this._formSessions.getSession(sessionId);
+  }
+
+  getSessionBySessionId(sessionId: string): FormSession | null {
+    const normalizedSessionId = sessionId.trim();
+    if (!normalizedSessionId) {
+      return null;
+    }
+    return this._formSessions.getSession(normalizedSessionId);
+  }
+
+  getSessionBySurfaceId(surfaceId: string): FormSession | null {
+    const sessionId = this.resolveSessionIdBySurfaceId(surfaceId);
     if (!sessionId) {
       return null;
     }
@@ -194,6 +256,10 @@ class FormStateTrackerImpl {
 
   getSessionId(pageKey: string): null | string {
     return this._sessionIdByPageKey.get(pageKey) ?? null;
+  }
+
+  getSessionIdBySurfaceId(surfaceId: string): null | string {
+    return this._sessionIdBySurfaceId.get(surfaceId) ?? null;
   }
 
   /**
@@ -267,7 +333,7 @@ class FormStateTrackerImpl {
    * 带回退的表单状态获取：精确 key 未找到但仅一个表单被追踪时返回该表单状态。
    */
   async getStateWithFallback(pageKey: string): Promise<FormState> {
-    if (this.resolveSessionId(pageKey)) {
+    if (this.resolveSessionIdFromIdentifier(pageKey)) {
       return this.getState(pageKey);
     }
     if (this._entries.size === 1) {
@@ -292,7 +358,7 @@ class FormStateTrackerImpl {
    * 检查页面是否有表单打开
    */
   isOpen(pageKey: string): boolean {
-    return !!this.resolveSessionId(pageKey);
+    return !!this.resolveSessionIdFromIdentifier(pageKey);
   }
 
   /**
@@ -301,7 +367,7 @@ class FormStateTrackerImpl {
    * 带回退的表单打开状态检查：精确 key 未找到但仅一个表单被追踪时视为打开。
    */
   isOpenWithFallback(pageKey: string): boolean {
-    if (this.resolveSessionId(pageKey)) return true;
+    if (this.resolveSessionIdFromIdentifier(pageKey)) return true;
     return this._entries.size === 1;
   }
 
@@ -320,20 +386,24 @@ class FormStateTrackerImpl {
       formApi?: null | TrackableFormApi;
       initialValues?: Record<string, unknown>;
       mode: 'add' | 'edit' | 'view';
+      surfaceId?: string;
     },
   ): string {
-    const previousSessionId = this._sessionIdByPageKey.get(pageKey);
-    if (previousSessionId) {
-      this.closeBySessionId(previousSessionId);
+    const surfaceId = this.resolveSurfaceId(pageKey, opts.surfaceId);
+    const previousSurfaceSessionId = this._sessionIdBySurfaceId.get(surfaceId);
+    if (previousSurfaceSessionId) {
+      this.closeBySessionId(previousSurfaceSessionId);
     }
 
-    const sessionId = this.createSessionId(pageKey);
+    const sessionId = this.createSessionId(pageKey, surfaceId);
     const fieldDescriptors = opts.fieldDescriptors ?? {};
     const initialValues = opts.initialValues ?? {};
     this._sessionIdByPageKey.set(pageKey, sessionId);
+    this._sessionIdBySurfaceId.set(surfaceId, sessionId);
     this._entries.set(sessionId, {
       pageKey,
       sessionId,
+      surfaceId,
       mode: opts.mode,
       formApi: opts.formApi ?? null,
       fieldDescriptors,
@@ -342,7 +412,7 @@ class FormStateTrackerImpl {
 
     this._formSessions.upsertSession({
       form_session_id: sessionId,
-      surface_id: sessionId,
+      surface_id: surfaceId,
       mode: mapTrackerModeToSessionMode(opts.mode),
       entity_name: pageKey.split('.').at(-1) ?? undefined,
       fields: toRuntimeFieldDescriptors(fieldDescriptors, initialValues),
@@ -357,14 +427,14 @@ class FormStateTrackerImpl {
     pageKey: string,
     values: Record<string, unknown>,
   ): FormSession | null {
-    const sessionId = this.resolveSessionId(pageKey);
+    const sessionId = this.resolveSessionIdFromIdentifier(pageKey);
     if (!sessionId) {
       return null;
     }
     return this._formSessions.updateFieldValues(sessionId, values);
   }
 
-  private closeBySessionId(sessionId: string): void {
+  private closeSessionById(sessionId: string): void {
     const entry = this._entries.get(sessionId);
     if (!entry) {
       this._formSessions.closeSession(sessionId);
@@ -374,22 +444,25 @@ class FormStateTrackerImpl {
     if (this._sessionIdByPageKey.get(entry.pageKey) === sessionId) {
       this._sessionIdByPageKey.delete(entry.pageKey);
     }
+    if (this._sessionIdBySurfaceId.get(entry.surfaceId) === sessionId) {
+      this._sessionIdBySurfaceId.delete(entry.surfaceId);
+    }
     this._formSessions.closeSession(sessionId);
   }
 
-  private createSessionId(pageKey: string): string {
+  private createSessionId(pageKey: string, surfaceId: string): string {
     this._sessionIdCounter += 1;
-    const normalizedPageKey = pageKey
+    const normalizedBase = (surfaceId || pageKey)
       .trim()
       .replaceAll(/[^\w.-]+/g, '-')
       .replaceAll(/-+/g, '-')
       .replaceAll(/^-|-$/g, '');
-    const base = normalizedPageKey || 'form';
+    const base = normalizedBase || 'form';
     return `${base}__session_${Date.now()}_${this._sessionIdCounter}`;
   }
 
   private getEntry(pageKeyOrSessionId: string): null | TrackerEntry {
-    const sessionId = this.resolveSessionId(pageKeyOrSessionId);
+    const sessionId = this.resolveSessionIdFromIdentifier(pageKeyOrSessionId);
     if (!sessionId) {
       return null;
     }
@@ -406,11 +479,44 @@ class FormStateTrackerImpl {
     return typeof firstEntry === 'string' ? firstEntry : null;
   }
 
-  private resolveSessionId(pageKeyOrSessionId: string): null | string {
-    if (this._entries.has(pageKeyOrSessionId)) {
-      return pageKeyOrSessionId;
+  private resolveSessionIdByPageKey(pageKey: string): null | string {
+    const normalizedPageKey = pageKey.trim();
+    if (!normalizedPageKey) {
+      return null;
     }
-    return this._sessionIdByPageKey.get(pageKeyOrSessionId) ?? null;
+    return this._sessionIdByPageKey.get(normalizedPageKey) ?? null;
+  }
+
+  private resolveSessionIdBySurfaceId(surfaceId: string): null | string {
+    const normalizedSurfaceId = surfaceId.trim();
+    if (!normalizedSurfaceId) {
+      return null;
+    }
+    return this._sessionIdBySurfaceId.get(normalizedSurfaceId) ?? null;
+  }
+
+  private resolveSessionIdFromIdentifier(identifier: string): null | string {
+    const normalizedIdentifier = identifier.trim();
+    if (!normalizedIdentifier) {
+      return null;
+    }
+    if (this._entries.has(normalizedIdentifier)) {
+      return normalizedIdentifier;
+    }
+    const bySurface = this.resolveSessionIdBySurfaceId(normalizedIdentifier);
+    if (bySurface) {
+      return bySurface;
+    }
+    return this.resolveSessionIdByPageKey(normalizedIdentifier);
+  }
+
+  private resolveSurfaceId(pageKey: string, surfaceId?: string): string {
+    const normalizedSurfaceId = String(surfaceId || '').trim();
+    if (normalizedSurfaceId) {
+      return normalizedSurfaceId;
+    }
+    const normalizedPageKey = pageKey.trim();
+    return `page:${normalizedPageKey || 'unknown'}`;
   }
 }
 

@@ -62,12 +62,12 @@ def test_selected_skill_names_merges_descriptor_and_tool_sources() -> None:
         capability_descriptors=[
             CapabilityDescriptor(
                 name="Page Skill",
-                kind="prompt_skill",
+                kind="capability_pack",
                 source="skill_package:page",
             ),
             CapabilityDescriptor(
                 name="Knowledge Skill",
-                kind="prompt_skill",
+                kind="capability_pack",
                 source="skill_package:kb",
             ),
         ],
@@ -84,13 +84,13 @@ def test_enrich_skill_capability_descriptors_with_tools_attaches_tool_metadata()
     descriptors = [
         CapabilityDescriptor(
             name="Weather Skill",
-            kind="prompt_skill",
+            kind="capability_pack",
             source="skill_package:weather",
             metadata={"skill_id": 1},
         ),
         CapabilityDescriptor(
             name="Knowledge Skill",
-            kind="prompt_skill",
+            kind="capability_pack",
             source="skill_package:kb",
             metadata={"skill_id": 2},
         ),
@@ -123,6 +123,30 @@ def test_enrich_skill_capability_descriptors_with_tools_attaches_tool_metadata()
     assert kb["resolved_tool_names"] == []
     assert kb["resolved_tool_count"] == 0
     assert kb["has_execution_tools"] is False
+
+
+def test_selected_skill_names_skips_descriptor_only_skills_without_execution_tools() -> (
+    None
+):
+    result = SkillResolveResult(
+        tools=[],
+        capability_descriptors=[
+            CapabilityDescriptor(
+                name="Catalog Only Skill",
+                kind="capability_pack",
+                source="skill_package:catalog",
+                metadata={"has_execution_tools": False},
+            ),
+            CapabilityDescriptor(
+                name="Executable Skill",
+                kind="capability_pack",
+                source="skill_package:exec",
+                metadata={"has_execution_tools": True},
+            ),
+        ],
+    )
+
+    assert result.selected_skill_names == ["Executable Skill"]
 
 
 def test_build_params_from_schema_keeps_array_items_schema() -> None:

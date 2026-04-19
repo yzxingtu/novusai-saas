@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from app.ai.capabilities.description_builder import CapabilityDescriptionBuilder
+from app.ai.context.contributors.memory import MemoryContextContribution
 from app.ai.context.engine import ConversationContextEngine
 from app.ai.engine.types import (
     ExecutionRequest,
@@ -168,7 +169,7 @@ async def test_context_engine_tracks_skill_capabilities_without_prompt_injection
     skill_result = _build_skill_result(
         CapabilityDescriptor(
             name="web_search",
-            kind="prompt_skill",
+            kind="capability_pack",
             source="skill_package:web",
             description="Search the public web for recent information",
             metadata={"family": "web_research"},
@@ -237,11 +238,46 @@ async def test_context_engine_only_surfaces_session_memory_context_source_when_i
 
 
 @pytest.mark.asyncio
+async def test_context_engine_enables_long_term_memory_recall_on_generic_turns() -> None:
+    memory_contribution = MemoryContextContribution(
+        memory_recalled=True,
+        memory_recall_slice={"count": 2, "scope_type": "user_agent"},
+        memory_injected=True,
+    )
+
+    with patch(
+        "app.ai.context.contributors.memory.MemoryContributor.contribute",
+        new=AsyncMock(return_value=memory_contribution),
+    ) as contribute_mock:
+        assembly = await _assemble_context(
+            request=_build_request(
+                memory_enabled=True,
+                long_term_memory_enabled=True,
+            ),
+            skill_result=None,
+            settings=TenantCapabilityAwarenessSettings(),
+            intent_plan=_build_intent_plan("assistant_response"),
+        )
+
+    contribute_kwargs = contribute_mock.await_args.kwargs
+    assert contribute_kwargs["enabled"] is True
+    assert contribute_kwargs["should_run_memory_profile"] is False
+    assert contribute_kwargs["should_run_memory_vector_recall"] is True
+    assert assembly.memory_recalled is True
+    assert assembly.capability_bundle is not None
+    assert {
+        source.kind
+        for source in assembly.capability_bundle.context_sources
+        if source.active
+    } >= {"long_term_memory"}
+
+
+@pytest.mark.asyncio
 async def test_context_engine_handles_mapping_description_inputs() -> None:
     skill_result = _build_skill_result(
         CapabilityDescriptor(
             name="intent_mapper",
-            kind="prompt_skill",
+            kind="capability_pack",
             source="skill_package:mapper",
             description="Map intents to capabilities",
             metadata={"family": "general"},
@@ -303,7 +339,7 @@ async def test_context_engine_tracks_skill_and_knowledge_base_capabilities_in_di
     skill_result = _build_skill_result(
         CapabilityDescriptor(
             name="web_search",
-            kind="prompt_skill",
+            kind="capability_pack",
             source="skill_package:web",
             description="Search the public web",
             metadata={"family": "web_research"},
@@ -361,7 +397,7 @@ async def test_context_engine_tracks_page_context_capabilities_without_prompt_in
     skill_result = _build_skill_result(
         CapabilityDescriptor(
             name="web_search",
-            kind="prompt_skill",
+            kind="capability_pack",
             source="skill_package:web",
             description="Search the public web",
             metadata={"family": "web_research"},
@@ -465,7 +501,7 @@ async def test_context_engine_skips_capability_block_when_disabled() -> None:
     skill_result = _build_skill_result(
         CapabilityDescriptor(
             name="web_search",
-            kind="prompt_skill",
+            kind="capability_pack",
             source="skill_package:web",
             description="Search the public web",
             metadata={"family": "web_research"},

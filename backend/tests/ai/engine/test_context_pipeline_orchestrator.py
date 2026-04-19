@@ -15,16 +15,34 @@ def _request(*, memory_enabled: bool = False, long_term_memory_enabled: bool = F
     )
 
 
-def test_context_pipeline_orchestrator_does_not_treat_generic_turn_as_memory_intent() -> (
-    None
-):
+def test_context_pipeline_orchestrator_enables_runtime_memory_for_generic_turns() -> None:
     flags = ContextPipelineOrchestrator.compute_intent_flags(
         [_intent("assistant_response", shortcircuit=False)],
         request=_request(memory_enabled=True, long_term_memory_enabled=True),
     )
 
     assert flags.has_memory_intent is False
+    assert flags.memory_context_enabled is True
     assert flags.allow_memory_even_if_shortcircuit is False
+    assert flags.session_memory_runtime_enabled is True
+    assert flags.long_term_memory_runtime_enabled is True
+    assert flags.should_run_memory_profile is False
+    assert flags.should_run_memory_vector_recall is True
+
+
+def test_context_pipeline_orchestrator_keeps_session_memory_without_long_term_recall() -> (
+    None
+):
+    flags = ContextPipelineOrchestrator.compute_intent_flags(
+        [_intent("assistant_response", shortcircuit=False)],
+        request=_request(memory_enabled=True, long_term_memory_enabled=False),
+    )
+
+    assert flags.has_memory_intent is False
+    assert flags.memory_context_enabled is True
+    assert flags.allow_memory_even_if_shortcircuit is False
+    assert flags.session_memory_runtime_enabled is True
+    assert flags.long_term_memory_runtime_enabled is False
     assert flags.should_run_memory_profile is False
     assert flags.should_run_memory_vector_recall is False
 
@@ -38,6 +56,7 @@ def test_context_pipeline_orchestrator_runs_profile_and_recall_for_memory_recall
     )
 
     assert flags.has_memory_intent is True
+    assert flags.memory_context_enabled is True
     assert flags.has_memory_recall_intent is True
     assert flags.allow_memory_even_if_shortcircuit is True
     assert flags.should_run_memory_profile is True
@@ -51,6 +70,7 @@ def test_context_pipeline_orchestrator_keeps_memory_save_write_only() -> None:
     )
 
     assert flags.has_memory_intent is True
+    assert flags.memory_context_enabled is True
     assert flags.has_memory_save_intent is True
     assert flags.should_run_memory_profile is False
     assert flags.should_run_memory_vector_recall is False

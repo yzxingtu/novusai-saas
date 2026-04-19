@@ -23,7 +23,7 @@ class TestCapabilityDescriptionBuilder:
         """Test web research skill descriptions"""
         # Mock skill result
         class MockDescriptor:
-            def __init__(self, name, description, kind="prompt_skill", metadata=None):
+            def __init__(self, name, description, kind="capability_pack", metadata=None):
                 self.name = name
                 self.description = description
                 self.kind = kind
@@ -69,7 +69,7 @@ class TestCapabilityDescriptionBuilder:
         """Test skills from multiple families"""
 
         class MockDescriptor:
-            def __init__(self, name, description, kind="prompt_skill", metadata=None):
+            def __init__(self, name, description, kind="capability_pack", metadata=None):
                 self.name = name
                 self.description = description
                 self.kind = kind
@@ -107,7 +107,7 @@ class TestCapabilityDescriptionBuilder:
         """Test non-prompt descriptors and blank names are skipped"""
 
         class MockDescriptor:
-            def __init__(self, name, description, kind="prompt_skill", metadata=None):
+            def __init__(self, name, description, kind="capability_pack", metadata=None):
                 self.name = name
                 self.description = description
                 self.kind = kind
@@ -133,6 +133,38 @@ class TestCapabilityDescriptionBuilder:
 
         assert result == []
 
+    def test_build_skill_descriptions_skips_descriptor_only_skills_without_tools(self):
+        """Test catalog-only descriptors do not appear as live skills"""
+
+        class MockDescriptor:
+            def __init__(self, name, description, kind="capability_pack", metadata=None):
+                self.name = name
+                self.description = description
+                self.kind = kind
+                self.metadata = metadata or {}
+
+        class MockSkillResult:
+            def __init__(self):
+                self.tools = []
+                self.capability_descriptors = [
+                    MockDescriptor(
+                        name="catalog_only",
+                        description="Pack metadata only",
+                        metadata={"has_execution_tools": False},
+                    ),
+                    MockDescriptor(
+                        name="live_skill",
+                        description="Actually executable",
+                        metadata={"has_execution_tools": True},
+                    ),
+                ]
+
+        builder = CapabilityDescriptionBuilder()
+        result = builder.build_skill_descriptions(MockSkillResult())
+
+        assert len(result) == 1
+        assert result[0].items == ["live_skill: Actually executable"]
+
     def test_build_skill_descriptions_infers_family_in_concise_mode(self):
         """Test family inference and concise output"""
 
@@ -140,7 +172,7 @@ class TestCapabilityDescriptionBuilder:
             def __init__(self, name, description, metadata=None):
                 self.name = name
                 self.description = description
-                self.kind = "prompt_skill"
+                self.kind = "capability_pack"
                 self.metadata = metadata or {}
 
         class MockSkillResult:
@@ -295,9 +327,6 @@ class TestCapabilityDescriptionBuilder:
                 "mode": "edit",
                 "stage": "ready_to_submit",
             },
-            "suggested_tools": {
-                "primary": ["ui_get_snapshot", "ui_read_region", "ui_set_field"],
-            },
         }
 
         builder = CapabilityDescriptionBuilder()
@@ -306,14 +335,10 @@ class TestCapabilityDescriptionBuilder:
         assert result is not None
         assert result.category == "page_context"
         assert result.title == "Current Page Context"
-        assert len(result.items) == 4
+        assert len(result.items) == 3
         assert "用户管理页面" in result.items[0]
         assert "Active surface: drawer-user-edit" in result.items[1]
         assert "Active form: mode=edit, stage=ready_to_submit" in result.items[2]
-        assert (
-            "Suggested tools: ui_get_snapshot, ui_read_region, ui_set_field"
-            in result.items[3]
-        )
 
     def test_build_page_context_description_falls_back_to_page_key(self):
         """Test page key fallback when title is missing"""
@@ -370,7 +395,7 @@ class TestCapabilityDescriptionBuilder:
             def __init__(self, name):
                 self.name = name
                 self.description = f"Description for {name}"
-                self.kind = "prompt_skill"
+                self.kind = "capability_pack"
                 self.metadata = {"family": "test"}
 
         class MockSkillResult:

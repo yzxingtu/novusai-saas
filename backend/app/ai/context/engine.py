@@ -9,8 +9,11 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from app.ai.context import compaction_support, prompt_addition_support
-from app.ai.context import engine_runtime_support
+from app.ai.context import (
+    compaction_support,
+    engine_runtime_support,
+    prompt_addition_support,
+)
 from app.ai.context.assembly_initial_support import (
     PromptBridge,
     assemble_initial_context_state,
@@ -26,7 +29,6 @@ from app.ai.context.budget_support import (
     resolve_context_budget,
     trim_text_to_token_limit,
 )
-from app.ai.context.compaction_snapshot_store import ContextCompactionSnapshotStore
 from app.ai.context.contributors import MemoryContributor, RAGContributor
 from app.ai.context.decision_helpers import (
     extract_last_user_text,
@@ -45,9 +47,9 @@ from app.core.logging import LogManager
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
+    from app.ai.context.long_term_memory import LongTermMemoryProvider
     from app.ai.engine.types import ExecutionRequest
     from app.ai.skills.resolver import SkillResolveResult
-    from app.ai.context.long_term_memory import LongTermMemoryProvider
     from app.models.ai.agent import Agent
 
 
@@ -74,7 +76,7 @@ def get_long_term_memory_provider(
     *,
     db: Any,
     tenant_id: int,
-) -> "LongTermMemoryProvider":
+) -> LongTermMemoryProvider:
     return engine_runtime_support.get_long_term_memory_provider(
         db=db,
         tenant_id=tenant_id,
@@ -342,7 +344,9 @@ class ConversationContextEngine(ContextEngine):
         current_user_text = extract_last_user_text(messages)
         memory_contribution = await self.memory_contributor.contribute(
             db=self.db,
-            enabled=bool(intent_flags["has_memory_intent"] and long_term_memory_enabled),
+            enabled=bool(
+                intent_flags["memory_context_enabled"] and long_term_memory_enabled
+            ),
             user_id=request.user_id,
             tenant_id=request.tenant_id,
             agent_id=agent.id,

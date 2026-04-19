@@ -26,6 +26,8 @@ vi.mock('#/locales', () => ({
 }));
 
 vi.mock('#/components/business/ai-runtime/page-key-utils', () => ({
+  normalizePageKey: (value: string) =>
+    String(value || '').replace(/^\//, '').replaceAll('/', '.'),
   resolveRoutePageKey: (_route: unknown, pathname?: string) => {
     const normalizedPath = (pathname || '/').trim();
     const pageKey = normalizedPath
@@ -38,6 +40,12 @@ vi.mock('#/components/business/ai-runtime/page-key-utils', () => ({
 
 vi.mock('#/composables/use-page-session', () => ({
   getActivePageSessionId: () => 'perf-page-session',
+}));
+
+vi.mock('@vben/stores', () => ({
+  useAccessStore: () => ({
+    accessMenus: [],
+  }),
 }));
 
 const SAMPLE_COUNT = 20;

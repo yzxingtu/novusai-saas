@@ -27,6 +27,7 @@ import { computed, nextTick, ref, unref } from 'vue';
 
 import { useVbenDrawer } from '@vben/common-ui';
 
+import { ensureGlobalUIRuntime } from '#/components/business/ai-runtime/runtime-bridge';
 import { $t } from '#/locales';
 import { requestClient } from '#/utils/request';
 
@@ -74,6 +75,21 @@ function createTransform(
     }
     return result;
   };
+}
+
+function resolveTrackedSurfaceId(pageKey: string): string {
+  const normalizedPageKey = String(pageKey || '').trim();
+  const fallbackSurfaceId = `page:${normalizedPageKey || 'unknown'}`;
+  try {
+    const runtimeSnapshot = ensureGlobalUIRuntime().readPage('compact');
+    return (
+      runtimeSnapshot.active_surface?.id ||
+      runtimeSnapshot.surface_stack.at(-1)?.id ||
+      fallbackSurfaceId
+    );
+  } catch {
+    return fallbackSurfaceId;
+  }
 }
 
 /**
@@ -386,6 +402,7 @@ export function useCrudDrawer<T = any>(options: UseCrudDrawerOptions<T>) {
           formApi: trackableApi,
           fieldDescriptors,
           initialValues,
+          surfaceId: resolveTrackedSurfaceId(currentPageKey),
         });
       } else {
         currentFormSessionId = null;

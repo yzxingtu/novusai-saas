@@ -56,6 +56,7 @@ def test_apply_runtime_capability_injection_updates_diagnostics() -> None:
             "has_knowledge_intent": True,
             "has_page_intent": False,
             "has_memory_intent": True,
+            "memory_context_enabled": True,
         },
         force_capability_summary=True,
         context_sources=[{"kind": "memory", "name": "profile"}],

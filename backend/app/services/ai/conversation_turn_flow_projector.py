@@ -9,10 +9,10 @@ from app.services.ai.conversation_diagnostics_projector import (
 )
 from app.services.ai.turn_failure_normalizer import (
     derive_completed_tool_names,
-    derive_terminal_status as _derive_terminal_status_from_normalizer,
+    has_incomplete_promissory_page_reply,
 )
 from app.services.ai.turn_failure_normalizer import (
-    has_incomplete_promissory_page_reply,
+    derive_terminal_status as _derive_terminal_status_from_normalizer,
 )
 from app.services.ai.turn_failure_normalizer import (
     is_trusted_final_output_source as _is_trusted_final_output_source,
@@ -505,6 +505,36 @@ def _looks_like_missing_final_answer_summary(value: Any) -> bool:
     return bool(summary and summary in _MISSING_FINAL_ANSWER_SUMMARIES)
 
 
+def _is_untrusted_final_output_failure(
+    *,
+    failure_kind: str | None,
+    final_output_source: str | None,
+) -> bool:
+    if _normalize_failure_kind(failure_kind) == "untrusted_final_output_source":
+        return True
+    return bool(
+        final_output_source
+        and not _is_trusted_final_output_source(final_output_source)
+    )
+
+
+def _resolve_failure_text_content_fallback(
+    *,
+    text_content: str | None,
+    terminal_status: str,
+    failure_kind: str | None,
+    final_output_source: str | None,
+) -> str | None:
+    if terminal_status not in {"error", "interrupted"}:
+        return text_content
+    if _is_untrusted_final_output_failure(
+        failure_kind=failure_kind,
+        final_output_source=final_output_source,
+    ):
+        return None
+    return text_content
+
+
 def _stage_tool_call_count(stage: dict[str, Any]) -> int:
     metrics = stage.get("metrics")
     metrics_payload = dict(metrics) if isinstance(metrics, dict) else {}
@@ -531,9 +561,14 @@ def _stabilize_timeline_statuses(
         stage_type = _to_non_empty_str(stage.get("type"))
         stage_status = _to_non_empty_str(stage.get("status"))
 
-        if stage_type == "thinking" and stage_status == "error":
-            stage["status"] = "completed"
-        elif stage_type == "tool_selection" and selected_tools and stage_status == "skipped":
+        if (
+            (stage_type == "thinking" and stage_status == "error")
+            or (
+                stage_type == "tool_selection"
+                and selected_tools
+                and stage_status == "skipped"
+            )
+        ):
             stage["status"] = "completed"
         elif stage_type == "tool_execution":
             observed_tool_count = _stage_tool_call_count(stage)
@@ -619,6 +654,39 @@ def _normalize_answer_card(
     }
 
 
+def _resolve_canonical_turn_flow_payload(
+    raw_turn_flow: Any,
+    *,
+    metadata: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    metadata_payload = dict(metadata) if isinstance(metadata, dict) else {}
+    turn_record = ConversationDiagnosticsProjector.normalize_turn_record_payload(
+        metadata_payload.get("turn_record")
+    )
+    turn_record_payload = dict(turn_record or {}) if isinstance(turn_record, dict) else {}
+    turn_record_metadata = (
+        dict(turn_record_payload.get("metadata") or {})
+        if isinstance(turn_record_payload.get("metadata"), dict)
+        else {}
+    )
+    turn_record_diagnostics = (
+        dict(turn_record_metadata.get("turn_diagnostics") or {})
+        if isinstance(turn_record_metadata.get("turn_diagnostics"), dict)
+        else {}
+    )
+
+    for candidate in (
+        turn_record_payload.get("turn_flow"),
+        turn_record_metadata.get("turn_flow"),
+        turn_record_diagnostics.get("turn_flow"),
+        raw_turn_flow,
+        metadata_payload.get("turn_flow"),
+    ):
+        if isinstance(candidate, dict):
+            return dict(candidate)
+    return None
+
+
 class ConversationTurnFlowProjector:
     """Build and normalize the stable `turn_flow` read-model contract."""
 
@@ -635,7 +703,8 @@ class ConversationTurnFlowProjector:
         metadata: dict[str, Any] | None = None,
         content: Any = None,
     ) -> dict[str, Any] | None:
-        if not isinstance(raw, dict):
+        raw_payload = _resolve_canonical_turn_flow_payload(raw, metadata=metadata)
+        if raw_payload is None:
             return None
         metadata_payload = dict(metadata) if isinstance(metadata, dict) else {}
         diagnostics = (
@@ -650,16 +719,16 @@ class ConversationTurnFlowProjector:
         if not selected_tools:
             selected_tools = list(completed_tool_names)
         text_content = _to_non_empty_str(content)
-        evidence = _normalize_evidence(raw.get("evidence"))
+        evidence = _normalize_evidence(raw_payload.get("evidence"))
         source_refs = [item["id"] for item in evidence]
         effective_completion_reason = _to_non_empty_str(
-            completion_reason or raw.get("completion_reason")
+            completion_reason or raw_payload.get("completion_reason")
         )
         effective_failure_kind = _normalize_failure_kind(
-            failure_kind or raw.get("failure_kind")
+            failure_kind or raw_payload.get("failure_kind")
         )
         effective_final_output_source = _to_non_empty_str(
-            final_output_source or raw.get("final_output_source")
+            final_output_source or raw_payload.get("final_output_source")
         )
         if has_incomplete_promissory_page_reply(
             diagnostics=diagnostics,
@@ -670,7 +739,7 @@ class ConversationTurnFlowProjector:
             )
             if effective_completion_reason in {None, "completed", "stop"}:
                 effective_completion_reason = "incomplete_promissory_reply"
-        effective_interrupted = bool(raw.get("interrupted"))
+        effective_interrupted = bool(raw_payload.get("interrupted"))
         if interrupted is not None:
             effective_interrupted = bool(interrupted) or effective_interrupted
         terminal_status = _derive_terminal_status(
@@ -681,7 +750,7 @@ class ConversationTurnFlowProjector:
             final_output_source=effective_final_output_source,
         )
         timeline = _apply_terminal_stage_semantics(
-            _normalize_timeline(raw.get("timeline")),
+            _normalize_timeline(raw_payload.get("timeline")),
             terminal_status=terminal_status,
             completion_reason=effective_completion_reason,
             source_refs=source_refs,
@@ -691,39 +760,46 @@ class ConversationTurnFlowProjector:
             selected_tools=selected_tools,
             completed_tool_names=completed_tool_names,
         )
+        failure_text_content = _resolve_failure_text_content_fallback(
+            text_content=text_content,
+            terminal_status=terminal_status,
+            failure_kind=effective_failure_kind,
+            final_output_source=effective_final_output_source,
+        )
         answer_card = _normalize_answer_card(
-            raw.get("answer_card"),
-            fallback_summary=_to_non_empty_str(raw.get("summary")) or text_content,
+            raw_payload.get("answer_card"),
+            fallback_summary=_to_non_empty_str(raw_payload.get("summary"))
+            or failure_text_content,
             fallback_source_chip_ids=[item["id"] for item in evidence],
         )
         if (
-            text_content
+            failure_text_content
             and terminal_status in {"error", "interrupted"}
             and _looks_like_missing_final_answer_summary(answer_card.get("summary"))
         ):
-            answer_card["summary"] = text_content
+            answer_card["summary"] = failure_text_content
             sections = answer_card.get("sections")
             if isinstance(sections, list) and sections:
                 normalized_sections: list[dict[str, Any]] = []
                 for index, item in enumerate(sections):
                     section = dict(item) if isinstance(item, dict) else {}
                     if index == 0:
-                        section["content"] = text_content
+                        section["content"] = failure_text_content
                     normalized_sections.append(section)
                 answer_card["sections"] = normalized_sections
             else:
                 answer_card["sections"] = [
                     {
                         "title": "Answer",
-                        "content": text_content,
+                        "content": failure_text_content,
                     }
                 ]
             answer_card["confidence_label"] = "low"
-        error_context = dict(raw)
+        error_context = dict(raw_payload)
         if metadata_payload:
             error_context.update(metadata_payload)
         error_surface = _ensure_error_surface(
-            error_surface=_derive_error_surface(raw),
+            error_surface=_derive_error_surface(raw_payload),
             metadata=error_context,
             terminal_status=terminal_status,
             completion_reason=effective_completion_reason,
@@ -1090,12 +1166,18 @@ class ConversationTurnFlowProjector:
                 "metrics": {},
                 "tool_call_ids": [],
                 "source_refs": [item["id"] for item in evidence],
-            }
-        )
+                }
+            )
 
+        failure_text_content = _resolve_failure_text_content_fallback(
+            text_content=text_content,
+            terminal_status=terminal_status,
+            failure_kind=failure_kind,
+            final_output_source=final_output_source,
+        )
         answer_card = _normalize_answer_card(
             payload.get("answer_card"),
-            fallback_summary=text_content,
+            fallback_summary=failure_text_content,
             fallback_source_chip_ids=[item["id"] for item in evidence],
         )
         return {

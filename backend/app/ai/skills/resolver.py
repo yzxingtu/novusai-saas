@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from app.ai.events.hooks import HookPoint, get_hook_registry
-from app.ai.runtime.types import CapabilityDescriptor
+from app.ai.runtime.types import CapabilityDescriptor, collect_selected_skill_names
 from app.ai.skills import resolver_parts as parts
 from app.ai.tools.types import ToolDefinition, ToolParameter
 from app.core.logging import LogManager
@@ -55,18 +55,10 @@ class SkillResolveResult:
 
     @property
     def selected_skill_names(self) -> list[str]:
-        names: list[str] = []
-        for descriptor in self.capability_descriptors:
-            if descriptor.kind != "prompt_skill":
-                continue
-            skill_name = str(descriptor.name or "").strip()
-            if skill_name and skill_name not in names:
-                names.append(skill_name)
-        for tool in self.tools:
-            skill_name = str(getattr(tool, "source_skill_name", "") or "").strip()
-            if skill_name and skill_name not in names:
-                names.append(skill_name)
-        return names
+        return collect_selected_skill_names(
+            descriptors=self.capability_descriptors,
+            tools=self.tools,
+        )
 
 
 def build_skill_capability_descriptors(skills: list[Any]) -> list[CapabilityDescriptor]:

@@ -13,6 +13,9 @@ from .recovery_tool_result_helpers import (
 )
 from .recovery_web_research_gate import RecoveryWebResearchGate
 from .system_prompt_intent_helpers import (
+    intent_completion_matches as resolve_intent_completion_matches,
+)
+from .system_prompt_intent_helpers import (
     intent_completion_signals as resolve_intent_completion_signals,
 )
 from .types import IntentPlan
@@ -52,14 +55,19 @@ def update_intent_statuses(
             intent_kind=clone.kind,
             allowed_tool_names=list(clone.allowed_tool_names or []),
             preferred_tool_names=list(clone.preferred_tool_names or []),
+            intent_metadata=clone.metadata,
         )
         if clone.family == "page_ops" or normalized_completion_signals:
             clone.completion_signals = list(normalized_completion_signals)
-        completion_signals = (
-            set(clone.completion_signals)
-            if clone.family == "page_ops"
-            else set(clone.completion_signals or clone.allowed_tool_names)
+        completion_matches = resolve_intent_completion_matches(
+            clone.family,
+            completed_tool_names=completed_tool_names,
+            intent_kind=clone.kind,
+            allowed_tool_names=list(clone.allowed_tool_names or []),
+            preferred_tool_names=list(clone.preferred_tool_names or []),
+            intent_metadata=clone.metadata,
         )
+        completion_signals = set(clone.completion_signals or clone.allowed_tool_names)
         if clone.family == "none" or not clone.requires_tools:
             clone.status = "completed"
         elif RecoveryWebResearchGate.is_completed_web_research_no_result(
@@ -78,9 +86,9 @@ def update_intent_statuses(
                 clone,
                 RecoveryWebResearchGate.web_research_no_result_output(clone),
             )
-        elif completion_signals & completed_tool_names:
+        elif completion_matches:
             clone.status = "completed"
-            clone.completed_by_tool_names = sorted(completion_signals & completed_tool_names)
+            clone.completed_by_tool_names = list(completion_matches)
 
         if clone.status == "completed":
             cached_result = None

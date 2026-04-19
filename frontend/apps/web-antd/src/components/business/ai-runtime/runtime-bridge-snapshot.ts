@@ -1,3 +1,5 @@
+import type { MenuRecordRaw } from '@vben/types';
+
 import type { FormSession } from './form-session-manager';
 import type { RuntimeSnapshotResult } from './runtime-bridge-core';
 import type { UISnapshotMode } from './ui-snapshot-generator';
@@ -8,10 +10,17 @@ import type {
   PageContextSuggestedTools,
 } from '#/api/shared/ai-chat';
 
+import { useAccessStore } from '@vben/stores';
+
 import { formStateTracker } from '#/composables/use-form-state-tracker';
 import { getActivePageSessionId } from '#/composables/use-page-session';
 import { $t } from '#/locales';
 import { resolveRuntimeLocale } from '#/locales/runtime-locale';
+import {
+  buildCompactNavigationPageData,
+  buildMenuNavigationEntries,
+} from '#/utils/menu-navigation';
+import { getEndpointFromPath } from '#/utils/endpoint';
 
 import {
   byteSize,
@@ -20,6 +29,7 @@ import {
   normalizeText,
   queryElementByLocator,
   readFormLikeElementValue,
+  resolveCurrentRoute,
   resolvePageTitle,
   resolveRuntimePageKey,
 } from './runtime-bridge-core';
@@ -28,6 +38,48 @@ import { getRuntimeEpochFloor } from './ui-epoch-floor';
 import { UISnapshotGenerator } from './ui-snapshot-generator';
 
 const snapshotGenerator = new UISnapshotGenerator();
+
+function resolveRuntimePathname(): string {
+  const routePath = resolveCurrentRoute()?.fullPath;
+  const windowPath =
+    typeof window === 'undefined' ? '' : window.location.pathname;
+  return String(routePath || windowPath || '').split(/[?#]/, 1)[0] || '';
+}
+
+function resolveRuntimeNavigationPageData(
+  pageKey: string,
+): PageContext['page_data'] | undefined {
+  const currentPath = resolveRuntimePathname();
+  if (!currentPath) {
+    return undefined;
+  }
+
+  let accessMenus: MenuRecordRaw[] = [];
+  try {
+    const accessStore = useAccessStore();
+    accessMenus = Array.isArray(accessStore.accessMenus)
+      ? (accessStore.accessMenus as MenuRecordRaw[])
+      : [];
+  } catch {
+    return undefined;
+  }
+
+  if (accessMenus.length === 0) {
+    return undefined;
+  }
+
+  const entries = buildMenuNavigationEntries({
+    currentEndpoint: getEndpointFromPath(currentPath),
+    menus: accessMenus,
+    translate: $t,
+  });
+
+  return buildCompactNavigationPageData({
+    currentPageKey: pageKey,
+    currentPath,
+    entries,
+  });
+}
 
 export function toFormSummary(
   session: FormSession | null,
@@ -63,16 +115,81 @@ export function getTrackedFormSessions(): FormSession[] {
 
 export function resolveActiveFormSessionForPage(
   pageKey: string,
+  options?: {
+    activeSurfaceId?: string;
+    surfaceIds?: string[];
+  },
 ): FormSession | null {
   const normalizedPageKey = pageKey.trim();
   const tracker = formStateTracker as {
     getActiveSession?: (surfaceId?: string) => FormSession | null;
     getActiveSessionByPageKey?: (pageKey: string) => FormSession | null;
+    getActiveSessionBySurfaceId?: (surfaceId: string) => FormSession | null;
     getSession?: (pageKeyOrSessionId: string) => FormSession | null;
+    getSessionByPageKey?: (pageKey: string) => FormSession | null;
+    getSessionBySessionId?: (sessionId: string) => FormSession | null;
+    getSessionBySurfaceId?: (surfaceId: string) => FormSession | null;
     getSessionId?: (pageKey: string) => null | string;
+    getSessionIdBySurfaceId?: (surfaceId: string) => null | string;
   };
+  const orderedSurfaceIds = [
+    String(options?.activeSurfaceId || '').trim(),
+    ...((options?.surfaceIds ?? []).map((surfaceId) =>
+      String(surfaceId || '').trim(),
+    ) ?? []),
+  ].filter(
+    (surfaceId, index, values) =>
+      surfaceId && values.indexOf(surfaceId) === index,
+  );
+
+  for (const surfaceId of orderedSurfaceIds) {
+    if (typeof tracker.getSessionBySurfaceId === 'function') {
+      const sessionBySurfaceId = tracker.getSessionBySurfaceId(surfaceId);
+      if (sessionBySurfaceId) {
+        return sessionBySurfaceId;
+      }
+    }
+
+    if (typeof tracker.getActiveSessionBySurfaceId === 'function') {
+      const bySurface = tracker.getActiveSessionBySurfaceId(surfaceId);
+      if (bySurface) {
+        return bySurface;
+      }
+    }
+
+    if (
+      typeof tracker.getSessionIdBySurfaceId === 'function' &&
+      (typeof tracker.getSessionBySessionId === 'function' ||
+        typeof tracker.getSession === 'function')
+    ) {
+      const sessionId = tracker.getSessionIdBySurfaceId(surfaceId);
+      if (sessionId) {
+        const bySessionId =
+          tracker.getSessionBySessionId?.(sessionId) ??
+          tracker.getSession?.(sessionId) ??
+          null;
+        if (bySessionId) {
+          return bySessionId;
+        }
+      }
+    }
+
+    if (typeof tracker.getActiveSession === 'function') {
+      const byActiveSurface = tracker.getActiveSession(surfaceId);
+      if (byActiveSurface) {
+        return byActiveSurface;
+      }
+    }
+  }
 
   if (normalizedPageKey) {
+    if (typeof tracker.getSessionByPageKey === 'function') {
+      const byExplicitPageKey = tracker.getSessionByPageKey(normalizedPageKey);
+      if (byExplicitPageKey) {
+        return byExplicitPageKey;
+      }
+    }
+
     if (typeof tracker.getActiveSessionByPageKey === 'function') {
       const byPageKey = tracker.getActiveSessionByPageKey(normalizedPageKey);
       if (byPageKey) {
@@ -82,11 +199,15 @@ export function resolveActiveFormSessionForPage(
 
     if (
       typeof tracker.getSessionId === 'function' &&
-      typeof tracker.getSession === 'function'
+      (typeof tracker.getSessionBySessionId === 'function' ||
+        typeof tracker.getSession === 'function')
     ) {
       const sessionId = tracker.getSessionId(normalizedPageKey);
       if (sessionId) {
-        const bySessionId = tracker.getSession(sessionId);
+        const bySessionId =
+          tracker.getSessionBySessionId?.(sessionId) ??
+          tracker.getSession?.(sessionId) ??
+          null;
         if (bySessionId) {
           return bySessionId;
         }
@@ -152,15 +273,19 @@ export function buildSnapshot(
   const pageKey = resolveRuntimePageKey();
   const routePolicy = getCurrentRouteSecurityPolicy();
   const formSessions = getTrackedFormSessions();
+  const activeSurfaceId = runtimeSnapshot.active_surface?.id ?? undefined;
   const activeFormSummary = toFormSummary(
-    resolveActiveFormSessionForPage(pageKey),
+    resolveActiveFormSessionForPage(pageKey, {
+      activeSurfaceId,
+      surfaceIds: runtimeSnapshot.surface_stack.map((surface) => surface.id),
+    }),
   );
   const hasTable = document.querySelector('table') !== null;
   const thinSnapshot = snapshotGenerator.generateSnapshot(
     {
       active_form_session_id: activeFormSummary?.form_session_id,
       active_form_summary: activeFormSummary,
-      active_surface_id: runtimeSnapshot.active_surface?.id ?? undefined,
+      active_surface_id: activeSurfaceId,
       form_sessions: formSessions.map((session) => ({
         can_submit: session.can_submit,
         entity_name: session.entity_name,
@@ -228,14 +353,18 @@ export function buildSnapshot(
     },
     mode,
   );
+  const navigationPageData = resolveRuntimeNavigationPageData(pageKey);
 
-  const pageContext = snapshotGenerator.buildThinPageContext({
-    locale: resolveRuntimeLocale(),
-    pageKey,
-    pageSessionId: getActivePageSessionId() || undefined,
-    pageTitle: resolvePageTitle(pageKey),
-    snapshot: thinSnapshot,
-  });
+  const pageContext: PageContext = {
+    ...snapshotGenerator.buildThinPageContext({
+      locale: resolveRuntimeLocale(),
+      pageKey,
+      pageSessionId: getActivePageSessionId() || undefined,
+      pageTitle: resolvePageTitle(pageKey),
+      snapshot: thinSnapshot,
+    }),
+    ...(navigationPageData ? { page_data: navigationPageData } : {}),
+  };
   return {
     pageContext,
     sizeBytes: byteSize(pageContext),

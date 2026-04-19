@@ -141,6 +141,25 @@ def test_base_engine_wrappers_delegate_to_extracted_helpers() -> None:
     assert helper_response.message.content == ""
 
 
+def test_page_submit_stage_completion_signals_require_submit_only() -> None:
+    assert BaseEngine._intent_completion_signals(
+        "page_ops",
+        intent_kind="page_form_write",
+        allowed_tool_names=[
+            "ui_get_form_state",
+            "ui_fill_form",
+            "ui_set_field",
+            "ui_submit_form",
+        ],
+        preferred_tool_names=[
+            "ui_fill_form",
+            "ui_set_field",
+            "ui_submit_form",
+        ],
+        intent_metadata={"page_workflow_stage": "submit_active_form"},
+    ) == ["ui_submit_form"]
+
+
 def test_deserialize_intent_plan_filters_invalid_entries() -> None:
     raw = [
         {
@@ -173,6 +192,7 @@ def test_resolve_capability_injection_decision_sets_context_flags() -> None:
             "has_page_intent": True,
             "has_knowledge_intent": False,
             "has_memory_intent": False,
+            "memory_context_enabled": False,
         },
         context_sources=[_Source("page_context")],
         capability_summary_injected=True,

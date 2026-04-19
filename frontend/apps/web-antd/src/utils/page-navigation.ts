@@ -1,14 +1,14 @@
 import type { RouteLocationNormalizedLoaded } from 'vue-router';
 
+import type { MenuRecordRaw } from '@vben/types';
 import type { MenuNavigationEntry } from './menu-navigation';
 
-import type {
-  PageContext,
-  PageContextSuggestedTool,
-} from '#/api/shared/ai-chat';
+import type { PageContext } from '#/api/shared/ai-chat';
 import type { PageOperation } from '#/components/business/ai-runtime/page-operation-types';
 
 import { nextTick } from 'vue';
+
+import { useAccessStore } from '@vben/stores';
 
 import {
   normalizePageKey,
@@ -24,51 +24,22 @@ import {
   filterPageOperationsByPolicy,
   normalizePageAIMode,
 } from '#/utils/ai-page-capabilities';
+import {
+  buildCompactNavigationPageData,
+  buildMenuNavigationEntries,
+} from '#/utils/menu-navigation';
+import { getEndpointFromPath } from '#/utils/endpoint';
+import {
+  buildPageOperation,
+  buildRuntimePageOperationNames,
+  hasRuntimePageState,
+  isPageContextSuggestedTool,
+} from '#/utils/runtime-page-operations';
 
 const NAVIGATION_STABILIZE_MS = 80;
 const NAVIGATION_READY_TIMEOUT_MS = 10_000;
 const NAVIGATION_READY_POLL_MS = 100;
 const POST_NAVIGATION_SETTLE_MS = 400;
-const BASELINE_UI_TOOLS = [
-  'ui_get_snapshot',
-  'ui_list_interactables',
-  'ui_read_region',
-] as const;
-
-const UI_TOOL_META: Record<
-  string,
-  Omit<PageOperation, 'description' | 'handler' | 'label' | 'name'>
-> = {
-  ui_click: { readonly: false },
-  ui_fill_form: { readonly: false },
-  ui_get_form_state: { readonly: true },
-  ui_get_snapshot: { readonly: true },
-  ui_list_interactables: { readonly: true },
-  ui_open_surface: { readonly: false },
-  ui_read_region: { readonly: true },
-  ui_read_table: { readonly: true },
-  ui_set_field: { readonly: false },
-  ui_submit_form: { readonly: false },
-};
-
-const PAGE_CONTEXT_TOOL_SET = new Set<PageContextSuggestedTool>([
-  'ui_click',
-  'ui_fill_form',
-  'ui_get_form_state',
-  'ui_get_snapshot',
-  'ui_list_interactables',
-  'ui_open_surface',
-  'ui_read_region',
-  'ui_read_table',
-  'ui_set_field',
-  'ui_submit_form',
-]);
-
-function isPageContextSuggestedTool(
-  value: string,
-): value is PageContextSuggestedTool {
-  return PAGE_CONTEXT_TOOL_SET.has(value as PageContextSuggestedTool);
-}
 
 export function buildPageDataPreview(
   pageContext: null | PageContext,
@@ -96,6 +67,10 @@ export function buildPageDataPreview(
       ? pageContext.surface_stack.length
       : 0,
   };
+  const navigationCatalog = pageContext.page_data?.navigation_catalog;
+  if (Array.isArray(navigationCatalog) && navigationCatalog.length > 0) {
+    preview.navigation_catalog_count = navigationCatalog.length;
+  }
   if (
     extras?.availableOperationNames &&
     extras.availableOperationNames.length > 0
@@ -113,6 +88,40 @@ export function buildPageDataPreview(
 
 function routePageKey(route: RouteLocationNormalizedLoaded): string {
   return resolveRoutePageKey(route, route.path);
+}
+
+function resolveNavigationPageData(
+  route: RouteLocationNormalizedLoaded,
+  pageKey: string,
+): PageContext['page_data'] | undefined {
+  let accessMenus: MenuRecordRaw[] = [];
+  try {
+    const accessStore = useAccessStore();
+    accessMenus = Array.isArray(accessStore.accessMenus)
+      ? (accessStore.accessMenus as MenuRecordRaw[])
+      : [];
+  } catch {
+    return undefined;
+  }
+  if (accessMenus.length === 0) {
+    return undefined;
+  }
+
+  const currentPath =
+    route.path ||
+    (typeof window === 'undefined' ? '' : window.location.pathname) ||
+    '';
+  const entries = buildMenuNavigationEntries({
+    currentEndpoint: getEndpointFromPath(currentPath),
+    menus: accessMenus,
+    translate: $t,
+  });
+
+  return buildCompactNavigationPageData({
+    currentPageKey: pageKey,
+    currentPath,
+    entries,
+  });
 }
 
 function resolveDisplayTitle(title: string): string {
@@ -168,45 +177,6 @@ function buildFallbackPageContext(target: NavigationTarget): PageContext {
   };
 }
 
-function toToolLabel(name: string): string {
-  return name
-    .replace(/^ui_/, '')
-    .split('_')
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-}
-
-function toToolDescription(name: string): string {
-  const descriptions: Record<string, string> = {
-    ui_click: 'Trigger a click on an interactable element.',
-    ui_fill_form: 'Fill multiple form fields in the current form session.',
-    ui_get_form_state: 'Read the current form session state and field values.',
-    ui_get_snapshot: 'Read the current UI snapshot for the active page.',
-    ui_list_interactables:
-      'List interactable controls available on the current page.',
-    ui_open_surface: 'Open a UI surface such as drawer, modal, or dropdown.',
-    ui_read_region: 'Read structured text from a specific UI region.',
-    ui_read_table: 'Read rows from a table region.',
-    ui_set_field: 'Set a single form field value.',
-    ui_submit_form: 'Submit the current form session.',
-  };
-  return descriptions[name] || toToolLabel(name);
-}
-
-function buildToolOperation(name: string): null | PageOperation {
-  const normalizedName = String(name || '').trim();
-  if (!normalizedName.startsWith('ui_')) {
-    return null;
-  }
-  return {
-    name: normalizedName,
-    label: toToolLabel(normalizedName),
-    description: toToolDescription(normalizedName),
-    readonly: UI_TOOL_META[normalizedName]?.readonly ?? true,
-  };
-}
-
 export interface NavigationTarget {
   breadcrumb?: string[];
   endpoint?: string;
@@ -259,17 +229,12 @@ function serializeAvailableOperations(
     return [];
   }
 
-  const candidateToolNames = [
-    ...(pageContext?.suggested_tools?.primary ?? []),
-    ...(pageContext?.suggested_tools?.secondary ?? []),
-  ];
-  const normalizedToolNames =
-    candidateToolNames.length > 0 ? candidateToolNames : [...BASELINE_UI_TOOLS];
+  const normalizedToolNames = buildRuntimePageOperationNames(pageContext);
 
   const operations: PageOperation[] = [];
   const seen = new Set<string>();
   for (const toolName of normalizedToolNames) {
-    const operation = buildToolOperation(toolName);
+    const operation = buildPageOperation(toolName);
     if (!operation || seen.has(operation.name)) {
       continue;
     }
@@ -350,6 +315,9 @@ function buildNavigationResultPayload(
     basePageContext.surface_stack.length > 0
       ? basePageContext.surface_stack
       : fallbackSurfaceStack;
+  const navigationPageData =
+    basePageContext.page_data ??
+    resolveNavigationPageData(currentRoute, resolvedTarget.pageKey);
   const availableOperationNames = availableOperations
     .map((operation) => String(operation.name ?? '').trim())
     .filter(Boolean);
@@ -369,7 +337,7 @@ function buildNavigationResultPayload(
           reason: 'navigation_target_fallback',
           secondary: ['ui_list_interactables'],
         });
-  const navigationContext = {
+  const navigationContext = navigationPageData?.navigation_context ?? {
     breadcrumb: resolvedTarget.breadcrumb ?? [],
     endpoint: resolvedTarget.endpoint,
     page_key: resolvedTarget.pageKey,
@@ -381,6 +349,7 @@ function buildNavigationResultPayload(
       basePageContext.active_surface_id ??
       surfaceStack[surfaceStack.length - 1]?.surface_id,
     locale: basePageContext.locale ?? resolveRuntimeLocale(),
+    ...(navigationPageData ? { page_data: navigationPageData } : {}),
     page_key: resolvedTarget.pageKey,
     page_session_id:
       basePageContext.page_session_id ??
@@ -415,6 +384,8 @@ function buildNavigationResultPayload(
     ui_navigation: {
       available_operation_names: availableOperationNames,
       available_operation_count: availableOperationNames.length,
+      navigation_catalog_count:
+        navigationPageData?.navigation_catalog?.length ?? 0,
       navigation_context: navigationContext,
     },
     page_session_id:
@@ -429,31 +400,7 @@ function buildNavigationResultPayload(
 }
 
 function hasThinContextSignals(pageContext: null | PageContext): boolean {
-  if (!pageContext) {
-    return false;
-  }
-  const pageContextRecord = pageContext as unknown as Record<string, unknown>;
-  if (typeof pageContextRecord.ui_epoch === 'number') {
-    return true;
-  }
-  if (Array.isArray(pageContextRecord.surface_stack)) {
-    return (pageContextRecord.surface_stack as unknown[]).length > 0;
-  }
-  if (typeof pageContextRecord.active_surface_id === 'string') {
-    return pageContextRecord.active_surface_id.trim().length > 0;
-  }
-  if (typeof pageContextRecord.active_form_session_id === 'string') {
-    return pageContextRecord.active_form_session_id.trim().length > 0;
-  }
-  const suggestedTools = pageContextRecord.suggested_tools;
-  if (suggestedTools && typeof suggestedTools === 'object') {
-    return (
-      Array.isArray((suggestedTools as Record<string, unknown>).primary) &&
-      ((suggestedTools as Record<string, unknown>).primary as unknown[])
-        .length > 0
-    );
-  }
-  return false;
+  return hasRuntimePageState(pageContext);
 }
 
 function hasAvailableUITools(

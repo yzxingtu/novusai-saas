@@ -15,8 +15,11 @@ class IntentPlanFlags:
     has_knowledge_intent: bool
     has_web_research_intent: bool
     has_memory_intent: bool
+    memory_context_enabled: bool
     has_memory_save_intent: bool
     has_memory_recall_intent: bool
+    session_memory_runtime_enabled: bool
+    long_term_memory_runtime_enabled: bool
     allow_memory_even_if_shortcircuit: bool
     should_run_memory_profile: bool
     should_run_memory_vector_recall: bool
@@ -28,8 +31,11 @@ class IntentPlanFlags:
             "has_knowledge_intent": self.has_knowledge_intent,
             "has_web_research_intent": self.has_web_research_intent,
             "has_memory_intent": self.has_memory_intent,
+            "memory_context_enabled": self.memory_context_enabled,
             "has_memory_save_intent": self.has_memory_save_intent,
             "has_memory_recall_intent": self.has_memory_recall_intent,
+            "session_memory_runtime_enabled": self.session_memory_runtime_enabled,
+            "long_term_memory_runtime_enabled": self.long_term_memory_runtime_enabled,
             "allow_memory_even_if_shortcircuit": (
                 self.allow_memory_even_if_shortcircuit
             ),
@@ -48,7 +54,6 @@ class ContextPipelineOrchestrator:
         intent_plan: list[Any],
         request: Any | None = None,
     ) -> IntentPlanFlags:
-        _ = request
         normalized_plan = list(intent_plan or [])
         intent_kinds = {
             str(getattr(intent, "kind", "") or "").strip()
@@ -69,20 +74,40 @@ class ContextPipelineOrchestrator:
         )
         has_memory_save_intent = "memory_save" in intent_kinds
         has_memory_recall_intent = "memory_recall" in intent_kinds
+        session_memory_runtime_enabled = bool(
+            request is not None and bool(getattr(request, "memory_enabled", False))
+        )
+        long_term_memory_runtime_enabled = bool(
+            request is not None
+            and bool(getattr(request, "long_term_memory_enabled", False))
+            and getattr(request, "user_id", None) is not None
+        )
+        runtime_memory_available = (
+            session_memory_runtime_enabled or long_term_memory_runtime_enabled
+        )
         allow_memory_even_if_shortcircuit = (
             has_memory_save_intent or has_memory_recall_intent
         )
-        has_memory_intent = allow_memory_even_if_shortcircuit
+        has_memory_intent = bool(has_memory_save_intent or has_memory_recall_intent)
+        memory_context_enabled = bool(
+            has_memory_intent or (runtime_memory_available and not all_shortcircuit)
+        )
         should_run_memory_profile = has_memory_recall_intent
-        should_run_memory_vector_recall = has_memory_recall_intent
+        should_run_memory_vector_recall = bool(
+            has_memory_recall_intent
+            or (long_term_memory_runtime_enabled and not all_shortcircuit)
+        )
         return IntentPlanFlags(
             all_shortcircuit=all_shortcircuit,
             has_page_intent=has_page_intent,
             has_knowledge_intent=has_knowledge_intent,
             has_web_research_intent=has_web_research_intent,
             has_memory_intent=has_memory_intent,
+            memory_context_enabled=memory_context_enabled,
             has_memory_save_intent=has_memory_save_intent,
             has_memory_recall_intent=has_memory_recall_intent,
+            session_memory_runtime_enabled=session_memory_runtime_enabled,
+            long_term_memory_runtime_enabled=long_term_memory_runtime_enabled,
             allow_memory_even_if_shortcircuit=allow_memory_even_if_shortcircuit,
             should_run_memory_profile=should_run_memory_profile,
             should_run_memory_vector_recall=should_run_memory_vector_recall,

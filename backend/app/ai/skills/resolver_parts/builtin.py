@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from app.ai.prompt_contracts import render_prompt_contract
 from app.ai.runtime.types import CapabilityDescriptor
@@ -150,7 +151,7 @@ def inject_baseline_runtime_builtins(
     existing_descriptor_names = {
         descriptor.name
         for descriptor in result.capability_descriptors
-        if descriptor.kind == "prompt_skill"
+        if str(descriptor.kind or "").strip() in {"capability_pack", "prompt_skill"}
     }
 
     for tool_name in BASELINE_RUNTIME_BUILTINS:
@@ -170,7 +171,7 @@ def inject_baseline_runtime_builtins(
             result.capability_descriptors.append(
                 CapabilityDescriptor(
                     name=tool_name,
-                    kind="prompt_skill",
+                    kind="capability_pack",
                     source="system_baseline_builtin",
                     description=(
                         "System baseline builtin injected at runtime for "
@@ -206,7 +207,7 @@ def build_time_only_runtime_result(
     result.capability_descriptors.append(
         CapabilityDescriptor(
             name="get_current_time",
-            kind="prompt_skill",
+            kind="capability_pack",
             source="system_baseline_builtin",
             description=(
                 "System baseline builtin injected at runtime for "
@@ -278,4 +279,3 @@ def resolve_builtin(
             source_skill_type=skill.type,
         )
     )
-

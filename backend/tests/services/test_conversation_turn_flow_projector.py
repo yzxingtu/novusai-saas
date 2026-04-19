@@ -93,6 +93,8 @@ def test_project_from_metadata_marks_untrusted_final_output_source_as_failed() -
     assert turn_flow["timeline"][-1]["type"] == "failed"
     assert turn_flow["timeline"][-1]["status"] == "error"
     assert turn_flow["error_surface"]["error_type"] == "untrusted_final_output_source"
+    assert turn_flow["answer_card"]["summary"] is None
+    assert turn_flow["answer_card"]["sections"] == []
 
 
 def test_project_from_metadata_preserves_hosted_search_progress_for_timeout_history() -> None:
@@ -390,3 +392,139 @@ def test_normalize_turn_flow_replaces_generic_missing_answer_summary_with_partia
         turn_flow["answer_card"]["sections"][0]["content"]
         == "我先把已完成部分整理给你：这部分。"
     )
+
+
+def test_normalize_turn_flow_keeps_missing_answer_placeholder_for_untrusted_final_output() -> None:
+    turn_flow = ConversationTurnFlowProjector.project_from_metadata(
+        {
+            "completion_reason": "completed",
+            "turn_flow": {
+                "timeline": [
+                    {
+                        "id": "answer_assembly",
+                        "type": "answer_assembly",
+                        "status": "completed",
+                        "title": "答案生成",
+                        "summary": "已生成最终答复",
+                    },
+                    {
+                        "id": "terminal",
+                        "type": "completed",
+                        "status": "completed",
+                        "title": "本轮结束",
+                        "summary": "completed",
+                    },
+                ],
+                "answer_card": {
+                    "summary": "No trusted assistant final answer.",
+                    "sections": [
+                        {
+                            "title": "Answer",
+                            "content": "No trusted assistant final answer.",
+                        }
+                    ],
+                    "source_chip_ids": [],
+                },
+                "completion_reason": "completed",
+            },
+            "turn_record": {
+                "turn_outcome": "success",
+                "termination_reason": "completed",
+                "final_output_source": "tool_evidence_completed",
+            },
+        },
+        content="Fetched reddit.json",
+    )
+
+    assert turn_flow["timeline"][-1]["type"] == "failed"
+    assert turn_flow["timeline"][-1]["status"] == "error"
+    assert turn_flow["error_surface"]["error_type"] == "untrusted_final_output_source"
+    assert turn_flow["answer_card"]["summary"] == "No trusted assistant final answer."
+    assert turn_flow["answer_card"]["sections"] == [
+        {
+            "title": "Answer",
+            "content": "No trusted assistant final answer.",
+        }
+    ]
+
+
+def test_project_from_metadata_prefers_turn_record_turn_flow_over_polluted_message_turn_flow() -> None:
+    turn_flow = ConversationTurnFlowProjector.project_from_metadata(
+        {
+            "turn_flow": {
+                "timeline": [
+                    {
+                        "id": "answer_assembly",
+                        "type": "answer_assembly",
+                        "status": "error",
+                        "title": "答案生成",
+                        "summary": "答复生成失败",
+                    },
+                    {
+                        "id": "terminal",
+                        "type": "failed",
+                        "status": "error",
+                        "title": "本轮失败",
+                        "summary": "completed",
+                    },
+                ],
+                "answer_card": {
+                    "summary": "Fetched reddit.json",
+                    "sections": [
+                        {
+                            "title": "Answer",
+                            "content": "Fetched reddit.json",
+                        }
+                    ],
+                    "source_chip_ids": [],
+                },
+                "completion_reason": "completed",
+            },
+            "turn_record": {
+                "turn_outcome": "success",
+                "termination_reason": "completed",
+                "final_output_source": "tool_evidence_completed",
+                "metadata": {
+                    "turn_flow": {
+                        "timeline": [
+                            {
+                                "id": "answer_assembly",
+                                "type": "answer_assembly",
+                                "status": "error",
+                                "title": "答案生成",
+                                "summary": "答复生成失败",
+                            },
+                            {
+                                "id": "terminal",
+                                "type": "failed",
+                                "status": "error",
+                                "title": "本轮失败",
+                                "summary": "completed",
+                            },
+                        ],
+                        "answer_card": {
+                            "summary": "No trusted assistant final answer.",
+                            "sections": [
+                                {
+                                    "title": "Answer",
+                                    "content": "No trusted assistant final answer.",
+                                }
+                            ],
+                            "source_chip_ids": [],
+                        },
+                        "completion_reason": "completed",
+                    }
+                },
+            },
+        },
+        content="Fetched reddit.json",
+    )
+
+    assert turn_flow["error_surface"]["error_type"] == "untrusted_final_output_source"
+    assert turn_flow["answer_card"]["summary"] == "No trusted assistant final answer."
+    assert turn_flow["answer_card"]["sections"] == [
+        {
+            "title": "Answer",
+            "content": "No trusted assistant final answer.",
+        }
+    ]

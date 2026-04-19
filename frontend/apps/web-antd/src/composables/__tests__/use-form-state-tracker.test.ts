@@ -52,10 +52,12 @@ describe('formStateTracker', () => {
       setValues: vi.fn(),
       validate: async () => ({ valid: true }),
     };
+    const surfaceId = 'drawer:user-editor';
     formStateTracker.open('admin.ai.users', {
       mode: 'edit',
       formApi,
       initialValues: { name: 'Alice' },
+      surfaceId,
     });
 
     const sessionId = formStateTracker.getSessionId('admin.ai.users');
@@ -64,10 +66,24 @@ describe('formStateTracker', () => {
     }
 
     expect(formStateTracker.getFormApi(sessionId)).toBe(formApi);
+    expect(formStateTracker.getFormApiBySessionId(sessionId)).toBe(formApi);
+    expect(formStateTracker.getFormApiBySurfaceId(surfaceId)).toBe(formApi);
     expect(formStateTracker.getSession(sessionId)?.form_session_id).toBe(
       sessionId,
     );
-    expect(formStateTracker.getSession(sessionId)?.surface_id).toBe(sessionId);
+    expect(
+      formStateTracker.getSessionBySessionId(sessionId)?.form_session_id,
+    ).toBe(sessionId);
+    expect(formStateTracker.getSession(sessionId)?.surface_id).toBe(surfaceId);
+    expect(formStateTracker.getSessionIdBySurfaceId(surfaceId)).toBe(sessionId);
+    expect(formStateTracker.getSessionBySurfaceId(surfaceId)?.form_session_id).toBe(
+      sessionId,
+    );
+    expect(
+      formStateTracker.getActiveSessionBySurfaceId(surfaceId),
+    ).toMatchObject({
+      form_session_id: sessionId,
+    });
 
     const session = formStateTracker.setSessionFieldValues(sessionId, {
       name: 'Alice Updated',
@@ -107,10 +123,12 @@ describe('formStateTracker', () => {
     formStateTracker.open('page.one', {
       mode: 'add',
       initialValues: {},
+      surfaceId: 'drawer:page-one',
     });
     formStateTracker.open('page.two', {
       mode: 'edit',
       initialValues: {},
+      surfaceId: 'drawer:page-two',
     });
 
     expect(formStateTracker.isOpenWithFallback('page.one')).toBe(true);
@@ -122,10 +140,12 @@ describe('formStateTracker', () => {
     formStateTracker.open('page.one', {
       mode: 'view',
       initialValues: {},
+      surfaceId: 'drawer:page-one',
     });
     formStateTracker.open('page.two', {
       mode: 'add',
       initialValues: {},
+      surfaceId: 'drawer:page-two',
     });
 
     expect(formStateTracker.getTrackedKeys()).toEqual(['page.one', 'page.two']);
@@ -133,7 +153,24 @@ describe('formStateTracker', () => {
     formStateTracker.close('page.one');
     expect(formStateTracker.getTrackedKeys()).toEqual(['page.two']);
 
+    formStateTracker.closeBySurfaceId('drawer:page-two');
+    expect(formStateTracker.getTrackedKeys()).toEqual([]);
+
     formStateTracker.clear();
     expect(formStateTracker.getTrackedKeys()).toEqual([]);
+  });
+
+  it('falls back to a page surface id when no explicit surface is provided', () => {
+    const sessionId = formStateTracker.open('admin.ai.audit', {
+      mode: 'view',
+      initialValues: {},
+    });
+
+    expect(formStateTracker.getSession(sessionId)?.surface_id).toBe(
+      'page:admin.ai.audit',
+    );
+    expect(
+      formStateTracker.getSessionIdBySurfaceId('page:admin.ai.audit'),
+    ).toBe(sessionId);
   });
 });

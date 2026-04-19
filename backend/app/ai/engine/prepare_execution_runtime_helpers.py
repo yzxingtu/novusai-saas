@@ -96,7 +96,12 @@ def apply_runtime_capability_injection(
         execution_budget=execution_budget,
         include_knowledge_base_hint=intent_flags["has_knowledge_intent"],
         include_page_context_hint=intent_flags["has_page_intent"],
-        include_memory_hint=intent_flags["has_memory_intent"],
+        include_memory_hint=bool(
+            intent_flags.get(
+                "memory_context_enabled",
+                intent_flags.get("has_memory_intent", False),
+            )
+        ),
     )
     capability_injection_decision = resolve_capability_injection_decision(
         diagnostics=diagnostics,

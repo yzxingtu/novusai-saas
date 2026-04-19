@@ -11,14 +11,21 @@ import {
   queryElementByLocator,
   resolveRuntimePageKey,
 } from './runtime-bridge-core';
-import { resolveActiveFormSessionForPage } from './runtime-bridge-snapshot';
+import {
+  buildSnapshot,
+  resolveActiveFormSessionForPage,
+} from './runtime-bridge-snapshot';
 import { readValueForAI, resolveAISecurityPolicy } from './security-policy';
 
 function resolveFormSession(formSessionId?: string): FormSession | null {
   if (formSessionId?.trim()) {
-    return formStateTracker.getSession(formSessionId.trim());
+    return formStateTracker.getSessionBySessionId(formSessionId.trim());
   }
-  return resolveActiveFormSessionForPage(resolveRuntimePageKey());
+  const snapshot = buildSnapshot('compact').snapshot;
+  return resolveActiveFormSessionForPage(resolveRuntimePageKey(), {
+    activeSurfaceId: snapshot.active_surface_id,
+    surfaceIds: snapshot.surface_stack?.map((surface) => surface.surface_id),
+  });
 }
 
 function serializeFormField(
@@ -75,7 +82,11 @@ async function applyFormValues(
   }
 
   const formApi = formStateTracker.getFormApi(session.form_session_id);
-  if (!formApi) {
+  const explicitFormApi = formStateTracker.getFormApiBySessionId(
+    session.form_session_id,
+  );
+  const resolvedFormApi = explicitFormApi ?? formApi;
+  if (!resolvedFormApi) {
     return {
       error: tAiRuntime('formApiUnavailable'),
       error_type: 'form_api_unavailable',
@@ -134,11 +145,11 @@ async function applyFormValues(
     };
   }
 
-  formApi.setValues(writableUpdates);
+  resolvedFormApi.setValues(writableUpdates);
   await nextTick();
   let currentValues = writableUpdates;
   try {
-    currentValues = await formApi.getValues();
+    currentValues = await resolvedFormApi.getValues();
   } catch {
     // Keep applied values when the form is still stabilizing.
   }
@@ -147,7 +158,7 @@ async function applyFormValues(
       session.form_session_id,
       currentValues,
     ) ??
-    formStateTracker.getSession(session.form_session_id) ??
+    formStateTracker.getSessionBySessionId(session.form_session_id) ??
     session;
 
   return {
@@ -216,7 +227,9 @@ export async function submitRuntimeForm(args: {
       success: false,
     };
   }
-  const formApi = formStateTracker.getFormApi(session.form_session_id);
+  const formApi =
+    formStateTracker.getFormApiBySessionId(session.form_session_id) ??
+    formStateTracker.getFormApi(session.form_session_id);
   if (!formApi?.submitForm) {
     return {
       error: tAiRuntime('formSubmitUnavailable'),
@@ -267,7 +280,7 @@ export async function submitRuntimeForm(args: {
       session.form_session_id,
       currentValues,
     ) ??
-    formStateTracker.getSession(session.form_session_id) ??
+    formStateTracker.getSessionBySessionId(session.form_session_id) ??
     session;
   return {
     data: {

@@ -14,6 +14,20 @@ from app.exceptions import ValidationException
 from app.schemas.ai.agent_chat import AgentChatRequest, AgentRouteRequest, PageContext
 
 
+def _navigation_entry() -> dict[str, object]:
+    return {
+        "title": "Agents",
+        "path": "/admin/ai/agents",
+        "page_key": "admin.ai.agents",
+        "description": "Manage AI agents",
+        "category": "AI",
+        "endpoint": "/ai/agents",
+        "keywords": ["agents", "assistant"],
+        "capabilities": ["create", "edit"],
+        "breadcrumb": ["AI", "Agents"],
+    }
+
+
 def test_page_context_accepts_thin_runtime_fields() -> None:
     page_context = PageContext.model_validate(
         {
@@ -35,6 +49,17 @@ def test_page_context_accepts_thin_runtime_fields() -> None:
                 "primary": ["ui_get_snapshot", "ui_fill_form", "ui_submit_form"],
                 "secondary": ["ui_get_form_state"],
             },
+            "page_data": {
+                "locale": "en-US",
+                "entity_description": " Agent workspace ",
+                "navigation_catalog": [_navigation_entry(), _navigation_entry()],
+                "navigation_context": {
+                    "breadcrumb": ["AI", "Agents", "Agents"],
+                    "endpoint": "/ai/agents",
+                    "page_key": "admin.ai.agents",
+                    "path": "/admin/ai/agents",
+                },
+            },
         }
     )
 
@@ -46,6 +71,10 @@ def test_page_context_accepts_thin_runtime_fields() -> None:
     assert dumped["surface_stack"][0]["surface_id"] == "page-root"
     assert dumped["active_form_summary"]["form_session_id"] == "form-1"
     assert dumped["suggested_tools"]["primary"][0] == "ui_get_snapshot"
+    assert dumped["page_data"]["locale"] == "en-US"
+    assert dumped["page_data"]["entity_description"] == "Agent workspace"
+    assert dumped["page_data"]["navigation_catalog"] == [_navigation_entry()]
+    assert dumped["page_data"]["navigation_context"]["breadcrumb"] == ["AI", "Agents"]
 
 
 def test_page_context_normalize_returns_none_for_invalid_payload() -> None:
@@ -58,6 +87,9 @@ def test_page_context_normalize_variables_prefers_explicit_page_context() -> Non
         {
             "page_key": "tenant.ai.agents",
             "ui_epoch": 5,
+            "page_data": {
+                "navigation_catalog": [_navigation_entry()],
+            },
             "suggested_tools": {"primary": ["ui_get_snapshot"]},
         },
     )
@@ -66,6 +98,9 @@ def test_page_context_normalize_variables_prefers_explicit_page_context() -> Non
         "page_context": {
             "page_key": "tenant.ai.agents",
             "ui_epoch": 5,
+            "page_data": {
+                "navigation_catalog": [_navigation_entry()],
+            },
             "surface_stack": [],
             "suggested_tools": {"primary": ["ui_get_snapshot"], "secondary": []},
         },
@@ -80,6 +115,15 @@ def test_agent_chat_request_accepts_thin_page_context_shape() -> None:
                 "locale": "zh-CN",
                 "page_key": "tenant.ai.agents",
                 "page_session_id": "sess-88",
+                "page_data": {
+                    "navigation_catalog": [_navigation_entry()],
+                    "navigation_context": {
+                        "breadcrumb": ["AI", "Agents"],
+                        "endpoint": "/ai/agents",
+                        "page_key": "admin.ai.agents",
+                        "path": "/admin/ai/agents",
+                    },
+                },
                 "ui_epoch": 2,
             },
         }
@@ -88,6 +132,8 @@ def test_agent_chat_request_accepts_thin_page_context_shape() -> None:
     assert request.page_context.locale == "zh-CN"
     assert request.page_context.page_key == "tenant.ai.agents"
     assert request.page_context.page_session_id == "sess-88"
+    assert request.page_context.page_data is not None
+    assert request.page_context.page_data.navigation_catalog[0].page_key == "admin.ai.agents"
 
 
 def test_agent_route_request_accepts_thin_page_context_shape() -> None:

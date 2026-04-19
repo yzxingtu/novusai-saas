@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildCompactNavigationPageData,
   buildMenuNavigationEntries,
   resolveMenuNavigationTarget,
   searchMenuNavigationEntries,
@@ -55,5 +56,43 @@ describe('menu-navigation', () => {
     if (resolution.kind === 'success') {
       expect(resolution.entry.path).toBe('/admin/plugins');
     }
+  });
+
+  it('builds compact navigation page data from query-bearing current paths', () => {
+    const entries = buildMenuNavigationEntries({
+      currentEndpoint: 'admin',
+      menus: [
+        {
+          name: '智能体管理',
+          path: '/admin/ai/agents',
+          meta: {
+            ai: {
+              pageContextKey: 'admin.ai.agents',
+            },
+          },
+        },
+      ] as any,
+    });
+
+    const pageData = buildCompactNavigationPageData({
+      currentPageKey: 'admin.ai.agents',
+      currentPath: '/admin/ai/agents?tab=create#modal',
+      entries,
+    });
+
+    expect(pageData).toMatchObject({
+      navigation_catalog: [
+        expect.objectContaining({
+          page_key: 'admin.ai.agents',
+          path: '/admin/ai/agents',
+        }),
+      ],
+      navigation_context: {
+        breadcrumb: ['智能体管理'],
+        endpoint: 'admin',
+        page_key: 'admin.ai.agents',
+        path: '/admin/ai/agents',
+      },
+    });
   });
 });

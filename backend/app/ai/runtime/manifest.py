@@ -11,12 +11,12 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from app.ai.runtime.context_assembler import ContextAssemblerState
+from app.ai.runtime.contracts import PAGE_CONTEXT_KEY
 from app.ai.runtime.types import CapabilityBundle
 from app.ai.tools.semantic_defaults import (
     page_context_available_ui_tools,
     tool_semantic_family,
 )
-from app.ai.runtime.contracts import PAGE_CONTEXT_KEY
 
 RuntimeCapabilityStatus = Literal["available", "degraded", "unavailable"]
 
@@ -214,7 +214,7 @@ class AIRuntimeInventoryService:
         skill_items = [
             RuntimeCapabilityItem(
                 name=skill_name,
-                kind="prompt_skill",
+                kind="capability_pack",
                 status="available",
                 source="skill_resolver",
             )

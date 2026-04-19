@@ -12,6 +12,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+from app.ai.runtime.types import prompt_skill_descriptor_is_live
+
 
 @dataclass
 class CapabilityDescription:
@@ -78,11 +80,7 @@ class CapabilityDescriptionBuilder:
         skill_groups: dict[str, list[str]] = {}
 
         for descriptor in descriptors:
-            if descriptor.kind != "prompt_skill":
-                continue
-
-            skill_name = str(descriptor.name or "").strip()
-            if not skill_name:
+            if not prompt_skill_descriptor_is_live(descriptor):
                 continue
 
             # Determine skill family
@@ -212,16 +210,6 @@ class CapabilityDescriptionBuilder:
             mode = str(active_form.get("mode") or "").strip() or "unknown"
             stage = str(active_form.get("stage") or "").strip() or "ready"
             items.append(f"Active form: mode={mode}, stage={stage}")
-
-        suggested = page_context.get("suggested_tools")
-        if isinstance(suggested, dict):
-            primary = [
-                str(name or "").strip()
-                for name in (suggested.get("primary") or [])
-                if str(name or "").strip()
-            ]
-            if primary:
-                items.append(f"Suggested tools: {', '.join(primary[:8])}")
 
         if not items:
             return None

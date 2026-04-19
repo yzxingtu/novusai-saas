@@ -13,7 +13,7 @@ from .intent_runtime_accessors import (
     resolve_intent_plan_view,
     resolve_requested_intents_from_input_variables,
 )
-from .system_prompt_intent_helpers import intent_completion_signals
+from .system_prompt_intent_helpers import intent_completion_matches
 from .tool_policy_semantics import tool_semantic_family
 from .turn_research_helpers import (
     collect_web_research_evidence,
@@ -166,7 +166,11 @@ def collect_completed_turn_intents(
     input_variables: dict[str, Any] | None,
 ) -> set[str]:
     completed: set[str] = set()
-    successful_tool_names = set(extract_recent_successful_tool_names(messages, limit=50))
+    successful_tool_names_ordered = extract_recent_successful_tool_names(
+        messages,
+        limit=50,
+    )
+    successful_tool_names = set(successful_tool_names_ordered)
     successful_queries, fetched_urls = collect_web_research_evidence(messages)
     weather_tool_names = {
         tool.name
@@ -189,15 +193,25 @@ def collect_completed_turn_intents(
 
     requested_page_intents = _requested_page_intents(input_variables)
     if requested_page_intents:
-        successful_names_ordered = list(successful_tool_names)
+        planned_intents = {
+            str(intent.kind or "").strip(): intent
+            for intent in resolve_intent_plan_view(input_variables)
+            if intent.family == "page_ops" and intent.requires_tools
+        }
         for intent_name in requested_page_intents:
-            completion_signals = intent_completion_signals(
+            planned_intent = planned_intents.get(intent_name)
+            if intent_completion_matches(
                 "page_ops",
+                completed_tool_names=successful_tool_names,
                 intent_kind=intent_name,
-                allowed_tool_names=successful_names_ordered,
-                preferred_tool_names=successful_names_ordered,
-            )
-            if successful_tool_names & set(completion_signals):
+                allowed_tool_names=successful_tool_names_ordered,
+                preferred_tool_names=successful_tool_names_ordered,
+                intent_metadata=(
+                    dict(planned_intent.metadata or {})
+                    if planned_intent is not None
+                    else None
+                ),
+            ):
                 completed.add(intent_name)
     elif successful_tool_names & {
         "ui_get_snapshot",

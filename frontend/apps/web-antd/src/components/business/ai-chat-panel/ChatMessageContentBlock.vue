@@ -160,6 +160,9 @@ function stripTrailingSourceBlock(content: string) {
 const preparedMessageContent = computed(() => prepareMessageContent(props.msg));
 
 const preparedContentBody = computed(() => {
+  if (preparedMessageContent.value.suppressed) {
+    return '';
+  }
   const normalizedPreparedBody = stripTrailingSourceBlock(
     preparedMessageContent.value.bodyMarkdown,
   );

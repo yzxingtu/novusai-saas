@@ -156,16 +156,16 @@ def build_navigation_query_variants(query: str) -> list[str]:
     return variants
 
 
-def extract_available_menu_entries(
+def extract_navigation_catalog_entries(
     page_context: Mapping[str, Any] | None,
 ) -> list[dict[str, Any]]:
-    """Extract semantic menu entries from page context / 从页面上下文提取语义菜单条目。"""
+    """Extract semantic navigation entries from page context / 从页面上下文提取语义导航条目。"""
     if not isinstance(page_context, Mapping):
         return []
     page_data = page_context.get("page_data")
     if not isinstance(page_data, Mapping):
         return []
-    raw_entries = page_data.get("available_menus")
+    raw_entries = page_data.get("navigation_catalog")
     if not isinstance(raw_entries, list):
         return []
 
@@ -359,7 +359,7 @@ def has_navigation_intent(
     if not has_action:
         return False
 
-    menu_entries = extract_available_menu_entries(page_context)
+    menu_entries = extract_navigation_catalog_entries(page_context)
     return bool(
         menu_entries and has_semantic_navigation_target(normalized_query, menu_entries)
     )
@@ -368,7 +368,7 @@ def has_navigation_intent(
 __all__ = [
     "build_navigation_query_variants",
     "compact_navigation_text",
-    "extract_available_menu_entries",
+    "extract_navigation_catalog_entries",
     "has_navigation_intent",
     "has_semantic_navigation_target",
     "normalize_navigation_text",

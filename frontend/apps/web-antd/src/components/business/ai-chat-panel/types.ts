@@ -41,6 +41,7 @@ export interface DisplayReferenceLink {
 export interface PreparedMessageContent {
   bodyMarkdown: string;
   references: DisplayReferenceLink[];
+  suppressed: boolean;
 }
 
 declare module '#/types/ai-chat' {

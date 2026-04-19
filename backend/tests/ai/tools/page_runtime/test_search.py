@@ -32,12 +32,12 @@ def test_search_runtime_snapshot_returns_ranked_hits() -> None:
     assert all(hit["score"] > 0 for hit in hits)
 
 
-def test_resolve_navigation_candidates_uses_available_menus() -> None:
+def test_resolve_navigation_candidates_prefers_navigation_catalog() -> None:
     hits = resolve_navigation_candidates(
         "operation logs",
         {
             "page_data": {
-                "available_menus": [
+                "navigation_catalog": [
                     {
                         "title": "Operation Logs",
                         "path": "/admin/system/operation-logs",
@@ -62,7 +62,29 @@ def test_resolve_navigation_candidates_uses_available_menus() -> None:
             "breadcrumb": ["System", "Operation Logs"],
             "page_key": "admin.system.operation-logs",
             "path": "/admin/system/operation-logs",
-            "score": 100,
+            "score": 960,
             "title": "Operation Logs",
         }
     ]
+
+
+def test_resolve_navigation_candidates_ignores_legacy_available_menus_payload() -> None:
+    hits = resolve_navigation_candidates(
+        "operation logs",
+        {
+            "page_data": {
+                "available_menus": [
+                    {
+                        "title": "Operation Logs",
+                        "path": "/admin/system/operation-logs",
+                        "page_key": "admin.system.operation-logs",
+                        "category": "System",
+                        "keywords": ["audit", "logs"],
+                        "breadcrumb": ["System", "Operation Logs"],
+                    }
+                ]
+            }
+        },
+    )
+
+    assert hits == []

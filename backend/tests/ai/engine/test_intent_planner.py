@@ -334,7 +334,7 @@ def test_intent_planner_detects_cross_page_navigation_from_menu_semantics() -> N
             "page_context": {
                 "page_key": "admin.ai.conversations",
                 "page_data": {
-                    "available_menus": [
+                    "navigation_catalog": [
                         {
                             "title": "供应商管理",
                             "path": "/admin/suppliers",
@@ -356,6 +356,16 @@ def test_intent_planner_keeps_page_form_write_when_user_mentions_records() -> No
         "请帮我新增一条记录",
         tools=_tools(),
         input_variables={"page_context": {"page_key": "admin.ai.skills"}},
+    )
+
+    assert [intent.kind for intent in intents] == ["page_form_write"]
+
+
+def test_intent_planner_treats_skill_binding_request_as_page_form_write() -> None:
+    intents = _plan(
+        "帮我给这个页面的智能体绑定几个技能测试一下",
+        tools=_tools(),
+        input_variables={"page_context": {"page_key": "admin.ai.agent.detail"}},
     )
 
     assert [intent.kind for intent in intents] == ["page_form_write"]

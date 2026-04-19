@@ -111,7 +111,7 @@ def plan_execution_tools(
 ) -> PreparedExecutionToolPlan:
     raw_intent_plan = diagnostics.get("intent_plan")
     intent_plan = _deserialize_intent_plan_impl(raw_intent_plan)
-    intent_flags = _intent_plan_gating_flags_impl(intent_plan)
+    intent_flags = _intent_plan_gating_flags_impl(intent_plan, request=request)
 
     explicit_requested_families = _ordered_requested_families_from_intents_impl(
         intents=intent_plan
@@ -171,6 +171,15 @@ def plan_execution_tools(
             if intent.family != "none" and intent.requires_tools
         ]
         for intent in intent_plan:
+            intent.metadata = dict(intent.metadata or {})
+            page_workflow_plan = (
+                ToolRouter.page_intent_tool_plan(
+                    intent.kind,
+                    input_variables=request.input_variables,
+                )
+                if intent.family == "page_ops"
+                else None
+            )
             allowed = list(
                 routing.intent_allowed_tools.get(intent.intent_id, [])
             )
@@ -179,11 +188,14 @@ def plan_execution_tools(
             )
             intent.allowed_tool_names = allowed
             intent.preferred_tool_names = preferred
+            if page_workflow_plan is not None:
+                intent.metadata.update(page_workflow_plan.to_metadata())
             intent.completion_signals = _intent_completion_signals_impl(
                 intent.family,
                 intent_kind=intent.kind,
                 allowed_tool_names=allowed,
                 preferred_tool_names=preferred,
+                intent_metadata=intent.metadata,
             )
             if intent.family == "none" or not intent.requires_tools:
                 intent.status = "completed"
@@ -217,6 +229,7 @@ def plan_execution_tools(
                 intent_kind=first_actionable.kind,
                 allowed_tool_names=list(candidate_tool_names),
                 preferred_tool_names=list(candidate_tool_names),
+                intent_metadata=first_actionable.metadata,
             )
         active_intent = next(
             (
