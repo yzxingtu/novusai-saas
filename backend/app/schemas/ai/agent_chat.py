@@ -14,6 +14,7 @@ from pydantic import (
     ConfigDict,
     Field,
     ValidationError,
+    field_validator,
     model_validator,
 )
 
@@ -255,6 +256,15 @@ class ThinSurfaceSummary(BaseModel):
         description="Surface title / surface 标题",
     )
 
+    @field_validator("surface_id", mode="before")
+    @classmethod
+    def validate_surface_id(cls, value: Any) -> str:
+        return _normalize_required_compact_text(
+            value,
+            field_name="surface_id",
+            max_length=128,
+        )
+
 
 class ActiveFormSummary(BaseModel):
     """Active form summary for thin page context / 活跃表单薄摘要。"""
@@ -305,6 +315,15 @@ class ActiveFormSummary(BaseModel):
         "confirm",
         description="Submit policy / 提交策略",
     )
+
+    @field_validator("form_session_id", mode="before")
+    @classmethod
+    def validate_form_session_id(cls, value: Any) -> str:
+        return _normalize_required_compact_text(
+            value,
+            field_name="form_session_id",
+            max_length=128,
+        )
 
     @model_validator(mode="after")
     def normalize_remaining_required_fields(self) -> ActiveFormSummary:
@@ -412,6 +431,33 @@ class NavigationCatalogEntry(BaseModel):
         description="Navigation breadcrumb / 导航面包屑",
     )
 
+    @field_validator("title", mode="before")
+    @classmethod
+    def validate_title(cls, value: Any) -> str:
+        return _normalize_required_compact_text(
+            value,
+            field_name="title",
+            max_length=200,
+        )
+
+    @field_validator("path", mode="before")
+    @classmethod
+    def validate_path(cls, value: Any) -> str:
+        return _normalize_required_compact_text(
+            value,
+            field_name="path",
+            max_length=240,
+        )
+
+    @field_validator("page_key", mode="before")
+    @classmethod
+    def validate_page_key(cls, value: Any) -> str:
+        return _normalize_required_compact_text(
+            value,
+            field_name="page_key",
+            max_length=200,
+        )
+
     @model_validator(mode="after")
     def normalize_entry(self) -> NavigationCatalogEntry:
         self.title = self.title.strip()[:200]
@@ -478,7 +524,7 @@ class NavigationContext(BaseModel):
 class PageContextPageData(BaseModel):
     """Summary-first page data extension / summary-first 页面扩展数据。"""
 
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="forbid")
 
     locale: str | None = Field(
         None,
@@ -498,6 +544,24 @@ class PageContextPageData(BaseModel):
         None,
         description="Compact navigation context / 紧凑导航上下文",
     )
+
+    @field_validator("navigation_catalog", mode="before")
+    @classmethod
+    def sanitize_navigation_catalog(
+        cls,
+        value: Any,
+    ) -> list[NavigationCatalogEntry | dict[str, Any]]:
+        if not isinstance(value, list):
+            return []
+
+        normalized: list[NavigationCatalogEntry | dict[str, Any]] = []
+        for item in value:
+            try:
+                entry = NavigationCatalogEntry.model_validate(item)
+            except ValidationError:
+                continue
+            normalized.append(entry)
+        return normalized
 
     @model_validator(mode="after")
     def normalize_page_data(self) -> PageContextPageData:
@@ -552,6 +616,18 @@ def _normalize_compact_string_list(
         if len(normalized) >= max_items:
             break
     return normalized
+
+
+def _normalize_required_compact_text(
+    value: Any,
+    *,
+    field_name: str,
+    max_length: int,
+) -> str:
+    text = str(value or "").strip()
+    if not text:
+        raise ValueError(f"{field_name} must not be empty")
+    return text[:max_length]
 
 
 class PageContext(BaseModel):
@@ -611,6 +687,15 @@ class PageContext(BaseModel):
         None,
         description="Suggested tools for current page / 当前页推荐工具",
     )
+
+    @field_validator("page_key", mode="before")
+    @classmethod
+    def validate_page_key(cls, value: Any) -> str:
+        return _normalize_required_compact_text(
+            value,
+            field_name="page_key",
+            max_length=200,
+        )
 
     @model_validator(mode="after")
     def normalize_context(self) -> PageContext:

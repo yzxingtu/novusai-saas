@@ -6,12 +6,18 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic import ValidationError
 
 from app.ai.tools.executors.ui_snapshot_executor import UISnapshotExecutor
 from app.ai.tools.semantic_defaults import page_context_available_ui_tools
 from app.ai.tools.types import ExecutionContext, ToolDefinition
 from app.exceptions import ValidationException
-from app.schemas.ai.agent_chat import AgentChatRequest, AgentRouteRequest, PageContext
+from app.schemas.ai.agent_chat import (
+    AgentChatRequest,
+    AgentRouteRequest,
+    NavigationCatalogEntry,
+    PageContext,
+)
 
 
 def _navigation_entry() -> dict[str, object]:
@@ -150,6 +156,68 @@ def test_agent_route_request_accepts_thin_page_context_shape() -> None:
     assert request.page_context is not None
     assert request.page_context.page_key == "admin.ai.agents"
     assert request.page_context.ui_epoch == 8
+
+
+def test_agent_chat_request_filters_invalid_navigation_catalog_entries() -> None:
+    request = AgentChatRequest.model_validate(
+        {
+            "message": "help me",
+            "page_context": {
+                "page_key": "tenant.ai.agents",
+                "page_data": {
+                    "navigation_catalog": [
+                        _navigation_entry(),
+                        {
+                            "page_key": "admin.ai.broken",
+                            "title": "Broken Entry",
+                        },
+                        {
+                            "page_key": "   ",
+                            "path": "   ",
+                            "title": "   ",
+                        },
+                    ],
+                },
+            },
+        }
+    )
+
+    assert request.page_context is not None
+    assert request.page_context.page_data is not None
+    assert request.page_context.page_data.navigation_catalog == [
+        NavigationCatalogEntry.model_validate(_navigation_entry())
+    ]
+
+
+def test_navigation_catalog_entry_rejects_blank_required_values() -> None:
+    with pytest.raises(ValidationError):
+        NavigationCatalogEntry.model_validate(
+            {
+                "title": "   ",
+                "path": "   ",
+                "page_key": "   ",
+            }
+        )
+
+
+def test_page_context_rejects_blank_page_key() -> None:
+    with pytest.raises(ValidationError):
+        PageContext.model_validate({"page_key": "   "})
+
+
+def test_agent_chat_request_rejects_unknown_page_data_fields() -> None:
+    with pytest.raises(ValidationError):
+        AgentChatRequest.model_validate(
+            {
+                "message": "help me",
+                "page_context": {
+                    "page_key": "tenant.ai.agents",
+                    "page_data": {
+                        "document_body_text": "x" * 32,
+                    },
+                },
+            }
+        )
 
 
 @pytest.mark.asyncio

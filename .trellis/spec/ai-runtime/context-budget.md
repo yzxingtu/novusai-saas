@@ -57,6 +57,8 @@ diagnostics.
 - thin `page_context` payload size must respect the runtime config
   `ai_page_context_max_bytes` (default `8192`); large UI content belongs behind
   `ui_get_snapshot` / `ui_read_*`, not inside the baseline prompt payload
+- `page_context.page_data` is a strict compact seam; unsupported keys are
+  contract violations that should be rejected rather than silently dropped
 
 ## Required Diagnostics
 

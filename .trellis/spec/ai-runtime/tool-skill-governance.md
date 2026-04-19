@@ -174,6 +174,7 @@ export async function submitRuntimeForm(args: { confirm?: boolean; formSessionId
 - `page_key` is required and normalized via `normalizePageKey` / `resolveRoutePageKey`, honoring `route.meta.ai.pageContextKey`.
 - Optional fields: `page_title`, `locale`, `page_session_id`, `active_form_summary`, `active_form_session_id`, `surface_stack`, `ui_epoch`, `suggested_tools`.
 - `page_context.page_data` is optional, summary-first, and is the only allowed seam for compact navigation metadata such as `navigation_catalog` and `navigation_context`.
+- `page_context.page_data` is a strict compact contract. Unknown keys are invalid request payload, not silently ignored runtime hints.
 
 #### 3.4 Summary-First Constraint
 - `getRuntimeThinPageContext()` always uses `compact` snapshots; only summary fields flow into `page_context`.
@@ -195,6 +196,7 @@ export async function submitRuntimeForm(args: { confirm?: boolean; formSessionId
 - Backend `has_navigation_intent` requires navigation action terms and a semantic match against `page_context.page_data.navigation_catalog`.
 - Backend `app.schemas.ai.agent_chat.PageContext` must model `page_data` explicitly so compact `navigation_catalog` / `navigation_context` survives request normalization instead of being dropped as extra payload.
 - `navigation_catalog` entries should include title/path/page_key plus optional description/category/keywords/capabilities/breadcrumb to enable scoring.
+- Malformed `navigation_catalog` items should be filtered during normalization instead of failing the entire turn; blank required title/path/page_key values are invalid after trimming.
 - `available_menus` is outside the live contract. New runtime code must neither emit nor consume it; cross-page routing is allowed to depend only on `navigation_catalog`.
 - Locale resolution checks `page_data.locale` or `page_context.locale`, then infers from `page_title`, `entity_description`, and breadcrumbs, finally falling back to `get_locale()` or `"zh_CN"`.
 

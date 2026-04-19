@@ -597,11 +597,7 @@ describe('aIChatSlidePanel (component mount)', () => {
       page_key: 'tenant.demo.page',
       page_title: 'admin.system.codegen.name',
       page_data: {
-        list_summary: {
-          columns: ['name'],
-          row_count: 1,
-          sample_rows: [{ name: 'Codegen' }],
-        },
+        entity_description: 'Codegen workspace',
       },
     };
     pageOperationsValue.value = [
@@ -629,8 +625,7 @@ describe('aIChatSlidePanel (component mount)', () => {
       page_key: 'tenant.demo.fallback',
       page_title: 'Fallback Only',
       page_data: {
-        source: 'dom_snapshot',
-        tables: [{ columns: ['name'], row_count: 1 }],
+        entity_description: 'Fallback demo page',
       },
     };
 
@@ -668,34 +663,34 @@ describe('aIChatSlidePanel (component mount)', () => {
     wrapper.unmount();
   });
 
-  it('keeps routed page context thin while preserving suggested ui tools', async () => {
+  it('preserves compact page_data while keeping suggested ui tools', async () => {
     inputMessageValue.value = 'inspect this page';
     pageContextValue.value = {
       page_key: 'tenant.demo.large',
       page_title: 'Large Demo Page',
       page_data: {
-        document_body_text: 'x'.repeat(6400),
-        form_fields: Object.fromEntries(
-          Array.from({ length: 24 }, (_, index) => [
-            `field_${index}`,
-            {
-              component: 'input',
-              description: `Field ${index} `.repeat(18),
-              options: Array.from({ length: 6 }, (__, optionIndex) => ({
-                label: `Option ${index}-${optionIndex}`,
-                value: `${index}-${optionIndex}`,
-              })),
-              required: index % 2 === 0,
-              type: 'string',
-            },
-          ]),
-        ),
-        list_summary: {
-          sample_rows: Array.from({ length: 5 }, (_, index) => ({
-            description: `Row ${index} `.repeat(32),
-            name: `Record ${index}`,
-          })),
-          total_rows: 50,
+        entity_description: 'Large demo runtime page',
+        navigation_catalog: [
+          {
+            breadcrumb: ['Dashboard'],
+            endpoint: 'tenant',
+            page_key: 'tenant.dashboard',
+            path: '/tenant/dashboard',
+            title: 'Dashboard',
+          },
+          {
+            breadcrumb: ['AI', 'Agents'],
+            endpoint: 'tenant',
+            page_key: 'tenant.ai.agents',
+            path: '/tenant/ai/agents',
+            title: 'Agents',
+          },
+        ],
+        navigation_context: {
+          breadcrumb: ['AI', 'Agents'],
+          endpoint: 'tenant',
+          page_key: 'tenant.ai.agents',
+          path: '/tenant/ai/agents',
         },
       },
     };
@@ -732,7 +727,18 @@ describe('aIChatSlidePanel (component mount)', () => {
     await flushPromises();
 
     const routedContext = routeMessageMock.mock.calls[0]?.[2] as null | {
-      page_data?: Record<string, unknown>;
+      page_data?: {
+        entity_description?: string;
+        navigation_catalog?: Array<{
+          page_key?: string;
+          path?: string;
+          title?: string;
+        }>;
+        navigation_context?: {
+          page_key?: string;
+          path?: string;
+        };
+      };
       page_key?: string;
       page_title?: string;
       suggested_tools?: {
@@ -742,7 +748,25 @@ describe('aIChatSlidePanel (component mount)', () => {
     };
     expect(routedContext?.page_key).toBe('tenant.demo.large');
     expect(routedContext?.page_title).toBe('Large Demo Page');
-    expect(routedContext?.page_data).toBeUndefined();
+    expect(routedContext?.page_data).toMatchObject({
+      entity_description: 'Large demo runtime page',
+      navigation_catalog: [
+        {
+          page_key: 'tenant.dashboard',
+          path: '/tenant/dashboard',
+          title: 'Dashboard',
+        },
+        {
+          page_key: 'tenant.ai.agents',
+          path: '/tenant/ai/agents',
+          title: 'Agents',
+        },
+      ],
+      navigation_context: {
+        page_key: 'tenant.ai.agents',
+        path: '/tenant/ai/agents',
+      },
+    });
     const suggestedToolNames = [
       ...(routedContext?.suggested_tools?.primary ?? []),
       ...(routedContext?.suggested_tools?.secondary ?? []),

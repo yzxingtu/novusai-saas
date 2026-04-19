@@ -455,7 +455,7 @@ export interface PageContextNavigationCatalogEntry {
   capabilities?: string[];
   category?: string;
   description?: string;
-  endpoint: string;
+  endpoint?: string;
   keywords?: string[];
   page_key: string;
   path: string;
@@ -463,15 +463,15 @@ export interface PageContextNavigationCatalogEntry {
 }
 
 export interface PageContextPageData {
+  entity_description?: string;
   locale?: string;
   navigation_catalog?: PageContextNavigationCatalogEntry[];
   navigation_context?: {
     breadcrumb: string[];
-    endpoint: string;
-    page_key: string;
-    path: string;
+    endpoint?: string;
+    page_key?: string;
+    path?: string;
   };
-  [key: string]: unknown;
 }
 
 export interface PageContext {

@@ -46,7 +46,7 @@ export const activeConversationIdValue = ref<null | number>(null);
 export const inputMessageValue = ref('');
 export const pendingAttachmentsValue = ref<Array<{ type: string }>>([]);
 export const pageContextValue = ref<
-  null | (PageContext & { page_data?: Record<string, unknown> })
+  null | PageContext
 >(null);
 export const pageOperationsValue = ref<
   Array<{
@@ -772,6 +772,7 @@ export function createRuntimeBridgeMock() {
         active_form_summary: context?.active_form_summary,
         active_surface_id: context?.active_surface_id,
         locale: context?.locale,
+        page_data: context?.page_data,
         page_key: pageKey,
         page_session_id: context?.page_session_id,
         page_title: context?.page_title || pageKey,
