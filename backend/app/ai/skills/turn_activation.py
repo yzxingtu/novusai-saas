@@ -4,11 +4,14 @@ Turn-level skill activation helpers.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from app.ai.engine.system_prompt_intent_helpers import is_capability_reporting_query
+from app.ai.runtime.contracts import PAGE_CONTEXT_KEY
 from app.ai.skills.resolver import SkillResolveResult, TurnSkillActivation
 from app.ai.text_semantics_terms import extract_textual_tool_call_names
+from app.ai.tools.semantic_defaults import tool_family_from_name
 
 _PAGE_TOOL_NAMES = {
     "ui_click",
@@ -43,6 +46,36 @@ def _last_user_text(request: Any) -> str:
         if text:
             return text
     return ""
+
+
+def _request_page_context(request: Any) -> Mapping[str, Any] | None:
+    input_variables = getattr(request, "input_variables", None)
+    if isinstance(input_variables, Mapping):
+        page_context = input_variables.get(PAGE_CONTEXT_KEY)
+        if isinstance(page_context, Mapping):
+            return page_context
+    page_context = getattr(request, "page_context", None)
+    return page_context if isinstance(page_context, Mapping) else None
+
+
+def resolve_startup_intent_flags(request: Any) -> dict[str, bool]:
+    user_text = _last_user_text(request)
+    if not user_text:
+        return {
+            "has_page_intent": False,
+            "has_web_research_intent": False,
+        }
+
+    from app.services.ai.agent_router_policy import requested_tool_families
+
+    requested_families = requested_tool_families(
+        user_text,
+        _request_page_context(request),
+    )
+    return {
+        "has_page_intent": "page_ops" in requested_families,
+        "has_web_research_intent": "web_research" in requested_families,
+    }
 
 
 def _explicit_skill_mentions(
@@ -157,6 +190,53 @@ def _tool_names_for_runtime_policy(
     return _stable_unique(selected)
 
 
+def _descriptor_semantic_families(descriptor: Any) -> list[str]:
+    metadata = getattr(descriptor, "metadata", {}) or {}
+    families = _stable_unique(list(metadata.get("preview_semantic_families") or []))
+    resolved_tool_names = metadata.get("resolved_tool_names")
+    if not isinstance(resolved_tool_names, (list, tuple, set)):
+        return families
+    for raw_name in resolved_tool_names:
+        family = tool_family_from_name(str(raw_name or "").strip())
+        if family != "none" and family not in families:
+            families.append(family)
+    return families
+
+
+def _skill_names_for_runtime_policy(
+    skill_result: SkillResolveResult,
+    *,
+    intent_flags: dict[str, Any],
+) -> list[str]:
+    requested_families: set[str] = set()
+    if intent_flags.get("has_page_intent"):
+        requested_families.add("page_ops")
+    if intent_flags.get("has_web_research_intent"):
+        requested_families.add("web_research")
+    if not requested_families:
+        return []
+
+    selected: list[str] = []
+    for descriptor in list(getattr(skill_result, "capability_descriptors", []) or []):
+        descriptor_name = str(getattr(descriptor, "name", "") or "").strip()
+        if not descriptor_name:
+            continue
+        if requested_families & set(_descriptor_semantic_families(descriptor)):
+            selected.append(descriptor_name)
+
+    for tool in list(getattr(skill_result, "tools", []) or []):
+        tool_name = str(getattr(tool, "name", "") or "").strip()
+        if not tool_name:
+            continue
+        if tool_family_from_name(tool_name) not in requested_families:
+            continue
+        skill_name = str(getattr(tool, "source_skill_name", "") or "").strip()
+        if skill_name:
+            selected.append(skill_name)
+
+    return _stable_unique(selected)
+
+
 def apply_turn_skill_activation(
     *,
     skill_result: SkillResolveResult | None,
@@ -195,9 +275,14 @@ def apply_turn_skill_activation(
         )
     )
     activated_tool_names = _stable_unique(activated_tool_names)
+    runtime_policy_skill_names = _skill_names_for_runtime_policy(
+        skill_result,
+        intent_flags=dict(intent_flags or {}),
+    )
 
     activated_skill_names = _stable_unique(
         explicit_skill_names
+        + runtime_policy_skill_names
         + [
             getattr(tool, "source_skill_name", None)
             for tool in list(skill_result.tools or [])
@@ -225,4 +310,4 @@ def apply_turn_skill_activation(
     return skill_result
 
 
-__all__ = ["apply_turn_skill_activation"]
+__all__ = ["apply_turn_skill_activation", "resolve_startup_intent_flags"]

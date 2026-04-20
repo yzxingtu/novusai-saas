@@ -19,12 +19,14 @@ Unknown types fall through to plugin resolver path.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from app.ai.events.hooks import HookPoint, get_hook_registry
 from app.ai.runtime.types import CapabilityDescriptor, collect_selected_skill_names
 from app.ai.skills import resolver_parts as parts
+from app.ai.tools.semantic_defaults import tool_family_from_name
 from app.ai.tools.types import ToolDefinition, ToolParameter
 from app.core.logging import LogManager
 
@@ -36,6 +38,12 @@ if TYPE_CHECKING:
 logger = LogManager.get_logger("ai.skill.resolver")
 
 _BASELINE_RUNTIME_BUILTINS = parts.BASELINE_RUNTIME_BUILTINS
+_PAGE_RUNTIME_HINT_TOKENS = frozenset(
+    {"page", "ui", "surface", "form", "browser", "dom", "locator", "snapshot"}
+)
+_WEB_RESEARCH_HINT_TOKENS = frozenset(
+    {"research", "search", "web", "fetch", "url", "crawl", "browse"}
+)
 
 
 @dataclass
@@ -180,6 +188,7 @@ class SkillGrantPreview:
     package_name: str
     source_plugin: str
     preview_tool_names: list[str] = field(default_factory=list)
+    preview_semantic_families: list[str] = field(default_factory=list)
 
 
 def build_skill_capability_descriptors(skills: list[Any]) -> list[CapabilityDescriptor]:
@@ -276,6 +285,39 @@ def _preview_tool_names_for_skill(
     return []
 
 
+def _semantic_hint_tokens(*values: Any) -> set[str]:
+    tokens: set[str] = set()
+    for value in values:
+        normalized = re.sub(r"[^a-z0-9]+", " ", str(value or "").lower())
+        tokens.update(token for token in normalized.split() if token)
+    return tokens
+
+
+def _preview_semantic_families_for_skill(
+    *,
+    skill: Any,
+    package_name: str,
+    source_plugin: str,
+    preview_tool_names: list[str],
+) -> list[str]:
+    families: list[str] = []
+    for tool_name in preview_tool_names:
+        family = tool_family_from_name(str(tool_name or "").strip())
+        if family != "none" and family not in families:
+            families.append(family)
+
+    hint_tokens = _semantic_hint_tokens(
+        getattr(skill, "name", None),
+        package_name,
+        source_plugin,
+    )
+    if hint_tokens & _PAGE_RUNTIME_HINT_TOKENS and "page_ops" not in families:
+        families.append("page_ops")
+    if hint_tokens & _WEB_RESEARCH_HINT_TOKENS and "web_research" not in families:
+        families.append("web_research")
+    return families
+
+
 def _build_skill_grant_previews(grants: list[Any]) -> list[SkillGrantPreview]:
     previews: list[SkillGrantPreview] = []
     for grant in grants:
@@ -286,6 +328,11 @@ def _build_skill_grant_previews(grants: list[Any]) -> list[SkillGrantPreview]:
         package = getattr(skill, "package", None)
         package_name = str(getattr(package, "name", "") or "").strip()
         source_plugin = str(getattr(package, "source_plugin", "") or "").strip()
+        preview_tool_names = _preview_tool_names_for_skill(
+            skill=skill,
+            config=merged_config,
+            source_plugin=source_plugin,
+        )
         previews.append(
             SkillGrantPreview(
                 grant=grant,
@@ -293,10 +340,12 @@ def _build_skill_grant_previews(grants: list[Any]) -> list[SkillGrantPreview]:
                 merged_config=merged_config,
                 package_name=package_name,
                 source_plugin=source_plugin,
-                preview_tool_names=_preview_tool_names_for_skill(
+                preview_tool_names=preview_tool_names,
+                preview_semantic_families=_preview_semantic_families_for_skill(
                     skill=skill,
-                    config=merged_config,
+                    package_name=package_name,
                     source_plugin=source_plugin,
+                    preview_tool_names=preview_tool_names,
                 ),
             )
         )
@@ -322,11 +371,33 @@ def _build_startup_preview_result(
                     source_plugin=preview.source_plugin or None,
                 )
             )
+    preview_descriptors = build_skill_capability_descriptors(
+        [preview.skill for preview in grant_previews]
+    )
+    enrich_skill_capability_descriptors_with_tools(
+        descriptors=preview_descriptors,
+        tools=preview_tools,
+    )
+    preview_families_by_skill_id = {
+        getattr(preview.skill, "id", None): list(
+            preview.preview_semantic_families or []
+        )
+        for preview in grant_previews
+    }
+    for descriptor in preview_descriptors:
+        metadata = dict(getattr(descriptor, "metadata", {}) or {})
+        preview_families = preview_families_by_skill_id.get(
+            metadata.get("skill_id"), []
+        )
+        if not preview_families:
+            continue
+        descriptor.metadata = {
+            **metadata,
+            "preview_semantic_families": list(preview_families),
+        }
     return SkillResolveResult(
         tools=preview_tools,
-        capability_descriptors=build_skill_capability_descriptors(
-            [preview.skill for preview in grant_previews]
-        ),
+        capability_descriptors=preview_descriptors,
     )
 
 
@@ -338,13 +409,17 @@ def _filter_grant_previews_for_turn_startup(
     if request is None or not grant_previews:
         return grant_previews
 
-    from app.ai.skills.turn_activation import apply_turn_skill_activation
+    from app.ai.skills.turn_activation import (
+        apply_turn_skill_activation,
+        resolve_startup_intent_flags,
+    )
 
     preview_result = _build_startup_preview_result(grant_previews)
+    startup_intent_flags = resolve_startup_intent_flags(request)
     apply_turn_skill_activation(
         skill_result=preview_result,
         request=request,
-        intent_flags=None,
+        intent_flags=startup_intent_flags,
     )
     activation = getattr(preview_result, "turn_activation", None)
     if activation is None or not activation.applied:

@@ -173,22 +173,22 @@
 28. `backend/app/ai/context/assembly_initial_support.py`、`backend/app/ai/runtime/context_assembler.py`、`backend/app/ai/runtime/context_capability_bridge.py` 与 `backend/app/ai/skills/resolver.py` 已把 skill startup owner 再前移一刀：turn activation 现在会刷新 provisional capability bundle / initial intent planning，不再只在 prepared-execution 末端才裁掉 broader inventory；同时 auto-injected baseline builtins 不再被误判成 skill-owned，因此启动阶段仍可保持 baseline 工具可用，而 skill-owned tool/descriptors 会收敛到 activated subset。
 29. `backend/app/services/ai/agent_chat_memory_support.py`、`backend/app/services/ai/agent_chat_runtime_support.py` 与 `backend/app/services/ai/agent_chat_command_service.py` 已把 memory startup owner 从 chat/stream 内联逻辑中抽出：`thread_memory_state` 会先经过统一 normalization，再由共享 startup helper 对 request 执行 priming；chat 与 stream 现在复用同一条 startup seam，不再各自直接解析 `conversation.metadata_.thread_memory_state`。
 30. `backend/app/ai/skills/resolver.py`、`backend/app/ai/skills/turn_activation.py`、`backend/app/ai/engine/dispatcher.py`、`backend/app/services/ai/agent_chat_stream_bootstrap_service.py` 与 `backend/app/ai/engine/prepare_execution_pipeline.py` 已把一部分 skill inventory owner 再前移到 resolver 输入边界：当 turn 已带有显式 skill mention、显式工具名或 capability-reporting query 时，startup resolver 会先基于 grant-level preview 做预过滤，再进入完整 skill resolve；chat/stream/dispatcher/prepare-execution 现在都会把 live request 传进这条 startup seam，而不是一律先把 agent 全量 grant eager resolve 出来。
+31. `backend/app/ai/skills/resolver.py`、`backend/app/ai/skills/turn_activation.py` 与 `backend/app/ai/engine/system_prompt_intent_helpers.py` 已继续把 startup owner 往前收口：resolver startup 现在会先从 live request 推导 page/web runtime-policy family，再结合 preview semantic families 对 plugin/connector grant 做 bounded 预过滤；因此 page/web turn 不必等到 full resolve 之后才开始裁掉无关 skill inventory，而 prepared-execution 的 intent-flag helper 也会保留 `has_web_research_intent`，不再在统一 turn flag 面上丢信号。
 
-### 2026-04-20 审计补充：仍未收敛到 codex-main owner 的差距
+### 2026-04-21 审计补充：仍未收敛到 codex-main owner 的差距
 
 以下结论来自对当前工作树与 `C:\Users\Administrator\Downloads\codex-main` 的再次逐文件对照。它们代表仍活跃的 runtime seam，不应被 Trellis 目标规范误判为“已经完成”。
 
-1. `suggested_tools` seam 仍在通过公共 helper 反向影响 backend 运行时，而不只是留在前端 UX。
-   当前 `backend/app/ai/tools/semantic_defaults.py` 的 `page_context_available_ui_tools()` 仍会优先读取 `page_context.suggested_tools`，而 `backend/app/ai/engine/intent_signal_helpers.py`、`backend/app/services/ai/agent_router_policy.py`、`backend/app/ai/engine/page_flow_recovery_helpers.py`、`backend/app/ai/runtime/manifest.py` 又共同复用了这条 helper。结果是提示用的页面 hint 仍会渗入 intent 信号、路由门槛、recovery 候选与 capability inventory，总体上还没有彻底切断 `suggested_tools -> runtime semantics` 这条旧 seam。
+1. `suggested_tools` 作为 backend runtime 语义输入的 seam 已完成清理，但它仍保留在 frontend affordance / compact snapshot / read-model 边界中，因此后续实现仍需继续守住“只读 UX hint，不回流 live routing”的边界，避免旧 seam 以展示层 helper 的名义复活。
 2. 技能包的 inventory owner 已不再是“无条件 agent 级 eager resolve”，但仍未完全收敛到 codex-main 的 turn-level mention/policy/connector 激活模型。
-   当前 `backend/app/ai/skills/resolver.py` 已能在 startup 阶段对显式 skill mention、显式工具名与 capability-reporting query 做 grant-level 预过滤，减少一部分无差别 full resolve；但 runtime-policy page/web activation 仍主要发生在 `backend/app/ai/skills/turn_activation.py` 的后续 turn seam，未知 preview 的 plugin/connector 技能也仍保留安全回退，因此技能依赖、connector visibility 与更强的 startup activation owner 仍是后续 debt。
+   当前 `backend/app/ai/skills/resolver.py` 已能在 startup 阶段对显式 skill mention、显式工具名、capability-reporting query 与 request-derived page/web runtime policy 做 grant-level 预过滤，并为 plugin/connector grant 附加 bounded semantic-family preview；但这仍是安全启发式，未知 preview 的 connector 依赖、安装态 discoverability 与更强的 startup activation owner 仍是后续 debt。
 3. 记忆治理已不再是纯 raw request flag 直连，也不再停留在“command service 内联抄 thread state”的阶段，但仍未完全落到 codex-main 那种 stateful thread memory mode。
    当前 `backend/app/ai/memory_policy.py` 已把 context gating、manifest、session-memory load 和 long-term capture 收敛到统一 `memory_runtime_policy`，`backend/app/services/ai/agent_chat_memory_support.py` 也已提供共享 startup helper，对 chat/stream 启动统一解析并归一化 `thread_memory_state`；但这仍是轻量 thread snapshot，还没有 codex-main 那种 startup memory jobs、后台 consolidation 与更强的 state-db-backed thread owner，因此跨 turn 的长期治理和后台记忆整编仍是后续 debt。
 
 这些差距说明：
 
 1. 当前代码虽然已经明显脱离“逐页补适配”的最差状态，但还没有完全达到 codex-main 那种“统一 turn loop + 通用 tool payload + 外部 connector/MCP owner + thread-level memory owner”的收敛程度。
-2. 后续 Phase 1 / Phase 2 / Phase 4 的实现顺序仍然正确，不应回头补更多页面特例；应该继续优先清理上述三条 live seam。
+2. 后续 Phase 1 / Phase 2 / Phase 4 的实现顺序仍然正确，不应回头补更多页面特例；应该继续优先清理上述两条 live seam，并持续守住已收掉的 `suggested_tools -> runtime semantics` 边界。
 3. canonical spec 里的目标规则继续保持不变；这里记录的是当前实现债务，而不是要把规范降回兼容旧 seam 的状态。
 
 ### Phase 5: Context-Budget Alignment

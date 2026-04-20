@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 from app.ai.context.orchestrator import ContextPipelineOrchestrator
+from app.ai.engine.system_prompt_intent_helpers import intent_plan_gating_flags
 
 
 def _intent(kind: str, *, shortcircuit: bool = False):
@@ -21,7 +22,9 @@ def _request(
     )
 
 
-def test_context_pipeline_orchestrator_enables_runtime_memory_for_generic_turns() -> None:
+def test_context_pipeline_orchestrator_enables_runtime_memory_for_generic_turns() -> (
+    None
+):
     flags = ContextPipelineOrchestrator.compute_intent_flags(
         [_intent("assistant_response", shortcircuit=False)],
         request=_request(memory_enabled=True, long_term_memory_enabled=True),
@@ -101,3 +104,12 @@ def test_context_pipeline_orchestrator_suppresses_long_term_recall_for_polluted_
     assert flags.memory_context_enabled is False
     assert flags.should_run_memory_profile is False
     assert flags.should_run_memory_vector_recall is False
+
+
+def test_intent_plan_gating_flags_keeps_web_research_signal() -> None:
+    flags = intent_plan_gating_flags(
+        [_intent("web_research", shortcircuit=False)],
+        request=_request(),
+    )
+
+    assert flags["has_web_research_intent"] is True

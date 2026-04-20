@@ -320,6 +320,7 @@ def intent_plan_gating_flags(
         "all_shortcircuit": bool(flags.all_shortcircuit),
         "has_page_intent": bool(flags.has_page_intent),
         "has_knowledge_intent": bool(flags.has_knowledge_intent),
+        "has_web_research_intent": bool(flags.has_web_research_intent),
         "has_memory_intent": bool(flags.has_memory_intent),
         "memory_context_enabled": bool(flags.memory_context_enabled),
         "session_memory_runtime_enabled": bool(flags.session_memory_runtime_enabled),

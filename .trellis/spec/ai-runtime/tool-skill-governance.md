@@ -139,10 +139,11 @@ export async function submitRuntimeForm(args: { confirm?: boolean; formSessionId
   not require per-page adaptation before it becomes usable.
 - Resolver startup should prefilter grant resolution when the turn already
   carries a bounded activation signal such as an explicit skill mention,
-  explicit tool-call name, or capability-reporting query. Resolver startup
-  may keep a safety fallback to the broader grant set when startup signals are
-  absent or the preview is incomplete, but command/dispatcher entrypoints must
-  pass the live request into skill resolution so that prefilter seam can run.
+  explicit tool-call name, capability-reporting query, or request-derived
+  runtime-policy family such as page/web turns. Resolver startup may keep a
+  safety fallback to the broader grant set when startup signals are absent or
+  the preview is incomplete, but command/dispatcher entrypoints must pass the
+  live request into skill resolution so that prefilter seam can run.
 - Startup activation may narrow skill-owned tools, but auto-injected baseline
   runtime builtins remain startup-available. Do not reclassify those baseline
   builtins as skill-owned just because they expose `source_skill_name`-style
@@ -269,12 +270,15 @@ export async function submitRuntimeForm(args: { confirm?: boolean; formSessionId
   entries that explicitly resolve to `has_execution_tools=false` must be
   treated as catalog-only.
 - `backend/app/ai/skills/resolver.py` now performs a bounded startup
-  prefilter for explicit skill mentions, explicit tool-call names, and
-  capability-reporting queries before full skill resolution, while
-  `backend/app/ai/skills/turn_activation.py` remains the live activation seam
-  for runtime-policy page/web activation and later turn narrowing. Treat those
-  two layers together as the current startup/live owner chain; do not add new
-  prompt-driven or page-specific paths that bypass them.
+  prefilter for explicit skill mentions, explicit tool-call names,
+  capability-reporting queries, and request-derived page/web runtime-policy
+  families before full skill resolution. Startup preview may attach bounded
+  semantic-family hints for plugin/connector grants when exact preview tool
+  names are not yet known, while `backend/app/ai/skills/turn_activation.py`
+  remains the live activation seam for later turn narrowing against resolved
+  tool truth. Treat those two layers together as the current startup/live
+  owner chain; do not add new prompt-driven or page-specific paths that bypass
+  them.
 - `frontend/.../ai-slide-panel/use-page-ai-capability.ts` and
   `frontend/.../utils/page-navigation.ts` still read `suggested_tools` for
   local affordance display and fallback assembly. Keep that boundary UX-only;
