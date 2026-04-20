@@ -6,6 +6,11 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from app.ai.json_safe import normalize_json_safe_dict
+from app.ai.memory_policy import (
+    build_memory_runtime_projection,
+    normalize_memory_runtime_policy,
+    normalize_thread_memory_state,
+)
 from app.services.ai.conversation_diagnostics_projector import (
     ConversationDiagnosticsProjector,
 )
@@ -151,11 +156,11 @@ class ConversationRuntimeProjectionService:
         del interaction_mode_effective
         metadata = cls._message_metadata(last_assistant_message)
         turn_meta = cls.extract_turn_diagnostics_from_metadata(metadata)
-        memory_runtime_policy = cls._resolve_memory_runtime_policy(
+        memory_runtime_projection = cls._build_memory_runtime_projection(
             metadata,
             thread_memory_state=thread_memory_state,
         )
-        return {
+        payload = {
             "estimated_tokens": (
                 last_assistant_message.get("token_count")
                 if isinstance(last_assistant_message, dict)
@@ -166,9 +171,9 @@ class ConversationRuntimeProjectionService:
             "memory_recalled": bool(metadata.get("memory_recalled")),
             "memory_flush_triggered": bool(metadata.get("memory_flush_triggered")),
             "external_context_polluted": bool(
-                memory_runtime_policy.get("external_context_polluted")
+                memory_runtime_projection.get("external_context_polluted")
             ),
-            "external_context_reason": memory_runtime_policy.get(
+            "external_context_reason": memory_runtime_projection.get(
                 "external_context_reason"
             ),
             "prune_stats": metadata.get("prune_stats"),
@@ -177,6 +182,8 @@ class ConversationRuntimeProjectionService:
             or (turn_meta.get("termination_reason") == "interrupted"),
             **cls._shared_turn_projection(turn_meta, metadata=metadata),
         }
+        payload.update(cls._optional_memory_runtime_fields(memory_runtime_projection))
+        return payload
 
     @classmethod
     def build_last_run_summary_payload(
@@ -190,7 +197,7 @@ class ConversationRuntimeProjectionService:
         del interaction_mode_effective, downgrade_reason
         metadata = cls._message_metadata(last_assistant_message)
         turn_meta = cls.extract_turn_diagnostics_from_metadata(metadata)
-        memory_runtime_policy = cls._resolve_memory_runtime_policy(
+        memory_runtime_projection = cls._build_memory_runtime_projection(
             metadata,
             thread_memory_state=thread_memory_state,
         )
@@ -204,7 +211,7 @@ class ConversationRuntimeProjectionService:
         interrupted = bool(metadata.get("interrupted")) or (
             completion_reason == "interrupted"
         )
-        return {
+        payload = {
             "completion_reason": completion_reason,
             "created_at": (
                 last_assistant_message.get("created_at")
@@ -223,13 +230,15 @@ class ConversationRuntimeProjectionService:
                 else None
             ),
             "external_context_polluted": bool(
-                memory_runtime_policy.get("external_context_polluted")
+                memory_runtime_projection.get("external_context_polluted")
             ),
-            "external_context_reason": memory_runtime_policy.get(
+            "external_context_reason": memory_runtime_projection.get(
                 "external_context_reason"
             ),
             **shared_projection,
         }
+        payload.update(cls._optional_memory_runtime_fields(memory_runtime_projection))
+        return payload
 
     @staticmethod
     def _message_metadata(
@@ -246,11 +255,8 @@ class ConversationRuntimeProjectionService:
     ) -> dict[str, Any]:
         if not isinstance(conversation_metadata, dict):
             return {}
-        raw_thread_memory_state = conversation_metadata.get("thread_memory_state")
-        return (
-            dict(raw_thread_memory_state)
-            if isinstance(raw_thread_memory_state, dict)
-            else {}
+        return normalize_thread_memory_state(
+            conversation_metadata.get("thread_memory_state")
         )
 
     @staticmethod
@@ -265,27 +271,53 @@ class ConversationRuntimeProjectionService:
             else None
         )
         if isinstance(raw_memory_runtime_policy, dict):
-            return dict(raw_memory_runtime_policy)
+            return normalize_memory_runtime_policy(raw_memory_runtime_policy)
         if isinstance(thread_memory_state, dict):
-            return dict(thread_memory_state)
+            return normalize_memory_runtime_policy(thread_memory_state)
         return {}
 
+    @classmethod
+    def _build_memory_runtime_projection(
+        cls,
+        metadata: dict[str, Any] | None,
+        *,
+        thread_memory_state: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        return build_memory_runtime_projection(
+            cls._resolve_memory_runtime_policy(
+                metadata,
+                thread_memory_state=thread_memory_state,
+            )
+        )
+
     @staticmethod
+    def _optional_memory_runtime_fields(
+        memory_runtime_projection: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        if not isinstance(memory_runtime_projection, dict):
+            return {}
+
+        payload: dict[str, Any] = {}
+        memory_runtime_policy = memory_runtime_projection.get("memory_runtime_policy")
+        if isinstance(memory_runtime_policy, dict):
+            payload["memory_runtime_policy"] = memory_runtime_policy
+
+        memory_mode = memory_runtime_projection.get("memory_mode")
+        if isinstance(memory_mode, str) and memory_mode.strip():
+            payload["memory_mode"] = memory_mode
+
+        return payload
+
+    @classmethod
     def _apply_thread_memory_projection(
+        cls,
         payload: dict[str, Any] | None,
         *,
         thread_memory_state: dict[str, Any] | None,
     ) -> None:
         if not isinstance(payload, dict) or not isinstance(thread_memory_state, dict):
             return
-        if thread_memory_state.get("external_context_polluted") is not None:
-            payload["external_context_polluted"] = bool(
-                thread_memory_state.get("external_context_polluted")
-            )
-        if thread_memory_state.get("external_context_reason"):
-            payload["external_context_reason"] = thread_memory_state.get(
-                "external_context_reason"
-            )
+        payload.update(build_memory_runtime_projection(thread_memory_state))
 
     @staticmethod
     def _shared_turn_projection(

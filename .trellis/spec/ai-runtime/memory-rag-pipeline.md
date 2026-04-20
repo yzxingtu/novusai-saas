@@ -80,6 +80,10 @@ request and is surfaced as a context source.
 - Conversation read models may fall back to `thread_memory_state` when the
   latest assistant payload does not carry `memory_runtime_policy`, so thread
   owner signals do not disappear on error-only or metadata-light turns.
+- Conversation diagnostics and last-run summaries should project the normalized
+  `memory_runtime_policy` payload plus a compact derived `memory_mode` from
+  assistant metadata or thread fallback, rather than exposing only ad-hoc
+  pollution booleans.
 
 ## Long-Term Memory
 
@@ -145,6 +149,9 @@ is cached for reuse.
 - Assistant-turn persistence must carry `memory_runtime_policy`, and
   conversation persistence must mirror a normalized `thread_memory_state`
   snapshot for thread-level monitoring and future startup ownership.
+- When memory policy exists, conversation detail/read-model projections should
+  expose both the normalized `memory_runtime_policy` payload and the derived
+  `memory_mode`, alongside any pollution flags.
 
 ## Required Behavior
 

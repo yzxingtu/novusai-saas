@@ -326,8 +326,19 @@ class TestGetConversationDetail:
             "content": "已处理",
             "metadata": {
                 "memory_runtime_policy": {
+                    "scene": " ai_chat_page ",
+                    "channel": " tenant_chat ",
+                    "source": " runtime ",
+                    "session_memory_runtime_enabled": 1,
+                    "session_memory_read_enabled": 1,
+                    "session_memory_write_enabled": 0,
+                    "long_term_memory_runtime_enabled": True,
+                    "long_term_memory_recall_enabled": 0,
+                    "long_term_memory_capture_enabled": 1,
+                    "memory_context_enabled": 1,
                     "external_context_polluted": True,
-                    "external_context_reason": "tool:web_search",
+                    "external_context_reason": " tool:web_search ",
+                    "unexpected": "drop-me",
                 }
             },
         }
@@ -345,12 +356,30 @@ class TestGetConversationDetail:
 
         detail = await service.get_conversation_detail(1, user_id=1)
 
+        expected_policy = {
+            "scene": "ai_chat_page",
+            "channel": "tenant_chat",
+            "source": "runtime",
+            "session_memory_runtime_enabled": True,
+            "session_memory_read_enabled": True,
+            "session_memory_write_enabled": False,
+            "long_term_memory_runtime_enabled": True,
+            "long_term_memory_recall_enabled": False,
+            "long_term_memory_capture_enabled": True,
+            "memory_context_enabled": True,
+            "external_context_polluted": True,
+            "external_context_reason": "tool:web_search",
+        }
         assert detail["context_diagnostics"]["external_context_polluted"] is True
         assert (
             detail["context_diagnostics"]["external_context_reason"]
             == "tool:web_search"
         )
+        assert detail["context_diagnostics"]["memory_runtime_policy"] == expected_policy
+        assert detail["context_diagnostics"]["memory_mode"] == "session_and_long_term"
         assert detail["last_run_summary"]["external_context_polluted"] is True
+        assert detail["last_run_summary"]["memory_runtime_policy"] == expected_policy
+        assert detail["last_run_summary"]["memory_mode"] == "session_and_long_term"
 
     @pytest.mark.asyncio
     async def test_conversation_detail_falls_back_to_thread_memory_state_without_assistant(
@@ -362,8 +391,20 @@ class TestGetConversationDetail:
         conversation.metadata_ = {
             "interaction_mode": "confirm",
             "thread_memory_state": {
+                "scene": " admin_chat ",
+                "channel": " tenant_chat ",
+                "source": " startup ",
+                "session_memory_runtime_enabled": True,
+                "session_memory_read_enabled": True,
+                "session_memory_write_enabled": True,
+                "long_term_memory_runtime_enabled": False,
+                "long_term_memory_recall_enabled": False,
+                "long_term_memory_capture_enabled": False,
+                "memory_context_enabled": True,
                 "external_context_polluted": True,
-                "external_context_reason": "tool:web_search",
+                "external_context_reason": " tool:web_search ",
+                "updated_at": "2026-04-07T12:00:01+00:00",
+                "legacy": "drop-me",
             },
             "last_error": {
                 "timestamp": "2026-04-07T12:00:00+00:00",
@@ -388,15 +429,33 @@ class TestGetConversationDetail:
 
         detail = await service.get_conversation_detail(1, user_id=1)
 
+        expected_policy = {
+            "scene": "admin_chat",
+            "channel": "tenant_chat",
+            "source": "startup",
+            "session_memory_runtime_enabled": True,
+            "session_memory_read_enabled": True,
+            "session_memory_write_enabled": True,
+            "long_term_memory_runtime_enabled": False,
+            "long_term_memory_recall_enabled": False,
+            "long_term_memory_capture_enabled": False,
+            "memory_context_enabled": True,
+            "external_context_polluted": True,
+            "external_context_reason": "tool:web_search",
+        }
         assert detail["context_diagnostics"]["external_context_polluted"] is True
         assert (
             detail["context_diagnostics"]["external_context_reason"]
             == "tool:web_search"
         )
+        assert detail["context_diagnostics"]["memory_runtime_policy"] == expected_policy
+        assert detail["context_diagnostics"]["memory_mode"] == "session_only"
         assert detail["last_run_summary"]["external_context_polluted"] is True
         assert (
             detail["last_run_summary"]["external_context_reason"] == "tool:web_search"
         )
+        assert detail["last_run_summary"]["memory_runtime_policy"] == expected_policy
+        assert detail["last_run_summary"]["memory_mode"] == "session_only"
 
     @pytest.mark.asyncio
     async def test_conversation_detail_uses_latest_assistant_for_diagnostics_even_when_page_is_older(

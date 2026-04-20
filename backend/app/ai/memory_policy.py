@@ -208,44 +208,107 @@ def attach_memory_runtime_policy(
     return policy
 
 
+def _normalize_memory_runtime_payload(
+    payload: dict[str, Any] | None,
+) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        return {}
+
+    filtered_payload = {
+        key: value for key, value in payload.items() if key in _THREAD_POLICY_FIELDS
+    }
+    if not filtered_payload:
+        return {}
+
+    return MemoryRuntimePolicy(
+        scene=_normalize_text(filtered_payload.get("scene")),
+        channel=_normalize_text(filtered_payload.get("channel")),
+        source=_normalize_text(filtered_payload.get("source")),
+        session_memory_runtime_enabled=bool(
+            filtered_payload.get("session_memory_runtime_enabled", False)
+        ),
+        session_memory_read_enabled=bool(
+            filtered_payload.get("session_memory_read_enabled", False)
+        ),
+        session_memory_write_enabled=bool(
+            filtered_payload.get("session_memory_write_enabled", False)
+        ),
+        long_term_memory_runtime_enabled=bool(
+            filtered_payload.get("long_term_memory_runtime_enabled", False)
+        ),
+        long_term_memory_recall_enabled=bool(
+            filtered_payload.get("long_term_memory_recall_enabled", False)
+        ),
+        long_term_memory_capture_enabled=bool(
+            filtered_payload.get("long_term_memory_capture_enabled", False)
+        ),
+        memory_context_enabled=bool(
+            filtered_payload.get("memory_context_enabled", False)
+        ),
+        external_context_polluted=bool(
+            filtered_payload.get("external_context_polluted", False)
+        ),
+        external_context_reason=_normalize_text(
+            filtered_payload.get("external_context_reason")
+        )
+        or None,
+    ).to_dict()
+
+
+def normalize_memory_runtime_policy(
+    memory_runtime_policy: dict[str, Any] | None,
+) -> dict[str, Any]:
+    return _normalize_memory_runtime_payload(memory_runtime_policy)
+
+
+def resolve_memory_runtime_mode(
+    memory_runtime_policy: dict[str, Any] | None,
+) -> str | None:
+    normalized = normalize_memory_runtime_policy(memory_runtime_policy)
+    if not normalized:
+        return None
+
+    session_enabled = bool(normalized.get("session_memory_runtime_enabled"))
+    long_term_enabled = bool(normalized.get("long_term_memory_runtime_enabled"))
+    if session_enabled and long_term_enabled:
+        return "session_and_long_term"
+    if session_enabled:
+        return "session_only"
+    if long_term_enabled:
+        return "long_term_only"
+    return "disabled"
+
+
+def build_memory_runtime_projection(
+    memory_runtime_policy: dict[str, Any] | None,
+) -> dict[str, Any]:
+    normalized = normalize_memory_runtime_policy(memory_runtime_policy)
+    if not normalized:
+        return {}
+
+    projection = {
+        "memory_runtime_policy": normalized,
+        "memory_mode": resolve_memory_runtime_mode(normalized),
+        "external_context_polluted": bool(normalized.get("external_context_polluted")),
+    }
+    if normalized.get("external_context_reason"):
+        projection["external_context_reason"] = normalized.get(
+            "external_context_reason"
+        )
+    return projection
+
+
 def normalize_thread_memory_state(
     thread_memory_state: dict[str, Any] | None,
 ) -> dict[str, Any]:
     if not isinstance(thread_memory_state, dict):
         return {}
 
-    payload = {
-        key: value
-        for key, value in thread_memory_state.items()
-        if key in _THREAD_POLICY_FIELDS
-    }
-    normalized = MemoryRuntimePolicy(
-        scene=_normalize_text(payload.get("scene")),
-        channel=_normalize_text(payload.get("channel")),
-        source=_normalize_text(payload.get("source")),
-        session_memory_runtime_enabled=bool(
-            payload.get("session_memory_runtime_enabled", False)
-        ),
-        session_memory_read_enabled=bool(
-            payload.get("session_memory_read_enabled", False)
-        ),
-        session_memory_write_enabled=bool(
-            payload.get("session_memory_write_enabled", False)
-        ),
-        long_term_memory_runtime_enabled=bool(
-            payload.get("long_term_memory_runtime_enabled", False)
-        ),
-        long_term_memory_recall_enabled=bool(
-            payload.get("long_term_memory_recall_enabled", False)
-        ),
-        long_term_memory_capture_enabled=bool(
-            payload.get("long_term_memory_capture_enabled", False)
-        ),
-        memory_context_enabled=bool(payload.get("memory_context_enabled", False)),
-        external_context_polluted=bool(payload.get("external_context_polluted", False)),
-        external_context_reason=_normalize_text(payload.get("external_context_reason"))
-        or None,
-    ).to_thread_state()
+    normalized = _normalize_memory_runtime_payload(thread_memory_state)
+    if not normalized:
+        return {}
+
+    normalized = dict(normalized)
     updated_at = _normalize_text(thread_memory_state.get("updated_at"))
     if updated_at:
         normalized["updated_at"] = updated_at
@@ -300,8 +363,11 @@ def prime_memory_runtime_policy(
 __all__ = [
     "MemoryRuntimePolicy",
     "attach_memory_runtime_policy",
+    "build_memory_runtime_projection",
     "detect_external_context_pollution",
+    "normalize_memory_runtime_policy",
     "normalize_thread_memory_state",
     "prime_memory_runtime_policy",
+    "resolve_memory_runtime_mode",
     "resolve_memory_runtime_policy",
 ]
