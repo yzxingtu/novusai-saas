@@ -7,6 +7,7 @@ from typing import Any
 
 from app.ai.engine.types import ExecutionResult
 from app.ai.events.hooks import HookPoint
+from app.ai.memory_policy import attach_memory_runtime_policy
 from app.ai.types import ChatMessage
 from app.core.i18n import _
 from app.core.logging import LogManager
@@ -164,6 +165,10 @@ class AgentChatStreamPersistenceOrchestrator:
 
             if final_result.success:
                 try:
+                    attach_memory_runtime_policy(
+                        request=self.request,
+                        result=final_result,
+                    )
                     memory_delta = await self.persist_session_memory(
                         request=self.request,
                         message=self.message,

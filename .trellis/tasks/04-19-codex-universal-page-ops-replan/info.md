@@ -161,6 +161,27 @@
 16. `frontend/apps/web-antd/src/utils/ai-page-capabilities.ts`、`frontend/apps/web-antd/src/components/business/ai-chat-panel/tool-call-utils.ts` 已停止把 `navigate_menu`、`open_page`、`read_visible_rows`、`fill_form`、`submit_form` 等 legacy 名字视为 live page-runtime truth；当前 capability filtering、pending-op 展示与 navigation-only allowlist 仅识别 canonical `ui_*` 工具名。
 17. `frontend/apps/web-antd/src/composables/use-ai-page-policy.ts` 已将 route-security 默认写入动作收敛到 canonical `ui_set_field` / `ui_fill_form` / `ui_submit_form`；`use-page-ai-operation-helpers-*` 中原先会静默产出 `create_record` / `open_page` / `read_row_detail` 等 legacy 默认名的 helper 现已要求显式 `name`，避免新代码继续无意识复活旧 seam。
 18. `backend/app/services/ai/conversation_interaction_service.py`、`frontend/apps/web-antd/src/components/business/ai-chat-panel/use-ai-chat-interactions.ts` 与消息合并层已把 `pending_confirmation` 的 live match key 收敛到 `tool_name`：前后端都不再要求依赖 `action/table` 才能完成确认回传，旧字段仅保留为证据与历史兼容信息。
+19. `backend/app/ai/tools/semantic_defaults.py` 已把 `page_context_available_ui_tools()` 收敛为 runtime-state-only 推断：helper 不再读取 `suggested_tools`，也不再把整套 `ui_*` 工具无差别回灌给 backend 消费方；`backend/tests/services/test_agent_chat_page_context.py` 与 `backend/tests/ai/test_tool_argument_recovery.py` 已补上回归测试，防止 `suggested_tools -> backend runtime semantics` 这条 seam 再次复活。
+20. `backend/app/ai/runtime/types.py`、`backend/app/ai/engine/prepare_execution_tool_helpers.py` 已新增 live capability projection：一旦 tool planning 选出本轮工具子集，capability bundle、runtime manifest、runtime capability summary 与 `selected_skill_names` 诊断都会投影到该子集，避免“agent 级已授权 skill”继续直接冒充本轮 live skill surface。
+21. 该投影规则保留了 capability-reporting turn 的 inventory 语义：当用户只是在问“这轮有哪些能力”且本轮没有 live tool 子集时，runtime summary 仍可报告 broader inventory；但一旦进入真实 tool-bearing turn，live diagnostics 只能反映被选中的 capability packs。
+22. `backend/app/ai/memory_policy.py`、`backend/app/ai/context/orchestrator.py`、`backend/app/ai/runtime/context_assembler.py`、`backend/app/ai/runtime/manifest.py` 与 `backend/app/services/ai/agent_chat_memory_support.py` 已围绕统一 `memory_runtime_policy` 收敛：context gating、runtime manifest、session-memory load 与 long-term capture 不再各自直接看 raw request flag；当 turn 被 `web_search` / `fetch_url` 等外部 research 路径污染时，durable long-term capture 会被显式抑制并记录污染原因。
+
+### 2026-04-20 审计补充：仍未收敛到 codex-main owner 的差距
+
+以下结论来自对当前工作树与 `C:\Users\Administrator\Downloads\codex-main` 的再次逐文件对照。它们代表仍活跃的 runtime seam，不应被 Trellis 目标规范误判为“已经完成”。
+
+1. `suggested_tools` seam 仍在通过公共 helper 反向影响 backend 运行时，而不只是留在前端 UX。
+   当前 `backend/app/ai/tools/semantic_defaults.py` 的 `page_context_available_ui_tools()` 仍会优先读取 `page_context.suggested_tools`，而 `backend/app/ai/engine/intent_signal_helpers.py`、`backend/app/services/ai/agent_router_policy.py`、`backend/app/ai/engine/page_flow_recovery_helpers.py`、`backend/app/ai/runtime/manifest.py` 又共同复用了这条 helper。结果是提示用的页面 hint 仍会渗入 intent 信号、路由门槛、recovery 候选与 capability inventory，总体上还没有彻底切断 `suggested_tools -> runtime semantics` 这条旧 seam。
+2. 技能包的 inventory owner 仍然是 agent 级 eager resolve，尚未完全收敛到 codex-main 的 turn-level mention/policy/connector 激活模型。
+   当前 `backend/app/ai/skills/resolver.py` 仍会遍历 agent 的全部启用 grant 并一次性 resolve；虽然 `backend/app/ai/engine/prepare_execution_tool_helpers.py` 已把 tool-bearing turn 的 live capability bundle 投影到选中工具子集，但 capability-reporting / no-tool turn 仍会读取更宽的 inventory，技能依赖、显式 mention 与 connector 可见性的 owner 也还没有像 codex-main 那样前移到 turn startup。
+3. 记忆治理已不再是纯 raw request flag 直连，但仍未完全落到 codex-main 那种 thread-level memory mode、startup pipeline 与持久污染标记。
+   当前 `backend/app/ai/memory_policy.py` 已把 context gating、manifest、session-memory load 和 long-term capture 收敛到统一 `memory_runtime_policy`，并对 polluted research turn 增加了 long-term capture guard；但这份污染状态还没有像 codex-main 一样写回 thread owner，也没有接入 startup memory pipeline，因此跨 turn 的污染继承和后台 consolidation 仍是后续 debt。
+
+这些差距说明：
+
+1. 当前代码虽然已经明显脱离“逐页补适配”的最差状态，但还没有完全达到 codex-main 那种“统一 turn loop + 通用 tool payload + 外部 connector/MCP owner + thread-level memory owner”的收敛程度。
+2. 后续 Phase 1 / Phase 2 / Phase 4 的实现顺序仍然正确，不应回头补更多页面特例；应该继续优先清理上述三条 live seam。
+3. canonical spec 里的目标规则继续保持不变；这里记录的是当前实现债务，而不是要把规范降回兼容旧 seam 的状态。
 
 ### Phase 5: Context-Budget Alignment
 

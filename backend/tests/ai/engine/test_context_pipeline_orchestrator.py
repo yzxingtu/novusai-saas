@@ -7,11 +7,17 @@ def _intent(kind: str, *, shortcircuit: bool = False):
     return SimpleNamespace(kind=kind, shortcircuit=shortcircuit, family="none")
 
 
-def _request(*, memory_enabled: bool = False, long_term_memory_enabled: bool = False):
+def _request(
+    *,
+    memory_enabled: bool = False,
+    long_term_memory_enabled: bool = False,
+    memory_runtime_policy: dict | None = None,
+):
     return SimpleNamespace(
         user_id=7,
         memory_enabled=memory_enabled,
         long_term_memory_enabled=long_term_memory_enabled,
+        memory_runtime_policy=memory_runtime_policy or {},
     )
 
 
@@ -72,5 +78,26 @@ def test_context_pipeline_orchestrator_keeps_memory_save_write_only() -> None:
     assert flags.has_memory_intent is True
     assert flags.memory_context_enabled is True
     assert flags.has_memory_save_intent is True
+    assert flags.should_run_memory_profile is False
+    assert flags.should_run_memory_vector_recall is False
+
+
+def test_context_pipeline_orchestrator_suppresses_long_term_recall_for_polluted_turns() -> (
+    None
+):
+    flags = ContextPipelineOrchestrator.compute_intent_flags(
+        [_intent("assistant_response", shortcircuit=False)],
+        request=_request(
+            memory_enabled=False,
+            long_term_memory_enabled=True,
+            memory_runtime_policy={
+                "external_context_polluted": True,
+                "external_context_reason": "tool:web_search",
+            },
+        ),
+    )
+
+    assert flags.long_term_memory_runtime_enabled is True
+    assert flags.memory_context_enabled is False
     assert flags.should_run_memory_profile is False
     assert flags.should_run_memory_vector_recall is False

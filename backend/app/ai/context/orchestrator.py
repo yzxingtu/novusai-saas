@@ -7,6 +7,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from app.ai.memory_policy import resolve_memory_runtime_policy
+
 
 @dataclass(frozen=True)
 class IntentPlanFlags:
@@ -74,28 +76,27 @@ class ContextPipelineOrchestrator:
         )
         has_memory_save_intent = "memory_save" in intent_kinds
         has_memory_recall_intent = "memory_recall" in intent_kinds
+        memory_policy = resolve_memory_runtime_policy(request)
         session_memory_runtime_enabled = bool(
-            request is not None and bool(getattr(request, "memory_enabled", False))
+            memory_policy.session_memory_runtime_enabled
         )
         long_term_memory_runtime_enabled = bool(
-            request is not None
-            and bool(getattr(request, "long_term_memory_enabled", False))
-            and getattr(request, "user_id", None) is not None
-        )
-        runtime_memory_available = (
-            session_memory_runtime_enabled or long_term_memory_runtime_enabled
+            memory_policy.long_term_memory_runtime_enabled
         )
         allow_memory_even_if_shortcircuit = (
             has_memory_save_intent or has_memory_recall_intent
         )
         has_memory_intent = bool(has_memory_save_intent or has_memory_recall_intent)
         memory_context_enabled = bool(
-            has_memory_intent or (runtime_memory_available and not all_shortcircuit)
+            has_memory_intent
+            or (memory_policy.memory_context_enabled and not all_shortcircuit)
         )
         should_run_memory_profile = has_memory_recall_intent
         should_run_memory_vector_recall = bool(
             has_memory_recall_intent
-            or (long_term_memory_runtime_enabled and not all_shortcircuit)
+            or (
+                memory_policy.long_term_memory_recall_enabled and not all_shortcircuit
+            )
         )
         return IntentPlanFlags(
             all_shortcircuit=all_shortcircuit,

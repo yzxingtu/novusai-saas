@@ -36,3 +36,11 @@
 {"file": "backend/tests/ai/engine/test_intent_page_rules.py", "reason": "Verification anchor that page continuation logic no longer depends on legacy page-op names"}
 {"file": "frontend/apps/web-antd/src/utils/__tests__/ai-page-capabilities.test.ts", "reason": "Verification anchor that frontend capability filters and navigation_only allowlists only expose canonical ui_* page tools"}
 {"file": "frontend/apps/web-antd/src/components/business/ai-chat-panel/__tests__/tool-call-utils.test.ts", "reason": "Verification anchor that pending-op/tool-call display treats only ui_* tool names as runtime page operations"}
+{"file": "backend/app/ai/tools/semantic_defaults.py", "reason": "Audit anchor for eliminating suggested_tools -> backend runtime semantics leakage across intent signals, router policy, recovery, and runtime manifest"}
+{"file": "backend/app/ai/skills/resolver.py", "reason": "Audit anchor for converging from eager agent-grant skill resolution to inventory plus turn-level activation"}
+{"file": "backend/app/ai/runtime/context_assembler.py", "reason": "Audit anchor for selected_skill_names reflecting turn-activated capability packs rather than all resolved grants"}
+{"file": "backend/app/ai/context/orchestrator.py", "reason": "Audit anchor for replacing request-flag-only memory participation with thread-level policy ownership"}
+{"file": "backend/app/services/ai/agent_chat_memory_support.py", "reason": "Audit anchor for session and long-term memory load/capture converging toward thread-level policy, pollution guard, and background pipeline ownership"}
+{"file": "backend/tests/services/test_conversation_engine_prepare_execution.py", "reason": "Verification anchor that tool-bearing turns project runtime selected_skill_names and runtime manifests to the live tool subset"}
+{"file": "backend/tests/ai/engine/test_context_pipeline_orchestrator.py", "reason": "Verification anchor that polluted-turn policy can suppress long-term recall even when the long-term memory switch remains enabled"}
+{"file": "backend/tests/services/test_agent_chat_service_memory_scene.py", "reason": "Verification anchor that polluted external-research turns do not capture foreign facts into durable long-term memory"}

@@ -2966,6 +2966,51 @@ async def test_prepare_execution_page_summary_turn_keeps_page_only_candidates() 
 
 
 @pytest.mark.asyncio
+async def test_prepare_execution_projects_selected_skill_names_to_live_tools() -> None:
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
+    request = ExecutionRequest(
+        agent_id=1,
+        tenant_id=1,
+        user_id=1,
+        messages=[ChatMessage(role="user", content="帮我阅读一下本页面都有什么内容")],
+        input_variables={
+            "page_context": {
+                "page_key": "admin.ai.dashboard",
+                "ui_epoch": 5,
+            }
+        },
+    )
+
+    with (
+        patch(
+            "app.ai.rag_injector.load_agent_kb_bindings",
+            new=AsyncMock(return_value=([], {})),
+        ),
+        patch("app.ai.routing.router.ModelRouter", new=_FakeRouter),
+    ):
+        prep = await engine._prepare_execution(
+            _build_agent(),
+            request,
+            skill_result=_build_plugin_page_web_skill_result(),
+        )
+
+    assert prep.capability_bundle is not None
+    assert [tool.name for tool in prep.tools] == ["ui_get_snapshot"]
+    assert prep.capability_bundle.selected_skill_names == ["Plugin Page Skill"]
+    assert prep.diagnostics["selected_skill_names"] == ["Plugin Page Skill"]
+    assert prep.diagnostics["runtime_capability_summary"]["selected_skill_names"] == [
+        "Plugin Page Skill"
+    ]
+    assert [
+        item["name"]
+        for item in prep.diagnostics["runtime_capability_manifest"]["skills"]
+        if item["status"] == "available"
+    ] == ["Plugin Page Skill"]
+
+
+@pytest.mark.asyncio
 async def test_prepare_execution_page_screenshot_keeps_capture_screenshot_tool() -> (
     None
 ):

@@ -14,6 +14,7 @@ from app.ai.constants import (
 )
 from app.ai.engine.types import ExecutionRequest
 from app.ai.events.hooks import HookPoint
+from app.ai.memory_policy import attach_memory_runtime_policy
 from app.ai.types import ChatMessage
 from app.ai.utils.token_estimator import estimate_tokens
 from app.core.i18n import _
@@ -270,6 +271,7 @@ class AgentChatCommandService:
         )
 
         try:
+            attach_memory_runtime_policy(request=request, result=result)
             memory_delta = await service._persist_session_memory(
                 request=request,
                 message=message,

@@ -8,6 +8,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from app.ai.runtime.context_assembler import (
+    ContextAssemblerState,
+    LegacyContextAssemblerAdapter,
+)
+from app.ai.runtime.manifest import AIRuntimeInventoryService
+from app.ai.runtime.types import project_capability_bundle_to_tools
 from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage
 from app.core.logging import LogManager
@@ -82,6 +88,94 @@ from .types import (
 )
 
 logger = LogManager.get_logger("ai.engine")
+
+
+def _rebuild_runtime_capability_diagnostics(
+    *,
+    agent: Any,
+    request: ExecutionRequest,
+    context_assembly: Any,
+) -> None:
+    bundle = getattr(context_assembly, "capability_bundle", None)
+    if bundle is None:
+        return
+
+    diagnostics = getattr(context_assembly, "diagnostics", None)
+    if not isinstance(diagnostics, dict):
+        diagnostics = {}
+        context_assembly.diagnostics = diagnostics
+    diagnostics.update(LegacyContextAssemblerAdapter.to_diagnostics(bundle))
+
+    knowledge_feedback = (
+        dict(getattr(request, "knowledge_base_feedback", {}) or {})
+        if isinstance(getattr(request, "knowledge_base_feedback", None), dict)
+        else {}
+    )
+    runtime_model_capabilities = diagnostics.get("runtime_model_capabilities")
+    if not isinstance(runtime_model_capabilities, dict):
+        runtime_model_capabilities = {}
+        input_variables = getattr(request, "input_variables", None)
+        if isinstance(input_variables, dict):
+            raw_model_caps = input_variables.get("runtime_model_capabilities")
+            if isinstance(raw_model_caps, dict):
+                runtime_model_capabilities = dict(raw_model_caps)
+
+    state = ContextAssemblerState(
+        knowledge_base_ids=[
+            int(kb_id)
+            for kb_id in (
+                diagnostics.get("effective_knowledge_base_ids")
+                or knowledge_feedback.get("effective_knowledge_base_ids")
+                or []
+            )
+            if str(kb_id).strip()
+        ],
+        requested_knowledge_base_ids=[
+            int(kb_id)
+            for kb_id in (diagnostics.get("requested_knowledge_base_ids") or [])
+            if str(kb_id).strip()
+        ],
+        dropped_knowledge_base_ids=[
+            int(kb_id)
+            for kb_id in (
+                diagnostics.get("dropped_knowledge_base_ids")
+                or knowledge_feedback.get("dropped_knowledge_base_ids")
+                or []
+            )
+            if str(kb_id).strip()
+        ],
+        rag_sources=list(getattr(context_assembly, "rag_sources", None) or []),
+        rag_source_kinds=list(getattr(context_assembly, "rag_source_kinds", []) or []),
+        memory_recalled=bool(getattr(context_assembly, "memory_recalled", False)),
+        session_memory_injected=bool(getattr(request, "session_memory_injected", False)),
+        memory_recall_slice=dict(
+            getattr(context_assembly, "memory_recall_slice", None) or {}
+        ),
+        runtime_model_capabilities=dict(runtime_model_capabilities or {}),
+    )
+    capability_injection_decision = dict(
+        diagnostics.get("capability_injection_decision") or {}
+    )
+    manifest = AIRuntimeInventoryService.build_manifest(
+        agent=agent,
+        request=request,
+        bundle=bundle,
+        state=state,
+        capability_injection_decision=capability_injection_decision,
+    )
+    diagnostics["runtime_capability_manifest"] = manifest.to_dict()
+    diagnostics["runtime_capability_summary"] = AIRuntimeInventoryService.build_compact_summary(
+        manifest,
+        include_knowledge_base_hint=bool(
+            diagnostics.get("intent_flags", {}).get("has_knowledge_intent", True)
+        ),
+        include_page_context_hint=bool(
+            diagnostics.get("intent_flags", {}).get("has_page_intent", True)
+        ),
+        include_memory_hint=bool(
+            diagnostics.get("intent_flags", {}).get("memory_context_enabled", True)
+        ),
+    )
 
 
 @dataclass
@@ -377,6 +471,21 @@ async def finalize_prepared_execution_runtime(
     Finish runtime-tail work for `_prepare_execution`:
     capability injection + routing + diagnostics projection.
     """
+    force_capability_summary = _is_capability_reporting_query_impl(
+        _extract_last_user_text_impl(messages)
+    )
+    if tools:
+        context_assembly.capability_bundle = project_capability_bundle_to_tools(
+            getattr(context_assembly, "capability_bundle", None),
+            tools,
+        )
+    context_assembly.diagnostics = dict(context_assembly.diagnostics or {})
+    context_assembly.diagnostics["intent_flags"] = dict(intent_flags or {})
+    _rebuild_runtime_capability_diagnostics(
+        agent=agent,
+        request=request,
+        context_assembly=context_assembly,
+    )
     context_sources = (
         context_assembly.capability_bundle.context_sources
         if context_assembly.capability_bundle is not None
@@ -388,9 +497,6 @@ async def finalize_prepared_execution_runtime(
             context_assembly.diagnostics.get("runtime_capability_summary"), dict
         )
         else None
-    )
-    force_capability_summary = _is_capability_reporting_query_impl(
-        _extract_last_user_text_impl(messages)
     )
     _apply_runtime_capability_injection_impl(
         diagnostics=context_assembly.diagnostics,
@@ -414,6 +520,11 @@ async def finalize_prepared_execution_runtime(
             **kwargs,
         ),
         resolve_capability_injection_decision=_resolve_capability_injection_decision_impl,
+    )
+    _rebuild_runtime_capability_diagnostics(
+        agent=agent,
+        request=request,
+        context_assembly=context_assembly,
     )
     runtime_state = await _resolve_runtime_execution_state_impl(
         db=db,

@@ -302,6 +302,42 @@ def test_page_context_available_ui_tools_infers_form_tools_when_active_form_exis
     assert "ui_submit_form" in tools
 
 
+def test_page_context_available_ui_tools_ignores_suggested_submit_hint_without_form() -> (
+    None
+):
+    tools = page_context_available_ui_tools(
+        {
+            "page_key": "tenant.ai.agents",
+            "ui_epoch": 9,
+            "suggested_tools": {
+                "primary": ["ui_submit_form", "ui_fill_form"],
+                "secondary": ["ui_get_form_state"],
+            },
+        }
+    )
+
+    assert "ui_get_snapshot" in tools
+    assert "ui_click" in tools
+    assert "ui_fill_form" not in tools
+    assert "ui_get_form_state" not in tools
+    assert "ui_submit_form" not in tools
+
+
+def test_page_context_available_ui_tools_filters_available_names_by_runtime_state() -> None:
+    tools = page_context_available_ui_tools(
+        {
+            "page_key": "tenant.ai.agents",
+            "ui_epoch": 9,
+            "suggested_tools": {
+                "primary": ["ui_submit_form", "ui_fill_form"],
+            },
+        },
+        available_tool_names={"ui_get_snapshot", "ui_click", "ui_submit_form"},
+    )
+
+    assert tools == ["ui_get_snapshot", "ui_click"]
+
+
 @pytest.mark.asyncio
 async def test_ui_snapshot_executor_requires_page_session_id() -> None:
     executor = UISnapshotExecutor()

@@ -83,3 +83,29 @@ class TestPageOperationsHint:
             [ToolDefinition(name="ui_get_snapshot", description="snapshot")],
         )
         assert hint == ""
+
+    def test_ignores_suggested_submit_only_hints_without_active_form(self) -> None:
+        hint = BaseEngine._build_page_operations_hint(
+            {
+                "page_context": {
+                    "page_key": "admin.ai.agents",
+                    "ui_epoch": 2,
+                    "suggested_tools": {
+                        "primary": ["ui_submit_form", "ui_fill_form"],
+                        "secondary": ["ui_get_form_state"],
+                    },
+                }
+            },
+            [
+                ToolDefinition(name="ui_get_snapshot", description="snapshot"),
+                ToolDefinition(name="ui_click", description="click"),
+                ToolDefinition(name="ui_fill_form", description="fill form"),
+                ToolDefinition(name="ui_submit_form", description="submit"),
+            ],
+        )
+
+        assert "[PAGE OPERATIONS]" in hint
+        assert "Readonly: ui_get_snapshot" in hint
+        assert "Form read/write: none" in hint
+        assert "Submit-required: none" in hint
+        assert "ui_submit_form" not in hint

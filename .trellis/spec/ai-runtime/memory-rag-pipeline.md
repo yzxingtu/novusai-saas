@@ -32,6 +32,10 @@ context assembly.
   `memory_context_enabled`: the former is explicit-intent truth for
   `memory_save` / `memory_recall`, while the latter is the runtime-policy owner
   for actual memory participation, capability hinting, and context injection.
+- Runtime and service layers should share one normalized `memory_runtime_policy`
+  owner. Context orchestration, runtime manifests, session-memory load, and
+  long-term capture must all consult that same policy instead of each
+  re-deriving memory eligibility from raw request flags.
 - KB binding does not imply `knowledge_query`; the intent must be explicit.
 - Current implementation still derives long-term recall eligibility from the
   context orchestrator, but that orchestrator now mixes intent signals with
@@ -77,6 +81,10 @@ uses a memory extraction step plus a provider factory.
 - Long-term memory capture may run even when session memory persistence is
 disabled, as long as the request still carries a conversation/user scope and
 `long_term_memory_enabled=true`.
+- When the runtime marks a turn as polluted by external research or other
+  off-thread context, blind long-term capture must be suppressed even if
+  `long_term_memory_enabled=true`; runtime diagnostics should record the
+  pollution reason instead of silently mixing foreign facts into durable memory.
 - Memory extraction failures degrade to empty output and must not break the
 main turn.
 - Durable memory policy is distinct from page routing and tool routing. Page

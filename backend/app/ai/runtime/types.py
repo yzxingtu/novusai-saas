@@ -4,7 +4,7 @@ Shared runtime-v2 structures / 共享 runtime-v2 结构
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Literal
 
 from app.ai.tools.types import ToolDefinition
@@ -89,6 +89,120 @@ class CapabilityBundle:
             descriptors=self.capability_descriptors,
             tools=self.tools,
         )
+
+
+def _skill_descriptor_tool_names(
+    descriptor: Any,
+    tools: list[Any],
+) -> list[str]:
+    metadata = getattr(descriptor, "metadata", {}) or {}
+    descriptor_skill_id = metadata.get("skill_id")
+    descriptor_name = str(getattr(descriptor, "name", "") or "").strip()
+    descriptor_source = str(getattr(descriptor, "source", "") or "").strip()
+
+    matched_tool_names: list[str] = []
+    for tool in tools:
+        tool_name = str(getattr(tool, "name", "") or "").strip()
+        if not tool_name:
+            continue
+        tool_skill_id = getattr(tool, "source_skill_id", None)
+        tool_skill_name = str(getattr(tool, "source_skill_name", "") or "").strip()
+        tool_package_name = str(getattr(tool, "source_package_name", "") or "").strip()
+        tool_source = f"skill_package:{tool_package_name}" if tool_package_name else ""
+
+        matched = False
+        if descriptor_skill_id not in (None, "") and tool_skill_id == descriptor_skill_id:
+            matched = True
+        elif descriptor_name and tool_skill_name == descriptor_name:
+            if descriptor_source and tool_source:
+                matched = descriptor_source == tool_source
+            else:
+                matched = True
+        elif descriptor_source and tool_source and descriptor_source == tool_source:
+            matched = True
+
+        if matched and tool_name not in matched_tool_names:
+            matched_tool_names.append(tool_name)
+    return matched_tool_names
+
+
+def project_capability_bundle_to_tools(
+    bundle: CapabilityBundle | None,
+    tools: list[Any] | None,
+) -> CapabilityBundle:
+    projected_tools = list(tools or [])
+    if bundle is None:
+        return CapabilityBundle(tools=projected_tools)
+
+    projected_tool_names = [
+        str(getattr(tool, "name", "") or "").strip()
+        for tool in projected_tools
+        if str(getattr(tool, "name", "") or "").strip()
+    ]
+    projected_tool_name_set = set(projected_tool_names)
+    skill_tool_names = [
+        tool_name
+        for tool_name, tool in zip(projected_tool_names, projected_tools)
+        if str(getattr(tool, "source_skill_name", "") or "").strip()
+    ]
+
+    projected_descriptors: list[CapabilityDescriptor] = []
+    for descriptor in bundle.capability_descriptors:
+        kind = str(getattr(descriptor, "kind", "") or "").strip()
+        if not is_skill_descriptor_kind(kind):
+            projected_descriptors.append(replace(descriptor))
+            continue
+
+        matched_tool_names = _skill_descriptor_tool_names(descriptor, projected_tools)
+        if not matched_tool_names:
+            continue
+
+        metadata = dict(getattr(descriptor, "metadata", {}) or {})
+        metadata.update(
+            {
+                "resolved_tool_names": list(matched_tool_names),
+                "resolved_tool_count": len(matched_tool_names),
+                "has_execution_tools": True,
+            }
+        )
+        projected_descriptors.append(replace(descriptor, metadata=metadata))
+
+    projected_context_sources: list[ContextSource] = []
+    for source in bundle.context_sources:
+        if str(getattr(source, "kind", "") or "").strip() != "skill":
+            projected_context_sources.append(replace(source))
+            continue
+
+        projected_skill_names = collect_selected_skill_names(
+            descriptors=projected_descriptors,
+            tools=projected_tools,
+        )
+        if not projected_skill_names and not skill_tool_names:
+            continue
+
+        metadata = dict(getattr(source, "metadata", {}) or {})
+        metadata.update(
+            {
+                "tool_count": len(skill_tool_names),
+                "selected_tool_names": list(skill_tool_names),
+                "skill_count": len(projected_skill_names),
+                "selected_skill_names": list(projected_skill_names),
+            }
+        )
+        projected_context_sources.append(replace(source, metadata=metadata))
+
+    projected_tool_consent_modes = {
+        name: mode
+        for name, mode in (bundle.tool_consent_modes or {}).items()
+        if name in projected_tool_name_set
+    }
+
+    return CapabilityBundle(
+        tools=projected_tools,
+        tool_consent_modes=projected_tool_consent_modes,
+        capability_descriptors=projected_descriptors,
+        context_sources=projected_context_sources,
+    )
 
 
 def prompt_skill_descriptor_is_live(descriptor: Any) -> bool:

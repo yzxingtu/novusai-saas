@@ -280,6 +280,7 @@ class ExecutionRequest:
     memory_enabled: bool = False
     session_memory_injected: bool = False
     long_term_memory_enabled: bool = False
+    memory_runtime_policy: dict[str, Any] = field(default_factory=dict)
     page_session_id: str | None = None
     knowledge_base_feedback: dict[str, Any] | None = None
     tool_use_policy: ToolUsePolicy = field(default_factory=ToolUsePolicy)

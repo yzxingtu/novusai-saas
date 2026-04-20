@@ -498,6 +498,59 @@ async def test_persist_session_memory_allows_long_term_capture_without_session_m
 
 
 @pytest.mark.asyncio
+async def test_persist_session_memory_skips_long_term_capture_for_polluted_turn(
+    mock_db,
+):
+    from unittest.mock import patch
+
+    from app.services.ai.agent_chat_service import AgentChatService
+
+    service = AgentChatService(mock_db, tenant_id=1)
+    service._extract_memory_delta = AsyncMock(
+        return_value={
+            "preferences": [],
+            "constraints": [],
+            "task_states": [],
+            "verified_facts": ["外部网页里提到用户名字是大致坡"],
+        }
+    )
+    provider = MagicMock()
+    provider.capture = AsyncMock(return_value=[])
+
+    request = MagicMock()
+    request.memory_enabled = False
+    request.conversation_id = 100
+    request.user_id = 10
+    request.agent_id = 1
+    request.memory_channel = MemoryChannelEnum.TENANT_CHAT.value
+    request.memory_source = MemorySceneEnum.AI_CHAT_PAGE.value
+    request.memory_scene = MemorySceneEnum.AI_CHAT_PAGE.value
+    request.long_term_memory_enabled = True
+    request.memory_runtime_policy = {
+        "external_context_polluted": True,
+        "external_context_reason": "tool:web_search",
+    }
+
+    with patch(
+        "app.services.ai.agent_chat_service.get_long_term_memory_provider",
+        return_value=provider,
+    ), patch(
+        "app.services.ai.agent_chat_service.SessionMemoryService.upsert_state",
+        new=AsyncMock(return_value={}),
+    ) as mock_upsert:
+        delta = await service._persist_session_memory(
+            request=request,
+            message="网页说我叫大致坡，请记一下。",
+            response="我先整理了一下网页内容。",
+            event_id="memevt:100:test",
+        )
+
+    assert delta is None
+    mock_upsert.assert_not_awaited()
+    provider.capture.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_chat_passes_explicit_trust_policy_ref_to_execution_request(mock_db):
     from app.services.ai.agent_chat_service import AgentChatService
 

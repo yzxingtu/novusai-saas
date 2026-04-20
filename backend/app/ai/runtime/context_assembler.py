@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app.ai.context.orchestrator import ContextPipelineOrchestrator
+from app.ai.memory_policy import resolve_memory_runtime_policy
 from app.ai.runtime.capabilities import (
     CapabilityContext,
     CapabilityFragment,
@@ -153,10 +154,11 @@ class ContextAssembler:
             intent_plan,
             request,
         )
+        memory_policy = resolve_memory_runtime_policy(request)
         has_session_memory_context = bool(
             request is not None
             and (
-                bool(getattr(request, "memory_enabled", False))
+                bool(memory_policy.session_memory_runtime_enabled)
                 or bool(getattr(request, "session_memory_injected", False))
             )
         )
@@ -166,7 +168,7 @@ class ContextAssembler:
             provider_names.append("page_context")
         if not flags.all_shortcircuit and flags.has_knowledge_intent:
             provider_names.append("knowledge_base")
-        if flags.memory_context_enabled or has_session_memory_context:
+        if memory_policy.memory_context_enabled or has_session_memory_context:
             provider_names.append("memory")
         provider_names.append("runtime_model")
         return provider_names
@@ -327,17 +329,14 @@ class ContextAssembler:
     def _collect_memory_capabilities(context: CapabilityContext) -> CapabilityFragment:
         request = context.request
         state = context.state or {}
+        memory_policy = resolve_memory_runtime_policy(request)
         memory_recalled = bool(state.get("memory_recalled"))
         session_memory_injected = bool(state.get("session_memory_injected"))
         memory_recall_slice = dict(state.get("memory_recall_slice") or {})
 
-        session_memory_enabled = bool(getattr(request, "memory_enabled", False))
-        long_term_memory_enabled = bool(
-            getattr(request, "long_term_memory_enabled", False)
-        )
         if (
-            not session_memory_enabled
-            and not long_term_memory_enabled
+            not memory_policy.session_memory_runtime_enabled
+            and not memory_policy.long_term_memory_runtime_enabled
             and not memory_recalled
             and not session_memory_injected
         ):
@@ -346,12 +345,14 @@ class ContextAssembler:
         context_sources: list[ContextSource] = []
         capability_descriptors: list[CapabilityDescriptor] = []
 
-        if session_memory_enabled:
+        if memory_policy.session_memory_runtime_enabled:
             session_metadata = {
-                "scene": getattr(request, "memory_scene", ""),
-                "channel": getattr(request, "memory_channel", ""),
-                "source": getattr(request, "memory_source", ""),
-                "enabled": True,
+                "scene": memory_policy.scene,
+                "channel": memory_policy.channel,
+                "source": memory_policy.source,
+                "runtime_enabled": True,
+                "read_enabled": memory_policy.session_memory_read_enabled,
+                "write_enabled": memory_policy.session_memory_write_enabled,
                 "injected": session_memory_injected,
             }
             capability_descriptors.append(
@@ -373,12 +374,16 @@ class ContextAssembler:
                     )
                 )
 
-        if long_term_memory_enabled or memory_recalled:
+        if memory_policy.long_term_memory_runtime_enabled or memory_recalled:
             long_term_metadata = {
-                "enabled": long_term_memory_enabled,
+                "runtime_enabled": memory_policy.long_term_memory_runtime_enabled,
+                "recall_enabled": memory_policy.long_term_memory_recall_enabled,
+                "capture_enabled": memory_policy.long_term_memory_capture_enabled,
                 "recalled": memory_recalled,
                 "recall_count": int(memory_recall_slice.get("count", 0) or 0),
                 "scope_type": memory_recall_slice.get("scope_type"),
+                "external_context_polluted": memory_policy.external_context_polluted,
+                "external_context_reason": memory_policy.external_context_reason,
             }
             capability_descriptors.append(
                 CapabilityDescriptor(
@@ -393,7 +398,10 @@ class ContextAssembler:
                 ContextSource(
                     kind="long_term_memory",
                     name="long_term_memory",
-                    active=bool(long_term_memory_enabled and memory_recalled),
+                    active=bool(
+                        memory_policy.long_term_memory_recall_enabled
+                        and memory_recalled
+                    ),
                     metadata=long_term_metadata,
                 )
             )

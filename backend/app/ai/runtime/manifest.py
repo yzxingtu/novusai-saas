@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from app.ai.memory_policy import resolve_memory_runtime_policy
 from app.ai.runtime.context_assembler import ContextAssemblerState
 from app.ai.runtime.contracts import PAGE_CONTEXT_KEY
 from app.ai.runtime.types import CapabilityBundle
@@ -244,11 +245,21 @@ class AIRuntimeInventoryService:
             )
         ]
 
-        memory_enabled = bool(getattr(request, "memory_enabled", False))
-        long_term_memory_enabled = bool(getattr(request, "long_term_memory_enabled", False))
+        memory_policy = resolve_memory_runtime_policy(request)
         memory_status: RuntimeCapabilityStatus
         memory_reason: str | None = None
-        if memory_enabled or long_term_memory_enabled:
+        if (
+            memory_policy.external_context_polluted
+            and memory_policy.long_term_memory_runtime_enabled
+        ):
+            memory_status = "degraded"
+            memory_reason = (
+                memory_policy.external_context_reason or "external_context_polluted"
+            )
+        elif (
+            memory_policy.session_memory_runtime_enabled
+            or memory_policy.long_term_memory_runtime_enabled
+        ):
             memory_status = "available"
         elif bool(state.memory_recalled):
             memory_status = "degraded"
@@ -263,12 +274,37 @@ class AIRuntimeInventoryService:
                 status=memory_status,
                 reason=memory_reason,
                 metadata={
-                    "session_memory_enabled": memory_enabled,
-                    "long_term_memory_enabled": long_term_memory_enabled,
+                    "scene": memory_policy.scene,
+                    "channel": memory_policy.channel,
+                    "source": memory_policy.source,
+                    "session_memory_enabled": (
+                        memory_policy.session_memory_runtime_enabled
+                    ),
+                    "session_memory_read_enabled": (
+                        memory_policy.session_memory_read_enabled
+                    ),
+                    "session_memory_write_enabled": (
+                        memory_policy.session_memory_write_enabled
+                    ),
+                    "long_term_memory_enabled": (
+                        memory_policy.long_term_memory_runtime_enabled
+                    ),
+                    "long_term_memory_recall_enabled": (
+                        memory_policy.long_term_memory_recall_enabled
+                    ),
+                    "long_term_memory_capture_enabled": (
+                        memory_policy.long_term_memory_capture_enabled
+                    ),
                     "memory_recalled": bool(state.memory_recalled),
                     "memory_recall_slice": dict(state.memory_recall_slice or {}),
+                    "external_context_polluted": (
+                        memory_policy.external_context_polluted
+                    ),
+                    "external_context_reason": (
+                        memory_policy.external_context_reason
+                    ),
                 },
-                source="request.flags",
+                source="runtime.memory_policy",
             )
         ]
 

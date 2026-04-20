@@ -12,7 +12,7 @@ Provides:
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from typing import Any
 
 from app.ai.runtime.contracts import PAGE_CONTEXT_KEY
@@ -140,17 +140,6 @@ def page_context_has_active_form(page_context: Mapping[str, Any] | None) -> bool
     return isinstance(page_context.get("active_form_summary"), Mapping)
 
 
-def _normalize_tool_name_list(raw: Any) -> list[str]:
-    if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes)):
-        return []
-    normalized: list[str] = []
-    for item in raw:
-        name = str(item or "").strip()
-        if name and name in UI_PAGE_TOOL_NAMES and name not in normalized:
-            normalized.append(name)
-    return normalized
-
-
 def page_context_has_runtime_state(page_context: Mapping[str, Any] | None) -> bool:
     if not isinstance(page_context, Mapping):
         return False
@@ -175,13 +164,6 @@ def page_context_available_ui_tools(
 ) -> list[str]:
     if not isinstance(page_context, Mapping):
         return []
-
-    preferred: list[str] = []
-    suggested_tools = page_context.get("suggested_tools")
-    if isinstance(suggested_tools, Mapping):
-        preferred.extend(_normalize_tool_name_list(suggested_tools.get("primary")))
-        if include_secondary:
-            preferred.extend(_normalize_tool_name_list(suggested_tools.get("secondary")))
 
     inferred: list[str] = []
     if page_context_has_runtime_state(page_context):
@@ -222,7 +204,9 @@ def page_context_available_ui_tools(
         else None
     )
     resolved: list[str] = []
-    for name in [*preferred, *inferred, *UI_PAGE_TOOL_ORDER]:
+    for name in UI_PAGE_TOOL_ORDER:
+        if name not in inferred:
+            continue
         if name not in UI_PAGE_TOOL_NAMES or name in resolved:
             continue
         if allowed is not None and name not in allowed:

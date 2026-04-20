@@ -120,6 +120,11 @@ export async function submitRuntimeForm(args: { confirm?: boolean; formSessionId
   from execution-backed capability packs. Descriptor-only entries with
   `has_execution_tools=false` are catalog or diagnostics metadata, not live
   runtime skill truth.
+- After tool planning, the live capability bundle, runtime manifest, and
+  `selected_skill_names` diagnostics must be projected to the selected tool
+  subset before runtime summaries are emitted. Capability-reporting turns may
+  keep broader inventory visibility only when the turn intentionally has no
+  live tool subset.
 - Turn-scoped capability activation must be driven by explicit mention,
   runtime policy, or bounded routing decisions. Installing a skill pack must
   not require per-page adaptation before it becomes usable.
