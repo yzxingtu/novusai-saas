@@ -16,14 +16,12 @@ from app.ai.runtime import (
     ContextAssemblerState,
     get_context_assembler,
 )
-from app.ai.skills.resolver import SkillResolver, SkillResolveResult
+from app.ai.skills.resolver import SkillResolveResult, resolve_for_agent
 from app.core.i18n import _
 from app.core.logging import get_logger
 from app.exceptions import NotFoundException
 from app.models.ai.agent import Agent
-from app.models.ai.agent_skill_grant import AgentSkillGrant
 from app.models.ai.model import AIModel
-from app.models.ai.skill import Skill
 from app.models.system.agent_assignment import SystemAgentAssignment
 from app.services.ai.agent_kb_binding_service import AgentKBBindingService
 from app.services.ai.model_capability_lookup import resolve_runtime_model_capabilities
@@ -83,7 +81,7 @@ class RuntimeInventoryService:
             agent_id=agent.id,
         )
         runtime_caps = await resolve_runtime_model_capabilities(model=agent.model)
-        skill_result = await self._load_skill_result(agent.id)
+        skill_result = await self._load_skill_result(agent=agent, tenant_id=tenant_id)
 
         request = SimpleNamespace(
             tenant_id=tenant_id,
@@ -241,38 +239,19 @@ class RuntimeInventoryService:
         )
         return result.scalar_one_or_none()
 
-    async def _load_skill_result(self, agent_id: int) -> SkillResolveResult:
-        stmt = (
-            select(AgentSkillGrant)
-            .options(
-                selectinload(AgentSkillGrant.skill).selectinload(Skill.package)
-            )
-            .where(
-                AgentSkillGrant.agent_id == agent_id,
-                AgentSkillGrant.is_deleted.is_(False),
-                AgentSkillGrant.enabled.is_(True),
-            )
-            .order_by(AgentSkillGrant.sort_order, AgentSkillGrant.id)
+    async def _load_skill_result(
+        self,
+        *,
+        agent: Agent,
+        tenant_id: int | None,
+    ) -> SkillResolveResult:
+        result = await resolve_for_agent(
+            db=self.db,
+            agent=agent,
+            tenant_id=tenant_id,
+            request=None,
         )
-        result = await self.db.execute(stmt)
-        grants = list(result.scalars().all())
-
-        skills: list[Skill] = []
-        overrides: dict[int, dict[str, Any]] = {}
-        for grant in grants:
-            skill = grant.skill
-            if skill is None or bool(getattr(skill, "is_deleted", False)):
-                continue
-            skills.append(skill)
-            if isinstance(grant.config_override, dict) and skill.id is not None:
-                overrides[int(skill.id)] = dict(grant.config_override)
-
-        if not skills:
-            return SkillResolveResult()
-        return await SkillResolver(self.db).resolve(
-            skills,
-            config_overrides=overrides,
-        )
+        return result or SkillResolveResult()
 
     async def _load_kb_bindings(
         self,

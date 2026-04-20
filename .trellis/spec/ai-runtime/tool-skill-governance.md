@@ -284,6 +284,12 @@ export async function submitRuntimeForm(args: { confirm?: boolean; formSessionId
   `preview_semantic_families`. That metadata is catalog-only startup input for
   resolver prefiltering; it must not be treated as live tool truth after full
   skill resolution completes.
+- Runtime inventory and diagnostics read models may project those catalog-only
+  startup preview fields back out as `startup_preview_tool_names` and
+  `startup_preview_semantic_families` on skill/extension metadata so
+  install-time discoverability can survive without eager plugin resolve. Treat
+  those fields as bounded startup/catalog hints only, not as live selected-tool
+  truth for the current turn.
 - `frontend/.../ai-slide-panel/use-page-ai-capability.ts` and
   `frontend/.../utils/page-navigation.ts` still read `suggested_tools` for
   local affordance display and fallback assembly. Keep that boundary UX-only;

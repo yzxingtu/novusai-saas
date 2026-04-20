@@ -493,6 +493,36 @@ def _build_startup_preview_result(
     )
 
 
+def _apply_catalog_preview_metadata(
+    *,
+    descriptors: list[CapabilityDescriptor],
+    grant_previews: list[SkillGrantPreview],
+) -> None:
+    preview_by_skill_id = {
+        getattr(preview.skill, "id", None): preview for preview in grant_previews
+    }
+    for descriptor in descriptors:
+        metadata = dict(getattr(descriptor, "metadata", {}) or {})
+        preview = preview_by_skill_id.get(metadata.get("skill_id"))
+        if preview is None:
+            continue
+
+        preview_tool_names = _stable_unique_texts(
+            list(preview.preview_tool_names or [])
+        )
+        preview_semantic_families = _stable_unique_texts(
+            list(preview.preview_semantic_families or [])
+        )
+        if not preview_tool_names and not preview_semantic_families:
+            continue
+
+        descriptor.metadata = {
+            **metadata,
+            "startup_preview_tool_names": preview_tool_names,
+            "startup_preview_semantic_families": preview_semantic_families,
+        }
+
+
 def _filter_grant_previews_for_turn_startup(
     grant_previews: list[SkillGrantPreview],
     *,
@@ -967,6 +997,10 @@ async def resolve_for_agent(
     resolver = SkillResolver(db=db)
     resolve_result = await resolver.resolve(skills, skill_config_overrides)
     resolve_result.capability_descriptors = build_skill_capability_descriptors(skills)
+    _apply_catalog_preview_metadata(
+        descriptors=resolve_result.capability_descriptors,
+        grant_previews=startup_grant_previews,
+    )
 
     for tool in resolve_result.tools:
         skill_id = tool.source_skill_id

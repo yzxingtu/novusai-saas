@@ -18,6 +18,7 @@ from app.ai.skills.turn_activation import (
     apply_turn_skill_activation,
     resolve_startup_intent_flags,
 )
+from app.ai.tools.types import ToolDefinition
 
 
 @pytest.mark.asyncio
@@ -736,6 +737,74 @@ async def test_resolve_for_agent_prefilters_runtime_policy_from_manifest_preview
     await resolve_for_agent(db, agent, tenant_id=9, request=request)
 
     assert [skill.name for skill in captured["skills"]] == ["Assistant Extension"]
+
+
+@pytest.mark.asyncio
+async def test_resolve_for_agent_preserves_manifest_startup_preview_on_descriptors(
+    monkeypatch,
+) -> None:
+    neutral_plugin_skill = _make_runtime_skill(
+        skill_id=901,
+        name="Assistant Extension",
+        skill_type="toolkit",
+        package_name="neutral.package",
+        source_plugin="neutral-plugin",
+    )
+    grant_result = MagicMock()
+    grant_result.scalars.return_value.all.return_value = [
+        _make_grant(neutral_plugin_skill),
+    ]
+    plugin_preview_result = MagicMock()
+    plugin_preview_result.all.return_value = [
+        (
+            "neutral-plugin",
+            {
+                "extensions": {
+                    "skills": [
+                        {
+                            "name": "assistant-extension",
+                            "type": "toolkit",
+                            "display_name": {"en": "Assistant Extension"},
+                            "entry_point": "skills.neutral_plugin",
+                            "preview_tool_names": ["crm_lookup"],
+                            "preview_semantic_families": ["page_ops"],
+                        }
+                    ]
+                }
+            },
+        )
+    ]
+    db = MagicMock()
+    db.execute = AsyncMock(side_effect=[grant_result, plugin_preview_result])
+    agent = SimpleNamespace(id=1, owner_tenant_id=9)
+
+    async def _capture_resolve(self, skills, config_overrides=None):
+        del skills, config_overrides
+        return SkillResolveResult(
+            tools=[
+                ToolDefinition(
+                    name="crm_lookup",
+                    source_skill_id=901,
+                    source_skill_name="Assistant Extension",
+                    source_skill_type="toolkit",
+                    source_package_name="neutral.package",
+                    source_plugin="neutral-plugin",
+                )
+            ]
+        )
+
+    monkeypatch.setattr(SkillResolver, "resolve", _capture_resolve)
+
+    resolved = await resolve_for_agent(db, agent, tenant_id=9)
+
+    descriptor = next(
+        item
+        for item in resolved.capability_descriptors
+        if item.name == "Assistant Extension"
+    )
+    assert descriptor.metadata["startup_preview_tool_names"] == ["crm_lookup"]
+    assert descriptor.metadata["startup_preview_semantic_families"] == ["page_ops"]
+    assert descriptor.metadata["resolved_tool_names"] == ["crm_lookup"]
 
 
 @pytest.mark.asyncio

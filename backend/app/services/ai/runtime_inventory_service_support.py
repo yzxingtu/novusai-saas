@@ -16,6 +16,60 @@ from app.models.ai.model import AIModel
 from app.models.ai.provider import AIProvider
 
 
+def _stable_unique_texts(values: list[Any]) -> list[str]:
+    normalized: list[str] = []
+    for value in values:
+        text = str(value or "").strip()
+        if text and text not in normalized:
+            normalized.append(text)
+    return normalized
+
+
+def _normalized_skill_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(metadata or {})
+    for key in (
+        "resolved_tool_names",
+        "startup_preview_tool_names",
+        "startup_preview_semantic_families",
+    ):
+        if key in normalized:
+            normalized[key] = _stable_unique_texts(list(normalized.get(key) or []))
+    return normalized
+
+
+def build_skill_items(
+    items: list[dict[str, Any]],
+    *,
+    skill_result: SkillResolveResult,
+) -> list[dict[str, Any]]:
+    descriptor_by_name = {
+        str(getattr(descriptor, "name", "") or "").strip(): descriptor
+        for descriptor in (skill_result.capability_descriptors or [])
+        if str(getattr(descriptor, "name", "") or "").strip()
+    }
+
+    enriched_items: list[dict[str, Any]] = []
+    for item in items:
+        skill_name = str(item.get("name") or "").strip()
+        descriptor = descriptor_by_name.get(skill_name)
+        if descriptor is None:
+            enriched_items.append(dict(item))
+            continue
+
+        enriched_item = dict(item)
+        metadata = _normalized_skill_metadata(dict(descriptor.metadata or {}))
+        if metadata:
+            enriched_item["metadata"] = {
+                **dict(enriched_item.get("metadata") or {}),
+                **metadata,
+            }
+        source = str(getattr(descriptor, "source", "") or "").strip()
+        if source:
+            enriched_item["source"] = source
+        enriched_items.append(enriched_item)
+    return enriched_items
+
+
 def provider_payload(provider: AIProvider | None) -> dict[str, Any]:
     if provider is None:
         return {
@@ -133,6 +187,8 @@ def build_extension_items(
             "tool_names": [],
             "skill_names": [],
             "package_names": [],
+            "startup_preview_tool_names": [],
+            "startup_preview_semantic_families": [],
         }
     )
 
@@ -163,6 +219,16 @@ def build_extension_items(
         package_name = str(metadata.get("package_name") or "").strip()
         if package_name and package_name not in bucket["package_names"]:
             bucket["package_names"].append(package_name)
+        for tool_name in _stable_unique_texts(
+            list(metadata.get("startup_preview_tool_names") or [])
+        ):
+            if tool_name not in bucket["startup_preview_tool_names"]:
+                bucket["startup_preview_tool_names"].append(tool_name)
+        for family in _stable_unique_texts(
+            list(metadata.get("startup_preview_semantic_families") or [])
+        ):
+            if family not in bucket["startup_preview_semantic_families"]:
+                bucket["startup_preview_semantic_families"].append(family)
 
     return [
         {
@@ -174,6 +240,12 @@ def build_extension_items(
                 "tool_names": sorted(bucket["tool_names"]),
                 "skill_names": sorted(bucket["skill_names"]),
                 "package_names": sorted(bucket["package_names"]),
+                "startup_preview_tool_names": sorted(
+                    bucket["startup_preview_tool_names"]
+                ),
+                "startup_preview_semantic_families": sorted(
+                    bucket["startup_preview_semantic_families"]
+                ),
             },
             "source": "plugin_runtime",
         }
@@ -192,6 +264,10 @@ def shape_manifest_payload(
     tools: list[ToolDefinition],
 ) -> dict[str, Any]:
     payload = manifest.to_dict()
+    payload["skills"] = build_skill_items(
+        list(payload.get("skills") or []),
+        skill_result=skill_result,
+    )
     runtime_caps = dict(payload.get("runtime_model_capabilities") or {})
     provider = getattr(getattr(agent, "model", None), "provider", None)
     payload["scope"] = scope
