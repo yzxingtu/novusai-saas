@@ -3,3 +3,4 @@
 {"file": "frontend/apps/web-antd/src/utils/page-navigation.ts", "reason": "Cross-page navigation payloads should reuse the connector-owned runtime seam"}
 {"file": "backend/app/ai/tools/executors/ui_action_executor.py", "reason": "Canonical backend execution boundary for ui_* actions"}
 {"file": "backend/app/ai/tools/page_runtime/navigation.py", "reason": "Backend page-runtime tools should consume connector evidence rather than page-local guesses"}
+{"file": "backend/app/sio/page_session.py", "reason": "Socket.IO page-session transport must stop using page_key-indexed active-session fallback as a live identity owner"}

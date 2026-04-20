@@ -32,8 +32,10 @@
     "frontend/apps/web-antd/src/components/business/ai-runtime/runtime-bridge.ts",
     "frontend/apps/web-antd/src/components/business/ai-runtime/runtime-bridge-snapshot.ts",
     "backend/app/ai/tools/page_runtime/navigation.py",
-    "backend/app/ai/tools/executors/ui_action_executor.py"
+    "backend/app/ai/tools/executors/ui_action_executor.py",
+    "backend/app/sio/page_session.py",
+    "backend/tests/sio/test_page_session_runtime_requests.py"
   ],
-  "notes": "This workstream freezes the connector payload contract that page workflow and frontend surfaces will consume later.",
+  "notes": "This workstream freezes the connector payload contract that page workflow and frontend surfaces will consume later. Audit follow-up: the remaining `page_key -> page_session_id` active-session transport seam belongs here and should be removed instead of preserved as a compatibility fallback.",
   "meta": {}
 }

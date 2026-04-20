@@ -190,6 +190,10 @@
    当前 `backend/app/ai/skills/resolver.py` 已能在 startup 阶段对显式 skill mention、显式工具名、capability-reporting query 与 request-derived page/web runtime policy 做 grant-level 预过滤，并为 plugin/connector grant 附加 bounded semantic-family preview；但这仍是安全启发式，未知 preview 的 connector 依赖、安装态 discoverability 与更强的 startup activation owner 仍是后续 debt。
 3. 记忆治理已不再是纯 raw request flag 直连，也不再停留在“command service 内联抄 thread state”的阶段，但仍未完全落到 codex-main 那种 stateful thread memory mode。
    当前 `backend/app/ai/memory_policy.py` 已把 context gating、manifest、session-memory load 和 long-term capture 收敛到统一 `memory_runtime_policy`，`backend/app/services/ai/agent_chat_memory_support.py` 也已提供共享 startup helper，对 chat/stream 启动统一解析并归一化 `thread_memory_state`；但这仍是轻量 thread snapshot，还没有 codex-main 那种 startup memory jobs、后台 consolidation 与更强的 state-db-backed thread owner，因此跨 turn 的长期治理和后台记忆整编仍是后续 debt。
+4. `backend/app/sio/page_session.py` 仍保留 `(scope, user_id, page_key) -> page_session_id` 的活跃会话追踪与保守 fallback，这说明 backend connector transport 还没有完全摆脱 `page_key -> session_id` 身份链残留。
+   这不是“必须兼容旧前端”的理由；对当前新 SaaS 来说，它应直接并入 `WS4 browser-connector-externalization`，作为 page-session transport owner 的待删 seam。
+5. `frontend/apps/web-antd/src/components/business/ai-chat-panel/use-ai-chat-turn-flow.ts`、`chat-message-turn-flow.ts` 与 `use-ai-chat-page-operations.ts` 仍保留较重的 legacy turn-flow/backfill/page-op gating 逻辑：当前 live UI 在 canonical `turn_flow` 缺失时会重建 `legacy-*` timeline，并在 page-operation channel readiness 上继续参考 `suggested_tools` 与 route/page-key fallback。
+   对当前新 SaaS 来说，这些默认兼容层不应继续被视为合理存量；它们应直接并入 `WS6 frontend-live-truth-freeze`，作为需要删除而不是保留的 frontend live seam。
 
 这些差距说明：
 
