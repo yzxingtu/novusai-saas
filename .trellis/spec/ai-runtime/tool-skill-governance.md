@@ -116,6 +116,11 @@ export async function submitRuntimeForm(args: { confirm?: boolean; formSessionId
   The resolver may carry a broader installed inventory for planning or catalog
   surfaces, but live runtime summaries must speak from the turn-activated
   subset and, after tool planning, from the selected tool subset.
+- Initial/provisional capability bundles used for intent planning or
+  continuation planning must also refresh after turn activation is applied.
+  It is not sufficient to narrow only the later prepared-execution tool list;
+  startup planning must stop speaking from the broader agent inventory once
+  explicit skill mentions or runtime-policy activation are known.
 - Live installed-skill descriptors should normalize to
   `CapabilityDescriptor(kind="capability_pack")`. Accepting
   `prompt_skill`-style descriptors is compatibility-only behavior during
@@ -132,6 +137,10 @@ export async function submitRuntimeForm(args: { confirm?: boolean; formSessionId
 - Turn-scoped capability activation must be driven by explicit mention,
   runtime policy, or bounded routing decisions. Installing a skill pack must
   not require per-page adaptation before it becomes usable.
+- Startup activation may narrow skill-owned tools, but auto-injected baseline
+  runtime builtins remain startup-available. Do not reclassify those baseline
+  builtins as skill-owned just because they expose `source_skill_name`-style
+  compatibility metadata.
 - Capability-reporting turns may intentionally surface the broader installed
   inventory, but tool-bearing turns must collapse back to the turn-activated
   or tool-selected subset before manifest, diagnostics, and capability-aware

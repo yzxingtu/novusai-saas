@@ -105,9 +105,7 @@ class DefaultContextCapabilityBridge(ContextCapabilityBridge):
             bundle = CapabilityBundle()
             fragments = (
                 ContextAssembler._collect_skill_capabilities(capability_context),
-                ContextAssembler._collect_page_context_capabilities(
-                    capability_context
-                ),
+                ContextAssembler._collect_page_context_capabilities(capability_context),
                 ContextAssembler._collect_knowledge_capabilities(capability_context),
                 ContextAssembler._collect_runtime_model_capabilities(
                     capability_context
@@ -117,6 +115,17 @@ class DefaultContextCapabilityBridge(ContextCapabilityBridge):
                 if fragment is None:
                     continue
                 CapabilityRegistry._merge_fragment(bundle, fragment)
+            activation = getattr(skill_result, "turn_activation", None)
+            if activation is not None and activation.applied:
+                startup_selected_tool_names = (
+                    list(getattr(skill_result, "startup_selected_tool_names", []) or [])
+                    if hasattr(skill_result, "startup_selected_tool_names")
+                    else list(getattr(skill_result, "selected_tool_names", []) or [])
+                )
+                bundle.selected_tool_names_override = list(startup_selected_tool_names)
+                bundle.selected_skill_names_override = list(
+                    getattr(skill_result, "selected_skill_names", []) or []
+                )
             return bundle
         except Exception as exc:
             logger.warning(
@@ -173,7 +182,9 @@ class DefaultContextCapabilityBridge(ContextCapabilityBridge):
                 kb_bindings = [
                     binding
                     for binding in kb_bindings
-                    if int(binding.get("knowledge_base_id") or binding.get("kb_id") or 0)
+                    if int(
+                        binding.get("knowledge_base_id") or binding.get("kb_id") or 0
+                    )
                     in effective_kb_ids
                 ]
                 kb_description = capability_builder.build_knowledge_base_descriptions(
@@ -200,9 +211,7 @@ class DefaultContextCapabilityBridge(ContextCapabilityBridge):
                 if memory_description:
                     capability_descriptions.append(memory_description)
 
-            awareness.categories = _stable_unique_categories(
-                capability_descriptions
-            )
+            awareness.categories = _stable_unique_categories(capability_descriptions)
             return awareness
         except Exception as exc:
             logger.warning(

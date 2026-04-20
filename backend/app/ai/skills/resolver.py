@@ -105,7 +105,20 @@ class SkillResolveResult:
         ]
 
     @staticmethod
-    def _tool_has_skill_owner(tool: ToolDefinition) -> bool:
+    def _tool_is_auto_injected_runtime_builtin(tool: ToolDefinition) -> bool:
+        config = getattr(tool, "config", None)
+        if not isinstance(config, dict):
+            return False
+        if getattr(tool, "source_skill_id", None) not in (None, ""):
+            return False
+        if not bool(config.get("auto_injected")):
+            return False
+        return bool(str(config.get("builtin_type") or "").strip())
+
+    @classmethod
+    def _tool_has_skill_owner(cls, tool: ToolDefinition) -> bool:
+        if cls._tool_is_auto_injected_runtime_builtin(tool):
+            return False
         return any(
             str(getattr(tool, attr, "") or "").strip()
             for attr in ("source_skill_id", "source_skill_name", "source_package_name")
@@ -128,6 +141,34 @@ class SkillResolveResult:
                 not self._tool_has_skill_owner(tool)
                 or str(getattr(tool, "name", "") or "").strip() in activated_names
             )
+        ]
+
+    @property
+    def startup_selected_tool_names(self) -> list[str]:
+        return [
+            str(getattr(tool, "name", "") or "").strip()
+            for tool in self.startup_activated_tools()
+            if str(getattr(tool, "name", "") or "").strip()
+        ]
+
+    def startup_capability_descriptors(self) -> list[CapabilityDescriptor]:
+        activation = self.turn_activation
+        descriptors = list(self.capability_descriptors or [])
+        if activation is None or not activation.applied:
+            return descriptors
+
+        activated_skill_names = {
+            str(name or "").strip()
+            for name in activation.activated_skill_names or []
+            if str(name or "").strip()
+        }
+        if not activated_skill_names:
+            return []
+        return [
+            descriptor
+            for descriptor in descriptors
+            if str(getattr(descriptor, "name", "") or "").strip()
+            in activated_skill_names
         ]
 
 

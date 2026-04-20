@@ -106,9 +106,12 @@ class ContextAssembler:
             )
         activation = getattr(skill_result, "turn_activation", None)
         if activation is not None and activation.applied:
-            bundle.selected_tool_names_override = list(
-                getattr(skill_result, "selected_tool_names", []) or []
+            startup_selected_tool_names = (
+                list(getattr(skill_result, "startup_selected_tool_names", []) or [])
+                if hasattr(skill_result, "startup_selected_tool_names")
+                else list(getattr(skill_result, "selected_tool_names", []) or [])
             )
+            bundle.selected_tool_names_override = list(startup_selected_tool_names)
             bundle.selected_skill_names_override = list(
                 getattr(skill_result, "selected_skill_names", []) or []
             )
@@ -198,9 +201,24 @@ class ContextAssembler:
         if skill_result is None:
             return CapabilityFragment()
 
-        tools = list(getattr(skill_result, "tools", []) or [])
+        activation = getattr(skill_result, "turn_activation", None)
+        if activation is not None and activation.applied:
+            tools = (
+                list(skill_result.startup_activated_tools())
+                if hasattr(skill_result, "startup_activated_tools")
+                else list(getattr(skill_result, "tools", []) or [])
+            )
+            descriptors = (
+                list(skill_result.startup_capability_descriptors())
+                if hasattr(skill_result, "startup_capability_descriptors")
+                else list(getattr(skill_result, "capability_descriptors", []) or [])
+            )
+        else:
+            tools = list(getattr(skill_result, "tools", []) or [])
+            descriptors = list(
+                getattr(skill_result, "capability_descriptors", []) or []
+            )
         tool_consent_modes = dict(getattr(skill_result, "tool_consent_modes", {}) or {})
-        descriptors = list(getattr(skill_result, "capability_descriptors", []) or [])
         if not descriptors:
             descriptors = ContextAssembler._build_skill_descriptors_from_tools(tools)
 
@@ -210,7 +228,6 @@ class ContextAssembler:
         selected_skill_names = ContextAssembler._stable_unique_names(
             list(getattr(skill_result, "selected_skill_names", []) or [])
         )
-        activation = getattr(skill_result, "turn_activation", None)
         if activation is None or not activation.applied:
             if not selected_tool_names:
                 selected_tool_names = ContextAssembler._stable_unique_names(

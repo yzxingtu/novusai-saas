@@ -170,6 +170,7 @@
 25. `backend/app/services/ai/agent_chat_stream_persistence_orchestrator.py` 已把 stream `on_complete` 的 fallback result 重建收敛为 dataclass-field-only copy；新增的私有运行时属性（如 `_memory_runtime_policy`）不会再把错误分支本身炸成二次异常，stream persistence failure 可以继续走 error-message / marker 持久化路径。
 26. `backend/app/ai/engine/page_workflow_state_machine.py`、`backend/app/ai/engine/tool_router.py`、`backend/app/ai/engine/system_prompt_intent_helpers.py` 与 `backend/app/ai/engine/page_flow_recovery_helpers.py` 已把页面工作流 owner 从路由分支内联字符串进一步收口为独立状态机：页面 intent 会统一投影 `discover / navigate_or_open / read / write / submit / verify` 这些 canonical phase，并把 machine-readable `page_workflow_completion` contract 一起写入 `IntentPlan.metadata`，使 completion / recovery / contract-breach 不再各自维护第二份 stage 规则。
 27. `backend/app/ai/tools/executors/ui_action_executor.py` 的兼容执行路径也已删除 `page_key -> get_active_session_id()` 的 live session 猜测回退；页面动作现在只接受 live `page_session_id`（来自 execution context 或 thin `page_context`），不再让 page key 重新充当 session 主身份链。
+28. `backend/app/ai/context/assembly_initial_support.py`、`backend/app/ai/runtime/context_assembler.py`、`backend/app/ai/runtime/context_capability_bridge.py` 与 `backend/app/ai/skills/resolver.py` 已把 skill startup owner 再前移一刀：turn activation 现在会刷新 provisional capability bundle / initial intent planning，不再只在 prepared-execution 末端才裁掉 broader inventory；同时 auto-injected baseline builtins 不再被误判成 skill-owned，因此启动阶段仍可保持 baseline 工具可用，而 skill-owned tool/descriptors 会收敛到 activated subset。
 
 ### 2026-04-20 审计补充：仍未收敛到 codex-main owner 的差距
 

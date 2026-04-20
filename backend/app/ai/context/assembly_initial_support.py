@@ -13,6 +13,7 @@ from app.ai.runtime.contracts import (
     ContextCapabilityInputs,
 )
 from app.ai.runtime.types import CapabilityBundle
+from app.ai.skills.turn_activation import apply_turn_skill_activation
 from app.ai.types import ChatMessage
 
 
@@ -50,9 +51,7 @@ class KnowledgeBaseSelection:
 @dataclass
 class InitialContextAssemblyResult:
     messages: list[ChatMessage] = field(default_factory=list)
-    kb_selection: KnowledgeBaseSelection = field(
-        default_factory=KnowledgeBaseSelection
-    )
+    kb_selection: KnowledgeBaseSelection = field(default_factory=KnowledgeBaseSelection)
     runtime_model_capabilities: dict[str, Any] = field(default_factory=dict)
     provisional_capability_inputs: ContextCapabilityInputs = field(
         default_factory=ContextCapabilityInputs
@@ -184,6 +183,33 @@ async def assemble_initial_context_state(
         capability_bundle=provisional_bundle,
     )
     intent_flags = intent_flag_resolver(intent_plan, request)
+    if skill_result is not None:
+        apply_turn_skill_activation(
+            skill_result=skill_result,
+            request=request,
+            intent_flags=intent_flags,
+        )
+        provisional_bundle = capability_bridge.build_provisional_bundle(
+            agent=agent,
+            request=request,
+            skill_result=skill_result,
+            capability_inputs=provisional_capability_inputs,
+        )
+        provisional_continuation_context = (
+            prompt_bridge._build_web_research_continuation_context(
+                messages,
+                list(provisional_bundle.tools),
+                getattr(request, "input_variables", None),
+            )
+        )
+        intent_plan = intent_plan_callable(
+            messages=messages,
+            tools=list(provisional_bundle.tools),
+            input_variables=getattr(request, "input_variables", None),
+            continuation_context=provisional_continuation_context,
+            capability_bundle=provisional_bundle,
+        )
+        intent_flags = intent_flag_resolver(intent_plan, request)
     return InitialContextAssemblyResult(
         messages=messages,
         kb_selection=kb_selection,
@@ -193,9 +219,7 @@ async def assemble_initial_context_state(
         provisional_continuation_context=provisional_continuation_context,
         intent_plan=list(intent_plan or []),
         intent_flags=dict(intent_flags or {}),
-        capability_injection_decision=build_capability_injection_decision(
-            intent_flags
-        ),
+        capability_injection_decision=build_capability_injection_decision(intent_flags),
     )
 
 
