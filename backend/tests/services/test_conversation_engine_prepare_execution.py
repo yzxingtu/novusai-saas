@@ -2200,6 +2200,26 @@ async def test_prepare_execution_keeps_runtime_capability_summary_when_dynamic_a
     assert "[CAPABILITIES]" not in prep.messages[0].content
     assert "[TOOL RUNTIME SUMMARY]" in prep.messages[0].content
     assert "Selected skills for this turn: Research Skill." in prep.messages[0].content
+    assert (
+        prep.diagnostics["runtime_capability_summary"]["selection_semantics"]
+        == "capability_reporting_inventory"
+    )
+    assert prep.diagnostics["runtime_capability_summary"]["selection_live"] is False
+    assert prep.diagnostics["runtime_capability_summary"]["live_turn_bound"] is False
+    assert (
+        prep.diagnostics["runtime_capability_manifest"]["boundaries"][
+            "selection_semantics"
+        ]
+        == "capability_reporting_inventory"
+    )
+    assert (
+        prep.diagnostics["runtime_capability_manifest"]["boundaries"]["selection_live"]
+        is False
+    )
+    assert (
+        prep.diagnostics["runtime_capability_manifest"]["boundaries"]["live_turn_bound"]
+        is False
+    )
 
 
 @pytest.mark.asyncio
@@ -3023,6 +3043,26 @@ async def test_prepare_execution_projects_selected_skill_names_to_live_tools() -
     assert (
         prep.diagnostics["runtime_capability_summary"]["turn_skill_activation_reason"]
         == "runtime_policy"
+    )
+    assert (
+        prep.diagnostics["runtime_capability_summary"]["selection_semantics"]
+        == "turn_selected_subset"
+    )
+    assert prep.diagnostics["runtime_capability_summary"]["selection_live"] is True
+    assert prep.diagnostics["runtime_capability_summary"]["live_turn_bound"] is True
+    assert (
+        prep.diagnostics["runtime_capability_manifest"]["boundaries"][
+            "selection_semantics"
+        ]
+        == "turn_selected_subset"
+    )
+    assert (
+        prep.diagnostics["runtime_capability_manifest"]["boundaries"]["selection_live"]
+        is True
+    )
+    assert (
+        prep.diagnostics["runtime_capability_manifest"]["boundaries"]["live_turn_bound"]
+        is True
     )
     assert [
         item["name"]

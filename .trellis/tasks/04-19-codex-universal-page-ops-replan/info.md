@@ -204,6 +204,14 @@
 2. 后续 Phase 1 / Phase 2 / Phase 4 的实现顺序仍然正确，不应回头补更多页面特例；应该继续优先清理上述两条 live seam，并持续守住已收掉的 `suggested_tools -> runtime semantics` 边界。
 3. canonical spec 里的目标规则继续保持不变；这里记录的是当前实现债务，而不是要把规范降回兼容旧 seam 的状态。
 
+### 2026-04-21 WS2 closeout update
+
+1. `backend/app/ai/runtime/manifest.py` 现已把 live runtime manifest / compact summary 的 selection contract 明确收口为 machine-readable `selection_semantics` / `selection_live` / `live_turn_bound`：
+   tool-bearing live turn 会发出 `turn_selected_subset / true / true`，capability-reporting turn 会发出 `capability_reporting_inventory / false / false`，不再需要由消费方从 activation reason 或 broader inventory 侧推 live truth。
+2. `backend/app/services/ai/runtime_inventory_service_support.py` 也已把 runtime inventory / empty manifest read-model 同步到完整 selection contract，统一发出 `inventory_snapshot / false / false`，避免 inventory payload 只带半套边界字段、live payload 另带一套边界字段的漂移。
+3. 结合此前已完成的 startup prefilter、manifest-backed plugin preview、runtime inventory reuse、batch warmup seam removal 与 activation observability，`WS2 capability-pack-startup-owner` 的 acceptance 已满足。
+4. 本轮 closeout 未发现需要新增的 capability-pack child task；后续剩余主线 debt 继续归入 `WS4 browser-connector-externalization`、`WS6 frontend-live-truth-freeze` 与 `WS1 turn-loop-orchestrator-convergence`，不为新 SaaS 引入兼容层回退。
+
 ### Phase 5: Context-Budget Alignment
 
 1. 维持 thin `page_context`，不回退到重内容 prompt 注入。

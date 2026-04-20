@@ -152,6 +152,13 @@ export async function submitRuntimeForm(args: { confirm?: boolean; formSessionId
   inventory, but tool-bearing turns must collapse back to the turn-activated
   or tool-selected subset before manifest, diagnostics, and capability-aware
   summaries are emitted.
+- Runtime manifest and compact-summary payloads must carry the same explicit
+  machine-readable selection contract:
+  `selection_semantics`, `selection_live`, and `live_turn_bound`.
+  Tool-bearing live turns should emit `turn_selected_subset` / `true` / `true`;
+  capability-reporting inventory turns should emit
+  `capability_reporting_inventory` / `false` / `false`; runtime inventory and
+  install-time read models should emit `inventory_snapshot` / `false` / `false`.
 - Turn-skill-activation observability must stay on that same owner chain:
   `context_sources.kind="skill"` metadata, runtime diagnostics, and compact
   runtime summaries should all project the live selected subset together with

@@ -155,7 +155,9 @@ def test_shape_manifest_payload_projects_skill_catalog_preview_metadata() -> Non
     assert payload["summary"]["turn_skill_activation_reason"] == "runtime_policy"
     assert payload["summary"]["selection_semantics"] == "inventory_snapshot"
     assert payload["summary"]["selection_live"] is False
+    assert payload["summary"]["live_turn_bound"] is False
     assert payload["boundaries"]["selection_semantics"] == "inventory_snapshot"
+    assert payload["boundaries"]["selection_live"] is False
     assert payload["boundaries"]["live_turn_bound"] is False
 
 
@@ -167,6 +169,8 @@ def test_build_empty_manifest_marks_inventory_snapshot_as_non_live() -> None:
     )
 
     assert payload["boundaries"]["selection_semantics"] == "inventory_snapshot"
+    assert payload["boundaries"]["selection_live"] is False
     assert payload["boundaries"]["live_turn_bound"] is False
     assert payload["summary"]["selection_semantics"] == "inventory_snapshot"
     assert payload["summary"]["selection_live"] is False
+    assert payload["summary"]["live_turn_bound"] is False

@@ -304,6 +304,30 @@ async def test_context_engine_activates_page_skills_for_page_turns() -> None:
         ]
         == "runtime_policy"
     )
+    assert (
+        assembly.diagnostics["runtime_capability_summary"]["selection_semantics"]
+        == "turn_selected_subset"
+    )
+    assert assembly.diagnostics["runtime_capability_summary"]["selection_live"] is True
+    assert assembly.diagnostics["runtime_capability_summary"]["live_turn_bound"] is True
+    assert (
+        assembly.diagnostics["runtime_capability_manifest"]["boundaries"][
+            "selection_semantics"
+        ]
+        == "turn_selected_subset"
+    )
+    assert (
+        assembly.diagnostics["runtime_capability_manifest"]["boundaries"][
+            "selection_live"
+        ]
+        is True
+    )
+    assert (
+        assembly.diagnostics["runtime_capability_manifest"]["boundaries"][
+            "live_turn_bound"
+        ]
+        is True
+    )
 
 
 @pytest.mark.asyncio
@@ -357,6 +381,32 @@ async def test_context_engine_capability_reporting_keeps_broader_skill_inventory
             "turn_skill_activation_reason"
         ]
         == "capability_reporting_query"
+    )
+    assert (
+        assembly.diagnostics["runtime_capability_summary"]["selection_semantics"]
+        == "capability_reporting_inventory"
+    )
+    assert assembly.diagnostics["runtime_capability_summary"]["selection_live"] is False
+    assert (
+        assembly.diagnostics["runtime_capability_summary"]["live_turn_bound"] is False
+    )
+    assert (
+        assembly.diagnostics["runtime_capability_manifest"]["boundaries"][
+            "selection_semantics"
+        ]
+        == "capability_reporting_inventory"
+    )
+    assert (
+        assembly.diagnostics["runtime_capability_manifest"]["boundaries"][
+            "selection_live"
+        ]
+        is False
+    )
+    assert (
+        assembly.diagnostics["runtime_capability_manifest"]["boundaries"][
+            "live_turn_bound"
+        ]
+        is False
     )
 
 

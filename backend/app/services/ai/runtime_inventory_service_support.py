@@ -285,6 +285,7 @@ def shape_manifest_payload(
         {
             "selection_semantics": "inventory_snapshot",
             "selection_live": False,
+            "live_turn_bound": False,
             "tool_count": len(payload.get("tools") or []),
             "skill_count": len(payload.get("skills") or []),
             "knowledge_base_count": len(
@@ -327,6 +328,7 @@ def shape_manifest_payload(
     payload.setdefault("boundaries", {})
     payload["boundaries"]["scope_context"] = scope
     payload["boundaries"]["selection_semantics"] = "inventory_snapshot"
+    payload["boundaries"]["selection_live"] = False
     payload["boundaries"]["live_turn_bound"] = False
     return payload
 
@@ -414,6 +416,7 @@ def build_empty_manifest(
         "boundaries": {
             "scope_context": scope,
             "selection_semantics": "inventory_snapshot",
+            "selection_live": False,
             "live_turn_bound": False,
             "write_operations_require_confirmation": True,
         },
@@ -425,6 +428,7 @@ def build_empty_manifest(
             "turn_skill_activation_reason": None,
             "selection_semantics": "inventory_snapshot",
             "selection_live": False,
+            "live_turn_bound": False,
             "context_line": "",
             "context_source_kinds": [],
             "tool_families": [],

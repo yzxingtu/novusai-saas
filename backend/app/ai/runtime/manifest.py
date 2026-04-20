@@ -119,7 +119,13 @@ class AIRuntimeInventoryService:
         cls,
         manifest: RuntimeCapabilityManifest,
     ) -> dict[str, Any]:
-        for source in manifest.sources or []:
+        return cls._turn_skill_activation_summary_from_sources(manifest.sources)
+
+    @staticmethod
+    def _turn_skill_activation_summary_from_sources(
+        sources: list[dict[str, Any]] | None,
+    ) -> dict[str, Any]:
+        for source in sources or []:
             if str(source.get("kind") or "").strip() != "skill":
                 continue
             metadata = dict(source.get("metadata") or {})
@@ -135,6 +141,48 @@ class AIRuntimeInventoryService:
         return {
             "turn_skill_activation_applied": False,
             "turn_skill_activation_reason": None,
+        }
+
+    @staticmethod
+    def _selection_contract_from_activation_reason(
+        reason: str | None,
+    ) -> dict[str, Any]:
+        if reason == "capability_reporting_query":
+            return {
+                "selection_semantics": "capability_reporting_inventory",
+                "selection_live": False,
+                "live_turn_bound": False,
+            }
+        return {
+            "selection_semantics": "turn_selected_subset",
+            "selection_live": True,
+            "live_turn_bound": True,
+        }
+
+    @classmethod
+    def _selection_contract(
+        cls,
+        manifest: RuntimeCapabilityManifest,
+    ) -> dict[str, Any]:
+        boundaries = dict(manifest.boundaries or {})
+        activation = cls._turn_skill_activation_summary(manifest)
+        default_contract = cls._selection_contract_from_activation_reason(
+            activation.get("turn_skill_activation_reason")
+        )
+        semantics = str(boundaries.get("selection_semantics") or "").strip()
+        if not semantics:
+            return default_contract
+        return {
+            "selection_semantics": semantics,
+            "selection_live": bool(
+                boundaries.get("selection_live", default_contract["selection_live"])
+            ),
+            "live_turn_bound": bool(
+                boundaries.get(
+                    "live_turn_bound",
+                    default_contract["live_turn_bound"],
+                )
+            ),
         }
 
     @staticmethod
@@ -415,6 +463,13 @@ class AIRuntimeInventoryService:
                 )
             )
 
+        turn_skill_activation = cls._turn_skill_activation_summary_from_sources(
+            context_sources
+        )
+        selection_contract = cls._selection_contract_from_activation_reason(
+            turn_skill_activation.get("turn_skill_activation_reason")
+        )
+
         boundaries = {
             "capability_injection_decision": dict(capability_injection_decision or {}),
             "all_shortcircuit": bool(
@@ -422,6 +477,9 @@ class AIRuntimeInventoryService:
             ),
             "write_operations_require_confirmation": True,
             "scope": "turn_runtime",
+            "selection_semantics": selection_contract["selection_semantics"],
+            "selection_live": selection_contract["selection_live"],
+            "live_turn_bound": selection_contract["live_turn_bound"],
         }
 
         return RuntimeCapabilityManifest(
@@ -464,6 +522,7 @@ class AIRuntimeInventoryService:
             [source.get("kind") for source in active_context_sources]
         )
         turn_skill_activation = cls._turn_skill_activation_summary(manifest)
+        selection_contract = cls._selection_contract(manifest)
         context_line = ", ".join(
             (
                 f"{str(source.get('kind') or '').strip()}:{str(source.get('name') or '').strip()}"
@@ -478,6 +537,9 @@ class AIRuntimeInventoryService:
         return {
             "selected_skill_names": selected_skill_names,
             **turn_skill_activation,
+            "selection_semantics": selection_contract["selection_semantics"],
+            "selection_live": selection_contract["selection_live"],
+            "live_turn_bound": selection_contract["live_turn_bound"],
             "context_line": context_line,
             "context_source_kinds": context_source_kinds,
             "tool_families": cls._stable_unique(
