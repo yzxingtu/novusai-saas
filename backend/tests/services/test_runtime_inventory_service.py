@@ -59,6 +59,17 @@ def test_shape_manifest_payload_projects_skill_catalog_preview_metadata() -> Non
                 source="skill_resolver",
             )
         ],
+        sources=[
+            {
+                "kind": "skill",
+                "name": "skill_resolver",
+                "active": True,
+                "metadata": {
+                    "turn_skill_activation_applied": True,
+                    "turn_skill_activation_reason": "runtime_policy",
+                },
+            }
+        ],
     )
     tool = ToolDefinition(
         name="crm_lookup",
@@ -137,3 +148,5 @@ def test_shape_manifest_payload_projects_skill_catalog_preview_metadata() -> Non
             "source": "plugin_runtime",
         }
     ]
+    assert payload["summary"]["turn_skill_activation_applied"] is True
+    assert payload["summary"]["turn_skill_activation_reason"] == "runtime_policy"

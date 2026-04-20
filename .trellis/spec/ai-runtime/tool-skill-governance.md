@@ -152,6 +152,11 @@ export async function submitRuntimeForm(args: { confirm?: boolean; formSessionId
   inventory, but tool-bearing turns must collapse back to the turn-activated
   or tool-selected subset before manifest, diagnostics, and capability-aware
   summaries are emitted.
+- Turn-skill-activation observability must stay on that same owner chain:
+  `context_sources.kind="skill"` metadata, runtime diagnostics, and compact
+  runtime summaries should all project the live selected subset together with
+  the broader resolved inventory and the activation reason, instead of
+  rebuilding a second explanation path from prompt hints or page-local state.
 - Candidate tool and skill sets are capped per turn; avoid exposing whole families for convenience.
 - Overlapping skills resolve by scope, not by stacking.
 - Page runtime tools stay separate from generic tool families.

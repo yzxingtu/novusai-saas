@@ -2997,9 +2997,33 @@ async def test_prepare_execution_projects_selected_skill_names_to_live_tools() -
     assert [tool.name for tool in prep.tools] == ["ui_get_snapshot"]
     assert prep.capability_bundle.selected_skill_names == ["Plugin Page Skill"]
     assert prep.diagnostics["selected_skill_names"] == ["Plugin Page Skill"]
+    assert prep.diagnostics["turn_skill_activation"] == {
+        "applied": True,
+        "reason": "runtime_policy",
+        "tool_count": 1,
+        "selected_tool_names": ["ui_get_snapshot"],
+        "skill_count": 1,
+        "selected_skill_names": ["Plugin Page Skill"],
+        "inventory_tool_count": 4,
+        "inventory_selected_tool_names": [
+            "web_search",
+            "fetch_url",
+            "ui_get_snapshot",
+            "ui_click",
+        ],
+        "inventory_skill_count": 2,
+        "inventory_selected_skill_names": [
+            "Plugin Research Skill",
+            "Plugin Page Skill",
+        ],
+    }
     assert prep.diagnostics["runtime_capability_summary"]["selected_skill_names"] == [
         "Plugin Page Skill"
     ]
+    assert (
+        prep.diagnostics["runtime_capability_summary"]["turn_skill_activation_reason"]
+        == "runtime_policy"
+    )
     assert [
         item["name"]
         for item in prep.diagnostics["runtime_capability_manifest"]["skills"]

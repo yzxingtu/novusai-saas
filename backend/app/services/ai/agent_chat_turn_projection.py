@@ -68,6 +68,8 @@ def build_context_diagnostics(
         payload["selected_tool_names"] = turn_meta["selected_tool_names"]
     if turn_meta.get("selected_skill_names"):
         payload["selected_skill_names"] = turn_meta["selected_skill_names"]
+    if turn_meta.get("turn_skill_activation"):
+        payload["turn_skill_activation"] = turn_meta["turn_skill_activation"]
     if turn_meta.get("context_sources"):
         payload["context_sources"] = turn_meta["context_sources"]
     if turn_meta.get("contract_breach_type"):
@@ -134,6 +136,8 @@ def build_last_run_summary(
         payload["selected_tool_names"] = turn_meta["selected_tool_names"]
     if turn_meta.get("selected_skill_names"):
         payload["selected_skill_names"] = turn_meta["selected_skill_names"]
+    if turn_meta.get("turn_skill_activation"):
+        payload["turn_skill_activation"] = turn_meta["turn_skill_activation"]
     if turn_meta.get("context_sources"):
         payload["context_sources"] = turn_meta["context_sources"]
     if turn_meta.get("contract_breach_type"):

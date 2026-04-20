@@ -53,9 +53,7 @@ def _normalize_json_dict(value: Any) -> dict[str, Any] | None:
     if not isinstance(value, dict):
         return None
     return {
-        str(key): value[key]
-        for key in value
-        if isinstance(key, str) or key is not None
+        str(key): value[key] for key in value if isinstance(key, str) or key is not None
     }
 
 
@@ -131,6 +129,51 @@ def _normalize_provider_events(value: Any) -> list[dict[str, Any]]:
             continue
         normalized.append(dict(payload))
     return normalized
+
+
+def _normalize_turn_skill_activation(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+
+    selected_tool_names = _normalize_string_list(value.get("selected_tool_names"))
+    selected_skill_names = _normalize_string_list(value.get("selected_skill_names"))
+    inventory_selected_tool_names = _normalize_string_list(
+        value.get("inventory_selected_tool_names")
+    )
+    inventory_selected_skill_names = _normalize_string_list(
+        value.get("inventory_selected_skill_names")
+    )
+    reason = _to_non_empty_str(value.get("reason"))
+    applied = bool(value.get("applied"))
+
+    if not (
+        applied
+        or reason
+        or selected_tool_names
+        or selected_skill_names
+        or inventory_selected_tool_names
+        or inventory_selected_skill_names
+    ):
+        return None
+
+    return {
+        "applied": applied,
+        "reason": reason,
+        "tool_count": int(value.get("tool_count") or len(selected_tool_names) or 0),
+        "selected_tool_names": selected_tool_names,
+        "skill_count": int(value.get("skill_count") or len(selected_skill_names) or 0),
+        "selected_skill_names": selected_skill_names,
+        "inventory_tool_count": int(
+            value.get("inventory_tool_count") or len(inventory_selected_tool_names) or 0
+        ),
+        "inventory_selected_tool_names": inventory_selected_tool_names,
+        "inventory_skill_count": int(
+            value.get("inventory_skill_count")
+            or len(inventory_selected_skill_names)
+            or 0
+        ),
+        "inventory_selected_skill_names": inventory_selected_skill_names,
+    }
 
 
 def _normalize_dict_list(value: Any) -> list[dict[str, Any]]:
@@ -268,6 +311,15 @@ def extract_turn_diagnostics_from_metadata(
         turn_record_diagnostics.get("selected_skill_names"),
         context_diagnostics.get("selected_skill_names"),
         last_run_summary.get("selected_skill_names"),
+    )
+    turn_skill_activation = _normalize_turn_skill_activation(
+        _pick_truthy(
+            (turn_record or {}).get("turn_skill_activation"),
+            metadata.get("turn_skill_activation"),
+            turn_record_diagnostics.get("turn_skill_activation"),
+            context_diagnostics.get("turn_skill_activation"),
+            last_run_summary.get("turn_skill_activation"),
+        )
     )
     context_sources = _normalize_context_sources(
         _pick_truthy(
@@ -594,6 +646,7 @@ def extract_turn_diagnostics_from_metadata(
         "protocol_path": protocol_path,
         "selected_tool_names": selected_tool_names,
         "selected_skill_names": selected_skill_names,
+        "turn_skill_activation": turn_skill_activation,
         "context_sources": context_sources,
         "tool_planner": tool_planner,
         "path_decision": path_decision,

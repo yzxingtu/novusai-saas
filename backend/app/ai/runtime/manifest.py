@@ -114,6 +114,29 @@ class AIRuntimeInventoryService:
             if str(source.kind or "").strip()
         ]
 
+    @classmethod
+    def _turn_skill_activation_summary(
+        cls,
+        manifest: RuntimeCapabilityManifest,
+    ) -> dict[str, Any]:
+        for source in manifest.sources or []:
+            if str(source.get("kind") or "").strip() != "skill":
+                continue
+            metadata = dict(source.get("metadata") or {})
+            return {
+                "turn_skill_activation_applied": bool(
+                    metadata.get("turn_skill_activation_applied")
+                ),
+                "turn_skill_activation_reason": (
+                    str(metadata.get("turn_skill_activation_reason") or "").strip()
+                    or None
+                ),
+            }
+        return {
+            "turn_skill_activation_applied": False,
+            "turn_skill_activation_reason": None,
+        }
+
     @staticmethod
     def _resolve_provider_model(agent: Any) -> tuple[str | None, str | None]:
         model_obj = getattr(agent, "model", None)
@@ -300,9 +323,7 @@ class AIRuntimeInventoryService:
                     "external_context_polluted": (
                         memory_policy.external_context_polluted
                     ),
-                    "external_context_reason": (
-                        memory_policy.external_context_reason
-                    ),
+                    "external_context_reason": (memory_policy.external_context_reason),
                 },
                 source="runtime.memory_policy",
             )
@@ -442,6 +463,7 @@ class AIRuntimeInventoryService:
         context_source_kinds = cls._stable_unique(
             [source.get("kind") for source in active_context_sources]
         )
+        turn_skill_activation = cls._turn_skill_activation_summary(manifest)
         context_line = ", ".join(
             (
                 f"{str(source.get('kind') or '').strip()}:{str(source.get('name') or '').strip()}"
@@ -455,6 +477,7 @@ class AIRuntimeInventoryService:
         )
         return {
             "selected_skill_names": selected_skill_names,
+            **turn_skill_activation,
             "context_line": context_line,
             "context_source_kinds": context_source_kinds,
             "tool_families": cls._stable_unique(
@@ -490,7 +513,9 @@ class AIRuntimeInventoryService:
                     family
                     for family in (
                         "page_ops"
-                        if any(item.status == "available" for item in manifest.page_context)
+                        if any(
+                            item.status == "available" for item in manifest.page_context
+                        )
                         and "page_ops"
                         in cls._stable_unique(
                             [

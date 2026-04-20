@@ -30,6 +30,20 @@ def _result_with_turn_record() -> ExecutionResult:
                     "protocol_path": "responses",
                     "selected_skill_names": ["runtime.memory"],
                     "selected_tool_names": ["save_memory"],
+                    "turn_skill_activation": {
+                        "applied": True,
+                        "reason": "explicit_skill_mention",
+                        "selected_skill_names": ["runtime.memory"],
+                        "selected_tool_names": ["save_memory"],
+                        "inventory_selected_skill_names": [
+                            "runtime.memory",
+                            "runtime.web_research",
+                        ],
+                        "inventory_selected_tool_names": [
+                            "save_memory",
+                            "web_search",
+                        ],
+                    },
                     "turn_outcome": "partial",
                 }
             },
@@ -55,7 +69,12 @@ def test_turn_projection_uses_default_diagnostics_projector() -> None:
     assert turn_meta["turn_outcome"] == "partial"
     assert turn_meta["termination_reason"] == "interrupted"
     assert turn_meta["protocol_path"] == "responses"
+    assert turn_meta["turn_skill_activation"]["reason"] == "explicit_skill_mention"
     assert context_payload["selected_tool_names"] == ["save_memory"]
+    assert context_payload["turn_skill_activation"]["inventory_skill_count"] == 2
     assert context_payload["context_sources"][0]["kind"] == "memory"
     assert summary_payload["termination_reason"] == "interrupted"
     assert summary_payload["selected_skill_names"] == ["runtime.memory"]
+    assert summary_payload["turn_skill_activation"]["selected_tool_names"] == [
+        "save_memory"
+    ]

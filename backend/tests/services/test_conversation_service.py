@@ -2597,6 +2597,20 @@ def test_extract_turn_diagnostics_reads_extended_runtime_fields_from_nested_turn
                             "all_shortcircuit": False,
                             "intent_count": 2,
                         },
+                        "turn_skill_activation": {
+                            "applied": True,
+                            "reason": "runtime_policy",
+                            "selected_skill_names": ["runtime.page_context"],
+                            "selected_tool_names": ["ui_get_snapshot"],
+                            "inventory_selected_skill_names": [
+                                "runtime.page_context",
+                                "runtime.web_research",
+                            ],
+                            "inventory_selected_tool_names": [
+                                "ui_get_snapshot",
+                                "web_search",
+                            ],
+                        },
                         "capability_injection_decision": {
                             "skills_injected": False,
                             "kb_injected": False,
@@ -2678,6 +2692,21 @@ def test_extract_turn_diagnostics_reads_extended_runtime_fields_from_nested_turn
         "reason": "multi_intent",
         "all_shortcircuit": False,
         "intent_count": 2,
+    }
+    assert payload["turn_skill_activation"] == {
+        "applied": True,
+        "reason": "runtime_policy",
+        "tool_count": 1,
+        "selected_tool_names": ["ui_get_snapshot"],
+        "skill_count": 1,
+        "selected_skill_names": ["runtime.page_context"],
+        "inventory_tool_count": 2,
+        "inventory_selected_tool_names": ["ui_get_snapshot", "web_search"],
+        "inventory_skill_count": 2,
+        "inventory_selected_skill_names": [
+            "runtime.page_context",
+            "runtime.web_research",
+        ],
     }
     assert payload["capability_injection"] == {
         "skills_injected": False,
@@ -2878,6 +2907,20 @@ async def test_conversation_detail_surfaces_extended_runtime_diagnostics(
                 },
                 "metadata": {
                     "turn_diagnostics": {
+                        "turn_skill_activation": {
+                            "applied": True,
+                            "reason": "runtime_policy",
+                            "selected_skill_names": ["runtime.page_context"],
+                            "selected_tool_names": ["ui_get_snapshot"],
+                            "inventory_selected_skill_names": [
+                                "runtime.page_context",
+                                "runtime.web_research",
+                            ],
+                            "inventory_selected_tool_names": [
+                                "ui_get_snapshot",
+                                "web_search",
+                            ],
+                        },
                         "routing": {"candidate_tool_names": ["get_current_weather"]},
                         "failures": {
                             "failure_kind": "provider_unavailable",
@@ -2910,7 +2953,16 @@ async def test_conversation_detail_surfaces_extended_runtime_diagnostics(
     assert detail["context_diagnostics"]["provider_events"] == [
         {"kind": "provider_unavailable"}
     ]
+    assert detail["context_diagnostics"]["turn_skill_activation"]["reason"] == (
+        "runtime_policy"
+    )
+    assert detail["context_diagnostics"]["turn_skill_activation"][
+        "inventory_selected_skill_names"
+    ] == ["runtime.page_context", "runtime.web_research"]
     assert detail["last_run_summary"]["execution_path"] == "deep"
     assert detail["last_run_summary"]["budget_status"] == "exited"
+    assert detail["last_run_summary"]["turn_skill_activation"][
+        "selected_tool_names"
+    ] == ["ui_get_snapshot"]
     assert detail["message_list"][0]["turn_flow"]["completion_reason"] == "budget_exit"
     assert detail["message_list"][0]["turn_flow"]["timeline"][-1]["type"] == "failed"

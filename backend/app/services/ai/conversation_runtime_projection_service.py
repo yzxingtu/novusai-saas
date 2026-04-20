@@ -339,7 +339,7 @@ class ConversationRuntimeProjectionService:
             if isinstance((metadata or {}).get("turn_flow"), dict)
             else None,
         )
-        return {
+        payload = {
             "turn_outcome": projection.get("turn_outcome")
             or turn_meta.get("turn_outcome"),
             "termination_reason": projection.get("termination_reason")
@@ -382,6 +382,9 @@ class ConversationRuntimeProjectionService:
             "sync_rescue": turn_meta.get("sync_rescue"),
             "should_record_call_log": turn_meta.get("should_record_call_log"),
         }
+        if turn_meta.get("turn_skill_activation"):
+            payload["turn_skill_activation"] = turn_meta["turn_skill_activation"]
+        return payload
 
     @staticmethod
     def extract_turn_diagnostics_from_metadata(

@@ -415,6 +415,8 @@ def build_empty_manifest(
         "manifest_version": "runtime-capability-manifest/v1",
         "summary": {
             "selected_skill_names": [],
+            "turn_skill_activation_applied": False,
+            "turn_skill_activation_reason": None,
             "context_line": "",
             "context_source_kinds": [],
             "tool_families": [],

@@ -195,6 +195,52 @@ class ContextAssembler:
                 normalized.append(text)
         return normalized
 
+    @classmethod
+    def _turn_skill_activation_from_metadata(
+        cls,
+        metadata: dict[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        if not isinstance(metadata, dict):
+            return None
+
+        selected_tool_names = cls._stable_unique_names(
+            list(metadata.get("selected_tool_names") or [])
+        )
+        selected_skill_names = cls._stable_unique_names(
+            list(metadata.get("selected_skill_names") or [])
+        )
+        inventory_selected_tool_names = cls._stable_unique_names(
+            list(metadata.get("inventory_selected_tool_names") or [])
+        )
+        inventory_selected_skill_names = cls._stable_unique_names(
+            list(metadata.get("inventory_selected_skill_names") or [])
+        )
+        reason = str(metadata.get("turn_skill_activation_reason") or "").strip() or None
+        applied = bool(metadata.get("turn_skill_activation_applied"))
+
+        if not (
+            applied
+            or reason
+            or selected_tool_names
+            or selected_skill_names
+            or inventory_selected_tool_names
+            or inventory_selected_skill_names
+        ):
+            return None
+
+        return {
+            "applied": applied,
+            "reason": reason,
+            "tool_count": len(selected_tool_names),
+            "selected_tool_names": selected_tool_names,
+            "skill_count": len(selected_skill_names),
+            "selected_skill_names": selected_skill_names,
+            "inventory_tool_count": len(inventory_selected_tool_names),
+            "inventory_selected_tool_names": inventory_selected_tool_names,
+            "inventory_skill_count": len(inventory_selected_skill_names),
+            "inventory_selected_skill_names": inventory_selected_skill_names,
+        }
+
     @staticmethod
     def _collect_skill_capabilities(context: CapabilityContext) -> CapabilityFragment:
         skill_result = context.skill_result
@@ -222,6 +268,15 @@ class ContextAssembler:
         if not descriptors:
             descriptors = ContextAssembler._build_skill_descriptors_from_tools(tools)
 
+        inventory_selected_tool_names = ContextAssembler._stable_unique_names(
+            [
+                getattr(tool, "name", None)
+                for tool in list(getattr(skill_result, "tools", []) or [])
+            ]
+        )
+        inventory_selected_skill_names = ContextAssembler._stable_unique_names(
+            list(getattr(skill_result, "inventory_selected_skill_names", []) or [])
+        )
         selected_tool_names = ContextAssembler._stable_unique_names(
             list(getattr(skill_result, "selected_tool_names", []) or [])
         )
@@ -263,6 +318,18 @@ class ContextAssembler:
                         "selected_tool_names": selected_tool_names,
                         "skill_count": len(selected_skill_names),
                         "selected_skill_names": selected_skill_names,
+                        "inventory_tool_count": len(inventory_selected_tool_names),
+                        "inventory_selected_tool_names": inventory_selected_tool_names,
+                        "inventory_skill_count": len(inventory_selected_skill_names),
+                        "inventory_selected_skill_names": (
+                            inventory_selected_skill_names
+                        ),
+                        "turn_skill_activation_applied": bool(
+                            activation is not None and activation.applied
+                        ),
+                        "turn_skill_activation_reason": (
+                            str(getattr(activation, "reason", "") or "").strip() or None
+                        ),
                     },
                 )
             )
@@ -598,7 +665,7 @@ class LegacyContextAssemblerAdapter:
             }
             for source in bundle.context_sources
         ]
-        return {
+        diagnostics = {
             "selected_tool_names": selected_tool_names,
             "selected_skill_names": selected_skill_names,
             "tool_consent_modes": dict(bundle.tool_consent_modes),
@@ -608,6 +675,20 @@ class LegacyContextAssemblerAdapter:
                 [source.get("kind") for source in context_sources]
             ),
         }
+        skill_source = next(
+            (
+                source
+                for source in context_sources
+                if str(source.get("kind") or "").strip() == "skill"
+            ),
+            None,
+        )
+        turn_skill_activation = ContextAssembler._turn_skill_activation_from_metadata(
+            dict((skill_source or {}).get("metadata") or {})
+        )
+        if turn_skill_activation:
+            diagnostics["turn_skill_activation"] = turn_skill_activation
+        return diagnostics
 
 
 _DEFAULT_CONTEXT_ASSEMBLER: ContextAssembler | None = None

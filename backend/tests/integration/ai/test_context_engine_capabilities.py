@@ -269,9 +269,41 @@ async def test_context_engine_activates_page_skills_for_page_turns() -> None:
     assert assembly.capability_bundle is not None
     assert assembly.capability_bundle.selected_skill_names == ["Plugin Page Skill"]
     assert assembly.diagnostics["selected_skill_names"] == ["Plugin Page Skill"]
+    assert assembly.diagnostics["turn_skill_activation"] == {
+        "applied": True,
+        "reason": "runtime_policy",
+        "tool_count": 2,
+        "selected_tool_names": ["ui_get_snapshot", "ui_click"],
+        "skill_count": 1,
+        "selected_skill_names": ["Plugin Page Skill"],
+        "inventory_tool_count": 4,
+        "inventory_selected_tool_names": [
+            "web_search",
+            "fetch_url",
+            "ui_get_snapshot",
+            "ui_click",
+        ],
+        "inventory_skill_count": 2,
+        "inventory_selected_skill_names": [
+            "Plugin Research Skill",
+            "Plugin Page Skill",
+        ],
+    }
     assert assembly.diagnostics["runtime_capability_summary"][
         "selected_skill_names"
     ] == ["Plugin Page Skill"]
+    assert (
+        assembly.diagnostics["runtime_capability_summary"][
+            "turn_skill_activation_applied"
+        ]
+        is True
+    )
+    assert (
+        assembly.diagnostics["runtime_capability_summary"][
+            "turn_skill_activation_reason"
+        ]
+        == "runtime_policy"
+    )
 
 
 @pytest.mark.asyncio
@@ -292,6 +324,40 @@ async def test_context_engine_capability_reporting_keeps_broader_skill_inventory
         "Plugin Research Skill",
         "Plugin Page Skill",
     }
+    assert assembly.diagnostics["turn_skill_activation"] == {
+        "applied": True,
+        "reason": "capability_reporting_query",
+        "tool_count": 4,
+        "selected_tool_names": [
+            "web_search",
+            "fetch_url",
+            "ui_get_snapshot",
+            "ui_click",
+        ],
+        "skill_count": 2,
+        "selected_skill_names": [
+            "Plugin Research Skill",
+            "Plugin Page Skill",
+        ],
+        "inventory_tool_count": 4,
+        "inventory_selected_tool_names": [
+            "web_search",
+            "fetch_url",
+            "ui_get_snapshot",
+            "ui_click",
+        ],
+        "inventory_skill_count": 2,
+        "inventory_selected_skill_names": [
+            "Plugin Research Skill",
+            "Plugin Page Skill",
+        ],
+    }
+    assert (
+        assembly.diagnostics["runtime_capability_summary"][
+            "turn_skill_activation_reason"
+        ]
+        == "capability_reporting_query"
+    )
 
 
 @pytest.mark.asyncio
