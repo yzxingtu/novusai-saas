@@ -84,6 +84,11 @@ request and is surfaced as a context source.
   `memory_runtime_policy` payload plus a compact derived `memory_mode` from
   assistant metadata or thread fallback, rather than exposing only ad-hoc
   pollution booleans.
+- When a read model uses assistant metadata or thread fallback to derive
+  memory policy, it should also project the effective owner source
+  (`assistant_metadata` vs `thread_memory_state`) and preserve
+  `thread_memory_state.updated_at` when available, so operators can tell which
+  thread snapshot is being surfaced and how fresh it is.
 
 ## Long-Term Memory
 
@@ -152,6 +157,10 @@ is cached for reuse.
 - When memory policy exists, conversation detail/read-model projections should
   expose both the normalized `memory_runtime_policy` payload and the derived
   `memory_mode`, alongside any pollution flags.
+- Conversation detail/read-model projections should also expose
+  `memory_runtime_policy_source` and, when present,
+  `thread_memory_state_updated_at` so thread-owner fallback remains explicit
+  instead of looking like a second implicit memory truth source.
 
 ## Required Behavior
 

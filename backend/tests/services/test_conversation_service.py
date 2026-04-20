@@ -377,9 +377,17 @@ class TestGetConversationDetail:
         )
         assert detail["context_diagnostics"]["memory_runtime_policy"] == expected_policy
         assert detail["context_diagnostics"]["memory_mode"] == "session_and_long_term"
+        assert (
+            detail["context_diagnostics"]["memory_runtime_policy_source"]
+            == "assistant_metadata"
+        )
         assert detail["last_run_summary"]["external_context_polluted"] is True
         assert detail["last_run_summary"]["memory_runtime_policy"] == expected_policy
         assert detail["last_run_summary"]["memory_mode"] == "session_and_long_term"
+        assert (
+            detail["last_run_summary"]["memory_runtime_policy_source"]
+            == "assistant_metadata"
+        )
 
     @pytest.mark.asyncio
     async def test_conversation_detail_falls_back_to_thread_memory_state_without_assistant(
@@ -450,12 +458,28 @@ class TestGetConversationDetail:
         )
         assert detail["context_diagnostics"]["memory_runtime_policy"] == expected_policy
         assert detail["context_diagnostics"]["memory_mode"] == "session_only"
+        assert (
+            detail["context_diagnostics"]["memory_runtime_policy_source"]
+            == "thread_memory_state"
+        )
+        assert (
+            detail["context_diagnostics"]["thread_memory_state_updated_at"]
+            == "2026-04-07T12:00:01+00:00"
+        )
         assert detail["last_run_summary"]["external_context_polluted"] is True
         assert (
             detail["last_run_summary"]["external_context_reason"] == "tool:web_search"
         )
         assert detail["last_run_summary"]["memory_runtime_policy"] == expected_policy
         assert detail["last_run_summary"]["memory_mode"] == "session_only"
+        assert (
+            detail["last_run_summary"]["memory_runtime_policy_source"]
+            == "thread_memory_state"
+        )
+        assert (
+            detail["last_run_summary"]["thread_memory_state_updated_at"]
+            == "2026-04-07T12:00:01+00:00"
+        )
 
     @pytest.mark.asyncio
     async def test_conversation_detail_uses_latest_assistant_for_diagnostics_even_when_page_is_older(

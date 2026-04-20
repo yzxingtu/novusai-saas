@@ -298,6 +298,34 @@ def build_memory_runtime_projection(
     return projection
 
 
+def build_effective_memory_runtime_projection(
+    memory_runtime_policy: dict[str, Any] | None,
+    *,
+    thread_memory_state: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    normalized_memory_runtime_policy = normalize_memory_runtime_policy(
+        memory_runtime_policy
+    )
+    normalized_thread_memory_state = normalize_thread_memory_state(thread_memory_state)
+    effective_policy = (
+        normalized_memory_runtime_policy
+        or normalize_memory_runtime_policy(normalized_thread_memory_state)
+    )
+    projection = build_memory_runtime_projection(effective_policy)
+    if not projection:
+        return {}
+
+    if normalized_memory_runtime_policy:
+        projection["memory_runtime_policy_source"] = "assistant_metadata"
+    elif normalized_thread_memory_state:
+        projection["memory_runtime_policy_source"] = "thread_memory_state"
+
+    updated_at = _normalize_text(normalized_thread_memory_state.get("updated_at"))
+    if updated_at:
+        projection["thread_memory_state_updated_at"] = updated_at
+    return projection
+
+
 def normalize_thread_memory_state(
     thread_memory_state: dict[str, Any] | None,
 ) -> dict[str, Any]:
@@ -363,6 +391,7 @@ def prime_memory_runtime_policy(
 __all__ = [
     "MemoryRuntimePolicy",
     "attach_memory_runtime_policy",
+    "build_effective_memory_runtime_projection",
     "build_memory_runtime_projection",
     "detect_external_context_pollution",
     "normalize_memory_runtime_policy",

@@ -7,8 +7,7 @@ from typing import Any
 
 from app.ai.json_safe import normalize_json_safe_dict
 from app.ai.memory_policy import (
-    build_memory_runtime_projection,
-    normalize_memory_runtime_policy,
+    build_effective_memory_runtime_projection,
     normalize_thread_memory_state,
 )
 from app.services.ai.conversation_diagnostics_projector import (
@@ -259,8 +258,9 @@ class ConversationRuntimeProjectionService:
             conversation_metadata.get("thread_memory_state")
         )
 
-    @staticmethod
-    def _resolve_memory_runtime_policy(
+    @classmethod
+    def _build_memory_runtime_projection(
+        cls,
         metadata: dict[str, Any] | None,
         *,
         thread_memory_state: dict[str, Any] | None = None,
@@ -270,24 +270,9 @@ class ConversationRuntimeProjectionService:
             if isinstance(metadata, dict)
             else None
         )
-        if isinstance(raw_memory_runtime_policy, dict):
-            return normalize_memory_runtime_policy(raw_memory_runtime_policy)
-        if isinstance(thread_memory_state, dict):
-            return normalize_memory_runtime_policy(thread_memory_state)
-        return {}
-
-    @classmethod
-    def _build_memory_runtime_projection(
-        cls,
-        metadata: dict[str, Any] | None,
-        *,
-        thread_memory_state: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        return build_memory_runtime_projection(
-            cls._resolve_memory_runtime_policy(
-                metadata,
-                thread_memory_state=thread_memory_state,
-            )
+        return build_effective_memory_runtime_projection(
+            raw_memory_runtime_policy,
+            thread_memory_state=thread_memory_state,
         )
 
     @staticmethod
@@ -306,6 +291,24 @@ class ConversationRuntimeProjectionService:
         if isinstance(memory_mode, str) and memory_mode.strip():
             payload["memory_mode"] = memory_mode
 
+        memory_runtime_policy_source = memory_runtime_projection.get(
+            "memory_runtime_policy_source"
+        )
+        if (
+            isinstance(memory_runtime_policy_source, str)
+            and memory_runtime_policy_source.strip()
+        ):
+            payload["memory_runtime_policy_source"] = memory_runtime_policy_source
+
+        thread_memory_state_updated_at = memory_runtime_projection.get(
+            "thread_memory_state_updated_at"
+        )
+        if (
+            isinstance(thread_memory_state_updated_at, str)
+            and thread_memory_state_updated_at.strip()
+        ):
+            payload["thread_memory_state_updated_at"] = thread_memory_state_updated_at
+
         return payload
 
     @classmethod
@@ -317,7 +320,12 @@ class ConversationRuntimeProjectionService:
     ) -> None:
         if not isinstance(payload, dict) or not isinstance(thread_memory_state, dict):
             return
-        payload.update(build_memory_runtime_projection(thread_memory_state))
+        payload.update(
+            build_effective_memory_runtime_projection(
+                None,
+                thread_memory_state=thread_memory_state,
+            )
+        )
 
     @staticmethod
     def _shared_turn_projection(
