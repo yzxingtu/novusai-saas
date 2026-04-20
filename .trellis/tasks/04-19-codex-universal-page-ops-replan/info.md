@@ -179,6 +179,7 @@
 34. `backend/app/services/ai/runtime_inventory_service.py`、`backend/app/services/ai/runtime_inventory_service_support.py` 与 `backend/app/ai/skills/resolver.py` 已把 capability-pack inventory/read-model owner 继续向统一 resolver 收口：runtime inventory 不再维护第二套 agent-skill grant 解析路径，而是直接复用 `resolve_for_agent(...)`；同时 resolved capability descriptor 与 extension 摘要会继续保留 `startup_preview_tool_names` / `startup_preview_semantic_families` 这类 catalog-only discoverability 元数据，使安装态 plugin capability 能在 runtime manifest / diagnostics 中被看见，而不需要重新跑 live plugin resolver 才“看起来存在”。
 35. `backend/app/ai/memory_policy.py` 与 `backend/app/services/ai/conversation_runtime_projection_service.py` 已把 memory read-model owner 再前移一刀：conversation detail / error-only fallback 现在会通过共享 helper 统一解析 assistant metadata 与 `thread_memory_state`，并显式投影 `memory_runtime_policy_source`（`assistant_metadata` / `thread_memory_state`）和 `thread_memory_state_updated_at`，让 thread-level memory snapshot 的来源与新鲜度在 read-model 上可见，不再像第二条隐式 memory 真相源。
 36. `backend/app/ai/runtime/context_assembler.py`、`backend/app/ai/runtime/manifest.py`、`backend/app/services/ai/agent_chat_turn_projection.py` 与 `backend/app/services/ai/conversation_runtime_projection_service.py` 已把 turn-level skill activation observability 接回 canonical owner 链：skill context source metadata 现在会同时投影 live selected subset、broader resolved inventory 与 activation reason，runtime diagnostics / compact runtime summary / conversation detail read-model 统一复用这份 metadata，不再需要从 prompt hint、page-local state 或第二套 routing 解释路径去猜“这轮为什么只激活了这些 capability packs”。
+37. `backend/app/tasks/agent_batch.py` 与 `backend/app/services/ai/runtime_inventory_service_support.py` 已把 capability-pack startup/read-model owner 再收一刀：batch warmup 不再在 item execution 前 eager resolve 一次全量 agent inventory，避免非 live 启动路径重新冒充 routing owner；同时 runtime inventory / empty manifest payload 会显式标注 `selection_semantics=inventory_snapshot` 与 `selection_live=false`，把 catalog/read-model 语义和真实 live turn truth 继续锁死在不同 owner 面上。
 
 ### 2026-04-21 审计补充：仍未收敛到 codex-main owner 的差距
 
@@ -213,6 +214,29 @@
 1. 清理仍残留在 runtime 语义面中的旧 page tool 认知和双轨兼容。
 2. 以 tool router、page recovery、page-runtime guards/policy、thin `page_context` payload、skill-pack activation、memory policy、frontend 唯一链路为验证锚点。
 3. 每完成一阶段实现，都要同步更新 canonical spec 或当前任务文档，避免再次出现“代码已变、文档还停在旧阶段”的漂移。
+
+## 剩余任务拆分（2026-04-21）
+
+从本轮开始，后续实现不再按“每次对话临时挑一刀”推进，而是统一按下面 6 个 Trellis child tasks 前移。对应 ownership、依赖与 merge order 以 [ownership-matrix.md](./ownership-matrix.md) 为准。
+
+1. `04-21-codex-capability-pack-startup-owner`
+   目标：收掉 capability pack 的最后一批 startup/live owner seam，让 resolver、runtime inventory、manifest、diagnostics、batch/warmup 明确区分 catalog inventory 与 live turn truth。
+2. `04-21-codex-thread-memory-owner`
+   目标：把当前的 normalized `thread_memory_state` 继续收口为更强的 thread owner，补齐 startup priming、pollution guard、capture/review background seam。
+3. `04-21-codex-browser-connector-externalization`
+   目标：把 page/browser 执行继续外推成 connector/MCP-like 边界，聊天核心只吃 canonical `ui_*` payload 和 connector 结果。
+4. `04-21-codex-page-workflow-state-owner`
+   目标：补齐页面工作流状态机的 stop-loss / recovery / completion 闭环，彻底停止 prompt-hint 与文本式早收尾主导 page progress。
+5. `04-21-codex-turn-loop-orchestrator-convergence`
+   目标：在前面 owner 稳定后，再收聊天核心与 turn loop，让核心只剩统一事件协议、工具协议、预算治理和停止条件。
+6. `04-21-codex-frontend-live-truth-freeze`
+   目标：冻结 frontend 唯一 live truth 链路，确保 slide panel / chat panel / page capability UI 只消费 canonical runtime diagnostics，不复活旧 page-op / `suggested_tools` seam。
+
+执行约束：
+
+1. 子任务可以并行研究，但写代码时必须遵守 ownership matrix，避免再回到“多个对话同时踩同一组文件”的状态。
+2. `.trellis/spec/**` 与 umbrella task 文档继续由当前 umbrella owner 维护；child tasks 不提前宣告未落地 contract 已完成。
+3. 后续每次实现优先引用对应 child task 的 `prd.md` / `implement.jsonl` / `check.jsonl`，而不是只依赖聊天上下文回忆剩余工作。
 
 ## 风险与回滚
 

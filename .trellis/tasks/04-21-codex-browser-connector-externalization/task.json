@@ -1,0 +1,39 @@
+{
+  "id": "codex-browser-connector-externalization",
+  "name": "codex-browser-connector-externalization",
+  "title": "Codex browser connector externalization",
+  "description": "Push page and browser execution toward an external connector boundary so chat core consumes canonical ui payloads and connector evidence instead of page-specific internals.",
+  "status": "planning",
+  "dev_type": "fullstack",
+  "scope": null,
+  "priority": "P0",
+  "creator": "yudi",
+  "assignee": "yudi",
+  "createdAt": "2026-04-21",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "execution_path": "deep",
+  "required_artifacts": [
+    "prd.md"
+  ],
+  "context_files": [
+    "implement.jsonl",
+    "check.jsonl"
+  ],
+  "verification_mode": "command",
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "04-19-codex-universal-page-ops-replan",
+  "relatedFiles": [
+    "frontend/apps/web-antd/src/components/business/ai-runtime/runtime-bridge.ts",
+    "frontend/apps/web-antd/src/components/business/ai-runtime/runtime-bridge-snapshot.ts",
+    "backend/app/ai/tools/page_runtime/navigation.py",
+    "backend/app/ai/tools/executors/ui_action_executor.py"
+  ],
+  "notes": "This workstream freezes the connector payload contract that page workflow and frontend surfaces will consume later.",
+  "meta": {}
+}

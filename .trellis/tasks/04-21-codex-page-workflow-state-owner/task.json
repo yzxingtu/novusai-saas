@@ -1,0 +1,39 @@
+{
+  "id": "codex-page-workflow-state-owner",
+  "name": "codex-page-workflow-state-owner",
+  "title": "Codex page workflow state owner closeout",
+  "description": "Finish the page workflow state owner so discover/open/read/write/submit/verify drives routing, recovery, completion, and stop-loss without prompt-hint fallbacks.",
+  "status": "planning",
+  "dev_type": "backend",
+  "scope": null,
+  "priority": "P0",
+  "creator": "yudi",
+  "assignee": "yudi",
+  "createdAt": "2026-04-21",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "execution_path": "normal",
+  "required_artifacts": [
+    "prd.md"
+  ],
+  "context_files": [
+    "implement.jsonl",
+    "check.jsonl"
+  ],
+  "verification_mode": "command",
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "04-19-codex-universal-page-ops-replan",
+  "relatedFiles": [
+    "backend/app/ai/engine/page_workflow_state_machine.py",
+    "backend/app/ai/engine/tool_router.py",
+    "backend/app/ai/engine/page_flow_recovery_helpers.py",
+    "backend/app/ai/engine/turn_executor_completion.py"
+  ],
+  "notes": "This workstream consumes the canonical connector payload contract from WS4 and closes the remaining page-progress and stop-loss seams.",
+  "meta": {}
+}

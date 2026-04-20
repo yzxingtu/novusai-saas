@@ -103,22 +103,14 @@ def execute_batch_run(self: BaseTask, batch_run_id: int, tenant_id: int) -> dict
                     user_role_id=None,
                 )
 
-                # Resolve skills bound to Agent / 解析 Agent 绑定的技能
-                try:
-                    from app.ai.skills.resolver import resolve_for_agent
-
-                    await resolve_for_agent(
-                        db,
-                        agent,
-                        tenant_id=tenant_id,
-                        user_role=_batch_user_role,
-                    )
-                except Exception as skill_exc:
-                    logger.warning(
-                        "Batch {}: skill resolution failed: {}",
-                        batch_run_id,
-                        str(skill_exc),
-                    )
+                # TaskEngine.execute() resolves tools per live item request /
+                # TaskEngine.execute() 会按每个 live item request 解析工具。
+                # Do not eager resolve the full agent inventory here; batch warmup
+                # is not a live routing owner and should not recreate a second
+                # broad-inventory seam before item execution starts /
+                # 不要在这里 eager resolve 全量 agent inventory；batch warmup
+                # 不是 live routing owner，不应在 item execution 开始前重建第二条
+                # broad-inventory seam。
 
                 # Read platform Toolkit security config / 读取平台 Toolkit 安全配置
                 from app.configs.service import ConfigService

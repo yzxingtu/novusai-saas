@@ -1,0 +1,40 @@
+{
+  "id": "codex-turn-loop-orchestrator-convergence",
+  "name": "codex-turn-loop-orchestrator-convergence",
+  "title": "Codex turn loop and orchestrator convergence",
+  "description": "Converge NovusAI chat core toward one codex-style turn loop, tool payload contract, budget owner, and stop-condition owner.",
+  "status": "planning",
+  "dev_type": "ai",
+  "scope": null,
+  "priority": "P0",
+  "creator": "yudi",
+  "assignee": "yudi",
+  "createdAt": "2026-04-21",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "execution_path": "deep",
+  "required_artifacts": [
+    "prd.md"
+  ],
+  "context_files": [
+    "implement.jsonl",
+    "check.jsonl"
+  ],
+  "verification_mode": "command",
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "04-19-codex-universal-page-ops-replan",
+  "relatedFiles": [
+    "backend/app/ai/engine/dispatcher.py",
+    "backend/app/ai/engine/task.py",
+    "backend/app/ai/engine/prepare_execution_pipeline.py",
+    "backend/app/ai/runtime/query_engine.py",
+    "backend/app/services/ai/agent_chat_stream_bootstrap_service.py"
+  ],
+  "notes": "This workstream lands after capability-pack, page-workflow, and thread-memory owner contracts are stable so the core turn loop can stop carrying transitional glue.",
+  "meta": {}
+}

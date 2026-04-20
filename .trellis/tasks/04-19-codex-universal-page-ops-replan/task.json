@@ -26,12 +26,45 @@
   "verification_mode": "command",
   "commit": null,
   "pr_url": null,
-  "subtasks": [],
-  "children": [],
+  "subtasks": [
+    {
+      "name": "WS1 turn loop and orchestrator convergence",
+      "status": "planning"
+    },
+    {
+      "name": "WS2 capability pack startup owner convergence",
+      "status": "active"
+    },
+    {
+      "name": "WS3 page workflow state owner closeout",
+      "status": "planning"
+    },
+    {
+      "name": "WS4 browser connector externalization",
+      "status": "planning"
+    },
+    {
+      "name": "WS5 thread memory owner convergence",
+      "status": "planning"
+    },
+    {
+      "name": "WS6 frontend live truth freeze",
+      "status": "planning"
+    }
+  ],
+  "children": [
+    "04-21-codex-turn-loop-orchestrator-convergence",
+    "04-21-codex-capability-pack-startup-owner",
+    "04-21-codex-page-workflow-state-owner",
+    "04-21-codex-browser-connector-externalization",
+    "04-21-codex-thread-memory-owner",
+    "04-21-codex-frontend-live-truth-freeze"
+  ],
   "parent": null,
   "relatedFiles": [
     ".trellis/tasks/04-19-codex-universal-page-ops-replan/prd.md",
     ".trellis/tasks/04-19-codex-universal-page-ops-replan/info.md",
+    ".trellis/tasks/04-19-codex-universal-page-ops-replan/ownership-matrix.md",
     ".trellis/spec/ai-runtime/index.md",
     ".trellis/spec/ai-runtime/intent-routing.md",
     ".trellis/spec/ai-runtime/tool-skill-governance.md",
@@ -52,6 +85,6 @@
     "C:/Users/Administrator/Downloads/codex-main/codex-rs/core/src/stream_events_utils.rs",
     "C:/Users/Administrator/Downloads/codex-main/codex-rs/core/src/memories/README.md"
   ],
-  "notes": "Architecture replan freezes current shared UI runtime as the baseline, compares it against codex-main's unified event-driven tool orchestration, skill-pack activation, and thread-level memory governance, and defines owner/seam migration away from page-by-page adaptation and prompt-driven capability hacks.",
+  "notes": "Architecture replan freezes current shared UI runtime as the baseline, compares it against codex-main's unified event-driven tool orchestration, skill-pack activation, and thread-level memory governance, and now tracks the remaining implementation as six child workstreams under a single ownership matrix so follow-up turns can continue from explicit backlog instead of ad-hoc chat memory.",
   "meta": {}
 }

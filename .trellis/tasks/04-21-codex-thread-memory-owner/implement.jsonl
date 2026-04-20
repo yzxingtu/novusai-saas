@@ -1,0 +1,5 @@
+{"file": "backend/app/ai/memory_policy.py", "reason": "Canonical thread-memory owner contract and normalization"}
+{"file": "backend/app/ai/context/orchestrator.py", "reason": "Startup/recall gating should follow the explicit thread owner state"}
+{"file": "backend/app/services/ai/agent_chat_memory_support.py", "reason": "Startup priming and capture support should stop carrying private memory glue"}
+{"file": "backend/app/services/ai/conversation_message_persistence_service.py", "reason": "Assistant metadata and thread state persistence must stay in one owner chain"}
+{"file": "backend/app/services/ai/conversation_runtime_projection_service.py", "reason": "Conversation detail/error-only projection should expose canonical memory owner state"}

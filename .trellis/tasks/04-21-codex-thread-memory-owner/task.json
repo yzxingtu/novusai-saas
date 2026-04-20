@@ -1,0 +1,39 @@
+{
+  "id": "codex-thread-memory-owner",
+  "name": "codex-thread-memory-owner",
+  "title": "Codex thread memory owner convergence",
+  "description": "Strengthen NovusAI memory governance from a normalized thread snapshot into a more explicit thread-owned runtime lifecycle with startup, capture, recall, and pollution controls.",
+  "status": "planning",
+  "dev_type": "ai",
+  "scope": null,
+  "priority": "P0",
+  "creator": "yudi",
+  "assignee": "yudi",
+  "createdAt": "2026-04-21",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "execution_path": "deep",
+  "required_artifacts": [
+    "prd.md"
+  ],
+  "context_files": [
+    "implement.jsonl",
+    "check.jsonl"
+  ],
+  "verification_mode": "command",
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "04-19-codex-universal-page-ops-replan",
+  "relatedFiles": [
+    "backend/app/ai/memory_policy.py",
+    "backend/app/ai/context/orchestrator.py",
+    "backend/app/services/ai/agent_chat_memory_support.py",
+    "backend/app/services/ai/conversation_runtime_projection_service.py"
+  ],
+  "notes": "This workstream should land before final runtime-core convergence so thread memory ownership is not re-embedded into entrypoint glue.",
+  "meta": {}
+}

@@ -1,0 +1,4 @@
+{"file": "backend/tests/ai/engine/test_tool_router.py", "reason": "Verify page intents map to canonical workflow stages"}
+{"file": "backend/tests/ai/engine/test_page_flow_recovery.py", "reason": "Verify recovery narrows tools from workflow state rather than prompt hints"}
+{"file": "backend/tests/ai/engine/test_structured_orchestration_runtime.py", "reason": "Verify page progress and completion are stage-aware across runtime orchestration"}
+{"file": "backend/tests/ai/engine/test_tool_policy_intent_plan.py", "reason": "Verify contract-breach tracking reuses workflow completion rules"}

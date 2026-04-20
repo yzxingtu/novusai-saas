@@ -1,0 +1,4 @@
+{"file": "frontend/apps/web-antd/src/components/business/ai-slide-panel/use-page-ai-capability.ts", "reason": "Page AI capability wiring should consume only canonical runtime truth"}
+{"file": "frontend/apps/web-antd/src/components/business/ai-chat-panel/tool-call-utils.ts", "reason": "Tool-call and pending-op display must stay on canonical ui_* / tool_name semantics"}
+{"file": "frontend/apps/web-antd/src/composables/use-ai-page-policy.ts", "reason": "Frontend policy bridge should not re-emit legacy page-op live names"}
+{"file": "frontend/apps/web-antd/src/utils/ai-page-capabilities.ts", "reason": "Capability filters and allowlists must remain canonical-runtime-only"}

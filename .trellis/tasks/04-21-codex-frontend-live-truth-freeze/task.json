@@ -1,0 +1,39 @@
+{
+  "id": "codex-frontend-live-truth-freeze",
+  "name": "codex-frontend-live-truth-freeze",
+  "title": "Codex frontend live truth freeze",
+  "description": "Freeze the frontend page-AI surfaces onto canonical runtime diagnostics and ui tool truth so old page-op names and suggested-tools hints cannot re-enter the live path.",
+  "status": "planning",
+  "dev_type": "frontend",
+  "scope": null,
+  "priority": "P0",
+  "creator": "yudi",
+  "assignee": "yudi",
+  "createdAt": "2026-04-21",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "execution_path": "normal",
+  "required_artifacts": [
+    "prd.md"
+  ],
+  "context_files": [
+    "implement.jsonl",
+    "check.jsonl"
+  ],
+  "verification_mode": "command",
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "04-19-codex-universal-page-ops-replan",
+  "relatedFiles": [
+    "frontend/apps/web-antd/src/components/business/ai-slide-panel/use-page-ai-capability.ts",
+    "frontend/apps/web-antd/src/components/business/ai-chat-panel/tool-call-utils.ts",
+    "frontend/apps/web-antd/src/composables/use-ai-page-policy.ts",
+    "frontend/apps/web-antd/src/utils/ai-page-capabilities.ts"
+  ],
+  "notes": "This workstream lands after the backend/runtime contracts settle so frontend surfaces can freeze onto the final canonical live truth.",
+  "meta": {}
+}

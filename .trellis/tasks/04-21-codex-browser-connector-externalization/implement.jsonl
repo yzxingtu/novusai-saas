@@ -1,0 +1,5 @@
+{"file": "frontend/apps/web-antd/src/components/business/ai-runtime/runtime-bridge.ts", "reason": "Single frontend owner for thin page_context and connector payload assembly"}
+{"file": "frontend/apps/web-antd/src/components/business/ai-runtime/runtime-bridge-snapshot.ts", "reason": "Snapshot/page-data emission should stay summary-first and connector-owned"}
+{"file": "frontend/apps/web-antd/src/utils/page-navigation.ts", "reason": "Cross-page navigation payloads should reuse the connector-owned runtime seam"}
+{"file": "backend/app/ai/tools/executors/ui_action_executor.py", "reason": "Canonical backend execution boundary for ui_* actions"}
+{"file": "backend/app/ai/tools/page_runtime/navigation.py", "reason": "Backend page-runtime tools should consume connector evidence rather than page-local guesses"}

@@ -283,6 +283,8 @@ def shape_manifest_payload(
     summary = AIRuntimeInventoryService.build_compact_summary(manifest)
     summary.update(
         {
+            "selection_semantics": "inventory_snapshot",
+            "selection_live": False,
             "tool_count": len(payload.get("tools") or []),
             "skill_count": len(payload.get("skills") or []),
             "knowledge_base_count": len(
@@ -324,6 +326,8 @@ def shape_manifest_payload(
     payload["summary"] = summary
     payload.setdefault("boundaries", {})
     payload["boundaries"]["scope_context"] = scope
+    payload["boundaries"]["selection_semantics"] = "inventory_snapshot"
+    payload["boundaries"]["live_turn_bound"] = False
     return payload
 
 
@@ -409,6 +413,8 @@ def build_empty_manifest(
         ],
         "boundaries": {
             "scope_context": scope,
+            "selection_semantics": "inventory_snapshot",
+            "live_turn_bound": False,
             "write_operations_require_confirmation": True,
         },
         "sources": [],
@@ -417,6 +423,8 @@ def build_empty_manifest(
             "selected_skill_names": [],
             "turn_skill_activation_applied": False,
             "turn_skill_activation_reason": None,
+            "selection_semantics": "inventory_snapshot",
+            "selection_live": False,
             "context_line": "",
             "context_source_kinds": [],
             "tool_families": [],

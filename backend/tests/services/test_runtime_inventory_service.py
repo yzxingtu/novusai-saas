@@ -9,7 +9,10 @@ from app.ai.runtime.manifest import RuntimeCapabilityItem, RuntimeCapabilityMani
 from app.ai.runtime.types import CapabilityDescriptor
 from app.ai.skills.resolver import SkillResolveResult
 from app.ai.tools.types import ToolDefinition
-from app.services.ai.runtime_inventory_service_support import shape_manifest_payload
+from app.services.ai.runtime_inventory_service_support import (
+    build_empty_manifest,
+    shape_manifest_payload,
+)
 
 
 @pytest.mark.asyncio
@@ -150,3 +153,20 @@ def test_shape_manifest_payload_projects_skill_catalog_preview_metadata() -> Non
     ]
     assert payload["summary"]["turn_skill_activation_applied"] is True
     assert payload["summary"]["turn_skill_activation_reason"] == "runtime_policy"
+    assert payload["summary"]["selection_semantics"] == "inventory_snapshot"
+    assert payload["summary"]["selection_live"] is False
+    assert payload["boundaries"]["selection_semantics"] == "inventory_snapshot"
+    assert payload["boundaries"]["live_turn_bound"] is False
+
+
+def test_build_empty_manifest_marks_inventory_snapshot_as_non_live() -> None:
+    payload = build_empty_manifest(
+        scope="runtime",
+        tenant_id=9,
+        agent_code="support-agent",
+    )
+
+    assert payload["boundaries"]["selection_semantics"] == "inventory_snapshot"
+    assert payload["boundaries"]["live_turn_bound"] is False
+    assert payload["summary"]["selection_semantics"] == "inventory_snapshot"
+    assert payload["summary"]["selection_live"] is False
