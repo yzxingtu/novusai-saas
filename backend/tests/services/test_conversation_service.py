@@ -209,9 +209,7 @@ class TestGetConversationDetail:
         service._message_repo = MagicMock()
         service._message_repo.get_by_conversation = AsyncMock(return_value=[message])
         service._message_repo.count_by_conversation = AsyncMock(return_value=1)
-        mock_db.execute = AsyncMock(
-            return_value=SimpleNamespace(scalars=lambda: [])
-        )
+        mock_db.execute = AsyncMock(return_value=SimpleNamespace(scalars=lambda: []))
 
         detail = await service.get_conversation_detail(1, user_id=1)
 
@@ -247,10 +245,10 @@ class TestGetConversationDetail:
         service._message_repo = MagicMock()
         service._message_repo.get_by_conversation = AsyncMock(return_value=[])
         service._message_repo.count_by_conversation = AsyncMock(return_value=0)
-        service._message_repo.get_latest_assistant_message = AsyncMock(return_value=None)
-        mock_db.execute = AsyncMock(
-            return_value=SimpleNamespace(scalars=lambda: [])
+        service._message_repo.get_latest_assistant_message = AsyncMock(
+            return_value=None
         )
+        mock_db.execute = AsyncMock(return_value=SimpleNamespace(scalars=lambda: []))
 
         detail = await service.get_conversation_detail(1, user_id=1)
 
@@ -296,9 +294,7 @@ class TestGetConversationDetail:
         service._message_repo = MagicMock()
         service._message_repo.get_by_conversation = AsyncMock(return_value=[message])
         service._message_repo.count_by_conversation = AsyncMock(return_value=1)
-        mock_db.execute = AsyncMock(
-            return_value=SimpleNamespace(scalars=lambda: [])
-        )
+        mock_db.execute = AsyncMock(return_value=SimpleNamespace(scalars=lambda: []))
 
         detail = await service.get_conversation_detail(1, user_id=1)
 
@@ -310,8 +306,97 @@ class TestGetConversationDetail:
         ]
         assert detail["context_diagnostics"]["last_interrupted"] is True
         assert detail["last_run_summary"]["interrupted"] is True
-        assert detail["message_list"][0]["turn_flow"]["completion_reason"] == "interrupted"
+        assert (
+            detail["message_list"][0]["turn_flow"]["completion_reason"] == "interrupted"
+        )
         assert detail["message_list"][0]["turn_flow"]["interrupted"] is True
+
+    @pytest.mark.asyncio
+    async def test_conversation_detail_surfaces_external_context_pollution_state(
+        self, mock_db
+    ):
+        from app.services.ai.conversation_service import ConversationService
+
+        conversation = _make_conversation()
+        conversation.metadata_ = {"interaction_mode": "confirm"}
+        message = _make_message(role="assistant", content="已处理")
+        message.to_dict.return_value = {
+            "id": 1,
+            "role": "assistant",
+            "content": "已处理",
+            "metadata": {
+                "memory_runtime_policy": {
+                    "external_context_polluted": True,
+                    "external_context_reason": "tool:web_search",
+                }
+            },
+        }
+        message.metadata_ = message.to_dict.return_value["metadata"]
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service.get_accessible_conversation = AsyncMock(return_value=conversation)
+        service._message_repo = MagicMock()
+        service._message_repo.get_by_conversation = AsyncMock(return_value=[message])
+        service._message_repo.count_by_conversation = AsyncMock(return_value=1)
+        mock_db.execute = AsyncMock(return_value=SimpleNamespace(scalars=lambda: []))
+
+        detail = await service.get_conversation_detail(1, user_id=1)
+
+        assert detail["context_diagnostics"]["external_context_polluted"] is True
+        assert (
+            detail["context_diagnostics"]["external_context_reason"]
+            == "tool:web_search"
+        )
+        assert detail["last_run_summary"]["external_context_polluted"] is True
+
+    @pytest.mark.asyncio
+    async def test_conversation_detail_falls_back_to_thread_memory_state_without_assistant(
+        self, mock_db
+    ):
+        from app.services.ai.conversation_service import ConversationService
+
+        conversation = _make_conversation(message_count=0)
+        conversation.metadata_ = {
+            "interaction_mode": "confirm",
+            "thread_memory_state": {
+                "external_context_polluted": True,
+                "external_context_reason": "tool:web_search",
+            },
+            "last_error": {
+                "timestamp": "2026-04-07T12:00:00+00:00",
+                "error_type": "stream_execution_error",
+                "friendly_message": "服务器内部错误",
+                "partial": False,
+            },
+        }
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service.get_accessible_conversation = AsyncMock(return_value=conversation)
+        service._message_repo = MagicMock()
+        service._message_repo.get_by_conversation = AsyncMock(return_value=[])
+        service._message_repo.count_by_conversation = AsyncMock(return_value=0)
+        service._message_repo.get_latest_assistant_message = AsyncMock(
+            return_value=None
+        )
+        mock_db.execute = AsyncMock(return_value=SimpleNamespace(scalars=lambda: []))
+
+        detail = await service.get_conversation_detail(1, user_id=1)
+
+        assert detail["context_diagnostics"]["external_context_polluted"] is True
+        assert (
+            detail["context_diagnostics"]["external_context_reason"]
+            == "tool:web_search"
+        )
+        assert detail["last_run_summary"]["external_context_polluted"] is True
+        assert (
+            detail["last_run_summary"]["external_context_reason"] == "tool:web_search"
+        )
 
     @pytest.mark.asyncio
     async def test_conversation_detail_uses_latest_assistant_for_diagnostics_even_when_page_is_older(
@@ -374,11 +459,11 @@ class TestGetConversationDetail:
         service._message_repo.get_latest_assistant_message = AsyncMock(
             return_value=latest_assistant
         )
-        mock_db.execute = AsyncMock(
-            return_value=SimpleNamespace(scalars=lambda: [])
-        )
+        mock_db.execute = AsyncMock(return_value=SimpleNamespace(scalars=lambda: []))
 
-        detail = await service.get_conversation_detail(1, message_skip=0, message_limit=50)
+        detail = await service.get_conversation_detail(
+            1, message_skip=0, message_limit=50
+        )
 
         assert detail["message_list"][0]["id"] == 11
         assert detail["context_diagnostics"]["execution_path"] == "deep"
@@ -388,7 +473,10 @@ class TestGetConversationDetail:
         assert detail["last_run_summary"]["termination_reason"] == (
             "tool_round_budget_exceeded"
         )
-        assert detail["message_list"][0]["turn_flow"]["timeline"][-1]["type"] == "completed"
+        assert (
+            detail["message_list"][0]["turn_flow"]["timeline"][-1]["type"]
+            == "completed"
+        )
 
     @pytest.mark.asyncio
     async def test_conversation_detail_normalizes_provider_failure_after_partial_progress_turn_flow(
@@ -454,9 +542,13 @@ class TestGetConversationDetail:
 
         turn_flow = detail["message_list"][0]["turn_flow"]
         answer_assembly = next(
-            stage for stage in turn_flow["timeline"] if stage["type"] == "answer_assembly"
+            stage
+            for stage in turn_flow["timeline"]
+            if stage["type"] == "answer_assembly"
         )
-        assert turn_flow["completion_reason"] == "provider_failure_after_partial_progress"
+        assert (
+            turn_flow["completion_reason"] == "provider_failure_after_partial_progress"
+        )
         assert answer_assembly["status"] == "error"
         assert turn_flow["timeline"][-1]["type"] == "failed"
         assert turn_flow["timeline"][-1]["status"] == "error"
@@ -722,9 +814,7 @@ class TestSearchMessages:
         service.tenant_id = 1
         service.repo = AsyncMock()
         service._message_repo = MagicMock()
-        service._message_repo.search_by_content = AsyncMock(
-            return_value=([message], 1)
-        )
+        service._message_repo.search_by_content = AsyncMock(return_value=([message], 1))
         mock_db.execute = AsyncMock(
             return_value=SimpleNamespace(scalars=lambda: [image_attachment])
         )
@@ -836,7 +926,9 @@ class TestExportConversation:
         assert payload["messages"][0]["agent_id"] == 42
         assert payload["messages"][0]["agent_name"] == "Router Agent"
         assert payload["messages"][0]["agent_avatar"] == "/router.png"
-        assert payload["messages"][0]["metadata"]["attachments"][0]["attachment_id"] == 7
+        assert (
+            payload["messages"][0]["metadata"]["attachments"][0]["attachment_id"] == 7
+        )
         assert "**Attachments:**" in markdown_content
         assert "report.pdf" in markdown_content
         assert "(Router Agent)" in markdown_content
@@ -1286,7 +1378,10 @@ class TestThinkingPersistence:
             context_compacted=False,
             memory_flush_triggered=False,
             memory_recalled=True,
-            prune_stats={"mode": "transient_tool_result_pruning", "pruned_message_count": 1},
+            prune_stats={
+                "mode": "transient_tool_result_pruning",
+                "pruned_message_count": 1,
+            },
         )
 
         service = ConversationService.__new__(ConversationService)
@@ -1368,8 +1463,91 @@ class TestThinkingPersistence:
             is False
         )
         assert assistant_payload["metadata_"]["last_run_summary"] == last_summary
-        assert assistant_payload["metadata_"]["turn_flow"]["timeline"][-1]["type"] == "completed"
-        assert assistant_payload["metadata_"]["turn_flow"]["answer_card"]["summary"] == "最终答复"
+        assert (
+            assistant_payload["metadata_"]["turn_flow"]["timeline"][-1]["type"]
+            == "completed"
+        )
+        assert (
+            assistant_payload["metadata_"]["turn_flow"]["answer_card"]["summary"]
+            == "最终答复"
+        )
+
+    @pytest.mark.asyncio
+    async def test_persist_chat_messages_persists_thread_memory_state(self, mock_db):
+        from app.services.ai.conversation_service import ConversationService
+
+        conversation = _make_conversation(id=901, message_count=0, metadata_={})
+        result = SimpleNamespace(
+            messages=[
+                {"role": "user", "content": "请继续"},
+                {
+                    "role": "assistant",
+                    "content": "已处理",
+                    "tool_calls": None,
+                    "tool_call_id": None,
+                    "attachments": None,
+                    "reasoning_content": None,
+                },
+            ],
+            tool_results=[],
+            partial=False,
+            interrupted=False,
+            completion_reason="",
+            runtime_model_id=None,
+            runtime_model_name=None,
+            runtime_provider_id=None,
+            runtime_provider_name=None,
+            memory_runtime_policy={
+                "scene": "conversation",
+                "channel": "session",
+                "source": "conversation",
+                "session_memory_runtime_enabled": True,
+                "session_memory_read_enabled": True,
+                "session_memory_write_enabled": True,
+                "long_term_memory_runtime_enabled": True,
+                "long_term_memory_recall_enabled": False,
+                "long_term_memory_capture_enabled": False,
+                "memory_context_enabled": True,
+                "external_context_polluted": True,
+                "external_context_reason": "tool:web_search",
+            },
+        )
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service._message_repo = MagicMock()
+        service._message_repo.get_next_sequence = AsyncMock(return_value=1)
+        service._message_repo.create = AsyncMock()
+
+        await service.persist_chat_messages(
+            conversation=conversation,
+            result=result,
+            history_count=0,
+            agent_id=7,
+        )
+
+        assistant_payload = service._message_repo.create.await_args_list[1].args[0]
+        assert (
+            assistant_payload["metadata_"]["memory_runtime_policy"][
+                "external_context_polluted"
+            ]
+            is True
+        )
+        update_payload = service.repo.update.await_args_list[-1].args[1]
+        assert (
+            update_payload["metadata_"]["thread_memory_state"][
+                "external_context_polluted"
+            ]
+            is True
+        )
+        assert (
+            update_payload["metadata_"]["thread_memory_state"][
+                "external_context_reason"
+            ]
+            == "tool:web_search"
+        )
 
     @pytest.mark.asyncio
     async def test_persist_chat_messages_normalizes_nested_runtime_metadata_to_json_safe(
@@ -1456,9 +1634,7 @@ class TestThinkingPersistence:
 
         assert tool_summary_payload["amount"] == 12.5
         assert tool_summary_payload["scheduled_at"] == "2026-04-07T08:00:00+00:00"
-        assert (
-            tool_summary_payload["naive_started_at"] == "2026-04-07T08:30:00+00:00"
-        )
+        assert tool_summary_payload["naive_started_at"] == "2026-04-07T08:30:00+00:00"
         assert tool_summary_payload["status"] == "ready"
         assert tool_summary_payload["dataclass_payload"]["amount"] == 7
         assert (
@@ -1471,9 +1647,7 @@ class TestThinkingPersistence:
         assert metadata["last_run_summary"]["status"] == "ready"
 
     @pytest.mark.asyncio
-    async def test_persist_chat_messages_normalizes_json_unsafe_metadata(
-        self, mock_db
-    ):
+    async def test_persist_chat_messages_normalizes_json_unsafe_metadata(self, mock_db):
         from app.services.ai.conversation_service import ConversationService
 
         conversation = _make_conversation(id=9001, message_count=0)
@@ -2043,17 +2217,22 @@ class TestThinkingPersistence:
         service.db = mock_db
         service.tenant_id = 1
         service.repo = AsyncMock()
-        service.repo.get_by_id = AsyncMock(return_value=_make_conversation(id=99, agent_id=7))
+        service.repo.get_by_id = AsyncMock(
+            return_value=_make_conversation(id=99, agent_id=7)
+        )
         service._message_repo = MagicMock()
         service._message_repo.get_last_n_messages = AsyncMock(return_value=[assistant])
         service._message_repo.update = AsyncMock()
 
-        with patch(
-            "app.services.ai.conversation_service.ExecutionDecisionService.record_decision",
-            new=AsyncMock(),
-        ) as record_decision, patch(
-            "app.services.ai.conversation_service.write_ai_action_log",
-            new=AsyncMock(),
+        with (
+            patch(
+                "app.services.ai.conversation_service.ExecutionDecisionService.record_decision",
+                new=AsyncMock(),
+            ) as record_decision,
+            patch(
+                "app.services.ai.conversation_service.write_ai_action_log",
+                new=AsyncMock(),
+            ),
         ):
             updated = await service.update_last_assistant_interaction_state(
                 conversation_id=99,
@@ -2080,9 +2259,15 @@ class TestThinkingPersistence:
         first_payload = record_decision.await_args_list[0].args[0]
         second_payload = record_decision.await_args_list[1].args[0]
         assert first_payload["decision_type"] == "confirmation"
-        assert first_payload["evidence"]["tool_planner"]["reason"] == "smalltalk_or_support_no_tool"
+        assert (
+            first_payload["evidence"]["tool_planner"]["reason"]
+            == "smalltalk_or_support_no_tool"
+        )
         assert second_payload["decision_type"] == "consent"
-        assert second_payload["evidence"]["tool_planner"]["reason"] == "smalltalk_or_support_no_tool"
+        assert (
+            second_payload["evidence"]["tool_planner"]["reason"]
+            == "smalltalk_or_support_no_tool"
+        )
         assert second_payload["status"] == "auto_approved"
 
     @pytest.mark.asyncio
@@ -2164,18 +2349,23 @@ class TestThinkingPersistence:
         service.db = mock_db
         service.tenant_id = 1
         service.repo = AsyncMock()
-        service.repo.get_by_id = AsyncMock(return_value=_make_conversation(id=77, agent_id=7))
+        service.repo.get_by_id = AsyncMock(
+            return_value=_make_conversation(id=77, agent_id=7)
+        )
         service._message_repo = MagicMock()
         service._message_repo.get_last_n_messages = AsyncMock(return_value=[assistant])
         service._message_repo.update = AsyncMock()
 
-        with patch(
-            "app.services.ai.conversation_service.ExecutionDecisionService.record_decision",
-            new=AsyncMock(return_value=SimpleNamespace(id=901)),
-        ), patch(
-            "app.services.ai.conversation_service.write_ai_action_log",
-            new=AsyncMock(),
-        ) as write_action_log:
+        with (
+            patch(
+                "app.services.ai.conversation_service.ExecutionDecisionService.record_decision",
+                new=AsyncMock(return_value=SimpleNamespace(id=901)),
+            ),
+            patch(
+                "app.services.ai.conversation_service.write_ai_action_log",
+                new=AsyncMock(),
+            ) as write_action_log,
+        ):
             await service.update_last_assistant_interaction_state(
                 conversation_id=77,
                 user_id=1,
@@ -2263,7 +2453,9 @@ class TestSanitizeToolMessages:
         assert ConversationService.sanitize_tool_messages([]) == []
 
 
-def test_extract_turn_diagnostics_reads_extended_runtime_fields_from_nested_turn_record() -> None:
+def test_extract_turn_diagnostics_reads_extended_runtime_fields_from_nested_turn_record() -> (
+    None
+):
     from app.services.ai.conversation_service import ConversationService
 
     payload = ConversationService._extract_turn_diagnostics_from_metadata(
@@ -2274,7 +2466,9 @@ def test_extract_turn_diagnostics_reads_extended_runtime_fields_from_nested_turn
                 "protocol_path": "responses",
                 "selected_tool_names": ["get_current_weather", "web_search"],
                 "selected_skill_names": ["runtime.page_context"],
-                "context_sources": [{"kind": "page_context", "name": "admin.ai.dashboard"}],
+                "context_sources": [
+                    {"kind": "page_context", "name": "admin.ai.dashboard"}
+                ],
                 "execution_path": "deep",
                 "intent_plan": [
                     {
@@ -2564,7 +2758,9 @@ async def test_persist_chat_messages_records_extended_runtime_diagnostics_fields
 
 
 @pytest.mark.asyncio
-async def test_conversation_detail_surfaces_extended_runtime_diagnostics(mock_db) -> None:
+async def test_conversation_detail_surfaces_extended_runtime_diagnostics(
+    mock_db,
+) -> None:
     from app.services.ai.conversation_service import ConversationService
 
     conversation = _make_conversation()

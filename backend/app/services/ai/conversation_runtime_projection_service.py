@@ -24,7 +24,9 @@ class ConversationRuntimeProjectionService:
         message_repo: Any,
         read_model_service: Any,
         get_accessible_conversation: Callable[..., Awaitable[Any]],
-        get_context_compaction_snapshot: Callable[[int], Awaitable[dict[str, Any] | None]],
+        get_context_compaction_snapshot: Callable[
+            [int], Awaitable[dict[str, Any] | None]
+        ],
     ) -> None:
         self.message_repo = message_repo
         self.read_model_service = read_model_service
@@ -66,18 +68,27 @@ class ConversationRuntimeProjectionService:
             "get_latest_assistant_message",
             None,
         )
-        last_assistant_message = await self.read_model_service.resolve_last_assistant_message(
-            conversation_id=conversation_id,
-            message_list=message_list,
-            latest_assistant_loader=latest_assistant_loader,
+        last_assistant_message = (
+            await self.read_model_service.resolve_last_assistant_message(
+                conversation_id=conversation_id,
+                message_list=message_list,
+                latest_assistant_loader=latest_assistant_loader,
+            )
         )
         conversation_metadata = (
-            dict(conversation.metadata_) if isinstance(conversation.metadata_, dict) else {}
+            dict(conversation.metadata_)
+            if isinstance(conversation.metadata_, dict)
+            else {}
         )
         conversation_last_error = self.normalize_json_safe_dict(
             conversation_metadata.get("last_error")
         )
-        compaction_snapshot = await self.get_context_compaction_snapshot(conversation.id)
+        thread_memory_state = self._conversation_thread_memory_state(
+            conversation_metadata
+        )
+        compaction_snapshot = await self.get_context_compaction_snapshot(
+            conversation.id
+        )
         _interaction_mode_requested, interaction_mode_effective = (
             self.read_model_service.extract_interaction_modes(conversation_metadata)
         )
@@ -86,18 +97,22 @@ class ConversationRuntimeProjectionService:
         )
 
         if last_assistant_message is not None:
-            result["turn_flow"] = ConversationTurnFlowProjector.project_from_message_payload(
-                last_assistant_message
+            result["turn_flow"] = (
+                ConversationTurnFlowProjector.project_from_message_payload(
+                    last_assistant_message
+                )
             )
             result["context_diagnostics"] = self.build_context_diagnostics_payload(
                 last_assistant_message,
                 compaction_snapshot=compaction_snapshot,
                 interaction_mode_effective=interaction_mode_effective,
+                thread_memory_state=thread_memory_state,
             )
             result["last_run_summary"] = self.build_last_run_summary_payload(
                 last_assistant_message,
                 interaction_mode_effective=interaction_mode_effective,
                 downgrade_reason=downgrade_reason,
+                thread_memory_state=thread_memory_state,
             )
             return result
 
@@ -108,6 +123,15 @@ class ConversationRuntimeProjectionService:
                 interaction_mode_effective=interaction_mode_effective,
                 downgrade_reason=downgrade_reason,
             )
+        )
+        cls = type(self)
+        cls._apply_thread_memory_projection(
+            result.get("context_diagnostics"),
+            thread_memory_state=thread_memory_state,
+        )
+        cls._apply_thread_memory_projection(
+            result.get("last_run_summary"),
+            thread_memory_state=thread_memory_state,
         )
         return result
 
@@ -122,10 +146,15 @@ class ConversationRuntimeProjectionService:
         *,
         compaction_snapshot: dict[str, Any] | None,
         interaction_mode_effective: str,
+        thread_memory_state: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         del interaction_mode_effective
         metadata = cls._message_metadata(last_assistant_message)
         turn_meta = cls.extract_turn_diagnostics_from_metadata(metadata)
+        memory_runtime_policy = cls._resolve_memory_runtime_policy(
+            metadata,
+            thread_memory_state=thread_memory_state,
+        )
         return {
             "estimated_tokens": (
                 last_assistant_message.get("token_count")
@@ -136,6 +165,12 @@ class ConversationRuntimeProjectionService:
             "compact_summary_present": bool((compaction_snapshot or {}).get("summary")),
             "memory_recalled": bool(metadata.get("memory_recalled")),
             "memory_flush_triggered": bool(metadata.get("memory_flush_triggered")),
+            "external_context_polluted": bool(
+                memory_runtime_policy.get("external_context_polluted")
+            ),
+            "external_context_reason": memory_runtime_policy.get(
+                "external_context_reason"
+            ),
             "prune_stats": metadata.get("prune_stats"),
             "rag_source_kinds": list(metadata.get("rag_source_kinds") or []),
             "last_interrupted": bool(metadata.get("interrupted"))
@@ -150,15 +185,22 @@ class ConversationRuntimeProjectionService:
         *,
         interaction_mode_effective: str,
         downgrade_reason: Any,
+        thread_memory_state: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         del interaction_mode_effective, downgrade_reason
         metadata = cls._message_metadata(last_assistant_message)
         turn_meta = cls.extract_turn_diagnostics_from_metadata(metadata)
+        memory_runtime_policy = cls._resolve_memory_runtime_policy(
+            metadata,
+            thread_memory_state=thread_memory_state,
+        )
         shared_projection = cls._shared_turn_projection(turn_meta, metadata=metadata)
         completion_reason = turn_meta.get("termination_reason") or metadata.get(
             "completion_reason"
         )
-        completion_reason = shared_projection.get("termination_reason") or completion_reason
+        completion_reason = (
+            shared_projection.get("termination_reason") or completion_reason
+        )
         interrupted = bool(metadata.get("interrupted")) or (
             completion_reason == "interrupted"
         )
@@ -180,6 +222,12 @@ class ConversationRuntimeProjectionService:
                 if isinstance(last_assistant_message, dict)
                 else None
             ),
+            "external_context_polluted": bool(
+                memory_runtime_policy.get("external_context_polluted")
+            ),
+            "external_context_reason": memory_runtime_policy.get(
+                "external_context_reason"
+            ),
             **shared_projection,
         }
 
@@ -191,6 +239,53 @@ class ConversationRuntimeProjectionService:
             return {}
         raw_metadata = last_assistant_message.get("metadata")
         return dict(raw_metadata) if isinstance(raw_metadata, dict) else {}
+
+    @staticmethod
+    def _conversation_thread_memory_state(
+        conversation_metadata: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        if not isinstance(conversation_metadata, dict):
+            return {}
+        raw_thread_memory_state = conversation_metadata.get("thread_memory_state")
+        return (
+            dict(raw_thread_memory_state)
+            if isinstance(raw_thread_memory_state, dict)
+            else {}
+        )
+
+    @staticmethod
+    def _resolve_memory_runtime_policy(
+        metadata: dict[str, Any] | None,
+        *,
+        thread_memory_state: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        raw_memory_runtime_policy = (
+            metadata.get("memory_runtime_policy")
+            if isinstance(metadata, dict)
+            else None
+        )
+        if isinstance(raw_memory_runtime_policy, dict):
+            return dict(raw_memory_runtime_policy)
+        if isinstance(thread_memory_state, dict):
+            return dict(thread_memory_state)
+        return {}
+
+    @staticmethod
+    def _apply_thread_memory_projection(
+        payload: dict[str, Any] | None,
+        *,
+        thread_memory_state: dict[str, Any] | None,
+    ) -> None:
+        if not isinstance(payload, dict) or not isinstance(thread_memory_state, dict):
+            return
+        if thread_memory_state.get("external_context_polluted") is not None:
+            payload["external_context_polluted"] = bool(
+                thread_memory_state.get("external_context_polluted")
+            )
+        if thread_memory_state.get("external_context_reason"):
+            payload["external_context_reason"] = thread_memory_state.get(
+                "external_context_reason"
+            )
 
     @staticmethod
     def _shared_turn_projection(
@@ -205,7 +300,8 @@ class ConversationRuntimeProjectionService:
             else None,
         )
         return {
-            "turn_outcome": projection.get("turn_outcome") or turn_meta.get("turn_outcome"),
+            "turn_outcome": projection.get("turn_outcome")
+            or turn_meta.get("turn_outcome"),
             "termination_reason": projection.get("termination_reason")
             or turn_meta.get("termination_reason"),
             "protocol_path": turn_meta.get("protocol_path"),
@@ -225,7 +321,8 @@ class ConversationRuntimeProjectionService:
             "candidate_tool_names": turn_meta.get("candidate_tool_names") or [],
             "retry_events": turn_meta.get("retry_events") or [],
             "partial_exit_reason": turn_meta.get("partial_exit_reason"),
-            "failure_kind": projection.get("failure_kind") or turn_meta.get("failure_kind"),
+            "failure_kind": projection.get("failure_kind")
+            or turn_meta.get("failure_kind"),
             "final_output_source": projection.get("final_output_source")
             or turn_meta.get("final_output_source"),
             "provider_events": turn_meta.get("provider_events") or [],

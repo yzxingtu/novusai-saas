@@ -39,8 +39,7 @@ def resolve_new_message_start(
 
     if history_messages:
         history_signatures = [
-            _message_signature(message)
-            for message in history_messages[-history_count:]
+            _message_signature(message) for message in history_messages[-history_count:]
         ]
         leading_system_count = 0
         for msg in result_messages:
@@ -54,7 +53,9 @@ def resolve_new_message_start(
             end = offset + len(history_signatures)
             if end > len(result_messages):
                 break
-            window = [_message_signature(message) for message in result_messages[offset:end]]
+            window = [
+                _message_signature(message) for message in result_messages[offset:end]
+            ]
             if window == history_signatures:
                 return end
 
@@ -77,6 +78,7 @@ class TurnPersistenceContext:
     turn_selected_tools: list[str]
     turn_selected_skills: list[str]
     turn_context_sources: list[dict[str, Any]]
+    memory_runtime_policy: dict[str, Any]
     effective_context_diagnostics: dict[str, Any]
     effective_last_run_summary: dict[str, Any]
 
@@ -104,6 +106,14 @@ def build_turn_persistence_context(
     turn_selected_tools = turn_meta.get("selected_tool_names") or []
     turn_selected_skills = turn_meta.get("selected_skill_names") or []
     turn_context_sources = turn_meta.get("context_sources") or []
+    raw_memory_runtime_policy = getattr(result, "memory_runtime_policy", None)
+    if not isinstance(raw_memory_runtime_policy, dict):
+        raw_memory_runtime_policy = getattr(result, "_memory_runtime_policy", None)
+    memory_runtime_policy = (
+        dict(raw_memory_runtime_policy or {})
+        if isinstance(raw_memory_runtime_policy, dict)
+        else {}
+    )
     result_completion_reason = service._to_non_empty_str(
         getattr(result, "completion_reason", None)
     )
@@ -160,6 +170,16 @@ def build_turn_persistence_context(
         effective_context_diagnostics["selected_skill_names"] = turn_selected_skills
     if turn_context_sources:
         effective_context_diagnostics["context_sources"] = turn_context_sources
+    if memory_runtime_policy:
+        effective_context_diagnostics["memory_runtime_policy"] = memory_runtime_policy
+        if memory_runtime_policy.get("external_context_polluted") is not None:
+            effective_context_diagnostics["external_context_polluted"] = bool(
+                memory_runtime_policy.get("external_context_polluted")
+            )
+        if memory_runtime_policy.get("external_context_reason"):
+            effective_context_diagnostics["external_context_reason"] = (
+                memory_runtime_policy.get("external_context_reason")
+            )
     if turn_meta.get("tool_leak_detected"):
         effective_context_diagnostics["tool_leak_detected"] = True
     if turn_meta.get("assistant_claimed_tool_call_without_tool_event"):
@@ -227,12 +247,22 @@ def build_turn_persistence_context(
         effective_last_run_summary["selected_skill_names"] = turn_selected_skills
     if turn_context_sources:
         effective_last_run_summary["context_sources"] = turn_context_sources
+    if memory_runtime_policy:
+        effective_last_run_summary["memory_runtime_policy"] = memory_runtime_policy
+        if memory_runtime_policy.get("external_context_polluted") is not None:
+            effective_last_run_summary["external_context_polluted"] = bool(
+                memory_runtime_policy.get("external_context_polluted")
+            )
+        if memory_runtime_policy.get("external_context_reason"):
+            effective_last_run_summary["external_context_reason"] = (
+                memory_runtime_policy.get("external_context_reason")
+            )
     if turn_meta.get("tool_leak_detected"):
         effective_last_run_summary["tool_leak_detected"] = True
     if turn_meta.get("assistant_claimed_tool_call_without_tool_event"):
-        effective_last_run_summary[
-            "assistant_claimed_tool_call_without_tool_event"
-        ] = True
+        effective_last_run_summary["assistant_claimed_tool_call_without_tool_event"] = (
+            True
+        )
     if turn_meta.get("recovered_via_retry") is not None:
         effective_last_run_summary["recovered_via_retry"] = turn_meta[
             "recovered_via_retry"
@@ -258,6 +288,7 @@ def build_turn_persistence_context(
         turn_selected_tools=turn_selected_tools,
         turn_selected_skills=turn_selected_skills,
         turn_context_sources=turn_context_sources,
+        memory_runtime_policy=memory_runtime_policy,
         effective_context_diagnostics=effective_context_diagnostics,
         effective_last_run_summary=effective_last_run_summary,
     )

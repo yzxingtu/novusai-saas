@@ -78,13 +78,19 @@ class CapabilityBundle:
     tool_consent_modes: dict[str, str] = field(default_factory=dict)
     capability_descriptors: list[CapabilityDescriptor] = field(default_factory=list)
     context_sources: list[ContextSource] = field(default_factory=list)
+    selected_tool_names_override: list[str] | None = None
+    selected_skill_names_override: list[str] | None = None
 
     @property
     def selected_tool_names(self) -> list[str]:
+        if self.selected_tool_names_override is not None:
+            return list(self.selected_tool_names_override)
         return [tool.name for tool in self.tools]
 
     @property
     def selected_skill_names(self) -> list[str]:
+        if self.selected_skill_names_override is not None:
+            return list(self.selected_skill_names_override)
         return collect_selected_skill_names(
             descriptors=self.capability_descriptors,
             tools=self.tools,
@@ -111,7 +117,10 @@ def _skill_descriptor_tool_names(
         tool_source = f"skill_package:{tool_package_name}" if tool_package_name else ""
 
         matched = False
-        if descriptor_skill_id not in (None, "") and tool_skill_id == descriptor_skill_id:
+        if (
+            descriptor_skill_id not in (None, "")
+            and tool_skill_id == descriptor_skill_id
+        ):
             matched = True
         elif descriptor_name and tool_skill_name == descriptor_name:
             if descriptor_source and tool_source:
@@ -142,7 +151,11 @@ def project_capability_bundle_to_tools(
     projected_tool_name_set = set(projected_tool_names)
     skill_tool_names = [
         tool_name
-        for tool_name, tool in zip(projected_tool_names, projected_tools)
+        for tool_name, tool in zip(
+            projected_tool_names,
+            projected_tools,
+            strict=False,
+        )
         if str(getattr(tool, "source_skill_name", "") or "").strip()
     ]
 
@@ -168,15 +181,15 @@ def project_capability_bundle_to_tools(
         projected_descriptors.append(replace(descriptor, metadata=metadata))
 
     projected_context_sources: list[ContextSource] = []
+    projected_skill_names = collect_selected_skill_names(
+        descriptors=projected_descriptors,
+        tools=projected_tools,
+    )
     for source in bundle.context_sources:
         if str(getattr(source, "kind", "") or "").strip() != "skill":
             projected_context_sources.append(replace(source))
             continue
 
-        projected_skill_names = collect_selected_skill_names(
-            descriptors=projected_descriptors,
-            tools=projected_tools,
-        )
         if not projected_skill_names and not skill_tool_names:
             continue
 
@@ -202,6 +215,8 @@ def project_capability_bundle_to_tools(
         tool_consent_modes=projected_tool_consent_modes,
         capability_descriptors=projected_descriptors,
         context_sources=projected_context_sources,
+        selected_tool_names_override=list(projected_tool_names),
+        selected_skill_names_override=list(projected_skill_names),
     )
 
 

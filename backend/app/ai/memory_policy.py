@@ -42,6 +42,22 @@ class MemoryRuntimePolicy:
             "external_context_reason": self.external_context_reason,
         }
 
+    def to_thread_state(self) -> dict[str, Any]:
+        return {
+            "scene": self.scene,
+            "channel": self.channel,
+            "source": self.source,
+            "session_memory_runtime_enabled": self.session_memory_runtime_enabled,
+            "session_memory_read_enabled": self.session_memory_read_enabled,
+            "session_memory_write_enabled": self.session_memory_write_enabled,
+            "long_term_memory_runtime_enabled": self.long_term_memory_runtime_enabled,
+            "long_term_memory_recall_enabled": self.long_term_memory_recall_enabled,
+            "long_term_memory_capture_enabled": self.long_term_memory_capture_enabled,
+            "memory_context_enabled": self.memory_context_enabled,
+            "external_context_polluted": self.external_context_polluted,
+            "external_context_reason": self.external_context_reason,
+        }
+
 
 def _normalize_text(value: Any) -> str:
     return str(value or "").strip()
@@ -106,11 +122,15 @@ def resolve_memory_runtime_policy(
     tool_results: list[Any] | None = None,
 ) -> MemoryRuntimePolicy:
     payload = _request_policy_payload(request)
-    scene = _normalize_text(payload.get("scene") or getattr(request, "memory_scene", ""))
+    scene = _normalize_text(
+        payload.get("scene") or getattr(request, "memory_scene", "")
+    )
     channel = _normalize_text(
         payload.get("channel") or getattr(request, "memory_channel", "")
     )
-    source = _normalize_text(payload.get("source") or getattr(request, "memory_source", ""))
+    source = _normalize_text(
+        payload.get("source") or getattr(request, "memory_source", "")
+    )
 
     session_memory_runtime_enabled = bool(
         payload.get(
@@ -125,12 +145,15 @@ def resolve_memory_runtime_policy(
     )
     session_memory_write_enabled = bool(session_memory_read_enabled)
 
-    long_term_memory_runtime_enabled = bool(
-        payload.get(
-            "long_term_memory_runtime_enabled",
-            bool(getattr(request, "long_term_memory_enabled", False)),
+    long_term_memory_runtime_enabled = (
+        bool(
+            payload.get(
+                "long_term_memory_runtime_enabled",
+                bool(getattr(request, "long_term_memory_enabled", False)),
+            )
         )
-    ) and has_user_scope
+        and has_user_scope
+    )
 
     polluted, polluted_reason = detect_external_context_pollution(
         request=request,
@@ -178,7 +201,7 @@ def attach_memory_runtime_policy(
         result=result,
         tool_results=tool_results,
     )
-    setattr(request, "memory_runtime_policy", policy.to_dict())
+    request.memory_runtime_policy = policy.to_dict()
     return policy
 
 

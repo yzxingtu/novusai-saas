@@ -112,6 +112,10 @@ export async function submitRuntimeForm(args: { confirm?: boolean; formSessionId
   resolved tool definitions, execution policy, and dependency metadata, not
   from `Skill.skill_md`, package `SKILL.md`, prompt blocks, or
   `CapabilityDescriptor(kind="prompt_skill")`.
+- Resolved capability inventory and turn-level activation are distinct seams.
+  The resolver may carry a broader installed inventory for planning or catalog
+  surfaces, but live runtime summaries must speak from the turn-activated
+  subset and, after tool planning, from the selected tool subset.
 - Live installed-skill descriptors should normalize to
   `CapabilityDescriptor(kind="capability_pack")`. Accepting
   `prompt_skill`-style descriptors is compatibility-only behavior during
@@ -128,6 +132,10 @@ export async function submitRuntimeForm(args: { confirm?: boolean; formSessionId
 - Turn-scoped capability activation must be driven by explicit mention,
   runtime policy, or bounded routing decisions. Installing a skill pack must
   not require per-page adaptation before it becomes usable.
+- Capability-reporting turns may intentionally surface the broader installed
+  inventory, but tool-bearing turns must collapse back to the turn-activated
+  or tool-selected subset before manifest, diagnostics, and capability-aware
+  summaries are emitted.
 - Candidate tool and skill sets are capped per turn; avoid exposing whole families for convenience.
 - Overlapping skills resolve by scope, not by stacking.
 - Page runtime tools stay separate from generic tool families.
@@ -243,6 +251,13 @@ export async function submitRuntimeForm(args: { confirm?: boolean; formSessionId
   authoritative runtime source for installed capability packs. Descriptor
   entries that explicitly resolve to `has_execution_tools=false` must be
   treated as catalog-only.
+- `backend/app/ai/skills/resolver.py` still resolves the agent's broader grant
+  inventory eagerly, but `backend/app/ai/skills/turn_activation.py` now
+  introduces a distinct turn-activation seam for explicit skill mentions,
+  runtime-policy page/web activation, and capability-reporting exceptions.
+  Treat that activation layer as the current live owner for capability-aware
+  summaries; do not add new prompt-driven or page-specific paths that bypass
+  it.
 - `frontend/.../ai-slide-panel/use-page-ai-capability.ts` and
   `frontend/.../utils/page-navigation.ts` still read `suggested_tools` for
   local affordance display and fallback assembly. Keep that boundary UX-only;
@@ -286,6 +301,9 @@ export async function submitRuntimeForm(args: { confirm?: boolean; formSessionId
   `skill_md` prompt blocks or page-local hints to expose installed tools.
 - Backend: descriptor-only skills with `has_execution_tools=false` must not be
   reported as live `selected_skill_names`.
+- Backend: turn-scoped skill activation may narrow live summaries to explicit
+  mention or runtime-policy subsets, while capability-reporting turns may keep
+  broader inventory visibility when no live tool subset is active.
 - Backend: page capability descriptions must ignore `suggested_tools`; those
   hints stay UX-only.
 - Frontend: `getRuntimeThinPageContext()` uses `compact` snapshot and excludes `[data-ai-panel]` / `data-ai="off"` subtrees.

@@ -130,9 +130,7 @@ class AgentChatCommandService:
             message=message,
             attachments=attachments,
         )
-        all_messages = merge_history_with_user_messages(
-            history_messages, user_messages
-        )
+        all_messages = merge_history_with_user_messages(history_messages, user_messages)
         hook_registry, all_messages = await run_before_agent_chat_hook(
             tenant_id=service.tenant_id,
             agent_id=agent_id,
@@ -238,6 +236,8 @@ class AgentChatCommandService:
                 result.output = hook_ctx["response"]
 
         history_count = len(history_messages)
+        memory_policy = attach_memory_runtime_policy(request=request, result=result)
+        result._memory_runtime_policy = memory_policy.to_dict()
         turn_projection = build_turn_projection_bundle(
             result,
             interaction_mode_effective=interaction_mode_effective,
@@ -271,7 +271,6 @@ class AgentChatCommandService:
         )
 
         try:
-            attach_memory_runtime_policy(request=request, result=result)
             memory_delta = await service._persist_session_memory(
                 request=request,
                 message=message,
@@ -403,9 +402,7 @@ class AgentChatCommandService:
             message=message,
             attachments=attachments,
         )
-        all_messages = merge_history_with_user_messages(
-            history_messages, user_msgs
-        )
+        all_messages = merge_history_with_user_messages(history_messages, user_msgs)
         hook_registry, all_messages = await run_before_agent_chat_hook(
             tenant_id=service.tenant_id,
             agent_id=agent_id,
@@ -432,31 +429,33 @@ class AgentChatCommandService:
             user_role=user_role,
             user_role_id=user_role_id,
         )
-        request_bundle = await service.stream_bootstrap.build_conversation_stream_request(
-            agent=agent,
-            agent_id=agent_id,
-            conversation_id=conversation.id,
-            all_messages=all_messages,
-            variables=variables,
-            knowledge_base_ids=knowledge_base_ids,
-            dropped_knowledge_base_ids=dropped_knowledge_base_ids,
-            consented_actions=consented_actions,
-            user_role=user_role,
-            user_role_id=user_role_id,
-            permissions=permissions,
-            billing_context=billing_context,
-            normalized_scene=normalized_scene,
-            normalized_channel=normalized_channel,
-            normalized_source=normalized_source,
-            memory_enabled=memory_enabled,
-            trust_policy_ref=resolved_trust_policy_ref,
-            interaction_mode=interaction_mode_effective,
-            page_session_id=page_session_id,
-            interaction_updates=interaction_updates,
-            long_term_memory_enabled=bool(
-                ctx_cfg.get("long_term_memory_enabled", memory_enabled)
-            ),
-            session_memory_text="",
+        request_bundle = (
+            await service.stream_bootstrap.build_conversation_stream_request(
+                agent=agent,
+                agent_id=agent_id,
+                conversation_id=conversation.id,
+                all_messages=all_messages,
+                variables=variables,
+                knowledge_base_ids=knowledge_base_ids,
+                dropped_knowledge_base_ids=dropped_knowledge_base_ids,
+                consented_actions=consented_actions,
+                user_role=user_role,
+                user_role_id=user_role_id,
+                permissions=permissions,
+                billing_context=billing_context,
+                normalized_scene=normalized_scene,
+                normalized_channel=normalized_channel,
+                normalized_source=normalized_source,
+                memory_enabled=memory_enabled,
+                trust_policy_ref=resolved_trust_policy_ref,
+                interaction_mode=interaction_mode_effective,
+                page_session_id=page_session_id,
+                interaction_updates=interaction_updates,
+                long_term_memory_enabled=bool(
+                    ctx_cfg.get("long_term_memory_enabled", memory_enabled)
+                ),
+                session_memory_text="",
+            )
         )
         request = request_bundle.request
 
@@ -503,9 +502,11 @@ class AgentChatCommandService:
         turn_projector = bind_turn_projector(
             interaction_mode_effective=interaction_mode_effective,
             downgrade_reason=interaction_mode_downgrade_reason,
-            context_diagnostics_builder=lambda result: service._build_context_diagnostics(
-                result,
-                interaction_mode_effective=interaction_mode_effective,
+            context_diagnostics_builder=lambda result: (
+                service._build_context_diagnostics(
+                    result,
+                    interaction_mode_effective=interaction_mode_effective,
+                )
             ),
             last_run_summary_builder=lambda result: service._build_last_run_summary(
                 result,

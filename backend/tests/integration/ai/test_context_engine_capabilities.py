@@ -16,6 +16,7 @@ from app.ai.engine.types import (
 from app.ai.runtime.context_capability_bridge import DefaultContextCapabilityBridge
 from app.ai.runtime.types import CapabilityDescriptor
 from app.ai.skills.resolver import SkillResolveResult
+from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage
 from app.services.ai.capability_awareness_config import (
     TenantCapabilityAwarenessSettings,
@@ -78,6 +79,49 @@ def _build_request(**overrides) -> ExecutionRequest:
 
 def _build_skill_result(*descriptors: CapabilityDescriptor) -> SkillResolveResult:
     return SkillResolveResult(capability_descriptors=list(descriptors))
+
+
+def _build_plugin_page_web_skill_result() -> SkillResolveResult:
+    return SkillResolveResult(
+        tools=[
+            ToolDefinition(
+                name="web_search",
+                description="Search the web",
+                source_skill_id=11,
+                source_skill_name="Plugin Research Skill",
+                source_skill_type="plugin",
+                source_package_name="plugin.research",
+                source_plugin="plugin.research",
+            ),
+            ToolDefinition(
+                name="fetch_url",
+                description="Fetch the url",
+                source_skill_id=11,
+                source_skill_name="Plugin Research Skill",
+                source_skill_type="plugin",
+                source_package_name="plugin.research",
+                source_plugin="plugin.research",
+            ),
+            ToolDefinition(
+                name="ui_get_snapshot",
+                description="Get UI snapshot",
+                source_skill_id=12,
+                source_skill_name="Plugin Page Skill",
+                source_skill_type="plugin",
+                source_package_name="plugin.page",
+                source_plugin="plugin.page",
+            ),
+            ToolDefinition(
+                name="ui_click",
+                description="Click UI element",
+                source_skill_id=12,
+                source_skill_name="Plugin Page Skill",
+                source_skill_type="plugin",
+                source_package_name="plugin.page",
+                source_plugin="plugin.page",
+            ),
+        ]
+    )
 
 
 def _build_intent_plan(*kinds: str) -> list[IntentPlan]:
@@ -165,7 +209,9 @@ def _build_mapping_skill_descriptions(*_args, **_kwargs):
 
 
 @pytest.mark.asyncio
-async def test_context_engine_tracks_skill_capabilities_without_prompt_injection() -> None:
+async def test_context_engine_tracks_skill_capabilities_without_prompt_injection() -> (
+    None
+):
     skill_result = _build_skill_result(
         CapabilityDescriptor(
             name="web_search",
@@ -189,9 +235,7 @@ async def test_context_engine_tracks_skill_capabilities_without_prompt_injection
         for addition in (assembly.system_prompt_additions or [])
     )
     assert assembly.diagnostics["dynamic_capability_awareness_enabled"] is True
-    assert assembly.diagnostics["dynamic_capability_awareness_categories"] == [
-        "skills"
-    ]
+    assert assembly.diagnostics["dynamic_capability_awareness_categories"] == ["skills"]
     assert assembly.capability_bundle is not None
     assert assembly.capability_bundle.selected_skill_names == ["web_search"]
     assert assembly.diagnostics["selected_skill_names"] == ["web_search"]
@@ -206,7 +250,54 @@ async def test_context_engine_tracks_skill_capabilities_without_prompt_injection
 
 
 @pytest.mark.asyncio
-async def test_context_engine_only_surfaces_session_memory_context_source_when_injected() -> None:
+async def test_context_engine_activates_page_skills_for_page_turns() -> None:
+    assembly = await _assemble_context(
+        request=_build_request(
+            messages=[ChatMessage(role="user", content="帮我看一下当前页面")],
+            input_variables={
+                "page_context": {
+                    "page_key": "admin.ai.dashboard",
+                    "ui_epoch": 3,
+                }
+            },
+        ),
+        skill_result=_build_plugin_page_web_skill_result(),
+        settings=TenantCapabilityAwarenessSettings(),
+        intent_plan=_build_intent_plan("page_summary"),
+    )
+
+    assert assembly.capability_bundle is not None
+    assert assembly.capability_bundle.selected_skill_names == ["Plugin Page Skill"]
+    assert assembly.diagnostics["selected_skill_names"] == ["Plugin Page Skill"]
+    assert assembly.diagnostics["runtime_capability_summary"][
+        "selected_skill_names"
+    ] == ["Plugin Page Skill"]
+
+
+@pytest.mark.asyncio
+async def test_context_engine_capability_reporting_keeps_broader_skill_inventory() -> (
+    None
+):
+    assembly = await _assemble_context(
+        request=_build_request(
+            messages=[ChatMessage(role="user", content="你能做什么")],
+        ),
+        skill_result=_build_plugin_page_web_skill_result(),
+        settings=TenantCapabilityAwarenessSettings(),
+        intent_plan=_build_intent_plan("assistant_response"),
+    )
+
+    assert assembly.capability_bundle is not None
+    assert set(assembly.capability_bundle.selected_skill_names) == {
+        "Plugin Research Skill",
+        "Plugin Page Skill",
+    }
+
+
+@pytest.mark.asyncio
+async def test_context_engine_only_surfaces_session_memory_context_source_when_injected() -> (
+    None
+):
     inactive_assembly = await _assemble_context(
         request=_build_request(memory_enabled=True, session_memory_injected=False),
         skill_result=None,
@@ -215,7 +306,10 @@ async def test_context_engine_only_surfaces_session_memory_context_source_when_i
     )
 
     inactive_kinds = {
-        source.kind for source in (inactive_assembly.capability_bundle or SimpleNamespace(context_sources=[])).context_sources
+        source.kind
+        for source in (
+            inactive_assembly.capability_bundle or SimpleNamespace(context_sources=[])
+        ).context_sources
     }
     assert "session_memory" not in inactive_kinds
 
@@ -227,7 +321,9 @@ async def test_context_engine_only_surfaces_session_memory_context_source_when_i
     )
 
     active_sources = list(
-        (active_assembly.capability_bundle or SimpleNamespace(context_sources=[])).context_sources
+        (
+            active_assembly.capability_bundle or SimpleNamespace(context_sources=[])
+        ).context_sources
     )
     session_sources = [
         source for source in active_sources if source.kind == "session_memory"
@@ -238,7 +334,9 @@ async def test_context_engine_only_surfaces_session_memory_context_source_when_i
 
 
 @pytest.mark.asyncio
-async def test_context_engine_enables_long_term_memory_recall_on_generic_turns() -> None:
+async def test_context_engine_enables_long_term_memory_recall_on_generic_turns() -> (
+    None
+):
     memory_contribution = MemoryContextContribution(
         memory_recalled=True,
         memory_recall_slice={"count": 2, "scope_type": "user_agent"},
@@ -298,14 +396,14 @@ async def test_context_engine_handles_mapping_description_inputs() -> None:
 
     assert "[CAPABILITIES]" not in assembly.messages[0].content
     assert assembly.diagnostics["dynamic_capability_awareness_enabled"] is True
-    assert assembly.diagnostics["dynamic_capability_awareness_categories"] == [
-        "skills"
-    ]
+    assert assembly.diagnostics["dynamic_capability_awareness_categories"] == ["skills"]
     assert "dynamic_capability_awareness_error" not in assembly.diagnostics
 
 
 @pytest.mark.asyncio
-async def test_context_engine_tracks_knowledge_base_capabilities_without_prompt_injection() -> None:
+async def test_context_engine_tracks_knowledge_base_capabilities_without_prompt_injection() -> (
+    None
+):
     assembly = await _assemble_context(
         request=_build_request(),
         skill_result=None,
@@ -335,7 +433,9 @@ async def test_context_engine_tracks_knowledge_base_capabilities_without_prompt_
 
 
 @pytest.mark.asyncio
-async def test_context_engine_tracks_skill_and_knowledge_base_capabilities_in_diagnostics() -> None:
+async def test_context_engine_tracks_skill_and_knowledge_base_capabilities_in_diagnostics() -> (
+    None
+):
     skill_result = _build_skill_result(
         CapabilityDescriptor(
             name="web_search",
@@ -377,7 +477,9 @@ async def test_context_engine_tracks_skill_and_knowledge_base_capabilities_in_di
 
 
 @pytest.mark.asyncio
-async def test_context_engine_tracks_page_context_capabilities_without_prompt_injection() -> None:
+async def test_context_engine_tracks_page_context_capabilities_without_prompt_injection() -> (
+    None
+):
     request = _build_request(
         input_variables={
             "page_context": {
@@ -467,7 +569,9 @@ async def test_context_engine_injects_locale_hint_from_page_context() -> None:
 
 
 @pytest.mark.asyncio
-async def test_context_engine_injects_visible_output_locale_for_non_page_turns() -> None:
+async def test_context_engine_injects_visible_output_locale_for_non_page_turns() -> (
+    None
+):
     request = _build_request(
         messages=[
             ChatMessage(

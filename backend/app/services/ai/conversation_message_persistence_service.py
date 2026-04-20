@@ -4,15 +4,20 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.ai.memory_policy import MemoryRuntimePolicy
 from app.ai.tools.types import ToolResult
 from app.ai.types import ChatMessage
 from app.ai.utils.token_estimator import estimate_tokens
 from app.core.base_model import utc_now
 from app.enums.agent import MessageRoleEnum
-from app.services.ai.conversation_message_persistence_support import build_turn_persistence_context, resolve_new_message_start
+from app.services.ai.conversation_message_persistence_support import (
+    build_turn_persistence_context,
+    resolve_new_message_start,
+)
 from app.services.ai.conversation_turn_flow_projector import (
     ConversationTurnFlowProjector,
 )
+
 
 class ConversationMessagePersistenceService:
     @classmethod
@@ -69,7 +74,9 @@ class ConversationMessagePersistenceService:
             return True
         if cls.has_pending_state(tool_calls=tool_calls, metadata=metadata):
             return True
-        if isinstance(metadata, dict) and isinstance(metadata.get("action_buttons"), list):
+        if isinstance(metadata, dict) and isinstance(
+            metadata.get("action_buttons"), list
+        ):
             return len(metadata.get("action_buttons") or []) > 0
         return False
 
@@ -90,7 +97,9 @@ class ConversationMessagePersistenceService:
                 i += 1
                 continue
 
-            tc_ids_expected = {tc.get("id", "") for tc in msg.tool_calls if tc.get("id")}
+            tc_ids_expected = {
+                tc.get("id", "") for tc in msg.tool_calls if tc.get("id")
+            }
             if not tc_ids_expected:
                 result.append(msg)
                 i += 1
@@ -144,7 +153,10 @@ class ConversationMessagePersistenceService:
                         if isinstance(next_tc.get("summary_payload"), dict)
                         else {}
                     )
-                    next_tc["summary_payload"] = {**existing_payload, **tr.summary_payload}
+                    next_tc["summary_payload"] = {
+                        **existing_payload,
+                        **tr.summary_payload,
+                    }
                 if tr.result_link and not next_tc.get("result_link"):
                     next_tc["result_link"] = tr.result_link
                 if tr.error_type and not next_tc.get("error_type"):
@@ -238,6 +250,7 @@ class ConversationMessagePersistenceService:
         turn_selected_tools = turn_context.turn_selected_tools
         turn_selected_skills = turn_context.turn_selected_skills
         turn_context_sources = turn_context.turn_context_sources
+        memory_runtime_policy = turn_context.memory_runtime_policy
         effective_context_diagnostics = turn_context.effective_context_diagnostics
         effective_last_run_summary = turn_context.effective_last_run_summary
 
@@ -444,6 +457,10 @@ class ConversationMessagePersistenceService:
                     metadata["context_sources"] = service._normalize_json_safe(
                         turn_context_sources
                     )
+                if memory_runtime_policy:
+                    metadata["memory_runtime_policy"] = service._normalize_json_safe(
+                        memory_runtime_policy
+                    )
                 metadata["turn_flow"] = service._normalize_json_safe(
                     ConversationTurnFlowProjector.project_from_metadata(
                         metadata,
@@ -476,9 +493,25 @@ class ConversationMessagePersistenceService:
             persisted_count += 1
 
         new_message_count = (conversation.message_count or 0) + persisted_count
+        update_payload: dict[str, Any] = {"message_count": new_message_count}
+        if memory_runtime_policy:
+            thread_memory_state = MemoryRuntimePolicy(
+                **{
+                    key: value
+                    for key, value in memory_runtime_policy.items()
+                    if key in MemoryRuntimePolicy.__dataclass_fields__
+                }
+            ).to_thread_state()
+            thread_memory_state["updated_at"] = service._format_dt(utc_now())
+            conversation_metadata = dict(conversation.metadata_ or {})
+            conversation_metadata["thread_memory_state"] = thread_memory_state
+            conversation.metadata_ = (
+                service._normalize_json_safe_dict(conversation_metadata) or {}
+            )
+            update_payload["metadata_"] = conversation.metadata_
         await service.repo.update(
             conversation.id,
-            {"message_count": new_message_count},
+            update_payload,
         )
 
         return tool_calls_collected, persisted_count
@@ -495,10 +528,7 @@ class ConversationMessagePersistenceService:
             message
             for message in (messages or [])
             if message.role == "user"
-            and (
-                bool(str(message.content or "").strip())
-                or bool(message.attachments)
-            )
+            and (bool(str(message.content or "").strip()) or bool(message.attachments))
         ]
         if not user_messages:
             return 0

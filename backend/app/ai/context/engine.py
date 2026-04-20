@@ -40,6 +40,7 @@ from app.ai.runtime.contracts import (
     ContextCapabilityBridge,
     ContextCapabilityInputs,
 )
+from app.ai.skills.turn_activation import apply_turn_skill_activation
 from app.ai.types import ChatMessage
 from app.core.base_model import utc_now
 from app.core.logging import LogManager
@@ -197,6 +198,11 @@ class ConversationContextEngine(ContextEngine):
         intent_flags = dict(initial_state.intent_flags or {})
         capability_injection_decision = dict(
             initial_state.capability_injection_decision or {}
+        )
+        apply_turn_skill_activation(
+            skill_result=skill_result,
+            request=request,
+            intent_flags=intent_flags,
         )
         rag_sources = None
         rag_source_kinds: list[str] = []

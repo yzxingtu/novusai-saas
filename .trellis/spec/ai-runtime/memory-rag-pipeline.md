@@ -36,6 +36,10 @@ context assembly.
   owner. Context orchestration, runtime manifests, session-memory load, and
   long-term capture must all consult that same policy instead of each
   re-deriving memory eligibility from raw request flags.
+- The normalized `memory_runtime_policy` snapshot must persist with both the
+  assistant-turn metadata and the conversation-level `thread_memory_state`
+  snapshot so thread-scoped pollution or mode changes remain observable after
+  the turn completes.
 - KB binding does not imply `knowledge_query`; the intent must be explicit.
 - Current implementation still derives long-term recall eligibility from the
   context orchestrator, but that orchestrator now mixes intent signals with
@@ -68,6 +72,9 @@ request and is surfaced as a context source.
 - Runtime capability summaries, contributor enablement, and memory-aware
   context-source selection should key off `memory_context_enabled` (or its
   future replacement), not only `has_memory_intent`.
+- Conversation read models may fall back to `thread_memory_state` when the
+  latest assistant payload does not carry `memory_runtime_policy`, so thread
+  owner signals do not disappear on error-only or metadata-light turns.
 
 ## Long-Term Memory
 
@@ -99,6 +106,11 @@ main turn.
 - Align memory ownership with codex-style thread handling: background memory
   generation, explicit thread/session memory mode, and pollution guards for
   external context.
+- Current implementation now persists `thread_memory_state`, exposes polluted
+  state in conversation diagnostics, and suppresses blind durable capture on
+  polluted turns. Startup memory jobs, stage-1/stage-2 style background
+  consolidation, and a stronger state-DB-backed thread owner are still future
+  convergence work.
 - External web, MCP, or other off-thread context should be able to mark memory
   mode polluted or suppress blind reuse rather than silently mixing foreign
   context into durable recall or capture.
@@ -124,6 +136,9 @@ is cached for reuse.
 `memory_recalled`, `memory_recall_slice`, and `session_memory_injected`.
 - Capability bundles publish `knowledge_base`, `session_memory`, and
 `long_term_memory` context sources when active.
+- Assistant-turn persistence must carry `memory_runtime_policy`, and
+  conversation persistence must mirror a normalized `thread_memory_state`
+  snapshot for thread-level monitoring and future startup ownership.
 
 ## Required Behavior
 
@@ -134,6 +149,9 @@ is cached for reuse.
 - Memory-capability hints and context-provider selection must follow runtime
   memory policy (`memory_context_enabled`), while `has_memory_intent` remains an
   explicit-intent diagnostic and behavior flag.
+- Stream/non-stream persistence fallbacks must preserve normalized
+  `memory_runtime_policy` without reconstructing runtime result objects from
+  arbitrary private attributes.
 
 ## Prohibited Patterns
 

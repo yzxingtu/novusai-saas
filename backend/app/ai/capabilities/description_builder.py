@@ -70,11 +70,34 @@ class CapabilityDescriptionBuilder:
         if not skill_result:
             return []
 
-        tools = list(getattr(skill_result, "tools", []) or [])
+        tools = (
+            list(skill_result.activated_tools())
+            if hasattr(skill_result, "activated_tools")
+            else list(getattr(skill_result, "tools", []) or [])
+        )
         descriptors = list(getattr(skill_result, "capability_descriptors", []) or [])
+        activation = getattr(skill_result, "turn_activation", None)
+        if activation is not None and activation.applied:
+            activated_skill_names = {
+                str(name or "").strip()
+                for name in activation.activated_skill_names or []
+                if str(name or "").strip()
+            }
+            if activated_skill_names:
+                descriptors = [
+                    descriptor
+                    for descriptor in descriptors
+                    if str(getattr(descriptor, "name", "") or "").strip()
+                    in activated_skill_names
+                ]
+            else:
+                descriptors = []
 
         if not tools and not descriptors:
             return []
+
+        if not descriptors and tools:
+            return self._build_skill_descriptions_from_tools(tools)
 
         # Group skills by family
         skill_groups: dict[str, list[str]] = {}
@@ -115,6 +138,51 @@ class CapabilityDescriptionBuilder:
             )
 
         return descriptions
+
+    def _build_skill_descriptions_from_tools(
+        self,
+        tools: list[Any],
+    ) -> list[CapabilityDescription]:
+        skill_groups: dict[str, list[str]] = {}
+        for tool in tools:
+            skill_name = str(getattr(tool, "source_skill_name", "") or "").strip()
+            if not skill_name:
+                continue
+            family = self._determine_tool_skill_family(tool)
+            tool_name = str(getattr(tool, "name", "") or "").strip()
+            if not tool_name:
+                continue
+            bucket = skill_groups.setdefault(family, [])
+            item = f"{skill_name}: exposes {tool_name}"
+            if item not in bucket:
+                bucket.append(item)
+
+        descriptions: list[CapabilityDescription] = []
+        for family, items in skill_groups.items():
+            limited_items = items[: self.max_items_per_category]
+            descriptions.append(
+                CapabilityDescription(
+                    category="skills",
+                    title=self._format_skill_family_title(family),
+                    items=limited_items,
+                    metadata={
+                        "family": family,
+                        "total_count": len(items),
+                        "displayed_count": len(limited_items),
+                    },
+                )
+            )
+        return descriptions
+
+    @staticmethod
+    def _determine_tool_skill_family(tool: Any) -> str:
+        package_name = str(getattr(tool, "source_package_name", "") or "").strip()
+        skill_type = str(getattr(tool, "source_skill_type", "") or "").strip()
+        if package_name.startswith("plugin."):
+            return "plugin"
+        if skill_type:
+            return skill_type
+        return "general"
 
     def build_knowledge_base_descriptions(
         self,

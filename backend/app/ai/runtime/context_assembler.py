@@ -98,11 +98,21 @@ class ContextAssembler:
             request=request,
         )
         if provider_names is None:
-            return await self.registry.build_bundle(capability_context)
-        return await self._build_bundle_for_provider_names(
-            capability_context,
-            provider_names,
-        )
+            bundle = await self.registry.build_bundle(capability_context)
+        else:
+            bundle = await self._build_bundle_for_provider_names(
+                capability_context,
+                provider_names,
+            )
+        activation = getattr(skill_result, "turn_activation", None)
+        if activation is not None and activation.applied:
+            bundle.selected_tool_names_override = list(
+                getattr(skill_result, "selected_tool_names", []) or []
+            )
+            bundle.selected_skill_names_override = list(
+                getattr(skill_result, "selected_skill_names", []) or []
+            )
+        return bundle
 
     @classmethod
     def _build_default_registry(cls) -> CapabilityRegistry:
@@ -194,24 +204,45 @@ class ContextAssembler:
         if not descriptors:
             descriptors = ContextAssembler._build_skill_descriptors_from_tools(tools)
 
+        selected_tool_names = ContextAssembler._stable_unique_names(
+            list(getattr(skill_result, "selected_tool_names", []) or [])
+        )
         selected_skill_names = ContextAssembler._stable_unique_names(
-            collect_selected_skill_names(
-                descriptors=descriptors,
-                tools=tools,
+            list(getattr(skill_result, "selected_skill_names", []) or [])
+        )
+        activation = getattr(skill_result, "turn_activation", None)
+        if activation is None or not activation.applied:
+            if not selected_tool_names:
+                selected_tool_names = ContextAssembler._stable_unique_names(
+                    [getattr(tool, "name", "") for tool in tools]
+                )
+            if not selected_skill_names:
+                selected_skill_names = ContextAssembler._stable_unique_names(
+                    collect_selected_skill_names(
+                        descriptors=descriptors,
+                        tools=tools,
+                    )
+                )
+        context_sources: list[ContextSource] = []
+        should_emit_skill_source = bool(
+            (
+                activation is not None
+                and activation.applied
+                and (selected_tool_names or selected_skill_names)
+            )
+            or (
+                (activation is None or not activation.applied)
+                and (tools or selected_skill_names)
             )
         )
-        context_sources: list[ContextSource] = []
-        if tools or selected_skill_names:
-            selected_tool_names = ContextAssembler._stable_unique_names(
-                [getattr(tool, "name", "") for tool in tools]
-            )
+        if should_emit_skill_source:
             context_sources.append(
                 ContextSource(
                     kind="skill",
                     name="skill_resolver",
                     active=True,
                     metadata={
-                        "tool_count": len(tools),
+                        "tool_count": len(selected_tool_names),
                         "selected_tool_names": selected_tool_names,
                         "skill_count": len(selected_skill_names),
                         "selected_skill_names": selected_skill_names,
@@ -236,7 +267,9 @@ class ContextAssembler:
 
         page_key = str(page_context.get("page_key") or "").strip() or "page_context"
         page_title = str(page_context.get("page_title") or "").strip()
-        page_data = page_context.get("page_data") if isinstance(page_context, dict) else {}
+        page_data = (
+            page_context.get("page_data") if isinstance(page_context, dict) else {}
+        )
         metadata = {
             "page_key": page_key,
             "page_title": page_title or None,

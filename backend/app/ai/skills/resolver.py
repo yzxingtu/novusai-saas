@@ -39,6 +39,14 @@ _BASELINE_RUNTIME_BUILTINS = parts.BASELINE_RUNTIME_BUILTINS
 
 
 @dataclass
+class TurnSkillActivation:
+    applied: bool = False
+    activated_tool_names: list[str] = field(default_factory=list)
+    activated_skill_names: list[str] = field(default_factory=list)
+    reason: str | None = None
+
+
+@dataclass
 class SkillResolveResult:
     """
     Skill resolve result.
@@ -52,13 +60,49 @@ class SkillResolveResult:
     tool_consent_modes: dict[str, str] = field(default_factory=dict)
     capability_descriptors: list[CapabilityDescriptor] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    turn_activation: TurnSkillActivation | None = None
 
     @property
-    def selected_skill_names(self) -> list[str]:
+    def inventory_selected_skill_names(self) -> list[str]:
         return collect_selected_skill_names(
             descriptors=self.capability_descriptors,
             tools=self.tools,
         )
+
+    @property
+    def selected_skill_names(self) -> list[str]:
+        activation = self.turn_activation
+        if activation is not None and activation.applied:
+            return list(activation.activated_skill_names or [])
+        return self.inventory_selected_skill_names
+
+    @property
+    def selected_tool_names(self) -> list[str]:
+        activation = self.turn_activation
+        if activation is not None and activation.applied:
+            return list(activation.activated_tool_names or [])
+        return [
+            str(getattr(tool, "name", "") or "").strip()
+            for tool in self.tools
+            if str(getattr(tool, "name", "") or "").strip()
+        ]
+
+    def activated_tools(self) -> list[ToolDefinition]:
+        activation = self.turn_activation
+        if activation is None or not activation.applied:
+            return list(self.tools)
+        activated_names = {
+            str(name or "").strip()
+            for name in activation.activated_tool_names or []
+            if str(name or "").strip()
+        }
+        if not activated_names:
+            return []
+        return [
+            tool
+            for tool in self.tools
+            if str(getattr(tool, "name", "") or "").strip() in activated_names
+        ]
 
 
 def build_skill_capability_descriptors(skills: list[Any]) -> list[CapabilityDescriptor]:
@@ -142,7 +186,8 @@ class SkillResolver:
             # 跳过与基线运行时内置工具重复的数据库内置技能
             if (
                 str(getattr(skill, "type", "") or "").strip() == "builtin"
-                and str(getattr(skill, "name", "") or "").strip() in _BASELINE_RUNTIME_BUILTINS
+                and str(getattr(skill, "name", "") or "").strip()
+                in _BASELINE_RUNTIME_BUILTINS
             ):
                 logger.debug(
                     "Skipping DB builtin skill '{}' (id={}) — covered by baseline runtime builtins",
@@ -527,6 +572,7 @@ async def resolve_for_agent(
 __all__ = [
     "SkillResolver",
     "SkillResolveResult",
+    "TurnSkillActivation",
     "build_skill_capability_descriptors",
     "enrich_skill_capability_descriptors_with_tools",
     "resolve_for_agent",
