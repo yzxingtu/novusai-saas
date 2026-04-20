@@ -29,9 +29,7 @@ class PrepareExecutionCollaborators:
         ..., Awaitable[PreparedExecutionRuntimeState]
     ]
     build_prepared_execution: Callable[..., PreparedExecution]
-    build_web_research_continuation_context: Callable[
-        ..., ResearchContinuationContext
-    ]
+    build_web_research_continuation_context: Callable[..., ResearchContinuationContext]
     apply_execution_trust_policy: Callable[..., dict[str, str]]
     render_contract: Callable[..., str]
     estimate_tokens: Callable[[str], int]
@@ -129,7 +127,11 @@ async def build_prepared_execution_context(
 
     messages = context_assembly.messages
     rag_sources = context_assembly.rag_sources
-    tools = list(skill_result.tools) if skill_result and skill_result.tools else []
+    tools = (
+        list(skill_result.startup_activated_tools())
+        if skill_result and skill_result.tools
+        else []
+    )
     if tools and sandbox is None:
         logger.info(
             "Skip tool exposure because sandbox is unavailable: agent_id={} tool_count={}",

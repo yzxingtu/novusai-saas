@@ -82,19 +82,47 @@ def build_recovery_message(
         if intent.intent_id in decision.unfinished_intent_ids
     ]
     target_intent = next(
-        (
-            intent
-            for intent in intents
-            if intent.intent_id == decision.target_intent_id
-        ),
+        (intent for intent in intents if intent.intent_id == decision.target_intent_id),
         None,
     )
     breach_guidance = "Only finish the remaining intent(s) listed below.\n"
-    if target_intent is not None and str(target_intent.kind or "").strip() == "page_navigation":
-        breach_guidance = (
-            f"{render_prompt_contract('page_flow_recovery')}\n"
-            "Only finish the remaining intent(s) listed below.\n"
+    if (
+        target_intent is not None
+        and str(target_intent.family or "").strip() == "page_ops"
+    ):
+        metadata = dict(target_intent.metadata or {})
+        workflow_phase = str(metadata.get("page_workflow_phase") or "").strip()
+        workflow_goal = str(metadata.get("page_workflow_goal") or "").strip()
+        completion = (
+            dict(metadata.get("page_workflow_completion") or {})
+            if isinstance(metadata.get("page_workflow_completion"), dict)
+            else {}
         )
+        verify_signals = [
+            str(name or "").strip()
+            for name in list(completion.get("verify_signals") or [])
+            if str(name or "").strip()
+        ]
+        action_signals = [
+            str(name or "").strip()
+            for name in list(completion.get("action_signals") or [])
+            if str(name or "").strip()
+        ]
+        lines = ["Continue the same page workflow only."]
+        if workflow_phase:
+            lines.append(f"Workflow phase: {workflow_phase}.")
+        if workflow_goal:
+            lines.append(f"Workflow goal: {workflow_goal}.")
+        if action_signals:
+            lines.append(f"Action signals: {', '.join(action_signals)}.")
+        if verify_signals:
+            lines.append(f"Verify signals: {', '.join(verify_signals)}.")
+        if decision.allowed_tool_names:
+            lines.append(
+                f"Allowed tools for this recovery: {', '.join(decision.allowed_tool_names)}."
+            )
+        lines.append("Only finish the remaining intent(s) listed below.")
+        breach_guidance = "\n".join(lines).strip() + "\n"
     return ChatMessage(
         role="system",
         content=render_prompt_contract(
@@ -114,6 +142,7 @@ def build_recovery_message(
             leaked_line=(
                 f"Allowed tools for this recovery: {', '.join(decision.allowed_tool_names)}.\n"
                 if decision.allowed_tool_names
+                and "Allowed tools for this recovery:" not in breach_guidance
                 else ""
             ),
         ),
@@ -300,7 +329,9 @@ def build_completed_output(
         intent_results=intent_results,
     )
     if completed_results:
-        return " ".join(result.strip() for result in completed_results if result.strip())
+        return " ".join(
+            result.strip() for result in completed_results if result.strip()
+        )
     if str(contract_breach_type or "").strip():
         return _("这次处理没有成功生成最终答复，请再试一次。")
     if completed_labels:

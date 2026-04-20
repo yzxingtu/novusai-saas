@@ -14,7 +14,10 @@ from app.ai.constants import (
 )
 from app.ai.engine.types import ExecutionRequest
 from app.ai.events.hooks import HookPoint
-from app.ai.memory_policy import attach_memory_runtime_policy
+from app.ai.memory_policy import (
+    attach_memory_runtime_policy,
+    prime_memory_runtime_policy,
+)
 from app.ai.types import ChatMessage
 from app.ai.utils.token_estimator import estimate_tokens
 from app.core.i18n import _
@@ -187,6 +190,19 @@ class AgentChatCommandService:
                     "effective_knowledge_base_ids": knowledge_base_ids or [],
                 }
                 if dropped_knowledge_base_ids
+                else None
+            ),
+        )
+        prime_memory_runtime_policy(
+            request,
+            thread_memory_state=(
+                dict(
+                    (getattr(conversation, "metadata_", None) or {}).get(
+                        "thread_memory_state"
+                    )
+                    or {}
+                )
+                if isinstance(getattr(conversation, "metadata_", None), dict)
                 else None
             ),
         )
@@ -458,6 +474,19 @@ class AgentChatCommandService:
             )
         )
         request = request_bundle.request
+        prime_memory_runtime_policy(
+            request,
+            thread_memory_state=(
+                dict(
+                    (getattr(conversation, "metadata_", None) or {}).get(
+                        "thread_memory_state"
+                    )
+                    or {}
+                )
+                if isinstance(getattr(conversation, "metadata_", None), dict)
+                else None
+            ),
+        )
 
         mem_text = await service._load_session_memory_context(request=request)
         service.stream_bootstrap._inject_session_memory(request, mem_text)

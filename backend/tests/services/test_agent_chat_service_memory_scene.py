@@ -24,12 +24,13 @@ def _make_agent():
     return agent
 
 
-def _make_conversation():
+def _make_conversation(*, metadata_: dict | None = None):
     conv = MagicMock()
     conv.id = 100
     conv.agent_id = 1
     conv.user_id = 10
     conv.owner_type = "tenant_admin"
+    conv.metadata_ = metadata_ or {}
     return conv
 
 
@@ -73,7 +74,9 @@ async def test_chat_passes_memory_scene_for_tenant_page(mock_db):
 
     service = AgentChatService(mock_db, tenant_id=1)
     service._validate_agent = AsyncMock(return_value=_make_agent())
-    service.conversation_svc.get_or_create_for_chat = AsyncMock(return_value=_make_conversation())
+    service.conversation_svc.get_or_create_for_chat = AsyncMock(
+        return_value=_make_conversation()
+    )
     service.conversation_svc.load_chat_history = AsyncMock(return_value=[])
     service.conversation_svc.persist_chat_messages = AsyncMock(return_value=([], 0))
     service.conversation_svc.update_stats = AsyncMock(return_value=None)
@@ -84,9 +87,20 @@ async def test_chat_passes_memory_scene_for_tenant_page(mock_db):
 
     from unittest.mock import patch
 
-    with patch("app.services.ai.agent_chat_service.ExecutionDispatcher", return_value=dispatcher), \
-            patch("app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation", new=AsyncMock()), \
-            patch("app.services.ai.agent_chat_service.AgentStatsManager.record_chat", new=AsyncMock()):
+    with (
+        patch(
+            "app.services.ai.agent_chat_service.ExecutionDispatcher",
+            return_value=dispatcher,
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentStatsManager.record_chat",
+            new=AsyncMock(),
+        ),
+    ):
         await service.chat(
             agent_id=1,
             message="hello",
@@ -113,7 +127,9 @@ async def test_chat_runtime_memory_switch_can_disable_memory(mock_db):
 
     service = AgentChatService(mock_db, tenant_id=1)
     service._validate_agent = AsyncMock(return_value=_make_agent())
-    service.conversation_svc.get_or_create_for_chat = AsyncMock(return_value=_make_conversation())
+    service.conversation_svc.get_or_create_for_chat = AsyncMock(
+        return_value=_make_conversation()
+    )
     service.conversation_svc.load_chat_history = AsyncMock(return_value=[])
     service.conversation_svc.persist_chat_messages = AsyncMock(return_value=([], 0))
     service.conversation_svc.update_stats = AsyncMock(return_value=None)
@@ -124,9 +140,20 @@ async def test_chat_runtime_memory_switch_can_disable_memory(mock_db):
 
     from unittest.mock import patch
 
-    with patch("app.services.ai.agent_chat_service.ExecutionDispatcher", return_value=dispatcher), \
-            patch("app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation", new=AsyncMock()), \
-            patch("app.services.ai.agent_chat_service.AgentStatsManager.record_chat", new=AsyncMock()):
+    with (
+        patch(
+            "app.services.ai.agent_chat_service.ExecutionDispatcher",
+            return_value=dispatcher,
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentStatsManager.record_chat",
+            new=AsyncMock(),
+        ),
+    ):
         await service.chat(
             agent_id=1,
             message="hello",
@@ -153,7 +180,9 @@ async def test_chat_passes_memory_scene_for_admin_chat(mock_db):
 
     service = AgentChatService(mock_db, tenant_id=0)
     service._validate_agent = AsyncMock(return_value=_make_agent())
-    service.conversation_svc.get_or_create_for_chat = AsyncMock(return_value=_make_conversation())
+    service.conversation_svc.get_or_create_for_chat = AsyncMock(
+        return_value=_make_conversation()
+    )
     service.conversation_svc.load_chat_history = AsyncMock(return_value=[])
     service.conversation_svc.persist_chat_messages = AsyncMock(return_value=([], 0))
     service.conversation_svc.update_stats = AsyncMock(return_value=None)
@@ -164,9 +193,20 @@ async def test_chat_passes_memory_scene_for_admin_chat(mock_db):
 
     from unittest.mock import patch
 
-    with patch("app.services.ai.agent_chat_service.ExecutionDispatcher", return_value=dispatcher), \
-            patch("app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation", new=AsyncMock()), \
-            patch("app.services.ai.agent_chat_service.AgentStatsManager.record_chat", new=AsyncMock()):
+    with (
+        patch(
+            "app.services.ai.agent_chat_service.ExecutionDispatcher",
+            return_value=dispatcher,
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentStatsManager.record_chat",
+            new=AsyncMock(),
+        ),
+    ):
         await service.chat(
             agent_id=1,
             message="hello",
@@ -193,7 +233,9 @@ async def test_chat_passes_memory_scene_for_plugin(mock_db):
 
     service = AgentChatService(mock_db, tenant_id=1)
     service._validate_agent = AsyncMock(return_value=_make_agent())
-    service.conversation_svc.get_or_create_for_chat = AsyncMock(return_value=_make_conversation())
+    service.conversation_svc.get_or_create_for_chat = AsyncMock(
+        return_value=_make_conversation()
+    )
     service.conversation_svc.load_chat_history = AsyncMock(return_value=[])
     service.conversation_svc.persist_chat_messages = AsyncMock(return_value=([], 0))
     service.conversation_svc.update_stats = AsyncMock(return_value=None)
@@ -203,9 +245,20 @@ async def test_chat_passes_memory_scene_for_plugin(mock_db):
 
     from unittest.mock import patch
 
-    with patch("app.services.ai.agent_chat_service.ExecutionDispatcher", return_value=dispatcher), \
-            patch("app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation", new=AsyncMock()), \
-            patch("app.services.ai.agent_chat_service.AgentStatsManager.record_chat", new=AsyncMock()):
+    with (
+        patch(
+            "app.services.ai.agent_chat_service.ExecutionDispatcher",
+            return_value=dispatcher,
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentStatsManager.record_chat",
+            new=AsyncMock(),
+        ),
+    ):
         await service.chat(
             agent_id=1,
             message="hello",
@@ -231,7 +284,9 @@ async def test_chat_normalizes_invalid_memory_context(mock_db):
 
     service = AgentChatService(mock_db, tenant_id=1)
     service._validate_agent = AsyncMock(return_value=_make_agent())
-    service.conversation_svc.get_or_create_for_chat = AsyncMock(return_value=_make_conversation())
+    service.conversation_svc.get_or_create_for_chat = AsyncMock(
+        return_value=_make_conversation()
+    )
     service.conversation_svc.load_chat_history = AsyncMock(return_value=[])
     service.conversation_svc.persist_chat_messages = AsyncMock(return_value=([], 0))
     service.conversation_svc.update_stats = AsyncMock(return_value=None)
@@ -241,9 +296,20 @@ async def test_chat_normalizes_invalid_memory_context(mock_db):
 
     from unittest.mock import patch
 
-    with patch("app.services.ai.agent_chat_service.ExecutionDispatcher", return_value=dispatcher), \
-            patch("app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation", new=AsyncMock()), \
-            patch("app.services.ai.agent_chat_service.AgentStatsManager.record_chat", new=AsyncMock()):
+    with (
+        patch(
+            "app.services.ai.agent_chat_service.ExecutionDispatcher",
+            return_value=dispatcher,
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentStatsManager.record_chat",
+            new=AsyncMock(),
+        ),
+    ):
         await service.chat(
             agent_id=1,
             message="hello",
@@ -269,22 +335,39 @@ async def test_chat_non_stream_persists_session_memory(mock_db):
 
     service = AgentChatService(mock_db, tenant_id=1)
     service._validate_agent = AsyncMock(return_value=_make_agent())
-    service.conversation_svc.get_or_create_for_chat = AsyncMock(return_value=_make_conversation())
-    service.conversation_svc.load_chat_history = AsyncMock(return_value=[MagicMock(), MagicMock()])
+    service.conversation_svc.get_or_create_for_chat = AsyncMock(
+        return_value=_make_conversation()
+    )
+    service.conversation_svc.load_chat_history = AsyncMock(
+        return_value=[MagicMock(), MagicMock()]
+    )
     service.conversation_svc.persist_chat_messages = AsyncMock(return_value=([], 0))
     service.conversation_svc.update_stats = AsyncMock(return_value=None)
     service._resolve_effective_memory_enabled = AsyncMock(return_value=True)
     service._persist_session_memory = AsyncMock(return_value=None)
-    service._resolve_runtime_trust_policy_ref = AsyncMock(return_value={"policy_ids": [99]})
+    service._resolve_runtime_trust_policy_ref = AsyncMock(
+        return_value={"policy_ids": [99]}
+    )
 
     dispatcher = AsyncMock()
     dispatcher.dispatch = AsyncMock(return_value=_make_execution_result())
 
     from unittest.mock import patch
 
-    with patch("app.services.ai.agent_chat_service.ExecutionDispatcher", return_value=dispatcher), \
-            patch("app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation", new=AsyncMock()), \
-            patch("app.services.ai.agent_chat_service.AgentStatsManager.record_chat", new=AsyncMock()):
+    with (
+        patch(
+            "app.services.ai.agent_chat_service.ExecutionDispatcher",
+            return_value=dispatcher,
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentStatsManager.record_chat",
+            new=AsyncMock(),
+        ),
+    ):
         await service.chat(
             agent_id=1,
             message="hello",
@@ -308,7 +391,9 @@ async def test_chat_marks_request_session_memory_injected_when_context_loaded(mo
 
     service = AgentChatService(mock_db, tenant_id=1)
     service._validate_agent = AsyncMock(return_value=_make_agent())
-    service.conversation_svc.get_or_create_for_chat = AsyncMock(return_value=_make_conversation())
+    service.conversation_svc.get_or_create_for_chat = AsyncMock(
+        return_value=_make_conversation()
+    )
     service.conversation_svc.load_chat_history = AsyncMock(return_value=[])
     service.conversation_svc.persist_chat_messages = AsyncMock(return_value=([], 0))
     service.conversation_svc.update_stats = AsyncMock(return_value=None)
@@ -324,9 +409,20 @@ async def test_chat_marks_request_session_memory_injected_when_context_loaded(mo
 
     from unittest.mock import patch
 
-    with patch("app.services.ai.agent_chat_service.ExecutionDispatcher", return_value=dispatcher), \
-            patch("app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation", new=AsyncMock()), \
-            patch("app.services.ai.agent_chat_service.AgentStatsManager.record_chat", new=AsyncMock()):
+    with (
+        patch(
+            "app.services.ai.agent_chat_service.ExecutionDispatcher",
+            return_value=dispatcher,
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentStatsManager.record_chat",
+            new=AsyncMock(),
+        ),
+    ):
         await service.chat(
             agent_id=1,
             message="hello",
@@ -344,6 +440,159 @@ async def test_chat_marks_request_session_memory_injected_when_context_loaded(mo
 
 
 @pytest.mark.asyncio
+async def test_chat_primes_request_memory_policy_from_thread_state(mock_db):
+    from app.services.ai.agent_chat_service import AgentChatService
+
+    service = AgentChatService(mock_db, tenant_id=1)
+    service._validate_agent = AsyncMock(return_value=_make_agent())
+    service.conversation_svc.get_or_create_for_chat = AsyncMock(
+        return_value=_make_conversation(
+            metadata_={
+                "thread_memory_state": {
+                    "external_context_polluted": True,
+                    "external_context_reason": "tool:web_search",
+                    "long_term_memory_runtime_enabled": True,
+                }
+            }
+        )
+    )
+    service.conversation_svc.load_chat_history = AsyncMock(return_value=[])
+    service.conversation_svc.persist_chat_messages = AsyncMock(return_value=([], 0))
+    service.conversation_svc.update_stats = AsyncMock(return_value=None)
+    service._resolve_effective_memory_enabled = AsyncMock(return_value=True)
+    service._load_session_memory_context = AsyncMock(return_value="")
+    service._persist_session_memory = AsyncMock(return_value=None)
+    service._resolve_runtime_trust_policy_ref = AsyncMock(return_value=None)
+
+    dispatcher = AsyncMock()
+    dispatcher.dispatch = AsyncMock(return_value=_make_execution_result())
+
+    from unittest.mock import patch
+
+    with (
+        patch(
+            "app.services.ai.agent_chat_service.ExecutionDispatcher",
+            return_value=dispatcher,
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentStatsManager.record_chat",
+            new=AsyncMock(),
+        ),
+    ):
+        await service.chat(
+            agent_id=1,
+            message="hello",
+            user_id=10,
+            user_role=UserRoleEnum.TENANT_ADMIN.value,
+            memory_scene=MemorySceneEnum.AI_CHAT_PAGE.value,
+            memory_channel=MemoryChannelEnum.TENANT_CHAT.value,
+            memory_source=MemorySceneEnum.AI_CHAT_PAGE.value,
+        )
+
+    called_request = dispatcher.dispatch.call_args.args[0]
+    assert called_request.memory_runtime_policy["external_context_polluted"] is True
+    assert (
+        called_request.memory_runtime_policy["external_context_reason"]
+        == "tool:web_search"
+    )
+    assert (
+        called_request.memory_runtime_policy["session_memory_runtime_enabled"] is True
+    )
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_primes_request_memory_policy_from_thread_state(mock_db):
+    from unittest.mock import patch
+
+    from app.services.ai.agent_chat_service import AgentChatService
+
+    service = AgentChatService(mock_db, tenant_id=1)
+    agent = _make_agent()
+    agent.quota_config = {}
+    agent.model = None
+    service._validate_agent = AsyncMock(return_value=agent)
+    service._resolve_effective_memory_enabled = AsyncMock(return_value=True)
+    service._load_session_memory_context = AsyncMock(return_value="")
+    service._build_billing_context = AsyncMock(return_value={})
+    service.conversation_svc.get_or_create_for_chat = AsyncMock(
+        return_value=_make_conversation(
+            metadata_={
+                "thread_memory_state": {
+                    "external_context_polluted": True,
+                    "external_context_reason": "tool:web_search",
+                }
+            }
+        )
+    )
+    service.conversation_svc.update_last_assistant_interaction_state = AsyncMock(
+        return_value=None,
+    )
+    service.conversation_svc.load_chat_history = AsyncMock(return_value=[])
+    service.conversation_svc.persist_user_messages = AsyncMock(return_value=1)
+    service.conversation_svc.persist_chat_messages = AsyncMock(return_value=([], 0))
+
+    engine = AsyncMock()
+    engine.stream_execute = AsyncMock(return_value=MagicMock())
+
+    with (
+        patch(
+            "app.services.ai.agent_chat_service.ConversationEngine",
+            return_value=engine,
+        ),
+        patch(
+            "app.ai.skills.resolver.resolve_for_agent",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentQuotaManager.check_quota",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentQuotaManager.check_user_quota",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentConcurrencyLimiter.acquire",
+            new=AsyncMock(return_value=""),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.BaseEngine._publish_execution_started",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.tenant.quota_service.QuotaService.check_api_quota_for_tenant_id",
+            new=AsyncMock(return_value=MagicMock(allowed=True, message=None)),
+        ),
+        patch(
+            "app.configs.service.ConfigService.get_platform_config",
+            new=AsyncMock(side_effect=["normal", 256]),
+        ),
+    ):
+        await service.stream_chat(
+            agent_id=1,
+            message="继续",
+            conversation_id=100,
+            user_id=10,
+            user_role=UserRoleEnum.TENANT_ADMIN.value,
+            memory_scene=MemorySceneEnum.AI_CHAT_PAGE.value,
+            memory_channel=MemoryChannelEnum.TENANT_CHAT.value,
+            memory_source=MemorySceneEnum.AI_CHAT_PAGE.value,
+        )
+
+    request = engine.stream_execute.await_args.kwargs["request"]
+    assert request.memory_runtime_policy["external_context_polluted"] is True
+    assert request.memory_runtime_policy["external_context_reason"] == "tool:web_search"
+
+
+@pytest.mark.asyncio
 async def test_chat_response_includes_tool_planner_diagnostics(mock_db):
     from unittest.mock import patch
 
@@ -351,7 +600,9 @@ async def test_chat_response_includes_tool_planner_diagnostics(mock_db):
 
     service = AgentChatService(mock_db, tenant_id=1)
     service._validate_agent = AsyncMock(return_value=_make_agent())
-    service.conversation_svc.get_or_create_for_chat = AsyncMock(return_value=_make_conversation())
+    service.conversation_svc.get_or_create_for_chat = AsyncMock(
+        return_value=_make_conversation()
+    )
     service.conversation_svc.load_chat_history = AsyncMock(return_value=[])
     service.conversation_svc.persist_chat_messages = AsyncMock(return_value=([], 0))
     service.conversation_svc.update_stats = AsyncMock(return_value=None)
@@ -372,9 +623,20 @@ async def test_chat_response_includes_tool_planner_diagnostics(mock_db):
     dispatcher = AsyncMock()
     dispatcher.dispatch = AsyncMock(return_value=result)
 
-    with patch("app.services.ai.agent_chat_service.ExecutionDispatcher", return_value=dispatcher), \
-            patch("app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation", new=AsyncMock()), \
-            patch("app.services.ai.agent_chat_service.AgentStatsManager.record_chat", new=AsyncMock()):
+    with (
+        patch(
+            "app.services.ai.agent_chat_service.ExecutionDispatcher",
+            return_value=dispatcher,
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentStatsManager.record_chat",
+            new=AsyncMock(),
+        ),
+    ):
         response = await service.chat(
             agent_id=1,
             message="你真聪明",
@@ -414,12 +676,15 @@ async def test_persist_session_memory_captures_long_term_memory_candidates(mock_
     request.memory_scene = MemorySceneEnum.AI_CHAT_PAGE.value
     request.long_term_memory_enabled = True
 
-    with patch(
-        "app.services.ai.agent_chat_service.get_long_term_memory_provider",
-        return_value=provider,
-    ), patch(
-        "app.services.ai.agent_chat_service.SessionMemoryService.upsert_state",
-        new=AsyncMock(return_value={}),
+    with (
+        patch(
+            "app.services.ai.agent_chat_service.get_long_term_memory_provider",
+            return_value=provider,
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.SessionMemoryService.upsert_state",
+            new=AsyncMock(return_value={}),
+        ),
     ):
         delta = await service._persist_session_memory(
             request=request,
@@ -472,13 +737,16 @@ async def test_persist_session_memory_allows_long_term_capture_without_session_m
     request.memory_scene = MemorySceneEnum.AI_CHAT_PAGE.value
     request.long_term_memory_enabled = True
 
-    with patch(
-        "app.services.ai.agent_chat_service.get_long_term_memory_provider",
-        return_value=provider,
-    ), patch(
-        "app.services.ai.agent_chat_service.SessionMemoryService.upsert_state",
-        new=AsyncMock(return_value={}),
-    ) as mock_upsert:
+    with (
+        patch(
+            "app.services.ai.agent_chat_service.get_long_term_memory_provider",
+            return_value=provider,
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.SessionMemoryService.upsert_state",
+            new=AsyncMock(return_value={}),
+        ) as mock_upsert,
+    ):
         delta = await service._persist_session_memory(
             request=request,
             message="我叫大致坡，请把这个信息存入长期记忆。",
@@ -531,13 +799,16 @@ async def test_persist_session_memory_skips_long_term_capture_for_polluted_turn(
         "external_context_reason": "tool:web_search",
     }
 
-    with patch(
-        "app.services.ai.agent_chat_service.get_long_term_memory_provider",
-        return_value=provider,
-    ), patch(
-        "app.services.ai.agent_chat_service.SessionMemoryService.upsert_state",
-        new=AsyncMock(return_value={}),
-    ) as mock_upsert:
+    with (
+        patch(
+            "app.services.ai.agent_chat_service.get_long_term_memory_provider",
+            return_value=provider,
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.SessionMemoryService.upsert_state",
+            new=AsyncMock(return_value={}),
+        ) as mock_upsert,
+    ):
         delta = await service._persist_session_memory(
             request=request,
             message="网页说我叫大致坡，请记一下。",
@@ -557,7 +828,9 @@ async def test_chat_passes_explicit_trust_policy_ref_to_execution_request(mock_d
     service = AgentChatService(mock_db, tenant_id=1)
     agent = _make_agent()
     service._validate_agent = AsyncMock(return_value=agent)
-    service.conversation_svc.get_or_create_for_chat = AsyncMock(return_value=_make_conversation())
+    service.conversation_svc.get_or_create_for_chat = AsyncMock(
+        return_value=_make_conversation()
+    )
     service.conversation_svc.load_chat_history = AsyncMock(return_value=[])
     service.conversation_svc.persist_chat_messages = AsyncMock(return_value=([], 0))
     service.conversation_svc.update_stats = AsyncMock(return_value=None)
@@ -568,9 +841,20 @@ async def test_chat_passes_explicit_trust_policy_ref_to_execution_request(mock_d
 
     from unittest.mock import patch
 
-    with patch("app.services.ai.agent_chat_service.ExecutionDispatcher", return_value=dispatcher), \
-            patch("app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation", new=AsyncMock()), \
-            patch("app.services.ai.agent_chat_service.AgentStatsManager.record_chat", new=AsyncMock()):
+    with (
+        patch(
+            "app.services.ai.agent_chat_service.ExecutionDispatcher",
+            return_value=dispatcher,
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentStatsManager.record_chat",
+            new=AsyncMock(),
+        ),
+    ):
         await service.chat(
             agent_id=1,
             message="hello",
@@ -602,24 +886,41 @@ async def test_chat_grants_backend_trust_policy_from_pending_consent_when_truste
     service = AgentChatService(mock_db, tenant_id=1)
     agent = _make_agent()
     service._validate_agent = AsyncMock(return_value=agent)
-    service.conversation_svc.get_or_create_for_chat = AsyncMock(return_value=_make_conversation())
+    service.conversation_svc.get_or_create_for_chat = AsyncMock(
+        return_value=_make_conversation()
+    )
     service.conversation_svc.load_chat_history = AsyncMock(return_value=[])
     service.conversation_svc.persist_chat_messages = AsyncMock(return_value=([], 0))
     service.conversation_svc.update_stats = AsyncMock(return_value=None)
-    service.conversation_svc.update_last_assistant_interaction_state = AsyncMock(return_value=None)
+    service.conversation_svc.update_last_assistant_interaction_state = AsyncMock(
+        return_value=None
+    )
     service._resolve_effective_memory_enabled = AsyncMock(return_value=False)
-    service._resolve_runtime_trust_policy_ref = AsyncMock(return_value={"policy_ids": [99]})
+    service._resolve_runtime_trust_policy_ref = AsyncMock(
+        return_value={"policy_ids": [99]}
+    )
 
     dispatcher = AsyncMock()
     dispatcher.dispatch = AsyncMock(return_value=_make_execution_result())
 
-    with patch("app.services.ai.agent_chat_service.ExecutionDispatcher", return_value=dispatcher), \
-            patch("app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation", new=AsyncMock()), \
-            patch("app.services.ai.agent_chat_service.AgentStatsManager.record_chat", new=AsyncMock()), \
-            patch(
-                "app.services.ai.agent_chat_service.ExecutionTrustPolicyService.grant_conversation_tool_trust",
-                new_callable=AsyncMock,
-            ) as grant_trust:
+    with (
+        patch(
+            "app.services.ai.agent_chat_service.ExecutionDispatcher",
+            return_value=dispatcher,
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentStatsManager.record_chat",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.ExecutionTrustPolicyService.grant_conversation_tool_trust",
+            new_callable=AsyncMock,
+        ) as grant_trust,
+    ):
         await service.chat(
             agent_id=1,
             message="确认执行",
@@ -649,24 +950,41 @@ async def test_chat_grants_backend_trust_policy_from_page_confirmation_when_trus
     service = AgentChatService(mock_db, tenant_id=1)
     agent = _make_agent()
     service._validate_agent = AsyncMock(return_value=agent)
-    service.conversation_svc.get_or_create_for_chat = AsyncMock(return_value=_make_conversation())
+    service.conversation_svc.get_or_create_for_chat = AsyncMock(
+        return_value=_make_conversation()
+    )
     service.conversation_svc.load_chat_history = AsyncMock(return_value=[])
     service.conversation_svc.persist_chat_messages = AsyncMock(return_value=([], 0))
     service.conversation_svc.update_stats = AsyncMock(return_value=None)
-    service.conversation_svc.update_last_assistant_interaction_state = AsyncMock(return_value=None)
+    service.conversation_svc.update_last_assistant_interaction_state = AsyncMock(
+        return_value=None
+    )
     service._resolve_effective_memory_enabled = AsyncMock(return_value=False)
-    service._resolve_runtime_trust_policy_ref = AsyncMock(return_value={"policy_ids": [99]})
+    service._resolve_runtime_trust_policy_ref = AsyncMock(
+        return_value={"policy_ids": [99]}
+    )
 
     dispatcher = AsyncMock()
     dispatcher.dispatch = AsyncMock(return_value=_make_execution_result())
 
-    with patch("app.services.ai.agent_chat_service.ExecutionDispatcher", return_value=dispatcher), \
-            patch("app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation", new=AsyncMock()), \
-            patch("app.services.ai.agent_chat_service.AgentStatsManager.record_chat", new=AsyncMock()), \
-            patch(
-                "app.services.ai.agent_chat_service.ExecutionTrustPolicyService.grant_conversation_tool_trust",
-                new_callable=AsyncMock,
-            ) as grant_trust:
+    with (
+        patch(
+            "app.services.ai.agent_chat_service.ExecutionDispatcher",
+            return_value=dispatcher,
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentStatsManager.record_chat",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.ExecutionTrustPolicyService.grant_conversation_tool_trust",
+            new_callable=AsyncMock,
+        ) as grant_trust,
+    ):
         await service.chat(
             agent_id=1,
             message="继续创建",
@@ -697,7 +1015,9 @@ def test_memory_event_id_is_request_unique():
 
 
 @pytest.mark.asyncio
-async def test_stream_chat_updates_pending_consent_state_with_string_owner_type(mock_db):
+async def test_stream_chat_updates_pending_consent_state_with_string_owner_type(
+    mock_db,
+):
     from unittest.mock import patch
 
     from app.services.ai.agent_chat_service import AgentChatService
@@ -723,33 +1043,43 @@ async def test_stream_chat_updates_pending_consent_state_with_string_owner_type(
     engine = AsyncMock()
     engine.stream_execute = AsyncMock(return_value=MagicMock())
 
-    with patch(
-        "app.services.ai.agent_chat_service.ConversationEngine",
-        return_value=engine,
-    ), patch(
-        "app.ai.skills.resolver.resolve_for_agent",
-        new=AsyncMock(return_value=None),
-    ), patch(
-        "app.services.ai.agent_chat_service.AgentQuotaManager.check_quota",
-        new=AsyncMock(),
-    ), patch(
-        "app.services.ai.agent_chat_service.AgentQuotaManager.check_user_quota",
-        new=AsyncMock(),
-    ), patch(
-        "app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation",
-        new=AsyncMock(),
-    ), patch(
-        "app.services.ai.agent_chat_service.AgentConcurrencyLimiter.acquire",
-        new=AsyncMock(return_value=""),
-    ), patch(
-        "app.services.ai.agent_chat_service.BaseEngine._publish_execution_started",
-        new=AsyncMock(),
-    ), patch(
-        "app.services.tenant.quota_service.QuotaService.check_api_quota_for_tenant_id",
-        new=AsyncMock(return_value=MagicMock(allowed=True, message=None)),
-    ), patch(
-        "app.configs.service.ConfigService.get_platform_config",
-        new=AsyncMock(side_effect=["normal", 256]),
+    with (
+        patch(
+            "app.services.ai.agent_chat_service.ConversationEngine",
+            return_value=engine,
+        ),
+        patch(
+            "app.ai.skills.resolver.resolve_for_agent",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentQuotaManager.check_quota",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentQuotaManager.check_user_quota",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.AgentConcurrencyLimiter.acquire",
+            new=AsyncMock(return_value=""),
+        ),
+        patch(
+            "app.services.ai.agent_chat_service.BaseEngine._publish_execution_started",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.services.tenant.quota_service.QuotaService.check_api_quota_for_tenant_id",
+            new=AsyncMock(return_value=MagicMock(allowed=True, message=None)),
+        ),
+        patch(
+            "app.configs.service.ConfigService.get_platform_config",
+            new=AsyncMock(side_effect=["normal", 256]),
+        ),
     ):
         await service.stream_chat(
             agent_id=1,

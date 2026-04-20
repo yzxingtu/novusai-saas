@@ -94,7 +94,9 @@ def test_inject_runtime_summary_is_idempotent_for_same_signature() -> None:
     assert injected_first is False
     assert injected_second is False
     assert messages[0].content == first_content
-    assert (messages[0].metadata or {}).get("runtime_summary_signature") == first_signature
+    assert (messages[0].metadata or {}).get(
+        "runtime_summary_signature"
+    ) == first_signature
 
 
 def test_contract_diagnostics_helpers_populate_turn_record_metadata() -> None:
@@ -111,7 +113,10 @@ def test_contract_diagnostics_helpers_populate_turn_record_metadata() -> None:
         recovered_via_retry=True,
     )
     assert isinstance(merged, TurnRecord)
-    assert merged.metadata["contract_breach_type"] == "assistant_claimed_tool_call_without_tool_event"
+    assert (
+        merged.metadata["contract_breach_type"]
+        == "assistant_claimed_tool_call_without_tool_event"
+    )
     assert merged.metadata["tool_leak_detected"] is True
     assert merged.metadata["recovered_via_retry"] is True
     assert merged.metadata["leaked_tool_names"] == ["fetch_url"]
@@ -141,7 +146,7 @@ def test_base_engine_wrappers_delegate_to_extracted_helpers() -> None:
     assert helper_response.message.content == ""
 
 
-def test_page_submit_stage_completion_signals_require_submit_only() -> None:
+def test_page_submit_completion_signals_follow_state_machine_contract() -> None:
     assert BaseEngine._intent_completion_signals(
         "page_ops",
         intent_kind="page_form_write",
@@ -156,7 +161,15 @@ def test_page_submit_stage_completion_signals_require_submit_only() -> None:
             "ui_set_field",
             "ui_submit_form",
         ],
-        intent_metadata={"page_workflow_stage": "submit_active_form"},
+        intent_metadata={
+            "page_workflow_phase": "submit",
+            "page_workflow_completion": {
+                "mode": "verify_only",
+                "completion_signals": ["ui_submit_form"],
+                "action_signals": [],
+                "verify_signals": ["ui_submit_form"],
+            },
+        },
     ) == ["ui_submit_form"]
 
 

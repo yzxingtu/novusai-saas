@@ -18,10 +18,6 @@ from app.ai.adapters.openai_compatible import (
     OpenAIProtocolCapabilities,
     build_openai_client,
 )
-from app.ai.adapters.openai_compatible.legacy_entrypoints import (
-    execute_legacy_adapter_chat_entrypoint,
-    execute_legacy_adapter_stream_entrypoint,
-)
 from app.ai.adapters.openai_compatible.support import (
     SUPPORTS_NATIVE_AUDIO,
     OpenAIAdapterGatewayEntrypointsMixin,
@@ -82,6 +78,22 @@ class OpenAIAdapter(
         if explicit_wire_api is not None:
             return explicit_wire_api
         return kwargs.get("_runtime_force_wire_api")
+
+    @staticmethod
+    def _legacy_chat_entrypoint():
+        from app.ai.adapters.openai_compatible.legacy_entrypoints import (
+            execute_legacy_adapter_chat_entrypoint,
+        )
+
+        return execute_legacy_adapter_chat_entrypoint
+
+    @staticmethod
+    def _legacy_stream_entrypoint():
+        from app.ai.adapters.openai_compatible.legacy_entrypoints import (
+            execute_legacy_adapter_stream_entrypoint,
+        )
+
+        return execute_legacy_adapter_stream_entrypoint
 
     async def chat(
         self,
@@ -160,7 +172,7 @@ class OpenAIAdapter(
         Explicit compatibility entrypoint for legacy planner semantics.
         """
         _ = stream
-        return await execute_legacy_adapter_chat_entrypoint(
+        return await self._legacy_chat_entrypoint()(
             adapter=self,
             messages=messages,
             model=model,
@@ -186,7 +198,7 @@ class OpenAIAdapter(
         """
         Explicit compatibility entrypoint for legacy streaming semantics.
         """
-        async for chunk in execute_legacy_adapter_stream_entrypoint(
+        async for chunk in self._legacy_stream_entrypoint()(
             adapter=self,
             messages=messages,
             model=model,

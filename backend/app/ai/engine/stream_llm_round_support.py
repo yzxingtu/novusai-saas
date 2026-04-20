@@ -10,6 +10,11 @@ from app.ai.types import ChatMessage, ChatResponse
 from .budget_guard import BudgetGuard
 from .stream_generation_view import ensure_stream_generation_view
 from .turn_executor import ModelRoundResult
+from .turn_flow_projector import (
+    build_answer_assembly_turn_flow_event,
+    build_provider_search_turn_flow_event,
+    build_thinking_turn_flow_event,
+)
 
 if TYPE_CHECKING:
     from .stream_execution_runtime import StreamIOAdapter
@@ -63,6 +68,9 @@ async def handle_stream_chunk(
         await adapter.handler._emit_runtime_event(
             {"event": "status", "status": "web_search_in_progress"}
         )
+        await adapter.handler._emit_runtime_event(
+            build_provider_search_turn_flow_event()
+        )
 
     reasoning_delta = getattr(chunk, "reasoning_delta", None)
     if reasoning_delta:
@@ -73,6 +81,9 @@ async def handle_stream_chunk(
                 "event": "thinking",
                 "delta": reasoning_delta,
             }
+        )
+        await adapter.handler._emit_runtime_event(
+            build_thinking_turn_flow_event(summary=reasoning_delta)
         )
 
     delta = getattr(chunk, "delta", None)
@@ -85,6 +96,9 @@ async def handle_stream_chunk(
                 "event": "message",
                 "delta": delta,
             }
+        )
+        await adapter.handler._emit_runtime_event(
+            build_answer_assembly_turn_flow_event()
         )
 
     incoming_tool_calls = getattr(chunk, "tool_calls", None)

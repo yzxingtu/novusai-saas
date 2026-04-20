@@ -733,43 +733,6 @@ function inferCompletionReason(message: ChatMessage): string | undefined {
   );
 }
 
-type TurnFlowStageSemanticType =
-  | 'answer_assembly'
-  | 'retrieval'
-  | 'terminal'
-  | 'thinking'
-  | 'tool_execution'
-  | 'tool_selection';
-
-function toSemanticStageType(
-  type: TurnFlowStageType,
-): TurnFlowStageSemanticType {
-  if (type === 'completed' || type === 'failed') {
-    return 'terminal';
-  }
-  return type;
-}
-
-function mergeTimelineWithCanonicalPriority(
-  legacyTimeline: TurnFlowStage[],
-  canonicalTimeline: TurnFlowStage[],
-): TurnFlowStage[] {
-  if (canonicalTimeline.length === 0) {
-    return legacyTimeline.map((stage) => cloneStage(stage));
-  }
-  const canonicalSemanticTypes = new Set<TurnFlowStageSemanticType>(
-    canonicalTimeline.map((stage) => toSemanticStageType(stage.type)),
-  );
-  return [
-    ...canonicalTimeline.map((stage) => cloneStage(stage)),
-    ...legacyTimeline
-      .filter(
-        (stage) => !canonicalSemanticTypes.has(toSemanticStageType(stage.type)),
-      )
-      .map((stage) => cloneStage(stage)),
-  ];
-}
-
 function toLegacyRagSourcesFromEvidence(
   evidence: TurnFlowEvidenceItem[],
 ): RagSource[] {
@@ -1138,31 +1101,46 @@ function shouldFinalizeTimeline(flow: TurnFlowViewModel): boolean {
 
 export function reconcileTurnFlowWithLegacy(message: ChatMessage): void {
   const normalizedTurnFlow = normalizeTurnFlowViewModel(message.turnFlow);
-  const legacyTurnFlow = buildLegacyTurnFlowFromMessage(message);
-  const merged = mergeTurnFlow(legacyTurnFlow, normalizedTurnFlow);
-  if (!merged) {
+  if (normalizedTurnFlow && normalizedTurnFlow.timeline.length > 0) {
+    const canonical = mergeTurnFlow(normalizedTurnFlow, createEmptyTurnFlow());
+    if (!canonical) {
+      return;
+    }
+    if (shouldFinalizeTimeline(canonical)) {
+      const finalStatus =
+        canonical.finalStageStatus && canonical.finalStageStatus !== 'running'
+          ? canonical.finalStageStatus
+          : inferFinalStageStatus(message);
+      canonical.finalStageStatus = finalStatus;
+      if (canonical.complete === undefined) {
+        canonical.complete = true;
+      }
+      finalizeRunningStages(canonical, finalStatus);
+      ensureTerminalStage(canonical);
+    }
+    message.turnFlow = canonical;
+    applyLegacyFieldsFromTurnFlow(message);
     return;
   }
-  merged.timeline = mergeTimelineWithCanonicalPriority(
-    legacyTurnFlow?.timeline ?? [],
-    normalizedTurnFlow?.timeline ?? [],
-  );
-  if (shouldFinalizeTimeline(merged)) {
-    const finalStatus =
-      merged.finalStageStatus && merged.finalStageStatus !== 'running'
-        ? merged.finalStageStatus
-        : inferFinalStageStatus(message);
-    merged.finalStageStatus = finalStatus;
-    if (normalizedTurnFlow?.complete !== undefined) {
-      merged.complete = normalizedTurnFlow.complete;
-    } else if (merged.complete === undefined) {
-      merged.complete = true;
-    }
-    finalizeRunningStages(merged, finalStatus);
-    ensureTerminalStage(merged);
+
+  const legacyTurnFlow = buildLegacyTurnFlowFromMessage(message);
+  if (!legacyTurnFlow) {
+    return;
   }
-  message.turnFlow = merged;
-  applyLegacyFieldsFromTurnFlow(message);
+  if (shouldFinalizeTimeline(legacyTurnFlow)) {
+    const finalStatus =
+      legacyTurnFlow.finalStageStatus &&
+      legacyTurnFlow.finalStageStatus !== 'running'
+        ? legacyTurnFlow.finalStageStatus
+        : inferFinalStageStatus(message);
+    legacyTurnFlow.finalStageStatus = finalStatus;
+    if (legacyTurnFlow.complete === undefined) {
+      legacyTurnFlow.complete = true;
+    }
+    finalizeRunningStages(legacyTurnFlow, finalStatus);
+    ensureTerminalStage(legacyTurnFlow);
+  }
+  message.turnFlow = legacyTurnFlow;
 }
 
 function buildStageFromCanonicalEvent(

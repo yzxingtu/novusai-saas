@@ -104,6 +104,32 @@ class SkillResolveResult:
             if str(getattr(tool, "name", "") or "").strip() in activated_names
         ]
 
+    @staticmethod
+    def _tool_has_skill_owner(tool: ToolDefinition) -> bool:
+        return any(
+            str(getattr(tool, attr, "") or "").strip()
+            for attr in ("source_skill_id", "source_skill_name", "source_package_name")
+        )
+
+    def startup_activated_tools(self) -> list[ToolDefinition]:
+        activation = self.turn_activation
+        if activation is None or not activation.applied:
+            return list(self.tools)
+
+        activated_names = {
+            str(name or "").strip()
+            for name in activation.activated_tool_names or []
+            if str(name or "").strip()
+        }
+        return [
+            tool
+            for tool in self.tools
+            if (
+                not self._tool_has_skill_owner(tool)
+                or str(getattr(tool, "name", "") or "").strip() in activated_names
+            )
+        ]
+
 
 def build_skill_capability_descriptors(skills: list[Any]) -> list[CapabilityDescriptor]:
     return parts.build_skill_capability_descriptors(skills)

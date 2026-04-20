@@ -72,9 +72,7 @@ _PAGE_INTENT_STAGE_COMPLETION_MODES: dict[str, dict[str, str]] = {
         "submit_active_editor": "verify_only",
     },
 }
-_PAGE_INTENT_STAGE_COMPLETION_SIGNAL_NAMES: dict[
-    str, dict[str, tuple[str, ...]]
-] = {
+_PAGE_INTENT_STAGE_COMPLETION_SIGNAL_NAMES: dict[str, dict[str, tuple[str, ...]]] = {
     "page_navigation": {
         "verify_navigation_result": ("ui_get_snapshot",),
     },
@@ -121,6 +119,7 @@ _PAGE_INTENT_STAGE_COMPLETION_SIGNAL_NAMES: dict[
         "submit_active_editor": ("ui_submit_form",),
     },
 }
+_VALID_PAGE_COMPLETION_MODES = {"any_of", "action_then_verify", "verify_only"}
 
 
 def _ordered_unique_tool_names(*groups: list[str]) -> list[str]:
@@ -141,6 +140,61 @@ def _ordered_matching_tool_names(
     completed_tool_names: set[str],
 ) -> list[str]:
     return [name for name in tool_names if name in completed_tool_names]
+
+
+def _ordered_subset(
+    ordered_tool_names: list[str],
+    raw_tool_names: Any,
+) -> list[str]:
+    if not isinstance(raw_tool_names, (list, tuple, set)):
+        return []
+    requested = {
+        str(name or "").strip() for name in raw_tool_names if str(name or "").strip()
+    }
+    if not requested:
+        return []
+    return [name for name in ordered_tool_names if name in requested]
+
+
+def _page_completion_contract_from_metadata(
+    *,
+    intent_metadata: dict[str, Any] | None,
+    ordered_tool_names: list[str],
+) -> dict[str, Any] | None:
+    if not isinstance(intent_metadata, dict):
+        return None
+    raw_contract = intent_metadata.get("page_workflow_completion")
+    if not isinstance(raw_contract, dict):
+        return None
+
+    mode = str(raw_contract.get("mode") or "verify_only").strip()
+    if mode not in _VALID_PAGE_COMPLETION_MODES:
+        mode = "verify_only"
+
+    completion_signals = _ordered_subset(
+        ordered_tool_names,
+        raw_contract.get("completion_signals"),
+    )
+    action_signals = _ordered_subset(
+        ordered_tool_names,
+        raw_contract.get("action_signals"),
+    )
+    verify_signals = _ordered_subset(
+        ordered_tool_names,
+        raw_contract.get("verify_signals"),
+    )
+    if not completion_signals and verify_signals:
+        completion_signals = list(verify_signals)
+    if not verify_signals and completion_signals:
+        verify_signals = list(completion_signals)
+    if not (completion_signals or action_signals or verify_signals):
+        return None
+    return {
+        "mode": mode,
+        "completion_signals": completion_signals,
+        "action_signals": action_signals,
+        "verify_signals": verify_signals,
+    }
 
 
 def _page_intent_completion_mode(
@@ -185,6 +239,12 @@ def intent_completion_contract(
             }
     if family == "page_ops":
         page_intent_kind = str(intent_kind or "").strip()
+        metadata_contract = _page_completion_contract_from_metadata(
+            intent_metadata=intent_metadata,
+            ordered_tool_names=ordered_tool_names,
+        )
+        if metadata_contract is not None:
+            return metadata_contract
         workflow_stage = str(
             (intent_metadata or {}).get("page_workflow_stage") or ""
         ).strip()
@@ -262,9 +322,7 @@ def intent_plan_gating_flags(
         "has_knowledge_intent": bool(flags.has_knowledge_intent),
         "has_memory_intent": bool(flags.has_memory_intent),
         "memory_context_enabled": bool(flags.memory_context_enabled),
-        "session_memory_runtime_enabled": bool(
-            flags.session_memory_runtime_enabled
-        ),
+        "session_memory_runtime_enabled": bool(flags.session_memory_runtime_enabled),
         "long_term_memory_runtime_enabled": bool(
             flags.long_term_memory_runtime_enabled
         ),

@@ -71,12 +71,16 @@ def test_tool_router_prioritizes_screenshot_tools_over_generic_page_read() -> No
     ]
 
 
-def test_tool_router_prefers_surface_discovery_before_form_write_when_form_not_open() -> None:
+def test_tool_router_prefers_surface_discovery_before_form_write_when_form_not_open() -> (
+    None
+):
     decision = ToolRouter.route(
         intents=[_intent("page_form_write")],
         tools=_page_tools(),
         budget=_budget(),
-        input_variables={"page_context": {"page_key": "admin.ai.agents", "ui_epoch": 5}},
+        input_variables={
+            "page_context": {"page_key": "admin.ai.agents", "ui_epoch": 5}
+        },
         user_text="帮我新增一条记录并提交表单",
     )
 
@@ -90,12 +94,16 @@ def test_tool_router_prefers_surface_discovery_before_form_write_when_form_not_o
     ]
 
 
-def test_tool_router_prefers_form_surface_discovery_before_form_read_when_form_not_open() -> None:
+def test_tool_router_prefers_form_surface_discovery_before_form_read_when_form_not_open() -> (
+    None
+):
     decision = ToolRouter.route(
         intents=[_intent("page_form_read")],
         tools=_page_tools(),
         budget=_budget(),
-        input_variables={"page_context": {"page_key": "admin.ai.agents", "ui_epoch": 5}},
+        input_variables={
+            "page_context": {"page_key": "admin.ai.agents", "ui_epoch": 5}
+        },
         user_text="先打开编辑表单并读取字段",
     )
 
@@ -109,7 +117,9 @@ def test_tool_router_prefers_form_surface_discovery_before_form_read_when_form_n
     ]
 
 
-def test_tool_router_prefers_snapshot_verification_when_navigation_surface_is_already_open() -> None:
+def test_tool_router_prefers_snapshot_verification_when_navigation_surface_is_already_open() -> (
+    None
+):
     plan = ToolRouter.page_intent_tool_plan(
         "page_navigation",
         input_variables={
@@ -129,6 +139,7 @@ def test_tool_router_prefers_snapshot_verification_when_navigation_surface_is_al
     )
 
     assert plan.workflow_stage == "verify_navigation_result"
+    assert plan.workflow_phase == "verify"
     assert plan.preferred_names == [
         "ui_get_snapshot",
         "ui_list_interactables",
@@ -166,9 +177,27 @@ def test_tool_router_keeps_form_write_mutation_chain_when_active_form_exists() -
         "ui_submit_form",
         "ui_open_surface",
     ]
+    plan = ToolRouter.page_intent_tool_plan(
+        "page_form_write",
+        input_variables={
+            "page_context": {
+                "page_key": "admin.ai.agents",
+                "active_form_session_id": "form-agent-create",
+                "active_form_summary": {
+                    "form_session_id": "form-agent-create",
+                    "mode": "create",
+                    "stage": "ready_to_submit",
+                    "can_submit": True,
+                },
+            }
+        },
+    )
+    assert plan.workflow_phase == "submit"
 
 
-def test_tool_router_opens_row_detail_surface_before_read_when_no_overlay_exists() -> None:
+def test_tool_router_opens_row_detail_surface_before_read_when_no_overlay_exists() -> (
+    None
+):
     plan = ToolRouter.page_intent_tool_plan(
         "page_row_detail",
         input_variables={
@@ -184,6 +213,7 @@ def test_tool_router_opens_row_detail_surface_before_read_when_no_overlay_exists
     )
 
     assert plan.workflow_stage == "open_detail_surface"
+    assert plan.workflow_phase == "navigate_or_open"
     assert plan.allowed_names == [
         "ui_list_interactables",
         "ui_click",

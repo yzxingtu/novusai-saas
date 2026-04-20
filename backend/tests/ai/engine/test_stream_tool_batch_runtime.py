@@ -61,7 +61,9 @@ def _build_runtime(
         starting_total_tokens=starting_total_tokens,
         starting_completion_tokens=starting_completion_tokens,
         reasoning_content=(
-            str(response.message.reasoning_content or response.message.content or "").strip()
+            str(
+                response.message.reasoning_content or response.message.content or ""
+            ).strip()
             or None
         ),
     )
@@ -95,7 +97,9 @@ def _build_callbacks(
 
 
 @pytest.mark.asyncio
-async def test_run_stream_tool_batch_executes_parallel_safe_batch_concurrently() -> None:
+async def test_run_stream_tool_batch_executes_parallel_safe_batch_concurrently() -> (
+    None
+):
     class _TrackingSandbox:
         def __init__(self) -> None:
             self.active_calls = 0
@@ -161,7 +165,12 @@ async def test_run_stream_tool_batch_executes_parallel_safe_batch_concurrently()
         "call_search_2",
     ]
     assert sandbox.max_parallel >= 2
-    assert [event["event"] for event in events[:2]] == ["tool_start", "tool_start"]
+    assert [event["event"] for event in events[:4]] == [
+        "tool_start",
+        "turn_stage_update",
+        "tool_start",
+        "turn_stage_update",
+    ]
 
 
 @pytest.mark.asyncio
@@ -295,11 +304,18 @@ async def test_run_stream_tool_batch_uses_runtime_tool_processor_binding(
     assert [tool_result.output for tool_result in result.tool_results] == [
         "fake:AI latest news"
     ]
-    assert [event["event"] for event in events] == ["tool_start", "tool_call"]
+    assert [event["event"] for event in events] == [
+        "tool_start",
+        "turn_stage_update",
+        "tool_call",
+        "turn_stage_update",
+    ]
 
 
 @pytest.mark.asyncio
-async def test_run_stream_tool_batch_aborts_after_consecutive_page_parse_failures() -> None:
+async def test_run_stream_tool_batch_aborts_after_consecutive_page_parse_failures() -> (
+    None
+):
     class _Sandbox:
         async def execute(self, *_args, **_kwargs) -> ToolResult:  # pragma: no cover
             raise AssertionError("parse failures should not reach execute()")
@@ -344,6 +360,10 @@ async def test_run_stream_tool_batch_aborts_after_consecutive_page_parse_failure
     assert result.response.message.content == result.output_override
     assert len(result.tool_results) == 3
     assert len([event for event in events if event.get("event") == "tool_call"]) == 3
+    assert (
+        len([event for event in events if event.get("event") == "turn_stage_update"])
+        == 3
+    )
     assert emitted_chunks == [result.output_override]
 
 
@@ -367,7 +387,9 @@ async def test_run_stream_tool_batch_trims_unexecuted_tail_after_budget_exit() -
                 tool_call_id=tool_call_id,
                 name=name,
                 success=True,
-                output=json.dumps({"name": name, "page_key": arguments.get("page_key")}),
+                output=json.dumps(
+                    {"name": name, "page_key": arguments.get("page_key")}
+                ),
             )
 
     sandbox = _Sandbox()
@@ -425,13 +447,15 @@ async def test_run_stream_tool_batch_trims_unexecuted_tail_after_budget_exit() -
     assert [tc["id"] for tc in (runtime.messages[1].tool_calls or [])] == [
         "call_snapshot"
     ]
-    assert [message.tool_call_id for message in runtime.messages if message.role == "tool"] == [
-        "call_snapshot"
-    ]
+    assert [
+        message.tool_call_id for message in runtime.messages if message.role == "tool"
+    ] == ["call_snapshot"]
 
 
 @pytest.mark.asyncio
-async def test_run_stream_tool_batch_returns_confirmation_response_for_pending_consent() -> None:
+async def test_run_stream_tool_batch_returns_confirmation_response_for_pending_consent() -> (
+    None
+):
     class _Sandbox:
         async def execute(self, *_args, **_kwargs) -> ToolResult:  # pragma: no cover
             raise AssertionError("consent pause should happen before execute()")

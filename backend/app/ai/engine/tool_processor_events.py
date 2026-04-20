@@ -40,6 +40,8 @@ def build_tool_call_event(
         "success": result.success,
         "duration_ms": duration_ms,
     }
+    if result.tool_call_id:
+        event["id"] = result.tool_call_id
     if skill_info:
         event.update(skill_info)
 
@@ -77,7 +79,9 @@ def build_confirmation_event(
         "event": "confirmation_request",
         "action": parsed.get("action", ""),
         "table": parsed.get("table", ""),
-        "preview": (parsed.get("preview") or parsed.get("diff") or parsed.get("record")),
+        "preview": (
+            parsed.get("preview") or parsed.get("diff") or parsed.get("record")
+        ),
     }
     normalized_name = str(func_name or "").strip()
     if normalized_name:

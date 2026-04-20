@@ -863,7 +863,9 @@ async def test_prepare_execution_selects_page_ops_for_page_capability_request() 
 
 
 @pytest.mark.asyncio
-async def test_prepare_execution_prefers_form_discovery_when_no_active_form_exists() -> None:
+async def test_prepare_execution_prefers_form_discovery_when_no_active_form_exists() -> (
+    None
+):
     engine = ConversationEngine(
         db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
     )
@@ -923,6 +925,7 @@ async def test_prepare_execution_prefers_form_discovery_when_no_active_form_exis
     assert prep.intent_plan[0].metadata["page_workflow_stage"] == (
         "discover_form_before_write"
     )
+    assert prep.intent_plan[0].metadata["page_workflow_phase"] == "discover"
     assert prep.intent_plan[0].completion_signals == [
         "ui_fill_form",
         "ui_submit_form",
@@ -2385,10 +2388,7 @@ async def test_prepare_execution_assembles_pageaware_kb_memory_and_plugin_skill_
         )
 
     assert prep.capability_bundle is not None
-    assert set(prep.capability_bundle.selected_skill_names) == {
-        "Plugin Research Skill",
-        "Plugin Page Skill",
-    }
+    assert prep.capability_bundle.selected_skill_names == ["Plugin Page Skill"]
     context_source_kinds = {
         source.kind for source in prep.capability_bundle.context_sources
     }
@@ -2398,10 +2398,7 @@ async def test_prepare_execution_assembles_pageaware_kb_memory_and_plugin_skill_
         "knowledge_base",
         "long_term_memory",
     }
-    assert prep.diagnostics["selected_skill_names"] == [
-        "Plugin Research Skill",
-        "Plugin Page Skill",
-    ]
+    assert prep.diagnostics["selected_skill_names"] == ["Plugin Page Skill"]
     assert prep.diagnostics["selected_tool_names"]
     assert prep.rag_source_kinds == ["formal_kb"]
     assert prep.memory_recalled is True
@@ -3102,4 +3099,5 @@ async def test_prepare_execution_editor_write_keeps_editor_mutation_tools() -> N
     assert prep.intent_plan[0].metadata["page_workflow_stage"] == (
         "submit_active_editor"
     )
+    assert prep.intent_plan[0].metadata["page_workflow_phase"] == "submit"
     assert prep.intent_plan[0].completion_signals == ["ui_submit_form"]

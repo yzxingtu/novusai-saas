@@ -205,9 +205,68 @@ def attach_memory_runtime_policy(
     return policy
 
 
+def prime_memory_runtime_policy(
+    request: Any,
+    *,
+    thread_memory_state: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    if not isinstance(thread_memory_state, dict):
+        return _request_policy_payload(request)
+
+    payload = {
+        key: value
+        for key, value in thread_memory_state.items()
+        if key
+        in {
+            "scene",
+            "channel",
+            "source",
+            "session_memory_runtime_enabled",
+            "session_memory_read_enabled",
+            "session_memory_write_enabled",
+            "long_term_memory_runtime_enabled",
+            "long_term_memory_recall_enabled",
+            "long_term_memory_capture_enabled",
+            "memory_context_enabled",
+            "external_context_polluted",
+            "external_context_reason",
+        }
+    }
+    payload.update(
+        {
+            "scene": _normalize_text(getattr(request, "memory_scene", ""))
+            or _normalize_text(payload.get("scene")),
+            "channel": _normalize_text(getattr(request, "memory_channel", ""))
+            or _normalize_text(payload.get("channel")),
+            "source": _normalize_text(getattr(request, "memory_source", ""))
+            or _normalize_text(payload.get("source")),
+            "session_memory_runtime_enabled": bool(
+                getattr(
+                    request,
+                    "memory_enabled",
+                    payload.get("session_memory_runtime_enabled", False),
+                )
+            ),
+            "long_term_memory_runtime_enabled": bool(
+                getattr(
+                    request,
+                    "long_term_memory_enabled",
+                    payload.get("long_term_memory_runtime_enabled", False),
+                )
+            ),
+        }
+    )
+    existing_payload = _request_policy_payload(request)
+    if existing_payload:
+        payload.update(existing_payload)
+    request.memory_runtime_policy = payload
+    return payload
+
+
 __all__ = [
     "MemoryRuntimePolicy",
     "attach_memory_runtime_policy",
     "detect_external_context_pollution",
+    "prime_memory_runtime_policy",
     "resolve_memory_runtime_policy",
 ]

@@ -92,7 +92,6 @@ from .stream_tool_call_helpers import (
 from .stream_tool_call_helpers import (
     normalize_stream_tool_call as _normalize_stream_tool_call_impl,
 )
-from .turn_flow_projector import mirror_canonical_events_from_legacy
 from .turn_executor import TurnExecutor
 from .types import (
     ExecutionRequest,
@@ -321,8 +320,6 @@ class StreamExecutionHandler:
 
     async def _emit_runtime_event(self, payload: dict[str, Any]) -> None:
         await self._event_queue.put(SSEChunkEncoder.encode(payload))
-        for canonical_payload in mirror_canonical_events_from_legacy(payload):
-            await self._event_queue.put(SSEChunkEncoder.encode(canonical_payload))
 
     async def _emit_clear_content_if_needed(self) -> None:
         generation_view = self._stream_generation_view()

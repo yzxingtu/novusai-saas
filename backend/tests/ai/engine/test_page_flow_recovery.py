@@ -84,7 +84,8 @@ def test_build_page_no_progress_recovery_for_navigation_request() -> None:
     hint, preferred_tool_names, diagnostics = _recover("帮我打开智能体管理页面")
 
     assert hint is not None
-    assert "ui_get_snapshot again" in hint
+    assert "Workflow phase: verify." in hint
+    assert "Verify signals: ui_get_snapshot." in hint
     assert preferred_tool_names == [
         "ui_list_interactables",
         "ui_click",
@@ -92,45 +93,48 @@ def test_build_page_no_progress_recovery_for_navigation_request() -> None:
     ]
     assert diagnostics["intent_kind"] == "page_navigation"
     assert diagnostics["workflow_stage"] == "verify_navigation_result"
+    assert diagnostics["workflow_phase"] == "verify"
 
 
 def test_build_page_no_progress_recovery_for_failed_cross_page_click() -> None:
-    hint, preferred_tool_names, diagnostics = BaseEngine._build_page_no_progress_recovery(  # noqa: SLF001
-        messages=[ChatMessage(role="user", content="添加供应商")],
-        tool_calls=[
-            {
-                "id": "call_1",
-                "type": "function",
-                "function": {
-                    "name": "ui_click",
-                    "arguments": '{"target_locator":"添加供应商"}',
-                },
-            }
-        ],
-        tool_results=[
-            ToolResult(
-                tool_call_id="call_1",
-                name="ui_click",
-                success=False,
-                error="未找到目标元素：添加供应商",
-            )
-        ],
-        tools=_page_tools(),
-        input_variables={
-            "page_context": {
-                **_build_input_variables()["page_context"],
-                "page_data": {
-                    "navigation_catalog": [
-                        {
-                            "title": "供应商管理",
-                            "path": "/admin/suppliers",
-                            "page_key": "admin.suppliers",
-                            "keywords": ["供应商", "添加供应商"],
-                        }
-                    ]
-                },
-            }
-        },
+    hint, preferred_tool_names, diagnostics = (
+        BaseEngine._build_page_no_progress_recovery(  # noqa: SLF001
+            messages=[ChatMessage(role="user", content="添加供应商")],
+            tool_calls=[
+                {
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {
+                        "name": "ui_click",
+                        "arguments": '{"target_locator":"添加供应商"}',
+                    },
+                }
+            ],
+            tool_results=[
+                ToolResult(
+                    tool_call_id="call_1",
+                    name="ui_click",
+                    success=False,
+                    error="未找到目标元素：添加供应商",
+                )
+            ],
+            tools=_page_tools(),
+            input_variables={
+                "page_context": {
+                    **_build_input_variables()["page_context"],
+                    "page_data": {
+                        "navigation_catalog": [
+                            {
+                                "title": "供应商管理",
+                                "path": "/admin/suppliers",
+                                "page_key": "admin.suppliers",
+                                "keywords": ["供应商", "添加供应商"],
+                            }
+                        ]
+                    },
+                }
+            },
+        )
     )
 
     assert hint is not None
@@ -158,6 +162,7 @@ def test_build_page_no_progress_recovery_for_form_write_request() -> None:
     hint, preferred_tool_names, diagnostics = _recover("帮我填写并提交表单")
 
     assert hint is not None
+    assert "Workflow phase: submit." in hint
     assert preferred_tool_names == [
         "ui_fill_form",
         "ui_set_field",
@@ -165,41 +170,47 @@ def test_build_page_no_progress_recovery_for_form_write_request() -> None:
     ]
     assert diagnostics["intent_kind"] == "page_form_write"
     assert diagnostics["workflow_stage"] == "submit_active_form"
+    assert diagnostics["workflow_phase"] == "submit"
 
 
 def test_build_page_no_progress_recovery_for_form_write_without_active_form() -> None:
-    hint, preferred_tool_names, diagnostics = BaseEngine._build_page_no_progress_recovery(  # noqa: SLF001
-        messages=[ChatMessage(role="user", content="帮我添加一个测试的智能体 在本页面")],
-        tool_calls=[
-            {
-                "id": "call_1",
-                "type": "function",
-                "function": {"name": "ui_get_form_state", "arguments": "{}"},
-            }
-        ],
-        tool_results=[
-            ToolResult(
-                tool_call_id="call_1",
-                name="ui_get_form_state",
-                success=False,
-                error="未找到活动中的表单会话。",
-                error_type="form_session_not_found",
-            )
-        ],
-        tools=_page_tools(),
-        input_variables=_build_input_variables_without_form(),
+    hint, preferred_tool_names, diagnostics = (
+        BaseEngine._build_page_no_progress_recovery(  # noqa: SLF001
+            messages=[
+                ChatMessage(role="user", content="帮我添加一个测试的智能体 在本页面")
+            ],
+            tool_calls=[
+                {
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {"name": "ui_get_form_state", "arguments": "{}"},
+                }
+            ],
+            tool_results=[
+                ToolResult(
+                    tool_call_id="call_1",
+                    name="ui_get_form_state",
+                    success=False,
+                    error="未找到活动中的表单会话。",
+                    error_type="form_session_not_found",
+                )
+            ],
+            tools=_page_tools(),
+            input_variables=_build_input_variables_without_form(),
+        )
     )
 
     assert hint is not None
+    assert "Recovery reason: page_form_session_missing." in hint
     assert preferred_tool_names == [
         "ui_list_interactables",
         "ui_open_surface",
         "ui_click",
-        "ui_get_form_state",
     ]
     assert diagnostics["intent_kind"] == "page_form_write"
     assert diagnostics["reason"] == "page_form_session_missing"
     assert diagnostics["workflow_stage"] == "discover_form_before_write"
+    assert diagnostics["workflow_phase"] == "discover"
     assert diagnostics["workflow_state"]["has_active_form"] is False
 
 
@@ -218,27 +229,33 @@ def test_build_page_no_progress_recovery_for_row_detail_request() -> None:
     hint, preferred_tool_names, diagnostics = _recover("查看这条记录详情")
 
     assert hint is not None
+    assert "Workflow goal: row_detail." in hint
     assert preferred_tool_names == [
         "ui_read_region",
         "ui_read_table",
     ]
     assert diagnostics["intent_kind"] == "page_row_detail"
     assert diagnostics["workflow_stage"] == "read_detail_surface"
+    assert diagnostics["workflow_phase"] == "read"
 
 
-def test_build_page_no_progress_recovery_for_row_detail_without_overlay_prefers_open_first() -> None:
-    hint, preferred_tool_names, diagnostics = BaseEngine._build_page_no_progress_recovery(  # noqa: SLF001
-        messages=[ChatMessage(role="user", content="查看这条记录详情")],
-        tool_calls=[
-            {
-                "id": "call_1",
-                "type": "function",
-                "function": {"name": "ui_get_snapshot", "arguments": "{}"},
-            }
-        ],
-        tool_results=[_snapshot_result()],
-        tools=_page_tools(),
-        input_variables=_build_input_variables_without_form(),
+def test_build_page_no_progress_recovery_for_row_detail_without_overlay_prefers_open_first() -> (
+    None
+):
+    hint, preferred_tool_names, diagnostics = (
+        BaseEngine._build_page_no_progress_recovery(  # noqa: SLF001
+            messages=[ChatMessage(role="user", content="查看这条记录详情")],
+            tool_calls=[
+                {
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {"name": "ui_get_snapshot", "arguments": "{}"},
+                }
+            ],
+            tool_results=[_snapshot_result()],
+            tools=_page_tools(),
+            input_variables=_build_input_variables_without_form(),
+        )
     )
 
     assert hint is not None

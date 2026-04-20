@@ -153,9 +153,11 @@ export async function submitRuntimeForm(args: { confirm?: boolean; formSessionId
 - `page_form_write` routing must be runtime-state aware: when no active form session exists, expose discovery/open tools (`ui_list_interactables`, `ui_open_surface`, `ui_click`) before form mutation tools so the model can find and open the create/edit surface first; when an active form exists, prioritize form read/write tools instead.
 - Page-intent routing must project explicit workflow metadata into the live
   intent plan. `IntentPlan.metadata` is the canonical seam for
-  `page_workflow_stage` and `page_workflow_state`; completion, recovery, and
-  contract-breach checks must all consume that same metadata instead of
-  re-inferring page progress from prompt hints.
+  `page_workflow_stage`, `page_workflow_phase`, `page_workflow_goal`,
+  `page_workflow_state`, and `page_workflow_completion`; completion,
+  recovery, and contract-breach checks must all consume that same metadata
+  contract instead of re-inferring page progress from prompt hints or keeping
+  a second stage table.
 - `page_navigation` and `page_row_detail` must distinguish
   discover/open/verify phases using canonical UI runtime facts such as
   `active_surface_id`, `surface_stack`, surface kind, and overlay presence.

@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from app.ai.prompt_contracts import render_prompt_contract
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.types import ChatMessage
 
@@ -58,6 +57,35 @@ def _trim_recovery_tool_names(
     return trimmed
 
 
+def _build_structured_recovery_message(
+    *,
+    recovery_reason: str,
+    page_key: str,
+    preferred_tool_names: list[str],
+    workflow_plan: Any,
+) -> str:
+    completion_mode = str(workflow_plan.completion_contract.mode or "").strip()
+    verify_signals = list(workflow_plan.completion_contract.verify_signals or [])
+    action_signals = list(workflow_plan.completion_contract.action_signals or [])
+    lines = [
+        "Continue the same page workflow only.",
+        f"Workflow phase: {workflow_plan.workflow_phase}.",
+        f"Workflow goal: {workflow_plan.workflow_goal}.",
+        f"Recovery reason: {recovery_reason}.",
+    ]
+    if page_key:
+        lines.append(f"Current page key: {page_key}.")
+    if action_signals:
+        lines.append(f"Action signals: {', '.join(action_signals)}.")
+    if verify_signals:
+        lines.append(f"Verify signals: {', '.join(verify_signals)}.")
+    if completion_mode:
+        lines.append(f"Completion mode: {completion_mode}.")
+    lines.append(f"Use only these tools next: {', '.join(preferred_tool_names)}.")
+    lines.append("Do not restart the workflow or fall back to generic page summaries.")
+    return "\n".join(lines)
+
+
 def build_page_no_progress_recovery(
     *,
     messages: list[ChatMessage],
@@ -68,8 +96,9 @@ def build_page_no_progress_recovery(
     extract_last_user_text: Callable[[list[ChatMessage]], str],
     first_page_intent_kind: Callable[..., str | None],
     tool_call_name: Callable[[dict[str, Any]], str],
-    render_contract: Callable[..., str] = render_prompt_contract,
+    render_contract: Callable[..., str] | None = None,
 ) -> tuple[str | None, list[str], dict[str, Any]]:
+    _ = render_contract
     if not tool_calls or not tools or not isinstance(input_variables, dict):
         return None, [], {}
 
@@ -92,12 +121,16 @@ def build_page_no_progress_recovery(
         return None, [], {}
 
     round_tool_names = [
-        tool_call_name(tool_call) for tool_call in tool_calls if tool_call_name(tool_call)
+        tool_call_name(tool_call)
+        for tool_call in tool_calls
+        if tool_call_name(tool_call)
     ]
     if not round_tool_names:
         return None, [], {}
 
-    snapshot_calls = [result for result in tool_results if result.name == "ui_get_snapshot"]
+    snapshot_calls = [
+        result for result in tool_results if result.name == "ui_get_snapshot"
+    ]
     repeated_snapshot = len(snapshot_calls) > 1
     only_snapshot_round = set(round_tool_names) == {"ui_get_snapshot"}
     failed_page_navigation_action = any(
@@ -107,9 +140,8 @@ def build_page_no_progress_recovery(
     navigation_action_no_progress = (
         page_intent_kind == "page_navigation" and failed_page_navigation_action
     )
-    missing_form_session_no_progress = (
-        page_intent_kind == "page_form_write"
-        and any(_is_missing_active_form_result(result) for result in tool_results)
+    missing_form_session_no_progress = page_intent_kind == "page_form_write" and any(
+        _is_missing_active_form_result(result) for result in tool_results
     )
     if (
         not repeated_snapshot
@@ -141,7 +173,8 @@ def build_page_no_progress_recovery(
         ]
     if (
         page_intent_kind == "page_row_detail"
-        and workflow_plan.workflow_stage == "read_detail_surface"
+        and workflow_plan.workflow_goal == "row_detail"
+        and workflow_plan.workflow_phase == "read"
     ):
         recovery_tool_names = [
             "ui_read_region",
@@ -172,9 +205,13 @@ def build_page_no_progress_recovery(
             if repeated_snapshot
             else "page_snapshot_only_round"
         )
-    hint = render_contract("page_flow_recovery")
     return (
-        hint,
+        _build_structured_recovery_message(
+            recovery_reason=recovery_reason,
+            page_key=page_key,
+            preferred_tool_names=preferred_tool_names,
+            workflow_plan=workflow_plan,
+        ),
         preferred_tool_names,
         {
             "reason": recovery_reason,
@@ -183,7 +220,10 @@ def build_page_no_progress_recovery(
             "preferred_tool_names": preferred_tool_names,
             "round_tool_names": round_tool_names,
             "workflow_stage": workflow_plan.workflow_stage,
+            "workflow_phase": workflow_plan.workflow_phase,
+            "workflow_goal": workflow_plan.workflow_goal,
             "workflow_state": workflow_plan.workflow_state.to_dict(),
+            "workflow_completion": workflow_plan.completion_contract.to_dict(),
         },
     )
 

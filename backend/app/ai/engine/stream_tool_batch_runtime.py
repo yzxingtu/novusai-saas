@@ -14,6 +14,10 @@ from app.ai.types import ChatMessage, ChatResponse
 from app.core.i18n import _
 
 from . import tool_processor as tool_processor_mod
+from .turn_flow_projector import (
+    build_tool_execution_result_event,
+    build_tool_execution_started_event,
+)
 
 
 @dataclass(slots=True)
@@ -111,7 +115,9 @@ def _prepare_parallel_readonly_batch(
     *,
     processor: Any,
     tool_calls: list[dict[str, Any]],
-) -> list[tuple[dict[str, Any], str, str, dict[str, Any], dict[str, str | None]]] | None:
+) -> (
+    list[tuple[dict[str, Any], str, str, dict[str, Any], dict[str, str | None]]] | None
+):
     if len(tool_calls) <= 1:
         return None
     prepared: list[
@@ -180,6 +186,14 @@ async def _apply_single_result(
             tc_duration,
             skill_info,
             name_override=func_name,
+        )
+    )
+    await callbacks.emit_event(
+        build_tool_execution_result_event(
+            tool_name=func_name or result.name,
+            success=bool(result.success),
+            duration_ms=int(tc_duration or 0),
+            tool_call_id=tc_id or result.tool_call_id,
         )
     )
     result_summary = str(result.summary or "").strip()
@@ -252,6 +266,12 @@ async def _run_parallel_batch(
                 tool_call_id=tc_id,
             )
         )
+        await callbacks.emit_event(
+            build_tool_execution_started_event(
+                tool_name=func_name,
+                tool_call_id=tc_id,
+            )
+        )
     singles = await asyncio.gather(
         *[
             processor.process_single(
@@ -319,6 +339,14 @@ async def _run_sequential_batch(
                     name_override=func_name or err_result.name,
                 )
             )
+            await callbacks.emit_event(
+                build_tool_execution_result_event(
+                    tool_name=func_name or err_result.name,
+                    success=False,
+                    duration_ms=0,
+                    tool_call_id=tc_id or err_result.tool_call_id,
+                )
+            )
             runtime.messages.append(processor.build_tool_message(err_result, tc_id))
             is_page_op = is_ui_page_tool_name(func_name) if func_name else False
             if is_page_op:
@@ -380,6 +408,12 @@ async def _run_sequential_batch(
                 func_name,
                 arguments,
                 skill_info,
+                tool_call_id=tc_id,
+            )
+        )
+        await callbacks.emit_event(
+            build_tool_execution_started_event(
+                tool_name=func_name,
                 tool_call_id=tc_id,
             )
         )
@@ -466,7 +500,11 @@ async def run_stream_tool_batch(
         round_stopped_early=state.round_stopped_early,
     )
 
-    if state.follow_up_messages and not state.round_has_confirmation and not state.page_op_aborted:
+    if (
+        state.follow_up_messages
+        and not state.round_has_confirmation
+        and not state.page_op_aborted
+    ):
         runtime.messages.extend(state.follow_up_messages)
 
     if state.page_op_aborted:

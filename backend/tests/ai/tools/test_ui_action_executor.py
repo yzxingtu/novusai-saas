@@ -43,7 +43,9 @@ async def test_ui_click_success_returns_diff(
             },
         }
     )
-    monkeypatch.setattr(page_session_module, "invoke_ui_action", invoke_mock, raising=False)
+    monkeypatch.setattr(
+        page_session_module, "invoke_ui_action", invoke_mock, raising=False
+    )
 
     context = ExecutionContext(
         tenant_id=1,
@@ -108,6 +110,48 @@ async def test_ui_action_without_session_returns_session_not_found(
 
 
 @pytest.mark.asyncio
+async def test_ui_action_uses_page_context_session_id_when_context_session_missing(
+    executor: UIActionExecutor,
+    click_definition: ToolDefinition,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.sio import page_session as page_session_module
+
+    invoke_mock = AsyncMock(
+        return_value={
+            "success": True,
+            "message": "Clicked create button",
+            "diff": {"changed": True, "ui_epoch": 4},
+        }
+    )
+    monkeypatch.setattr(
+        page_session_module, "invoke_ui_action", invoke_mock, raising=False
+    )
+
+    context = ExecutionContext(
+        tenant_id=1,
+        agent_id=2,
+        user_role="tenant_admin",
+        variables={
+            "page_context": {
+                "page_key": "admin.ai.agents",
+                "page_session_id": "ps-from-page-context",
+            }
+        },
+    )
+    result = await executor.execute(
+        click_definition,
+        "call-ui-click-page-context-session",
+        {"target_locator": "testid:create"},
+        context,
+    )
+
+    assert result.success is True
+    _, kwargs = invoke_mock.await_args
+    assert kwargs["page_session_id"] == "ps-from-page-context"
+
+
+@pytest.mark.asyncio
 async def test_ui_open_surface_failure_propagates_error_type(
     executor: UIActionExecutor,
     open_surface_definition: ToolDefinition,
@@ -130,7 +174,9 @@ async def test_ui_open_surface_failure_propagates_error_type(
             },
         }
     )
-    monkeypatch.setattr(page_session_module, "invoke_ui_action", invoke_mock, raising=False)
+    monkeypatch.setattr(
+        page_session_module, "invoke_ui_action", invoke_mock, raising=False
+    )
 
     context = ExecutionContext(
         tenant_id=1,
@@ -175,7 +221,9 @@ async def test_ui_click_failure_appends_error_detail_to_summary_payload(
             },
         }
     )
-    monkeypatch.setattr(page_session_module, "invoke_ui_action", invoke_mock, raising=False)
+    monkeypatch.setattr(
+        page_session_module, "invoke_ui_action", invoke_mock, raising=False
+    )
 
     context = ExecutionContext(
         tenant_id=1,

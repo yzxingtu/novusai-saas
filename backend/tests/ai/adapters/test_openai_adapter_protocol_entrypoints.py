@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-import app.ai.adapters.openai_adapter as openai_adapter_module
 import app.ai.adapters.openai_compatible.support.protocol_entrypoints as protocol_entrypoints_module
 from app.ai.adapters.openai_adapter import OpenAIAdapter
 from app.ai.types import ChatChunk, ChatMessage, ChatResponse
@@ -25,9 +24,13 @@ def _make_adapter(*, provider_config: dict | None = None) -> OpenAIAdapter:
 
 
 @pytest.mark.asyncio
-async def test_execute_protocol_chat_chat_completions_plan_never_routes_back_to_responses() -> None:
+async def test_execute_protocol_chat_chat_completions_plan_never_routes_back_to_responses() -> (
+    None
+):
     adapter = _make_adapter()
-    adapter._convert_messages = AsyncMock(return_value=[{"role": "user", "content": "hi"}])  # type: ignore[method-assign]
+    adapter._convert_messages = AsyncMock(
+        return_value=[{"role": "user", "content": "hi"}]
+    )  # type: ignore[method-assign]
     adapter._chat_via_responses = AsyncMock()  # type: ignore[method-assign]
     adapter._chat_via_chat_completions = AsyncMock(  # type: ignore[method-assign]
         return_value=ChatResponse(
@@ -45,8 +48,13 @@ async def test_execute_protocol_chat_chat_completions_plan_never_routes_back_to_
     )
 
     adapter._chat_via_chat_completions.assert_awaited_once()
-    assert adapter._chat_via_chat_completions.await_args.kwargs["fallback_to_responses"] is False
-    request_params = adapter._chat_via_chat_completions.await_args.kwargs["request_params"]
+    assert (
+        adapter._chat_via_chat_completions.await_args.kwargs["fallback_to_responses"]
+        is False
+    )
+    request_params = adapter._chat_via_chat_completions.await_args.kwargs[
+        "request_params"
+    ]
     assert "_runtime_disable_cross_protocol_fallback" not in request_params
     assert "_runtime_disable_sync_rescue" not in request_params
     adapter._chat_via_responses.assert_not_awaited()
@@ -54,15 +62,21 @@ async def test_execute_protocol_chat_chat_completions_plan_never_routes_back_to_
 
 
 @pytest.mark.asyncio
-async def test_execute_protocol_stream_chat_completions_plan_never_routes_back_to_responses_or_sync_rescue() -> None:
+async def test_execute_protocol_stream_chat_completions_plan_never_routes_back_to_responses_or_sync_rescue() -> (
+    None
+):
     adapter = _make_adapter()
-    adapter._convert_messages = AsyncMock(return_value=[{"role": "user", "content": "hi"}])  # type: ignore[method-assign]
+    adapter._convert_messages = AsyncMock(
+        return_value=[{"role": "user", "content": "hi"}]
+    )  # type: ignore[method-assign]
     adapter._stream_chat_via_responses = AsyncMock()  # type: ignore[method-assign]
     adapter._chat_via_chat_completions = AsyncMock()  # type: ignore[method-assign]
 
     async def _fake_stream_chat_completions(**kwargs):
         assert kwargs["fallback_to_responses"] is False
-        assert "_runtime_disable_cross_protocol_fallback" not in kwargs["request_params"]
+        assert (
+            "_runtime_disable_cross_protocol_fallback" not in kwargs["request_params"]
+        )
         assert "_runtime_disable_sync_rescue" not in kwargs["request_params"]
         async for chunk in _iterate(
             [
@@ -266,7 +280,9 @@ async def test_chat_public_entrypoint_defaults_to_protocol_safe_execution() -> N
         messages=[ChatMessage(role="user", content="hello")],
         model="gpt-5.4",
         stream=True,
-        tools=[{"type": "function", "function": {"name": "fetch_url", "parameters": {}}}],
+        tools=[
+            {"type": "function", "function": {"name": "fetch_url", "parameters": {}}}
+        ],
         tool_choice="required",
     )
 
@@ -279,7 +295,9 @@ async def test_chat_public_entrypoint_defaults_to_protocol_safe_execution() -> N
 
 
 @pytest.mark.asyncio
-async def test_stream_chat_public_entrypoint_defaults_to_protocol_safe_execution() -> None:
+async def test_stream_chat_public_entrypoint_defaults_to_protocol_safe_execution() -> (
+    None
+):
     adapter = _make_adapter()
     seen: list[dict[str, object]] = []
 
@@ -295,7 +313,12 @@ async def test_stream_chat_public_entrypoint_defaults_to_protocol_safe_execution
         async for chunk in adapter.stream_chat(
             messages=[ChatMessage(role="user", content="hello")],
             model="gpt-5.4",
-            tools=[{"type": "function", "function": {"name": "fetch_url", "parameters": {}}}],
+            tools=[
+                {
+                    "type": "function",
+                    "function": {"name": "fetch_url", "parameters": {}},
+                }
+            ],
             tool_choice="required",
         )
     ]
@@ -319,9 +342,9 @@ async def test_chat_legacy_compat_entrypoint_remains_explicit() -> None:
 
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(
-        openai_adapter_module,
-        "execute_legacy_adapter_chat_entrypoint",
-        _fake_legacy_chat_entrypoint,
+        OpenAIAdapter,
+        "_legacy_chat_entrypoint",
+        staticmethod(lambda: _fake_legacy_chat_entrypoint),
     )
     try:
         response = await adapter.chat_legacy_compat(
@@ -349,9 +372,9 @@ async def test_stream_chat_legacy_compat_entrypoint_remains_explicit() -> None:
 
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(
-        openai_adapter_module,
-        "execute_legacy_adapter_stream_entrypoint",
-        _fake_legacy_stream_entrypoint,
+        OpenAIAdapter,
+        "_legacy_stream_entrypoint",
+        staticmethod(lambda: _fake_legacy_stream_entrypoint),
     )
     try:
         chunks = [

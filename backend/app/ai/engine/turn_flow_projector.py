@@ -57,9 +57,7 @@ _TERMINAL_FAILURE_KINDS = frozenset(
         "stream_execution_error",
     }
 )
-_SAFE_TURN_FAILURE_MESSAGE = (
-    "The assistant could not finish this turn. Please retry."
-)
+_SAFE_TURN_FAILURE_MESSAGE = "The assistant could not finish this turn. Please retry."
 
 
 def _as_dict(value: Any) -> dict[str, Any]:
@@ -148,13 +146,17 @@ def _is_terminal_failure(
 
 
 def _evidence_kind_from_source(source: Mapping[str, Any]) -> str:
-    raw_kind = str(
-        source.get("kind")
-        or source.get("source_kind")
-        or source.get("type")
-        or source.get("source_type")
-        or ""
-    ).strip().lower()
+    raw_kind = (
+        str(
+            source.get("kind")
+            or source.get("source_kind")
+            or source.get("type")
+            or source.get("source_type")
+            or ""
+        )
+        .strip()
+        .lower()
+    )
     if raw_kind in {"kb", "knowledge_base", "knowledge"}:
         return "knowledge_base"
     if raw_kind in {"tool", "tool_result", "function"}:
@@ -255,7 +257,9 @@ def _count_turn_events(turn_events: list[dict[str, Any]], kind: str) -> int:
     return sum(1 for event in turn_events if event.get("kind") == kind)
 
 
-def _normalize_provider_events(diagnostics_payload: dict[str, Any]) -> list[dict[str, Any]]:
+def _normalize_provider_events(
+    diagnostics_payload: dict[str, Any],
+) -> list[dict[str, Any]]:
     normalized: list[dict[str, Any]] = []
     for raw_event in _as_list(diagnostics_payload.get("provider_events")):
         event = _as_dict(raw_event)
@@ -320,8 +324,8 @@ def _tool_execution_stage(
         summary = (
             f"Executed {completed_count + failed_count} tool calls"
             if failed_count <= 0
-                    else f"Tool execution finished with {failed_count} failures"
-                )
+            else f"Tool execution finished with {failed_count} failures"
+        )
     elif has_hosted_web_search_progress and terminal_failure:
         status = "error"
         summary = "Hosted web search timed out before results returned"
@@ -629,6 +633,101 @@ def _canonical_stage_update_payload(**kwargs: Any) -> dict[str, Any]:
     return _canonical_stage_payload(event="turn_stage_update", **kwargs)
 
 
+def build_tool_selection_turn_flow_events(
+    *,
+    total: int,
+    selected: int,
+) -> list[dict[str, Any]]:
+    summary = f"Selected {selected} of {total} tools"
+    metrics = {"all_tools_count": total, "candidate_tools_count": selected}
+    return [
+        _canonical_stage_event_payload(
+            stage_type="tool_selection",
+            status="running",
+            title="Tool Selection",
+            summary=summary,
+            metrics=metrics,
+        ),
+        _canonical_stage_update_payload(
+            stage_type="tool_selection",
+            status="skipped" if total > 0 and selected == 0 else "completed",
+            title="Tool Selection",
+            summary=summary,
+            metrics=metrics,
+        ),
+    ]
+
+
+def build_thinking_turn_flow_event(
+    *,
+    summary: str | None = None,
+) -> dict[str, Any]:
+    return _canonical_stage_update_payload(
+        stage_type="thinking",
+        status="running",
+        title="Thinking",
+        summary=summary or "Thinking in progress",
+    )
+
+
+def build_tool_execution_started_event(
+    *,
+    tool_name: str,
+    tool_call_id: str | None = None,
+) -> dict[str, Any]:
+    tool_call_ids = [tool_call_id] if tool_call_id else None
+    return _canonical_stage_update_payload(
+        stage_type="tool_execution",
+        status="running",
+        title="Tool Execution",
+        summary=f"Calling {tool_name or 'tool'}",
+        tool_call_ids=tool_call_ids,
+    )
+
+
+def build_tool_execution_result_event(
+    *,
+    tool_name: str,
+    success: bool,
+    duration_ms: int = 0,
+    tool_call_id: str | None = None,
+) -> dict[str, Any]:
+    tool_call_ids = [tool_call_id] if tool_call_id else None
+    return _canonical_stage_update_payload(
+        stage_type="tool_execution",
+        status="completed" if success else "error",
+        title="Tool Execution",
+        summary=(
+            f"{tool_name or 'tool'} completed"
+            if success
+            else f"{tool_name or 'tool'} failed"
+        ),
+        metrics={"duration_ms": duration_ms},
+        tool_call_ids=tool_call_ids,
+    )
+
+
+def build_provider_search_turn_flow_event() -> dict[str, Any]:
+    summary = "Searching the web and waiting for provider-hosted results"
+    return _canonical_stage_update_payload(
+        stage_type="tool_execution",
+        status="running",
+        title="Tool Execution",
+        summary=summary,
+        detail_lines=[summary],
+        metrics={"provider_search_in_progress": 1},
+    )
+
+
+def build_answer_assembly_turn_flow_event() -> dict[str, Any]:
+    return _canonical_stage_update_payload(
+        stage_type="answer_assembly",
+        status="running",
+        title="Answer Assembly",
+        summary="Streaming answer content",
+    )
+
+
 def build_initial_turn_flow_events(
     *,
     optimize_event: Any,
@@ -643,8 +742,9 @@ def build_initial_turn_flow_events(
     ]
     if isinstance(optimize_event, Mapping):
         events.extend(
-            mirror_canonical_events_from_legacy(
-                {"event": "optimizing_tools", **dict(optimize_event)},
+            build_tool_selection_turn_flow_events(
+                total=_as_int(optimize_event.get("total"), 0),
+                selected=_as_int(optimize_event.get("selected"), 0),
             )
         )
     return events
@@ -672,96 +772,50 @@ def mirror_canonical_events_from_legacy(
         return []
 
     if event_name == "optimizing_tools":
-        total = _as_int(event_payload.get("total"), 0)
-        selected = _as_int(event_payload.get("selected"), 0)
-        summary = f"Selected {selected} of {total} tools"
-        return [
-            _canonical_stage_event_payload(
-                stage_type="tool_selection",
-                status="running",
-                title="Tool Selection",
-                summary=summary,
-                metrics={"all_tools_count": total, "candidate_tools_count": selected},
-            ),
-            _canonical_stage_update_payload(
-                stage_type="tool_selection",
-                status="skipped" if total > 0 and selected == 0 else "completed",
-                title="Tool Selection",
-                summary=summary,
-                metrics={"all_tools_count": total, "candidate_tools_count": selected},
-            ),
-        ]
+        return build_tool_selection_turn_flow_events(
+            total=_as_int(event_payload.get("total"), 0),
+            selected=_as_int(event_payload.get("selected"), 0),
+        )
 
     if event_name == "thinking":
         return [
-            _canonical_stage_update_payload(
-                stage_type="thinking",
-                status="running",
-                title="Thinking",
+            build_thinking_turn_flow_event(
                 summary=_as_text(
                     event_payload.get("status")
                     or event_payload.get("summary")
                     or "Thinking in progress"
-                ),
+                )
             )
         ]
 
     if event_name == "tool_start":
-        tool_name = _as_text(event_payload.get("name")) or "tool"
         return [
-            _canonical_stage_update_payload(
-                stage_type="tool_execution",
-                status="running",
-                title="Tool Execution",
-                summary=f"Calling {tool_name}",
-                tool_call_ids=[_as_text(event_payload.get("id")) or ""],
+            build_tool_execution_started_event(
+                tool_name=_as_text(event_payload.get("name")) or "tool",
+                tool_call_id=_as_text(event_payload.get("id")) or None,
             )
         ]
 
     if event_name == "tool_call":
-        tool_name = _as_text(event_payload.get("name")) or "tool"
-        success = bool(event_payload.get("success", False))
         return [
-            _canonical_stage_update_payload(
-                stage_type="tool_execution",
-                status="completed" if success else "error",
-                title="Tool Execution",
-                summary=(
-                    f"{tool_name} completed"
-                    if success
-                    else f"{tool_name} failed"
-                ),
-                metrics={"duration_ms": _as_int(event_payload.get("duration_ms"), 0)},
-                tool_call_ids=[_as_text(event_payload.get("id")) or ""],
+            build_tool_execution_result_event(
+                tool_name=_as_text(event_payload.get("name")) or "tool",
+                success=bool(event_payload.get("success", False)),
+                duration_ms=_as_int(event_payload.get("duration_ms"), 0),
+                tool_call_id=_as_text(event_payload.get("id")) or None,
             )
         ]
 
-    if event_name == "status" and _normalize_token(
-        event_payload.get("status")
-    ) == "web_search_in_progress":
-        summary = "Searching the web and waiting for provider-hosted results"
-        return [
-            _canonical_stage_update_payload(
-                stage_type="tool_execution",
-                status="running",
-                title="Tool Execution",
-                summary=summary,
-                detail_lines=[summary],
-                metrics={"provider_search_in_progress": 1},
-            )
-        ]
+    if (
+        event_name == "status"
+        and _normalize_token(event_payload.get("status")) == "web_search_in_progress"
+    ):
+        return [build_provider_search_turn_flow_event()]
 
     if event_name == "message":
         if not _as_text(event_payload.get("delta")):
             return []
-        return [
-            _canonical_stage_update_payload(
-                stage_type="answer_assembly",
-                status="running",
-                title="Answer Assembly",
-                summary="Streaming answer content",
-            )
-        ]
+        return [build_answer_assembly_turn_flow_event()]
 
     if event_name == "rag_sources":
         return build_turn_evidence_events(
@@ -772,11 +826,17 @@ def mirror_canonical_events_from_legacy(
 
 
 __all__ = [
+    "build_answer_assembly_turn_flow_event",
     "build_initial_turn_flow_events",
+    "build_provider_search_turn_flow_event",
     "build_turn_answer_card_event",
     "build_turn_evidence_events",
     "build_turn_evidence_items",
     "build_turn_flow_view_model",
+    "build_thinking_turn_flow_event",
+    "build_tool_execution_result_event",
+    "build_tool_execution_started_event",
+    "build_tool_selection_turn_flow_events",
     "mirror_canonical_events_from_legacy",
     "resolve_final_stage_status",
 ]

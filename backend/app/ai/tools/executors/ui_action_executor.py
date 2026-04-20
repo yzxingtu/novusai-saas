@@ -15,6 +15,9 @@ from app.ai.tools.executors.page_runtime_support import (
     normalize_public_message as _normalize_public_message,
 )
 from app.ai.tools.executors.page_runtime_support import (
+    resolve_page_session_id as _resolve_page_session_id,
+)
+from app.ai.tools.executors.page_runtime_support import (
     user_role_to_namespace as _user_role_to_namespace,
 )
 from app.ai.tools.types import ToolDefinition, ToolResult
@@ -103,7 +106,10 @@ class UIActionExecutor(BaseToolExecutor):
                 error_type="invalid_input",
                 duration_ms=int((time.perf_counter() - start) * 1000),
             )
-        if action_name == UI_SET_FIELD and not str(arguments.get("field_name") or "").strip():
+        if (
+            action_name == UI_SET_FIELD
+            and not str(arguments.get("field_name") or "").strip()
+        ):
             return ToolResult(
                 tool_call_id=tool_call_id,
                 name=definition.name,
@@ -112,7 +118,9 @@ class UIActionExecutor(BaseToolExecutor):
                 error_type="invalid_input",
                 duration_ms=int((time.perf_counter() - start) * 1000),
             )
-        if action_name == UI_FILL_FORM and not isinstance(arguments.get("fields"), dict):
+        if action_name == UI_FILL_FORM and not isinstance(
+            arguments.get("fields"), dict
+        ):
             return ToolResult(
                 tool_call_id=tool_call_id,
                 name=definition.name,
@@ -129,16 +137,7 @@ class UIActionExecutor(BaseToolExecutor):
                 page_context = context.variables.get("page_context")
                 if isinstance(page_context, dict):
                     page_key = str(page_context.get("page_key") or "").strip()
-            session_id = context.page_session_id
-
-        if not session_id and context and context.user_id and page_key:
-            from app.sio.page_session import get_active_session_id
-
-            session_id = get_active_session_id(
-                context.user_id,
-                page_key,
-                context.user_role,
-            )
+            session_id = _resolve_page_session_id(context)
 
         if not session_id:
             return ToolResult(
@@ -187,7 +186,9 @@ class UIActionExecutor(BaseToolExecutor):
             if form_session_id:
                 invoke_payload["form_session_id"] = form_session_id
         if action_name == UI_SET_FIELD:
-            invoke_payload["field_name"] = str(arguments.get("field_name") or "").strip()
+            invoke_payload["field_name"] = str(
+                arguments.get("field_name") or ""
+            ).strip()
             invoke_payload["value"] = arguments.get("value")
         if action_name == UI_FILL_FORM:
             invoke_payload["fields"] = (
@@ -239,8 +240,11 @@ class UIActionExecutor(BaseToolExecutor):
                 name=definition.name,
                 success=True,
                 output=output,
-                summary=message or _("tool.ui.action.success_summary", action=action_name),
-                summary_payload={"data": data, "diff": diff} if (data or diff) else None,
+                summary=message
+                or _("tool.ui.action.success_summary", action=action_name),
+                summary_payload={"data": data, "diff": diff}
+                if (data or diff)
+                else None,
                 duration_ms=duration_ms,
             )
 
