@@ -3,7 +3,7 @@
   "name": "codex-browser-connector-externalization",
   "title": "Codex browser connector externalization",
   "description": "Push page and browser execution toward an external connector boundary so chat core consumes canonical ui payloads and connector evidence instead of page-specific internals.",
-  "status": "planning",
+  "status": "active",
   "dev_type": "fullstack",
   "scope": null,
   "priority": "P0",
@@ -36,6 +36,6 @@
     "backend/app/sio/page_session.py",
     "backend/tests/sio/test_page_session_runtime_requests.py"
   ],
-  "notes": "This workstream freezes the connector payload contract that page workflow and frontend surfaces will consume later. Audit follow-up: the remaining `page_key -> page_session_id` active-session transport seam belongs here and should be removed instead of preserved as a compatibility fallback.",
+  "notes": "This workstream freezes the connector payload contract that page workflow and frontend surfaces will consume later. Audit follow-up: the remaining `page_key -> page_session_id` active-session transport seam belongs here and should be removed instead of preserved as a compatibility fallback. Promoted to active after WS2 closeout audit; no compatibility layer should be added for the new SaaS.",
   "meta": {}
 }

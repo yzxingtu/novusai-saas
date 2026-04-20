@@ -212,6 +212,14 @@
 3. 结合此前已完成的 startup prefilter、manifest-backed plugin preview、runtime inventory reuse、batch warmup seam removal 与 activation observability，`WS2 capability-pack-startup-owner` 的 acceptance 已满足。
 4. 本轮 closeout 未发现需要新增的 capability-pack child task；后续剩余主线 debt 继续归入 `WS4 browser-connector-externalization`、`WS6 frontend-live-truth-freeze` 与 `WS1 turn-loop-orchestrator-convergence`，不为新 SaaS 引入兼容层回退。
 
+### 2026-04-21 post-WS2 audit
+
+1. `backend/app/sio/page_session.py` 仍保留 `(scope, user_id, page_key) -> page_session_id` 的活跃会话追踪与保守 fallback；这不是新任务，而是既有 `WS4 browser-connector-externalization` 的明确删除对象。当前新 SaaS 不应再把这条身份链当兼容层长期保留。
+2. `frontend/apps/web-antd/src/components/business/ai-chat-panel/use-ai-chat-turn-flow.ts`、`chat-message-turn-flow.ts` 仍可构建/回填 `legacy-*` turn flow；这属于 `WS6 frontend-live-truth-freeze` 的剩余 live seam，不需要新 child task。
+3. `frontend/apps/web-antd/src/components/business/ai-chat-panel/use-ai-chat-page-operations.ts` 与 `frontend/apps/web-antd/src/utils/runtime-page-operations.ts` 仍把 `suggested_tools` 作为 UX fallback / interactive-page gate 的一部分；这同样归入 `WS6`，且不能以“展示层 helper”名义回流 runtime truth。
+4. `backend/app/ai/engine/tool_loop_session.py` 与 `backend/app/ai/engine/page_flow_recovery_helpers.py` 仍存在文本式 recovery hint 与 `Current page key` 句式；这继续属于 `WS3 page-workflow-state-owner`，其目标是删除 prompt-hint 主导而不是增加新的兼容提示。
+5. 综上，本轮审计没有发现超出现有 ownership matrix 的新主线缺口，因此不新增 child task；下一条应执行的主线是已提升为 active 的 `WS4 browser-connector-externalization`，随后再继续 `WS3` / `WS6` / `WS1`。
+
 ### Phase 5: Context-Budget Alignment
 
 1. 维持 thin `page_context`，不回退到重内容 prompt 注入。

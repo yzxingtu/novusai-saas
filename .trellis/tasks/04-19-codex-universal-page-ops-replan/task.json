@@ -41,7 +41,7 @@
     },
     {
       "name": "WS4 browser connector externalization",
-      "status": "planning"
+      "status": "active"
     },
     {
       "name": "WS5 thread memory owner convergence",
