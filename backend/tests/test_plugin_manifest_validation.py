@@ -217,7 +217,9 @@ def test_manifest_rejects_legacy_compatibility_requires() -> None:
         "requires": [{"plugin": "base-plugin", "version": ">=1.0.0"}],
     }
 
-    with pytest.raises(ValidationError, match="compatibility.requires has been removed"):
+    with pytest.raises(
+        ValidationError, match="compatibility.requires has been removed"
+    ):
         PluginManifest.model_validate(payload)
 
 
@@ -248,3 +250,25 @@ def test_manifest_rejects_non_png_plugin_metadata_icon() -> None:
 
     with pytest.raises(ValidationError, match="icon.png"):
         PluginManifest.model_validate(payload)
+
+
+def test_manifest_skill_extensions_accept_startup_preview_metadata() -> None:
+    payload = _base_manifest()
+    payload["extensions"] = {
+        "skills": [
+            {
+                "name": "neutral-skill",
+                "type": "toolkit",
+                "entry_point": "skills.neutral",
+                "display_name": {"en": "Neutral Skill"},
+                "preview_tool_names": [" crm_lookup ", "crm_lookup", ""],
+                "preview_semantic_families": [" page_ops ", "page_ops", ""],
+            }
+        ]
+    }
+
+    manifest = PluginManifest.model_validate(payload)
+
+    skill = manifest.extensions.skills[0]
+    assert skill.preview_tool_names == ["crm_lookup"]
+    assert skill.preview_semantic_families == ["page_ops"]

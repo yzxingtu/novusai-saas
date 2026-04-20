@@ -15,6 +15,7 @@ from app.ai.skills.resolver_parts.capability import (
     enrich_skill_capability_descriptors_with_tools,
 )
 from app.ai.skills.resolver_parts.loaders import (
+    load_plugin_skill_startup_previews,
     load_source_plugins,
     resolve_code_execution_skill,
     resolve_email_skill,
@@ -47,6 +48,7 @@ __all__ = [
     "ensure_unique_tool_names",
     "inject_baseline_runtime_builtins",
     "is_runtime_eligible_skill",
+    "load_plugin_skill_startup_previews",
     "load_source_plugins",
     "resolve_builtin",
     "resolve_code_execution_skill",

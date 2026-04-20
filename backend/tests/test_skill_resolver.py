@@ -591,6 +591,154 @@ async def test_resolve_for_agent_prefilters_web_research_runtime_policy_before_r
 
 
 @pytest.mark.asyncio
+async def test_resolve_for_agent_prefilters_plugin_tool_mentions_from_manifest_preview(
+    monkeypatch,
+) -> None:
+    neutral_plugin_skill = _make_runtime_skill(
+        skill_id=701,
+        name="Assistant Extension",
+        skill_type="toolkit",
+        package_name="neutral.package",
+        source_plugin="neutral-plugin",
+    )
+    weather_skill = _make_runtime_skill(
+        skill_id=702,
+        name="Weather Skill",
+        skill_type="builtin",
+        package_name="weather.tools",
+        config={"tools": [{"name": "get_current_weather"}]},
+    )
+    grant_result = MagicMock()
+    grant_result.scalars.return_value.all.return_value = [
+        _make_grant(neutral_plugin_skill),
+        _make_grant(weather_skill),
+    ]
+    plugin_preview_result = MagicMock()
+    plugin_preview_result.all.return_value = [
+        (
+            "neutral-plugin",
+            {
+                "extensions": {
+                    "skills": [
+                        {
+                            "name": "assistant-extension",
+                            "type": "toolkit",
+                            "display_name": {"en": "Assistant Extension"},
+                            "entry_point": "skills.neutral_plugin",
+                            "preview_tool_names": ["crm_lookup"],
+                        }
+                    ]
+                }
+            },
+        )
+    ]
+    db = MagicMock()
+    db.execute = AsyncMock(side_effect=[grant_result, plugin_preview_result])
+    agent = SimpleNamespace(id=1, owner_tenant_id=9)
+    request = SimpleNamespace(
+        messages=[
+            SimpleNamespace(role="user", content="Please call crm_lookup for me.")
+        ]
+    )
+    captured: dict[str, object] = {}
+
+    async def _capture_resolve(self, skills, config_overrides=None):
+        captured["skills"] = skills
+        captured["config_overrides"] = config_overrides
+        return SkillResolveResult()
+
+    monkeypatch.setattr(SkillResolver, "resolve", _capture_resolve)
+
+    await resolve_for_agent(db, agent, tenant_id=9, request=request)
+
+    assert [skill.name for skill in captured["skills"]] == ["Assistant Extension"]
+
+
+@pytest.mark.asyncio
+async def test_resolve_for_agent_prefilters_runtime_policy_from_manifest_preview(
+    monkeypatch,
+) -> None:
+    neutral_page_skill = _make_runtime_skill(
+        skill_id=801,
+        name="Assistant Extension",
+        skill_type="toolkit",
+        package_name="neutral.page",
+        source_plugin="neutral-page-plugin",
+    )
+    neutral_research_skill = _make_runtime_skill(
+        skill_id=802,
+        name="Search Extension",
+        skill_type="toolkit",
+        package_name="neutral.search",
+        source_plugin="neutral-search-plugin",
+    )
+    grant_result = MagicMock()
+    grant_result.scalars.return_value.all.return_value = [
+        _make_grant(neutral_page_skill),
+        _make_grant(neutral_research_skill),
+    ]
+    plugin_preview_result = MagicMock()
+    plugin_preview_result.all.return_value = [
+        (
+            "neutral-page-plugin",
+            {
+                "extensions": {
+                    "skills": [
+                        {
+                            "name": "assistant-extension",
+                            "type": "toolkit",
+                            "display_name": {"en": "Assistant Extension"},
+                            "entry_point": "skills.neutral_page",
+                            "preview_semantic_families": ["page_ops"],
+                        }
+                    ]
+                }
+            },
+        ),
+        (
+            "neutral-search-plugin",
+            {
+                "extensions": {
+                    "skills": [
+                        {
+                            "name": "search-extension",
+                            "type": "toolkit",
+                            "display_name": {"en": "Search Extension"},
+                            "entry_point": "skills.neutral_search",
+                            "preview_semantic_families": ["web_research"],
+                        }
+                    ]
+                }
+            },
+        ),
+    ]
+    db = MagicMock()
+    db.execute = AsyncMock(side_effect=[grant_result, plugin_preview_result])
+    agent = SimpleNamespace(id=1, owner_tenant_id=9)
+    request = SimpleNamespace(
+        messages=[SimpleNamespace(role="user", content="帮我看一下当前页面")],
+        input_variables={
+            "page_context": {
+                "page_key": "admin.ai.dashboard",
+                "ui_epoch": 5,
+            }
+        },
+    )
+    captured: dict[str, object] = {}
+
+    async def _capture_resolve(self, skills, config_overrides=None):
+        captured["skills"] = skills
+        captured["config_overrides"] = config_overrides
+        return SkillResolveResult()
+
+    monkeypatch.setattr(SkillResolver, "resolve", _capture_resolve)
+
+    await resolve_for_agent(db, agent, tenant_id=9, request=request)
+
+    assert [skill.name for skill in captured["skills"]] == ["Assistant Extension"]
+
+
+@pytest.mark.asyncio
 async def test_resolve_for_agent_returns_time_tool_when_agent_has_no_grants() -> None:
     result = MagicMock()
     result.scalars.return_value.all.return_value = []

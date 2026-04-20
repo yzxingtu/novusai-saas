@@ -46,6 +46,19 @@ _WEB_RESEARCH_HINT_TOKENS = frozenset(
 )
 
 
+def _stable_unique_texts(values: list[Any]) -> list[str]:
+    normalized: list[str] = []
+    for value in values:
+        text = str(value or "").strip()
+        if text and text not in normalized:
+            normalized.append(text)
+    return normalized
+
+
+def _normalized_match_text(value: Any) -> str:
+    return " ".join(str(value or "").strip().lower().split())
+
+
 @dataclass
 class TurnSkillActivation:
     applied: bool = False
@@ -299,8 +312,10 @@ def _preview_semantic_families_for_skill(
     package_name: str,
     source_plugin: str,
     preview_tool_names: list[str],
+    preview_semantic_families: list[str] | None = None,
+    extra_hint_values: list[str] | None = None,
 ) -> list[str]:
-    families: list[str] = []
+    families = _stable_unique_texts(list(preview_semantic_families or []))
     for tool_name in preview_tool_names:
         family = tool_family_from_name(str(tool_name or "").strip())
         if family != "none" and family not in families:
@@ -310,6 +325,7 @@ def _preview_semantic_families_for_skill(
         getattr(skill, "name", None),
         package_name,
         source_plugin,
+        *(extra_hint_values or []),
     )
     if hint_tokens & _PAGE_RUNTIME_HINT_TOKENS and "page_ops" not in families:
         families.append("page_ops")
@@ -318,7 +334,63 @@ def _preview_semantic_families_for_skill(
     return families
 
 
-def _build_skill_grant_previews(grants: list[Any]) -> list[SkillGrantPreview]:
+def _match_plugin_startup_preview(
+    *,
+    skill: Any,
+    plugin_skill_previews: list[dict[str, Any]] | None,
+) -> dict[str, Any]:
+    previews = list(plugin_skill_previews or [])
+    if not previews:
+        return {}
+
+    skill_name = _normalized_match_text(getattr(skill, "name", None))
+    skill_type = str(getattr(skill, "type", "") or "").strip()
+
+    named_same_type = [
+        preview
+        for preview in previews
+        if skill_name
+        and skill_name
+        in {
+            _normalized_match_text(candidate)
+            for candidate in list(preview.get("candidate_names") or [])
+        }
+        and str(preview.get("type") or "").strip() == skill_type
+    ]
+    if len(named_same_type) == 1:
+        return named_same_type[0]
+
+    named_matches = [
+        preview
+        for preview in previews
+        if skill_name
+        and skill_name
+        in {
+            _normalized_match_text(candidate)
+            for candidate in list(preview.get("candidate_names") or [])
+        }
+    ]
+    if len(named_matches) == 1:
+        return named_matches[0]
+
+    same_type = [
+        preview
+        for preview in previews
+        if str(preview.get("type") or "").strip() == skill_type
+    ]
+    if len(same_type) == 1:
+        return same_type[0]
+
+    if len(previews) == 1:
+        return previews[0]
+    return {}
+
+
+def _build_skill_grant_previews(
+    grants: list[Any],
+    *,
+    plugin_skill_previews_by_plugin: dict[str, list[dict[str, Any]]] | None = None,
+) -> list[SkillGrantPreview]:
     previews: list[SkillGrantPreview] = []
     for grant in grants:
         skill = getattr(grant, "skill", None)
@@ -328,10 +400,35 @@ def _build_skill_grant_previews(grants: list[Any]) -> list[SkillGrantPreview]:
         package = getattr(skill, "package", None)
         package_name = str(getattr(package, "name", "") or "").strip()
         source_plugin = str(getattr(package, "source_plugin", "") or "").strip()
-        preview_tool_names = _preview_tool_names_for_skill(
+        manifest_preview = _match_plugin_startup_preview(
             skill=skill,
-            config=merged_config,
+            plugin_skill_previews=(plugin_skill_previews_by_plugin or {}).get(
+                source_plugin, []
+            ),
+        )
+        preview_tool_names = _stable_unique_texts(
+            list(manifest_preview.get("preview_tool_names") or [])
+            + _preview_tool_names_for_skill(
+                skill=skill,
+                config=merged_config,
+                source_plugin=source_plugin,
+            )
+        )
+        preview_semantic_families = _preview_semantic_families_for_skill(
+            skill=skill,
+            package_name=package_name,
             source_plugin=source_plugin,
+            preview_tool_names=preview_tool_names,
+            preview_semantic_families=list(
+                manifest_preview.get("preview_semantic_families") or []
+            ),
+            extra_hint_values=_stable_unique_texts(
+                list(manifest_preview.get("candidate_names") or [])
+                + [
+                    manifest_preview.get("entry_point"),
+                    manifest_preview.get("description"),
+                ]
+            ),
         )
         previews.append(
             SkillGrantPreview(
@@ -341,12 +438,7 @@ def _build_skill_grant_previews(grants: list[Any]) -> list[SkillGrantPreview]:
                 package_name=package_name,
                 source_plugin=source_plugin,
                 preview_tool_names=preview_tool_names,
-                preview_semantic_families=_preview_semantic_families_for_skill(
-                    skill=skill,
-                    package_name=package_name,
-                    source_plugin=source_plugin,
-                    preview_tool_names=preview_tool_names,
-                ),
+                preview_semantic_families=preview_semantic_families,
             )
         )
     return previews
@@ -815,7 +907,24 @@ async def resolve_for_agent(
     if not grants:
         return _build_time_only_runtime_result()
 
-    grant_previews = _build_skill_grant_previews(grants)
+    plugin_skill_previews_by_plugin = await parts.load_plugin_skill_startup_previews(
+        db=db,
+        source_plugins=[
+            str(
+                getattr(getattr(grant.skill, "package", None), "source_plugin", "")
+                or ""
+            ).strip()
+            for grant in grants
+            if str(
+                getattr(getattr(grant.skill, "package", None), "source_plugin", "")
+                or ""
+            ).strip()
+        ],
+    )
+    grant_previews = _build_skill_grant_previews(
+        grants,
+        plugin_skill_previews_by_plugin=plugin_skill_previews_by_plugin,
+    )
     startup_grant_previews = _filter_grant_previews_for_turn_startup(
         grant_previews,
         request=request,

@@ -70,6 +70,8 @@ class SkillExtensionSchema(BaseModel):
     description: I18nText = Field(default_factory=dict)
     entry_point: str = ""
     config_schema: dict | None = None
+    preview_tool_names: list[str] = Field(default_factory=list)
+    preview_semantic_families: list[str] = Field(default_factory=list)
 
     @field_validator("entry_point")
     @classmethod
@@ -77,6 +79,36 @@ class SkillExtensionSchema(BaseModel):
         if not v:  # entry_point is optional / entry_point 是可选的
             return v
         return _validate_handler_path(v, "skill.entry_point")
+
+    @field_validator("preview_tool_names", mode="before")
+    @classmethod
+    def validate_preview_tool_names(cls, v: object) -> list[str]:
+        if v is None:
+            return []
+        if not isinstance(v, list):
+            raise ValueError("skill.preview_tool_names must be a list")
+
+        normalized: list[str] = []
+        for item in v:
+            text = str(item or "").strip()
+            if text and text not in normalized:
+                normalized.append(text)
+        return normalized
+
+    @field_validator("preview_semantic_families", mode="before")
+    @classmethod
+    def validate_preview_semantic_families(cls, v: object) -> list[str]:
+        if v is None:
+            return []
+        if not isinstance(v, list):
+            raise ValueError("skill.preview_semantic_families must be a list")
+
+        normalized: list[str] = []
+        for item in v:
+            text = str(item or "").strip()
+            if text and text not in normalized:
+                normalized.append(text)
+        return normalized
 
 
 class AdapterExtensionSchema(BaseModel):

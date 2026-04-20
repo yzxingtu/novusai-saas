@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from app.ai.prompt_contracts import render_prompt_contract
 from app.ai.text_semantics import extract_double_brace_placeholders
 from app.ai.tools.types import ToolDefinition, ToolParameter
 from app.core.logging import LogManager
 from app.enums.agent import SkillTypeEnum, ToolTypeEnum
+from app.plugins.preview import resolve_i18n
 
 logger = LogManager.get_logger("ai.skill.resolver")
 
@@ -37,6 +39,80 @@ async def load_source_plugins(
     )
     rows = await db.execute(stmt)
     return {row.id: row.source_plugin for row in rows}
+
+
+def _normalize_preview_names(values: list[Any]) -> list[str]:
+    normalized: list[str] = []
+    for value in values:
+        text = str(value or "").strip()
+        if text and text not in normalized:
+            normalized.append(text)
+    return normalized
+
+
+def _manifest_skill_candidate_names(entry: dict[str, Any]) -> list[str]:
+    display_name = entry.get("display_name")
+    candidates: list[Any] = [entry.get("name")]
+    if isinstance(display_name, dict):
+        candidates.extend(display_name.values())
+        candidates.append(resolve_i18n(display_name))
+    elif display_name:
+        candidates.append(display_name)
+    return _normalize_preview_names(candidates)
+
+
+async def load_plugin_skill_startup_previews(
+    *,
+    db: Any,
+    source_plugins: list[str],
+) -> dict[str, list[dict[str, Any]]]:
+    if not db or not source_plugins:
+        return {}
+
+    from sqlalchemy import select
+
+    from app.models.system.plugin import Plugin
+
+    stmt = select(Plugin.name, Plugin.manifest).where(
+        Plugin.name.in_(list(dict.fromkeys(source_plugins))),
+        Plugin.is_deleted.is_(False),
+    )
+    rows = await db.execute(stmt)
+
+    previews: dict[str, list[dict[str, Any]]] = {}
+    for plugin_name, manifest in rows.all():
+        if not isinstance(manifest, dict):
+            continue
+        extensions = manifest.get("extensions")
+        if not isinstance(extensions, dict):
+            continue
+        skills = extensions.get("skills")
+        if not isinstance(skills, list):
+            continue
+
+        plugin_previews: list[dict[str, Any]] = []
+        for item in skills:
+            if not isinstance(item, dict):
+                continue
+            plugin_previews.append(
+                {
+                    "name": str(item.get("name") or "").strip(),
+                    "candidate_names": _manifest_skill_candidate_names(item),
+                    "type": str(item.get("type") or "").strip(),
+                    "entry_point": str(item.get("entry_point") or "").strip(),
+                    "description": resolve_i18n(item.get("description") or {}),
+                    "preview_tool_names": _normalize_preview_names(
+                        list(item.get("preview_tool_names") or [])
+                    ),
+                    "preview_semantic_families": _normalize_preview_names(
+                        list(item.get("preview_semantic_families") or [])
+                    ),
+                }
+            )
+        if plugin_previews:
+            previews[str(plugin_name or "").strip()] = plugin_previews
+
+    return previews
 
 
 def resolve_toolkit_skill(
@@ -214,9 +290,7 @@ def resolve_email_skill(
                 "_email_subject_prefix": config.get("subject_prefix", ""),
                 "_email_allowed_domains": config.get("allowed_domains", []),
                 "_email_max_recipients": max_recipients,
-                "_email_require_confirmation": config.get(
-                    "require_confirmation", True
-                ),
+                "_email_require_confirmation": config.get("require_confirmation", True),
                 "_email_allow_cc": allow_cc,
                 "_email_allow_attachments": config.get("allow_attachments", False),
             },
@@ -380,4 +454,3 @@ async def resolve_one_skill(
             skill_type,
             skill.id,
         )
-

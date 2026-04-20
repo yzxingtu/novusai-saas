@@ -279,6 +279,11 @@ export async function submitRuntimeForm(args: { confirm?: boolean; formSessionId
   tool truth. Treat those two layers together as the current startup/live
   owner chain; do not add new prompt-driven or page-specific paths that bypass
   them.
+- Plugin manifests may declare bounded startup preview metadata for
+  `extensions.skills[*]`, such as `preview_tool_names` and
+  `preview_semantic_families`. That metadata is catalog-only startup input for
+  resolver prefiltering; it must not be treated as live tool truth after full
+  skill resolution completes.
 - `frontend/.../ai-slide-panel/use-page-ai-capability.ts` and
   `frontend/.../utils/page-navigation.ts` still read `suggested_tools` for
   local affordance display and fallback assembly. Keep that boundary UX-only;
