@@ -69,6 +69,11 @@ request and is surfaced as a context source.
 - Session memory injection is independent of `memory_recall` intent.
 - Session memory availability should be controlled by session or thread policy
   and runtime flags, not by page-local hints or installed skill-pack metadata.
+- Chat and stream startup must resolve one normalized `thread_memory_state`
+  snapshot through a shared service-layer startup owner before session memory
+  load or context assembly; duplicated inline parsing of
+  `conversation.metadata_.thread_memory_state` inside command handlers is
+  prohibited.
 - Runtime capability summaries, contributor enablement, and memory-aware
   context-source selection should key off `memory_context_enabled` (or its
   future replacement), not only `has_memory_intent`.
@@ -107,10 +112,11 @@ main turn.
   generation, explicit thread/session memory mode, and pollution guards for
   external context.
 - Current implementation now persists `thread_memory_state`, exposes polluted
-  state in conversation diagnostics, and suppresses blind durable capture on
-  polluted turns. Startup memory jobs, stage-1/stage-2 style background
-  consolidation, and a stronger state-DB-backed thread owner are still future
-  convergence work.
+  state in conversation diagnostics, suppresses blind durable capture on
+  polluted turns, and primes both chat and stream requests from a shared
+  startup owner that normalizes thread snapshot state before request startup.
+  Startup memory jobs, stage-1/stage-2 style background consolidation, and a
+  stronger state-DB-backed thread owner are still future convergence work.
 - External web, MCP, or other off-thread context should be able to mark memory
   mode polluted or suppress blind reuse rather than silently mixing foreign
   context into durable recall or capture.

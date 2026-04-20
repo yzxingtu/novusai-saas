@@ -3,16 +3,29 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
-from app.ai.memory_policy import attach_memory_runtime_policy
+from app.ai.memory_policy import (
+    attach_memory_runtime_policy,
+    normalize_thread_memory_state,
+    prime_memory_runtime_policy,
+)
 from app.enums.agent import MemoryChannelEnum, MemorySceneEnum
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from app.ai.engine.types import ExecutionRequest
+
+
+@dataclass(frozen=True)
+class PreparedRequestMemoryStartup:
+    """Normalized startup snapshot used to prime request memory ownership."""
+
+    thread_memory_state: dict[str, Any]
+    request_memory_runtime_policy: dict[str, Any]
 
 
 def build_memory_event_id(conversation_id: int) -> str:
@@ -40,6 +53,39 @@ def resolve_memory_context(
         MemorySceneEnum.ADMIN_CHAT.value,
     )
     return scene, channel, source, enabled
+
+
+def resolve_thread_memory_state(
+    *,
+    conversation: Any | None = None,
+    thread_memory_state: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    raw_thread_memory_state = thread_memory_state
+    if raw_thread_memory_state is None and conversation is not None:
+        conversation_metadata = getattr(conversation, "metadata_", None)
+        if isinstance(conversation_metadata, dict):
+            raw_thread_memory_state = conversation_metadata.get("thread_memory_state")
+    return normalize_thread_memory_state(raw_thread_memory_state)
+
+
+def prepare_request_memory_startup(
+    *,
+    request: ExecutionRequest,
+    conversation: Any | None = None,
+    thread_memory_state: dict[str, Any] | None = None,
+) -> PreparedRequestMemoryStartup:
+    normalized_thread_memory_state = resolve_thread_memory_state(
+        conversation=conversation,
+        thread_memory_state=thread_memory_state,
+    )
+    request_memory_runtime_policy = prime_memory_runtime_policy(
+        request,
+        thread_memory_state=normalized_thread_memory_state,
+    )
+    return PreparedRequestMemoryStartup(
+        thread_memory_state=normalized_thread_memory_state,
+        request_memory_runtime_policy=dict(request_memory_runtime_policy),
+    )
 
 
 async def extract_memory_delta(

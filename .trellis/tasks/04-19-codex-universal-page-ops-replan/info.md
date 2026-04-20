@@ -171,6 +171,7 @@
 26. `backend/app/ai/engine/page_workflow_state_machine.py`、`backend/app/ai/engine/tool_router.py`、`backend/app/ai/engine/system_prompt_intent_helpers.py` 与 `backend/app/ai/engine/page_flow_recovery_helpers.py` 已把页面工作流 owner 从路由分支内联字符串进一步收口为独立状态机：页面 intent 会统一投影 `discover / navigate_or_open / read / write / submit / verify` 这些 canonical phase，并把 machine-readable `page_workflow_completion` contract 一起写入 `IntentPlan.metadata`，使 completion / recovery / contract-breach 不再各自维护第二份 stage 规则。
 27. `backend/app/ai/tools/executors/ui_action_executor.py` 的兼容执行路径也已删除 `page_key -> get_active_session_id()` 的 live session 猜测回退；页面动作现在只接受 live `page_session_id`（来自 execution context 或 thin `page_context`），不再让 page key 重新充当 session 主身份链。
 28. `backend/app/ai/context/assembly_initial_support.py`、`backend/app/ai/runtime/context_assembler.py`、`backend/app/ai/runtime/context_capability_bridge.py` 与 `backend/app/ai/skills/resolver.py` 已把 skill startup owner 再前移一刀：turn activation 现在会刷新 provisional capability bundle / initial intent planning，不再只在 prepared-execution 末端才裁掉 broader inventory；同时 auto-injected baseline builtins 不再被误判成 skill-owned，因此启动阶段仍可保持 baseline 工具可用，而 skill-owned tool/descriptors 会收敛到 activated subset。
+29. `backend/app/services/ai/agent_chat_memory_support.py`、`backend/app/services/ai/agent_chat_runtime_support.py` 与 `backend/app/services/ai/agent_chat_command_service.py` 已把 memory startup owner 从 chat/stream 内联逻辑中抽出：`thread_memory_state` 会先经过统一 normalization，再由共享 startup helper 对 request 执行 priming；chat 与 stream 现在复用同一条 startup seam，不再各自直接解析 `conversation.metadata_.thread_memory_state`。
 
 ### 2026-04-20 审计补充：仍未收敛到 codex-main owner 的差距
 
@@ -180,8 +181,8 @@
    当前 `backend/app/ai/tools/semantic_defaults.py` 的 `page_context_available_ui_tools()` 仍会优先读取 `page_context.suggested_tools`，而 `backend/app/ai/engine/intent_signal_helpers.py`、`backend/app/services/ai/agent_router_policy.py`、`backend/app/ai/engine/page_flow_recovery_helpers.py`、`backend/app/ai/runtime/manifest.py` 又共同复用了这条 helper。结果是提示用的页面 hint 仍会渗入 intent 信号、路由门槛、recovery 候选与 capability inventory，总体上还没有彻底切断 `suggested_tools -> runtime semantics` 这条旧 seam。
 2. 技能包的 inventory owner 仍然是 agent 级 eager resolve，尚未完全收敛到 codex-main 的 turn-level mention/policy/connector 激活模型。
    当前 `backend/app/ai/skills/resolver.py` 仍会遍历 agent 的全部启用 grant 并一次性 resolve；虽然 `backend/app/ai/skills/turn_activation.py` 已把 resolved inventory 与 turn activation 分离，并且 `backend/app/ai/engine/prepare_execution_tool_helpers.py` 已把 tool-bearing turn 的 live capability bundle 投影到选中工具子集，但技能依赖、显式 mention 与 connector 可见性的 owner 还没有像 codex-main 那样整体前移到 turn startup。
-3. 记忆治理已不再是纯 raw request flag 直连，也不再完全缺失 thread owner，但仍未完全落到 codex-main 那种 startup pipeline + stateful thread memory mode。
-   当前 `backend/app/ai/memory_policy.py` 已把 context gating、manifest、session-memory load 和 long-term capture 收敛到统一 `memory_runtime_policy`，`backend/app/services/ai/conversation_message_persistence_service.py` 也会把污染状态写回 `conversation.metadata_.thread_memory_state`；但这仍是轻量 thread snapshot，还没有 codex-main 那种 startup memory pipeline、后台 consolidation 与更强的 state-db-backed thread owner，因此跨 turn 的长期治理和后台记忆整编仍是后续 debt。
+3. 记忆治理已不再是纯 raw request flag 直连，也不再停留在“command service 内联抄 thread state”的阶段，但仍未完全落到 codex-main 那种 stateful thread memory mode。
+   当前 `backend/app/ai/memory_policy.py` 已把 context gating、manifest、session-memory load 和 long-term capture 收敛到统一 `memory_runtime_policy`，`backend/app/services/ai/agent_chat_memory_support.py` 也已提供共享 startup helper，对 chat/stream 启动统一解析并归一化 `thread_memory_state`；但这仍是轻量 thread snapshot，还没有 codex-main 那种 startup memory jobs、后台 consolidation 与更强的 state-db-backed thread owner，因此跨 turn 的长期治理和后台记忆整编仍是后续 debt。
 
 这些差距说明：
 

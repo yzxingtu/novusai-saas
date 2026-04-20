@@ -28,6 +28,9 @@ from app.services.ai.agent_chat_interaction_support import (
     resolve_runtime_trust_policy_ref as _resolve_runtime_trust_policy_ref_impl,
 )
 from app.services.ai.agent_chat_memory_support import (
+    PreparedRequestMemoryStartup,
+)
+from app.services.ai.agent_chat_memory_support import (
     build_memory_event_id as _build_memory_event_id_impl,
 )
 from app.services.ai.agent_chat_memory_support import (
@@ -38,6 +41,9 @@ from app.services.ai.agent_chat_memory_support import (
 )
 from app.services.ai.agent_chat_memory_support import (
     persist_session_memory as _persist_session_memory_impl,
+)
+from app.services.ai.agent_chat_memory_support import (
+    prepare_request_memory_startup as _prepare_request_memory_startup_impl,
 )
 from app.services.ai.agent_chat_memory_support import (
     resolve_effective_memory_enabled as _resolve_effective_memory_enabled_impl,
@@ -157,6 +163,19 @@ class AgentChatRuntimeSupport:
     @staticmethod
     def build_memory_event_id(conversation_id: int) -> str:
         return _build_memory_event_id_impl(conversation_id)
+
+    @staticmethod
+    def prepare_request_memory_startup(
+        *,
+        request: Any,
+        conversation: Any | None = None,
+        thread_memory_state: dict[str, Any] | None = None,
+    ) -> PreparedRequestMemoryStartup:
+        return _prepare_request_memory_startup_impl(
+            request=request,
+            conversation=conversation,
+            thread_memory_state=thread_memory_state,
+        )
 
     @staticmethod
     def resolve_memory_context(

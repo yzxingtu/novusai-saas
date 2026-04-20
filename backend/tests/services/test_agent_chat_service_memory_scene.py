@@ -444,6 +444,12 @@ async def test_chat_primes_request_memory_policy_from_thread_state(mock_db):
     from app.services.ai.agent_chat_service import AgentChatService
 
     service = AgentChatService(mock_db, tenant_id=1)
+    original_prepare_request_memory_startup = (
+        service.runtime_support.prepare_request_memory_startup
+    )
+    service.runtime_support.prepare_request_memory_startup = MagicMock(
+        side_effect=original_prepare_request_memory_startup
+    )
     service._validate_agent = AsyncMock(return_value=_make_agent())
     service.conversation_svc.get_or_create_for_chat = AsyncMock(
         return_value=_make_conversation(
@@ -494,6 +500,7 @@ async def test_chat_primes_request_memory_policy_from_thread_state(mock_db):
         )
 
     called_request = dispatcher.dispatch.call_args.args[0]
+    service.runtime_support.prepare_request_memory_startup.assert_called_once()
     assert called_request.memory_runtime_policy["external_context_polluted"] is True
     assert (
         called_request.memory_runtime_policy["external_context_reason"]
@@ -511,6 +518,12 @@ async def test_stream_chat_primes_request_memory_policy_from_thread_state(mock_d
     from app.services.ai.agent_chat_service import AgentChatService
 
     service = AgentChatService(mock_db, tenant_id=1)
+    original_prepare_request_memory_startup = (
+        service.runtime_support.prepare_request_memory_startup
+    )
+    service.runtime_support.prepare_request_memory_startup = MagicMock(
+        side_effect=original_prepare_request_memory_startup
+    )
     agent = _make_agent()
     agent.quota_config = {}
     agent.model = None
@@ -588,6 +601,7 @@ async def test_stream_chat_primes_request_memory_policy_from_thread_state(mock_d
         )
 
     request = engine.stream_execute.await_args.kwargs["request"]
+    service.runtime_support.prepare_request_memory_startup.assert_called_once()
     assert request.memory_runtime_policy["external_context_polluted"] is True
     assert request.memory_runtime_policy["external_context_reason"] == "tool:web_search"
 

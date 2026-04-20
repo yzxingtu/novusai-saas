@@ -63,6 +63,9 @@ def _normalize_text(value: Any) -> str:
     return str(value or "").strip()
 
 
+_THREAD_POLICY_FIELDS = frozenset(MemoryRuntimePolicy.__dataclass_fields__)
+
+
 def _request_policy_payload(request: Any) -> dict[str, Any]:
     payload = getattr(request, "memory_runtime_policy", None)
     if isinstance(payload, dict):
@@ -205,32 +208,63 @@ def attach_memory_runtime_policy(
     return policy
 
 
+def normalize_thread_memory_state(
+    thread_memory_state: dict[str, Any] | None,
+) -> dict[str, Any]:
+    if not isinstance(thread_memory_state, dict):
+        return {}
+
+    payload = {
+        key: value
+        for key, value in thread_memory_state.items()
+        if key in _THREAD_POLICY_FIELDS
+    }
+    normalized = MemoryRuntimePolicy(
+        scene=_normalize_text(payload.get("scene")),
+        channel=_normalize_text(payload.get("channel")),
+        source=_normalize_text(payload.get("source")),
+        session_memory_runtime_enabled=bool(
+            payload.get("session_memory_runtime_enabled", False)
+        ),
+        session_memory_read_enabled=bool(
+            payload.get("session_memory_read_enabled", False)
+        ),
+        session_memory_write_enabled=bool(
+            payload.get("session_memory_write_enabled", False)
+        ),
+        long_term_memory_runtime_enabled=bool(
+            payload.get("long_term_memory_runtime_enabled", False)
+        ),
+        long_term_memory_recall_enabled=bool(
+            payload.get("long_term_memory_recall_enabled", False)
+        ),
+        long_term_memory_capture_enabled=bool(
+            payload.get("long_term_memory_capture_enabled", False)
+        ),
+        memory_context_enabled=bool(payload.get("memory_context_enabled", False)),
+        external_context_polluted=bool(payload.get("external_context_polluted", False)),
+        external_context_reason=_normalize_text(payload.get("external_context_reason"))
+        or None,
+    ).to_thread_state()
+    updated_at = _normalize_text(thread_memory_state.get("updated_at"))
+    if updated_at:
+        normalized["updated_at"] = updated_at
+    return normalized
+
+
 def prime_memory_runtime_policy(
     request: Any,
     *,
     thread_memory_state: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    if not isinstance(thread_memory_state, dict):
+    normalized_thread_memory_state = normalize_thread_memory_state(thread_memory_state)
+    if not normalized_thread_memory_state:
         return _request_policy_payload(request)
 
     payload = {
         key: value
-        for key, value in thread_memory_state.items()
-        if key
-        in {
-            "scene",
-            "channel",
-            "source",
-            "session_memory_runtime_enabled",
-            "session_memory_read_enabled",
-            "session_memory_write_enabled",
-            "long_term_memory_runtime_enabled",
-            "long_term_memory_recall_enabled",
-            "long_term_memory_capture_enabled",
-            "memory_context_enabled",
-            "external_context_polluted",
-            "external_context_reason",
-        }
+        for key, value in normalized_thread_memory_state.items()
+        if key in _THREAD_POLICY_FIELDS
     }
     payload.update(
         {
@@ -267,6 +301,7 @@ __all__ = [
     "MemoryRuntimePolicy",
     "attach_memory_runtime_policy",
     "detect_external_context_pollution",
+    "normalize_thread_memory_state",
     "prime_memory_runtime_policy",
     "resolve_memory_runtime_policy",
 ]
