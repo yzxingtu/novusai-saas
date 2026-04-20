@@ -195,6 +195,8 @@
    这不是“必须兼容旧前端”的理由；对当前新 SaaS 来说，它应直接并入 `WS4 browser-connector-externalization`，作为 page-session transport owner 的待删 seam。
 5. `frontend/apps/web-antd/src/components/business/ai-chat-panel/use-ai-chat-turn-flow.ts`、`chat-message-turn-flow.ts` 与 `use-ai-chat-page-operations.ts` 仍保留较重的 legacy turn-flow/backfill/page-op gating 逻辑：当前 live UI 在 canonical `turn_flow` 缺失时会重建 `legacy-*` timeline，并在 page-operation channel readiness 上继续参考 `suggested_tools` 与 route/page-key fallback。
    对当前新 SaaS 来说，这些默认兼容层不应继续被视为合理存量；它们应直接并入 `WS6 frontend-live-truth-freeze`，作为需要删除而不是保留的 frontend live seam。
+6. 本轮复审没有发现超出现有 umbrella ownership matrix 的新主线缺口。
+   当前仍活跃且需要继续清理的 seam 已分别落在 `WS2 capability-pack-startup-owner`、`WS4 browser-connector-externalization` 与 `WS6 frontend-live-truth-freeze` 中，因此不新增 child task；后续应继续沿既有任务链推进，而不是再开一条“兼容旧路径”的并行 workstream。
 
 这些差距说明：
 
