@@ -137,6 +137,12 @@ export async function submitRuntimeForm(args: { confirm?: boolean; formSessionId
 - Turn-scoped capability activation must be driven by explicit mention,
   runtime policy, or bounded routing decisions. Installing a skill pack must
   not require per-page adaptation before it becomes usable.
+- Resolver startup should prefilter grant resolution when the turn already
+  carries a bounded activation signal such as an explicit skill mention,
+  explicit tool-call name, or capability-reporting query. Resolver startup
+  may keep a safety fallback to the broader grant set when startup signals are
+  absent or the preview is incomplete, but command/dispatcher entrypoints must
+  pass the live request into skill resolution so that prefilter seam can run.
 - Startup activation may narrow skill-owned tools, but auto-injected baseline
   runtime builtins remain startup-available. Do not reclassify those baseline
   builtins as skill-owned just because they expose `source_skill_name`-style
@@ -262,13 +268,13 @@ export async function submitRuntimeForm(args: { confirm?: boolean; formSessionId
   authoritative runtime source for installed capability packs. Descriptor
   entries that explicitly resolve to `has_execution_tools=false` must be
   treated as catalog-only.
-- `backend/app/ai/skills/resolver.py` still resolves the agent's broader grant
-  inventory eagerly, but `backend/app/ai/skills/turn_activation.py` now
-  introduces a distinct turn-activation seam for explicit skill mentions,
-  runtime-policy page/web activation, and capability-reporting exceptions.
-  Treat that activation layer as the current live owner for capability-aware
-  summaries; do not add new prompt-driven or page-specific paths that bypass
-  it.
+- `backend/app/ai/skills/resolver.py` now performs a bounded startup
+  prefilter for explicit skill mentions, explicit tool-call names, and
+  capability-reporting queries before full skill resolution, while
+  `backend/app/ai/skills/turn_activation.py` remains the live activation seam
+  for runtime-policy page/web activation and later turn narrowing. Treat those
+  two layers together as the current startup/live owner chain; do not add new
+  prompt-driven or page-specific paths that bypass them.
 - `frontend/.../ai-slide-panel/use-page-ai-capability.ts` and
   `frontend/.../utils/page-navigation.ts` still read `suggested_tools` for
   local affordance display and fallback assembly. Keep that boundary UX-only;

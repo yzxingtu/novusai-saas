@@ -14,10 +14,13 @@ from app.ai.skills.resolver import (
     enrich_skill_capability_descriptors_with_tools,
     resolve_for_agent,
 )
+from app.ai.skills.turn_activation import apply_turn_skill_activation
 
 
 @pytest.mark.asyncio
-async def test_plugin_skill_without_registered_resolver_logs_warning(monkeypatch) -> None:
+async def test_plugin_skill_without_registered_resolver_logs_warning(
+    monkeypatch,
+) -> None:
     """SkillResolver should skip plugin skills gracefully when no resolver is registered."""
 
     skill = SimpleNamespace(
@@ -34,9 +37,7 @@ async def test_plugin_skill_without_registered_resolver_logs_warning(monkeypatch
     resolver = SkillResolver(db=None)
     resolver._load_source_plugins = AsyncMock(return_value={77: "weather-widget"})
 
-    registry_stub = SimpleNamespace(
-        get_plugin_skill_resolver=lambda _plugin_name: None
-    )
+    registry_stub = SimpleNamespace(get_plugin_skill_resolver=lambda _plugin_name: None)
     monkeypatch.setattr(
         "app.plugins.registry.ExtensionRegistry.get_instance",
         lambda: registry_stub,
@@ -80,7 +81,9 @@ def test_selected_skill_names_merges_descriptor_and_tool_sources() -> None:
     ]
 
 
-def test_enrich_skill_capability_descriptors_with_tools_attaches_tool_metadata() -> None:
+def test_enrich_skill_capability_descriptors_with_tools_attaches_tool_metadata() -> (
+    None
+):
     descriptors = [
         CapabilityDescriptor(
             name="Weather Skill",
@@ -169,8 +172,103 @@ def test_build_params_from_schema_keeps_array_items_schema() -> None:
     assert params[0].items == {"type": "integer"}
 
 
+def test_apply_turn_skill_activation_tracks_explicit_tool_mentions() -> None:
+    result = SkillResolveResult(
+        tools=[
+            SimpleNamespace(
+                name="get_current_weather",
+                source_skill_name="Weather Skill",
+            ),
+            SimpleNamespace(
+                name="ui_get_snapshot",
+                source_skill_name="Plugin Page Skill",
+            ),
+        ],
+        capability_descriptors=[
+            CapabilityDescriptor(
+                name="Weather Skill",
+                kind="capability_pack",
+                source="skill_resolver",
+            ),
+            CapabilityDescriptor(
+                name="Plugin Page Skill",
+                kind="capability_pack",
+                source="skill_resolver",
+            ),
+        ],
+    )
+    request = SimpleNamespace(
+        messages=[
+            SimpleNamespace(
+                role="user",
+                content="call get_current_weather and then ui_get_snapshot",
+            )
+        ]
+    )
+
+    apply_turn_skill_activation(
+        skill_result=result,
+        request=request,
+        intent_flags=None,
+    )
+
+    assert result.turn_activation is not None
+    assert result.turn_activation.reason == "explicit_tool_mention"
+    assert result.turn_activation.activated_tool_names == [
+        "get_current_weather",
+        "ui_get_snapshot",
+    ]
+    assert result.turn_activation.activated_skill_names == [
+        "Weather Skill",
+        "Plugin Page Skill",
+    ]
+
+
+def _make_runtime_skill(
+    *,
+    skill_id: int,
+    name: str,
+    skill_type: str,
+    package_name: str,
+    source_plugin: str | None = None,
+    config: dict | None = None,
+) -> SimpleNamespace:
+    package = SimpleNamespace(
+        id=skill_id + 1000,
+        name=package_name,
+        source_plugin=source_plugin,
+        valves_config=None,
+        is_active=True,
+        is_deleted=False,
+    )
+    return SimpleNamespace(
+        id=skill_id,
+        name=name,
+        type=skill_type,
+        package_id=package.id,
+        config=config,
+        timeout=30,
+        is_active=True,
+        is_deleted=False,
+        package=package,
+    )
+
+
+def _make_grant(skill: SimpleNamespace) -> SimpleNamespace:
+    return SimpleNamespace(
+        enabled=True,
+        is_deleted=False,
+        skill=skill,
+        config_override=None,
+        default_consent_mode="auto",
+        capability_consent_overrides=None,
+    )
+
+
 @pytest.mark.asyncio
-async def test_resolve_for_agent_falls_back_to_time_tool_when_grants_filter_out() -> None:
+async def test_resolve_for_agent_falls_back_to_time_tool_when_grants_filter_out() -> (
+    None
+):
     package = SimpleNamespace(
         id=77,
         name="weather-widget",
@@ -210,6 +308,148 @@ async def test_resolve_for_agent_falls_back_to_time_tool_when_grants_filter_out(
     assert [tool.name for tool in resolved.tools] == ["get_current_time"]
     assert resolved.tool_consent_modes == {"get_current_time": "auto"}
     assert resolved.capability_descriptors[0].name == "get_current_time"
+
+
+@pytest.mark.asyncio
+async def test_resolve_for_agent_prefilters_explicit_skill_mentions_before_resolve(
+    monkeypatch,
+) -> None:
+    plugin_page_skill = _make_runtime_skill(
+        skill_id=201,
+        name="Plugin Page Skill",
+        skill_type="toolkit",
+        package_name="plugin.page",
+        source_plugin="plugin.page",
+    )
+    weather_skill = _make_runtime_skill(
+        skill_id=202,
+        name="Weather Skill",
+        skill_type="builtin",
+        package_name="weather.tools",
+        config={"tools": [{"name": "get_current_weather"}]},
+    )
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = [
+        _make_grant(plugin_page_skill),
+        _make_grant(weather_skill),
+    ]
+    db = MagicMock()
+    db.execute = AsyncMock(return_value=result)
+    agent = SimpleNamespace(id=1, owner_tenant_id=9)
+    request = SimpleNamespace(
+        messages=[
+            SimpleNamespace(
+                role="user",
+                content="Please use Plugin Page Skill to inspect this page.",
+            )
+        ]
+    )
+    captured: dict[str, object] = {}
+
+    async def _capture_resolve(self, skills, config_overrides=None):
+        captured["skills"] = skills
+        captured["config_overrides"] = config_overrides
+        return SkillResolveResult()
+
+    monkeypatch.setattr(SkillResolver, "resolve", _capture_resolve)
+
+    await resolve_for_agent(db, agent, tenant_id=9, request=request)
+
+    assert [skill.name for skill in captured["skills"]] == ["Plugin Page Skill"]
+
+
+@pytest.mark.asyncio
+async def test_resolve_for_agent_prefilters_explicit_tool_mentions_before_resolve(
+    monkeypatch,
+) -> None:
+    weather_skill = _make_runtime_skill(
+        skill_id=301,
+        name="Weather Skill",
+        skill_type="builtin",
+        package_name="weather.tools",
+        config={"tools": [{"name": "get_current_weather"}]},
+    )
+    time_skill = _make_runtime_skill(
+        skill_id=302,
+        name="Time Skill",
+        skill_type="builtin",
+        package_name="time.tools",
+        config={"tools": [{"name": "get_current_time"}]},
+    )
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = [
+        _make_grant(weather_skill),
+        _make_grant(time_skill),
+    ]
+    db = MagicMock()
+    db.execute = AsyncMock(return_value=result)
+    agent = SimpleNamespace(id=1, owner_tenant_id=9)
+    request = SimpleNamespace(
+        messages=[
+            SimpleNamespace(
+                role="user",
+                content="call get_current_weather before you answer",
+            )
+        ]
+    )
+    captured: dict[str, object] = {}
+
+    async def _capture_resolve(self, skills, config_overrides=None):
+        captured["skills"] = skills
+        captured["config_overrides"] = config_overrides
+        return SkillResolveResult()
+
+    monkeypatch.setattr(SkillResolver, "resolve", _capture_resolve)
+
+    await resolve_for_agent(db, agent, tenant_id=9, request=request)
+
+    assert [skill.name for skill in captured["skills"]] == ["Weather Skill"]
+
+
+@pytest.mark.asyncio
+async def test_resolve_for_agent_keeps_full_inventory_for_capability_reporting_query(
+    monkeypatch,
+) -> None:
+    weather_skill = _make_runtime_skill(
+        skill_id=401,
+        name="Weather Skill",
+        skill_type="builtin",
+        package_name="weather.tools",
+        config={"tools": [{"name": "get_current_weather"}]},
+    )
+    page_skill = _make_runtime_skill(
+        skill_id=402,
+        name="Plugin Page Skill",
+        skill_type="toolkit",
+        package_name="plugin.page",
+        source_plugin="plugin.page",
+    )
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = [
+        _make_grant(weather_skill),
+        _make_grant(page_skill),
+    ]
+    db = MagicMock()
+    db.execute = AsyncMock(return_value=result)
+    agent = SimpleNamespace(id=1, owner_tenant_id=9)
+    request = SimpleNamespace(
+        messages=[SimpleNamespace(role="user", content="what can you do this turn")]
+    )
+    captured: dict[str, object] = {}
+
+    async def _capture_resolve(self, skills, config_overrides=None):
+        captured["skills"] = skills
+        captured["config_overrides"] = config_overrides
+        return SkillResolveResult()
+
+    monkeypatch.setattr(SkillResolver, "resolve", _capture_resolve)
+
+    await resolve_for_agent(db, agent, tenant_id=9, request=request)
+
+    assert [skill.name for skill in captured["skills"]] == [
+        "Weather Skill",
+        "Plugin Page Skill",
+    ]
 
 
 @pytest.mark.asyncio

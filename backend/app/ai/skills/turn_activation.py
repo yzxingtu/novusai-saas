@@ -8,6 +8,7 @@ from typing import Any
 
 from app.ai.engine.system_prompt_intent_helpers import is_capability_reporting_query
 from app.ai.skills.resolver import SkillResolveResult, TurnSkillActivation
+from app.ai.text_semantics_terms import extract_textual_tool_call_names
 
 _PAGE_TOOL_NAMES = {
     "ui_click",
@@ -107,6 +108,33 @@ def _tool_names_for_explicit_skills(
     )
 
 
+def _tool_alias_map(skill_result: SkillResolveResult) -> dict[str, str]:
+    alias_to_tool_name: dict[str, str] = {}
+    for tool in list(getattr(skill_result, "tools", []) or []):
+        tool_name = str(getattr(tool, "name", "") or "").strip()
+        if not tool_name:
+            continue
+        alias_to_tool_name[tool_name] = tool_name
+        spaced_name = tool_name.replace("_", " ").replace("-", " ")
+        if spaced_name and spaced_name != tool_name:
+            alias_to_tool_name[spaced_name] = tool_name
+    return alias_to_tool_name
+
+
+def _explicit_tool_mentions(
+    skill_result: SkillResolveResult,
+    user_text: str,
+) -> list[str]:
+    alias_to_tool_name = _tool_alias_map(skill_result)
+    if not alias_to_tool_name:
+        return []
+    return extract_textual_tool_call_names(
+        user_text,
+        alias_to_tool_name=alias_to_tool_name,
+        known_tool_names=set(alias_to_tool_name.values()),
+    )
+
+
 def _tool_names_for_runtime_policy(
     skill_result: SkillResolveResult,
     *,
@@ -154,10 +182,12 @@ def apply_turn_skill_activation(
         return skill_result
 
     explicit_skill_names = _explicit_skill_mentions(skill_result, last_user_text)
+    explicit_tool_names = _explicit_tool_mentions(skill_result, last_user_text)
     activated_tool_names = _tool_names_for_explicit_skills(
         skill_result,
         explicit_skill_names,
     )
+    activated_tool_names.extend(explicit_tool_names)
     activated_tool_names.extend(
         _tool_names_for_runtime_policy(
             skill_result,
@@ -175,8 +205,15 @@ def apply_turn_skill_activation(
         ]
     )
 
-    reason = "explicit_skill_mention" if explicit_skill_names else "runtime_policy"
-    if not activated_tool_names and not activated_skill_names:
+    if explicit_skill_names and explicit_tool_names:
+        reason = "explicit_skill_and_tool_mention"
+    elif explicit_skill_names:
+        reason = "explicit_skill_mention"
+    elif explicit_tool_names:
+        reason = "explicit_tool_mention"
+    elif activated_tool_names or activated_skill_names:
+        reason = "runtime_policy"
+    else:
         reason = "no_turn_skill_activation"
 
     skill_result.turn_activation = TurnSkillActivation(

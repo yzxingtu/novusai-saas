@@ -100,6 +100,7 @@ async def resolve_prepare_execution_skill_result(
         agent,
         tenant_id=request.tenant_id,
         user_role=getattr(request, "user_role", None),
+        request=request,
     )
 
 

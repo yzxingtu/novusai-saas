@@ -172,6 +172,16 @@ class SkillResolveResult:
         ]
 
 
+@dataclass(frozen=True)
+class SkillGrantPreview:
+    grant: Any
+    skill: Any
+    merged_config: dict[str, Any]
+    package_name: str
+    source_plugin: str
+    preview_tool_names: list[str] = field(default_factory=list)
+
+
 def build_skill_capability_descriptors(skills: list[Any]) -> list[CapabilityDescriptor]:
     return parts.build_skill_capability_descriptors(skills)
 
@@ -196,6 +206,173 @@ def _build_time_only_runtime_result() -> SkillResolveResult:
         result_factory=SkillResolveResult,
         apply_tool_semantics=SkillResolver._apply_tool_semantics,
     )
+
+
+def _merged_grant_skill_config(grant: Any) -> dict[str, Any]:
+    skill = getattr(grant, "skill", None)
+    if skill is None:
+        return {}
+
+    merged_config = dict(getattr(skill, "config", None) or {})
+    package = getattr(skill, "package", None)
+    if package is not None and getattr(package, "valves_config", None):
+        merged_config["valves"] = package.valves_config
+    if getattr(grant, "config_override", None):
+        merged_config.update(grant.config_override)
+    return merged_config
+
+
+def _preview_tool_names_for_skill(
+    *,
+    skill: Any,
+    config: dict[str, Any],
+    source_plugin: str,
+) -> list[str]:
+    if bool(config.get("internal")):
+        return []
+    if source_plugin:
+        return []
+
+    skill_type = str(getattr(skill, "type", "") or "").strip()
+    if skill_type == "toolkit":
+        toolkit_content = str(getattr(skill, "toolkit_content", "") or "").strip()
+        if not toolkit_content:
+            return []
+        try:
+            from app.ai.skills.toolkit_parser import parse_toolkit
+
+            meta = parse_toolkit(toolkit_content)
+        except Exception as exc:  # pragma: no cover - defensive degradation
+            logger.warning(
+                "Startup skill preview degraded for toolkit skill {} ({}): {}",
+                getattr(skill, "id", None),
+                getattr(skill, "name", None),
+                str(exc),
+            )
+            return []
+        return [
+            str(getattr(tool_meta, "name", "") or "").strip()
+            for tool_meta in list(getattr(meta, "tools", []) or [])
+            if str(getattr(tool_meta, "name", "") or "").strip()
+        ]
+    if skill_type == "builtin":
+        tools_config = config.get("tools")
+        if isinstance(tools_config, list):
+            return [
+                str((tool_cfg or {}).get("name") or "").strip()
+                for tool_cfg in tools_config
+                if str((tool_cfg or {}).get("name") or "").strip()
+            ]
+        tool_name = str(getattr(skill, "name", "") or "").strip()
+        return [tool_name] if tool_name else []
+    if skill_type == "http":
+        tool_name = str(getattr(skill, "name", "") or "").strip().lower()
+        tool_name = tool_name.replace(" ", "_")
+        return [tool_name] if tool_name else []
+    if skill_type == "email":
+        return ["send_email"]
+    if skill_type == "code_execution":
+        return ["execute_code"]
+    return []
+
+
+def _build_skill_grant_previews(grants: list[Any]) -> list[SkillGrantPreview]:
+    previews: list[SkillGrantPreview] = []
+    for grant in grants:
+        skill = getattr(grant, "skill", None)
+        if not _is_runtime_eligible_skill(skill):
+            continue
+        merged_config = _merged_grant_skill_config(grant)
+        package = getattr(skill, "package", None)
+        package_name = str(getattr(package, "name", "") or "").strip()
+        source_plugin = str(getattr(package, "source_plugin", "") or "").strip()
+        previews.append(
+            SkillGrantPreview(
+                grant=grant,
+                skill=skill,
+                merged_config=merged_config,
+                package_name=package_name,
+                source_plugin=source_plugin,
+                preview_tool_names=_preview_tool_names_for_skill(
+                    skill=skill,
+                    config=merged_config,
+                    source_plugin=source_plugin,
+                ),
+            )
+        )
+    return previews
+
+
+def _build_startup_preview_result(
+    grant_previews: list[SkillGrantPreview],
+) -> SkillResolveResult:
+    preview_tools: list[ToolDefinition] = []
+    for preview in grant_previews:
+        for tool_name in preview.preview_tool_names:
+            preview_tools.append(
+                ToolDefinition(
+                    name=tool_name,
+                    source_skill_id=getattr(preview.skill, "id", None),
+                    source_skill_name=str(
+                        getattr(preview.skill, "name", "") or ""
+                    ).strip()
+                    or None,
+                    source_skill_type=getattr(preview.skill, "type", None),
+                    source_package_name=preview.package_name or None,
+                    source_plugin=preview.source_plugin or None,
+                )
+            )
+    return SkillResolveResult(
+        tools=preview_tools,
+        capability_descriptors=build_skill_capability_descriptors(
+            [preview.skill for preview in grant_previews]
+        ),
+    )
+
+
+def _filter_grant_previews_for_turn_startup(
+    grant_previews: list[SkillGrantPreview],
+    *,
+    request: Any | None,
+) -> list[SkillGrantPreview]:
+    if request is None or not grant_previews:
+        return grant_previews
+
+    from app.ai.skills.turn_activation import apply_turn_skill_activation
+
+    preview_result = _build_startup_preview_result(grant_previews)
+    apply_turn_skill_activation(
+        skill_result=preview_result,
+        request=request,
+        intent_flags=None,
+    )
+    activation = getattr(preview_result, "turn_activation", None)
+    if activation is None or not activation.applied:
+        return grant_previews
+    if activation.reason in {"capability_reporting_query", "no_turn_skill_activation"}:
+        return grant_previews
+
+    activated_skill_names = {
+        str(name or "").strip()
+        for name in activation.activated_skill_names or []
+        if str(name or "").strip()
+    }
+    activated_tool_names = {
+        str(name or "").strip()
+        for name in activation.activated_tool_names or []
+        if str(name or "").strip()
+    }
+    if not activated_skill_names and not activated_tool_names:
+        return grant_previews
+
+    filtered = [
+        preview
+        for preview in grant_previews
+        if str(getattr(preview.skill, "name", "") or "").strip()
+        in activated_skill_names
+        or bool(activated_tool_names & set(preview.preview_tool_names or []))
+    ]
+    return filtered or grant_previews
 
 
 class SkillResolver:
@@ -483,6 +660,7 @@ async def resolve_for_agent(
     agent: Any,
     tenant_id: int | None = None,
     user_role: str | None = None,
+    request: Any | None = None,
 ) -> SkillResolveResult | None:
     """
     Load and resolve all Skills granted to an Agent from AgentSkillGrant.
@@ -562,27 +740,30 @@ async def resolve_for_agent(
     if not grants:
         return _build_time_only_runtime_result()
 
+    grant_previews = _build_skill_grant_previews(grants)
+    startup_grant_previews = _filter_grant_previews_for_turn_startup(
+        grant_previews,
+        request=request,
+    )
+    if startup_grant_previews is not grant_previews:
+        logger.info(
+            "Startup skill prefilter applied for agent={}: grants={} -> {}",
+            getattr(agent, "id", None),
+            len(grant_previews),
+            len(startup_grant_previews),
+        )
+
     skills: list[SkillModel] = []
     skill_config_overrides: dict[int, dict[str, Any]] = {}
     package_name_by_skill: dict[int, str] = {}
 
-    for grant in grants:
-        skill = grant.skill
-        if not _is_runtime_eligible_skill(skill):
-            continue
-
+    for preview in startup_grant_previews:
+        skill = preview.skill
         skills.append(skill)
-
-        merged_override: dict[str, Any] = {}
-        package = getattr(skill, "package", None)
-        if package and getattr(package, "name", None):
-            package_name_by_skill[skill.id] = package.name
-        if package and getattr(package, "valves_config", None):
-            merged_override["valves"] = package.valves_config
-        if grant.config_override:
-            merged_override.update(grant.config_override)
-        if merged_override:
-            skill_config_overrides[skill.id] = merged_override
+        if preview.package_name:
+            package_name_by_skill[skill.id] = preview.package_name
+        if preview.merged_config:
+            skill_config_overrides[skill.id] = dict(preview.merged_config)
 
     if not skills:
         return _build_time_only_runtime_result()
@@ -628,7 +809,7 @@ async def resolve_for_agent(
 
     logger.info(
         "Resolved skills for agent={}: skill_ids={}, tools={}, warnings={}",
-        agent.name if agent else "?",
+        getattr(agent, "name", None) or "?",
         [skill.id for skill in skills],
         [t.name for t in resolve_result.tools],
         len(resolve_result.warnings),

@@ -559,7 +559,7 @@ async def test_stream_chat_primes_request_memory_policy_from_thread_state(mock_d
         patch(
             "app.ai.skills.resolver.resolve_for_agent",
             new=AsyncMock(return_value=None),
-        ),
+        ) as mock_resolve_for_agent,
         patch(
             "app.services.ai.agent_chat_service.AgentQuotaManager.check_quota",
             new=AsyncMock(),
@@ -602,6 +602,7 @@ async def test_stream_chat_primes_request_memory_policy_from_thread_state(mock_d
 
     request = engine.stream_execute.await_args.kwargs["request"]
     service.runtime_support.prepare_request_memory_startup.assert_called_once()
+    assert mock_resolve_for_agent.await_args.kwargs["request"] is request
     assert request.memory_runtime_policy["external_context_polluted"] is True
     assert request.memory_runtime_policy["external_context_reason"] == "tool:web_search"
 

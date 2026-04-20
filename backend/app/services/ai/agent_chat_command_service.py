@@ -496,6 +496,7 @@ class AgentChatCommandService:
         engine_bundle = await service.stream_bootstrap.build_stream_engine_bundle(
             agent=agent,
             agent_id=agent_id,
+            request=request,
             user_id=user_id,
             user_role=user_role,
             permissions=permissions,

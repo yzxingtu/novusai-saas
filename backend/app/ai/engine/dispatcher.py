@@ -202,6 +202,7 @@ class ExecutionDispatcher:
                 agent,
                 tenant_id=request.tenant_id,
                 user_role=request.user_role,
+                request=request,
             )
 
             # 5.5 Load platform Toolkit security config (consistent with stream_chat path) / 读取平台 Toolkit 安全配置（与 stream_chat 路径保持一致）

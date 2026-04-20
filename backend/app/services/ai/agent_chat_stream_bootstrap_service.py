@@ -300,6 +300,7 @@ class AgentChatStreamBootstrapService:
         *,
         agent: Any,
         agent_id: int,
+        request: ExecutionRequest | None = None,
         user_id: int | None,
         user_role: str,
         permissions: set[str] | None,
@@ -341,6 +342,7 @@ class AgentChatStreamBootstrapService:
                 agent,
                 tenant_id=self.tenant_id,
                 user_role=user_role,
+                request=request,
             )
         except Exception as skill_exc:  # pragma: no cover - defensive logging path
             logger.error(
@@ -408,9 +410,9 @@ class AgentChatStreamBootstrapService:
         if not session_memory_text:
             return
         if request.messages and request.messages[0].role == "system":
-            request.messages[0].content = (
-                f"{request.messages[0].content}\n\n{session_memory_text}"
-            )
+            request.messages[
+                0
+            ].content = f"{request.messages[0].content}\n\n{session_memory_text}"
             return
         request.messages.insert(
             0,
