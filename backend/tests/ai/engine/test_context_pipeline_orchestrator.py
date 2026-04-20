@@ -2,6 +2,7 @@ from types import SimpleNamespace
 
 from app.ai.context.orchestrator import ContextPipelineOrchestrator
 from app.ai.engine.system_prompt_intent_helpers import intent_plan_gating_flags
+from app.ai.memory_policy import resolve_memory_runtime_policy
 
 
 def _intent(kind: str, *, shortcircuit: bool = False):
@@ -88,22 +89,27 @@ def test_context_pipeline_orchestrator_keeps_memory_save_write_only() -> None:
 def test_context_pipeline_orchestrator_suppresses_long_term_recall_for_polluted_turns() -> (
     None
 ):
+    request = _request(
+        memory_enabled=False,
+        long_term_memory_enabled=True,
+        memory_runtime_policy={
+            "external_context_polluted": True,
+            "external_context_reason": "tool:web_search",
+        },
+    )
     flags = ContextPipelineOrchestrator.compute_intent_flags(
         [_intent("assistant_response", shortcircuit=False)],
-        request=_request(
-            memory_enabled=False,
-            long_term_memory_enabled=True,
-            memory_runtime_policy={
-                "external_context_polluted": True,
-                "external_context_reason": "tool:web_search",
-            },
-        ),
+        request=request,
     )
+    policy = resolve_memory_runtime_policy(request)
 
     assert flags.long_term_memory_runtime_enabled is True
     assert flags.memory_context_enabled is False
     assert flags.should_run_memory_profile is False
     assert flags.should_run_memory_vector_recall is False
+    assert policy.thread_memory_owner_state == "polluted"
+    assert policy.long_term_memory_recall_state == "suppressed_external_context"
+    assert policy.long_term_memory_capture_state == "suppressed_external_context"
 
 
 def test_intent_plan_gating_flags_keeps_web_research_signal() -> None:

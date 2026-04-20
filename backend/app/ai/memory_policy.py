@@ -10,6 +10,21 @@ from typing import Any
 _EXTERNAL_CONTEXT_TOOL_NAMES = {"web_search", "fetch_url"}
 _EXTERNAL_CONTEXT_FAMILIES = {"web_research"}
 
+_THREAD_MEMORY_OWNER_ACTIVE = "active"
+_THREAD_MEMORY_OWNER_POLLUTED = "polluted"
+_THREAD_MEMORY_OWNER_DISABLED = "disabled"
+
+_SESSION_MEMORY_ENABLED = "enabled"
+_SESSION_MEMORY_RUNTIME_WITHOUT_SCOPE = "runtime_without_scope"
+_SESSION_MEMORY_DISABLED = "disabled"
+
+_LONG_TERM_MEMORY_ENABLED = "enabled"
+_LONG_TERM_MEMORY_SUPPRESSED_EXTERNAL_CONTEXT = "suppressed_external_context"
+_LONG_TERM_MEMORY_DISABLED_MISSING_CONVERSATION_SCOPE = (
+    "disabled_missing_conversation_scope"
+)
+_LONG_TERM_MEMORY_DISABLED = "disabled"
+
 
 @dataclass(frozen=True)
 class MemoryRuntimePolicy:
@@ -19,10 +34,15 @@ class MemoryRuntimePolicy:
     session_memory_runtime_enabled: bool = False
     session_memory_read_enabled: bool = False
     session_memory_write_enabled: bool = False
+    session_memory_state: str = _SESSION_MEMORY_DISABLED
     long_term_memory_runtime_enabled: bool = False
     long_term_memory_recall_enabled: bool = False
+    long_term_memory_recall_state: str = _LONG_TERM_MEMORY_DISABLED
     long_term_memory_capture_enabled: bool = False
+    long_term_memory_capture_state: str = _LONG_TERM_MEMORY_DISABLED
     memory_context_enabled: bool = False
+    thread_memory_owner_state: str = _THREAD_MEMORY_OWNER_DISABLED
+    thread_memory_owner_reason: str | None = None
     external_context_polluted: bool = False
     external_context_reason: str | None = None
 
@@ -34,29 +54,21 @@ class MemoryRuntimePolicy:
             "session_memory_runtime_enabled": self.session_memory_runtime_enabled,
             "session_memory_read_enabled": self.session_memory_read_enabled,
             "session_memory_write_enabled": self.session_memory_write_enabled,
+            "session_memory_state": self.session_memory_state,
             "long_term_memory_runtime_enabled": self.long_term_memory_runtime_enabled,
             "long_term_memory_recall_enabled": self.long_term_memory_recall_enabled,
+            "long_term_memory_recall_state": self.long_term_memory_recall_state,
             "long_term_memory_capture_enabled": self.long_term_memory_capture_enabled,
+            "long_term_memory_capture_state": self.long_term_memory_capture_state,
             "memory_context_enabled": self.memory_context_enabled,
+            "thread_memory_owner_state": self.thread_memory_owner_state,
+            "thread_memory_owner_reason": self.thread_memory_owner_reason,
             "external_context_polluted": self.external_context_polluted,
             "external_context_reason": self.external_context_reason,
         }
 
     def to_thread_state(self) -> dict[str, Any]:
-        return {
-            "scene": self.scene,
-            "channel": self.channel,
-            "source": self.source,
-            "session_memory_runtime_enabled": self.session_memory_runtime_enabled,
-            "session_memory_read_enabled": self.session_memory_read_enabled,
-            "session_memory_write_enabled": self.session_memory_write_enabled,
-            "long_term_memory_runtime_enabled": self.long_term_memory_runtime_enabled,
-            "long_term_memory_recall_enabled": self.long_term_memory_recall_enabled,
-            "long_term_memory_capture_enabled": self.long_term_memory_capture_enabled,
-            "memory_context_enabled": self.memory_context_enabled,
-            "external_context_polluted": self.external_context_polluted,
-            "external_context_reason": self.external_context_reason,
-        }
+        return self.to_dict()
 
 
 def _normalize_text(value: Any) -> str:
@@ -64,6 +76,13 @@ def _normalize_text(value: Any) -> str:
 
 
 _THREAD_POLICY_FIELDS = frozenset(MemoryRuntimePolicy.__dataclass_fields__)
+_RUNTIME_STATE_FIELDS = (
+    "session_memory_state",
+    "long_term_memory_recall_state",
+    "long_term_memory_capture_state",
+    "thread_memory_owner_state",
+    "thread_memory_owner_reason",
+)
 
 
 def _request_policy_payload(request: Any) -> dict[str, Any]:
@@ -75,6 +94,132 @@ def _request_policy_payload(request: Any) -> dict[str, Any]:
 
 def _iter_result_intents(result: Any | None) -> list[Any]:
     return list(getattr(result, "intent_plan", None) or [])
+
+
+def _derive_memory_runtime_state_fields(
+    *,
+    session_memory_runtime_enabled: bool,
+    session_memory_read_enabled: bool,
+    session_memory_write_enabled: bool,
+    long_term_memory_runtime_enabled: bool,
+    long_term_memory_recall_enabled: bool,
+    long_term_memory_capture_enabled: bool,
+    memory_context_enabled: bool,
+    external_context_polluted: bool,
+    external_context_reason: str | None,
+) -> dict[str, Any]:
+    if session_memory_read_enabled or session_memory_write_enabled:
+        session_memory_state = _SESSION_MEMORY_ENABLED
+    elif session_memory_runtime_enabled:
+        session_memory_state = _SESSION_MEMORY_RUNTIME_WITHOUT_SCOPE
+    else:
+        session_memory_state = _SESSION_MEMORY_DISABLED
+
+    if long_term_memory_recall_enabled:
+        long_term_memory_recall_state = _LONG_TERM_MEMORY_ENABLED
+    elif long_term_memory_runtime_enabled and external_context_polluted:
+        long_term_memory_recall_state = _LONG_TERM_MEMORY_SUPPRESSED_EXTERNAL_CONTEXT
+    else:
+        long_term_memory_recall_state = _LONG_TERM_MEMORY_DISABLED
+
+    if long_term_memory_capture_enabled:
+        long_term_memory_capture_state = _LONG_TERM_MEMORY_ENABLED
+    elif long_term_memory_recall_enabled:
+        long_term_memory_capture_state = (
+            _LONG_TERM_MEMORY_DISABLED_MISSING_CONVERSATION_SCOPE
+        )
+    elif long_term_memory_runtime_enabled and external_context_polluted:
+        long_term_memory_capture_state = _LONG_TERM_MEMORY_SUPPRESSED_EXTERNAL_CONTEXT
+    else:
+        long_term_memory_capture_state = _LONG_TERM_MEMORY_DISABLED
+
+    if external_context_polluted and (
+        session_memory_runtime_enabled
+        or long_term_memory_runtime_enabled
+        or memory_context_enabled
+    ):
+        thread_memory_owner_state = _THREAD_MEMORY_OWNER_POLLUTED
+        thread_memory_owner_reason = (
+            external_context_reason or "external_context_polluted"
+        )
+    elif (
+        session_memory_runtime_enabled
+        or long_term_memory_runtime_enabled
+        or memory_context_enabled
+    ):
+        thread_memory_owner_state = _THREAD_MEMORY_OWNER_ACTIVE
+        thread_memory_owner_reason = None
+    else:
+        thread_memory_owner_state = _THREAD_MEMORY_OWNER_DISABLED
+        thread_memory_owner_reason = "memory_runtime_disabled"
+
+    return {
+        "session_memory_state": session_memory_state,
+        "long_term_memory_recall_state": long_term_memory_recall_state,
+        "long_term_memory_capture_state": long_term_memory_capture_state,
+        "thread_memory_owner_state": thread_memory_owner_state,
+        "thread_memory_owner_reason": thread_memory_owner_reason,
+    }
+
+
+def _build_memory_runtime_policy(
+    *,
+    scene: str,
+    channel: str,
+    source: str,
+    session_memory_runtime_enabled: bool,
+    session_memory_read_enabled: bool,
+    session_memory_write_enabled: bool,
+    long_term_memory_runtime_enabled: bool,
+    long_term_memory_recall_enabled: bool,
+    long_term_memory_capture_enabled: bool,
+    external_context_polluted: bool,
+    external_context_reason: str | None,
+) -> MemoryRuntimePolicy:
+    session_memory_runtime_enabled = bool(session_memory_runtime_enabled)
+    session_memory_read_enabled = bool(
+        session_memory_runtime_enabled and session_memory_read_enabled
+    )
+    session_memory_write_enabled = bool(
+        session_memory_read_enabled and session_memory_write_enabled
+    )
+    long_term_memory_runtime_enabled = bool(long_term_memory_runtime_enabled)
+    long_term_memory_recall_enabled = bool(
+        long_term_memory_runtime_enabled and long_term_memory_recall_enabled
+    )
+    long_term_memory_capture_enabled = bool(
+        long_term_memory_recall_enabled and long_term_memory_capture_enabled
+    )
+    external_context_polluted = bool(external_context_polluted)
+    memory_context_enabled = bool(
+        session_memory_runtime_enabled or long_term_memory_recall_enabled
+    )
+    state_fields = _derive_memory_runtime_state_fields(
+        session_memory_runtime_enabled=session_memory_runtime_enabled,
+        session_memory_read_enabled=session_memory_read_enabled,
+        session_memory_write_enabled=session_memory_write_enabled,
+        long_term_memory_runtime_enabled=long_term_memory_runtime_enabled,
+        long_term_memory_recall_enabled=long_term_memory_recall_enabled,
+        long_term_memory_capture_enabled=long_term_memory_capture_enabled,
+        memory_context_enabled=memory_context_enabled,
+        external_context_polluted=external_context_polluted,
+        external_context_reason=external_context_reason,
+    )
+    return MemoryRuntimePolicy(
+        scene=scene,
+        channel=channel,
+        source=source,
+        session_memory_runtime_enabled=session_memory_runtime_enabled,
+        session_memory_read_enabled=session_memory_read_enabled,
+        session_memory_write_enabled=session_memory_write_enabled,
+        long_term_memory_runtime_enabled=long_term_memory_runtime_enabled,
+        long_term_memory_recall_enabled=long_term_memory_recall_enabled,
+        long_term_memory_capture_enabled=long_term_memory_capture_enabled,
+        memory_context_enabled=memory_context_enabled,
+        external_context_polluted=external_context_polluted,
+        external_context_reason=external_context_reason,
+        **state_fields,
+    )
 
 
 def detect_external_context_pollution(
@@ -173,11 +318,8 @@ def resolve_memory_runtime_policy(
     long_term_memory_capture_enabled = bool(
         long_term_memory_recall_enabled and has_conversation_scope
     )
-    memory_context_enabled = bool(
-        session_memory_runtime_enabled or long_term_memory_recall_enabled
-    )
 
-    return MemoryRuntimePolicy(
+    return _build_memory_runtime_policy(
         scene=scene,
         channel=channel,
         source=source,
@@ -187,7 +329,6 @@ def resolve_memory_runtime_policy(
         long_term_memory_runtime_enabled=long_term_memory_runtime_enabled,
         long_term_memory_recall_enabled=long_term_memory_recall_enabled,
         long_term_memory_capture_enabled=long_term_memory_capture_enabled,
-        memory_context_enabled=memory_context_enabled,
         external_context_polluted=bool(polluted),
         external_context_reason=external_context_reason or None,
     )
@@ -220,7 +361,7 @@ def _normalize_memory_runtime_payload(
     if not filtered_payload:
         return {}
 
-    return MemoryRuntimePolicy(
+    return _build_memory_runtime_policy(
         scene=_normalize_text(filtered_payload.get("scene")),
         channel=_normalize_text(filtered_payload.get("channel")),
         source=_normalize_text(filtered_payload.get("source")),
@@ -241,9 +382,6 @@ def _normalize_memory_runtime_payload(
         ),
         long_term_memory_capture_enabled=bool(
             filtered_payload.get("long_term_memory_capture_enabled", False)
-        ),
-        memory_context_enabled=bool(
-            filtered_payload.get("memory_context_enabled", False)
         ),
         external_context_polluted=bool(
             filtered_payload.get("external_context_polluted", False)
@@ -295,6 +433,10 @@ def build_memory_runtime_projection(
         projection["external_context_reason"] = normalized.get(
             "external_context_reason"
         )
+    for field_name in _RUNTIME_STATE_FIELDS:
+        value = normalized.get(field_name)
+        if isinstance(value, str) and value.strip():
+            projection[field_name] = value
     return projection
 
 
@@ -350,7 +492,12 @@ def prime_memory_runtime_policy(
 ) -> dict[str, Any]:
     normalized_thread_memory_state = normalize_thread_memory_state(thread_memory_state)
     if not normalized_thread_memory_state:
-        return _request_policy_payload(request)
+        normalized_payload = normalize_memory_runtime_policy(
+            _request_policy_payload(request)
+        )
+        if normalized_payload:
+            request.memory_runtime_policy = normalized_payload
+        return normalized_payload
 
     payload = {
         key: value
@@ -384,8 +531,9 @@ def prime_memory_runtime_policy(
     existing_payload = _request_policy_payload(request)
     if existing_payload:
         payload.update(existing_payload)
-    request.memory_runtime_policy = payload
-    return payload
+    normalized_payload = normalize_memory_runtime_policy(payload)
+    request.memory_runtime_policy = normalized_payload
+    return normalized_payload
 
 
 __all__ = [

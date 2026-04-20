@@ -36,6 +36,12 @@ context assembly.
   owner. Context orchestration, runtime manifests, session-memory load, and
   long-term capture must all consult that same policy instead of each
   re-deriving memory eligibility from raw request flags.
+- The normalized owner snapshot now also carries machine-readable lifecycle
+  fields (`thread_memory_owner_state`, `thread_memory_owner_reason`,
+  `session_memory_state`, `long_term_memory_recall_state`,
+  `long_term_memory_capture_state`) so startup priming, polluted-turn
+  degradation, recall gating, and read-model projection can follow one
+  canonical thread owner contract instead of parallel boolean-only heuristics.
 - The normalized `memory_runtime_policy` snapshot must persist with both the
   assistant-turn metadata and the conversation-level `thread_memory_state`
   snapshot so thread-scoped pollution or mode changes remain observable after
@@ -84,6 +90,10 @@ request and is surfaced as a context source.
   `memory_runtime_policy` payload plus a compact derived `memory_mode` from
   assistant metadata or thread fallback, rather than exposing only ad-hoc
   pollution booleans.
+- Conversation diagnostics and last-run summaries should also expose the thread
+  owner lifecycle fields above when available, so operators can distinguish
+  active, polluted, scope-limited, and capture-suppressed states without
+  re-deriving them from mixed flags.
 - When a read model uses assistant metadata or thread fallback to derive
   memory policy, it should also project the effective owner source
   (`assistant_metadata` vs `thread_memory_state`) and preserve

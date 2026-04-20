@@ -22,6 +22,17 @@ from app.services.ai.turn_failure_normalizer import resolve_failure_projection
 class ConversationRuntimeProjectionService:
     """Builds detail payloads and runtime diagnostics outside the facade."""
 
+    _MEMORY_RUNTIME_STR_FIELDS = (
+        "memory_mode",
+        "memory_runtime_policy_source",
+        "thread_memory_state_updated_at",
+        "thread_memory_owner_state",
+        "thread_memory_owner_reason",
+        "session_memory_state",
+        "long_term_memory_recall_state",
+        "long_term_memory_capture_state",
+    )
+
     def __init__(
         self,
         *,
@@ -275,8 +286,9 @@ class ConversationRuntimeProjectionService:
             thread_memory_state=thread_memory_state,
         )
 
-    @staticmethod
+    @classmethod
     def _optional_memory_runtime_fields(
+        cls,
         memory_runtime_projection: dict[str, Any] | None,
     ) -> dict[str, Any]:
         if not isinstance(memory_runtime_projection, dict):
@@ -287,27 +299,10 @@ class ConversationRuntimeProjectionService:
         if isinstance(memory_runtime_policy, dict):
             payload["memory_runtime_policy"] = memory_runtime_policy
 
-        memory_mode = memory_runtime_projection.get("memory_mode")
-        if isinstance(memory_mode, str) and memory_mode.strip():
-            payload["memory_mode"] = memory_mode
-
-        memory_runtime_policy_source = memory_runtime_projection.get(
-            "memory_runtime_policy_source"
-        )
-        if (
-            isinstance(memory_runtime_policy_source, str)
-            and memory_runtime_policy_source.strip()
-        ):
-            payload["memory_runtime_policy_source"] = memory_runtime_policy_source
-
-        thread_memory_state_updated_at = memory_runtime_projection.get(
-            "thread_memory_state_updated_at"
-        )
-        if (
-            isinstance(thread_memory_state_updated_at, str)
-            and thread_memory_state_updated_at.strip()
-        ):
-            payload["thread_memory_state_updated_at"] = thread_memory_state_updated_at
+        for field_name in cls._MEMORY_RUNTIME_STR_FIELDS:
+            field_value = memory_runtime_projection.get(field_name)
+            if isinstance(field_value, str) and field_value.strip():
+                payload[field_name] = field_value
 
         return payload
 

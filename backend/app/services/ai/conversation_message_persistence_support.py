@@ -7,6 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from app.ai.memory_policy import normalize_memory_runtime_policy
 from app.ai.types import ChatMessage
 
 
@@ -109,10 +110,10 @@ def build_turn_persistence_context(
     raw_memory_runtime_policy = getattr(result, "memory_runtime_policy", None)
     if not isinstance(raw_memory_runtime_policy, dict):
         raw_memory_runtime_policy = getattr(result, "_memory_runtime_policy", None)
-    memory_runtime_policy = (
-        dict(raw_memory_runtime_policy or {})
+    memory_runtime_policy = normalize_memory_runtime_policy(
+        raw_memory_runtime_policy
         if isinstance(raw_memory_runtime_policy, dict)
-        else {}
+        else None
     )
     result_completion_reason = service._to_non_empty_str(
         getattr(result, "completion_reason", None)

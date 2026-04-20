@@ -363,10 +363,15 @@ class TestGetConversationDetail:
             "session_memory_runtime_enabled": True,
             "session_memory_read_enabled": True,
             "session_memory_write_enabled": False,
+            "session_memory_state": "enabled",
             "long_term_memory_runtime_enabled": True,
             "long_term_memory_recall_enabled": False,
-            "long_term_memory_capture_enabled": True,
+            "long_term_memory_recall_state": "suppressed_external_context",
+            "long_term_memory_capture_enabled": False,
+            "long_term_memory_capture_state": "suppressed_external_context",
             "memory_context_enabled": True,
+            "thread_memory_owner_state": "polluted",
+            "thread_memory_owner_reason": "tool:web_search",
             "external_context_polluted": True,
             "external_context_reason": "tool:web_search",
         }
@@ -381,12 +386,40 @@ class TestGetConversationDetail:
             detail["context_diagnostics"]["memory_runtime_policy_source"]
             == "assistant_metadata"
         )
+        assert detail["context_diagnostics"]["thread_memory_owner_state"] == "polluted"
+        assert (
+            detail["context_diagnostics"]["thread_memory_owner_reason"]
+            == "tool:web_search"
+        )
+        assert detail["context_diagnostics"]["session_memory_state"] == "enabled"
+        assert (
+            detail["context_diagnostics"]["long_term_memory_recall_state"]
+            == "suppressed_external_context"
+        )
+        assert (
+            detail["context_diagnostics"]["long_term_memory_capture_state"]
+            == "suppressed_external_context"
+        )
         assert detail["last_run_summary"]["external_context_polluted"] is True
         assert detail["last_run_summary"]["memory_runtime_policy"] == expected_policy
         assert detail["last_run_summary"]["memory_mode"] == "session_and_long_term"
         assert (
             detail["last_run_summary"]["memory_runtime_policy_source"]
             == "assistant_metadata"
+        )
+        assert detail["last_run_summary"]["thread_memory_owner_state"] == "polluted"
+        assert (
+            detail["last_run_summary"]["thread_memory_owner_reason"]
+            == "tool:web_search"
+        )
+        assert detail["last_run_summary"]["session_memory_state"] == "enabled"
+        assert (
+            detail["last_run_summary"]["long_term_memory_recall_state"]
+            == "suppressed_external_context"
+        )
+        assert (
+            detail["last_run_summary"]["long_term_memory_capture_state"]
+            == "suppressed_external_context"
         )
 
     @pytest.mark.asyncio
@@ -444,10 +477,15 @@ class TestGetConversationDetail:
             "session_memory_runtime_enabled": True,
             "session_memory_read_enabled": True,
             "session_memory_write_enabled": True,
+            "session_memory_state": "enabled",
             "long_term_memory_runtime_enabled": False,
             "long_term_memory_recall_enabled": False,
+            "long_term_memory_recall_state": "disabled",
             "long_term_memory_capture_enabled": False,
+            "long_term_memory_capture_state": "disabled",
             "memory_context_enabled": True,
+            "thread_memory_owner_state": "polluted",
+            "thread_memory_owner_reason": "tool:web_search",
             "external_context_polluted": True,
             "external_context_reason": "tool:web_search",
         }
@@ -466,6 +504,19 @@ class TestGetConversationDetail:
             detail["context_diagnostics"]["thread_memory_state_updated_at"]
             == "2026-04-07T12:00:01+00:00"
         )
+        assert detail["context_diagnostics"]["thread_memory_owner_state"] == "polluted"
+        assert (
+            detail["context_diagnostics"]["thread_memory_owner_reason"]
+            == "tool:web_search"
+        )
+        assert detail["context_diagnostics"]["session_memory_state"] == "enabled"
+        assert (
+            detail["context_diagnostics"]["long_term_memory_recall_state"] == "disabled"
+        )
+        assert (
+            detail["context_diagnostics"]["long_term_memory_capture_state"]
+            == "disabled"
+        )
         assert detail["last_run_summary"]["external_context_polluted"] is True
         assert (
             detail["last_run_summary"]["external_context_reason"] == "tool:web_search"
@@ -479,6 +530,16 @@ class TestGetConversationDetail:
         assert (
             detail["last_run_summary"]["thread_memory_state_updated_at"]
             == "2026-04-07T12:00:01+00:00"
+        )
+        assert detail["last_run_summary"]["thread_memory_owner_state"] == "polluted"
+        assert (
+            detail["last_run_summary"]["thread_memory_owner_reason"]
+            == "tool:web_search"
+        )
+        assert detail["last_run_summary"]["session_memory_state"] == "enabled"
+        assert detail["last_run_summary"]["long_term_memory_recall_state"] == "disabled"
+        assert (
+            detail["last_run_summary"]["long_term_memory_capture_state"] == "disabled"
         )
 
     @pytest.mark.asyncio
@@ -1618,6 +1679,12 @@ class TestThinkingPersistence:
             ]
             is True
         )
+        assert (
+            assistant_payload["metadata_"]["memory_runtime_policy"][
+                "thread_memory_owner_state"
+            ]
+            == "polluted"
+        )
         update_payload = service.repo.update.await_args_list[-1].args[1]
         assert (
             update_payload["metadata_"]["thread_memory_state"][
@@ -1627,9 +1694,21 @@ class TestThinkingPersistence:
         )
         assert (
             update_payload["metadata_"]["thread_memory_state"][
+                "thread_memory_owner_state"
+            ]
+            == "polluted"
+        )
+        assert (
+            update_payload["metadata_"]["thread_memory_state"][
                 "external_context_reason"
             ]
             == "tool:web_search"
+        )
+        assert (
+            update_payload["metadata_"]["thread_memory_state"][
+                "long_term_memory_capture_state"
+            ]
+            == "suppressed_external_context"
         )
 
     @pytest.mark.asyncio

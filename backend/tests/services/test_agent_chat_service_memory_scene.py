@@ -509,6 +509,21 @@ async def test_chat_primes_request_memory_policy_from_thread_state(mock_db):
     assert (
         called_request.memory_runtime_policy["session_memory_runtime_enabled"] is True
     )
+    assert (
+        called_request.memory_runtime_policy["thread_memory_owner_state"] == "polluted"
+    )
+    assert (
+        called_request.memory_runtime_policy["thread_memory_owner_reason"]
+        == "tool:web_search"
+    )
+    assert (
+        called_request.memory_runtime_policy["long_term_memory_recall_state"]
+        == "suppressed_external_context"
+    )
+    assert (
+        called_request.memory_runtime_policy["long_term_memory_capture_state"]
+        == "suppressed_external_context"
+    )
 
 
 @pytest.mark.asyncio
@@ -605,6 +620,10 @@ async def test_stream_chat_primes_request_memory_policy_from_thread_state(mock_d
     assert mock_resolve_for_agent.await_args.kwargs["request"] is request
     assert request.memory_runtime_policy["external_context_polluted"] is True
     assert request.memory_runtime_policy["external_context_reason"] == "tool:web_search"
+    assert request.memory_runtime_policy["thread_memory_owner_state"] == "polluted"
+    assert (
+        request.memory_runtime_policy["session_memory_state"] == "runtime_without_scope"
+    )
 
 
 @pytest.mark.asyncio

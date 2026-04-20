@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.ai.memory_policy import MemoryRuntimePolicy
+from app.ai.memory_policy import normalize_memory_runtime_policy
 from app.ai.tools.types import ToolResult
 from app.ai.types import ChatMessage
 from app.ai.utils.token_estimator import estimate_tokens
@@ -495,13 +495,7 @@ class ConversationMessagePersistenceService:
         new_message_count = (conversation.message_count or 0) + persisted_count
         update_payload: dict[str, Any] = {"message_count": new_message_count}
         if memory_runtime_policy:
-            thread_memory_state = MemoryRuntimePolicy(
-                **{
-                    key: value
-                    for key, value in memory_runtime_policy.items()
-                    if key in MemoryRuntimePolicy.__dataclass_fields__
-                }
-            ).to_thread_state()
+            thread_memory_state = normalize_memory_runtime_policy(memory_runtime_policy)
             thread_memory_state["updated_at"] = service._format_dt(utc_now())
             conversation_metadata = dict(conversation.metadata_ or {})
             conversation_metadata["thread_memory_state"] = thread_memory_state

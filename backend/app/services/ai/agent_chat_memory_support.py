@@ -121,7 +121,7 @@ async def load_session_memory_context(
     session_memory_service_cls: type,
 ) -> str:
     memory_policy = attach_memory_runtime_policy(request=request)
-    if not memory_policy.session_memory_read_enabled:
+    if memory_policy.session_memory_state != "enabled":
         return ""
 
     try:
@@ -193,12 +193,12 @@ async def persist_session_memory(
     if not request.conversation_id or not request.user_id:
         return None
     if (
-        not memory_policy.session_memory_write_enabled
-        and not memory_policy.long_term_memory_capture_enabled
+        memory_policy.session_memory_state != "enabled"
+        and memory_policy.long_term_memory_capture_state != "enabled"
     ):
         if (
-            memory_policy.long_term_memory_runtime_enabled
-            and memory_policy.external_context_polluted
+            memory_policy.long_term_memory_capture_state
+            == "suppressed_external_context"
         ):
             logger.info(
                 "Skip long-term memory capture for polluted turn: tenant={} agent={} user={} conversation={} reason={}",
@@ -218,7 +218,7 @@ async def persist_session_memory(
     if not any(delta.values()):
         return None
 
-    if memory_policy.session_memory_write_enabled:
+    if memory_policy.session_memory_state == "enabled":
         memory_svc = session_memory_service_cls(tenant_id)
         await memory_svc.upsert_state(
             channel=request.memory_channel,
@@ -231,7 +231,7 @@ async def persist_session_memory(
             metadata={"scene": request.memory_scene},
         )
 
-    if memory_policy.long_term_memory_capture_enabled and request.user_id:
+    if memory_policy.long_term_memory_capture_state == "enabled" and request.user_id:
         try:
             payload = build_capture_payload(delta)
             if any(payload.values()):

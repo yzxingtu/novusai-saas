@@ -58,27 +58,22 @@ class ContextPipelineOrchestrator:
     ) -> IntentPlanFlags:
         normalized_plan = list(intent_plan or [])
         intent_kinds = {
-            str(getattr(intent, "kind", "") or "").strip()
-            for intent in normalized_plan
+            str(getattr(intent, "kind", "") or "").strip() for intent in normalized_plan
         }
         all_shortcircuit = bool(normalized_plan) and all(
-            bool(getattr(intent, "shortcircuit", False))
-            for intent in normalized_plan
+            bool(getattr(intent, "shortcircuit", False)) for intent in normalized_plan
         )
         has_page_intent = any(kind.startswith("page_") for kind in intent_kinds)
         has_knowledge_intent = "knowledge_query" in intent_kinds
-        has_web_research_intent = (
-            "web_research" in intent_kinds
-            or any(
-                str(getattr(intent, "family", "") or "").strip() == "web_research"
-                for intent in normalized_plan
-            )
+        has_web_research_intent = "web_research" in intent_kinds or any(
+            str(getattr(intent, "family", "") or "").strip() == "web_research"
+            for intent in normalized_plan
         )
         has_memory_save_intent = "memory_save" in intent_kinds
         has_memory_recall_intent = "memory_recall" in intent_kinds
         memory_policy = resolve_memory_runtime_policy(request)
         session_memory_runtime_enabled = bool(
-            memory_policy.session_memory_runtime_enabled
+            memory_policy.session_memory_state != "disabled"
         )
         long_term_memory_runtime_enabled = bool(
             memory_policy.long_term_memory_runtime_enabled
@@ -95,7 +90,8 @@ class ContextPipelineOrchestrator:
         should_run_memory_vector_recall = bool(
             has_memory_recall_intent
             or (
-                memory_policy.long_term_memory_recall_enabled and not all_shortcircuit
+                memory_policy.long_term_memory_recall_state == "enabled"
+                and not all_shortcircuit
             )
         )
         return IntentPlanFlags(
