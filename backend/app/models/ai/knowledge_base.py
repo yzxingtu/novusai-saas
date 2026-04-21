@@ -31,7 +31,6 @@ class KnowledgeBase(BaseModel):
 
     __tablename__ = "knowledge_bases"
 
-
     __delete_deps__ = [
         DeletionDep(
             "AgentKnowledgeBaseBinding",
@@ -64,8 +63,6 @@ class KnowledgeBase(BaseModel):
         "scope": "scope",
         "embedding_model_id": "embedding_model_id",
         "vision_model_id": "vision_model_id",
-        "audio_model_id": "audio_model_id",
-        "video_model_id": "video_model_id",
         "owner_tenant_id": "owner_tenant_id",
         "tenant_id": "owner_tenant_id",
         "created_at": "created_at",

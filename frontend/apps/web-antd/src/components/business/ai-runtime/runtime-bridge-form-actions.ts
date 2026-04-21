@@ -9,11 +9,10 @@ import { tAiRuntime } from './i18n';
 import {
   getCurrentRouteSecurityPolicy,
   queryElementByLocator,
-  resolveRuntimePageKey,
 } from './runtime-bridge-core';
 import {
   buildSnapshot,
-  resolveActiveFormSessionForPage,
+  resolveActiveFormSession,
 } from './runtime-bridge-snapshot';
 import { readValueForAI, resolveAISecurityPolicy } from './security-policy';
 
@@ -22,7 +21,7 @@ function resolveFormSession(formSessionId?: string): FormSession | null {
     return formStateTracker.getSessionBySessionId(formSessionId.trim());
   }
   const snapshot = buildSnapshot('compact').snapshot;
-  return resolveActiveFormSessionForPage(resolveRuntimePageKey(), {
+  return resolveActiveFormSession({
     activeSurfaceId: snapshot.active_surface_id,
     surfaceIds: snapshot.surface_stack?.map((surface) => surface.surface_id),
   });

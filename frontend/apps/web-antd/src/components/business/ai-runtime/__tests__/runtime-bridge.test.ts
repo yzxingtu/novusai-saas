@@ -173,16 +173,16 @@ async function loadRuntimeBridge(options: LoadRuntimeBridgeOptions = {}) {
       return sessions.get(options.activeSessionId) ?? null;
     }),
     getFormApi: vi.fn((sessionId: string) => formApis.get(sessionId) ?? null),
-    getFormApiBySessionId: vi.fn((sessionId: string) =>
-      formApis.get(sessionId) ?? null,
+    getFormApiBySessionId: vi.fn(
+      (sessionId: string) => formApis.get(sessionId) ?? null,
     ),
     getSession: vi.fn((sessionId: string) => sessions.get(sessionId) ?? null),
     getSessionByPageKey: vi.fn((pageKey: string) => {
       const sessionId = activeSessionIdByPageKey[pageKey];
       return sessionId ? (sessions.get(sessionId) ?? null) : null;
     }),
-    getSessionBySessionId: vi.fn((sessionId: string) =>
-      sessions.get(sessionId) ?? null,
+    getSessionBySessionId: vi.fn(
+      (sessionId: string) => sessions.get(sessionId) ?? null,
     ),
     getSessionBySurfaceId: vi.fn((surfaceId: string) => {
       const sessionId = activeSessionIdBySurfaceId[surfaceId];
@@ -354,7 +354,9 @@ async function loadRuntimeBridge(options: LoadRuntimeBridgeOptions = {}) {
 
   vi.doMock('#/components/business/ai-runtime/page-key-utils', () => ({
     normalizePageKey: (value: string) =>
-      String(value || '').replace(/^\//, '').replaceAll('/', '.'),
+      String(value || '')
+        .replace(/^\//, '')
+        .replaceAll('/', '.'),
     resolveRoutePageKey,
   }));
   vi.doMock('#/composables/use-form-state-tracker', () => ({
@@ -1179,22 +1181,14 @@ describe('runtime-bridge', () => {
     });
   });
 
-  it('resolves the active runtime form session by active surface before pageKey fallback', async () => {
+  it('resolves the active runtime form session by active surface without pageKey fallback', async () => {
     const modalSession = createSession({
       form_session_id: 'session-by-surface',
       stage: 'ready_to_submit',
     });
-    const pageSession = createSession({
-      form_session_id: 'session-by-page-key',
-      stage: 'ready',
-    });
-    const pageKey = 'page:/';
     const activeSurfaceId = 'surface-modal';
     const { formStateTracker, runtimeBridge } = await loadRuntimeBridge({
       activeSessionId: null,
-      activeSessionIdByPageKey: {
-        [pageKey]: pageSession.form_session_id,
-      },
       activeSessionIdBySurfaceId: {
         [activeSurfaceId]: modalSession.form_session_id,
       },
@@ -1204,7 +1198,7 @@ describe('runtime-bridge', () => {
         meta: {},
         name: 'runtime-form-by-surface',
       },
-      sessions: [modalSession, pageSession],
+      sessions: [modalSession],
       surfaceStack: [
         {
           kind: 'page',
@@ -1229,18 +1223,17 @@ describe('runtime-bridge', () => {
     expect(formStateTracker.getSessionBySurfaceId).toHaveBeenCalledWith(
       activeSurfaceId,
     );
+    expect(formStateTracker.getSessionByPageKey).not.toHaveBeenCalled();
+    expect(formStateTracker.getActiveSessionByPageKey).not.toHaveBeenCalled();
+    expect(formStateTracker.getSessionId).not.toHaveBeenCalled();
   });
 
-  it('resolves the active runtime form session by current pageKey', async () => {
+  it('falls back to the tracker active session when no surface-owned session is available', async () => {
     const session = createSession({
-      form_session_id: 'session-by-page-key',
+      form_session_id: 'session-active',
     });
-    const pageKey = 'page:/';
     const { formStateTracker, runtimeBridge } = await loadRuntimeBridge({
-      activeSessionId: null,
-      activeSessionIdByPageKey: {
-        [pageKey]: session.form_session_id,
-      },
+      activeSessionId: session.form_session_id,
       route: {
         fullPath: '/admin/runtime-form-by-page',
         meta: {},
@@ -1251,11 +1244,16 @@ describe('runtime-bridge', () => {
 
     await expect(runtimeBridge.getRuntimeFormState()).resolves.toMatchObject({
       data: {
-        form_session_id: 'session-by-page-key',
+        form_session_id: 'session-active',
       },
       success: true,
     });
-    expect(formStateTracker.getSessionByPageKey).toHaveBeenCalledWith(pageKey);
+    expect(formStateTracker.getActiveSession).toHaveBeenCalledWith(
+      'surface-page',
+    );
+    expect(formStateTracker.getSessionByPageKey).not.toHaveBeenCalled();
+    expect(formStateTracker.getActiveSessionByPageKey).not.toHaveBeenCalled();
+    expect(formStateTracker.getSessionId).not.toHaveBeenCalled();
   });
 
   it('updates a writable runtime form field', async () => {

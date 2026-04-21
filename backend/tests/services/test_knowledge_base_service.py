@@ -151,23 +151,70 @@ class TestKBDetail:
         assert "audio_model_name" not in result
         assert "video_model_name" not in result
 
-    def test_request_schema_hides_retired_multimodal_fields_from_public_schema(self):
-        from app.schemas.ai.knowledge_base import KnowledgeBaseCreate
+    def test_request_schemas_reject_retired_multimodal_fields(self):
+        from pydantic import ValidationError
 
-        schema = KnowledgeBaseCreate.model_json_schema()
-
-        assert "audio_model_id" not in schema.get("properties", {})
-        assert "video_model_id" not in schema.get("properties", {})
-
-        payload = KnowledgeBaseCreate(
-            name="KB",
-            embedding_model_id=1,
-            audio_model_id=7,
-            video_model_id=9,
+        from app.core.i18n import _
+        from app.models.ai.knowledge_base import KnowledgeBase
+        from app.schemas.ai.knowledge_base import (
+            AdminKnowledgeBaseCreate,
+            AdminKnowledgeBaseUpdate,
+            KnowledgeBaseCreate,
+            KnowledgeBaseUpdate,
         )
 
-        assert payload.audio_model_id == 7
-        assert payload.video_model_id == 9
+        schema_classes = (
+            KnowledgeBaseCreate,
+            KnowledgeBaseUpdate,
+            AdminKnowledgeBaseCreate,
+            AdminKnowledgeBaseUpdate,
+        )
+
+        for schema_class in schema_classes:
+            schema = schema_class.model_json_schema()
+            assert "audio_model_id" not in schema.get("properties", {})
+            assert "video_model_id" not in schema.get("properties", {})
+
+            with pytest.raises(
+                ValidationError,
+                match=re.escape(
+                    _("knowledge_base.error.multimodal_model_config_unavailable")
+                ),
+            ):
+                schema_class(
+                    **(
+                        {
+                            "name": "KB",
+                            "embedding_model_id": 1,
+                        }
+                        if schema_class
+                        in (KnowledgeBaseCreate, AdminKnowledgeBaseCreate)
+                        else {}
+                    ),
+                    audio_model_id=7,
+                )
+
+            with pytest.raises(
+                ValidationError,
+                match=re.escape(
+                    _("knowledge_base.error.multimodal_model_config_unavailable")
+                ),
+            ):
+                schema_class(
+                    **(
+                        {
+                            "name": "KB",
+                            "embedding_model_id": 1,
+                        }
+                        if schema_class
+                        in (KnowledgeBaseCreate, AdminKnowledgeBaseCreate)
+                        else {}
+                    ),
+                    video_model_id=None,
+                )
+
+        assert "audio_model_id" not in KnowledgeBase.__filterable__
+        assert "video_model_id" not in KnowledgeBase.__filterable__
 
 
 class TestKBUpdate:

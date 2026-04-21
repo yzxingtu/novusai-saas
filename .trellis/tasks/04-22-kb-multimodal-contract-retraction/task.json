@@ -23,15 +23,20 @@
   "commit": null,
   "pr_url": null,
   "subtasks": [],
-  "children": [],
+  "children": [
+    "04-22-kb-multimodal-live-surface-closeout"
+  ],
   "parent": null,
   "relatedFiles": [
     "backend/app/schemas/ai/knowledge_base.py",
+    "backend/app/models/ai/knowledge_base.py",
+    "backend/app/services/ai/knowledge_base_command_service.py",
+    "backend/tests/services/test_knowledge_base_service.py",
     "backend/app/api/shared/_kb_helpers.py",
     "backend/app/services/ai/knowledge_base_projector.py",
     "frontend/apps/web-antd/src/api/admin/knowledge-bases.ts",
     "frontend/apps/web-antd/src/api/tenant/knowledge-bases.ts"
   ],
-  "notes": "2026-04-22 completed: request schemas now hide retired KB audio/video model overrides from public schema surfaces via `SkipJsonSchema` while preserving explicit fail-closed validation, and tenant/admin KB read payloads plus frontend API typings no longer expose `audio_model_id`/`video_model_id` or their derived name fields.",
+  "notes": "2026-04-22 completed: retired KB `audio_model_id` / `video_model_id` overrides are no longer part of the live request or filter contract. Request schemas now reject the presence of those keys before model validation, `KnowledgeBase.__filterable__` no longer exposes them to JSON:API list filters, and command services still fail closed for any direct legacy payloads. Read payload projection and frontend API typings remain retracted from the earlier closeout, so the new SaaS no longer advertises or accepts these retired multimodal KB fields on live surfaces.",
   "meta": {}
 }

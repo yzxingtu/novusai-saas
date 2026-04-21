@@ -6,9 +6,9 @@ Defines knowledge base, document, chunk request and response data structures.
 """
 
 from datetime import datetime
+from typing import Any
 
-from pydantic import Field
-from pydantic.json_schema import SkipJsonSchema
+from pydantic import Field, model_validator
 
 from app.core.base_schema import (
     BaseCreateSchema,
@@ -19,8 +19,28 @@ from app.core.i18n import _
 
 # ==================== 知识库 Schema ====================
 
+_RETIRED_MULTIMODAL_MODEL_FIELDS = (
+    "audio_model_id",
+    "video_model_id",
+)
 
-class KnowledgeBaseCreate(BaseCreateSchema):
+
+def _reject_retired_multimodal_request_fields(data: Any) -> Any:
+    if not isinstance(data, dict):
+        return data
+    if any(field in data for field in _RETIRED_MULTIMODAL_MODEL_FIELDS):
+        raise ValueError(_("knowledge_base.error.multimodal_model_config_unavailable"))
+    return data
+
+
+class _RejectRetiredMultimodalModelFields:
+    @model_validator(mode="before")
+    @classmethod
+    def reject_retired_multimodal_model_fields(cls, data: Any) -> Any:
+        return _reject_retired_multimodal_request_fields(data)
+
+
+class KnowledgeBaseCreate(_RejectRetiredMultimodalModelFields, BaseCreateSchema):
     """创建知识库请求 / Create knowledge base request."""
 
     name: str = Field(..., max_length=200, description=_("knowledge_base.model.name"))
@@ -35,12 +55,6 @@ class KnowledgeBaseCreate(BaseCreateSchema):
     )
     vision_model_id: int | None = Field(
         None, description=_("knowledge_base.model.vision_model_id")
-    )
-    audio_model_id: SkipJsonSchema[int | None] = Field(
-        None, description=_("knowledge_base.model.audio_model_id")
-    )
-    video_model_id: SkipJsonSchema[int | None] = Field(
-        None, description=_("knowledge_base.model.video_model_id")
     )
     extract_images: bool = Field(
         False, description=_("knowledge_base.model.extract_images")
@@ -63,7 +77,7 @@ class KnowledgeBaseCreate(BaseCreateSchema):
     )
 
 
-class KnowledgeBaseUpdate(BaseUpdateSchema):
+class KnowledgeBaseUpdate(_RejectRetiredMultimodalModelFields, BaseUpdateSchema):
     """更新知识库请求 / Update knowledge base request."""
 
     name: str | None = Field(
@@ -77,12 +91,6 @@ class KnowledgeBaseUpdate(BaseUpdateSchema):
     )
     vision_model_id: int | None = Field(
         None, description=_("knowledge_base.model.vision_model_id")
-    )
-    audio_model_id: SkipJsonSchema[int | None] = Field(
-        None, description=_("knowledge_base.model.audio_model_id")
-    )
-    video_model_id: SkipJsonSchema[int | None] = Field(
-        None, description=_("knowledge_base.model.video_model_id")
     )
     extract_images: bool | None = Field(
         None, description=_("knowledge_base.model.extract_images")
@@ -108,7 +116,7 @@ class KnowledgeBaseUpdate(BaseUpdateSchema):
     status: str | None = Field(None, description=_("knowledge_base.model.status"))
 
 
-class AdminKnowledgeBaseCreate(BaseCreateSchema):
+class AdminKnowledgeBaseCreate(_RejectRetiredMultimodalModelFields, BaseCreateSchema):
     """管理端创建知识库请求（支持 scope） / Admin create KB request (scope supported)."""
 
     name: str = Field(..., max_length=200, description=_("knowledge_base.model.name"))
@@ -142,12 +150,6 @@ class AdminKnowledgeBaseCreate(BaseCreateSchema):
     vision_model_id: int | None = Field(
         None, description=_("knowledge_base.model.vision_model_id")
     )
-    audio_model_id: SkipJsonSchema[int | None] = Field(
-        None, description=_("knowledge_base.model.audio_model_id")
-    )
-    video_model_id: SkipJsonSchema[int | None] = Field(
-        None, description=_("knowledge_base.model.video_model_id")
-    )
     extract_images: bool = Field(
         False, description=_("knowledge_base.model.extract_images")
     )
@@ -169,7 +171,7 @@ class AdminKnowledgeBaseCreate(BaseCreateSchema):
     )
 
 
-class AdminKnowledgeBaseUpdate(BaseUpdateSchema):
+class AdminKnowledgeBaseUpdate(_RejectRetiredMultimodalModelFields, BaseUpdateSchema):
     """管理端更新知识库请求 / Admin update KB request."""
 
     name: str | None = Field(
@@ -192,12 +194,6 @@ class AdminKnowledgeBaseUpdate(BaseUpdateSchema):
     )
     vision_model_id: int | None = Field(
         None, description=_("knowledge_base.model.vision_model_id")
-    )
-    audio_model_id: SkipJsonSchema[int | None] = Field(
-        None, description=_("knowledge_base.model.audio_model_id")
-    )
-    video_model_id: SkipJsonSchema[int | None] = Field(
-        None, description=_("knowledge_base.model.video_model_id")
     )
     extract_images: bool | None = Field(
         None, description=_("knowledge_base.model.extract_images")

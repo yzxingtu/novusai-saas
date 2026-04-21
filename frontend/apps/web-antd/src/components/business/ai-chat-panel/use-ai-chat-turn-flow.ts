@@ -1,6 +1,7 @@
 import type {
   ChatMessage,
   RagSource,
+  ToolCallEvent,
   TurnFlowAnswerCard,
   TurnFlowAnswerCardSection,
   TurnFlowErrorSurface,
@@ -649,6 +650,44 @@ function syncToolExecutionStage(flow: TurnFlowViewModel): void {
   });
 }
 
+function applyToolCallsToTurnFlow(
+  message: ChatMessage,
+  toolCalls: ToolCallEvent[] | undefined,
+): void {
+  if (!Array.isArray(toolCalls) || toolCalls.length === 0) {
+    return;
+  }
+  const flow = getOrCreateCanonicalTurnFlow(message);
+  for (const toolCall of toolCalls) {
+    if (!toolCall?.name) {
+      continue;
+    }
+    upsertToolEvidence(
+      flow,
+      buildToolEvidencePayload({
+        argumentsValue: toolCall.arguments,
+        displayName: normalizeOptionalString(toolCall.displayName),
+        durationMs: normalizeNumber(toolCall.durationMs),
+        error: normalizeOptionalString(toolCall.error),
+        errorType: normalizeOptionalString(toolCall.errorType),
+        output: normalizeOptionalString(toolCall.output),
+        resultLink: normalizeOptionalString(toolCall.resultLink),
+        skillName: normalizeOptionalString(toolCall.skillName),
+        skillType: normalizeOptionalString(toolCall.skillType),
+        startedAt: normalizeNumber(toolCall.startedAt),
+        status: toolCall.status,
+        summary: normalizeOptionalString(toolCall.summary),
+        summaryPayload:
+          normalizeObjectRecord(toolCall.summaryPayload) ?? undefined,
+        toolCallId: normalizeOptionalString(toolCall.id),
+        toolName: toolCall.name,
+      }),
+    );
+  }
+  syncToolExecutionStage(flow);
+  message.turnFlow = flow;
+}
+
 function collectRunningToolEvidenceRefs(
   flow: TurnFlowViewModel,
 ): Array<{ id?: string; name?: string }> {
@@ -1106,6 +1145,16 @@ function resolveThinkingStage(
   return flow.timeline.findLast((stage) => stage.type === 'thinking');
 }
 
+function hasCanonicalThinkingContent(flow: TurnFlowViewModel): boolean {
+  return !!normalizeThinkingStageText(resolveThinkingStage(flow));
+}
+
+function hasCanonicalRagEvidence(flow: TurnFlowViewModel): boolean {
+  return flow.evidence.some(
+    (item) => item.kind === 'knowledge_base' || item.kind === 'web',
+  );
+}
+
 export function appendThinkingDeltaToTurnFlow(
   message: ChatMessage,
   delta: string | undefined,
@@ -1208,6 +1257,37 @@ export function applyRagSourcesToTurnFlow(
     });
   });
   message.turnFlow = flow;
+}
+
+export function canonicalizeAssistantLegacyFieldsIntoTurnFlow(
+  message: ChatMessage,
+): void {
+  const flow = normalizeTurnFlowViewModel(message.turnFlow);
+  if (!flow) {
+    return;
+  }
+
+  const legacyThinking = normalizeOptionalString(message.thinkingContent);
+  if (legacyThinking && !hasCanonicalThinkingContent(flow)) {
+    appendThinkingDeltaToTurnFlow(message, legacyThinking);
+  }
+
+  if (message.toolCalls?.length) {
+    applyToolCallsToTurnFlow(message, message.toolCalls);
+  }
+
+  const nextFlow = normalizeTurnFlowViewModel(message.turnFlow);
+  if (
+    message.ragSources?.length &&
+    nextFlow &&
+    !hasCanonicalRagEvidence(nextFlow)
+  ) {
+    applyRagSourcesToTurnFlow(message, message.ragSources);
+  }
+
+  delete message.thinkingContent;
+  delete message.toolCalls;
+  delete message.ragSources;
 }
 
 function buildStageFromCanonicalEvent(

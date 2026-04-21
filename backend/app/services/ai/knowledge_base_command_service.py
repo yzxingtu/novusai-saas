@@ -34,7 +34,7 @@ def _reject_unsupported_multimodal_model_config(data: dict[str, Any]) -> None:
         "audio_model_id",
         "video_model_id",
     )
-    if any(data.get(field) is not None for field in unsupported_fields):
+    if any(field in data for field in unsupported_fields):
         raise BusinessException(
             message=_("knowledge_base.error.multimodal_model_config_unavailable")
         )

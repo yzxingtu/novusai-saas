@@ -1,5 +1,6 @@
-import type { AIInteractionUpdate } from '#/store/shared/ai-panel';
 import type { ChatMessage } from '../types';
+
+import type { AIInteractionUpdate } from '#/store/shared/ai-panel';
 
 // @vitest-environment happy-dom
 import { flushPromises } from '@vue/test-utils';
@@ -704,8 +705,12 @@ describe('useAIChat interrupted stream recovery', () => {
       (msg) => msg.role === 'assistant',
     );
     expect(assistantMessage?.toolCalls).toBeUndefined();
+    expect(assistantMessage).toBeDefined();
+    if (!assistantMessage) {
+      throw new Error('assistant message missing');
+    }
     expect(
-      getToolCallsForDisplay(assistantMessage!)?.[0]?.summaryPayload,
+      getToolCallsForDisplay(assistantMessage)?.[0]?.summaryPayload,
     ).toEqual({
       filters: ['today'],
       group_by: ['t.name'],
@@ -1102,9 +1107,11 @@ describe('useAIChat interrupted stream recovery', () => {
     );
     const timeline = assistantMessage?.turnFlow?.timeline ?? [];
     expect(assistantMessage?.toolCalls).toBeUndefined();
-    expect(getToolCallsForDisplay(assistantMessage!)?.[0]?.status).toBe(
-      'error',
-    );
+    expect(assistantMessage).toBeDefined();
+    if (!assistantMessage) {
+      throw new Error('assistant message missing');
+    }
+    expect(getToolCallsForDisplay(assistantMessage)?.[0]?.status).toBe('error');
     expect(
       timeline.find((stage) => stage.id === 'tool-execution-running-stage')
         ?.status,
@@ -1172,7 +1179,11 @@ describe('useAIChat interrupted stream recovery', () => {
       (msg) => msg.role === 'assistant',
     );
     expect(assistantMessage?.toolCalls).toBeUndefined();
-    expect(getToolCallsForDisplay(assistantMessage!)?.[0]).toMatchObject({
+    expect(assistantMessage).toBeDefined();
+    if (!assistantMessage) {
+      throw new Error('assistant message missing');
+    }
+    expect(getToolCallsForDisplay(assistantMessage)?.[0]).toMatchObject({
       displayName: 'common.globalAiChat.toolNativeSearch',
       name: 'native_web_search',
       status: 'running',
@@ -1182,7 +1193,7 @@ describe('useAIChat interrupted stream recovery', () => {
     await sendPromise;
     await flushPromises();
 
-    expect(getToolCallsForDisplay(assistantMessage!)?.[0]).toMatchObject({
+    expect(getToolCallsForDisplay(assistantMessage)?.[0]).toMatchObject({
       displayName: 'common.globalAiChat.toolNativeSearch',
       name: 'native_web_search',
       status: 'success',
@@ -1310,31 +1321,45 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(assistantMessage?.ragSources?.[0]?.doc_name).toBe('合规流程文档');
   });
 
-  it('keeps persisted turn_flow during history merge and exposes legacy fallbacks', async () => {
+  it('projects legacy assistant fields into persisted turnFlow and removes top-level duplicates', async () => {
     apiMocks.getChatConversationMessagesApi.mockResolvedValue(
       buildConversationDetail([
         buildUserMessage('给我一份回放摘要'),
         buildAssistantMessage('历史答复。', {
+          metadata: {
+            rag_sources: [
+              {
+                doc_id: 11,
+                doc_name: '合规流程文档',
+                score: 0.92,
+                snippet: '流程要求先审计后执行',
+                source_kind: 'formal_kb',
+              },
+            ],
+            thinking_content: '先读取上下文，再输出答复',
+          },
+          tool_calls: [
+            {
+              display_name: '数据查询',
+              function: {
+                arguments: '{"table":"ai_call_logs"}',
+                name: 'query_records',
+              },
+              id: 'tc_history_turn_flow_1',
+              success: true,
+              summary: '查询到匹配记录',
+              summary_payload: {
+                filters: ['today'],
+                tables: ['ai_call_logs'],
+              },
+            },
+          ],
           turn_flow: {
             answer_card: {
               summary: '历史结构化摘要',
             },
             completion_reason: 'completed',
-            evidence: [
-              {
-                id: 'kb-source-1',
-                kind: 'knowledge_base',
-                snippet: '来自知识库条目',
-                title: '知识库 A',
-              },
-            ],
             timeline: [
-              {
-                detail_lines: ['先读取上下文', '再输出答复'],
-                id: 'thinking-legacy',
-                status: 'completed',
-                type: 'thinking',
-              },
               {
                 id: 'tool-select-legacy',
                 metrics: { selected: 0, total: 12 },
@@ -1367,16 +1392,34 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(
       assistantMessage.turnFlow?.timeline?.map((stage) => stage.id),
     ).toEqual(
-      expect.arrayContaining(['thinking-legacy', 'tool-select-legacy']),
+      expect.arrayContaining([
+        'turn-thinking',
+        'tool-select-legacy',
+        'turn-tool-execution',
+      ]),
     );
     expect(assistantMessage.thinkingContent).toBeUndefined();
+    expect(assistantMessage.toolCalls).toBeUndefined();
+    expect(assistantMessage.ragSources).toBeUndefined();
     expect(assistantMessage.optimizingTools).toBeUndefined();
+    expect(getThinkingContentForDisplay(assistantMessage)).toBe(
+      '先读取上下文，再输出答复',
+    );
+    expect(getToolCallsForDisplay(assistantMessage)?.[0]).toMatchObject({
+      displayName: '数据查询',
+      name: 'query_records',
+      status: 'success',
+      summaryPayload: {
+        filters: ['today'],
+        tables: ['ai_call_logs'],
+      },
+    });
     expect(getOptimizingToolsForDisplay(assistantMessage)).toEqual({
       selected: 0,
       total: 12,
     });
     expect(getRagSourcesForDisplay(assistantMessage)?.[0]?.doc_name).toBe(
-      '知识库 A',
+      '合规流程文档',
     );
   });
 
@@ -1572,8 +1615,12 @@ describe('useAIChat interrupted stream recovery', () => {
       (msg) => msg.role === 'assistant',
     );
     expect(assistantMessage?.toolCalls).toBeUndefined();
+    expect(assistantMessage).toBeDefined();
+    if (!assistantMessage) {
+      throw new Error('assistant message missing');
+    }
     const toolCallById = new Map(
-      (getToolCallsForDisplay(assistantMessage!) ?? []).map((toolCall) => [
+      (getToolCallsForDisplay(assistantMessage) ?? []).map((toolCall) => [
         toolCall.id,
         toolCall,
       ]),

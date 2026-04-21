@@ -16,11 +16,11 @@ import { formStateTracker } from '#/composables/use-form-state-tracker';
 import { getActivePageSessionId } from '#/composables/use-page-session';
 import { $t } from '#/locales';
 import { resolveRuntimeLocale } from '#/locales/runtime-locale';
+import { getEndpointFromPath } from '#/utils/endpoint';
 import {
   buildCompactNavigationPageData,
   buildMenuNavigationEntries,
 } from '#/utils/menu-navigation';
-import { getEndpointFromPath } from '#/utils/endpoint';
 
 import {
   byteSize,
@@ -113,23 +113,16 @@ export function getTrackedFormSessions(): FormSession[] {
     .filter((session): session is FormSession => session !== null);
 }
 
-export function resolveActiveFormSessionForPage(
-  pageKey: string,
-  options?: {
-    activeSurfaceId?: string;
-    surfaceIds?: string[];
-  },
-): FormSession | null {
-  const normalizedPageKey = pageKey.trim();
+export function resolveActiveFormSession(options?: {
+  activeSurfaceId?: string;
+  surfaceIds?: string[];
+}): FormSession | null {
   const tracker = formStateTracker as {
     getActiveSession?: (surfaceId?: string) => FormSession | null;
-    getActiveSessionByPageKey?: (pageKey: string) => FormSession | null;
     getActiveSessionBySurfaceId?: (surfaceId: string) => FormSession | null;
     getSession?: (pageKeyOrSessionId: string) => FormSession | null;
-    getSessionByPageKey?: (pageKey: string) => FormSession | null;
     getSessionBySessionId?: (sessionId: string) => FormSession | null;
     getSessionBySurfaceId?: (surfaceId: string) => FormSession | null;
-    getSessionId?: (pageKey: string) => null | string;
     getSessionIdBySurfaceId?: (surfaceId: string) => null | string;
   };
   const orderedSurfaceIds = [
@@ -182,46 +175,7 @@ export function resolveActiveFormSessionForPage(
     }
   }
 
-  if (normalizedPageKey) {
-    if (typeof tracker.getSessionByPageKey === 'function') {
-      const byExplicitPageKey = tracker.getSessionByPageKey(normalizedPageKey);
-      if (byExplicitPageKey) {
-        return byExplicitPageKey;
-      }
-    }
-
-    if (typeof tracker.getActiveSessionByPageKey === 'function') {
-      const byPageKey = tracker.getActiveSessionByPageKey(normalizedPageKey);
-      if (byPageKey) {
-        return byPageKey;
-      }
-    }
-
-    if (
-      typeof tracker.getSessionId === 'function' &&
-      (typeof tracker.getSessionBySessionId === 'function' ||
-        typeof tracker.getSession === 'function')
-    ) {
-      const sessionId = tracker.getSessionId(normalizedPageKey);
-      if (sessionId) {
-        const bySessionId =
-          tracker.getSessionBySessionId?.(sessionId) ??
-          tracker.getSession?.(sessionId) ??
-          null;
-        if (bySessionId) {
-          return bySessionId;
-        }
-      }
-    }
-  }
-
   if (typeof tracker.getActiveSession === 'function') {
-    if (normalizedPageKey) {
-      const byLegacySurface = tracker.getActiveSession(normalizedPageKey);
-      if (byLegacySurface) {
-        return byLegacySurface;
-      }
-    }
     return tracker.getActiveSession() ?? null;
   }
 
@@ -275,7 +229,7 @@ export function buildSnapshot(
   const formSessions = getTrackedFormSessions();
   const activeSurfaceId = runtimeSnapshot.active_surface?.id ?? undefined;
   const activeFormSummary = toFormSummary(
-    resolveActiveFormSessionForPage(pageKey, {
+    resolveActiveFormSession({
       activeSurfaceId,
       surfaceIds: runtimeSnapshot.surface_stack.map((surface) => surface.id),
     }),

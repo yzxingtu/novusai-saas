@@ -10,7 +10,7 @@
   "creator": "yudi",
   "assignee": "yudi",
   "createdAt": "2026-04-21",
-  "completedAt": "2026-04-21",
+  "completedAt": "2026-04-22",
   "branch": null,
   "base_branch": "main",
   "worktree_path": null,
@@ -31,7 +31,7 @@
     "frontend/apps/web-antd/src/components/business/ai-chat-kernel/TurnTimeline.vue",
     "frontend/apps/web-antd/src/components/business/ai-chat-panel/__tests__/use-ai-chat.test.ts"
   ],
-  "notes": "2026-04-21 full-repo audit confirmed that the frontend chat runtime still called `reconcileTurnFlowWithLegacy()` and `applyLegacyFieldsFromTurnFlow()` through live SSE, lifecycle, and finalize paths, repopulating canonical `turnFlow` into legacy `thinkingContent`, `optimizingTools`, `ragSources`, and `toolCalls`. 2026-04-21 closeout completed: live turn-flow writers now mutate only canonical `turnFlow`, chat rendering reads canonical turn-flow through selector helpers, and legacy fields remain bounded persisted-history fallback input instead of live writable truth. 2026-04-21 audit follow-up closed the remaining live SSE seam where `tool_start` / `tool_call` / native-search progress still dual-wrote `msg.toolCalls`, and moved orphaned running-tool finalization onto canonical turn-flow evidence when canonical flow is present; live stream state is now canonical-first with bounded legacy fallback only when `turnFlow` is absent. Display normalization also stops synthesizing `tool_selection` timeline stages from legacy `optimizingTools` when canonical `turnFlow` already exists. Verified with `pnpm --dir frontend exec vue-tsc --noEmit --skipLibCheck --pretty false -p apps/web-antd/tsconfig.json` and `pnpm --dir frontend exec vitest run apps/web-antd/src/components/business/ai-chat-panel/__tests__/use-ai-chat.test.ts apps/web-antd/src/components/business/ai-chat-panel/__tests__/ChatMessageItem.test.ts apps/web-antd/src/features/ai-monitoring/__tests__/turn-flow-cross-surface.test.ts apps/web-antd/src/features/ai-monitoring/__tests__/MonitoringConversationMessagesCard.turn-flow.test.ts`.",
+  "notes": "2026-04-21 full-repo audit confirmed that the frontend chat runtime still called `reconcileTurnFlowWithLegacy()` and `applyLegacyFieldsFromTurnFlow()` through live SSE, lifecycle, and finalize paths, repopulating canonical `turnFlow` into legacy `thinkingContent`, `optimizingTools`, `ragSources`, and `toolCalls`. 2026-04-21 closeout completed the live SSE/lifecycle writers: canonical `turnFlow` became the only live writable truth, display selectors read canonical flow first, and native-search/tool-call finalization stopped dual-writing top-level legacy fields whenever canonical flow exists. 2026-04-22 audit follow-up closed the remaining persisted-history seam in merge/finalize: assistant messages that already carry `turnFlow` now absorb bounded legacy `thinkingContent`, `ragSources`, and `toolCalls` into canonical flow only when needed, then delete the top-level duplicates so history/finalize no longer emits two competing truths for the same turn. Verified with `pnpm --dir frontend exec vitest run apps/web-antd/src/components/business/ai-chat-panel/__tests__/use-ai-chat.test.ts`.",
   "meta": {},
   "execution_path": "normal",
   "required_artifacts": [
