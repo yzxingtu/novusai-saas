@@ -8,6 +8,7 @@ Defines knowledge base, document, chunk request and response data structures.
 from datetime import datetime
 
 from pydantic import Field
+from pydantic.json_schema import SkipJsonSchema
 
 from app.core.base_schema import (
     BaseCreateSchema,
@@ -35,10 +36,10 @@ class KnowledgeBaseCreate(BaseCreateSchema):
     vision_model_id: int | None = Field(
         None, description=_("knowledge_base.model.vision_model_id")
     )
-    audio_model_id: int | None = Field(
+    audio_model_id: SkipJsonSchema[int | None] = Field(
         None, description=_("knowledge_base.model.audio_model_id")
     )
-    video_model_id: int | None = Field(
+    video_model_id: SkipJsonSchema[int | None] = Field(
         None, description=_("knowledge_base.model.video_model_id")
     )
     extract_images: bool = Field(
@@ -77,10 +78,10 @@ class KnowledgeBaseUpdate(BaseUpdateSchema):
     vision_model_id: int | None = Field(
         None, description=_("knowledge_base.model.vision_model_id")
     )
-    audio_model_id: int | None = Field(
+    audio_model_id: SkipJsonSchema[int | None] = Field(
         None, description=_("knowledge_base.model.audio_model_id")
     )
-    video_model_id: int | None = Field(
+    video_model_id: SkipJsonSchema[int | None] = Field(
         None, description=_("knowledge_base.model.video_model_id")
     )
     extract_images: bool | None = Field(
@@ -141,10 +142,10 @@ class AdminKnowledgeBaseCreate(BaseCreateSchema):
     vision_model_id: int | None = Field(
         None, description=_("knowledge_base.model.vision_model_id")
     )
-    audio_model_id: int | None = Field(
+    audio_model_id: SkipJsonSchema[int | None] = Field(
         None, description=_("knowledge_base.model.audio_model_id")
     )
-    video_model_id: int | None = Field(
+    video_model_id: SkipJsonSchema[int | None] = Field(
         None, description=_("knowledge_base.model.video_model_id")
     )
     extract_images: bool = Field(
@@ -192,10 +193,10 @@ class AdminKnowledgeBaseUpdate(BaseUpdateSchema):
     vision_model_id: int | None = Field(
         None, description=_("knowledge_base.model.vision_model_id")
     )
-    audio_model_id: int | None = Field(
+    audio_model_id: SkipJsonSchema[int | None] = Field(
         None, description=_("knowledge_base.model.audio_model_id")
     )
-    video_model_id: int | None = Field(
+    video_model_id: SkipJsonSchema[int | None] = Field(
         None, description=_("knowledge_base.model.video_model_id")
     )
     extract_images: bool | None = Field(
@@ -249,12 +250,6 @@ class KnowledgeBaseResponse(TenantResponseSchema):
     vision_model_id: int | None = Field(
         None, description=_("knowledge_base.model.vision_model_id")
     )
-    audio_model_id: int | None = Field(
-        None, description=_("knowledge_base.model.audio_model_id")
-    )
-    video_model_id: int | None = Field(
-        None, description=_("knowledge_base.model.video_model_id")
-    )
     extract_images: bool = Field(
         False, description=_("knowledge_base.model.extract_images")
     )
@@ -272,12 +267,6 @@ class KnowledgeBaseResponse(TenantResponseSchema):
     )
     vision_model_name: str | None = Field(
         None, description=_("knowledge_base.model.vision_model_name")
-    )
-    audio_model_name: str | None = Field(
-        None, description=_("knowledge_base.model.audio_model_name")
-    )
-    video_model_name: str | None = Field(
-        None, description=_("knowledge_base.model.video_model_name")
     )
 
 
@@ -302,12 +291,6 @@ class KnowledgeBaseListItem(TenantResponseSchema):
     )
     vision_model_name: str | None = Field(
         None, description=_("knowledge_base.model.vision_model_name")
-    )
-    audio_model_name: str | None = Field(
-        None, description=_("knowledge_base.model.audio_model_name")
-    )
-    video_model_name: str | None = Field(
-        None, description=_("knowledge_base.model.video_model_name")
     )
 
 

@@ -118,6 +118,57 @@ class TestKBDetail:
         with pytest.raises(NotFoundException):
             await service.get_kb_detail(999)
 
+    def test_build_kb_detail_retracts_retired_multimodal_fields(self):
+        from app.services.ai.knowledge_base_projector import build_kb_detail
+
+        kb = _make_kb(
+            embedding_model_id=3,
+            vision_model_id=5,
+            audio_model_id=7,
+            video_model_id=9,
+        )
+        kb.embedding_model = make_mock_model(name="Embedding")
+        kb.vision_model = make_mock_model(name="Vision")
+        kb.audio_model = make_mock_model(name="Audio")
+        kb.video_model = make_mock_model(name="Video")
+        kb.to_dict.return_value = {
+            "id": 1,
+            "name": "Test KB",
+            "embedding_model_id": 3,
+            "vision_model_id": 5,
+            "audio_model_id": 7,
+            "video_model_id": 9,
+            "audio_model_name": "Audio",
+            "video_model_name": "Video",
+        }
+
+        result = build_kb_detail(kb)
+
+        assert result["embedding_model_name"] == "Embedding"
+        assert result["vision_model_name"] == "Vision"
+        assert "audio_model_id" not in result
+        assert "video_model_id" not in result
+        assert "audio_model_name" not in result
+        assert "video_model_name" not in result
+
+    def test_request_schema_hides_retired_multimodal_fields_from_public_schema(self):
+        from app.schemas.ai.knowledge_base import KnowledgeBaseCreate
+
+        schema = KnowledgeBaseCreate.model_json_schema()
+
+        assert "audio_model_id" not in schema.get("properties", {})
+        assert "video_model_id" not in schema.get("properties", {})
+
+        payload = KnowledgeBaseCreate(
+            name="KB",
+            embedding_model_id=1,
+            audio_model_id=7,
+            video_model_id=9,
+        )
+
+        assert payload.audio_model_id == 7
+        assert payload.video_model_id == 9
+
 
 class TestKBUpdate:
     @pytest.mark.asyncio

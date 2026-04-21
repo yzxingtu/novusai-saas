@@ -972,8 +972,6 @@
             "vision_model_name": "Vision 模型名称",
             "audio_model_id": "音频描述模型",
             "video_model_id": "视频描述模型",
-            "audio_model_name": "音频模型名称",
-            "video_model_name": "视频模型名称",
             "extract_images": "提取图片内容",
             "tenant_ids": "分配企业 ID 列表",
             "chunk_size": "分块大小",

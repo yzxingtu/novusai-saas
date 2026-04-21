@@ -11,7 +11,7 @@ import {
 import { $t } from '#/locales';
 import { useCodegenBuilderStore } from '#/store';
 
-import { getComponent, normalizeFieldComponentName } from '../field-utils';
+import { getComponent } from '../field-utils';
 import {
   inferFieldConfig,
   inferFieldConfigForMerge,
@@ -25,6 +25,9 @@ export type EnumValueItem = {
   label_zh?: string;
   value: string;
 };
+
+type CodegenComponentLike = { label?: string; name: string };
+type CodegenTypeLike = { type: string };
 
 const FIELD_ICON_MAP: Record<string, string> = {
   ApiSelect: 'lucide:link',
@@ -74,6 +77,22 @@ export function filterOptionByValue(
   option?: { value?: unknown },
 ) {
   return asString(option?.value).toLowerCase().includes(input.toLowerCase());
+}
+
+export function buildTypeOptions(types: CodegenTypeLike[]): SelectOption[] {
+  return types.map((item) => ({
+    label: item.type,
+    value: item.type,
+  }));
+}
+
+export function buildComponentOptions(
+  components: CodegenComponentLike[],
+): SelectOption[] {
+  return components.map((item) => ({
+    label: item.label || item.name,
+    value: item.name,
+  }));
 }
 
 function hasRelationMetadata(field: BuilderField | null): boolean {
@@ -225,12 +244,7 @@ export function useFieldPropertyPanel() {
   async function loadTypes() {
     try {
       const types = await getCodegenTypesApi();
-      typeOptions.value = types
-        .filter((item) => item.type !== 'DictSelect')
-        .map((item) => ({
-          label: item.type,
-          value: item.type,
-        }));
+      typeOptions.value = buildTypeOptions(types);
     } catch {
       typeOptions.value = [];
     }
@@ -239,12 +253,7 @@ export function useFieldPropertyPanel() {
   async function loadComponents() {
     try {
       const components = await getCodegenComponentsApi();
-      componentOptions.value = components
-        .filter((item) => item.name !== 'DictSelect')
-        .map((item) => ({
-          label: item.label || item.name,
-          value: item.name,
-        }));
+      componentOptions.value = buildComponentOptions(components);
     } catch {
       componentOptions.value = [];
     }
@@ -320,16 +329,16 @@ export function useFieldPropertyPanel() {
   function getFormComponent(): string {
     const field = selectedField.value;
     const form = asRecord(field?.form);
-    return normalizeFieldComponentName(
+    return (
       asString(form.component) ||
-        asString(field?.form_component) ||
-        getComponent(field || {}),
+      asString(field?.form_component) ||
+      getComponent(field || {})
     );
   }
 
   function setFormComponent(value: unknown) {
     const form = asRecord(selectedField.value?.form);
-    const component = normalizeFieldComponentName(asString(value)) || undefined;
+    const component = asString(value) || undefined;
     updateField({ form: { ...form, component } });
   }
 

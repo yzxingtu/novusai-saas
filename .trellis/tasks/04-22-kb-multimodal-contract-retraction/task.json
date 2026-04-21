@@ -1,0 +1,37 @@
+{
+  "id": "kb-multimodal-contract-retraction",
+  "name": "kb-multimodal-contract-retraction",
+  "title": "Retract retired KB audio/video model fields from live contracts",
+  "description": "审计发现知识库音频/视频模型字段虽然在运行时已 fail-closed，但前后端 live contract 与投影仍继续公开这些字段，需要按新 SaaS 规则收回到非公开拒绝路径。",
+  "status": "completed",
+  "dev_type": "fullstack",
+  "scope": null,
+  "priority": "P1",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-04-22",
+  "completedAt": "2026-04-22",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "execution_path": "normal",
+  "required_artifacts": [
+    "prd.md"
+  ],
+  "context_files": [],
+  "verification_mode": "command",
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "backend/app/schemas/ai/knowledge_base.py",
+    "backend/app/api/shared/_kb_helpers.py",
+    "backend/app/services/ai/knowledge_base_projector.py",
+    "frontend/apps/web-antd/src/api/admin/knowledge-bases.ts",
+    "frontend/apps/web-antd/src/api/tenant/knowledge-bases.ts"
+  ],
+  "notes": "2026-04-22 completed: request schemas now hide retired KB audio/video model overrides from public schema surfaces via `SkipJsonSchema` while preserving explicit fail-closed validation, and tenant/admin KB read payloads plus frontend API typings no longer expose `audio_model_id`/`video_model_id` or their derived name fields.",
+  "meta": {}
+}

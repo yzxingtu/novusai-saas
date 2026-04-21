@@ -973,8 +973,6 @@
             "vision_model_name": "Vision Model Name",
             "audio_model_id": "Audio description model",
             "video_model_id": "Video description model",
-            "audio_model_name": "Audio model name",
-            "video_model_name": "Video model name",
             "extract_images": "Extract Image Content",
             "tenant_ids": "Assigned Tenant IDs",
             "embedding_model_name": "Embedding model name",

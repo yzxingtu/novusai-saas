@@ -42,14 +42,19 @@ ALLOWED_EXTENSIONS: dict[str, str] = {
 
 def enrich_model_names(kb: Any, result: dict[str, Any]) -> None:
     """
-    Enrich result dict with model name fields (embedding, vision, audio, video).
-    将知识库关联模型的名称填充到 result 字典。
+    Enrich result dict with supported KB model name fields.
+    将知识库当前公开支持的关联模型名称填充到 result 字典。
     """
+    for key in (
+        "audio_model_id",
+        "audio_model_name",
+        "video_model_id",
+        "video_model_name",
+    ):
+        result.pop(key, None)
     for attr, key in [
         ("embedding_model", "embedding_model_name"),
         ("vision_model", "vision_model_name"),
-        ("audio_model", "audio_model_name"),
-        ("video_model", "video_model_name"),
     ]:
         result[key] = None
         try:

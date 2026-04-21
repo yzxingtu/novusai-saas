@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { getComponent } from '../field-utils';
 import { buildGridColumns, getMockCellValue } from '../preview-builders';
 
 vi.mock('#/locales', () => ({
@@ -98,5 +99,28 @@ describe('preview builders', () => {
     const typeColumn = columns.find((col) => col.field === 'type');
 
     expect(typeColumn?.cellRender?.name).toBeUndefined();
+  });
+
+  it('does not normalize retired DictSelect fields into live select behavior', () => {
+    const legacyTypeField = {
+      name: 'legacy_type',
+      type: 'DictSelect',
+    };
+    const legacyComponentField = {
+      name: 'legacy_component',
+      form: { component: 'DictSelect' },
+      type: 'String',
+    };
+
+    expect(getComponent(legacyTypeField)).toBe('input');
+    expect(getComponent(legacyComponentField)).toBe('DictSelect');
+    expect(getMockCellValue(legacyTypeField, 0)).toBe(
+      'admin.system.codegen.preview.sampleA',
+    );
+
+    const columns = buildGridColumns([legacyTypeField]);
+    const legacyColumn = columns.find((col) => col.field === 'legacy_type');
+
+    expect(legacyColumn?.cellRender?.name).toBeUndefined();
   });
 });

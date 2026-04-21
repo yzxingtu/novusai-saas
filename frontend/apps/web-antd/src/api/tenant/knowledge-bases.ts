@@ -22,10 +22,6 @@ export interface KnowledgeBaseItem {
   embedding_model_name: null | string;
   vision_model_id?: null | number;
   vision_model_name?: null | string;
-  audio_model_id?: null | number;
-  audio_model_name?: null | string;
-  video_model_id?: null | number;
-  video_model_name?: null | string;
   extract_images?: boolean;
   chunk_size: number;
   chunk_overlap: number;
@@ -48,8 +44,6 @@ export interface KnowledgeBaseCreateRequest {
   avatar?: null | string;
   embedding_model_id: number;
   vision_model_id?: null | number;
-  audio_model_id?: null | number;
-  video_model_id?: null | number;
   extract_images?: boolean;
   chunk_size?: number;
   chunk_overlap?: number;
@@ -65,8 +59,6 @@ export interface KnowledgeBaseUpdateRequest {
   description?: null | string;
   avatar?: null | string;
   vision_model_id?: null | number;
-  audio_model_id?: null | number;
-  video_model_id?: null | number;
   extract_images?: boolean;
   chunk_size?: null | number;
   chunk_overlap?: null | number;
