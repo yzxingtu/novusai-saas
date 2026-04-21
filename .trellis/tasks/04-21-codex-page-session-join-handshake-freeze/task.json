@@ -3,14 +3,14 @@
   "name": "codex-page-session-join-handshake-freeze",
   "title": "Codex page-session join handshake freeze",
   "description": "Remove page_key from page_session join acknowledgement and readiness tracking so the live connector handshake is keyed only by explicit page_session_id.",
-  "status": "active",
+  "status": "completed",
   "dev_type": "fullstack",
   "scope": null,
   "priority": "P0",
   "creator": "yudi",
   "assignee": "yudi",
   "createdAt": "2026-04-21",
-  "completedAt": null,
+  "completedAt": "2026-04-21",
   "branch": null,
   "base_branch": "main",
   "worktree_path": null,
@@ -35,6 +35,6 @@
     "backend/tests/sio/test_page_session_runtime_requests.py",
     "frontend/apps/web-antd/src/components/business/ai-chat-panel/__tests__/use-ai-chat.test.ts"
   ],
-  "notes": "Post-WS4 audit follow-up: live ui_action transport is already page_session_id-only, but page_session_join/page_session_joined still carry page_key and frontend readiness still keys the join ack on page_key. New SaaS live transport should not keep that handshake seam as a compatibility crutch.",
+  "notes": "Post-WS4 audit follow-up completed: page_session_join/page_session_joined and frontend readiness now key the live connector handshake on explicit page_session_id only. New SaaS live transport no longer keeps page_key in join acknowledgement or readiness polling.",
   "meta": {}
 }

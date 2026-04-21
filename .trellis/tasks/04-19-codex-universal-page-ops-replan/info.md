@@ -234,6 +234,14 @@
 2. 这条 seam 不足以重开已完成的 `WS4`，但对当前新 SaaS 来说仍不合理，因为它继续让 route-derived page key 参与 live connector handshake。
 3. 因此新增 follow-up task `04-21-codex-page-session-join-handshake-freeze`，专门收口 join acknowledgement/readiness contract，而不是把这条残留继续塞进已完成的 WS4 或未来的兼容层。
 
+### 2026-04-21 WS4a closeout update
+
+1. `frontend/apps/web-antd/src/composables/use-ui-action-channel.ts` 已把 join ack / readiness contract 收口为 `page_session_id` 单身份链：`page_session_join` 不再发送 `page_key`，`page_session_joined` 也不再要求 `page_key` 才记住 ack，`waitForPageSessionJoin(...)` 只按 session id 轮询。
+2. `frontend/apps/web-antd/src/components/business/ai-chat-panel/use-ai-chat-page-operations.ts` 已删除 join-ready 对 route/page-key 的依赖；page-operation channel 现在只在 live `page_session_id` 存在时刷新房间并等待 join 成功。
+3. `backend/app/sio/page_session.py` 已把 `page_session_joined` ack 收口到 `page_session_id + trace_id`，不再回传 `page_key`。
+4. 以上 contract 已同步进 `.trellis/spec/ai-runtime/tool-skill-governance.md`，因此当前新 SaaS 的 live connector handshake 已不再允许 `page_key` 作为 join/readiness 身份字段。
+5. `WS4a page-session join handshake freeze` 现已完成；页面连接器主线剩余工作继续回到 `WS3` / `WS6` / `WS1`。
+
 ### Phase 5: Context-Budget Alignment
 
 1. 维持 thin `page_context`，不回退到重内容 prompt 注入。

@@ -45,7 +45,7 @@
     },
     {
       "name": "WS4a page-session join handshake freeze",
-      "status": "active"
+      "status": "completed"
     },
     {
       "name": "WS5 thread memory owner convergence",

@@ -233,6 +233,9 @@ export async function submitRuntimeForm(args: { confirm?: boolean; formSessionId
 - Live `ui_action_invoke` payloads must not carry `page_key`; page_key stays
   in thin page_context and read-model metadata, not in the action transport
   contract.
+- `page_session_join` / `page_session_joined` readiness handshake must also be
+  keyed only by explicit `page_session_id`; route-derived `page_key` is not
+  part of the live connector handshake contract.
 
 #### 3.4 Summary-First Constraint
 - `getRuntimeThinPageContext()` always uses `compact` snapshots; only summary fields flow into `page_context`.

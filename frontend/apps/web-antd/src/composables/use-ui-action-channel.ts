@@ -19,7 +19,6 @@ import {
 } from '#/components/business/ai-runtime/ui-epoch-floor';
 import { UIActionExecutor } from '#/components/business/ai-runtime/ui-action-executor';
 import {
-  normalizePageKey,
   resolveRoutePageKey,
 } from '#/components/business/ai-slide-panel';
 import { getActivePageSessionId } from '#/composables/use-page-session';
@@ -40,7 +39,6 @@ type UIActionType =
 
 let currentJoinedRoom = '';
 let lastJoinedSessionAck: null | {
-  pageKey: string;
   pageSessionId: string;
   receivedAt: number;
 } = null;
@@ -82,7 +80,6 @@ export interface UIActionResultEvent {
 }
 
 export interface UIActionPageSessionJoinedEvent {
-  page_key: string;
   page_session_id: string;
   trace_id?: string;
 }
@@ -176,9 +173,8 @@ function replayResult(
   return true;
 }
 
-function rememberPageSessionAck(pageSessionId: string, pageKey: string): void {
+function rememberPageSessionAck(pageSessionId: string): void {
   lastJoinedSessionAck = {
-    pageKey,
     pageSessionId,
     receivedAt: Date.now(),
   };
@@ -198,32 +194,25 @@ function buildTraceId(traceId?: string): string {
   return traceId || getSocketTraceId();
 }
 
-export function hasJoinedPageSession(
-  pageSessionId: string,
-  pageKey: string,
-): boolean {
-  return (
-    lastJoinedSessionAck?.pageSessionId === pageSessionId &&
-    lastJoinedSessionAck?.pageKey === pageKey
-  );
+export function hasJoinedPageSession(pageSessionId: string): boolean {
+  return lastJoinedSessionAck?.pageSessionId === pageSessionId;
 }
 
 export async function waitForPageSessionJoin(
   pageSessionId: string,
-  pageKey: string,
   timeoutMs = 1500,
   pollMs = 50,
 ): Promise<boolean> {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
-    if (hasJoinedPageSession(pageSessionId, pageKey)) {
+    if (hasJoinedPageSession(pageSessionId)) {
       return true;
     }
     await new Promise<void>((resolve) => {
       setTimeout(resolve, pollMs);
     });
   }
-  return hasJoinedPageSession(pageSessionId, pageKey);
+  return hasJoinedPageSession(pageSessionId);
 }
 
 export function useUIActionChannel(): void {
@@ -518,11 +507,10 @@ export function useUIActionChannel(): void {
   function handlePageSessionJoined(rawData: unknown): void {
     const event = rawData as Partial<UIActionPageSessionJoinedEvent>;
     const pageSessionId = String(event.page_session_id || '').trim();
-    const pageKey = normalizePageKey(String(event.page_key || '').trim());
-    if (!pageSessionId || !pageKey) {
+    if (!pageSessionId) {
       return;
     }
-    rememberPageSessionAck(pageSessionId, pageKey);
+    rememberPageSessionAck(pageSessionId);
   }
 
   function leavePageSessionRoom() {
@@ -549,7 +537,6 @@ export function useUIActionChannel(): void {
     }
 
     socketIOStore.emit('page_session_join', {
-      page_key: resolveCurrentPageKey(),
       page_session_id: pageSessionId,
       trace_id: getSocketTraceId(),
     });

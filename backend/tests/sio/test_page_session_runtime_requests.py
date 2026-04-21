@@ -3,9 +3,11 @@ from __future__ import annotations
 import asyncio
 
 import pytest
+import socketio
 
 from app.core.i18n import set_locale
 from app.sio.page_session import (
+    PageSessionMixin,
     get_active_session_id,
     invoke_ui_action,
     request_ui_list_interactables,
@@ -18,6 +20,32 @@ from app.sio.page_session import (
 @pytest.fixture(autouse=True)
 def _set_test_locale() -> None:
     set_locale("en")
+
+
+class DummyPageSessionNamespace(PageSessionMixin, socketio.AsyncNamespace):
+    def __init__(self) -> None:
+        super().__init__("/tenant")
+        self.emitted_events: list[tuple[str, dict[str, object], str | None]] = []
+        self.joined_rooms: list[tuple[str, str]] = []
+
+    async def enter_room(self, sid: str, room: str) -> None:  # type: ignore[override]
+        self.joined_rooms.append((sid, room))
+
+    async def emit(  # type: ignore[override]
+        self,
+        event: str,
+        data: dict[str, object],
+        to: str | None = None,
+        **_: object,
+    ) -> None:
+        self.emitted_events.append((event, data, to))
+
+    async def get_socket_session_with_fallback(
+        self,
+        sid: str,
+    ) -> dict[str, object] | None:
+        _ = sid
+        return None
 
 
 @pytest.mark.asyncio
@@ -134,6 +162,28 @@ async def test_invoke_ui_action_drops_page_key_from_live_action_payload(
     assert payload["action_type"] == "ui_click"
     assert payload["target_locator"] == "testid:create"
     assert "page_key" not in payload
+
+
+@pytest.mark.asyncio
+async def test_page_session_join_ack_uses_page_session_id_only() -> None:
+    namespace = DummyPageSessionNamespace()
+
+    await namespace.on_page_session_join(
+        "sid-1",
+        {
+            "page_key": "legacy.page",
+            "page_session_id": "page-session-1",
+        },
+    )
+
+    assert namespace.joined_rooms == [("sid-1", "page_session:page-session-1")]
+    assert len(namespace.emitted_events) == 1
+    event_name, payload, sid = namespace.emitted_events[0]
+    assert event_name == "page_session_joined"
+    assert sid == "sid-1"
+    assert payload["page_session_id"] == "page-session-1"
+    assert "page_key" not in payload
+    assert isinstance(payload.get("trace_id"), str)
 
 
 def test_get_active_session_id_no_longer_recovers_from_page_key_fallback() -> None:

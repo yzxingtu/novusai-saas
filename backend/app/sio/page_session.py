@@ -280,7 +280,6 @@ class PageSessionMixin:
             page_session_id = str(data["page_session_id"])[:64]
             room = f"page_session:{page_session_id}"
             await self.enter_room(sid, room)
-            page_key = (data.get("page_key") or "").strip()[:128]
 
             logger.debug(
                 "SIO {} sid={} joined room {}",
@@ -292,7 +291,6 @@ class PageSessionMixin:
                 "page_session_joined",
                 {
                     "page_session_id": page_session_id,
-                    "page_key": page_key,
                     "trace_id": trace_id_var.get() or None,
                 },
                 to=sid,

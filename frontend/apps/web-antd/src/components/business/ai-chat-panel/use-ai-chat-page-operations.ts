@@ -1,9 +1,5 @@
 import type { PageContext } from '#/api/shared/ai-chat';
 
-import {
-  normalizePageKey,
-  resolveRoutePageKey,
-} from '#/components/business/ai-runtime/page-key-utils';
 import { waitForPageSessionJoin } from '#/composables/use-ui-action-channel';
 
 interface PageOperationSocketStore {
@@ -14,7 +10,6 @@ interface PageOperationSocketStore {
 
 interface UseAIChatPageOperationsOptions {
   pageSessionIdGetter?: () => null | string | undefined;
-  routePathnameGetter?: () => string;
   socketIOStore: PageOperationSocketStore;
   socketReadyPollMs?: number;
   socketReadyTimeoutMs?: number;
@@ -25,13 +20,6 @@ function sleep(ms: number): Promise<void> {
   return new Promise<void>((resolve) => {
     setTimeout(resolve, ms);
   });
-}
-
-function getDefaultRoutePathname(): string {
-  if (typeof window === 'undefined') {
-    return '';
-  }
-  return window.location.pathname;
 }
 
 export function hasInteractivePageContext(
@@ -64,36 +52,24 @@ function resolveSocketEndpoint(apiPrefix: string): 'admin' | 'tenant' | 'user' {
   return 'tenant';
 }
 
-function resolvePageOperationPageKey(
-  pageContext: null | PageContext | undefined,
-  routePathnameGetter: () => string,
-): string {
-  return (
-    normalizePageKey(pageContext?.page_key ?? '') ||
-    resolveRoutePageKey(undefined, routePathnameGetter())
-  );
-}
-
 export function createAIChatPageOperations(
   options: UseAIChatPageOperationsOptions,
 ) {
   const {
     pageSessionIdGetter,
-    routePathnameGetter = getDefaultRoutePathname,
     socketIOStore,
     socketReadyPollMs = 100,
     socketReadyTimeoutMs = 3000,
     socketSettleMs = 250,
   } = options;
 
-  function refreshPageSessionRoom(pageContext?: null | PageContext): void {
+  function refreshPageSessionRoom(): void {
     const pageSessionId = pageSessionIdGetter?.();
     if (!pageSessionId || !socketIOStore.isConnected) {
       return;
     }
     socketIOStore.emit('page_session_join', {
       page_session_id: pageSessionId,
-      page_key: resolvePageOperationPageKey(pageContext, routePathnameGetter),
     });
   }
 
@@ -125,19 +101,14 @@ export function createAIChatPageOperations(
       return false;
     }
 
-    refreshPageSessionRoom(pageContext);
+    refreshPageSessionRoom();
     const pageSessionId = pageSessionIdGetter?.() || '';
-    const pageKey = resolvePageOperationPageKey(
-      pageContext,
-      routePathnameGetter,
-    );
-    if (!pageSessionId || !pageKey) {
+    if (!pageSessionId) {
       return false;
     }
 
     const joined = await waitForPageSessionJoin(
       pageSessionId,
-      pageKey,
       socketReadyTimeoutMs,
       socketReadyPollMs,
     );
