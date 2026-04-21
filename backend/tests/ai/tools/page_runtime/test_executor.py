@@ -31,7 +31,9 @@ class StubPageRuntimeBridge:
 
 
 @pytest.mark.asyncio
-async def test_page_runtime_executor_preserves_error_detail_in_failure_summary() -> None:
+async def test_page_runtime_executor_preserves_error_detail_in_failure_summary() -> (
+    None
+):
     bridge = StubPageRuntimeBridge(
         {
             "success": False,
@@ -120,7 +122,9 @@ async def test_page_runtime_executor_appends_specific_error_from_error_field() -
 
 
 @pytest.mark.asyncio
-async def test_page_runtime_executor_forwards_page_context_and_page_key_to_bridge() -> None:
+async def test_page_runtime_executor_forwards_page_context_without_page_key_to_bridge() -> (
+    None
+):
     bridge = StubPageRuntimeBridge(
         {
             "success": True,
@@ -149,7 +153,10 @@ async def test_page_runtime_executor_forwards_page_context_and_page_key_to_bridg
     result = await executor.execute(
         definition,
         "call-ui-open",
-        {"target_locator": "text:添加供应商"},
+        {
+            "page_key": "legacy.page",
+            "target_locator": "text:添加供应商",
+        },
         context,
     )
 
@@ -161,7 +168,6 @@ async def test_page_runtime_executor_forwards_page_context_and_page_key_to_bridg
                     "page_key": "admin.suppliers",
                     "ui_epoch": 7,
                 },
-                "page_key": "admin.suppliers",
                 "target_locator": "text:添加供应商",
             },
             "page_session_id": "page-session-1",

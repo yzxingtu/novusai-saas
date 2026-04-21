@@ -230,6 +230,9 @@ export async function submitRuntimeForm(args: { confirm?: boolean; formSessionId
 - Page-runtime execution and Socket.IO transport must require explicit live
   `page_session_id`. `page_key -> active_session_id` recovery is not part of
   the live connector contract for the new SaaS runtime.
+- Live `ui_action_invoke` payloads must not carry `page_key`; page_key stays
+  in thin page_context and read-model metadata, not in the action transport
+  contract.
 
 #### 3.4 Summary-First Constraint
 - `getRuntimeThinPageContext()` always uses `compact` snapshots; only summary fields flow into `page_context`.

@@ -13,18 +13,16 @@ Frontend executes and returns results via the corresponding *_result events.
 后端通过 invoke_ui_action()、request_ui_snapshot() 等辅助方法向指定
 page_session_id 房间下发运行时事件，前端执行后通过对应 *_result 回传结果。
 
-Active session tracking: (scope, user_id, page_key) -> {page_session_id -> last_seen}.
-Fallback recovery only works when there is exactly one active session for the page;
-ambiguous multi-tab sessions return None to avoid cross-tab misrouting.
-活跃会话追踪：(scope, user_id, page_key) -> {page_session_id -> last_seen}。
-只有页面唯一活跃会话时才允许 fallback 恢复；多标签页歧义场景返回 None，避免串页误操作。
+Live page-session transport is keyed by explicit page_session_id only.
+The connector boundary no longer tracks or recovers sessions by page_key.
+运行时页面会话传输只使用显式 page_session_id。
+连接器边界不再按 page_key 追踪或恢复会话。
 """
 
 from __future__ import annotations
 
 import asyncio
 import contextlib
-import time
 import uuid
 from typing import Any
 
@@ -47,13 +45,6 @@ logger = LogManager.get_logger("app")
 
 # invoke_id → Future mapping, for awaiting frontend result callback / invoke_id → Future 映射，用于等待前端回传结果
 _pending_invocations: dict[str, asyncio.Future[dict[str, Any]]] = {}
-
-# (scope, user_id, page_key) -> {page_session_id: last_seen_monotonic} / 复合键 → 会话 ID → 最后活跃单调时间戳
-# scope: "/admin" | "/tenant" | "/user" (Socket.IO namespace) / 作用域：管理端/企业端/用户端（Socket.IO 命名空间）
-_active_sessions: dict[tuple[str, int, str], dict[str, float]] = {}
-
-# (scope, sid) -> {(active_key, page_session_id)}, for precise cleanup on leave/disconnect / 连接维度索引，便于离开/断开时精确清理
-_sid_active_sessions: dict[tuple[str, str], set[tuple[tuple[str, int, str], str]]] = {}
 
 # Default operation timeout (seconds) / 默认操作超时（秒）
 # 60s to align with frontend CONFIRM_TIMEOUT_MS / 与前端确认超时 60s 对齐
@@ -176,68 +167,12 @@ def get_active_session_id(
     运行时页面会话恢复不再从 page_key 回退。
 
     The connector boundary must use explicit page_session_id. This helper now
-    returns None so legacy page-key recovery cannot re-enter the live path.
+    returns None so page_key cannot re-enter the live path.
     连接器边界必须显式携带 page_session_id；该辅助函数现在固定返回 None，
-    防止旧的 page_key 恢复路径重新进入 live path。
+    防止 page_key 重新进入 live path。
     """
     _ = (user_id, page_key, user_role)
     return None
-
-
-def _remove_active_session_entry(
-    active_key: tuple[str, int, str],
-    page_session_id: str,
-) -> None:
-    session_map = _active_sessions.get(active_key)
-    if not session_map:
-        return
-    session_map.pop(page_session_id, None)
-    if not session_map:
-        _active_sessions.pop(active_key, None)
-
-
-def _track_sid_active_session(
-    scope: str,
-    sid: str,
-    active_key: tuple[str, int, str],
-    page_session_id: str,
-) -> None:
-    sid_key = (scope, sid)
-    tracked_pairs = _sid_active_sessions.setdefault(sid_key, set())
-
-    stale_pairs = {
-        pair
-        for pair in tracked_pairs
-        if pair[0] == active_key and pair[1] != page_session_id
-    }
-    for stale_active_key, stale_session_id in stale_pairs:
-        _remove_active_session_entry(stale_active_key, stale_session_id)
-        tracked_pairs.discard((stale_active_key, stale_session_id))
-
-    tracked_pairs.add((active_key, page_session_id))
-
-
-def _remove_sid_active_sessions(
-    scope: str,
-    sid: str,
-    page_session_id: str | None = None,
-) -> None:
-    sid_key = (scope, sid)
-    tracked_pairs = _sid_active_sessions.get(sid_key)
-    if not tracked_pairs:
-        return
-
-    pairs_to_remove = {
-        pair
-        for pair in tracked_pairs
-        if page_session_id is None or pair[1] == page_session_id
-    }
-    for active_key, tracked_session_id in pairs_to_remove:
-        _remove_active_session_entry(active_key, tracked_session_id)
-        tracked_pairs.discard((active_key, tracked_session_id))
-
-    if not tracked_pairs:
-        _sid_active_sessions.pop(sid_key, None)
 
 
 class PageSessionMixin:
@@ -339,39 +274,13 @@ class PageSessionMixin:
     ) -> dict[str, Any] | None:
         """Frontend requests to join page_session room / 前端请求加入 page_session 房间"""
         try:
-            session = await self.bind_socket_trace(sid, data)
+            await self.bind_socket_trace(sid, data)
             if not data or not data.get("page_session_id"):
                 return
             page_session_id = str(data["page_session_id"])[:64]
             room = f"page_session:{page_session_id}"
             await self.enter_room(sid, room)
-
-            # Track active session for executor to recover stale session after reconnect / 追踪活跃会话供执行器在重连后恢复过期会话
             page_key = (data.get("page_key") or "").strip()[:128]
-            if page_key:
-                try:
-                    user_id = session.get("user_id") if session else None
-                    if user_id is not None:
-                        scope = self.namespace or "/tenant"
-                        key = (scope, int(user_id), page_key)
-                        session_map = _active_sessions.setdefault(key, {})
-                        session_map[page_session_id] = time.monotonic()
-                        _track_sid_active_session(scope, sid, key, page_session_id)
-                        logger.debug(
-                            "SIO {} active_session stored scope={} user_id={} page_key={} session={} active_count={}",
-                            self.namespace,
-                            scope,
-                            user_id,
-                            page_key,
-                            page_session_id,
-                            len(session_map),
-                        )
-                except Exception as e:
-                    logger.debug(
-                        "SIO {} get_session for active_session failed: {}",
-                        self.namespace,
-                        e,
-                    )
 
             logger.debug(
                 "SIO {} sid={} joined room {}",
@@ -413,10 +322,6 @@ class PageSessionMixin:
             room = f"page_session:{page_session_id}"
             await self.leave_room(sid, room)
 
-            # Remove from active session tracking for this socket only / 仅从此 socket 的活跃会话索引中移除
-            scope = self.namespace or "/tenant"
-            _remove_sid_active_sessions(scope, sid, page_session_id)
-
             logger.debug(
                 "SIO {} sid={} left room {}",
                 self.namespace,
@@ -438,9 +343,9 @@ class PageSessionMixin:
         self: socketio.AsyncNamespace,  # type: ignore[override] / 忽略与基类签名差异
         sid: str,
     ) -> None:
-        """Clean page_session tracking for a disconnected socket / 清理断线 socket 的 page_session 追踪。"""
-        scope = self.namespace or "/tenant"
-        _remove_sid_active_sessions(scope, sid)
+        """No-op disconnect hook; live session ownership is room-based only."""
+        _ = sid
+        return None
 
     async def _handle_pending_result_event(
         self: socketio.AsyncNamespace,
@@ -614,7 +519,6 @@ async def _dispatch_page_session_request(
 async def invoke_ui_action(
     *,
     page_session_id: str,
-    page_key: str,
     action_type: str,
     payload: dict[str, Any] | None = None,
     timeout: float = PAGE_OPERATION_TIMEOUT,
@@ -622,14 +526,15 @@ async def invoke_ui_action(
     tool_call_id: str | None = None,
 ) -> dict[str, Any]:
     invoke_id = str(uuid.uuid4())
+    action_payload = dict(payload or {})
+    action_payload.pop("page_key", None)
     request_payload: dict[str, Any] = {
         "invoke_id": invoke_id,
         "trace_id": normalize_trace_id(
             trace_id_var.get() or invoke_id, default=invoke_id
         ),
-        "page_key": page_key,
         "action_type": action_type,
-        **(payload or {}),
+        **action_payload,
     }
     if tool_call_id:
         request_payload["tool_call_id"] = tool_call_id

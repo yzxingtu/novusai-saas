@@ -47,6 +47,7 @@ class SocketIOPageRuntimeBridge:
 
         normalized_tool_name = str(tool_name or "").strip()
         payload = dict(arguments or {})
+        payload.pop("page_key", None)
         page_context = (
             dict(payload.pop("_page_context"))
             if isinstance(payload.get("_page_context"), dict)
@@ -138,13 +139,14 @@ class SocketIOPageRuntimeBridge:
             action_payload = self._build_action_payload(payload, normalized_tool_name)
             raw_result = await page_session_module.invoke_ui_action(
                 page_session_id=page_session_id,
-                page_key=str(payload.get("page_key") or "").strip(),
                 action_type=normalized_tool_name,
                 payload=action_payload,
                 timeout=timeout,
                 namespace=namespace,
             )
-            return self._action_result(raw_result, default_error_type="execution_failed")
+            return self._action_result(
+                raw_result, default_error_type="execution_failed"
+            )
 
         return {
             "success": False,
@@ -160,11 +162,12 @@ class SocketIOPageRuntimeBridge:
         payload: dict[str, Any] = {
             "action_type": tool_name,
             "confirm": bool(arguments.get("confirm", False)),
-            "page_key": str(arguments.get("page_key") or "").strip(),
             "wait_timeout_ms": arguments.get("wait_timeout_ms"),
         }
         if tool_name in {"ui_click", "ui_open_surface"}:
-            payload["target_locator"] = _text(arguments.get("target_locator"), max_length=240)
+            payload["target_locator"] = _text(
+                arguments.get("target_locator"), max_length=240
+            )
             surface = arguments.get("surface")
             if isinstance(surface, dict):
                 payload["surface"] = dict(surface)
@@ -183,9 +186,7 @@ class SocketIOPageRuntimeBridge:
         if tool_name == "ui_fill_form" and isinstance(arguments.get("fields"), dict):
             payload["fields"] = dict(arguments.get("fields") or {})
         return {
-            key: value
-            for key, value in payload.items()
-            if value not in ("", None, {})
+            key: value for key, value in payload.items() if value not in ("", None, {})
         }
 
     @staticmethod
@@ -223,9 +224,7 @@ class SocketIOPageRuntimeBridge:
                 "error_detail": detail,
                 "error_type": str(result.get("error_type") or default_error_type),
                 "data": (
-                    result.get("data")
-                    if isinstance(result.get("data"), dict)
-                    else None
+                    result.get("data") if isinstance(result.get("data"), dict) else None
                 ),
             }
         return {
@@ -291,9 +290,7 @@ class SocketIOPageRuntimeBridge:
                 "error_detail": detail,
                 "error_type": str(result.get("error_type") or default_error_type),
                 "data": (
-                    result.get("data")
-                    if isinstance(result.get("data"), dict)
-                    else None
+                    result.get("data") if isinstance(result.get("data"), dict) else None
                 ),
                 "detail": detail,
             }
@@ -306,4 +303,3 @@ class SocketIOPageRuntimeBridge:
             or "Page runtime action completed.",
             "data": payload,
         }
-

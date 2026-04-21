@@ -37,11 +37,9 @@ class PageRuntimeToolExecutor(BaseToolExecutor):
         page_context = resolve_page_context(context)
         session_id = resolve_page_session_id(context)
         bridge_arguments = dict(arguments)
+        bridge_arguments.pop("page_key", None)
         if page_context and "_page_context" not in bridge_arguments:
             bridge_arguments["_page_context"] = dict(page_context)
-        page_key = str(page_context.get("page_key") or "").strip()
-        if page_key and "page_key" not in bridge_arguments:
-            bridge_arguments["page_key"] = page_key
 
         for guard in (
             stale_context_guard(arguments=arguments, page_context=page_context),

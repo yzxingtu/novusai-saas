@@ -130,14 +130,7 @@ class UIActionExecutor(BaseToolExecutor):
                 duration_ms=int((time.perf_counter() - start) * 1000),
             )
 
-        page_key = str(arguments.get("page_key") or "").strip()
-        session_id = None
-        if context:
-            if not page_key and isinstance(context.variables, dict):
-                page_context = context.variables.get("page_context")
-                if isinstance(page_context, dict):
-                    page_key = str(page_context.get("page_key") or "").strip()
-            session_id = _resolve_page_session_id(context)
+        session_id = _resolve_page_session_id(context)
 
         if not session_id:
             return ToolResult(
@@ -166,7 +159,6 @@ class UIActionExecutor(BaseToolExecutor):
         invoke_payload: dict[str, Any] = {
             "action_type": action_name,
             "confirm": bool(arguments.get("confirm", False)),
-            "page_key": page_key,
             "wait_timeout_ms": arguments.get("wait_timeout_ms"),
         }
         if action_name in {UI_ACTION_CLICK, UI_ACTION_OPEN_SURFACE}:
@@ -203,15 +195,13 @@ class UIActionExecutor(BaseToolExecutor):
         }
 
         logger.info(
-            "Invoking ui action: action={} page_key={} page_session={}",
+            "Invoking ui action: action={} page_session={}",
             action_name,
-            page_key,
             session_id,
         )
 
         result = await invoke_ui_action(
             page_session_id=session_id,
-            page_key=page_key,
             action_type=action_name,
             payload=invoke_payload,
             timeout=timeout,

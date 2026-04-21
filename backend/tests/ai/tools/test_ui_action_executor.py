@@ -56,7 +56,7 @@ async def test_ui_click_success_returns_diff(
     result = await executor.execute(
         click_definition,
         "call-ui-click",
-        {"target_locator": "testid:create"},
+        {"target_locator": "testid:create", "page_key": "legacy.page"},
         context,
     )
 
@@ -67,6 +67,7 @@ async def test_ui_click_success_returns_diff(
     _, kwargs = invoke_mock.await_args
     assert kwargs["page_session_id"] == "ps-click"
     assert kwargs["action_type"] == "ui_click"
+    assert "page_key" not in kwargs["payload"]
     assert kwargs["payload"]["target_locator"] == "testid:create"
 
 
@@ -142,13 +143,17 @@ async def test_ui_action_uses_page_context_session_id_when_context_session_missi
     result = await executor.execute(
         click_definition,
         "call-ui-click-page-context-session",
-        {"target_locator": "testid:create"},
+        {
+            "target_locator": "testid:create",
+            "page_key": "legacy.page",
+        },
         context,
     )
 
     assert result.success is True
     _, kwargs = invoke_mock.await_args
     assert kwargs["page_session_id"] == "ps-from-page-context"
+    assert "page_key" not in kwargs["payload"]
 
 
 @pytest.mark.asyncio
