@@ -51,15 +51,7 @@ export function hasInteractivePageContext(
   ) {
     return true;
   }
-
-  const suggestedTools = pageContextRecord.suggested_tools;
-  return !!(
-    suggestedTools &&
-    typeof suggestedTools === 'object' &&
-    Array.isArray((suggestedTools as Record<string, unknown>).primary) &&
-    ((suggestedTools as Record<string, unknown>).primary as unknown[]).length >
-      0
-  );
+  return false;
 }
 
 function resolveSocketEndpoint(apiPrefix: string): 'admin' | 'tenant' | 'user' {

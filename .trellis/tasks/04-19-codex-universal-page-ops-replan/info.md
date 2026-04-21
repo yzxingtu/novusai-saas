@@ -220,6 +220,13 @@
 4. `backend/app/ai/engine/tool_loop_session.py` 与 `backend/app/ai/engine/page_flow_recovery_helpers.py` 仍存在文本式 recovery hint 与 `Current page key` 句式；这继续属于 `WS3 page-workflow-state-owner`，其目标是删除 prompt-hint 主导而不是增加新的兼容提示。
 5. 综上，本轮审计没有发现超出现有 ownership matrix 的新主线缺口，因此不新增 child task；下一条应执行的主线是已提升为 active 的 `WS4 browser-connector-externalization`，随后再继续 `WS3` / `WS6` / `WS1`。
 
+### 2026-04-21 WS4 progress update
+
+1. `backend/app/sio/page_session.py` 的 `get_active_session_id(...)` 已明确降级为 no-op：live connector path 不再允许通过 `page_key` 回推 `page_session_id`，页面执行必须依赖显式 session identity。
+2. `frontend/apps/web-antd/src/components/business/ai-chat-panel/use-ai-chat-page-operations.ts` 已删除 `suggested_tools -> hasInteractivePageContext` 这条 live gating seam；page-operation channel readiness 现在只认真实 runtime state（例如 `ui_epoch`、active surface、active form）。
+3. 这两条事实已经同步进 `.trellis/spec/ai-runtime/tool-skill-governance.md`，因此后续 `WS4` / `WS6` 实现不应再把 `suggested_tools` 或 `page_key` 恢复链当作合理兼容面。
+4. `WS4` 仍未完成：`page_session.py` 内部 tracking 结构、前后端 connector evidence contract，以及 page-runtime bridge / executor 的剩余 host-specific glue 还需要继续收口。
+
 ### Phase 5: Context-Budget Alignment
 
 1. 维持 thin `page_context`，不回退到重内容 prompt 注入。

@@ -6,6 +6,7 @@ import pytest
 
 from app.core.i18n import set_locale
 from app.sio.page_session import (
+    get_active_session_id,
     request_ui_list_interactables,
     request_ui_read_region,
     request_ui_read_table,
@@ -98,3 +99,14 @@ async def test_request_ui_list_interactables_failure_is_localized(
     assert result["success"] is False
     assert result["error_type"] == "internal_error"
     assert result["message"] == "Interactables request failed."
+
+
+def test_get_active_session_id_no_longer_recovers_from_page_key_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.sio.page_session._active_sessions",
+        {("/tenant", 7, "tenant.dashboard"): {"page-session-1": 123.0}},
+    )
+
+    assert get_active_session_id(7, "tenant.dashboard") is None

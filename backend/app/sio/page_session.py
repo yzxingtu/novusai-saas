@@ -172,37 +172,15 @@ def get_active_session_id(
     user_id: int | None, page_key: str, user_role: str = "tenant_admin"
 ) -> str | None:
     """
-    Get the active page_session_id for (user_id, page_key) from active session tracking.
-    Fallback is intentionally conservative: only returns a session when there is
-    exactly one active candidate for the page; otherwise returns None.
-    从活跃会话映射中获取 (user_id, page_key) 对应的活跃 page_session_id。
-    该 fallback 是保守策略：只有页面唯一活跃候选会话时才返回，否则返回 None。
+    Live page-session recovery no longer falls back from page_key.
+    运行时页面会话恢复不再从 page_key 回退。
 
-    Args:
-        user_id: Current user ID / 当前用户 ID
-        page_key: Page identifier (pageContextKey) / 页面标识
-        user_role: User role (platform_admin / tenant_admin / tenant_user) / 用户角色
-
-    Returns:
-        Active page_session_id or None / 活跃 page_session_id 或 None
+    The connector boundary must use explicit page_session_id. This helper now
+    returns None so legacy page-key recovery cannot re-enter the live path.
+    连接器边界必须显式携带 page_session_id；该辅助函数现在固定返回 None，
+    防止旧的 page_key 恢复路径重新进入 live path。
     """
-    if not user_id or not page_key:
-        return None
-    scope = _user_role_to_scope(user_role)
-    key = (scope, user_id, page_key)
-    session_map = _active_sessions.get(key)
-    if not session_map:
-        return None
-    if len(session_map) == 1:
-        return next(iter(session_map))
-    logger.info(
-        "Ambiguous active page sessions: scope={} user_id={} page_key={} count={} sessions={}",
-        scope,
-        user_id,
-        page_key,
-        len(session_map),
-        list(session_map.keys()),
-    )
+    _ = (user_id, page_key, user_role)
     return None
 
 
@@ -669,7 +647,9 @@ async def invoke_ui_action(
         return _page_operation_error_result(
             invoke_id=invoke_id,
             error_type="timeout",
-            message=_("page_operation.error.timeout", op=action_type, timeout=int(timeout)),
+            message=_(
+                "page_operation.error.timeout", op=action_type, timeout=int(timeout)
+            ),
             code="UI_ACTION_TIMEOUT",
         )
     except Exception as exc:

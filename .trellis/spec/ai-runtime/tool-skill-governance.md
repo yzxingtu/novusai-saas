@@ -173,6 +173,11 @@ export async function submitRuntimeForm(args: { confirm?: boolean; formSessionId
 - `suggested_tools` is a frontend/read-model hint only. It may shape local UX
   affordances, but it must not become authoritative input for backend tool
   exposure, capability descriptions, or recovery policy.
+- Frontend page-operation channel readiness and other live interactive gating
+  must be derived from canonical runtime facts such as `page_session_id`,
+  `ui_epoch`, active surface, or active form state. `suggested_tools` may
+  decorate affordances, but it must not make a page look live-interactive by
+  itself.
 - Capability descriptions may summarize page title, active surface, and active
   form state, but must not mirror `suggested_tools` back into runtime-facing
   awareness or selection logic.
@@ -222,6 +227,9 @@ export async function submitRuntimeForm(args: { confirm?: boolean; formSessionId
   same request-boundary contract: unknown `page_data` keys fail validation,
   while malformed `navigation_catalog` items are filtered instead of taking
   down the whole turn.
+- Page-runtime execution and Socket.IO transport must require explicit live
+  `page_session_id`. `page_key -> active_session_id` recovery is not part of
+  the live connector contract for the new SaaS runtime.
 
 #### 3.4 Summary-First Constraint
 - `getRuntimeThinPageContext()` always uses `compact` snapshots; only summary fields flow into `page_context`.
