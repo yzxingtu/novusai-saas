@@ -1,0 +1,35 @@
+{
+  "id": "04-06-dev-bootstrap-auth-governance",
+  "name": "04-06-dev-bootstrap-auth-governance",
+  "title": "开发环境 Bootstrap 凭据治理",
+  "description": "为本地 E2E 提供仅 development 可用的长期 bootstrap 凭据，复用现有 auth token 链路，并把规则写入 Trellis 规范。",
+  "status": "completed",
+  "dev_type": "fullstack",
+  "scope": null,
+  "priority": "P1",
+  "creator": "yudi",
+  "assignee": "yudi",
+  "createdAt": "2026-04-06",
+  "completedAt": "2026-04-22",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "execution_path": "deep",
+  "required_artifacts": [
+    "prd.md",
+    "info.md"
+  ],
+  "context_files": [
+    "implement.jsonl",
+    "check.jsonl"
+  ],
+  "verification_mode": "command",
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

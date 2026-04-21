@@ -1,0 +1,34 @@
+{
+  "id": "turn-flow-user-monitoring-surfaces",
+  "name": "turn-flow-user-monitoring-surfaces",
+  "title": "Turn flow user monitoring surfaces",
+  "description": "Apply turn_flow rendering to user workspace and monitoring surfaces",
+  "status": "completed",
+  "dev_type": "frontend",
+  "scope": null,
+  "priority": "P0",
+  "creator": "yudi",
+  "assignee": "yudi",
+  "createdAt": "2026-04-16",
+  "completedAt": "2026-04-16",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "execution_path": "normal",
+  "required_artifacts": [
+    "prd.md"
+  ],
+  "context_files": [
+    "implement.jsonl",
+    "check.jsonl"
+  ],
+  "verification_mode": "command",
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "04-16-ai-turn-flow-deepseek-rewrite",
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

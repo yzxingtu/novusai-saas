@@ -1,0 +1,35 @@
+{
+  "id": "04-03-plugin-system-audit-hardening",
+  "name": "04-03-plugin-system-audit-hardening",
+  "title": "Plugin system audit hardening",
+  "description": "以 manifest 与 canonical plugin runtime playbook 为真源，收口插件宿主、恢复链、插件管理 UI 与 release/validation 流程。",
+  "status": "completed",
+  "dev_type": "fullstack",
+  "scope": null,
+  "priority": "P2",
+  "creator": "yudi",
+  "assignee": "yudi",
+  "createdAt": "2026-04-03",
+  "completedAt": "2026-04-22",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "execution_path": "deep",
+  "required_artifacts": [
+    "prd.md",
+    "info.md"
+  ],
+  "context_files": [
+    "implement.jsonl",
+    "check.jsonl"
+  ],
+  "verification_mode": "command",
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "04-04-repo-stabilization-control-plane",
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

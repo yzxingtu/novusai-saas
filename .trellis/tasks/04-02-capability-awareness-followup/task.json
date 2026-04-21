@@ -1,0 +1,33 @@
+{
+  "id": "capability-awareness-followup",
+  "name": "capability-awareness-followup",
+  "title": "Capability awareness validation and follow-up",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "yudi",
+  "assignee": "yudi",
+  "createdAt": "2026-04-02",
+  "completedAt": "2026-04-22",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "Closed by 2026-04-22 audit. This follow-up is historical and was superseded by the current runtime capability manifest, turn activation, and context capability bridge architecture; the old data_intelligence/table-policy assumptions no longer describe the live repo.",
+  "meta": {},
+  "required_artifacts": [
+    "prd.md"
+  ],
+  "context_files": [
+    "implement.jsonl",
+    "check.jsonl"
+  ],
+  "verification_mode": "command"
+}

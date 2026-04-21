@@ -1,0 +1,33 @@
+{
+  "id": "04-03-novusdoc-writer-plugin-source-sync",
+  "name": "04-03-novusdoc-writer-plugin-source-sync",
+  "title": "NovusDoc Writer plugin source sync",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "priority": "P2",
+  "creator": "yudi",
+  "assignee": "yudi",
+  "createdAt": "2026-04-03",
+  "completedAt": "2026-04-22",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {},
+  "required_artifacts": [
+    "prd.md"
+  ],
+  "context_files": [
+    "implement.jsonl",
+    "check.jsonl"
+  ],
+  "verification_mode": "command"
+}
