@@ -20,6 +20,7 @@ from app.ai.constants import (
     DEFAULT_MEMORY_SCENE,
     MEMORY_CHANNEL_SYSTEM,
 )
+from app.ai.engine.base import BaseEngine  # noqa: F401
 from app.ai.engine.conversation import ConversationEngine
 from app.ai.engine.dispatcher import ExecutionDispatcher  # noqa: F401
 from app.ai.engine.types import ExecutionRequest, ExecutionResult
@@ -59,29 +60,6 @@ if TYPE_CHECKING:
     from app.models.ai.agent import Agent
 
 logger = LogManager.get_logger("ai.agent_chat_service")
-
-
-class BaseEngine:  # noqa: D101
-    @staticmethod
-    async def _publish_execution_started(  # noqa: ANN002, ANN003
-        *_args,
-        **_kwargs,
-    ):
-        return None
-
-    @staticmethod
-    async def _publish_execution_completed(  # noqa: ANN002, ANN003
-        *_args,
-        **_kwargs,
-    ):
-        return None
-
-    @staticmethod
-    async def _publish_execution_failed(  # noqa: ANN002, ANN003
-        *_args,
-        **_kwargs,
-    ):
-        return None
 
 
 class AgentChatService:
@@ -269,7 +247,11 @@ class AgentChatService:
             explicit_trust_policy_ref=explicit_trust_policy_ref,
             interaction_updates=interaction_updates,
         )
-        return outcome.effective_mode, outcome.trust_policy_ref, outcome.downgrade_reason
+        return (
+            outcome.effective_mode,
+            outcome.trust_policy_ref,
+            outcome.downgrade_reason,
+        )
 
     @staticmethod
     def _friendly_stream_error_text(

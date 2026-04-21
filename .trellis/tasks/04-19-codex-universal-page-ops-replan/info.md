@@ -291,6 +291,20 @@
 4. `backend/tests/ai/engine/test_execution_preflight_support.py` 已补齐 shared helper 的 focused contract 回归，确保 skip-quota turn 不会偷偷重跑 quota 检查；`backend/tests/services/test_agent_chat_stream_error.py`、`backend/tests/services/test_task_engine_error_public_text.py` 与 `backend/tests/tasks/test_agent_batch.py` 继续保持绿灯。
 5. 本轮之后 `WS1` 剩余主线 debt 进一步收缩到 dispatcher 与 stream path 的 completion / quota-adjust / release 末端编排差异；这仍属于现有 `WS1` 范围，本轮审计依旧没有发现需要新增的 Trellis child task。
 
+### 2026-04-21 WS1 closeout update
+
+1. `backend/app/ai/engine/execution_postflight_support.py` 已新增 shared postflight owner，把 `AFTER_EXECUTE`、estimated-to-actual quota adjust / rollback、user usage、execution completed/failed publish 与 concurrency release 收口为统一 helper；`backend/app/ai/engine/dispatcher.py`、`backend/app/services/ai/agent_chat_stream_persistence_orchestrator.py` 与 ephemeral stream completion 都已切到这条 shared owner，不再各自维护第二份 completion tail truth。
+2. stream path 继续只在 service-layer owner 内保留 persistence commit/fallback、memory capture 与 `AFTER_AGENT_CHAT`；聊天核心共享 helper 只负责统一 execution tail，不把 stream-specific side effects 拉回 turn loop。
+3. `backend/app/services/ai/agent_chat_stream_runtime_dependencies.py` 已删除通过 `AgentChatService` facade 反射真实 runtime collaborator 的 compat seam：默认依赖现已直接绑定 `async_session_factory`、`ConversationService` 与 `app.ai.engine.base.BaseEngine`，并由 `backend/tests/services/test_agent_chat_stream_runtime_dependencies.py` 补上 sentinel，防止新 SaaS 的 stream 主路径再绕回 facade compat owner。
+4. 本轮 focused / wider regressions 已通过：`backend/tests/ai/engine/test_execution_postflight_support.py`、`backend/tests/ai/engine/test_dispatcher_runtime_preflight.py`、`backend/tests/ai/engine/test_engine_bootstrap_support.py`、`backend/tests/ai/engine/test_execution_preflight_support.py`、`backend/tests/services/test_agent_chat_stream_runtime_dependencies.py`、`backend/tests/services/test_agent_chat_stream_error.py`、`backend/tests/services/test_task_engine_error_public_text.py` 与 `backend/tests/tasks/test_agent_batch.py` 共同守住 shared turn contract。
+5. 至此 `WS1 turn-loop-orchestrator-convergence` 的 acceptance 已满足：task / dispatcher / stream 现在共享 canonical engine bootstrap、preflight、postflight 与 result-tail contract；本轮终审未发现超出现有 ownership matrix 的新主线缺口，因此不新增 child task。
+
+### 2026-04-21 umbrella closeout update
+
+1. `WS1` 至 `WS6` 与 `WS4a` 均已完成，原始 umbrella 里的 Phase 1 / Phase 2 主线实现已按 ownership matrix 收口到位；聊天核心继续只保留统一事件协议、工具协议、预算治理与停止条件，页面/技能/记忆 owner 不再回流核心入口。
+2. 本轮 closeout 也显式删除了最后一条 stream runtime facade compat seam，因此当前新 SaaS 主路径不再依赖 `suggested_tools` 反驱动 runtime、`page_key -> session_id` 身份回退、prompt-hint 主导 recovery，或 `AgentChatService` facade 反射 live stream collaborator。
+3. 终审未发现需要新建的 umbrella follow-up task；若未来出现新 debt，必须以 net-new ownership gap 为依据另建任务，而不是回到逐页补适配或兼容层续命。
+
 ### Phase 5: Context-Budget Alignment
 
 1. 维持 thin `page_context`，不回退到重内容 prompt 注入。

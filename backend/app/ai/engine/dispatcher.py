@@ -16,7 +16,6 @@ from app.ai.agent_quota import (
     AgentQuotaExceeded,
     AgentQuotaManager,
 )
-from app.ai.events.hooks import HookPoint
 from app.ai.tools.sandbox import SandboxConfig
 from app.configs.service import PLATFORM_TENANT_ID
 from app.core.i18n import _
@@ -29,6 +28,13 @@ from app.repositories.ai.agent_repository import AgentRepository
 
 from .base import BaseEngine
 from .engine_bootstrap_support import build_engine_bootstrap_bundle
+from .execution_postflight_support import (
+    apply_execution_result_postflight,
+    default_execution_postflight_dependencies,
+    publish_failed_execution_postflight,
+    release_execution_postflight_lock,
+    rollback_execution_postflight_usage,
+)
 from .execution_preflight_support import (
     acquire_preflight_lock,
     apply_execution_mode_runtime_flags,
@@ -101,6 +107,7 @@ class ExecutionDispatcher:
         lock_token: str = ""
         estimated: int = 0
         quota_config = AgentQuotaConfig()
+        postflight_dependencies = default_execution_postflight_dependencies()
 
         try:
             # 1. Load Agent (use pre-loaded if provided, avoid double DB query) / 加载 Agent（若调用方已预加载则直接使用，避免双重 DB 查询）
@@ -176,43 +183,17 @@ class ExecutionDispatcher:
                 request,
                 skill_result=engine_bundle.skill_result,
             )
-
-            # 6. AFTER_EXECUTE hook / AFTER_EXECUTE 钩子
-            await hook_registry.trigger(
-                HookPoint.AFTER_EXECUTE,
-                tenant_id=request.tenant_id,
+            await apply_execution_result_postflight(
+                request=request,
+                agent=agent,
                 agent_id=agent.id,
                 result=result,
+                hook_registry=hook_registry,
+                estimated_tokens=estimated,
+                quota_config=quota_config,
+                user_id=request.user_id,
+                dependencies=postflight_dependencies,
             )
-
-            # 7. Adjust quota usage: from estimated to actual (API mode skipped) / 调整配额用量：从预估调整为实际（API 模式跳过）
-            if not request.skip_quota:
-                actual_tokens = result.total_tokens or 0
-                await AgentQuotaManager.adjust_usage(
-                    tenant_id=request.tenant_id,
-                    agent_id=agent.id,
-                    estimated_tokens=estimated,
-                    actual_tokens=actual_tokens,
-                    config=quota_config,
-                )
-                # Record user-level usage / 记录用户级用量
-                if request.user_id:
-                    await AgentQuotaManager.record_user_usage(
-                        tenant_id=request.tenant_id,
-                        agent_id=agent.id,
-                        user_id=request.user_id,
-                        tokens=result.total_tokens,
-                    )
-
-            # 8. Publish events / 发布事件
-            if result.success:
-                await BaseEngine._publish_execution_completed(request, agent, result)
-            else:
-                await BaseEngine._publish_execution_failed(
-                    request,
-                    agent,
-                    result.error,
-                )
 
             return result
 
@@ -232,32 +213,32 @@ class ExecutionDispatcher:
             )
 
             # Rollback pre-deducted quota (release pre-deducted estimated_tokens on failure) / 回滚预扣配额（执行失败时释放已预扣的 estimated_tokens）
-            if not request.skip_quota and estimated > 0:
-                try:
-                    await AgentQuotaManager.adjust_usage(
-                        tenant_id=request.tenant_id,
-                        agent_id=request.agent_id,
-                        estimated_tokens=estimated,
-                        actual_tokens=0,
-                        config=quota_config,
-                    )
-                except Exception as rollback_exc:
-                    logger.warning(
-                        "Quota rollback failed: agent={} error={}",
-                        request.agent_id,
-                        rollback_exc,
-                    )
+            try:
+                await rollback_execution_postflight_usage(
+                    request=request,
+                    agent_id=request.agent_id,
+                    estimated_tokens=estimated,
+                    quota_config=quota_config,
+                    dependencies=postflight_dependencies,
+                )
+            except Exception as rollback_exc:
+                logger.warning(
+                    "Quota rollback failed: agent={} error={}",
+                    request.agent_id,
+                    rollback_exc,
+                )
 
             if agent:
                 public_error = build_public_error_text(
                     message=_("common.server_error"),
                     exc=exc,
                 )
-                await BaseEngine._publish_execution_failed(
-                    request,
-                    agent,
-                    public_error,
-                    type(exc).__name__,
+                await publish_failed_execution_postflight(
+                    request=request,
+                    agent=agent,
+                    error=public_error,
+                    error_type=type(exc).__name__,
+                    dependencies=postflight_dependencies,
                 )
 
             return ExecutionResult(
@@ -272,12 +253,11 @@ class ExecutionDispatcher:
         finally:
             # 9. Release concurrency / 释放并发
             if lock_token and agent:
-                from app.ai.agent_quota import AgentConcurrencyLimiter
-
-                await AgentConcurrencyLimiter.release(
-                    tenant_id=request.tenant_id,
+                await release_execution_postflight_lock(
+                    request=request,
                     agent_id=agent.id,
                     lock_token=lock_token,
+                    dependencies=postflight_dependencies,
                 )
 
     async def dispatch_batch(

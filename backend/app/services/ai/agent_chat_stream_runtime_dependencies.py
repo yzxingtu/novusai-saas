@@ -4,14 +4,15 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
-from importlib import import_module
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agent_quota import AgentConcurrencyLimiter, AgentQuotaManager
 from app.ai.agent_stats import AgentStatsManager
+from app.ai.engine.base import BaseEngine
 from app.ai.engine.types import ExecutionRequest, ExecutionResult
+from app.core.database import async_session_factory
 from app.services.ai.conversation_service import ConversationService
 
 SessionFactory = Callable[[], Awaitable[AsyncSession]]  # noqa: WPS111
@@ -28,9 +29,7 @@ class AgentChatStreamPersistenceDependencies:
     publish_execution_completed: Callable[
         [ExecutionRequest, Any, ExecutionResult], Awaitable[None]
     ]
-    publish_execution_failed: Callable[
-        [ExecutionRequest, Any, str], Awaitable[None]
-    ]
+    publish_execution_failed: Callable[[ExecutionRequest, Any, str], Awaitable[None]]
 
     @classmethod
     def from_mapping(
@@ -49,23 +48,19 @@ class AgentChatStreamPersistenceDependencies:
         )
 
 
-def default_agent_chat_stream_persistence_dependencies() -> AgentChatStreamPersistenceDependencies:
-    # Resolve these through the public AgentChatService facade at runtime so
-    # existing tests and legacy patch points keep intercepting the actual
-    # stream persistence collaborators after the split.
-    agent_chat_service = import_module("app.services.ai.agent_chat_service")
-    session_factory = getattr(agent_chat_service, "async_session_factory")
-    conversation_service_cls = getattr(agent_chat_service, "ConversationService")
-    base_engine = getattr(agent_chat_service, "BaseEngine")
+def default_agent_chat_stream_persistence_dependencies() -> (
+    AgentChatStreamPersistenceDependencies
+):
+    """Build the default stream persistence runtime dependencies."""
     return AgentChatStreamPersistenceDependencies(
-        session_factory=session_factory,
-        conversation_service_cls=conversation_service_cls,
+        session_factory=async_session_factory,
+        conversation_service_cls=ConversationService,
         adjust_usage=AgentQuotaManager.adjust_usage,
         record_user_usage=AgentQuotaManager.record_user_usage,
         record_chat_stats=AgentStatsManager.record_chat,
         release_concurrency=AgentConcurrencyLimiter.release,
-        publish_execution_completed=base_engine._publish_execution_completed,
-        publish_execution_failed=base_engine._publish_execution_failed,
+        publish_execution_completed=BaseEngine._publish_execution_completed,
+        publish_execution_failed=BaseEngine._publish_execution_failed,
     )
 
 

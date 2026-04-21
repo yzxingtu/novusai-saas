@@ -129,16 +129,15 @@ def _build_success_result(
     )
 
 
-def test_friendly_stream_error_text_maps_cancelled_streams_to_interrupted_copy() -> None:
+def test_friendly_stream_error_text_maps_cancelled_streams_to_interrupted_copy() -> (
+    None
+):
     from app.core.i18n import _
     from app.services.ai.agent_chat_service import AgentChatService
 
-    assert (
-        AgentChatService._friendly_stream_error_text(
-            "CancelledError: Cancelled via cancel scope 123"
-        )
-        == _("ai.stream.error.interrupted")
-    )
+    assert AgentChatService._friendly_stream_error_text(
+        "CancelledError: Cancelled via cancel scope 123"
+    ) == _("ai.stream.error.interrupted")
 
 
 def test_build_stream_error_display_keeps_traceable_provider_detail() -> None:
@@ -162,6 +161,10 @@ def test_build_stream_error_display_keeps_traceable_provider_detail() -> None:
 
 async def _build_stream_service(mock_db):
     from app.services.ai.agent_chat_service import AgentChatService
+    from app.services.ai.agent_chat_stream_runtime_dependencies import (
+        AgentChatStreamPersistenceDependencies,
+    )
+    from app.services.ai.agent_chat_stream_support import AgentChatStreamSupport
 
     service = AgentChatService(mock_db, tenant_id=1)
     service._validate_agent = AsyncMock(return_value=_build_agent())
@@ -178,6 +181,24 @@ async def _build_stream_service(mock_db):
         return_value=None,
     )
     service._persist_session_memory = AsyncMock(return_value=None)
+    service_module = __import__(
+        "app.services.ai.agent_chat_service",
+        fromlist=["AgentChatService"],
+    )
+    service.stream_support = AgentChatStreamSupport(
+        dependency_factory=lambda: AgentChatStreamPersistenceDependencies(
+            session_factory=service_module.async_session_factory,
+            conversation_service_cls=service_module.ConversationService,
+            adjust_usage=service_module.AgentQuotaManager.adjust_usage,
+            record_user_usage=service_module.AgentQuotaManager.record_user_usage,
+            record_chat_stats=service_module.AgentStatsManager.record_chat,
+            release_concurrency=service_module.AgentConcurrencyLimiter.release,
+            publish_execution_completed=(
+                service_module.BaseEngine._publish_execution_completed
+            ),
+            publish_execution_failed=service_module.BaseEngine._publish_execution_failed,
+        )
+    )
     return service
 
 
@@ -599,9 +620,7 @@ async def test_stream_on_complete_updates_conversation_last_error_metadata(mock_
         await on_complete(_build_failed_result(error="Fallback crashed hard"))
 
     assert "last_error" in conversation.metadata_
-    assert (
-        conversation.metadata_["last_error"]["error_type"] == "stream_fallback_error"
-    )
+    assert conversation.metadata_["last_error"]["error_type"] == "stream_fallback_error"
     assert "friendly_message" in conversation.metadata_["last_error"]
 
 

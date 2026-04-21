@@ -60,6 +60,7 @@ async def prepare_ephemeral_stream_runtime(
         persist_user_messages=None,
     )
     on_stream_complete = build_ephemeral_stream_completion_handler(
+        request=request_bundle.request,
         tenant_id=service.tenant_id,
         agent_id=agent_id,
         estimated_tokens=request_bundle.estimated_tokens,

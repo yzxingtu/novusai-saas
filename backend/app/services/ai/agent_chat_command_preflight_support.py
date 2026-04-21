@@ -6,7 +6,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from app.ai.engine.types import ExecutionResult
+from app.ai.engine.execution_postflight_support import (
+    ExecutionPostflightDependencies,
+    adjust_execution_postflight_usage,
+    release_execution_postflight_lock,
+)
+from app.ai.engine.types import ExecutionRequest, ExecutionResult
 from app.ai.events.hooks import HookPoint, get_hook_registry
 from app.ai.types import ChatMessage
 from app.core.i18n import _
@@ -21,10 +26,7 @@ def _normalize_attachments(
 ) -> list[dict[str, Any]] | None:
     if not attachments:
         return None
-    return [
-        a if isinstance(a, dict) else a.model_dump()
-        for a in attachments
-    ]
+    return [a if isinstance(a, dict) else a.model_dump() for a in attachments]
 
 
 def build_user_messages(
@@ -95,6 +97,7 @@ async def run_before_agent_chat_hook(
 
 def build_ephemeral_stream_completion_handler(
     *,
+    request: ExecutionRequest,
     tenant_id: int,
     agent_id: int,
     estimated_tokens: int,
@@ -105,23 +108,28 @@ def build_ephemeral_stream_completion_handler(
     agent_quota_manager: Any,
     agent_stats_manager: Any,
 ):
+    async def _noop_publish(*_args, **_kwargs) -> None:
+        return None
+
+    postflight_dependencies = ExecutionPostflightDependencies(
+        adjust_usage=agent_quota_manager.adjust_usage,
+        record_user_usage=agent_quota_manager.record_user_usage,
+        release_concurrency=agent_concurrency_limiter.release,
+        publish_execution_completed=_noop_publish,
+        publish_execution_failed=_noop_publish,
+    )
+
     async def on_stream_complete(result: ExecutionResult) -> dict[str, Any] | None:
         try:
-            actual_tokens = result.total_tokens or 0
-            await agent_quota_manager.adjust_usage(
-                tenant_id=tenant_id,
+            await adjust_execution_postflight_usage(
+                request=request,
                 agent_id=agent_id,
+                result=result,
                 estimated_tokens=estimated_tokens,
-                actual_tokens=actual_tokens,
-                config=quota_config,
+                quota_config=quota_config,
+                user_id=user_id,
+                dependencies=postflight_dependencies,
             )
-            if user_id and actual_tokens > 0:
-                await agent_quota_manager.record_user_usage(
-                    tenant_id=tenant_id,
-                    agent_id=agent_id,
-                    user_id=user_id,
-                    tokens=actual_tokens,
-                )
             await agent_stats_manager.record_chat(
                 tenant_id=tenant_id,
                 agent_id=agent_id,
@@ -129,10 +137,11 @@ def build_ephemeral_stream_completion_handler(
             )
         finally:
             if lock_token:
-                await agent_concurrency_limiter.release(
-                    tenant_id=tenant_id,
+                await release_execution_postflight_lock(
+                    request=request,
                     agent_id=agent_id,
                     lock_token=lock_token,
+                    dependencies=postflight_dependencies,
                 )
         return None
 

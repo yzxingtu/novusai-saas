@@ -5,6 +5,11 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from app.ai.engine.execution_postflight_support import (
+    ExecutionPostflightDependencies,
+    apply_execution_result_postflight,
+    release_execution_postflight_lock,
+)
 from app.ai.engine.types import ExecutionResult
 from app.ai.events.hooks import HookPoint
 from app.ai.memory_policy import attach_memory_runtime_policy
@@ -161,9 +166,17 @@ class AgentChatStreamPersistenceOrchestrator:
         final_result: ExecutionResult,
         extra: dict[str, Any],
     ) -> None:
+        runtime_deps = self._deps()
+        postflight_dependencies = ExecutionPostflightDependencies(
+            adjust_usage=runtime_deps.adjust_usage,
+            record_user_usage=runtime_deps.record_user_usage,
+            release_concurrency=runtime_deps.release_concurrency,
+            publish_execution_completed=runtime_deps.publish_execution_completed,
+            publish_execution_failed=runtime_deps.publish_execution_failed,
+        )
         try:
             try:
-                await self._deps().record_chat_stats(
+                await runtime_deps.record_chat_stats(
                     tenant_id=self.tenant_id,
                     agent_id=self.agent_id,
                     tokens=final_result.total_tokens,
@@ -188,10 +201,9 @@ class AgentChatStreamPersistenceOrchestrator:
                     if memory_delta:
                         if self.commit_stream_memory_writes is not None:
                             await self.commit_stream_memory_writes()
-                        deps = self._deps()
-                        async with deps.session_factory() as mem_db:
+                        async with runtime_deps.session_factory() as mem_db:
                             try:
-                                mem_conv_svc = deps.conversation_service_cls(
+                                mem_conv_svc = runtime_deps.conversation_service_cls(
                                     mem_db,
                                     self.tenant_id,
                                 )
@@ -220,23 +232,6 @@ class AgentChatStreamPersistenceOrchestrator:
                         str(mem_exc),
                     )
 
-            actual_tokens = final_result.total_tokens or 0
-            await self._deps().adjust_usage(
-                tenant_id=self.tenant_id,
-                agent_id=self.agent_id,
-                estimated_tokens=self.estimated_tokens,
-                actual_tokens=actual_tokens,
-                config=self.quota_config,
-            )
-
-            if self.user_id and actual_tokens > 0:
-                await self._deps().record_user_usage(
-                    tenant_id=self.tenant_id,
-                    agent_id=self.agent_id,
-                    user_id=self.user_id,
-                    tokens=actual_tokens,
-                )
-
             if self.hook_registry.has_hooks(HookPoint.AFTER_AGENT_CHAT):
                 hook_ctx = await self.hook_registry.trigger(
                     HookPoint.AFTER_AGENT_CHAT,
@@ -251,25 +246,17 @@ class AgentChatStreamPersistenceOrchestrator:
                 ):
                     final_result.output = hook_ctx["response"]
 
-            await self.hook_registry.trigger(
-                HookPoint.AFTER_EXECUTE,
-                tenant_id=self.tenant_id,
+            await apply_execution_result_postflight(
+                request=self.request,
+                agent=self.agent,
                 agent_id=self.agent_id,
                 result=final_result,
+                hook_registry=self.hook_registry,
+                estimated_tokens=self.estimated_tokens,
+                quota_config=self.quota_config,
+                user_id=self.user_id,
+                dependencies=postflight_dependencies,
             )
-
-            if final_result.success:
-                await self._deps().publish_execution_completed(
-                    self.request,
-                    self.agent,
-                    final_result,
-                )
-            else:
-                await self._deps().publish_execution_failed(
-                    self.request,
-                    self.agent,
-                    final_result.error or "",
-                )
         except Exception as tail_exc:
             logger.error(
                 "Stream post-persist tail failed: tenant={} conversation={} err={}",
@@ -280,10 +267,11 @@ class AgentChatStreamPersistenceOrchestrator:
             )
         finally:
             if self.lock_token:
-                await self._deps().release_concurrency(
-                    tenant_id=self.tenant_id,
+                await release_execution_postflight_lock(
+                    request=self.request,
                     agent_id=self.agent_id,
                     lock_token=self.lock_token,
+                    dependencies=postflight_dependencies,
                 )
 
     async def __call__(self, result: ExecutionResult) -> dict[str, Any] | None:
