@@ -18,6 +18,7 @@ from app.ai.tools.executors.ui_read_executor import (
     _normalize_region_payload,
     _normalize_table_payload,
 )
+from app.ai.tools.executors.ui_snapshot_executor import _normalize_snapshot_payload
 
 _ACTION_TOOL_NAMES = {
     "ui_click",
@@ -48,6 +49,22 @@ class SocketIOPageRuntimeBridge:
         payload.pop("_page_context", None)
         timeout = float(payload.get("timeout_seconds") or 60)
         namespace = _user_role_to_namespace(user_role)
+
+        if normalized_tool_name == "ui_get_snapshot":
+            mode = str(payload.get("mode") or "compact").strip().lower()
+            normalized_mode = "full" if mode == "full" else "compact"
+            surface_id = _text(payload.get("surface_id"), max_length=128)
+            raw_result = await page_session_module.request_ui_snapshot(
+                page_session_id=page_session_id,
+                mode=normalized_mode,
+                surface_id=surface_id,
+                timeout=timeout,
+                namespace=namespace,
+            )
+            return self._snapshot_result(
+                raw_result,
+                mode=normalized_mode,
+            )
 
         if normalized_tool_name == "ui_read_region":
             locator = _text(payload.get("locator"), max_length=240) or ""
@@ -203,6 +220,34 @@ class SocketIOPageRuntimeBridge:
             "success": True,
             "message": "Page runtime read completed.",
             "data": data,
+        }
+
+    @classmethod
+    def _snapshot_result(
+        cls,
+        result: dict[str, Any] | None,
+        *,
+        mode: str,
+    ) -> dict[str, Any]:
+        if not isinstance(result, dict):
+            return {
+                "success": False,
+                "message": "Page runtime snapshot is unavailable.",
+                "error_type": "snapshot_unavailable",
+            }
+        if result.get("success") is False:
+            message, detail = cls._error_fields(result)
+            return {
+                "success": False,
+                "message": message or "Page runtime snapshot failed.",
+                "error": detail or message or "Page runtime snapshot failed.",
+                "error_detail": detail,
+                "error_type": str(result.get("error_type") or "snapshot_failed"),
+            }
+        return {
+            "success": True,
+            "message": "Page runtime snapshot loaded.",
+            "data": _normalize_snapshot_payload(mode=mode, source=result),
         }
 
     @classmethod
