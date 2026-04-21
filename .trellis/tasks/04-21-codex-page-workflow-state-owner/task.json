@@ -3,7 +3,7 @@
   "name": "codex-page-workflow-state-owner",
   "title": "Codex page workflow state owner closeout",
   "description": "Finish the page workflow state owner so discover/open/read/write/submit/verify drives routing, recovery, completion, and stop-loss without prompt-hint fallbacks.",
-  "status": "planning",
+  "status": "active",
   "dev_type": "backend",
   "scope": null,
   "priority": "P0",
@@ -34,6 +34,6 @@
     "backend/app/ai/engine/page_flow_recovery_helpers.py",
     "backend/app/ai/engine/turn_executor_completion.py"
   ],
-  "notes": "This workstream consumes the canonical connector payload contract from WS4 and closes the remaining page-progress and stop-loss seams.",
+  "notes": "This workstream consumes the canonical connector payload contract from WS4 and closes the remaining page-progress and stop-loss seams. 2026-04-21 progress update: page intents now project explicit `page_workflow_progress`, recovery decisions/partial exits carry `page_workflow` snapshots, and turn diagnostics/turn events expose `active_page_workflow` instead of leaving stop-loss to prompt-only hints.",
   "meta": {}
 }

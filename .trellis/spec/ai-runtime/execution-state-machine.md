@@ -34,10 +34,15 @@ diagnostics.
 ## Required Outputs
 
 - intent status and completion per turn
+- intent-level workflow progress for page turns, including canonical
+  `page_workflow_progress` on the active unfinished page intent
 - protocol path and fallback history
 - selected tools, tool rounds, and provider events
 - termination reason and outcome
 - recovery decisions and budget exit reason
+- when a page turn is unfinished, retry / consent / partial-exit turn events
+  and diagnostics should carry the same `active_page_workflow` snapshot that
+  recovery used
 
 ## Prohibited Patterns
 

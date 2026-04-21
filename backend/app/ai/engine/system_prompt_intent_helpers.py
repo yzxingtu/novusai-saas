@@ -396,3 +396,100 @@ def intent_completion_matches(
         completion_signals,
         completed_tool_names,
     )
+
+
+def _page_workflow_progress_status(
+    *,
+    workflow_phase: str,
+    mode: str,
+    action_matches: list[str],
+    verify_matches: list[str],
+    completion_matches: list[str],
+) -> str:
+    if completion_matches:
+        return "completed"
+
+    if workflow_phase == "discover":
+        return "discover_pending"
+    if workflow_phase == "navigate_or_open":
+        return "verify_pending" if action_matches else "action_pending"
+    if workflow_phase == "write":
+        return "write_pending"
+    if workflow_phase == "submit":
+        return "submit_pending"
+    if workflow_phase == "verify":
+        return "verify_pending"
+    if workflow_phase == "read":
+        return "read_pending"
+    if mode == "action_then_verify":
+        return "verify_pending" if action_matches else "action_pending"
+    if verify_matches:
+        return "verify_pending"
+    return "step_pending"
+
+
+def intent_completion_progress(
+    family: str,
+    *,
+    completed_tool_names: set[str],
+    intent_kind: str | None = None,
+    allowed_tool_names: list[str],
+    preferred_tool_names: list[str],
+    intent_metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    contract = intent_completion_contract(
+        family,
+        intent_kind=intent_kind,
+        allowed_tool_names=allowed_tool_names,
+        preferred_tool_names=preferred_tool_names,
+        intent_metadata=intent_metadata,
+    )
+    completion_signals = list(contract.get("completion_signals") or [])
+    action_signals = list(contract.get("action_signals") or [])
+    verify_signals = list(contract.get("verify_signals") or completion_signals)
+    completion_matches = intent_completion_matches(
+        family,
+        completed_tool_names=completed_tool_names,
+        intent_kind=intent_kind,
+        allowed_tool_names=allowed_tool_names,
+        preferred_tool_names=preferred_tool_names,
+        intent_metadata=intent_metadata,
+    )
+    action_matches = _ordered_matching_tool_names(
+        action_signals,
+        completed_tool_names,
+    )
+    verify_matches = _ordered_matching_tool_names(
+        verify_signals,
+        completed_tool_names,
+    )
+    workflow_stage = str((intent_metadata or {}).get("page_workflow_stage") or "").strip()
+    workflow_phase = str((intent_metadata or {}).get("page_workflow_phase") or "").strip()
+    workflow_goal = str((intent_metadata or {}).get("page_workflow_goal") or "").strip()
+    mode = str(contract.get("mode") or "any_of").strip()
+    continuation_required = not bool(completion_matches)
+    status = (
+        _page_workflow_progress_status(
+            workflow_phase=workflow_phase,
+            mode=mode,
+            action_matches=action_matches,
+            verify_matches=verify_matches,
+            completion_matches=completion_matches,
+        )
+        if family == "page_ops"
+        else ("completed" if completion_matches else "pending")
+    )
+    return {
+        "mode": mode,
+        "workflow_stage": workflow_stage,
+        "workflow_phase": workflow_phase,
+        "workflow_goal": workflow_goal,
+        "completion_signals": completion_signals,
+        "action_signals": action_signals,
+        "verify_signals": verify_signals,
+        "matched_completion_signals": completion_matches,
+        "matched_action_signals": action_matches,
+        "matched_verify_signals": verify_matches,
+        "continuation_required": continuation_required,
+        "status": status,
+    }

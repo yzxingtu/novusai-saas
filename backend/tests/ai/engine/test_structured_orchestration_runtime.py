@@ -403,6 +403,8 @@ def test_recovery_manager_keeps_page_navigation_pending_after_snapshot_only() ->
 
     assert updated[0].status == "pending"
     assert updated[0].completed_by_tool_names == []
+    assert updated[0].metadata["page_workflow_progress"]["status"] == "action_pending"
+    assert updated[0].metadata["page_workflow_progress"]["continuation_required"] is True
 
     decision = RecoveryManager.decide(
         updated,
@@ -411,13 +413,16 @@ def test_recovery_manager_keeps_page_navigation_pending_after_snapshot_only() ->
 
     assert decision is not None
     assert decision.action == "retry_intent"
+    assert decision.metadata["page_workflow"]["intent_kind"] == "page_navigation"
+    assert decision.metadata["page_workflow"]["progress"]["status"] == "action_pending"
 
     message = RecoveryManager.build_recovery_message(
         decision=decision,
         intents=updated,
     )
 
-    assert "do NOT call ui_get_snapshot again" in message.content
+    assert "Continue the same page workflow only." in message.content
+    assert "Allowed tools for this recovery:" in message.content
     assert "ui_list_interactables" in message.content
 
 
@@ -474,6 +479,13 @@ def test_recovery_manager_completes_page_navigation_after_action_then_snapshot()
 
     assert updated[0].status == "completed"
     assert updated[0].completed_by_tool_names == ["ui_click", "ui_get_snapshot"]
+    assert updated[0].metadata["page_workflow_progress"]["status"] == "completed"
+    assert updated[0].metadata["page_workflow_progress"]["matched_action_signals"] == [
+        "ui_click"
+    ]
+    assert updated[0].metadata["page_workflow_progress"]["matched_verify_signals"] == [
+        "ui_get_snapshot"
+    ]
 
 
 def test_recovery_manager_keeps_submit_stage_form_write_pending_after_fill_only() -> None:
@@ -1006,6 +1018,91 @@ def test_execution_state_machine_accumulates_usage_and_emits_turn_diagnostics() 
     assert payload["recovery"]["unfinished_intents"] == ["intent-2"]
     assert payload["intent_plan"][0]["status"] == "completed"
     assert payload["intent_plan"][0]["completed_by_tool_names"] == ["get_current_weather"]
+
+
+def test_execution_state_machine_partial_exit_surfaces_active_page_workflow() -> None:
+    intent = _intent(
+        "intent-1",
+        kind="page_navigation",
+        family="page_ops",
+        order=1,
+        allowed_tool_names=[
+            "ui_list_interactables",
+            "ui_click",
+            "ui_open_surface",
+            "ui_get_snapshot",
+        ],
+        metadata={
+            "page_workflow_stage": "discover_navigation_target",
+            "page_workflow_phase": "navigate_or_open",
+            "page_workflow_goal": "navigation",
+            "page_workflow_state": {
+                "has_active_surface": True,
+                "has_overlay_surface": False,
+            },
+            "page_workflow_completion": {
+                "mode": "action_then_verify",
+                "completion_signals": ["ui_get_snapshot"],
+                "action_signals": ["ui_click", "ui_open_surface"],
+                "verify_signals": ["ui_get_snapshot"],
+            },
+            "page_workflow_progress": {
+                "status": "verify_pending",
+                "continuation_required": True,
+                "matched_action_signals": ["ui_click"],
+                "matched_verify_signals": [],
+                "matched_completion_signals": [],
+            },
+        },
+    )
+    budget = BudgetGuard.build_default("normal", intent_count=1)
+    budget.tool_rounds_used = budget.max_tool_rounds + 1
+    prep = PreparedExecution(
+        intent_plan=[intent],
+        execution_path="normal",
+        execution_budget=budget,
+        tools=[
+            _tool("ui_click"),
+            _tool("ui_get_snapshot"),
+        ],
+        all_tools=[
+            _tool("ui_click"),
+            _tool("ui_get_snapshot"),
+        ],
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+
+    decision = RecoveryManager.decide(
+        state.intent_plan,
+        budget=budget,
+    )
+
+    assert decision is not None
+    assert decision.action == "return_partial"
+    assert decision.metadata["page_workflow"]["phase"] == "navigate_or_open"
+    assert decision.metadata["page_workflow"]["progress"]["status"] == "verify_pending"
+
+    state.recovery_history.append(decision)
+    state.transition("partial_exit")
+
+    payload = state.build_diagnostics_payload()
+
+    assert payload["active_page_workflow"]["intent_kind"] == "page_navigation"
+    assert payload["active_page_workflow"]["progress"]["status"] == "verify_pending"
+    assert payload["recovery"]["active_page_workflow"]["stage"] == (
+        "discover_navigation_target"
+    )
+    assert payload["recovery_chain"][-1]["page_workflow"]["allowed_tool_names"] == [
+        "ui_list_interactables",
+        "ui_click",
+        "ui_open_surface",
+        "ui_get_snapshot",
+    ]
+    partial_exit_events = [
+        event for event in payload["turn_events"] if event["kind"] == "turn.partial_exit"
+    ]
+    assert partial_exit_events
+    assert partial_exit_events[-1]["data"]["page_workflow"]["goal"] == "navigation"
 
 
 @pytest.mark.asyncio

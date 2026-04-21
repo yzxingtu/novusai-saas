@@ -242,6 +242,13 @@
 4. 以上 contract 已同步进 `.trellis/spec/ai-runtime/tool-skill-governance.md`，因此当前新 SaaS 的 live connector handshake 已不再允许 `page_key` 作为 join/readiness 身份字段。
 5. `WS4a page-session join handshake freeze` 现已完成；页面连接器主线剩余工作继续回到 `WS3` / `WS6` / `WS1`。
 
+### 2026-04-21 WS3 progress update
+
+1. `backend/app/ai/engine/system_prompt_intent_helpers.py` 与 `backend/app/ai/engine/recovery_status_update.py` 现已把 page intent completion contract 继续投影为 machine-readable `page_workflow_progress`，因此 `page_navigation`、`page_form_write` 等 unfinished page turn 不再只有粗粒度 `pending`，而会保留 canonical `status` / matched action/verify signals / continuation-required 事实。
+2. `backend/app/ai/engine/recovery_decision_policy.py` 已把 page stop-loss / retry / consent pause decision 收口为携带 `metadata.page_workflow` 的结构化决策；partial-exit 不再只能说“没完成”，而会把 active page workflow 的 stage/phase/goal 与 narrowed tool subset 一起投影出来。
+3. `backend/app/ai/engine/execution_state_machine.py` 与 `backend/app/ai/engine/turn_diagnostics.py` 已把这条 owner 链接进 canonical turn events / diagnostics：`turn.intent_planned`、`turn.recovery_decided`、`turn.partial_exit`、`turn.consent_paused` 以及 top-level diagnostics 现在都可以显式携带 `active_page_workflow`，而不是继续让下游从 prompt hint 或文本收尾里猜页面停在哪一步。
+4. 这次推进说明 `WS3 page workflow state owner` 已正式进入 active 执行中，但还没有宣告完成；后续仍需继续清理 prompt-hint-led recovery 与 text-only completion 残留，不为新 SaaS 回补兼容层。
+
 ### Phase 5: Context-Budget Alignment
 
 1. 维持 thin `page_context`，不回退到重内容 prompt 注入。

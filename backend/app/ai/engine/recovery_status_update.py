@@ -16,6 +16,9 @@ from .system_prompt_intent_helpers import (
     intent_completion_matches as resolve_intent_completion_matches,
 )
 from .system_prompt_intent_helpers import (
+    intent_completion_progress as resolve_intent_completion_progress,
+)
+from .system_prompt_intent_helpers import (
     intent_completion_signals as resolve_intent_completion_signals,
 )
 from .types import IntentPlan
@@ -67,6 +70,19 @@ def update_intent_statuses(
             preferred_tool_names=list(clone.preferred_tool_names or []),
             intent_metadata=clone.metadata,
         )
+        completion_progress = resolve_intent_completion_progress(
+            clone.family,
+            completed_tool_names=completed_tool_names,
+            intent_kind=clone.kind,
+            allowed_tool_names=list(clone.allowed_tool_names or []),
+            preferred_tool_names=list(clone.preferred_tool_names or []),
+            intent_metadata=clone.metadata,
+        )
+        if clone.family == "page_ops":
+            clone.metadata["page_workflow_progress"] = dict(completion_progress)
+            clone.metadata["page_workflow_continuation_required"] = bool(
+                completion_progress.get("continuation_required")
+            )
         completion_signals = set(clone.completion_signals or clone.allowed_tool_names)
         if clone.family == "none" or not clone.requires_tools:
             clone.status = "completed"
@@ -126,6 +142,16 @@ def update_intent_statuses(
             clone.cached_result = None
             clone.completed_by_tool_names = []
             clone.metadata["pending_consent"] = dict(pending_payload)
+            if clone.family == "page_ops":
+                progress = (
+                    dict(clone.metadata.get("page_workflow_progress") or {})
+                    if isinstance(clone.metadata.get("page_workflow_progress"), dict)
+                    else {}
+                )
+                progress["status"] = "awaiting_consent"
+                progress["continuation_required"] = True
+                clone.metadata["page_workflow_progress"] = progress
+                clone.metadata["page_workflow_continuation_required"] = True
             pending_consent_assigned = True
 
         updated.append(clone)
