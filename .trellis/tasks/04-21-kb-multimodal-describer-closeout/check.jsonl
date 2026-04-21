@@ -1,0 +1,2 @@
+{"command":"rg -n \"placeholder|audio_text_unavailable|video_text_unavailable|audio_model_id|video_model_id\" backend/app/ai/rag backend/app/locales frontend/apps/web-antd/src/views/*/ai/knowledge-bases -g '!**/__tests__/**'","reason":"Verify live ingest behavior and user-facing surfaces stay aligned"}
+{"file":"backend/app/ai/rag/processor_document_support.py","reason":"End-to-end ingest verification should prove audio/video paths no longer fail only because describers always return empty strings"}

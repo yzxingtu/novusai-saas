@@ -33,9 +33,6 @@ import {
   switchField,
   textareaField,
 } from '#/adapter/form';
-{% if fields | selectattr('dict_code') | list | length > 0 %}
-import { getDictOptionsApi } from '#/composables/use-dict-options';
-{% endif %}
 {% if model.drag_sort | default(false) %}
 import { dragColumn } from '#/adapter/vxe-table';
 {% endif %}
@@ -165,18 +162,6 @@ export function useGridFormSchema(): VbenFormSchema[] {
       label: $t('{{ i18n_pre }}.{{ f.name | camel }}'),
       showTime: {{ 'true' if f.get('queryType') == 'between' else 'false' }},
     }),
-{% elif f.get('dict_code') %}
-    {
-      component: 'ApiSelect',
-      fieldName: 'filter[{{ f.name }}][eq]',
-      label: $t('{{ i18n_pre }}.{{ f.name | camel }}'),
-      componentProps: {
-        api: getDictOptionsApi('{{ f.dict_code }}'),
-        resultField: 'items',
-        labelField: 'label',
-        valueField: 'value',
-      },
-    },
 {% elif ftype_base == 'UserSelect' %}
     {
       component: 'ApiSelect',
@@ -354,16 +339,6 @@ export function useFormSchema(_isEdit: boolean): VbenFormSchema[] {
     textareaField('{{ f.name }}', $t('{{ i18n_pre }}.{{ f.name | camel }}'), { rows: 3{% if f.get('required', true) %}, required: true{% endif %} }),
 {% elif 'Integer' in ftype or 'Float' in ftype or 'Decimal' in ftype or comp == 'number' %}
     numberField('{{ f.name }}', $t('{{ i18n_pre }}.{{ f.name | camel }}'), { {% if f.get('min_value') is not none %}min: {{ f.get('min_value') }}{% else %}min: undefined{% endif %}{% if f.get('max_value') is not none %}, max: {{ f.get('max_value') }}{% endif %}{% if f.get('default') is not none %}, defaultValue: {{ f.get('default') }}{% endif %} }),
-{% elif f.get('dict_code') %}
-    {
-      ...apiSelect({
-        api: getDictOptionsApi('{{ f.dict_code }}'),
-        fieldName: '{{ f.name }}',
-        label: $t('{{ i18n_pre }}.{{ f.name | camel }}'),
-        required: {{ f.get('required', true) | lower }},
-      }),
-      {% if not _insertable or not _editable %}ifShow: ({ values }) => ({{ 'true' if _insertable else 'false' }} && !values.id) || ({{ 'true' if _editable else 'false' }} && !!values.id),{% endif %}
-    },
 {% elif f.get('enum_values') %}
     select('{{ f.name }}', $t('{{ i18n_pre }}.{{ f.name | camel }}'), {
       options: [{% for v in f.enum_values %}{ label: $t('{{ i18n_pre }}.enum.{{ v.value if v is mapping else v }}'), value: '{{ v.value if v is mapping else v }}' }{% if not loop.last %}, {% endif %}{% endfor %}],

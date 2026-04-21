@@ -27,9 +27,6 @@ import {
   switchField,
   textareaField,
 } from '#/adapter/form';
-{% if fields | selectattr('dict_code') | list | length > 0 %}
-import { getDictOptionsApi } from '#/composables/use-dict-options';
-{% endif %}
 import { $t } from '#/locales';
 
 {% set i18n_pre = i18n_prefix | default('admin.' + module + '.' + resource) %}
@@ -149,13 +146,6 @@ export function useFormSchema(_isEdit: boolean): VbenFormSchema[] {
       componentProps: { format: 'YYYY-MM-DD' },
       {% if f.get('required', true) %}rules: 'required',{% endif %}
     },
-{% elif f.get('dict_code') %}
-    apiSelect({
-      api: getDictOptionsApi('{{ f.dict_code }}'),
-      fieldName: '{{ f.name }}',
-      label: $t('{{ i18n_pre }}.{{ f.name | camel }}'),
-      required: {{ f.get('required', true) | lower }},
-    }),
 {% elif f.get('enum_values') %}
     select('{{ f.name }}', $t('{{ i18n_pre }}.{{ f.name | camel }}'), {
       options: [{% for v in f.enum_values %}{ label: $t('{{ i18n_pre }}.enum.{{ v.value if v is mapping else v }}'), value: '{{ v.value if v is mapping else v }}' }{% if not loop.last %}, {% endif %}{% endfor %}],

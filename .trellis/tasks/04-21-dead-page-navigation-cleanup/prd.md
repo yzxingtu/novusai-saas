@@ -16,12 +16,12 @@ helper and any stale tests/docs that still treat its synthetic
   helper as a live boundary.
 
 ## Acceptance Criteria
-- [ ] `frontend/apps/web-antd/src/utils/page-navigation.ts` is removed or
+- [x] `frontend/apps/web-antd/src/utils/page-navigation.ts` is removed or
       reduced to an explicit non-live stub with no synthetic `page_context`
       assembly.
-- [ ] Dead tests or fixtures tied only to that helper are removed or replaced
+- [x] Dead tests or fixtures tied only to that helper are removed or replaced
       with coverage of the actual live runtime owner chain.
-- [ ] Canonical AI runtime docs no longer describe `page-navigation.ts` as a
+- [x] Canonical AI runtime docs no longer describe `page-navigation.ts` as a
       live runtime/page-context owner.
-- [ ] Validation proves no production frontend import path still depends on the
+- [x] Validation proves no production frontend import path still depends on the
       helper.

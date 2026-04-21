@@ -1363,7 +1363,7 @@
       "placeholderPatternRegex": "e.g. ^[a-zA-Z0-9]+$",
       "dictCode": "Dict Code",
       "placeholderDictCode": "e.g. sys_status",
-      "dictCodeHelp": "When set, form/search uses dict options; placeholder returns empty when no Dict module",
+      "dictCodeHelp": "Stores dict-code metadata only; generated code does not auto-wire system dict options yet",
       "pattern": "Validation Pattern",
       "inferHint": "Auto-inferred type and component from field name",
       "recommend": "Recommend {component} component",

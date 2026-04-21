@@ -1,0 +1,44 @@
+{
+  "id": "kb-multimodal-describer-closeout",
+  "name": "kb-multimodal-describer-closeout",
+  "title": "Close out placeholder audio/video describers in knowledge-base ingest",
+  "description": "Resolve the mismatch where knowledge-base forms expose audio/video model selection while the live RAG ingest path still uses placeholder describers that return empty content.",
+  "status": "planning",
+  "dev_type": "fullstack",
+  "scope": null,
+  "priority": "P1",
+  "creator": "yudi",
+  "assignee": "yudi",
+  "createdAt": "2026-04-21",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "backend/app/ai/rag/audio_describer.py",
+    "backend/app/ai/rag/video_describer.py",
+    "backend/app/ai/rag/parser_multimodal_support.py",
+    "backend/app/ai/rag/processor_document_support.py",
+    "backend/app/models/ai/knowledge_base.py",
+    "frontend/apps/web-antd/src/views/tenant/ai/knowledge-bases/data.ts",
+    "frontend/apps/web-antd/src/views/admin/ai/knowledge-bases/data.ts",
+    "backend/app/locales/en/messages.json",
+    "backend/app/locales/zh_CN/messages.json"
+  ],
+  "notes": "2026-04-21 audit confirmed that knowledge-base ingest instantiates AudioDescriber and VideoDescriber on the live parsing path, but both services still log placeholder execution and return empty strings even when a supports_audio/supports_video model is configured. The processor then raises audio_text_unavailable/video_text_unavailable, while admin and tenant forms still expose audio/video model selectors. The new SaaS must either implement real multimodal describers or retract these configuration surfaces instead of keeping a permanently non-working live path.",
+  "meta": {},
+  "execution_path": "normal",
+  "required_artifacts": [
+    "prd.md"
+  ],
+  "context_files": [
+    "implement.jsonl",
+    "check.jsonl"
+  ],
+  "verification_mode": "command"
+}

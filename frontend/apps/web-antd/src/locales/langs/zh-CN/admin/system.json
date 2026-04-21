@@ -1395,7 +1395,7 @@
       "placeholderPatternRegex": "如 ^[a-zA-Z0-9]+$",
       "dictCode": "数据字典编码",
       "placeholderDictCode": "如 sys_status",
-      "dictCodeHelp": "填写后，表单/搜索将使用系统字典选项；无 Dict 模块时占位返回空",
+      "dictCodeHelp": "仅保留字典编码元数据；当前生成代码不会自动接入系统字典选项",
       "pattern": "验证规则",
       "inferHint": "已根据字段名自动推断类型和组件",
       "recommend": "推荐使用 {component} 组件",
