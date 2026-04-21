@@ -9,7 +9,7 @@ import type {
   TurnContextSourcePayload,
   TurnRecordPayload,
 } from '#/api/shared/types';
-import type { ChatAttachment, RagSource } from '#/types/ai-chat';
+import type { ChatAttachment } from '#/types/ai-chat';
 
 import { smartUploadFile as adminSmartUploadFile } from '#/api/admin/attachment';
 import { smartUploadFile as tenantSmartUploadFile } from '#/api/tenant/attachment';
@@ -39,31 +39,6 @@ export interface RawMessageItem {
   model_name?: null | string;
   provider_id?: null | number;
   provider_name?: null | string;
-  tool_calls?: Array<{
-    display_name?: string;
-    duration_ms?: number;
-    error_type?: string;
-    function?: { arguments?: string; name?: string };
-    id?: string;
-    package_name?: string;
-    pending_confirmation?: {
-      action?: string;
-      preview?: Record<string, unknown>;
-      table?: string;
-      tool_name?: string;
-    };
-    pending_consent?: {
-      arguments?: Record<string, unknown>;
-      package_name?: string;
-      skill_name?: string;
-      tool_name?: string;
-    };
-    result_link?: string;
-    skill_name?: string;
-    success?: boolean;
-    summary?: string;
-    summary_payload?: Record<string, unknown>;
-  }> | null;
   tool_call_id?: null | string;
   tool_name?: null | string;
   turn_flow?: null | Record<string, unknown>;
@@ -111,12 +86,10 @@ export interface RawMessageItem {
     provider_name?: string;
     prune_stats?: Record<string, unknown>;
     rag_source_kinds?: string[];
-    rag_sources?: RagSource[];
     route_source?: string;
     selected_skill_names?: string[];
     selected_tool_names?: string[];
     termination_reason?: string;
-    thinking_content?: string;
     tool_display_name?: string;
     tool_error?: string;
     tool_error_type?: string;

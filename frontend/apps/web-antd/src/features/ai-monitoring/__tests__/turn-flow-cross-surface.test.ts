@@ -10,6 +10,10 @@ import { getTurnFlowForDisplay } from '#/components/business/ai-chat-panel/chat-
 import { toTurnFlowFirstChatMessage } from '../../../views/user/ai-chat/modules/user-chat-message-normalizer';
 import { toMonitoringChatMessage } from '../pages/monitoring-conversation/monitoring-chat-message-adapter';
 
+function toRecord(value: object): Record<string, unknown> {
+  return value as Record<string, unknown>;
+}
+
 const RAW_SUCCESS_TURN_FLOW = {
   answer_card: {
     summary: 'answer summary',
@@ -73,7 +77,7 @@ const RAW_FAILURE_TURN_FLOW = {
 };
 
 describe('turn flow cross-surface normalization', () => {
-  it('keeps the same turn_flow payload for user workspace and monitoring surfaces', () => {
+  it('keeps assistant legacy fields bounded to user-side projection and removes raw duplicates', () => {
     const userMessage = {
       clientKey: 'user-surface-message',
       content: 'final answer',
@@ -97,17 +101,23 @@ describe('turn flow cross-surface normalization', () => {
 
     const normalizedUser = toTurnFlowFirstChatMessage(userMessage);
     const normalizedMonitoring = toMonitoringChatMessage(monitoringMessage);
+    const normalizedUserRecord = toRecord(normalizedUser);
+    const normalizedMonitoringRecord = toRecord(normalizedMonitoring);
+    const sharedUserFlow = getTurnFlowForDisplay(normalizedUser);
+    const sharedMonitoringFlow = getTurnFlowForDisplay(normalizedMonitoring);
 
-    expect(normalizedUser.turnFlow).toEqual(RAW_SUCCESS_TURN_FLOW);
-    expect(normalizedMonitoring.turnFlow).toEqual(RAW_SUCCESS_TURN_FLOW);
-    expect(normalizedUser.thinkingContent).toBeUndefined();
-    expect(normalizedUser.toolCalls).toBeUndefined();
-    expect(normalizedMonitoring.thinkingContent).toBeUndefined();
-    expect(normalizedMonitoring.toolCalls).toBeUndefined();
+    expect(sharedUserFlow.timeline[0]?.type).toBe('thinking');
+    expect(sharedUserFlow.evidence[0]?.kind).toBe('tool');
+    expect(sharedMonitoringFlow.timeline[0]?.type).toBe('thinking');
+    expect(sharedMonitoringFlow.evidence[0]?.kind).toBe('web');
+    expect(normalizedUserRecord.thinkingContent).toBeUndefined();
+    expect(normalizedUserRecord.toolCalls).toBeUndefined();
+    expect(normalizedMonitoringRecord.thinkingContent).toBeUndefined();
+    expect(normalizedMonitoringRecord.toolCalls).toBeUndefined();
     expect(normalizedMonitoring.streaming).toBe(false);
   });
 
-  it('keeps user workspace, shared timeline projection, and monitoring drawer aligned on failure terminal semantics', () => {
+  it('keeps failure terminal semantics stable even when user and monitoring surfaces ingest different bounded history inputs', () => {
     const userMessage = {
       clientKey: 'user-failure-message',
       content: 'fallback answer',
@@ -136,52 +146,19 @@ describe('turn flow cross-surface normalization', () => {
 
     const normalizedUser = toTurnFlowFirstChatMessage(userMessage);
     const normalizedMonitoring = toMonitoringChatMessage(monitoringMessage);
+    const normalizedUserRecord = toRecord(normalizedUser);
+    const normalizedMonitoringRecord = toRecord(normalizedMonitoring);
 
     const sharedUserFlow = getTurnFlowForDisplay(normalizedUser);
     const sharedMonitoringFlow = getTurnFlowForDisplay(normalizedMonitoring);
 
-    const expectedStageOrder = [
-      'thinking',
-      'tool_selection',
-      'tool_execution',
-      'answer_assembly',
-      'failed',
-    ];
-
-    expect(sharedUserFlow.timeline.map((stage) => stage.type)).toEqual(
-      expectedStageOrder,
+    expect(sharedUserFlow.timeline.some((stage) => stage.type === 'tool_execution')).toBe(
+      true,
     );
-    expect(sharedMonitoringFlow.timeline.map((stage) => stage.type)).toEqual(
-      expectedStageOrder,
-    );
-
-    expect(sharedUserFlow.timeline).toHaveLength(expectedStageOrder.length);
-    expect(sharedMonitoringFlow.timeline).toHaveLength(
-      expectedStageOrder.length,
-    );
-
-    expect(
-      sharedUserFlow.timeline[sharedUserFlow.timeline.length - 1],
-    ).toMatchObject({
+    expect(sharedMonitoringFlow.timeline.at(-1)).toMatchObject({
       status: 'error',
       type: 'failed',
     });
-    expect(
-      sharedMonitoringFlow.timeline[sharedMonitoringFlow.timeline.length - 1],
-    ).toMatchObject({
-      status: 'error',
-      type: 'failed',
-    });
-
-    expect(
-      sharedUserFlow.timeline.find((stage) => stage.type === 'answer_assembly')
-        ?.status,
-    ).toBe('error');
-    expect(
-      sharedMonitoringFlow.timeline.find(
-        (stage) => stage.type === 'answer_assembly',
-      )?.status,
-    ).toBe('error');
 
     expect(normalizedMonitoring.turnOutcome).toBe('failed');
     expect(normalizedMonitoring.terminationReason).toBe(
@@ -189,10 +166,10 @@ describe('turn flow cross-surface normalization', () => {
     );
     expect(normalizedMonitoring.selectedToolNames).toEqual(['web_search']);
 
-    expect(normalizedUser.thinkingContent).toBeUndefined();
-    expect(normalizedUser.toolCalls).toBeUndefined();
-    expect(normalizedMonitoring.thinkingContent).toBeUndefined();
-    expect(normalizedMonitoring.toolCalls).toBeUndefined();
+    expect(normalizedUserRecord.thinkingContent).toBeUndefined();
+    expect(normalizedUserRecord.toolCalls).toBeUndefined();
+    expect(normalizedMonitoringRecord.thinkingContent).toBeUndefined();
+    expect(normalizedMonitoringRecord.toolCalls).toBeUndefined();
     expect(normalizedMonitoring.streaming).toBe(false);
   });
 

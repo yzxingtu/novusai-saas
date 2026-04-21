@@ -1,5 +1,5 @@
 import type { SearchSummary } from './tool-call-search-utils';
-import type { ChatMessage } from './types';
+import type { ToolCallEvent } from './types';
 
 import { $t } from '#/locales';
 
@@ -33,7 +33,7 @@ export interface ToolDisplayItem {
   searchSummary: null | SearchSummary;
   structuredOutput: StructuredToolOutput;
   targetBadges: ToolTargetBadge[];
-  tc: NonNullable<ChatMessage['toolCalls']>[number];
+  tc: ToolCallEvent;
 }
 
 const TOOL_SUMMARY_LIMIT = 56;
@@ -177,10 +177,7 @@ function parseToolOutputPayload(
 }
 
 export function getStructuredToolOutput(
-  tc: Pick<
-    NonNullable<ChatMessage['toolCalls']>[number],
-    'output' | 'summaryPayload'
-  >,
+  tc: Pick<ToolCallEvent, 'output' | 'summaryPayload'>,
 ): StructuredToolOutput {
   const summaryPayload = getToolCallSummaryPayload(tc);
   const payloadExplanation =
@@ -231,10 +228,7 @@ export function getStructuredToolOutput(
 }
 
 export function getToolHeadlineSummary(
-  tc: Pick<
-    NonNullable<ChatMessage['toolCalls']>[number],
-    'output' | 'status' | 'summary' | 'summaryPayload'
-  >,
+  tc: Pick<ToolCallEvent, 'output' | 'status' | 'summary' | 'summaryPayload'>,
 ): null | string {
   if (tc.summary?.trim()) {
     return tc.summary.trim();
@@ -246,10 +240,7 @@ export function getToolHeadlineSummary(
 }
 
 export function getToolTargetBadges(
-  tc: Pick<
-    NonNullable<ChatMessage['toolCalls']>[number],
-    'arguments' | 'output' | 'summaryPayload'
-  >,
+  tc: Pick<ToolCallEvent, 'arguments' | 'output' | 'summaryPayload'>,
 ): ToolTargetBadge[] {
   const args = tc.arguments;
   const summaryPayload = getToolCallSummaryPayload(tc);
@@ -371,10 +362,7 @@ export function getToolTargetBadges(
 }
 
 export function hasToolCardDetails(
-  tc: Pick<
-    NonNullable<ChatMessage['toolCalls']>[number],
-    'arguments' | 'error' | 'output' | 'summaryPayload'
-  >,
+  tc: Pick<ToolCallEvent, 'arguments' | 'error' | 'output' | 'summaryPayload'>,
 ) {
   return Boolean(
     tc.output ||

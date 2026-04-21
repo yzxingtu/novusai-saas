@@ -1,4 +1,6 @@
-import type { ChatMessage } from './types';
+import type { ChatMessage, RagSource, ToolCallEvent } from './types';
+
+import { projectAssistantFieldsIntoTurnFlow } from './use-ai-chat-turn-flow';
 
 const TURN_FLOW_STAGE_TYPES = new Set([
   'answer_assembly',
@@ -45,6 +47,19 @@ function asString(value: unknown): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
+function asNumber(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return undefined;
+}
+
 function normalizeStageType(value: unknown): string | undefined {
   const type = asString(value);
   if (!type || !TURN_FLOW_STAGE_TYPES.has(type)) {
@@ -73,6 +88,46 @@ function hasTurnFlowShape(value: unknown): value is TurnFlowRecord {
     return false;
   }
   return Array.isArray(record.timeline) || Array.isArray(record.evidence);
+}
+
+function normalizeLegacyToolCalls(value: unknown): ToolCallEvent[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const toolCalls = value.filter((item) => {
+    const record = asRecord(item);
+    return !!asString(record?.name);
+  }) as ToolCallEvent[];
+  return toolCalls.length > 0 ? toolCalls : undefined;
+}
+
+function normalizeLegacyRagSources(value: unknown): RagSource[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const ragSources = value.filter((item) => {
+    const record = asRecord(item);
+    return !!asString(record?.doc_name);
+  }) as RagSource[];
+  return ragSources.length > 0 ? ragSources : undefined;
+}
+
+function normalizeLegacyOptimizingTools(
+  value: unknown,
+): { selected?: number; total?: number } | undefined {
+  const record = asRecord(value);
+  if (!record) {
+    return undefined;
+  }
+  const selected = asNumber(record.selected);
+  const total = asNumber(record.total);
+  if (selected === undefined && total === undefined) {
+    return undefined;
+  }
+  return {
+    ...(selected === undefined ? {} : { selected }),
+    ...(total === undefined ? {} : { total }),
+  };
 }
 
 export function extractMessageTurnFlow(
@@ -259,16 +314,28 @@ function normalizeTurnFlowForDisplay(
 }
 
 export function toTurnFlowFirstChatMessage(message: ChatMessage): ChatMessage {
-  const turnFlow = normalizeTurnFlowForDisplay(message);
+  const nextMessage = { ...message } as ChatMessage;
+  const legacyRecord = message as unknown as Record<string, unknown>;
+  projectAssistantFieldsIntoTurnFlow(nextMessage, {
+    optimizingTools: normalizeLegacyOptimizingTools(
+      legacyRecord.optimizingTools,
+    ),
+    ragSources: normalizeLegacyRagSources(legacyRecord.ragSources),
+    thinkingContent: asString(legacyRecord.thinkingContent),
+    toolCalls: normalizeLegacyToolCalls(legacyRecord.toolCalls),
+  });
+  const nextRecord = nextMessage as unknown as Record<string, unknown>;
+  delete nextRecord.thinkingContent;
+  delete nextRecord.optimizingTools;
+  delete nextRecord.ragSources;
+  delete nextRecord.toolCalls;
+
+  const turnFlow = normalizeTurnFlowForDisplay(nextMessage);
   if (!turnFlow) {
-    return message;
+    return nextMessage;
   }
   return {
-    ...message,
+    ...nextMessage,
     turnFlow: turnFlow as unknown as ChatMessage['turnFlow'],
-    thinkingContent: undefined,
-    optimizingTools: undefined,
-    ragSources: undefined,
-    toolCalls: undefined,
   };
 }

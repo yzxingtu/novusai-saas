@@ -1,6 +1,6 @@
 import type { PendingPageOpForDisplay } from './pending-page-op';
 import type { ToolDisplayItem } from './tool-call-utils';
-import type { ChatMessage } from './types';
+import type { ChatMessage, ToolCallEvent } from './types';
 
 import { computed, onUnmounted, ref, watch } from 'vue';
 
@@ -26,10 +26,7 @@ export function useChatMessageToolCalls(props: UseChatMessageToolCallsProps) {
   const pendingOpExpandedMap = ref<Record<string, boolean>>({});
 
   function isToolExpanded(
-    tc: Pick<
-      NonNullable<ChatMessage['toolCalls']>[number],
-      'status' | 'summaryPayload'
-    >,
+    tc: Pick<ToolCallEvent, 'status' | 'summaryPayload'>,
     idx: number,
   ) {
     const existing = toolExpandedMap.value[idx];
@@ -41,7 +38,7 @@ export function useChatMessageToolCalls(props: UseChatMessageToolCallsProps) {
 
   function toggleToolExpand(
     tc: Pick<
-      NonNullable<ChatMessage['toolCalls']>[number],
+      ToolCallEvent,
       'arguments' | 'error' | 'output' | 'status' | 'summaryPayload'
     >,
     idx: number,

@@ -397,8 +397,6 @@ export interface ChatMessage {
   clientKey: string;
   role: 'assistant' | 'user';
   content: string;
-  /** Streaming thinking/reasoning content shown separately from final answer / 与最终答复分开展示的思考内容 */
-  thinkingContent?: string;
   /** Unified turn flow read-model used by timeline/evidence UI / 统一轮次流程读模型 */
   turnFlow?: TurnFlowViewPayload;
   streaming?: boolean;
@@ -416,15 +414,11 @@ export interface ChatMessage {
   model_name?: null | string;
   /** Route source marker for UI badges (e.g. one-time @ mention) / 路由来源标记 */
   routeSource?: null | string;
-  ragSources?: RagSource[];
   attachments?: ChatAttachment[];
-  toolCalls?: ToolCallEvent[];
   /** Pending CRUD confirmation request from tool / 待确认的 CRUD 请求 */
   pendingConfirmation?: PendingConfirmation;
   /** Pending tool consent request (consent_mode=ask) / 待用户同意的工具请求 */
   pendingConsent?: PendingConsent;
-  /** Tool optimizer result (shown when tools were pre-filtered) / 工具优化结果 */
-  optimizingTools?: { selected: number; total: number };
   /** Interactive action buttons for user to click / 可点击的操作按钮 */
   actionButtons?: ActionButton[];
   /** Whether action buttons have been used (disabled after click) / 操作按钮是否已使用 */

@@ -272,13 +272,15 @@ describe('turnTimeline', () => {
     const wrapper = mountTimeline(
       createAssistantMessage({
         streaming: true,
-        toolCalls: [
-          {
-            name: 'native_web_search',
-            status: 'running',
-          } as NonNullable<ChatMessage['toolCalls']>[number],
-        ],
         turnFlow: {
+          evidence: [
+            {
+              id: 'tool-running',
+              kind: 'tool',
+              status: 'running',
+              toolName: 'native_web_search',
+            },
+          ],
           timeline: [
             {
               id: 'stage-tool-running',

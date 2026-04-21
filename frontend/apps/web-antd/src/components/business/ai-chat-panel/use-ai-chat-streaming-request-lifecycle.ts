@@ -113,13 +113,6 @@ export function createStreamRequestLifecycle(
           orphaned,
         );
       }
-      if (!msg.turnFlow && msg.toolCalls) {
-        for (const toolCall of msg.toolCalls) {
-          if (toolCall.status === 'running') {
-            toolCall.status = 'error';
-          }
-        }
-      }
       if (hadOrphanedRunningTools) {
         msg.turnOutcome = msg.turnOutcome || 'failed';
         msg.completionReason = msg.completionReason || 'tool_error';

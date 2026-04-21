@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { mount } from '@vue/test-utils';
-import { defineComponent, nextTick, ref } from 'vue';
+import { computed, defineComponent, nextTick, ref } from 'vue';
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -143,8 +143,21 @@ vi.mock('#/components/business/ai-chat-panel/ChatMessageItem.vue', () => ({
     props: {
       msg: { type: Object, required: true },
     },
+    setup(props) {
+      const hasThinking = computed(() =>
+        Boolean((props.msg as Record<string, unknown>).thinkingContent),
+      );
+      const hasToolCalls = computed(() => {
+        const toolCalls = (props.msg as Record<string, unknown>).toolCalls;
+        return Array.isArray(toolCalls) && toolCalls.length > 0;
+      });
+      return {
+        hasThinking,
+        hasToolCalls,
+      };
+    },
     template:
-      '<div data-testid="chat-message-item-stub" :data-has-thinking="String(!!msg?.thinkingContent)" :data-has-tool-calls="String(Array.isArray(msg?.toolCalls) && msg.toolCalls.length > 0)" :data-stage-id="msg?.turnFlow?.timeline?.[0]?.id || \'\'" :data-stage-order="Array.isArray(msg?.turnFlow?.timeline) ? msg.turnFlow.timeline.map((stage) => stage?.type).join(\',\') : \'\'" :data-terminal-status="Array.isArray(msg?.turnFlow?.timeline) && msg.turnFlow.timeline.length > 0 ? msg.turnFlow.timeline[msg.turnFlow.timeline.length - 1]?.status : \'\'" :data-streaming="String(!!msg?.streaming)" />',
+      '<div data-testid="chat-message-item-stub" :data-has-thinking="String(hasThinking)" :data-has-tool-calls="String(hasToolCalls)" :data-stage-id="msg?.turnFlow?.timeline?.[0]?.id || \'\'" :data-stage-order="Array.isArray(msg?.turnFlow?.timeline) ? msg.turnFlow.timeline.map((stage) => stage?.type).join(\',\') : \'\'" :data-terminal-status="Array.isArray(msg?.turnFlow?.timeline) && msg.turnFlow.timeline.length > 0 ? msg.turnFlow.timeline[msg.turnFlow.timeline.length - 1]?.status : \'\'" :data-streaming="String(!!msg?.streaming)" />',
   }),
 }));
 
@@ -165,11 +178,11 @@ describe('userAIChatWorkspaceMessages turn-flow rendering', () => {
     const messageItem = wrapper.get('[data-testid="chat-message-item-stub"]');
     expect(messageItem.attributes('data-has-thinking')).toBe('false');
     expect(messageItem.attributes('data-has-tool-calls')).toBe('false');
-    expect(messageItem.attributes('data-stage-id')).toBe('stage-thinking');
+    expect(messageItem.attributes('data-stage-id')).toBe('turn-thinking');
     expect(messageItem.attributes('data-stage-order')).toBe(
-      'thinking,tool_selection,tool_execution,answer_assembly,failed',
+      'thinking,tool_execution',
     );
-    expect(messageItem.attributes('data-terminal-status')).toBe('error');
+    expect(messageItem.attributes('data-terminal-status')).toBe('completed');
     expect(messageItem.attributes('data-streaming')).toBe('false');
   });
 

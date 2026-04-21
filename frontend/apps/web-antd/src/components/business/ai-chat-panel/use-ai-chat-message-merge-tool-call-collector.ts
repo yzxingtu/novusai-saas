@@ -6,6 +6,22 @@ import type { RawMessageItem } from '#/api/shared/ai-chat';
 
 import { resolveToolCallStatus } from './use-ai-chat-message-merge-tool-responses';
 
+interface LegacyRawToolCall {
+  function?: { arguments?: string; name?: string };
+  id?: string;
+}
+
+function readLegacyToolCalls(messageItem: RawMessageItem): LegacyRawToolCall[] {
+  const toolCalls = (messageItem as unknown as Record<string, unknown>).tool_calls;
+  if (!Array.isArray(toolCalls)) {
+    return [];
+  }
+  return toolCalls.filter(
+    (toolCall): toolCall is LegacyRawToolCall =>
+      !!toolCall && typeof toolCall === 'object',
+  );
+}
+
 function resolvePendingConfirmationFromToolCall(
   pendingValue: Record<string, unknown>,
   fallbackToolName = '',
@@ -58,10 +74,11 @@ export function collectToolCallsFromAssistantMessage(
   messageItem: RawMessageItem,
   toolResponseMap: PersistedToolResponseMap,
 ) {
-  if (!messageItem.tool_calls?.length) {
+  const toolCalls = readLegacyToolCalls(messageItem);
+  if (toolCalls.length === 0) {
     return;
   }
-  for (const toolCall of messageItem.tool_calls) {
+  for (const toolCall of toolCalls) {
     const toolCallId = toolCall.id ?? '';
     const functionName = toolCall.function?.name ?? 'unknown';
     const persistedToolCall = toolCall as Record<string, unknown>;

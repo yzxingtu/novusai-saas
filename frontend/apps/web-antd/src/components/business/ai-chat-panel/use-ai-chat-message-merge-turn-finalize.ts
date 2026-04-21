@@ -9,7 +9,8 @@ import {
   resolveNativeSearchToolStatus,
   upsertNativeSearchToolCall,
 } from './use-ai-chat-message-native-search';
-import { canonicalizeAssistantLegacyFieldsIntoTurnFlow } from './use-ai-chat-turn-flow';
+import { toTurnFlowFirstChatMessage } from './turn-flow-first-message';
+import { projectAssistantFieldsIntoTurnFlow } from './use-ai-chat-turn-flow';
 
 function resolveMergedToolCalls(
   state: AssistantTurnMergeState,
@@ -66,7 +67,6 @@ export function buildAssistantMessageFromState(
     model_name: state.turnModelName,
     role: 'assistant',
     routeSource: state.turnRouteSource,
-    toolCalls: mergedToolCalls.length > 0 ? mergedToolCalls : undefined,
   };
   if (state.turnRouteSource === 'rich_text_ai') {
     assistantMessage.source = 'rich_text_ai';
@@ -119,12 +119,6 @@ export function buildAssistantMessageFromState(
     assistantMessage.error = state.turnPersistedError;
     assistantMessage.requestFailedRetry = true;
   }
-  if (state.thinkingContentParts.length > 0) {
-    assistantMessage.thinkingContent = state.thinkingContentParts.join('\n\n');
-  }
-  if (state.turnRagSources?.length) {
-    assistantMessage.ragSources = state.turnRagSources;
-  }
   if (state.turnActionButtons?.length) {
     assistantMessage.actionButtons = state.turnActionButtons;
   }
@@ -143,7 +137,16 @@ export function buildAssistantMessageFromState(
   }
   if (state.turnFlow) {
     assistantMessage.turnFlow = state.turnFlow;
-    canonicalizeAssistantLegacyFieldsIntoTurnFlow(assistantMessage);
   }
-  return assistantMessage;
+
+  projectAssistantFieldsIntoTurnFlow(assistantMessage, {
+    ragSources: state.turnRagSources,
+    thinkingContent:
+      state.thinkingContentParts.length > 0
+        ? state.thinkingContentParts.join('\n\n')
+        : undefined,
+    toolCalls: mergedToolCalls,
+  });
+
+  return toTurnFlowFirstChatMessage(assistantMessage);
 }

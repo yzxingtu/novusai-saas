@@ -1,6 +1,6 @@
 /**
- * Backward-compatible re-export shim.
- * / 向后兼容 re-export 过渡层。
+ * Shared AI chat type bridge.
+ * / AI 对话共享类型桥接层。
  */
 
 import type {

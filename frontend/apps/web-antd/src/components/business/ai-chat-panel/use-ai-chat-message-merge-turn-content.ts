@@ -8,6 +8,11 @@ import {
   normalizeOptionalString,
 } from './use-ai-chat-message-normalizers';
 
+function hasLegacyToolCalls(messageItem: RawMessageItem): boolean {
+  const toolCalls = (messageItem as unknown as Record<string, unknown>).tool_calls;
+  return Array.isArray(toolCalls) && toolCalls.length > 0;
+}
+
 function collectTurnFlags(
   state: AssistantTurnMergeState,
   assistantMetadata: null | Record<string, unknown>,
@@ -57,7 +62,7 @@ function collectTurnText(
   if (persistedErrorOnly) {
     return true;
   }
-  if (messageItem.tool_calls?.length) {
+  if (hasLegacyToolCalls(messageItem)) {
     if (!persistedThinking.trim()) {
       appendDistinctMergedTextPart(
         state.thinkingContentParts,

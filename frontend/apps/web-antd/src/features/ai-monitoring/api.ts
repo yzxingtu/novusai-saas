@@ -77,7 +77,6 @@ export interface MonitoringConversationMessage {
   token_count: null | number;
   turn_flow?: MonitoringTurnFlowPayload | null;
   tool_call_id?: null | string;
-  tool_calls?: null | unknown[];
   tool_name?: null | string;
 }
 

@@ -60,7 +60,6 @@ class ConversationExportService:
                     "role": _msg_get(msg, "role"),
                     "content": _msg_get(msg, "content"),
                     "token_count": _msg_get(msg, "token_count"),
-                    "tool_calls": _msg_get(msg, "tool_calls"),
                     "tool_call_id": _msg_get(msg, "tool_call_id"),
                     "agent_id": _msg_get(msg, "agent_id"),
                     "agent_name": _msg_get(
@@ -121,14 +120,6 @@ class ConversationExportService:
             lines.append("")
             lines.append(_msg_get(msg, "content") or "")
             lines.append("")
-
-            tool_calls = _msg_get(msg, "tool_calls")
-            if tool_calls:
-                lines.append("**Tool Calls:**")
-                lines.append(
-                    f"```json\n{json.dumps(tool_calls, indent=2, ensure_ascii=False)}\n```"
-                )
-                lines.append("")
 
             metadata = _msg_get(msg, "metadata", _msg_get(msg, "metadata_"))
             attachments = (

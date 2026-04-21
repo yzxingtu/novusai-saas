@@ -1,5 +1,6 @@
 import type { StreamRequestDeps } from './use-ai-chat-streaming-request';
 import type { StreamRequestLifecycle } from './use-ai-chat-streaming-request-lifecycle';
+import type { RagSource } from './types';
 
 import { nextTick } from 'vue';
 
@@ -244,7 +245,7 @@ export function createStreamSseHandler(
           } else if (event.event === 'rag_sources' && event.sources) {
             applyRagSourcesToTurnFlow(
               msg,
-              event.sources as typeof msg.ragSources,
+              event.sources as RagSource[],
             );
           } else if (event.event === 'message' && event.delta) {
             msg.content += event.delta as string;

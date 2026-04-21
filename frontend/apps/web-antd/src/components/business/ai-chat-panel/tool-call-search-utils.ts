@@ -1,4 +1,4 @@
-import type { ChatMessage } from './types';
+import type { ToolCallEvent } from './types';
 
 import { $t } from '#/locales';
 
@@ -21,7 +21,7 @@ export interface SearchSummary {
 }
 
 export function getToolCallSummaryPayload(
-  tc: Pick<NonNullable<ChatMessage['toolCalls']>[number], 'summaryPayload'>,
+  tc: Pick<ToolCallEvent, 'summaryPayload'>,
 ) {
   return tc.summaryPayload && typeof tc.summaryPayload === 'object'
     ? tc.summaryPayload
@@ -54,7 +54,7 @@ function toStringList(value: unknown): string[] {
 }
 
 export function getSearchSummary(
-  tc: Pick<NonNullable<ChatMessage['toolCalls']>[number], 'summaryPayload'>,
+  tc: Pick<ToolCallEvent, 'summaryPayload'>,
 ): null | SearchSummary {
   const summaryPayload = getToolCallSummaryPayload(tc);
   if (!summaryPayload) return null;

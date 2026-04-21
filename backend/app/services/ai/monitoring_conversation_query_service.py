@@ -16,14 +16,20 @@ from app.schemas.ai.monitoring import (
     MonitoringConversationListItem,
 )
 from app.schemas.common.query import QuerySpec
+from app.services.ai.agent_chat_interaction_support import (
+    strip_legacy_interaction_mode_fields,
+)
+from app.services.ai.conversation_payload_sanitizer import (
+    strip_assistant_legacy_turn_projection_fields,
+)
+from app.services.ai.conversation_turn_flow_projector import (
+    ConversationTurnFlowProjector,
+)
 from app.services.ai.monitoring_call_trace_projector import (
     MonitoringCallTraceProjector,
 )
 from app.services.ai.monitoring_query_dependencies import (
     resolve_monitoring_conversation_query_dependencies,
-)
-from app.services.ai.conversation_turn_flow_projector import (
-    ConversationTurnFlowProjector,
 )
 
 if TYPE_CHECKING:
@@ -41,8 +47,8 @@ class MonitoringConversationQueryService:
     ) -> tuple[list[AgentConversation], int]:
         base = self.service
         dependencies = resolve_monitoring_conversation_query_dependencies(base)
-        provider_id, model_id, normalized_spec = base._split_conversation_runtime_filters(
-            spec
+        provider_id, model_id, normalized_spec = (
+            base._split_conversation_runtime_filters(spec)
         )
 
         if provider_id is None and model_id is None:
@@ -66,7 +72,9 @@ class MonitoringConversationQueryService:
         )
         allowed_fields = repo.get_allowed_fields(None)
 
-        query = select(AgentConversation).where(*base._scope_conversation_filters(scope))
+        query = select(AgentConversation).where(
+            *base._scope_conversation_filters(scope)
+        )
         if normalized_spec.filters:
             query = repo._apply_filters(query, normalized_spec.filters, allowed_fields)
 
@@ -87,7 +95,9 @@ class MonitoringConversationQueryService:
         total = (
             await base.db.execute(select(func.count()).select_from(query.subquery()))
         ).scalar() or 0
-        query = repo._apply_sort(query, normalized_spec.sort, repo.get_sortable_fields())
+        query = repo._apply_sort(
+            query, normalized_spec.sort, repo.get_sortable_fields()
+        )
         query = query.offset(normalized_spec.offset).limit(normalized_spec.limit)
 
         result = await base.db.execute(query)
@@ -104,9 +114,11 @@ class MonitoringConversationQueryService:
         conversation_ids = {item.id for item in items}
         tenant_ids = {item.tenant_id for item in items if item.tenant_id is not None}
         usage_map = await base._load_conversation_usage_map(scope, conversation_ids)
-        conversation_actor_snapshot_map = await base._load_conversation_actor_snapshot_map(
-            scope,
-            conversation_ids,
+        conversation_actor_snapshot_map = (
+            await base._load_conversation_actor_snapshot_map(
+                scope,
+                conversation_ids,
+            )
         )
         tenant_names = await base._load_tenant_names(tenant_ids)
         actor_refs = {
@@ -117,10 +129,12 @@ class MonitoringConversationQueryService:
         }
         actor_refs.update(
             {
-                (str(snapshot_info.get("actor_type")), int(snapshot_info.get("actor_id")))
+                (
+                    str(snapshot_info.get("actor_type")),
+                    int(snapshot_info.get("actor_id")),
+                )
                 for snapshot_info in conversation_actor_snapshot_map.values()
-                if snapshot_info.get("actor_type")
-                and snapshot_info.get("actor_id")
+                if snapshot_info.get("actor_type") and snapshot_info.get("actor_id")
             }
         )
         actor_map = await base._load_actor_map(actor_refs)
@@ -142,7 +156,9 @@ class MonitoringConversationQueryService:
                 actor_id=actor_ref[1] if actor_ref else None,
                 actor_type=actor_ref[0] if actor_ref else None,
                 tenant_id=(
-                    PLATFORM_TENANT_ID if item.tenant_id == PLATFORM_TENANT_ID else item.tenant_id
+                    PLATFORM_TENANT_ID
+                    if item.tenant_id == PLATFORM_TENANT_ID
+                    else item.tenant_id
                 ),
                 tenant_name=(
                     base.PLATFORM_USAGE_TENANT_NAME
@@ -203,11 +219,12 @@ class MonitoringConversationQueryService:
             if not conversation:
                 raise NotFoundException(message="conversation not found")
         else:
-            service, conversation = (
-                await dependencies.conversation_service_cls.get_service_for_conversation(
-                    base.db,
-                    conversation_id,
-                )
+            (
+                service,
+                conversation,
+            ) = await dependencies.conversation_service_cls.get_service_for_conversation(
+                base.db,
+                conversation_id,
             )
 
         detail = await service.get_conversation_detail(
@@ -220,8 +237,8 @@ class MonitoringConversationQueryService:
             if not isinstance(item, dict):
                 continue
             payload = dict(item)
-            projected_turn_flow = ConversationTurnFlowProjector.project_from_message_payload(
-                payload
+            projected_turn_flow = (
+                ConversationTurnFlowProjector.project_from_message_payload(payload)
             )
             if projected_turn_flow is not None:
                 payload["turn_flow"] = projected_turn_flow
@@ -232,13 +249,17 @@ class MonitoringConversationQueryService:
                 )
                 metadata_payload["turn_flow"] = projected_turn_flow
                 payload["metadata"] = metadata_payload
-            normalized_message_list.append(payload)
+            normalized_message_list.append(
+                strip_assistant_legacy_turn_projection_fields(payload)
+            )
         usage = (await base._load_conversation_usage_map(scope, {conversation_id})).get(
             conversation_id, {}
         )
-        conversation_actor_snapshot_map = await base._load_conversation_actor_snapshot_map(
-            scope,
-            {conversation_id},
+        conversation_actor_snapshot_map = (
+            await base._load_conversation_actor_snapshot_map(
+                scope,
+                {conversation_id},
+            )
         )
         snapshot_info = conversation_actor_snapshot_map.get(conversation_id, {})
         actor_ref = None
@@ -301,7 +322,9 @@ class MonitoringConversationQueryService:
             .limit(200)
         )
         trace_rows = (await base.db.execute(trace_stmt)).all()
-        call_trace = [MonitoringCallTraceProjector.build_item(row) for row in trace_rows]
+        call_trace = [
+            MonitoringCallTraceProjector.build_item(row) for row in trace_rows
+        ]
 
         return MonitoringConversationDetail(
             id=conversation.id,
@@ -335,7 +358,7 @@ class MonitoringConversationQueryService:
             updated_at=conversation.updated_at,
             context_diagnostics=detail.get("context_diagnostics"),
             last_run_summary=detail.get("last_run_summary"),
-            metadata=detail.get("metadata"),
+            metadata=strip_legacy_interaction_mode_fields(detail.get("metadata")),
             message_list=normalized_message_list,
             call_trace=call_trace,
         )

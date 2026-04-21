@@ -181,7 +181,13 @@ class TestGetConversationDetail:
     ):
         from app.services.ai.conversation_service import ConversationService
 
-        conversation = _make_conversation()
+        conversation = _make_conversation(
+            metadata={
+                "interaction_mode": "confirm",
+                "interaction_mode_requested": "trusted_auto",
+                "topic": "demo",
+            }
+        )
         conversation.metadata_ = {
             "interaction_mode": "confirm",
             "interaction_mode_requested": "trusted_auto",
@@ -218,6 +224,7 @@ class TestGetConversationDetail:
         assert "interaction_mode_effective" not in detail["context_diagnostics"]
         assert "interaction_mode_effective" not in detail["last_run_summary"]
         assert "downgrade_reason" not in detail["last_run_summary"]
+        assert detail["metadata"] == {"topic": "demo"}
         assert detail["message_list"][0]["metadata"] == {"nested": {"keep": "ok"}}
 
     @pytest.mark.asyncio
@@ -698,6 +705,70 @@ class TestGetConversationDetail:
         assert turn_flow["timeline"][-1]["status"] == "error"
         assert turn_flow["error_surface"]["message"]
 
+    @pytest.mark.asyncio
+    async def test_conversation_detail_projects_turn_flow_and_strips_legacy_assistant_fields(
+        self, mock_db
+    ):
+        from app.services.ai.conversation_service import ConversationService
+
+        conversation = _make_conversation()
+        message = _make_message(role="assistant", content="最终答复")
+        message.to_dict.return_value = {
+            "id": 1,
+            "role": "assistant",
+            "content": "最终答复",
+            "tool_calls": [
+                {
+                    "id": "tc_1",
+                    "display_name": "数据查询",
+                    "summary": "按今天范围统计调用",
+                    "result_link": "/admin/ai/chat",
+                }
+            ],
+            "metadata": {
+                "thinking_content": "先分析上下文。",
+                "rag_sources": [
+                    {
+                        "source": "KB",
+                        "chunk_id": 1,
+                        "title": "知识库证据",
+                        "snippet": "命中了相关文档",
+                    }
+                ],
+            },
+        }
+        message.metadata_ = dict(message.to_dict.return_value["metadata"])
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service.get_accessible_conversation = AsyncMock(return_value=conversation)
+        service._message_repo = MagicMock()
+        service._message_repo.get_by_conversation = AsyncMock(return_value=[message])
+        service._message_repo.count_by_conversation = AsyncMock(return_value=1)
+        mock_db.execute = AsyncMock(return_value=SimpleNamespace(scalars=lambda: []))
+
+        detail = await service.get_conversation_detail(1, user_id=1)
+
+        assistant_payload = detail["message_list"][0]
+        assert "tool_calls" not in assistant_payload
+        assert "thinking_content" not in assistant_payload["metadata"]
+        assert "rag_sources" not in assistant_payload["metadata"]
+        assert assistant_payload["metadata"]["turn_flow"] == assistant_payload["turn_flow"]
+        assert any(
+            stage["type"] == "thinking"
+            for stage in assistant_payload["turn_flow"]["timeline"]
+        )
+        assert any(
+            stage["type"] == "retrieval"
+            for stage in assistant_payload["turn_flow"]["timeline"]
+        )
+        assert any(
+            item["tool_call_id"] == "tc_1"
+            for item in assistant_payload["turn_flow"]["evidence"]
+        )
+
 
 class TestGetServiceForConversation:
     @pytest.mark.asyncio
@@ -1026,6 +1097,72 @@ class TestExportConversation:
         assert attachments[0]["url"].startswith("/api/public/attachments/11/image?")
         assert "token=" in attachments[0]["url"]
 
+    @pytest.mark.asyncio
+    async def test_export_conversation_projects_turn_flow_and_strips_legacy_assistant_fields(
+        self, mock_db
+    ):
+        from app.services.ai.conversation_service import ConversationService
+
+        conversation = _make_conversation(created_at=None)
+        message = _make_message(
+            role="assistant",
+            content="最终答复",
+            token_count=12,
+            tool_calls=[
+                {
+                    "id": "tc_export_1",
+                    "display_name": "数据查询",
+                    "summary": "按今天范围统计调用",
+                    "result_link": "/admin/ai/chat",
+                }
+            ],
+            tool_call_id=None,
+            created_at=None,
+            agent_id=42,
+        )
+        message.agent = make_mock_model(name="Router Agent", avatar="/router.png")
+        message.metadata_ = {
+            "thinking_content": "先分析上下文。",
+            "rag_sources": [
+                {
+                    "source": "KB",
+                    "chunk_id": 1,
+                    "title": "知识库证据",
+                    "snippet": "命中了相关文档",
+                }
+            ],
+        }
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service.repo.get_by_id = AsyncMock(return_value=conversation)
+        service._message_repo = MagicMock()
+        service._message_repo.get_by_conversation = AsyncMock(return_value=[message])
+        service._message_repo.count_by_conversation = AsyncMock(return_value=1)
+        mock_db.execute = AsyncMock(return_value=SimpleNamespace(scalars=lambda: []))
+
+        result = await service.export_conversation(1, export_format="json")
+        payload = json.loads(result["content"])
+        assistant_payload = payload["messages"][0]
+
+        assert "tool_calls" not in assistant_payload
+        assert "thinking_content" not in assistant_payload["metadata"]
+        assert "rag_sources" not in assistant_payload["metadata"]
+        assert "turn_flow" not in assistant_payload
+        assert assistant_payload["metadata"]["turn_flow"]["answer_card"]["summary"] == (
+            "最终答复"
+        )
+        assert any(
+            stage["type"] == "thinking"
+            for stage in assistant_payload["metadata"]["turn_flow"]["timeline"]
+        )
+        assert any(
+            item["tool_call_id"] == "tc_export_1"
+            for item in assistant_payload["metadata"]["turn_flow"]["evidence"]
+        )
+
     def test_serializers_preserve_message_agent_metadata(self):
         from app.services.ai.conversation_service import ConversationService
 
@@ -1312,7 +1449,18 @@ class TestThinkingPersistence:
 
         create_calls = service._message_repo.create.await_args_list
         assistant_payload = create_calls[1].args[0]
-        assert assistant_payload["metadata_"]["thinking_content"] == "先分析上下文。"
+        assert assistant_payload["tool_calls"] is None
+        assert "thinking_content" not in assistant_payload["metadata_"]
+        thinking_stage = next(
+            stage
+            for stage in assistant_payload["metadata_"]["turn_flow"]["timeline"]
+            if stage["type"] == "thinking"
+        )
+        assert thinking_stage["summary"] == "已完成思考与规划"
+        assert (
+            assistant_payload["metadata_"]["turn_flow"]["answer_card"]["summary"]
+            == "最终答复"
+        )
 
     @pytest.mark.asyncio
     async def test_persist_chat_messages_stores_runtime_model_snapshot(self, mock_db):
@@ -1451,18 +1599,28 @@ class TestThinkingPersistence:
         assistant_payload = create_calls[1].args[0]
         tool_payload = create_calls[2].args[0]
 
-        assert assistant_payload["tool_calls"][0]["display_name"] == "数据查询"
-        assert assistant_payload["tool_calls"][0]["summary"] == "按今天范围统计调用"
-        assert assistant_payload["tool_calls"][0]["summary_payload"] == {
-            "filters": ["today"],
-            "tables": ["ai_call_logs"],
-            "tool_kind": "query_records",
-        }
+        assert assistant_payload["tool_calls"] is None
         assert assistant_payload["metadata_"]["pending_confirmation"] == {
             "action": "query",
             "preview": {"sql": "SELECT 1"},
             "table": "ai_call_logs",
         }
+        tool_execution_stage = next(
+            stage
+            for stage in assistant_payload["metadata_"]["turn_flow"]["timeline"]
+            if stage["type"] == "tool_execution"
+        )
+        assert tool_execution_stage["status"] == "completed"
+        assert tool_execution_stage["metrics"]["tool_call_count"] == 1
+        assert tool_execution_stage["tool_call_ids"] == ["tc_data_1"]
+        tool_evidence = next(
+            item
+            for item in assistant_payload["metadata_"]["turn_flow"]["evidence"]
+            if item["tool_call_id"] == "tc_data_1"
+        )
+        assert tool_evidence["title"] == "数据查询"
+        assert tool_evidence["snippet"] == "按今天范围统计调用"
+        assert tool_evidence["url"] == "/admin/ai/chat"
         assert tool_payload["metadata_"]["tool_summary"] == "按今天范围统计调用"
         assert tool_payload["metadata_"]["tool_summary_payload"] == {
             "filters": ["today"],

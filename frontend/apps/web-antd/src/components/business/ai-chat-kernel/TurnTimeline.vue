@@ -60,16 +60,6 @@ const displayToolCalls = computed(
 const displayRagSources = computed(
   () => getRagSourcesForDisplay(props.msg) ?? [],
 );
-const hasDisplayFallbackSections = computed(
-  () =>
-    timeline.value.length === 0 &&
-    Boolean(
-      displayThinkingContent.value ||
-      displayOptimizingTools.value ||
-      displayToolCalls.value.length > 0 ||
-      displayRagSources.value.length > 0,
-    ),
-);
 const expandedStageKeys = ref<Record<string, boolean>>({});
 const stageStatusSnapshot = ref<Record<string, string>>({});
 const collapseTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -715,55 +705,4 @@ onBeforeUnmount(() => {
     </div>
   </div>
 
-  <div
-    v-else-if="hasDisplayFallbackSections"
-    data-testid="chat-message-kernel-fallback"
-    class="space-y-2"
-    :class="compact ? 'mb-1.5' : 'mb-2'"
-  >
-    <ChatMessageThinkingBlock
-      v-if="displayThinkingContent"
-      :compact="compact"
-      :index="0"
-      :msg="msg"
-    />
-
-    <div
-      v-if="displayOptimizingTools"
-      class="flex items-center rounded-lg border border-border/20 bg-accent/10 text-muted-foreground"
-      :class="
-        compact
-          ? 'gap-1.5 px-2 py-1 text-[11px]'
-          : 'gap-2 px-2.5 py-1.5 text-xs'
-      "
-    >
-      <IconifyIcon
-        icon="lucide:sparkles"
-        class="text-primary"
-        :class="compact ? 'size-3' : 'size-3.5'"
-      />
-      <span>{{
-        $t('common.globalAiChat.optimizingTools', {
-          total: displayOptimizingTools.total ?? 0,
-          selected: displayOptimizingTools.selected ?? 0,
-        })
-      }}</span>
-    </div>
-
-    <ChatMessageToolCalls
-      v-if="displayToolCalls.length > 0"
-      :compact="compact"
-      :countdown-now="countdownNow"
-      :index="0"
-      :msg="msg"
-      :pending-ops="pendingOps"
-      @copy="(content) => emit('copy', content)"
-    />
-
-    <ChatMessageRagSources
-      v-if="displayRagSources.length > 0"
-      :compact="compact"
-      :msg="msg"
-    />
-  </div>
 </template>

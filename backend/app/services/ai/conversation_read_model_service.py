@@ -20,12 +20,15 @@ from app.enums.agent import MessageRoleEnum
 from app.models.ai.agent_conversation import AgentConversation
 from app.models.ai.conversation_message import ConversationMessage
 from app.models.tenant.attachment import Attachment
-from app.services.ai.conversation_turn_flow_projector import (
-    ConversationTurnFlowProjector,
-)
 from app.services.ai.agent_chat_interaction_support import (
     normalize_requested_interaction_mode,
     strip_legacy_interaction_mode_fields,
+)
+from app.services.ai.conversation_payload_sanitizer import (
+    strip_assistant_legacy_turn_projection_fields,
+)
+from app.services.ai.conversation_turn_flow_projector import (
+    ConversationTurnFlowProjector,
 )
 from app.services.tenant.attachment_download_service import AttachmentDownloadService
 
@@ -175,7 +178,7 @@ class ConversationReadModelService:
             metadata_payload = dict(msg_dict.get("metadata") or {})
             metadata_payload["turn_flow"] = turn_flow
             msg_dict["metadata"] = metadata_payload
-        return msg_dict
+        return strip_assistant_legacy_turn_projection_fields(msg_dict)
 
     async def serialize_conversation_messages(
         self,
@@ -206,7 +209,7 @@ class ConversationReadModelService:
                     metadata_payload
                 )
                 msg_dict["metadata"] = metadata_payload
-            items.append(msg_dict)
+            items.append(strip_assistant_legacy_turn_projection_fields(msg_dict))
         return items
 
     async def serialize_export_messages(
@@ -227,21 +230,39 @@ class ConversationReadModelService:
                 metadata_payload["attachments"] = hydrated_attachments
             metadata_payload = strip_legacy_interaction_mode_fields(metadata_payload)
             agent_obj = self._safe_attr(msg, "agent")
-            serialized_messages.append(
-                {
-                    "role": self._safe_attr(msg, "role"),
-                    "content": self._safe_attr(msg, "content"),
-                    "token_count": self._safe_attr(msg, "token_count"),
-                    "tool_calls": self._safe_attr(msg, "tool_calls"),
-                    "tool_call_id": self._safe_attr(msg, "tool_call_id"),
-                    "tool_name": self._safe_attr(msg, "tool_name"),
-                    "agent_id": self._safe_attr(msg, "agent_id"),
-                    "agent_name": self._safe_attr(agent_obj, "name"),
-                    "agent_avatar": self._safe_attr(agent_obj, "avatar"),
-                    "created_at": self.format_dt(self._safe_attr(msg, "created_at")),
-                    "metadata": metadata_payload,
-                }
+            message_payload = {
+                "role": self._safe_attr(msg, "role"),
+                "content": self._safe_attr(msg, "content"),
+                "token_count": self._safe_attr(msg, "token_count"),
+                "tool_calls": self._safe_attr(msg, "tool_calls"),
+                "tool_call_id": self._safe_attr(msg, "tool_call_id"),
+                "tool_name": self._safe_attr(msg, "tool_name"),
+                "agent_id": self._safe_attr(msg, "agent_id"),
+                "agent_name": self._safe_attr(agent_obj, "name"),
+                "agent_avatar": self._safe_attr(agent_obj, "avatar"),
+                "created_at": self.format_dt(self._safe_attr(msg, "created_at")),
+                "metadata": metadata_payload,
+            }
+            projected_turn_flow = (
+                ConversationTurnFlowProjector.project_from_message_payload(
+                    message_payload
+                )
             )
+            if projected_turn_flow is not None:
+                message_payload["turn_flow"] = projected_turn_flow
+                next_metadata = (
+                    dict(message_payload.get("metadata") or {})
+                    if isinstance(message_payload.get("metadata"), dict)
+                    else {}
+                )
+                next_metadata["turn_flow"] = projected_turn_flow
+                message_payload["metadata"] = next_metadata
+            export_payload = strip_assistant_legacy_turn_projection_fields(
+                message_payload
+            )
+            if str(export_payload.get("role") or "") == "assistant":
+                export_payload.pop("tool_calls", None)
+            serialized_messages.append(export_payload)
         return serialized_messages
 
     async def resolve_last_assistant_message(
@@ -278,6 +299,14 @@ class ConversationReadModelService:
         message_count: int,
     ) -> dict[str, Any]:
         result = conversation.to_dict()
+        if "metadata" in result:
+            metadata_payload = strip_legacy_interaction_mode_fields(
+                result.get("metadata")
+            )
+            if metadata_payload:
+                result["metadata"] = metadata_payload
+            else:
+                result.pop("metadata", None)
         result["message_list"] = message_list
         result["message_count"] = message_count
         agent_obj = getattr(conversation, "agent", None)
@@ -288,7 +317,9 @@ class ConversationReadModelService:
     def extract_interaction_modes(
         conversation_metadata: dict[str, Any] | None,
     ) -> tuple[str, str]:
-        metadata = conversation_metadata if isinstance(conversation_metadata, dict) else {}
+        metadata = (
+            conversation_metadata if isinstance(conversation_metadata, dict) else {}
+        )
         raw_requested_mode = str(
             metadata.get("interaction_mode_requested")
             or metadata.get("interaction_mode")
@@ -316,12 +347,16 @@ class ConversationReadModelService:
             "context_diagnostics": {
                 "estimated_tokens": None,
                 "context_compacted": False,
-                "compact_summary_present": bool((compaction_snapshot or {}).get("summary")),
+                "compact_summary_present": bool(
+                    (compaction_snapshot or {}).get("summary")
+                ),
                 "memory_recalled": False,
                 "memory_flush_triggered": False,
                 "prune_stats": None,
                 "rag_source_kinds": [],
-                "last_interrupted": bool((conversation_last_error or {}).get("partial")),
+                "last_interrupted": bool(
+                    (conversation_last_error or {}).get("partial")
+                ),
                 "turn_outcome": "failed" if conversation_last_error else None,
                 "termination_reason": "stream_execution_error"
                 if conversation_last_error
@@ -344,7 +379,9 @@ class ConversationReadModelService:
                 else None,
                 "failure_kind": (conversation_last_error or {}).get("error_type"),
                 "persistence_error": bool(conversation_last_error),
-                "error_message": (conversation_last_error or {}).get("friendly_message"),
+                "error_message": (conversation_last_error or {}).get(
+                    "friendly_message"
+                ),
             },
         }
         if conversation_last_error:
@@ -414,7 +451,11 @@ class ConversationReadModelService:
     ) -> list[dict[str, Any]]:
         user_map: dict[int, dict[str, Any]] = {}
         if include_user_info:
-            user_ids = {conversation.user_id for conversation in items if conversation.user_id is not None}
+            user_ids = {
+                conversation.user_id
+                for conversation in items
+                if conversation.user_id is not None
+            }
             user_map = await self.tenant_admin_repo.batch_load_user_info(user_ids)
 
         result: list[dict[str, Any]] = []

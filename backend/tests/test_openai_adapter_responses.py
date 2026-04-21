@@ -9,13 +9,6 @@ import pytest
 from openai import RateLimitError
 
 from app.ai.adapters.openai_adapter import OpenAIAdapter
-from app.ai.adapters.openai_compatible.compat.legacy_protocol_execution import (
-    responses_tool_call_fallback_enabled,
-)
-from app.ai.adapters.openai_compatible.compat.legacy_protocol_policy import (
-    should_fallback_from_responses_error,
-    should_skip_sync_rescue_after_stream_error,
-)
 from app.ai.adapters.openai_compatible.support.usage_support import (
     RESPONSES_USAGE_RETRIEVE_TIMEOUT_SECONDS,
 )
@@ -26,6 +19,7 @@ from app.ai.exceptions import (
     ProviderTimeoutError,
     convert_openai_error,
 )
+from app.ai.runtime.protocol_recovery_policy import ProtocolRecoveryPolicy
 from app.ai.runtime.query_engine import ConversationQueryEngine
 from app.ai.types import ChatChunk, ChatMessage, ChatResponse
 
@@ -147,6 +141,20 @@ def _responses_cross_protocol_provider_config() -> dict[str, object]:
     }
 
 
+_RESPONSES_TOOL_FALLBACK_DISABLED = {"0", "false", "no", "off"}
+
+
+def _responses_tool_call_fallback_enabled(
+    provider_config: dict[str, object] | None,
+) -> bool:
+    raw_value = (provider_config or {}).get("responses_tool_call_fallback_enabled")
+    if raw_value is None:
+        return True
+    if isinstance(raw_value, bool):
+        return raw_value
+    return str(raw_value).strip().lower() not in _RESPONSES_TOOL_FALLBACK_DISABLED
+
+
 def test_adapter_rejects_primary_not_in_allowed_wire_apis() -> None:
     with pytest.raises(ProviderError) as exc:
         OpenAIAdapter(
@@ -190,7 +198,7 @@ def test_responses_rate_limit_does_not_cross_protocol_fallback() -> None:
     adapter = OpenAIAdapter(api_key="test-key", base_url="https://api.example.com")
 
     assert (
-        should_fallback_from_responses_error(
+        ProtocolRecoveryPolicy.should_cross_protocol_fallback_from_responses_error(
             capabilities=adapter.protocol_capabilities,
             error=_make_openai_rate_limit_error(),
             tools=[
@@ -201,7 +209,7 @@ def test_responses_rate_limit_does_not_cross_protocol_fallback() -> None:
             ],
             tool_choice="required",
             use_responses_api=True,
-            fallback_switch_enabled=responses_tool_call_fallback_enabled(
+            fallback_switch_enabled=_responses_tool_call_fallback_enabled(
                 adapter.provider_config,
             ),
         )
@@ -217,7 +225,7 @@ def test_responses_timeout_does_not_cross_protocol_fallback() -> None:
     )
 
     assert (
-        should_fallback_from_responses_error(
+        ProtocolRecoveryPolicy.should_cross_protocol_fallback_from_responses_error(
             capabilities=adapter.protocol_capabilities,
             error=ProviderTimeoutError(
                 "provider timed out",
@@ -232,7 +240,7 @@ def test_responses_timeout_does_not_cross_protocol_fallback() -> None:
             ],
             tool_choice="required",
             use_responses_api=True,
-            fallback_switch_enabled=responses_tool_call_fallback_enabled(
+            fallback_switch_enabled=_responses_tool_call_fallback_enabled(
                 adapter.provider_config,
             ),
         )
@@ -241,7 +249,7 @@ def test_responses_timeout_does_not_cross_protocol_fallback() -> None:
 
 
 def test_rate_limit_stream_error_skips_sync_rescue() -> None:
-    assert should_skip_sync_rescue_after_stream_error(
+    assert ProtocolRecoveryPolicy.should_skip_sync_rescue_after_stream_error(
         _make_openai_rate_limit_error()
     )
 
@@ -296,13 +304,18 @@ async def test_chat_falls_back_to_responses_when_chat_payload_has_no_choices() -
         usage=SimpleNamespace(input_tokens=12, output_tokens=8, total_tokens=20),
         output=[
             _make_responses_message("hello from responses"),
-            _make_responses_function_call("lookup_weather", '{"city":"Shanghai"}', "call_1"),
+            _make_responses_function_call(
+                "lookup_weather", '{"city":"Shanghai"}', "call_1"
+            ),
         ],
         output_text="hello from responses",
         model_dump=lambda: {"ok": True},
     )
     # Misrouted: chat.completions returns a Responses-shaped body (no choices) / 误走路由：chat 返回 Responses 形响应
-    adapter.client = _FakeClient(chat_response=response_obj, responses_response=response_obj)
+    adapter.client = _FakeClient(
+        chat_response=response_obj, responses_response=response_obj
+    )
+
 
 @pytest.mark.asyncio
 async def test_chat_public_entrypoint_does_not_fallback_to_responses_on_misrouted_payload() -> (
@@ -420,7 +433,9 @@ async def test_chat_accepts_plain_text_response_from_chat_completions_gateway() 
 
 
 @pytest.mark.asyncio
-async def test_chat_retries_chat_completions_with_v1_when_root_endpoint_returns_html() -> None:
+async def test_chat_retries_chat_completions_with_v1_when_root_endpoint_returns_html() -> (
+    None
+):
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://codex.2api.com.cn",
@@ -450,7 +465,9 @@ async def test_chat_retries_chat_completions_with_v1_when_root_endpoint_returns_
 async def test_chat_does_not_fallback_on_error_payload_without_choices() -> None:
     adapter = OpenAIAdapter(api_key="test-key", base_url="https://api.example.com")
     adapter.client = _FakeClient(
-        chat_response=SimpleNamespace(error={"message": "invalid", "type": "invalid_request_error"}),
+        chat_response=SimpleNamespace(
+            error={"message": "invalid", "type": "invalid_request_error"}
+        ),
         responses_response=SimpleNamespace(output_text="should not be used"),
     )
     with pytest.raises(ProviderError, match="AI 请求失败"):
@@ -461,7 +478,9 @@ async def test_chat_does_not_fallback_on_error_payload_without_choices() -> None
 
 
 @pytest.mark.asyncio
-async def test_chat_forwards_required_tool_choice_and_subset_tools_to_chat_completions() -> None:
+async def test_chat_forwards_required_tool_choice_and_subset_tools_to_chat_completions() -> (
+    None
+):
     adapter = OpenAIAdapter(api_key="test-key", base_url="https://api.example.com")
     completions = _FakeChatCompletions(_make_chat_completion_response())
     adapter.client = SimpleNamespace(
@@ -509,7 +528,9 @@ async def test_chat_runtime_force_wire_api_uses_responses_path() -> None:
         model_dump=lambda: {"ok": True},
     )
     responses_create = AsyncMock(return_value=response_obj)
-    completions_create = AsyncMock(return_value=_make_chat_completion_response("chat path"))
+    completions_create = AsyncMock(
+        return_value=_make_chat_completion_response("chat path")
+    )
     adapter.client = SimpleNamespace(
         responses=SimpleNamespace(create=responses_create),
         chat=SimpleNamespace(completions=SimpleNamespace(create=completions_create)),
@@ -540,7 +561,9 @@ async def test_chat_public_entrypoint_keeps_protocol_safe_responses_error_withou
     completions = _FakeChatCompletions(_make_chat_completion_response("fallback ok"))
     adapter.client = SimpleNamespace(
         responses=SimpleNamespace(
-            create=AsyncMock(side_effect=_FakeStatusError(502, "Upstream request failed")),
+            create=AsyncMock(
+                side_effect=_FakeStatusError(502, "Upstream request failed")
+            ),
         ),
         chat=SimpleNamespace(completions=completions),
     )
@@ -549,7 +572,12 @@ async def test_chat_public_entrypoint_keeps_protocol_safe_responses_error_withou
         await adapter.chat(
             messages=[ChatMessage(role="user", content="hello")],
             model="gpt-5.4-xhigh",
-            tools=[{"type": "function", "function": {"name": "ui_get_snapshot", "parameters": {}}}],
+            tools=[
+                {
+                    "type": "function",
+                    "function": {"name": "ui_get_snapshot", "parameters": {}},
+                }
+            ],
             tool_choice="required",
         )
 
@@ -606,7 +634,9 @@ def test_nested_protocol_capabilities_without_top_level_wire_api_preserves_first
     )
 
 
-def test_top_level_wire_api_respected_when_supported_by_nested_protocol_contract() -> None:
+def test_top_level_wire_api_respected_when_supported_by_nested_protocol_contract() -> (
+    None
+):
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
@@ -645,7 +675,9 @@ def test_conflicting_top_level_wire_api_does_not_widen_nested_responses_only_con
 
 
 def test_invalid_protocol_token_in_allowed_wire_apis_raises_provider_error() -> None:
-    with pytest.raises(ProviderError, match="Invalid provider protocol contract wire API"):
+    with pytest.raises(
+        ProviderError, match="Invalid provider protocol contract wire API"
+    ):
         OpenAIAdapter(
             api_key="test-key",
             base_url="https://api.example.com",
@@ -669,7 +701,9 @@ def test_invalid_top_level_wire_api_raises_provider_error() -> None:
 
 
 def test_invalid_protocol_token_in_fallback_map_raises_provider_error() -> None:
-    with pytest.raises(ProviderError, match="Invalid provider protocol contract wire API"):
+    with pytest.raises(
+        ProviderError, match="Invalid provider protocol contract wire API"
+    ):
         OpenAIAdapter(
             api_key="test-key",
             base_url="https://api.example.com",
@@ -692,7 +726,9 @@ def test_runtime_query_engine_default_responses_provider_plans_responses_only_pr
         provider_config={"wire_api": "responses"},
     )
 
-    plan = ConversationQueryEngine(adapter=adapter, strict_contract=False).planner.plan_turn(
+    plan = ConversationQueryEngine(
+        adapter=adapter, strict_contract=False
+    ).planner.plan_turn(
         tools=[
             {
                 "type": "function",
@@ -817,7 +853,9 @@ class _FakeResponsesStream:
 
 
 @pytest.mark.asyncio
-async def test_stream_chat_chat_completions_breaks_on_finish_reason_and_acloses() -> None:
+async def test_stream_chat_chat_completions_breaks_on_finish_reason_and_acloses() -> (
+    None
+):
     adapter = OpenAIAdapter(api_key="test-key", base_url="https://api.example.com")
     poison = object()
     stream = _FakeChatStream(
@@ -828,7 +866,9 @@ async def test_stream_chat_chat_completions_breaks_on_finish_reason_and_acloses(
         ]
     )
     adapter.client = SimpleNamespace(
-        chat=SimpleNamespace(completions=SimpleNamespace(create=AsyncMock(return_value=stream))),
+        chat=SimpleNamespace(
+            completions=SimpleNamespace(create=AsyncMock(return_value=stream))
+        ),
         responses=SimpleNamespace(create=AsyncMock()),
     )
 
@@ -876,7 +916,9 @@ async def test_stream_chat_chat_completions_maps_timeout_seconds_to_timeout() ->
 
 
 @pytest.mark.asyncio
-async def test_stream_chat_responses_defaults_timeout_without_timeout_seconds_payload() -> None:
+async def test_stream_chat_responses_defaults_timeout_without_timeout_seconds_payload() -> (
+    None
+):
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
@@ -934,7 +976,9 @@ async def test_stream_chat_public_entrypoint_keeps_protocol_safe_responses_error
     )
     adapter.client = SimpleNamespace(
         responses=SimpleNamespace(
-            create=AsyncMock(side_effect=_FakeStatusError(502, "Upstream request failed")),
+            create=AsyncMock(
+                side_effect=_FakeStatusError(502, "Upstream request failed")
+            ),
         ),
         chat=SimpleNamespace(completions=SimpleNamespace(create=chat_create)),
     )
@@ -943,7 +987,12 @@ async def test_stream_chat_public_entrypoint_keeps_protocol_safe_responses_error
         async for _ in adapter.stream_chat(
             messages=[ChatMessage(role="user", content="hello")],
             model="gpt-5.4-xhigh",
-            tools=[{"type": "function", "function": {"name": "ui_get_snapshot", "parameters": {}}}],
+            tools=[
+                {
+                    "type": "function",
+                    "function": {"name": "ui_get_snapshot", "parameters": {}},
+                }
+            ],
             tool_choice="required",
         ):
             pass
@@ -1022,8 +1071,14 @@ class _RuntimeFakeAdapter:
         self.protocol_capabilities = protocol_capabilities
         self.stream_calls: list[dict] = []
         self.chat_calls: list[dict] = []
-        self._stream_behaviors: dict[str, list] = {"responses": [], "chat_completions": []}
-        self._chat_behaviors: dict[str, object] = {"responses": None, "chat_completions": None}
+        self._stream_behaviors: dict[str, list] = {
+            "responses": [],
+            "chat_completions": [],
+        }
+        self._chat_behaviors: dict[str, object] = {
+            "responses": None,
+            "chat_completions": None,
+        }
 
     def set_stream(self, protocol: str, chunks: list) -> None:
         self._stream_behaviors[protocol] = list(chunks)
@@ -1033,7 +1088,9 @@ class _RuntimeFakeAdapter:
 
     async def stream_chat(self, **kwargs):
         forced = kwargs.get("_runtime_force_wire_api") or self.wire_api
-        protocol = "responses" if str(forced).startswith("responses") else "chat_completions"
+        protocol = (
+            "responses" if str(forced).startswith("responses") else "chat_completions"
+        )
         self.stream_calls.append({"protocol": protocol, **kwargs})
         for chunk in list(self._stream_behaviors.get(protocol, [])):
             if isinstance(chunk, Exception):
@@ -1042,7 +1099,9 @@ class _RuntimeFakeAdapter:
 
     async def chat(self, **kwargs):
         forced = kwargs.get("_runtime_force_wire_api") or self.wire_api
-        protocol = "responses" if str(forced).startswith("responses") else "chat_completions"
+        protocol = (
+            "responses" if str(forced).startswith("responses") else "chat_completions"
+        )
         self.chat_calls.append({"protocol": protocol, **kwargs})
         result = self._chat_behaviors.get(protocol)
         if isinstance(result, Exception):
@@ -1057,7 +1116,9 @@ class _ProtocolOnlyRuntimeAdapter(_RuntimeFakeAdapter):
         self.protocol_stream_calls: list[dict] = []
 
     async def execute_protocol_chat(self, *, wire_api: str, **kwargs):
-        protocol = "responses" if str(wire_api).startswith("responses") else "chat_completions"
+        protocol = (
+            "responses" if str(wire_api).startswith("responses") else "chat_completions"
+        )
         self.protocol_chat_calls.append({"protocol": protocol, **kwargs})
         result = self._chat_behaviors.get(protocol)
         if isinstance(result, Exception):
@@ -1065,7 +1126,9 @@ class _ProtocolOnlyRuntimeAdapter(_RuntimeFakeAdapter):
         return result
 
     async def execute_protocol_stream(self, *, wire_api: str, **kwargs):
-        protocol = "responses" if str(wire_api).startswith("responses") else "chat_completions"
+        protocol = (
+            "responses" if str(wire_api).startswith("responses") else "chat_completions"
+        )
         self.protocol_stream_calls.append({"protocol": protocol, **kwargs})
         for chunk in list(self._stream_behaviors.get(protocol, [])):
             if isinstance(chunk, Exception):
@@ -1084,7 +1147,16 @@ async def test_runtime_query_engine_required_empty_without_tool_calls_fails() ->
     adapter = _RuntimeFakeAdapter(wire_api="chat_completions")
     adapter.set_stream(
         "chat_completions",
-        [SimpleNamespace(delta="", tool_calls=None, metadata={}, input_tokens=None, output_tokens=None, total_tokens=None)],
+        [
+            SimpleNamespace(
+                delta="",
+                tool_calls=None,
+                metadata={},
+                input_tokens=None,
+                output_tokens=None,
+                total_tokens=None,
+            )
+        ],
     )
     query_engine = ConversationQueryEngine(adapter=adapter, strict_contract=True)
 
@@ -1095,7 +1167,12 @@ async def test_runtime_query_engine_required_empty_without_tool_calls_fails() ->
             temperature=0.7,
             max_tokens=None,
             top_p=1.0,
-            tools=[{"type": "function", "function": {"name": "web_search", "parameters": {}}}],
+            tools=[
+                {
+                    "type": "function",
+                    "function": {"name": "web_search", "parameters": {}},
+                }
+            ],
             tool_choice="required",
             supports_vision=True,
             supports_audio=False,
@@ -1104,7 +1181,9 @@ async def test_runtime_query_engine_required_empty_without_tool_calls_fails() ->
 
 
 @pytest.mark.asyncio
-async def test_runtime_query_engine_uses_protocol_specific_adapter_entrypoints() -> None:
+async def test_runtime_query_engine_uses_protocol_specific_adapter_entrypoints() -> (
+    None
+):
     adapter = _ProtocolOnlyRuntimeAdapter(
         wire_api="responses",
         protocol_capabilities=SimpleNamespace(
@@ -1179,14 +1258,14 @@ async def test_runtime_query_engine_uses_protocol_specific_stream_entrypoint() -
     ]
 
     assert "".join(chunk.delta for chunk in chunks) == "hello from stream"
-    assert [call["protocol"] for call in adapter.protocol_stream_calls] == [
-        "responses"
-    ]
+    assert [call["protocol"] for call in adapter.protocol_stream_calls] == ["responses"]
     assert adapter.stream_calls == []
 
 
 @pytest.mark.asyncio
-async def test_runtime_query_engine_iter_stream_turn_yields_progress_before_final_text() -> None:
+async def test_runtime_query_engine_iter_stream_turn_yields_progress_before_final_text() -> (
+    None
+):
     adapter = _RuntimeFakeAdapter(wire_api="responses")
     adapter.set_stream(
         "responses",
@@ -1206,7 +1285,12 @@ async def test_runtime_query_engine_iter_stream_turn_yields_progress_before_fina
             temperature=0.7,
             max_tokens=None,
             top_p=1.0,
-            tools=[{"type": "function", "function": {"name": "web_search", "parameters": {}}}],
+            tools=[
+                {
+                    "type": "function",
+                    "function": {"name": "web_search", "parameters": {}},
+                }
+            ],
             tool_choice="auto",
             supports_vision=True,
             supports_audio=False,
@@ -1269,7 +1353,9 @@ async def test_runtime_query_engine_progress_only_stream_sync_rescue_success() -
         temperature=0.7,
         max_tokens=None,
         top_p=1.0,
-        tools=[{"type": "function", "function": {"name": "web_search", "parameters": {}}}],
+        tools=[
+            {"type": "function", "function": {"name": "web_search", "parameters": {}}}
+        ],
         tool_choice="auto",
         supports_vision=True,
         supports_audio=False,
@@ -1293,7 +1379,9 @@ async def test_runtime_query_engine_progress_only_stream_sync_rescue_success() -
 
 
 @pytest.mark.asyncio
-async def test_runtime_query_engine_progress_only_does_not_satisfy_required_tool_contract() -> None:
+async def test_runtime_query_engine_progress_only_does_not_satisfy_required_tool_contract() -> (
+    None
+):
     adapter = _RuntimeFakeAdapter(wire_api="responses")
     adapter.set_stream(
         "responses",
@@ -1312,7 +1400,12 @@ async def test_runtime_query_engine_progress_only_does_not_satisfy_required_tool
             temperature=0.7,
             max_tokens=None,
             top_p=1.0,
-            tools=[{"type": "function", "function": {"name": "web_search", "parameters": {}}}],
+            tools=[
+                {
+                    "type": "function",
+                    "function": {"name": "web_search", "parameters": {}},
+                }
+            ],
             tool_choice="required",
             supports_vision=True,
             supports_audio=False,
@@ -1350,7 +1443,9 @@ async def test_runtime_query_engine_progress_only_then_exception_falls_back() ->
         temperature=0.7,
         max_tokens=None,
         top_p=1.0,
-        tools=[{"type": "function", "function": {"name": "web_search", "parameters": {}}}],
+        tools=[
+            {"type": "function", "function": {"name": "web_search", "parameters": {}}}
+        ],
         tool_choice="auto",
         supports_vision=True,
         supports_audio=False,
@@ -1426,7 +1521,9 @@ async def test_runtime_query_engine_responses_only_provider_never_plans_chat_com
 
 
 @pytest.mark.asyncio
-async def test_runtime_query_engine_provider_rate_limit_stream_does_not_cross_fallback() -> None:
+async def test_runtime_query_engine_provider_rate_limit_stream_does_not_cross_fallback() -> (
+    None
+):
     adapter = _RuntimeFakeAdapter(wire_api="responses")
     adapter.set_stream(
         "responses",
@@ -1506,7 +1603,9 @@ async def test_runtime_query_engine_provider_timeout_stream_does_not_cross_fallb
 
 
 @pytest.mark.asyncio
-async def test_runtime_query_engine_provider_connection_stream_does_not_cross_fallback() -> None:
+async def test_runtime_query_engine_provider_connection_stream_does_not_cross_fallback() -> (
+    None
+):
     adapter = _RuntimeFakeAdapter(wire_api="responses")
     adapter.set_stream(
         "responses",
@@ -1563,7 +1662,9 @@ async def test_runtime_query_engine_reasoning_only_then_exception_falls_back() -
         temperature=0.7,
         max_tokens=None,
         top_p=1.0,
-        tools=[{"type": "function", "function": {"name": "web_search", "parameters": {}}}],
+        tools=[
+            {"type": "function", "function": {"name": "web_search", "parameters": {}}}
+        ],
         tool_choice="auto",
         supports_vision=True,
         supports_audio=False,
@@ -1624,7 +1725,9 @@ async def test_runtime_query_engine_reasoning_only_stream_sync_rescue_success() 
         temperature=0.7,
         max_tokens=None,
         top_p=1.0,
-        tools=[{"type": "function", "function": {"name": "web_search", "parameters": {}}}],
+        tools=[
+            {"type": "function", "function": {"name": "web_search", "parameters": {}}}
+        ],
         tool_choice="auto",
         supports_vision=True,
         supports_audio=False,
@@ -1645,7 +1748,9 @@ async def test_runtime_query_engine_reasoning_only_stream_sync_rescue_success() 
 
 
 @pytest.mark.asyncio
-async def test_runtime_query_engine_stream_empty_after_fallback_sync_rescue_success() -> None:
+async def test_runtime_query_engine_stream_empty_after_fallback_sync_rescue_success() -> (
+    None
+):
     adapter = _RuntimeFakeAdapter(wire_api="responses")
     adapter.set_stream("responses", [])
     adapter.set_stream("chat_completions", [])
@@ -1674,7 +1779,9 @@ async def test_runtime_query_engine_stream_empty_after_fallback_sync_rescue_succ
         temperature=0.7,
         max_tokens=None,
         top_p=1.0,
-        tools=[{"type": "function", "function": {"name": "web_search", "parameters": {}}}],
+        tools=[
+            {"type": "function", "function": {"name": "web_search", "parameters": {}}}
+        ],
         tool_choice="required",
         supports_vision=True,
         supports_audio=False,
@@ -1685,12 +1792,17 @@ async def test_runtime_query_engine_stream_empty_after_fallback_sync_rescue_succ
     assert chunks[0].delta == "rescued reply"
     assert query_engine.turn_record.termination_reason == "protocol_fallback"
     assert query_engine.turn_record.metadata["sync_rescue"] is True
-    assert [call["protocol"] for call in adapter.stream_calls] == ["responses", "chat_completions"]
+    assert [call["protocol"] for call in adapter.stream_calls] == [
+        "responses",
+        "chat_completions",
+    ]
     assert [call["protocol"] for call in adapter.chat_calls] == ["chat_completions"]
 
 
 @pytest.mark.asyncio
-async def test_runtime_query_engine_chat_turn_records_protocol_fallback_history() -> None:
+async def test_runtime_query_engine_chat_turn_records_protocol_fallback_history() -> (
+    None
+):
     adapter = _RuntimeFakeAdapter(wire_api="responses")
     adapter.set_chat("responses", RuntimeError("responses upstream timeout"))
     adapter.set_chat(
@@ -1718,7 +1830,9 @@ async def test_runtime_query_engine_chat_turn_records_protocol_fallback_history(
         temperature=0.7,
         max_tokens=None,
         top_p=1.0,
-        tools=[{"type": "function", "function": {"name": "web_search", "parameters": {}}}],
+        tools=[
+            {"type": "function", "function": {"name": "web_search", "parameters": {}}}
+        ],
         tool_choice="auto",
         supports_vision=True,
         supports_audio=False,
@@ -1729,8 +1843,12 @@ async def test_runtime_query_engine_chat_turn_records_protocol_fallback_history(
     assert query_engine.turn_record.termination_reason == "protocol_fallback"
     assert len(query_engine.turn_record.fallback_history) == 1
     assert query_engine.turn_record.fallback_history[0].from_protocol == "responses"
-    assert query_engine.turn_record.fallback_history[0].to_protocol == "chat_completions"
-    assert query_engine.turn_record.fallback_history[0].reason == "exception:RuntimeError"
+    assert (
+        query_engine.turn_record.fallback_history[0].to_protocol == "chat_completions"
+    )
+    assert (
+        query_engine.turn_record.fallback_history[0].reason == "exception:RuntimeError"
+    )
     assert response.metadata["runtime_turn_record"] is query_engine.turn_record
     assert [call["protocol"] for call in adapter.chat_calls] == [
         "responses",
@@ -1739,7 +1857,9 @@ async def test_runtime_query_engine_chat_turn_records_protocol_fallback_history(
 
 
 @pytest.mark.asyncio
-async def test_runtime_query_engine_chat_turn_reasoning_only_response_falls_back() -> None:
+async def test_runtime_query_engine_chat_turn_reasoning_only_response_falls_back() -> (
+    None
+):
     adapter = _RuntimeFakeAdapter(wire_api="responses")
     adapter.set_chat(
         "responses",
@@ -1783,7 +1903,9 @@ async def test_runtime_query_engine_chat_turn_reasoning_only_response_falls_back
         temperature=0.7,
         max_tokens=None,
         top_p=1.0,
-        tools=[{"type": "function", "function": {"name": "web_search", "parameters": {}}}],
+        tools=[
+            {"type": "function", "function": {"name": "web_search", "parameters": {}}}
+        ],
         tool_choice="auto",
         supports_vision=True,
         supports_audio=False,
@@ -1827,14 +1949,16 @@ async def test_stream_chat_responses_output_text_done_without_completed() -> Non
         base_url="https://api.example.com",
         provider_config={"wire_api": "responses"},
     )
-    rs = _FakeResponsesStream([
-        SimpleNamespace(type="response.output_text.delta", delta="A"),
-        SimpleNamespace(
-            type="response.output_text.done",
-            text="",
-            usage=SimpleNamespace(input_tokens=2, output_tokens=3, total_tokens=5),
-        ),
-    ])
+    rs = _FakeResponsesStream(
+        [
+            SimpleNamespace(type="response.output_text.delta", delta="A"),
+            SimpleNamespace(
+                type="response.output_text.done",
+                text="",
+                usage=SimpleNamespace(input_tokens=2, output_tokens=3, total_tokens=5),
+            ),
+        ]
+    )
     adapter.client = SimpleNamespace(
         responses=SimpleNamespace(create=_FakeResponses(rs).create),
         chat=SimpleNamespace(completions=_FakeChatCompletions(None)),
@@ -1854,7 +1978,9 @@ async def test_stream_chat_responses_output_text_done_without_completed() -> Non
 
 
 @pytest.mark.asyncio
-async def test_stream_chat_responses_output_text_done_retrieves_usage_when_event_omits_it() -> None:
+async def test_stream_chat_responses_output_text_done_retrieves_usage_when_event_omits_it() -> (
+    None
+):
     class _FakeResponsesStream:
         def __init__(self, events):
             self._events = events
@@ -1882,11 +2008,13 @@ async def test_stream_chat_responses_output_text_done_retrieves_usage_when_event
     retrieved_response = SimpleNamespace(
         usage=SimpleNamespace(input_tokens=17, output_tokens=9, total_tokens=26),
     )
-    rs = _FakeResponsesStream([
-        SimpleNamespace(type="response.created", response=created_response),
-        SimpleNamespace(type="response.output_text.delta", delta="A"),
-        SimpleNamespace(type="response.output_text.done", text="", usage=None),
-    ])
+    rs = _FakeResponsesStream(
+        [
+            SimpleNamespace(type="response.created", response=created_response),
+            SimpleNamespace(type="response.output_text.delta", delta="A"),
+            SimpleNamespace(type="response.output_text.done", text="", usage=None),
+        ]
+    )
     adapter.client = SimpleNamespace(
         responses=SimpleNamespace(
             create=_FakeResponses(rs).create,
@@ -1911,7 +2039,9 @@ async def test_stream_chat_responses_output_text_done_retrieves_usage_when_event
 
 
 @pytest.mark.asyncio
-async def test_stream_chat_responses_output_text_done_uses_fast_usage_backfill_client() -> None:
+async def test_stream_chat_responses_output_text_done_uses_fast_usage_backfill_client() -> (
+    None
+):
     class _FakeResponsesStream:
         def __init__(self, events):
             self._events = events
@@ -1939,11 +2069,13 @@ async def test_stream_chat_responses_output_text_done_uses_fast_usage_backfill_c
     retrieved_response = SimpleNamespace(
         usage=SimpleNamespace(input_tokens=17, output_tokens=9, total_tokens=26),
     )
-    rs = _FakeResponsesStream([
-        SimpleNamespace(type="response.created", response=created_response),
-        SimpleNamespace(type="response.output_text.delta", delta="A"),
-        SimpleNamespace(type="response.output_text.done", text="", usage=None),
-    ])
+    rs = _FakeResponsesStream(
+        [
+            SimpleNamespace(type="response.created", response=created_response),
+            SimpleNamespace(type="response.output_text.delta", delta="A"),
+            SimpleNamespace(type="response.output_text.done", text="", usage=None),
+        ]
+    )
     retrieve_mock = AsyncMock(return_value=retrieved_response)
     with_options_mock = MagicMock(
         return_value=SimpleNamespace(
@@ -1979,7 +2111,9 @@ async def test_stream_chat_responses_output_text_done_uses_fast_usage_backfill_c
 
 
 @pytest.mark.asyncio
-async def test_stream_chat_responses_output_text_done_estimates_usage_when_retrieve_unavailable() -> None:
+async def test_stream_chat_responses_output_text_done_estimates_usage_when_retrieve_unavailable() -> (
+    None
+):
     class _FakeResponsesStream:
         def __init__(self, events):
             self._events = events
@@ -2003,14 +2137,16 @@ async def test_stream_chat_responses_output_text_done_estimates_usage_when_retri
         base_url="https://api.example.com",
         provider_config={"wire_api": "responses"},
     )
-    rs = _FakeResponsesStream([
-        SimpleNamespace(
-            type="response.created",
-            response=SimpleNamespace(id="resp_404"),
-        ),
-        SimpleNamespace(type="response.output_text.delta", delta="你好"),
-        SimpleNamespace(type="response.output_text.done", text="", usage=None),
-    ])
+    rs = _FakeResponsesStream(
+        [
+            SimpleNamespace(
+                type="response.created",
+                response=SimpleNamespace(id="resp_404"),
+            ),
+            SimpleNamespace(type="response.output_text.delta", delta="你好"),
+            SimpleNamespace(type="response.output_text.done", text="", usage=None),
+        ]
+    )
     adapter.client = SimpleNamespace(
         responses=SimpleNamespace(
             create=_FakeResponses(rs).create,
@@ -2061,9 +2197,13 @@ async def test_stream_chat_responses_done_event_text_when_no_prior_deltas() -> N
     adapter.client = SimpleNamespace(
         responses=SimpleNamespace(
             create=_FakeResponses(
-                _FakeResponsesStream([
-                    SimpleNamespace(type="response.output_text.done", text="Body", usage=None),
-                ])
+                _FakeResponsesStream(
+                    [
+                        SimpleNamespace(
+                            type="response.output_text.done", text="Body", usage=None
+                        ),
+                    ]
+                )
             ).create,
         ),
         chat=SimpleNamespace(completions=_FakeChatCompletions(None)),
@@ -2110,12 +2250,14 @@ async def test_stream_chat_uses_responses_protocol_when_configured() -> None:
         output_text="OK",
         output=[],
     )
-    rs = _FakeResponsesStream([
-        SimpleNamespace(type="response.output_text.delta", delta="O"),
-        SimpleNamespace(type="response.output_text.delta", delta="K"),
-        SimpleNamespace(type="response.completed", response=completed_response),
-        SimpleNamespace(type="response.output_text.delta", delta="TAIL"),
-    ])
+    rs = _FakeResponsesStream(
+        [
+            SimpleNamespace(type="response.output_text.delta", delta="O"),
+            SimpleNamespace(type="response.output_text.delta", delta="K"),
+            SimpleNamespace(type="response.completed", response=completed_response),
+            SimpleNamespace(type="response.output_text.delta", delta="TAIL"),
+        ]
+    )
     adapter.client = SimpleNamespace(
         responses=SimpleNamespace(
             create=_FakeResponses(rs).create,
@@ -2138,7 +2280,9 @@ async def test_stream_chat_uses_responses_protocol_when_configured() -> None:
 
 
 @pytest.mark.asyncio
-async def test_stream_chat_responses_hanging_stream_times_out_with_timeout_seconds() -> None:
+async def test_stream_chat_responses_hanging_stream_times_out_with_timeout_seconds() -> (
+    None
+):
     class _HangingResponsesStream:
         def __init__(self):
             self.aclose_called = False
@@ -2231,7 +2375,9 @@ async def test_stream_chat_public_responses_timeout_does_not_hit_chat_completion
 
 
 @pytest.mark.asyncio
-async def test_stream_chat_emits_reasoning_from_completed_response_when_no_reasoning_delta() -> None:
+async def test_stream_chat_emits_reasoning_from_completed_response_when_no_reasoning_delta() -> (
+    None
+):
     class _FakeResponsesStream:
         def __init__(self, events):
             self._events = events
@@ -2266,11 +2412,13 @@ async def test_stream_chat_emits_reasoning_from_completed_response_when_no_reaso
             _make_responses_message("OK"),
         ],
     )
-    rs = _FakeResponsesStream([
-        SimpleNamespace(type="response.output_text.delta", delta="O"),
-        SimpleNamespace(type="response.output_text.delta", delta="K"),
-        SimpleNamespace(type="response.completed", response=completed_response),
-    ])
+    rs = _FakeResponsesStream(
+        [
+            SimpleNamespace(type="response.output_text.delta", delta="O"),
+            SimpleNamespace(type="response.output_text.delta", delta="K"),
+            SimpleNamespace(type="response.completed", response=completed_response),
+        ]
+    )
     adapter.client = SimpleNamespace(
         responses=SimpleNamespace(
             create=_FakeResponses(rs).create,
@@ -2300,21 +2448,25 @@ async def test_convert_messages_to_responses_input_preserves_tool_roundtrip() ->
         provider_config={"wire_api": "responses"},
     )
 
-    converted = await adapter._convert_messages_to_responses_input([
-        ChatMessage(
-            role="assistant",
-            content="",
-            tool_calls=[{
-                "id": "call_1",
-                "type": "function",
-                "function": {
-                    "name": "lookup_weather",
-                    "arguments": '{"city":"Shanghai"}',
-                },
-            }],
-        ),
-        ChatMessage(role="tool", content="sunny", tool_call_id="call_1"),
-    ])
+    converted = await adapter._convert_messages_to_responses_input(
+        [
+            ChatMessage(
+                role="assistant",
+                content="",
+                tool_calls=[
+                    {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {
+                            "name": "lookup_weather",
+                            "arguments": '{"city":"Shanghai"}',
+                        },
+                    }
+                ],
+            ),
+            ChatMessage(role="tool", content="sunny", tool_call_id="call_1"),
+        ]
+    )
 
     assert converted == [
         {
@@ -2332,8 +2484,11 @@ async def test_convert_messages_to_responses_input_preserves_tool_roundtrip() ->
         },
     ]
 
+
 @pytest.mark.asyncio
-async def test_convert_messages_to_responses_input_ignores_legacy_text_mode_and_keeps_structured_tool_roundtrip() -> None:
+async def test_convert_messages_to_responses_input_ignores_legacy_text_mode_and_keeps_structured_tool_roundtrip() -> (
+    None
+):
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
@@ -2343,25 +2498,29 @@ async def test_convert_messages_to_responses_input_ignores_legacy_text_mode_and_
         },
     )
 
-    converted = await adapter._convert_messages_to_responses_input([
-        ChatMessage(
-            role="assistant",
-            content="Let me inspect the page first.",
-            tool_calls=[{
-                "id": "call_1",
-                "type": "function",
-                "function": {
-                    "name": "ui_get_snapshot",
-                    "arguments": "{}",
-                },
-            }],
-        ),
-        ChatMessage(
-            role="tool",
-            content="Page: admin.ai.providers",
-            tool_call_id="call_1",
-        ),
-    ])
+    converted = await adapter._convert_messages_to_responses_input(
+        [
+            ChatMessage(
+                role="assistant",
+                content="Let me inspect the page first.",
+                tool_calls=[
+                    {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {
+                            "name": "ui_get_snapshot",
+                            "arguments": "{}",
+                        },
+                    }
+                ],
+            ),
+            ChatMessage(
+                role="tool",
+                content="Page: admin.ai.providers",
+                tool_call_id="call_1",
+            ),
+        ]
+    )
 
     assert converted == [
         {
@@ -2383,6 +2542,7 @@ async def test_convert_messages_to_responses_input_ignores_legacy_text_mode_and_
             "output": "Page: admin.ai.providers",
         },
     ]
+
 
 def test_init_keeps_endpoint_style_base_url_and_does_not_infer_wire_api() -> None:
     adapter = OpenAIAdapter(
@@ -2452,7 +2612,9 @@ async def test_build_responses_request_forwards_required_tool_choice() -> None:
 
 
 @pytest.mark.asyncio
-async def test_build_responses_request_uses_hosted_web_search_only_when_provider_opts_in() -> None:
+async def test_build_responses_request_uses_hosted_web_search_only_when_provider_opts_in() -> (
+    None
+):
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
@@ -2472,9 +2634,7 @@ async def test_build_responses_request_uses_hosted_web_search_only_when_provider
     )
 
     assert request["tool_choice"] == "required"
-    assert request["tools"] == [
-        {"type": "web_search", "search_context_size": "medium"}
-    ]
+    assert request["tools"] == [{"type": "web_search", "search_context_size": "medium"}]
 
 
 @pytest.mark.asyncio
@@ -2553,7 +2713,9 @@ async def test_build_responses_request_applies_model_config_reasoning_effort() -
 
 
 @pytest.mark.asyncio
-async def test_build_responses_request_legacy_alias_uses_base_model_and_effort() -> None:
+async def test_build_responses_request_legacy_alias_uses_base_model_and_effort() -> (
+    None
+):
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
@@ -2572,7 +2734,9 @@ async def test_build_responses_request_legacy_alias_uses_base_model_and_effort()
     }
 
 
-def test_build_chat_completions_request_keeps_plain_model_without_reasoning_override() -> None:
+def test_build_chat_completions_request_keeps_plain_model_without_reasoning_override() -> (
+    None
+):
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
@@ -2593,7 +2757,9 @@ def test_build_chat_completions_request_keeps_plain_model_without_reasoning_over
     assert "reasoning_effort" not in request
 
 
-def test_build_chat_completions_request_ignores_reasoning_effort_for_unsupported_model() -> None:
+def test_build_chat_completions_request_ignores_reasoning_effort_for_unsupported_model() -> (
+    None
+):
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
@@ -2621,7 +2787,9 @@ def test_build_chat_completions_request_ignores_reasoning_effort_for_unsupported
     assert "reasoning_effort" not in request
 
 
-def test_resolve_effective_model_request_reports_ignored_overrides_for_unsupported_model() -> None:
+def test_resolve_effective_model_request_reports_ignored_overrides_for_unsupported_model() -> (
+    None
+):
     effective_request = OpenAIAdapter.resolve_effective_model_request(
         model="claude-3-5-sonnet",
         model_config={
@@ -2710,7 +2878,9 @@ def test_convert_responses_chat_response_accepts_chat_style_usage_fields() -> No
 
 
 @pytest.mark.asyncio
-async def test_stream_chat_responses_completed_accepts_chat_style_usage_fields() -> None:
+async def test_stream_chat_responses_completed_accepts_chat_style_usage_fields() -> (
+    None
+):
     class _FakeResponsesStream:
         def __init__(self, events):
             self._events = events
@@ -2745,11 +2915,15 @@ async def test_stream_chat_responses_completed_accepts_chat_style_usage_fields()
     adapter.client = SimpleNamespace(
         responses=SimpleNamespace(
             create=_FakeResponses(
-                _FakeResponsesStream([
-                    SimpleNamespace(type="response.output_text.delta", delta="O"),
-                    SimpleNamespace(type="response.output_text.delta", delta="K"),
-                    SimpleNamespace(type="response.completed", response=completed_response),
-                ])
+                _FakeResponsesStream(
+                    [
+                        SimpleNamespace(type="response.output_text.delta", delta="O"),
+                        SimpleNamespace(type="response.output_text.delta", delta="K"),
+                        SimpleNamespace(
+                            type="response.completed", response=completed_response
+                        ),
+                    ]
+                )
             ).create,
         ),
         chat=SimpleNamespace(completions=_FakeChatCompletions(None)),

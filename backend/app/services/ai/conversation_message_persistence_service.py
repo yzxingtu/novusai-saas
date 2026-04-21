@@ -81,6 +81,49 @@ class ConversationMessagePersistenceService:
         return False
 
     @staticmethod
+    def _resolve_tool_name(tool_call: dict[str, Any]) -> str | None:
+        function_payload = (
+            dict(tool_call.get("function") or {})
+            if isinstance(tool_call.get("function"), dict)
+            else {}
+        )
+        tool_name = str(
+            tool_call.get("name") or function_payload.get("name") or ""
+        ).strip()
+        return tool_name or None
+
+    @classmethod
+    def promote_pending_state_from_tool_calls(
+        cls,
+        *,
+        metadata: dict[str, Any] | None,
+        tool_calls: list[dict[str, Any]] | None,
+    ) -> dict[str, Any] | None:
+        if not tool_calls:
+            return metadata
+
+        next_metadata = dict(metadata or {})
+        for pending_key in ("pending_confirmation", "pending_consent"):
+            if isinstance(next_metadata.get(pending_key), dict):
+                continue
+            for tool_call in tool_calls:
+                if not isinstance(tool_call, dict):
+                    continue
+                pending_payload = (
+                    dict(tool_call.get(pending_key) or {})
+                    if isinstance(tool_call.get(pending_key), dict)
+                    else None
+                )
+                if not pending_payload:
+                    continue
+                pending_payload.setdefault(
+                    "tool_name", cls._resolve_tool_name(tool_call)
+                )
+                next_metadata[pending_key] = pending_payload
+                break
+        return next_metadata or None
+
+    @staticmethod
     def sanitize_tool_messages(messages: list[ChatMessage]) -> list[ChatMessage]:
         if not messages:
             return messages
@@ -319,6 +362,10 @@ class ConversationMessagePersistenceService:
             if role == "assistant" and reasoning_content and reasoning_content.strip():
                 metadata = metadata or {}
                 metadata["thinking_content"] = reasoning_content.strip()
+            metadata = cls.promote_pending_state_from_tool_calls(
+                metadata=metadata,
+                tool_calls=tool_calls,
+            )
             if (
                 role == "assistant"
                 and persisted_metadata
@@ -461,14 +508,23 @@ class ConversationMessagePersistenceService:
                     metadata["memory_runtime_policy"] = service._normalize_json_safe(
                         memory_runtime_policy
                     )
+                projected_tool_calls = (
+                    list(tool_calls_collected) if tool_calls_collected else tool_calls
+                )
                 metadata["turn_flow"] = service._normalize_json_safe(
                     ConversationTurnFlowProjector.project_from_metadata(
                         metadata,
                         content=content,
-                        tool_calls=tool_calls,
+                        tool_calls=projected_tool_calls,
                         token_count=token_estimate,
                     )
                 )
+                metadata.pop("thinking_content", None)
+                metadata.pop("rag_sources", None)
+
+            if role == "assistant" and metadata:
+                metadata.pop("thinking_content", None)
+                metadata.pop("rag_sources", None)
 
             metadata = service._normalize_json_safe_dict(metadata)
 
@@ -483,7 +539,7 @@ class ConversationMessagePersistenceService:
                     "content": content,
                     "sequence": next_seq + persisted_count,
                     "token_count": token_estimate,
-                    "tool_calls": tool_calls,
+                    "tool_calls": None if role == "assistant" else tool_calls,
                     "tool_call_id": tool_call_id,
                     "agent_id": msg_agent_id,
                     "model_id": msg_model_id,

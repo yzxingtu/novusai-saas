@@ -12,11 +12,12 @@ import {
  * Merge raw DB messages into display ChatMessages / 将原始 DB 消息合并为展示用 ChatMessages
  *
  * During streaming, all tool call rounds are accumulated into a single
- * assistant ChatMessage. But the DB stores each round as separate messages:
- *   assistant (tool_calls) → tool → assistant (tool_calls) → tool → ... → assistant (final content)
+ * assistant ChatMessage. Persisted history may still contain several assistant
+ * and tool rows for one turn, but the display model merges them back into one
+ * canonical assistant view.
  *
  * This function groups consecutive non-user messages between user messages
- * into a single ChatMessage with toolCalls reconstructed.
+ * into a single ChatMessage with canonical turnFlow reconstructed.
  */
 export function mergeMessagesForDisplay(
   rawMessages: RawMessageItem[],

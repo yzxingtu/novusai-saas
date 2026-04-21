@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { mount } from '@vue/test-utils';
-import { defineComponent } from 'vue';
+import { computed, defineComponent } from 'vue';
 
 import { describe, expect, it, vi } from 'vitest';
 
@@ -29,8 +29,21 @@ vi.mock('#/components/business/ai-chat-panel/ChatMessageItem.vue', () => ({
       apiPrefix: { type: String, default: '' },
       msg: { type: Object, required: true },
     },
+    setup(props) {
+      const hasThinking = computed(() =>
+        Boolean((props.msg as Record<string, unknown>).thinkingContent),
+      );
+      const hasToolCalls = computed(() => {
+        const toolCalls = (props.msg as Record<string, unknown>).toolCalls;
+        return Array.isArray(toolCalls) && toolCalls.length > 0;
+      });
+      return {
+        hasThinking,
+        hasToolCalls,
+      };
+    },
     template:
-      '<div data-testid="chat-message-item-stub" :data-api-prefix="apiPrefix" :data-stage-id="msg?.turnFlow?.timeline?.[0]?.id || \'\'" :data-has-thinking="String(!!msg?.thinkingContent)" :data-has-tool-calls="String(Array.isArray(msg?.toolCalls) && msg.toolCalls.length > 0)" :data-turn-outcome="msg?.turnOutcome || \'\'" :data-termination-reason="msg?.terminationReason || \'\'" :data-has-error="String(!!msg?.error)" :data-streaming="String(!!msg?.streaming)" />',
+      '<div data-testid="chat-message-item-stub" :data-api-prefix="apiPrefix" :data-stage-id="msg?.turnFlow?.timeline?.[0]?.id || \'\'" :data-has-thinking="String(hasThinking)" :data-has-tool-calls="String(hasToolCalls)" :data-turn-outcome="msg?.turnOutcome || \'\'" :data-termination-reason="msg?.terminationReason || \'\'" :data-has-error="String(!!msg?.error)" :data-streaming="String(!!msg?.streaming)" />',
   }),
 }));
 
@@ -65,7 +78,7 @@ describe('monitoringConversationMessagesCard turn-flow rendering', () => {
                 },
               ],
             },
-          },
+          } as unknown as import('../api').MonitoringConversationMessage,
         ],
         scope: 'admin',
       },

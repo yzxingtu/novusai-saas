@@ -740,6 +740,64 @@ class TestConversationQueries:
         assert detail.message_list[0]["turn_flow"]["completion_reason"] == "completed"
 
     @pytest.mark.asyncio
+    async def test_get_conversation_detail_strips_legacy_conversation_metadata(
+        self, mock_db
+    ):
+        from app.services.ai.monitoring_service import MonitoringService
+
+        now = _utc_dt()
+        conversation = SimpleNamespace(
+            id=5,
+            tenant_id=11,
+            agent_id=9,
+            owner_type="tenant_user",
+            user_id=7,
+            title="Thread",
+            status="active",
+            created_at=now,
+            updated_at=now,
+        )
+        conversation_service = MagicMock()
+        conversation_service.get_by_id = AsyncMock(return_value=conversation)
+        conversation_service.get_conversation_detail = AsyncMock(
+            return_value={
+                "agent_name": "Writer",
+                "agent_avatar": "writer.png",
+                "message_count": 1,
+                "token_count": 20,
+                "cost": 0.1,
+                "context_diagnostics": {},
+                "last_run_summary": {},
+                "metadata": {
+                    "interaction_mode": "confirm",
+                    "interaction_mode_requested": "trusted_auto",
+                    "topic": "demo",
+                },
+                "message_list": [],
+            }
+        )
+
+        service = MonitoringService.__new__(MonitoringService)
+        service.db = mock_db
+        service._load_conversation_usage_map = AsyncMock(return_value={})
+        service._load_conversation_actor_snapshot_map = AsyncMock(return_value={})
+        service._load_actor_map = AsyncMock(return_value={})
+        service._load_tenant_names = AsyncMock(return_value={11: "Tenant A"})
+        mock_db.execute = AsyncMock(return_value=_result_with_all([]))
+
+        with patch.object(
+            MonitoringService,
+            "ConversationService",
+            return_value=conversation_service,
+        ):
+            detail = await service.get_conversation_detail(
+                MonitoringService.tenant_scope(11),
+                conversation_id=5,
+            )
+
+        assert detail.metadata == {"topic": "demo"}
+
+    @pytest.mark.asyncio
     async def test_get_conversation_detail_normalizes_provider_failure_after_partial_progress(
         self, mock_db
     ):
@@ -839,6 +897,96 @@ class TestConversationQueries:
         assert turn_flow["timeline"][-1]["type"] == "failed"
         assert turn_flow["timeline"][-1]["status"] == "error"
         assert turn_flow["error_surface"]["message"]
+
+    @pytest.mark.asyncio
+    async def test_get_conversation_detail_projects_turn_flow_and_strips_legacy_assistant_fields(
+        self, mock_db
+    ):
+        from app.services.ai.monitoring_service import MonitoringService
+
+        now = _utc_dt()
+        conversation = SimpleNamespace(
+            id=5,
+            tenant_id=11,
+            agent_id=9,
+            owner_type="tenant_user",
+            user_id=7,
+            title="Thread",
+            status="active",
+            created_at=now,
+            updated_at=now,
+        )
+        conversation_service = MagicMock()
+        conversation_service.get_by_id = AsyncMock(return_value=conversation)
+        conversation_service.get_conversation_detail = AsyncMock(
+            return_value={
+                "agent_name": "Writer",
+                "agent_avatar": "writer.png",
+                "message_count": 1,
+                "token_count": 20,
+                "cost": 0.1,
+                "context_diagnostics": {},
+                "last_run_summary": {},
+                "metadata": {"topic": "demo"},
+                "message_list": [
+                    {
+                        "role": "assistant",
+                        "content": "最终答复",
+                        "tool_calls": [
+                            {
+                                "id": "tc_1",
+                                "display_name": "数据查询",
+                                "summary": "按今天范围统计调用",
+                                "result_link": "/admin/ai/chat",
+                            }
+                        ],
+                        "metadata": {
+                            "thinking_content": "先分析上下文。",
+                            "rag_sources": [
+                                {
+                                    "source": "KB",
+                                    "chunk_id": 1,
+                                    "title": "知识库证据",
+                                    "snippet": "命中了相关文档",
+                                }
+                            ],
+                        },
+                    }
+                ],
+            }
+        )
+
+        service = MonitoringService.__new__(MonitoringService)
+        service.db = mock_db
+        service._load_conversation_usage_map = AsyncMock(return_value={})
+        service._load_conversation_actor_snapshot_map = AsyncMock(return_value={})
+        service._load_actor_map = AsyncMock(return_value={})
+        service._load_tenant_names = AsyncMock(return_value={11: "Tenant A"})
+        mock_db.execute = AsyncMock(return_value=_result_with_all([]))
+
+        with patch.object(
+            MonitoringService,
+            "ConversationService",
+            return_value=conversation_service,
+        ):
+            detail = await service.get_conversation_detail(
+                MonitoringService.tenant_scope(11),
+                conversation_id=5,
+            )
+
+        assistant_payload = detail.message_list[0]
+        assert "tool_calls" not in assistant_payload
+        assert "thinking_content" not in assistant_payload["metadata"]
+        assert "rag_sources" not in assistant_payload["metadata"]
+        assert assistant_payload["metadata"]["turn_flow"] == assistant_payload["turn_flow"]
+        assert any(
+            stage["type"] == "thinking"
+            for stage in assistant_payload["turn_flow"]["timeline"]
+        )
+        assert any(
+            item["tool_call_id"] == "tc_1"
+            for item in assistant_payload["turn_flow"]["evidence"]
+        )
 
     @pytest.mark.asyncio
     async def test_get_conversation_detail_raises_when_tenant_conversation_missing(

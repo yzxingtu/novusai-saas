@@ -127,17 +127,22 @@ describe('aiChatMessageViewport', () => {
         msg: { type: Object, required: true },
       },
       setup(props) {
+        const rawMessage = computed(
+          () => props.msg as Record<string, unknown>,
+        );
         const hasThinking = computed(() =>
-          Boolean((props.msg as ChatMessage).thinkingContent),
+          Boolean(rawMessage.value.thinkingContent),
         );
-        const hasToolCalls = computed(() =>
-          Boolean((props.msg as ChatMessage).toolCalls?.length),
-        );
-        const hasRag = computed(() =>
-          Boolean((props.msg as ChatMessage).ragSources?.length),
-        );
+        const hasToolCalls = computed(() => {
+          const toolCalls = rawMessage.value.toolCalls;
+          return Array.isArray(toolCalls) && toolCalls.length > 0;
+        });
+        const hasRag = computed(() => {
+          const ragSources = rawMessage.value.ragSources;
+          return Array.isArray(ragSources) && ragSources.length > 0;
+        });
         const hasOptimizing = computed(() =>
-          Boolean((props.msg as ChatMessage).optimizingTools),
+          Boolean(rawMessage.value.optimizingTools),
         );
         const stageTypes = computed(() =>
           (
@@ -235,13 +240,13 @@ describe('aiChatMessageViewport', () => {
 
     const probe = wrapper.get('[data-testid="message-item-probe"]');
     expect(probe.attributes('data-stage-ids')).toBe(
-      'stage-thinking|stage-tool-selection|stage-answer|legacy-completed-failed',
+      'stage-thinking|stage-tool-selection|stage-answer|turn-tool-execution|legacy-completed-failed',
     );
     expect(probe.attributes('data-stage-types')).toBe(
-      'thinking|tool_selection|answer_assembly|failed',
+      'thinking|tool_selection|answer_assembly|tool_execution|failed',
     );
     expect(probe.attributes('data-stage-statuses')).toBe(
-      'completed|skipped|error|error',
+      'completed|skipped|error|error|error',
     );
     expect(probe.attributes('data-has-thinking')).toBe('false');
     expect(probe.attributes('data-has-tool-calls')).toBe('false');
@@ -290,15 +295,40 @@ describe('aiChatMessageViewport', () => {
             props: {
               msg: { type: Object, required: true },
             },
+            setup(props) {
+              const rawMessage = computed(
+                () => props.msg as Record<string, unknown>,
+              );
+              const hasThinking = computed(() =>
+                Boolean(rawMessage.value.thinkingContent),
+              );
+              const hasToolCalls = computed(() => {
+                const toolCalls = rawMessage.value.toolCalls;
+                return Array.isArray(toolCalls) && toolCalls.length > 0;
+              });
+              const hasRag = computed(() => {
+                const ragSources = rawMessage.value.ragSources;
+                return Array.isArray(ragSources) && ragSources.length > 0;
+              });
+              const hasOptimizing = computed(() =>
+                Boolean(rawMessage.value.optimizingTools),
+              );
+              return {
+                hasOptimizing,
+                hasRag,
+                hasThinking,
+                hasToolCalls,
+              };
+            },
             template:
-              '<div data-testid="alias-probe" :data-stage-id="msg?.turnFlow?.timeline?.[0]?.id || \'\'" :data-has-thinking="String(!!msg?.thinkingContent)" :data-has-tool-calls="String(Array.isArray(msg?.toolCalls) && msg.toolCalls.length > 0)" :data-has-rag="String(Array.isArray(msg?.ragSources) && msg.ragSources.length > 0)" :data-has-optimizing="String(!!msg?.optimizingTools)" :data-streaming="String(!!msg?.streaming)" />',
+              '<div data-testid="alias-probe" :data-stage-id="msg?.turnFlow?.timeline?.[0]?.id || \'\'" :data-has-thinking="String(hasThinking)" :data-has-tool-calls="String(hasToolCalls)" :data-has-rag="String(hasRag)" :data-has-optimizing="String(hasOptimizing)" :data-streaming="String(!!msg?.streaming)" />',
           }),
         },
       },
     });
 
     const probe = wrapper.get('[data-testid="alias-probe"]');
-    expect(probe.attributes('data-stage-id')).toBe('stage-from-alias');
+    expect(probe.attributes('data-stage-id')).toBe('turn-tool-selection');
     expect(probe.attributes('data-has-thinking')).toBe('false');
     expect(probe.attributes('data-has-tool-calls')).toBe('false');
     expect(probe.attributes('data-has-rag')).toBe('false');

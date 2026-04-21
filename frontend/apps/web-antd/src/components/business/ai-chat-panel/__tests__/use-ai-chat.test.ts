@@ -704,7 +704,6 @@ describe('useAIChat interrupted stream recovery', () => {
     const assistantMessage = chat.chatMessages.value.find(
       (msg) => msg.role === 'assistant',
     );
-    expect(assistantMessage?.toolCalls).toBeUndefined();
     expect(assistantMessage).toBeDefined();
     if (!assistantMessage) {
       throw new Error('assistant message missing');
@@ -720,7 +719,7 @@ describe('useAIChat interrupted stream recovery', () => {
     });
   });
 
-  it('parses canonical turn flow SSE events and keeps legacy fallback fields usable', async () => {
+  it('parses canonical turn flow SSE events and keeps canonical display helpers populated', async () => {
     apiMocks.sendChatStreamApi.mockImplementation(
       async (
         _prefix: string,
@@ -822,12 +821,10 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(assistantMessage.turnFlow?.traceId).toBe(
       'trace-turn-flow-canonical',
     );
-    expect(assistantMessage.optimizingTools).toBeUndefined();
     expect(getOptimizingToolsForDisplay(assistantMessage)).toEqual({
       selected: 0,
       total: 15,
     });
-    expect(assistantMessage.thinkingContent).toBeUndefined();
     expect(getThinkingContentForDisplay(assistantMessage)).toBe(
       '先识别上下文\n\n再决定工具路径',
     );
@@ -963,7 +960,6 @@ describe('useAIChat interrupted stream recovery', () => {
         ].includes(stage.id ?? ''),
       ),
     ).toBe(false);
-    expect(assistantMessage.thinkingContent).toBeUndefined();
     expect(getThinkingContentForDisplay(assistantMessage)).toBe(
       '内部细节 1\n\n内部细节 2',
     );
@@ -996,10 +992,7 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(
       getTurnFlowForDisplay(assistantMessage).timeline.map((stage) => stage.id),
     ).toEqual(['thinking-stage', 'completed-stage']);
-    expect(getOptimizingToolsForDisplay(assistantMessage)).toEqual({
-      selected: 0,
-      total: 9,
-    });
+    expect(getOptimizingToolsForDisplay(assistantMessage)).toBeUndefined();
   });
 
   it('projects provider_failure_after_partial_progress as failed/error terminal state', async () => {
@@ -1106,7 +1099,6 @@ describe('useAIChat interrupted stream recovery', () => {
       (msg) => msg.role === 'assistant',
     );
     const timeline = assistantMessage?.turnFlow?.timeline ?? [];
-    expect(assistantMessage?.toolCalls).toBeUndefined();
     expect(assistantMessage).toBeDefined();
     if (!assistantMessage) {
       throw new Error('assistant message missing');
@@ -1178,7 +1170,6 @@ describe('useAIChat interrupted stream recovery', () => {
     const assistantMessage = chat.chatMessages.value.find(
       (msg) => msg.role === 'assistant',
     );
-    expect(assistantMessage?.toolCalls).toBeUndefined();
     expect(assistantMessage).toBeDefined();
     if (!assistantMessage) {
       throw new Error('assistant message missing');
@@ -1214,8 +1205,14 @@ describe('useAIChat interrupted stream recovery', () => {
     const assistantMessage = chat.chatMessages.value.find(
       (msg) => msg.role === 'assistant',
     );
-    expect(assistantMessage?.toolCalls?.[0]?.displayName).toBe('数据查询');
-    expect(assistantMessage?.toolCalls?.[0]?.summaryPayload).toEqual({
+    expect(assistantMessage).toBeDefined();
+    if (!assistantMessage) {
+      throw new Error('assistant message missing');
+    }
+    expect(getToolCallsForDisplay(assistantMessage)?.[0]?.displayName).toBe(
+      '数据查询',
+    );
+    expect(getToolCallsForDisplay(assistantMessage)?.[0]?.summaryPayload).toEqual({
       filters: ['today'],
       tables: ['ai_call_logs'],
       tool_kind: 'query_records',
@@ -1242,7 +1239,11 @@ describe('useAIChat interrupted stream recovery', () => {
     const assistantMessage = chat.chatMessages.value.find(
       (msg) => msg.role === 'assistant',
     );
-    expect(assistantMessage?.toolCalls?.[0]).toMatchObject({
+    expect(assistantMessage).toBeDefined();
+    if (!assistantMessage) {
+      throw new Error('assistant message missing');
+    }
+    expect(getToolCallsForDisplay(assistantMessage)?.[0]).toMatchObject({
       displayName: 'common.globalAiChat.toolNativeSearch',
       name: 'native_web_search',
       status: 'success',
@@ -1263,16 +1264,20 @@ describe('useAIChat interrupted stream recovery', () => {
     const assistantMessage = chat.chatMessages.value.find(
       (msg) => msg.role === 'assistant',
     );
-    expect(assistantMessage?.thinkingContent).toBe(
+    expect(assistantMessage).toBeDefined();
+    if (!assistantMessage) {
+      throw new Error('assistant message missing');
+    }
+    expect(getThinkingContentForDisplay(assistantMessage)).toBe(
       '**Considering tool responses** I have the weather details now.',
     );
     expect(assistantMessage?.content).toBe(
       '广州今天多云，气温 24 到 29 摄氏度。',
     );
-    expect(assistantMessage?.turnFlow).toBeUndefined();
+    expect(assistantMessage?.turnFlow).toBeDefined();
   });
 
-  it('keeps legacy persisted metadata visible without rebuilding a synthetic turnFlow', async () => {
+  it('canonicalizes legacy persisted metadata into turnFlow for shared display helpers', async () => {
     apiMocks.getChatConversationMessagesApi.mockResolvedValue(
       buildConversationDetail([
         buildUserMessage('查一下企业知识库策略'),
@@ -1314,11 +1319,17 @@ describe('useAIChat interrupted stream recovery', () => {
     const assistantMessage = chat.chatMessages.value.find(
       (msg) => msg.role === 'assistant',
     );
-    expect(assistantMessage?.turnFlow).toBeUndefined();
+    expect(assistantMessage?.turnFlow).toBeDefined();
     expect(assistantMessage?.completionReason).toBe('completed');
-    expect(assistantMessage?.thinkingContent).toContain('先检查可用上下文');
-    expect(assistantMessage?.toolCalls?.[0]?.name).toBe('query_records');
-    expect(assistantMessage?.ragSources?.[0]?.doc_name).toBe('合规流程文档');
+    expect(getThinkingContentForDisplay(assistantMessage!)).toContain(
+      '先检查可用上下文',
+    );
+    expect(getToolCallsForDisplay(assistantMessage!)?.[0]?.name).toBe(
+      'query_records',
+    );
+    expect(getRagSourcesForDisplay(assistantMessage!)?.[0]?.doc_name).toBe(
+      '合规流程文档',
+    );
   });
 
   it('projects legacy assistant fields into persisted turnFlow and removes top-level duplicates', async () => {
@@ -1398,10 +1409,6 @@ describe('useAIChat interrupted stream recovery', () => {
         'turn-tool-execution',
       ]),
     );
-    expect(assistantMessage.thinkingContent).toBeUndefined();
-    expect(assistantMessage.toolCalls).toBeUndefined();
-    expect(assistantMessage.ragSources).toBeUndefined();
-    expect(assistantMessage.optimizingTools).toBeUndefined();
     expect(getThinkingContentForDisplay(assistantMessage)).toBe(
       '先读取上下文，再输出答复',
     );
@@ -1482,7 +1489,6 @@ describe('useAIChat interrupted stream recovery', () => {
       throw new Error('assistant message missing');
     }
 
-    expect(assistantMessage.toolCalls).toBeUndefined();
     expect(getToolCallsForDisplay(assistantMessage)).toEqual([
       expect.objectContaining({
         id: 'tc_history_conflict_1',
@@ -1685,7 +1691,6 @@ describe('useAIChat interrupted stream recovery', () => {
     const assistantMessage = chat.chatMessages.value.find(
       (msg) => msg.role === 'assistant',
     );
-    expect(assistantMessage?.toolCalls).toBeUndefined();
     expect(assistantMessage).toBeDefined();
     if (!assistantMessage) {
       throw new Error('assistant message missing');
@@ -1792,7 +1797,11 @@ describe('useAIChat interrupted stream recovery', () => {
     const assistantMessage = chat.chatMessages.value.find(
       (msg) => msg.role === 'assistant',
     );
-    expect(assistantMessage?.toolCalls?.[0]).toMatchObject({
+    expect(assistantMessage).toBeDefined();
+    if (!assistantMessage) {
+      throw new Error('assistant message missing');
+    }
+    expect(getToolCallsForDisplay(assistantMessage)?.[0]).toMatchObject({
       displayName: 'common.globalAiChat.toolNativeSearch',
       name: 'native_web_search',
       status: 'error',

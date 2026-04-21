@@ -713,6 +713,10 @@ function applyToolCallsToTurnFlow(
   message.turnFlow = flow;
 }
 
+function hasCanonicalToolSelection(flow: TurnFlowViewModel): boolean {
+  return flow.timeline.some((stage) => stage.type === 'tool_selection');
+}
+
 function collectRunningToolEvidenceRefs(
   flow: TurnFlowViewModel,
 ): Array<{ id?: string; name?: string }> {
@@ -1284,35 +1288,68 @@ export function applyRagSourcesToTurnFlow(
   message.turnFlow = flow;
 }
 
-export function canonicalizeAssistantLegacyFieldsIntoTurnFlow(
+export interface AssistantTurnFlowProjectionInput {
+  optimizingTools?: { selected?: number; total?: number };
+  ragSources?: RagSource[];
+  thinkingContent?: string;
+  toolCalls?: ToolCallEvent[];
+}
+
+export function projectAssistantFieldsIntoTurnFlow(
   message: ChatMessage,
+  input: AssistantTurnFlowProjectionInput,
 ): void {
-  const flow = normalizeTurnFlowViewModel(message.turnFlow);
-  if (!flow) {
+  const thinkingContent = normalizeOptionalString(input.thinkingContent);
+  const toolCalls =
+    Array.isArray(input.toolCalls) && input.toolCalls.length > 0
+      ? input.toolCalls
+      : undefined;
+  const ragSources =
+    Array.isArray(input.ragSources) && input.ragSources.length > 0
+      ? input.ragSources
+      : undefined;
+  const selected = normalizeNumber(input.optimizingTools?.selected);
+  const total = normalizeNumber(input.optimizingTools?.total);
+  const hasSelectionInput = selected !== undefined || total !== undefined;
+
+  const existingFlow = normalizeTurnFlowViewModel(message.turnFlow);
+  if (
+    !existingFlow &&
+    !thinkingContent &&
+    !toolCalls &&
+    !ragSources &&
+    !hasSelectionInput
+  ) {
     return;
   }
 
-  const legacyThinking = normalizeOptionalString(message.thinkingContent);
-  if (legacyThinking && !hasCanonicalThinkingContent(flow)) {
-    appendThinkingDeltaToTurnFlow(message, legacyThinking);
-  }
-
-  if (message.toolCalls?.length) {
-    applyToolCallsToTurnFlow(message, message.toolCalls);
-  }
-
-  const nextFlow = normalizeTurnFlowViewModel(message.turnFlow);
+  const selectionFlow = normalizeTurnFlowViewModel(message.turnFlow);
   if (
-    message.ragSources?.length &&
-    nextFlow &&
-    !hasCanonicalRagEvidence(nextFlow)
+    hasSelectionInput &&
+    !hasCanonicalToolSelection(selectionFlow ?? createEmptyTurnFlow())
   ) {
-    applyRagSourcesToTurnFlow(message, message.ragSources);
+    applyOptimizingToolsToTurnFlow(message, {
+      ...(selected === undefined ? {} : { selected }),
+      ...(total === undefined ? {} : { total }),
+    });
   }
 
-  delete message.thinkingContent;
-  delete message.toolCalls;
-  delete message.ragSources;
+  const thinkingFlow = normalizeTurnFlowViewModel(message.turnFlow);
+  if (
+    thinkingContent &&
+    !hasCanonicalThinkingContent(thinkingFlow ?? createEmptyTurnFlow())
+  ) {
+    appendThinkingDeltaToTurnFlow(message, thinkingContent);
+  }
+
+  if (toolCalls) {
+    applyToolCallsToTurnFlow(message, toolCalls);
+  }
+
+  const ragFlow = normalizeTurnFlowViewModel(message.turnFlow);
+  if (ragSources && !hasCanonicalRagEvidence(ragFlow ?? createEmptyTurnFlow())) {
+    applyRagSourcesToTurnFlow(message, ragSources);
+  }
 }
 
 function buildStageFromCanonicalEvent(
@@ -1566,15 +1603,7 @@ export function getRunningToolExecutionRefs(
   message: ChatMessage,
 ): Array<{ id?: string; name?: string }> {
   const flow = normalizeTurnFlowViewModel(message.turnFlow);
-  if (flow) {
-    return collectRunningToolEvidenceRefs(flow);
-  }
-  return (message.toolCalls ?? [])
-    .filter((toolCall) => toolCall.status === 'running')
-    .map((toolCall) => ({
-      id: toolCall.id,
-      name: toolCall.name,
-    }));
+  return flow ? collectRunningToolEvidenceRefs(flow) : [];
 }
 
 export function settleTurnFlowAfterLifecycleFinalize(

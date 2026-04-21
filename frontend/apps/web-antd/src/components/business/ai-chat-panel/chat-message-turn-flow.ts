@@ -901,12 +901,12 @@ export function getThinkingContentForDisplay(
     }
     return normalizeOptionalString(thinkingStage.summary);
   }
-  return normalizeOptionalString(msg.thinkingContent);
+  return undefined;
 }
 
 export function getOptimizingToolsForDisplay(
   msg: ChatMessage,
-): ChatMessage['optimizingTools'] | undefined {
+): { selected: number; total: number } | undefined {
   const flow = normalizeTurnFlowViewModel(msg.turnFlow);
   const selectionStage = flow?.timeline.findLast(
     (stage) => stage.type === 'tool_selection',
@@ -919,27 +919,21 @@ export function getOptimizingToolsForDisplay(
       total: total ?? selected ?? 0,
     };
   }
-  return msg.optimizingTools;
+  return undefined;
 }
 
 export function getToolCallsForDisplay(
   msg: ChatMessage,
 ): ToolCallEvent[] | undefined {
   const canonicalToolCalls = toDisplayToolCallsFromCanonicalFlow(msg);
-  if (canonicalToolCalls?.length) {
-    return canonicalToolCalls;
-  }
-  return msg.toolCalls?.length ? msg.toolCalls : undefined;
+  return canonicalToolCalls?.length ? canonicalToolCalls : undefined;
 }
 
 export function getRagSourcesForDisplay(
   msg: ChatMessage,
 ): RagSource[] | undefined {
   const canonicalRagSources = toDisplayRagSourcesFromCanonicalFlow(msg);
-  if (canonicalRagSources?.length) {
-    return canonicalRagSources;
-  }
-  return msg.ragSources?.length ? msg.ragSources : undefined;
+  return canonicalRagSources?.length ? canonicalRagSources : undefined;
 }
 
 export function getTurnFlowForDisplay(msg: ChatMessage): TurnFlowForDisplay {

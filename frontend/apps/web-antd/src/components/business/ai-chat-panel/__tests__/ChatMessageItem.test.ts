@@ -4,6 +4,7 @@ import type {
   RichTextAISelectionSnapshot,
   RichTextAITask,
   RichTextDraftRuntimeState,
+  ToolCallEvent,
 } from '../types';
 
 /**
@@ -57,12 +58,78 @@ vi.mock('#/utils/request', () => ({
   isDevErrorMode: () => false,
 }));
 
-function createAssistantMsg(toolCalls: ChatMessage['toolCalls']): ChatMessage {
+function createAssistantMsg(toolCalls: ToolCallEvent[] = []): ChatMessage {
+  const completedCount = toolCalls.filter(
+    (toolCall) => toolCall.status === 'success',
+  ).length;
+  const failedCount = toolCalls.filter(
+    (toolCall) => toolCall.status === 'error',
+  ).length;
+  const runningCount = toolCalls.filter(
+    (toolCall) => toolCall.status === 'running',
+  ).length;
+  const stageStatus =
+    runningCount > 0
+      ? 'running'
+      : failedCount > 0
+        ? 'error'
+        : 'completed';
+  const turnFlow =
+    toolCalls.length > 0
+      ? createTurnFlow({
+          evidence: toolCalls.map((toolCall, index) => ({
+            id: toolCall.id ?? `tool-${index + 1}`,
+            kind: 'tool',
+            ...(toolCall.arguments ? { arguments: toolCall.arguments } : {}),
+            ...(toolCall.displayName ? { displayName: toolCall.displayName } : {}),
+            ...(toolCall.durationMs === undefined
+              ? {}
+              : { durationMs: toolCall.durationMs }),
+            ...(toolCall.error ? { error: toolCall.error } : {}),
+            ...(toolCall.errorType ? { errorType: toolCall.errorType } : {}),
+            ...(toolCall.output ? { output: toolCall.output } : {}),
+            ...(toolCall.resultLink ? { resultLink: toolCall.resultLink } : {}),
+            ...(toolCall.skillName ? { skillName: toolCall.skillName } : {}),
+            ...(toolCall.skillType ? { skillType: toolCall.skillType } : {}),
+            ...(toolCall.startedAt === undefined
+              ? {}
+              : { startedAt: toolCall.startedAt }),
+            status: toolCall.status,
+            ...(toolCall.summary ? { snippet: toolCall.summary } : {}),
+            ...(toolCall.summaryPayload
+              ? { summaryPayload: toolCall.summaryPayload }
+              : {}),
+            ...(toolCall.id ? { toolCallId: toolCall.id } : {}),
+            sourceRef: toolCall.name,
+            toolName: toolCall.name,
+            ...(toolCall.displayName ? { title: toolCall.displayName } : {}),
+          })),
+          timeline: [
+            {
+              detailLines: [`执行了 ${toolCalls.length} 个工具调用`],
+              id: 'turn-tool-execution',
+              metrics: {
+                completed: completedCount,
+                failed: failedCount,
+                running: runningCount,
+                tool_call_count: toolCalls.length,
+                total: toolCalls.length,
+              },
+              status: stageStatus,
+              summary: `执行了 ${toolCalls.length} 个工具调用`,
+              toolCallIds: toolCalls.map(
+                (toolCall, index) => toolCall.id ?? `tool-${index + 1}`,
+              ),
+              type: 'tool_execution',
+            },
+          ],
+        })
+      : undefined;
   return {
     clientKey: 'assistant-tool-message',
     role: 'assistant',
     content: '',
-    toolCalls,
+    ...(turnFlow ? { turnFlow } : {}),
   };
 }
 
@@ -433,7 +500,16 @@ describe('chatMessageItem', () => {
           clientKey: 'assistant-thinking-message',
           role: 'assistant',
           content: '',
-          thinkingContent: '先检查上下文，再决定下一步。',
+          turnFlow: createTurnFlow({
+            timeline: [
+              {
+                detailLines: ['先检查上下文，再决定下一步。'],
+                id: 'stage-thinking',
+                status: 'running',
+                type: 'thinking',
+              },
+            ],
+          }),
           streaming: true,
         },
         index: 0,
@@ -466,8 +542,18 @@ describe('chatMessageItem', () => {
           clientKey: 'assistant-thinking-finished',
           role: 'assistant',
           content: '最终答复',
-          thinkingContent:
-            '先检查上下文，再确认用户意图，然后组织更合适的回答结构。',
+          turnFlow: createTurnFlow({
+            timeline: [
+              {
+                detailLines: [
+                  '先检查上下文，再确认用户意图，然后组织更合适的回答结构。',
+                ],
+                id: 'stage-thinking',
+                status: 'completed',
+                type: 'thinking',
+              },
+            ],
+          }),
           streaming: false,
         },
         index: 0,
@@ -511,7 +597,16 @@ describe('chatMessageItem', () => {
           clientKey: 'assistant-thinking-auto-collapse',
           role: 'assistant',
           content: '',
-          thinkingContent: '先检查上下文，再决定下一步。',
+          turnFlow: createTurnFlow({
+            timeline: [
+              {
+                detailLines: ['先检查上下文，再决定下一步。'],
+                id: 'stage-thinking',
+                status: 'running',
+                type: 'thinking',
+              },
+            ],
+          }),
           streaming: true,
         },
         index: 0,
@@ -535,7 +630,16 @@ describe('chatMessageItem', () => {
         clientKey: 'assistant-thinking-auto-collapse',
         role: 'assistant',
         content: '最终答复',
-        thinkingContent: '先检查上下文，再决定下一步。',
+        turnFlow: createTurnFlow({
+          timeline: [
+            {
+              detailLines: ['先检查上下文，再决定下一步。'],
+              id: 'stage-thinking',
+              status: 'completed',
+              type: 'thinking',
+            },
+          ],
+        }),
         streaming: false,
       },
     });
@@ -951,11 +1055,9 @@ describe('chatMessageItem', () => {
     const wrapper = mount(ChatMessageItem, {
       props: {
         msg: {
+          ...createAssistantMsg([{ name: 'web_search', status: 'running' }]),
           clientKey: 'assistant-streaming-tools',
-          role: 'assistant' as const,
-          content: '',
           streaming: true,
-          toolCalls: [{ name: 'web_search', status: 'running' as const }],
         },
         index: 0,
         compact: true,
@@ -976,11 +1078,10 @@ describe('chatMessageItem', () => {
 
     await wrapper.setProps({
       msg: {
+        ...createAssistantMsg([{ name: 'web_search', status: 'success' }]),
         clientKey: 'assistant-streaming-tools',
-        role: 'assistant' as const,
         content: 'Final reply',
         streaming: false,
-        toolCalls: [{ name: 'web_search', status: 'success' as const }],
       },
     });
     await wrapper.vm.$nextTick();
@@ -1525,7 +1626,7 @@ describe('chatMessageItem', () => {
               },
             ],
           }),
-        },
+        } as unknown as ChatMessage,
         index: 0,
         compact: true,
       },
@@ -2015,7 +2116,7 @@ describe('chatMessageItem', () => {
     ).toContain('grid-template-rows: 0fr');
   });
 
-  it('does not synthesize a turn timeline from legacy thinking/tool/rag fields when turnFlow is missing', async () => {
+  it('does not render legacy fallback sections when turnFlow is missing', async () => {
     const wrapper = mount(ChatMessageItem, {
       props: {
         msg: {
@@ -2033,7 +2134,7 @@ describe('chatMessageItem', () => {
               snippet: '来源摘要',
             },
           ],
-        },
+        } as unknown as ChatMessage,
         index: 0,
         compact: true,
       },
@@ -2051,8 +2152,9 @@ describe('chatMessageItem', () => {
     expect(
       wrapper.find('[data-testid="chat-message-kernel-timeline"]').exists(),
     ).toBe(false);
-    expect(wrapper.text()).toContain('common.globalAiChat.optimizingTools');
-    expect(wrapper.text()).toContain('common.globalAiChat.ragSources');
+    expect(wrapper.text()).not.toContain('common.globalAiChat.optimizingTools');
+    expect(wrapper.text()).not.toContain('common.globalAiChat.ragSources');
+    expect(wrapper.text()).not.toContain('先做分析，再给答案。');
   });
 
   it('prefers prepared content body over raw content in the shared content block', async () => {

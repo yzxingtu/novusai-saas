@@ -6,10 +6,12 @@ import type {
 import type {
   ChatAttachment,
   ChatMessage,
+  RagSource,
   ToolCallEvent,
 } from '#/types/ai-chat';
 
 import { toTurnFlowFirstChatMessage } from '#/components/business/ai-chat-panel/turn-flow-first-message';
+import { projectAssistantFieldsIntoTurnFlow } from '#/components/business/ai-chat-panel/use-ai-chat-turn-flow';
 import { $t } from '#/locales';
 import { toAbsoluteApiUrl } from '#/utils/image';
 
@@ -160,6 +162,13 @@ function normalizeToolCalls(value: unknown): ToolCallEvent[] | undefined {
     .filter((item): item is ToolCallEvent => item !== null);
 
   return toolCalls.length > 0 ? toolCalls : undefined;
+}
+
+function readLegacyToolCalls(
+  message: MonitoringConversationMessage,
+): unknown[] | undefined {
+  const toolCalls = (message as unknown as Record<string, unknown>).tool_calls;
+  return Array.isArray(toolCalls) ? toolCalls : undefined;
 }
 
 function normalizeAttachments(value: unknown): ChatAttachment[] | undefined {
@@ -355,11 +364,6 @@ export function toMonitoringChatMessage(
     agent_name: message.agent_name ?? null,
     agent_avatar: message.agent_avatar ?? null,
     turnFlow: turnFlow as ChatMessage['turnFlow'],
-    thinkingContent: asString(metadata?.thinking_content),
-    ragSources: Array.isArray(metadata?.rag_sources)
-      ? (metadata?.rag_sources as ChatMessage['ragSources'])
-      : undefined,
-    toolCalls: normalizeToolCalls(message.tool_calls),
     attachments: normalizeAttachments(metadata?.attachments),
     completionReason,
     interrupted,
@@ -373,8 +377,12 @@ export function toMonitoringChatMessage(
     contextSources,
     error: persistedError,
   };
-  if (turnFlow) {
-    return toTurnFlowFirstChatMessage(nextMessage);
-  }
-  return nextMessage;
+  projectAssistantFieldsIntoTurnFlow(nextMessage, {
+    ragSources: Array.isArray(metadata?.rag_sources)
+      ? (metadata.rag_sources as RagSource[])
+      : undefined,
+    thinkingContent: asString(metadata?.thinking_content),
+    toolCalls: normalizeToolCalls(readLegacyToolCalls(message)),
+  });
+  return toTurnFlowFirstChatMessage(nextMessage);
 }
