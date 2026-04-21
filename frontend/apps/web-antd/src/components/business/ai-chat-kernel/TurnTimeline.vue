@@ -42,6 +42,16 @@ const emit = defineEmits<{
 const AUTO_COLLAPSE_DELAY_MS = 220;
 const timeline = computed(() => props.state.timeline);
 const isLiveMessage = computed(() => props.msg.streaming === true);
+const hasLegacyFallbackSections = computed(
+  () =>
+    timeline.value.length === 0 &&
+    Boolean(
+      props.msg.thinkingContent ||
+      props.msg.optimizingTools ||
+      props.msg.toolCalls?.length ||
+      props.msg.ragSources?.length,
+    ),
+);
 const expandedStageKeys = ref<Record<string, boolean>>({});
 const stageStatusSnapshot = ref<Record<string, string>>({});
 const collapseTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -685,5 +695,57 @@ onBeforeUnmount(() => {
         </div>
       </div>
     </div>
+  </div>
+
+  <div
+    v-else-if="hasLegacyFallbackSections"
+    data-testid="chat-message-kernel-fallback"
+    class="space-y-2"
+    :class="compact ? 'mb-1.5' : 'mb-2'"
+  >
+    <ChatMessageThinkingBlock
+      v-if="msg.thinkingContent"
+      :compact="compact"
+      :index="0"
+      :msg="msg"
+    />
+
+    <div
+      v-if="msg.optimizingTools"
+      class="flex items-center rounded-lg border border-border/20 bg-accent/10 text-muted-foreground"
+      :class="
+        compact
+          ? 'gap-1.5 px-2 py-1 text-[11px]'
+          : 'gap-2 px-2.5 py-1.5 text-xs'
+      "
+    >
+      <IconifyIcon
+        icon="lucide:sparkles"
+        class="text-primary"
+        :class="compact ? 'size-3' : 'size-3.5'"
+      />
+      <span>{{
+        $t('common.globalAiChat.optimizingTools', {
+          total: msg.optimizingTools.total ?? 0,
+          selected: msg.optimizingTools.selected ?? 0,
+        })
+      }}</span>
+    </div>
+
+    <ChatMessageToolCalls
+      v-if="msg.toolCalls?.length"
+      :compact="compact"
+      :countdown-now="countdownNow"
+      :index="0"
+      :msg="msg"
+      :pending-ops="pendingOps"
+      @copy="(content) => emit('copy', content)"
+    />
+
+    <ChatMessageRagSources
+      v-if="msg.ragSources?.length"
+      :compact="compact"
+      :msg="msg"
+    />
   </div>
 </template>

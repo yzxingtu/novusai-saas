@@ -858,179 +858,22 @@ function normalizeCanonicalTurnFlow(
   };
 }
 
-function buildLegacyTurnFlow(msg: ChatMessage): TurnFlowForDisplay {
-  const timeline: TurnFlowStageForDisplay[] = [];
-  const evidence: TurnEvidenceItem[] = [];
-
-  if (
-    msg.thinkingContent ||
-    (msg.streaming && !msg.content && !msg.toolCalls?.length)
-  ) {
-    timeline.push({
-      id: 'legacy-thinking',
-      type: 'thinking',
-      status: msg.streaming ? 'running' : 'completed',
-      summary: msg.thinkingContent
-        ? stripMarkdownSummary(msg.thinkingContent)
-        : undefined,
-      legacySource: 'legacy-thinking',
-    });
-  }
-
-  if (msg.optimizingTools) {
-    const selected = Number(msg.optimizingTools.selected ?? 0);
-    const total = Number(msg.optimizingTools.total ?? 0);
-    let status: TurnFlowStageStatus = 'completed';
-    if (selected <= 0) {
-      status = 'skipped';
-    } else if (msg.streaming) {
-      status = 'running';
-    }
-    timeline.push({
-      id: 'legacy-tool-selection',
-      type: 'tool_selection',
-      status,
-      summary: undefined,
-      legacySource: 'legacy-tool-selection',
-      metrics: { selected, total },
-    });
-  }
-
-  if (msg.toolCalls?.length) {
-    const running = msg.toolCalls.filter(
-      (call) => call.status === 'running',
-    ).length;
-    const failed = msg.toolCalls.filter(
-      (call) => call.status === 'error',
-    ).length;
-    const success = msg.toolCalls.filter(
-      (call) => call.status === 'success',
-    ).length;
-    let status: TurnFlowStageStatus = 'completed';
-    if (running > 0) {
-      status = 'running';
-    } else if (failed > 0) {
-      status = 'error';
-    }
-    timeline.push({
-      id: 'legacy-tool-execution',
-      type: 'tool_execution',
-      status,
-      summary: undefined,
-      legacySource: 'legacy-tool-execution',
-      metrics: { failed, running, success, total: msg.toolCalls.length },
-      toolCallIds: msg.toolCalls.map(
-        (call, index) =>
-          normalizeOptionalString(call.id) ?? `legacy-tool-${index}`,
-      ),
-    });
-  }
-
-  if (msg.ragSources?.length) {
-    timeline.push({
-      id: 'legacy-retrieval',
-      type: 'retrieval',
-      status: msg.streaming ? 'running' : 'completed',
-      summary: undefined,
-      legacySource: 'legacy-retrieval',
-      metrics: { count: msg.ragSources.length },
-    });
-    msg.ragSources.forEach((source, index) => {
-      evidence.push({
-        id: `legacy-rag-${index}`,
-        kind: 'knowledge_base',
-        title: source.doc_name || `Doc ${index + 1}`,
-        snippet: normalizeOptionalString(source.snippet),
-        score: source.score,
-        sourceRef: normalizeOptionalString(String(source.doc_id ?? '')),
-      });
-    });
-  }
-
-  if (msg.toolCalls?.length) {
-    msg.toolCalls.forEach((toolCall, index) => {
-      const title = normalizeOptionalString(
-        toolCall.displayName ?? toolCall.name,
-      );
-      const resultLink = normalizeOptionalString(toolCall.resultLink);
-      if (!title && !resultLink) {
-        return;
-      }
-      evidence.push({
-        id: `legacy-tool-evidence-${index}`,
-        kind: 'tool',
-        title: title ?? resultLink ?? `Tool ${index + 1}`,
-        snippet: normalizeOptionalString(toolCall.summary),
-        toolCallId: normalizeOptionalString(toolCall.id),
-        url: resultLink,
-      });
-    });
-  }
-
-  if (msg.content || msg.streaming) {
-    let status: TurnFlowStageStatus = 'completed';
-    if (msg.streaming) {
-      status = 'running';
-    } else if (msg.error || msg.requestFailedRetry) {
-      status = 'error';
-    } else if (msg.stoppedByUser || msg.interrupted || msg.partial) {
-      status = 'interrupted';
-    }
-    timeline.push({
-      id: 'legacy-answer-assembly',
-      type: 'answer_assembly',
-      status,
-      summary: msg.content ? stripMarkdownSummary(msg.content, 140) : undefined,
-    });
-  }
-
-  if (msg.error || msg.requestFailedRetry) {
-    timeline.push({
-      id: 'legacy-failed',
-      type: 'failed',
-      status: 'error',
-      summary: normalizeOptionalString(msg.error?.message) ?? undefined,
-    });
-  }
-
-  if (
-    !msg.streaming &&
-    timeline.length > 0 &&
-    !msg.error &&
-    !msg.requestFailedRetry
-  ) {
-    timeline.push({
-      id: 'legacy-completed',
-      type: 'completed',
-      status:
-        msg.interrupted || msg.stoppedByUser || msg.partial
-          ? 'interrupted'
-          : 'completed',
-      summary: undefined,
-    });
-  }
-
-  const answerCard: TurnAnswerCard | undefined =
-    !msg.streaming && msg.content
-      ? {
-          summary: stripMarkdownSummary(msg.content, 180),
-          sourceChipIds: evidence.map((item) => item.id),
-        }
-      : undefined;
-
+function createEmptyTurnFlowForDisplay(msg: ChatMessage): TurnFlowForDisplay {
+  const completionReason = normalizeOptionalString(msg.completionReason);
+  const turnOutcome = normalizeOptionalString(msg.turnOutcome);
   return {
-    timeline,
-    evidence,
-    answerCard,
-    completionReason: normalizeOptionalString(msg.completionReason),
-    interrupted: Boolean(msg.interrupted),
+    evidence: [],
+    timeline: [],
+    ...(completionReason ? { completionReason } : {}),
+    ...(turnOutcome ? { turnOutcome } : {}),
+    ...(msg.interrupted ? { interrupted: true } : {}),
   };
 }
 
 export function getTurnFlowForDisplay(msg: ChatMessage): TurnFlowForDisplay {
   const rawTurnFlow = normalizeRawTurnFlow(msg.turnFlow);
-  if (rawTurnFlow && rawTurnFlow.timeline.length > 0) {
+  if (rawTurnFlow) {
     return normalizeCanonicalTurnFlow(rawTurnFlow, msg);
   }
-  return buildLegacyTurnFlow(msg);
+  return createEmptyTurnFlowForDisplay(msg);
 }

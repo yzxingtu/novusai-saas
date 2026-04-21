@@ -1366,7 +1366,8 @@ describe('chatMessageItem', () => {
       wrapper.find('[data-testid="chat-message-kernel-evidence"]').exists(),
     ).toBe(true);
     expect(
-      wrapper.find('[data-testid="chat-message-kernel-evidence-live-state"]')
+      wrapper
+        .find('[data-testid="chat-message-kernel-evidence-live-state"]')
         .exists(),
     ).toBe(true);
     expect(wrapper.text()).toContain('正在整理本轮结果');
@@ -1435,7 +1436,8 @@ describe('chatMessageItem', () => {
     expect(wrapper.text()).toContain('这是正式 answerCard 摘要');
     expect(wrapper.text()).toContain('这是正式结构化整理内容');
     expect(
-      wrapper.find('[data-testid="chat-message-kernel-evidence-live-state"]')
+      wrapper
+        .find('[data-testid="chat-message-kernel-evidence-live-state"]')
         .exists(),
     ).toBe(false);
   });
@@ -2017,7 +2019,7 @@ describe('chatMessageItem', () => {
     ).toContain('grid-template-rows: 0fr');
   });
 
-  it('falls back to legacy thinking/tool/rag fields when turnFlow is missing', async () => {
+  it('does not synthesize a turn timeline from legacy thinking/tool/rag fields when turnFlow is missing', async () => {
     const wrapper = mount(ChatMessageItem, {
       props: {
         msg: {
@@ -2052,7 +2054,7 @@ describe('chatMessageItem', () => {
 
     expect(
       wrapper.find('[data-testid="chat-message-kernel-timeline"]').exists(),
-    ).toBe(true);
+    ).toBe(false);
     expect(wrapper.text()).toContain('common.globalAiChat.optimizingTools');
     expect(wrapper.text()).toContain('common.globalAiChat.ragSources');
   });

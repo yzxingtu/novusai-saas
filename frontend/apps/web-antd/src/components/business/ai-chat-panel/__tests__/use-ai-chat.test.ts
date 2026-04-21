@@ -971,14 +971,10 @@ describe('useAIChat interrupted stream recovery', () => {
       (msg) => msg.role === 'assistant',
     );
     const timeline = assistantMessage?.turnFlow?.timeline ?? [];
-    const answerAssemblyStage = timeline.find(
-      (stage) => stage.type === 'answer_assembly',
-    );
     expect(assistantMessage?.turnFlow?.finalStageStatus).toBe('error');
     expect(assistantMessage?.turnFlow?.completionReason).toBe(
       'provider_failure_after_partial_progress',
     );
-    expect(answerAssemblyStage?.status).toBe('error');
     expect(
       timeline.some(
         (stage) => stage.type === 'failed' && stage.status === 'error',
@@ -1192,14 +1188,10 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(assistantMessage?.content).toBe(
       '广州今天多云，气温 24 到 29 摄氏度。',
     );
-    expect(
-      assistantMessage?.turnFlow?.timeline?.map((stage) => stage.type),
-    ).toEqual(
-      expect.arrayContaining(['thinking', 'tool_execution', 'answer_assembly']),
-    );
+    expect(assistantMessage?.turnFlow).toBeUndefined();
   });
 
-  it('backfills turnFlow from legacy persisted metadata when turn_flow is missing', async () => {
+  it('keeps legacy persisted metadata visible without rebuilding a synthetic turnFlow', async () => {
     apiMocks.getChatConversationMessagesApi.mockResolvedValue(
       buildConversationDetail([
         buildUserMessage('查一下企业知识库策略'),
@@ -1241,19 +1233,8 @@ describe('useAIChat interrupted stream recovery', () => {
     const assistantMessage = chat.chatMessages.value.find(
       (msg) => msg.role === 'assistant',
     );
-    expect(assistantMessage?.turnFlow).toBeTruthy();
-    expect(
-      assistantMessage?.turnFlow?.timeline?.map((stage) => stage.type),
-    ).toEqual(
-      expect.arrayContaining([
-        'thinking',
-        'tool_selection',
-        'tool_execution',
-        'retrieval',
-        'completed',
-      ]),
-    );
-    expect(assistantMessage?.turnFlow?.completionReason).toBe('completed');
+    expect(assistantMessage?.turnFlow).toBeUndefined();
+    expect(assistantMessage?.completionReason).toBe('completed');
     expect(assistantMessage?.thinkingContent).toContain('先检查可用上下文');
     expect(assistantMessage?.toolCalls?.[0]?.name).toBe('query_records');
     expect(assistantMessage?.ragSources?.[0]?.doc_name).toBe('合规流程文档');

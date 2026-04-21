@@ -557,7 +557,7 @@ describe('aIChatSlidePanel (component mount)', () => {
       document.body.querySelectorAll(
         '[data-testid="ai-panel-page-ai-preview-item"]',
       ),
-    ).toHaveLength(6);
+    ).toHaveLength(5);
 
     toggleButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flushPromises();

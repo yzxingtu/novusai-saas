@@ -257,6 +257,15 @@
 4. 结合此前已完成的 stage-aware completion、`page_workflow` recovery snapshot、`active_page_workflow` diagnostics/turn-events 投影，这条主线的 acceptance 已满足，因此 `WS3 page workflow state owner closeout` 现已完成。
 5. 本轮 closeout 没有发现超出现有 ownership matrix 的新主线缺口；remaining mainline work 继续回到 `WS6 frontend-live-truth-freeze` 与 `WS1 turn-loop-orchestrator-convergence`，不新增 child task，也不为新 SaaS 恢复兼容层。
 
+### 2026-04-21 WS6 closeout update
+
+1. `frontend/apps/web-antd/src/components/business/ai-chat-panel/use-ai-chat-turn-flow.ts` 与 `frontend/apps/web-antd/src/components/business/ai-chat-panel/chat-message-turn-flow.ts` 已删除缺失 canonical `turnFlow` 时的 legacy timeline synthesis 主路径：stream/history message 现在不会再从 `thinkingContent`、`toolCalls`、`ragSources`、`selectedToolNames` 反向拼出 `legacy-*` turn timeline，live timeline owner 收口回 canonical `turnFlow`。
+2. `frontend/apps/web-antd/src/components/business/ai-chat-kernel/TurnTimeline.vue` 已把 legacy raw blocks 降级为非 timeline 的 fallback display seam：当消息只有旧字段而没有 canonical `turnFlow` 时，UI 仍可单独展示 thinking/tool/rag 原始块，但不会再借 kernel timeline 伪造 machine-readable turn progress。
+3. `frontend/apps/web-antd/src/components/business/ai-slide-panel/use-page-ai-capability.ts` 与 `frontend/apps/web-antd/src/utils/runtime-page-operations.ts` 已停止把 `suggested_tools` 投影成 live page operation list；page AI rail 现在只展示 canonical runtime facts 推导出的 `ui_*` 操作，`suggested_tools` 继续停留在 read-model / UX hint 边界。
+4. `frontend/apps/web-antd/src/components/business/ai-chat-panel/use-ai-chat-page-operations.ts` 已把 interactive page readiness 收口为 runtime facts only：`hasInteractivePageContext(...)` 不再要求 `page_key` 才认为页面可交互，join / readiness gating 只看 live runtime state 与显式 `page_session_id` owner。
+5. 前端回归已补齐并通过：`use-ai-chat-page-operations.test.ts`、`runtime-page-operations.test.ts`、`use-ai-chat.test.ts`、`ChatMessageItem.test.ts`、`AIChatSlidePanel.test.ts`、`AIChatMessageViewport.test.ts` 现共同守住“canonical timeline only + runtime ops only + no suggested-tools/page-key live owner”的边界。
+6. 本轮 closeout 未发现需要新建的 child task；umbrella 剩余主线只剩 `WS1 turn-loop-orchestrator-convergence`，后续继续沿统一 turn loop / unified orchestrator 主线推进，不为新 SaaS 回补兼容层。
+
 ### Phase 5: Context-Budget Alignment
 
 1. 维持 thin `page_context`，不回退到重内容 prompt 注入。

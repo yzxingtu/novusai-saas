@@ -10,12 +10,17 @@ vi.mock('#/composables/use-ui-action-channel', () => ({
   waitForPageSessionJoin: uiActionChannelMocks.waitForPageSessionJoin,
 }));
 
+// eslint-disable-next-line import/first
 import {
   createAIChatPageOperations,
   hasInteractivePageContext,
 } from '../use-ai-chat-page-operations';
 
 describe('use-ai-chat-page-operations', () => {
+  function asPageContextWithoutKey(value: Record<string, unknown>) {
+    return value as unknown as Parameters<typeof hasInteractivePageContext>[0];
+  }
+
   it('does not treat suggested_tools-only page context as interactive runtime state', () => {
     expect(
       hasInteractivePageContext({
@@ -30,11 +35,12 @@ describe('use-ai-chat-page-operations', () => {
 
   it('keeps interactive runtime state tied to canonical runtime facts', () => {
     expect(
-      hasInteractivePageContext({
-        active_surface_id: 'page:tenant.dashboard',
-        page_key: 'tenant.dashboard',
-        ui_epoch: 1,
-      }),
+      hasInteractivePageContext(
+        asPageContextWithoutKey({
+          active_surface_id: 'page:tenant.dashboard',
+          ui_epoch: 1,
+        }),
+      ),
     ).toBe(true);
   });
 
@@ -49,11 +55,13 @@ describe('use-ai-chat-page-operations', () => {
       socketSettleMs: 0,
     });
 
-    const ready = await operations.ensurePageOperationChannelReady('/tenant', {
-      active_surface_id: 'page:tenant.dashboard',
-      page_key: 'tenant.dashboard',
-      ui_epoch: 1,
-    });
+    const ready = await operations.ensurePageOperationChannelReady(
+      '/tenant',
+      asPageContextWithoutKey({
+        active_surface_id: 'page:tenant.dashboard',
+        ui_epoch: 1,
+      }),
+    );
 
     expect(ready).toBe(true);
     expect(socketIOStore.emit).toHaveBeenCalledWith('page_session_join', {

@@ -16,7 +16,6 @@ import { isDevErrorMode } from '#/utils/request/app-env';
 import {
   buildPageOperation,
   buildRuntimePageOperationNames,
-  buildSuggestedPageOperationNames,
   hasRuntimePageState,
 } from '#/utils/runtime-page-operations';
 
@@ -91,10 +90,7 @@ export function usePageAICapability(options: UsePageAICapabilityOptions) {
     if (!context) {
       return [];
     }
-    const candidateNames = [
-      ...buildRuntimePageOperationNames(context),
-      ...buildSuggestedPageOperationNames(context),
-    ];
+    const candidateNames = buildRuntimePageOperationNames(context);
     const operations: PageOperation[] = [];
     const seen = new Set<string>();
     for (const name of candidateNames) {
@@ -130,8 +126,8 @@ export function usePageAICapability(options: UsePageAICapabilityOptions) {
       return true;
     }
     return (
-      !hasRuntimePageState(currentPageContext.value) &&
-      buildSuggestedPageOperationNames(currentPageContext.value).length > 0
+      !!currentPageContext.value &&
+      !hasRuntimePageState(currentPageContext.value)
     );
   });
   const hasPageAI = computed(() => !!currentPageContext.value);

@@ -25,7 +25,7 @@ function sleep(ms: number): Promise<void> {
 export function hasInteractivePageContext(
   pageContext?: null | PageContext,
 ): boolean {
-  if (!pageContext?.page_key) {
+  if (!pageContext) {
     return false;
   }
 

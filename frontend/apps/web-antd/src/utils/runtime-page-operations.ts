@@ -51,23 +51,6 @@ function addToolName(
   }
 }
 
-function normalizeSuggestedToolList(
-  values?: PageContextSuggestedTool[],
-): PageContextSuggestedTool[] {
-  if (!Array.isArray(values)) {
-    return [];
-  }
-  const normalized: PageContextSuggestedTool[] = [];
-  for (const value of values) {
-    const name = String(value || '').trim();
-    if (!isPageContextSuggestedTool(name)) {
-      continue;
-    }
-    addToolName(normalized, name);
-  }
-  return normalized;
-}
-
 function hasSurfaceState(pageContext: null | PageContext): boolean {
   if (!pageContext) {
     return false;
@@ -144,26 +127,6 @@ export function buildRuntimePageOperationNames(
     }
   }
 
-  return operationNames;
-}
-
-export function buildSuggestedPageOperationNames(
-  pageContext: null | PageContext,
-): PageContextSuggestedTool[] {
-  if (!pageContext?.suggested_tools) {
-    return [];
-  }
-  const operationNames: PageContextSuggestedTool[] = [];
-  for (const name of normalizeSuggestedToolList(
-    pageContext.suggested_tools.primary,
-  )) {
-    addToolName(operationNames, name);
-  }
-  for (const name of normalizeSuggestedToolList(
-    pageContext.suggested_tools.secondary,
-  )) {
-    addToolName(operationNames, name);
-  }
   return operationNames;
 }
 

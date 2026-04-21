@@ -13,10 +13,6 @@ import type {
   TurnFlowViewModel,
 } from './types';
 
-import type {
-  TurnContextSourcePayload,
-  TurnRecordPayload,
-} from '#/api/shared/ai-chat';
 import type { AppErrorInfo } from '#/utils/request';
 
 import {
@@ -592,114 +588,6 @@ function summarize(text: string, maxLength = 120): string {
   return `${text.slice(0, maxLength - 1)}...`;
 }
 
-function summarizeThinking(value: string): { summary: string } {
-  const detailLines = value
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-  const summary = detailLines.length > 0 ? summarize(detailLines[0] ?? '') : '';
-  return {
-    summary,
-  };
-}
-
-function inferSelectionMetrics(
-  message: ChatMessage,
-): undefined | { selected: number; total: number } {
-  if (message.optimizingTools) {
-    const selected = normalizeNumber(message.optimizingTools.selected) ?? 0;
-    const total = normalizeNumber(message.optimizingTools.total) ?? selected;
-    return { selected, total };
-  }
-  const selectedNames = message.selectedToolNames ?? [];
-  if (selectedNames.length > 0) {
-    return {
-      selected: selectedNames.length,
-      total: selectedNames.length,
-    };
-  }
-  return undefined;
-}
-
-function inferRetrievalFromContextSources(
-  contextSources: TurnContextSourcePayload[] | undefined,
-): { hasRetrieval: boolean; sourceRefs: string[] } {
-  if (!Array.isArray(contextSources) || contextSources.length === 0) {
-    return { hasRetrieval: false, sourceRefs: [] };
-  }
-  const retrievalKinds = new Set([
-    'knowledge',
-    'knowledge_base',
-    'rag',
-    'search',
-    'web',
-    'web_search',
-  ]);
-  const sourceRefs: string[] = [];
-  let hasRetrieval = false;
-  for (const source of contextSources) {
-    const kind = normalizeOptionalString(source.kind);
-    const name = normalizeOptionalString(source.name);
-    if (kind && retrievalKinds.has(kind)) {
-      hasRetrieval = true;
-    }
-    if (name) {
-      sourceRefs.push(name);
-    }
-  }
-  return { hasRetrieval, sourceRefs };
-}
-
-function buildLegacyEvidenceFromRagSources(
-  ragSources: RagSource[] | undefined,
-): TurnFlowEvidenceItem[] {
-  if (!Array.isArray(ragSources) || ragSources.length === 0) {
-    return [];
-  }
-  return ragSources.map((source, index) => ({
-    id: `legacy-rag-${source.doc_id}-${index + 1}`,
-    kind:
-      source.source_kind === 'formal_kb' ? 'knowledge_base' : 'knowledge_base',
-    score:
-      typeof source.score === 'number' && Number.isFinite(source.score)
-        ? source.score
-        : undefined,
-    snippet: normalizeOptionalString(source.snippet),
-    sourceRef: normalizeOptionalString(source.heading) ?? source.doc_name,
-    title: source.doc_name,
-  }));
-}
-
-function buildLegacyEvidenceFromToolCalls(
-  toolCalls: ToolCallEvent[] | undefined,
-): TurnFlowEvidenceItem[] {
-  if (!Array.isArray(toolCalls) || toolCalls.length === 0) {
-    return [];
-  }
-  return toolCalls
-    .map((toolCall, index): null | TurnFlowEvidenceItem => {
-      const title = normalizeOptionalString(
-        toolCall.displayName ?? toolCall.name,
-      );
-      const snippet =
-        normalizeOptionalString(toolCall.summary) ??
-        normalizeOptionalString(toolCall.output) ??
-        normalizeOptionalString(toolCall.error);
-      if (!title && !snippet && !toolCall.resultLink) {
-        return null;
-      }
-      return {
-        id: toolCall.id ?? `legacy-tool-evidence-${index + 1}`,
-        kind: 'tool',
-        ...(title ? { title } : {}),
-        ...(snippet ? { snippet } : {}),
-        ...(toolCall.resultLink ? { url: toolCall.resultLink } : {}),
-        ...(toolCall.id ? { toolCallId: toolCall.id } : {}),
-      };
-    })
-    .filter((item): item is TurnFlowEvidenceItem => item !== null);
-}
-
 function inferFinalStageStatus(message: ChatMessage): TurnFlowStageStatus {
   const completionReason = normalizeOptionalString(
     message.completionReason ?? message.terminationReason,
@@ -763,157 +651,6 @@ function toLegacyToolCallsFromEvidence(
       ...(item.snippet ? { summary: item.snippet } : {}),
       ...(item.url ? { resultLink: item.url } : {}),
     }));
-}
-
-function buildLegacyTurnFlowFromMessage(
-  message: ChatMessage,
-): TurnFlowViewModel | undefined {
-  const timeline: TurnFlowStage[] = [];
-  const evidence: TurnFlowEvidenceItem[] = [];
-
-  const thinkingContent = normalizeOptionalString(message.thinkingContent);
-  if (thinkingContent) {
-    const { summary } = summarizeThinking(thinkingContent);
-    timeline.push({
-      id: 'legacy-thinking',
-      status: message.streaming && !message.content ? 'running' : 'completed',
-      summary,
-      title: 'Thinking',
-      type: 'thinking',
-    });
-  }
-
-  const selectionMetrics = inferSelectionMetrics(message);
-  if (
-    selectionMetrics ||
-    (message.toolCalls?.length ?? 0) > 0 ||
-    (message.selectedToolNames?.length ?? 0) > 0
-  ) {
-    const status =
-      selectionMetrics &&
-      selectionMetrics.total > 0 &&
-      selectionMetrics.selected === 0
-        ? 'skipped'
-        : 'completed';
-    timeline.push({
-      id: 'legacy-tool-selection',
-      metrics: selectionMetrics
-        ? { selected: selectionMetrics.selected, total: selectionMetrics.total }
-        : undefined,
-      status,
-      summary: selectionMetrics
-        ? `Selected ${selectionMetrics.selected} of ${selectionMetrics.total} tools`
-        : `Selected ${(message.selectedToolNames ?? []).length} tools`,
-      title: 'Tool Selection',
-      type: 'tool_selection',
-    });
-  }
-
-  if ((message.toolCalls?.length ?? 0) > 0) {
-    const toolCalls = message.toolCalls ?? [];
-    const runningCount = toolCalls.filter(
-      (toolCall) => toolCall.status === 'running',
-    ).length;
-    const errorCount = toolCalls.filter(
-      (toolCall) => toolCall.status === 'error',
-    ).length;
-    let status: TurnFlowStageStatus = 'completed';
-    if (runningCount > 0) {
-      status = 'running';
-    } else if (errorCount > 0) {
-      status = 'error';
-    }
-    timeline.push({
-      id: 'legacy-tool-execution',
-      metrics: {
-        errored: errorCount,
-        running: runningCount,
-        total: toolCalls.length,
-      },
-      status,
-      summary: `${toolCalls.length} tool call(s)`,
-      title: 'Tool Execution',
-      toolCallIds: toolCalls
-        .map((toolCall) => normalizeOptionalString(toolCall.id))
-        .filter((id): id is string => !!id),
-      type: 'tool_execution',
-    });
-    evidence.push(...buildLegacyEvidenceFromToolCalls(toolCalls));
-  }
-
-  if ((message.ragSources?.length ?? 0) > 0) {
-    timeline.push({
-      id: 'legacy-retrieval',
-      metrics: { sourceCount: message.ragSources?.length ?? 0 },
-      status: 'completed',
-      summary: `Collected ${message.ragSources?.length ?? 0} source(s)`,
-      title: 'Retrieval',
-      type: 'retrieval',
-    });
-    evidence.push(...buildLegacyEvidenceFromRagSources(message.ragSources));
-  } else {
-    const retrievalInference = inferRetrievalFromContextSources(
-      message.contextSources,
-    );
-    if (retrievalInference.hasRetrieval) {
-      timeline.push({
-        id: 'legacy-retrieval',
-        sourceRefs:
-          retrievalInference.sourceRefs.length > 0
-            ? retrievalInference.sourceRefs
-            : undefined,
-        status: 'completed',
-        summary: 'Retrieved context sources',
-        title: 'Retrieval',
-        type: 'retrieval',
-      });
-    }
-  }
-
-  if (normalizeOptionalString(message.content) || message.error) {
-    timeline.push({
-      id: 'legacy-answer-assembly',
-      status: message.streaming ? 'running' : inferFinalStageStatus(message),
-      summary: message.error
-        ? (normalizeOptionalString(message.error.message) ?? 'Response failed')
-        : summarize(message.content),
-      title: 'Answer Assembly',
-      type: 'answer_assembly',
-    });
-  }
-
-  const finalStatus = inferFinalStageStatus(message);
-  const completionReason = inferCompletionReason(message);
-  if (
-    completionReason ||
-    finalStatus !== 'running' ||
-    message.error ||
-    message.interrupted
-  ) {
-    timeline.push({
-      id: 'legacy-final',
-      status: finalStatus,
-      summary: completionReason,
-      title: finalStatus === 'error' ? 'Failed' : 'Completed',
-      type: finalStatus === 'error' ? 'failed' : 'completed',
-    });
-  }
-
-  const answerCard = normalizeAnswerCard(
-    normalizeObjectRecord(message.turnFlow?.answerCard) ?? null,
-  );
-  const errorSurface = toErrorSurface(message.error);
-  const legacyFlow: TurnFlowViewModel = {
-    answerCard,
-    complete: !message.streaming,
-    completionReason,
-    evidence,
-    finalStageStatus: finalStatus,
-    interrupted: message.interrupted === true || finalStatus === 'interrupted',
-    timeline,
-    ...(errorSurface ? { errorSurface } : {}),
-  };
-  return hasTurnFlowData(legacyFlow) ? legacyFlow : undefined;
 }
 
 export function createEmptyTurnFlow(): TurnFlowViewModel {
@@ -1101,7 +838,7 @@ function shouldFinalizeTimeline(flow: TurnFlowViewModel): boolean {
 
 export function reconcileTurnFlowWithLegacy(message: ChatMessage): void {
   const normalizedTurnFlow = normalizeTurnFlowViewModel(message.turnFlow);
-  if (normalizedTurnFlow && normalizedTurnFlow.timeline.length > 0) {
+  if (normalizedTurnFlow) {
     const canonical = mergeTurnFlow(normalizedTurnFlow, createEmptyTurnFlow());
     if (!canonical) {
       return;
@@ -1120,27 +857,7 @@ export function reconcileTurnFlowWithLegacy(message: ChatMessage): void {
     }
     message.turnFlow = canonical;
     applyLegacyFieldsFromTurnFlow(message);
-    return;
   }
-
-  const legacyTurnFlow = buildLegacyTurnFlowFromMessage(message);
-  if (!legacyTurnFlow) {
-    return;
-  }
-  if (shouldFinalizeTimeline(legacyTurnFlow)) {
-    const finalStatus =
-      legacyTurnFlow.finalStageStatus &&
-      legacyTurnFlow.finalStageStatus !== 'running'
-        ? legacyTurnFlow.finalStageStatus
-        : inferFinalStageStatus(message);
-    legacyTurnFlow.finalStageStatus = finalStatus;
-    if (legacyTurnFlow.complete === undefined) {
-      legacyTurnFlow.complete = true;
-    }
-    finalizeRunningStages(legacyTurnFlow, finalStatus);
-    ensureTerminalStage(legacyTurnFlow);
-  }
-  message.turnFlow = legacyTurnFlow;
 }
 
 function buildStageFromCanonicalEvent(
@@ -1337,7 +1054,7 @@ export function applyCanonicalDoneEvent(
     incomingTurnFlow,
   );
   if (!flow) {
-    flow = buildLegacyTurnFlowFromMessage(message) ?? createEmptyTurnFlow();
+    flow = createEmptyTurnFlow();
   }
 
   const completionReason =
@@ -1391,12 +1108,8 @@ export function applyCanonicalDoneEvent(
 export function settleTurnFlowAfterLifecycleFinalize(
   message: ChatMessage,
 ): void {
-  let flow =
-    normalizeTurnFlowViewModel(message.turnFlow) ??
-    buildLegacyTurnFlowFromMessage(message);
-  if (!flow) {
-    flow = createEmptyTurnFlow();
-  }
+  const flow =
+    normalizeTurnFlowViewModel(message.turnFlow) ?? createEmptyTurnFlow();
   const completionReason = inferCompletionReason(message);
   if (completionReason) {
     flow.completionReason = completionReason;
@@ -1413,40 +1126,4 @@ export function settleTurnFlowAfterLifecycleFinalize(
   ensureTerminalStage(flow);
   message.turnFlow = flow;
   reconcileTurnFlowWithLegacy(message);
-}
-
-export function buildTurnFlowFromDiagnosticsPayload(payload: {
-  completionReason?: string;
-  contextSources?: TurnContextSourcePayload[];
-  error?: AppErrorInfo;
-  ragSources?: RagSource[];
-  selectedToolNames?: string[];
-  terminationReason?: string;
-  toolCalls?: ToolCallEvent[];
-  turnOutcome?: string;
-  turnRecord?: null | TurnRecordPayload;
-}): TurnFlowViewModel | undefined {
-  const syntheticMessage: ChatMessage = {
-    clientKey: 'synthetic-turn-flow',
-    content: '',
-    role: 'assistant',
-    ...(payload.completionReason
-      ? { completionReason: payload.completionReason }
-      : {}),
-    ...(payload.contextSources
-      ? { contextSources: payload.contextSources }
-      : {}),
-    ...(payload.error ? { error: payload.error } : {}),
-    ...(payload.ragSources ? { ragSources: payload.ragSources } : {}),
-    ...(payload.selectedToolNames
-      ? { selectedToolNames: payload.selectedToolNames }
-      : {}),
-    ...(payload.terminationReason
-      ? { terminationReason: payload.terminationReason }
-      : {}),
-    ...(payload.toolCalls ? { toolCalls: payload.toolCalls } : {}),
-    ...(payload.turnOutcome ? { turnOutcome: payload.turnOutcome } : {}),
-    ...(payload.turnRecord ? { turnRecord: payload.turnRecord } : {}),
-  };
-  return buildLegacyTurnFlowFromMessage(syntheticMessage);
 }

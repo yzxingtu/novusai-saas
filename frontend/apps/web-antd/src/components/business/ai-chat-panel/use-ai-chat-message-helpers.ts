@@ -35,7 +35,6 @@ export {
   applyCanonicalTurnEvidenceEvent,
   applyCanonicalTurnStageEvent,
   applyLegacyFieldsFromTurnFlow,
-  buildTurnFlowFromDiagnosticsPayload,
   mergeTurnFlow,
   normalizeTurnFlowViewModel,
   reconcileTurnFlowWithLegacy,
