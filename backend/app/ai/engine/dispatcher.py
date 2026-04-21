@@ -18,21 +18,19 @@ from app.ai.agent_quota import (
     AgentQuotaManager,
 )
 from app.ai.events.hooks import HookPoint, get_hook_registry
-from app.ai.skills.resolver import resolve_for_agent
-from app.ai.tools.sandbox import SandboxConfig, ToolSandbox
+from app.ai.tools.sandbox import SandboxConfig
 from app.ai.utils.token_estimator import estimate_tokens
 from app.configs.service import PLATFORM_TENANT_ID
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.core.response import build_public_error_text
-from app.enums.agent import AgentExecutionModeEnum, AgentStatusEnum
+from app.enums.agent import AgentStatusEnum
 from app.exceptions import BusinessException, NotFoundException
 from app.models.ai.agent import Agent
 from app.repositories.ai.agent_repository import AgentRepository
 
 from .base import BaseEngine
-from .conversation import ConversationEngine
-from .task import TaskEngine
+from .engine_bootstrap_support import build_engine_bootstrap_bundle
 from .types import BatchItem, BatchResult, ExecutionRequest, ExecutionResult
 
 logger = LogManager.get_logger("ai.engine.dispatcher")
@@ -196,40 +194,19 @@ class ExecutionDispatcher:
             # 4.5 Publish ExecutionStarted event / 发布 ExecutionStarted 事件
             await BaseEngine._publish_execution_started(request, agent)
 
-            # 5. Resolve Skills (done at Dispatcher layer, not inside Engine DB queries) / 解析 Skill（在 Dispatcher 层完成，不在 Engine 内部查 DB）
-            skill_result = await resolve_for_agent(
-                self.db,
-                agent,
-                tenant_id=request.tenant_id,
-                user_role=request.user_role,
+            # 5. Build canonical runtime engine bundle / 构建 canonical runtime engine bundle
+            engine_bundle = await build_engine_bootstrap_bundle(
+                db=self.db,
+                agent=agent,
                 request=request,
+                sandbox_config=self.sandbox_config,
+                log=logger,
             )
-
-            # 5.5 Load platform Toolkit security config (consistent with stream_chat path) / 读取平台 Toolkit 安全配置（与 stream_chat 路径保持一致）
-            from app.configs.service import ConfigService
-
-            _cfg = ConfigService(self.db)
-            _toolkit_security_level = str(
-                await _cfg.get_platform_config(
-                    "toolkit_security_level",
-                    default="normal",
-                )
-            )
-            _toolkit_memory_limit_mb = int(
-                await _cfg.get_platform_config(
-                    "toolkit_memory_limit_mb",
-                    default=256,
-                )
-            )
-
-            # 6. Create Engine and execute / 创建 Engine 并执行
-            engine = self._create_engine(
+            result = await engine_bundle.engine.execute(
                 agent,
                 request,
-                toolkit_security_level=_toolkit_security_level,
-                toolkit_memory_limit_mb=_toolkit_memory_limit_mb,
+                skill_result=engine_bundle.skill_result,
             )
-            result = await engine.execute(agent, request, skill_result=skill_result)
 
             # 6. AFTER_EXECUTE hook / AFTER_EXECUTE 钩子
             await hook_registry.trigger(
@@ -435,72 +412,6 @@ class ExecutionDispatcher:
             total=len(items),
             succeeded=0,
             failed=0,
-        )
-
-    def _create_engine(
-        self,
-        agent: Agent,
-        request: ExecutionRequest,
-        toolkit_security_level: str = "normal",
-        toolkit_memory_limit_mb: int = 256,
-    ) -> BaseEngine:
-        """Create corresponding engine based on execution mode / 根据执行模式创建对应引擎"""
-        from app.ai.gateway import AIGateway
-
-        gateway = AIGateway(self.db)
-        sandbox = ToolSandbox(
-            tenant_id=request.tenant_id,
-            agent_id=agent.id,
-            config=self.sandbox_config,
-            user_id=request.user_id,
-            user_role=request.user_role,
-            permissions=request.permissions,
-            gateway=gateway,
-            db=self.db,
-            agent=agent,
-            toolkit_security_level=toolkit_security_level,
-            toolkit_memory_limit_mb=toolkit_memory_limit_mb,
-            input_variables=request.input_variables,
-            page_session_id=request.page_session_id,
-            conversation_id=request.conversation_id,
-            trust_policy_ref=request.trust_policy_ref,
-            interaction_mode=request.interaction_mode,
-        )
-        # Pass frontend session-level authorization / 传递前端会话级授权
-        if request.consented_actions:
-            sandbox.consented_actions = set(request.consented_actions)
-
-        mode = request.execution_mode
-
-        # API mode auto-sets control flags / API 模式自动设置控制标志
-        if mode == AgentExecutionModeEnum.API.value:
-            request.skip_quota = True
-            request.skip_persistence = True
-            request.skip_logging = True
-
-        if mode in (
-            AgentExecutionModeEnum.CONVERSATION.value,
-            AgentExecutionModeEnum.API.value,
-        ):
-            return ConversationEngine(
-                db=self.db,
-                gateway=gateway,
-                sandbox=sandbox,
-            )
-
-        if mode == AgentExecutionModeEnum.TASK.value:
-            return TaskEngine(
-                db=self.db,
-                gateway=gateway,
-                sandbox=sandbox,
-            )
-
-        # batch mode handled by dispatch_batch() / batch 模式由 dispatch_batch() 处理
-        # fallback default: conversation / fallback 默认 conversation
-        return ConversationEngine(
-            db=self.db,
-            gateway=gateway,
-            sandbox=sandbox,
         )
 
 

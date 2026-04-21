@@ -15,15 +15,11 @@ from app.ai.agent_quota import (
 )
 from app.ai.constants import MEMORY_CHANNEL_SYSTEM
 from app.ai.engine.base import BaseEngine
-from app.ai.engine.conversation import ConversationEngine
-from app.ai.engine.image_generation import ImageGenerationEngine
+from app.ai.engine.engine_bootstrap_support import build_engine_bootstrap_bundle
 from app.ai.engine.types import ExecutionRequest
 from app.ai.events.hooks import HookPoint, get_hook_registry
-from app.ai.gateway import AIGateway
-from app.ai.tools.sandbox import ToolSandbox
 from app.ai.types import ChatMessage
 from app.ai.utils.token_estimator import estimate_tokens
-from app.configs.service import ConfigService
 from app.core.i18n import _
 from app.core.logging import LogManager
 from app.enums.agent import AgentExecutionModeEnum
@@ -54,7 +50,7 @@ class StreamPreflightBundle:
 class StreamEngineBundle:
     """Engine wiring result for a stream execution."""
 
-    gateway: AIGateway
+    gateway: Any
     engine: Any
     skill_result: Any
     is_image_model: bool
@@ -299,107 +295,25 @@ class AgentChatStreamBootstrapService:
         self,
         *,
         agent: Any,
-        agent_id: int,
-        request: ExecutionRequest | None = None,
-        user_id: int | None,
-        user_role: str,
-        permissions: set[str] | None,
-        variables: dict[str, Any] | None,
-        page_session_id: str | None,
-        trust_policy_ref: dict[str, Any] | None,
-        interaction_mode: str = "trusted_auto",
+        request: ExecutionRequest,
         enable_tool_runtime: bool = True,
     ) -> StreamEngineBundle:
-        gateway = AIGateway(self.db)
-        model_obj = getattr(agent, "model", None)
-        is_image_model = (
-            model_obj is not None and getattr(model_obj, "type", "") == "image"
-        )
-        if is_image_model:
-            return StreamEngineBundle(
-                gateway=gateway,
-                engine=ImageGenerationEngine(gateway=gateway),
-                skill_result=None,
-                is_image_model=True,
-            )
-
-        if not enable_tool_runtime:
-            return StreamEngineBundle(
-                gateway=gateway,
-                engine=self._build_conversation_engine(
-                    gateway=gateway,
-                    sandbox=None,
-                ),
-                skill_result=None,
-                is_image_model=False,
-            )
-
-        try:
-            from app.ai.skills import resolver as skill_resolver_module
-
-            skill_result = await skill_resolver_module.resolve_for_agent(
-                self.db,
-                agent,
-                tenant_id=self.tenant_id,
-                user_role=user_role,
-                request=request,
-            )
-        except Exception as skill_exc:  # pragma: no cover - defensive logging path
-            logger.error(
-                "Skill resolution failed for agent {}: {}",
-                agent_id,
-                str(skill_exc),
-            )
-            skill_result = None
-
-        config_service = ConfigService(self.db)
-        toolkit_security_level = await config_service.get_platform_config(
-            "toolkit_security_level",
-            default="normal",
-        )
-        toolkit_memory_limit_mb = await config_service.get_platform_config(
-            "toolkit_memory_limit_mb",
-            default=256,
-        )
-        sandbox = ToolSandbox(
-            tenant_id=self.tenant_id,
-            agent_id=agent_id,
-            user_id=user_id,
-            user_role=user_role,
-            permissions=permissions,
-            gateway=gateway,
+        bundle = await build_engine_bootstrap_bundle(
             db=self.db,
             agent=agent,
-            toolkit_security_level=str(toolkit_security_level),
-            toolkit_memory_limit_mb=int(toolkit_memory_limit_mb),
-            input_variables=variables or {},
-            page_session_id=page_session_id,
-            trust_policy_ref=trust_policy_ref,
-            interaction_mode=interaction_mode,
+            request=request,
+            enable_tool_runtime=enable_tool_runtime,
+            allow_image_engine=True,
+            tolerate_skill_resolution_failure=True,
+            conversation_engine_factory=self.conversation_engine_factory,
+            log=logger,
         )
         return StreamEngineBundle(
-            gateway=gateway,
-            engine=self._build_conversation_engine(
-                gateway=gateway,
-                sandbox=sandbox,
-            ),
-            skill_result=skill_result,
-            is_image_model=False,
+            gateway=bundle.gateway,
+            engine=bundle.engine,
+            skill_result=bundle.skill_result,
+            is_image_model=bundle.is_image_model,
         )
-
-    def _build_conversation_engine(
-        self,
-        *,
-        gateway: AIGateway,
-        sandbox: Any,
-    ) -> Any:
-        if self.conversation_engine_factory is not None:
-            return self.conversation_engine_factory(
-                db=self.db,
-                gateway=gateway,
-                sandbox=sandbox,
-            )
-        return ConversationEngine(db=self.db, gateway=gateway, sandbox=sandbox)
 
     @staticmethod
     def _inject_session_memory(

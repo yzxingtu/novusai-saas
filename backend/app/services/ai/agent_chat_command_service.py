@@ -495,15 +495,7 @@ class AgentChatCommandService:
 
         engine_bundle = await service.stream_bootstrap.build_stream_engine_bundle(
             agent=agent,
-            agent_id=agent_id,
             request=request,
-            user_id=user_id,
-            user_role=user_role,
-            permissions=permissions,
-            variables=variables,
-            page_session_id=page_session_id,
-            trust_policy_ref=resolved_trust_policy_ref,
-            interaction_mode=interaction_mode_effective,
         )
         engine = engine_bundle.engine
         is_image_model = engine_bundle.is_image_model

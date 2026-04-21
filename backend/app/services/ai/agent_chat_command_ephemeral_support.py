@@ -114,14 +114,7 @@ async def execute_ephemeral_stream_chat(
     )
     engine_bundle = await service.stream_bootstrap.build_stream_engine_bundle(
         agent=agent,
-        agent_id=agent_id,
         request=request_bundle.request,
-        user_id=user_id,
-        user_role=user_role,
-        permissions=permissions,
-        variables=variables,
-        page_session_id=None,
-        trust_policy_ref=None,
         enable_tool_runtime=False,
     )
     return await engine_bundle.engine.stream_execute(

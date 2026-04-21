@@ -274,6 +274,15 @@
 4. 本轮推进后，`WS1` 已从 `planning` 提升为 `active`，但尚未完成；剩余主线 seam 仍集中在 `backend/app/ai/engine/dispatcher.py` 与 `backend/app/services/ai/agent_chat_stream_bootstrap_service.py` 的 duplicated preflight / engine-wiring / top-level orchestration glue。
 5. 本轮审计没有发现超出现有 ownership matrix 的新缺口，因此不新增 child task；后续继续沿现有 `WS1` 收口 dispatcher 与 stream bootstrap，不为新 SaaS 恢复 task-only 或 stream-only compat path。
 
+### 2026-04-21 WS1 engine-bootstrap progress update
+
+1. `backend/app/ai/engine/engine_bootstrap_support.py` 已新增 shared engine bootstrap owner，把 live engine wiring 所需的 `resolve_for_agent`、toolkit runtime config、`ToolSandbox` 构建、consented-actions/session identity 注入，以及 task/conversation/image engine 选择收口到同一处。
+2. `backend/app/ai/engine/dispatcher.py` 已停止在本地重复持有 skill resolve 与 toolkit-config/sandbox 拼装；dispatcher 现在在 quota/hook preflight 之后直接消费 shared bootstrap bundle，再调用统一 engine contract。
+3. `backend/app/services/ai/agent_chat_stream_bootstrap_service.py` 也已改为消费同一 shared bootstrap bundle；stream path 不再单独维护另一套 `resolve_for_agent + ConfigService + ToolSandbox + ConversationEngine` wiring 主路径。
+4. 这次收口顺手统一了 live sandbox 输入面：stream/tool path 现在也会沿 canonical request 传递 `conversation_id`、`page_session_id`、`trust_policy_ref`、`interaction_mode` 和 `consented_actions`，不再保留 dispatcher-only 的 wiring truth。
+5. `backend/tests/ai/engine/test_engine_bootstrap_support.py` 已补上 focused 回归，覆盖 task bundle、image-model stream bundle 以及容错 skill-resolution 这三条 shared wiring contract；同时 `backend/tests/services/test_agent_chat_stream_error.py` 继续保持绿灯。
+6. 本轮之后 `WS1` 剩余主线 debt 继续收敛到 duplicated preflight / quota / hook orchestration，而不是 engine wiring；本次审计仍未发现需要新增的 Trellis child task。
+
 ### Phase 5: Context-Budget Alignment
 
 1. 维持 thin `page_context`，不回退到重内容 prompt 注入。
