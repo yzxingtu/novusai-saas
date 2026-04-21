@@ -3,7 +3,7 @@
   "name": "codex-turn-loop-orchestrator-convergence",
   "title": "Codex turn loop and orchestrator convergence",
   "description": "Converge NovusAI chat core toward one codex-style turn loop, tool payload contract, budget owner, and stop-condition owner.",
-  "status": "planning",
+  "status": "active",
   "dev_type": "ai",
   "scope": null,
   "priority": "P0",

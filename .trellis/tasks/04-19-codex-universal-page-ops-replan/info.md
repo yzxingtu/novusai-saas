@@ -266,6 +266,14 @@
 5. 前端回归已补齐并通过：`use-ai-chat-page-operations.test.ts`、`runtime-page-operations.test.ts`、`use-ai-chat.test.ts`、`ChatMessageItem.test.ts`、`AIChatSlidePanel.test.ts`、`AIChatMessageViewport.test.ts` 现共同守住“canonical timeline only + runtime ops only + no suggested-tools/page-key live owner”的边界。
 6. 本轮 closeout 未发现需要新建的 child task；umbrella 剩余主线只剩 `WS1 turn-loop-orchestrator-convergence`，后续继续沿统一 turn loop / unified orchestrator 主线推进，不为新 SaaS 回补兼容层。
 
+### 2026-04-21 WS1 progress update
+
+1. `backend/app/ai/engine/task.py` 已不再保留单独的“构建消息 -> resolve tools -> 直连 `_call_llm` -> `_handle_tool_calls`”任务模式主路径；task turn 现在会先归一化 one-shot user payload，然后直接委托给 `ConversationEngine.execute(...)` 的共享 sync turn contract。
+2. 这意味着 task mode 现在与 conversation sync 路径共享同一套 prepared execution、turn executor、runtime query engine、budget/termination/turn-record 投影，而不是继续维护第二份 task-only live orchestration truth。
+3. `backend/tests/services/test_task_engine_error_public_text.py` 已新增回归，显式钉住 “TaskEngine delegates to shared turn contract” 这条 owner 规则；同时原有 public-error 测试继续保持绿灯，`backend/tests/tasks/test_agent_batch.py` 也已验证 batch 调用点未回归。
+4. 本轮推进后，`WS1` 已从 `planning` 提升为 `active`，但尚未完成；剩余主线 seam 仍集中在 `backend/app/ai/engine/dispatcher.py` 与 `backend/app/services/ai/agent_chat_stream_bootstrap_service.py` 的 duplicated preflight / engine-wiring / top-level orchestration glue。
+5. 本轮审计没有发现超出现有 ownership matrix 的新缺口，因此不新增 child task；后续继续沿现有 `WS1` 收口 dispatcher 与 stream bootstrap，不为新 SaaS 恢复 task-only 或 stream-only compat path。
+
 ### Phase 5: Context-Budget Alignment
 
 1. 维持 thin `page_context`，不回退到重内容 prompt 注入。
