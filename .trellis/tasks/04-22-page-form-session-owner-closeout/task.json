@@ -1,0 +1,40 @@
+{
+  "id": "page-form-session-owner-closeout",
+  "name": "page-form-session-owner-closeout",
+  "title": "Remove page_key form-session recovery from live page context",
+  "description": "Retire page_key-based form-session lookup from runtime snapshots and form actions so live page workflow state is owned only by explicit surface/session identity.",
+  "status": "completed",
+  "dev_type": "frontend",
+  "scope": null,
+  "priority": "P1",
+  "creator": "yudi",
+  "assignee": "yudi",
+  "createdAt": "2026-04-22",
+  "completedAt": "2026-04-22",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "execution_path": "normal",
+  "required_artifacts": [
+    "prd.md"
+  ],
+  "context_files": [
+    "implement.jsonl",
+    "check.jsonl"
+  ],
+  "verification_mode": "command",
+  "commit": "2ef2316e2",
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "04-19-codex-universal-page-ops-replan",
+  "relatedFiles": [
+    "frontend/apps/web-antd/src/components/business/ai-runtime/runtime-bridge-snapshot.ts",
+    "frontend/apps/web-antd/src/components/business/ai-runtime/runtime-bridge-form-actions.ts",
+    "frontend/apps/web-antd/src/composables/use-form-state-tracker.ts",
+    "frontend/apps/web-antd/src/components/business/ai-slide-panel/use-page-ai-capability.ts",
+    ".trellis/tasks/04-21-codex-page-session-join-handshake-freeze/task.json"
+  ],
+  "notes": "2026-04-22 audit follow-up identified that the live connector handshake was already keyed by explicit page_session_id, but frontend runtime snapshot/form resolution still fell back through page_key-backed form-session lookups. 2026-04-22 closeout completed in commit `2ef2316e2`: `runtime-bridge-snapshot.ts` and `runtime-bridge-form-actions.ts` now resolve live form state only from explicit surface/session identity (with final tracker active-session fallback), and runtime-bridge regression coverage asserts that page_key lookup helpers are no longer part of the live page workflow path. The tracker may still retain pageKey mappings for local CRUD ownership helpers, but live runtime page context/actions no longer use page_key as a form-session recovery owner.",
+  "meta": {}
+}

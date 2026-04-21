@@ -1423,6 +1423,77 @@ describe('useAIChat interrupted stream recovery', () => {
     );
   });
 
+  it('keeps canonical tool evidence authoritative when legacy toolCalls share the same tool_call_id', async () => {
+    apiMocks.getChatConversationMessagesApi.mockResolvedValue(
+      buildConversationDetail([
+        buildUserMessage('给我一份工具回放'),
+        buildAssistantMessage('历史答复。', {
+          tool_calls: [
+            {
+              display_name: '数据查询',
+              function: {
+                arguments: '{"table":"ai_call_logs"}',
+                name: 'query_records',
+              },
+              id: 'tc_history_conflict_1',
+              output: 'legacy output',
+              success: true,
+              summary: 'legacy summary',
+            },
+          ],
+          turn_flow: {
+            completion_reason: 'completed',
+            evidence: [
+              {
+                id: 'tc_history_conflict_1',
+                kind: 'tool',
+                output: 'canonical output',
+                snippet: 'canonical summary',
+                status: 'error',
+                tool_call_id: 'tc_history_conflict_1',
+                tool_name: 'query_records',
+                title: '数据查询',
+              },
+            ],
+            timeline: [
+              {
+                id: 'turn-tool-execution',
+                status: 'error',
+                tool_call_ids: ['tc_history_conflict_1'],
+                type: 'tool_execution',
+              },
+            ],
+          },
+        }),
+      ]),
+    );
+
+    const chat = createChat();
+
+    await chat.loadAgents();
+    await chat.loadConversationMessages(42);
+    await flushPromises();
+
+    const assistantMessage = chat.chatMessages.value.find(
+      (msg) => msg.role === 'assistant',
+    );
+    expect(assistantMessage).toBeDefined();
+    if (!assistantMessage) {
+      throw new Error('assistant message missing');
+    }
+
+    expect(assistantMessage.toolCalls).toBeUndefined();
+    expect(getToolCallsForDisplay(assistantMessage)).toEqual([
+      expect.objectContaining({
+        id: 'tc_history_conflict_1',
+        name: 'query_records',
+        output: 'canonical output',
+        status: 'error',
+        summary: 'canonical summary',
+      }),
+    ]);
+  });
+
   it('deduplicates repeated persisted assistant content blocks inside one merged turn', async () => {
     apiMocks.getChatConversationMessagesApi.mockResolvedValue(
       buildConversationDetail([

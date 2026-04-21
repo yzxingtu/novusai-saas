@@ -650,6 +650,28 @@ function syncToolExecutionStage(flow: TurnFlowViewModel): void {
   });
 }
 
+function hasCanonicalToolEvidenceForLegacyCall(
+  flow: TurnFlowViewModel,
+  toolCall: ToolCallEvent,
+): boolean {
+  const toolCallId = normalizeOptionalString(toolCall.id);
+  if (toolCallId) {
+    return flow.evidence.some(
+      (item) => item.kind === 'tool' && item.toolCallId === toolCallId,
+    );
+  }
+  const toolName = normalizeOptionalString(toolCall.name);
+  if (!toolName) {
+    return false;
+  }
+  return flow.evidence.some(
+    (item) =>
+      item.kind === 'tool' &&
+      !item.toolCallId &&
+      normalizeOptionalString(item.toolName) === toolName,
+  );
+}
+
 function applyToolCallsToTurnFlow(
   message: ChatMessage,
   toolCalls: ToolCallEvent[] | undefined,
@@ -660,6 +682,9 @@ function applyToolCallsToTurnFlow(
   const flow = getOrCreateCanonicalTurnFlow(message);
   for (const toolCall of toolCalls) {
     if (!toolCall?.name) {
+      continue;
+    }
+    if (hasCanonicalToolEvidenceForLegacyCall(flow, toolCall)) {
       continue;
     }
     upsertToolEvidence(
