@@ -283,6 +283,14 @@
 5. `backend/tests/ai/engine/test_engine_bootstrap_support.py` 已补上 focused 回归，覆盖 task bundle、image-model stream bundle 以及容错 skill-resolution 这三条 shared wiring contract；同时 `backend/tests/services/test_agent_chat_stream_error.py` 继续保持绿灯。
 6. 本轮之后 `WS1` 剩余主线 debt 继续收敛到 duplicated preflight / quota / hook orchestration，而不是 engine wiring；本次审计仍未发现需要新增的 Trellis child task。
 
+### 2026-04-21 WS1 preflight-owner progress update
+
+1. `backend/app/ai/engine/execution_preflight_support.py` 已新增 shared preflight owner，把 API-mode runtime flags、preflight token 估算、并发锁获取、quota 检查和 `BEFORE_EXECUTE` hook 触发收口为统一 helper，避免 dispatcher 与 stream bootstrap 再各自维护一套 live startup policy。
+2. `backend/app/ai/engine/dispatcher.py` 现已在 preflight 前显式应用 API-mode runtime flags；上轮拆掉 `_create_engine()` 时带出的 `API` mode `skip_quota / skip_persistence / skip_logging` 回归已修复，并补上 `backend/tests/ai/engine/test_dispatcher_runtime_preflight.py` 作为哨兵。
+3. `backend/app/services/ai/agent_chat_stream_bootstrap_service.py` 也已切到同一 shared preflight helper，stream path 不再本地重复实现 preflight token 估算、quota 校验与 `BEFORE_EXECUTE` hook wiring；只保留 stream 特有的 conversation seeding / commit glue。
+4. `backend/tests/ai/engine/test_execution_preflight_support.py` 已补齐 shared helper 的 focused contract 回归，确保 skip-quota turn 不会偷偷重跑 quota 检查；`backend/tests/services/test_agent_chat_stream_error.py`、`backend/tests/services/test_task_engine_error_public_text.py` 与 `backend/tests/tasks/test_agent_batch.py` 继续保持绿灯。
+5. 本轮之后 `WS1` 剩余主线 debt 进一步收缩到 dispatcher 与 stream path 的 completion / quota-adjust / release 末端编排差异；这仍属于现有 `WS1` 范围，本轮审计依旧没有发现需要新增的 Trellis child task。
+
 ### Phase 5: Context-Budget Alignment
 
 1. 维持 thin `page_context`，不回退到重内容 prompt 注入。

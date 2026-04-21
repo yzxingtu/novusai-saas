@@ -12,14 +12,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agent_quota import (
     AgentConcurrencyExceeded,
-    AgentConcurrencyLimiter,
     AgentQuotaConfig,
     AgentQuotaExceeded,
     AgentQuotaManager,
 )
-from app.ai.events.hooks import HookPoint, get_hook_registry
+from app.ai.events.hooks import HookPoint
 from app.ai.tools.sandbox import SandboxConfig
-from app.ai.utils.token_estimator import estimate_tokens
 from app.configs.service import PLATFORM_TENANT_ID
 from app.core.i18n import _
 from app.core.logging import LogManager
@@ -31,6 +29,13 @@ from app.repositories.ai.agent_repository import AgentRepository
 
 from .base import BaseEngine
 from .engine_bootstrap_support import build_engine_bootstrap_bundle
+from .execution_preflight_support import (
+    acquire_preflight_lock,
+    apply_execution_mode_runtime_flags,
+    check_preflight_quota,
+    estimate_preflight_tokens,
+    trigger_before_execute_preflight,
+)
 from .types import BatchItem, BatchResult, ExecutionRequest, ExecutionResult
 
 logger = LogManager.get_logger("ai.engine.dispatcher")
@@ -119,69 +124,33 @@ class ExecutionDispatcher:
 
             # Load quota config from agent / 从 agent 加载配额配置
             quota_config = AgentQuotaConfig.from_dict(agent.quota_config)
+            apply_execution_mode_runtime_flags(request)
 
             # 2. Concurrency control / 并发控制
-            if (
-                quota_config.max_concurrent > 0
-                or quota_config.tenant_max_concurrent > 0
-            ):
-                lock_token = await AgentConcurrencyLimiter.acquire(
-                    tenant_id=request.tenant_id,
-                    agent_id=agent.id,
-                    max_concurrent=quota_config.max_concurrent,
-                    tenant_max_concurrent=quota_config.tenant_max_concurrent,
-                )
-
-            # 3. Quota check (API mode skipped, caller responsible) / 配额检查（API 模式跳过，由调用方负责）
-            if not request.skip_quota:
-                # Estimate input tokens for atomic pre-deduction, prevents exceeding under high concurrency
-                # 估算输入 Token 以启用原子预扣减，防止高并发下超限
-                estimated = 0
-                if request.messages:
-                    estimated = sum(
-                        estimate_tokens(m.content or "") for m in request.messages
-                    )
-                # At least 100 tokens estimate (system prompt + generation overhead) / 至少预估 100 tokens（system prompt + 生成开销）
-                estimated = max(estimated, 100)
-
-                await AgentQuotaManager.check_quota(
-                    tenant_id=request.tenant_id,
-                    agent_id=agent.id,
-                    config=quota_config,
-                    estimated_tokens=estimated,
-                )
-
-                # 3.5 User-level quota check / 用户级配额检查
-                if request.user_id:
-                    await AgentQuotaManager.check_user_quota(
-                        tenant_id=request.tenant_id,
-                        agent_id=agent.id,
-                        user_id=request.user_id,
-                        config=quota_config,
-                    )
-
-                # 3.6 Plan monthly API call quota check / 套餐月 API 调用次数配额检查
-                if request.tenant_id:
-                    from app.enums import ErrorCode
-                    from app.services.tenant.quota_service import QuotaService
-
-                    api_check = await QuotaService.check_api_quota_for_tenant_id(
-                        self.db, request.tenant_id
-                    )
-                    if not api_check.allowed:
-                        raise BusinessException(
-                            message=api_check.message or _("quota.api_calls_exceeded"),
-                            code=ErrorCode.CONFLICT,
-                        )
-
-            # 4. BEFORE_EXECUTE hook / BEFORE_EXECUTE 钩子
-            hook_registry = get_hook_registry()
-            hook_context = await hook_registry.trigger(
-                HookPoint.BEFORE_EXECUTE,
+            lock_token = await acquire_preflight_lock(
                 tenant_id=request.tenant_id,
                 agent_id=agent.id,
-                execution_mode=request.execution_mode,
+                quota_config=quota_config,
+            )
+
+            # 3. Quota check (API mode skipped, caller responsible) / 配额检查（API 模式跳过，由调用方负责）
+            estimated = (
+                estimate_preflight_tokens(request.messages)
+                if not request.skip_quota
+                else 0
+            )
+            await check_preflight_quota(
+                db=self.db,
                 request=request,
+                agent_id=agent.id,
+                quota_config=quota_config,
+                estimated_tokens=estimated,
+            )
+
+            # 4. BEFORE_EXECUTE hook / BEFORE_EXECUTE 钩子
+            hook_registry, hook_context = await trigger_before_execute_preflight(
+                request=request,
+                agent_id=agent.id,
             )
 
             # Hook can block execution / 钩子可阻止执行
@@ -303,6 +272,8 @@ class ExecutionDispatcher:
         finally:
             # 9. Release concurrency / 释放并发
             if lock_token and agent:
+                from app.ai.agent_quota import AgentConcurrencyLimiter
+
                 await AgentConcurrencyLimiter.release(
                     tenant_id=request.tenant_id,
                     agent_id=agent.id,

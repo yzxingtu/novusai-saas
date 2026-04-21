@@ -8,7 +8,6 @@ from typing import Any
 
 from app.ai.agent_quota import (
     AgentConcurrencyExceeded,
-    AgentConcurrencyLimiter,
     AgentQuotaConfig,
     AgentQuotaExceeded,
     AgentQuotaManager,
@@ -16,8 +15,13 @@ from app.ai.agent_quota import (
 from app.ai.constants import MEMORY_CHANNEL_SYSTEM
 from app.ai.engine.base import BaseEngine
 from app.ai.engine.engine_bootstrap_support import build_engine_bootstrap_bundle
+from app.ai.engine.execution_preflight_support import (
+    acquire_preflight_lock,
+    check_preflight_quota,
+    estimate_preflight_tokens,
+    trigger_before_execute_preflight,
+)
 from app.ai.engine.types import ExecutionRequest
-from app.ai.events.hooks import HookPoint, get_hook_registry
 from app.ai.types import ChatMessage
 from app.ai.utils.token_estimator import estimate_tokens
 from app.core.i18n import _
@@ -133,10 +137,7 @@ class AgentChatStreamBootstrapService:
         return StreamRequestBundle(
             request=request,
             quota_config=AgentQuotaConfig.from_dict(agent.quota_config),
-            estimated_tokens=max(
-                sum(estimate_tokens(m.content or "") for m in all_messages),
-                100,
-            ),
+            estimated_tokens=estimate_preflight_tokens(all_messages),
         )
 
     async def build_ephemeral_stream_request(
@@ -186,7 +187,7 @@ class AgentChatStreamBootstrapService:
         return StreamRequestBundle(
             request=request,
             quota_config=AgentQuotaConfig.from_dict(agent.quota_config),
-            estimated_tokens=max(estimate_tokens(message), 100),
+            estimated_tokens=estimate_preflight_tokens(request.messages),
         )
 
     async def check_conversation_limits(
@@ -224,38 +225,22 @@ class AgentChatStreamBootstrapService:
     ) -> StreamPreflightBundle:
         lock_token = ""
         seeded_user_message_count = 0
-        hook_registry = get_hook_registry()
         try:
-            if (
-                quota_config.max_concurrent > 0
-                or quota_config.tenant_max_concurrent > 0
-            ):
-                lock_token = await AgentConcurrencyLimiter.acquire(
-                    tenant_id=self.tenant_id,
-                    agent_id=agent_id,
-                    max_concurrent=quota_config.max_concurrent,
-                    tenant_max_concurrent=quota_config.tenant_max_concurrent,
-                )
-            await AgentQuotaManager.check_quota(
+            lock_token = await acquire_preflight_lock(
                 tenant_id=self.tenant_id,
                 agent_id=agent_id,
-                config=quota_config,
+                quota_config=quota_config,
+            )
+            await check_preflight_quota(
+                db=self.db,
+                request=request,
+                agent_id=agent_id,
+                quota_config=quota_config,
                 estimated_tokens=estimated_tokens,
             )
-            if user_id:
-                await AgentQuotaManager.check_user_quota(
-                    tenant_id=self.tenant_id,
-                    agent_id=agent_id,
-                    user_id=user_id,
-                    config=quota_config,
-                )
-            await self._check_tenant_api_quota()
-            hook_context = await hook_registry.trigger(
-                HookPoint.BEFORE_EXECUTE,
-                tenant_id=self.tenant_id,
-                agent_id=agent_id,
-                execution_mode=request.execution_mode,
+            hook_registry, hook_context = await trigger_before_execute_preflight(
                 request=request,
+                agent_id=agent_id,
             )
             if hook_context.get("blocked"):
                 raise BusinessException(
@@ -284,6 +269,8 @@ class AgentChatStreamBootstrapService:
             )
         except (AgentQuotaExceeded, AgentConcurrencyExceeded, BusinessException):
             if lock_token:
+                from app.ai.agent_quota import AgentConcurrencyLimiter
+
                 await AgentConcurrencyLimiter.release(
                     tenant_id=self.tenant_id,
                     agent_id=agent_id,
@@ -332,19 +319,3 @@ class AgentChatStreamBootstrapService:
             0,
             ChatMessage(role="system", content=session_memory_text),
         )
-
-    async def _check_tenant_api_quota(self) -> None:
-        if not self.tenant_id:
-            return
-        from app.enums import ErrorCode
-        from app.services.tenant.quota_service import QuotaService
-
-        api_check = await QuotaService.check_api_quota_for_tenant_id(
-            self.db,
-            self.tenant_id,
-        )
-        if not api_check.allowed:
-            raise BusinessException(
-                message=api_check.message or _("quota.api_calls_exceeded"),
-                code=ErrorCode.CONFLICT,
-            )
