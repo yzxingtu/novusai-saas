@@ -41,6 +41,10 @@
     },
     {
       "name": "WS4 browser connector externalization",
+      "status": "completed"
+    },
+    {
+      "name": "WS4a page-session join handshake freeze",
       "status": "active"
     },
     {
@@ -57,6 +61,7 @@
     "04-21-codex-capability-pack-startup-owner",
     "04-21-codex-page-workflow-state-owner",
     "04-21-codex-browser-connector-externalization",
+    "04-21-codex-page-session-join-handshake-freeze",
     "04-21-codex-thread-memory-owner",
     "04-21-codex-frontend-live-truth-freeze"
   ],
@@ -85,6 +90,6 @@
     "C:/Users/Administrator/Downloads/codex-main/codex-rs/core/src/stream_events_utils.rs",
     "C:/Users/Administrator/Downloads/codex-main/codex-rs/core/src/memories/README.md"
   ],
-  "notes": "Architecture replan freezes current shared UI runtime as the baseline, compares it against codex-main's unified event-driven tool orchestration, skill-pack activation, and thread-level memory governance, and now tracks the remaining implementation as six child workstreams under a single ownership matrix so follow-up turns can continue from explicit backlog instead of ad-hoc chat memory.",
+  "notes": "Architecture replan freezes current shared UI runtime as the baseline, compares it against codex-main's unified event-driven tool orchestration, skill-pack activation, and thread-level memory governance, and now tracks the remaining implementation as seven child workstreams under a single ownership matrix so follow-up turns can continue from explicit backlog instead of ad-hoc chat memory.",
   "meta": {}
 }

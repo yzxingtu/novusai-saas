@@ -228,6 +228,12 @@
 4. 这两条事实已经同步进 `.trellis/spec/ai-runtime/tool-skill-governance.md`，因此后续 `WS4` / `WS6` 实现不应再把 `suggested_tools` 或 `page_key` 恢复链当作合理兼容面。
 5. `WS4 browser-connector-externalization` 现已完成；后续剩余主线 debt 继续归入 `WS3` / `WS6` / `WS1`，不再为新 SaaS 引入 page-key 兼容回退。
 
+### 2026-04-21 post-WS4 handshake audit
+
+1. 虽然 live `ui_action_invoke` transport 已经不再携带 `page_key`，但 `page_session_join` / `page_session_joined` 这条握手仍会传输 `page_key`，前端 join readiness 也仍按 `(page_session_id, page_key)` 记录确认结果。
+2. 这条 seam 不足以重开已完成的 `WS4`，但对当前新 SaaS 来说仍不合理，因为它继续让 route-derived page key 参与 live connector handshake。
+3. 因此新增 follow-up task `04-21-codex-page-session-join-handshake-freeze`，专门收口 join acknowledgement/readiness contract，而不是把这条残留继续塞进已完成的 WS4 或未来的兼容层。
+
 ### Phase 5: Context-Budget Alignment
 
 1. 维持 thin `page_context`，不回退到重内容 prompt 注入。
@@ -248,7 +254,7 @@
 
 ## 剩余任务拆分（2026-04-21）
 
-从本轮开始，后续实现不再按“每次对话临时挑一刀”推进，而是统一按下面 6 个 Trellis child tasks 前移。对应 ownership、依赖与 merge order 以 [ownership-matrix.md](./ownership-matrix.md) 为准。
+从本轮开始，后续实现不再按“每次对话临时挑一刀”推进，而是统一按下面 7 个 Trellis child tasks 前移。对应 ownership、依赖与 merge order 以 [ownership-matrix.md](./ownership-matrix.md) 为准。
 
 1. `04-21-codex-capability-pack-startup-owner`
    目标：收掉 capability pack 的最后一批 startup/live owner seam，让 resolver、runtime inventory、manifest、diagnostics、batch/warmup 明确区分 catalog inventory 与 live turn truth。
@@ -262,6 +268,8 @@
    目标：在前面 owner 稳定后，再收聊天核心与 turn loop，让核心只剩统一事件协议、工具协议、预算治理和停止条件。
 6. `04-21-codex-frontend-live-truth-freeze`
    目标：冻结 frontend 唯一 live truth 链路，确保 slide panel / chat panel / page capability UI 只消费 canonical runtime diagnostics，不复活旧 page-op / `suggested_tools` seam。
+7. `04-21-codex-page-session-join-handshake-freeze`
+   目标：把 `page_session_join` / `page_session_joined` 的 live 握手收口为 explicit `page_session_id` 单身份链，删除 join readiness 对 `page_key` 的依赖。
 
 执行约束：
 

@@ -1,0 +1,2 @@
+{"file":"backend/tests/sio/test_page_session_runtime_requests.py","reason":"add backend regression for join acknowledgement contract without page_key"}
+{"file":"frontend/apps/web-antd/src/components/business/ai-chat-panel/__tests__/use-ai-chat.test.ts","reason":"verify page-op readiness no longer waits on page_key-backed join state"}

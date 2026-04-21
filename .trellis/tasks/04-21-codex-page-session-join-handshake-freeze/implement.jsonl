@@ -1,0 +1,3 @@
+{"file":"frontend/apps/web-antd/src/composables/use-ui-action-channel.ts","reason":"page_session join emit/ack storage currently keeps page_key in the live handshake"}
+{"file":"frontend/apps/web-antd/src/components/business/ai-chat-panel/use-ai-chat-page-operations.ts","reason":"page operation readiness currently waits on the page-key-bearing join acknowledgement"}
+{"file":"backend/app/sio/page_session.py","reason":"page_session_joined still echoes page_key even though live action transport no longer uses it"}
