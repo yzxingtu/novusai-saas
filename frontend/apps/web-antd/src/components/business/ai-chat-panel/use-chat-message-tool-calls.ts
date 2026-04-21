@@ -4,6 +4,7 @@ import type { ChatMessage } from './types';
 
 import { computed, onUnmounted, ref, watch } from 'vue';
 
+import { getToolCallsForDisplay } from './chat-message-turn-flow';
 import {
   getSearchSummary,
   getStructuredToolOutput,
@@ -78,8 +79,12 @@ export function useChatMessageToolCalls(props: UseChatMessageToolCallsProps) {
     };
   }
 
+  const toolCallsForDisplay = computed(
+    () => getToolCallsForDisplay(props.msg) ?? [],
+  );
+
   const toolDisplayItems = computed<ToolDisplayItem[]>(() =>
-    (props.msg.toolCalls ?? []).map((tc, idx) => {
+    toolCallsForDisplay.value.map((tc, idx) => {
       const hasDetails = hasToolCardDetails(tc);
       const structuredOutput = getStructuredToolOutput(tc);
       const searchSummary = getSearchSummary(tc);
@@ -125,8 +130,8 @@ export function useChatMessageToolCalls(props: UseChatMessageToolCallsProps) {
 
   /** Ticking now for "still running" countdown (8s+) */
   const now = ref(Date.now());
-  const hasRunningTool = computed(
-    () => props.msg.toolCalls?.some((tc) => tc.status === 'running') ?? false,
+  const hasRunningTool = computed(() =>
+    toolCallsForDisplay.value.some((tc) => tc.status === 'running'),
   );
   let tickInterval: null | ReturnType<typeof setInterval> = null;
   function startTick() {
@@ -154,7 +159,7 @@ export function useChatMessageToolCalls(props: UseChatMessageToolCallsProps) {
   const toolGroupExpandedMap = ref<Record<number, boolean>>({});
 
   const toolGroupSummary = computed(() => {
-    const tools = props.msg.toolCalls;
+    const tools = toolCallsForDisplay.value;
     if (!tools?.length) return null;
     const total = tools.length;
     const success = tools.filter((tc) => tc.status === 'success').length;
@@ -206,6 +211,7 @@ export function useChatMessageToolCalls(props: UseChatMessageToolCallsProps) {
     toggleToolExpand,
     toggleToolGroupExpand,
     toggleToolRawExpand,
+    toolCallsForDisplay,
     toolDisplayItems,
     toolGroupSummary,
   };

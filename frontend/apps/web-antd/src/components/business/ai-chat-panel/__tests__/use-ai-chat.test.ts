@@ -5,6 +5,11 @@ import { flushPromises } from '@vue/test-utils';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  getOptimizingToolsForDisplay,
+  getRagSourcesForDisplay,
+  getThinkingContentForDisplay,
+} from '../chat-message-turn-flow';
 import { shouldDisplayConversationInHistory, useAIChat } from '../use-ai-chat';
 import {
   baseChatOptions,
@@ -786,23 +791,33 @@ describe('useAIChat interrupted stream recovery', () => {
     const assistantMessage = chat.chatMessages.value.find(
       (msg) => msg.role === 'assistant',
     );
+    expect(assistantMessage).toBeDefined();
+    if (!assistantMessage) {
+      throw new Error('assistant message missing');
+    }
     expect(
-      assistantMessage?.turnFlow?.timeline?.map((stage) => stage.type),
+      assistantMessage.turnFlow?.timeline?.map((stage) => stage.type),
     ).toEqual(
       expect.arrayContaining(['thinking', 'tool_selection', 'completed']),
     );
-    expect(assistantMessage?.turnFlow?.answerCard?.summary).toBe(
+    expect(assistantMessage.turnFlow?.answerCard?.summary).toBe(
       '建议先走标准流程',
     );
-    expect(assistantMessage?.turnFlow?.traceId).toBe(
+    expect(assistantMessage.turnFlow?.traceId).toBe(
       'trace-turn-flow-canonical',
     );
-    expect(assistantMessage?.optimizingTools).toEqual({
+    expect(assistantMessage.optimizingTools).toBeUndefined();
+    expect(getOptimizingToolsForDisplay(assistantMessage)).toEqual({
       selected: 0,
       total: 15,
     });
-    expect(assistantMessage?.thinkingContent).toContain('先理解用户问题');
-    expect(assistantMessage?.ragSources?.[0]?.doc_name).toBe('企业知识库');
+    expect(assistantMessage.thinkingContent).toBeUndefined();
+    expect(getThinkingContentForDisplay(assistantMessage)).toBe(
+      '先识别上下文\n\n再决定工具路径',
+    );
+    expect(getRagSourcesForDisplay(assistantMessage)?.[0]?.doc_name).toBe(
+      '企业知识库',
+    );
   });
 
   it('suppresses legacy semantic duplicates when canonical turn stages exist', async () => {
@@ -909,7 +924,11 @@ describe('useAIChat interrupted stream recovery', () => {
     const assistantMessage = chat.chatMessages.value.find(
       (msg) => msg.role === 'assistant',
     );
-    const timeline = assistantMessage?.turnFlow?.timeline ?? [];
+    expect(assistantMessage).toBeDefined();
+    if (!assistantMessage) {
+      throw new Error('assistant message missing');
+    }
+    const timeline = assistantMessage.turnFlow?.timeline ?? [];
     expect(timeline.filter((stage) => stage.type === 'thinking')).toHaveLength(
       1,
     );
@@ -928,7 +947,10 @@ describe('useAIChat interrupted stream recovery', () => {
         ].includes(stage.id ?? ''),
       ),
     ).toBe(false);
-    expect(assistantMessage?.thinkingContent).toBe('先判断问题范围');
+    expect(assistantMessage.thinkingContent).toBeUndefined();
+    expect(getThinkingContentForDisplay(assistantMessage)).toBe(
+      '内部细节 1\n\n内部细节 2',
+    );
   });
 
   it('projects provider_failure_after_partial_progress as failed/error terminal state', async () => {
@@ -1286,21 +1308,28 @@ describe('useAIChat interrupted stream recovery', () => {
     const assistantMessage = chat.chatMessages.value.find(
       (msg) => msg.role === 'assistant',
     );
-    expect(assistantMessage?.turnFlow?.completionReason).toBe('completed');
-    expect(assistantMessage?.turnFlow?.answerCard?.summary).toBe(
+    expect(assistantMessage).toBeDefined();
+    if (!assistantMessage) {
+      throw new Error('assistant message missing');
+    }
+    expect(assistantMessage.turnFlow?.completionReason).toBe('completed');
+    expect(assistantMessage.turnFlow?.answerCard?.summary).toBe(
       '历史结构化摘要',
     );
     expect(
-      assistantMessage?.turnFlow?.timeline?.map((stage) => stage.id),
+      assistantMessage.turnFlow?.timeline?.map((stage) => stage.id),
     ).toEqual(
       expect.arrayContaining(['thinking-legacy', 'tool-select-legacy']),
     );
-    expect(assistantMessage?.thinkingContent).toBeUndefined();
-    expect(assistantMessage?.optimizingTools).toEqual({
+    expect(assistantMessage.thinkingContent).toBeUndefined();
+    expect(assistantMessage.optimizingTools).toBeUndefined();
+    expect(getOptimizingToolsForDisplay(assistantMessage)).toEqual({
       selected: 0,
       total: 12,
     });
-    expect(assistantMessage?.ragSources?.[0]?.doc_name).toBe('知识库 A');
+    expect(getRagSourcesForDisplay(assistantMessage)?.[0]?.doc_name).toBe(
+      '知识库 A',
+    );
   });
 
   it('deduplicates repeated persisted assistant content blocks inside one merged turn', async () => {

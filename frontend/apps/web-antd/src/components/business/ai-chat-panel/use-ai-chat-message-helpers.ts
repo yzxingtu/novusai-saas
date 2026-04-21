@@ -30,12 +30,14 @@ export {
   normalizeStringList,
 } from './use-ai-chat-message-normalizers';
 export {
+  appendThinkingDeltaToTurnFlow,
   applyCanonicalDoneEvent,
   applyCanonicalTurnAnswerCardEvent,
   applyCanonicalTurnEvidenceEvent,
   applyCanonicalTurnStageEvent,
-  applyLegacyFieldsFromTurnFlow,
+  applyOptimizingToolsToTurnFlow,
+  applyRagSourcesToTurnFlow,
   mergeTurnFlow,
   normalizeTurnFlowViewModel,
-  reconcileTurnFlowWithLegacy,
+  promoteStreamingContentToThinkingTurnFlow,
 } from './use-ai-chat-turn-flow';

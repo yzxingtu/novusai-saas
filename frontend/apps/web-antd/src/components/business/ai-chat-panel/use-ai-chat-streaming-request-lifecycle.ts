@@ -6,9 +6,8 @@ import type {
 
 import type { AppErrorInfo } from '#/utils/request';
 
-import { moveStreamingContentToThinking } from './chat-input-utils';
 import {
-  reconcileTurnFlowWithLegacy,
+  promoteStreamingContentToThinkingTurnFlow,
   settleTurnFlowAfterLifecycleFinalize,
 } from './use-ai-chat-turn-flow';
 
@@ -81,7 +80,6 @@ export function createStreamRequestLifecycle(
       msg.terminationReason = msg.terminationReason || 'error';
       msg.turnOutcome = msg.turnOutcome || 'failed';
       msg.completionReason = msg.completionReason || 'error';
-      reconcileTurnFlowWithLegacy(msg);
     },
     clearDoneAbortTimer() {
       if (lifecycle.doneAbortTimer) {
@@ -140,7 +138,7 @@ export function createStreamRequestLifecycle(
       if (!msg || msg.role !== 'assistant') {
         return;
       }
-      moveStreamingContentToThinking(msg);
+      promoteStreamingContentToThinkingTurnFlow(msg);
     },
     scheduleDoneAbort() {
       lifecycle.clearDoneAbortTimer();

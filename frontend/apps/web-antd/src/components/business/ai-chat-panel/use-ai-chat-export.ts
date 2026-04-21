@@ -4,6 +4,7 @@ import type { AgentItem, ChatAttachment, ChatMessage } from './types';
 
 import { $t } from '#/locales';
 
+import { getToolCallsForDisplay } from './chat-message-turn-flow';
 import {
   formatDurationSeconds,
   formatToolStatusLabel,
@@ -80,9 +81,10 @@ export function useAIChatExport(deps: UseAIChatExportDeps) {
       lines.push(`### ${role}`, '');
       if (msg.content) lines.push(msg.content);
       lines.push(...buildExportAttachmentLines(msg.attachments, 'markdown'));
-      if (msg.toolCalls?.length) {
+      const toolCalls = getToolCallsForDisplay(msg);
+      if (toolCalls?.length) {
         lines.push('');
-        for (const tc of msg.toolCalls) {
+        for (const tc of toolCalls) {
           const duration = tc.durationMs
             ? ` (${formatDurationSeconds(tc.durationMs)})`
             : '';

@@ -79,22 +79,6 @@ class OpenAIAdapter(
             return explicit_wire_api
         return kwargs.get("_runtime_force_wire_api")
 
-    @staticmethod
-    def _legacy_chat_entrypoint():
-        from app.ai.adapters.openai_compatible.legacy_entrypoints import (
-            execute_legacy_adapter_chat_entrypoint,
-        )
-
-        return execute_legacy_adapter_chat_entrypoint
-
-    @staticmethod
-    def _legacy_stream_entrypoint():
-        from app.ai.adapters.openai_compatible.legacy_entrypoints import (
-            execute_legacy_adapter_stream_entrypoint,
-        )
-
-        return execute_legacy_adapter_stream_entrypoint
-
     async def chat(
         self,
         messages: list[ChatMessage],
@@ -152,61 +136,6 @@ class OpenAIAdapter(
             tools=tools,
             tool_choice=tool_choice,
             wire_api=self._resolve_public_entrypoint_wire_api(kwargs),
-            **kwargs,
-        ):
-            yield chunk
-
-    async def chat_legacy_compat(
-        self,
-        messages: list[ChatMessage],
-        model: str,
-        temperature: float = 0.7,
-        max_tokens: int | None = None,
-        top_p: float = 1.0,
-        stream: bool = False,
-        tools: list[dict] | None = None,
-        tool_choice: str | None = None,
-        **kwargs,
-    ) -> ChatResponse:
-        """
-        Explicit compatibility entrypoint for legacy planner semantics.
-        """
-        _ = stream
-        return await self._legacy_chat_entrypoint()(
-            adapter=self,
-            messages=messages,
-            model=model,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            top_p=top_p,
-            tools=tools,
-            tool_choice=tool_choice,
-            **kwargs,
-        )
-
-    async def stream_chat_legacy_compat(
-        self,
-        messages: list[ChatMessage],
-        model: str,
-        temperature: float = 0.7,
-        max_tokens: int | None = None,
-        top_p: float = 1.0,
-        tools: list[dict] | None = None,
-        tool_choice: str | None = None,
-        **kwargs,
-    ) -> AsyncIterator[ChatChunk]:
-        """
-        Explicit compatibility entrypoint for legacy streaming semantics.
-        """
-        async for chunk in self._legacy_stream_entrypoint()(
-            adapter=self,
-            messages=messages,
-            model=model,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            top_p=top_p,
-            tools=tools,
-            tool_choice=tool_choice,
             **kwargs,
         ):
             yield chunk

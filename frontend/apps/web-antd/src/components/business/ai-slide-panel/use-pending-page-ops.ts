@@ -5,6 +5,8 @@ import type { ChatMessage } from '#/types/ai-chat';
 
 import { computed, onUnmounted, ref, watch } from 'vue';
 
+import { getToolCallsForDisplay } from '../ai-chat-panel/chat-message-turn-flow';
+
 export interface PendingOpDisplayItem {
   allowed?: boolean;
   invokeId: string;
@@ -53,7 +55,7 @@ export function usePendingPageOps(options: UsePendingPageOpsOptions) {
   const allToolCallIds = computed(() => {
     const ids = new Set<string>();
     for (const msg of options.chatMessages.value ?? []) {
-      for (const tc of msg.toolCalls || []) {
+      for (const tc of getToolCallsForDisplay(msg) ?? []) {
         if (tc.id) ids.add(tc.id);
       }
     }
@@ -75,7 +77,7 @@ export function usePendingPageOps(options: UsePendingPageOpsOptions) {
 
   function getPendingOpsForMessage(msg: ChatMessage): PendingOpDisplayItem[] {
     const ids = new Set<string>();
-    for (const tc of msg.toolCalls || []) {
+    for (const tc of getToolCallsForDisplay(msg) ?? []) {
       if (tc.id) ids.add(tc.id);
     }
     return options.pendingPageOps.value

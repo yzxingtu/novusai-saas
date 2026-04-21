@@ -44,6 +44,7 @@ const {
   toggleToolExpand,
   toggleToolGroupExpand,
   toggleToolRawExpand,
+  toolCallsForDisplay,
   toolDisplayItems,
   toolGroupSummary,
 } = useChatMessageToolCalls(props);
@@ -52,7 +53,7 @@ const {
 <template>
   <!-- Generating indicator (tool calls running but no content yet) -->
   <div
-    v-if="msg.streaming && !msg.content && msg.toolCalls?.length"
+    v-if="msg.streaming && !msg.content && toolCallsForDisplay.length > 0"
     class="flex items-center gap-1.5 px-2 py-0.5 text-muted-foreground"
     :class="compact ? 'text-[11px]' : 'text-xs'"
   >
@@ -62,7 +63,7 @@ const {
 
   <!-- Tool calls - collapsible group card -->
   <div
-    v-if="msg.toolCalls?.length"
+    v-if="toolCallsForDisplay.length > 0"
     class="overflow-hidden rounded-lg border border-border/25 bg-accent/10"
     :class="compact ? 'mt-1' : 'mt-1.5'"
   >
@@ -154,7 +155,7 @@ const {
         >
           <!-- Timeline vertical line -->
           <div
-            v-if="msg.toolCalls.length > 1"
+            v-if="toolCallsForDisplay.length > 1"
             class="absolute w-px bg-border/40"
             :class="
               compact

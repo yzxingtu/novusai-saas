@@ -97,8 +97,8 @@ No page-level component or composable may introduce an alternate policy parser.
   streaming SSE handlers, and history merge/finalize helpers must not mutate
   canonical `turnFlow` back into legacy `thinkingContent`, `optimizingTools`,
   `ragSources`, or `toolCalls` as the primary live truth source. Legacy fields
-  may still be read as fallback input for old persisted messages until their
-  dedicated closeout task lands.
+  may still be read as bounded fallback input for old persisted messages, but
+  they are not a live writable truth owner.
 - Read-model: `PageContext` and related structures (from shared API types)
   are treated as read-models. UI code must not reconstruct or mutate them
   outside the runtime bridge.

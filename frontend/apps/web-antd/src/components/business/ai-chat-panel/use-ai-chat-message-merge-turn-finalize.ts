@@ -9,7 +9,6 @@ import {
   resolveNativeSearchToolStatus,
   upsertNativeSearchToolCall,
 } from './use-ai-chat-message-native-search';
-import { reconcileTurnFlowWithLegacy } from './use-ai-chat-turn-flow';
 
 function resolveMergedToolCalls(
   state: AssistantTurnMergeState,
@@ -144,6 +143,5 @@ export function buildAssistantMessageFromState(
   if (state.turnFlow) {
     assistantMessage.turnFlow = state.turnFlow;
   }
-  reconcileTurnFlowWithLegacy(assistantMessage);
   return assistantMessage;
 }

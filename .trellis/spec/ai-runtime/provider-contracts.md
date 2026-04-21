@@ -45,6 +45,9 @@ must not be treated as the runtime planner rule.
 - Runtime guard keys are enforced by protocol-safe adapter entrypoints. If a
 caller tries to set either guard to false, adapters must raise
 `ProviderError(invalid_runtime_guard)`.
+- Public OpenAI-compatible adapter entrypoints expose only protocol-safe
+  chat/stream surfaces. Explicit legacy compat entrypoints and package-level
+  re-export facades are not part of the supported public contract.
 - `_runtime_force_wire_api` and guard keys are consumed at the adapter boundary
 and must not be forwarded downstream as ordinary provider kwargs.
 - Responses follow-up turns must preserve structured `function_call` /
@@ -62,6 +65,8 @@ and must not be forwarded downstream as ordinary provider kwargs.
 - Adapters execute one protocol step; they do not invent fallback chains.
 - Guard semantics are defined by the runtime kernel and must not be redefined
 per adapter.
+- Transitional low-level compat helpers may remain internal implementation
+  details, but they must not be promoted as package-level entrypoints again.
 
 ## Required Diagnostics
 

@@ -14,10 +14,13 @@ import {
   formatLocalizedList,
 } from './display-formatters';
 import {
+  appendThinkingDeltaToTurnFlow,
   applyCanonicalDoneEvent,
   applyCanonicalTurnAnswerCardEvent,
   applyCanonicalTurnEvidenceEvent,
   applyCanonicalTurnStageEvent,
+  applyOptimizingToolsToTurnFlow,
+  applyRagSourcesToTurnFlow,
   finalizeNativeSearchToolCall,
   isTurnFailure,
   normalizeContextSources,
@@ -25,7 +28,6 @@ import {
   normalizeOptionalString,
   normalizeStringList,
   normalizeTurnRecord,
-  reconcileTurnFlowWithLegacy,
   removeNativeSearchToolCall,
   resolveNativeSearchToolStatus,
   upsertNativeSearchToolCall,
@@ -110,22 +112,19 @@ export function createStreamSseHandler(
             break;
           }
           msg.content = '';
-          reconcileTurnFlowWithLegacy(msg);
           break;
         }
         case 'optimizing_tools': {
-          msg.optimizingTools = {
-            total: (event.total as number) || 0,
-            selected: (event.selected as number) || 0,
-          };
-          reconcileTurnFlowWithLegacy(msg);
+          applyOptimizingToolsToTurnFlow(msg, {
+            selected: event.selected as number | undefined,
+            total: event.total as number | undefined,
+          });
           deps.scrollToBottom();
           break;
         }
         case 'thinking': {
           if (event.delta) {
-            msg.thinkingContent = `${msg.thinkingContent || ''}${event.delta}`;
-            reconcileTurnFlowWithLegacy(msg);
+            appendThinkingDeltaToTurnFlow(msg, event.delta);
             deps.scrollToBottom();
           }
           break;
@@ -206,7 +205,6 @@ export function createStreamSseHandler(
               (event.output as string) ?? '',
             );
           }
-          reconcileTurnFlowWithLegacy(msg);
           deps.scrollToBottom();
           break;
         }
@@ -241,7 +239,6 @@ export function createStreamSseHandler(
               startedAt: Date.now(),
             });
           }
-          reconcileTurnFlowWithLegacy(msg);
           deps.scrollToBottom();
           break;
         }
@@ -279,15 +276,12 @@ export function createStreamSseHandler(
                 (event.name as string) ||
                 undefined,
             };
-            reconcileTurnFlowWithLegacy(msg);
           } else if (event.event === 'tool_consent_request') {
             lifecycle.promoteToolRoundContent();
             deps.interactionModeEffective.value = 'trusted_auto';
             msg.pendingConsent = {
               toolName: (event.name as string) || '',
-              arguments: event.arguments as
-                | Record<string, unknown>
-                | undefined,
+              arguments: event.arguments as Record<string, unknown> | undefined,
               skillName: (event.skill_name as string) || undefined,
               skillType: (event.skill_type as string) || undefined,
               resolved: true,
@@ -300,7 +294,6 @@ export function createStreamSseHandler(
               tool_name: (event.name as string) || '',
             });
             deps.deferredAutoConfirm.value = true;
-            reconcileTurnFlowWithLegacy(msg);
             deps.scrollToBottom();
           } else if (
             event.event === 'status' &&
@@ -311,7 +304,6 @@ export function createStreamSseHandler(
               msg.toolCalls,
               'running',
             );
-            reconcileTurnFlowWithLegacy(msg);
             deps.scrollToBottom();
           } else if (
             event.event === 'knowledge_base_feedback' &&
@@ -342,7 +334,6 @@ export function createStreamSseHandler(
             lifecycle.updateConversation(event.conversation_id as number);
           } else if (event.event === 'action_buttons' && event.buttons) {
             msg.actionButtons = event.buttons as typeof msg.actionButtons;
-            reconcileTurnFlowWithLegacy(msg);
             deps.scrollToBottom();
           } else if (event.event === 'image_result' && event.url) {
             if (!msg.imageResults) msg.imageResults = [];
@@ -351,14 +342,14 @@ export function createStreamSseHandler(
               isBase64: Boolean(event.is_base64),
               revisedPrompt: (event.revised_prompt as string) || undefined,
             });
-            reconcileTurnFlowWithLegacy(msg);
             deps.scrollToBottom();
           } else if (event.event === 'rag_sources' && event.sources) {
-            msg.ragSources = event.sources as typeof msg.ragSources;
-            reconcileTurnFlowWithLegacy(msg);
+            applyRagSourcesToTurnFlow(
+              msg,
+              event.sources as typeof msg.ragSources,
+            );
           } else if (event.event === 'message' && event.delta) {
             msg.content += event.delta as string;
-            reconcileTurnFlowWithLegacy(msg);
             deps.scrollToBottom();
           } else if (event.event === 'done') {
             lifecycle.didReceiveDoneEvent = true;
@@ -506,7 +497,6 @@ export function createStreamSseHandler(
               msg.requestFailedRetry = true;
             }
             applyCanonicalDoneEvent(msg, event);
-            reconcileTurnFlowWithLegacy(msg);
 
             const nextContextDiagnostics: Record<string, unknown> = {
               context_compacted: Boolean(event.context_compacted),

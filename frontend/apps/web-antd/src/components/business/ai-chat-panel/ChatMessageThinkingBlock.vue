@@ -1,12 +1,17 @@
 <script lang="ts" setup>
 import type { ChatMessage } from './types';
 
-import { onUnmounted, ref, watch } from 'vue';
+import { computed, onUnmounted, ref, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
 import { MarkdownRender } from '#/components/business/markdown-render';
 import { $t } from '#/locales';
+
+import {
+  getThinkingContentForDisplay,
+  getToolCallsForDisplay,
+} from './chat-message-turn-flow';
 
 const props = withDefaults(
   defineProps<{
@@ -71,9 +76,12 @@ function clearAllThinkingAutoCollapseTimers() {
   thinkingAutoCollapseMap.value = {};
 }
 
+const thinkingContent = computed(() => getThinkingContentForDisplay(props.msg));
+const toolCallsForDisplay = computed(() => getToolCallsForDisplay(props.msg));
+
 function isThinkingExpanded(idx: number) {
   return Boolean(
-    (props.msg.streaming && props.msg.thinkingContent) ||
+    (props.msg.streaming && thinkingContent.value) ||
     thinkingAutoCollapseMap.value[idx] ||
     thinkingExpandedMap.value[idx],
   );
@@ -116,8 +124,8 @@ onUnmounted(clearAllThinkingAutoCollapseTimers);
     v-if="
       msg.streaming &&
       !msg.content &&
-      !msg.toolCalls?.length &&
-      !msg.thinkingContent
+      !toolCallsForDisplay?.length &&
+      !thinkingContent
     "
     class="thinking-skeleton space-y-2 rounded-xl border border-border/20 bg-accent/30 px-3 py-3"
   >
@@ -146,7 +154,7 @@ onUnmounted(clearAllThinkingAutoCollapseTimers);
 
   <!-- Thinking content (streamed separately from final answer). Less prominent; auto-collapse when done; expandable. -->
   <div
-    v-if="msg.thinkingContent"
+    v-if="thinkingContent"
     class="relative"
     :class="compact ? 'mb-1.5' : 'mb-2'"
   >
@@ -221,7 +229,7 @@ onUnmounted(clearAllThinkingAutoCollapseTimers);
             class="thinking-markdown leading-5.5 text-muted-foreground/82 text-xs"
           >
             <MarkdownRender
-              :content="msg.thinkingContent"
+              :content="thinkingContent"
               :streaming="!!msg.streaming && !msg.content"
             />
           </div>

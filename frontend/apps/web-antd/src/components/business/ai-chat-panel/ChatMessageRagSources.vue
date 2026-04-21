@@ -10,6 +10,8 @@ import { Modal } from 'ant-design-vue';
 import { formatKnowledgeBaseName } from '#/components/business/ai-chat-panel/display-formatters';
 import { $t } from '#/locales';
 
+import { getRagSourcesForDisplay } from './chat-message-turn-flow';
+
 const props = withDefaults(
   defineProps<{
     compact?: boolean;
@@ -22,6 +24,8 @@ const props = withDefaults(
 
 const ragDetailOpen = ref(false);
 const ragDetailItem = ref<null | RagSource>(null);
+const ragSources = computed(() => getRagSourcesForDisplay(props.msg) ?? []);
+
 function openRagDetail(s: RagSource) {
   ragDetailItem.value = s;
   ragDetailOpen.value = true;
@@ -29,7 +33,7 @@ function openRagDetail(s: RagSource) {
 
 /** Group RAG hits by knowledge base for display / 按知识库分组展示引用 */
 const ragGroups = computed(() => {
-  const list = props.msg.ragSources ?? [];
+  const list = ragSources.value;
   const groups = new Map<string, { items: RagSource[]; label: string }>();
   for (const s of list) {
     const label = formatKnowledgeBaseName(
@@ -49,7 +53,7 @@ const ragGroups = computed(() => {
 <template>
   <!-- RAG sources -->
   <div
-    v-if="msg.ragSources && msg.ragSources.length > 0 && !msg.streaming"
+    v-if="ragSources.length > 0 && !msg.streaming"
     :class="compact ? 'mt-1' : 'mt-1.5'"
   >
     <details class="group">
@@ -63,7 +67,7 @@ const ragGroups = computed(() => {
         />
         <span
           >{{ $t('common.globalAiChat.ragSources') }} ({{
-            msg.ragSources.length
+            ragSources.length
           }})</span
         >
       </summary>

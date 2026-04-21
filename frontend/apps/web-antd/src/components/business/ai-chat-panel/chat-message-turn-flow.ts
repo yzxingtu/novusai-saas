@@ -1,5 +1,7 @@
 import type {
   ChatMessage,
+  RagSource,
+  ToolCallEvent,
   TurnAnswerCard,
   TurnAnswerCardSection,
   TurnEvidenceItem,
@@ -9,6 +11,8 @@ import type {
   TurnFlowStageType,
   TurnFlowViewModel,
 } from './types';
+
+import { normalizeTurnFlowViewModel } from './use-ai-chat-turn-flow';
 
 type LegacyStageSource =
   | 'legacy-retrieval'
@@ -868,6 +872,113 @@ function createEmptyTurnFlowForDisplay(msg: ChatMessage): TurnFlowForDisplay {
     ...(turnOutcome ? { turnOutcome } : {}),
     ...(msg.interrupted ? { interrupted: true } : {}),
   };
+}
+
+function toDisplayRagSourcesFromCanonicalFlow(
+  msg: ChatMessage,
+): RagSource[] | undefined {
+  const flow = normalizeTurnFlowViewModel(msg.turnFlow);
+  if (!flow) {
+    return undefined;
+  }
+  const ragSources = flow.evidence
+    .filter((item) => item.kind === 'knowledge_base' || item.kind === 'web')
+    .map((item, index) => ({
+      doc_id: index + 1,
+      doc_name: item.title || item.sourceRef || `Source ${index + 1}`,
+      score:
+        typeof item.score === 'number' && Number.isFinite(item.score)
+          ? item.score
+          : 0,
+      snippet: item.snippet || '',
+      source_kind:
+        item.kind === 'knowledge_base'
+          ? ('formal_kb' as const)
+          : ('ephemeral_doc' as const),
+    }));
+  return ragSources.length > 0 ? ragSources : undefined;
+}
+
+function toDisplayToolCallsFromCanonicalFlow(
+  msg: ChatMessage,
+): ToolCallEvent[] | undefined {
+  const flow = normalizeTurnFlowViewModel(msg.turnFlow);
+  if (!flow) {
+    return undefined;
+  }
+  const toolCalls = flow.evidence
+    .filter((item) => item.kind === 'tool')
+    .map((item, index) => ({
+      id: item.toolCallId ?? `evidence-tool-${index + 1}`,
+      name: item.title || `tool_${index + 1}`,
+      status: 'success' as const,
+      ...(item.snippet ? { summary: item.snippet } : {}),
+      ...(item.url ? { resultLink: item.url } : {}),
+    }));
+  return toolCalls.length > 0 ? toolCalls : undefined;
+}
+
+export function getThinkingContentForDisplay(
+  msg: ChatMessage,
+): string | undefined {
+  const directThinking = normalizeOptionalString(msg.thinkingContent);
+  if (directThinking) {
+    return directThinking;
+  }
+  const flow = normalizeTurnFlowViewModel(msg.turnFlow);
+  const thinkingStage = flow?.timeline.findLast(
+    (stage) => stage.type === 'thinking',
+  );
+  if (!thinkingStage) {
+    return undefined;
+  }
+  const detailText = (thinkingStage.detailLines ?? [])
+    .map((line) => normalizeOptionalString(line))
+    .filter((line): line is string => !!line)
+    .join('\n\n');
+  if (detailText) {
+    return detailText;
+  }
+  return normalizeOptionalString(thinkingStage.summary);
+}
+
+export function getOptimizingToolsForDisplay(
+  msg: ChatMessage,
+): ChatMessage['optimizingTools'] | undefined {
+  if (msg.optimizingTools) {
+    return msg.optimizingTools;
+  }
+  const flow = normalizeTurnFlowViewModel(msg.turnFlow);
+  const selectionStage = flow?.timeline.findLast(
+    (stage) => stage.type === 'tool_selection',
+  );
+  const selected = normalizeNumber(selectionStage?.metrics?.selected);
+  const total = normalizeNumber(selectionStage?.metrics?.total);
+  if (selected === undefined && total === undefined) {
+    return undefined;
+  }
+  return {
+    selected: selected ?? 0,
+    total: total ?? selected ?? 0,
+  };
+}
+
+export function getToolCallsForDisplay(
+  msg: ChatMessage,
+): ToolCallEvent[] | undefined {
+  if (msg.toolCalls?.length) {
+    return msg.toolCalls;
+  }
+  return toDisplayToolCallsFromCanonicalFlow(msg);
+}
+
+export function getRagSourcesForDisplay(
+  msg: ChatMessage,
+): RagSource[] | undefined {
+  if (msg.ragSources?.length) {
+    return msg.ragSources;
+  }
+  return toDisplayRagSourcesFromCanonicalFlow(msg);
 }
 
 export function getTurnFlowForDisplay(msg: ChatMessage): TurnFlowForDisplay {

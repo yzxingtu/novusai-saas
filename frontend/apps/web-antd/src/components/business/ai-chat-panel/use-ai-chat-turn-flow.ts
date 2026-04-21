@@ -1,7 +1,6 @@
 import type {
   ChatMessage,
   RagSource,
-  ToolCallEvent,
   TurnFlowAnswerCard,
   TurnFlowAnswerCardSection,
   TurnFlowErrorSurface,
@@ -621,38 +620,6 @@ function inferCompletionReason(message: ChatMessage): string | undefined {
   );
 }
 
-function toLegacyRagSourcesFromEvidence(
-  evidence: TurnFlowEvidenceItem[],
-): RagSource[] {
-  return evidence
-    .filter((item) => item.kind === 'knowledge_base' || item.kind === 'web')
-    .map((item, index) => ({
-      doc_id: index + 1,
-      doc_name: item.title || item.sourceRef || `Source ${index + 1}`,
-      score:
-        typeof item.score === 'number' && Number.isFinite(item.score)
-          ? item.score
-          : 0,
-      snippet: item.snippet || '',
-      source_kind:
-        item.kind === 'knowledge_base' ? 'formal_kb' : 'ephemeral_doc',
-    }));
-}
-
-function toLegacyToolCallsFromEvidence(
-  evidence: TurnFlowEvidenceItem[],
-): ToolCallEvent[] {
-  return evidence
-    .filter((item) => item.kind === 'tool')
-    .map((item, index) => ({
-      id: item.toolCallId ?? `evidence-tool-${index + 1}`,
-      name: item.title || `tool_${index + 1}`,
-      status: 'success',
-      ...(item.snippet ? { summary: item.snippet } : {}),
-      ...(item.url ? { resultLink: item.url } : {}),
-    }));
-}
-
 export function createEmptyTurnFlow(): TurnFlowViewModel {
   return {
     evidence: [],
@@ -779,85 +746,137 @@ export function mergeTurnFlow(
   return merged;
 }
 
-export function applyLegacyFieldsFromTurnFlow(message: ChatMessage): void {
-  const flow = normalizeTurnFlowViewModel(message.turnFlow);
-  if (!flow) {
+function getOrCreateCanonicalTurnFlow(message: ChatMessage): TurnFlowViewModel {
+  return (
+    mergeTurnFlow(
+      normalizeTurnFlowViewModel(message.turnFlow),
+      createEmptyTurnFlow(),
+    ) ?? createEmptyTurnFlow()
+  );
+}
+
+function normalizeThinkingStageText(stage?: TurnFlowStage): string | undefined {
+  if (!stage) {
+    return undefined;
+  }
+  const detailText = (stage.detailLines ?? [])
+    .map((line) => normalizeOptionalString(line))
+    .filter((line): line is string => !!line)
+    .join('\n\n');
+  if (detailText) {
+    return detailText;
+  }
+  return normalizeOptionalString(stage.summary);
+}
+
+function resolveThinkingStage(
+  flow: TurnFlowViewModel,
+): TurnFlowStage | undefined {
+  return flow.timeline.findLast((stage) => stage.type === 'thinking');
+}
+
+export function appendThinkingDeltaToTurnFlow(
+  message: ChatMessage,
+  delta: string | undefined,
+): void {
+  const normalizedDelta = normalizeOptionalString(delta);
+  if (!normalizedDelta) {
     return;
   }
-  const thinkingStage = flow.timeline.find(
-    (stage) => stage.type === 'thinking',
-  );
-  if (!message.thinkingContent && thinkingStage) {
-    const summary = normalizeOptionalString(thinkingStage.summary);
-    if (summary) {
-      message.thinkingContent = summarize(summary, 240);
-    }
-  }
-
-  if (!message.optimizingTools) {
-    const selectionStage = flow.timeline.find(
-      (stage) => stage.type === 'tool_selection',
-    );
-    const metrics = selectionStage?.metrics;
-    const selected = normalizeNumber(metrics?.selected);
-    const total = normalizeNumber(metrics?.total);
-    if (selected !== undefined || total !== undefined) {
-      message.optimizingTools = {
-        selected: selected ?? 0,
-        total: total ?? selected ?? 0,
-      };
-    }
-  }
-
-  if (!message.ragSources || message.ragSources.length === 0) {
-    const legacyRagSources = toLegacyRagSourcesFromEvidence(flow.evidence);
-    if (legacyRagSources.length > 0) {
-      message.ragSources = legacyRagSources;
-    }
-  }
-
-  if (!message.toolCalls || message.toolCalls.length === 0) {
-    const legacyToolCalls = toLegacyToolCallsFromEvidence(flow.evidence);
-    if (legacyToolCalls.length > 0) {
-      message.toolCalls = legacyToolCalls;
-    }
-  }
+  const flow = getOrCreateCanonicalTurnFlow(message);
+  const existingStage = resolveThinkingStage(flow);
+  const nextText = `${normalizeThinkingStageText(existingStage) ?? ''}${normalizedDelta}`;
+  upsertStage(flow, {
+    detailLines: [nextText],
+    id: existingStage?.id ?? 'turn-thinking',
+    status: message.streaming ? 'running' : 'completed',
+    summary: summarize(nextText, 240),
+    type: 'thinking',
+  });
+  message.turnFlow = flow;
 }
 
-function shouldFinalizeTimeline(flow: TurnFlowViewModel): boolean {
-  if (flow.complete === true) {
-    return true;
+export function promoteStreamingContentToThinkingTurnFlow(
+  message: ChatMessage,
+): void {
+  if (!message.content) {
+    return;
   }
-  if (flow.finalStageStatus && flow.finalStageStatus !== 'running') {
-    return true;
-  }
-  return flow.timeline.some(
-    (stage) => stage.type === 'completed' || stage.type === 'failed',
-  );
+  appendThinkingDeltaToTurnFlow(message, message.content);
+  message.content = '';
 }
 
-export function reconcileTurnFlowWithLegacy(message: ChatMessage): void {
-  const normalizedTurnFlow = normalizeTurnFlowViewModel(message.turnFlow);
-  if (normalizedTurnFlow) {
-    const canonical = mergeTurnFlow(normalizedTurnFlow, createEmptyTurnFlow());
-    if (!canonical) {
-      return;
-    }
-    if (shouldFinalizeTimeline(canonical)) {
-      const finalStatus =
-        canonical.finalStageStatus && canonical.finalStageStatus !== 'running'
-          ? canonical.finalStageStatus
-          : inferFinalStageStatus(message);
-      canonical.finalStageStatus = finalStatus;
-      if (canonical.complete === undefined) {
-        canonical.complete = true;
-      }
-      finalizeRunningStages(canonical, finalStatus);
-      ensureTerminalStage(canonical);
-    }
-    message.turnFlow = canonical;
-    applyLegacyFieldsFromTurnFlow(message);
+export function applyOptimizingToolsToTurnFlow(
+  message: ChatMessage,
+  selection: { selected?: number; total?: number },
+): void {
+  const selected = normalizeNumber(selection.selected);
+  const total = normalizeNumber(selection.total);
+  if (selected === undefined && total === undefined) {
+    return;
   }
+  const flow = getOrCreateCanonicalTurnFlow(message);
+  const existingStage = flow.timeline.findLast(
+    (stage) => stage.type === 'tool_selection',
+  );
+  const normalizedSelected = selected ?? 0;
+  const normalizedTotal = total ?? normalizedSelected;
+  let selectionStatus: TurnFlowStageStatus = 'completed';
+  if (normalizedTotal > 0) {
+    selectionStatus = normalizedSelected > 0 ? 'completed' : 'skipped';
+  } else if (message.streaming) {
+    selectionStatus = 'running';
+  }
+  upsertStage(flow, {
+    id: existingStage?.id ?? 'turn-tool-selection',
+    metrics: {
+      ...existingStage?.metrics,
+      selected: normalizedSelected,
+      total: normalizedTotal,
+    },
+    status: selectionStatus,
+    type: 'tool_selection',
+  });
+  message.turnFlow = flow;
+}
+
+function toEvidenceKindFromRagSource(source: RagSource): TurnFlowEvidenceKind {
+  return source.source_kind === 'ephemeral_doc' ? 'web' : 'knowledge_base';
+}
+
+function toEvidenceIdFromRagSource(source: RagSource, index: number): string {
+  const sourceKey =
+    source.knowledge_base_id ??
+    source.doc_id ??
+    source.knowledge_base_name ??
+    source.doc_name;
+  return `rag-${toEvidenceKindFromRagSource(source)}-${sourceKey ?? index + 1}`;
+}
+
+export function applyRagSourcesToTurnFlow(
+  message: ChatMessage,
+  sources: RagSource[] | undefined,
+): void {
+  if (!Array.isArray(sources) || sources.length === 0) {
+    return;
+  }
+  const flow = getOrCreateCanonicalTurnFlow(message);
+  flow.evidence = flow.evidence.filter(
+    (item) => item.kind !== 'knowledge_base' && item.kind !== 'web',
+  );
+  sources.forEach((source, index) => {
+    upsertEvidence(flow, {
+      id: toEvidenceIdFromRagSource(source, index),
+      kind: toEvidenceKindFromRagSource(source),
+      ...(source.doc_name ? { title: source.doc_name } : {}),
+      ...(source.snippet ? { snippet: source.snippet } : {}),
+      ...(source.score === undefined ? {} : { score: source.score }),
+      ...(source.knowledge_base_name || source.doc_name
+        ? { sourceRef: source.knowledge_base_name ?? source.doc_name }
+        : {}),
+    });
+  });
+  message.turnFlow = flow;
 }
 
 function buildStageFromCanonicalEvent(
@@ -998,7 +1017,6 @@ export function applyCanonicalTurnStageEvent(
   }
   upsertStage(flow, stage);
   message.turnFlow = flow;
-  applyLegacyFieldsFromTurnFlow(message);
 }
 
 export function applyCanonicalTurnEvidenceEvent(
@@ -1018,7 +1036,6 @@ export function applyCanonicalTurnEvidenceEvent(
   }
   upsertEvidence(flow, evidence);
   message.turnFlow = flow;
-  applyLegacyFieldsFromTurnFlow(message);
 }
 
 export function applyCanonicalTurnAnswerCardEvent(
@@ -1102,7 +1119,6 @@ export function applyCanonicalDoneEvent(
   finalizeRunningStages(flow, finalStageStatus);
   ensureTerminalStage(flow);
   message.turnFlow = flow;
-  applyLegacyFieldsFromTurnFlow(message);
 }
 
 export function settleTurnFlowAfterLifecycleFinalize(
@@ -1125,5 +1141,4 @@ export function settleTurnFlowAfterLifecycleFinalize(
   finalizeRunningStages(flow, finalStageStatus);
   ensureTerminalStage(flow);
   message.turnFlow = flow;
-  reconcileTurnFlowWithLegacy(message);
 }

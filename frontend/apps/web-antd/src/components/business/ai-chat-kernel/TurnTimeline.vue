@@ -9,6 +9,12 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 
+import {
+  getOptimizingToolsForDisplay,
+  getRagSourcesForDisplay,
+  getThinkingContentForDisplay,
+  getToolCallsForDisplay,
+} from '#/components/business/ai-chat-panel/chat-message-turn-flow';
 import ChatMessageRagSources from '#/components/business/ai-chat-panel/ChatMessageRagSources.vue';
 import ChatMessageThinkingBlock from '#/components/business/ai-chat-panel/ChatMessageThinkingBlock.vue';
 import ChatMessageToolCalls from '#/components/business/ai-chat-panel/ChatMessageToolCalls.vue';
@@ -42,14 +48,26 @@ const emit = defineEmits<{
 const AUTO_COLLAPSE_DELAY_MS = 220;
 const timeline = computed(() => props.state.timeline);
 const isLiveMessage = computed(() => props.msg.streaming === true);
-const hasLegacyFallbackSections = computed(
+const displayThinkingContent = computed(() =>
+  getThinkingContentForDisplay(props.msg),
+);
+const displayOptimizingTools = computed(() =>
+  getOptimizingToolsForDisplay(props.msg),
+);
+const displayToolCalls = computed(
+  () => getToolCallsForDisplay(props.msg) ?? [],
+);
+const displayRagSources = computed(
+  () => getRagSourcesForDisplay(props.msg) ?? [],
+);
+const hasDisplayFallbackSections = computed(
   () =>
     timeline.value.length === 0 &&
     Boolean(
-      props.msg.thinkingContent ||
-      props.msg.optimizingTools ||
-      props.msg.toolCalls?.length ||
-      props.msg.ragSources?.length,
+      displayThinkingContent.value ||
+      displayOptimizingTools.value ||
+      displayToolCalls.value.length > 0 ||
+      displayRagSources.value.length > 0,
     ),
 );
 const expandedStageKeys = ref<Record<string, boolean>>({});
@@ -350,21 +368,21 @@ function getCollapsedDetailLines(lines: string[], expanded: boolean) {
 }
 
 function hasToolSelectionFallbackContent(stage: TurnFlowStageForDisplay) {
-  return stage.type === 'tool_selection' && Boolean(props.msg.optimizingTools);
-}
-
-function hasToolExecutionFallbackContent(stage: TurnFlowStageForDisplay) {
   return (
-    stage.type === 'tool_execution' && Boolean(props.msg.toolCalls?.length)
+    stage.type === 'tool_selection' && Boolean(displayOptimizingTools.value)
   );
 }
 
+function hasToolExecutionFallbackContent(stage: TurnFlowStageForDisplay) {
+  return stage.type === 'tool_execution' && displayToolCalls.value.length > 0;
+}
+
 function hasRetrievalFallbackContent(stage: TurnFlowStageForDisplay) {
-  return stage.type === 'retrieval' && Boolean(props.msg.ragSources?.length);
+  return stage.type === 'retrieval' && displayRagSources.value.length > 0;
 }
 
 function hasLegacyThinkingContent(stage: TurnFlowStageForDisplay) {
-  return stage.type === 'thinking' && Boolean(props.msg.thinkingContent);
+  return stage.type === 'thinking' && Boolean(displayThinkingContent.value);
 }
 
 function isStageExpandable(stage: TurnFlowStageForDisplay) {
@@ -669,8 +687,8 @@ onBeforeUnmount(() => {
                 />
                 <span>{{
                   $t('common.globalAiChat.optimizingTools', {
-                    total: msg.optimizingTools?.total ?? 0,
-                    selected: msg.optimizingTools?.selected ?? 0,
+                    total: displayOptimizingTools?.total ?? 0,
+                    selected: displayOptimizingTools?.selected ?? 0,
                   })
                 }}</span>
               </div>
@@ -698,20 +716,20 @@ onBeforeUnmount(() => {
   </div>
 
   <div
-    v-else-if="hasLegacyFallbackSections"
+    v-else-if="hasDisplayFallbackSections"
     data-testid="chat-message-kernel-fallback"
     class="space-y-2"
     :class="compact ? 'mb-1.5' : 'mb-2'"
   >
     <ChatMessageThinkingBlock
-      v-if="msg.thinkingContent"
+      v-if="displayThinkingContent"
       :compact="compact"
       :index="0"
       :msg="msg"
     />
 
     <div
-      v-if="msg.optimizingTools"
+      v-if="displayOptimizingTools"
       class="flex items-center rounded-lg border border-border/20 bg-accent/10 text-muted-foreground"
       :class="
         compact
@@ -726,14 +744,14 @@ onBeforeUnmount(() => {
       />
       <span>{{
         $t('common.globalAiChat.optimizingTools', {
-          total: msg.optimizingTools.total ?? 0,
-          selected: msg.optimizingTools.selected ?? 0,
+          total: displayOptimizingTools.total ?? 0,
+          selected: displayOptimizingTools.selected ?? 0,
         })
       }}</span>
     </div>
 
     <ChatMessageToolCalls
-      v-if="msg.toolCalls?.length"
+      v-if="displayToolCalls.length > 0"
       :compact="compact"
       :countdown-now="countdownNow"
       :index="0"
@@ -743,7 +761,7 @@ onBeforeUnmount(() => {
     />
 
     <ChatMessageRagSources
-      v-if="msg.ragSources?.length"
+      v-if="displayRagSources.length > 0"
       :compact="compact"
       :msg="msg"
     />

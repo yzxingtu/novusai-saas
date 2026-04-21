@@ -11,8 +11,10 @@ from app.core.logging import LogManager
 from .legacy_protocol_policy import should_skip_sync_rescue_after_stream_error
 
 if TYPE_CHECKING:
-    from .legacy_context_builder import LegacyEntrypointGuardSnapshot
-    from .legacy_protocol_execution_helpers import LegacyCompatAdapterProtocol
+    from .legacy_protocol_execution_helpers import (
+        LegacyCompatAdapterProtocol,
+        LegacyProtocolGuardSnapshot,
+    )
 
 logger = LogManager.get_logger("ai")
 
@@ -90,7 +92,7 @@ def build_chat_completions_stream_iterator(
     sync_request_params: dict[str, Any],
     messages: list[ChatMessage],
     model: str,
-    guard_snapshot: LegacyEntrypointGuardSnapshot,
+    guard_snapshot: LegacyProtocolGuardSnapshot,
     rescue_reason: str,
 ) -> AsyncIterator[ChatChunk]:
     if guard_snapshot.runtime_disable_sync_rescue:

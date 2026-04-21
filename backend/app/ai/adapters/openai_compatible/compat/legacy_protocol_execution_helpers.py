@@ -8,7 +8,6 @@ from typing import Any, Protocol
 
 from app.ai.types import ChatChunk, ChatMessage, ChatResponse
 
-from .legacy_context_builder import LegacyEntrypointGuardSnapshot
 from .legacy_protocol_fallback_support import (
     log_responses_tool_call_fallback,
     should_fallback_after_responses_error,
@@ -55,6 +54,14 @@ class LegacyCompatAdapterProtocol(Protocol):
     def _chat_response_to_stream_chunk(self, response: ChatResponse) -> ChatChunk: ...
 
 
+@dataclass(frozen=True, slots=True)
+class LegacyProtocolGuardSnapshot:
+    """Internal runtime guard flags for OpenAI-compatible protocol execution."""
+
+    runtime_disable_cross_protocol_fallback: bool = False
+    runtime_disable_sync_rescue: bool = False
+
+
 def _activate_chat_completions_state(execution_state: dict[str, str]) -> None:
     execution_state["active_endpoint_path"] = "chat/completions"
     execution_state["active_wire_api"] = "chat_completions"
@@ -69,7 +76,7 @@ async def execute_legacy_chat(
     tools: list[dict] | None,
     tool_choice: str | None,
     use_responses_api: bool,
-    guard_snapshot: LegacyEntrypointGuardSnapshot,
+    guard_snapshot: LegacyProtocolGuardSnapshot,
     request_params: dict[str, Any],
     responses_kwargs: dict[str, Any],
 ) -> ChatResponse:
@@ -128,7 +135,7 @@ async def execute_legacy_stream(
     tools: list[dict] | None,
     tool_choice: str | None,
     use_responses_api: bool,
-    guard_snapshot: LegacyEntrypointGuardSnapshot,
+    guard_snapshot: LegacyProtocolGuardSnapshot,
     request_params: dict[str, Any],
     sync_request_params: dict[str, Any],
     responses_kwargs: dict[str, Any],
@@ -195,7 +202,7 @@ class LegacyProtocolExecutionSupport:
     model: str
     tools: list[dict] | None
     tool_choice: str | None
-    guard_snapshot: LegacyEntrypointGuardSnapshot
+    guard_snapshot: LegacyProtocolGuardSnapshot
 
     async def execute_responses_chat(
         self,
@@ -285,6 +292,7 @@ class LegacyProtocolExecutionSupport:
 
 __all__ = [
     "LegacyCompatAdapterProtocol",
+    "LegacyProtocolGuardSnapshot",
     "LegacyProtocolExecutionSupport",
     "build_chat_completions_stream_iterator",
     "execute_legacy_chat",
