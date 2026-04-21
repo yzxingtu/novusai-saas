@@ -16,7 +16,8 @@
   "worktree_path": null,
   "execution_path": "deep",
   "required_artifacts": [
-    "prd.md"
+    "prd.md",
+    "info.md"
   ],
   "context_files": [
     "implement.jsonl",
@@ -33,8 +34,11 @@
     "backend/app/ai/engine/task.py",
     "backend/app/ai/engine/prepare_execution_pipeline.py",
     "backend/app/ai/runtime/query_engine.py",
-    "backend/app/services/ai/agent_chat_stream_bootstrap_service.py"
+    "backend/app/services/ai/agent_chat_command_service.py",
+    "backend/app/services/ai/agent_chat_stream_bootstrap_service.py",
+    "backend/app/services/ai/agent_chat_stream_persistence_orchestrator.py",
+    "backend/app/services/ai/agent_chat_stream_persistence_error_support.py"
   ],
-  "notes": "This workstream lands after capability-pack, page-workflow, and thread-memory owner contracts are stable so the core turn loop can stop carrying transitional glue.",
+  "notes": "This workstream lands after capability-pack, page-workflow, and thread-memory owner contracts are stable so the core turn loop can stop carrying transitional glue. 2026-04-21 audit follow-up: `AgentChatCommandService` now imports `ExecutionDispatcher` / quota / stats owners directly instead of routing live chat through `agent_chat_service` compat re-exports, and stream completion/error persistence now calls the canonical `ConversationService.persist_stream_*` contract directly instead of probing for old-shape methods and keeping inline legacy fallback implementations in the orchestrator path.",
   "meta": {}
 }

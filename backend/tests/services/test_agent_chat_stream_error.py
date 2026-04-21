@@ -45,6 +45,32 @@ def _build_conversation():
     )
 
 
+def _attach_stream_persistence_contract(conv_svc, db, *, tenant_id: int = 1) -> None:
+    from app.services.ai.conversation_stream_persistence_service import (
+        ConversationStreamPersistenceService,
+    )
+
+    conv_svc.db = db
+    conv_svc.tenant_id = tenant_id
+    stream_service = ConversationStreamPersistenceService(conv_svc)
+
+    async def _save_stream_error_message(**kwargs):
+        return await stream_service.save_stream_error_message(
+            tenant_id=tenant_id,
+            **kwargs,
+        )
+
+    conv_svc.persist_stream_completion = AsyncMock(
+        side_effect=stream_service.persist_stream_completion
+    )
+    conv_svc.persist_stream_last_error_marker = AsyncMock(
+        side_effect=stream_service.persist_stream_last_error_marker
+    )
+    conv_svc.save_stream_error_message = AsyncMock(
+        side_effect=_save_stream_error_message
+    )
+
+
 def _build_failed_result(
     *, output: str = "", error: str = "Upstream API failed: 502 Bad Gateway"
 ):
@@ -369,6 +395,7 @@ async def test_stream_on_complete_persists_error_message_when_failed_without_new
     cb_conv_svc.message_repo.count_by_conversation = AsyncMock(return_value=1)
     cb_conv_svc.message_repo.get_next_sequence = AsyncMock(return_value=2)
     cb_conv_svc.message_repo.create = AsyncMock()
+    _attach_stream_persistence_contract(cb_conv_svc, cb_db)
 
     with (
         patch(
@@ -434,6 +461,7 @@ async def test_stream_on_complete_uses_interrupted_copy_for_cancelled_streams(
     cb_conv_svc.message_repo.count_by_conversation = AsyncMock(return_value=1)
     cb_conv_svc.message_repo.get_next_sequence = AsyncMock(return_value=2)
     cb_conv_svc.message_repo.create = AsyncMock()
+    _attach_stream_persistence_contract(cb_conv_svc, cb_db)
 
     with (
         patch(
@@ -491,6 +519,7 @@ async def test_stream_on_complete_uses_provider_message_when_failure_kind_is_pro
     cb_conv_svc.message_repo.count_by_conversation = AsyncMock(return_value=1)
     cb_conv_svc.message_repo.get_next_sequence = AsyncMock(return_value=2)
     cb_conv_svc.message_repo.create = AsyncMock()
+    _attach_stream_persistence_contract(cb_conv_svc, cb_db)
 
     with (
         patch(
@@ -586,6 +615,7 @@ async def test_stream_on_complete_updates_conversation_last_error_metadata(mock_
     cb_conv_svc.message_repo.count_by_conversation = AsyncMock(return_value=1)
     cb_conv_svc.message_repo.get_next_sequence = AsyncMock(return_value=2)
     cb_conv_svc.message_repo.create = AsyncMock()
+    _attach_stream_persistence_contract(cb_conv_svc, cb_db)
 
     with (
         patch(
@@ -638,6 +668,7 @@ async def test_stream_on_complete_preserves_partial_output_in_error_metadata(moc
     cb_conv_svc.message_repo.count_by_conversation = AsyncMock(return_value=1)
     cb_conv_svc.message_repo.get_next_sequence = AsyncMock(return_value=2)
     cb_conv_svc.message_repo.create = AsyncMock()
+    _attach_stream_persistence_contract(cb_conv_svc, cb_db)
 
     with (
         patch(
@@ -694,6 +725,7 @@ async def test_stream_on_complete_skips_extra_error_message_when_partial_assista
     cb_conv_svc.message_repo.count_by_conversation = AsyncMock(return_value=1)
     cb_conv_svc.message_repo.get_next_sequence = AsyncMock(return_value=2)
     cb_conv_svc.message_repo.create = AsyncMock()
+    _attach_stream_persistence_contract(cb_conv_svc, cb_db)
 
     partial_result = _build_failed_result(output="partial text")
     partial_result.messages = [
@@ -756,6 +788,7 @@ async def test_stream_on_complete_persists_error_message_when_only_tool_round_ex
     cb_conv_svc.message_repo.count_by_conversation = AsyncMock(return_value=1)
     cb_conv_svc.message_repo.get_next_sequence = AsyncMock(return_value=2)
     cb_conv_svc.message_repo.create = AsyncMock()
+    _attach_stream_persistence_contract(cb_conv_svc, cb_db)
 
     partial_result = _build_failed_result(output="")
     partial_result.messages = [
@@ -829,6 +862,7 @@ async def test_stream_on_complete_reasoning_only_rescue_success_skips_error_mess
     cb_conv_svc.message_repo.count_by_conversation = AsyncMock(return_value=1)
     cb_conv_svc.message_repo.get_next_sequence = AsyncMock(return_value=2)
     cb_conv_svc.message_repo.create = AsyncMock()
+    _attach_stream_persistence_contract(cb_conv_svc, cb_db)
     publish_failed = AsyncMock()
     publish_completed = AsyncMock()
 
@@ -914,6 +948,7 @@ async def test_stream_post_persist_tail_commits_primary_memory_writes_on_success
     cb_conv_svc.update_stats = AsyncMock()
     mem_conv_svc = MagicMock()
     mem_conv_svc.mark_memory_updated = AsyncMock(return_value=None)
+    _attach_stream_persistence_contract(cb_conv_svc, cb_db)
     initial_commit_count = mock_db.commit.await_count
     initial_rollback_count = mock_db.rollback.await_count
 
@@ -978,6 +1013,7 @@ async def test_stream_on_complete_persists_error_message_when_sanitized_messages
     cb_conv_svc.message_repo.count_by_conversation = AsyncMock(return_value=1)
     cb_conv_svc.message_repo.get_next_sequence = AsyncMock(return_value=2)
     cb_conv_svc.message_repo.create = AsyncMock()
+    _attach_stream_persistence_contract(cb_conv_svc, cb_db)
 
     partial_result = _build_failed_result(output="partial text")
     partial_result.messages = [
@@ -1044,6 +1080,7 @@ async def test_stream_on_complete_falls_back_to_error_message_when_persistence_r
     cb_conv_svc.message_repo.count_by_conversation = AsyncMock(return_value=1)
     cb_conv_svc.message_repo.get_next_sequence = AsyncMock(return_value=2)
     cb_conv_svc.message_repo.create = AsyncMock()
+    _attach_stream_persistence_contract(cb_conv_svc, cb_db)
 
     with (
         patch(
@@ -1120,6 +1157,7 @@ async def test_stream_on_complete_marks_committed_when_only_last_error_marker_pe
         side_effect=TypeError("Object of type Decimal is not JSON serializable")
     )
     persist_conv_svc.update_stats = AsyncMock()
+    _attach_stream_persistence_contract(persist_conv_svc, persist_db)
 
     error_conv_svc = MagicMock()
     error_conv_svc.repo.get_by_id = AsyncMock(return_value=conversation)
@@ -1128,9 +1166,11 @@ async def test_stream_on_complete_marks_committed_when_only_last_error_marker_pe
     error_conv_svc.message_repo.create = AsyncMock(
         side_effect=RuntimeError("assistant insert failed")
     )
+    _attach_stream_persistence_contract(error_conv_svc, error_db)
 
     marker_conv_svc = MagicMock()
     marker_conv_svc.repo.get_by_id = AsyncMock(return_value=conversation)
+    _attach_stream_persistence_contract(marker_conv_svc, marker_db)
 
     partial_result = _build_failed_result(output="partial text")
     partial_result.messages = [
@@ -1211,6 +1251,7 @@ async def test_stream_on_complete_reports_uncommitted_when_error_message_and_mar
         side_effect=TypeError("Object of type Decimal is not JSON serializable")
     )
     persist_conv_svc.update_stats = AsyncMock()
+    _attach_stream_persistence_contract(persist_conv_svc, persist_db)
 
     error_conv_svc = MagicMock()
     error_conv_svc.repo.get_by_id = AsyncMock(return_value=conversation)
@@ -1219,9 +1260,11 @@ async def test_stream_on_complete_reports_uncommitted_when_error_message_and_mar
     error_conv_svc.message_repo.create = AsyncMock(
         side_effect=RuntimeError("assistant insert failed")
     )
+    _attach_stream_persistence_contract(error_conv_svc, error_db)
 
     marker_conv_svc = MagicMock()
     marker_conv_svc.repo.get_by_id = AsyncMock(return_value=conversation)
+    _attach_stream_persistence_contract(marker_conv_svc, marker_db)
 
     partial_result = _build_failed_result(output="partial text")
     partial_result.messages = [
@@ -1293,6 +1336,7 @@ async def test_stream_on_complete_callback_exception_persists_error_marker(mock_
     cb_conv_svc.message_repo.create = AsyncMock()
     cb_conv_svc.persist_chat_messages = AsyncMock(return_value=([], 0))
     cb_conv_svc.update_stats = AsyncMock()
+    _attach_stream_persistence_contract(cb_conv_svc, cb_db)
 
     service._build_context_diagnostics = MagicMock(
         side_effect=RuntimeError("diagnostics serializer exploded")

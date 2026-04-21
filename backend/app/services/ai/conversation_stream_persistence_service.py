@@ -7,6 +7,7 @@ from typing import Any
 
 from app.ai.engine.types import ExecutionResult
 from app.ai.json_safe import normalize_json_safe, normalize_json_safe_dict
+from app.ai.memory_policy import normalize_memory_runtime_policy
 from app.ai.utils.token_estimator import estimate_tokens
 from app.core.i18n import _
 from app.enums.agent import MessageRoleEnum
@@ -61,6 +62,7 @@ class ConversationStreamPersistenceService:
         friendly_message: str,
         partial: bool,
         extra_payload: dict[str, Any] | None = None,
+        memory_runtime_policy: dict[str, Any] | None = None,
     ) -> bool:
         conversation = await self.service.repo.get_by_id(conversation_id)
         if conversation is None:
@@ -75,7 +77,16 @@ class ConversationStreamPersistenceService:
         }
         if isinstance(extra_payload, dict) and extra_payload:
             marker_payload["details"] = normalize_json_safe(extra_payload)
+        normalized_memory_runtime_policy = normalize_memory_runtime_policy(
+            memory_runtime_policy if isinstance(memory_runtime_policy, dict) else None
+        )
         conversation_metadata["last_error"] = marker_payload
+        if normalized_memory_runtime_policy:
+            thread_memory_state = dict(normalized_memory_runtime_policy)
+            thread_memory_state["updated_at"] = datetime.now(timezone.utc).isoformat()
+            conversation_metadata["thread_memory_state"] = normalize_json_safe(
+                thread_memory_state
+            )
         conversation.metadata_ = normalize_json_safe_dict(conversation_metadata) or {}
         await self.service.db.commit()
         return True
@@ -105,9 +116,7 @@ class ConversationStreamPersistenceService:
         persisted_rows = 0
         error_display = build_stream_error_display(
             result.error or error_text,
-            failure_kind=str(
-                getattr(result, "provider_failure_kind", "") or ""
-            ).strip()
+            failure_kind=str(getattr(result, "provider_failure_kind", "") or "").strip()
             or None,
         )
         error_message = str(
@@ -159,6 +168,16 @@ class ConversationStreamPersistenceService:
             error_metadata["last_run_summary"] = normalize_json_safe(
                 last_run_summary_payload
             )
+        raw_memory_runtime_policy = getattr(result, "memory_runtime_policy", None)
+        memory_runtime_policy = normalize_memory_runtime_policy(
+            raw_memory_runtime_policy
+            if isinstance(raw_memory_runtime_policy, dict)
+            else None
+        )
+        if memory_runtime_policy:
+            error_metadata["memory_runtime_policy"] = normalize_json_safe(
+                memory_runtime_policy
+            )
         error_metadata = normalize_json_safe_dict(error_metadata) or {}
 
         await self.service.message_repo.create(
@@ -186,11 +205,18 @@ class ConversationStreamPersistenceService:
             "partial": bool(result.partial),
             "trace_id": error_display.get("trace_id"),
         }
+        if memory_runtime_policy:
+            thread_memory_state = dict(memory_runtime_policy)
+            thread_memory_state["updated_at"] = datetime.now(timezone.utc).isoformat()
+            conversation_metadata["thread_memory_state"] = thread_memory_state
         if persisted_rows:
-            conversation.message_count = max(
-                int(getattr(conversation, "message_count", 0) or 0),
-                int(current_count or 0),
-            ) + persisted_rows
+            conversation.message_count = (
+                max(
+                    int(getattr(conversation, "message_count", 0) or 0),
+                    int(current_count or 0),
+                )
+                + persisted_rows
+            )
         conversation.metadata_ = normalize_json_safe_dict(conversation_metadata) or {}
         await self.service.db.commit()
         return int(persisted_rows or 0)

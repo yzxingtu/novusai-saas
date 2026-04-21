@@ -7,6 +7,7 @@ import type {
 import type { AppErrorInfo } from '#/utils/request';
 
 import {
+  getRunningToolExecutionRefs,
   promoteStreamingContentToThinkingTurnFlow,
   settleTurnFlowAfterLifecycleFinalize,
 } from './use-ai-chat-turn-flow';
@@ -104,19 +105,15 @@ export function createStreamRequestLifecycle(
         msg.completionReason = msg.completionReason || 'interrupted';
       }
       msg.streaming = false;
-      let hadOrphanedRunningTools = false;
-      if (msg.toolCalls) {
-        const orphaned = msg.toolCalls.filter((tc) => tc.status === 'running');
-        if (orphaned.length > 0) {
-          hadOrphanedRunningTools = true;
-          console.warn(
-            '[use-ai-chat] finalizeMessage: orphaned running tool(s), marking as error',
-            orphaned.map((toolCall) => ({
-              id: toolCall.id,
-              name: toolCall.name,
-            })),
-          );
-        }
+      const orphaned = getRunningToolExecutionRefs(msg);
+      const hadOrphanedRunningTools = orphaned.length > 0;
+      if (hadOrphanedRunningTools) {
+        console.warn(
+          '[use-ai-chat] finalizeMessage: orphaned running tool(s), marking as error',
+          orphaned,
+        );
+      }
+      if (!msg.turnFlow && msg.toolCalls) {
         for (const toolCall of msg.toolCalls) {
           if (toolCall.status === 'running') {
             toolCall.status = 'error';

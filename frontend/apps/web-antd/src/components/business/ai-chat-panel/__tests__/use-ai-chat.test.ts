@@ -1,4 +1,5 @@
 import type { AIInteractionUpdate } from '#/store/shared/ai-panel';
+import type { ChatMessage } from '../types';
 
 // @vitest-environment happy-dom
 import { flushPromises } from '@vue/test-utils';
@@ -9,6 +10,8 @@ import {
   getOptimizingToolsForDisplay,
   getRagSourcesForDisplay,
   getThinkingContentForDisplay,
+  getToolCallsForDisplay,
+  getTurnFlowForDisplay,
 } from '../chat-message-turn-flow';
 import { shouldDisplayConversationInHistory, useAIChat } from '../use-ai-chat';
 import {
@@ -695,7 +698,10 @@ describe('useAIChat interrupted stream recovery', () => {
     const assistantMessage = chat.chatMessages.value.find(
       (msg) => msg.role === 'assistant',
     );
-    expect(assistantMessage?.toolCalls?.[0]?.summaryPayload).toEqual({
+    expect(assistantMessage?.toolCalls).toBeUndefined();
+    expect(
+      getToolCallsForDisplay(assistantMessage!)?.[0]?.summaryPayload,
+    ).toEqual({
       filters: ['today'],
       group_by: ['t.name'],
       metrics: ['COUNT(acl.id)'],
@@ -953,6 +959,39 @@ describe('useAIChat interrupted stream recovery', () => {
     );
   });
 
+  it('does not synthesize tool_selection display stages from legacy optimizingTools when turnFlow exists', () => {
+    const assistantMessage = buildAssistantMessage('最终答复。', {
+      clientKey: 'assistant-turn-flow-without-selection-stage',
+      optimizingTools: {
+        selected: 0,
+        total: 9,
+      },
+      turnFlow: {
+        timeline: [
+          {
+            id: 'thinking-stage',
+            status: 'completed',
+            summary: '先判断问题范围',
+            type: 'thinking',
+          },
+          {
+            id: 'completed-stage',
+            status: 'completed',
+            type: 'completed',
+          },
+        ],
+      },
+    }) as ChatMessage;
+
+    expect(
+      getTurnFlowForDisplay(assistantMessage).timeline.map((stage) => stage.id),
+    ).toEqual(['thinking-stage', 'completed-stage']);
+    expect(getOptimizingToolsForDisplay(assistantMessage)).toEqual({
+      selected: 0,
+      total: 9,
+    });
+  });
+
   it('projects provider_failure_after_partial_progress as failed/error terminal state', async () => {
     apiMocks.sendChatStreamApi.mockImplementation(
       async (
@@ -1057,7 +1096,10 @@ describe('useAIChat interrupted stream recovery', () => {
       (msg) => msg.role === 'assistant',
     );
     const timeline = assistantMessage?.turnFlow?.timeline ?? [];
-    expect(assistantMessage?.toolCalls?.[0]?.status).toBe('error');
+    expect(assistantMessage?.toolCalls).toBeUndefined();
+    expect(getToolCallsForDisplay(assistantMessage!)?.[0]?.status).toBe(
+      'error',
+    );
     expect(
       timeline.find((stage) => stage.id === 'tool-execution-running-stage')
         ?.status,
@@ -1124,7 +1166,8 @@ describe('useAIChat interrupted stream recovery', () => {
     const assistantMessage = chat.chatMessages.value.find(
       (msg) => msg.role === 'assistant',
     );
-    expect(assistantMessage?.toolCalls?.[0]).toMatchObject({
+    expect(assistantMessage?.toolCalls).toBeUndefined();
+    expect(getToolCallsForDisplay(assistantMessage!)?.[0]).toMatchObject({
       displayName: 'common.globalAiChat.toolNativeSearch',
       name: 'native_web_search',
       status: 'running',
@@ -1134,7 +1177,7 @@ describe('useAIChat interrupted stream recovery', () => {
     await sendPromise;
     await flushPromises();
 
-    expect(assistantMessage?.toolCalls?.[0]).toMatchObject({
+    expect(getToolCallsForDisplay(assistantMessage!)?.[0]).toMatchObject({
       displayName: 'common.globalAiChat.toolNativeSearch',
       name: 'native_web_search',
       status: 'success',
@@ -1523,8 +1566,9 @@ describe('useAIChat interrupted stream recovery', () => {
     const assistantMessage = chat.chatMessages.value.find(
       (msg) => msg.role === 'assistant',
     );
+    expect(assistantMessage?.toolCalls).toBeUndefined();
     const toolCallById = new Map(
-      (assistantMessage?.toolCalls ?? []).map((toolCall) => [
+      (getToolCallsForDisplay(assistantMessage!) ?? []).map((toolCall) => [
         toolCall.id,
         toolCall,
       ]),

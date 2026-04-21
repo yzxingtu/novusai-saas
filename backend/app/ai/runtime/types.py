@@ -227,9 +227,18 @@ def prompt_skill_descriptor_is_live(descriptor: Any) -> bool:
         return False
 
     metadata = getattr(descriptor, "metadata", {}) or {}
-    return not (
-        isinstance(metadata, dict) and metadata.get("has_execution_tools") is False
-    )
+    if not isinstance(metadata, dict):
+        return True
+    if metadata.get("has_execution_tools") is False:
+        return False
+    # Startup-available baseline builtins still carry skill-like metadata for
+    # compatibility, but they are not live capability-pack ownership.
+    return metadata.get("auto_injected") is not True
+
+
+def tool_is_auto_injected_runtime_builtin(tool: Any) -> bool:
+    config = getattr(tool, "config", {}) or {}
+    return isinstance(config, dict) and config.get("auto_injected") is True
 
 
 def collect_selected_skill_names(
@@ -247,6 +256,8 @@ def collect_selected_skill_names(
             names.append(skill_name)
 
     for tool in tools or []:
+        if tool_is_auto_injected_runtime_builtin(tool):
+            continue
         skill_name = str(getattr(tool, "source_skill_name", "") or "").strip()
         if skill_name and skill_name not in names:
             names.append(skill_name)

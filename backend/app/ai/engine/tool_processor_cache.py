@@ -10,7 +10,6 @@ from app.ai.tools.semantic_defaults import (
     is_ui_page_tool_name,
 )
 from app.ai.tools.types import ToolResult
-from app.ai.runtime.contracts import PAGE_CONTEXT_KEY
 
 from .execution_state_machine import get_current_execution_state_machine
 
@@ -56,19 +55,13 @@ class ToolProcessorCache:
         return ""
 
     def _page_identity_cache_segment(self) -> str:
-        """Narrow dedupe to current page so navigation cannot replay stale snapshots."""
+        """Key page readonly dedupe by explicit live session identity plus epoch."""
         sb = self._sandbox
         iv: dict[str, Any] = {}
         if sb is not None:
             raw_iv = getattr(sb, "input_variables", None)
             if isinstance(raw_iv, dict):
                 iv = raw_iv
-        pc = iv.get(PAGE_CONTEXT_KEY)
-        if not isinstance(pc, dict):
-            pc = iv.get("page_context")
-        page_key = ""
-        if isinstance(pc, dict):
-            page_key = str(pc.get("page_key") or "").strip()
         session_id = self._live_page_session_id(sb, iv)
         epoch = 0
         if sb is not None:
@@ -76,7 +69,7 @@ class ToolProcessorCache:
                 epoch = int(getattr(sb, "_page_readonly_cache_epoch", 0) or 0)
             except (TypeError, ValueError):
                 epoch = 0
-        return f"|pk={page_key}|sid={session_id}|e={epoch}"
+        return f"|sid={session_id}|e={epoch}"
 
     @staticmethod
     def _invalidates_same_page_readonly_cache(

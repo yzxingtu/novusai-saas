@@ -124,14 +124,27 @@ export type TurnFlowEvidenceKind =
   | 'web';
 
 export interface TurnFlowEvidenceItem {
+  arguments?: Record<string, unknown>;
   badge?: string;
+  displayName?: string;
+  durationMs?: number;
+  error?: string;
+  errorType?: string;
   id: string;
   kind: TurnFlowEvidenceKind;
+  output?: string;
+  resultLink?: string;
   score?: number;
+  skillName?: string;
+  skillType?: string;
   snippet?: string;
+  startedAt?: number;
+  status?: 'error' | 'running' | 'success';
   sourceRef?: string;
+  summaryPayload?: Record<string, unknown>;
   title?: string;
   toolCallId?: string;
+  toolName?: string;
   url?: string;
 }
 

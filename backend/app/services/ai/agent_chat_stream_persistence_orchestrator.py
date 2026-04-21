@@ -104,10 +104,6 @@ class AgentChatStreamPersistenceOrchestrator:
         return dependencies
 
     @staticmethod
-    def _has_stream_contract(service: Any, method_name: str) -> bool:
-        return callable(getattr(type(service), method_name, None))
-
-    @staticmethod
     def _copy_execution_result(
         result: ExecutionResult,
         **overrides: Any,
@@ -116,11 +112,7 @@ class AgentChatStreamPersistenceOrchestrator:
             key: getattr(result, key) for key in ExecutionResult.__dataclass_fields__
         }
         payload.update(overrides)
-        copied_result = ExecutionResult(**payload)
-        raw_memory_runtime_policy = getattr(result, "_memory_runtime_policy", None)
-        if isinstance(raw_memory_runtime_policy, dict):
-            copied_result._memory_runtime_policy = dict(raw_memory_runtime_policy)
-        return copied_result
+        return ExecutionResult(**payload)
 
     async def _persist_stream_last_error_marker(
         self,
@@ -130,6 +122,7 @@ class AgentChatStreamPersistenceOrchestrator:
         friendly_message: str,
         partial: bool,
         extra_payload: dict[str, Any] | None = None,
+        memory_runtime_policy: dict[str, Any] | None = None,
     ) -> bool:
         return await persist_stream_last_error_marker(
             self,
@@ -138,6 +131,7 @@ class AgentChatStreamPersistenceOrchestrator:
             friendly_message=friendly_message,
             partial=partial,
             extra_payload=extra_payload,
+            memory_runtime_policy=memory_runtime_policy,
         )
 
     async def _save_error_message_to_conversation(
@@ -289,7 +283,7 @@ class AgentChatStreamPersistenceOrchestrator:
                 request=self.request,
                 result=result,
             )
-            result._memory_runtime_policy = memory_policy.to_dict()
+            result.memory_runtime_policy = memory_policy.to_dict()
             context_diagnostics_payload = self.build_context_diagnostics(result)
             last_run_summary_payload = self.build_last_run_summary(result)
 
@@ -308,32 +302,9 @@ class AgentChatStreamPersistenceOrchestrator:
                                 cb_db,
                                 self.tenant_id,
                             )
-                            if self._has_stream_contract(
-                                cb_conv_svc,
-                                "persist_stream_completion",
-                            ):
-                                persisted_message_count = (
-                                    await cb_conv_svc.persist_stream_completion(
-                                        conversation_id=self.conversation_id,
-                                        result=result,
-                                        history_count=self.history_count,
-                                        history_messages=self.history_messages,
-                                        agent_id=self.agent_id,
-                                        route_source=self.route_source,
-                                        context_diagnostics=context_diagnostics_payload,
-                                        last_run_summary=last_run_summary_payload,
-                                        current_agent=self.agent,
-                                    )
-                                )
-                            else:
-                                cb_conv = await cb_conv_svc.repo.get_by_id(
-                                    self.conversation_id
-                                )
-                                (
-                                    _persisted_tool_calls,
-                                    persisted_message_count,
-                                ) = await cb_conv_svc.persist_chat_messages(
-                                    conversation=cb_conv,
+                            persisted_message_count = (
+                                await cb_conv_svc.persist_stream_completion(
+                                    conversation_id=self.conversation_id,
                                     result=result,
                                     history_count=self.history_count,
                                     history_messages=self.history_messages,
@@ -341,13 +312,9 @@ class AgentChatStreamPersistenceOrchestrator:
                                     route_source=self.route_source,
                                     context_diagnostics=context_diagnostics_payload,
                                     last_run_summary=last_run_summary_payload,
-                                )
-                                await cb_conv_svc.update_stats(
-                                    cb_conv,
-                                    result,
                                     current_agent=self.agent,
                                 )
-                                await cb_db.commit()
+                            )
                             critical_persistence_committed = True
                         except Exception:
                             await cb_db.rollback()
@@ -407,6 +374,7 @@ class AgentChatStreamPersistenceOrchestrator:
                                         "original_error": str(persist_exc)[:500],
                                         "fallback_error": str(fallback_exc)[:500],
                                     },
+                                    memory_runtime_policy=result.memory_runtime_policy,
                                 )
                             )
                             last_error_marker_persisted = (
@@ -520,6 +488,7 @@ class AgentChatStreamPersistenceOrchestrator:
                         ),
                         "last_run_summary_present": bool(last_run_summary_payload),
                     },
+                    memory_runtime_policy=fallback_result.memory_runtime_policy,
                 )
                 last_error_marker_persisted = (
                     last_error_marker_persisted or marker_persisted

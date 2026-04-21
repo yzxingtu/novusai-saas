@@ -212,6 +212,9 @@ function normalizeEvidence(
     `evidence-${index + 1}`;
   const title = normalizeOptionalString(record.title);
   const url = normalizeOptionalString(record.url);
+  const resultLink =
+    normalizeOptionalString(record.result_link) ??
+    normalizeOptionalString(record.resultLink);
   const snippet =
     normalizeOptionalString(record.snippet) ??
     normalizeOptionalString(record.summary);
@@ -222,15 +225,62 @@ function normalizeEvidence(
   const toolCallId =
     normalizeOptionalString(record.tool_call_id) ??
     normalizeOptionalString(record.toolCallId);
+  const toolName =
+    normalizeOptionalString(record.tool_name) ??
+    normalizeOptionalString(record.toolName);
+  const displayName =
+    normalizeOptionalString(record.display_name) ??
+    normalizeOptionalString(record.displayName);
+  const status = (() => {
+    const normalized = normalizeOptionalString(record.status);
+    if (
+      normalized === 'running' ||
+      normalized === 'success' ||
+      normalized === 'error'
+    ) {
+      return normalized;
+    }
+    return undefined;
+  })();
   const score = normalizeNumber(record.score);
+  const argumentsValue = normalizeObjectRecord(record.arguments) ?? undefined;
+  const error = normalizeOptionalString(record.error);
+  const errorType = normalizeOptionalString(
+    record.error_type ?? record.errorType,
+  );
+  const output = normalizeOptionalString(record.output);
+  const skillName = normalizeOptionalString(
+    record.skill_name ?? record.skillName,
+  );
+  const skillType = normalizeOptionalString(
+    record.skill_type ?? record.skillType,
+  );
+  const summaryPayload =
+    normalizeObjectRecord(record.summary_payload ?? record.summaryPayload) ??
+    undefined;
+  const durationMs = normalizeNumber(record.duration_ms ?? record.durationMs);
+  const startedAt = normalizeNumber(record.started_at ?? record.startedAt);
   return {
     id,
     kind: normalizeEvidenceKind(record.kind),
     ...(title ? { title } : {}),
     ...(url ? { url } : {}),
+    ...(resultLink ? { resultLink } : {}),
     ...(snippet ? { snippet } : {}),
     ...(badge ? { badge } : {}),
     ...(score === undefined ? {} : { score }),
+    ...(displayName ? { displayName } : {}),
+    ...(toolName ? { toolName } : {}),
+    ...(status ? { status } : {}),
+    ...(argumentsValue ? { arguments: argumentsValue } : {}),
+    ...(error ? { error } : {}),
+    ...(errorType ? { errorType } : {}),
+    ...(output ? { output } : {}),
+    ...(skillName ? { skillName } : {}),
+    ...(skillType ? { skillType } : {}),
+    ...(summaryPayload ? { summaryPayload } : {}),
+    ...(durationMs === undefined ? {} : { durationMs }),
+    ...(startedAt === undefined ? {} : { startedAt }),
     ...(toolCallId ? { toolCallId } : {}),
     ...(sourceRef ? { sourceRef } : {}),
   };
@@ -498,6 +548,305 @@ function upsertEvidence(
     return;
   }
   flow.evidence[index] = { ...previous, ...evidence };
+}
+
+function findMatchingToolEvidenceIndex(
+  flow: TurnFlowViewModel,
+  evidence: TurnFlowEvidenceItem,
+  options?: { allowNameFallback?: boolean },
+): number {
+  const toolCallId = evidence.toolCallId;
+  const toolName = evidence.toolName;
+  const allowNameFallback = options?.allowNameFallback ?? true;
+  for (let index = flow.evidence.length - 1; index >= 0; index -= 1) {
+    const item = flow.evidence[index];
+    if (!item || item.kind !== 'tool') {
+      continue;
+    }
+    if (
+      toolCallId &&
+      item.toolCallId === toolCallId &&
+      item.status === 'running'
+    ) {
+      return index;
+    }
+  }
+  for (let index = flow.evidence.length - 1; index >= 0; index -= 1) {
+    const item = flow.evidence[index];
+    if (!item || item.kind !== 'tool') {
+      continue;
+    }
+    if (toolCallId && item.toolCallId === toolCallId) {
+      return index;
+    }
+  }
+  if (!allowNameFallback) {
+    return -1;
+  }
+  for (let index = flow.evidence.length - 1; index >= 0; index -= 1) {
+    const item = flow.evidence[index];
+    if (!item || item.kind !== 'tool') {
+      continue;
+    }
+    if (toolName && item.toolName === toolName && item.status === 'running') {
+      return index;
+    }
+  }
+  return -1;
+}
+
+function upsertToolEvidence(
+  flow: TurnFlowViewModel,
+  evidence: TurnFlowEvidenceItem,
+  options?: { allowNameFallback?: boolean },
+): void {
+  const index = findMatchingToolEvidenceIndex(flow, evidence, options);
+  if (index === -1) {
+    upsertEvidence(flow, evidence);
+    return;
+  }
+  const previous = flow.evidence[index];
+  if (!previous) {
+    upsertEvidence(flow, evidence);
+    return;
+  }
+  flow.evidence[index] = {
+    ...previous,
+    ...evidence,
+    ...(evidence.toolCallId
+      ? {
+          id: evidence.toolCallId,
+          toolCallId: evidence.toolCallId,
+        }
+      : {}),
+  };
+}
+
+function syncToolExecutionStage(flow: TurnFlowViewModel): void {
+  const toolEvidence = flow.evidence.filter((item) => item.kind === 'tool');
+  if (toolEvidence.length === 0) {
+    return;
+  }
+  const existingStage = flow.timeline.findLast(
+    (stage) => stage.type === 'tool_execution',
+  );
+
+  const running = toolEvidence.filter(
+    (item) => item.status === 'running',
+  ).length;
+  const failed = toolEvidence.filter((item) => item.status === 'error').length;
+  const completed = toolEvidence.filter(
+    (item) => item.status === 'success',
+  ).length;
+  const total = toolEvidence.length;
+  const toolCallIds = toolEvidence
+    .map((item) => item.toolCallId)
+    .filter((item): item is string => !!item);
+
+  let status: TurnFlowStageStatus = 'completed';
+  if (running > 0) {
+    status = 'running';
+  } else if (failed > 0) {
+    status = 'error';
+  }
+
+  upsertStage(flow, {
+    id: existingStage?.id ?? 'turn-tool-execution',
+    metrics: {
+      ...existingStage?.metrics,
+      completed_tool_calls: completed,
+      failed_tool_calls: failed,
+      running,
+      total,
+    },
+    status,
+    toolCallIds,
+    type: 'tool_execution',
+  });
+}
+
+function collectRunningToolEvidenceRefs(
+  flow: TurnFlowViewModel,
+): Array<{ id?: string; name?: string }> {
+  return flow.evidence
+    .filter((item) => item.kind === 'tool' && item.status === 'running')
+    .map((item) => ({
+      id: item.toolCallId ?? item.id,
+      name: item.toolName ?? item.displayName ?? item.title,
+    }));
+}
+
+function setRunningToolEvidenceStatus(
+  flow: TurnFlowViewModel,
+  status: 'error' | 'success',
+): void {
+  let mutated = false;
+  for (const item of flow.evidence) {
+    if (item.kind !== 'tool' || item.status !== 'running') {
+      continue;
+    }
+    item.status = status;
+    mutated = true;
+  }
+  if (mutated) {
+    syncToolExecutionStage(flow);
+  }
+}
+
+function buildToolEvidencePayload({
+  argumentsValue,
+  displayName,
+  durationMs,
+  error,
+  errorType,
+  output,
+  resultLink,
+  skillName,
+  skillType,
+  startedAt,
+  status,
+  summary,
+  summaryPayload,
+  toolCallId,
+  toolName,
+}: {
+  argumentsValue?: Record<string, unknown>;
+  displayName?: string;
+  durationMs?: number;
+  error?: string;
+  errorType?: string;
+  output?: string;
+  resultLink?: string;
+  skillName?: string;
+  skillType?: string;
+  startedAt?: number;
+  status: 'error' | 'running' | 'success';
+  summary?: string;
+  summaryPayload?: Record<string, unknown>;
+  toolCallId?: string;
+  toolName: string;
+}): TurnFlowEvidenceItem {
+  return {
+    id: toolCallId ?? `tool-${toolName}`,
+    kind: 'tool',
+    ...(displayName
+      ? { displayName, title: displayName }
+      : { title: toolName }),
+    ...(toolCallId ? { toolCallId } : {}),
+    ...(toolName ? { toolName, sourceRef: toolName } : {}),
+    ...(status ? { status } : {}),
+    ...(argumentsValue ? { arguments: argumentsValue } : {}),
+    ...(durationMs === undefined ? {} : { durationMs }),
+    ...(error ? { error } : {}),
+    ...(errorType ? { errorType } : {}),
+    ...(output ? { output } : {}),
+    ...(resultLink ? { resultLink, url: resultLink } : {}),
+    ...(skillName ? { skillName } : {}),
+    ...(skillType ? { skillType } : {}),
+    ...(startedAt === undefined ? {} : { startedAt }),
+    ...(summary ? { snippet: summary } : {}),
+    ...(summaryPayload ? { summaryPayload } : {}),
+  };
+}
+
+export function applyStreamingToolStartToTurnFlow(
+  message: ChatMessage,
+  event: Record<string, unknown>,
+): void {
+  const toolName = normalizeOptionalString(event.name);
+  if (!toolName) {
+    return;
+  }
+  const flow = getOrCreateCanonicalTurnFlow(message);
+  upsertToolEvidence(
+    flow,
+    buildToolEvidencePayload({
+      argumentsValue: normalizeObjectRecord(event.arguments) ?? undefined,
+      displayName: normalizeOptionalString(
+        event.display_name ?? event.displayName,
+      ),
+      skillName: normalizeOptionalString(event.skill_name ?? event.skillName),
+      skillType: normalizeOptionalString(event.skill_type ?? event.skillType),
+      startedAt: Date.now(),
+      status: 'running',
+      toolCallId:
+        normalizeOptionalString(event.tool_call_id) ??
+        normalizeOptionalString(event.toolCallId) ??
+        normalizeOptionalString(event.id),
+      toolName,
+    }),
+    { allowNameFallback: false },
+  );
+  syncToolExecutionStage(flow);
+  message.turnFlow = flow;
+}
+
+export function applyStreamingToolResultToTurnFlow(
+  message: ChatMessage,
+  event: Record<string, unknown>,
+): void {
+  const toolName = normalizeOptionalString(event.name);
+  if (!toolName) {
+    return;
+  }
+  const flow = getOrCreateCanonicalTurnFlow(message);
+  upsertToolEvidence(
+    flow,
+    buildToolEvidencePayload({
+      argumentsValue: normalizeObjectRecord(event.arguments) ?? undefined,
+      displayName: normalizeOptionalString(
+        event.display_name ?? event.displayName,
+      ),
+      durationMs: normalizeNumber(event.duration_ms ?? event.durationMs),
+      error: normalizeOptionalString(event.error),
+      errorType: normalizeOptionalString(event.error_type ?? event.errorType),
+      output: normalizeOptionalString(event.output),
+      resultLink: normalizeOptionalString(
+        event.result_link ?? event.resultLink,
+      ),
+      skillName: normalizeOptionalString(event.skill_name ?? event.skillName),
+      skillType: normalizeOptionalString(event.skill_type ?? event.skillType),
+      status: event.success ? 'success' : 'error',
+      summary: normalizeOptionalString(event.summary),
+      summaryPayload:
+        normalizeObjectRecord(event.summary_payload ?? event.summaryPayload) ??
+        undefined,
+      toolCallId:
+        normalizeOptionalString(event.tool_call_id) ??
+        normalizeOptionalString(event.toolCallId) ??
+        normalizeOptionalString(event.id),
+      toolName,
+    }),
+    { allowNameFallback: true },
+  );
+  syncToolExecutionStage(flow);
+  message.turnFlow = flow;
+}
+
+export function applyNativeSearchStatusToTurnFlow(
+  message: ChatMessage,
+  {
+    displayName,
+    status,
+    toolName,
+  }: {
+    displayName?: string;
+    status: 'running' | 'success';
+    toolName: string;
+  },
+): void {
+  const flow = getOrCreateCanonicalTurnFlow(message);
+  upsertEvidence(
+    flow,
+    buildToolEvidencePayload({
+      displayName,
+      status,
+      toolName,
+      toolCallId: toolName,
+    }),
+  );
+  syncToolExecutionStage(flow);
+  message.turnFlow = flow;
 }
 
 function toErrorSurface(
@@ -1116,9 +1465,29 @@ export function applyCanonicalDoneEvent(
       message.terminationReason || flow.completionReason || 'interrupted';
   }
 
+  if (finalStageStatus === 'error' || finalStageStatus === 'interrupted') {
+    setRunningToolEvidenceStatus(flow, 'error');
+  } else {
+    syncToolExecutionStage(flow);
+  }
   finalizeRunningStages(flow, finalStageStatus);
   ensureTerminalStage(flow);
   message.turnFlow = flow;
+}
+
+export function getRunningToolExecutionRefs(
+  message: ChatMessage,
+): Array<{ id?: string; name?: string }> {
+  const flow = normalizeTurnFlowViewModel(message.turnFlow);
+  if (flow) {
+    return collectRunningToolEvidenceRefs(flow);
+  }
+  return (message.toolCalls ?? [])
+    .filter((toolCall) => toolCall.status === 'running')
+    .map((toolCall) => ({
+      id: toolCall.id,
+      name: toolCall.name,
+    }));
 }
 
 export function settleTurnFlowAfterLifecycleFinalize(
@@ -1137,6 +1506,11 @@ export function settleTurnFlowAfterLifecycleFinalize(
     message.interrupted === true || finalStageStatus === 'interrupted';
   if (!flow.errorSurface) {
     flow.errorSurface = toErrorSurface(message.error);
+  }
+  if (finalStageStatus === 'error' || finalStageStatus === 'interrupted') {
+    setRunningToolEvidenceStatus(flow, 'error');
+  } else {
+    syncToolExecutionStage(flow);
   }
   finalizeRunningStages(flow, finalStageStatus);
   ensureTerminalStage(flow);

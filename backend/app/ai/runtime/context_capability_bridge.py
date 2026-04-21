@@ -16,7 +16,7 @@ from app.ai.runtime.capabilities import CapabilityContext, CapabilityRegistry
 from app.ai.runtime.context_assembler import (
     ContextAssembler,
     ContextAssemblerState,
-    LegacyContextAssemblerAdapter,
+    ContextCapabilityBundleProjection,
     get_context_assembler,
 )
 from app.ai.runtime.contracts import (
@@ -67,7 +67,7 @@ def _to_context_assembler_state(
 @dataclass
 class DefaultContextCapabilityBridge(ContextCapabilityBridge):
     context_assembler: ContextAssembler
-    context_assembler_adapter: LegacyContextAssemblerAdapter
+    bundle_projection: ContextCapabilityBundleProjection
 
     async def resolve_runtime_model_capabilities(
         self,
@@ -249,12 +249,12 @@ class DefaultContextCapabilityBridge(ContextCapabilityBridge):
                 state=assembler_state,
                 intent_plan=intent_plan,
             )
-            self.context_assembler_adapter.apply_to_skill_result(
+            self.bundle_projection.apply_to_skill_result(
                 skill_result=skill_result,
                 bundle=capability_bundle,
             )
             diagnostics.update(
-                self.context_assembler_adapter.to_diagnostics(capability_bundle),
+                self.bundle_projection.to_diagnostics(capability_bundle),
             )
             if not diagnostics.get("selected_skill_names"):
                 fallback_skill_names = list(
@@ -330,7 +330,7 @@ def get_context_capability_bridge() -> DefaultContextCapabilityBridge:
     if _DEFAULT_CONTEXT_CAPABILITY_BRIDGE is None:
         _DEFAULT_CONTEXT_CAPABILITY_BRIDGE = DefaultContextCapabilityBridge(
             context_assembler=get_context_assembler(),
-            context_assembler_adapter=LegacyContextAssemblerAdapter(),
+            bundle_projection=ContextCapabilityBundleProjection(),
         )
     return _DEFAULT_CONTEXT_CAPABILITY_BRIDGE
 

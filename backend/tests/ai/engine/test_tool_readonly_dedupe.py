@@ -97,3 +97,37 @@ async def test_ui_navigation_tools_never_deduped_same_turn() -> None:
     assert sandbox.execute.call_count == 4
 
 
+@pytest.mark.asyncio
+async def test_ui_readonly_cache_identity_ignores_page_key_when_session_matches() -> None:
+    sandbox = MagicMock()
+    sandbox.execute = AsyncMock(
+        return_value=ToolResult(
+            tool_call_id="snapshot-1",
+            name="ui_get_snapshot",
+            success=True,
+            output="snapshot",
+        )
+    )
+    sandbox.input_variables = {PAGE_CONTEXT_KEY: {"page_key": "tenant.users"}}
+    sandbox._page_session_id = "page-session-1"
+    sandbox._page_readonly_cache_epoch = 0
+    proc = ToolCallProcessor(
+        sandbox=sandbox,
+        tools=[ToolDefinition(name="ui_get_snapshot", description="x")],
+    )
+
+    first, _ = await proc.execute_tool("tc-1", "ui_get_snapshot", {"mode": "compact"}, 7)
+    sandbox.input_variables = {PAGE_CONTEXT_KEY: {"page_key": "tenant.users.detail"}}
+    second, duration_ms = await proc.execute_tool(
+        "tc-2",
+        "ui_get_snapshot",
+        {"mode": "compact"},
+        7,
+    )
+
+    assert sandbox.execute.call_count == 1
+    assert duration_ms == 0
+    assert first.output == second.output
+    assert second.tool_call_id == "tc-2"
+
+

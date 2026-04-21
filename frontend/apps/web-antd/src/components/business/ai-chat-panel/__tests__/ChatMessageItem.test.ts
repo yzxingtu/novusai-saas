@@ -1498,7 +1498,7 @@ describe('chatMessageItem', () => {
     expect(wrapper.text()).toContain('Provider failed after partial progress.');
   });
 
-  it('supplements canonical timeline with a skipped tool-selection record when selected=0', async () => {
+  it('does not backfill a skipped tool-selection record from legacy optimizingTools when turnFlow exists', async () => {
     const wrapper = mount(ChatMessageItem, {
       props: {
         msg: {
@@ -1540,14 +1540,10 @@ describe('chatMessageItem', () => {
 
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.text()).toContain('common.globalAiChat.optimizingTools');
-    expect(wrapper.text()).toContain(
+    expect(wrapper.text()).not.toContain('common.globalAiChat.optimizingTools');
+    expect(wrapper.text()).not.toContain(
       'common.globalAiChat.turnStageStatus.skipped',
     );
-    expect(
-      wrapper.get('[data-testid="turn-stage-body-1"]').attributes('style') ??
-        '',
-    ).toContain('grid-template-rows: 0fr');
   });
 
   it('forwards skipped stage transitions into the kernel timeline when stage has body content', async () => {

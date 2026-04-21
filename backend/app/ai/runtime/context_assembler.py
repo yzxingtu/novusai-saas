@@ -629,10 +629,10 @@ class ContextAssembler:
         return descriptors
 
 
-class LegacyContextAssemblerAdapter:
+class ContextCapabilityBundleProjection:
     """
-    Compatibility adapter for legacy engine integration.
-    旧引擎兼容适配器。
+    Projection helper for publishing assembled capability bundles.
+    上下文能力 bundle 的统一投影辅助。
     """
 
     @staticmethod
@@ -704,6 +704,6 @@ def get_context_assembler() -> ContextAssembler:
 __all__ = [
     "ContextAssembler",
     "ContextAssemblerState",
-    "LegacyContextAssemblerAdapter",
+    "ContextCapabilityBundleProjection",
     "get_context_assembler",
 ]

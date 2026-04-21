@@ -7,11 +7,17 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi.responses import StreamingResponse
 
-from app.ai.agent_quota import AgentQuotaConfig
+from app.ai.agent_quota import (
+    AgentConcurrencyLimiter,
+    AgentQuotaConfig,
+    AgentQuotaManager,
+)
+from app.ai.agent_stats import AgentStatsManager
 from app.ai.constants import (
     DEFAULT_MEMORY_SCENE,
     MEMORY_CHANNEL_SYSTEM,
 )
+from app.ai.engine.dispatcher import ExecutionDispatcher
 from app.ai.engine.types import ExecutionRequest
 from app.ai.events.hooks import HookPoint
 from app.ai.memory_policy import (
@@ -45,12 +51,6 @@ if TYPE_CHECKING:
     from app.services.ai.agent_chat_service import AgentChatService
 
 logger = LogManager.get_logger("ai.agent_chat_service")
-
-
-def _service_compat():
-    from app.services.ai import agent_chat_service as compat_module
-
-    return compat_module
 
 
 class AgentChatCommandService:
@@ -114,7 +114,7 @@ class AgentChatCommandService:
         memory_event_id = prepared_turn.memory_event_id
 
         if is_new_conversation:
-            await _service_compat().AgentQuotaManager.record_conversation(
+            await AgentQuotaManager.record_conversation(
                 tenant_id=service.tenant_id,
                 agent_id=agent_id,
                 user_id=user_id,
@@ -216,13 +216,13 @@ class AgentChatCommandService:
             current_tokens = sum(
                 estimate_tokens(m.content or "") for m in request.messages
             )
-            await _service_compat().AgentQuotaManager.check_conversation_limits(
+            await AgentQuotaManager.check_conversation_limits(
                 config=quota_config,
                 current_turns=current_turns,
                 current_tokens=current_tokens,
             )
 
-        dispatcher = _service_compat().ExecutionDispatcher(service.db)
+        dispatcher = ExecutionDispatcher(service.db)
         result = await dispatcher.dispatch(request, pre_loaded_agent=agent)
 
         if not result.success:
@@ -243,7 +243,7 @@ class AgentChatCommandService:
 
         history_count = len(history_messages)
         memory_policy = attach_memory_runtime_policy(request=request, result=result)
-        result._memory_runtime_policy = memory_policy.to_dict()
+        result.memory_runtime_policy = memory_policy.to_dict()
         turn_projection = build_turn_projection_bundle(
             result,
             interaction_mode_effective=interaction_mode_effective,
@@ -270,7 +270,7 @@ class AgentChatCommandService:
             result,
             current_agent=agent,
         )
-        await _service_compat().AgentStatsManager.record_chat(
+        await AgentStatsManager.record_chat(
             tenant_id=service.tenant_id,
             agent_id=agent_id,
             tokens=result.total_tokens,
@@ -584,9 +584,9 @@ class AgentChatCommandService:
             user_role=user_role,
             user_role_id=user_role_id,
             permissions=permissions,
-            agent_concurrency_limiter=_service_compat().AgentConcurrencyLimiter,
-            agent_quota_manager=_service_compat().AgentQuotaManager,
-            agent_stats_manager=_service_compat().AgentStatsManager,
+            agent_concurrency_limiter=AgentConcurrencyLimiter,
+            agent_quota_manager=AgentQuotaManager,
+            agent_stats_manager=AgentStatsManager,
         )
 
 

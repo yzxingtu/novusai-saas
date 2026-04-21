@@ -9,6 +9,7 @@ from typing import Any
 
 from app.ai.engine.system_prompt_intent_helpers import is_capability_reporting_query
 from app.ai.runtime.contracts import PAGE_CONTEXT_KEY
+from app.ai.runtime.types import tool_is_auto_injected_runtime_builtin
 from app.ai.skills.resolver import SkillResolveResult, TurnSkillActivation
 from app.ai.text_semantics_terms import extract_textual_tool_call_names
 from app.ai.tools.semantic_defaults import tool_family_from_name
@@ -58,6 +59,11 @@ def _request_page_context(request: Any) -> Mapping[str, Any] | None:
     return page_context if isinstance(page_context, Mapping) else None
 
 
+def _descriptor_is_auto_injected_runtime_builtin(descriptor: Any) -> bool:
+    metadata = getattr(descriptor, "metadata", {}) or {}
+    return isinstance(metadata, dict) and metadata.get("auto_injected") is True
+
+
 def resolve_startup_intent_flags(request: Any) -> dict[str, bool]:
     user_text = _last_user_text(request)
     if not user_text:
@@ -90,6 +96,8 @@ def _explicit_skill_mentions(
     tools = list(getattr(skill_result, "tools", []) or [])
 
     for descriptor in descriptors:
+        if _descriptor_is_auto_injected_runtime_builtin(descriptor):
+            continue
         name = str(getattr(descriptor, "name", "") or "").strip()
         if name:
             candidates[" ".join(name.lower().split())] = name
@@ -102,6 +110,8 @@ def _explicit_skill_mentions(
                 )
 
     for tool in tools:
+        if tool_is_auto_injected_runtime_builtin(tool):
+            continue
         skill_name = str(getattr(tool, "source_skill_name", "") or "").strip()
         if skill_name:
             candidates[" ".join(skill_name.lower().split())] = skill_name
@@ -218,6 +228,8 @@ def _skill_names_for_runtime_policy(
 
     selected: list[str] = []
     for descriptor in list(getattr(skill_result, "capability_descriptors", []) or []):
+        if _descriptor_is_auto_injected_runtime_builtin(descriptor):
+            continue
         descriptor_name = str(getattr(descriptor, "name", "") or "").strip()
         if not descriptor_name:
             continue
@@ -225,6 +237,8 @@ def _skill_names_for_runtime_policy(
             selected.append(descriptor_name)
 
     for tool in list(getattr(skill_result, "tools", []) or []):
+        if tool_is_auto_injected_runtime_builtin(tool):
+            continue
         tool_name = str(getattr(tool, "name", "") or "").strip()
         if not tool_name:
             continue
@@ -286,6 +300,7 @@ def apply_turn_skill_activation(
         + [
             getattr(tool, "source_skill_name", None)
             for tool in list(skill_result.tools or [])
+            if not tool_is_auto_injected_runtime_builtin(tool)
             if str(getattr(tool, "name", "") or "").strip() in set(activated_tool_names)
         ]
     )

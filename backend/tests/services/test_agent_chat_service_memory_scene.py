@@ -89,15 +89,15 @@ async def test_chat_passes_memory_scene_for_tenant_page(mock_db):
 
     with (
         patch(
-            "app.services.ai.agent_chat_service.ExecutionDispatcher",
+            "app.services.ai.agent_chat_command_service.ExecutionDispatcher",
             return_value=dispatcher,
         ),
         patch(
-            "app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation",
+            "app.services.ai.agent_chat_command_service.AgentQuotaManager.record_conversation",
             new=AsyncMock(),
         ),
         patch(
-            "app.services.ai.agent_chat_service.AgentStatsManager.record_chat",
+            "app.services.ai.agent_chat_command_service.AgentStatsManager.record_chat",
             new=AsyncMock(),
         ),
     ):
@@ -142,15 +142,15 @@ async def test_chat_runtime_memory_switch_can_disable_memory(mock_db):
 
     with (
         patch(
-            "app.services.ai.agent_chat_service.ExecutionDispatcher",
+            "app.services.ai.agent_chat_command_service.ExecutionDispatcher",
             return_value=dispatcher,
         ),
         patch(
-            "app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation",
+            "app.services.ai.agent_chat_command_service.AgentQuotaManager.record_conversation",
             new=AsyncMock(),
         ),
         patch(
-            "app.services.ai.agent_chat_service.AgentStatsManager.record_chat",
+            "app.services.ai.agent_chat_command_service.AgentStatsManager.record_chat",
             new=AsyncMock(),
         ),
     ):
@@ -195,15 +195,15 @@ async def test_chat_passes_memory_scene_for_admin_chat(mock_db):
 
     with (
         patch(
-            "app.services.ai.agent_chat_service.ExecutionDispatcher",
+            "app.services.ai.agent_chat_command_service.ExecutionDispatcher",
             return_value=dispatcher,
         ),
         patch(
-            "app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation",
+            "app.services.ai.agent_chat_command_service.AgentQuotaManager.record_conversation",
             new=AsyncMock(),
         ),
         patch(
-            "app.services.ai.agent_chat_service.AgentStatsManager.record_chat",
+            "app.services.ai.agent_chat_command_service.AgentStatsManager.record_chat",
             new=AsyncMock(),
         ),
     ):
@@ -247,15 +247,15 @@ async def test_chat_passes_memory_scene_for_plugin(mock_db):
 
     with (
         patch(
-            "app.services.ai.agent_chat_service.ExecutionDispatcher",
+            "app.services.ai.agent_chat_command_service.ExecutionDispatcher",
             return_value=dispatcher,
         ),
         patch(
-            "app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation",
+            "app.services.ai.agent_chat_command_service.AgentQuotaManager.record_conversation",
             new=AsyncMock(),
         ),
         patch(
-            "app.services.ai.agent_chat_service.AgentStatsManager.record_chat",
+            "app.services.ai.agent_chat_command_service.AgentStatsManager.record_chat",
             new=AsyncMock(),
         ),
     ):
@@ -298,15 +298,15 @@ async def test_chat_normalizes_invalid_memory_context(mock_db):
 
     with (
         patch(
-            "app.services.ai.agent_chat_service.ExecutionDispatcher",
+            "app.services.ai.agent_chat_command_service.ExecutionDispatcher",
             return_value=dispatcher,
         ),
         patch(
-            "app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation",
+            "app.services.ai.agent_chat_command_service.AgentQuotaManager.record_conversation",
             new=AsyncMock(),
         ),
         patch(
-            "app.services.ai.agent_chat_service.AgentStatsManager.record_chat",
+            "app.services.ai.agent_chat_command_service.AgentStatsManager.record_chat",
             new=AsyncMock(),
         ),
     ):
@@ -356,15 +356,15 @@ async def test_chat_non_stream_persists_session_memory(mock_db):
 
     with (
         patch(
-            "app.services.ai.agent_chat_service.ExecutionDispatcher",
+            "app.services.ai.agent_chat_command_service.ExecutionDispatcher",
             return_value=dispatcher,
         ),
         patch(
-            "app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation",
+            "app.services.ai.agent_chat_command_service.AgentQuotaManager.record_conversation",
             new=AsyncMock(),
         ),
         patch(
-            "app.services.ai.agent_chat_service.AgentStatsManager.record_chat",
+            "app.services.ai.agent_chat_command_service.AgentStatsManager.record_chat",
             new=AsyncMock(),
         ),
     ):
@@ -411,15 +411,15 @@ async def test_chat_marks_request_session_memory_injected_when_context_loaded(mo
 
     with (
         patch(
-            "app.services.ai.agent_chat_service.ExecutionDispatcher",
+            "app.services.ai.agent_chat_command_service.ExecutionDispatcher",
             return_value=dispatcher,
         ),
         patch(
-            "app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation",
+            "app.services.ai.agent_chat_command_service.AgentQuotaManager.record_conversation",
             new=AsyncMock(),
         ),
         patch(
-            "app.services.ai.agent_chat_service.AgentStatsManager.record_chat",
+            "app.services.ai.agent_chat_command_service.AgentStatsManager.record_chat",
             new=AsyncMock(),
         ),
     ):
@@ -477,15 +477,15 @@ async def test_chat_primes_request_memory_policy_from_thread_state(mock_db):
 
     with (
         patch(
-            "app.services.ai.agent_chat_service.ExecutionDispatcher",
+            "app.services.ai.agent_chat_command_service.ExecutionDispatcher",
             return_value=dispatcher,
         ),
         patch(
-            "app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation",
+            "app.services.ai.agent_chat_command_service.AgentQuotaManager.record_conversation",
             new=AsyncMock(),
         ),
         patch(
-            "app.services.ai.agent_chat_service.AgentStatsManager.record_chat",
+            "app.services.ai.agent_chat_command_service.AgentStatsManager.record_chat",
             new=AsyncMock(),
         ),
     ):
@@ -501,7 +501,7 @@ async def test_chat_primes_request_memory_policy_from_thread_state(mock_db):
 
     called_request = dispatcher.dispatch.call_args.args[0]
     service.runtime_support.prepare_request_memory_startup.assert_called_once()
-    assert called_request.memory_runtime_policy["external_context_polluted"] is True
+    assert called_request.memory_runtime_policy["external_context_polluted"] is False
     assert (
         called_request.memory_runtime_policy["external_context_reason"]
         == "tool:web_search"
@@ -509,20 +509,15 @@ async def test_chat_primes_request_memory_policy_from_thread_state(mock_db):
     assert (
         called_request.memory_runtime_policy["session_memory_runtime_enabled"] is True
     )
-    assert (
-        called_request.memory_runtime_policy["thread_memory_owner_state"] == "polluted"
-    )
-    assert (
-        called_request.memory_runtime_policy["thread_memory_owner_reason"]
-        == "tool:web_search"
-    )
+    assert called_request.memory_runtime_policy["thread_memory_owner_state"] == "active"
+    assert not called_request.memory_runtime_policy.get("thread_memory_owner_reason")
     assert (
         called_request.memory_runtime_policy["long_term_memory_recall_state"]
-        == "suppressed_external_context"
+        == "enabled"
     )
     assert (
         called_request.memory_runtime_policy["long_term_memory_capture_state"]
-        == "suppressed_external_context"
+        == "enabled"
     )
 
 
@@ -659,15 +654,15 @@ async def test_chat_response_includes_tool_planner_diagnostics(mock_db):
 
     with (
         patch(
-            "app.services.ai.agent_chat_service.ExecutionDispatcher",
+            "app.services.ai.agent_chat_command_service.ExecutionDispatcher",
             return_value=dispatcher,
         ),
         patch(
-            "app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation",
+            "app.services.ai.agent_chat_command_service.AgentQuotaManager.record_conversation",
             new=AsyncMock(),
         ),
         patch(
-            "app.services.ai.agent_chat_service.AgentStatsManager.record_chat",
+            "app.services.ai.agent_chat_command_service.AgentStatsManager.record_chat",
             new=AsyncMock(),
         ),
     ):
@@ -877,15 +872,15 @@ async def test_chat_passes_explicit_trust_policy_ref_to_execution_request(mock_d
 
     with (
         patch(
-            "app.services.ai.agent_chat_service.ExecutionDispatcher",
+            "app.services.ai.agent_chat_command_service.ExecutionDispatcher",
             return_value=dispatcher,
         ),
         patch(
-            "app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation",
+            "app.services.ai.agent_chat_command_service.AgentQuotaManager.record_conversation",
             new=AsyncMock(),
         ),
         patch(
-            "app.services.ai.agent_chat_service.AgentStatsManager.record_chat",
+            "app.services.ai.agent_chat_command_service.AgentStatsManager.record_chat",
             new=AsyncMock(),
         ),
     ):
@@ -939,15 +934,15 @@ async def test_chat_grants_backend_trust_policy_from_pending_consent_when_truste
 
     with (
         patch(
-            "app.services.ai.agent_chat_service.ExecutionDispatcher",
+            "app.services.ai.agent_chat_command_service.ExecutionDispatcher",
             return_value=dispatcher,
         ),
         patch(
-            "app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation",
+            "app.services.ai.agent_chat_command_service.AgentQuotaManager.record_conversation",
             new=AsyncMock(),
         ),
         patch(
-            "app.services.ai.agent_chat_service.AgentStatsManager.record_chat",
+            "app.services.ai.agent_chat_command_service.AgentStatsManager.record_chat",
             new=AsyncMock(),
         ),
         patch(
@@ -1003,15 +998,15 @@ async def test_chat_grants_backend_trust_policy_from_page_confirmation_when_trus
 
     with (
         patch(
-            "app.services.ai.agent_chat_service.ExecutionDispatcher",
+            "app.services.ai.agent_chat_command_service.ExecutionDispatcher",
             return_value=dispatcher,
         ),
         patch(
-            "app.services.ai.agent_chat_service.AgentQuotaManager.record_conversation",
+            "app.services.ai.agent_chat_command_service.AgentQuotaManager.record_conversation",
             new=AsyncMock(),
         ),
         patch(
-            "app.services.ai.agent_chat_service.AgentStatsManager.record_chat",
+            "app.services.ai.agent_chat_command_service.AgentStatsManager.record_chat",
             new=AsyncMock(),
         ),
         patch(

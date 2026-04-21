@@ -21,6 +21,27 @@ from app.ai.runtime.types import (
 from app.ai.tools.types import ToolDefinition
 
 
+def _descriptor_merge_key(descriptor: CapabilityDescriptor) -> tuple[Any, ...] | None:
+    normalized_name = str(descriptor.name or "").strip()
+    normalized_source = str(descriptor.source or "").strip()
+    if not normalized_name:
+        return None
+
+    if is_skill_descriptor_kind(descriptor.kind):
+        metadata = dict(descriptor.metadata or {})
+        skill_id = metadata.get("skill_id")
+        if skill_id not in (None, ""):
+            return ("skill_descriptor", "skill_id", skill_id)
+        return (
+            "skill_descriptor",
+            "name_source",
+            normalized_name,
+            normalized_source,
+        )
+
+    return (str(descriptor.kind or "").strip(), normalized_name, normalized_source)
+
+
 @dataclass
 class CapabilityContext:
     """
@@ -170,13 +191,10 @@ class CapabilityRegistry:
             return
         seen_keys = set()
         for descriptor in bundle.capability_descriptors:
-            normalized_name = str(descriptor.name or "").strip()
-            normalized_source = str(descriptor.source or "").strip()
-            if not normalized_name:
+            key = _descriptor_merge_key(descriptor)
+            if key is None:
                 continue
-            if is_skill_descriptor_kind(descriptor.kind):
-                seen_keys.add(("skill_descriptor", normalized_name))
-            seen_keys.add((descriptor.kind, normalized_name, normalized_source))
+            seen_keys.add(key)
         for descriptor in descriptors:
             normalized_name = str(descriptor.name or "").strip()
             normalized_source = str(descriptor.source or "").strip()
@@ -184,15 +202,12 @@ class CapabilityRegistry:
                 continue
             descriptor.name = normalized_name
             descriptor.source = normalized_source
-            key = (
-                ("skill_descriptor", normalized_name)
-                if is_skill_descriptor_kind(descriptor.kind)
-                else (descriptor.kind, normalized_name, normalized_source)
-            )
+            key = _descriptor_merge_key(descriptor)
+            if key is None:
+                continue
             if key in seen_keys:
                 continue
             seen_keys.add(key)
-            seen_keys.add((descriptor.kind, normalized_name, normalized_source))
             bundle.capability_descriptors.append(descriptor)
 
     @staticmethod

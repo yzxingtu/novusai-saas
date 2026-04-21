@@ -1,0 +1,3 @@
+{"file":"backend/tests/ai/adapters/test_openai_adapter_protocol_entrypoints.py","reason":"Verify public OpenAI adapter entrypoints stay on protocol-safe chat/stream surfaces without reopening legacy compat exports."}
+{"file":"backend/tests/test_openai_adapter_responses.py","reason":"Verify retained internal compat helpers still support response parsing without becoming public live entrypoints again."}
+{"file":"backend/app/ai/adapters/openai_compatible/compat/legacy_protocol_execution.py","reason":"Audit anchor for the intentionally retained internal helper boundary after explicit compat closeout."}

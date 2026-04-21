@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 
 async def persist_chat_messages(
-    service: "ConversationService",
+    service: ConversationService,
     conversation: AgentConversation,
     result: ExecutionResult,
     history_count: int,
@@ -44,7 +44,7 @@ async def persist_chat_messages(
 
 
 async def persist_user_messages(
-    service: "ConversationService",
+    service: ConversationService,
     *,
     conversation: AgentConversation,
     messages: list[ChatMessage],
@@ -56,7 +56,9 @@ async def persist_user_messages(
     )
 
 
-async def mark_memory_updated(service: "ConversationService", conversation_id: int) -> None:
+async def mark_memory_updated(
+    service: ConversationService, conversation_id: int
+) -> None:
     await ConversationMessagePersistenceService.mark_memory_updated(
         service,
         conversation_id,
@@ -64,7 +66,7 @@ async def mark_memory_updated(service: "ConversationService", conversation_id: i
 
 
 async def get_context_compaction_snapshot(
-    service: "ConversationService",
+    service: ConversationService,
     conversation_id: int,
     *,
     metadata_key: str,
@@ -77,7 +79,7 @@ async def get_context_compaction_snapshot(
 
 
 async def upsert_context_compaction_snapshot(
-    service: "ConversationService",
+    service: ConversationService,
     conversation_id: int,
     *,
     metadata_key: str,
@@ -85,18 +87,20 @@ async def upsert_context_compaction_snapshot(
     source_message_count: int,
     source_token_estimate: int,
 ) -> dict[str, Any] | None:
-    return await ConversationMessagePersistenceService.upsert_context_compaction_snapshot(
-        service,
-        conversation_id,
-        metadata_key=metadata_key,
-        summary=summary,
-        source_message_count=source_message_count,
-        source_token_estimate=source_token_estimate,
+    return (
+        await ConversationMessagePersistenceService.upsert_context_compaction_snapshot(
+            service,
+            conversation_id,
+            metadata_key=metadata_key,
+            summary=summary,
+            source_message_count=source_message_count,
+            source_token_estimate=source_token_estimate,
+        )
     )
 
 
 async def update_stats(
-    service: "ConversationService",
+    service: ConversationService,
     conversation: AgentConversation,
     result: ExecutionResult,
     current_agent: Agent | None = None,
@@ -109,7 +113,7 @@ async def update_stats(
 
 
 async def persist_stream_completion(
-    service: "ConversationService",
+    service: ConversationService,
     *,
     conversation_id: int,
     result: ExecutionResult,
@@ -135,7 +139,7 @@ async def persist_stream_completion(
 
 
 async def persist_stream_last_error_marker(
-    service: "ConversationService",
+    service: ConversationService,
     *,
     conversation_id: int,
     error_type: str,
@@ -143,6 +147,7 @@ async def persist_stream_last_error_marker(
     friendly_message: str,
     partial: bool,
     extra_payload: dict[str, Any] | None = None,
+    memory_runtime_policy: dict[str, Any] | None = None,
 ) -> bool:
     return await service.stream_persistence_service.persist_stream_last_error_marker(
         conversation_id=conversation_id,
@@ -151,11 +156,12 @@ async def persist_stream_last_error_marker(
         friendly_message=friendly_message,
         partial=partial,
         extra_payload=extra_payload,
+        memory_runtime_policy=memory_runtime_policy,
     )
 
 
 async def save_stream_error_message(
-    service: "ConversationService",
+    service: ConversationService,
     *,
     conversation_id: int,
     error_text: str,

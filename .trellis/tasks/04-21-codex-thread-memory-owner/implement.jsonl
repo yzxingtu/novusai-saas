@@ -1,5 +1,11 @@
+{"file": "backend/app/ai/engine/types.py", "reason": "ExecutionResult should expose memory_runtime_policy as a public owner field instead of forcing stream/command persistence onto a private side-channel"}
 {"file": "backend/app/ai/memory_policy.py", "reason": "Canonical thread-memory owner contract and normalization"}
 {"file": "backend/app/ai/context/orchestrator.py", "reason": "Startup/recall gating should follow the explicit thread owner state"}
+{"file": "backend/app/services/ai/agent_chat_command_service.py", "reason": "Command execution should attach the normalized memory owner snapshot onto the public ExecutionResult field before persistence projection"}
 {"file": "backend/app/services/ai/agent_chat_memory_support.py", "reason": "Startup priming and capture support should stop carrying private memory glue"}
+{"file": "backend/app/services/ai/agent_chat_stream_persistence_orchestrator.py", "reason": "Stream on_complete persistence should carry the public memory owner snapshot through copied results and marker-only fallback paths"}
+{"file": "backend/app/services/ai/agent_chat_stream_persistence_error_support.py", "reason": "Marker-only and direct fallback error persistence should still mirror thread_memory_state when no assistant row can be safely written"}
 {"file": "backend/app/services/ai/conversation_message_persistence_service.py", "reason": "Assistant metadata and thread state persistence must stay in one owner chain"}
+{"file": "backend/app/services/ai/conversation_message_persistence_support.py", "reason": "Message projection support should read only the public ExecutionResult memory owner field"}
 {"file": "backend/app/services/ai/conversation_runtime_projection_service.py", "reason": "Conversation detail/error-only projection should expose canonical memory owner state"}
+{"file": "backend/app/services/ai/conversation_stream_persistence_service.py", "reason": "Stream error persistence and marker persistence must mirror the same thread-owned memory snapshot contract"}

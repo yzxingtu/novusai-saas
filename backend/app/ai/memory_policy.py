@@ -228,10 +228,6 @@ def detect_external_context_pollution(
     result: Any | None = None,
     tool_results: list[Any] | None = None,
 ) -> tuple[bool, str | None]:
-    payload = _request_policy_payload(request)
-    if bool(payload.get("external_context_polluted")):
-        return True, _normalize_text(payload.get("external_context_reason")) or None
-
     raw_tool_results = (
         list(tool_results or [])
         if tool_results is not None
@@ -259,6 +255,13 @@ def detect_external_context_pollution(
             return True, f"intent:{kind}"
         if family in _EXTERNAL_CONTEXT_FAMILIES:
             return True, f"intent_family:{family}"
+
+    if result is not None or tool_results is not None:
+        return False, None
+
+    payload = _request_policy_payload(request)
+    if bool(payload.get("external_context_polluted")):
+        return True, _normalize_text(payload.get("external_context_reason")) or None
 
     return False, None
 

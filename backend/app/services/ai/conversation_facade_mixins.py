@@ -505,6 +505,7 @@ class ConversationPersistenceFacade:
         friendly_message: str,
         partial: bool,
         extra_payload: dict[str, Any] | None = None,
+        memory_runtime_policy: dict[str, Any] | None = None,
     ) -> bool:
         return await persist_stream_last_error_marker_persist(
             self,
@@ -514,6 +515,7 @@ class ConversationPersistenceFacade:
             friendly_message=friendly_message,
             partial=partial,
             extra_payload=extra_payload,
+            memory_runtime_policy=memory_runtime_policy,
         )
 
     async def save_stream_error_message(

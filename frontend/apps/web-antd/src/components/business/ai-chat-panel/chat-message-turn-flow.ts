@@ -769,51 +769,6 @@ function ensureFailureTerminalStage(
   });
 }
 
-function supplementSkippedSelectionStage(
-  timeline: TurnFlowStageForDisplay[],
-  msg: ChatMessage,
-) {
-  if (timeline.some((stage) => stage.type === 'tool_selection')) {
-    return;
-  }
-  if (!msg.optimizingTools) {
-    return;
-  }
-  const selected = Number(msg.optimizingTools.selected ?? 0);
-  const total = Number(msg.optimizingTools.total ?? 0);
-  if (
-    !Number.isFinite(selected) ||
-    !Number.isFinite(total) ||
-    selected > 0 ||
-    total <= 0
-  ) {
-    return;
-  }
-  const stage: TurnFlowStageForDisplay = {
-    id: 'legacy-tool-selection-skipped',
-    legacySource: 'legacy-tool-selection',
-    metrics: {
-      selected,
-      total,
-    },
-    status: 'skipped',
-    type: 'tool_selection',
-  };
-
-  const insertionIndex = timeline.findIndex(
-    (item) =>
-      item.type === 'tool_execution' ||
-      item.type === 'retrieval' ||
-      item.type === 'answer_assembly' ||
-      TERMINAL_STAGE_TYPES.has(item.type),
-  );
-  if (insertionIndex === -1) {
-    timeline.push(stage);
-    return;
-  }
-  timeline.splice(insertionIndex, 0, stage);
-}
-
 function normalizeCanonicalTurnFlow(
   flow: TurnFlowForDisplay,
   msg: ChatMessage,
@@ -837,8 +792,6 @@ function normalizeCanonicalTurnFlow(
     }
     ensureFailureTerminalStage(timeline, failureSummary);
   }
-
-  supplementSkippedSelectionStage(timeline, msg);
 
   const terminalStatus =
     inferTerminalStatus(flow, msg, failedTerminal) ??
@@ -910,10 +863,23 @@ function toDisplayToolCallsFromCanonicalFlow(
     .filter((item) => item.kind === 'tool')
     .map((item, index) => ({
       id: item.toolCallId ?? `evidence-tool-${index + 1}`,
-      name: item.title || `tool_${index + 1}`,
-      status: 'success' as const,
+      name:
+        item.toolName || item.sourceRef || item.title || `tool_${index + 1}`,
+      status: item.status || ('success' as const),
+      ...(item.arguments ? { arguments: item.arguments } : {}),
+      ...(item.displayName ? { displayName: item.displayName } : {}),
+      ...(item.durationMs === undefined ? {} : { durationMs: item.durationMs }),
+      ...(item.error ? { error: item.error } : {}),
+      ...(item.errorType ? { errorType: item.errorType } : {}),
+      ...(item.output ? { output: item.output } : {}),
+      ...(item.resultLink || item.url
+        ? { resultLink: item.resultLink ?? item.url }
+        : {}),
+      ...(item.skillName ? { skillName: item.skillName } : {}),
+      ...(item.skillType ? { skillType: item.skillType } : {}),
+      ...(item.startedAt === undefined ? {} : { startedAt: item.startedAt }),
       ...(item.snippet ? { summary: item.snippet } : {}),
-      ...(item.url ? { resultLink: item.url } : {}),
+      ...(item.summaryPayload ? { summaryPayload: item.summaryPayload } : {}),
     }));
   return toolCalls.length > 0 ? toolCalls : undefined;
 }
@@ -921,64 +887,59 @@ function toDisplayToolCallsFromCanonicalFlow(
 export function getThinkingContentForDisplay(
   msg: ChatMessage,
 ): string | undefined {
-  const directThinking = normalizeOptionalString(msg.thinkingContent);
-  if (directThinking) {
-    return directThinking;
-  }
   const flow = normalizeTurnFlowViewModel(msg.turnFlow);
   const thinkingStage = flow?.timeline.findLast(
     (stage) => stage.type === 'thinking',
   );
-  if (!thinkingStage) {
-    return undefined;
+  if (thinkingStage) {
+    const detailText = (thinkingStage.detailLines ?? [])
+      .map((line) => normalizeOptionalString(line))
+      .filter((line): line is string => !!line)
+      .join('\n\n');
+    if (detailText) {
+      return detailText;
+    }
+    return normalizeOptionalString(thinkingStage.summary);
   }
-  const detailText = (thinkingStage.detailLines ?? [])
-    .map((line) => normalizeOptionalString(line))
-    .filter((line): line is string => !!line)
-    .join('\n\n');
-  if (detailText) {
-    return detailText;
-  }
-  return normalizeOptionalString(thinkingStage.summary);
+  return normalizeOptionalString(msg.thinkingContent);
 }
 
 export function getOptimizingToolsForDisplay(
   msg: ChatMessage,
 ): ChatMessage['optimizingTools'] | undefined {
-  if (msg.optimizingTools) {
-    return msg.optimizingTools;
-  }
   const flow = normalizeTurnFlowViewModel(msg.turnFlow);
   const selectionStage = flow?.timeline.findLast(
     (stage) => stage.type === 'tool_selection',
   );
   const selected = normalizeNumber(selectionStage?.metrics?.selected);
   const total = normalizeNumber(selectionStage?.metrics?.total);
-  if (selected === undefined && total === undefined) {
-    return undefined;
+  if (selected !== undefined || total !== undefined) {
+    return {
+      selected: selected ?? 0,
+      total: total ?? selected ?? 0,
+    };
   }
-  return {
-    selected: selected ?? 0,
-    total: total ?? selected ?? 0,
-  };
+  return msg.optimizingTools;
 }
 
 export function getToolCallsForDisplay(
   msg: ChatMessage,
 ): ToolCallEvent[] | undefined {
-  if (msg.toolCalls?.length) {
-    return msg.toolCalls;
+  const canonicalToolCalls = toDisplayToolCallsFromCanonicalFlow(msg);
+  if (canonicalToolCalls?.length) {
+    return canonicalToolCalls;
   }
-  return toDisplayToolCallsFromCanonicalFlow(msg);
+  return msg.toolCalls?.length ? msg.toolCalls : undefined;
 }
 
 export function getRagSourcesForDisplay(
   msg: ChatMessage,
 ): RagSource[] | undefined {
-  if (msg.ragSources?.length) {
-    return msg.ragSources;
+  const canonicalRagSources = toDisplayRagSourcesFromCanonicalFlow(msg);
+  if (canonicalRagSources?.length) {
+    return canonicalRagSources;
   }
-  return toDisplayRagSourcesFromCanonicalFlow(msg);
+  return msg.ragSources?.length ? msg.ragSources : undefined;
 }
 
 export function getTurnFlowForDisplay(msg: ChatMessage): TurnFlowForDisplay {

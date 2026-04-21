@@ -10,7 +10,7 @@ from typing import Any
 
 from app.ai.runtime.context_assembler import (
     ContextAssemblerState,
-    LegacyContextAssemblerAdapter,
+    ContextCapabilityBundleProjection,
 )
 from app.ai.runtime.manifest import AIRuntimeInventoryService
 from app.ai.runtime.types import project_capability_bundle_to_tools
@@ -104,7 +104,7 @@ def _rebuild_runtime_capability_diagnostics(
     if not isinstance(diagnostics, dict):
         diagnostics = {}
         context_assembly.diagnostics = diagnostics
-    diagnostics.update(LegacyContextAssemblerAdapter.to_diagnostics(bundle))
+    diagnostics.update(ContextCapabilityBundleProjection.to_diagnostics(bundle))
 
     knowledge_feedback = (
         dict(getattr(request, "knowledge_base_feedback", {}) or {})

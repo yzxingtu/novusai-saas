@@ -11,7 +11,7 @@ from app.ai.context.assembly_initial_support import (
 )
 from app.ai.runtime.context_assembler import (
     ContextAssembler,
-    LegacyContextAssemblerAdapter,
+    ContextCapabilityBundleProjection,
 )
 from app.ai.runtime.context_capability_bridge import DefaultContextCapabilityBridge
 from app.ai.runtime.contracts import ContextCapabilityInputs
@@ -138,7 +138,7 @@ async def test_assemble_initial_context_state_rebuilds_provisional_bundle_from_t
 ):
     capability_bridge = DefaultContextCapabilityBridge(
         context_assembler=ContextAssembler(),
-        context_assembler_adapter=LegacyContextAssemblerAdapter(),
+        bundle_projection=ContextCapabilityBundleProjection(),
     )
     capability_bridge.resolve_runtime_model_capabilities = AsyncMock(
         return_value={"supports_audio": False}

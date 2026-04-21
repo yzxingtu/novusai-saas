@@ -320,6 +320,7 @@ class ExecutionResult:
     provider_failure_kind: ProviderFailureKind = "none"
     provider_events: list[dict[str, Any]] = field(default_factory=list)
     diagnostics: dict[str, Any] | None = None
+    memory_runtime_policy: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass

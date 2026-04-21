@@ -19,18 +19,18 @@ import {
   applyCanonicalTurnAnswerCardEvent,
   applyCanonicalTurnEvidenceEvent,
   applyCanonicalTurnStageEvent,
+  applyNativeSearchStatusToTurnFlow,
   applyOptimizingToolsToTurnFlow,
   applyRagSourcesToTurnFlow,
-  finalizeNativeSearchToolCall,
+  applyStreamingToolResultToTurnFlow,
+  applyStreamingToolStartToTurnFlow,
   isTurnFailure,
   normalizeContextSources,
   normalizeObjectRecord,
   normalizeOptionalString,
   normalizeStringList,
   normalizeTurnRecord,
-  removeNativeSearchToolCall,
   resolveNativeSearchToolStatus,
-  upsertNativeSearchToolCall,
 } from './use-ai-chat-message-helpers';
 
 export async function parseSSEEvents(
@@ -80,14 +80,6 @@ function isDraftClearContentEventAllowed(messageItem: {
   );
 }
 
-function resolveToolCallEventId(
-  event: Record<string, unknown>,
-): string | undefined {
-  return normalizeOptionalString(
-    event.tool_call_id ?? event.toolCallId ?? event.id,
-  );
-}
-
 export function createStreamSseHandler(
   deps: StreamRequestDeps,
   lifecycle: StreamRequestLifecycle,
@@ -131,74 +123,7 @@ export function createStreamSseHandler(
         }
         case 'tool_call': {
           lifecycle.promoteToolRoundContent();
-          if (event.name === 'web_search') {
-            msg.toolCalls = removeNativeSearchToolCall(msg.toolCalls);
-          }
-          if (!msg.toolCalls) msg.toolCalls = [];
-          const toolCallId = resolveToolCallEventId(event);
-          let existing =
-            (toolCallId
-              ? msg.toolCalls.findLast(
-                  (toolCall) =>
-                    toolCall.id === toolCallId && toolCall.status === 'running',
-                )
-              : undefined) ??
-            (toolCallId
-              ? msg.toolCalls.findLast((toolCall) => toolCall.id === toolCallId)
-              : undefined) ??
-            msg.toolCalls.findLast(
-              (toolCall) =>
-                toolCall.name === event.name && toolCall.status === 'running',
-            ) ??
-            msg.toolCalls.findLast((toolCall) => toolCall.status === 'running');
-          if (!existing && toolCallId) {
-            existing = msg.toolCalls.findLast(
-              (toolCall) => toolCall.id === toolCallId,
-            );
-          }
-          if (existing) {
-            if (toolCallId && !existing.id) {
-              existing.id = toolCallId;
-            }
-            existing.status = event.success ? 'success' : 'error';
-            existing.durationMs = event.duration_ms as number | undefined;
-            existing.output = event.output as string | undefined;
-            existing.error = event.error as string | undefined;
-            existing.errorType = event.error_type as string | undefined;
-            if (event.skill_name)
-              existing.skillName = event.skill_name as string;
-            if (event.skill_type)
-              existing.skillType = event.skill_type as string;
-            if (event.display_name) {
-              existing.displayName = event.display_name as string;
-            }
-            if (event.summary) existing.summary = event.summary as string;
-            if (event.summary_payload) {
-              existing.summaryPayload = event.summary_payload as Record<
-                string,
-                unknown
-              >;
-            }
-            if (event.result_link)
-              existing.resultLink = event.result_link as string;
-          } else {
-            msg.toolCalls.push({
-              id: toolCallId,
-              name: event.name as string,
-              status: event.success ? 'success' : 'error',
-              durationMs: event.duration_ms as number | undefined,
-              output: event.output as string | undefined,
-              error: event.error as string | undefined,
-              errorType: event.error_type as string | undefined,
-              skillName: (event.skill_name as string) || undefined,
-              skillType: (event.skill_type as string) || undefined,
-              displayName: (event.display_name as string) || undefined,
-              summary: (event.summary as string) || undefined,
-              summaryPayload:
-                (event.summary_payload as Record<string, unknown>) || undefined,
-              resultLink: (event.result_link as string) || undefined,
-            });
-          }
+          applyStreamingToolResultToTurnFlow(msg, event);
           if (event.success && deps.options.onToolCall) {
             deps.options.onToolCall(
               event.name as string,
@@ -210,35 +135,7 @@ export function createStreamSseHandler(
         }
         case 'tool_start': {
           lifecycle.promoteToolRoundContent();
-          if (event.name === 'web_search') {
-            msg.toolCalls = removeNativeSearchToolCall(msg.toolCalls);
-          }
-          if (!msg.toolCalls) msg.toolCalls = [];
-          const toolCallId = resolveToolCallEventId(event);
-          const existing =
-            (toolCallId
-              ? msg.toolCalls.findLast((toolCall) => toolCall.id === toolCallId)
-              : undefined) ?? undefined;
-          if (existing) {
-            existing.name = event.name as string;
-            existing.status = 'running';
-            existing.arguments = event.arguments as
-              | Record<string, unknown>
-              | undefined;
-            existing.skillName = (event.skill_name as string) || undefined;
-            existing.skillType = (event.skill_type as string) || undefined;
-            existing.startedAt = Date.now();
-          } else {
-            msg.toolCalls.push({
-              id: toolCallId,
-              name: event.name as string,
-              status: 'running',
-              arguments: event.arguments as Record<string, unknown> | undefined,
-              skillName: (event.skill_name as string) || undefined,
-              skillType: (event.skill_type as string) || undefined,
-              startedAt: Date.now(),
-            });
-          }
+          applyStreamingToolStartToTurnFlow(msg, event);
           deps.scrollToBottom();
           break;
         }
@@ -300,10 +197,11 @@ export function createStreamSseHandler(
             event.status === 'web_search_in_progress'
           ) {
             lifecycle.promoteToolRoundContent();
-            msg.toolCalls = upsertNativeSearchToolCall(
-              msg.toolCalls,
-              'running',
-            );
+            applyNativeSearchStatusToTurnFlow(msg, {
+              displayName: $t('common.globalAiChat.toolNativeSearch'),
+              status: 'running',
+              toolName: 'native_web_search',
+            });
             deps.scrollToBottom();
           } else if (
             event.event === 'knowledge_base_feedback' &&
@@ -449,6 +347,12 @@ export function createStreamSseHandler(
             }
             const nativeSearchStatus =
               resolveNativeSearchToolStatus(turnRecordRaw);
+            const finalizedNativeSearchStatus =
+              nativeSearchStatus === 'running' &&
+              selectedToolNames.includes('web_search') &&
+              !isTurnFailure(turnOutcome, terminationReason ?? completionReason)
+                ? 'success'
+                : nativeSearchStatus;
 
             if (completionReason) {
               msg.completionReason = completionReason;
@@ -472,11 +376,12 @@ export function createStreamSseHandler(
             if (selectedToolNames.length > 0) {
               msg.selectedToolNames = selectedToolNames;
             }
-            msg.toolCalls = nativeSearchStatus
-              ? upsertNativeSearchToolCall(msg.toolCalls, nativeSearchStatus)
-              : msg.toolCalls;
-            if (selectedToolNames.includes('web_search')) {
-              msg.toolCalls = finalizeNativeSearchToolCall(msg.toolCalls);
+            if (finalizedNativeSearchStatus) {
+              applyNativeSearchStatusToTurnFlow(msg, {
+                displayName: $t('common.globalAiChat.toolNativeSearch'),
+                status: finalizedNativeSearchStatus,
+                toolName: 'native_web_search',
+              });
             }
             if (selectedSkillNames.length > 0) {
               msg.selectedSkillNames = selectedSkillNames;

@@ -108,8 +108,6 @@ def build_turn_persistence_context(
     turn_selected_skills = turn_meta.get("selected_skill_names") or []
     turn_context_sources = turn_meta.get("context_sources") or []
     raw_memory_runtime_policy = getattr(result, "memory_runtime_policy", None)
-    if not isinstance(raw_memory_runtime_policy, dict):
-        raw_memory_runtime_policy = getattr(result, "_memory_runtime_policy", None)
     memory_runtime_policy = normalize_memory_runtime_policy(
         raw_memory_runtime_policy
         if isinstance(raw_memory_runtime_policy, dict)

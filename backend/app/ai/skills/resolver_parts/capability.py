@@ -6,6 +6,28 @@ from app.ai.runtime.types import CapabilityDescriptor
 from app.ai.tools.types import ToolDefinition
 
 
+def _descriptor_binding_key(descriptor: CapabilityDescriptor) -> tuple[Any, ...]:
+    metadata = dict(descriptor.metadata or {})
+    skill_id = metadata.get("skill_id")
+    if skill_id not in (None, ""):
+        return ("skill_id", skill_id)
+    source = str(descriptor.source or "").strip()
+    return ("name_source", str(descriptor.name or "").strip(), source)
+
+
+def _tool_binding_key(tool: ToolDefinition) -> tuple[Any, ...]:
+    skill_id = getattr(tool, "source_skill_id", None)
+    if skill_id not in (None, ""):
+        return ("skill_id", skill_id)
+    package_name = str(getattr(tool, "source_package_name", "") or "").strip()
+    source = f"skill_package:{package_name}" if package_name else "skill_resolver"
+    return (
+        "name_source",
+        str(getattr(tool, "source_skill_name", "") or "").strip(),
+        source,
+    )
+
+
 def build_skill_capability_descriptors(skills: list[Any]) -> list[CapabilityDescriptor]:
     descriptors: list[CapabilityDescriptor] = []
     seen_keys: set[tuple[int | None, str]] = set()
@@ -52,23 +74,38 @@ def enrich_skill_capability_descriptors_with_tools(
     descriptors: list[CapabilityDescriptor],
     tools: list[ToolDefinition],
 ) -> None:
-    tool_names_by_skill: dict[str, list[str]] = {}
+    tool_names_by_skill: dict[tuple[Any, ...], list[str]] = {}
+    tool_names_by_skill_name: dict[str, list[str]] = {}
     for tool in tools:
         skill_name = str(getattr(tool, "source_skill_name", "") or "").strip()
         tool_name = str(getattr(tool, "name", "") or "").strip()
-        if not skill_name or not tool_name:
+        binding_key = _tool_binding_key(tool)
+        if binding_key[0] == "name_source" and not binding_key[1]:
             continue
-        bucket = tool_names_by_skill.setdefault(skill_name, [])
+        if not tool_name:
+            continue
+        bucket = tool_names_by_skill.setdefault(binding_key, [])
         if tool_name not in bucket:
             bucket.append(tool_name)
+        if skill_name:
+            fallback_bucket = tool_names_by_skill_name.setdefault(skill_name, [])
+            if tool_name not in fallback_bucket:
+                fallback_bucket.append(tool_name)
 
     for descriptor in descriptors:
-        if str(descriptor.kind or "").strip() not in {"capability_pack", "prompt_skill"}:
+        if str(descriptor.kind or "").strip() not in {
+            "capability_pack",
+            "prompt_skill",
+        }:
             continue
-        skill_name = str(descriptor.name or "").strip()
-        if not skill_name:
+        binding_key = _descriptor_binding_key(descriptor)
+        if binding_key[0] == "name_source" and not binding_key[1]:
             continue
-        resolved_tool_names = list(tool_names_by_skill.get(skill_name, []))
+        resolved_tool_names = list(tool_names_by_skill.get(binding_key, []))
+        if not resolved_tool_names:
+            resolved_tool_names = list(
+                tool_names_by_skill_name.get(str(descriptor.name or "").strip(), [])
+            )
         descriptor.metadata = {
             **dict(descriptor.metadata or {}),
             "resolved_tool_names": resolved_tool_names,

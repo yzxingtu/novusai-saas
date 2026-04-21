@@ -7,7 +7,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.ai.runtime.types import CapabilityDescriptor
+from app.ai.runtime.capabilities import CapabilityRegistry
+from app.ai.runtime.types import CapabilityBundle, CapabilityDescriptor
 from app.ai.skills.resolver import (
     SkillResolver,
     SkillResolveResult,
@@ -154,6 +155,109 @@ def test_selected_skill_names_skips_descriptor_only_skills_without_execution_too
     )
 
     assert result.selected_skill_names == ["Executable Skill"]
+
+
+def test_selected_skill_names_skips_auto_injected_runtime_builtins() -> None:
+    result = SkillResolveResult(
+        tools=[
+            SimpleNamespace(
+                source_skill_name="web_search",
+                config={"auto_injected": True},
+            ),
+            SimpleNamespace(
+                source_skill_name="Plugin Page Skill",
+                config={},
+            ),
+        ],
+        capability_descriptors=[
+            CapabilityDescriptor(
+                name="web_search",
+                kind="capability_pack",
+                source="system_baseline_builtin",
+                metadata={
+                    "auto_injected": True,
+                    "has_execution_tools": True,
+                },
+            ),
+            CapabilityDescriptor(
+                name="Plugin Page Skill",
+                kind="capability_pack",
+                source="skill_package:plugin.page",
+                metadata={"has_execution_tools": True},
+            ),
+        ],
+    )
+
+    assert result.selected_skill_names == ["Plugin Page Skill"]
+
+
+def test_enrich_skill_capability_descriptors_keeps_same_name_skills_isolated() -> None:
+    descriptors = [
+        CapabilityDescriptor(
+            name="Shared Skill",
+            kind="capability_pack",
+            source="skill_package:plugin.alpha",
+            metadata={"skill_id": 11},
+        ),
+        CapabilityDescriptor(
+            name="Shared Skill",
+            kind="capability_pack",
+            source="skill_package:plugin.beta",
+            metadata={"skill_id": 22},
+        ),
+    ]
+    tools = [
+        SimpleNamespace(
+            name="alpha_lookup",
+            source_skill_id=11,
+            source_skill_name="Shared Skill",
+            source_package_name="plugin.alpha",
+        ),
+        SimpleNamespace(
+            name="beta_lookup",
+            source_skill_id=22,
+            source_skill_name="Shared Skill",
+            source_package_name="plugin.beta",
+        ),
+    ]
+
+    enrich_skill_capability_descriptors_with_tools(
+        descriptors=descriptors,
+        tools=tools,  # type: ignore[arg-type]
+    )
+
+    assert descriptors[0].metadata["resolved_tool_names"] == ["alpha_lookup"]
+    assert descriptors[1].metadata["resolved_tool_names"] == ["beta_lookup"]
+
+
+def test_capability_registry_keeps_same_name_skills_with_distinct_skill_ids() -> None:
+    bundle = CapabilityBundle(
+        capability_descriptors=[
+            CapabilityDescriptor(
+                name="Shared Skill",
+                kind="capability_pack",
+                source="skill_package:plugin.alpha",
+                metadata={"skill_id": 11},
+            )
+        ]
+    )
+
+    CapabilityRegistry._merge_descriptors(
+        bundle,
+        [
+            CapabilityDescriptor(
+                name="Shared Skill",
+                kind="capability_pack",
+                source="skill_package:plugin.beta",
+                metadata={"skill_id": 22},
+            )
+        ],
+    )
+
+    assert [
+        descriptor.metadata.get("skill_id")
+        for descriptor in bundle.capability_descriptors
+    ] == [11, 22]
 
 
 def test_build_params_from_schema_keeps_array_items_schema() -> None:
