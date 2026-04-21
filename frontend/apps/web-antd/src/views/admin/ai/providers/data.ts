@@ -13,11 +13,9 @@ export {
   getProviderWireApiText,
   hasForbiddenProviderEndpointSuffix,
   hasLikelyMissingProviderApiVersion,
-  isResponsesToolHistoryCompatEnabled,
   normalizeProviderBaseUrlInput,
   type OpenAICompatibleWireApi,
   resolveProviderWireApi,
-  type ResponsesToolHistoryMode,
 } from './provider-connection';
 export {
   getFormDefaults,

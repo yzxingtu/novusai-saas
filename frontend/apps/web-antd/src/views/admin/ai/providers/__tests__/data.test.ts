@@ -2,6 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 
 import * as providerData from '../data';
 
+function createZodStub() {
+  return {
+    refine: vi.fn(() => createZodStub()),
+  };
+}
+
 vi.mock('#/adapter/form', () => ({
   inputField: vi.fn((fieldName: string, label: string, options = {}) => ({
     component: 'Input',
@@ -33,7 +39,13 @@ vi.mock('#/adapter/form', () => ({
     label,
     ...options,
   })),
-  z: {},
+  z: {
+    string: vi.fn(() => createZodStub()),
+    number: vi.fn(() => createZodStub()),
+    null: vi.fn(() => createZodStub()),
+    undefined: vi.fn(() => createZodStub()),
+    union: vi.fn(() => createZodStub()),
+  },
 }));
 
 vi.mock('#/adapter/vxe-table', () => ({
@@ -121,6 +133,9 @@ describe('provider web_search config contracts', () => {
     const defaults = providerData.getFormDefaults();
     expect(defaults.type).toBe('openai_compatible');
     expect(defaults.is_active).toBe(true);
+    expect(
+      Object.prototype.hasOwnProperty.call(defaults, 'responses_tool_history_compat'),
+    ).toBe(false);
 
     const maybeDefaults = defaults as Record<string, unknown>;
     if ('web_search_enabled' in maybeDefaults) {
@@ -132,6 +147,14 @@ describe('provider web_search config contracts', () => {
         'native_first_fallback_public',
       );
     }
+  });
+
+  it('does not expose responses tool history compat in the provider form schema', () => {
+    const schema = providerData.useFormSchema();
+
+    expect(
+      schema.some((item) => item.fieldName === 'responses_tool_history_compat'),
+    ).toBe(false);
   });
 
   it('hides the type search filter when only one adapter type is available', () => {

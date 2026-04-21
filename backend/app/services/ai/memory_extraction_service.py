@@ -154,7 +154,10 @@ class MemoryExtractionService:
                 )
 
                 result = self._extract_with_fallback(
-                    content=llm_response.message.content or "",
+                    contents=[
+                        getattr(llm_response.message, "content", "") or "",
+                        getattr(llm_response.message, "reasoning_content", "") or "",
+                    ],
                     message=text,
                 )
 
@@ -234,11 +237,15 @@ class MemoryExtractionService:
     def _extract_with_fallback(
         cls,
         *,
-        content: str,
+        contents: list[str],
         message: str,
     ) -> dict[str, list[str]]:
-        text = (content or "").strip()
-        if text:
+        seen_texts: set[str] = set()
+        for content in contents:
+            text = (content or "").strip()
+            if not text or text in seen_texts:
+                continue
+            seen_texts.add(text)
             try:
                 result = cls._parse_response_content(text)
                 if any(result.values()):

@@ -763,68 +763,6 @@ def build_turn_answer_card_event(
     }
 
 
-def mirror_canonical_events_from_legacy(
-    payload: Mapping[str, Any] | None,
-) -> list[dict[str, Any]]:
-    event_payload = _as_dict(payload)
-    event_name = _as_text(event_payload.get("event")) or ""
-    if not event_name or event_name.startswith("turn_") or event_name == "done":
-        return []
-
-    if event_name == "optimizing_tools":
-        return build_tool_selection_turn_flow_events(
-            total=_as_int(event_payload.get("total"), 0),
-            selected=_as_int(event_payload.get("selected"), 0),
-        )
-
-    if event_name == "thinking":
-        return [
-            build_thinking_turn_flow_event(
-                summary=_as_text(
-                    event_payload.get("status")
-                    or event_payload.get("summary")
-                    or "Thinking in progress"
-                )
-            )
-        ]
-
-    if event_name == "tool_start":
-        return [
-            build_tool_execution_started_event(
-                tool_name=_as_text(event_payload.get("name")) or "tool",
-                tool_call_id=_as_text(event_payload.get("id")) or None,
-            )
-        ]
-
-    if event_name == "tool_call":
-        return [
-            build_tool_execution_result_event(
-                tool_name=_as_text(event_payload.get("name")) or "tool",
-                success=bool(event_payload.get("success", False)),
-                duration_ms=_as_int(event_payload.get("duration_ms"), 0),
-                tool_call_id=_as_text(event_payload.get("id")) or None,
-            )
-        ]
-
-    if (
-        event_name == "status"
-        and _normalize_token(event_payload.get("status")) == "web_search_in_progress"
-    ):
-        return [build_provider_search_turn_flow_event()]
-
-    if event_name == "message":
-        if not _as_text(event_payload.get("delta")):
-            return []
-        return [build_answer_assembly_turn_flow_event()]
-
-    if event_name == "rag_sources":
-        return build_turn_evidence_events(
-            _as_list(event_payload.get("sources")),  # type: ignore[arg-type]
-        )
-
-    return []
-
-
 __all__ = [
     "build_answer_assembly_turn_flow_event",
     "build_initial_turn_flow_events",
@@ -837,6 +775,5 @@ __all__ = [
     "build_tool_execution_result_event",
     "build_tool_execution_started_event",
     "build_tool_selection_turn_flow_events",
-    "mirror_canonical_events_from_legacy",
     "resolve_final_stage_status",
 ]

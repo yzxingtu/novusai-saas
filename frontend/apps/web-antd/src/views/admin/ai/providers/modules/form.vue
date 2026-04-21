@@ -20,7 +20,6 @@ import {
   getProviderWebSearchRuntimeSummary,
   hasForbiddenProviderEndpointSuffix,
   hasLikelyMissingProviderApiVersion,
-  isResponsesToolHistoryCompatEnabled,
   loadAdapterTypes,
   normalizeProviderBaseUrlInput,
   resolveProviderWebSearchConfig,
@@ -90,14 +89,7 @@ const { Drawer, isEdit } = useCrudDrawer<AIProviderInfo>({
       edit && configSnapshot.value ? { ...configSnapshot.value } : {};
     if (effectiveProviderType === 'openai_compatible') {
       nextConfig.wire_api = effectiveWireApi || 'chat_completions';
-      if (
-        effectiveWireApi === 'responses' &&
-        values.responses_tool_history_compat === true
-      ) {
-        nextConfig.responses_tool_history_mode = 'text';
-      } else {
-        delete nextConfig.responses_tool_history_mode;
-      }
+      delete nextConfig.responses_tool_history_mode;
     } else {
       delete nextConfig.wire_api;
       delete nextConfig.responses_tool_history_mode;
@@ -148,9 +140,6 @@ const { Drawer, isEdit } = useCrudDrawer<AIProviderInfo>({
       type: data.type,
       base_url: data.base_url,
       wire_api: effectiveWireApi || 'chat_completions',
-      responses_tool_history_compat: isResponsesToolHistoryCompatEnabled(
-        data.config,
-      ),
       web_search_enabled: webSearchConfig.enabled,
       web_search_strategy: webSearchConfig.strategy,
       web_search_max_results_cap: webSearchConfig.max_results_cap,

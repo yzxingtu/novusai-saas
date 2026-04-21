@@ -93,6 +93,12 @@ No page-level component or composable may introduce an alternate policy parser.
 - AI panel display helpers and policy filters must not re-emit legacy
   non-`ui_` page-operation names. Live page-operation chips, pending-op state,
   and navigation-only allowlists recognize only canonical `ui_*` runtime tools.
+- `turnFlow` is the canonical assistant-process protocol. Live chat state,
+  streaming SSE handlers, and history merge/finalize helpers must not mutate
+  canonical `turnFlow` back into legacy `thinkingContent`, `optimizingTools`,
+  `ragSources`, or `toolCalls` as the primary live truth source. Legacy fields
+  may still be read as fallback input for old persisted messages until their
+  dedicated closeout task lands.
 - Read-model: `PageContext` and related structures (from shared API types)
   are treated as read-models. UI code must not reconstruct or mutate them
   outside the runtime bridge.

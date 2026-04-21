@@ -1,0 +1,42 @@
+{
+  "id": "turn-flow-legacy-projection-closeout",
+  "name": "turn-flow-legacy-projection-closeout",
+  "title": "Retire live turn-flow legacy back-projection",
+  "description": "Stop mutating canonical assistant turnFlow back into legacy chat message fields across the live frontend chat runtime.",
+  "status": "planning",
+  "dev_type": "frontend",
+  "scope": null,
+  "priority": "P1",
+  "creator": "yudi",
+  "assignee": "yudi",
+  "createdAt": "2026-04-21",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "frontend/apps/web-antd/src/components/business/ai-chat-panel/use-ai-chat-turn-flow.ts",
+    "frontend/apps/web-antd/src/components/business/ai-chat-panel/use-ai-chat-streaming-request-sse.ts",
+    "frontend/apps/web-antd/src/components/business/ai-chat-panel/use-ai-chat-streaming-request-lifecycle.ts",
+    "frontend/apps/web-antd/src/components/business/ai-chat-panel/use-ai-chat-message-merge-turn-finalize.ts",
+    "frontend/apps/web-antd/src/components/business/ai-chat-panel/chat-message-turn-flow.ts",
+    "frontend/apps/web-antd/src/components/business/ai-chat-panel/ChatMessageRagSources.vue",
+    "frontend/apps/web-antd/src/components/business/ai-chat-panel/ChatMessageToolCalls.vue"
+  ],
+  "notes": "2026-04-21 full-repo audit confirmed that the frontend chat runtime still calls `reconcileTurnFlowWithLegacy()` and `applyLegacyFieldsFromTurnFlow()` through live SSE, lifecycle, and finalize paths, repopulating canonical `turnFlow` into legacy `thinkingContent`, `optimizingTools`, `ragSources`, and `toolCalls`. That behavior originated as a 2026-04-16 compatibility bridge, but it now conflicts with the codex-aligned goal that chat runtime keep one unified event protocol and one canonical assistant-process read model. This needs a dedicated closeout pass rather than a half-removal.",
+  "meta": {},
+  "execution_path": "normal",
+  "required_artifacts": [
+    "prd.md"
+  ],
+  "context_files": [
+    "implement.jsonl",
+    "check.jsonl"
+  ],
+  "verification_mode": "command"
+}

@@ -5,7 +5,6 @@ from importlib import import_module
 turn_flow_projector = import_module("app.ai.engine.turn_flow_projector")
 build_turn_evidence_events = turn_flow_projector.build_turn_evidence_events
 build_turn_flow_view_model = turn_flow_projector.build_turn_flow_view_model
-mirror_canonical_events_from_legacy = turn_flow_projector.mirror_canonical_events_from_legacy
 
 
 def test_build_turn_flow_view_model_contains_required_contract() -> None:
@@ -48,43 +47,6 @@ def test_build_turn_flow_view_model_contains_required_contract() -> None:
     assert len(turn_flow["evidence"]) == 1
     assert isinstance(turn_flow["answer_card"], dict)
     assert turn_flow["completion_reason"] == "completed"
-
-
-def test_mirror_canonical_events_from_legacy_marks_tool_selection_skipped() -> None:
-    canonical = mirror_canonical_events_from_legacy(
-        {"event": "optimizing_tools", "total": 15, "selected": 0}
-    )
-
-    assert any(event.get("event") == "turn_stage" for event in canonical)
-    assert any(
-        event.get("event") == "turn_stage_update"
-        and (event.get("stage") or {}).get("type") == "tool_selection"
-        and (event.get("stage") or {}).get("status") == "skipped"
-        for event in canonical
-    )
-
-
-def test_mirror_canonical_events_from_legacy_surfaces_hosted_web_search_progress() -> None:
-    canonical = mirror_canonical_events_from_legacy(
-        {"event": "status", "status": "web_search_in_progress"}
-    )
-
-    assert len(canonical) == 1
-    assert canonical[0]["event"] == "turn_stage_update"
-    stage = canonical[0]["stage"]
-    assert stage["id"] == "tool_execution"
-    assert stage["type"] == "tool_execution"
-    assert stage["status"] == "running"
-    assert stage["title"] == "Tool Execution"
-    assert (
-        stage["summary"] == "Searching the web and waiting for provider-hosted results"
-    )
-    assert stage["detail_lines"] == [
-        "Searching the web and waiting for provider-hosted results"
-    ]
-    assert stage["metrics"] == {"provider_search_in_progress": 1}
-
-
 def test_build_turn_evidence_events_emits_retrieval_and_items() -> None:
     events = build_turn_evidence_events(
         [

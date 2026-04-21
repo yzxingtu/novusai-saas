@@ -118,6 +118,10 @@ disabled, as long as the request still carries a conversation/user scope and
   pollution reason instead of silently mixing foreign facts into durable memory.
 - Memory extraction failures degrade to empty output and must not break the
 main turn.
+- Memory extraction should parse the first non-empty machine-readable assistant
+  channel available from the internal model call, preferring `message.content`
+  but falling back to `reasoning_content` when providers place structured JSON
+  there.
 - Durable memory policy is distinct from page routing and tool routing. Page
   context, `suggested_tools`, or prompt hints must not decide whether long-term
   memory is eligible.

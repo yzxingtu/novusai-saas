@@ -19,8 +19,13 @@ class _SessionManager:
         return False
 
 
-def _fake_response(content: str):
-    return SimpleNamespace(message=SimpleNamespace(content=content))
+def _fake_response(content: str, *, reasoning_content: str | None = None):
+    return SimpleNamespace(
+        message=SimpleNamespace(
+            content=content,
+            reasoning_content=reasoning_content,
+        )
+    )
 
 
 @pytest.mark.asyncio
@@ -122,6 +127,43 @@ async def test_extract_turn_memory_returns_empty_on_invalid_json(mock_db):
         )
 
     assert result == MemoryExtractionService.EMPTY_DELTA
+
+
+@pytest.mark.asyncio
+async def test_extract_turn_memory_uses_reasoning_content_when_primary_content_is_invalid(
+    mock_db,
+):
+    from app.services.ai.memory_extraction_service import MemoryExtractionService
+
+    with patch(
+        "app.services.ai.memory_extraction_service.async_session_factory",
+        return_value=_SessionManager(mock_db),
+    ), patch(
+        "app.services.ai.memory_extraction_service.ConfigService",
+    ) as mock_config_service, patch(
+        "app.services.ai.memory_extraction_service.InternalAIService.chat",
+        new_callable=AsyncMock,
+        return_value=_fake_response(
+            "not-json",
+            reasoning_content='{"preferences":[],"constraints":[],"task_states":[],"verified_facts":["preferred locale: zh-CN"]}',
+        ),
+    ):
+        mock_config_service.return_value.get_platform_config = AsyncMock(
+            side_effect=["openai_compatible", "gpt-4o-mini"],
+        )
+
+        result = await MemoryExtractionService(tenant_id=1).extract_turn_memory(
+            agent_id=7,
+            message="remember my preferred locale",
+            response="ok",
+        )
+
+    assert result == {
+        "preferences": [],
+        "constraints": [],
+        "task_states": [],
+        "verified_facts": ["preferred locale: zh-CN"],
+    }
 
 
 @pytest.mark.asyncio

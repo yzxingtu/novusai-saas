@@ -274,16 +274,6 @@ class OpenAIAdapterProtocolBridgeMixin:
     def _convert_tools_for_responses(self, tools: list[dict]) -> list[dict]:
         return convert_tools_for_responses_impl(tools)
 
-    def _responses_tool_history_mode(self) -> str:
-        value = (
-            str((self.provider_config or {}).get("responses_tool_history_mode") or "")
-            .strip()
-            .lower()
-        )
-        if value in {"text", "structured"}:
-            return value
-        return "structured"
-
     def _extract_responses_text(self, response: Any) -> str:
         return extract_responses_text_impl(response)
 

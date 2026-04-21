@@ -1,7 +1,6 @@
 import { $t } from '#/locales';
 
 export type OpenAICompatibleWireApi = 'chat_completions' | 'responses';
-export type ResponsesToolHistoryMode = 'structured' | 'text';
 
 const OPENAI_COMPATIBLE_FORBIDDEN_BASE_URL_SUFFIXES = [
   '/responses',
@@ -119,10 +118,4 @@ export function getProviderWireApiText(
 ): string {
   const normalizedWireApi = normalizeWireApi(wireApi) || 'chat_completions';
   return $t(`admin.ai.provider.wireApiOptions.${normalizedWireApi}`);
-}
-
-export function isResponsesToolHistoryCompatEnabled(
-  config: null | Record<string, unknown> | undefined,
-): boolean {
-  return config?.responses_tool_history_mode === 'text';
 }

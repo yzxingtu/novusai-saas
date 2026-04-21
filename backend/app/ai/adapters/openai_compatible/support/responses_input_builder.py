@@ -16,8 +16,6 @@ class ResponsesInputAdapterProtocol(Protocol):
         attachment_id: object = None,
     ) -> str | None: ...
 
-    def _responses_tool_history_mode(self) -> str: ...
-
 
 async def build_responses_message_content(
     *,
@@ -123,27 +121,9 @@ async def convert_messages_to_responses_input(
     supports_video: bool = False,
 ) -> list[dict[str, Any]]:
     converted: list[dict[str, Any]] = []
-    textual_tool_history = adapter._responses_tool_history_mode() == "text"
-    tool_names_by_call_id: dict[str, str] = {}
 
     for msg in messages:
         if msg.role == "tool":
-            if textual_tool_history:
-                tool_name = tool_names_by_call_id.get(msg.tool_call_id or "", "")
-                prefix = (
-                    f"Context returned by previously executed tool {tool_name}:"
-                    if tool_name
-                    else "Context returned by a previously executed tool:"
-                )
-                tool_output = (msg.content or "").strip()
-                converted.append(
-                    {
-                        "type": "message",
-                        "role": "assistant",
-                        "content": f"{prefix}\n{tool_output}" if tool_output else prefix,
-                    }
-                )
-                continue
             converted.append(
                 {
                     "type": "function_call_output",
@@ -154,25 +134,9 @@ async def convert_messages_to_responses_input(
             continue
 
         if msg.role == "assistant" and msg.tool_calls:
-            if textual_tool_history:
-                assistant_text = (msg.content or "").strip()
-                for tool_call in msg.tool_calls:
-                    function = tool_call.get("function") or {}
-                    tc_id = tool_call.get("call_id") or tool_call.get("id") or ""
-                    tool_names_by_call_id[tc_id] = function.get("name", "")
-                if assistant_text:
-                    converted.append(
-                        {
-                            "type": "message",
-                            "role": "assistant",
-                            "content": assistant_text,
-                        }
-                    )
-                continue
             for tool_call in msg.tool_calls:
                 function = tool_call.get("function") or {}
                 tc_id = tool_call.get("call_id") or tool_call.get("id") or ""
-                tool_names_by_call_id[tc_id] = function.get("name", "")
                 converted.append(
                     {
                         "type": "function_call",

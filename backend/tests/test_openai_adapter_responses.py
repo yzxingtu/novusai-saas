@@ -2997,9 +2997,8 @@ async def test_convert_messages_to_responses_input_preserves_tool_roundtrip() ->
         },
     ]
 
-
 @pytest.mark.asyncio
-async def test_convert_messages_to_responses_input_can_textualize_tool_roundtrip() -> None:
+async def test_convert_messages_to_responses_input_ignores_legacy_text_mode_and_keeps_structured_tool_roundtrip() -> None:
     adapter = OpenAIAdapter(
         api_key="test-key",
         base_url="https://api.example.com",
@@ -3012,7 +3011,7 @@ async def test_convert_messages_to_responses_input_can_textualize_tool_roundtrip
     converted = await adapter._convert_messages_to_responses_input([
         ChatMessage(
             role="assistant",
-            content="我先看看页面。",
+            content="Let me inspect the page first.",
             tool_calls=[{
                 "id": "call_1",
                 "type": "function",
@@ -3031,14 +3030,22 @@ async def test_convert_messages_to_responses_input_can_textualize_tool_roundtrip
 
     assert converted == [
         {
-            "type": "message",
-            "role": "assistant",
-            "content": "我先看看页面。",
+            "type": "function_call",
+            "call_id": "call_1",
+            "id": "call_1",
+            "name": "ui_get_snapshot",
+            "arguments": "{}",
+            "status": "completed",
         },
         {
             "type": "message",
             "role": "assistant",
-            "content": "Context returned by previously executed tool ui_get_snapshot:\nPage: admin.ai.providers",
+            "content": "Let me inspect the page first.",
+        },
+        {
+            "type": "function_call_output",
+            "call_id": "call_1",
+            "output": "Page: admin.ai.providers",
         },
     ]
 

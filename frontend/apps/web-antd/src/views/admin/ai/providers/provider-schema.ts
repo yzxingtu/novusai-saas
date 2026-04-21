@@ -212,22 +212,6 @@ export function useFormSchema(isEdit = false): VbenFormSchema[] {
     },
     {
       ...switchField(
-        'responses_tool_history_compat',
-        $t('admin.ai.provider.responsesToolHistoryCompat'),
-        {
-          defaultValue: false,
-        },
-      ),
-      dependencies: {
-        triggerFields: ['type', 'wire_api'],
-        show: (values: Record<string, unknown>) =>
-          resolveSchemaProviderType(values) === 'openai_compatible' &&
-          values.wire_api === 'responses',
-      },
-      help: $t('admin.ai.provider.help.responsesToolHistoryCompat'),
-    },
-    {
-      ...switchField(
         'web_search_enabled',
         $t('admin.ai.provider.webSearch.enabled'),
         {
@@ -411,7 +395,6 @@ export function getFormDefaults(): Record<string, unknown> {
   return {
     type: getDefaultProviderType(),
     wire_api: 'chat_completions',
-    responses_tool_history_compat: false,
     web_search_enabled: WEB_SEARCH_DEFAULTS.enabled,
     web_search_strategy: WEB_SEARCH_DEFAULTS.strategy,
     web_search_max_results_cap: WEB_SEARCH_DEFAULTS.max_results_cap,
