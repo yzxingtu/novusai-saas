@@ -60,7 +60,7 @@ def stale_context_guard(
         payload={
             "current_ui_epoch": current,
             "expected_ui_epoch": expected,
-            "retry_with": ["ui_read_page", "ui_get_snapshot"],
+            "retry_with": ["ui_get_snapshot"],
         },
     )
 

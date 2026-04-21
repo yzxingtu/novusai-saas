@@ -41,6 +41,7 @@ if TYPE_CHECKING:
 
 logger = LogManager.get_logger("ai.tool.sandbox")
 
+
 @dataclass
 class SandboxConfig:
     """
@@ -171,8 +172,6 @@ class ToolSandbox:
         page_runtime_executor = PageRuntimeToolExecutor(SocketIOPageRuntimeBridge())
         self._named_executors["ui_get_snapshot"] = UISnapshotExecutor()
         for tool_name in {
-            "ui_read_page",
-            "ui_read_surface",
             "ui_read_region",
             "ui_read_table",
             "ui_list_interactables",
@@ -193,9 +192,7 @@ class ToolSandbox:
         """Register custom executor / 注册自定义执行器"""
         self._executors[tool_type] = executor
 
-    def set_runtime_model_info(
-        self, runtime_model_info: dict[str, Any] | None
-    ) -> None:
+    def set_runtime_model_info(self, runtime_model_info: dict[str, Any] | None) -> None:
         """
         Set runtime provider/model info for subsequent tool executions.
         为后续工具执行设置运行时 provider/model 信息。
@@ -341,8 +338,7 @@ class ToolSandbox:
             runtime_provider_name=(
                 str(self._runtime_model_info.get("provider_name") or "")
                 if isinstance(self._runtime_model_info, dict)
-                and self._runtime_model_info.get("provider_name")
-                is not None
+                and self._runtime_model_info.get("provider_name") is not None
                 else None
             ),
             runtime_model_id=(
@@ -566,6 +562,7 @@ class ToolSandbox:
                     return d
 
         return None
+
 
 __all__ = [
     "SandboxConfig",

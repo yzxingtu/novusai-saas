@@ -39,7 +39,9 @@ def _normalize_text(value: Any) -> str:
     return " ".join(str(value or "").split()).strip().lower()
 
 
-def validate_ui_epoch(expected_ui_epoch: Any, actual_ui_epoch: Any) -> dict[str, Any] | None:
+def validate_ui_epoch(
+    expected_ui_epoch: Any, actual_ui_epoch: Any
+) -> dict[str, Any] | None:
     if expected_ui_epoch is None or actual_ui_epoch is None:
         return None
     try:

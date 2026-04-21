@@ -336,7 +336,7 @@ def apply_round_recovery_and_focus(
     input_variables: dict[str, Any] | None,
     build_page_no_progress_recovery: Callable[
         ...,
-        tuple[str | None, list[str], dict[str, Any]],
+        tuple[list[str], dict[str, Any]],
     ],
     messages_have_blocking_pending_interaction: Callable[[list[ChatMessage]], bool],
     first_incomplete_requested_family: Callable[[list[str], set[str]], str | None],
@@ -347,14 +347,12 @@ def apply_round_recovery_and_focus(
     conversation_id: int | None,
 ) -> None:
     resolved_all_tools = list(all_tools or session.all_tools_full)
-    _recovery_hint, recovery_tool_names, recovery_diagnostics = (
-        build_page_no_progress_recovery(
-            messages=messages,
-            tool_calls=tool_calls,
-            tool_results=round_tool_results,
-            tools=resolved_all_tools,
-            input_variables=input_variables,
-        )
+    recovery_tool_names, recovery_diagnostics = build_page_no_progress_recovery(
+        messages=messages,
+        tool_calls=tool_calls,
+        tool_results=round_tool_results,
+        tools=resolved_all_tools,
+        input_variables=input_variables,
     )
     if recovery_tool_names:
         session.forced_tool_names = recovery_tool_names

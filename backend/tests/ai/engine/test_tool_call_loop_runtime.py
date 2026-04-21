@@ -75,7 +75,7 @@ def _make_callbacks(
             message=ChatMessage(role="assistant", content=f"budget:{total_tokens}"),
             total_tokens=total_tokens,
         ),
-        build_page_no_progress_recovery=lambda **_kwargs: (None, [], {}),
+        build_page_no_progress_recovery=lambda **_kwargs: ([], {}),
         messages_have_blocking_pending_interaction=lambda _messages: False,
         first_incomplete_requested_family=lambda _ordered, _completed: None,
         allowed_tool_names_for_family=lambda _family, _tools, _input: [],
@@ -218,7 +218,9 @@ async def test_run_tool_call_loop_returns_budget_exit_before_round_execution(
             "execute_tool_round should not run when budget already exited"
         )
 
-    monkeypatch.setattr(runtime_mod, "execute_tool_round", _unexpected_execute_tool_round)
+    monkeypatch.setattr(
+        runtime_mod, "execute_tool_round", _unexpected_execute_tool_round
+    )
 
     result = await runtime_mod.run_tool_call_loop(
         runtime=runtime_mod.ToolCallLoopRuntime(
@@ -306,8 +308,12 @@ async def test_run_tool_call_loop_truncates_navigation_batch_before_round_execut
             return ChatMessage(role="assistant", content=content, tool_calls=tool_calls)
 
     monkeypatch.setattr(tool_processor_mod, "ToolCallProcessor", _FakeProcessor)
-    monkeypatch.setattr(runtime_mod, "build_tool_loop_session", lambda **_kwargs: session)
-    monkeypatch.setattr(runtime_mod, "sync_sandbox_runtime_model_info", lambda **_kwargs: None)
+    monkeypatch.setattr(
+        runtime_mod, "build_tool_loop_session", lambda **_kwargs: session
+    )
+    monkeypatch.setattr(
+        runtime_mod, "sync_sandbox_runtime_model_info", lambda **_kwargs: None
+    )
 
     async def _fake_execute_tool_round(**kwargs):
         seen["round_tool_calls"] = kwargs["tool_calls"]

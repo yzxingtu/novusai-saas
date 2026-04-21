@@ -27,4 +27,3 @@ class PageRuntimeBridge(Protocol):
         tool_name: str,
         user_role: str,
     ) -> dict[str, Any]: ...
-

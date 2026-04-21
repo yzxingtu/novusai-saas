@@ -68,7 +68,7 @@ class ToolCallLoopCallbacks:
     budget_exit_response: Callable[[int], ChatResponse]
     build_page_no_progress_recovery: Callable[
         ...,
-        tuple[str | None, list[str], dict[str, Any]],
+        tuple[list[str], dict[str, Any]],
     ]
     messages_have_blocking_pending_interaction: Callable[
         [list[ChatMessage]],
@@ -156,9 +156,7 @@ def _append_assistant_tool_call_message(
         processor.build_assistant_tool_call_message(
             content=session.current_response.message.content or "",
             tool_calls=tool_calls,
-            reasoning_content=(
-                session.current_response.message.content or ""
-            ).strip()
+            reasoning_content=(session.current_response.message.content or "").strip()
             or None,
         )
     )

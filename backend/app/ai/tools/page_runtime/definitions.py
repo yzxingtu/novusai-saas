@@ -8,35 +8,16 @@ from app.ai.tools.types import ToolDefinition, ToolParameter
 def build_page_runtime_tool_definitions() -> list[ToolDefinition]:
     return [
         ToolDefinition(
-            name="ui_read_page",
-            description="Read the current page summary-first snapshot.",
-            parameters=[
-                ToolParameter(
-                    name="ui_epoch",
-                    type="integer",
-                    description="Expected ui_epoch for stale-context protection.",
-                ),
-            ],
-        ),
-        ToolDefinition(
             name="ui_get_snapshot",
-            description="Compatibility alias for reading the current page snapshot.",
+            description="Read the current page snapshot in compact or full mode.",
             parameters=[
                 ToolParameter(
-                    name="ui_epoch",
-                    type="integer",
-                    description="Expected ui_epoch for stale-context protection.",
+                    name="mode",
+                    description="Snapshot mode: compact or full.",
                 ),
-            ],
-        ),
-        ToolDefinition(
-            name="ui_read_surface",
-            description="Read one surface deeply by surface_id.",
-            parameters=[
                 ToolParameter(
                     name="surface_id",
-                    description="Surface id to read.",
-                    required=True,
+                    description="Optional surface id for scoped snapshot reads.",
                 ),
                 ToolParameter(
                     name="ui_epoch",
@@ -75,7 +56,9 @@ def build_page_runtime_tool_definitions() -> list[ToolDefinition]:
             name="ui_get_form_state",
             description="Read the current form-session state.",
             parameters=[
-                ToolParameter(name="form_session_id", description="Optional form session id."),
+                ToolParameter(
+                    name="form_session_id", description="Optional form session id."
+                ),
                 ToolParameter(name="ui_epoch", type="integer"),
             ],
         ),
@@ -96,7 +79,9 @@ def build_page_runtime_tool_definitions() -> list[ToolDefinition]:
             name="ui_open_surface",
             description="Open a drawer, modal, dropdown, or popover.",
             parameters=[
-                ToolParameter(name="target_locator", description="Fallback target locator."),
+                ToolParameter(
+                    name="target_locator", description="Fallback target locator."
+                ),
                 ToolParameter(name="surface", type="object"),
                 ToolParameter(name="confirm", type="boolean"),
                 ToolParameter(name="ui_epoch", type="integer"),
@@ -106,9 +91,13 @@ def build_page_runtime_tool_definitions() -> list[ToolDefinition]:
             name="ui_set_field",
             description="Set a single form field.",
             parameters=[
-                ToolParameter(name="field_name", description="Field name.", required=True),
+                ToolParameter(
+                    name="field_name", description="Field name.", required=True
+                ),
                 ToolParameter(name="value", type="string"),
-                ToolParameter(name="form_session_id", description="Optional form session id."),
+                ToolParameter(
+                    name="form_session_id", description="Optional form session id."
+                ),
                 ToolParameter(name="ui_epoch", type="integer"),
             ],
         ),
@@ -117,7 +106,9 @@ def build_page_runtime_tool_definitions() -> list[ToolDefinition]:
             description="Fill one or more form fields.",
             parameters=[
                 ToolParameter(name="fields", type="object", required=True),
-                ToolParameter(name="form_session_id", description="Optional form session id."),
+                ToolParameter(
+                    name="form_session_id", description="Optional form session id."
+                ),
                 ToolParameter(name="ui_epoch", type="integer"),
             ],
         ),
@@ -125,10 +116,11 @@ def build_page_runtime_tool_definitions() -> list[ToolDefinition]:
             name="ui_submit_form",
             description="Submit the active form session.",
             parameters=[
-                ToolParameter(name="form_session_id", description="Optional form session id."),
+                ToolParameter(
+                    name="form_session_id", description="Optional form session id."
+                ),
                 ToolParameter(name="confirm", type="boolean"),
                 ToolParameter(name="ui_epoch", type="integer"),
             ],
         ),
     ]
-

@@ -16,7 +16,7 @@ from app.ai.types import ChatMessage
 class ToolCallLoopPolicy:
     build_page_no_progress_recovery: Callable[
         ...,
-        tuple[str | None, list[str], dict[str, Any]],
+        tuple[list[str], dict[str, Any]],
     ]
     messages_have_blocking_pending_interaction: Callable[[list[ChatMessage]], bool]
     first_incomplete_requested_family: Callable[[list[str], set[str]], str | None]

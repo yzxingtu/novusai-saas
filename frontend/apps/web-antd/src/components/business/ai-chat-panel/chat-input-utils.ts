@@ -1,8 +1,4 @@
-import type {
-  AgentItem,
-  ChatMessage,
-  MentionKnowledgeBaseBinding,
-} from './types';
+import type { AgentItem, MentionKnowledgeBaseBinding } from './types';
 
 const LEADING_AGENT_MENTION_RE = /^\s*@(\S*)$/;
 
@@ -42,14 +38,4 @@ export function filterKnowledgeBasesByMentionQuery(
       String(b.knowledge_base_id).includes(normalized)
     );
   });
-}
-
-export function moveStreamingContentToThinking(
-  message: Pick<ChatMessage, 'content' | 'thinkingContent'>,
-): void {
-  if (!message.content) {
-    return;
-  }
-  message.thinkingContent = `${message.thinkingContent || ''}${message.content}`;
-  message.content = '';
 }

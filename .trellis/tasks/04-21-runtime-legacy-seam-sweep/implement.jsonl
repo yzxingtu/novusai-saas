@@ -1,0 +1,4 @@
+{"path":"backend/app/ai/engine/page_flow_recovery_helpers.py","reason":"Remove dead prompt-hint tuple slot and keep structured recovery diagnostics only"}
+{"path":"backend/app/ai/prompt_contracts/loader.py","reason":"Drop unreferenced page-flow recovery prompt contract registration"}
+{"path":"backend/app/ai/tools/page_runtime/definitions.py","reason":"Freeze canonical page snapshot tool contract on ui_get_snapshot"}
+{"path":"frontend/apps/web-antd/src/components/business/ai-chat-panel/chat-input-utils.ts","reason":"Delete dead streaming back-projection helper while keeping live mention helpers"}

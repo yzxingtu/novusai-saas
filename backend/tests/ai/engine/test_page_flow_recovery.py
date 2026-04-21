@@ -64,7 +64,7 @@ def _build_input_variables_without_form() -> dict:
     }
 
 
-def _recover(user_text: str) -> tuple[str | None, list[str], dict]:
+def _recover(user_text: str) -> tuple[list[str], dict]:
     return BaseEngine._build_page_no_progress_recovery(  # noqa: SLF001
         messages=[ChatMessage(role="user", content=user_text)],
         tool_calls=[
@@ -81,9 +81,8 @@ def _recover(user_text: str) -> tuple[str | None, list[str], dict]:
 
 
 def test_build_page_no_progress_recovery_for_navigation_request() -> None:
-    hint, preferred_tool_names, diagnostics = _recover("帮我打开智能体管理页面")
+    preferred_tool_names, diagnostics = _recover("帮我打开智能体管理页面")
 
-    assert hint is None
     assert preferred_tool_names == [
         "ui_list_interactables",
         "ui_click",
@@ -96,47 +95,44 @@ def test_build_page_no_progress_recovery_for_navigation_request() -> None:
 
 
 def test_build_page_no_progress_recovery_for_failed_cross_page_click() -> None:
-    hint, preferred_tool_names, diagnostics = (
-        BaseEngine._build_page_no_progress_recovery(  # noqa: SLF001
-            messages=[ChatMessage(role="user", content="添加供应商")],
-            tool_calls=[
-                {
-                    "id": "call_1",
-                    "type": "function",
-                    "function": {
-                        "name": "ui_click",
-                        "arguments": '{"target_locator":"添加供应商"}',
-                    },
-                }
-            ],
-            tool_results=[
-                ToolResult(
-                    tool_call_id="call_1",
-                    name="ui_click",
-                    success=False,
-                    error="未找到目标元素：添加供应商",
-                )
-            ],
-            tools=_page_tools(),
-            input_variables={
-                "page_context": {
-                    **_build_input_variables()["page_context"],
-                    "page_data": {
-                        "navigation_catalog": [
-                            {
-                                "title": "供应商管理",
-                                "path": "/admin/suppliers",
-                                "page_key": "admin.suppliers",
-                                "keywords": ["供应商", "添加供应商"],
-                            }
-                        ]
-                    },
-                }
-            },
-        )
+    preferred_tool_names, diagnostics = BaseEngine._build_page_no_progress_recovery(  # noqa: SLF001
+        messages=[ChatMessage(role="user", content="添加供应商")],
+        tool_calls=[
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {
+                    "name": "ui_click",
+                    "arguments": '{"target_locator":"添加供应商"}',
+                },
+            }
+        ],
+        tool_results=[
+            ToolResult(
+                tool_call_id="call_1",
+                name="ui_click",
+                success=False,
+                error="未找到目标元素：添加供应商",
+            )
+        ],
+        tools=_page_tools(),
+        input_variables={
+            "page_context": {
+                **_build_input_variables()["page_context"],
+                "page_data": {
+                    "navigation_catalog": [
+                        {
+                            "title": "供应商管理",
+                            "path": "/admin/suppliers",
+                            "page_key": "admin.suppliers",
+                            "keywords": ["供应商", "添加供应商"],
+                        }
+                    ]
+                },
+            }
+        },
     )
 
-    assert hint is None
     assert preferred_tool_names == [
         "ui_list_interactables",
         "ui_click",
@@ -148,9 +144,8 @@ def test_build_page_no_progress_recovery_for_failed_cross_page_click() -> None:
 
 
 def test_build_page_no_progress_recovery_for_screenshot_request() -> None:
-    hint, preferred_tool_names, diagnostics = _recover("帮我给当前页面截图")
+    preferred_tool_names, diagnostics = _recover("帮我给当前页面截图")
 
-    assert hint is None
     assert preferred_tool_names == [
         "ui_get_snapshot",
     ]
@@ -158,9 +153,8 @@ def test_build_page_no_progress_recovery_for_screenshot_request() -> None:
 
 
 def test_build_page_no_progress_recovery_for_form_write_request() -> None:
-    hint, preferred_tool_names, diagnostics = _recover("帮我填写并提交表单")
+    preferred_tool_names, diagnostics = _recover("帮我填写并提交表单")
 
-    assert hint is None
     assert preferred_tool_names == [
         "ui_fill_form",
         "ui_set_field",
@@ -172,33 +166,30 @@ def test_build_page_no_progress_recovery_for_form_write_request() -> None:
 
 
 def test_build_page_no_progress_recovery_for_form_write_without_active_form() -> None:
-    hint, preferred_tool_names, diagnostics = (
-        BaseEngine._build_page_no_progress_recovery(  # noqa: SLF001
-            messages=[
-                ChatMessage(role="user", content="帮我添加一个测试的智能体 在本页面")
-            ],
-            tool_calls=[
-                {
-                    "id": "call_1",
-                    "type": "function",
-                    "function": {"name": "ui_get_form_state", "arguments": "{}"},
-                }
-            ],
-            tool_results=[
-                ToolResult(
-                    tool_call_id="call_1",
-                    name="ui_get_form_state",
-                    success=False,
-                    error="未找到活动中的表单会话。",
-                    error_type="form_session_not_found",
-                )
-            ],
-            tools=_page_tools(),
-            input_variables=_build_input_variables_without_form(),
-        )
+    preferred_tool_names, diagnostics = BaseEngine._build_page_no_progress_recovery(  # noqa: SLF001
+        messages=[
+            ChatMessage(role="user", content="帮我添加一个测试的智能体 在本页面")
+        ],
+        tool_calls=[
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {"name": "ui_get_form_state", "arguments": "{}"},
+            }
+        ],
+        tool_results=[
+            ToolResult(
+                tool_call_id="call_1",
+                name="ui_get_form_state",
+                success=False,
+                error="未找到活动中的表单会话。",
+                error_type="form_session_not_found",
+            )
+        ],
+        tools=_page_tools(),
+        input_variables=_build_input_variables_without_form(),
     )
 
-    assert hint is None
     assert preferred_tool_names == [
         "ui_list_interactables",
         "ui_open_surface",
@@ -213,9 +204,8 @@ def test_build_page_no_progress_recovery_for_form_write_without_active_form() ->
 
 
 def test_build_page_no_progress_recovery_for_form_read_request() -> None:
-    hint, preferred_tool_names, diagnostics = _recover("帮我读取当前表单状态")
+    preferred_tool_names, diagnostics = _recover("帮我读取当前表单状态")
 
-    assert hint is None
     assert preferred_tool_names == [
         "ui_get_form_state",
         "ui_read_region",
@@ -224,9 +214,8 @@ def test_build_page_no_progress_recovery_for_form_read_request() -> None:
 
 
 def test_build_page_no_progress_recovery_for_row_detail_request() -> None:
-    hint, preferred_tool_names, diagnostics = _recover("查看这条记录详情")
+    preferred_tool_names, diagnostics = _recover("查看这条记录详情")
 
-    assert hint is None
     assert preferred_tool_names == [
         "ui_read_region",
         "ui_read_table",
@@ -239,23 +228,20 @@ def test_build_page_no_progress_recovery_for_row_detail_request() -> None:
 def test_build_page_no_progress_recovery_for_row_detail_without_overlay_prefers_open_first() -> (
     None
 ):
-    hint, preferred_tool_names, diagnostics = (
-        BaseEngine._build_page_no_progress_recovery(  # noqa: SLF001
-            messages=[ChatMessage(role="user", content="查看这条记录详情")],
-            tool_calls=[
-                {
-                    "id": "call_1",
-                    "type": "function",
-                    "function": {"name": "ui_get_snapshot", "arguments": "{}"},
-                }
-            ],
-            tool_results=[_snapshot_result()],
-            tools=_page_tools(),
-            input_variables=_build_input_variables_without_form(),
-        )
+    preferred_tool_names, diagnostics = BaseEngine._build_page_no_progress_recovery(  # noqa: SLF001
+        messages=[ChatMessage(role="user", content="查看这条记录详情")],
+        tool_calls=[
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {"name": "ui_get_snapshot", "arguments": "{}"},
+            }
+        ],
+        tool_results=[_snapshot_result()],
+        tools=_page_tools(),
+        input_variables=_build_input_variables_without_form(),
     )
 
-    assert hint is None
     assert preferred_tool_names == [
         "ui_list_interactables",
         "ui_click",
@@ -268,9 +254,8 @@ def test_build_page_no_progress_recovery_for_row_detail_without_overlay_prefers_
 
 
 def test_build_page_no_progress_recovery_for_pagination_request() -> None:
-    hint, preferred_tool_names, diagnostics = _recover("翻到下一页")
+    preferred_tool_names, diagnostics = _recover("翻到下一页")
 
-    assert hint is None
     assert preferred_tool_names == [
         "ui_read_table",
         "ui_click",
@@ -280,9 +265,8 @@ def test_build_page_no_progress_recovery_for_pagination_request() -> None:
 
 
 def test_build_page_no_progress_recovery_for_search_request() -> None:
-    hint, preferred_tool_names, diagnostics = _recover("搜索记录并清空筛选")
+    preferred_tool_names, diagnostics = _recover("搜索记录并清空筛选")
 
-    assert hint is None
     assert preferred_tool_names == [
         "ui_read_region",
         "ui_list_interactables",
@@ -292,8 +276,7 @@ def test_build_page_no_progress_recovery_for_search_request() -> None:
 
 
 def test_build_page_no_progress_recovery_skips_generic_page_summary_turn() -> None:
-    hint, preferred_tool_names, diagnostics = _recover("读一下当前页面有什么")
+    preferred_tool_names, diagnostics = _recover("读一下当前页面有什么")
 
-    assert hint is None
     assert preferred_tool_names == []
     assert diagnostics == {}

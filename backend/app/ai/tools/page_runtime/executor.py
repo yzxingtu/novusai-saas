@@ -17,8 +17,6 @@ from .policy import (
     stale_context_guard,
 )
 
-_ALIAS_TOOL_NAMES = {"ui_get_snapshot": "ui_read_page"}
-
 
 class PageRuntimeToolExecutor(BaseToolExecutor):
     """Boundary-safe page-runtime executor that depends on an injected bridge."""
@@ -33,7 +31,7 @@ class PageRuntimeToolExecutor(BaseToolExecutor):
         arguments: dict[str, Any],
         context: ExecutionContext | None = None,
     ) -> ToolResult:
-        tool_name = _ALIAS_TOOL_NAMES.get(definition.name, definition.name)
+        tool_name = definition.name
         page_context = resolve_page_context(context)
         session_id = resolve_page_session_id(context)
         bridge_arguments = dict(arguments)
@@ -128,9 +126,7 @@ class PageRuntimeToolExecutor(BaseToolExecutor):
         definition: ToolDefinition,
         arguments: dict[str, Any],
     ) -> bool:
-        tool_name = _ALIAS_TOOL_NAMES.get(definition.name, definition.name)
-        if tool_name == "ui_read_surface":
-            return isinstance(arguments.get("surface_id"), str)
+        tool_name = definition.name
         if tool_name in {"ui_read_region", "ui_read_table"}:
             return isinstance(arguments.get("locator"), str)
         if tool_name == "ui_click":

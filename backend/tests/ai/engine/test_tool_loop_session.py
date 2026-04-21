@@ -95,7 +95,6 @@ def test_apply_round_recovery_and_focus_freezes_page_subset_without_system_hint(
         all_tools=tools,
         input_variables=input_variables,
         build_page_no_progress_recovery=lambda **_kwargs: (
-            None,
             ["ui_list_interactables", "ui_click", "ui_open_surface"],
             {
                 "reason": "page_snapshot_only_round",

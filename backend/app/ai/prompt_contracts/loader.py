@@ -53,7 +53,6 @@ class PromptContractName(StrEnum):
     TURN_CAPABILITIES = "turn_capabilities"
     ORDERED_CAPABILITY_INTENT = "ordered_capability_intent"
     RESEARCH_STATE = "research_state"
-    PAGE_FLOW_RECOVERY = "page_flow_recovery"
 
     # --- Fetch gate / 抓取门禁 ---
     FETCH_URL_GATE = "fetch_url_gate"
@@ -74,9 +73,7 @@ class PromptContractName(StrEnum):
 
     # --- Contract leak recovery / 契约泄漏恢复 ---
     CONTRACT_RECOVERY_LEAK_GUIDANCE = "contract_recovery_leak_guidance"
-    CONTRACT_RECOVERY_WEB_RESEARCH_GUIDANCE = (
-        "contract_recovery_web_research_guidance"
-    )
+    CONTRACT_RECOVERY_WEB_RESEARCH_GUIDANCE = "contract_recovery_web_research_guidance"
 
     # --- Router preambles / 路由前言 ---
     AGENT_ROUTER_VISION_PREAMBLE = "agent_router_vision_preamble"
@@ -172,12 +169,7 @@ _PROMPT_CONTRACTS: dict[str, PromptContractSpec] = {
         template_name="research_state.md",
         description="Research continuation state block.",
     ),
-    # --- Page-flow recovery & fetch-before-summary gate / 页面流恢复与先抓取再总结门禁 ---
-    PromptContractName.PAGE_FLOW_RECOVERY.value: PromptContractSpec(
-        name=PromptContractName.PAGE_FLOW_RECOVERY,
-        template_name="page_flow_recovery.md",
-        description="Page-flow recovery block after no-progress rounds.",
-    ),
+    # --- Fetch-before-summary gate / 先抓取再总结门禁 ---
     PromptContractName.FETCH_URL_GATE.value: PromptContractSpec(
         name=PromptContractName.FETCH_URL_GATE,
         template_name="fetch_url_gate.md",

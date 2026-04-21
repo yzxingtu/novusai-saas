@@ -240,6 +240,9 @@ export async function submitRuntimeForm(args: { confirm?: boolean; formSessionId
 #### 3.4 Summary-First Constraint
 - `getRuntimeThinPageContext()` always uses `compact` snapshots; only summary fields flow into `page_context`.
 - Heavy UI content must be retrieved via `ui_get_snapshot` (full), `ui_read_region`, or `ui_read_table`.
+- `ui_get_snapshot` is the single live page-snapshot contract. Use its
+  `mode=compact|full` and optional `surface_id` parameters instead of reviving
+  backend-only aliases such as `ui_read_page` or `ui_read_surface`.
 - `page_context` should only carry active form summary, surface stack, suggested tools, and `ui_epoch`.
 
 #### 3.5 Read/Write Separation and Consent

@@ -114,11 +114,9 @@ def build_page_no_progress_recovery(
     extract_last_user_text: Callable[[list[ChatMessage]], str],
     first_page_intent_kind: Callable[..., str | None],
     tool_call_name: Callable[[dict[str, Any]], str],
-    render_contract: Callable[..., str] | None = None,
-) -> tuple[str | None, list[str], dict[str, Any]]:
-    _ = render_contract
+) -> tuple[list[str], dict[str, Any]]:
     if not tool_calls or not tools or not isinstance(input_variables, dict):
-        return None, [], {}
+        return [], {}
 
     from app.ai.tools.semantic_defaults import (
         page_context_available_ui_tools,
@@ -127,7 +125,7 @@ def build_page_no_progress_recovery(
 
     page_context = page_context_payload(input_variables)
     if not isinstance(page_context, dict):
-        return None, [], {}
+        return [], {}
 
     user_text = extract_last_user_text(messages)
     page_intent_kind = first_page_intent_kind(
@@ -136,7 +134,7 @@ def build_page_no_progress_recovery(
         input_variables=input_variables,
     )
     if page_intent_kind in {None, "page_summary"}:
-        return None, [], {}
+        return [], {}
 
     round_tool_names = [
         tool_call_name(tool_call)
@@ -144,7 +142,7 @@ def build_page_no_progress_recovery(
         if tool_call_name(tool_call)
     ]
     if not round_tool_names:
-        return None, [], {}
+        return [], {}
 
     snapshot_calls = [
         result for result in tool_results if result.name == "ui_get_snapshot"
@@ -167,7 +165,7 @@ def build_page_no_progress_recovery(
         and not navigation_action_no_progress
         and not missing_form_session_no_progress
     ):
-        return None, [], {}
+        return [], {}
 
     available_tool_names = {tool.name for tool in tools}
     available_ui_tools = page_context_available_ui_tools(
@@ -210,7 +208,7 @@ def build_page_no_progress_recovery(
         missing_form_session_no_progress=missing_form_session_no_progress,
     )
     if not preferred_tool_names:
-        return None, [], {}
+        return [], {}
 
     if navigation_action_no_progress:
         recovery_reason = "page_navigation_failed_no_progress"
@@ -239,23 +237,19 @@ def build_page_no_progress_recovery(
         "allowed_tool_names": list(preferred_tool_names),
         "preferred_tool_names": list(preferred_tool_names),
     }
-    return (
-        None,
-        preferred_tool_names,
-        {
-            "reason": recovery_reason,
-            "intent_kind": page_intent_kind,
-            "preferred_tool_names": preferred_tool_names,
-            "round_tool_names": round_tool_names,
-            "workflow_stage": workflow_plan.workflow_stage,
-            "workflow_phase": workflow_plan.workflow_phase,
-            "workflow_goal": workflow_plan.workflow_goal,
-            "workflow_state": workflow_plan.workflow_state.to_dict(),
-            "workflow_completion": workflow_plan.completion_contract.to_dict(),
-            "page_workflow_progress": progress,
-            "page_workflow": workflow_snapshot,
-        },
-    )
+    return preferred_tool_names, {
+        "reason": recovery_reason,
+        "intent_kind": page_intent_kind,
+        "preferred_tool_names": preferred_tool_names,
+        "round_tool_names": round_tool_names,
+        "workflow_stage": workflow_plan.workflow_stage,
+        "workflow_phase": workflow_plan.workflow_phase,
+        "workflow_goal": workflow_plan.workflow_goal,
+        "workflow_state": workflow_plan.workflow_state.to_dict(),
+        "workflow_completion": workflow_plan.completion_contract.to_dict(),
+        "page_workflow_progress": progress,
+        "page_workflow": workflow_snapshot,
+    }
 
 
 def build_page_no_progress_recovery_default(
@@ -265,7 +259,7 @@ def build_page_no_progress_recovery_default(
     tool_results: list[ToolResult],
     tools: list[ToolDefinition],
     input_variables: dict[str, Any] | None,
-) -> tuple[str | None, list[str], dict[str, Any]]:
+) -> tuple[list[str], dict[str, Any]]:
     return build_page_no_progress_recovery(
         messages=messages,
         tool_calls=tool_calls,

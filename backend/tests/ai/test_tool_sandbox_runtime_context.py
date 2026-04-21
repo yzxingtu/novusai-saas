@@ -60,7 +60,9 @@ async def test_tool_sandbox_passes_runtime_model_info_into_execution_context() -
         tool_call_id="tc-runtime",
         name="capture_runtime_info",
         arguments={},
-        definitions=[ToolDefinition(name="capture_runtime_info", description="capture")],
+        definitions=[
+            ToolDefinition(name="capture_runtime_info", description="capture")
+        ],
     )
 
     assert result.success is True
@@ -87,7 +89,9 @@ async def test_tool_sandbox_runtime_model_info_is_optional() -> None:
         tool_call_id="tc-runtime-none",
         name="capture_runtime_info",
         arguments={},
-        definitions=[ToolDefinition(name="capture_runtime_info", description="capture")],
+        definitions=[
+            ToolDefinition(name="capture_runtime_info", description="capture")
+        ],
     )
 
     assert result.success is True
@@ -106,11 +110,10 @@ def test_tool_sandbox_wires_live_page_runtime_executor_for_page_tools() -> None:
         config=SandboxConfig(),
     )
 
-    page_runtime_executor = sandbox._named_executors["ui_read_page"]
+    page_runtime_executor = sandbox._named_executors["ui_read_region"]
 
     assert isinstance(page_runtime_executor, PageRuntimeToolExecutor)
     for tool_name in {
-        "ui_read_surface",
         "ui_read_region",
         "ui_read_table",
         "ui_list_interactables",

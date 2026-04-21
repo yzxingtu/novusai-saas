@@ -24,7 +24,7 @@ def test_build_tool_call_loop_callbacks_keeps_callables() -> None:
         )
 
     def _build_page_no_progress_recovery(**_kwargs):
-        return None, [], {}
+        return [], {}
 
     def _messages_have_blocking_pending_interaction(_messages):
         return False
@@ -86,7 +86,8 @@ def test_build_tool_call_loop_callbacks_keeps_callables() -> None:
         is _messages_have_blocking_pending_interaction
     )
     assert (
-        callbacks.first_incomplete_requested_family is _first_incomplete_requested_family
+        callbacks.first_incomplete_requested_family
+        is _first_incomplete_requested_family
     )
     assert callbacks.allowed_tool_names_for_family is _allowed_tool_names_for_family
     assert callbacks.build_ordered_capability_hint is _build_ordered_capability_hint
