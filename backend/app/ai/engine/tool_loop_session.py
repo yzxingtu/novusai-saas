@@ -13,6 +13,7 @@ from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.types import ChatMessage, ChatResponse
 from app.core.logging import LogManager
 
+from .intent_plan_accessors import resolve_intent_plan_from_input_variables
 from .intent_planner import IntentPlanner
 from .types import ExecutionBudget, ResearchContinuationContext, ToolUsePolicy
 
@@ -171,6 +172,110 @@ def build_round_policy(
     )
 
 
+def _target_page_recovery_intent(
+    intent_plan: list[Any],
+    *,
+    intent_kind: str,
+) -> Any | None:
+    unfinished = [
+        intent
+        for intent in intent_plan
+        if getattr(intent, "family", None) == "page_ops"
+        and getattr(intent, "status", None) not in {"completed", "failed", "skipped"}
+    ]
+    for intent in unfinished:
+        if str(getattr(intent, "kind", "") or "").strip() == intent_kind:
+            return intent
+    if unfinished:
+        return unfinished[0]
+    for intent in intent_plan:
+        if (
+            getattr(intent, "family", None) == "page_ops"
+            and str(getattr(intent, "kind", "") or "").strip() == intent_kind
+        ):
+            return intent
+    return None
+
+
+def _project_page_recovery_into_runtime_intent_plan(
+    *,
+    input_variables: dict[str, Any] | None,
+    recovery_diagnostics: dict[str, Any],
+    recovery_tool_names: list[str],
+) -> None:
+    if not isinstance(input_variables, dict) or not recovery_tool_names:
+        return
+    intent_plan = resolve_intent_plan_from_input_variables(input_variables)
+    if not intent_plan:
+        return
+
+    target_intent_kind = str(recovery_diagnostics.get("intent_kind") or "").strip()
+    if not target_intent_kind:
+        return
+    target_intent = _target_page_recovery_intent(
+        intent_plan,
+        intent_kind=target_intent_kind,
+    )
+    if target_intent is None:
+        return
+
+    page_workflow_progress = (
+        dict(recovery_diagnostics.get("page_workflow_progress") or {})
+        if isinstance(recovery_diagnostics.get("page_workflow_progress"), dict)
+        else {}
+    )
+    if not page_workflow_progress:
+        return
+
+    metadata = dict(getattr(target_intent, "metadata", {}) or {})
+    metadata["page_workflow_stage"] = str(
+        recovery_diagnostics.get("workflow_stage")
+        or metadata.get("page_workflow_stage")
+        or ""
+    ).strip()
+    metadata["page_workflow_phase"] = str(
+        recovery_diagnostics.get("workflow_phase")
+        or metadata.get("page_workflow_phase")
+        or ""
+    ).strip()
+    metadata["page_workflow_goal"] = str(
+        recovery_diagnostics.get("workflow_goal")
+        or metadata.get("page_workflow_goal")
+        or ""
+    ).strip()
+    if isinstance(recovery_diagnostics.get("workflow_state"), dict):
+        metadata["page_workflow_state"] = dict(
+            recovery_diagnostics.get("workflow_state") or {}
+        )
+    if isinstance(recovery_diagnostics.get("workflow_completion"), dict):
+        metadata["page_workflow_completion"] = dict(
+            recovery_diagnostics.get("workflow_completion") or {}
+        )
+    metadata["page_workflow_progress"] = page_workflow_progress
+    metadata["page_workflow_continuation_required"] = bool(
+        page_workflow_progress.get("continuation_required", True)
+    )
+    metadata["page_no_progress_recovery"] = {
+        "reason": str(recovery_diagnostics.get("reason") or "").strip(),
+        "allowed_tool_names": list(recovery_tool_names),
+        "round_tool_names": list(recovery_diagnostics.get("round_tool_names") or []),
+    }
+    target_intent.metadata = metadata
+    target_intent.status = "pending"
+    target_intent.cached_result = None
+    target_intent.completed_by_tool_names = []
+
+    runtime_intent_facts = input_variables.get("_runtime_intent_facts")
+    if not isinstance(runtime_intent_facts, dict):
+        runtime_intent_facts = {}
+        input_variables["_runtime_intent_facts"] = runtime_intent_facts
+    runtime_intent_facts["active_intent_kind"] = target_intent.kind
+    input_variables["_runtime_intent_plan"] = [
+        intent.to_dict() if hasattr(intent, "to_dict") else dict(intent)
+        for intent in intent_plan
+    ]
+
+
 def append_ordered_progress_hint(
     *,
     session: ToolLoopSession,
@@ -242,7 +347,7 @@ def apply_round_recovery_and_focus(
     conversation_id: int | None,
 ) -> None:
     resolved_all_tools = list(all_tools or session.all_tools_full)
-    recovery_hint, recovery_tool_names, recovery_diagnostics = (
+    _recovery_hint, recovery_tool_names, recovery_diagnostics = (
         build_page_no_progress_recovery(
             messages=messages,
             tool_calls=tool_calls,
@@ -251,11 +356,15 @@ def apply_round_recovery_and_focus(
             input_variables=input_variables,
         )
     )
-    if recovery_hint:
+    if recovery_tool_names:
         session.forced_tool_names = recovery_tool_names
-        messages.append(ChatMessage(role="system", content=recovery_hint))
+        _project_page_recovery_into_runtime_intent_plan(
+            input_variables=input_variables,
+            recovery_diagnostics=recovery_diagnostics,
+            recovery_tool_names=recovery_tool_names,
+        )
         logger.info(
-            "Injected page-flow recovery hint after no-progress page round: conversation_id={} diagnostics={}",
+            "Activated page-workflow recovery subset after no-progress page round: conversation_id={} diagnostics={}",
             conversation_id,
             recovery_diagnostics,
         )

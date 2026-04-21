@@ -195,7 +195,9 @@ def test_collect_completed_turn_intents_tracks_rail_search_evidence() -> None:
     assert "rail_ticket_research" in completed
 
 
-def test_collect_completed_turn_intents_uses_active_page_intent_over_stale_summary() -> None:
+def test_collect_completed_turn_intents_uses_active_page_intent_over_stale_summary() -> (
+    None
+):
     messages = [
         ChatMessage(
             role="assistant",
@@ -227,7 +229,9 @@ def test_collect_completed_turn_intents_uses_active_page_intent_over_stale_summa
     assert "page_navigation" not in completed
 
 
-def test_collect_completed_turn_intents_keeps_navigation_pending_until_action_and_verify() -> None:
+def test_collect_completed_turn_intents_keeps_navigation_pending_until_action_and_verify() -> (
+    None
+):
     messages = [
         ChatMessage(
             role="assistant",
@@ -269,7 +273,9 @@ def test_collect_completed_turn_intents_keeps_navigation_pending_until_action_an
     assert "page_navigation" not in completed
 
 
-def test_collect_completed_turn_intents_marks_navigation_complete_after_click_and_verify() -> None:
+def test_collect_completed_turn_intents_marks_navigation_complete_after_click_and_verify() -> (
+    None
+):
     messages = [
         ChatMessage(
             role="assistant",
@@ -316,6 +322,56 @@ def test_collect_completed_turn_intents_marks_navigation_complete_after_click_an
     )
 
     assert "page_navigation" in completed
+
+
+def test_collect_completed_turn_intents_prefers_explicit_page_progress_over_snapshot_match() -> (
+    None
+):
+    messages = [
+        ChatMessage(
+            role="assistant",
+            content="",
+            tool_calls=[
+                {
+                    "function": {
+                        "name": "ui_get_snapshot",
+                        "arguments": {},
+                    },
+                    "success": True,
+                }
+            ],
+        )
+    ]
+
+    completed = collect_completed_turn_intents(
+        messages,
+        tools=[],
+        input_variables={
+            "_runtime_intent_plan": [
+                {
+                    **_intent_payload(
+                        intent_id="intent-1",
+                        kind="page_navigation",
+                        family="page_ops",
+                        order=1,
+                        label="page_navigation",
+                        source_text="打开供应商页面",
+                    ),
+                    "metadata": {
+                        "page_workflow_stage": "verify_navigation_result",
+                        "page_workflow_phase": "verify",
+                        "page_workflow_goal": "navigation",
+                        "page_workflow_progress": {
+                            "status": "verify_pending",
+                            "continuation_required": True,
+                        },
+                    },
+                }
+            ]
+        },
+    )
+
+    assert "page_navigation" not in completed
 
 
 def test_collect_completed_turn_intents_tracks_rail_fetch_evidence() -> None:

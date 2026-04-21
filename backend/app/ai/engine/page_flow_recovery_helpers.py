@@ -57,33 +57,51 @@ def _trim_recovery_tool_names(
     return trimmed
 
 
-def _build_structured_recovery_message(
+def _recovery_progress_status(
     *,
-    recovery_reason: str,
-    page_key: str,
-    preferred_tool_names: list[str],
     workflow_plan: Any,
 ) -> str:
-    completion_mode = str(workflow_plan.completion_contract.mode or "").strip()
-    verify_signals = list(workflow_plan.completion_contract.verify_signals or [])
-    action_signals = list(workflow_plan.completion_contract.action_signals or [])
-    lines = [
-        "Continue the same page workflow only.",
-        f"Workflow phase: {workflow_plan.workflow_phase}.",
-        f"Workflow goal: {workflow_plan.workflow_goal}.",
-        f"Recovery reason: {recovery_reason}.",
-    ]
-    if page_key:
-        lines.append(f"Current page key: {page_key}.")
-    if action_signals:
-        lines.append(f"Action signals: {', '.join(action_signals)}.")
-    if verify_signals:
-        lines.append(f"Verify signals: {', '.join(verify_signals)}.")
-    if completion_mode:
-        lines.append(f"Completion mode: {completion_mode}.")
-    lines.append(f"Use only these tools next: {', '.join(preferred_tool_names)}.")
-    lines.append("Do not restart the workflow or fall back to generic page summaries.")
-    return "\n".join(lines)
+    workflow_phase = str(workflow_plan.workflow_phase or "").strip()
+    if workflow_phase == "discover":
+        return "discover_pending"
+    if workflow_phase == "navigate_or_open":
+        return "action_pending"
+    if workflow_phase == "write":
+        return "write_pending"
+    if workflow_phase == "submit":
+        return "submit_pending"
+    if workflow_phase == "verify":
+        return "verify_pending"
+    if workflow_phase == "read":
+        return "read_pending"
+    return "step_pending"
+
+
+def _build_recovery_progress(
+    *,
+    recovery_reason: str,
+    preferred_tool_names: list[str],
+    round_tool_names: list[str],
+    workflow_plan: Any,
+) -> dict[str, Any]:
+    completion = workflow_plan.completion_contract
+    return {
+        "mode": str(completion.mode or "").strip() or "verify_only",
+        "workflow_stage": workflow_plan.workflow_stage,
+        "workflow_phase": workflow_plan.workflow_phase,
+        "workflow_goal": workflow_plan.workflow_goal,
+        "completion_signals": list(completion.completion_signals or []),
+        "action_signals": list(completion.action_signals or []),
+        "verify_signals": list(completion.verify_signals or []),
+        "matched_completion_signals": [],
+        "matched_action_signals": [],
+        "matched_verify_signals": [],
+        "continuation_required": True,
+        "status": _recovery_progress_status(workflow_plan=workflow_plan),
+        "recovery_reason": recovery_reason,
+        "preferred_tool_names": list(preferred_tool_names),
+        "round_tool_names": list(round_tool_names),
+    }
 
 
 def build_page_no_progress_recovery(
@@ -194,7 +212,6 @@ def build_page_no_progress_recovery(
     if not preferred_tool_names:
         return None, [], {}
 
-    page_key = str(page_context.get("page_key") or "").strip()
     if navigation_action_no_progress:
         recovery_reason = "page_navigation_failed_no_progress"
     elif missing_form_session_no_progress:
@@ -205,18 +222,29 @@ def build_page_no_progress_recovery(
             if repeated_snapshot
             else "page_snapshot_only_round"
         )
+    progress = _build_recovery_progress(
+        recovery_reason=recovery_reason,
+        preferred_tool_names=preferred_tool_names,
+        round_tool_names=round_tool_names,
+        workflow_plan=workflow_plan,
+    )
+    workflow_snapshot = {
+        "intent_kind": page_intent_kind,
+        "stage": workflow_plan.workflow_stage,
+        "phase": workflow_plan.workflow_phase,
+        "goal": workflow_plan.workflow_goal,
+        "state": workflow_plan.workflow_state.to_dict(),
+        "completion": workflow_plan.completion_contract.to_dict(),
+        "progress": dict(progress),
+        "allowed_tool_names": list(preferred_tool_names),
+        "preferred_tool_names": list(preferred_tool_names),
+    }
     return (
-        _build_structured_recovery_message(
-            recovery_reason=recovery_reason,
-            page_key=page_key,
-            preferred_tool_names=preferred_tool_names,
-            workflow_plan=workflow_plan,
-        ),
+        None,
         preferred_tool_names,
         {
             "reason": recovery_reason,
             "intent_kind": page_intent_kind,
-            "current_page_key": page_key,
             "preferred_tool_names": preferred_tool_names,
             "round_tool_names": round_tool_names,
             "workflow_stage": workflow_plan.workflow_stage,
@@ -224,6 +252,8 @@ def build_page_no_progress_recovery(
             "workflow_goal": workflow_plan.workflow_goal,
             "workflow_state": workflow_plan.workflow_state.to_dict(),
             "workflow_completion": workflow_plan.completion_contract.to_dict(),
+            "page_workflow_progress": progress,
+            "page_workflow": workflow_snapshot,
         },
     )
 

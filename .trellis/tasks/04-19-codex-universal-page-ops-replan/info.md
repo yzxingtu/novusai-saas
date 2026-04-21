@@ -249,6 +249,14 @@
 3. `backend/app/ai/engine/execution_state_machine.py` 与 `backend/app/ai/engine/turn_diagnostics.py` 已把这条 owner 链接进 canonical turn events / diagnostics：`turn.intent_planned`、`turn.recovery_decided`、`turn.partial_exit`、`turn.consent_paused` 以及 top-level diagnostics 现在都可以显式携带 `active_page_workflow`，而不是继续让下游从 prompt hint 或文本收尾里猜页面停在哪一步。
 4. 这次推进说明 `WS3 page workflow state owner` 已正式进入 active 执行中，但还没有宣告完成；后续仍需继续清理 prompt-hint-led recovery 与 text-only completion 残留，不为新 SaaS 回补兼容层。
 
+### 2026-04-21 WS3 closeout update
+
+1. `backend/app/ai/engine/page_flow_recovery_helpers.py` 与 `backend/app/ai/engine/tool_loop_session.py` 已删除 no-progress page recovery 的 ad-hoc 系统提示主路径：tool loop 现在只冻结 narrowed tool subset，并把 pending `page_workflow_progress`、recovery reason 与 active page intent kind 写回 `_runtime_intent_plan` / `_runtime_intent_facts`，不再让 prompt hint 或 `Current page key` 句式充当 live recovery owner。
+2. `backend/app/ai/engine/tool_policy_intent_helpers.py` 已把显式 `page_workflow_progress` 提升为 contract-breach / completed-intent 判断的优先真相源：当 runtime intent view 已明确标记 `verify_pending`、`discover_pending` 等 continuation-required 状态时，后续 snapshot evidence 不会再把 page intent 误判为已完成。
+3. `backend/app/ai/engine/recovery_prompt_builders.py` 已把 user-visible partial output 收口为 page-workflow-aware 表达：discover/read/write/submit/verify 阶段会产出对应的自然语言 stop-loss 文案，而不是继续回落成 generic page “还需要继续核验”。
+4. 结合此前已完成的 stage-aware completion、`page_workflow` recovery snapshot、`active_page_workflow` diagnostics/turn-events 投影，这条主线的 acceptance 已满足，因此 `WS3 page workflow state owner closeout` 现已完成。
+5. 本轮 closeout 没有发现超出现有 ownership matrix 的新主线缺口；remaining mainline work 继续回到 `WS6 frontend-live-truth-freeze` 与 `WS1 turn-loop-orchestrator-convergence`，不新增 child task，也不为新 SaaS 恢复兼容层。
+
 ### Phase 5: Context-Budget Alignment
 
 1. 维持 thin `page_context`，不回退到重内容 prompt 注入。

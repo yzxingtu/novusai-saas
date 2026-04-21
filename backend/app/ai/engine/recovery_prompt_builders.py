@@ -66,6 +66,74 @@ def _collect_completed_output_parts(
     return completed_results, completed_labels
 
 
+def _active_unfinished_page_workflow(
+    intents: list[IntentPlan],
+) -> dict[str, str] | None:
+    for intent in intents:
+        if intent.family != "page_ops" or intent.status in {
+            "completed",
+            "failed",
+            "skipped",
+        }:
+            continue
+        metadata = dict(intent.metadata or {})
+        progress = (
+            dict(metadata.get("page_workflow_progress") or {})
+            if isinstance(metadata.get("page_workflow_progress"), dict)
+            else {}
+        )
+        if not progress and not any(
+            str(metadata.get(key) or "").strip()
+            for key in (
+                "page_workflow_stage",
+                "page_workflow_phase",
+                "page_workflow_goal",
+            )
+        ):
+            continue
+        return {
+            "label": str(intent.user_visible_label or "").strip(),
+            "phase": str(metadata.get("page_workflow_phase") or "").strip(),
+            "goal": str(metadata.get("page_workflow_goal") or "").strip(),
+            "status": str(progress.get("status") or "").strip(),
+        }
+    return None
+
+
+def _page_workflow_pending_phrase(workflow: dict[str, str] | None) -> str:
+    if workflow is None:
+        return ""
+    status = str(workflow.get("status") or "").strip()
+    goal = str(workflow.get("goal") or "").strip()
+    phase = str(workflow.get("phase") or "").strip()
+
+    if status == "discover_pending":
+        return _("还停在定位页面入口这一步")
+    if status == "action_pending":
+        if goal == "navigation":
+            return _("还停在页面跳转这一步")
+        if goal == "pagination":
+            return _("还停在翻页这一步")
+        if goal == "row_detail":
+            return _("还停在打开详情这一步")
+        return _("还停在页面操作这一步")
+    if status == "verify_pending":
+        if goal == "navigation":
+            return _("还需要确认页面是否已经切换成功")
+        if goal == "row_detail":
+            return _("还需要继续核验详情内容")
+        return _("还需要继续核验页面结果")
+    if status == "read_pending" or phase == "read":
+        return _("还需要继续读取页面内容")
+    if status == "write_pending" or phase == "write":
+        return _("还需要继续填写页面内容")
+    if status == "submit_pending" or phase == "submit":
+        return _("还需要继续提交页面变更")
+    if status == "awaiting_consent":
+        return _("正在等待你的确认")
+    return _("还没有完成")
+
+
 def build_recovery_message(
     *,
     decision: RecoveryDecision,
@@ -205,6 +273,7 @@ def build_partial_output(
     unfinished_results: list[str] = []
     unfinished_labels: list[str] = []
     retry_budget_exhausted = reason == "retry_budget_exhausted"
+    active_page_workflow = _active_unfinished_page_workflow(intents)
 
     for intent in intents:
         display_label = RecoveryResultNormalizer._partial_output_label(intent)
@@ -250,40 +319,85 @@ def build_partial_output(
 
     unfinished_summary = "、".join(unfinished_labels)
     if unfinished_summary:
+        page_pending_phrase = (
+            _page_workflow_pending_phrase(active_page_workflow)
+            if active_page_workflow is not None and len(unfinished_labels) == 1
+            else ""
+        )
         if provider_failure_kind == "tool_timeout":
-            parts.append(
-                _("{unfinished}暂时超时了，你可以稍后再问。").format(
-                    unfinished=unfinished_summary
+            if page_pending_phrase:
+                parts.append(
+                    _("{unfinished}{pending}，你可以稍后再问。").format(
+                        unfinished=unfinished_summary,
+                        pending=page_pending_phrase,
+                    )
                 )
-            )
+            else:
+                parts.append(
+                    _("{unfinished}暂时超时了，你可以稍后再问。").format(
+                        unfinished=unfinished_summary
+                    )
+                )
         elif (
             provider_failure_kind == "budget_exit"
             or is_budget_exit_reason(reason)
             or retry_budget_exhausted
         ):
-            parts.append(
-                _("{unfinished}还需要继续核验，我先把目前能确认的内容给你。").format(
-                    unfinished=unfinished_summary
+            if page_pending_phrase:
+                parts.append(
+                    _("{unfinished}{pending}，我先把目前能确认的内容给你。").format(
+                        unfinished=unfinished_summary,
+                        pending=page_pending_phrase,
+                    )
                 )
-            )
+            else:
+                parts.append(
+                    _(
+                        "{unfinished}还需要继续核验，我先把目前能确认的内容给你。"
+                    ).format(unfinished=unfinished_summary)
+                )
         elif is_terminal_failure_kind(provider_failure_kind):
-            parts.append(
-                _("{unfinished}被系统中断了，请稍后再试。").format(
-                    unfinished=unfinished_summary
+            if page_pending_phrase:
+                parts.append(
+                    _("{unfinished}{pending}，但这轮被系统中断了，请稍后再试。").format(
+                        unfinished=unfinished_summary,
+                        pending=page_pending_phrase,
+                    )
                 )
-            )
+            else:
+                parts.append(
+                    _("{unfinished}被系统中断了，请稍后再试。").format(
+                        unfinished=unfinished_summary
+                    )
+                )
         elif provider_failure_kind != "none":
-            parts.append(
-                _("{unfinished}被暂时中断了，请稍后再试。").format(
-                    unfinished=unfinished_summary
+            if page_pending_phrase:
+                parts.append(
+                    _("{unfinished}{pending}，但这轮被暂时中断了，请稍后再试。").format(
+                        unfinished=unfinished_summary,
+                        pending=page_pending_phrase,
+                    )
                 )
-            )
+            else:
+                parts.append(
+                    _("{unfinished}被暂时中断了，请稍后再试。").format(
+                        unfinished=unfinished_summary
+                    )
+                )
         else:
-            parts.append(
-                _("{unfinished}还没有完成。如果你愿意，我可以继续。").format(
-                    unfinished=unfinished_summary
+            if page_pending_phrase:
+                parts.append(
+                    _("{unfinished}{pending}。如果你愿意，我可以继续。").format(
+                        unfinished=unfinished_summary,
+                        pending=page_pending_phrase,
+                    )
                 )
-            )
+            else:
+                parts.append(
+                    _("{unfinished}还没有完成。如果你愿意，我可以继续。").format(
+                        unfinished=unfinished_summary
+                    )
+                )
     if parts:
         return " ".join(part.strip() for part in parts if part.strip())
     if (

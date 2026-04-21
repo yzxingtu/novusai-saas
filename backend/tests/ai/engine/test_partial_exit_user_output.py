@@ -39,7 +39,9 @@ def test_partial_exit_user_output_is_user_focused() -> None:
     assert "Investigate remaining details" in output
 
 
-def test_partial_exit_user_output_uses_partial_search_results_before_retry_exhausted_message() -> None:
+def test_partial_exit_user_output_uses_partial_search_results_before_retry_exhausted_message() -> (
+    None
+):
     intents = [
         IntentPlan(
             intent_id="intent-1",
@@ -74,7 +76,9 @@ def test_partial_exit_user_output_uses_partial_search_results_before_retry_exhau
     assert "如果你愿意，我可以继续" not in output
 
 
-def test_update_intent_statuses_caches_partial_result_for_unfinished_search_intent() -> None:
+def test_update_intent_statuses_caches_partial_result_for_unfinished_search_intent() -> (
+    None
+):
     intents = [
         IntentPlan(
             intent_id="intent-1",
@@ -129,6 +133,39 @@ def test_update_intent_statuses_caches_partial_result_for_unfinished_search_inte
     assert updated[0].metadata["fetch_url_blocked_urls"] == []
 
 
+def test_partial_exit_user_output_uses_page_workflow_phase_for_page_turns() -> None:
+    intents = [
+        IntentPlan(
+            intent_id="intent-1",
+            kind="page_form_write",
+            family="page_ops",
+            order=1,
+            user_visible_label="提交智能体表单",
+            source_text="提交这个表单",
+            status="pending",
+            requires_tools=True,
+            metadata={
+                "page_workflow_phase": "submit",
+                "page_workflow_goal": "form_write",
+                "page_workflow_progress": {
+                    "status": "submit_pending",
+                    "continuation_required": True,
+                },
+            },
+        )
+    ]
+
+    output = RecoveryManager.build_partial_output(
+        intents,
+        reason="retry_budget_exhausted",
+        provider_failure_kind="none",
+    )
+
+    assert "提交智能体表单" in output
+    assert "继续提交页面变更" in output
+    assert "目前能确认的内容" in output
+
+
 def test_update_intent_statuses_marks_web_search_zero_results_as_completed() -> None:
     intents = [
         IntentPlan(
@@ -168,10 +205,14 @@ def test_update_intent_statuses_marks_web_search_zero_results_as_completed() -> 
     assert updated[0].cached_result is not None
     assert "没有找到" in updated[0].cached_result
     assert updated[0].metadata.get("requires_fetch_url") is None
-    assert updated[0].metadata["auto_fetch_gate_reason"] == "search_no_results_completed"
+    assert (
+        updated[0].metadata["auto_fetch_gate_reason"] == "search_no_results_completed"
+    )
 
 
-def test_update_intent_statuses_uses_fetch_body_preview_for_web_research_result() -> None:
+def test_update_intent_statuses_uses_fetch_body_preview_for_web_research_result() -> (
+    None
+):
     intents = [
         IntentPlan(
             intent_id="intent-web",
@@ -219,4 +260,7 @@ def test_update_intent_statuses_uses_fetch_body_preview_for_web_research_result(
 
     assert updated[0].status == "completed"
     assert "今年暑假从7月6日开始" in updated[0].cached_result
-    assert updated[0].cached_result != "放假通知！湖南12地明确！|特殊教育学校_新浪财经_新浪网"
+    assert (
+        updated[0].cached_result
+        != "放假通知！湖南12地明确！|特殊教育学校_新浪财经_新浪网"
+    )

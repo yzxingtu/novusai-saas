@@ -87,6 +87,26 @@ def _requested_page_intents(
     return _merge_active_page_intent(intents, input_variables=input_variables)
 
 
+def _planned_page_intent_completion_override(intent: Any | None) -> bool | None:
+    if intent is None:
+        return None
+    metadata = (
+        dict(getattr(intent, "metadata", {}) or {})
+        if hasattr(intent, "metadata")
+        else {}
+    )
+    progress = metadata.get("page_workflow_progress")
+    if not isinstance(progress, dict):
+        return None
+    status = str(progress.get("status") or "").strip()
+    continuation_required = progress.get("continuation_required")
+    if status == "completed" or continuation_required is False:
+        return True
+    if status or continuation_required is True:
+        return False
+    return None
+
+
 def detect_requested_turn_intents(
     user_text: str,
     *,
@@ -101,9 +121,12 @@ def detect_requested_turn_intents(
     if not planned:
         requested = resolve_requested_intents_from_input_variables(input_variables)
         if requested:
-            requested_intents = [str(intent_name or "").strip() for intent_name in requested]
+            requested_intents = [
+                str(intent_name or "").strip() for intent_name in requested
+            ]
             if any(
-                _normalize_page_intent_name(intent_name) for intent_name in requested_intents
+                _normalize_page_intent_name(intent_name)
+                for intent_name in requested_intents
             ):
                 return _merge_active_page_intent(
                     requested_intents,
@@ -117,13 +140,14 @@ def detect_requested_turn_intents(
             normalized_active_page_intent = _normalize_page_intent_name(
                 active_intent_kind
             )
-            return [normalized_active_page_intent] if normalized_active_page_intent else []
+            return (
+                [normalized_active_page_intent] if normalized_active_page_intent else []
+            )
         if mentions_weather(normalized):
             has_weather_capability = any(
-                tool_semantic_family(tool, input_variables) == "weather" for tool in tools
-            ) or any(
-                tool.name in {"web_search", "fetch_url"} for tool in tools
-            )
+                tool_semantic_family(tool, input_variables) == "weather"
+                for tool in tools
+            ) or any(tool.name in {"web_search", "fetch_url"} for tool in tools)
             if has_weather_capability:
                 return ["weather"]
         if mentions_rail_ticket(normalized) and any(
@@ -200,6 +224,14 @@ def collect_completed_turn_intents(
         }
         for intent_name in requested_page_intents:
             planned_intent = planned_intents.get(intent_name)
+            explicit_completion = _planned_page_intent_completion_override(
+                planned_intent
+            )
+            if explicit_completion is True:
+                completed.add(intent_name)
+                continue
+            if explicit_completion is False:
+                continue
             if intent_completion_matches(
                 "page_ops",
                 completed_tool_names=successful_tool_names,

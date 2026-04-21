@@ -83,9 +83,7 @@ def _recover(user_text: str) -> tuple[str | None, list[str], dict]:
 def test_build_page_no_progress_recovery_for_navigation_request() -> None:
     hint, preferred_tool_names, diagnostics = _recover("帮我打开智能体管理页面")
 
-    assert hint is not None
-    assert "Workflow phase: verify." in hint
-    assert "Verify signals: ui_get_snapshot." in hint
+    assert hint is None
     assert preferred_tool_names == [
         "ui_list_interactables",
         "ui_click",
@@ -94,6 +92,7 @@ def test_build_page_no_progress_recovery_for_navigation_request() -> None:
     assert diagnostics["intent_kind"] == "page_navigation"
     assert diagnostics["workflow_stage"] == "verify_navigation_result"
     assert diagnostics["workflow_phase"] == "verify"
+    assert diagnostics["page_workflow_progress"]["status"] == "verify_pending"
 
 
 def test_build_page_no_progress_recovery_for_failed_cross_page_click() -> None:
@@ -137,7 +136,7 @@ def test_build_page_no_progress_recovery_for_failed_cross_page_click() -> None:
         )
     )
 
-    assert hint is not None
+    assert hint is None
     assert preferred_tool_names == [
         "ui_list_interactables",
         "ui_click",
@@ -151,7 +150,7 @@ def test_build_page_no_progress_recovery_for_failed_cross_page_click() -> None:
 def test_build_page_no_progress_recovery_for_screenshot_request() -> None:
     hint, preferred_tool_names, diagnostics = _recover("帮我给当前页面截图")
 
-    assert hint is not None
+    assert hint is None
     assert preferred_tool_names == [
         "ui_get_snapshot",
     ]
@@ -161,8 +160,7 @@ def test_build_page_no_progress_recovery_for_screenshot_request() -> None:
 def test_build_page_no_progress_recovery_for_form_write_request() -> None:
     hint, preferred_tool_names, diagnostics = _recover("帮我填写并提交表单")
 
-    assert hint is not None
-    assert "Workflow phase: submit." in hint
+    assert hint is None
     assert preferred_tool_names == [
         "ui_fill_form",
         "ui_set_field",
@@ -200,8 +198,7 @@ def test_build_page_no_progress_recovery_for_form_write_without_active_form() ->
         )
     )
 
-    assert hint is not None
-    assert "Recovery reason: page_form_session_missing." in hint
+    assert hint is None
     assert preferred_tool_names == [
         "ui_list_interactables",
         "ui_open_surface",
@@ -212,12 +209,13 @@ def test_build_page_no_progress_recovery_for_form_write_without_active_form() ->
     assert diagnostics["workflow_stage"] == "discover_form_before_write"
     assert diagnostics["workflow_phase"] == "discover"
     assert diagnostics["workflow_state"]["has_active_form"] is False
+    assert diagnostics["page_workflow_progress"]["status"] == "discover_pending"
 
 
 def test_build_page_no_progress_recovery_for_form_read_request() -> None:
     hint, preferred_tool_names, diagnostics = _recover("帮我读取当前表单状态")
 
-    assert hint is not None
+    assert hint is None
     assert preferred_tool_names == [
         "ui_get_form_state",
         "ui_read_region",
@@ -228,8 +226,7 @@ def test_build_page_no_progress_recovery_for_form_read_request() -> None:
 def test_build_page_no_progress_recovery_for_row_detail_request() -> None:
     hint, preferred_tool_names, diagnostics = _recover("查看这条记录详情")
 
-    assert hint is not None
-    assert "Workflow goal: row_detail." in hint
+    assert hint is None
     assert preferred_tool_names == [
         "ui_read_region",
         "ui_read_table",
@@ -258,7 +255,7 @@ def test_build_page_no_progress_recovery_for_row_detail_without_overlay_prefers_
         )
     )
 
-    assert hint is not None
+    assert hint is None
     assert preferred_tool_names == [
         "ui_list_interactables",
         "ui_click",
@@ -273,7 +270,7 @@ def test_build_page_no_progress_recovery_for_row_detail_without_overlay_prefers_
 def test_build_page_no_progress_recovery_for_pagination_request() -> None:
     hint, preferred_tool_names, diagnostics = _recover("翻到下一页")
 
-    assert hint is not None
+    assert hint is None
     assert preferred_tool_names == [
         "ui_read_table",
         "ui_click",
@@ -285,7 +282,7 @@ def test_build_page_no_progress_recovery_for_pagination_request() -> None:
 def test_build_page_no_progress_recovery_for_search_request() -> None:
     hint, preferred_tool_names, diagnostics = _recover("搜索记录并清空筛选")
 
-    assert hint is not None
+    assert hint is None
     assert preferred_tool_names == [
         "ui_read_region",
         "ui_list_interactables",

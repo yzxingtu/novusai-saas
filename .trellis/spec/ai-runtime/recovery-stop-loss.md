@@ -25,6 +25,10 @@ Recovery should narrow the task, not restart the entire turn blindly.
   `page_workflow_progress` and carry the active page-workflow snapshot on retry,
   consent-pause, and partial-exit decisions so downstream diagnostics do not
   fall back to prompt-only page-progress guesses
+- when a page turn stalls inside an inner tool loop, recovery must freeze the
+  narrowed tool subset and write the pending `page_workflow_progress` back into
+  the active runtime intent/view state instead of appending an ad-hoc page
+  recovery system hint
 
 ## Stop-Loss
 
@@ -52,6 +56,9 @@ Do not consume retry budget solely because a tool is waiting for consent.
   `active_page_workflow` snapshot
   (`stage` / `phase` / `goal` / `completion` / `progress` / narrowed tool subset)
   that recovery used, instead of rebuilding another stop-loss explanation path
+- user-visible partial output for unfinished page turns should read from that
+  workflow snapshot so submit/read/verify/discover phases do not collapse back
+  into a generic page “not finished yet” line
 
 ## Consent Pause
 
