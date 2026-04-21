@@ -1,0 +1,3 @@
+{"file":"frontend/apps/web-antd/src/utils/page-navigation.ts","reason":"Audit-found dead helper that still fabricates synthetic page_context fallback payloads"}
+{"file":"frontend/apps/web-antd/src/utils/__tests__/page-navigation.test.ts","reason":"Coverage currently pinned to the dead helper rather than the live runtime owner chain"}
+{"file":".trellis/spec/ai-runtime/tool-skill-governance.md","reason":"Canonical docs must stop describing page-navigation.ts as live runtime truth"}

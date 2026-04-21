@@ -1,0 +1,38 @@
+{
+  "id": "dead-page-navigation-cleanup",
+  "name": "dead-page-navigation-cleanup",
+  "title": "Retire dead page-navigation helper and stale fallback docs",
+  "description": "Remove the unreferenced frontend page-navigation helper that still fabricates synthetic page_context payloads, then realign tests and canonical docs with the actual live runtime owner chain.",
+  "status": "planning",
+  "dev_type": "frontend",
+  "scope": null,
+  "priority": "P1",
+  "creator": "yudi",
+  "assignee": "yudi",
+  "createdAt": "2026-04-21",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "frontend/apps/web-antd/src/utils/page-navigation.ts",
+    "frontend/apps/web-antd/src/utils/__tests__/page-navigation.test.ts",
+    ".trellis/spec/ai-runtime/tool-skill-governance.md"
+  ],
+  "notes": "2026-04-21 audit found that page-navigation.ts is no longer imported by production frontend code, but it still fabricates synthetic page_context/navigation fallback payloads and is referenced by tests/task docs as if it were a live runtime boundary. The new SaaS runtime should delete that dead seam instead of preserving it.",
+  "meta": {},
+  "execution_path": "normal",
+  "required_artifacts": [
+    "prd.md"
+  ],
+  "context_files": [
+    "implement.jsonl",
+    "check.jsonl"
+  ],
+  "verification_mode": "command"
+}

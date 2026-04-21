@@ -1,6 +1,4 @@
-"""
-ConversationService facade mixins.
-"""
+"""ConversationService facade mixins."""
 
 from __future__ import annotations
 
@@ -12,6 +10,7 @@ from app.models.ai.agent_conversation import AgentConversation
 from app.repositories.ai.conversation_message_repository import (
     ConversationMessageRepository,
 )
+from app.services.ai.action_log_service import resolve_action_level, write_ai_action_log
 from app.services.ai.conversation_chat_lifecycle_service import (
     ConversationChatLifecycleService,
 )
@@ -34,31 +33,57 @@ from app.services.ai.conversation_diagnostics_support import (
     normalize_turn_record_payload,
     to_non_empty_str,
 )
+from app.services.ai.conversation_export_formatter import (
+    to_json as export_to_json,
+)
+from app.services.ai.conversation_export_formatter import (
+    to_markdown as export_to_markdown,
+)
 from app.services.ai.conversation_export_runtime_service import (
     ConversationExportRuntimeService,
 )
-from app.services.ai.conversation_export_formatter import (
-    to_json as export_to_json,
-    to_markdown as export_to_markdown,
-)
 from app.services.ai.conversation_history_access import (
     get_messages_for_conversation as fetch_messages_for_conversation,
+)
+from app.services.ai.conversation_history_access import (
     load_chat_history as load_chat_history_access,
+)
+from app.services.ai.conversation_history_access import (
     sanitize_tool_messages as sanitize_tool_messages_access,
 )
 from app.services.ai.conversation_history_service import ConversationHistoryService
 from app.services.ai.conversation_interaction_service import (
     ConversationInteractionService,
 )
+from app.services.ai.conversation_memory_state_service import (
+    ConversationMemoryStateService,
+)
+from app.services.ai.conversation_output_parser import parse_output
 from app.services.ai.conversation_persistence_facade import (
     get_context_compaction_snapshot as load_context_compaction_snapshot,
+)
+from app.services.ai.conversation_persistence_facade import (
     mark_memory_updated as mark_memory_updated_persist,
+)
+from app.services.ai.conversation_persistence_facade import (
     persist_chat_messages as persist_chat_messages_persist,
+)
+from app.services.ai.conversation_persistence_facade import (
     persist_stream_completion as persist_stream_completion_persist,
+)
+from app.services.ai.conversation_persistence_facade import (
     persist_stream_last_error_marker as persist_stream_last_error_marker_persist,
+)
+from app.services.ai.conversation_persistence_facade import (
     persist_user_messages as persist_user_messages_persist,
+)
+from app.services.ai.conversation_persistence_facade import (
     save_stream_error_message as save_stream_error_message_persist,
+)
+from app.services.ai.conversation_persistence_facade import (
     update_stats as update_stats_persist,
+)
+from app.services.ai.conversation_persistence_facade import (
     upsert_context_compaction_snapshot as upsert_context_compaction_snapshot_persist,
 )
 from app.services.ai.conversation_read_model_service import (
@@ -74,6 +99,7 @@ from app.services.ai.conversation_stats_service import ConversationStatsService
 from app.services.ai.conversation_timeline_service import (
     ConversationTimelineService,
 )
+from app.services.ai.execution_decision_service import ExecutionDecisionService
 from app.services.ai.execution_trust_policy_service import (
     ExecutionTrustPolicyService,
 )
@@ -81,16 +107,6 @@ from app.services.ai.execution_trust_policy_service import (
 if TYPE_CHECKING:
     from app.ai.engine.types import ExecutionResult
     from app.services.ai.conversation_service import ConversationService
-
-
-def _legacy_conversation_service_module() -> Any:
-    from app.services.ai import conversation_service as legacy_module
-
-    return legacy_module
-
-
-def _legacy_parse_output(*args: Any, **kwargs: Any) -> Any:
-    return _legacy_conversation_service_module().parse_output(*args, **kwargs)
 
 
 class ConversationDiagnosticsFacade:
@@ -175,7 +191,7 @@ class ConversationDiagnosticsFacade:
 
 class ConversationDependencyFacade:
     @property
-    def read_model_service(self: "ConversationService") -> ConversationReadModelService:
+    def read_model_service(self: ConversationService) -> ConversationReadModelService:
         if not hasattr(self, "_read_model_service"):
             self._read_model_service = ConversationReadModelService(
                 self.db,
@@ -184,7 +200,7 @@ class ConversationDependencyFacade:
         return self._read_model_service
 
     @property
-    def message_repo(self: "ConversationService") -> ConversationMessageRepository:
+    def message_repo(self: ConversationService) -> ConversationMessageRepository:
         if not hasattr(self, "_message_repo"):
             self._message_repo = ConversationMessageRepository(
                 self.db,
@@ -193,7 +209,7 @@ class ConversationDependencyFacade:
         return self._message_repo
 
     @property
-    def timeline_service(self: "ConversationService") -> ConversationTimelineService:
+    def timeline_service(self: ConversationService) -> ConversationTimelineService:
         if not hasattr(self, "_timeline_service"):
             self._timeline_service = ConversationTimelineService(
                 self.db,
@@ -203,23 +219,24 @@ class ConversationDependencyFacade:
         return self._timeline_service
 
     @property
-    def interaction_service(self: "ConversationService") -> ConversationInteractionService:
+    def interaction_service(
+        self: ConversationService,
+    ) -> ConversationInteractionService:
         if not hasattr(self, "_interaction_service"):
-            legacy_module = _legacy_conversation_service_module()
             self._interaction_service = ConversationInteractionService(
                 self.db,
                 message_repo=self.message_repo,
                 memory_tenant_id=self._get_memory_tenant_id(),
-                decision_service_cls=legacy_module.ExecutionDecisionService,
+                decision_service_cls=ExecutionDecisionService,
                 trust_policy_service_cls=ExecutionTrustPolicyService,
-                write_ai_action_log_fn=legacy_module.write_ai_action_log,
-                resolve_action_level_fn=legacy_module.resolve_action_level,
+                write_ai_action_log_fn=write_ai_action_log,
+                resolve_action_level_fn=resolve_action_level,
             )
         return self._interaction_service
 
     @property
     def export_runtime_service(
-        self: "ConversationService",
+        self: ConversationService,
     ) -> ConversationExportRuntimeService:
         if not hasattr(self, "_export_runtime_service"):
             self._export_runtime_service = ConversationExportRuntimeService(
@@ -229,7 +246,7 @@ class ConversationDependencyFacade:
         return self._export_runtime_service
 
     @property
-    def history_service(self: "ConversationService") -> ConversationHistoryService:
+    def history_service(self: ConversationService) -> ConversationHistoryService:
         if not hasattr(self, "_history_service"):
             self._history_service = ConversationHistoryService(
                 message_repo=self.message_repo,
@@ -240,7 +257,7 @@ class ConversationDependencyFacade:
 
     @property
     def search_query_service(
-        self: "ConversationService",
+        self: ConversationService,
     ) -> ConversationSearchQueryService:
         if not hasattr(self, "_search_query_service"):
             self._search_query_service = ConversationSearchQueryService(
@@ -251,7 +268,7 @@ class ConversationDependencyFacade:
 
     @property
     def chat_lifecycle_service(
-        self: "ConversationService",
+        self: ConversationService,
     ) -> ConversationChatLifecycleService:
         if not hasattr(self, "_chat_lifecycle_service"):
             self._chat_lifecycle_service = ConversationChatLifecycleService(
@@ -263,7 +280,7 @@ class ConversationDependencyFacade:
         return self._chat_lifecycle_service
 
     @property
-    def compaction_service(self: "ConversationService") -> ConversationCompactionService:
+    def compaction_service(self: ConversationService) -> ConversationCompactionService:
         if not hasattr(self, "_compaction_service"):
             self._compaction_service = ConversationCompactionService(
                 message_repo=self.message_repo,
@@ -274,7 +291,7 @@ class ConversationDependencyFacade:
 
     @property
     def runtime_projection_service(
-        self: "ConversationService",
+        self: ConversationService,
     ) -> ConversationRuntimeProjectionService:
         if not hasattr(self, "_runtime_projection_service"):
             self._runtime_projection_service = ConversationRuntimeProjectionService(
@@ -286,24 +303,24 @@ class ConversationDependencyFacade:
         return self._runtime_projection_service
 
     @property
-    def memory_state_service(self: "ConversationService") -> Any:
+    def memory_state_service(self: ConversationService) -> Any:
         if not hasattr(self, "_memory_state_service"):
-            self._memory_state_service = _legacy_conversation_service_module().SessionMemoryService(
-                self._get_memory_tenant_id()
+            self._memory_state_service = ConversationMemoryStateService(
+                memory_tenant_id=self._get_memory_tenant_id(),
             )
         return self._memory_state_service
 
     @property
-    def stats_service(self: "ConversationService") -> ConversationStatsService:
+    def stats_service(self: ConversationService) -> ConversationStatsService:
         if not hasattr(self, "_stats_service"):
             self._stats_service = ConversationStatsService(
                 repo=self.repo,
-                parse_output_fn=_legacy_parse_output,
+                parse_output_fn=parse_output,
             )
         return self._stats_service
 
     @property
-    def stream_persistence_service(self: "ConversationService") -> Any:
+    def stream_persistence_service(self: ConversationService) -> Any:
         if not hasattr(self, "_stream_persistence_service"):
             from app.services.ai.conversation_stream_persistence_service import (
                 ConversationStreamPersistenceService,
@@ -315,7 +332,7 @@ class ConversationDependencyFacade:
         return self._stream_persistence_service
 
     @property
-    def tenant_admin_repo(self: "ConversationService") -> Any:
+    def tenant_admin_repo(self: ConversationService) -> Any:
         if not hasattr(self, "_tenant_admin_repo"):
             from app.repositories.tenant.tenant_admin_repository import (
                 TenantAdminRepository,
@@ -346,7 +363,7 @@ class ConversationExportFacade:
 
 class ConversationHistoryFacade:
     async def load_chat_history(
-        self: "ConversationService",
+        self: ConversationService,
         conversation_id: int,
         max_messages: int = 0,
         max_tokens: int = 0,
@@ -365,7 +382,7 @@ class ConversationHistoryFacade:
         return sanitize_tool_messages_access(messages)
 
     async def get_messages_for_conversation(
-        self: "ConversationService",
+        self: ConversationService,
         conversation_id: int,
     ) -> list[Any]:
         return await fetch_messages_for_conversation(self, conversation_id)
@@ -373,7 +390,7 @@ class ConversationHistoryFacade:
 
 class ConversationPersistenceFacade:
     async def persist_chat_messages(
-        self: "ConversationService",
+        self: ConversationService,
         conversation: AgentConversation,
         result: ExecutionResult,
         history_count: int,
@@ -397,7 +414,7 @@ class ConversationPersistenceFacade:
         )
 
     async def persist_user_messages(
-        self: "ConversationService",
+        self: ConversationService,
         *,
         conversation: AgentConversation,
         messages: list[ChatMessage],
@@ -408,11 +425,13 @@ class ConversationPersistenceFacade:
             messages=messages,
         )
 
-    async def mark_memory_updated(self: "ConversationService", conversation_id: int) -> None:
+    async def mark_memory_updated(
+        self: ConversationService, conversation_id: int
+    ) -> None:
         await mark_memory_updated_persist(self, conversation_id)
 
     async def get_context_compaction_snapshot(
-        self: "ConversationService",
+        self: ConversationService,
         conversation_id: int,
     ) -> dict[str, Any] | None:
         return await load_context_compaction_snapshot(
@@ -422,7 +441,7 @@ class ConversationPersistenceFacade:
         )
 
     async def upsert_context_compaction_snapshot(
-        self: "ConversationService",
+        self: ConversationService,
         conversation_id: int,
         *,
         summary: str,
@@ -439,7 +458,7 @@ class ConversationPersistenceFacade:
         )
 
     async def update_stats(
-        self: "ConversationService",
+        self: ConversationService,
         conversation: AgentConversation,
         result: ExecutionResult,
         current_agent: Agent | None = None,
@@ -452,7 +471,7 @@ class ConversationPersistenceFacade:
         )
 
     async def persist_stream_completion(
-        self: "ConversationService",
+        self: ConversationService,
         *,
         conversation_id: int,
         result: ExecutionResult,
@@ -478,7 +497,7 @@ class ConversationPersistenceFacade:
         )
 
     async def persist_stream_last_error_marker(
-        self: "ConversationService",
+        self: ConversationService,
         *,
         conversation_id: int,
         error_type: str,
@@ -498,7 +517,7 @@ class ConversationPersistenceFacade:
         )
 
     async def save_stream_error_message(
-        self: "ConversationService",
+        self: ConversationService,
         *,
         conversation_id: int,
         error_text: str,

@@ -316,16 +316,15 @@ export async function submitRuntimeForm(args: { confirm?: boolean; formSessionId
   install-time discoverability can survive without eager plugin resolve. Treat
   those fields as bounded startup/catalog hints only, not as live selected-tool
   truth for the current turn.
-- `frontend/.../ai-slide-panel/use-page-ai-capability.ts` and
-  `frontend/.../utils/page-navigation.ts` still read `suggested_tools` for
-  local affordance display and fallback assembly. Keep that boundary UX-only;
+- `frontend/.../ai-slide-panel/use-page-ai-capability.ts` may still read
+  `suggested_tools` for local affordance display. Keep that boundary UX-only;
   do not promote those hints back into runtime tool routing.
-- `frontend/.../components/business/ai-runtime/runtime-bridge-snapshot.ts`
-  and `frontend/.../utils/page-navigation.ts` now inject compact
-  `page_data.navigation_catalog` / `page_data.navigation_context` into live
-  page context and navigation results. Keep that payload summary-first and do
-  not regress to heavy page-local `page_data` blobs or a second navigation
-  truth source.
+- Live compact `page_data.navigation_catalog` /
+  `page_data.navigation_context` injection is owned by
+  `frontend/.../components/business/ai-runtime/runtime-bridge-snapshot.ts`.
+  Historical helper utilities such as `frontend/.../utils/page-navigation.ts`
+  are not part of the live owner chain and must not be documented or treated
+  as canonical runtime truth.
 - `backend/app/ai/tools/executors/builtin_executor.py` still hosts legacy web_search and HTML parsing; treat as transitional and do not add new page-runtime behavior there.
 - Page read/write execution is partially split; avoid adding new page-runtime logic into builtin executors.
 

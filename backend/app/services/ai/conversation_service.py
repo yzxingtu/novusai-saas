@@ -8,7 +8,7 @@ Provides conversation list, detail, search, archive, delete and export.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,10 +26,6 @@ from app.repositories.ai.agent_conversation_repository import (
     AdminAgentConversationRepository,
     AgentConversationRepository,
 )
-from app.repositories.ai.conversation_message_repository import (
-    ConversationMessageRepository,
-)
-from app.services.ai.action_log_service import resolve_action_level, write_ai_action_log
 from app.services.ai.conversation_facade_mixins import (
     ConversationDependencyFacade,
     ConversationDiagnosticsFacade,
@@ -37,35 +33,12 @@ from app.services.ai.conversation_facade_mixins import (
     ConversationHistoryFacade,
     ConversationPersistenceFacade,
 )
-from app.services.ai.conversation_message_persistence_service import (
-    ConversationMessagePersistenceService,
-)
-from app.services.ai.conversation_output_parser import parse_output
 from app.services.ai.conversation_read_model_service import (
     ConversationReadModelService,
 )
-from app.services.ai.conversation_session_memory_shim import SessionMemoryService
-from app.services.ai.execution_decision_service import ExecutionDecisionService
-
-if TYPE_CHECKING:
-    from app.repositories.tenant.tenant_admin_repository import (
-        TenantAdminRepository,
-    )
-    from app.services.ai.conversation_stream_persistence_service import (
-        ConversationStreamPersistenceService,
-    )
 
 logger = LogManager.get_logger("ai.conversation_service")
 _CONTEXT_COMPACTION_METADATA_KEY = "context_compaction"
-__all__ = [
-    "ConversationService",
-    "ConversationMessagePersistenceService",
-    "ExecutionDecisionService",
-    "SessionMemoryService",
-    "parse_output",
-    "resolve_action_level",
-    "write_ai_action_log",
-]
 
 
 class ConversationService(
@@ -247,7 +220,6 @@ class ConversationService(
             interaction_mode_downgrade_reason=interaction_mode_downgrade_reason,
         )
 
-
     def _get_memory_tenant_id(self) -> int:
         return self.tenant_id if self.tenant_id is not None else PLATFORM_TENANT_ID
 
@@ -308,9 +280,7 @@ class ConversationService(
             user_id=user_id,
             owner_type=owner_type,
         )
-        return await self.memory_state_service.get_conversation_memory_state(
-            conversation_id
-        )
+        return await self.memory_state_service.get_state(conversation_id)
 
     async def clear_conversation_memory_state(
         self,
@@ -323,9 +293,7 @@ class ConversationService(
             user_id=user_id,
             owner_type=owner_type,
         )
-        return await self.memory_state_service.clear_conversation_memory(
-            conversation_id
-        )
+        return await self.memory_state_service.clear_state(conversation_id)
 
     # ========================================
     # 搜索 / Search
@@ -385,8 +353,13 @@ class ConversationService(
         )
 
         # Proactively clear session memory (immediate cleanup beyond TTL) / 主动清理会话记忆（TTL 外的即时清理）
-        await self.memory_state_service.clear_conversation_memory_safe(
-            conversation_id
+        await self.memory_state_service.clear_state_safe(
+            conversation_id=conversation_id,
+            tenant_id=self.tenant_id,
+            logger=logger,
+            log_message=(
+                "Conversation memory cleanup failed: conversation={} tenant={} err={}"
+            ),
         )
 
         logger.info(
@@ -403,7 +376,7 @@ class ConversationService(
         """
         await super()._after_delete(id)
         try:
-            await self.memory_state_service.clear_conversation_memory(id)
+            await self.memory_state_service.clear_state(id)
         except Exception as exc:  # pragma: no cover - best effort cleanup path
             logger.warning(
                 "Delete conversation memory cleanup failed: conversation={} tenant={} err={}",
@@ -486,4 +459,3 @@ class ConversationService(
 
 
 __all__ = ["ConversationService"]
-

@@ -833,15 +833,10 @@ class TestConversationAccessHelpers:
         )
 
         memory_svc = MagicMock()
-        memory_svc.get_conversation_memory_state = AsyncMock(
-            return_value={"preferences": []},
-        )
+        memory_svc.get_state = AsyncMock(return_value={"preferences": []})
+        service._memory_state_service = memory_svc
 
-        with patch(
-            "app.services.ai.conversation_service.SessionMemoryService",
-            return_value=memory_svc,
-        ):
-            result = await service.get_conversation_memory_state(10, user_id=1)
+        result = await service.get_conversation_memory_state(10, user_id=1)
 
         assert result == {"preferences": []}
         service.get_accessible_conversation.assert_awaited_once_with(
@@ -849,7 +844,7 @@ class TestConversationAccessHelpers:
             user_id=1,
             owner_type=None,
         )
-        memory_svc.get_conversation_memory_state.assert_awaited_once_with(10)
+        memory_svc.get_state.assert_awaited_once_with(10)
 
     @pytest.mark.asyncio
     async def test_clear_conversation_memory_state_checks_access_first(self, mock_db):
@@ -864,13 +859,10 @@ class TestConversationAccessHelpers:
         )
 
         memory_svc = MagicMock()
-        memory_svc.clear_conversation_memory = AsyncMock(return_value=2)
+        memory_svc.clear_state = AsyncMock(return_value=2)
+        service._memory_state_service = memory_svc
 
-        with patch(
-            "app.services.ai.conversation_service.SessionMemoryService",
-            return_value=memory_svc,
-        ):
-            result = await service.clear_conversation_memory_state(10, user_id=1)
+        result = await service.clear_conversation_memory_state(10, user_id=1)
 
         assert result == 2
         service.get_accessible_conversation.assert_awaited_once_with(
@@ -878,7 +870,7 @@ class TestConversationAccessHelpers:
             user_id=1,
             owner_type=None,
         )
-        memory_svc.clear_conversation_memory.assert_awaited_once_with(10)
+        memory_svc.clear_state.assert_awaited_once_with(10)
 
     @pytest.mark.asyncio
     async def test_global_conversation_memory_uses_zero_tenant_namespace(self, mock_db):
@@ -892,19 +884,15 @@ class TestConversationAccessHelpers:
             return_value=_make_conversation(tenant_id=None)
         )
 
-        memory_svc = MagicMock()
-        memory_svc.get_conversation_memory_state = AsyncMock(
-            return_value={"preferences": []}
-        )
-
         with patch(
-            "app.services.ai.conversation_service.SessionMemoryService",
-            return_value=memory_svc,
+            "app.services.ai.conversation_facade_mixins.ConversationMemoryStateService",
         ) as mock_memory_service:
+            memory_svc = mock_memory_service.return_value
+            memory_svc.get_state = AsyncMock(return_value={"preferences": []})
             await service.get_conversation_memory_state(10)
 
-        mock_memory_service.assert_called_once_with(0)
-        memory_svc.get_conversation_memory_state.assert_awaited_once_with(10)
+        mock_memory_service.assert_called_once_with(memory_tenant_id=0)
+        memory_svc.get_state.assert_awaited_once_with(10)
 
 
 class TestArchiveConversation:
@@ -1184,7 +1172,7 @@ class TestUpdateStats:
         service.repo = AsyncMock()
 
         with patch(
-            "app.services.ai.conversation_service.parse_output",
+            "app.services.ai.conversation_facade_mixins.parse_output",
             return_value={"value": 1},
         ) as mock_parse:
             await service.update_stats(
@@ -1215,15 +1203,12 @@ class TestDeleteConversationMemoryCleanup:
         service.repo = AsyncMock()
 
         memory_svc = MagicMock()
-        memory_svc.clear_conversation_memory = AsyncMock(return_value=2)
+        memory_svc.clear_state = AsyncMock(return_value=2)
+        service._memory_state_service = memory_svc
 
-        with patch(
-            "app.services.ai.conversation_service.SessionMemoryService",
-            return_value=memory_svc,
-        ):
-            await service._after_delete(123)
+        await service._after_delete(123)
 
-        memory_svc.clear_conversation_memory.assert_awaited_once_with(123)
+        memory_svc.clear_state.assert_awaited_once_with(123)
 
     @pytest.mark.asyncio
     async def test_after_delete_memory_cleanup_failure_not_raise(self, mock_db):
@@ -1235,17 +1220,12 @@ class TestDeleteConversationMemoryCleanup:
         service.repo = AsyncMock()
 
         memory_svc = MagicMock()
-        memory_svc.clear_conversation_memory = AsyncMock(
-            side_effect=RuntimeError("redis down")
-        )
+        memory_svc.clear_state = AsyncMock(side_effect=RuntimeError("redis down"))
+        service._memory_state_service = memory_svc
 
-        with patch(
-            "app.services.ai.conversation_service.SessionMemoryService",
-            return_value=memory_svc,
-        ):
-            await service._after_delete(456)
+        await service._after_delete(456)
 
-        memory_svc.clear_conversation_memory.assert_awaited_once_with(456)
+        memory_svc.clear_state.assert_awaited_once_with(456)
 
 
 class TestThinkingPersistence:
@@ -2388,11 +2368,11 @@ class TestThinkingPersistence:
 
         with (
             patch(
-                "app.services.ai.conversation_service.ExecutionDecisionService.record_decision",
+                "app.services.ai.conversation_facade_mixins.ExecutionDecisionService.record_decision",
                 new=AsyncMock(),
             ) as record_decision,
             patch(
-                "app.services.ai.conversation_service.write_ai_action_log",
+                "app.services.ai.conversation_facade_mixins.write_ai_action_log",
                 new=AsyncMock(),
             ),
         ):
@@ -2520,11 +2500,11 @@ class TestThinkingPersistence:
 
         with (
             patch(
-                "app.services.ai.conversation_service.ExecutionDecisionService.record_decision",
+                "app.services.ai.conversation_facade_mixins.ExecutionDecisionService.record_decision",
                 new=AsyncMock(return_value=SimpleNamespace(id=901)),
             ),
             patch(
-                "app.services.ai.conversation_service.write_ai_action_log",
+                "app.services.ai.conversation_facade_mixins.write_ai_action_log",
                 new=AsyncMock(),
             ) as write_action_log,
         ):

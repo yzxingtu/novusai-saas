@@ -1,0 +1,2 @@
+{"command":"rg -n \"page-navigation\" frontend/apps/web-antd/src -g '!**/__tests__/**'","reason":"Verify the helper is not part of any production frontend import path"}
+{"command":"pnpm --dir frontend exec vitest run src/utils/__tests__/menu-navigation.test.ts src/utils/__tests__/runtime-page-operations.test.ts","reason":"Regression anchor around the surviving navigation/page-runtime utility seams after dead-helper cleanup"}
