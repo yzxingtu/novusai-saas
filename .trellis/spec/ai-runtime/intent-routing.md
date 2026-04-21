@@ -30,6 +30,11 @@ and page context are known.
 - If no intent signal is found, return a single `direct_reply` intent.
 - When a page continuation context is active, route to `page_*` intents and
 suppress `knowledge_query` or `web_research` signals from the same clause.
+- Page-continuation runtime facts such as `last_tool_name`, `last_page_key`,
+  and `last_page_op` must be read from canonical turn diagnostics or
+  `turn_record` payloads first. Parsing legacy tool-call arguments is a
+  bounded historical fallback only, not the live owner path for continuation
+  routing.
 - `memory_recall` takes precedence over `memory_save` when both signals appear.
 - Codeword save prompts such as `把这个代号写入长期记忆` stay in
   `memory_save`; placeholder tokens like `CASE-*` / `SAVED_*` and caveats such

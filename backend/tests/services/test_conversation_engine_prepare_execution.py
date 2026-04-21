@@ -665,6 +665,12 @@ async def test_prepare_execution_keeps_page_continuation_runtime_facts_and_diagn
                         "success": True,
                     }
                 ],
+                metadata={
+                    "turn_record": {
+                        "active_intent_kind": "page_summary",
+                        "last_page_key": "admin.ai.conversations",
+                    }
+                },
             ),
             ChatMessage(role="tool", content="page context payload"),
             ChatMessage(role="assistant", content="这里是第一页摘要。"),
@@ -715,6 +721,8 @@ async def test_prepare_execution_keeps_page_continuation_runtime_facts_and_diagn
         "web_research",
     ]
     assert prep.continuation_context.last_tool_name == "ui_get_snapshot"
+    assert prep.continuation_context.last_page_key == "admin.ai.conversations"
+    assert prep.continuation_context.research_target_text == "admin.ai.conversations"
     assert [intent.kind for intent in prep.intent_plan] == ["page_summary"]
     assert [tool.name for tool in prep.tools] == ["ui_get_snapshot"]
     assert prep.diagnostics["candidate_tool_names"] == ["ui_get_snapshot"]

@@ -15,6 +15,10 @@ import {
 } from '../chat-message-turn-flow';
 import { shouldDisplayConversationInHistory, useAIChat } from '../use-ai-chat';
 import {
+  applyStreamingToolResultToTurnFlow,
+  applyStreamingToolStartToTurnFlow,
+} from '../use-ai-chat-turn-flow';
+import {
   baseChatOptions,
   buildAgentList,
   buildAssistantMessage,
@@ -671,6 +675,7 @@ describe('useAIChat interrupted stream recovery', () => {
           sseEvent({
             duration_ms: 120,
             event: 'tool_call',
+            id: 'tc_query_records',
             name: 'query_records',
             success: true,
             summary: '按今天范围统计调用并按租户分组',
@@ -1509,7 +1514,7 @@ describe('useAIChat interrupted stream recovery', () => {
     ).toBe(false);
   });
 
-  it('matches tool_call completion by tool_call_id before name-based fallback', async () => {
+  it('matches tool_call completion by tool_call_id for duplicate tool names', async () => {
     apiMocks.sendChatStreamApi.mockImplementation(
       async (
         _prefix: string,
@@ -1576,6 +1581,57 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(toolCallById.get('tc-id-1')?.status).toBe('success');
     expect(toolCallById.get('tc-id-1')?.output).toBe('first result');
     expect(toolCallById.get('tc-id-2')?.status).toBe('error');
+  });
+
+  it('does not merge idless tool_call completion onto same-name running evidence', () => {
+    const assistantMessage = {
+      ...buildAssistantMessage(''),
+      clientKey: 'assistant-idless-tool-call-test',
+    } as ChatMessage;
+
+    applyStreamingToolStartToTurnFlow(assistantMessage, {
+      id: 'tc-id-1',
+      name: 'query_records',
+    });
+    applyStreamingToolStartToTurnFlow(assistantMessage, {
+      id: 'tc-id-2',
+      name: 'query_records',
+    });
+    applyStreamingToolResultToTurnFlow(assistantMessage, {
+      name: 'query_records',
+      output: 'fallback result',
+      success: true,
+    });
+
+    const toolCalls = getToolCallsForDisplay(assistantMessage) ?? [];
+    expect(toolCalls).toHaveLength(3);
+    expect(
+      toolCalls.filter((toolCall) => toolCall.status === 'running'),
+    ).toHaveLength(2);
+    expect(
+      toolCalls.filter((toolCall) => toolCall.status === 'success'),
+    ).toHaveLength(1);
+    expect(
+      toolCalls.find((toolCall) => toolCall.id === 'tc-id-1'),
+    ).toMatchObject({
+      id: 'tc-id-1',
+      name: 'query_records',
+      status: 'running',
+    });
+    expect(
+      toolCalls.find((toolCall) => toolCall.id === 'tc-id-2'),
+    ).toMatchObject({
+      id: 'tc-id-2',
+      name: 'query_records',
+      status: 'running',
+    });
+    expect(
+      toolCalls.find((toolCall) => toolCall.output === 'fallback result'),
+    ).toMatchObject({
+      name: 'query_records',
+      output: 'fallback result',
+      status: 'success',
+    });
   });
 
   it('prefers trusted final assistant content over concatenated intermediate history parts', async () => {

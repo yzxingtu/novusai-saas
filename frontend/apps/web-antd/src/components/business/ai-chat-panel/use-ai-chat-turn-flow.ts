@@ -553,11 +553,8 @@ function upsertEvidence(
 function findMatchingToolEvidenceIndex(
   flow: TurnFlowViewModel,
   evidence: TurnFlowEvidenceItem,
-  options?: { allowNameFallback?: boolean },
 ): number {
   const toolCallId = evidence.toolCallId;
-  const toolName = evidence.toolName;
-  const allowNameFallback = options?.allowNameFallback ?? true;
   for (let index = flow.evidence.length - 1; index >= 0; index -= 1) {
     const item = flow.evidence[index];
     if (!item || item.kind !== 'tool') {
@@ -580,27 +577,14 @@ function findMatchingToolEvidenceIndex(
       return index;
     }
   }
-  if (!allowNameFallback) {
-    return -1;
-  }
-  for (let index = flow.evidence.length - 1; index >= 0; index -= 1) {
-    const item = flow.evidence[index];
-    if (!item || item.kind !== 'tool') {
-      continue;
-    }
-    if (toolName && item.toolName === toolName && item.status === 'running') {
-      return index;
-    }
-  }
   return -1;
 }
 
 function upsertToolEvidence(
   flow: TurnFlowViewModel,
   evidence: TurnFlowEvidenceItem,
-  options?: { allowNameFallback?: boolean },
 ): void {
-  const index = findMatchingToolEvidenceIndex(flow, evidence, options);
+  const index = findMatchingToolEvidenceIndex(flow, evidence);
   if (index === -1) {
     upsertEvidence(flow, evidence);
     return;
@@ -775,7 +759,6 @@ export function applyStreamingToolStartToTurnFlow(
         normalizeOptionalString(event.id),
       toolName,
     }),
-    { allowNameFallback: false },
   );
   syncToolExecutionStage(flow);
   message.turnFlow = flow;
@@ -817,7 +800,6 @@ export function applyStreamingToolResultToTurnFlow(
         normalizeOptionalString(event.id),
       toolName,
     }),
-    { allowNameFallback: true },
   );
   syncToolExecutionStage(flow);
   message.turnFlow = flow;

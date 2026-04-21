@@ -48,7 +48,7 @@ No page-level component or composable may introduce an alternate policy parser.
 - Chat message rendering is decomposed into a shell plus focused blocks
   (assistant/user/error/tool-call/diagnostics) to keep the shell layout-only.
 - User chat route shells now follow `index.vue -> index-shell.vue ->
-  page-local composables/context -> focused workspace sections`.
+page-local composables/context -> focused workspace sections`.
   `UserAIChatWorkspace.vue` is a thin shell over
   `use-user-ai-chat-workspace.ts`,
   `user-ai-chat-workspace-context.ts`, and section components such as
@@ -99,6 +99,10 @@ No page-level component or composable may introduce an alternate policy parser.
   `ragSources`, or `toolCalls` as the primary live truth source. Legacy fields
   may still be read as bounded fallback input for old persisted messages, but
   they are not a live writable truth owner.
+- Live tool-result reconciliation inside canonical `turnFlow` must match
+  running tool evidence by `tool_call_id` / canonical event `id`. Same-name
+  fallback is not a valid live owner path because repeated tool names can exist
+  within one turn.
 - Read-model: `PageContext` and related structures (from shared API types)
   are treated as read-models. UI code must not reconstruct or mutate them
   outside the runtime bridge.
@@ -112,29 +116,29 @@ No page-level component or composable may introduce an alternate policy parser.
 - Thin facades only forward props, events, or exports.
 - Shell pages own orchestration, then extract repeated sections into companions.
 - Composables should expose one dominant domain; avoid micro-hooks that only
-forward local refs.
+  forward local refs.
 - Once a shell has been reduced to layout plus composition, new feature work
   must continue in its extracted companions (`*Shell.ts`, `*Content.vue`,
   `*Panel.vue`, `*Card.vue`, `*-schema.ts`, `*-values.ts`) instead of adding
   another branch back into the wrapper or shell.
 - Frontend should consume backend read models where available instead of
-rebuilding them from raw metadata in multiple places.
+  rebuilding them from raw metadata in multiple places.
 - Route-level pages delegate to shell components instead of embedding full
-workflows inline.
+  workflows inline.
 - Page-AI policy flows through `route.meta.ai` and `useCurrentPageAIPolicy()`.
-Do not create a second policy surface for a single page, a page-local registry,
-or a parallel policy composable.
+  Do not create a second policy surface for a single page, a page-local registry,
+  or a parallel policy composable.
 - Page runtime state comes from the shared UI runtime bridge, not from
-page-local registries.
+  page-local registries.
 - `usePageAICapability` and the AI panel only consume `pageContextKey` and the
-runtime read-model; they must not parse `route.meta.ai` or infer policy.
+  runtime read-model; they must not parse `route.meta.ai` or infer policy.
 
 ## Transitional Notes
 
 - Wrapper pattern is canonical, but internal shell granularity is still in
-motion. Avoid freezing helper or companion file names as global rules.
+  motion. Avoid freezing helper or companion file names as global rules.
 - CRUD-specific AI overrides are a narrow compatibility seam and must not
-replace route-level AI policy.
+  replace route-level AI policy.
 
 ## Prohibited Patterns
 
@@ -144,4 +148,4 @@ replace route-level AI policy.
 - Frontend-only guesses about protocol or fallback semantics.
 - Inventing a second page-AI policy surface beside `route.meta.ai`.
 - Reviving legacy page-AI registration flows outside the shared UI runtime
-bridge.
+  bridge.

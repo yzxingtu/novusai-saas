@@ -48,7 +48,9 @@ def collect_current_turn_fetch_titles(messages: list[ChatMessage]) -> list[str]:
         if msg.role == "user":
             last_user_index = index
 
-    turn_messages = messages[last_user_index + 1 :] if last_user_index >= 0 else messages
+    turn_messages = (
+        messages[last_user_index + 1 :] if last_user_index >= 0 else messages
+    )
     fetch_call_ids: set[str] = set()
     titles: list[str] = []
     seen_titles: set[str] = set()
@@ -170,8 +172,20 @@ def extract_latest_turn_runtime_facts(messages: list[ChatMessage]) -> dict[str, 
         "active_intent_kind": None,
     }
 
+    def _candidate_text(
+        candidates: list[dict[str, Any]],
+        key: str,
+    ) -> str:
+        for candidate in candidates:
+            value = str(candidate.get(key) or "").strip()
+            if value:
+                return value
+        return ""
+
     def _candidate_dicts(message: ChatMessage) -> list[dict[str, Any]]:
-        metadata = dict(message.metadata or {}) if isinstance(message.metadata, dict) else {}
+        metadata = (
+            dict(message.metadata or {}) if isinstance(message.metadata, dict) else {}
+        )
         candidates = [metadata]
         for key in ("turn_record", "context_diagnostics", "last_run_summary"):
             value = metadata.get(key)
@@ -191,8 +205,9 @@ def extract_latest_turn_runtime_facts(messages: list[ChatMessage]) -> dict[str, 
         if message.role != "assistant":
             continue
 
+        candidates = _candidate_dicts(message)
         if not facts["active_intent_kind"]:
-            for candidate in _candidate_dicts(message):
+            for candidate in candidates:
                 tool_planner = candidate.get("tool_planner")
                 if isinstance(tool_planner, dict):
                     intent_kind = str(tool_planner.get("intent") or "").strip()
@@ -203,6 +218,12 @@ def extract_latest_turn_runtime_facts(messages: list[ChatMessage]) -> dict[str, 
                 if intent_kind:
                     facts["active_intent_kind"] = intent_kind
                     break
+        if not facts["last_tool_name"]:
+            facts["last_tool_name"] = _candidate_text(candidates, "last_tool_name")
+        if not facts["last_page_key"]:
+            facts["last_page_key"] = _candidate_text(candidates, "last_page_key")
+        if not facts["last_page_op"]:
+            facts["last_page_op"] = _candidate_text(candidates, "last_page_op")
 
         for tool_call in reversed(message.tool_calls or []):
             if tool_call.get("success") is not True:
