@@ -377,27 +377,6 @@ export function useWysiwygFormPreview() {
     }));
   }
 
-  /** DictSelect mock options（基于 dict_code） */
-  function getDictMockOptions(
-    f: BuilderField,
-  ): Array<{ label: string; value: string }> {
-    const code = asString(f.dict_code || 'dict').replaceAll('_', ' ');
-    return [
-      {
-        label: `${code} ${$t('admin.system.codegen.preview.mockOptionA')}`,
-        value: 'a',
-      },
-      {
-        label: `${code} ${$t('admin.system.codegen.preview.mockOptionB')}`,
-        value: 'b',
-      },
-      {
-        label: `${code} ${$t('admin.system.codegen.preview.mockOptionC')}`,
-        value: 'c',
-      },
-    ];
-  }
-
   /** 关联字段 mock options（ForeignKey/ApiSelect/UserSelect/DeptSelect） */
   function getMockRelationOptions(
     f: BuilderField,
@@ -579,7 +558,6 @@ export function useWysiwygFormPreview() {
     getTreeValue,
     getCascaderValue,
     getEnumOptions,
-    getDictMockOptions,
     getMockRelationOptions,
     getRelationApi,
     getRelationPlaceholder,

@@ -10,6 +10,7 @@ from app.schemas.common import (
     MenuAIResponse,
     MenuMetaResponse,
     MenuResponse,
+    PermissionResponse,
     PermissionTreeResponse,
 )
 
@@ -124,6 +125,58 @@ class PermissionPresentationDomain:
                     )
                 )
         return sorted(tree, key=lambda x: x.sort_order)
+
+    @classmethod
+    def serialize_permission(cls, permission: Permission) -> PermissionResponse:
+        """Project a Permission ORM object into the shared API response shape."""
+
+        return PermissionResponse(
+            id=permission.id,
+            code=permission.code,
+            name=cls._translate_name(permission.name),
+            description=permission.description,
+            type=permission.type,
+            scope=permission.scope,
+            resource=permission.resource,
+            action=permission.action,
+            parent_id=permission.parent_id,
+            sort_order=permission.sort_order,
+            icon=permission.icon,
+            path=permission.path,
+            component=permission.component,
+            hidden=permission.hidden,
+        )
+
+    @classmethod
+    def build_simple_permission_tree(
+        cls,
+        permissions: list[Permission],
+        parent_id: int | None = None,
+    ) -> list:
+        """Build the simplified plan-assignment permission tree with shared titles."""
+
+        from app.schemas.tenant.plan import PermissionTreeSimpleResponse
+
+        tree: list[PermissionTreeSimpleResponse] = []
+        for permission in permissions:
+            if permission.parent_id != parent_id:
+                continue
+
+            children = cls.build_simple_permission_tree(permissions, permission.id)
+            tree.append(
+                PermissionTreeSimpleResponse(
+                    id=permission.id,
+                    code=permission.code,
+                    name=cls._translate_name(permission.name),
+                    type=permission.type,
+                    resource=permission.resource,
+                    parent_id=permission.parent_id,
+                    sort_order=permission.sort_order,
+                    children=children,
+                )
+            )
+
+        return sorted(tree, key=lambda item: item.sort_order)
 
     @staticmethod
     def _normalize_menu_ai_strings(values: list[str] | None) -> list[str]:
@@ -335,4 +388,3 @@ class PermissionPresentationDomain:
                 if is_plugin_menu and perm.path:
                     seen_plugin_paths.add(perm.path)
         return sorted(tree, key=lambda x: x.sort_order)
-

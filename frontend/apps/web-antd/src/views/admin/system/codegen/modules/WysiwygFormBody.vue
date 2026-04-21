@@ -36,7 +36,6 @@ const {
   getCascaderValue,
   getDateRangeValue,
   getDateValue,
-  getDictMockOptions,
   getEnumOptions,
   getFieldLabel,
   getFieldPlaceholder,
@@ -471,19 +470,6 @@ const {
               @update:value="
                 (value) => setFormValue(f, asNumberOrUndefined(value))
               "
-            />
-            <Select
-              v-else-if="(f._comp as string) === 'DictSelect'"
-              :value="getScalarSelectValue(f)"
-              :options="getDictMockOptions(f)"
-              :placeholder="
-                getFieldPlaceholder(
-                  f,
-                  'admin.system.codegen.preview.dictSelectPlaceholder',
-                )
-              "
-              class="w-full"
-              @update:value="(value) => setFormValue(f, value)"
             />
             <div
               v-else-if="(f._comp as string) === 'CodeEditor'"

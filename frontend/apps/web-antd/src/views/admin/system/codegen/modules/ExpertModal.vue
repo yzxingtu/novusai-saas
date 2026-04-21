@@ -213,9 +213,6 @@ const quickSearchFieldOptions = computed(() =>
       if (Array.isArray(field.enum_values) && field.enum_values.length > 0) {
         return false;
       }
-      if (asString(field.dict_code)) {
-        return false;
-      }
       const type = asString(field.type).toLowerCase();
       const form = (field.form as Record<string, unknown>) || {};
       const queryType = asString(

@@ -174,7 +174,7 @@ function getBooleanSample(field: Record<string, unknown>): boolean {
       v-else-if="
         String(field.type || '')
           .toLowerCase()
-          .includes('enum') || field.dict_code
+          .includes('enum')
       "
     >
       <span class="rounded bg-primary/10 px-2 py-0.5 text-xs text-primary">

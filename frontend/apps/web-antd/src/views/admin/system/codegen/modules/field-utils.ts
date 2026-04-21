@@ -42,6 +42,10 @@ export interface PaletteItem {
   multiple?: boolean;
 }
 
+export function normalizeFieldComponentName(component: string): string {
+  return component === 'DictSelect' ? 'select' : component;
+}
+
 export function genKey(): string {
   return `f_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
@@ -135,9 +139,10 @@ const TEXT_LIKE_COMPONENTS = new Set([
 /** 获取表单组件名 / Get form component name */
 export function getComponent(f: FieldRecord): string {
   const form = (f.form as Record<string, unknown>) || {};
-  const comp =
+  const comp = normalizeFieldComponentName(
     (typeof form.component === 'string' ? form.component : '') ||
-    (typeof f.form_component === 'string' ? f.form_component : '');
+      (typeof f.form_component === 'string' ? f.form_component : ''),
+  );
   const ev = (f.enum_values as Array<unknown>) || [];
   const enumRender =
     (form.enumRender as string) || (f.enum_render as string) || 'select';
@@ -168,7 +173,7 @@ export function getComponent(f: FieldRecord): string {
           break;
         }
         case 'DictSelect': {
-          base = 'DictSelect';
+          base = 'select';
           break;
         }
         case 'Enum': {

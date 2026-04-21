@@ -30,8 +30,6 @@ const { Drawer, isEdit, openNew, openEdit } = useCrudDrawer<KnowledgeBaseItem>({
     'description',
     'embedding_model_id',
     'vision_model_id',
-    'audio_model_id',
-    'video_model_id',
     'extract_images',
     'chunk_size',
     'chunk_overlap',

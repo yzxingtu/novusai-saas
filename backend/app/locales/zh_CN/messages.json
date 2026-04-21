@@ -922,6 +922,7 @@
             "chunk_limit_exceeded": "分块总数已达上限",
             "disabled": "知识库已禁用",
             "tenant_id_required": "scope 为 tenant 时必须指定 tenant_id",
+            "multimodal_model_config_unavailable": "当前运行时尚未开放知识库音频/视频模型配置。",
             "unsupported_file_type": "不支持的文件类型",
             "document_not_found": "文档不存在",
             "document_exists": "相同内容的文档已存在",

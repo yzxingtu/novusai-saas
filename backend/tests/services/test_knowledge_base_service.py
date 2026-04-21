@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import contextlib
+import re
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -44,7 +45,6 @@ def _make_document(**overrides):
 
 
 class TestKBCreate:
-
     @pytest.mark.asyncio
     async def test_unique_name_passes(self, mock_db):
         """When no existing KB with same name, _before_create should not raise name_exists / 创建"""
@@ -60,9 +60,34 @@ class TestKBCreate:
         with contextlib.suppress(Exception):
             await service._before_create({"name": "Unique KB"})
 
+    @pytest.mark.asyncio
+    async def test_rejects_audio_video_model_config_until_runtime_support_exists(
+        self, mock_db
+    ):
+        from app.core.i18n import _
+        from app.exceptions import BusinessException
+        from app.services.ai.knowledge_base_service import KnowledgeBaseService
+
+        service = KnowledgeBaseService.__new__(KnowledgeBaseService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+
+        with pytest.raises(
+            BusinessException,
+            match=re.escape(
+                _("knowledge_base.error.multimodal_model_config_unavailable")
+            ),
+        ):
+            await service._before_create(
+                {
+                    "name": "Unsupported KB",
+                    "audio_model_id": 7,
+                }
+            )
+
 
 class TestKBDelete:
-
     @pytest.mark.asyncio
     async def test_delete_not_found_raises(self, mock_db):
         from app.exceptions import NotFoundException
@@ -79,7 +104,6 @@ class TestKBDelete:
 
 
 class TestKBDetail:
-
     @pytest.mark.asyncio
     async def test_get_kb_detail_not_found(self, mock_db):
         from app.exceptions import NotFoundException
@@ -96,7 +120,6 @@ class TestKBDetail:
 
 
 class TestKBUpdate:
-
     @pytest.mark.asyncio
     async def test_update_name_conflict(self, mock_db):
         from app.exceptions import BusinessException
@@ -115,7 +138,6 @@ class TestKBUpdate:
 
 
 class TestKBQuota:
-
     @pytest.mark.asyncio
     async def test_check_kb_quota_within_limit(self, mock_db):
         from app.services.ai.knowledge_base_service import KnowledgeBaseService
@@ -144,9 +166,10 @@ class TestKBQuota:
 
 
 class TestKBRestore:
-
     @pytest.mark.asyncio
-    async def test_after_restore_updates_statistics_and_invalidates_cache(self, mock_db):
+    async def test_after_restore_updates_statistics_and_invalidates_cache(
+        self, mock_db
+    ):
         from app.services.ai.knowledge_base_service import KnowledgeBaseService
 
         service = KnowledgeBaseService.__new__(KnowledgeBaseService)
@@ -171,7 +194,6 @@ class TestKBRestore:
 
 
 class TestAdminKBRepository:
-
     @pytest.mark.asyncio
     async def test_update_statistics_exists_and_updates_admin_kb_stats(self, mock_db):
         from app.repositories.ai.knowledge_base_repository import (
@@ -196,7 +218,6 @@ class TestAdminKBRepository:
 
 
 class TestTenantKBVisibility:
-
     def test_visible_condition_requires_assignment_for_partial_scopes(self):
         from app.models.ai.knowledge_base import KnowledgeBase
         from app.repositories.ai.knowledge_base_repository import _kb_visible_condition
@@ -215,7 +236,6 @@ class TestTenantKBVisibility:
 
 
 class TestAdminKBPayloadNormalization:
-
     def test_prepare_admin_payload_uses_assigned_tenant_ids_alias(self, mock_db):
         from app.enums.common import ResourceScopeEnum
         from app.services.ai.knowledge_base_service import AdminKnowledgeBaseService
@@ -319,3 +339,26 @@ class TestAdminKBPayloadNormalization:
                 "scope": ResourceScopeEnum.SELECTED_TENANTS.value,
             },
         )
+
+    @pytest.mark.asyncio
+    async def test_admin_before_create_rejects_audio_video_model_config(self, mock_db):
+        from app.core.i18n import _
+        from app.exceptions import BusinessException
+        from app.services.ai.knowledge_base_service import AdminKnowledgeBaseService
+
+        service = AdminKnowledgeBaseService.__new__(AdminKnowledgeBaseService)
+        service.db = mock_db
+
+        with pytest.raises(
+            BusinessException,
+            match=re.escape(
+                _("knowledge_base.error.multimodal_model_config_unavailable")
+            ),
+        ):
+            await service._before_create(
+                {
+                    "name": "Scoped KB",
+                    "scope": "global_shared",
+                    "video_model_id": 9,
+                }
+            )

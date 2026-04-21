@@ -118,46 +118,6 @@ async function getTenantVisionModelOptions() {
   }
 }
 
-async function getTenantAudioModelOptions() {
-  try {
-    const models = await getTenantAIModelsApi();
-    const audioModels = models
-      .filter((m) => m.type === 'chat' && m.supports_audio)
-      .map((m) => ({
-        label: `${m.name} (${m.provider_name || '-'})`,
-        value: m.id,
-      }));
-    return [
-      { label: $t('tenant.knowledgeBase.field.audioModelAuto'), value: null },
-      ...audioModels,
-    ];
-  } catch {
-    return [
-      { label: $t('tenant.knowledgeBase.field.audioModelAuto'), value: null },
-    ];
-  }
-}
-
-async function getTenantVideoModelOptions() {
-  try {
-    const models = await getTenantAIModelsApi();
-    const videoModels = models
-      .filter((m) => m.type === 'chat' && m.supports_video)
-      .map((m) => ({
-        label: `${m.name} (${m.provider_name || '-'})`,
-        value: m.id,
-      }));
-    return [
-      { label: $t('tenant.knowledgeBase.field.videoModelAuto'), value: null },
-      ...videoModels,
-    ];
-  } catch {
-    return [
-      { label: $t('tenant.knowledgeBase.field.videoModelAuto'), value: null },
-    ];
-  }
-}
-
 // ============ 分块策略 / Chunking & retrieval mode ============
 
 function getChunkStrategyOptions() {
@@ -337,20 +297,6 @@ export function useFormSchema(): VbenFormSchema[] {
         },
       ),
       help: $t('tenant.knowledgeBase.help.visionModel'),
-    },
-    {
-      ...select('audio_model_id', $t('tenant.knowledgeBase.field.audioModel'), {
-        api: getTenantAudioModelOptions,
-        required: false,
-      }),
-      help: $t('tenant.knowledgeBase.help.audioModel'),
-    },
-    {
-      ...select('video_model_id', $t('tenant.knowledgeBase.field.videoModel'), {
-        api: getTenantVideoModelOptions,
-        required: false,
-      }),
-      help: $t('tenant.knowledgeBase.help.videoModel'),
     },
     {
       ...switchField(

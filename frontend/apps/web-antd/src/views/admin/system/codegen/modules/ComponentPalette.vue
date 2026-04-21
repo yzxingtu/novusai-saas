@@ -164,13 +164,6 @@ const PALETTE_GROUPS: PaletteGroup[] = [
         defaultName: 'start_time',
       },
       {
-        type: 'String',
-        component: 'DictSelect',
-        icon: 'lucide:book-open',
-        label: 'admin.system.codegen.palette.dictSelect',
-        defaultName: 'type',
-      },
-      {
         type: 'Integer',
         component: 'Rate',
         icon: 'lucide:star',
@@ -340,7 +333,6 @@ const COMMON_ITEM_SIGNATURES = new Set([
   'CodeEditor:config:JSON',
   'date:created_at:DateTime',
   'date:updated_at:DateTime',
-  'DictSelect:type:String',
   'FilePicker:attachment:File',
   'IconPicker:icon:IconPicker',
   'ImageUpload:avatar:ImageUpload',

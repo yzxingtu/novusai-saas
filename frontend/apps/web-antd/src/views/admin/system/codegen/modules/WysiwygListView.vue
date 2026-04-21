@@ -668,9 +668,7 @@ const cardQuickSearchPlaceholder = computed(() => {
                   </template>
                   <template
                     v-else-if="
-                      (Array.isArray(f.enum_values) &&
-                        f.enum_values.length > 0) ||
-                      f.dict_code
+                      Array.isArray(f.enum_values) && f.enum_values.length > 0
                     "
                   >
                     <Tag color="processing">

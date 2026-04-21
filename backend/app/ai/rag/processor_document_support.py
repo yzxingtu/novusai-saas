@@ -37,8 +37,6 @@ async def load_and_parse_document(db, doc, tenant_id, kb=None) -> list:
     当 kb.extract_images=True 时自动实例化 VisionDescriber 并注入解析器。
     空内容的 ParsedPage（content=''）会被过滤，不进入分块阶段。
     """
-    from app.ai.rag.audio_describer import AudioDescriber
-    from app.ai.rag.video_describer import VideoDescriber
     from app.ai.rag.vision_describer import VisionDescriber
     from app.configs.service import ConfigService
     from app.storage import LOCAL_STORAGE_ROOT, storage_manager
@@ -55,22 +53,21 @@ async def load_and_parse_document(db, doc, tenant_id, kb=None) -> list:
             file_name=doc.file_name,
         )
 
+    if doc.file_type in AUDIO_DOC_TYPES:
+        raise ValueError(_("knowledge_base.document.error.audio_text_unavailable"))
+    if doc.file_type in VIDEO_DOC_TYPES:
+        raise ValueError(_("knowledge_base.document.error.video_text_unavailable"))
+
     needs_vision = (
         kb is not None and getattr(kb, "extract_images", False)
     ) or doc.file_type in IMAGE_DOC_TYPES
-    needs_audio = doc.file_type in AUDIO_DOC_TYPES
-    needs_video = doc.file_type in VIDEO_DOC_TYPES
 
     vision_describer = VisionDescriber(db, tenant_id) if needs_vision else None
-    audio_describer = AudioDescriber(db, tenant_id) if needs_audio else None
-    video_describer = VideoDescriber(db, tenant_id) if needs_video else None
 
     if not doc.attachment_id and doc.metadata_extra:
         parser = get_parser(
             doc.file_type,
             vision_describer=vision_describer,
-            audio_describer=audio_describer,
-            video_describer=video_describer,
             knowledge_base=kb,
         )
         pages = await parser.parse(
@@ -118,19 +115,12 @@ async def load_and_parse_document(db, doc, tenant_id, kb=None) -> list:
     parser = get_parser(
         doc.file_type,
         vision_describer=vision_describer,
-        audio_describer=audio_describer,
-        video_describer=video_describer,
         knowledge_base=kb,
     )
     pages = await parser.parse(file_content, doc.file_name)
     parsed_pages = [page for page in pages if page.content.strip()]
     if parsed_pages:
         return parsed_pages
-
-    if doc.file_type in AUDIO_DOC_TYPES:
-        raise ValueError(_("knowledge_base.document.error.audio_text_unavailable"))
-    if doc.file_type in VIDEO_DOC_TYPES:
-        raise ValueError(_("knowledge_base.document.error.video_text_unavailable"))
     return parsed_pages
 
 

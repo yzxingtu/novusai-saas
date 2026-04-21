@@ -81,4 +81,22 @@ describe('preview builders', () => {
     expect(getMockCellValue(numberField, 0)).toBe(12);
     expect(getMockCellValue(numberField, 1)).toBe(101);
   });
+
+  it('does not fabricate dict-backed preview behavior from dict_code metadata', () => {
+    const dictMetadataField = {
+      name: 'type',
+      type: 'String',
+      dict_code: 'sys_status',
+      display_name: 'Type',
+    };
+
+    expect(getMockCellValue(dictMetadataField, 0)).toBe(
+      'admin.system.codegen.preview.sampleA',
+    );
+
+    const columns = buildGridColumns([dictMetadataField]);
+    const typeColumn = columns.find((col) => col.field === 'type');
+
+    expect(typeColumn?.cellRender?.name).toBeUndefined();
+  });
 });

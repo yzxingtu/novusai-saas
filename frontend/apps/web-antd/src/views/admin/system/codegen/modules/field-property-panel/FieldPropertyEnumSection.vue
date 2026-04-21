@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { Input, Select } from 'ant-design-vue';
+import { Select } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 
@@ -14,7 +14,6 @@ const {
   getEnumValues,
   selectedField,
   selectedFieldForm,
-  strVal,
   updateField,
 } = useFieldPropertyPanelContext();
 </script>
@@ -25,20 +24,6 @@ const {
       {{ $t('admin.system.codegen.property.enum') }}
     </div>
     <div class="flex flex-col gap-3">
-      <div>
-        <label class="mb-1 block text-xs">{{
-          $t('admin.system.codegen.property.dictCode')
-        }}</label>
-        <Input
-          :value="strVal(selectedField?.dict_code)"
-          :placeholder="$t('admin.system.codegen.property.placeholderDictCode')"
-          allow-clear
-          @update:value="updateField({ dict_code: $event || undefined })"
-        />
-        <div class="mt-1 text-xs text-muted-foreground">
-          {{ $t('admin.system.codegen.property.dictCodeHelp') }}
-        </div>
-      </div>
       <div>
         <label class="mb-1 block text-xs">{{
           $t('admin.system.codegen.property.enumRender')

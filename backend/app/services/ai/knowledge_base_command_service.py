@@ -27,11 +27,25 @@ from app.services.ai.knowledge_base_support import (
 logger = LogManager.get_logger("ai.knowledge_base_service")
 
 
+def _reject_unsupported_multimodal_model_config(data: dict[str, Any]) -> None:
+    """Fail closed on audio/video KB model overrides until real ingest owners exist."""
+
+    unsupported_fields = (
+        "audio_model_id",
+        "video_model_id",
+    )
+    if any(data.get(field) is not None for field in unsupported_fields):
+        raise BusinessException(
+            message=_("knowledge_base.error.multimodal_model_config_unavailable")
+        )
+
+
 class KnowledgeBaseCommandService:
     """Command operations extracted from KnowledgeBaseService."""
 
     @staticmethod
     async def before_create(service, data: dict[str, Any]) -> None:
+        _reject_unsupported_multimodal_model_config(data)
         await KnowledgeBaseCommandService.check_kb_quota(service)
 
         name = data.get("name")
@@ -42,6 +56,7 @@ class KnowledgeBaseCommandService:
 
     @staticmethod
     async def before_update(service, id: int, data: dict[str, Any]) -> None:
+        _reject_unsupported_multimodal_model_config(data)
         kb = await service.repo.get_by_id(id)
         if not kb:
             raise NotFoundException(message=_("knowledge_base.error.not_found"))
@@ -173,7 +188,7 @@ class AdminKnowledgeBaseCommandService:
 
     @staticmethod
     def prepare_admin_payload(
-        service,
+        _service,
         data: dict[str, Any],
         *,
         existing: KnowledgeBase | None = None,
@@ -245,6 +260,7 @@ class AdminKnowledgeBaseCommandService:
 
     @staticmethod
     async def before_create(service, data: dict[str, Any]) -> None:
+        _reject_unsupported_multimodal_model_config(data)
         scope = data.get("scope", ResourceScopeEnum.GLOBAL_SHARED.value)
         owner_tid = data.get("owner_tenant_id")
         name = data.get("name")
@@ -260,6 +276,7 @@ class AdminKnowledgeBaseCommandService:
 
     @staticmethod
     async def before_update(service, id: int, data: dict[str, Any]) -> None:
+        _reject_unsupported_multimodal_model_config(data)
         kb = await service.repo.get_by_id(id)
         if not kb:
             raise NotFoundException(message=_("knowledge_base.error.not_found"))

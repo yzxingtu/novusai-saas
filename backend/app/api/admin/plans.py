@@ -32,7 +32,6 @@ from app.rbac.services import PermissionService
 from app.schemas.common import ReorderRequest
 from app.schemas.tenant.plan import (
     PermissionSimpleResponse,
-    PermissionTreeSimpleResponse,
     TenantPlanCreateRequest,
     TenantPlanDetailResponse,
     TenantPlanPermissionsRequest,
@@ -188,31 +187,8 @@ class AdminPlanController(GlobalController):
                 await service.get_available_permissions()
             )
 
-            # 构建权限树 / Build permission tree
-            def build_tree(
-                perms: list, parent_id: int | None = None
-            ) -> list[PermissionTreeSimpleResponse]:
-                """递归构建权限树 / Recursively build permission tree"""
-                tree = []
-                for p in perms:
-                    if p.parent_id == parent_id:
-                        children = build_tree(perms, p.id)
-                        tree.append(
-                            PermissionTreeSimpleResponse(
-                                id=p.id,
-                                code=p.code,
-                                name=PermissionService.translate_name(p.name),
-                                type=p.type,
-                                resource=p.resource,
-                                parent_id=p.parent_id,
-                                sort_order=p.sort_order,
-                                children=children,
-                            )
-                        )
-                return sorted(tree, key=lambda x: x.sort_order)
-
             return success(
-                data=build_tree(permissions),
+                data=perm_service.build_simple_permission_tree(permissions),
                 message=_("common.success"),
             )
 

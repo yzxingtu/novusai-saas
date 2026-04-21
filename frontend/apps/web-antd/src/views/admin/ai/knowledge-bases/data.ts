@@ -51,38 +51,6 @@ async function getVisionModelSelectApi(params?: Record<string, unknown>) {
   return res;
 }
 
-async function getAudioModelSelectApi(params?: Record<string, unknown>) {
-  const res = await getAIModelSelectApi({
-    ...params,
-    type: 'chat',
-    supports_audio: 'true',
-  });
-  if (res?.items && (!params?.page || Number(params.page) <= 1)) {
-    res.items.unshift({
-      label: $t('admin.knowledgeBase.field.audioModelAuto'),
-      value: null,
-    });
-    if (res.total !== undefined) res.total += 1;
-  }
-  return res;
-}
-
-async function getVideoModelSelectApi(params?: Record<string, unknown>) {
-  const res = await getAIModelSelectApi({
-    ...params,
-    type: 'chat',
-    supports_video: 'true',
-  });
-  if (res?.items && (!params?.page || Number(params.page) <= 1)) {
-    res.items.unshift({
-      label: $t('admin.knowledgeBase.field.videoModelAuto'),
-      value: null,
-    });
-    if (res.total !== undefined) res.total += 1;
-  }
-  return res;
-}
-
 // ============ 表单默认值 / Form defaults ============
 
 export function getFormDefaults() {
@@ -94,8 +62,6 @@ export function getFormDefaults() {
     tenant_ids: [],
     embedding_model_id: undefined,
     vision_model_id: null,
-    audio_model_id: null,
-    video_model_id: null,
     extract_images: false,
     chunk_size: 512,
     chunk_overlap: 50,
@@ -150,20 +116,6 @@ export function useFormSchema(isEdit = false): VbenFormSchema[] {
         },
       ),
       help: $t('admin.knowledgeBase.help.visionModel'),
-    },
-    {
-      ...select('audio_model_id', $t('admin.knowledgeBase.field.audioModel'), {
-        api: getAudioModelSelectApi,
-        required: false,
-      }),
-      help: $t('admin.knowledgeBase.help.audioModel'),
-    },
-    {
-      ...select('video_model_id', $t('admin.knowledgeBase.field.videoModel'), {
-        api: getVideoModelSelectApi,
-        required: false,
-      }),
-      help: $t('admin.knowledgeBase.help.videoModel'),
     },
     {
       ...switchField(

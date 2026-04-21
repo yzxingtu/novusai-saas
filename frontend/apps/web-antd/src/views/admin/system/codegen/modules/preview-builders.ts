@@ -79,12 +79,6 @@ export function getMockCellValue(f: FieldRecord, rowIdx: number): unknown {
     return $t('admin.system.codegen.preview.sampleC');
   };
 
-  const getDictSample = () => {
-    if (rowIdx === 0) return 'a';
-    if (rowIdx === 1) return 'b';
-    return 'c';
-  };
-
   const name = String(f.name || '').toLowerCase();
   const t = String(f.type || '').toLowerCase();
   const comp = getComponent(f);
@@ -110,7 +104,6 @@ export function getMockCellValue(f: FieldRecord, rowIdx: number): unknown {
     const picked = ev[rowIdx % ev.length];
     return picked?.value ?? getDefaultSample();
   }
-  if (f.dict_code) return getDictSample();
   return getDefaultSample();
 }
 
@@ -220,7 +213,6 @@ export function buildGridColumns(
       col.cellRender = { name: 'CellImage' };
     } else if (
       renderType === 'Tag' ||
-      f.dict_code ||
       String(f.type || '').toLowerCase() === 'enum'
     ) {
       const ev =

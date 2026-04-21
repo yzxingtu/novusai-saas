@@ -30,7 +30,6 @@ const ICON_MAP: Record<string, string> = {
   Cascader: 'lucide:map-pin',
   CodeEditor: 'lucide:code-2',
   ColorPicker: 'lucide:palette',
-  DictSelect: 'lucide:book-open',
   FilePicker: 'lucide:file',
   ImageUpload: 'lucide:image',
   Rate: 'lucide:star',

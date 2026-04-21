@@ -11,7 +11,7 @@ import {
 import { $t } from '#/locales';
 import { useCodegenBuilderStore } from '#/store';
 
-import { getComponent } from '../field-utils';
+import { getComponent, normalizeFieldComponentName } from '../field-utils';
 import {
   inferFieldConfig,
   inferFieldConfigForMerge,
@@ -32,7 +32,6 @@ const FIELD_ICON_MAP: Record<string, string> = {
   Cascader: 'lucide:map-pin',
   CodeEditor: 'lucide:code-2',
   ColorPicker: 'lucide:palette',
-  DictSelect: 'lucide:book-open',
   FilePicker: 'lucide:file',
   ImageUpload: 'lucide:image',
   Rate: 'lucide:star',
@@ -226,10 +225,12 @@ export function useFieldPropertyPanel() {
   async function loadTypes() {
     try {
       const types = await getCodegenTypesApi();
-      typeOptions.value = types.map((item) => ({
-        label: item.type,
-        value: item.type,
-      }));
+      typeOptions.value = types
+        .filter((item) => item.type !== 'DictSelect')
+        .map((item) => ({
+          label: item.type,
+          value: item.type,
+        }));
     } catch {
       typeOptions.value = [];
     }
@@ -238,10 +239,12 @@ export function useFieldPropertyPanel() {
   async function loadComponents() {
     try {
       const components = await getCodegenComponentsApi();
-      componentOptions.value = components.map((item) => ({
-        label: item.label || item.name,
-        value: item.name,
-      }));
+      componentOptions.value = components
+        .filter((item) => item.name !== 'DictSelect')
+        .map((item) => ({
+          label: item.label || item.name,
+          value: item.name,
+        }));
     } catch {
       componentOptions.value = [];
     }
@@ -317,16 +320,16 @@ export function useFieldPropertyPanel() {
   function getFormComponent(): string {
     const field = selectedField.value;
     const form = asRecord(field?.form);
-    return (
+    return normalizeFieldComponentName(
       asString(form.component) ||
-      asString(field?.form_component) ||
-      getComponent(field || {})
+        asString(field?.form_component) ||
+        getComponent(field || {}),
     );
   }
 
   function setFormComponent(value: unknown) {
     const form = asRecord(selectedField.value?.form);
-    const component = asString(value) || undefined;
+    const component = normalizeFieldComponentName(asString(value)) || undefined;
     updateField({ form: { ...form, component } });
   }
 

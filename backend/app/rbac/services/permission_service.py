@@ -144,6 +144,7 @@ class PermissionService:
         self.permission_tree = _PermissionTreeFacade(self)
         self.menu_tree = _MenuFacade(self)
         self.org_authority = _OrgAuthorityFacade(self)
+        self._presentation_domain = PermissionPresentationDomain
         self._check_domain = PermissionCheckDomain()
         self._tenant_admin_permission_domain = TenantAdminPermissionDomain(self)
         self._query_domain = PermissionQueryDomain(self)
@@ -268,6 +269,10 @@ class PermissionService:
             permissions,
             parent_id=parent_id,
         )
+
+    @classmethod
+    def build_simple_permission_tree(cls, permissions: list[Permission]):
+        return PermissionPresentationDomain.build_simple_permission_tree(permissions)
 
     async def get_admin_permission_tree(
         self,
