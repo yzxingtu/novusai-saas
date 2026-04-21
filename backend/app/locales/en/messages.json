@@ -943,8 +943,8 @@
                 "max_retries_exceeded": "Maximum retries exceeded",
                 "parse_failed": "Document parsing failed",
                 "unsupported_type": "Unsupported document type",
-                "audio_text_unavailable": "Audio text is not available yet. Configure an audio description model and retry.",
-                "video_text_unavailable": "Video text is not available yet. Configure a video description model and retry."
+                "audio_text_unavailable": "Audio text extraction is not enabled in the current runtime yet. Avoid uploading audio documents until multimodal parsing support lands.",
+                "video_text_unavailable": "Video text extraction is not enabled in the current runtime yet. Avoid uploading video documents until multimodal parsing support lands."
             }
         },
         "chunk": {

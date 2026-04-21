@@ -71,7 +71,7 @@ class _StreamToolBatchState:
 
 
 def _tool_call_processor_cls():
-    """Resolve the processor lazily so legacy monkeypatches still apply."""
+    """Resolve the processor lazily so the runtime uses the current processor binding."""
     return tool_processor_mod.ToolCallProcessor
 
 

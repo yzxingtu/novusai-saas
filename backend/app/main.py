@@ -137,7 +137,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             finally:
                 if _perm_redis and _perm_locked is True:
                     try:
-                        from app.plugins.lifecycle import _UNLOCK_IF_OWNER_LUA
+                        from app.plugins.lifecycle_support import _UNLOCK_IF_OWNER_LUA
 
                         await _perm_redis.eval(
                             _UNLOCK_IF_OWNER_LUA, 1, _perm_lock_key, _perm_owner
@@ -183,7 +183,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             finally:
                 if _cfg_redis and _cfg_locked is True:
                     try:
-                        from app.plugins.lifecycle import _UNLOCK_IF_OWNER_LUA
+                        from app.plugins.lifecycle_support import _UNLOCK_IF_OWNER_LUA
 
                         await _cfg_redis.eval(
                             _UNLOCK_IF_OWNER_LUA,
@@ -313,7 +313,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 finally:
                     if _redis_client and _discover_locked is True:
                         try:
-                            from app.plugins.lifecycle import _UNLOCK_IF_OWNER_LUA
+                            from app.plugins.lifecycle_support import (
+                                _UNLOCK_IF_OWNER_LUA,
+                            )
 
                             await _redis_client.eval(
                                 _UNLOCK_IF_OWNER_LUA,
@@ -369,7 +371,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 finally:
                     if _restore_redis and _restore_locked is True:
                         try:
-                            from app.plugins.lifecycle import _UNLOCK_IF_OWNER_LUA
+                            from app.plugins.lifecycle_support import (
+                                _UNLOCK_IF_OWNER_LUA,
+                            )
 
                             await _restore_redis.eval(
                                 _UNLOCK_IF_OWNER_LUA,

@@ -1,0 +1,41 @@
+{
+  "id": "openai-legacy-compat-closeout",
+  "name": "openai-legacy-compat-closeout",
+  "title": "Retire explicit OpenAI adapter legacy compat surfaces",
+  "description": "Close out the remaining explicit OpenAI-compatible legacy adapter entrypoints and re-export facades now that the live runtime defaults to protocol-safe chat/stream orchestration.",
+  "status": "planning",
+  "dev_type": "backend",
+  "scope": null,
+  "priority": "P2",
+  "creator": "yudi",
+  "assignee": "yudi",
+  "createdAt": "2026-04-21",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "backend/app/ai/adapters/openai_adapter.py",
+    "backend/app/ai/adapters/openai_compatible/__init__.py",
+    "backend/app/ai/adapters/openai_compatible/protocol_policy.py",
+    "backend/app/ai/adapters/openai_compatible/legacy_entrypoints.py",
+    "backend/app/ai/adapters/openai_compatible/compat/legacy_protocol_execution.py",
+    "backend/app/ai/adapters/openai_compatible/compat/legacy_protocol_policy.py"
+  ],
+  "notes": "2026-04-21 full-repo audit confirmed that the live OpenAI adapter public entrypoints already route through protocol-safe chat/stream methods, but the package still exposes explicit legacy compat entrypoints and compatibility re-export modules under openai_compatible.compat/**. Those surfaces are now isolated governance debt rather than live runtime owners, and the new SaaS should either remove them or quarantine only the truly necessary low-level helpers instead of keeping legacy compat as a first-class package contract.",
+  "meta": {},
+  "execution_path": "normal",
+  "required_artifacts": [
+    "prd.md"
+  ],
+  "context_files": [
+    "implement.jsonl",
+    "check.jsonl"
+  ],
+  "verification_mode": "command"
+}

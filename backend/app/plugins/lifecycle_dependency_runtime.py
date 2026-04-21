@@ -13,6 +13,12 @@ from typing import TYPE_CHECKING
 from app.core.i18n import _
 from app.core.logging import get_logger
 from app.core.response import resolve_public_error_message
+from app.plugins.dependencies import (
+    detect_direct_python_dependency_conflicts,
+    get_installed_distribution_version,
+    iter_effective_python_requirements,
+    normalize_python_package_name,
+)
 from app.plugins.exceptions import PluginDependencyError, PluginError
 from app.plugins.lifecycle_support import _IS_WINDOWS, run_subprocess_async
 from app.plugins.loader import PLUGINS_DIR
@@ -22,13 +28,6 @@ if TYPE_CHECKING:
 
 
 logger = get_logger(__name__)
-
-
-def _resolve_lifecycle_dependency_api():
-    """Resolve compatibility exports lazily so tests can monkeypatch the facade module."""
-    from app.plugins import lifecycle as lifecycle_facade
-
-    return lifecycle_facade
 
 
 class LifecycleDependencyRuntimeMixin:
@@ -103,23 +102,20 @@ class LifecycleDependencyRuntimeMixin:
         """Preflight direct Python dependency conflicts in shared host env.
         / 对共享宿主环境做 Python 直接依赖冲突预检。
         """
-        dependency_api = _resolve_lifecycle_dependency_api()
         normalized_requirements = [
             str(requirement).strip()
             for requirement in requirements
             if str(requirement or "").strip()
         ]
-        effective_requirements = dependency_api.iter_effective_python_requirements(
+        effective_requirements = iter_effective_python_requirements(
             normalized_requirements
         )
 
         requirement_groups: dict[str, list[tuple[str, str]]] = {}
 
         for requirement_text in self._load_project_pyproject_requirements():
-            for requirement in dependency_api.iter_effective_python_requirements(
-                [requirement_text]
-            ):
-                package = dependency_api.normalize_python_package_name(requirement.name)
+            for requirement in iter_effective_python_requirements([requirement_text]):
+                package = normalize_python_package_name(requirement.name)
                 requirement_groups.setdefault(package, []).append(
                     ("host", str(requirement))
                 )
@@ -128,25 +124,23 @@ class LifecycleDependencyRuntimeMixin:
             exclude_plugin_name=plugin_name,
         )
         for owner, owner_requirements in other_plugin_requirements.items():
-            for requirement in dependency_api.iter_effective_python_requirements(
-                owner_requirements
-            ):
-                package = dependency_api.normalize_python_package_name(requirement.name)
+            for requirement in iter_effective_python_requirements(owner_requirements):
+                package = normalize_python_package_name(requirement.name)
                 requirement_groups.setdefault(package, []).append(
                     (f"plugin:{owner}", str(requirement))
                 )
 
         for requirement in effective_requirements:
-            package = dependency_api.normalize_python_package_name(requirement.name)
+            package = normalize_python_package_name(requirement.name)
             requirement_groups.setdefault(package, []).append(
                 (f"plugin:{plugin_name}", str(requirement))
             )
 
         installed_versions = {
-            package: dependency_api.get_installed_distribution_version(package)
+            package: get_installed_distribution_version(package)
             for package in requirement_groups
         }
-        conflicts = dependency_api.detect_direct_python_dependency_conflicts(
+        conflicts = detect_direct_python_dependency_conflicts(
             requirement_groups,
             installed_versions=installed_versions,
         )

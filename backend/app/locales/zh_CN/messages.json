@@ -940,8 +940,8 @@
                 "max_retries_exceeded": "文档已达最大重试次数",
                 "parse_failed": "文档解析失败",
                 "unsupported_type": "不支持的文档类型",
-                "audio_text_unavailable": "音频当前无法提取文本，请先配置可用的音频描述模型后重试",
-                "video_text_unavailable": "视频当前无法提取文本，请先配置可用的视频描述模型后重试"
+                "audio_text_unavailable": "当前运行时尚未启用音频文本提取，请先避免上传音频文档或等待多模态解析能力落地",
+                "video_text_unavailable": "当前运行时尚未启用视频文本提取，请先避免上传视频文档或等待多模态解析能力落地"
             }
         },
         "chunk": {

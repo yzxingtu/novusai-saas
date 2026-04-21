@@ -288,6 +288,45 @@ async def test_route_treats_message_level_file_attachment_as_attachment_for_comp
 
 
 @pytest.mark.asyncio
+async def test_route_ignores_legacy_request_tools_fallback(
+    mock_db,
+    monkeypatch,
+):
+    fast_model = _make_model(
+        model_id=2,
+        provider_id=2,
+        code="fast-model",
+        tier="fast",
+    )
+
+    repo_mock = MagicMock()
+    repo_mock.get_active_with_provider = AsyncMock(return_value=None)
+    repo_mock.get_by_tier = AsyncMock(return_value=fast_model)
+    _patch_model_repo(monkeypatch, repo_mock)
+
+    agent_model = _make_model(
+        model_id=1,
+        provider_id=1,
+        code="base-model",
+        tier="fast",
+    )
+    agent = _make_agent(model=agent_model)
+    request = SimpleNamespace(
+        messages=[ChatMessage(role="user", content="hi")],
+        attachments=None,
+        tools=[{"name": "browser"}],
+    )
+
+    router = ModelRouter(mock_db)
+    router._is_provider_healthy = AsyncMock(return_value=True)
+
+    result = await router.route(agent, request, estimated_tokens=32)
+
+    assert result.model_id == 2
+    assert repo_mock.get_by_tier.await_args.kwargs["supports_function_calling"] is False
+
+
+@pytest.mark.asyncio
 async def test_can_handle_attachments_respects_disabled_routing_agent_capabilities(
     mock_db,
 ):

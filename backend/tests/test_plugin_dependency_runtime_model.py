@@ -155,7 +155,7 @@ async def test_python_dependency_preflight_rejects_shared_env_exact_pin_conflict
         ),
     )
     monkeypatch.setattr(
-        "app.plugins.lifecycle.get_installed_distribution_version",
+        "app.plugins.lifecycle_dependency_runtime.get_installed_distribution_version",
         lambda _package: "1.0.0",
     )
 

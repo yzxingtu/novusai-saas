@@ -8,7 +8,7 @@ from typing import Any
 
 
 def parse_output(*args: Any, **kwargs: Any) -> Any:
-    """Lazy shim to preserve the legacy patch path without importing engine at module load."""
+    """Lazy wrapper to avoid importing the engine parser at module load."""
     from app.ai.engine.output_parser import parse_output as _parse_output
 
     return _parse_output(*args, **kwargs)

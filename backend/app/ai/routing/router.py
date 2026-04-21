@@ -57,7 +57,6 @@ if TYPE_CHECKING:
     from app.ai.types import ChatMessage
     from app.models.ai.agent import Agent
     from app.models.ai.model import AIModel
-    from app.repositories.ai.model_repository import AIModelRepository
 
 logger = LogManager.get_logger("ai.routing")
 
@@ -158,12 +157,6 @@ class ModelRouter:
 
         # Extract request features from request / 从 request 提取请求特征
         messages: list[ChatMessage] = getattr(request, "messages", []) or []
-        # Prioritize parsed tools from caller (_prepare_execution layer),
-        # fall back to request.tools (compatible with old call paths)
-        # 优先使用调用方传入的已解析 tools（_prepare_execution 层），
-        # 回退到 request.tools（兼容旧调用路径）
-        if tools is None:
-            tools = getattr(request, "tools", None)
         has_attachments = detect_any_attachments(
             getattr(request, "attachments", None),
             messages,

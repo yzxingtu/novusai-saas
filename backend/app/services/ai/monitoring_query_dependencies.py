@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sys
 from dataclasses import dataclass
 from typing import Any
 
@@ -24,23 +23,17 @@ class MonitoringConversationQueryDependencies:
 
 
 def _resolve_override(service: Any, name: str, default: Any) -> Any:
-    """Resolve explicit overrides while keeping old monkeypatch seams alive."""
+    """Resolve explicit service/class overrides from the monitoring owner chain."""
 
     explicit_override = getattr(service, name, None)
-    resolved = (
-        explicit_override
-        if explicit_override is not None
-        else getattr(type(service), name, None) or default
-    )
-    module = sys.modules.get(type(service).__module__)
-    module_override = getattr(module, name, None) if module is not None else None
-    if (
-        module_override is not None
-        and module_override is not default
-        and module_override is not resolved
-    ):
-        return module_override
-    return resolved
+    if explicit_override is not None:
+        return explicit_override
+
+    class_override = getattr(type(service), name, None)
+    if class_override is not None:
+        return class_override
+
+    return default
 
 
 def _resolve_conversation_service_class(
