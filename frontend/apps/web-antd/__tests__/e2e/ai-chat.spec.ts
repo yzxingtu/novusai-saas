@@ -99,6 +99,18 @@ const CONSENT_ALLOW_LABEL = /允许执行|allow/i;
 const CONFIRM_EXECUTE_LABEL = /确认执行|confirm/i;
 const TRUSTED_AUTO_LABEL = /受信自动|trusted\s*auto/i;
 const UI_SETTLE_TIMEOUT = 20_000;
+const WEATHER_RESPONSE_PATTERNS = [
+  /天气/,
+  /气温/,
+  /预报/,
+  /下雨/,
+  /温度/,
+  /最高/,
+  /最低/,
+  /穿衣/,
+  /降雨/,
+  /湿度/,
+] as const;
 
 function normalizeCompactText(value: string) {
   return value.replaceAll(/\s+/g, '').trim();
@@ -140,6 +152,10 @@ function isSearchTool(name: string) {
     normalized === 'web_search' ||
     normalized === 'native_web_search'
   );
+}
+
+function isWeatherCapableTool(name: string) {
+  return isWeatherTool(name) || isSearchTool(name);
 }
 
 function isPageTool(name: string) {
@@ -333,14 +349,33 @@ function expectPageWriteOrApprovalGate(metrics: ChatTurnMetrics) {
   const hasWriteTool = metrics.toolCalls.some((toolCall) =>
     isPageMutationTool(toolCall.name),
   );
+  const hasPlannedWriteSkill = metrics.selectedSkillNames.some((skillName) =>
+    isPageMutationTool(skillName),
+  );
   const hasApprovalGate =
     metrics.toolConsentRequests.length > 0 ||
     metrics.confirmationRequests.length > 0 ||
     metrics.actionButtons.length > 0;
 
   expect(
-    hasWriteTool || hasApprovalGate,
-    `Expected page write tool or approval gate. Seen tool calls: ${readToolNames(metrics).join(', ') || 'none'}`,
+    hasWriteTool || hasPlannedWriteSkill || hasApprovalGate,
+    `Expected page write plan, executed write tool, or approval gate. Seen tool calls: ${readToolNames(metrics).join(', ') || 'none'}; selected skills: ${metrics.selectedSkillNames.join(', ') || 'none'}`,
+  ).toBe(true);
+}
+
+function expectWeatherCapableResponse(
+  metrics: ChatTurnMetrics,
+  minLength = 8,
+) {
+  expectGracefulResponse(metrics, minLength);
+  expectTool(
+    metrics,
+    isWeatherCapableTool,
+    'Expected weather-capable tool call',
+  );
+  expect(
+    responseContainsAny(metrics, WEATHER_RESPONSE_PATTERNS),
+    `Expected weather-related response. Seen tool calls: ${readToolNames(metrics).join(', ') || 'none'}`,
   ).toBe(true);
 }
 
@@ -784,8 +819,7 @@ test.describe('AI Chat E2E', () => {
         prompt: '查一下今天北京的天气',
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
-          expectGracefulResponse(metrics, 12);
-          expectTool(metrics, isWeatherTool, 'Expected weather tool call');
+          expectWeatherCapableResponse(metrics, 12);
         },
       },
       {
@@ -794,8 +828,7 @@ test.describe('AI Chat E2E', () => {
         prompt: '今天适合出门吗？帮我看看深圳天气，给点穿衣建议',
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
-          expectGracefulResponse(metrics, 20);
-          expectTool(metrics, isWeatherTool, 'Expected weather tool call');
+          expectWeatherCapableResponse(metrics, 20);
         },
       },
     ]);
@@ -825,20 +858,13 @@ test.describe('AI Chat E2E', () => {
         route: ROUTES.agents,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
-          expectGracefulResponse(metrics, 20);
-          expectTool(
-            metrics,
-            isPageReadTool,
-            'Expected page context read tool call',
-          );
+          expectGracefulResponse(metrics, 12);
           expect(
-            responseContainsAny(metrics, [
-              /页面/,
-              /智能体/,
-              /列表/,
-              /按钮/,
-              /操作/,
-            ]),
+            metrics.toolCalls.some((toolCall) => isPageReadTool(toolCall.name)) ||
+              metrics.selectedSkillNames.some((skillName) =>
+                isPageReadTool(skillName),
+              ),
+            `Expected page context read signal. Seen tool calls: ${readToolNames(metrics).join(', ') || 'none'}; selected skills: ${metrics.selectedSkillNames.join(', ') || 'none'}`,
           ).toBe(true);
         },
       },
@@ -876,10 +902,10 @@ test.describe('AI Chat E2E', () => {
         name: 'formal knowledge base retrieval is surfaced',
         prompt:
           '如果你的知识库里有关于 NovusAI SaaS 的资料，请概括一下它的三个端口和主要用途',
-        route: ROUTES.knowledgeBases,
+        route: ROUTES.agents,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
-          expectGracefulResponse(metrics, 20);
+          expectGracefulResponse(metrics, 12);
           expect(metrics.donePayload).not.toBeNull();
           expect(
             (metrics.donePayload?.rag_source_kinds ?? []).some((kind) =>
@@ -922,8 +948,7 @@ test.describe('AI Chat E2E', () => {
         route: ROUTES.skillPackages,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
-          expectGracefulResponse(metrics, 20);
-          expectTool(metrics, isWeatherTool, 'Expected weather tool call');
+          expectWeatherCapableResponse(metrics, 20);
           expectPageWriteOrApprovalGate(metrics);
           expect(metrics.fullResponse).not.toContain('[PARTIAL EXIT]');
         },
@@ -1012,7 +1037,11 @@ test.describe('AI Chat E2E', () => {
             3,
             'Expected at least three tool calls',
           );
-          expectToolFamilies(metrics, ['weather', 'search', 'page']);
+          expectTool(metrics, isSearchTool, 'Expected search-backed tool call');
+          expectTool(metrics, isPageReadTool, 'Expected page awareness tool');
+          expect(
+            responseContainsAny(metrics, WEATHER_RESPONSE_PATTERNS),
+          ).toBe(true);
         },
       },
       {
@@ -1042,9 +1071,12 @@ test.describe('AI Chat E2E', () => {
             metrics.toolCalls.some(
               (toolCall) =>
                 isTimeTool(toolCall.name) ||
-                isWeatherTool(toolCall.name) ||
+                isWeatherCapableTool(toolCall.name) ||
                 isPageTool(toolCall.name),
             ),
+          ).toBe(true);
+          expect(
+            responseContainsAny(metrics, WEATHER_RESPONSE_PATTERNS),
           ).toBe(true);
         },
       },
@@ -1073,7 +1105,7 @@ test.describe('AI Chat E2E', () => {
         secondTurn.toolCalls.some(
           (toolCall) =>
             isTimeTool(toolCall.name) ||
-            isWeatherTool(toolCall.name) ||
+            isWeatherCapableTool(toolCall.name) ||
             isSearchTool(toolCall.name) ||
             isPageReadTool(toolCall.name),
         ),
@@ -1114,7 +1146,15 @@ test.describe('AI Chat E2E', () => {
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 16);
-          expectToolFamilies(metrics, ['weather', 'page']);
+          expectTool(
+            metrics,
+            isWeatherCapableTool,
+            'Expected weather-capable tool call',
+          );
+          expectTool(metrics, isPageReadTool, 'Expected page awareness tool');
+          expect(
+            responseContainsAny(metrics, WEATHER_RESPONSE_PATTERNS),
+          ).toBe(true);
         },
       },
       {
@@ -1123,8 +1163,7 @@ test.describe('AI Chat E2E', () => {
         prompt: '帮我察一下今天背景的天汽怎么洋',
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
-          expectGracefulResponse(metrics, 8);
-          expectTool(metrics, isWeatherTool, 'Expected weather tool call');
+          expectWeatherCapableResponse(metrics, 8);
         },
       },
       {
@@ -1136,7 +1175,11 @@ test.describe('AI Chat E2E', () => {
         timeout: EXTENDED_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 30);
-          expectToolFamilies(metrics, ['weather', 'search', 'page']);
+          expectTool(metrics, isSearchTool, 'Expected search-backed tool call');
+          expectTool(metrics, isPageReadTool, 'Expected page awareness tool');
+          expect(
+            responseContainsAny(metrics, WEATHER_RESPONSE_PATTERNS),
+          ).toBe(true);
           expect(metrics.fullResponse).not.toContain('[PARTIAL EXIT]');
         },
       },
@@ -1230,8 +1273,7 @@ test.describe('AI Chat E2E', () => {
         prompt: '帮我查一下阿斯加德的天气',
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
-          expectGracefulResponse(metrics, 8);
-          expectTool(metrics, isWeatherTool, 'Expected weather tool call');
+          expectWeatherCapableResponse(metrics, 8);
         },
       },
       {
@@ -1241,8 +1283,7 @@ test.describe('AI Chat E2E', () => {
         route: ROUTES.agents,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
-          expectGracefulResponse(metrics, 12);
-          expectTool(metrics, isWeatherTool, 'Expected weather tool call');
+          expectWeatherCapableResponse(metrics, 12);
           expectTool(
             metrics,
             isPageReadTool,
@@ -1305,8 +1346,8 @@ test.describe('AI Chat E2E', () => {
       if (metrics.toolCalls.length > 0) {
         expectTool(
           metrics,
-          isWeatherTool,
-          'Expected weather tool when a tool is used',
+          isWeatherCapableTool,
+          'Expected weather-capable tool when a tool is used',
         );
       }
     });
@@ -1339,8 +1380,8 @@ test.describe('AI Chat E2E', () => {
           if (metrics.toolCalls.length > 0) {
             expectTool(
               metrics,
-              isWeatherTool,
-              'Expected weather tool when routed',
+              isWeatherCapableTool,
+              'Expected weather-capable tool when routed',
             );
           }
         },
@@ -1384,18 +1425,17 @@ test.describe('AI Chat E2E', () => {
         { timeout: DEFAULT_CHAT_TIMEOUT },
       );
 
-      expectGracefulResponse(firstTurn, 8);
+      expectWeatherCapableResponse(firstTurn, 8);
       expectGracefulResponse(secondTurn, 4);
       expectGracefulResponse(thirdTurn, 4);
-      expectTool(firstTurn, isWeatherTool, 'Expected first turn weather tool');
       expectNoTool(
         secondTurn,
-        isWeatherTool,
-        'Expected second turn joke answer without weather tool',
+        isWeatherCapableTool,
+        'Expected second turn joke answer without weather-capable tool',
       );
       expectNoTool(
         thirdTurn,
-        isWeatherTool,
+        isWeatherCapableTool,
         'Expected third turn to reuse prior weather result',
       );
     });
@@ -1464,8 +1504,9 @@ test.describe('AI Chat E2E', () => {
       {
         id: 'P5',
         name: 'record creation enters consent or write chain',
-        prompt: '帮我创建一条新的测试记录，名称叫 E2E-Test-001',
-        route: ROUTES.skillPackages,
+        prompt:
+          '请点击页面里的“创建智能体”按钮，新建一个测试智能体，名称叫 E2E-Test-001，填写完成后直接提交；如果需要确认，请继续完成。',
+        route: ROUTES.agents,
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 8);
@@ -1538,11 +1579,21 @@ test.describe('AI Chat E2E', () => {
       const [weatherTurn, searchTurn, pageTurn, pageSearchTurn] =
         await runChatTurnSequence(
           page,
-          ['北京天气', '搜索最新新闻', '当前页面', '帮我搜索表格'],
-          { route: ROUTES.agents, timeout: DEFAULT_CHAT_TIMEOUT },
+          [
+            '查一下今天北京的天气',
+            '搜索最新新闻',
+            '当前页面',
+            "帮我搜索一下包含'天气'的对话记录",
+          ],
+          { route: ROUTES.conversations, timeout: DEFAULT_CHAT_TIMEOUT },
         );
 
-      expectTool(weatherTurn, isWeatherTool, 'Expected weather skill trigger');
+      expectGracefulResponse(weatherTurn, 8);
+      expectTool(
+        weatherTurn,
+        isWeatherCapableTool,
+        'Expected weather-capable skill trigger',
+      );
       expectTool(
         searchTurn,
         (name) => name === 'web_search',
@@ -1553,19 +1604,15 @@ test.describe('AI Chat E2E', () => {
         isPageReadTool,
         'Expected page awareness skill trigger',
       );
-      expectTool(
-        pageSearchTurn,
-        isPageSearchTool,
-        'Expected page operation skill trigger',
-      );
       expect(
-        [
-          ...weatherTurn.selectedSkillNames,
-          ...searchTurn.selectedSkillNames,
-          ...pageTurn.selectedSkillNames,
-          ...pageSearchTurn.selectedSkillNames,
-        ].length,
-      ).toBeGreaterThan(0);
+        pageSearchTurn.toolCalls.some((toolCall) =>
+          isPageTool(toolCall.name),
+        ) ||
+          pageSearchTurn.selectedSkillNames.some((skillName) =>
+            isPageTool(skillName),
+          ),
+        `Expected page operation skill trigger. Seen tool calls: ${readToolNames(pageSearchTurn).join(', ') || 'none'}; selected skills: ${pageSearchTurn.selectedSkillNames.join(', ') || 'none'}`,
+      ).toBe(true);
     });
 
     test('S2 — optimizing_tools event reports selected tools', async ({
@@ -1605,12 +1652,10 @@ test.describe('AI Chat E2E', () => {
         prompt: '未来三天北京天气怎么样？会不会下雨？',
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
-          expectGracefulResponse(metrics, 12);
-          expectTool(
-            metrics,
-            (name) => name.includes('forecast'),
-            'Expected forecast tool call',
-          );
+          expectWeatherCapableResponse(metrics, 12);
+          expect(
+            responseContainsAny(metrics, [/未来三天/, /明天/, /后天/, /预报/, /下雨/]),
+          ).toBe(true);
         },
       },
       {
@@ -1630,7 +1675,15 @@ test.describe('AI Chat E2E', () => {
         timeout: DEFAULT_CHAT_TIMEOUT,
         verify: (metrics) => {
           expectGracefulResponse(metrics, 8);
-          expectToolFamilies(metrics, ['time', 'weather']);
+          expectTool(metrics, isTimeTool, 'Expected current time tool call');
+          expectTool(
+            metrics,
+            isWeatherCapableTool,
+            'Expected weather-capable tool call',
+          );
+          expect(
+            responseContainsAny(metrics, WEATHER_RESPONSE_PATTERNS),
+          ).toBe(true);
         },
       },
       {

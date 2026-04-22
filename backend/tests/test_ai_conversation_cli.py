@@ -279,6 +279,28 @@ def test_ai_conversation_show_json_success(monkeypatch) -> None:
     assert '"ui_get_snapshot"' in result.output
 
 
+def test_ai_conversation_show_json_suppresses_runtime_logs(monkeypatch) -> None:
+    from app.cli import cli
+    from app.core.logging import get_logger
+
+    def _fake_run_async(coro):
+        coro.close()
+        get_logger("tests.ai_conversation_cli").info("runtime noise should stay hidden")
+        return _sample_snapshot()
+
+    monkeypatch.setattr("app.cli._run_async", _fake_run_async)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["ai", "conversation", "show", "563", "--json"],
+    )
+
+    assert result.exit_code == 0
+    assert result.output.lstrip().startswith("{")
+    assert "runtime noise should stay hidden" not in result.output
+
+
 def test_ai_conversation_show_json_accepts_trace_id_reference(monkeypatch) -> None:
     from app.cli import cli
 

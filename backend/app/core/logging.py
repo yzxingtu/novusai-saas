@@ -21,6 +21,7 @@ import contextlib
 import logging
 import signal
 import sys
+from contextvars import ContextVar
 from pathlib import Path
 
 from loguru import logger
@@ -46,6 +47,25 @@ LOG_LEVELS = {
 
 # 分类日志器名称前缀 / Category logger name prefix
 _CATEGORY_LOGGER_PREFIX = "novusai."
+_CONSOLE_LOGGING_SUPPRESSED: ContextVar[int] = ContextVar(
+    "console_logging_suppressed",
+    default=0,
+)
+
+
+@contextlib.contextmanager
+def suppress_console_logging(enabled: bool = True):
+    """Temporarily mute Loguru console output while keeping file sinks active."""
+
+    if not enabled:
+        yield
+        return
+
+    token = _CONSOLE_LOGGING_SUPPRESSED.set(_CONSOLE_LOGGING_SUPPRESSED.get() + 1)
+    try:
+        yield
+    finally:
+        _CONSOLE_LOGGING_SUPPRESSED.reset(token)
 
 
 class InterceptHandler(logging.Handler):
@@ -158,6 +178,8 @@ class LogManager:
         if enable_console:
 
             def _console_sink_filter(record: dict) -> bool:
+                if _CONSOLE_LOGGING_SUPPRESSED.get() > 0:
+                    return False
                 if (
                     not settings.LOG_DB_TO_CONSOLE
                     and record["extra"].get("category") == LogCategoryEnum.DB.value
@@ -501,6 +523,7 @@ __all__ = [
     "get_auth_logger",
     "get_impersonate_logger",
     "init_logging",
+    "suppress_console_logging",
     "LoggerMixin",
     "CaptchaLoggerMixin",
     "StorageLoggerMixin",

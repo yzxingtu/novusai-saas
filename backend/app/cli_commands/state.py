@@ -8,11 +8,14 @@ from pathlib import Path
 
 import click
 
-from app import cli_runtime_helpers as runtime_helpers
-from app.core.config import settings
-from app.core.logging import LogManager
+from app import cli_runtime_helpers as _runtime_helpers
+from app.core.config import settings as _settings
+from app.core.logging import LogManager, suppress_console_logging
 
 logger = LogManager.get_logger("cli")
+
+runtime_helpers = _runtime_helpers
+settings = _settings
 
 _BACKEND_DIR = Path(__file__).resolve().parents[2]
 _CELERY_APP = "app.celery_app:celery_app"
@@ -133,12 +136,13 @@ def _suppress_logging(enabled: bool):
 
     import logging
 
-    previous_disable = logging.root.manager.disable
-    logging.disable(logging.CRITICAL)
-    try:
-        yield
-    finally:
-        logging.disable(previous_disable)
+    with suppress_console_logging(True):
+        previous_disable = logging.root.manager.disable
+        logging.disable(logging.CRITICAL)
+        try:
+            yield
+        finally:
+            logging.disable(previous_disable)
 
 
 def _run_quietly(enabled: bool, func, *args, **kwargs):
