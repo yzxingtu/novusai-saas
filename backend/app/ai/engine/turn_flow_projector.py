@@ -60,6 +60,13 @@ _TERMINAL_FAILURE_KINDS = frozenset(
 _SAFE_TURN_FAILURE_MESSAGE = "The assistant could not finish this turn. Please retry."
 
 
+def _strip_trace_suffix(text: str) -> str:
+    trace_marker = " [trace_id="
+    if trace_marker in text:
+        return text.split(trace_marker, 1)[0].strip()
+    return text.strip()
+
+
 def _as_dict(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
 
@@ -75,6 +82,14 @@ def _as_list(value: Any) -> list[Any]:
 def _as_text(value: Any) -> str | None:
     text = str(value or "").strip()
     return text or None
+
+
+def _as_public_error_text(value: Any) -> str | None:
+    text = _as_text(value)
+    if not text:
+        return None
+    cleaned = _strip_trace_suffix(text)
+    return cleaned or None
 
 
 def _as_int(value: Any, default: int = 0) -> int:
@@ -446,13 +461,20 @@ def _answer_card(
     completion_reason: str | None,
     terminal_failure: bool,
     final_output_source: str | None,
+    error: str | None,
 ) -> TurnAnswerCard:
     trusted_output = (
         output.strip()
         if is_trusted_assistant_final_output_source(final_output_source)
         else ""
     )
-    summary = trusted_output or "No trusted assistant final answer."
+    safe_error = _as_public_error_text(error) or ""
+    if trusted_output:
+        summary = trusted_output
+    elif terminal_failure and safe_error:
+        summary = safe_error
+    else:
+        summary = "No trusted assistant final answer."
     if len(summary) > 280:
         summary = f"{summary[:277]}..."
     confidence = "medium" if trusted_output else "low"
@@ -511,8 +533,13 @@ def build_turn_flow_view_model(
         turn_outcome=turn_outcome,
         failure_kind=failure_kind,
     )
+    untrusted_failure_output = bool(
+        terminal_failure and final_output_source == "partial_output"
+    )
 
-    error_message = _as_text(error) or _as_text(record.get("error_message"))
+    error_message = _as_public_error_text(error) or _as_public_error_text(
+        record.get("error_message")
+    )
     if not error_message and terminal_failure:
         error_message = _SAFE_TURN_FAILURE_MESSAGE
     if not error_message and _normalize_token(resolved_completion_reason) == "error":
@@ -522,6 +549,11 @@ def build_turn_flow_view_model(
             "message": error_message,
             "trace_id": trace_id_var.get() or None,
             "failure_kind": failure_kind or None,
+            **(
+                {"error_type": "untrusted_final_output_source"}
+                if untrusted_failure_output
+                else {}
+            ),
         }
         if error_message
         else None
@@ -578,6 +610,7 @@ def build_turn_flow_view_model(
         completion_reason=resolved_completion_reason,
         terminal_failure=terminal_failure,
         final_output_source=final_output_source,
+        error=error_message,
     )
     flow = TurnFlowViewModel(
         timeline=timeline,

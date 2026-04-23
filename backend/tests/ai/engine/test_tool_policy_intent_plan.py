@@ -8,6 +8,7 @@ from app.ai.engine.tool_policy_helpers import (
     detect_requested_turn_intents,
     first_page_intent_kind,
 )
+from app.ai.engine.tool_policy_page_helpers import first_page_workflow_goal
 from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage
 
@@ -147,6 +148,31 @@ def test_detect_requested_turn_intents_prefers_active_page_intent_over_stale_sum
     assert intents == ["weather", "page_navigation"]
 
 
+def test_detect_requested_turn_intents_uses_canonical_page_workflow_runtime_facts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _fail_plan_turn(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("IntentPlanner.plan_turn should not be called")
+
+    monkeypatch.setattr(IntentPlanner, "plan_turn", _fail_plan_turn)
+
+    input_variables = {
+        "_runtime_intent_facts": {
+            "requested_intents": ["weather", "page_summary"],
+            "active_intent_kind": "page_workflow",
+            "page_workflow_goal": "navigation",
+        }
+    }
+
+    intents = detect_requested_turn_intents(
+        "先查天气，再去供应商页面",
+        tools=[ToolDefinition(name="ui_open_surface")],
+        input_variables=input_variables,
+    )
+
+    assert intents == ["weather", "page_navigation"]
+
+
 def test_first_page_intent_kind_uses_runtime_intent_facts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -166,6 +192,56 @@ def test_first_page_intent_kind_uses_runtime_intent_facts(
             input_variables=input_variables,
         )
         == "page_row_detail"
+    )
+
+
+def test_first_page_intent_kind_uses_canonical_page_workflow_runtime_facts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _fail_plan_turn(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("IntentPlanner.plan_turn should not be called")
+
+    monkeypatch.setattr(IntentPlanner, "plan_turn", _fail_plan_turn)
+
+    input_variables = {
+        "_runtime_intent_facts": {
+            "active_intent_kind": "page_workflow",
+            "page_workflow_goal": "row_detail",
+        }
+    }
+
+    assert (
+        first_page_intent_kind(
+            user_text="点开这条记录看看",
+            tools=[ToolDefinition(name="ui_read_region")],
+            input_variables=input_variables,
+        )
+        == "page_row_detail"
+    )
+
+
+def test_first_page_workflow_goal_promotes_table_summary_over_stale_summary_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _fail_plan_turn(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("IntentPlanner.plan_turn should not be called")
+
+    monkeypatch.setattr(IntentPlanner, "plan_turn", _fail_plan_turn)
+
+    input_variables = {
+        "_runtime_intent_facts": {
+            "active_intent_kind": "page_workflow",
+            "page_workflow_goal": "page_summary",
+        }
+    }
+
+    assert (
+        first_page_workflow_goal(
+            user_text="列出这个表格前5条标题和时间",
+            tools=[ToolDefinition(name="ui_read_table")],
+            input_variables=input_variables,
+        )
+        == "table_summary"
     )
 
 

@@ -35,6 +35,17 @@ Keep this managed block so 'trellis update' can refresh the instructions.
     tools, monitoring, routing, memory/context governance ->
     `.trellis/spec/ai-runtime/index.md`
   - cross-layer, plugin, or path-selection work -> `.trellis/spec/guides/*.md`
+- Before claiming any AI dialogue change is "done", "fixed", "tests pass", or
+  "regressions green", align with `.trellis/spec/ai-runtime/testing-discipline.md`:
+  - Every test must be annotated `structural` / `behavioral` / `smoke`.
+  - Weak assertions (`is not None`, `mock.called`, `len > 0` alone) and
+    self-fulfilling mocks of LLM / tool executor / intent planner returns are
+    forbidden in behavioral and smoke tests.
+  - Milestone acceptance requires four simultaneous gates: structural +
+    behavioral + smoke (real-dialogue) + known-bug (RED -> GREEN commit chain).
+  - "All tests pass" or "no regressions" is NOT a sufficient statement of
+    completion. Every PR touching AI dialogue live paths must answer the PR
+    self-check in testing-discipline.md §7.
 - Keep `AGENTS.md` as a navigation and governance entrypoint. Detailed rules
   belong in `.trellis/spec/**`, not here.
 - When code and docs disagree, decide in this order:

@@ -5,7 +5,8 @@ import types
 from importlib import import_module
 from pathlib import Path
 
-from app.ai.exceptions import AIGatewayError
+from app.ai.exceptions import AIGatewayError, ProviderError
+from app.core.i18n import _
 from app.middleware.trace import trace_id_var
 
 ENGINE_DIR = Path(__file__).resolve().parents[3] / "app" / "ai" / "engine"
@@ -44,3 +45,14 @@ def test_resolve_stream_public_error_message_prefers_gateway_message() -> None:
     error = AIGatewayError("provider said no [trace_id=trace-1]")
 
     assert resolve_stream_public_error_message(error) == "provider said no"
+
+
+def test_resolve_stream_public_error_message_suppresses_html_gateway_payload() -> None:
+    error = ProviderError(
+        "<!DOCTYPE html><html><body>Bad gateway</body></html>",
+        status_code=502,
+    )
+
+    assert resolve_stream_public_error_message(error) == _(
+        "ai.error.provider_server_error"
+    )

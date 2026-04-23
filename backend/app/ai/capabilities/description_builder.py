@@ -12,7 +12,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.ai.runtime.types import prompt_skill_descriptor_is_live
+from app.ai.runtime.types import capability_pack_descriptor_is_live
 
 
 @dataclass
@@ -103,7 +103,7 @@ class CapabilityDescriptionBuilder:
         skill_groups: dict[str, list[str]] = {}
 
         for descriptor in descriptors:
-            if not prompt_skill_descriptor_is_live(descriptor):
+            if not capability_pack_descriptor_is_live(descriptor):
                 continue
 
             # Determine skill family

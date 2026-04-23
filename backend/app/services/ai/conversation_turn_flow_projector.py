@@ -61,6 +61,13 @@ _HOSTED_SEARCH_INTENT_MARKERS = (
 )
 
 
+def _strip_trace_suffix(text: str) -> str:
+    trace_marker = " [trace_id="
+    if trace_marker in text:
+        return text.split(trace_marker, 1)[0].strip()
+    return text.strip()
+
+
 def _summarize_thinking_content(value: Any, *, max_length: int = 160) -> str | None:
     text = _to_non_empty_str(value)
     if not text:
@@ -75,6 +82,14 @@ def _to_non_empty_str(value: Any) -> str | None:
     if text.lower() in {"none", "null", "undefined"}:
         return None
     return text
+
+
+def _to_public_error_str(value: Any) -> str | None:
+    text = _to_non_empty_str(value)
+    if not text:
+        return None
+    cleaned = _strip_trace_suffix(text)
+    return cleaned or None
 
 
 def _normalize_optional_int(value: Any) -> int | None:
@@ -218,16 +233,16 @@ def _derive_error_surface(metadata: dict[str, Any]) -> dict[str, Any] | None:
     raw = metadata.get("error_surface")
     if isinstance(raw, dict):
         payload = {
-            "message": _to_non_empty_str(raw.get("message")),
+            "message": _to_public_error_str(raw.get("message")),
             "error_type": _to_non_empty_str(raw.get("error_type")),
             "trace_id": _to_non_empty_str(raw.get("trace_id")),
-            "debug_message": _to_non_empty_str(raw.get("debug_message")),
+            "debug_message": _to_public_error_str(raw.get("debug_message")),
         }
         if any(payload.values()):
             return payload
 
     payload = {
-        "message": _to_non_empty_str(
+        "message": _to_public_error_str(
             metadata.get("error_message")
             or metadata.get("friendly_message")
             or metadata.get("public_error_message")
@@ -236,7 +251,7 @@ def _derive_error_surface(metadata: dict[str, Any]) -> dict[str, Any] | None:
         "trace_id": _to_non_empty_str(
             metadata.get("error_trace_id") or metadata.get("trace_id")
         ),
-        "debug_message": _to_non_empty_str(metadata.get("error_debug_message")),
+        "debug_message": _to_public_error_str(metadata.get("error_debug_message")),
     }
     if any(payload.values()):
         return payload
@@ -407,7 +422,7 @@ def _ensure_error_surface(
     if terminal_status != "error":
         return error_surface
     payload = dict(error_surface or {})
-    message = _to_non_empty_str(payload.get("message")) or _to_non_empty_str(
+    message = _to_public_error_str(payload.get("message")) or _to_public_error_str(
         metadata.get("error_message")
         or metadata.get("friendly_message")
         or metadata.get("public_error_message")
@@ -432,7 +447,7 @@ def _ensure_error_surface(
     trace_id = _to_non_empty_str(payload.get("trace_id")) or _to_non_empty_str(
         metadata.get("error_trace_id") or metadata.get("trace_id")
     )
-    debug_message = _to_non_empty_str(payload.get("debug_message")) or _to_non_empty_str(
+    debug_message = _to_public_error_str(payload.get("debug_message")) or _to_public_error_str(
         metadata.get("error_debug_message")
     )
     return {
@@ -533,6 +548,49 @@ def _resolve_failure_text_content_fallback(
     ):
         return None
     return text_content
+
+
+def _specific_error_surface_message(error_surface: dict[str, Any] | None) -> str | None:
+    if not isinstance(error_surface, dict):
+        return None
+    message = _to_public_error_str(error_surface.get("message"))
+    if not message or message == _DEFAULT_ERROR_SURFACE_MESSAGE:
+        return None
+    return message
+
+
+def _apply_failure_answer_summary_fallback(
+    answer_card: dict[str, Any],
+    *,
+    fallback_summary: str | None,
+) -> dict[str, Any]:
+    replacement = _to_non_empty_str(fallback_summary)
+    if not replacement:
+        return answer_card
+    current_summary = _to_non_empty_str(answer_card.get("summary"))
+    if current_summary and not _looks_like_missing_final_answer_summary(current_summary):
+        return answer_card
+
+    patched = dict(answer_card)
+    patched["summary"] = replacement
+    sections = patched.get("sections")
+    if isinstance(sections, list) and sections:
+        normalized_sections: list[dict[str, Any]] = []
+        for index, item in enumerate(sections):
+            section = dict(item) if isinstance(item, dict) else {}
+            if index == 0:
+                section["content"] = replacement
+            normalized_sections.append(section)
+        patched["sections"] = normalized_sections
+    else:
+        patched["sections"] = [
+            {
+                "title": "Answer",
+                "content": replacement,
+            }
+        ]
+    patched["confidence_label"] = "low"
+    return patched
 
 
 def _stage_tool_call_count(stage: dict[str, Any]) -> int:
@@ -766,35 +824,6 @@ class ConversationTurnFlowProjector:
             failure_kind=effective_failure_kind,
             final_output_source=effective_final_output_source,
         )
-        answer_card = _normalize_answer_card(
-            raw_payload.get("answer_card"),
-            fallback_summary=_to_non_empty_str(raw_payload.get("summary"))
-            or failure_text_content,
-            fallback_source_chip_ids=[item["id"] for item in evidence],
-        )
-        if (
-            failure_text_content
-            and terminal_status in {"error", "interrupted"}
-            and _looks_like_missing_final_answer_summary(answer_card.get("summary"))
-        ):
-            answer_card["summary"] = failure_text_content
-            sections = answer_card.get("sections")
-            if isinstance(sections, list) and sections:
-                normalized_sections: list[dict[str, Any]] = []
-                for index, item in enumerate(sections):
-                    section = dict(item) if isinstance(item, dict) else {}
-                    if index == 0:
-                        section["content"] = failure_text_content
-                    normalized_sections.append(section)
-                answer_card["sections"] = normalized_sections
-            else:
-                answer_card["sections"] = [
-                    {
-                        "title": "Answer",
-                        "content": failure_text_content,
-                    }
-                ]
-            answer_card["confidence_label"] = "low"
         error_context = dict(raw_payload)
         if metadata_payload:
             error_context.update(metadata_payload)
@@ -806,6 +835,20 @@ class ConversationTurnFlowProjector:
             failure_kind=effective_failure_kind,
             final_output_source=effective_final_output_source,
         )
+        failure_answer_summary = (
+            failure_text_content or _specific_error_surface_message(error_surface)
+        )
+        answer_card = _normalize_answer_card(
+            raw_payload.get("answer_card"),
+            fallback_summary=_to_non_empty_str(raw_payload.get("summary"))
+            or failure_answer_summary,
+            fallback_source_chip_ids=[item["id"] for item in evidence],
+        )
+        if terminal_status in {"error", "interrupted"}:
+            answer_card = _apply_failure_answer_summary_fallback(
+                answer_card,
+                fallback_summary=failure_answer_summary,
+            )
         return {
             "timeline": timeline,
             "evidence": evidence,
@@ -1175,11 +1218,19 @@ class ConversationTurnFlowProjector:
             failure_kind=failure_kind,
             final_output_source=final_output_source,
         )
+        failure_answer_summary = (
+            failure_text_content or _specific_error_surface_message(error_surface)
+        )
         answer_card = _normalize_answer_card(
             payload.get("answer_card"),
-            fallback_summary=failure_text_content,
+            fallback_summary=failure_answer_summary,
             fallback_source_chip_ids=[item["id"] for item in evidence],
         )
+        if terminal_status in {"error", "interrupted"}:
+            answer_card = _apply_failure_answer_summary_fallback(
+                answer_card,
+                fallback_summary=failure_answer_summary,
+            )
         return {
             "timeline": _apply_terminal_stage_semantics(
                 _normalize_timeline(timeline),
@@ -1239,17 +1290,17 @@ class ConversationTurnFlowProjector:
             "evidence": [],
             "answer_card": _normalize_answer_card(
                 {},
-                fallback_summary=_to_non_empty_str(last_error.get("friendly_message")),
+                fallback_summary=_to_public_error_str(last_error.get("friendly_message")),
                 fallback_source_chip_ids=[],
             ),
             "completion_reason": completion_reason,
             "interrupted": interrupted,
             "error_surface": (
                 {
-                    "message": _to_non_empty_str(last_error.get("friendly_message")),
+                    "message": _to_public_error_str(last_error.get("friendly_message")),
                     "error_type": error_type,
                     "trace_id": _to_non_empty_str(last_error.get("trace_id")),
-                    "debug_message": _to_non_empty_str(last_error.get("debug_message")),
+                    "debug_message": _to_public_error_str(last_error.get("debug_message")),
                 }
                 if last_error
                 else None

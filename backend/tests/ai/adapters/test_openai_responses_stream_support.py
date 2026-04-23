@@ -9,6 +9,10 @@ import pytest
 from app.ai.adapters.openai_compatible.protocol_responses_stream import (
     execute_stream_chat_via_responses,
 )
+from app.ai.engine.stream_tool_call_helpers import (
+    finalize_stream_tool_calls,
+    merge_stream_tool_calls,
+)
 from app.ai.types import ChatChunk, ChatMessage
 
 
@@ -140,7 +144,9 @@ async def test_execute_stream_chat_via_responses_emits_progress_before_text() ->
 
 
 @pytest.mark.asyncio
-async def test_execute_stream_chat_via_responses_completed_event_estimates_usage() -> None:
+async def test_execute_stream_chat_via_responses_completed_event_estimates_usage() -> (
+    None
+):
     stream = _FakeResponsesStream(
         [
             SimpleNamespace(
@@ -172,4 +178,265 @@ async def test_execute_stream_chat_via_responses_completed_event_estimates_usage
     assert chunks[2].output_tokens == 7
     assert chunks[2].total_tokens == 18
     assert (chunks[2].metadata or {}).get("usage_mode") == "estimated"
+    assert (chunks[2].metadata or {}).get("responses_response_id") == "resp_1"
+    assert stream.aclose_called is True
+
+
+@pytest.mark.asyncio
+async def test_execute_stream_chat_via_responses_emits_tool_call_from_output_item_done() -> (
+    None
+):
+    stream = _FakeResponsesStream(
+        [
+            SimpleNamespace(
+                type="response.output_item.done",
+                output_index=0,
+                item=SimpleNamespace(
+                    type="function_call",
+                    call_id="call_1",
+                    name="ui_click",
+                    arguments='{"target":"search"}',
+                ),
+            ),
+            SimpleNamespace(
+                type="response.completed",
+                response=SimpleNamespace(
+                    id="resp_1",
+                    output_text="",
+                    usage=SimpleNamespace(
+                        input_tokens=2,
+                        output_tokens=3,
+                        total_tokens=5,
+                    ),
+                ),
+            ),
+        ]
+    )
+    adapter = _FakeAdapter(stream)
+
+    chunks: list[ChatChunk] = []
+    async for chunk in execute_stream_chat_via_responses(
+        adapter=adapter,
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4",
+        request_params={"model": "gpt-5.4"},
+        aclose_stream=lambda s: s.aclose(),
+    ):
+        chunks.append(chunk)
+
+    assert chunks[0].tool_calls == [
+        {
+            "index": 0,
+            "id": "call_1",
+            "function": {
+                "name": "ui_click",
+                "arguments": '{"target":"search"}',
+            },
+        }
+    ]
+    assert chunks[-1].finish_reason == "stop"
+    assert (chunks[-1].metadata or {}).get("responses_response_id") == "resp_1"
+    assert stream.aclose_called is True
+
+
+@pytest.mark.asyncio
+async def test_execute_stream_chat_via_responses_emits_message_text_from_output_item_done() -> (
+    None
+):
+    stream = _FakeResponsesStream(
+        [
+            SimpleNamespace(
+                type="response.output_item.done",
+                item=SimpleNamespace(
+                    type="message",
+                    content=[
+                        SimpleNamespace(type="output_text", text="from output item")
+                    ],
+                ),
+            ),
+            SimpleNamespace(
+                type="response.completed",
+                response=SimpleNamespace(
+                    id="resp_1",
+                    output_text="",
+                    usage=SimpleNamespace(
+                        input_tokens=2,
+                        output_tokens=3,
+                        total_tokens=5,
+                    ),
+                ),
+            ),
+        ]
+    )
+    adapter = _FakeAdapter(stream)
+
+    chunks: list[ChatChunk] = []
+    async for chunk in execute_stream_chat_via_responses(
+        adapter=adapter,
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4",
+        request_params={"model": "gpt-5.4"},
+        aclose_stream=lambda s: s.aclose(),
+    ):
+        chunks.append(chunk)
+
+    assert chunks[0].delta == "from output item"
+    assert chunks[-1].finish_reason == "stop"
+    assert stream.aclose_called is True
+
+
+@pytest.mark.asyncio
+async def test_execute_stream_chat_via_responses_deduplicates_function_call_done_variants() -> (
+    None
+):
+    stream = _FakeResponsesStream(
+        [
+            SimpleNamespace(
+                type="response.output_item.added",
+                output_index=0,
+                item=SimpleNamespace(
+                    type="function_call",
+                    call_id="call_1",
+                    name="ui_list_interactables",
+                    arguments="",
+                ),
+            ),
+            SimpleNamespace(
+                type="response.function_call_arguments.delta",
+                output_index=0,
+                item_id="call_1",
+                delta='{"surface_id":"active"}',
+            ),
+            SimpleNamespace(
+                type="response.function_call_arguments.done",
+                output_index=0,
+                item_id="call_1",
+                name="ui_list_interactables",
+                arguments='{"surface_id":"active"}',
+            ),
+            SimpleNamespace(
+                type="response.output_item.done",
+                output_index=0,
+                item=SimpleNamespace(
+                    type="function_call",
+                    call_id="call_1",
+                    name="ui_list_interactables",
+                    arguments='{"surface_id":"active"}',
+                ),
+            ),
+            SimpleNamespace(
+                type="response.completed",
+                response=SimpleNamespace(
+                    id="resp_1",
+                    output_text="",
+                    usage=SimpleNamespace(
+                        input_tokens=2,
+                        output_tokens=3,
+                        total_tokens=5,
+                    ),
+                ),
+            ),
+        ]
+    )
+    adapter = _FakeAdapter(stream)
+
+    chunks: list[ChatChunk] = []
+    async for chunk in execute_stream_chat_via_responses(
+        adapter=adapter,
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4",
+        request_params={"model": "gpt-5.4"},
+        aclose_stream=lambda s: s.aclose(),
+    ):
+        chunks.append(chunk)
+
+    merged: list[dict[str, Any]] = []
+    for chunk in chunks:
+        if chunk.tool_calls:
+            merged = merge_stream_tool_calls(merged, chunk.tool_calls)
+
+    finalized = finalize_stream_tool_calls(merged)
+    assert finalized == [
+        {
+            "id": "call_1",
+            "type": "function",
+            "function": {
+                "name": "ui_list_interactables",
+                "arguments": '{"surface_id":"active"}',
+            },
+        }
+    ]
+    assert chunks[-1].finish_reason == "stop"
+    assert stream.aclose_called is True
+
+
+@pytest.mark.asyncio
+async def test_execute_stream_chat_via_responses_prefers_latest_complete_function_args_snapshot() -> (
+    None
+):
+    stream = _FakeResponsesStream(
+        [
+            SimpleNamespace(
+                type="response.output_item.added",
+                output_index=0,
+                item=SimpleNamespace(
+                    type="function_call",
+                    call_id="call_1",
+                    name="web_search",
+                    arguments='{"max_results":5,"query":"北京 今天天气2026-0422 中国网"}',
+                ),
+            ),
+            SimpleNamespace(
+                type="response.output_item.done",
+                output_index=0,
+                item=SimpleNamespace(
+                    type="function_call",
+                    call_id="call_1",
+                    name="web_search",
+                    arguments='{"max_results":5,"query":"北京 今天天气 2026-04-22 中国天气网"}',
+                ),
+            ),
+            SimpleNamespace(
+                type="response.completed",
+                response=SimpleNamespace(
+                    id="resp_1",
+                    output_text="",
+                    usage=SimpleNamespace(
+                        input_tokens=2,
+                        output_tokens=3,
+                        total_tokens=5,
+                    ),
+                ),
+            ),
+        ]
+    )
+    adapter = _FakeAdapter(stream)
+
+    chunks: list[ChatChunk] = []
+    async for chunk in execute_stream_chat_via_responses(
+        adapter=adapter,
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4",
+        request_params={"model": "gpt-5.4"},
+        aclose_stream=lambda s: s.aclose(),
+    ):
+        chunks.append(chunk)
+
+    merged: list[dict[str, Any]] = []
+    for chunk in chunks:
+        if chunk.tool_calls:
+            merged = merge_stream_tool_calls(merged, chunk.tool_calls)
+
+    finalized = finalize_stream_tool_calls(merged)
+    assert finalized == [
+        {
+            "id": "call_1",
+            "type": "function",
+            "function": {
+                "name": "web_search",
+                "arguments": '{"max_results":5,"query":"北京 今天天气 2026-04-22 中国天气网"}',
+            },
+        }
+    ]
+    assert chunks[-1].finish_reason == "stop"
     assert stream.aclose_called is True

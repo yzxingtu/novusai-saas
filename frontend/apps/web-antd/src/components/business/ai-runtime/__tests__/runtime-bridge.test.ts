@@ -30,6 +30,7 @@ type MockRuntimeGraphNode = {
   kind: string;
   label: string;
   locator: string;
+  metadata?: Record<string, unknown>;
   surfaceId?: string;
 };
 
@@ -583,6 +584,24 @@ describe('runtime-bridge', () => {
     expect(runtimeBridge.getRuntimeThinPageContext()).toBeNull();
   });
 
+  it('does not re-emit suggested_tools into the live thin page context', async () => {
+    const { runtimeBridge } = await loadRuntimeBridge({
+      buildThinPageContextImpl: ({ locale, pageKey, pageSessionId, pageTitle, snapshot }) => ({
+        locale,
+        page_key: pageKey,
+        page_session_id: pageSessionId,
+        page_title: pageTitle,
+        snapshot_suggested_tools: (snapshot as { suggested_tools?: unknown })
+          .suggested_tools,
+      }),
+      pageSessionId: 'page-session-1',
+    });
+
+    expect(runtimeBridge.getRuntimeThinPageContext()).toMatchObject({
+      snapshot_suggested_tools: undefined,
+    });
+  });
+
   it('adds compact navigation catalog metadata to thin page context', async () => {
     const { runtimeBridge } = await loadRuntimeBridge({
       accessMenus: [
@@ -661,6 +680,63 @@ describe('runtime-bridge', () => {
         },
       },
       page_key: 'admin.ai.agents',
+    });
+  });
+
+  it('adds bounded search and table affordances to thin page context page_data', async () => {
+    const { runtimeBridge } = await loadRuntimeBridge({
+      html: `
+        <input name="title" placeholder="搜索对话标题" />
+        <div data-testid="conversation-table">
+          <table>
+            <thead>
+              <tr><th>ID</th><th>标题</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>1</td><td>天气</td></tr>
+            </tbody>
+          </table>
+        </div>
+      `,
+      runtimeGraphNodes: [
+        {
+          id: 'node-search',
+          kind: 'input',
+          label: '搜索对话标题',
+          locator: 'input[name="title"]',
+        },
+        {
+          id: 'node-table',
+          kind: 'table',
+          label: '对话管理',
+          locator: '[data-testid="conversation-table"]',
+          metadata: {
+            columnCount: 2,
+            rowCount: 1,
+          },
+        },
+      ],
+    });
+
+    expect(runtimeBridge.getRuntimeThinPageContext()).toMatchObject({
+      page_data: {
+        search_inputs: [
+          {
+            field_name: 'title',
+            label: '搜索对话标题',
+            locator: 'input[name="title"]',
+            placeholder: '搜索对话标题',
+          },
+        ],
+        visible_tables: [
+          {
+            column_count: 2,
+            label: '对话管理',
+            locator: '[data-testid="conversation-table"]',
+            row_count: 1,
+          },
+        ],
+      },
     });
   });
 
@@ -1028,6 +1104,60 @@ describe('runtime-bridge', () => {
         },
       ],
       surface_id: undefined,
+      truncated: false,
+    });
+  });
+
+  it('resolves the active surface alias when listing interactables', async () => {
+    const { runtimeBridge } = await loadRuntimeBridge({
+      html: `
+        <button data-testid="save-btn">Save</button>
+        <a data-testid="settings-link" href="/settings">Settings</a>
+      `,
+      snapshotNodes: [
+        {
+          interactable: true,
+          kind: 'button',
+          locator: 'testid:save-btn',
+          summary: 'Save',
+          surface_id: 'surface-modal',
+        },
+        {
+          interactable: true,
+          kind: 'link',
+          locator: 'testid:settings-link',
+          summary: 'Settings',
+          surface_id: 'surface-page',
+        },
+      ],
+      surfaceStack: [
+        {
+          kind: 'page',
+          surface_id: 'surface-page',
+          title: 'Runtime Bridge',
+        },
+        {
+          kind: 'modal',
+          surface_id: 'surface-modal',
+          title: 'Editor',
+        },
+      ],
+      activeSurfaceId: 'surface-modal',
+    });
+
+    expect(runtimeBridge.listRuntimeInteractables('active')).toEqual({
+      count: 1,
+      items: [
+        {
+          enabled: true,
+          kind: 'button',
+          label: 'Save',
+          locator: 'testid:save-btn',
+          requires_confirmation: false,
+          surface_id: 'surface-modal',
+        },
+      ],
+      surface_id: 'surface-modal',
       truncated: false,
     });
   });

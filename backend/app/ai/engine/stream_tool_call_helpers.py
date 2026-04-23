@@ -56,6 +56,49 @@ def normalize_stream_tool_call(tool_call: Any) -> dict[str, Any] | None:
     }
 
 
+def _merge_stream_fragment(current: str, incoming: str) -> str:
+    if not incoming:
+        return current
+    if not current:
+        return incoming
+    if incoming == current or incoming in current:
+        return current
+    if incoming.startswith(current):
+        return incoming
+    max_overlap = min(len(current), len(incoming))
+    for overlap in range(max_overlap, 0, -1):
+        if current.endswith(incoming[:overlap]):
+            return current + incoming[overlap:]
+    return current + incoming
+
+
+def _is_complete_json_value(text: str) -> bool:
+    normalized = str(text or "").strip()
+    if not normalized:
+        return False
+    try:
+        json.loads(normalized)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return False
+    return True
+
+
+def _merge_stream_arguments(current: str, incoming: str) -> str:
+    current_text = str(current or "")
+    incoming_text = str(incoming or "")
+    if not incoming_text:
+        return current_text
+    if not current_text:
+        return incoming_text
+    if incoming_text == current_text or incoming_text in current_text:
+        return current_text
+    if _is_complete_json_value(current_text) and _is_complete_json_value(incoming_text):
+        return incoming_text
+    if incoming_text.startswith(current_text):
+        return incoming_text
+    return _merge_stream_fragment(current_text, incoming_text)
+
+
 def merge_stream_tool_calls(
     existing: list[dict[str, Any]],
     incoming: list[Any],
@@ -96,18 +139,15 @@ def merge_stream_tool_calls(
         tc_name = normalized_func.get("name") or ""
         if tc_name:
             current_name = target_func.get("name", "")
-            if not current_name or tc_name.startswith(current_name):
-                target_func["name"] = tc_name
-            elif not current_name.startswith(tc_name):
-                target_func["name"] = current_name + tc_name
+            target_func["name"] = _merge_stream_fragment(current_name, tc_name)
 
         tc_args = normalized_func.get("arguments") or ""
         if tc_args:
             current_args = target_func.get("arguments", "")
-            if not current_args or tc_args.startswith(current_args):
-                target_func["arguments"] = tc_args
-            elif not current_args.startswith(tc_args):
-                target_func["arguments"] = current_args + tc_args
+            target_func["arguments"] = _merge_stream_arguments(
+                current_args,
+                tc_args,
+            )
 
     return merged
 

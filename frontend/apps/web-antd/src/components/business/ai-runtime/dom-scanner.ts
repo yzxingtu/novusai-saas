@@ -11,7 +11,7 @@ import type {
 import { tAiRuntime } from './i18n';
 
 const DEFAULT_DOM_SCANNER_OPTIONS: DOMScannerOptions = {
-  maxDepth: 6,
+  maxDepth: 32,
   maxNodes: 160,
   textMaxLength: 120,
   visibleOnly: true,
@@ -20,16 +20,29 @@ const DEFAULT_DOM_SCANNER_OPTIONS: DOMScannerOptions = {
 const INTERACTABLE_SELECTOR = [
   'button',
   'a[href]',
+  '[contenteditable="true"]',
   'input',
   'select',
   'table',
   'textarea',
   '[role="button"]',
+  '[role="checkbox"]',
+  '[role="combobox"]',
+  '[role="link"]',
   '[role="menuitem"]',
+  '[role="option"]',
+  '[role="radio"]',
+  '[role="switch"]',
   '[role="tab"]',
+  '[role="textbox"]',
+  '.ant-collapse-header',
   '.ant-pagination-item',
   '.ant-pagination-prev',
   '.ant-pagination-next',
+  '.ant-radio-button-wrapper',
+  '.ant-select-item-option',
+  '.ant-select-selector',
+  '.ant-tree-node-content-wrapper',
 ].join(',');
 
 const AI_PANEL_SELECTOR = '[data-ai-panel]';
@@ -151,16 +164,36 @@ export function inferNodeKindFromElement(element: HTMLElement): UINodeKind {
   ) {
     return 'pagination';
   }
+  if (
+    classText.includes('ant-checkbox') ||
+    role === 'checkbox'
+  ) {
+    return 'checkbox';
+  }
+  if (
+    classText.includes('ant-radio') ||
+    role === 'radio'
+  ) {
+    return 'radio';
+  }
+  if (
+    tag === 'select' ||
+    role === 'combobox' ||
+    role === 'option' ||
+    classText.includes('ant-select')
+  ) {
+    return 'select';
+  }
   if (tag === 'table' || classText.includes('ant-table')) {
     return 'table';
   }
-  if (tag === 'a') {
+  if (tag === 'a' || role === 'link') {
     return 'link';
   }
-  if (tag === 'textarea') {
+  if (tag === 'textarea' || element.getAttribute('contenteditable') === 'true') {
     return 'textarea';
   }
-  if (tag === 'input') {
+  if (tag === 'input' || role === 'textbox') {
     const inputType = element.getAttribute('type') ?? 'text';
     if (inputType === 'checkbox') {
       return 'checkbox';
@@ -170,10 +203,14 @@ export function inferNodeKindFromElement(element: HTMLElement): UINodeKind {
     }
     return 'input';
   }
-  if (tag === 'select') {
-    return 'select';
-  }
-  if (tag === 'button' || role === 'button' || classText.includes('ant-btn')) {
+  if (
+    tag === 'button' ||
+    role === 'button' ||
+    role === 'switch' ||
+    classText.includes('ant-btn') ||
+    classText.includes('ant-collapse-header') ||
+    classText.includes('ant-tree-node-content-wrapper')
+  ) {
     return 'button';
   }
   return 'button';
@@ -242,6 +279,64 @@ function resolveRoot(input: DOMScanInput): ParentNode {
     return input.root;
   }
   return input.document.body ?? input.document;
+}
+
+function resolveRootElement(
+  root: ParentNode,
+  document: Document,
+): null | ParentNode {
+  if (root instanceof Element) {
+    return root;
+  }
+  return document.body ?? document.documentElement ?? null;
+}
+
+function collectInteractableElements(root: ParentNode): HTMLElement[] {
+  const collected: HTMLElement[] = [];
+  const seen = new Set<HTMLElement>();
+
+  const appendElement = (value: Element | null) => {
+    if (!(value instanceof HTMLElement) || seen.has(value)) {
+      return;
+    }
+    seen.add(value);
+    collected.push(value);
+  };
+
+  if (root instanceof Element && root.matches(INTERACTABLE_SELECTOR)) {
+    appendElement(root);
+  }
+
+  if ('querySelectorAll' in root) {
+    root.querySelectorAll(INTERACTABLE_SELECTOR).forEach((element) => {
+      appendElement(element);
+    });
+  }
+
+  return collected;
+}
+
+function resolveDepthFromRoot(
+  element: Element,
+  root: ParentNode,
+  document: Document,
+): number {
+  const rootElement = resolveRootElement(root, document);
+  if (!(rootElement instanceof Element)) {
+    return 0;
+  }
+
+  let depth = 0;
+  let cursor: null | Element = element;
+  while (cursor && cursor !== rootElement) {
+    cursor = cursor.parentElement;
+    depth += 1;
+  }
+
+  if (!cursor) {
+    return Number.POSITIVE_INFINITY;
+  }
+  return depth;
 }
 
 function createNodeFromElement(
@@ -401,84 +496,46 @@ export class DOMScanner {
     }
 
     const root = resolveRoot(input);
-    const queue: Array<{ depth: number; element: Element }> = [];
     const nodes: UIGraphNode[] = [];
     const seen = new Set<string>();
-    let scannedElements = 0;
+    const candidates = collectInteractableElements(root);
+    const scannedElements = candidates.filter(
+      (element) => !isAIExcluded(element),
+    ).length;
     let truncated = false;
-
-    if (root instanceof Element) {
-      queue.push({
-        depth: 0,
-        element: root,
-      });
-    } else if ('body' in input.document && input.document.body) {
-      queue.push({
-        depth: 0,
-        element: input.document.body,
-      });
-    }
-
-    while (queue.length > 0) {
-      const current = queue.shift();
-      if (!current) {
-        break;
-      }
-
-      const { depth, element } = current;
+    for (const element of candidates) {
       if (isAIExcluded(element)) {
         continue;
       }
-      scannedElements += 1;
-      const isVisible =
-        !(element instanceof HTMLElement) || isElementVisible(element);
 
       if (
-        element instanceof HTMLElement &&
-        element.matches(INTERACTABLE_SELECTOR) &&
-        (!this.options.visibleOnly || isVisible)
+        resolveDepthFromRoot(element, root, input.document) > this.options.maxDepth
       ) {
-        const node = createNodeFromElement(
-          element,
-          this.options.textMaxLength,
-          input.activeSurfaceId ?? null,
-        );
-        const key = uniqueNodeKey(node);
-        if (!seen.has(key)) {
-          seen.add(key);
-          nodes.push(node);
-        }
-      }
-
-      if (nodes.length >= this.options.maxNodes) {
-        truncated = true;
-        break;
-      }
-
-      if (depth >= this.options.maxDepth) {
         continue;
       }
 
-      const children = [...element.children];
-      children.forEach((child) => {
-        if (!(child instanceof Element)) {
-          return;
-        }
-        if (isAIExcluded(child)) {
-          return;
-        }
-        if (
-          this.options.visibleOnly &&
-          child instanceof HTMLElement &&
-          !isElementVisible(child)
-        ) {
-          return;
-        }
-        queue.push({
-          depth: depth + 1,
-          element: child,
-        });
-      });
+      const isVisible = isElementVisible(element);
+      if (this.options.visibleOnly && !isVisible) {
+        continue;
+      }
+
+      const node = createNodeFromElement(
+        element,
+        this.options.textMaxLength,
+        input.activeSurfaceId ?? null,
+      );
+      const key = uniqueNodeKey(node);
+      if (seen.has(key)) {
+        continue;
+      }
+
+      seen.add(key);
+      nodes.push(node);
+
+      if (nodes.length >= this.options.maxNodes) {
+        truncated = candidates.length > nodes.length;
+        break;
+      }
     }
 
     return {

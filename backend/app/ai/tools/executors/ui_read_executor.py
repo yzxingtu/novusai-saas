@@ -33,6 +33,8 @@ logger = LogManager.get_logger("ai.tool.ui_read")
 _TABLE_MAX_PAGE_SIZE = 100
 _INTERACTABLE_LIMIT = 200
 _REGION_TEXT_MAX = 4000
+
+
 def _byte_size(payload: Any) -> int:
     return len(json.dumps(payload, ensure_ascii=False, default=str).encode("utf-8"))
 
@@ -166,6 +168,10 @@ def _normalize_interactables_payload(
     surface_id: str | None,
 ) -> dict[str, Any]:
     payload = source.get("data") if isinstance(source.get("data"), dict) else source
+    requested_surface_id = _text(surface_id, max_length=128)
+    resolved_surface_id = requested_surface_id
+    if requested_surface_id == "active":
+        resolved_surface_id = _text(payload.get("surface_id"), max_length=128)
     raw_items = (
         payload.get("items") if isinstance(payload.get("items"), list) else payload
     )
@@ -189,9 +195,9 @@ def _normalize_interactables_payload(
                 "requires_confirmation": bool(item.get("requires_confirmation", False)),
             }
             if (
-                surface_id
+                resolved_surface_id
                 and normalized["surface_id"]
-                and normalized["surface_id"] != surface_id
+                and normalized["surface_id"] != resolved_surface_id
             ):
                 continue
             items.append(normalized)
@@ -199,7 +205,7 @@ def _normalize_interactables_payload(
                 break
 
     result = {
-        "surface_id": surface_id,
+        "surface_id": resolved_surface_id,
         "items": items,
         "count": len(items),
         "truncated": bool(payload.get("truncated", False)),

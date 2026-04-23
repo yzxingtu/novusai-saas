@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import type { TurnFlowState } from './TurnFlowState';
+
 import type { TurnFlowStageForDisplay } from '#/components/business/ai-chat-panel/chat-message-turn-flow';
 import type {
   TurnAnswerCard,
@@ -126,13 +127,16 @@ function normalizeAnswerSections(
   return (sections ?? [])
     .map((section, index): null | TurnAnswerCardSection => {
       const title = normalizeText(section.title);
-      const body = normalizeText(section.body) || normalizeText(section.content);
+      const body =
+        normalizeText(section.body) || normalizeText(section.content);
       if (!title && !body) {
         return null;
       }
       return {
         ...(body ? { body, content: body } : {}),
-        ...(section.id ? { id: section.id } : { id: `answer-section-${index}` }),
+        ...(section.id
+          ? { id: section.id }
+          : { id: `answer-section-${index}` }),
         ...(title ? { title } : {}),
       };
     })
@@ -198,20 +202,6 @@ watch(
   { immediate: true },
 );
 
-watch(
-  [() => props.state.answerCard, liveProvisionalAnswerCandidate],
-  ([canonicalAnswerCard, candidate]) => {
-    if (canonicalAnswerCard) {
-      stickyProvisionalAnswerCard.value = undefined;
-      return;
-    }
-    if (candidate) {
-      stickyProvisionalAnswerCard.value = candidate;
-    }
-  },
-  { immediate: true },
-);
-
 const displayAnswerCard = computed(
   () =>
     props.state.answerCard ??
@@ -224,6 +214,33 @@ const displayAnswerSummary = computed(() =>
 const displayAnswerSections = computed(() =>
   normalizeAnswerSections(displayAnswerCard.value?.sections),
 );
+const normalizedMessageBody = computed(() =>
+  normalizeText(
+    normalizeMergedTextPart(props.msg.content) || props.msg.content,
+  ),
+);
+watch(
+  [
+    () => props.state.answerCard,
+    liveProvisionalAnswerCandidate,
+    normalizedMessageBody,
+    () => props.msg.streaming,
+  ],
+  ([canonicalAnswerCard, candidate, messageBody, isStreaming]) => {
+    if (canonicalAnswerCard) {
+      stickyProvisionalAnswerCard.value = undefined;
+      return;
+    }
+    if (candidate) {
+      stickyProvisionalAnswerCard.value = candidate;
+      return;
+    }
+    if (!isStreaming && messageBody) {
+      stickyProvisionalAnswerCard.value = undefined;
+    }
+  },
+  { immediate: true },
+);
 const isProvisionalAnswerCard = computed(
   () =>
     !props.state.answerCard &&
@@ -232,10 +249,44 @@ const isProvisionalAnswerCard = computed(
     ),
 );
 const hasAnswerSummary = computed(() => Boolean(displayAnswerSummary.value));
-const hasAnswerSections = computed(() => displayAnswerSections.value.length > 0);
+const hasAnswerSections = computed(
+  () => displayAnswerSections.value.length > 0,
+);
 const hasEvidence = computed(() => preparedEvidence.value.length > 0);
+const digestLabelKey = computed(() =>
+  hasAnswerSummary.value || hasAnswerSections.value
+    ? 'common.globalAiChat.turnAnswerCardTitle'
+    : 'common.globalAiChat.turnEvidenceTitle',
+);
+const isRedundantAnswerCard = computed(() => {
+  if (props.msg.streaming || hasEvidence.value) {
+    return false;
+  }
+  const messageBody = normalizedMessageBody.value;
+  if (!messageBody) {
+    return false;
+  }
+
+  const summaryMatches =
+    !displayAnswerSummary.value || displayAnswerSummary.value === messageBody;
+  if (!summaryMatches) {
+    return false;
+  }
+
+  if (displayAnswerSections.value.length === 0) {
+    return Boolean(displayAnswerSummary.value);
+  }
+
+  return displayAnswerSections.value.every((section) => {
+    const sectionBody =
+      normalizeText(section.body) || normalizeText(section.content);
+    return sectionBody === messageBody;
+  });
+});
 const shouldShow = computed(
-  () => hasAnswerSummary.value || hasAnswerSections.value || hasEvidence.value,
+  () =>
+    !isRedundantAnswerCard.value &&
+    (hasAnswerSummary.value || hasAnswerSections.value || hasEvidence.value),
 );
 const provisionalStatusLabelKey = computed(() =>
   props.msg.streaming
@@ -264,117 +315,84 @@ function getEvidenceIcon(kind: string) {
   <div
     v-if="shouldShow"
     data-testid="chat-message-kernel-evidence"
-    class="overflow-hidden rounded-xl border border-border/25 bg-background/70"
-    :class="compact ? 'mb-1.5' : 'mb-2'"
+    class="min-w-0"
   >
     <div
-      class="flex items-center gap-1.5 border-b border-border/20 text-muted-foreground/80"
-      :class="compact ? 'px-2.5 py-1.5 text-[11px]' : 'px-3 py-2 text-xs'"
+      class="flex min-w-0 flex-wrap items-center gap-1.5"
+      :class="compact ? 'text-[10px]' : 'text-[10px]'"
     >
-      <IconifyIcon
-        icon="lucide:file-check-2"
-        :class="compact ? 'size-3' : 'size-3.5'"
-      />
-      <span class="font-medium">{{
-        $t('common.globalAiChat.turnAnswerCardTitle')
-      }}</span>
+      <span class="font-medium uppercase tracking-[0.1em] text-muted-foreground/60">
+        {{ $t(digestLabelKey) }}
+      </span>
       <span
         v-if="isProvisionalAnswerCard"
         data-testid="chat-message-kernel-evidence-live-state"
-        class="inline-flex items-center rounded-full bg-primary/10 px-1.5 py-[1px] font-medium text-primary"
-        :class="[
-          compact ? 'text-[9px]' : 'text-[10px]',
-          msg.streaming ? 'tc-pill-pulse' : '',
-        ]"
+        class="inline-flex items-center rounded-full border border-primary/16 bg-primary/[0.08] px-1.5 py-0.5 text-[9px] font-medium text-primary"
+        :class="msg.streaming ? 'tc-pill-pulse' : ''"
       >
         {{ $t(provisionalStatusLabelKey) }}
       </span>
     </div>
 
-    <div class="space-y-2" :class="compact ? 'px-2.5 py-2' : 'px-3 py-2.5'">
-      <p
-        v-if="displayAnswerSummary"
-        class="leading-relaxed text-foreground/90"
-        :class="compact ? 'text-[11px]' : 'text-xs'"
+    <p
+      v-if="displayAnswerSummary"
+      class="mt-1 line-clamp-2 text-foreground/84"
+      :class="compact ? 'text-[11px] leading-5' : 'text-[11px] leading-5'"
+    >
+      {{ displayAnswerSummary }}
+    </p>
+
+    <div
+      v-else-if="displayAnswerSections.length > 0"
+      class="mt-1 space-y-1"
+    >
+      <div
+        v-for="section in displayAnswerSections.slice(0, 2)"
+        :key="section.id || section.title || section.body || section.content"
       >
-        {{ displayAnswerSummary }}
-      </p>
-
-      <div v-if="displayAnswerSections.length" class="space-y-1.5">
-        <div
-          v-for="section in displayAnswerSections"
-          :key="section.id || section.title || section.body || section.content"
-          class="rounded-lg border border-border/20 bg-accent/20"
-          :class="compact ? 'px-2 py-1.5' : 'px-2.5 py-2'"
-        >
-          <p
-            v-if="section.title"
-            class="font-medium text-foreground/90"
-            :class="compact ? 'text-[11px]' : 'text-xs'"
-          >
-            {{ section.title }}
-          </p>
-          <p
-            class="text-muted-foreground/90"
-            :class="compact ? 'text-[11px]' : 'text-xs'"
-          >
-            {{ section.body || section.content }}
-          </p>
-        </div>
-      </div>
-
-      <div v-if="hasEvidence" class="space-y-1.5">
         <p
-          class="text-muted-foreground/75"
-          :class="compact ? 'text-[10px]' : 'text-[11px]'"
+          v-if="section.title"
+          class="text-[10px] font-medium text-foreground/72"
         >
-          {{ $t('common.globalAiChat.turnEvidenceTitle') }}
+          {{ section.title }}
         </p>
-        <div class="flex flex-wrap gap-1.5">
-          <component
-            v-for="item in preparedEvidence"
-            :key="item.id"
-            :is="item.href ? 'a' : 'span'"
-            :href="item.href || undefined"
-            :target="item.href ? '_blank' : undefined"
-            :rel="item.href ? 'noopener noreferrer' : undefined"
-            :title="item.label"
-            class="inline-flex max-w-full items-center gap-1.5 rounded-full border border-border/30 bg-accent/20 text-foreground/85 shadow-sm transition-colors"
-            :class="[
-              compact ? 'px-2 py-1 text-[10px]' : 'px-2.5 py-1 text-[11px]',
-              item.href ? 'hover:bg-accent/45 hover:text-primary' : '',
-            ]"
-          >
-            <IconifyIcon
-              :icon="getEvidenceIcon(item.kind)"
-              class="shrink-0 text-muted-foreground/70"
-              :class="compact ? 'size-2.5' : 'size-3'"
-            />
-            <span class="min-w-0 truncate font-medium">{{ item.label }}</span>
-            <span
-              v-if="item.hostLabel"
-              class="inline-flex shrink-0 items-center rounded-full bg-background/85 px-1.5 py-[1px] text-[9px] text-muted-foreground/90"
-            >
-              {{ item.hostLabel }}
-            </span>
-            <IconifyIcon
-              v-if="item.href"
-              icon="lucide:external-link"
-              class="shrink-0 text-muted-foreground/55"
-              :class="compact ? 'size-2.5' : 'size-3'"
-            />
-          </component>
-          <span
-            v-if="state.hiddenEvidenceCount > 0"
-            class="inline-flex items-center rounded-full border border-dashed border-border/40 bg-background/70 text-muted-foreground"
-            :class="
-              compact ? 'px-2 py-1 text-[10px]' : 'px-2.5 py-1 text-[11px]'
-            "
-          >
-            +{{ state.hiddenEvidenceCount }}
-          </span>
-        </div>
+        <p
+          class="line-clamp-2 text-muted-foreground/72"
+          :class="compact ? 'text-[10px] leading-5' : 'text-[10px] leading-5'"
+        >
+          {{ section.body || section.content }}
+        </p>
       </div>
+    </div>
+
+    <div v-if="hasEvidence" class="mt-1.5 flex flex-wrap gap-1">
+      <component
+        v-for="item in preparedEvidence"
+        :key="item.id"
+        :is="item.href ? 'a' : 'span'"
+        :href="item.href || undefined"
+        :target="item.href ? '_blank' : undefined"
+        :rel="item.href ? 'noopener noreferrer' : undefined"
+        :title="item.label"
+        class="inline-flex max-w-full items-center gap-1 rounded-full border border-border/18 bg-background/80 text-foreground/70 transition-colors"
+        :class="[
+          compact ? 'px-2 py-0.5 text-[9px]' : 'px-2 py-0.5 text-[10px]',
+          item.href ? 'hover:border-primary/22 hover:bg-primary/[0.06] hover:text-primary' : '',
+        ]"
+      >
+        <IconifyIcon
+          :icon="getEvidenceIcon(item.kind)"
+          class="shrink-0 text-primary/72"
+          :class="compact ? 'size-2.5' : 'size-2.5'"
+        />
+        <span class="min-w-0 truncate">{{ item.label }}</span>
+      </component>
+      <span
+        v-if="state.hiddenEvidenceCount > 0"
+        class="inline-flex items-center rounded-full border border-dashed border-border/28 bg-background/72 px-2 py-0.5 text-[9px] text-muted-foreground"
+      >
+        +{{ state.hiddenEvidenceCount }}
+      </span>
     </div>
   </div>
 </template>

@@ -1,19 +1,29 @@
 <script lang="ts" setup>
 import type { ChatMessage } from './types';
 
-import { computed } from 'vue';
+import { computed, toRef } from 'vue';
 
+import { useDiagnosticsPolicy } from '#/composables/use-diagnostics-policy';
 import { $t } from '#/locales';
 
 const props = withDefaults(
   defineProps<{
+    apiPrefix?: string;
     compact?: boolean;
+    forceShow?: boolean;
     msg: ChatMessage;
   }>(),
   {
+    apiPrefix: '',
     compact: false,
+    forceShow: false,
   },
 );
+
+const { showDiagnostics } = useDiagnosticsPolicy({
+  apiPrefix: toRef(props, 'apiPrefix'),
+  forceShow: toRef(props, 'forceShow'),
+});
 
 function normalizeDiagnosticText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
@@ -34,6 +44,21 @@ interface ContextSourceDisplayItem {
   label: string;
 }
 
+function formatContextSourceKindLabel(kind: string): string {
+  switch (kind) {
+    case 'knowledge_base':
+    case 'memory':
+    case 'page':
+    case 'tool':
+    case 'web': {
+      return $t(`common.globalAiChat.turnEvidenceKind.${kind}`);
+    }
+    default: {
+      return kind;
+    }
+  }
+}
+
 function formatContextSourceLabel(source: {
   kind?: string;
   metadata?: Record<string, unknown>;
@@ -41,14 +66,15 @@ function formatContextSourceLabel(source: {
 }) {
   const kind = normalizeDiagnosticText(source.kind);
   const name = normalizeDiagnosticText(source.name);
+  const localizedKind = kind ? formatContextSourceKindLabel(kind) : '';
   if (kind && name) {
-    return `${kind}:${name}`;
+    return `${localizedKind}:${name}`;
   }
   if (name) {
     return name;
   }
-  if (kind) {
-    return kind;
+  if (localizedKind) {
+    return localizedKind;
   }
   const metadata = source.metadata ?? {};
   const metadataName =
@@ -106,6 +132,9 @@ const hasTurnDiagnostics = computed(() => {
   );
 });
 const shouldShowTurnDiagnostics = computed(() => {
+  if (!showDiagnostics.value) {
+    return false;
+  }
   if (!hasTurnDiagnostics.value) {
     return false;
   }

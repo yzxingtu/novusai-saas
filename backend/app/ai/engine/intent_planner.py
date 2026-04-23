@@ -22,6 +22,112 @@ from app.ai.types import ChatMessage
 from .types import IntentPlan
 
 _SUPPRESSED_DOMAIN_KINDS_ON_PAGE_CONTINUATION = {"web_research", "knowledge_query"}
+_SUPPRESSED_DOMAIN_KINDS_ON_PAGE_SEARCH = {
+    "knowledge_query",
+    "weather_query",
+    "web_research",
+}
+# TODO(2026-04-23): replace this transitional guard with planner-time LLM
+# structured routing once the runtime owns a dedicated classifier seam.
+_NAVIGATION_ACTION_CUES = (
+    "点击",
+    "单击",
+    "打开",
+    "switch",
+    "open",
+)
+_NAVIGATION_TARGET_CUES = (
+    "页面",
+    "按钮",
+    "菜单",
+    "链接",
+)
+_NAVIGATION_RESULT_CUES = (
+    "当前进入",
+    "进入了什么页面",
+    "当前页面",
+    "现在在哪",
+)
+_SEQUENCE_CUES = (
+    "然后",
+    "再",
+    "接着",
+    "之后",
+)
+_PAGE_WORKFLOW_GOALS = {
+    "page_summary": "page_summary",
+    "page_screenshot": "page_screenshot",
+    "page_navigation": "navigation",
+    "page_search": "search",
+    "page_pagination": "pagination",
+    "page_row_detail": "row_detail",
+    "page_form_read": "form_read",
+    "page_form_write": "form_write",
+    "page_editor_read": "editor_read",
+    "page_editor_write": "editor_write",
+}
+
+
+def _normalize_turn_text(value: str) -> str:
+    return " ".join(str(value or "").strip().lower().split())
+
+
+def _looks_like_navigation_preface_summary(source_text: str) -> bool:
+    normalized = _normalize_turn_text(source_text)
+    if not normalized:
+        return False
+    if not any(term in normalized for term in _NAVIGATION_ACTION_CUES):
+        return False
+    if not any(term in normalized for term in _NAVIGATION_TARGET_CUES):
+        return False
+    if not any(term in normalized for term in _NAVIGATION_RESULT_CUES):
+        return False
+    return any(term in normalized for term in _SEQUENCE_CUES)
+
+
+def _prune_navigation_preface_summaries(plans: list[IntentPlan]) -> list[IntentPlan]:
+    if not plans or not any(
+        _page_workflow_goal(plan.kind, plan.metadata) == "navigation"
+        for plan in plans
+        if plan.family == "page_ops"
+    ):
+        return plans
+
+    pruned: list[IntentPlan] = []
+    for index, plan in enumerate(plans):
+        if (
+            plan.family != "page_ops"
+            or _page_workflow_goal(plan.kind, plan.metadata) != "page_summary"
+        ):
+            pruned.append(plan)
+            continue
+
+        has_later_navigation = any(
+            later_plan.family == "page_ops"
+            and _page_workflow_goal(later_plan.kind, later_plan.metadata)
+            == "navigation"
+            for later_plan in plans[index + 1 :]
+        )
+        if has_later_navigation and _looks_like_navigation_preface_summary(
+            plan.source_text
+        ):
+            continue
+        pruned.append(plan)
+    return pruned
+
+
+def _page_workflow_goal(
+    kind: str,
+    metadata: dict[str, Any] | None,
+) -> str:
+    payload = dict(metadata or {})
+    metadata_goal = str(payload.get("page_workflow_goal") or "").strip()
+    if metadata_goal:
+        return metadata_goal
+    normalized_kind = str(kind or "").strip()
+    if normalized_kind == "page_workflow":
+        return ""
+    return _PAGE_WORKFLOW_GOALS.get(normalized_kind, "")
 
 
 class _IntentPlannerOrchestrator:
@@ -50,7 +156,10 @@ class _IntentPlannerOrchestrator:
             capability_bundle=capability_bundle,
             continuation_context=continuation_context,
         )
-        if not (_has_page_context(input_variables) and "page_ops" in _tool_families(tools, input_variables)):
+        if not (
+            _has_page_context(input_variables)
+            and "page_ops" in _tool_families(tools, input_variables)
+        ):
             return domain_signals
 
         page_continuation_signal = detect_page_continuation_signal(
@@ -77,6 +186,12 @@ class _IntentPlannerOrchestrator:
         )
         if page_signal is None:
             return domain_signals
+        if _page_workflow_goal(page_signal.kind, page_signal.metadata) == "search":
+            domain_signals = [
+                signal
+                for signal in domain_signals
+                if signal.kind not in _SUPPRESSED_DOMAIN_KINDS_ON_PAGE_SEARCH
+            ]
         return sorted([*domain_signals, page_signal], key=lambda item: item.position)
 
     @staticmethod
@@ -156,6 +271,7 @@ class _IntentPlannerOrchestrator:
                     metadata=metadata,
                 )
             )
+        plans = _prune_navigation_preface_summaries(plans)
         return plans or cls._build_direct_reply(user_text)
 
 

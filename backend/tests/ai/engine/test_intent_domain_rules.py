@@ -73,6 +73,10 @@ def test_intent_domain_rules_detects_weather_and_time() -> None:
     assert [signal.kind for signal in signals] == ["weather_query", "time_query"]
     assert [signal.family for signal in signals] == ["weather", "time_ops"]
     assert all(signal.shortcircuit for signal in signals)
+    assert [signal.metadata.get("routing_mode") for signal in signals] == [
+        "deterministic_shortcircuit",
+        "deterministic_shortcircuit",
+    ]
 
 
 def test_intent_domain_rules_detects_time_query_for_city_time_tool_directive() -> None:
@@ -124,6 +128,11 @@ def test_intent_domain_rules_detects_knowledge_query_when_kb_bound() -> None:
     assert len(knowledge) == 1
     assert knowledge[0].kind == "knowledge_query"
     assert knowledge[0].requires_tools is False
+    assert knowledge[0].metadata.get("routing_mode") == "structured_semantic"
+
+    intro = _detect("介绍一下退货政策", capability_bundle=kb_bundle)
+    assert len(intro) == 1
+    assert intro[0].kind == "knowledge_query"
 
     memory_first = _detect("记住这个：向量数据库是什么", capability_bundle=kb_bundle)
     assert len(memory_first) == 1

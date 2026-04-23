@@ -14,6 +14,43 @@ import {
   getSearchStatusLabel,
 } from './tool-call-utils';
 
+interface DetailFieldLine {
+  key: string;
+  value: string;
+}
+
+interface DetailField {
+  key: string;
+  lines: string[];
+  metaLines: DetailFieldLine[];
+  multiline: boolean;
+  overflowCount: number;
+  text?: string;
+}
+
+interface DetailPreview {
+  lines: string[];
+  multiline: boolean;
+  overflowCount: number;
+  text?: string;
+}
+
+const DETAIL_FIELD_LIMIT = 4;
+const DETAIL_ITEM_LIMIT = 4;
+const INLINE_VALUE_LIMIT = 160;
+const BLOCK_VALUE_LIMIT = 600;
+const OBJECT_TITLE_KEYS = [
+  'title',
+  'name',
+  'label',
+  'id',
+  'status',
+  'message',
+  'summary',
+  'url',
+  'href',
+] as const;
+
 const props = defineProps<{
   compact: boolean;
   rawExpanded: boolean;
@@ -31,6 +68,10 @@ const searchFallbackNotice = computed(() =>
     : null,
 );
 
+const errorHintKey = computed(() =>
+  getPageOpErrorHintKey(props.toolItem.tc.errorType),
+);
+
 const hasSearchTechnicalDetails = computed(() => {
   const summary = props.toolItem.searchSummary;
   if (!summary) return false;
@@ -42,6 +83,234 @@ const hasSearchTechnicalDetails = computed(() => {
     summary.providerChain?.length,
   );
 });
+
+const argumentFields = computed(() =>
+  buildDetailFields(props.toolItem.tc.arguments),
+);
+
+const parsedRawOutput = computed<unknown>(() => {
+  const raw = props.toolItem.structuredOutput.raw;
+  if (!raw?.trim()) {
+    return undefined;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return raw;
+  }
+});
+
+const outputFields = computed(() =>
+  isRecord(parsedRawOutput.value)
+    ? buildDetailFields(parsedRawOutput.value)
+    : [],
+);
+
+const outputPreview = computed<DetailPreview | null>(() => {
+  const value = parsedRawOutput.value;
+  if (!hasMeaningfulValue(value) || isRecord(value)) {
+    return null;
+  }
+  return buildDetailPreview(value);
+});
+
+const hasStructuredOutputPreview = computed(
+  () => outputFields.value.length > 0 || outputPreview.value !== null,
+);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function hasMeaningfulValue(value: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  if (typeof value === 'string') return value.trim().length > 0;
+  if (Array.isArray(value))
+    return value.some((item) => hasMeaningfulValue(item));
+  if (isRecord(value))
+    return Object.values(value).some((item) => hasMeaningfulValue(item));
+  return true;
+}
+
+function normalizeInlineWhitespace(text: string): string {
+  return text.replaceAll(/\s+/g, ' ').trim();
+}
+
+function truncateText(text: string, limit: number): string {
+  return text.length > limit ? `${text.slice(0, limit - 1)}...` : text;
+}
+
+function safeJsonStringify(value: unknown): string {
+  try {
+    return JSON.stringify(value, null, 2) ?? '';
+  } catch {
+    return String(value);
+  }
+}
+
+function formatBlockValue(value: unknown): string {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return truncateText(trimmed, BLOCK_VALUE_LIMIT);
+  }
+  return truncateText(String(value), BLOCK_VALUE_LIMIT);
+}
+
+function formatInlineValue(value: unknown, depth = 0): string {
+  if (value === null || value === undefined) return '';
+
+  if (typeof value === 'string') {
+    const trimmed = normalizeInlineWhitespace(value);
+    return trimmed ? truncateText(trimmed, INLINE_VALUE_LIMIT) : '';
+  }
+
+  if (
+    typeof value === 'boolean' ||
+    typeof value === 'bigint' ||
+    typeof value === 'number'
+  ) {
+    return String(value);
+  }
+
+  if (Array.isArray(value)) {
+    const items = value.filter((item) => hasMeaningfulValue(item));
+    const visibleItems = items
+      .slice(0, Math.max(2, DETAIL_ITEM_LIMIT - 1))
+      .map((item) => formatInlineValue(item, depth + 1))
+      .filter(Boolean);
+    const joined = visibleItems.join(' | ');
+    if (items.length > visibleItems.length) {
+      return joined
+        ? `${joined} +${items.length - visibleItems.length}`
+        : `+${items.length - visibleItems.length}`;
+    }
+    return joined;
+  }
+
+  if (isRecord(value)) {
+    if (depth >= 2) {
+      return truncateText(safeJsonStringify(value), INLINE_VALUE_LIMIT);
+    }
+
+    const entries = Object.entries(value).filter(([, entryValue]) =>
+      hasMeaningfulValue(entryValue),
+    );
+    const titleKey = OBJECT_TITLE_KEYS.find((candidate) =>
+      hasMeaningfulValue(value[candidate]),
+    );
+
+    const parts: string[] = [];
+    if (titleKey) {
+      const title = formatInlineValue(value[titleKey], depth + 1);
+      if (title) {
+        parts.push(title);
+      }
+    }
+
+    for (const [entryKey, entryValue] of entries) {
+      if (titleKey && entryKey === titleKey) {
+        continue;
+      }
+      const formatted = formatInlineValue(entryValue, depth + 1);
+      if (!formatted) {
+        continue;
+      }
+      parts.push(`${entryKey}: ${formatted}`);
+      if (parts.length >= (titleKey ? 3 : 2)) {
+        break;
+      }
+    }
+
+    return truncateText(
+      parts.join(' | ') || safeJsonStringify(value),
+      INLINE_VALUE_LIMIT,
+    );
+  }
+
+  return truncateText(String(value), INLINE_VALUE_LIMIT);
+}
+
+function buildDetailField(key: string, value: unknown): DetailField {
+  if (Array.isArray(value)) {
+    const items = value.filter((item) => hasMeaningfulValue(item));
+    return {
+      key,
+      lines: items
+        .slice(0, DETAIL_ITEM_LIMIT)
+        .map((item) => formatInlineValue(item))
+        .filter(Boolean),
+      metaLines: [],
+      multiline: false,
+      overflowCount: Math.max(items.length - DETAIL_ITEM_LIMIT, 0),
+    };
+  }
+
+  if (isRecord(value)) {
+    const entries = Object.entries(value).filter(([, entryValue]) =>
+      hasMeaningfulValue(entryValue),
+    );
+    return {
+      key,
+      lines: [],
+      metaLines: entries
+        .slice(0, DETAIL_FIELD_LIMIT)
+        .map(([entryKey, entryValue]) => ({
+          key: entryKey,
+          value:
+            formatInlineValue(entryValue) ||
+            truncateText(safeJsonStringify(entryValue), INLINE_VALUE_LIMIT),
+        })),
+      multiline: false,
+      overflowCount: Math.max(entries.length - DETAIL_FIELD_LIMIT, 0),
+    };
+  }
+
+  return {
+    key,
+    lines: [],
+    metaLines: [],
+    multiline:
+      typeof value === 'string' &&
+      (value.includes('\n') || value.trim().length > 80),
+    overflowCount: 0,
+    text: formatBlockValue(value),
+  };
+}
+
+function buildDetailFields(value?: Record<string, unknown>): DetailField[] {
+  if (!value) {
+    return [];
+  }
+  return Object.entries(value)
+    .filter(([, fieldValue]) => hasMeaningfulValue(fieldValue))
+    .map(([key, fieldValue]) => buildDetailField(key, fieldValue));
+}
+
+function buildDetailPreview(value: unknown): DetailPreview | null {
+  if (!hasMeaningfulValue(value)) {
+    return null;
+  }
+  if (Array.isArray(value)) {
+    const items = value.filter((item) => hasMeaningfulValue(item));
+    return {
+      lines: items
+        .slice(0, DETAIL_ITEM_LIMIT)
+        .map((item) => formatInlineValue(item))
+        .filter(Boolean),
+      multiline: false,
+      overflowCount: Math.max(items.length - DETAIL_ITEM_LIMIT, 0),
+    };
+  }
+
+  return {
+    lines: [],
+    multiline:
+      typeof value === 'string' &&
+      (value.includes('\n') || value.trim().length > 80),
+    overflowCount: 0,
+    text: formatBlockValue(value),
+  };
+}
 
 function getSearchResultDomain(url: string): string {
   const normalized = url.trim();
@@ -60,59 +329,117 @@ function getSearchResultDomain(url: string): string {
 </script>
 
 <template>
-  <div :class="compact ? 'px-2 py-1 text-[10px]' : 'px-2.5 py-1.5 text-[11px]'">
-    <div
-      v-if="
-        toolItem.tc.arguments && Object.keys(toolItem.tc.arguments).length > 0
-      "
-      class="mb-1"
+  <div
+    :class="
+      compact
+        ? 'space-y-1.5 px-2 py-1 text-[10px]'
+        : 'space-y-2 px-2.5 py-1.5 text-[10px]'
+    "
+  >
+    <section
+      v-if="argumentFields.length > 0"
+      class="tool-detail-section px-2 py-1.5"
     >
-      <span class="font-medium text-muted-foreground/60">{{
-        $t('common.globalAiChat.args')
-      }}</span>
-      <code
-        class="ml-1 rounded bg-accent/50 px-1 py-px text-[10px] text-muted-foreground"
-      >
-        {{ JSON.stringify(toolItem.tc.arguments) }}
-      </code>
-    </div>
-    <div
+      <div class="tool-detail-label">
+        {{ $t('common.globalAiChat.exportArgs') }}
+      </div>
+      <div class="mt-1.5 space-y-1">
+        <div
+          v-for="(field, fieldIndex) in argumentFields"
+          :key="`arg-${field.key}-${fieldIndex}`"
+          :data-testid="`tool-arg-field-${fieldIndex}`"
+          class="tool-detail-card px-2 py-1.5"
+        >
+          <div class="flex items-start gap-2">
+            <code
+              class="text-foreground/74 shrink-0 rounded bg-accent/45 px-1.5 py-px text-[9px]"
+            >
+              {{ field.key }}
+            </code>
+            <div class="min-w-0 flex-1 space-y-1">
+              <p
+                v-if="field.text"
+                class="text-foreground/84 break-words leading-4"
+                :class="field.multiline ? 'whitespace-pre-wrap' : ''"
+              >
+                {{ field.text }}
+              </p>
+              <ul v-if="field.lines.length > 0" class="space-y-1">
+                <li
+                  v-for="(line, lineIndex) in field.lines"
+                  :key="`${field.key}-line-${lineIndex}`"
+                  class="rounded bg-accent/20 px-1.5 py-1 leading-4 text-foreground/80"
+                >
+                  {{ line }}
+                </li>
+              </ul>
+              <dl v-if="field.metaLines.length > 0" class="space-y-1">
+                <div
+                  v-for="entry in field.metaLines"
+                  :key="`${field.key}-${entry.key}`"
+                  class="grid grid-cols-[auto,1fr] gap-x-2 gap-y-0.5"
+                >
+                  <dt>
+                    <code class="text-muted-foreground/62 text-[9px]">
+                      {{ entry.key }}
+                    </code>
+                  </dt>
+                  <dd class="text-foreground/78 min-w-0 break-words leading-4">
+                    {{ entry.value }}
+                  </dd>
+                </div>
+              </dl>
+              <div
+                v-if="field.overflowCount > 0"
+                class="text-muted-foreground/56 text-[9px]"
+              >
+                +{{ field.overflowCount }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section
       v-if="toolItem.searchSummary"
-      class="mb-1 rounded bg-background/70 px-1.5 py-1 text-foreground/80"
+      class="tool-detail-section px-2 py-1.5 text-foreground/80"
     >
-      <div
-        class="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground"
-      >
+      <div class="tool-detail-label flex flex-wrap items-center gap-2">
         <span class="font-medium">{{
           $t('common.globalAiChat.toolSearchResults')
         }}</span>
-        <span v-if="toolItem.searchSummary.status">{{
-          getSearchStatusLabel(toolItem.searchSummary.status)
-        }}</span>
+        <span
+          v-if="toolItem.searchSummary.status"
+          class="normal-case tracking-normal"
+        >
+          {{ getSearchStatusLabel(toolItem.searchSummary.status) }}
+        </span>
         <span
           v-if="toolItem.searchSummary.resultCount !== undefined"
           data-testid="tool-search-result-count"
+          class="rounded bg-accent/30 px-1.5 py-px font-mono text-[9px] normal-case tracking-normal text-foreground/80"
         >
           {{ toolItem.searchSummary.resultCount }}
         </span>
       </div>
       <div
         v-if="searchFallbackNotice"
-        class="mt-1 rounded border border-amber-500/20 bg-amber-500/10 px-1.5 py-1 text-[10px] text-amber-700 dark:text-amber-200"
+        class="mt-1.5 rounded-md border border-amber-500/18 bg-amber-500/8 px-1.5 py-1 leading-4 text-amber-700 dark:text-amber-200"
       >
         {{ searchFallbackNotice }}
       </div>
       <div
         v-if="hasSearchTechnicalDetails"
-        class="mt-1 rounded border border-border/30 bg-accent/10 px-1.5 py-1"
+        class="tool-detail-card mt-1.5 px-1.5 py-1"
       >
         <details>
           <summary
-            class="cursor-pointer select-none text-[10px] font-medium text-muted-foreground"
+            class="tool-detail-label cursor-pointer select-none"
           >
             {{ $t('common.globalAiChat.toolSearchTechnicalDetails') }}
           </summary>
-          <div class="mt-1 space-y-0.5 text-[10px] text-muted-foreground">
+          <div class="mt-1.5 space-y-1 text-[10px] text-muted-foreground">
             <div v-if="toolItem.searchSummary.provider">
               <span class="font-medium">{{
                 $t('common.globalAiChat.toolSearchProvider')
@@ -158,18 +485,18 @@ function getSearchResultDomain(url: string): string {
       </div>
       <div
         v-if="toolItem.searchSummary.failureReason"
-        class="mt-1 whitespace-pre-wrap break-words text-muted-foreground"
+        class="mt-1.5 whitespace-pre-wrap break-words leading-4 text-muted-foreground"
       >
         {{ toolItem.searchSummary.failureReason }}
       </div>
       <ul
         v-else-if="toolItem.searchSummary.items.length > 0"
-        class="mt-1 space-y-1"
+        class="mt-1.5 space-y-1"
       >
         <li
           v-for="(searchItem, searchIndex) in toolItem.searchSummary.items"
           :key="`${toolItem.index}-${searchIndex}-${searchItem.url}`"
-          class="rounded border border-border/20 bg-accent/20 px-1.5 py-1"
+          class="tool-detail-card px-1.5 py-1.5"
         >
           <a
             :href="searchItem.url"
@@ -178,11 +505,11 @@ function getSearchResultDomain(url: string): string {
             class="block hover:text-primary"
             :data-testid="`tool-search-result-link-${toolItem.index}-${searchIndex}`"
           >
-            <div class="text-[11px] font-medium text-foreground">
+            <div class="text-[10px] font-medium leading-4 text-foreground">
               {{ searchItem.title }}
             </div>
             <div
-              class="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground"
+              class="mt-0.5 flex items-center gap-1 text-[9px] text-muted-foreground"
             >
               <IconifyIcon icon="lucide:globe" class="size-2.5 shrink-0" />
               <span class="truncate">{{
@@ -192,35 +519,38 @@ function getSearchResultDomain(url: string): string {
           </a>
           <div
             v-if="searchItem.snippet"
-            class="mt-0.5 whitespace-pre-wrap break-words text-[10px] text-foreground/75"
+            class="mt-1 whitespace-pre-wrap break-words leading-4 text-foreground/75"
           >
             {{ searchItem.snippet }}
           </div>
         </li>
       </ul>
-    </div>
-    <div
+    </section>
+
+    <section
       v-if="toolItem.structuredOutput.explanation"
-      class="mb-1 rounded bg-background/70 px-1.5 py-1 text-foreground/80"
+      class="tool-detail-section px-2 py-1.5 text-foreground/80"
     >
-      <span class="font-medium text-muted-foreground/60">{{
-        $t('common.globalAiChat.toolExplanation')
-      }}</span>
-      <div class="mt-0.5 whitespace-pre-wrap break-words">
+      <div class="tool-detail-label">
+        {{ $t('common.globalAiChat.toolExplanation') }}
+      </div>
+      <div class="mt-1 whitespace-pre-wrap break-words leading-4">
         {{ toolItem.structuredOutput.explanation }}
       </div>
-    </div>
-    <div
+    </section>
+
+    <section
       v-if="toolItem.structuredOutput.sql"
-      class="mb-1 rounded bg-slate-950/95 px-1.5 py-1 font-mono text-[10px] text-slate-100"
+      class="rounded-md bg-slate-950/95 px-2 py-1.5 font-mono text-[10px] text-slate-100"
     >
       <div class="flex items-center gap-2">
-        <span class="font-medium text-slate-300">{{
-          $t('common.globalAiChat.toolSql')
-        }}</span>
+        <span
+          class="text-[9px] font-medium uppercase tracking-[0.08em] text-slate-300"
+          >{{ $t('common.globalAiChat.toolSql') }}</span
+        >
         <button
           type="button"
-          class="inline-flex items-center gap-1 rounded border border-slate-700/80 px-1.5 py-px text-[10px] text-slate-300 transition-colors hover:border-slate-500 hover:text-white"
+          class="inline-flex items-center gap-1 rounded border border-slate-700/80 px-1.5 py-px text-[9px] text-slate-300 transition-colors hover:border-slate-500 hover:text-white"
           @click.stop="emit('copy', toolItem.structuredOutput.sql || '')"
         >
           <IconifyIcon icon="lucide:copy" class="size-2.5" />
@@ -228,21 +558,127 @@ function getSearchResultDomain(url: string): string {
         </button>
       </div>
       <pre
-        class="mt-0.5 max-h-40 overflow-y-auto whitespace-pre-wrap break-all"
+        class="mt-1 max-h-40 overflow-y-auto whitespace-pre-wrap break-all leading-4"
         >{{ toolItem.structuredOutput.sql }}</pre
       >
-    </div>
-    <div
+    </section>
+
+    <section
+      v-if="hasStructuredOutputPreview"
+      class="tool-detail-section px-2 py-1.5 text-muted-foreground"
+    >
+      <div class="tool-detail-label">
+        {{ $t('common.globalAiChat.exportOutput') }}
+      </div>
+
+      <div
+        v-if="outputPreview?.text"
+        data-testid="tool-output-preview"
+        class="mt-1.5 text-foreground/82 break-words leading-4"
+        :class="outputPreview.multiline ? 'whitespace-pre-wrap' : ''"
+      >
+        {{ outputPreview.text }}
+      </div>
+
+      <ul
+        v-if="outputPreview?.lines.length"
+        data-testid="tool-output-preview"
+        class="mt-1.5 space-y-1"
+      >
+        <li
+          v-for="(line, lineIndex) in outputPreview.lines"
+          :key="`output-preview-line-${lineIndex}`"
+          class="tool-detail-card px-1.5 py-1 leading-4 text-foreground/80"
+        >
+          {{ line }}
+        </li>
+      </ul>
+
+      <div v-if="outputFields.length > 0" class="mt-1.5 space-y-1">
+        <div
+          v-for="(field, fieldIndex) in outputFields"
+          :key="`output-${field.key}-${fieldIndex}`"
+          :data-testid="`tool-output-field-${fieldIndex}`"
+          class="tool-detail-card px-2 py-1.5"
+        >
+          <div class="flex items-start gap-2">
+            <code
+              class="text-foreground/74 shrink-0 rounded bg-accent/45 px-1.5 py-px text-[9px]"
+            >
+              {{ field.key }}
+            </code>
+            <div class="min-w-0 flex-1 space-y-1">
+              <p
+                v-if="field.text"
+                class="text-foreground/84 break-words leading-4"
+                :class="field.multiline ? 'whitespace-pre-wrap' : ''"
+              >
+                {{ field.text }}
+              </p>
+              <ul v-if="field.lines.length > 0" class="space-y-1">
+                <li
+                  v-for="(line, lineIndex) in field.lines"
+                  :key="`${field.key}-line-${lineIndex}`"
+                  class="rounded bg-accent/20 px-1.5 py-1 leading-4 text-foreground/80"
+                >
+                  {{ line }}
+                </li>
+              </ul>
+              <dl v-if="field.metaLines.length > 0" class="space-y-1">
+                <div
+                  v-for="entry in field.metaLines"
+                  :key="`${field.key}-${entry.key}`"
+                  class="grid grid-cols-[auto,1fr] gap-x-2 gap-y-0.5"
+                >
+                  <dt>
+                    <code class="text-muted-foreground/62 text-[9px]">
+                      {{ entry.key }}
+                    </code>
+                  </dt>
+                  <dd
+                    class="text-foreground/78 min-w-0 break-words leading-4"
+                  >
+                    {{ entry.value }}
+                  </dd>
+                </div>
+              </dl>
+              <div
+                v-if="field.overflowCount > 0"
+                class="text-muted-foreground/56 text-[9px]"
+              >
+                +{{ field.overflowCount }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div
+        v-if="(outputPreview?.overflowCount ?? 0) > 0"
+        class="mt-1.5 text-muted-foreground/56 text-[9px]"
+      >
+        +{{ outputPreview?.overflowCount }}
+      </div>
+    </section>
+
+    <section
       v-if="toolItem.structuredOutput.raw"
-      class="rounded bg-accent/20 text-muted-foreground"
+      class="tool-detail-section overflow-hidden px-0 py-0 text-muted-foreground"
     >
       <button
         type="button"
-        class="flex w-full items-center gap-1 px-1.5 py-1 text-left transition-colors hover:bg-accent/30"
+        class="flex w-full items-center gap-1 px-2 py-1.5 text-left transition-colors hover:bg-accent/16"
+        :title="
+          $t(
+            rawExpanded
+              ? 'common.globalAiChat.rawResultCollapse'
+              : 'common.globalAiChat.rawResultExpand',
+          )
+        "
         @click="emit('toggleRaw')"
       >
         <IconifyIcon icon="lucide:braces" class="size-3 shrink-0" />
-        <span class="flex-1 text-[10px] font-medium">
+        <span class="tool-detail-label flex-1">
           {{ $t('common.globalAiChat.rawResult') }}
         </span>
         <IconifyIcon
@@ -260,39 +696,62 @@ function getSearchResultDomain(url: string): string {
           opacity: rawExpanded ? 1 : 0,
         }"
       >
-        <div class="min-h-0 overflow-hidden border-t border-border/20">
+        <div class="min-h-0 overflow-hidden border-t border-border/12">
           <pre
-            class="overflow-y-auto whitespace-pre-wrap break-all px-1.5 py-1"
+            class="overflow-y-auto whitespace-pre-wrap break-all bg-background/70 px-2 py-1.5 font-mono leading-4 text-foreground/78"
             :class="[compact ? 'max-h-32 text-[10px]' : 'max-h-40 text-[11px]']"
             >{{ toolItem.structuredOutput.raw }}</pre
           >
         </div>
       </div>
-    </div>
-    <div
+    </section>
+
+    <section
       v-if="toolItem.tc.error"
-      class="whitespace-pre-wrap break-all rounded bg-red-50 px-1.5 py-1 text-red-500 dark:bg-red-950/30"
+      class="rounded-md border border-red-500/16 bg-red-50/75 px-2 py-1.5 text-red-600 dark:bg-red-950/24 dark:text-red-200"
     >
-      {{ toolItem.tc.error }}
-    </div>
-    <p
-      v-if="
-        toolItem.tc.status === 'error' &&
-        getPageOpErrorHintKey(toolItem.tc.errorType)
-      "
-      class="mt-1 text-[10px] text-muted-foreground"
-    >
-      {{ $t(getPageOpErrorHintKey(toolItem.tc.errorType)) }}
-    </p>
+      <div class="whitespace-pre-wrap break-all leading-4">
+        {{ toolItem.tc.error }}
+      </div>
+      <p
+        v-if="toolItem.tc.status === 'error' && errorHintKey"
+        class="mt-1 text-[10px] leading-4 text-red-500/90 dark:text-red-200/90"
+      >
+        {{ $t(errorHintKey) }}
+      </p>
+    </section>
+
     <a
       v-if="toolItem.tc.resultLink && toolItem.tc.status === 'success'"
       :href="toolItem.tc.resultLink"
       target="_blank"
       rel="noopener noreferrer"
-      class="mt-1 inline-flex items-center gap-1 text-[10px] text-primary hover:underline"
+      class="inline-flex items-center gap-1 rounded-md border border-border/16 bg-background/56 px-2 py-1 text-[10px] text-primary transition-colors hover:border-primary/18 hover:bg-background/76 hover:underline"
     >
       <IconifyIcon icon="lucide:external-link" class="size-2.5" />
       {{ $t('common.globalAiChat.viewResult') }}
     </a>
   </div>
 </template>
+
+<style scoped>
+.tool-detail-section {
+  background: hsl(var(--background) / 46%);
+  border: 1px solid hsl(var(--border) / 10%);
+  border-radius: 0.75rem;
+}
+
+.tool-detail-card {
+  background: hsl(var(--muted) / 0.16);
+  border: 1px solid hsl(var(--border) / 10%);
+  border-radius: 0.625rem;
+}
+
+.tool-detail-label {
+  color: hsl(var(--muted-foreground) / 0.56);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+</style>

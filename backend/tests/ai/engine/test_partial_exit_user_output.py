@@ -76,6 +76,42 @@ def test_partial_exit_user_output_uses_partial_search_results_before_retry_exhau
     assert "如果你愿意，我可以继续" not in output
 
 
+def test_partial_exit_user_output_hides_unfinished_web_results_after_provider_failure() -> (
+    None
+):
+    intents = [
+        IntentPlan(
+            intent_id="intent-1",
+            kind="web_research",
+            family="web_research",
+            order=1,
+            user_visible_label="新闻来源",
+            source_text="查今天 AI 新闻",
+            status="pending",
+            requires_tools=True,
+            allowed_tool_names=["web_search", "fetch_url"],
+            completion_signals=["fetch_url"],
+            metadata={
+                "partial_result": (
+                    "AI News Daily - https://example.com/ai-news；"
+                    "OpenAI Updates - https://example.com/openai"
+                )
+            },
+        )
+    ]
+
+    output = RecoveryManager.build_partial_output(
+        intents,
+        reason="provider_failure_after_partial_progress",
+        provider_failure_kind="provider_http_5xx",
+    )
+
+    assert "AI News Daily" not in output
+    assert "OpenAI Updates" not in output
+    assert "目前拿到的结果" not in output
+    assert "被系统中断了，请稍后再试。" in output
+
+
 def test_update_intent_statuses_caches_partial_result_for_unfinished_search_intent() -> (
     None
 ):
@@ -164,6 +200,49 @@ def test_partial_exit_user_output_uses_page_workflow_phase_for_page_turns() -> N
     assert "提交智能体表单" in output
     assert "继续提交页面变更" in output
     assert "目前能确认的内容" in output
+
+
+def test_partial_exit_user_output_accepts_tool_results_for_completed_intent() -> None:
+    intents = [
+        IntentPlan(
+            intent_id="intent-1",
+            kind="page_summary",
+            family="page_ops",
+            order=1,
+            user_visible_label="页面概览",
+            source_text="当前页面有哪些可交互元素？",
+            status="completed",
+            requires_tools=True,
+            allowed_tool_names=["ui_list_interactables"],
+            completion_signals=["ui_list_interactables"],
+            completed_by_tool_names=["ui_list_interactables"],
+        )
+    ]
+
+    output = RecoveryManager.build_partial_output(
+        intents,
+        tool_results=[
+            ToolResult(
+                tool_call_id="tool-1",
+                name="ui_list_interactables",
+                success=True,
+                summary_payload={
+                    "surface_id": "tenant-list",
+                    "items": [
+                        {"label": "新增企业", "kind": "button"},
+                        {"label": "搜索企业名称", "kind": "textbox"},
+                    ],
+                    "count": 29,
+                },
+            )
+        ],
+        reason="provider_failure_after_partial_progress",
+        provider_failure_kind="provider_http_5xx",
+    )
+
+    assert "新增企业" in output
+    assert "搜索企业名称" in output
+    assert "29 个可交互元素" in output
 
 
 def test_update_intent_statuses_marks_web_search_zero_results_as_completed() -> None:

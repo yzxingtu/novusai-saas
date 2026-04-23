@@ -64,6 +64,7 @@ interface UsePanelShellBodyBindingsOptions {
   chatMessages: Ref<ChatMessage[]>;
   characterCount: ComputedRef<number>;
   commitEditTitle: () => void;
+  compactMessages: ComputedRef<boolean>;
   composerMentionCandidates: ComputedRef<ComposerMentionCandidateItem[]>;
   confirmAction: (index: number) => void;
   confirmConsent: (index: number) => void;
@@ -156,6 +157,7 @@ export function usePanelShellBodyBindings(
     boundKnowledgeBases: options.boundKnowledgeBases.value,
     characterCount: options.characterCount.value,
     chatMessages: options.chatMessages.value,
+    compactMessages: options.compactMessages.value,
     conversationSearch: options.conversationSearch.value,
     conversationsCount: options.conversationsCount.value,
     conversationsLoading: options.conversationsLoading.value,

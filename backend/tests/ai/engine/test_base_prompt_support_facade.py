@@ -23,7 +23,6 @@ def test_base_prompt_support_facade_keeps_stable_helper_surface() -> None:
     required_names = [
         "_build_system_message",
         "_inject_runtime_summary",
-        "_build_page_operations_hint",
         "_prepare_llm_gateway_call",
         "_apply_llm_response_metadata",
         "_build_contract_recovery_system_message",

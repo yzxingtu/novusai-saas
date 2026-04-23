@@ -13,11 +13,22 @@ from .intent_runtime_accessors import (
     resolve_intent_plan_view,
     resolve_requested_intents_from_input_variables,
 )
+from .page_workflow_state_machine import (
+    legacy_page_intent_kind_for_goal,
+    resolve_page_workflow_goal,
+)
 from .system_prompt_intent_helpers import intent_completion_matches
 from .tool_policy_semantics import tool_semantic_family
 from .turn_research_helpers import (
     collect_web_research_evidence,
     extract_recent_successful_tool_names,
+)
+
+_PAGE_SUMMARY_WORKFLOW_GOALS = frozenset({"page_summary", "table_summary"})
+_RUNTIME_PAGE_FACT_KEYS = (
+    "_runtime_intent_facts",
+    "runtime_intent_facts",
+    "intent_facts",
 )
 
 
@@ -27,9 +38,88 @@ def _push_unique(items: list[str], value: str) -> None:
         items.append(normalized)
 
 
-def _normalize_page_intent_name(kind: str | None) -> str:
+def _page_intent_alias(
+    kind: str | None,
+    *,
+    metadata: dict[str, Any] | None = None,
+    user_text: str | None = None,
+) -> str:
+    payload = dict(metadata or {})
+    workflow_goal = resolve_page_workflow_goal(
+        intent_kind=str(kind or "").strip(),
+        intent_metadata=payload,
+        user_text=user_text,
+    )
+    mapped_alias = legacy_page_intent_kind_for_goal(workflow_goal)
+    if mapped_alias:
+        return mapped_alias
     normalized = str(kind or "").strip()
     return normalized if normalized.startswith("page_") else ""
+
+
+def _runtime_page_metadata(
+    input_variables: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    if not isinstance(input_variables, dict):
+        return None
+
+    sources: list[dict[str, Any]] = []
+    for key in _RUNTIME_PAGE_FACT_KEYS:
+        value = input_variables.get(key)
+        if isinstance(value, dict):
+            sources.append(value)
+
+    tool_planner = input_variables.get("tool_planner")
+    if isinstance(tool_planner, dict):
+        sources.append(tool_planner)
+
+    context_diagnostics = input_variables.get("context_diagnostics")
+    if isinstance(context_diagnostics, dict):
+        sources.append(context_diagnostics)
+        for key in _RUNTIME_PAGE_FACT_KEYS:
+            value = context_diagnostics.get(key)
+            if isinstance(value, dict):
+                sources.append(value)
+        tool_planner = context_diagnostics.get("tool_planner")
+        if isinstance(tool_planner, dict):
+            sources.append(tool_planner)
+
+    for source in sources:
+        if str(source.get("page_workflow_goal") or "").strip():
+            return dict(source)
+    return None
+
+
+def _requested_page_intent_alias(
+    intent_name: str | None,
+    *,
+    runtime_page_metadata: dict[str, Any] | None = None,
+) -> str:
+    normalized = str(intent_name or "").strip()
+    if not normalized:
+        return ""
+    metadata = (
+        runtime_page_metadata
+        if normalized in {"page_workflow", "page_read"}
+        else None
+    )
+    return _page_intent_alias(
+        normalized,
+        metadata=metadata,
+    )
+
+
+def _page_workflow_goal(
+    kind: str | None,
+    *,
+    metadata: dict[str, Any] | None = None,
+    user_text: str | None = None,
+) -> str:
+    return resolve_page_workflow_goal(
+        intent_kind=str(kind or "").strip(),
+        intent_metadata=dict(metadata or {}),
+        user_text=user_text,
+    )
 
 
 def _merge_active_page_intent(
@@ -41,21 +131,30 @@ def _merge_active_page_intent(
     for intent_name in intents:
         _push_unique(merged, intent_name)
 
-    active_intent_kind = _normalize_page_intent_name(
-        resolve_active_intent_kind_from_input_variables(input_variables)
+    runtime_page_metadata = _runtime_page_metadata(input_variables)
+    active_intent_kind = _page_intent_alias(
+        resolve_active_intent_kind_from_input_variables(input_variables),
+        metadata=runtime_page_metadata,
     )
     if not active_intent_kind:
         return merged
 
-    has_page_intent = any(intent.startswith("page_") for intent in merged)
-    if active_intent_kind == "page_summary" and has_page_intent:
+    active_page_workflow_goal = _page_workflow_goal(
+        resolve_active_intent_kind_from_input_variables(input_variables),
+        metadata=runtime_page_metadata,
+    )
+    has_page_intent = any(_page_workflow_goal(intent_name) for intent_name in merged)
+    if (
+        active_page_workflow_goal in _PAGE_SUMMARY_WORKFLOW_GOALS
+        and has_page_intent
+    ):
         return merged
 
-    if active_intent_kind != "page_summary":
+    if active_page_workflow_goal not in _PAGE_SUMMARY_WORKFLOW_GOALS:
         replaced: list[str] = []
         inserted = False
         for intent_name in merged:
-            if intent_name == "page_summary":
+            if _page_workflow_goal(intent_name) in _PAGE_SUMMARY_WORKFLOW_GOALS:
                 if not inserted:
                     replaced.append(active_intent_kind)
                     inserted = True
@@ -75,14 +174,25 @@ def _requested_page_intents(
     for intent in planned:
         if intent.family != "page_ops" or not intent.requires_tools:
             continue
-        _push_unique(intents, _normalize_page_intent_name(intent.kind))
+        _push_unique(
+            intents,
+            _page_intent_alias(
+                intent.kind,
+                metadata=getattr(intent, "metadata", None),
+                user_text=getattr(intent, "source_text", None),
+            ),
+        )
     if intents:
         return _merge_active_page_intent(intents, input_variables=input_variables)
 
+    runtime_page_metadata = _runtime_page_metadata(input_variables)
     requested = resolve_requested_intents_from_input_variables(input_variables)
     for intent_name in requested:
-        normalized = _normalize_page_intent_name(intent_name)
-        if normalized.startswith("page_"):
+        normalized = _requested_page_intent_alias(
+            intent_name,
+            runtime_page_metadata=runtime_page_metadata,
+        )
+        if normalized:
             _push_unique(intents, normalized)
     return _merge_active_page_intent(intents, input_variables=input_variables)
 
@@ -124,22 +234,34 @@ def detect_requested_turn_intents(
             requested_intents = [
                 str(intent_name or "").strip() for intent_name in requested
             ]
-            if any(
-                _normalize_page_intent_name(intent_name)
-                for intent_name in requested_intents
-            ):
+            runtime_page_metadata = _runtime_page_metadata(input_variables)
+            normalized_requested_intents: list[str] = []
+            saw_page_intent = False
+            for intent_name in requested_intents:
+                normalized_page_intent = _requested_page_intent_alias(
+                    intent_name,
+                    runtime_page_metadata=runtime_page_metadata,
+                )
+                if normalized_page_intent:
+                    _push_unique(normalized_requested_intents, normalized_page_intent)
+                    saw_page_intent = True
+                    continue
+                _push_unique(normalized_requested_intents, intent_name)
+            if saw_page_intent:
                 return _merge_active_page_intent(
-                    requested_intents,
+                    normalized_requested_intents,
                     input_variables=input_variables,
                 )
-            return requested_intents
+            return normalized_requested_intents
+        runtime_page_metadata = _runtime_page_metadata(input_variables)
         active_intent_kind = resolve_active_intent_kind_from_input_variables(
             input_variables
         )
-        if active_intent_kind and str(active_intent_kind).startswith("page_"):
-            normalized_active_page_intent = _normalize_page_intent_name(
-                active_intent_kind
-            )
+        normalized_active_page_intent = _page_intent_alias(
+            active_intent_kind,
+            metadata=runtime_page_metadata,
+        )
+        if normalized_active_page_intent:
             return (
                 [normalized_active_page_intent] if normalized_active_page_intent else []
             )
@@ -168,7 +290,11 @@ def detect_requested_turn_intents(
             _push("weather")
             continue
         if intent.family == "page_ops":
-            normalized_page_intent = _normalize_page_intent_name(intent.kind)
+            normalized_page_intent = _page_intent_alias(
+                intent.kind,
+                metadata=getattr(intent, "metadata", None),
+                user_text=getattr(intent, "source_text", None),
+            )
             if normalized_page_intent:
                 _push(normalized_page_intent)
             continue
@@ -217,11 +343,17 @@ def collect_completed_turn_intents(
 
     requested_page_intents = _requested_page_intents(input_variables)
     if requested_page_intents:
-        planned_intents = {
-            str(intent.kind or "").strip(): intent
-            for intent in resolve_intent_plan_view(input_variables)
-            if intent.family == "page_ops" and intent.requires_tools
-        }
+        planned_intents: dict[str, Any] = {}
+        for intent in resolve_intent_plan_view(input_variables):
+            if intent.family != "page_ops" or not intent.requires_tools:
+                continue
+            intent_name = _page_intent_alias(
+                intent.kind,
+                metadata=getattr(intent, "metadata", None),
+                user_text=getattr(intent, "source_text", None),
+            )
+            if intent_name and intent_name not in planned_intents:
+                planned_intents[intent_name] = intent
         for intent_name in requested_page_intents:
             planned_intent = planned_intents.get(intent_name)
             explicit_completion = _planned_page_intent_completion_override(
@@ -243,7 +375,7 @@ def collect_completed_turn_intents(
                     if planned_intent is not None
                     else None
                 ),
-            ):
+                ):
                 completed.add(intent_name)
     elif successful_tool_names & {
         "ui_get_snapshot",
@@ -251,7 +383,10 @@ def collect_completed_turn_intents(
         "ui_read_table",
         "ui_list_interactables",
     }:
-        completed.add("page_summary")
+        fallback_page_intent = _page_intent_alias(
+            resolve_active_intent_kind_from_input_variables(input_variables)
+        )
+        completed.add(fallback_page_intent or "page_summary")
 
     rail_search_seen = any(mentions_rail_ticket(query) for query in successful_queries)
     rail_fetch_seen = any(

@@ -29,6 +29,64 @@ class RequestPayloadBuilderAdapterProtocol(Protocol):
     ) -> list[dict[str, Any]]: ...
 
 
+_RESPONSES_RESPONSE_ID_METADATA_KEY = "responses_response_id"
+
+
+def _combine_system_instructions(messages: list[ChatMessage]) -> str:
+    parts: list[str] = []
+    for msg in messages:
+        if msg.role != "system":
+            continue
+        text = str(msg.content or "").strip()
+        if text:
+            parts.append(text)
+    return "\n\n".join(parts)
+
+
+def _exclude_system_messages(messages: list[ChatMessage]) -> list[ChatMessage]:
+    return [msg for msg in messages if msg.role != "system"]
+
+
+def _resolve_responses_continuation_anchor(
+    messages: list[ChatMessage],
+) -> tuple[int, str] | None:
+    for index in range(len(messages) - 1, -1, -1):
+        msg = messages[index]
+        if msg.role != "assistant" or not msg.tool_calls:
+            continue
+        metadata = msg.metadata if isinstance(msg.metadata, dict) else {}
+        response_id = str(
+            metadata.get(_RESPONSES_RESPONSE_ID_METADATA_KEY) or ""
+        ).strip()
+        if response_id:
+            if not _is_safe_responses_tool_followup(
+                messages=messages,
+                anchor_index=index,
+            ):
+                return None
+            return index, response_id
+        return None
+    return None
+
+
+def _is_safe_responses_tool_followup(
+    *,
+    messages: list[ChatMessage],
+    anchor_index: int,
+) -> bool:
+    trailing_messages = messages[anchor_index + 1 :]
+    if not trailing_messages:
+        return False
+
+    saw_tool_output = False
+    for msg in trailing_messages:
+        if msg.role != "tool":
+            return False
+        saw_tool_output = True
+
+    return saw_tool_output
+
+
 def build_chat_completions_request(
     *,
     adapter: RequestPayloadBuilderAdapterProtocol,
@@ -206,17 +264,31 @@ async def build_responses_request(
     ):
         explicit_reasoning = effective_request["effective_params"]["reasoning"]
 
+    continuation_anchor = _resolve_responses_continuation_anchor(messages)
+    continuation_input_messages = messages
     request_params: dict[str, Any] = {
         "model": effective_request["upstream_model"],
-        "input": await adapter._convert_messages_to_responses_input(
-            messages,
-            supports_vision=supports_vision,
-            supports_audio=supports_audio,
-            supports_video=supports_video,
-        ),
         "temperature": temperature,
         "top_p": top_p,
     }
+    instructions = _combine_system_instructions(messages)
+    if instructions:
+        request_params["instructions"] = instructions
+    if continuation_anchor is not None:
+        anchor_index, response_id = continuation_anchor
+        continuation_input_messages = _exclude_system_messages(
+            messages[anchor_index + 1 :]
+        )
+        request_params["previous_response_id"] = response_id
+    else:
+        continuation_input_messages = _exclude_system_messages(messages)
+
+    request_params["input"] = await adapter._convert_messages_to_responses_input(
+        continuation_input_messages,
+        supports_vision=supports_vision,
+        supports_audio=supports_audio,
+        supports_video=supports_video,
+    )
     if max_tokens is not None:
         request_params["max_output_tokens"] = max_tokens
     if stream:

@@ -36,9 +36,9 @@ class TestParseArguments:
 
 
 class TestPageOperationsHint:
-    """页面提示应基于 ui_* 工具与薄 page_context。"""
+    """页面运行时散文提示已退役。"""
 
-    def test_builds_hint_with_thin_page_context_and_ui_tools(self) -> None:
+    def test_returns_empty_hint_even_with_page_context_and_ui_tools(self) -> None:
         hint = BaseEngine._build_page_operations_hint(
             {
                 "page_context": {
@@ -69,13 +69,7 @@ class TestPageOperationsHint:
             ],
         )
 
-        assert "[PAGE OPERATIONS]" in hint
-        assert "Current page: admin.ai.agents" in hint
-        assert "Readonly: ui_get_snapshot" in hint
-        assert "Actions (navigation / open): ui_list_interactables, ui_click, ui_open_surface" in hint
-        assert "Form read/write: ui_get_form_state, ui_set_field, ui_fill_form" in hint
-        assert "Safe write: ui_set_field, ui_fill_form" in hint
-        assert "Submit-required: ui_submit_form" in hint
+        assert hint == ""
 
     def test_returns_empty_hint_without_valid_page_context(self) -> None:
         hint = BaseEngine._build_page_operations_hint(
@@ -104,8 +98,4 @@ class TestPageOperationsHint:
             ],
         )
 
-        assert "[PAGE OPERATIONS]" in hint
-        assert "Readonly: ui_get_snapshot" in hint
-        assert "Form read/write: none" in hint
-        assert "Submit-required: none" in hint
-        assert "ui_submit_form" not in hint
+        assert hint == ""

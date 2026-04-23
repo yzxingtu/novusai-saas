@@ -5,6 +5,9 @@ from __future__ import annotations
 from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any, Protocol
 
+from app.ai.adapters.openai_compatible.support.client_options import (
+    with_client_retry_override,
+)
 from app.ai.adapters.openai_compatible.support.protocol_chat_completions_helpers import (
     convert_chat_chunk,
     convert_chat_response,
@@ -102,6 +105,8 @@ async def execute_chat_via_chat_completions(
     fallback_to_responses: bool = True,
     responses_kwargs: dict[str, Any] | None = None,
 ) -> ChatResponse:
+    request_params = dict(request_params)
+    client_max_retries = request_params.pop("_client_max_retries", None)
     effective_model = str(request_params.get("model") or model)
     adapter._log_upstream_request(
         endpoint_path="chat/completions",
@@ -111,7 +116,11 @@ async def execute_chat_via_chat_completions(
     )
     logger.info("Chat request: model={} messages={}", effective_model, len(messages))
 
-    response = await adapter.client.chat.completions.create(**request_params)
+    client = with_client_retry_override(
+        adapter.client,
+        max_retries=client_max_retries,
+    )
+    response = await client.chat.completions.create(**request_params)
     response = await retry_chat_completions_with_v1_if_needed(
         adapter=adapter,
         payload=response,
@@ -182,6 +191,8 @@ async def execute_stream_chat_via_chat_completions(
     aclose_stream: Callable[[Any], Awaitable[None]],
     normalize_timeout: Callable[[Any], float | None],
 ) -> AsyncIterator[ChatChunk]:
+    request_params = dict(request_params)
+    client_max_retries = request_params.pop("_client_max_retries", None)
     effective_model = str(request_params.get("model") or model)
     adapter._log_upstream_request(
         endpoint_path="chat/completions",
@@ -191,7 +202,11 @@ async def execute_stream_chat_via_chat_completions(
     )
     logger.info("Stream chat request: model={}", effective_model)
 
-    stream = await adapter.client.chat.completions.create(**request_params)
+    client = with_client_retry_override(
+        adapter.client,
+        max_retries=client_max_retries,
+    )
+    stream = await client.chat.completions.create(**request_params)
     stream = await retry_chat_completions_with_v1_if_needed(
         adapter=adapter,
         payload=stream,

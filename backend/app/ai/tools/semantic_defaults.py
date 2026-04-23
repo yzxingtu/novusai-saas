@@ -143,7 +143,7 @@ def page_context_has_active_form(page_context: Mapping[str, Any] | None) -> bool
 def page_context_has_runtime_state(page_context: Mapping[str, Any] | None) -> bool:
     if not isinstance(page_context, Mapping):
         return False
-    if str(page_context.get("page_key") or "").strip():
+    if str(page_context.get("page_session_id") or "").strip():
         return True
     if isinstance(page_context.get("ui_epoch"), int):
         return True

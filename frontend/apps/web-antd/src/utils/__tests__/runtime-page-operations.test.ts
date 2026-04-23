@@ -11,10 +11,6 @@ describe('runtime-page-operations', () => {
   it('ignores suggested_tools-only page context when deriving live runtime operations', () => {
     const pageContext = {
       page_key: 'tenant.dashboard',
-      suggested_tools: {
-        primary: ['ui_get_snapshot', 'ui_list_interactables'],
-        secondary: ['ui_click'],
-      },
     } as unknown as Parameters<typeof buildRuntimePageOperationNames>[0];
 
     expect(hasRuntimePageState(pageContext)).toBe(false);
@@ -29,16 +25,17 @@ describe('runtime-page-operations', () => {
         form_session_id: 'form-session-1',
       },
       active_surface_id: 'page:tenant.dashboard',
-      page_key: 'tenant.dashboard',
-      suggested_tools: {
-        primary: ['ui_read_table'],
+      page_data: {
+        visible_tables: [{ locator: 'table-1' }],
       },
+      page_key: 'tenant.dashboard',
       ui_epoch: 3,
     } as unknown as Parameters<typeof buildRuntimePageOperationNames>[0];
 
     expect(buildRuntimePageOperationNames(pageContext)).toEqual([
       'ui_get_snapshot',
       'ui_read_region',
+      'ui_read_table',
       'ui_list_interactables',
       'ui_click',
       'ui_open_surface',
@@ -46,6 +43,26 @@ describe('runtime-page-operations', () => {
       'ui_fill_form',
       'ui_set_field',
       'ui_submit_form',
+    ]);
+  });
+
+  it('derives read operations from visible table affordances after runtime state exists', () => {
+    const pageContext = {
+      page_data: {
+        visible_tables: [{ locator: 'table-1' }],
+      },
+      page_key: 'tenant.logs',
+      page_session_id: 'session-1',
+    } as unknown as Parameters<typeof buildRuntimePageOperationNames>[0];
+
+    expect(hasRuntimePageState(pageContext)).toBe(true);
+    expect(buildRuntimePageOperationNames(pageContext)).toEqual([
+      'ui_get_snapshot',
+      'ui_read_region',
+      'ui_read_table',
+      'ui_list_interactables',
+      'ui_click',
+      'ui_open_surface',
     ]);
   });
 });

@@ -5,6 +5,11 @@ Uses more accurate estimation coefficients for CJK characters to avoid severe un
 对 CJK 字符采用更准确的估算系数，避免 len//4 对中日韩文本严重低估。
 """
 
+import json
+from typing import Any
+
+from app.ai.types import ChatMessage
+
 
 def _is_cjk(char: str) -> bool:
     """Check if character is a CJK unified ideograph / 判断字符是否为 CJK 统一表意文字"""
@@ -66,4 +71,23 @@ def estimate_tokens(text: str) -> int:
     return max(int(tokens), 1) if text else 0
 
 
-__all__ = ["estimate_tokens"]
+def _estimate_structured_tokens(value: Any) -> int:
+    if value in (None, "", [], {}):
+        return 0
+    try:
+        serialized = json.dumps(value, ensure_ascii=False, sort_keys=True)
+    except (TypeError, ValueError):
+        serialized = str(value)
+    return estimate_tokens(serialized)
+
+
+def estimate_chat_message_tokens(message: ChatMessage) -> int:
+    total = estimate_tokens(message.content or "")
+    if message.attachments:
+        total += _estimate_structured_tokens(message.attachments)
+    if message.tool_calls:
+        total += _estimate_structured_tokens(message.tool_calls)
+    return total
+
+
+__all__ = ["estimate_chat_message_tokens", "estimate_tokens"]

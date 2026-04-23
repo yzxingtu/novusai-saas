@@ -30,58 +30,63 @@ const emit = defineEmits<{
   <!-- Stats + Copy + Regenerate -->
   <div
     v-if="msg.content && !msg.streaming"
-    class="flex items-center text-muted-foreground/70 transition-opacity duration-200 group-hover:opacity-100"
-    :class="[
-      compact ? 'mt-0.5 gap-0.5 text-[11px]' : 'mt-1 gap-1 text-xs',
-      compact ? 'opacity-100' : 'opacity-60 hover:opacity-100',
-    ]"
+    data-testid="assistant-message-footer"
+    class="assistant-message-footer text-muted-foreground/70 flex flex-wrap items-center justify-between gap-2"
+    :class="[compact ? 'text-[10px]' : 'text-[11px]']"
   >
-    <span
-      v-if="msg.created_at"
-      class="mr-0.5 text-[10px] tabular-nums text-muted-foreground/40"
-    >
-      {{ formatTimeOnly(msg.created_at) }}
-    </span>
-    <span v-if="msg.tokenUsage" class="mr-0.5 tabular-nums"
-      >{{ msg.tokenUsage }} {{ $t('common.globalAiChat.tokens') }}</span
-    >
-    <span v-if="msg.durationMs" class="mr-0.5 tabular-nums"
-      >· {{ formatDurationSeconds(msg.durationMs) }}</span
-    >
-    <Tooltip
-      v-if="msg.memoryUpdated"
-      :title="$t('common.globalAiChat.memoryUpdated')"
-    >
+    <div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-1">
       <span
-        class="mr-0.5 inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary"
+        v-if="msg.created_at"
+        class="text-muted-foreground/44 rounded-full border border-border/18 bg-background/74 px-1.5 py-px text-[9px] tabular-nums"
       >
-        <IconifyIcon icon="lucide:brain" class="size-2.5" />
+        {{ formatTimeOnly(msg.created_at) }}
       </span>
-    </Tooltip>
-    <span class="mx-0.5 text-border">·</span>
-    <Tooltip :title="$t('common.globalAiChat.copy')">
-      <button
-        class="flex items-center justify-center rounded-md transition-colors hover:bg-muted hover:text-foreground"
-        :class="compact ? 'size-5' : 'size-5'"
-        @click="emit('copy', msg.content)"
+      <span
+        v-if="!compact && msg.tokenUsage"
+        class="text-foreground/64 rounded-full border border-border/18 bg-background/74 px-1.5 py-px text-[9px] tabular-nums"
       >
-        <IconifyIcon
-          icon="lucide:copy"
-          :class="compact ? 'size-2.5' : 'size-3'"
-        />
-      </button>
-    </Tooltip>
-    <Tooltip :title="$t('common.globalAiChat.regenerate')">
-      <button
-        class="flex items-center justify-center rounded-md transition-colors hover:bg-muted hover:text-foreground"
-        :class="compact ? 'size-5' : 'size-5'"
-        @click="emit('regenerate', props.index)"
+        {{ msg.tokenUsage }} {{ $t('common.globalAiChat.tokens') }}
+      </span>
+      <span
+        v-if="!compact && msg.durationMs"
+        class="text-foreground/60 rounded-full border border-border/18 bg-background/74 px-1.5 py-px text-[9px] tabular-nums"
       >
-        <IconifyIcon
-          icon="lucide:refresh-cw"
-          :class="compact ? 'size-2.5' : 'size-3'"
-        />
-      </button>
-    </Tooltip>
+        {{ formatDurationSeconds(msg.durationMs) }}
+      </span>
+      <Tooltip
+        v-if="msg.memoryUpdated && !compact"
+        :title="$t('common.globalAiChat.memoryUpdated')"
+      >
+        <span
+          class="border-primary/14 inline-flex items-center gap-0.5 rounded-full border bg-primary/[0.07] px-1.5 py-px text-[9px] text-primary"
+        >
+          <IconifyIcon icon="lucide:brain" class="size-2.5" />
+        </span>
+      </Tooltip>
+    </div>
+    <div class="ml-auto flex shrink-0 items-center gap-1">
+      <Tooltip :title="$t('common.globalAiChat.copy')">
+        <button
+          class="hover:bg-background/88 flex size-[18px] items-center justify-center rounded-md border border-transparent text-muted-foreground/56 transition-colors hover:border-border/28 hover:text-foreground"
+          @click="emit('copy', msg.content)"
+        >
+          <IconifyIcon
+            icon="lucide:copy"
+            :class="compact ? 'size-2.5' : 'size-3'"
+          />
+        </button>
+      </Tooltip>
+      <Tooltip :title="$t('common.globalAiChat.regenerate')">
+        <button
+          class="hover:bg-background/88 flex size-[18px] items-center justify-center rounded-md border border-transparent text-muted-foreground/56 transition-colors hover:border-border/28 hover:text-foreground"
+          @click="emit('regenerate', props.index)"
+        >
+          <IconifyIcon
+            icon="lucide:refresh-cw"
+            :class="compact ? 'size-2.5' : 'size-3'"
+          />
+        </button>
+      </Tooltip>
+    </div>
   </div>
 </template>

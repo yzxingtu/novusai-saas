@@ -23,9 +23,6 @@ from .system_prompt_capability_hints import (
     build_ordered_capability_hint_default as build_ordered_capability_hint_default,
 )
 from .system_prompt_capability_hints import (
-    build_page_operations_hint as build_page_operations_hint,
-)
-from .system_prompt_capability_hints import (
     build_runtime_capability_hint as build_runtime_capability_hint,
 )
 from .system_prompt_capability_hints import (
@@ -51,9 +48,6 @@ from .system_prompt_intent_helpers import (
 )
 from .system_prompt_rendering import build_system_message as build_system_message
 from .system_prompt_runtime_summary import (
-    build_research_continuation_hint as build_research_continuation_hint,
-)
-from .system_prompt_runtime_summary import (
     inject_runtime_summary as inject_runtime_summary,
 )
 
@@ -72,8 +66,6 @@ __all__ = [
     "build_capability_reporting_hint",
     "build_ordered_capability_hint",
     "build_ordered_capability_hint_default",
-    "build_page_operations_hint",
-    "build_research_continuation_hint",
     "build_runtime_capability_hint",
     "build_system_message",
     "build_system_message_default",

@@ -12,6 +12,7 @@ from typing import Any
 from app.ai.skills.resolver import SkillResolveResult
 from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage
+from app.ai.utils.token_estimator import estimate_chat_message_tokens
 from app.core.logging import LogManager
 
 from .prepare_execution_runtime_helpers import PreparedExecutionRuntimeState
@@ -172,7 +173,7 @@ def register_prepared_execution_budget(
         int(estimated_prompt_tokens)
         if estimated_prompt_tokens
         else sum(
-            collaborators.estimate_tokens(message.content or "")
+            estimate_chat_message_tokens(message)
             for message in context_state.messages
         )
     )

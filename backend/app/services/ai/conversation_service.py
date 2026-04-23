@@ -420,8 +420,9 @@ class ConversationService(
 
     # Max history messages to load (fallback default) / 历史消息最大条数（兜底默认）
     MAX_HISTORY_MESSAGES = 50
-    # Max history tokens (0 = unlimited) / 历史消息最大 Token（0=不限制）
-    MAX_HISTORY_TOKENS = 0
+    # Default runtime history token budget when the agent leaves it unspecified.
+    # Explicit max_tokens=0 still means unlimited for maintenance flows.
+    MAX_HISTORY_TOKENS = 2400
     # 对话标题最大长度 / Max conversation title length
     MAX_TITLE_LENGTH = 100
 

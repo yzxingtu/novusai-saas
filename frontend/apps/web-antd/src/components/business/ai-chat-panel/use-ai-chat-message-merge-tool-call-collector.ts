@@ -74,6 +74,9 @@ export function collectToolCallsFromAssistantMessage(
   messageItem: RawMessageItem,
   toolResponseMap: PersistedToolResponseMap,
 ) {
+  if (state.hasCanonicalTurnFlow) {
+    return;
+  }
   const toolCalls = readLegacyToolCalls(messageItem);
   if (toolCalls.length === 0) {
     return;

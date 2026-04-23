@@ -214,6 +214,11 @@ export async function submitRuntimeForm(args: { confirm?: boolean; formSessionId
   `*-contracts.ts` instead of re-expanding the public entrypoint.
   Pages and generic composables may consume those public helpers, but must not
   recreate the same domains elsewhere.
+- No single product page or route may become the canonical owner or default
+  fixture for page-awareness behavior. Runtime routing, smoke coverage, and
+  fixtures should validate against synthetic page keys or varied CRUD pages;
+  business pages such as `/admin/ai/conversations` are ordinary consumers, not
+  special runtime schema owners.
 - Pages and CRUD helpers contribute stable page keys, route policy, and form/session hooks only; do not embed DOM, HTML, or UI graph data in `page_context`.
 - Runtime scans must exclude the AI panel (`[data-ai-panel]`) and any subtree with `data-ai="off"`.
 
@@ -254,6 +259,11 @@ export async function submitRuntimeForm(args: { confirm?: boolean; formSessionId
   treat canonical `ui_*` names as the only live page-runtime tool truth.
   Legacy names such as `navigate_menu`, `open_page`, `read_visible_rows`,
   `fill_form`, and `submit_form` are no longer part of the live runtime path.
+- Tool-argument recovery must attempt bounded repair for simple single-field
+  page-runtime payloads before spending retry budget on
+  `invalid_tool_arguments_json`. Repairs may normalize malformed locator-style
+  objects such as a missing closing quote on the key or a bare locator string
+  value, but must not silently reinterpret multi-field or nested payloads.
 - Frontend route-security bridges should emit canonical form-write action kinds
   (`ui_set_field`, `ui_fill_form`, `ui_submit_form`) when projecting live
   runtime policy into `disabledActionKinds` / `confirmActionKinds`.
@@ -303,7 +313,7 @@ export async function submitRuntimeForm(args: { confirm?: boolean; formSessionId
   capability-reporting queries, and request-derived page/web runtime-policy
   families before full skill resolution. Startup preview may attach bounded
   semantic-family hints for plugin/connector grants when exact preview tool
-  names are not yet known, while `backend/app/ai/skills/turn_activation.py`
+  names are not yet known, while `backend/app/ai/skills/activation.py`
   remains the live activation seam for later turn narrowing against resolved
   tool truth. Treat those two layers together as the current startup/live
   owner chain; do not add new prompt-driven or page-specific paths that bypass
@@ -393,6 +403,39 @@ const pageContext = getRuntimeThinPageContext();
 // Later: ui_read_region / ui_get_snapshot for detailed content
 ```
 
+## Prompt-narration Budget (2026-04)
+
+- System prompt must not carry prose narration of runtime facts. Runtime state
+  (active surface, workflow phase, recently fetched URLs, recent web queries,
+  suggested page tools, etc.) must surface to the model as tool schema fields,
+  tool `description` attributes, or structured `context_source` metadata, not as
+  additional natural-language paragraphs.
+- `inject_runtime_summary(...)` and equivalent helpers must keep the prose delta
+  under a bounded budget (target: ≤ 120 tokens total increment beyond the agent
+  system prompt). New runtime facts must land in structured payloads, not in a
+  new prose paragraph.
+- `build_page_operations_hint`-style per-phase narrative guidance is retired.
+  Page-workflow progression is owned by the page workflow state machine plus
+  tool schema descriptions; system prompt must not re-teach per-page procedure.
+- `build_runtime_capability_hint` is retained only for a compact one-line
+  capability summary (`selected_skill_names`) and must not fabricate prose
+  about knowledge base / memory / page context availability; those facts belong
+  on tool schemas or context_source metadata.
+- `research_state`, `tool_usage_rules`, `ordered_capability_intent`, and similar
+  prose contracts are retired. Web research continuation state is exposed via
+  tool arguments / context_source fields, not via a prose hint.
+
+## Schema-level Sunset (2026-04)
+
+- `PageContext.suggested_tools` is scheduled for schema removal. Live decision
+  paths must not depend on it; frontend snapshot generators are on the path to
+  stop emitting it.
+- `PageContext.page_data.available_menus` is not part of the live contract and
+  must be rejected at the request boundary, not merely ignored.
+- `CapabilityKind = "prompt_skill"` is scheduled for enum removal. Live
+  capability truth emits `capability_pack`; any existing `prompt_skill` data must
+  be migrated, not kept as a long-term compatibility alias.
+
 ## Prohibited Patterns
 - Installed skill packs that only work after page-specific prompt or route adaptation.
 - Treating `Skill.skill_md`, package `SKILL.md`, or `CapabilityDescriptor(kind="prompt_skill")` as live tool-exposure truth.
@@ -402,3 +445,8 @@ const pageContext = getRuntimeThinPageContext();
 - Page runtime hidden inside monolithic builtin executors.
 - Reviving removed page registration / page operation registry flows alongside the shared UI runtime bridge.
 - Duplicated rule bodies across `.trellis`, `.claude`, `.agents`, and `.cursor`.
+- Adding new `build_*_hint` helpers that generate natural-language procedure
+  text into the system prompt. Runtime facts go into tool schemas and
+  context_source payloads, not into a fresh prose paragraph.
+- Re-emitting `suggested_tools`, `available_menus`, `prompt_skill`, or
+  `skill_md` as live runtime truth under a different helper or alias name.

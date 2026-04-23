@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.ai.json_safe import normalize_json_safe_dict
 from app.ai.text_semantics import extract_public_attachment_reference
 from app.ai.types import ChatMessage
-from app.ai.utils.token_estimator import estimate_tokens
+from app.ai.utils.token_estimator import estimate_chat_message_tokens
 from app.configs.service import PLATFORM_TENANT_ID
 from app.enums.agent import MessageRoleEnum
 from app.models.ai.agent_conversation import AgentConversation
@@ -25,6 +25,8 @@ from app.services.ai.agent_chat_interaction_support import (
     strip_legacy_interaction_mode_fields,
 )
 from app.services.ai.conversation_payload_sanitizer import (
+    sanitize_assistant_error_payload,
+    sanitize_conversation_last_error_payload,
     strip_assistant_legacy_turn_projection_fields,
 )
 from app.services.ai.conversation_turn_flow_projector import (
@@ -172,6 +174,7 @@ class ConversationReadModelService:
             msg_dict["model_name"] = msg.model.name
         msg_dict["provider_id"] = runtime_meta.get("provider_id")
         msg_dict["provider_name"] = runtime_meta.get("provider_name")
+        msg_dict = sanitize_assistant_error_payload(msg_dict)
         turn_flow = ConversationTurnFlowProjector.project_from_message_payload(msg_dict)
         if turn_flow is not None:
             msg_dict["turn_flow"] = turn_flow
@@ -243,6 +246,7 @@ class ConversationReadModelService:
                 "created_at": self.format_dt(self._safe_attr(msg, "created_at")),
                 "metadata": metadata_payload,
             }
+            message_payload = sanitize_assistant_error_payload(message_payload)
             projected_turn_flow = (
                 ConversationTurnFlowProjector.project_from_message_payload(
                     message_payload
@@ -303,6 +307,10 @@ class ConversationReadModelService:
             metadata_payload = strip_legacy_interaction_mode_fields(
                 result.get("metadata")
             )
+            if isinstance(metadata_payload, dict) and metadata_payload.get("last_error"):
+                metadata_payload["last_error"] = sanitize_conversation_last_error_payload(
+                    metadata_payload.get("last_error")
+                )
             if metadata_payload:
                 result["metadata"] = metadata_payload
             else:
@@ -436,10 +444,10 @@ class ConversationReadModelService:
                 chat_messages.append(chat_message)
 
         if max_tokens > 0 and chat_messages:
-            total = sum(estimate_tokens(m.content or "") for m in chat_messages)
+            total = sum(estimate_chat_message_tokens(m) for m in chat_messages)
             while total > max_tokens and len(chat_messages) > 1:
                 removed = chat_messages.pop(0)
-                total -= estimate_tokens(removed.content or "")
+                total -= estimate_chat_message_tokens(removed)
 
         return chat_messages
 

@@ -6,10 +6,13 @@ delegating command logic to focused modules under `app.cli_commands.*`.
 
 from __future__ import annotations
 
+import os
 import sys
 import types
 
 import click
+
+os.environ.setdefault("NOVUSAI_CLI_DISABLE_FILE_LOGGING", "1")
 
 from app.cli_commands import ai_commands as _ai
 from app.cli_commands import ai_norm as _ai_norm
@@ -96,7 +99,7 @@ _MODULE = sys.modules[__name__]
 _MODULE.__class__ = _LegacyCompatModule
 
 # Preserve this module's root group after bulk exports and class swap.
-setattr(_MODULE, "cli", cli)
+_MODULE.cli = cli
 
 __all__ = [name for name in globals() if not name.startswith("__")]
 

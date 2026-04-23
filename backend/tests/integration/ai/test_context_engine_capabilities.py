@@ -125,15 +125,46 @@ def _build_plugin_page_web_skill_result() -> SkillResolveResult:
 
 
 def _build_intent_plan(*kinds: str) -> list[IntentPlan]:
+    workflow_goals = {
+        "page_summary": "page_summary",
+        "page_read": "page_summary",
+        "page_screenshot": "page_screenshot",
+        "page_navigation": "navigation",
+        "page_search": "search",
+        "page_pagination": "pagination",
+        "page_row_detail": "row_detail",
+        "page_form_read": "form_read",
+        "page_form_write": "form_write",
+        "page_editor_read": "editor_read",
+        "page_editor_write": "editor_write",
+    }
+
+    def _family_for_kind(kind: str) -> str:
+        if kind == "web_research":
+            return "web_research"
+        if kind == "knowledge_query":
+            return "knowledge"
+        if kind.startswith("page_") or kind == "page_read":
+            return "page_ops"
+        return "none"
+
     return [
         IntentPlan(
             intent_id=f"intent-{index}",
             kind=kind,
-            family="web_research" if kind == "web_research" else "none",
+            family=_family_for_kind(kind),
             order=index,
             user_visible_label=kind,
             source_text="test intent",
             shortcircuit=False,
+            metadata=(
+                {
+                    "page_workflow_kind": "page_workflow",
+                    "page_workflow_goal": workflow_goals[kind],
+                }
+                if kind in workflow_goals
+                else {}
+            ),
         )
         for index, kind in enumerate(kinds, start=1)
     ]

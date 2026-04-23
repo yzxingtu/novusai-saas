@@ -384,11 +384,62 @@ function shouldSuppressUntrustedFailureBody(
   );
 }
 
+function looksLikeRawHtmlFailureDocument(content: string): boolean {
+  const normalized = content.trim().toLocaleLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  if (
+    !(normalized.startsWith('<!doctype html') || normalized.startsWith('<html'))
+  ) {
+    return false;
+  }
+  if (!normalized.includes('</html>')) {
+    return false;
+  }
+  return (
+    normalized.includes('<body') ||
+    normalized.includes('bad gateway') ||
+    normalized.includes('cloudflare ray id') ||
+    normalized.includes('performance &amp; security by')
+  );
+}
+
+function shouldSuppressProviderFailureBody(
+  flow: ReturnType<typeof getTurnFlowForDisplay>,
+  content: string,
+): boolean {
+  if (!looksLikeRawHtmlFailureDocument(content)) {
+    return false;
+  }
+  const failureSignals = [
+    normalizeOptionalString(flow.errorSurface?.errorType),
+    normalizeOptionalString(flow.failureKind),
+    normalizeOptionalString(flow.completionReason),
+    normalizeOptionalString(flow.turnOutcome),
+  ]
+    .filter((value): value is string => Boolean(value))
+    .map((value) => value.toLocaleLowerCase());
+  return (
+    flow.finalStageStatus === 'error' ||
+    failureSignals.some(
+      (value) =>
+        value.startsWith('provider_') ||
+        value === 'failed' ||
+        value === 'partial',
+    )
+  );
+}
+
 export function prepareMessageContent(
   msg: ChatMessage,
 ): PreparedMessageContent {
   const flow = getTurnFlowForDisplay(msg);
-  if (shouldSuppressUntrustedFailureBody(flow)) {
+  const preparedBody = resolvePreparedBodyMarkdown(msg);
+  if (
+    shouldSuppressUntrustedFailureBody(flow) ||
+    shouldSuppressProviderFailureBody(flow, preparedBody)
+  ) {
     return {
       bodyMarkdown: '',
       references: [],
@@ -396,7 +447,7 @@ export function prepareMessageContent(
     };
   }
 
-  const extracted = extractTailReferences(resolvePreparedBodyMarkdown(msg));
+  const extracted = extractTailReferences(preparedBody);
   const references = mergeReferences(
     flow.evidence.map((item) => toEvidenceReference(item)),
     extracted.references,

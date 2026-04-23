@@ -14,6 +14,12 @@ from datetime import datetime, timezone
 from redis.exceptions import RedisError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai.exceptions import (
+    AIGatewayError,
+    extract_provider_error_message,
+    is_retryable,
+    looks_like_html_document_text,
+)
 from app.core.logging import LogManager
 from app.core.redis import get_redis
 from app.models.ai import AIModel
@@ -24,6 +30,8 @@ logger = LogManager.get_logger("ai.failover")
 # Redis key prefixes (consistent with health check) / Redis 键前缀（与 health check 一致）
 HEALTH_KEY_PREFIX = "ai:provider:{provider_id}:health"
 HEALTH_HISTORY_PREFIX = "ai:provider:{provider_id}:health_history"
+RUNTIME_FAILURE_KEY_PREFIX = "ai:provider:{provider_id}:runtime_failure"
+DEFAULT_RUNTIME_FAILURE_TTL_SECONDS = 300
 
 
 def _normalize_checked_at(value: object) -> object:
@@ -50,6 +58,17 @@ def _normalize_health_payload(payload: dict) -> dict:
     return payload
 
 
+def _safe_runtime_error_message(error: BaseException | None) -> str | None:
+    provider_message = str(extract_provider_error_message(error) or "").strip()
+    if provider_message and not looks_like_html_document_text(provider_message):
+        return provider_message
+
+    text = str(error or "").strip()
+    if text and not looks_like_html_document_text(text):
+        return text
+    return None
+
+
 class FailoverService:
     """
     Failover Service / 故障转移服务
@@ -61,6 +80,103 @@ class FailoverService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self._model_repo = AIModelRepository(db)
+
+    @staticmethod
+    def should_record_runtime_failure(error: BaseException | None) -> bool:
+        if not isinstance(error, AIGatewayError):
+            return False
+        if is_retryable(error):
+            return True
+        status_code = int(getattr(error, "status_code", 0) or 0)
+        return 500 <= status_code < 600
+
+    async def get_provider_runtime_failure(
+        self,
+        provider_id: int,
+    ) -> dict | None:
+        try:
+            redis = await get_redis()
+            key = RUNTIME_FAILURE_KEY_PREFIX.format(provider_id=provider_id)
+            data = await redis.get(key)
+            if not data:
+                return None
+            return _normalize_health_payload(json.loads(data))
+        except (RedisError, json.JSONDecodeError, TypeError) as e:
+            logger.warning(
+                "Failover runtime failure lookup failed: provider_id={} error={}",
+                provider_id,
+                str(e),
+            )
+            return None
+
+    async def record_provider_runtime_failure(
+        self,
+        provider_id: int,
+        *,
+        model_id: int | None = None,
+        error: BaseException | None = None,
+        ttl_seconds: int = DEFAULT_RUNTIME_FAILURE_TTL_SECONDS,
+    ) -> None:
+        if provider_id <= 0 or not self.should_record_runtime_failure(error):
+            return
+
+        payload = {
+            "provider_id": provider_id,
+            "model_id": model_id,
+            "error_code": str(getattr(error, "error_code", "") or "").strip() or None,
+            "status_code": int(getattr(error, "status_code", 0) or 0) or None,
+            "message": _safe_runtime_error_message(error),
+            "checked_at": datetime.now(timezone.utc).isoformat(),
+            "source": "runtime_failure",
+        }
+        payload = {key: value for key, value in payload.items() if value is not None}
+
+        try:
+            redis = await get_redis()
+            key = RUNTIME_FAILURE_KEY_PREFIX.format(provider_id=provider_id)
+            await redis.setex(
+                key,
+                ttl_seconds,
+                json.dumps(payload, ensure_ascii=False),
+            )
+            logger.warning(
+                "Failover runtime failure recorded: provider_id={} model_id={} ttl_seconds={} error_code={} status_code={}",
+                provider_id,
+                model_id,
+                ttl_seconds,
+                payload.get("error_code"),
+                payload.get("status_code"),
+            )
+        except (RedisError, TypeError, ValueError) as e:
+            logger.warning(
+                "Failover runtime failure record failed: provider_id={} error={}",
+                provider_id,
+                str(e),
+            )
+
+    @staticmethod
+    def _candidate_sort_key(
+        model: AIModel,
+        *,
+        preferred_provider_id: int | None,
+        preferred_tier: str | None,
+    ) -> tuple[int, int, float, int, int]:
+        input_price = getattr(model, "input_price_per_1k", None)
+        normalized_price = float(input_price) if input_price is not None else float("inf")
+        context_window = int(getattr(model, "context_window", 0) or 0)
+        return (
+            0
+            if preferred_provider_id is not None
+            and getattr(model, "provider_id", None) == preferred_provider_id
+            else 1,
+            0
+            if preferred_tier
+            and str(getattr(model, "tier", "") or "").strip() == preferred_tier
+            else 1,
+            normalized_price,
+            -context_window,
+            int(getattr(model, "id", 0) or 0),
+        )
 
     async def is_provider_healthy(self, provider_id: int) -> bool:
         """
@@ -74,6 +190,10 @@ class FailoverService:
             Whether healthy (available) / 是否健康（可用）
         """
         try:
+            runtime_failure = await self.get_provider_runtime_failure(provider_id)
+            if runtime_failure is not None:
+                return False
+
             redis = await get_redis()
             health_key = HEALTH_KEY_PREFIX.format(provider_id=provider_id)
             data = await redis.get(health_key)
@@ -94,6 +214,12 @@ class FailoverService:
         self,
         model_id: int,
         max_depth: int = 3,
+        *,
+        needs_vision: bool = False,
+        needs_audio: bool = False,
+        needs_video: bool = False,
+        needs_fc: bool = False,
+        min_context_window: int | None = None,
     ) -> AIModel | None:
         """
         Get fallback model (find first available along fallback chain).
@@ -108,6 +234,15 @@ class FailoverService:
         """
         visited = set()
         current_id = model_id
+        original_model = await self._model_repo.get_active_with_provider(model_id)
+        preferred_provider_id = (
+            getattr(original_model, "provider_id", None) if original_model else None
+        )
+        preferred_tier = (
+            str(getattr(original_model, "tier", "") or "").strip() or None
+            if original_model is not None
+            else None
+        )
 
         for _attempt in range(max_depth):
             # Get current model via Repository / 通过 Repository 获取当前模型
@@ -119,7 +254,7 @@ class FailoverService:
             # Check if fallback exists / 检查是否有 fallback
             fallback_id = getattr(model, "fallback_model_id", None)
             if not fallback_id:
-                return None
+                break
 
             # Prevent circular chains / 防止循环
             if fallback_id in visited:
@@ -128,7 +263,7 @@ class FailoverService:
                     current_id,
                     fallback_id,
                 )
-                return None
+                break
 
             visited.add(current_id)
 
@@ -136,7 +271,7 @@ class FailoverService:
             fallback = await self._model_repo.get_active_with_provider(fallback_id)
 
             if not fallback:
-                return None
+                break
 
             # Check if fallback model's provider is healthy / 检查备用模型的供应商是否健康
             if await self.is_provider_healthy(fallback.provider_id):
@@ -150,6 +285,39 @@ class FailoverService:
 
             # Fallback provider also unhealthy, continue along chain / 备用供应商也不健康，继续沿链查找
             current_id = fallback_id
+
+        unhealthy_provider_ids: set[int] = set()
+        if preferred_provider_id and not await self.is_provider_healthy(preferred_provider_id):
+            unhealthy_provider_ids.add(preferred_provider_id)
+
+        compatible_candidates = await self._model_repo.list_compatible_chat_models(
+            exclude_model_ids=list({model_id, *visited}),
+            needs_vision=needs_vision,
+            needs_audio=needs_audio,
+            needs_video=needs_video,
+            needs_function_calling=needs_fc,
+            min_context_window=min_context_window,
+        )
+        compatible_candidates = sorted(
+            compatible_candidates,
+            key=lambda item: self._candidate_sort_key(
+                item,
+                preferred_provider_id=preferred_provider_id,
+                preferred_tier=preferred_tier,
+            ),
+        )
+        for candidate in compatible_candidates:
+            if getattr(candidate, "provider_id", None) in unhealthy_provider_ids:
+                continue
+            if not await self.is_provider_healthy(candidate.provider_id):
+                continue
+            logger.info(
+                "Failover compatible fallback found: original_model={} fallback_model={} fallback_name={}",
+                model_id,
+                candidate.id,
+                candidate.name,
+            )
+            return candidate
 
         logger.warning(
             "Failover: no healthy provider found: model_id={} max_depth={}",
@@ -171,6 +339,17 @@ class FailoverService:
             redis = await get_redis()
             results = []
 
+            runtime_failures: dict[int, dict] = {}
+            async for key in redis.scan_iter(match="ai:provider:*:runtime_failure"):
+                data = await redis.get(key)
+                if not data:
+                    continue
+                with contextlib.suppress(json.JSONDecodeError, TypeError):
+                    payload = _normalize_health_payload(json.loads(data))
+                    provider_id = int(payload.get("provider_id") or 0)
+                    if provider_id > 0:
+                        runtime_failures[provider_id] = payload
+
             # Scan all health status keys / 扫描所有健康状态键
             async for key in redis.scan_iter(match="ai:provider:*:health"):
                 # Exclude history keys / 排除 history 键
@@ -180,6 +359,14 @@ class FailoverService:
                 if data:
                     try:
                         health = _normalize_health_payload(json.loads(data))
+                        runtime_failure = runtime_failures.get(
+                            int(health.get("provider_id") or 0)
+                        )
+                        if runtime_failure is not None:
+                            health["runtime_failure"] = runtime_failure
+                            health["runtime_failure_override"] = True
+                            health["is_healthy"] = False
+                            health["is_available"] = False
                         results.append(health)
                     except (json.JSONDecodeError, TypeError):
                         pass

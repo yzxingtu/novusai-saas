@@ -1,24 +1,31 @@
 # FROZEN: do not add new dependencies
 """Execution loop helpers and IO adapter for StreamExecutionHandler.generate()."""
 from __future__ import annotations
+
 import asyncio
 import time
 from collections.abc import AsyncIterator
 from contextlib import suppress
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
+
 from app.ai.sse import SSEChunkEncoder
 from app.ai.types import ChatMessage, ChatResponse
 from app.core.response import (
     build_error_event,
     build_exception_debug,
     build_public_error_text,
+    resolve_public_error_message,
 )
 from app.enums.common import UserRoleEnum
 from app.middleware.trace import trace_id_var
+
 from .base import log_user_type_for_call_log
 from .failure_classifier import FailureClassifier
+from .final_output_policy import is_trusted_assistant_final_output_source
+from .recovery_manager import RecoveryManager
 from .stream_error_utils import resolve_stream_public_error_message
+from .stream_finalization_pipeline import StreamFinalizationArtifacts
 from .stream_generation_pipeline import (
     append_partial_assistant_output,
     build_done_event,
@@ -29,7 +36,6 @@ from .stream_generation_pipeline import (
     reset_stream_state,
 )
 from .stream_generation_view import ensure_stream_generation_view
-from .stream_finalization_pipeline import StreamFinalizationArtifacts
 from .stream_llm_round_support import (
     StreamRoundState,
     finalize_model_round,
@@ -42,10 +48,12 @@ from .stream_tool_batch_runtime import (
     StreamToolBatchRuntimeInput,
     run_stream_tool_batch,
 )
-from .turn_executor import ToolBatchResult
 from .tool_execution_helpers import (
     normalize_tool_call_outcome as _normalize_tool_call_outcome_impl,
+    recover_tool_results_from_messages as _recover_tool_results_from_messages_impl,
 )
+from .turn_executor import ToolBatchResult
+
 if TYPE_CHECKING:
     from app.ai.tools.types import ToolDefinition, ToolResult
 
@@ -463,6 +471,55 @@ def _should_emit_graceful_exception_done(handler: Any) -> bool:
     return failure_kind not in {"", "none"}
 
 
+def _should_surface_exception_partial_output(
+    *,
+    generated_partial_output: bool,
+    had_visible_output: bool,
+    provider_failure_kind: str,
+    final_output_source: str | None,
+) -> bool:
+    if not generated_partial_output:
+        return True
+    if not had_visible_output:
+        return True
+    if is_trusted_assistant_final_output_source(final_output_source):
+        return True
+    return str(provider_failure_kind or "").strip() == "budget_exit"
+
+
+def _resolve_exception_final_output_source(
+    *,
+    partial_output: str,
+    state: Any,
+    tool_results: list[Any],
+) -> str | None:
+    if not str(partial_output or "").strip():
+        return None
+    intent_plan = list(getattr(state, "intent_plan", []) or []) if state is not None else []
+    if RecoveryManager.has_completed_output_evidence(
+        intent_plan,
+        tool_results=tool_results,
+    ):
+        return "recovery_evidence"
+    return "partial_output"
+
+
+def _resolve_exception_tool_results(
+    *,
+    all_tool_results: list[Any],
+    messages: list[Any],
+    turn_start_message_index: int,
+) -> list[Any]:
+    recovered_tool_results = list(all_tool_results or [])
+    if recovered_tool_results:
+        return recovered_tool_results
+    return _recover_tool_results_from_messages_impl(
+        messages,
+        start_index=turn_start_message_index,
+        skip_unresolved_interactions=True,
+    )
+
+
 async def _build_stream_exception_artifacts(
     handler: Any,
     *,
@@ -471,12 +528,19 @@ async def _build_stream_exception_artifacts(
     output: str,
     total_tokens: int,
     all_tool_results: list[Any],
+    turn_start_message_index: int = 0,
     public_error_message: str,
     completion_reason: str,
 ) -> StreamFinalizationArtifacts:
     view = ensure_stream_generation_view(handler)
     duration_ms = int((time.perf_counter() - handler.start_time) * 1000)
+    recovered_tool_results = _resolve_exception_tool_results(
+        all_tool_results=all_tool_results,
+        messages=messages,
+        turn_start_message_index=turn_start_message_index,
+    )
     partial_output = str(view.output or output or "").strip()
+    generated_partial_output = False
     partial_tokens = view.total_tokens
     if partial_tokens is None:
         partial_tokens = total_tokens
@@ -491,7 +555,7 @@ async def _build_stream_exception_artifacts(
                 messages=messages,
                 response=None,
                 state=handler._state,
-                tool_results=all_tool_results,
+                tool_results=recovered_tool_results,
                 reason=completion_reason,
                 total_tokens=partial_tokens,
                 completion_tokens_used=partial_completion_tokens,
@@ -499,13 +563,34 @@ async def _build_stream_exception_artifacts(
                 context_sources=[],
             )
         )
+        generated_partial_output = bool(str(partial_output or "").strip())
 
     partial_output = str(partial_output or "").strip()
-    if partial_output:
-        view.output = partial_output
+    state = getattr(handler, "_state", None)
+    final_output_source = _resolve_exception_final_output_source(
+        partial_output=partial_output,
+        state=state,
+        tool_results=recovered_tool_results,
+    )
+    if state is not None:
+        state.preparation_diagnostics["final_output_source"] = (
+            final_output_source
+        )
+    surfaced_output = (
+        partial_output
+        if _should_surface_exception_partial_output(
+            generated_partial_output=generated_partial_output,
+            had_visible_output=bool(str(view.visible_stream_content or "").strip()),
+            provider_failure_kind=str(view.provider_failure_kind or ""),
+            final_output_source=final_output_source,
+        )
+        else ""
+    )
+    if surfaced_output:
+        view.output = surfaced_output
         append_partial_assistant_output(
             messages,
-            output=partial_output,
+            output=surfaced_output,
             reasoning_output=view.reasoning_output,
         )
 
@@ -513,11 +598,11 @@ async def _build_stream_exception_artifacts(
         handler,
         messages=messages,
         rag_sources=rag_sources,
-        output=partial_output,
+        output=surfaced_output,
         total_tokens=partial_tokens,
-        tool_results=all_tool_results,
+        tool_results=recovered_tool_results,
         duration_ms=duration_ms,
-        error=build_public_error_text(message=public_error_message),
+        error=resolve_public_error_message(fallback_message=public_error_message),
         completion_reason=completion_reason,
         interrupted=False,
         include_provider_state=True,
@@ -531,19 +616,19 @@ async def _build_stream_exception_artifacts(
     ).strip()
 
     replay_events: list[str] = []
-    if partial_output:
+    if surfaced_output:
         streamed_output = view.visible_stream_content.strip()
         partial_reply_stream_chunks = (
-            view.chunk_text_for_streaming(partial_output)
+            view.chunk_text_for_streaming(surfaced_output)
             if view.should_replay_finalized_output(
                 streamed_output=streamed_output,
-                finalized_output=partial_output,
+                finalized_output=surfaced_output,
             )
             else []
         )
         replay_events = build_replay_events(
             streamed_output=streamed_output,
-            finalized_output=partial_output,
+            finalized_output=surfaced_output,
             final_output_source=diagnostics_payload.get("final_output_source"),
             partial_reply_stream_chunks=partial_reply_stream_chunks,
             completed_reply_stream_chunks=[],
@@ -568,12 +653,18 @@ async def _handle_stream_exception(
     output: str,
     total_tokens: int,
     all_tool_results: list[Any],
+    turn_start_message_index: int,
     logger: Any,
 ) -> AsyncIterator[str]:
     await _cancel_executor_task(executor_task)
     _sync_exception_runtime_metadata(handler, exc)
     _register_stream_exception_failure(handler, exc)
     completion_reason = _resolve_stream_exception_completion_reason(handler)
+    recovered_tool_results = _resolve_exception_tool_results(
+        all_tool_results=all_tool_results,
+        messages=messages,
+        turn_start_message_index=turn_start_message_index,
+    )
 
     public_error_message = resolve_stream_public_error_message(exc)
     logger.error(
@@ -591,7 +682,8 @@ async def _handle_stream_exception(
                 rag_sources=rag_sources,
                 output=output,
                 total_tokens=total_tokens,
-                all_tool_results=all_tool_results,
+                all_tool_results=recovered_tool_results,
+                turn_start_message_index=turn_start_message_index,
                 public_error_message=public_error_message,
                 completion_reason=completion_reason,
             )
@@ -654,9 +746,9 @@ async def _handle_stream_exception(
             rag_sources=rag_sources,
             output=partial_output,
             total_tokens=partial_tokens,
-            tool_results=all_tool_results,
+            tool_results=recovered_tool_results,
             duration_ms=duration_ms,
-            error=build_public_error_text(message=public_error_message),
+            error=resolve_public_error_message(fallback_message=public_error_message),
             completion_reason=completion_reason,
             interrupted=False,
             include_provider_state=True,
@@ -717,9 +809,8 @@ async def _handle_stream_base_exception(
             total_tokens=partial_tokens,
             tool_results=all_tool_results,
             duration_ms=duration_ms,
-            error=build_public_error_text(
-                message="Execution interrupted",
-                detail=f"{type(exc).__name__}: {exc}",
+            error=resolve_public_error_message(
+                fallback_message="Execution interrupted",
             ),
             completion_reason="interrupted",
             interrupted=True,
@@ -800,6 +891,7 @@ async def run_stream_execution(
             output=output,
             total_tokens=total_tokens,
             all_tool_results=all_tool_results,
+            turn_start_message_index=turn_start_message_index,
             logger=logger,
         ):
             yield event

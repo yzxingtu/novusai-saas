@@ -539,7 +539,7 @@ class ConversationMessagePersistenceService:
                     "content": content,
                     "sequence": next_seq + persisted_count,
                     "token_count": token_estimate,
-                    "tool_calls": None if role == "assistant" else tool_calls,
+                    "tool_calls": tool_calls if role == "assistant" else None,
                     "tool_call_id": tool_call_id,
                     "agent_id": msg_agent_id,
                     "model_id": msg_model_id,

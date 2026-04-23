@@ -103,8 +103,10 @@ class TestCapabilityDescriptionBuilder:
         families = {desc.metadata["family"] for desc in result}
         assert families == {"web_research", "weather", "time"}
 
-    def test_build_skill_descriptions_ignores_non_prompt_and_blank_names(self):
-        """Test non-prompt descriptors and blank names are skipped"""
+    def test_build_skill_descriptions_ignores_non_capability_pack_and_blank_names(
+        self,
+    ):
+        """Test non-capability-pack descriptors and blank names are skipped"""
 
         class MockDescriptor:
             def __init__(self, name, description, kind="capability_pack", metadata=None):
@@ -123,7 +125,7 @@ class TestCapabilityDescriptionBuilder:
                     ),
                     MockDescriptor(
                         name="context_provider",
-                        description="Not a prompt skill",
+                        description="Not a capability pack",
                         kind="context_provider",
                     ),
                 ]

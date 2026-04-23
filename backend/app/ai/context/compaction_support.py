@@ -13,7 +13,10 @@ from typing import TYPE_CHECKING, Any
 from app.ai.context.compaction_snapshot_store import ContextCompactionSnapshotStore
 from app.ai.context.pruning import TransientPruner
 from app.ai.types import ChatMessage
-from app.ai.utils.token_estimator import estimate_tokens
+from app.ai.utils.token_estimator import (
+    estimate_chat_message_tokens,
+    estimate_tokens,
+)
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,7 +25,7 @@ if TYPE_CHECKING:
 
 
 def messages_token_estimate(messages: list[ChatMessage]) -> int:
-    return sum(estimate_tokens(message.content or "") for message in messages)
+    return sum(estimate_chat_message_tokens(message) for message in messages)
 
 
 def coerce_result_messages(raw_messages: Any) -> list[ChatMessage]:

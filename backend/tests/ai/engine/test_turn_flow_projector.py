@@ -208,3 +208,56 @@ def test_build_turn_flow_view_model_ignores_untrusted_tool_evidence_answer_text(
     assert answer_assembly_stage["status"] == "skipped"
     assert answer_card.get("summary") == "No trusted assistant final answer."
     assert answer_card.get("confidence_label") == "low"
+
+
+def test_build_turn_flow_view_model_prefers_public_error_for_untrusted_failed_output() -> None:
+    turn_flow = build_turn_flow_view_model(
+        diagnostics_payload={
+            "final_output_source": "partial_output",
+            "failure_kind": "provider_http_5xx",
+            "turn_outcome": "partial",
+            "tool_filtering": {"all_tools_count": 4, "candidate_tools_count": 4},
+            "turn_events": [],
+        },
+        turn_record={"termination_reason": "provider_error"},
+        rag_sources=[],
+        output="内部 partial output 不应展示",
+        completion_reason="provider_error",
+        interrupted=False,
+        error="AI 供应商服务端错误",
+    )
+
+    answer_card = turn_flow["answer_card"] or {}
+
+    assert answer_card.get("summary") == "AI 供应商服务端错误"
+    assert answer_card.get("sections") == [
+        {
+            "id": "final_answer",
+            "title": "Answer",
+            "content": "AI 供应商服务端错误",
+        }
+    ]
+    assert (turn_flow["error_surface"] or {}).get("error_type") == (
+        "untrusted_final_output_source"
+    )
+
+
+def test_build_turn_flow_view_model_strips_trace_id_suffix_from_error_surface() -> None:
+    turn_flow = build_turn_flow_view_model(
+        diagnostics_payload={
+            "final_output_source": "partial_output",
+            "failure_kind": "provider_http_5xx",
+            "turn_outcome": "partial",
+            "tool_filtering": {"all_tools_count": 1, "candidate_tools_count": 1},
+            "turn_events": [],
+        },
+        turn_record={"termination_reason": "provider_error"},
+        rag_sources=[],
+        output="",
+        completion_reason="provider_error",
+        interrupted=False,
+        error="AI 供应商服务端错误 [trace_id=test-trace]",
+    )
+
+    assert turn_flow["answer_card"]["summary"] == "AI 供应商服务端错误"
+    assert turn_flow["error_surface"]["message"] == "AI 供应商服务端错误"

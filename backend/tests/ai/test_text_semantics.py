@@ -5,6 +5,7 @@ from app.ai.text_semantics import (
     extract_textual_tool_call_names,
     remove_trailing_json_commas,
     split_last_suffix,
+    strip_model_function_call_markup,
 )
 
 
@@ -16,6 +17,24 @@ def test_extract_textual_tool_call_names_maps_known_aliases() -> None:
     )
 
     assert names == ["fetch_url", "web_search"]
+
+
+def test_extract_textual_tool_call_names_detects_dsml_invoke_markup() -> None:
+    names = extract_textual_tool_call_names(
+        '<｜DSML｜tool_calls><｜DSML｜invoke name="ui_read_region"></｜DSML｜invoke></｜DSML｜tool_calls>',
+        alias_to_tool_name={"ui_read_region": "ui_read_region"},
+        known_tool_names={"ui_read_region"},
+    )
+
+    assert names == ["ui_read_region"]
+
+
+def test_strip_model_function_call_markup_removes_dsml_tool_call_block() -> None:
+    cleaned = strip_model_function_call_markup(
+        '前面的内容 <｜DSML｜tool_calls><｜DSML｜invoke name="ui_read_region"><｜DSML｜parameter name="region">[{"node_id":"x"}]</｜DSML｜parameter></｜DSML｜invoke></｜DSML｜tool_calls> 后面的内容'
+    )
+
+    assert cleaned == "前面的内容  后面的内容"
 
 
 def test_extract_public_attachment_reference_accepts_relative_public_urls() -> None:

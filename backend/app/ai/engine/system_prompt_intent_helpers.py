@@ -22,7 +22,19 @@ _CAPABILITY_REPORTING_QUERY_TERMS = (
     "what can you do this turn",
     "what can you do",
 )
-_PAGE_INTENT_COMPLETION_SIGNAL_NAMES: dict[str, tuple[str, ...]] = {
+_LEGACY_PAGE_WORKFLOW_GOALS: dict[str, str] = {
+    "page_summary": "page_summary",
+    "page_screenshot": "page_screenshot",
+    "page_navigation": "navigation",
+    "page_search": "search",
+    "page_pagination": "pagination",
+    "page_row_detail": "row_detail",
+    "page_form_read": "form_read",
+    "page_form_write": "form_write",
+    "page_editor_read": "editor_read",
+    "page_editor_write": "editor_write",
+}
+_PAGE_WORKFLOW_COMPLETION_SIGNAL_NAMES: dict[str, tuple[str, ...]] = {
     "page_summary": (
         "ui_get_snapshot",
         "ui_read_region",
@@ -30,53 +42,54 @@ _PAGE_INTENT_COMPLETION_SIGNAL_NAMES: dict[str, tuple[str, ...]] = {
         "ui_list_interactables",
     ),
     "page_screenshot": ("ui_get_snapshot",),
-    "page_navigation": ("ui_get_snapshot",),
-    "page_pagination": ("ui_read_table",),
-    "page_row_detail": (
+    "table_summary": ("ui_read_table", "ui_read_region"),
+    "navigation": ("ui_get_snapshot",),
+    "pagination": ("ui_read_table",),
+    "row_detail": (
         "ui_read_region",
         "ui_read_table",
         "ui_get_snapshot",
     ),
-    "page_form_read": ("ui_get_form_state", "ui_read_region"),
-    "page_form_write": ("ui_fill_form", "ui_set_field", "ui_submit_form"),
-    "page_search": ("ui_read_region",),
-    "page_editor_read": ("ui_read_region",),
-    "page_editor_write": ("ui_fill_form", "ui_submit_form"),
+    "form_read": ("ui_get_form_state", "ui_read_region"),
+    "form_write": ("ui_fill_form", "ui_set_field", "ui_submit_form"),
+    "search": ("ui_read_region",),
+    "editor_read": ("ui_read_region",),
+    "editor_write": ("ui_fill_form", "ui_submit_form"),
 }
-_PAGE_INTENT_ACTION_SIGNAL_NAMES: dict[str, tuple[str, ...]] = {
-    "page_navigation": ("ui_click", "ui_open_surface"),
-    "page_pagination": ("ui_click",),
-    "page_row_detail": ("ui_click", "ui_open_surface"),
+_PAGE_WORKFLOW_ACTION_SIGNAL_NAMES: dict[str, tuple[str, ...]] = {
+    "navigation": ("ui_click", "ui_open_surface"),
+    "pagination": ("ui_click",),
+    "row_detail": ("ui_click", "ui_open_surface"),
 }
-_PAGE_INTENT_STAGE_COMPLETION_MODES: dict[str, dict[str, str]] = {
-    "page_navigation": {
+_PAGE_WORKFLOW_STAGE_COMPLETION_MODES: dict[str, dict[str, str]] = {
+    "navigation": {
         "discover_navigation_target": "action_then_verify",
         "verify_navigation_result": "verify_only",
     },
-    "page_row_detail": {
+    "row_detail": {
         "open_detail_surface": "action_then_verify",
         "read_detail_surface": "verify_only",
     },
-    "page_form_read": {
+    "form_read": {
         "discover_form_surface": "verify_only",
         "read_active_form": "verify_only",
     },
-    "page_form_write": {
+    "form_write": {
         "discover_form_before_write": "verify_only",
         "fill_active_form": "verify_only",
         "submit_active_form": "verify_only",
     },
-    "page_editor_write": {
+    "editor_write": {
         "discover_editor_surface": "verify_only",
         "edit_active_editor": "verify_only",
         "submit_active_editor": "verify_only",
     },
 }
-_PAGE_INTENT_STAGE_COMPLETION_SIGNAL_NAMES: dict[str, dict[str, tuple[str, ...]]] = {
-    "page_navigation": {
+_PAGE_WORKFLOW_STAGE_COMPLETION_SIGNAL_NAMES: dict[str, dict[str, tuple[str, ...]]] = {
+    "navigation": {
         "verify_navigation_result": ("ui_get_snapshot",),
     },
-    "page_row_detail": {
+    "row_detail": {
         "open_detail_surface": (
             "ui_read_region",
             "ui_read_table",
@@ -88,7 +101,7 @@ _PAGE_INTENT_STAGE_COMPLETION_SIGNAL_NAMES: dict[str, dict[str, tuple[str, ...]]
             "ui_get_snapshot",
         ),
     },
-    "page_form_read": {
+    "form_read": {
         "discover_form_surface": (
             "ui_get_form_state",
             "ui_read_region",
@@ -100,7 +113,7 @@ _PAGE_INTENT_STAGE_COMPLETION_SIGNAL_NAMES: dict[str, dict[str, tuple[str, ...]]
             "ui_get_snapshot",
         ),
     },
-    "page_form_write": {
+    "form_write": {
         "discover_form_before_write": (
             "ui_fill_form",
             "ui_set_field",
@@ -113,7 +126,7 @@ _PAGE_INTENT_STAGE_COMPLETION_SIGNAL_NAMES: dict[str, dict[str, tuple[str, ...]]
         ),
         "submit_active_form": ("ui_submit_form",),
     },
-    "page_editor_write": {
+    "editor_write": {
         "discover_editor_surface": ("ui_fill_form", "ui_submit_form"),
         "edit_active_editor": ("ui_fill_form", "ui_submit_form"),
         "submit_active_editor": ("ui_submit_form",),
@@ -197,15 +210,27 @@ def _page_completion_contract_from_metadata(
     }
 
 
-def _page_intent_completion_mode(
-    intent_kind: str,
+def _page_workflow_goal(
+    *,
+    intent_kind: str | None,
+    intent_metadata: dict[str, Any] | None,
+) -> str:
+    metadata = dict(intent_metadata or {})
+    metadata_goal = str(metadata.get("page_workflow_goal") or "").strip()
+    if metadata_goal:
+        return metadata_goal
+    return _LEGACY_PAGE_WORKFLOW_GOALS.get(str(intent_kind or "").strip(), "")
+
+
+def _page_workflow_completion_mode(
+    workflow_goal: str,
     *,
     workflow_stage: str,
 ) -> str:
-    stage_modes = _PAGE_INTENT_STAGE_COMPLETION_MODES.get(intent_kind, {})
+    stage_modes = _PAGE_WORKFLOW_STAGE_COMPLETION_MODES.get(workflow_goal, {})
     if workflow_stage and workflow_stage in stage_modes:
         return stage_modes[workflow_stage]
-    if intent_kind in _PAGE_INTENT_ACTION_SIGNAL_NAMES:
+    if workflow_goal in _PAGE_WORKFLOW_ACTION_SIGNAL_NAMES:
         return "action_then_verify"
     return "verify_only"
 
@@ -239,6 +264,10 @@ def intent_completion_contract(
             }
     if family == "page_ops":
         page_intent_kind = str(intent_kind or "").strip()
+        workflow_goal = _page_workflow_goal(
+            intent_kind=page_intent_kind,
+            intent_metadata=intent_metadata,
+        )
         metadata_contract = _page_completion_contract_from_metadata(
             intent_metadata=intent_metadata,
             ordered_tool_names=ordered_tool_names,
@@ -249,21 +278,21 @@ def intent_completion_contract(
             (intent_metadata or {}).get("page_workflow_stage") or ""
         ).strip()
         has_known_page_contract = (
-            page_intent_kind in _PAGE_INTENT_COMPLETION_SIGNAL_NAMES
-            or page_intent_kind in _PAGE_INTENT_STAGE_COMPLETION_SIGNAL_NAMES
+            workflow_goal in _PAGE_WORKFLOW_COMPLETION_SIGNAL_NAMES
+            or workflow_goal in _PAGE_WORKFLOW_STAGE_COMPLETION_SIGNAL_NAMES
         )
-        verify_priority = _PAGE_INTENT_STAGE_COMPLETION_SIGNAL_NAMES.get(
-            page_intent_kind,
+        verify_priority = _PAGE_WORKFLOW_STAGE_COMPLETION_SIGNAL_NAMES.get(
+            workflow_goal,
             {},
         ).get(
             workflow_stage,
-            _PAGE_INTENT_COMPLETION_SIGNAL_NAMES.get(page_intent_kind, ()),
+            _PAGE_WORKFLOW_COMPLETION_SIGNAL_NAMES.get(workflow_goal, ()),
         )
         verify_signals = [
             name for name in ordered_tool_names if name in set(verify_priority)
         ]
-        action_priority = _PAGE_INTENT_ACTION_SIGNAL_NAMES.get(
-            page_intent_kind,
+        action_priority = _PAGE_WORKFLOW_ACTION_SIGNAL_NAMES.get(
+            workflow_goal,
             (),
         )
         action_signals = [
@@ -275,8 +304,8 @@ def intent_completion_contract(
             else (verify_signals or list(ordered_tool_names))
         )
         return {
-            "mode": _page_intent_completion_mode(
-                page_intent_kind,
+            "mode": _page_workflow_completion_mode(
+                workflow_goal,
                 workflow_stage=workflow_stage,
             ),
             "completion_signals": completion_signals,

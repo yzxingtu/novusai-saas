@@ -10,6 +10,8 @@ import type {
 } from '#/components/business/ai-chat-panel/types';
 import type { ChatMessage } from '#/types/ai-chat';
 
+import { $t } from '#/locales';
+
 import {
   prepareMessageContent,
   selectAnswerCardReferences,
@@ -57,7 +59,7 @@ function toFallbackReference(
   const fallbackLabel =
     normalizeOptionalString(evidence.title) ??
     normalizeOptionalString(evidence.sourceRef) ??
-    `Evidence ${index + 1}`;
+    $t('common.globalAiChat.turnEvidenceFallback', { index: index + 1 });
   return {
     hostLabel: '',
     href: normalizeOptionalString(evidence.url) ?? '',

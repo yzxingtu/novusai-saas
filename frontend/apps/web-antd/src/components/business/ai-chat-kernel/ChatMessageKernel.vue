@@ -40,6 +40,13 @@ const emit = defineEmits<{
 const resolvedState = computed(
   () => props.state ?? buildTurnFlowState(props.msg, props.pendingOps),
 );
+const hasDigestContent = computed(
+  () =>
+    resolvedState.value.timeline.length > 0 ||
+    Boolean(resolvedState.value.answerCard?.summary) ||
+    (resolvedState.value.answerCard?.sections?.length ?? 0) > 0 ||
+    resolvedState.value.selectedEvidence.length > 0,
+);
 
 function handleApprove() {
   if (resolvedState.value.pendingAction?.kind === 'confirmation') {
@@ -59,20 +66,49 @@ function handleReject() {
 </script>
 
 <template>
-  <TurnTimeline
-    :compact="compact"
-    :countdown-now="countdownNow"
-    :msg="msg"
-    :pending-ops="pendingOps"
-    :state="resolvedState"
-    @copy="(content) => emit('copy', content)"
-  />
-  <EvidenceCard :compact="compact" :msg="msg" :state="resolvedState" />
-  <ActionConsentGate
-    :action="resolvedState.pendingAction"
-    :compact="compact"
-    @approve="handleApprove"
-    @reject="handleReject"
-  />
-  <slot v-if="adminMode" name="diagnostics"></slot>
+  <div class="space-y-2.5">
+    <div
+      v-if="hasDigestContent"
+      data-testid="chat-message-kernel-header"
+      class="chat-message-kernel-card overflow-hidden rounded-[16px] border border-border/24"
+    >
+      <div
+        class="chat-message-kernel-stack space-y-1.5"
+        :class="compact ? 'px-3 py-2.5' : 'px-3.5 py-3'"
+      >
+        <EvidenceCard
+          :compact="compact"
+          :msg="msg"
+          :state="resolvedState"
+        />
+        <TurnTimeline
+          :compact="compact"
+          :countdown-now="countdownNow"
+          :msg="msg"
+          :pending-ops="pendingOps"
+          :state="resolvedState"
+          @copy="(content) => emit('copy', content)"
+        />
+      </div>
+    </div>
+
+    <ActionConsentGate
+      :action="resolvedState.pendingAction"
+      :compact="compact"
+      @approve="handleApprove"
+      @reject="handleReject"
+    />
+    <slot v-if="adminMode" name="diagnostics"></slot>
+  </div>
 </template>
+
+<style scoped>
+.chat-message-kernel-card {
+  background: linear-gradient(
+    180deg,
+    hsl(var(--background) / 0.94) 0%,
+    hsl(var(--muted) / 0.08) 100%
+  );
+  box-shadow: 0 14px 32px -34px hsl(var(--foreground) / 0.18);
+}
+</style>

@@ -70,6 +70,11 @@
   `deleted()`, or `error()`.
 - Do not use `print()`, `logging.getLogger()`, or raw `loguru.logger`; use
   `app.core.logging`.
+- Short-lived CLI and diagnostic entrypoints must default to console-only
+  logging: set `NOVUSAI_CLI_DISABLE_FILE_LOGGING=1` before importing command
+  modules that may initialize logging, and let `LogManager.init(..., enable_file=None)`
+  honor that default so concurrent Windows processes do not spam `WinError 32`
+  during shared log rotation.
 - Do not hardcode user-facing text; backend strings must go through `_()`.
 - Do not hardcode fixed LLM-facing prompts, tool descriptions, or model
   instruction blocks directly in Python business/runtime code; store them under

@@ -165,35 +165,6 @@ def _normalize_form_sessions(raw_form_sessions: Any) -> list[dict[str, Any]]:
     return normalized_sessions
 
 
-def _normalize_suggested_tools(raw_suggested_tools: Any) -> dict[str, Any] | None:
-    if not isinstance(raw_suggested_tools, dict):
-        return None
-
-    def _normalize_tool_list(values: Any) -> list[str]:
-        if not isinstance(values, list):
-            return []
-        normalized: list[str] = []
-        seen: set[str] = set()
-        for item in values:
-            name = _text(item, max_length=64)
-            if not name or name in seen:
-                continue
-            seen.add(name)
-            normalized.append(name)
-            if len(normalized) >= 8:
-                break
-        return normalized
-
-    primary = _normalize_tool_list(raw_suggested_tools.get("primary"))
-    if not primary:
-        return None
-    return {
-        "primary": primary,
-        "secondary": _normalize_tool_list(raw_suggested_tools.get("secondary")),
-        "reason": _text(raw_suggested_tools.get("reason"), max_length=240),
-    }
-
-
 def _estimate_interactables(nodes: list[dict[str, Any]]) -> int:
     total = 0
     for node in nodes:
@@ -292,9 +263,6 @@ def _normalize_snapshot_payload(
         "active_form_summary": active_form_summary,
         "nodes": _normalize_nodes(raw_snapshot.get("nodes"), mode),
         "form_sessions": _normalize_form_sessions(raw_snapshot.get("form_sessions")),
-        "suggested_tools": _normalize_suggested_tools(
-            raw_snapshot.get("suggested_tools")
-        ),
         "interactables_count": 0,
         "truncated": bool(raw_snapshot.get("truncated", False)),
         "size_bytes": 0,

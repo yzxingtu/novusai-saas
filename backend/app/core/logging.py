@@ -19,6 +19,7 @@ Each log automatically includes trace_id from TraceIdMiddleware's ContextVar.
 import atexit
 import contextlib
 import logging
+import os
 import signal
 import sys
 from contextvars import ContextVar
@@ -51,6 +52,7 @@ _CONSOLE_LOGGING_SUPPRESSED: ContextVar[int] = ContextVar(
     "console_logging_suppressed",
     default=0,
 )
+_FALSEY_ENV_VALUES = frozenset({"0", "false", "no", "off"})
 
 
 @contextlib.contextmanager
@@ -119,6 +121,13 @@ def _patch_trace_id(record: dict) -> None:
     record["extra"].setdefault("log_logger", record["name"])
 
 
+def _cli_file_logging_disabled() -> bool:
+    raw_value = str(os.getenv("NOVUSAI_CLI_DISABLE_FILE_LOGGING", "") or "").strip()
+    if not raw_value:
+        return False
+    return raw_value.lower() not in _FALSEY_ENV_VALUES
+
+
 class LogManager:
     """
     日志管理器（Loguru 适配器）/ Log manager (Loguru adapter).
@@ -139,7 +148,7 @@ class LogManager:
         log_dir: str | None = None,
         log_level: str | None = None,
         enable_console: bool = True,
-        enable_file: bool = True,
+        enable_file: bool | None = None,
     ) -> None:
         """
         初始化日志系统 / Initialize logging system.
@@ -153,6 +162,9 @@ class LogManager:
         cls._log_level = (log_level or settings.LOG_LEVEL).upper()
         if cls._log_level not in LOG_LEVELS:
             cls._log_level = "INFO"
+
+        if enable_file is None:
+            enable_file = not _cli_file_logging_disabled()
 
         # 清除 Loguru 默认 handler / Remove default Loguru handler
         logger.remove()

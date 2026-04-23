@@ -252,6 +252,7 @@ class ConversationDependencyFacade:
                 message_repo=self.message_repo,
                 read_model_service=self.read_model_service,
                 default_max_messages=self.MAX_HISTORY_MESSAGES,
+                default_max_tokens=self.MAX_HISTORY_TOKENS,
             )
         return self._history_service
 
@@ -366,7 +367,7 @@ class ConversationHistoryFacade:
         self: ConversationService,
         conversation_id: int,
         max_messages: int = 0,
-        max_tokens: int = 0,
+        max_tokens: int | None = None,
     ) -> list[ChatMessage]:
         return await load_chat_history_access(
             self,

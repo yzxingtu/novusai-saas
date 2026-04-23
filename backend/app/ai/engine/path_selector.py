@@ -2,7 +2,42 @@
 
 from __future__ import annotations
 
+from .page_workflow_state_machine import resolve_page_workflow_goal
 from .types import ExecutionPath, IntentPlan
+
+
+def _page_workflow_phase(intent: IntentPlan) -> str:
+    return str((intent.metadata or {}).get("page_workflow_phase") or "").strip()
+
+
+def _page_workflow_goal(intent: IntentPlan) -> str:
+    return resolve_page_workflow_goal(
+        intent_kind=intent.kind,
+        intent_metadata=intent.metadata,
+        user_text=intent.source_text,
+    )
+
+
+def _is_fast_page_intent(intent: IntentPlan) -> bool:
+    if intent.family != "page_ops":
+        return False
+    phase = _page_workflow_phase(intent)
+    goal = _page_workflow_goal(intent)
+    if phase in {"navigate_or_open", "submit", "write"}:
+        return False
+    return goal not in {"editor_write", "form_write", "navigation"}
+
+
+def _is_deep_page_intent(intent: IntentPlan) -> bool:
+    if intent.family != "page_ops":
+        return False
+    phase = _page_workflow_phase(intent)
+    goal = _page_workflow_goal(intent)
+    return phase in {"navigate_or_open", "submit", "write"} or goal in {
+        "editor_write",
+        "form_write",
+        "navigation",
+    }
 
 
 class PathSelector:
@@ -20,21 +55,12 @@ class PathSelector:
                 "direct_reply",
                 "weather_query",
                 "time_query",
-                "page_summary",
-            }:
+            } or _is_fast_page_intent(first):
                 return "fast"
-        deep_page_kinds = {
-            "page_navigation",
-            "page_form_write",
-            "page_editor_write",
-        }
         if (
             len(actionable) <= 2
             and len(families) <= 2
-            and not any(
-                intent.kind in deep_page_kinds
-                for intent in actionable
-            )
+            and not any(_is_deep_page_intent(intent) for intent in actionable)
         ):
             return "normal"
         return "deep"

@@ -26,6 +26,7 @@ class PreparedRequestMemoryStartup:
 
     thread_memory_state: dict[str, Any]
     request_memory_runtime_policy: dict[str, Any]
+    memory_context_source_metadata: dict[str, Any]
 
 
 def build_memory_event_id(conversation_id: int) -> str:
@@ -85,6 +86,9 @@ def prepare_request_memory_startup(
     return PreparedRequestMemoryStartup(
         thread_memory_state=normalized_thread_memory_state,
         request_memory_runtime_policy=dict(request_memory_runtime_policy),
+        memory_context_source_metadata=dict(
+            getattr(request, "memory_context_source_metadata", {}) or {}
+        ),
     )
 
 

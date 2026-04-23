@@ -19,6 +19,9 @@ from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage, ChatResponse
 
 conversation_entrypoints_module = import_module("app.ai.engine.conversation_entrypoints")
+conversation_result_projector_module = import_module(
+    "app.ai.engine.conversation_result_projector"
+)
 
 
 @dataclass
@@ -156,7 +159,8 @@ def test_build_execution_result_sanitizes_untrusted_output_for_turn_flow(
         }
 
     monkeypatch.setattr(
-        "app.ai.engine.conversation_result_projector.build_turn_flow_view_model",
+        conversation_result_projector_module,
+        "build_turn_flow_view_model",
         _fake_build_turn_flow_view_model,
     )
 
@@ -184,17 +188,66 @@ def test_build_execution_result_sanitizes_untrusted_output_for_turn_flow(
     assert captured["output"] == ""
 
 
+def test_build_execution_result_keeps_recovery_evidence_output_for_turn_flow(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, str] = {}
+
+    def _fake_build_turn_flow_view_model(**kwargs):
+        captured["output"] = str(kwargs.get("output") or "")
+        return {
+            "timeline": [],
+            "evidence": [],
+            "answer_card": {"summary": kwargs.get("output")},
+            "completion_reason": "provider_error",
+            "interrupted": False,
+            "error_surface": None,
+        }
+
+    monkeypatch.setattr(
+        conversation_result_projector_module,
+        "build_turn_flow_view_model",
+        _fake_build_turn_flow_view_model,
+    )
+
+    projection = build_turn_projection(
+        raw_turn_record={},
+        diagnostics_payload={"final_output_source": "recovery_evidence"},
+        execution_path="fast",
+        completion_reason="provider_error",
+        partial=True,
+        final_output_source="recovery_evidence",
+    )
+    build_execution_result(
+        success=False,
+        output="当前焦点：企业管理；页面要点：管理企业、企业列表；约 12 个可交互元素。",
+        messages=[],
+        tool_results=[],
+        total_tokens=0,
+        duration_ms=0,
+        conversation_id=None,
+        runtime_model_info=None,
+        completion_reason="provider_error",
+        turn_projection=projection,
+    )
+
+    assert (
+        captured["output"]
+        == "当前焦点：企业管理；页面要点：管理企业、企业列表；约 12 个可交互元素。"
+    )
+
+
 def test_build_untrusted_final_output_fallback_returns_safe_text() -> None:
     fallback = build_untrusted_final_output_fallback(
         auto_fetch_gate_reason="search_not_successful"
     )
-    assert fallback == ""
+    assert fallback.strip()
     assert "http" not in fallback.lower()
 
     no_results = build_untrusted_final_output_fallback(
         auto_fetch_gate_reason="search_no_results_completed"
     )
-    assert no_results == ""
+    assert no_results.strip()
 
     generic_fallback = build_untrusted_final_output_fallback()
     assert generic_fallback.strip()

@@ -1,3 +1,11 @@
+"""
+Test type: structural
+Scope: TurnExecutor orchestration contract with fake transport adapters.
+Real dependencies: ExecutionStateMachine and RecoveryManager run real control-flow logic.
+Mocked dependencies: LLM/tool transport via _FakeIOAdapter; these tests validate
+the turn loop contract, not real-dialogue behavior.
+"""
+
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -7,6 +15,7 @@ import pytest
 
 from app.ai.engine.budget_guard import BudgetGuard
 from app.ai.engine.execution_state_machine import ExecutionStateMachine
+from app.ai.engine.final_output_policy import build_untrusted_final_output_fallback
 from app.ai.engine.recovery_manager import RecoveryDecision, RecoveryManager
 from app.ai.engine.turn_executor import ModelRoundResult, ToolBatchResult, TurnExecutor
 from app.ai.engine.types import IntentPlan, ToolUsePolicy
@@ -57,9 +66,7 @@ class _FakeIOAdapter:
         self.finalize_completed_calls.append(dict(kwargs))
         response = kwargs["response"]
         visible_output = (
-            str(response.message.content or "").strip()
-            if response is not None
-            else ""
+            str(response.message.content or "").strip() if response is not None else ""
         )
         if visible_output:
             return (
@@ -171,7 +178,9 @@ def _assistant_response(
 
 
 @pytest.mark.asyncio
-async def test_turn_executor_scopes_initial_model_round_to_active_intent_tools() -> None:
+async def test_turn_executor_scopes_initial_model_round_to_active_intent_tools() -> (
+    None
+):
     tools = [
         ToolDefinition(name="web_search", description="Search"),
         ToolDefinition(name="fetch_url", description="Fetch"),
@@ -281,7 +290,9 @@ async def test_turn_executor_marks_contract_retry_round_and_failed_retry() -> No
 
 
 @pytest.mark.asyncio
-async def test_turn_executor_retries_structured_intent_when_assistant_claims_fake_tool_call() -> None:
+async def test_turn_executor_retries_structured_intent_when_assistant_claims_fake_tool_call() -> (
+    None
+):
     tools = [ToolDefinition(name="ui_get_snapshot", description="Read page")]
     intents = [
         _build_intent(
@@ -360,7 +371,7 @@ async def test_turn_executor_retries_structured_intent_when_assistant_claims_fak
             prep=prep,
             request=SimpleNamespace(
                 input_variables={
-                    "page_context": {"page_key": "admin.ai.conversations"},
+                    "page_context": {"page_key": "admin.runtime.records"},
                 },
                 conversation_id=15,
             ),
@@ -374,15 +385,18 @@ async def test_turn_executor_retries_structured_intent_when_assistant_claims_fak
     assert state.preparation_diagnostics["contract_breach_type"] == (
         "assistant_claimed_tool_call_without_tool_event"
     )
-    assert state.preparation_diagnostics[
-        "assistant_claimed_tool_call_without_tool_event"
-    ] is True
+    assert (
+        state.preparation_diagnostics["assistant_claimed_tool_call_without_tool_event"]
+        is True
+    )
     assert state.preparation_diagnostics["unfinished_intents"] == ["page_summary"]
     assert io.retry_logs == ["retrying"]
 
 
 @pytest.mark.asyncio
-async def test_turn_executor_contract_breach_without_evidence_avoids_completed_placeholder() -> None:
+async def test_turn_executor_contract_breach_without_evidence_avoids_completed_placeholder() -> (
+    None
+):
     tools = [
         ToolDefinition(name="web_search", description="Search"),
         ToolDefinition(name="fetch_url", description="Fetch"),
@@ -561,7 +575,113 @@ async def test_turn_executor_unfinished_multi_intent_retry_keeps_page_tools() ->
 
 
 @pytest.mark.asyncio
-async def test_turn_executor_j4_contract_then_unfinished_intent_retry_keeps_ui_snapshot() -> None:
+async def test_turn_executor_page_search_retry_uses_narrowed_subset_after_discovery_only_round() -> (
+    None
+):
+    narrowed_retry_tools = [
+        "ui_click",
+        "ui_read_table",
+        "ui_read_region",
+    ]
+    tools = [
+        ToolDefinition(name="ui_click", description="Click"),
+        ToolDefinition(name="ui_fill_form", description="Fill form"),
+        ToolDefinition(name="ui_set_field", description="Set field"),
+        ToolDefinition(name="ui_submit_form", description="Submit form"),
+        ToolDefinition(name="ui_read_table", description="Read table"),
+        ToolDefinition(name="ui_read_region", description="Read region"),
+        ToolDefinition(name="ui_list_interactables", description="List interactables"),
+    ]
+    intents = [
+        _build_intent(
+            intent_id="intent-page-search",
+            kind="page_search",
+            family="page_ops",
+            allowed_tool_names=[tool.name for tool in tools],
+        )
+    ]
+    prep = _build_prep(
+        tools=tools,
+        intents=intents,
+        tool_use_policy=ToolUsePolicy(
+            family="page_ops",
+            mode="required",
+            allowed_tool_names=[tool.name for tool in tools],
+            retry_on_contract_breach=False,
+            reason="page_search",
+        ),
+    )
+    prep.messages = [ChatMessage(role="user", content="搜索记录并清空筛选")]
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    io = _FakeIOAdapter(
+        model_rounds=[
+            _assistant_response(
+                "",
+                tool_calls=[
+                    {
+                        "id": "call_list",
+                        "type": "function",
+                        "function": {
+                            "name": "ui_list_interactables",
+                            "arguments": '{"surface_id":"active"}',
+                        },
+                    }
+                ],
+            ),
+            _assistant_response("我继续尝试在页面里搜索。"),
+        ],
+        tool_batch=ToolBatchResult(
+            response=ChatResponse(
+                message=ChatMessage(role="assistant", content=""),
+                total_tokens=5,
+                output_tokens=5,
+            ),
+            tool_results=[
+                ToolResult(
+                    tool_call_id="call_list",
+                    name="ui_list_interactables",
+                    success=True,
+                    output='{"items":[],"count":0}',
+                )
+            ],
+            total_tokens=5,
+            completion_tokens_used=5,
+        ),
+    )
+
+    result = await TurnExecutor.run(
+        state=state,
+        io=io,
+        prep=prep,
+        request=SimpleNamespace(
+            input_variables={
+                "page_context": {
+                    "page_key": "admin.ai.logs",
+                    "ui_epoch": 2,
+                }
+            },
+            conversation_id=2204,
+        ),
+        agent=SimpleNamespace(id=1),
+    )
+
+    assert len(io.call_history) == 2
+    assert [tool.name for tool in io.call_history[1]["tools"]] == narrowed_retry_tools
+    assert io.call_history[1]["tool_use_policy"].allowed_tool_names == (
+        narrowed_retry_tools
+    )
+    assert state.intent_plan[0].allowed_tool_names == narrowed_retry_tools
+    assert state.intent_plan[0].preferred_tool_names == narrowed_retry_tools
+    assert state.intent_plan[0].metadata["page_no_progress_recovery"]["reason"] == (
+        "page_discovery_only_round"
+    )
+    assert result.partial is True
+
+
+@pytest.mark.asyncio
+async def test_turn_executor_j4_contract_then_unfinished_intent_retry_keeps_ui_snapshot() -> (
+    None
+):
     tools = [
         ToolDefinition(name="web_search", description="Search"),
         ToolDefinition(name="fetch_url", description="Fetch"),
@@ -762,7 +882,9 @@ async def test_turn_executor_page_retry_leaves_web_retry_budget_intact() -> None
 
 
 @pytest.mark.asyncio
-async def test_turn_executor_ignores_prior_turn_page_tool_success_for_current_turn_page_retry() -> None:
+async def test_turn_executor_ignores_prior_turn_page_tool_success_for_current_turn_page_retry() -> (
+    None
+):
     tools = [
         ToolDefinition(name="get_current_time", description="Time"),
         ToolDefinition(name="ui_get_snapshot", description="Read page"),
@@ -895,7 +1017,9 @@ async def test_turn_executor_ignores_prior_turn_page_tool_success_for_current_tu
 
 
 @pytest.mark.asyncio
-async def test_turn_executor_allows_second_intent_retry_when_per_intent_budget_is_one() -> None:
+async def test_turn_executor_allows_second_intent_retry_when_per_intent_budget_is_one() -> (
+    None
+):
     tools = [
         ToolDefinition(name="ui_get_snapshot", description="Read page"),
         ToolDefinition(name="fetch_url", description="Fetch"),
@@ -1048,7 +1172,9 @@ async def test_turn_executor_marks_intent_retry_round() -> None:
 
 
 @pytest.mark.asyncio
-async def test_turn_executor_retries_web_research_with_fetch_url_after_search_only_round() -> None:
+async def test_turn_executor_retries_web_research_with_fetch_url_after_search_only_round() -> (
+    None
+):
     tools = [
         ToolDefinition(name="web_search", description="Search"),
         ToolDefinition(name="fetch_url", description="Fetch"),
@@ -1139,7 +1265,9 @@ async def test_turn_executor_retries_web_research_with_fetch_url_after_search_on
 
 
 @pytest.mark.asyncio
-async def test_turn_executor_allows_final_follow_up_after_fetch_candidates_exhausted() -> None:
+async def test_turn_executor_allows_final_follow_up_after_fetch_candidates_exhausted() -> (
+    None
+):
     tools = [
         ToolDefinition(name="web_search", description="Search"),
         ToolDefinition(name="fetch_url", description="Fetch"),
@@ -1287,7 +1415,7 @@ async def test_turn_executor_allows_final_follow_up_after_fetch_candidates_exhau
     )
 
     assert result.partial is False
-    assert result.output == ""
+    assert result.output == build_untrusted_final_output_fallback()
     assert result.final_output_source == "tool_evidence_completed"
     assert state.preparation_diagnostics["stripped_untrusted_final_output"] is True
     assert not io.finalize_calls
@@ -1299,7 +1427,9 @@ async def test_turn_executor_allows_final_follow_up_after_fetch_candidates_exhau
 
 
 @pytest.mark.asyncio
-async def test_turn_executor_finalizes_partial_without_budget_finalization_round() -> None:
+async def test_turn_executor_finalizes_partial_without_budget_finalization_round() -> (
+    None
+):
     tools = [ToolDefinition(name="web_search", description="Search")]
     intents = [
         _build_intent(
@@ -1352,7 +1482,9 @@ async def test_turn_executor_finalizes_partial_without_budget_finalization_round
 
 
 @pytest.mark.asyncio
-async def test_turn_executor_runs_post_tool_follow_up_when_batch_returns_no_final_text() -> None:
+async def test_turn_executor_runs_post_tool_follow_up_when_batch_returns_no_final_text() -> (
+    None
+):
     tools = [ToolDefinition(name="get_current_time", description="Time")]
     intents = [
         IntentPlan(
@@ -1431,7 +1563,9 @@ async def test_turn_executor_runs_post_tool_follow_up_when_batch_returns_no_fina
 
 
 @pytest.mark.asyncio
-async def test_turn_executor_uses_completed_tool_evidence_after_fetch_without_retry() -> None:
+async def test_turn_executor_uses_completed_tool_evidence_after_fetch_without_retry() -> (
+    None
+):
     tools = [ToolDefinition(name="fetch_url", description="Fetch")]
     intents = [
         _build_intent(
@@ -1504,7 +1638,7 @@ async def test_turn_executor_uses_completed_tool_evidence_after_fetch_without_re
         agent=SimpleNamespace(id=1),
     )
 
-    assert result.output == ""
+    assert result.output == build_untrusted_final_output_fallback()
     assert result.final_output_source == "tool_evidence_completed"
     assert state.preparation_diagnostics["stripped_untrusted_final_output"] is True
     assert len(io.call_history) == 1
@@ -1519,7 +1653,9 @@ async def test_turn_executor_uses_completed_tool_evidence_after_fetch_without_re
 
 
 @pytest.mark.asyncio
-async def test_turn_executor_promotes_budgeted_web_research_partial_to_completed() -> None:
+async def test_turn_executor_promotes_budgeted_web_research_partial_to_completed() -> (
+    None
+):
     tools = [ToolDefinition(name="fetch_url", description="Fetch")]
     intents = [
         _build_intent(
@@ -1625,7 +1761,9 @@ async def test_turn_executor_promotes_budgeted_web_research_partial_to_completed
 
 
 @pytest.mark.asyncio
-async def test_turn_executor_promotes_budgeted_web_research_falls_back_to_tool_evidence_when_synthesis_empty() -> None:
+async def test_turn_executor_promotes_budgeted_web_research_falls_back_to_tool_evidence_when_synthesis_empty() -> (
+    None
+):
     """When synthesis call returns empty content, fall back to raw tool evidence."""
     tools = [ToolDefinition(name="fetch_url", description="Fetch")]
     intents = [
@@ -1656,7 +1794,10 @@ async def test_turn_executor_promotes_budgeted_web_research_falls_back_to_tool_e
                     {
                         "id": "call_fetch",
                         "type": "function",
-                        "function": {"name": "fetch_url", "arguments": '{"url":"https://example.com"}'},
+                        "function": {
+                            "name": "fetch_url",
+                            "arguments": '{"url":"https://example.com"}',
+                        },
                     }
                 ],
             ),
@@ -1706,7 +1847,9 @@ async def test_turn_executor_promotes_budgeted_web_research_falls_back_to_tool_e
 
 
 @pytest.mark.asyncio
-async def test_turn_executor_replaces_budgeted_fetch_preview_with_tool_evidence() -> None:
+async def test_turn_executor_replaces_budgeted_fetch_preview_with_tool_evidence() -> (
+    None
+):
     class _VisibleAwareCompletedOutputIOAdapter(_FakeIOAdapter):
         async def finalize_completed_output(self, **kwargs):
             self.finalize_completed_calls.append(dict(kwargs))
@@ -1846,7 +1989,9 @@ async def test_turn_executor_replaces_budgeted_fetch_preview_with_tool_evidence(
 
 
 @pytest.mark.asyncio
-async def test_turn_executor_completes_web_search_no_results_without_auto_fetch() -> None:
+async def test_turn_executor_completes_web_search_no_results_without_auto_fetch() -> (
+    None
+):
     tools = [
         ToolDefinition(name="web_search", description="Search"),
         ToolDefinition(name="fetch_url", description="Fetch"),
@@ -1926,7 +2071,9 @@ async def test_turn_executor_completes_web_search_no_results_without_auto_fetch(
         agent=SimpleNamespace(id=1),
     )
 
-    assert result.output == ""
+    assert result.output == build_untrusted_final_output_fallback(
+        auto_fetch_gate_reason="search_no_results_completed"
+    )
     assert result.final_output_source == "tool_evidence_completed"
     assert state.preparation_diagnostics["stripped_untrusted_final_output"] is True
     assert state.preparation_diagnostics["post_tool_completion_state"] == (
@@ -1950,7 +2097,9 @@ async def test_turn_executor_completes_web_search_no_results_without_auto_fetch(
 
 
 @pytest.mark.asyncio
-async def test_turn_executor_does_not_promote_search_not_successful_tool_evidence() -> None:
+async def test_turn_executor_does_not_promote_search_not_successful_tool_evidence() -> (
+    None
+):
     tools = [
         ToolDefinition(name="web_search", description="Search"),
         ToolDefinition(name="fetch_url", description="Fetch"),
@@ -2017,7 +2166,9 @@ async def test_turn_executor_does_not_promote_search_not_successful_tool_evidenc
         agent=SimpleNamespace(id=1),
     )
 
-    assert result.output == ""
+    assert result.output == build_untrusted_final_output_fallback(
+        auto_fetch_gate_reason="search_not_successful"
+    )
     assert result.final_output_source == "tool_evidence_completed"
     assert state.preparation_diagnostics["auto_fetch_gate_reason"] == (
         "search_not_successful"
@@ -2025,12 +2176,16 @@ async def test_turn_executor_does_not_promote_search_not_successful_tool_evidenc
     assert state.preparation_diagnostics["post_tool_completion_state"] == (
         "search_not_successful"
     )
-    assert state.preparation_diagnostics["search_not_successful_untrusted_output"] is True
+    assert (
+        state.preparation_diagnostics["search_not_successful_untrusted_output"] is True
+    )
     assert state.preparation_diagnostics["stripped_untrusted_final_output"] is True
 
 
 @pytest.mark.asyncio
-async def test_turn_executor_requests_weather_city_before_tool_retry_when_city_missing() -> None:
+async def test_turn_executor_requests_weather_city_before_tool_retry_when_city_missing() -> (
+    None
+):
     tools = [ToolDefinition(name="get_current_weather", description="Weather")]
     intents = [
         IntentPlan(
@@ -2132,7 +2287,10 @@ async def test_turn_executor_native_search_marks_web_research_intent_complete() 
 
     io = _NativeSearchAdapter(model_rounds=[])
 
-    with patch("app.ai.engine.turn_executor.RecoveryManager.decide", wraps=RecoveryManager.decide):
+    with patch(
+        "app.ai.engine.turn_executor.RecoveryManager.decide",
+        wraps=RecoveryManager.decide,
+    ):
         result = await TurnExecutor.run(
             state=state,
             io=io,
@@ -2150,3 +2308,4 @@ async def test_turn_executor_native_search_marks_web_research_intent_complete() 
     assert "长沙暑假7月12日开始" in result.output
     assert result.partial is False
     assert result.final_output_source == "assistant"
+

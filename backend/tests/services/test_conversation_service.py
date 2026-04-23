@@ -267,6 +267,110 @@ class TestGetConversationDetail:
         assert detail["turn_flow"]["timeline"][-1]["type"] == "failed"
 
     @pytest.mark.asyncio
+    async def test_conversation_detail_sanitizes_stale_html_last_error_when_no_messages_exist(
+        self, mock_db
+    ):
+        from app.core.i18n import _
+        from app.services.ai.conversation_service import ConversationService
+
+        conversation = _make_conversation(message_count=0)
+        leaked_html = (
+            "<!DOCTYPE html><html><body>Bad gateway"
+            "<div>Cloudflare Ray ID: 123</div></body></html>"
+        )
+        conversation.metadata_ = {
+            "interaction_mode": "confirm",
+            "last_error": {
+                "timestamp": "2026-04-07T12:00:00+00:00",
+                "error_type": "provider_http_5xx",
+                "debug_message": _("ai.error.provider_server_error"),
+                "error_message": leaked_html,
+                "friendly_message": leaked_html,
+                "partial": True,
+            },
+        }
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service.get_accessible_conversation = AsyncMock(return_value=conversation)
+        service._message_repo = MagicMock()
+        service._message_repo.get_by_conversation = AsyncMock(return_value=[])
+        service._message_repo.count_by_conversation = AsyncMock(return_value=0)
+        service._message_repo.get_latest_assistant_message = AsyncMock(
+            return_value=None
+        )
+        mock_db.execute = AsyncMock(return_value=SimpleNamespace(scalars=lambda: []))
+
+        detail = await service.get_conversation_detail(1, user_id=1)
+
+        assert detail["last_error"]["friendly_message"] == _(
+            "ai.error.provider_server_error"
+        )
+        assert detail["last_error"]["error_message"] == _(
+            "ai.error.provider_server_error"
+        )
+        assert detail["last_run_summary"]["error_message"] == _(
+            "ai.error.provider_server_error"
+        )
+        assert "Cloudflare Ray ID" not in str(detail["last_error"])
+
+    @pytest.mark.asyncio
+    async def test_conversation_detail_sanitizes_stale_html_error_message_in_assistant_message(
+        self, mock_db
+    ):
+        from app.core.i18n import _
+        from app.services.ai.conversation_service import ConversationService
+
+        conversation = _make_conversation()
+        conversation.metadata_ = {"interaction_mode": "confirm"}
+        leaked_html = (
+            "<!DOCTYPE html><html><body>Bad gateway"
+            "<div>Cloudflare Ray ID: 456</div></body></html>"
+        )
+        message = _make_message(role="assistant", content=leaked_html)
+        message.to_dict.return_value = {
+            "id": 1,
+            "role": "assistant",
+            "content": leaked_html,
+            "metadata": {
+                "error": True,
+                "error_type": "provider_http_5xx",
+                "error_message": leaked_html,
+                "raw_error_message": leaked_html,
+            },
+        }
+        message.metadata_ = {
+            "error": True,
+            "error_type": "provider_http_5xx",
+            "error_message": leaked_html,
+            "raw_error_message": leaked_html,
+        }
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service.get_accessible_conversation = AsyncMock(return_value=conversation)
+        service._message_repo = MagicMock()
+        service._message_repo.get_by_conversation = AsyncMock(return_value=[message])
+        service._message_repo.count_by_conversation = AsyncMock(return_value=1)
+        mock_db.execute = AsyncMock(return_value=SimpleNamespace(scalars=lambda: []))
+
+        detail = await service.get_conversation_detail(1, user_id=1)
+
+        assistant = detail["message_list"][0]
+        assert assistant["content"] == _("ai.error.provider_server_error")
+        assert assistant["metadata"]["error_message"] == _(
+            "ai.error.provider_server_error"
+        )
+        assert assistant["metadata"]["raw_error_message"] == _(
+            "ai.error.provider_server_error"
+        )
+        assert "Cloudflare Ray ID" not in str(assistant)
+
+    @pytest.mark.asyncio
     async def test_conversation_detail_surfaces_selected_skills_and_interrupted_signal(
         self, mock_db
     ):
@@ -1404,6 +1508,57 @@ class TestThinkingPersistence:
         assert history[0].reasoning_content == "先查询数据库。"
 
     @pytest.mark.asyncio
+    async def test_load_chat_history_applies_default_token_budget_to_large_tool_round(
+        self, mock_db
+    ):
+        from app.services.ai.conversation_service import ConversationService
+
+        assistant = _make_message(
+            role="assistant",
+            content="",
+            tool_calls=[
+                {
+                    "id": "tc1",
+                    "function": {
+                        "name": "fetch_url",
+                        "arguments": '{"url":"' + ("x" * 800) + '"}',
+                    },
+                }
+            ],
+            tool_call_id=None,
+        )
+        assistant.metadata_ = {}
+        tool = _make_message(
+            role="tool",
+            content="x" * 12000,
+            tool_calls=None,
+            tool_call_id="tc1",
+        )
+        tool.metadata_ = {"tool_success": True, "tool_summary": "页面抓取完成"}
+        final_assistant = _make_message(
+            role="assistant",
+            content="现在可以继续下一步。",
+            tool_calls=None,
+            tool_call_id=None,
+        )
+        final_assistant.metadata_ = {}
+
+        service = ConversationService.__new__(ConversationService)
+        service.db = mock_db
+        service.tenant_id = 1
+        service.repo = AsyncMock()
+        service._message_repo = MagicMock()
+        service._message_repo.get_last_n_messages = AsyncMock(
+            return_value=[assistant, tool, final_assistant],
+        )
+
+        history = await service.load_chat_history(1)
+
+        assert len(history) == 1
+        assert history[0].role == "assistant"
+        assert history[0].content == "现在可以继续下一步。"
+
+    @pytest.mark.asyncio
     async def test_persist_chat_messages_stores_thinking_content_metadata(
         self, mock_db
     ):
@@ -1449,7 +1604,7 @@ class TestThinkingPersistence:
 
         create_calls = service._message_repo.create.await_args_list
         assistant_payload = create_calls[1].args[0]
-        assert assistant_payload["tool_calls"] is None
+        assert assistant_payload["tool_calls"] == result.messages[1]["tool_calls"]
         assert "thinking_content" not in assistant_payload["metadata_"]
         thinking_stage = next(
             stage
@@ -1599,7 +1754,19 @@ class TestThinkingPersistence:
         assistant_payload = create_calls[1].args[0]
         tool_payload = create_calls[2].args[0]
 
-        assert assistant_payload["tool_calls"] is None
+        assert assistant_payload["tool_calls"] is not None
+        persisted_tool_call = assistant_payload["tool_calls"][0]
+        assert persisted_tool_call["id"] == "tc_data_1"
+        assert persisted_tool_call["function"]["name"] == "query_records"
+        assert persisted_tool_call["pending_consent"] == {
+            "arguments": {"question": "统计今天调用情况"},
+            "tool_name": "query_records",
+        }
+        assert persisted_tool_call["summary_payload"] == {
+            "filters": ["today"],
+            "tables": ["ai_call_logs"],
+            "tool_kind": "query_records",
+        }
         assert assistant_payload["metadata_"]["pending_confirmation"] == {
             "action": "query",
             "preview": {"sql": "SELECT 1"},
@@ -1889,7 +2056,7 @@ class TestThinkingPersistence:
                             }
                         ],
                         "page_operation_payload": {
-                            "page_key": "admin.ai.conversations",
+                            "page_key": "admin.runtime.records",
                             "limit": Decimal("10"),
                         },
                     },
@@ -2053,9 +2220,9 @@ class TestThinkingPersistence:
                 "context_sources": [
                     {
                         "kind": "page_context",
-                        "name": "admin.ai.conversations",
+                        "name": "admin.runtime.records",
                         "active": True,
-                        "metadata": {"page_key": "admin.ai.conversations"},
+                        "metadata": {"page_key": "admin.runtime.records"},
                     }
                 ],
                 "fallback_history": [
@@ -3183,3 +3350,4 @@ async def test_conversation_detail_surfaces_extended_runtime_diagnostics(
     ] == ["ui_get_snapshot"]
     assert detail["message_list"][0]["turn_flow"]["completion_reason"] == "budget_exit"
     assert detail["message_list"][0]["turn_flow"]["timeline"][-1]["type"] == "failed"
+

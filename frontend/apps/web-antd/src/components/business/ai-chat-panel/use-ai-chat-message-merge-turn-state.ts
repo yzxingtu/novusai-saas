@@ -15,6 +15,7 @@ import type { AppErrorInfo } from '#/utils/request';
 
 export interface AssistantTurnMergeState {
   contentParts: string[];
+  hasCanonicalTurnFlow: boolean;
   hasInterrupted: boolean;
   hasMemoryUpdated: boolean;
   hasPartial: boolean;
@@ -55,6 +56,7 @@ export function createInitialAssistantTurnState(
 ): AssistantTurnMergeState {
   return {
     contentParts: [],
+    hasCanonicalTurnFlow: false,
     hasInterrupted: false,
     hasMemoryUpdated: false,
     hasPartial: false,

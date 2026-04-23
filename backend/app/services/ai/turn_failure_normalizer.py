@@ -6,6 +6,8 @@ import re
 from collections.abc import Mapping
 from typing import Any
 
+from app.ai.engine.page_workflow_state_machine import legacy_page_intent_kind_for_goal
+
 _ERROR_TERMINATION_REASONS = frozenset(
     {
         "error",
@@ -33,8 +35,10 @@ _BUDGET_TERMINATION_REASONS = frozenset(
     }
 )
 _NO_FAILURE_KINDS = frozenset({"none"})
-_TRUSTED_FINAL_OUTPUT_SOURCES = frozenset({"assistant"})
-_GENERIC_FAILURE_TERMINATION_REASONS = frozenset({"error", "failed", "terminal_failure"})
+_TRUSTED_FINAL_OUTPUT_SOURCES = frozenset({"assistant", "recovery_evidence"})
+_GENERIC_FAILURE_TERMINATION_REASONS = frozenset(
+    {"error", "failed", "terminal_failure"}
+)
 _FAILURE_KIND_SIGNAL_ALIASES = {
     "provider_connection_error": "provider_unavailable",
     "provider_connection": "provider_unavailable",
@@ -47,12 +51,28 @@ _FAILURE_TERMINATION_BY_KIND = {
     "provider_timeout": "provider_timeout",
     "provider_unavailable": "provider_unavailable",
     "provider_http_5xx": "provider_error",
+    "provider_gateway_error": "provider_error",
     "provider_bad_response": "provider_error",
     "provider_rate_limit": "provider_error",
     "tool_timeout": "tool_error",
     "tool_execution_error": "tool_error",
     "server_interrupt": "interrupted",
 }
+_PAGE_WORKFLOW_GOAL_ALIASES = {
+    "page_workflow": "",
+    "page_read": "page_summary",
+    "page_summary": "page_summary",
+    "page_screenshot": "page_screenshot",
+    "page_navigation": "navigation",
+    "page_search": "search",
+    "page_pagination": "pagination",
+    "page_row_detail": "row_detail",
+    "page_form_read": "form_read",
+    "page_form_write": "form_write",
+    "page_editor_read": "editor_read",
+    "page_editor_write": "editor_write",
+}
+_PAGE_SUMMARY_WORKFLOW_GOALS = frozenset({"page_summary", "table_summary"})
 _PROMISSORY_PAGE_REPLY_PREFIXES = frozenset(
     {
         "我先",
@@ -136,6 +156,35 @@ def _normalize_signal_token(value: Any) -> str | None:
     return snake or None
 
 
+def _infer_provider_error_kind_from_message(error_message: Any) -> str | None:
+    lowered = (_as_text(error_message) or "").lower()
+    if not lowered:
+        return None
+
+    if any(
+        token in lowered
+        for token in (
+            "bad gateway",
+            "gateway timeout",
+            "service unavailable",
+            "server error",
+            "server_error",
+            "服务端错误",
+            "服务暂不可用",
+            "服务器内部错误",
+            "502",
+            "503",
+            "504",
+        )
+    ):
+        return "provider_http_5xx"
+    if "connection error" in lowered or "连接错误" in lowered or "连接失败" in lowered:
+        return "provider_unavailable"
+    if "timed out" in lowered or "timeout" in lowered or "超时" in lowered:
+        return "provider_timeout"
+    return "provider_gateway_error"
+
+
 def infer_failure_kind_from_diagnostics(
     diagnostics: Mapping[str, Any] | None,
 ) -> str | None:
@@ -180,19 +229,42 @@ def infer_failure_kind_from_diagnostics(
                 ]
             )
 
+    saw_generic_provider_error = False
     for candidate in candidates:
         signal_token = _normalize_signal_token(candidate)
+        if signal_token == "provider_error":
+            saw_generic_provider_error = True
+            continue
         if signal_token and signal_token in _FAILURE_KIND_SIGNAL_ALIASES:
             return _FAILURE_KIND_SIGNAL_ALIASES[signal_token]
         normalized_kind = normalize_failure_kind(candidate)
         if normalized_kind:
             return normalized_kind
 
+    error_message_parts = [
+        payload.get("error_message"),
+        payload.get("error"),
+        _as_dict(payload.get("response")).get("error"),
+        failures.get("error_message"),
+        turn_record_failures.get("error_message"),
+        turn_record_metadata.get("error_message"),
+        turn_record_metadata.get("stream_failure_reason"),
+    ]
+    inferred_provider_error_kind = _infer_provider_error_kind_from_message(
+        " ".join(
+            part for part in (_as_text(item) for item in error_message_parts) if part
+        )
+    )
+    if saw_generic_provider_error and inferred_provider_error_kind:
+        return inferred_provider_error_kind
+
     lowered_error_message = (_as_text(payload.get("error_message")) or "").lower()
     if "connection error" in lowered_error_message:
         return "provider_unavailable"
     if "timed out" in lowered_error_message or "timeout" in lowered_error_message:
         return "provider_timeout"
+    if saw_generic_provider_error:
+        return "provider_gateway_error"
     return None
 
 
@@ -252,20 +324,136 @@ def derive_completed_tool_names(intent_plan: Any) -> list[str]:
     return names
 
 
-def _is_page_ops_diagnostics(payload: Mapping[str, Any]) -> bool:
+def _normalize_page_workflow_goal(value: Any) -> str | None:
+    token = (_as_text(value) or "").strip().lower()
+    if not token:
+        return None
+    normalized = _PAGE_WORKFLOW_GOAL_ALIASES.get(token, token)
+    return normalized or None
+
+
+def _page_workflow_context_candidate(
+    payload: Mapping[str, Any] | None,
+    *,
+    default_family: str | None = None,
+) -> dict[str, Any]:
+    normalized = _as_dict(payload)
+    if not normalized:
+        return {}
+
+    metadata = _as_dict(normalized.get("metadata"))
+    intent_id = _as_text(normalized.get("intent_id"))
+    intent_kind = _as_text(normalized.get("kind") or normalized.get("intent"))
+    workflow_goal = _normalize_page_workflow_goal(
+        metadata.get("page_workflow_goal") or normalized.get("page_workflow_goal")
+    )
+    if not workflow_goal and intent_kind:
+        workflow_goal = _PAGE_WORKFLOW_GOAL_ALIASES.get(intent_kind.lower()) or None
+    intent_kind_alias = legacy_page_intent_kind_for_goal(workflow_goal or "") or intent_kind
+    workflow_phase = _as_text(
+        metadata.get("page_workflow_phase") or normalized.get("page_workflow_phase")
+    )
+    workflow_stage = _as_text(
+        metadata.get("page_workflow_stage") or normalized.get("page_workflow_stage")
+    )
+    workflow_progress = _as_dict(
+        metadata.get("page_workflow_progress")
+        or normalized.get("page_workflow_progress")
+    )
+    family = _as_text(normalized.get("family")) or default_family
+    if family != "page_ops" and (
+        workflow_goal
+        or workflow_phase
+        or workflow_stage
+        or workflow_progress
+        or _normalize_page_workflow_goal(intent_kind)
+    ):
+        family = "page_ops"
+
+    is_page_ops = bool(
+        family == "page_ops"
+        or workflow_goal
+        or workflow_phase
+        or workflow_stage
+        or workflow_progress
+    )
+    if not is_page_ops:
+        return {}
+
+    return {
+        "intent_id": intent_id,
+        "family": family or "page_ops",
+        "intent_kind": intent_kind,
+        "intent_kind_alias": intent_kind_alias,
+        "goal": workflow_goal,
+        "phase": workflow_phase,
+        "stage": workflow_stage,
+        "progress": workflow_progress,
+        "summary_like": bool(workflow_goal in _PAGE_SUMMARY_WORKFLOW_GOALS),
+        "has_metadata": bool(
+            workflow_goal or workflow_phase or workflow_stage or workflow_progress
+        ),
+        "is_page_ops": True,
+    }
+
+
+def extract_page_workflow_context(
+    diagnostics: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    payload = _as_dict(diagnostics)
+    if not payload:
+        return {}
+
     planner = _as_dict(payload.get("tool_planner"))
-    if _as_text(planner.get("family")) == "page_ops":
-        return True
-    if _as_text(payload.get("continuation_source")) == "page_ops":
-        return True
-    for item in payload.get("intent_plan") or []:
-        normalized = _as_dict(item)
-        if _as_text(normalized.get("family")) == "page_ops":
-            return True
-        kind = _as_text(normalized.get("kind")) or ""
-        if kind.startswith("page_"):
-            return True
-    return False
+    default_family = _as_text(planner.get("family")) or _as_text(
+        payload.get("continuation_source")
+    )
+    active_intent_id = _as_text(payload.get("active_intent_id"))
+
+    candidates: list[dict[str, Any]] = []
+    for item in (payload, planner):
+        candidate = _page_workflow_context_candidate(
+            item,
+            default_family=default_family,
+        )
+        if candidate:
+            candidates.append(candidate)
+
+    for raw_plan in (payload.get("intent_plan"), planner.get("intent_plan")):
+        if not isinstance(raw_plan, list):
+            continue
+        for item in raw_plan:
+            candidate = _page_workflow_context_candidate(
+                item,
+                default_family=default_family,
+            )
+            if candidate:
+                candidates.append(candidate)
+
+    if active_intent_id:
+        for candidate in candidates:
+            if candidate.get("intent_id") == active_intent_id:
+                return candidate
+
+    for candidate in candidates:
+        if candidate.get("has_metadata"):
+            return candidate
+
+    if candidates:
+        return candidates[0]
+
+    if default_family == "page_ops":
+        return {
+            "family": "page_ops",
+            "summary_like": False,
+            "has_metadata": False,
+            "is_page_ops": True,
+        }
+    return {}
+
+
+def _is_page_ops_diagnostics(payload: Mapping[str, Any]) -> bool:
+    return bool(extract_page_workflow_context(payload).get("is_page_ops"))
 
 
 def has_incomplete_promissory_page_reply(
@@ -308,7 +496,9 @@ def has_incomplete_promissory_page_reply(
         return False
 
     normalized = " ".join(text.split()).lower()
-    if not any(normalized.startswith(prefix) for prefix in _PROMISSORY_PAGE_REPLY_PREFIXES):
+    if not any(
+        normalized.startswith(prefix) for prefix in _PROMISSORY_PAGE_REPLY_PREFIXES
+    ):
         return False
     return not any(
         marker in normalized for marker in _PROMISSORY_PAGE_REPLY_COMPLETION_MARKERS
@@ -326,7 +516,11 @@ def _derive_budget_exit_reason_from_budget_snapshot(
 
     prompt_tokens_used = _as_int(usage.get("prompt_tokens_used"))
     max_prompt_tokens = _as_int(limits.get("max_prompt_tokens"))
-    if max_prompt_tokens and prompt_tokens_used is not None and prompt_tokens_used > max_prompt_tokens:
+    if (
+        max_prompt_tokens
+        and prompt_tokens_used is not None
+        and prompt_tokens_used > max_prompt_tokens
+    ):
         return "prompt_budget_exceeded"
 
     completion_tokens_used = _as_int(usage.get("completion_tokens_used"))
@@ -340,7 +534,11 @@ def _derive_budget_exit_reason_from_budget_snapshot(
 
     tool_rounds_used = _as_int(usage.get("tool_rounds_used"))
     max_tool_rounds = _as_int(limits.get("max_tool_rounds"))
-    if max_tool_rounds and tool_rounds_used is not None and tool_rounds_used > max_tool_rounds:
+    if (
+        max_tool_rounds
+        and tool_rounds_used is not None
+        and tool_rounds_used > max_tool_rounds
+    ):
         return "tool_round_budget_exceeded"
 
     elapsed_ms_used = _as_int(usage.get("elapsed_ms_used"))
@@ -349,7 +547,11 @@ def _derive_budget_exit_reason_from_budget_snapshot(
         or _as_int(payload.get("elapsed_limit_ms"))
         or _as_int(limits.get("max_elapsed_ms"))
     )
-    if elapsed_limit_ms and elapsed_ms_used is not None and elapsed_ms_used > elapsed_limit_ms:
+    if (
+        elapsed_limit_ms
+        and elapsed_ms_used is not None
+        and elapsed_ms_used > elapsed_limit_ms
+    ):
         return "elapsed_budget_exceeded"
     if bool(usage.get("elapsed_over_limit")):
         return "elapsed_budget_exceeded"
@@ -446,7 +648,9 @@ def derive_budget_projection(
     }
 
 
-def find_turn_flow_terminal_stage(turn_flow: Mapping[str, Any] | None) -> dict[str, Any]:
+def find_turn_flow_terminal_stage(
+    turn_flow: Mapping[str, Any] | None,
+) -> dict[str, Any]:
     payload = _as_dict(turn_flow)
     timeline = payload.get("timeline")
     if not isinstance(timeline, list) or not timeline:
@@ -532,11 +736,14 @@ def resolve_failure_projection(
     elif turn_flow_terminal_stage_status == "completed" and not turn_outcome:
         turn_outcome = "success"
 
-    termination_reason = normalize_failure_termination_reason(
-        termination_reason=termination_reason,
-        failure_kind=failure_kind,
-        budget_exit_reason=budget_exit_reason,
-    ) or termination_reason
+    termination_reason = (
+        normalize_failure_termination_reason(
+            termination_reason=termination_reason,
+            failure_kind=failure_kind,
+            budget_exit_reason=budget_exit_reason,
+        )
+        or termination_reason
+    )
     normalized_termination_reason = (termination_reason or "").strip().lower()
     budget_signal = bool(
         budget_exit_reason
@@ -562,7 +769,9 @@ def resolve_failure_projection(
     if non_trusted_final_output_source and turn_outcome not in {"failed", "partial"}:
         turn_outcome = "failed"
     if budget_signal and not failure_kind:
-        failure_kind = budget_exit_reason or normalized_termination_reason or "budget_exit"
+        failure_kind = (
+            budget_exit_reason or normalized_termination_reason or "budget_exit"
+        )
 
     return {
         "turn_outcome": turn_outcome,
@@ -584,6 +793,7 @@ __all__ = [
     "derive_completed_tool_names",
     "derive_budget_projection",
     "derive_terminal_status",
+    "extract_page_workflow_context",
     "find_turn_flow_terminal_stage",
     "has_incomplete_promissory_page_reply",
     "infer_failure_kind_from_diagnostics",

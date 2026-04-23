@@ -341,45 +341,6 @@ class ActiveFormSummary(BaseModel):
         return self
 
 
-class SuggestedTools(BaseModel):
-    """Suggested UI tools for current page / 当前页面推荐工具。"""
-
-    model_config = ConfigDict(extra="ignore")
-
-    primary: list[str] = Field(
-        default_factory=list,
-        description="Primary suggested tools / 主要推荐工具",
-    )
-    secondary: list[str] = Field(
-        default_factory=list,
-        description="Secondary suggested tools / 次要推荐工具",
-    )
-    reason: str | None = Field(
-        None,
-        max_length=240,
-        description="Suggestion reason / 推荐理由",
-    )
-
-    @model_validator(mode="after")
-    def normalize_tools(self) -> SuggestedTools:
-        def _normalize(values: list[str]) -> list[str]:
-            normalized: list[str] = []
-            seen: set[str] = set()
-            for item in values:
-                name = str(item or "").strip()
-                if not name or name in seen:
-                    continue
-                seen.add(name)
-                normalized.append(name[:64])
-                if len(normalized) >= 8:
-                    break
-            return normalized
-
-        self.primary = _normalize(self.primary)
-        self.secondary = _normalize(self.secondary)
-        return self
-
-
 class NavigationCatalogEntry(BaseModel):
     """Compact navigation entry for thin page_data / 薄 page_data 的紧凑导航条目。"""
 
@@ -521,10 +482,119 @@ class NavigationContext(BaseModel):
         return self
 
 
+class SearchInputAffordance(BaseModel):
+    """Visible search/filter input affordance / 可见搜索或筛选输入框摘要。"""
+
+    model_config = ConfigDict(extra="ignore")
+
+    locator: str = Field(
+        ...,
+        min_length=1,
+        max_length=240,
+        description="Runtime locator / 运行时 locator",
+    )
+    label: str | None = Field(
+        None,
+        max_length=200,
+        description="Visible label / 可见标签",
+    )
+    placeholder: str | None = Field(
+        None,
+        max_length=200,
+        description="Input placeholder / 输入框占位提示",
+    )
+    field_name: str | None = Field(
+        None,
+        max_length=120,
+        description="Resolved field name / 解析到的字段名",
+    )
+
+    @field_validator("locator", mode="before")
+    @classmethod
+    def validate_locator(cls, value: Any) -> str:
+        return _normalize_required_compact_text(
+            value,
+            field_name="locator",
+            max_length=240,
+        )
+
+    @model_validator(mode="after")
+    def normalize_affordance(self) -> SearchInputAffordance:
+        self.locator = self.locator.strip()[:240]
+        if self.label is not None:
+            label = self.label.strip()
+            self.label = label[:200] if label else None
+        if self.placeholder is not None:
+            placeholder = self.placeholder.strip()
+            self.placeholder = placeholder[:200] if placeholder else None
+        if self.field_name is not None:
+            field_name = self.field_name.strip()
+            self.field_name = field_name[:120] if field_name else None
+        return self
+
+
+class VisibleTableAffordance(BaseModel):
+    """Visible table affordance / 可见表格摘要。"""
+
+    model_config = ConfigDict(extra="ignore")
+
+    locator: str = Field(
+        ...,
+        min_length=1,
+        max_length=240,
+        description="Runtime locator / 运行时 locator",
+    )
+    label: str | None = Field(
+        None,
+        max_length=200,
+        description="Visible table label / 可见表格标签",
+    )
+    row_count: int | None = Field(
+        None,
+        ge=0,
+        description="Visible row count / 可见行数",
+    )
+    column_count: int | None = Field(
+        None,
+        ge=0,
+        description="Visible column count / 可见列数",
+    )
+
+    @field_validator("locator", mode="before")
+    @classmethod
+    def validate_locator(cls, value: Any) -> str:
+        return _normalize_required_compact_text(
+            value,
+            field_name="locator",
+            max_length=240,
+        )
+
+    @model_validator(mode="after")
+    def normalize_affordance(self) -> VisibleTableAffordance:
+        self.locator = self.locator.strip()[:240]
+        if self.label is not None:
+            label = self.label.strip()
+            self.label = label[:200] if label else None
+        if self.row_count is not None:
+            self.row_count = max(int(self.row_count), 0)
+        if self.column_count is not None:
+            self.column_count = max(int(self.column_count), 0)
+        return self
+
+
 class PageContextPageData(BaseModel):
     """Summary-first page data extension / summary-first 页面扩展数据。"""
 
     model_config = ConfigDict(extra="forbid")
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_legacy_available_menus(cls, value: Any) -> Any:
+        if isinstance(value, dict) and "available_menus" in value:
+            raise ValueError(
+                "available_menus is not allowed in page_data; use navigation_catalog"
+            )
+        return value
 
     locale: str | None = Field(
         None,
@@ -544,6 +614,14 @@ class PageContextPageData(BaseModel):
         None,
         description="Compact navigation context / 紧凑导航上下文",
     )
+    search_inputs: list[SearchInputAffordance] | None = Field(
+        None,
+        description="Visible search/filter inputs / 可见搜索或筛选输入框摘要",
+    )
+    visible_tables: list[VisibleTableAffordance] | None = Field(
+        None,
+        description="Visible tables / 可见表格摘要",
+    )
 
     @field_validator("navigation_catalog", mode="before")
     @classmethod
@@ -561,6 +639,42 @@ class PageContextPageData(BaseModel):
             except ValidationError:
                 continue
             normalized.append(entry)
+        return normalized
+
+    @field_validator("search_inputs", mode="before")
+    @classmethod
+    def sanitize_search_inputs(
+        cls,
+        value: Any,
+    ) -> list[SearchInputAffordance | dict[str, Any]] | None:
+        if not isinstance(value, list):
+            return None
+
+        normalized: list[SearchInputAffordance | dict[str, Any]] = []
+        for item in value:
+            try:
+                affordance = SearchInputAffordance.model_validate(item)
+            except ValidationError:
+                continue
+            normalized.append(affordance)
+        return normalized
+
+    @field_validator("visible_tables", mode="before")
+    @classmethod
+    def sanitize_visible_tables(
+        cls,
+        value: Any,
+    ) -> list[VisibleTableAffordance | dict[str, Any]] | None:
+        if not isinstance(value, list):
+            return None
+
+        normalized: list[VisibleTableAffordance | dict[str, Any]] = []
+        for item in value:
+            try:
+                affordance = VisibleTableAffordance.model_validate(item)
+            except ValidationError:
+                continue
+            normalized.append(affordance)
         return normalized
 
     @model_validator(mode="after")
@@ -585,6 +699,29 @@ class PageContextPageData(BaseModel):
             if len(normalized_catalog) >= 32:
                 break
         self.navigation_catalog = normalized_catalog
+        normalized_search_inputs: list[SearchInputAffordance] = []
+        seen_search_locators: set[str] = set()
+        for affordance in self.search_inputs or []:
+            dedupe_key = affordance.locator
+            if dedupe_key in seen_search_locators:
+                continue
+            seen_search_locators.add(dedupe_key)
+            normalized_search_inputs.append(affordance)
+            if len(normalized_search_inputs) >= 8:
+                break
+        self.search_inputs = normalized_search_inputs or None
+
+        normalized_visible_tables: list[VisibleTableAffordance] = []
+        seen_table_locators: set[str] = set()
+        for affordance in self.visible_tables or []:
+            dedupe_key = affordance.locator
+            if dedupe_key in seen_table_locators:
+                continue
+            seen_table_locators.add(dedupe_key)
+            normalized_visible_tables.append(affordance)
+            if len(normalized_visible_tables) >= 8:
+                break
+        self.visible_tables = normalized_visible_tables or None
 
         if self.navigation_context and not (
             self.navigation_context.breadcrumb
@@ -683,10 +820,6 @@ class PageContext(BaseModel):
         None,
         description="Compact page data / 紧凑页面数据",
     )
-    suggested_tools: SuggestedTools | None = Field(
-        None,
-        description="Suggested tools for current page / 当前页推荐工具",
-    )
 
     @field_validator("page_key", mode="before")
     @classmethod
@@ -767,11 +900,10 @@ class PageContext(BaseModel):
             or self.page_data.entity_description
             or self.page_data.navigation_catalog
             or self.page_data.navigation_context
+            or self.page_data.search_inputs
+            or self.page_data.visible_tables
         ):
             self.page_data = None
-
-        if self.suggested_tools and not self.suggested_tools.primary:
-            self.suggested_tools = None
 
         if self.active_surface_id and self.surface_stack:
             if self.active_surface_id not in {

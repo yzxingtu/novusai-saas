@@ -191,9 +191,15 @@ async def test_run_stream_tool_batch_uses_runtime_tool_processor_binding(
             content: str,
             tool_calls: list[dict[str, object]],
             reasoning_content: str | None = None,
+            metadata: dict[str, object] | None = None,
         ) -> ChatMessage:
             _ = reasoning_content
-            return ChatMessage(role="assistant", content=content, tool_calls=tool_calls)
+            return ChatMessage(
+                role="assistant",
+                content=content,
+                tool_calls=tool_calls,
+                metadata=metadata,
+            )
 
         def parse_arguments(self, raw: str):
             return json.loads(raw), None
@@ -492,3 +498,62 @@ async def test_run_stream_tool_batch_returns_confirmation_response_for_pending_c
     tool_calls = result.response.tool_calls or []
     assert tool_calls[0]["pending_consent"]["tool_name"] == "fetch_url"
     assert any(event.get("event") == "tool_consent_request" for event in events)
+
+
+@pytest.mark.asyncio
+async def test_run_stream_tool_batch_preserves_response_metadata_on_assistant_tool_message() -> (
+    None
+):
+    class _Sandbox:
+        async def execute(
+            self,
+            tool_call_id: str,
+            name: str,
+            arguments: dict,
+            definitions: list[ToolDefinition],
+            conversation_id: int,
+        ) -> ToolResult:
+            _ = name, arguments, definitions, conversation_id
+            return ToolResult(
+                tool_call_id=tool_call_id,
+                name="web_search",
+                success=True,
+                output="ok",
+            )
+
+    response = ChatResponse(
+        message=ChatMessage(role="assistant", content=""),
+        tool_calls=[
+            {
+                "id": "call_search",
+                "type": "function",
+                "function": {
+                    "name": "web_search",
+                    "arguments": '{"query":"latest"}',
+                },
+            }
+        ],
+        metadata={
+            "protocol_path": "responses",
+            "responses_response_id": "resp_stream_1",
+        },
+    )
+    runtime = _build_runtime(
+        sandbox=_Sandbox(),
+        tools=[ToolDefinition(name="web_search", description="Search the web")],
+        response=response,
+    )
+    events: list[dict] = []
+
+    await run_stream_tool_batch(
+        runtime=runtime,
+        callbacks=_build_callbacks(events=events),
+    )
+
+    assistant_message = next(
+        message for message in runtime.messages if message.role == "assistant"
+    )
+    assert assistant_message.metadata == {
+        "protocol_path": "responses",
+        "responses_response_id": "resp_stream_1",
+    }

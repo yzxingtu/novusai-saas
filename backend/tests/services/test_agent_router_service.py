@@ -8,6 +8,7 @@ import pytest
 
 from app.enums.common import UserRoleEnum
 from app.exceptions import BusinessException
+from app.services.ai.agent_router_policy import requested_tool_families
 from app.services.ai.agent_router_service import (
     ROUTED_BY_CONVERSATION,
     ROUTED_BY_DEFAULT,
@@ -57,6 +58,7 @@ def _make_agent(
 def _make_descriptor_grant(
     *,
     skill_name: str,
+    skill_config: dict | None = None,
     skill_key: str | None = None,
     skill_description: str = "",
     package_name: str = "",
@@ -64,6 +66,7 @@ def _make_descriptor_grant(
 ):
     grant = _make_skill_grant(skill_name)
     grant.skill.key = skill_key
+    grant.skill.config = skill_config or {}
     grant.skill.description = skill_description
     grant.skill.package.name = package_name
     grant.skill.package.description = package_description
@@ -134,7 +137,7 @@ def test_agent_needs_function_calling_ignores_inactive_packages() -> None:
     assert AgentRouterService._agent_needs_function_calling(agent) is False
 
 
-def test_agent_supports_families_uses_skill_metadata_descriptors() -> None:
+def test_agent_supports_families_uses_skill_preview_metadata() -> None:
     agent = _make_agent(
         agent_id=61,
         name="Descriptor Agent",
@@ -142,23 +145,15 @@ def test_agent_supports_families_uses_skill_metadata_descriptors() -> None:
     )
     agent.skill_grants = [
         _make_descriptor_grant(
-            skill_name="实时天气查询",
-            skill_key="weather_realtime",
-            skill_description="调用真实天气接口",
-            package_name="天气组件",
-            package_description="提供 weather 和 forecast 能力",
+            skill_name="weather-runtime",
+            skill_config={"tools": [{"name": "get_current_weather"}]},
         ),
         _make_descriptor_grant(
             skill_name="web_search",
-            package_name="联网搜索",
         ),
         _make_descriptor_grant(
-            skill_name="ui_get_snapshot",
-            package_name="页面感知交互",
-        ),
-        _make_descriptor_grant(
-            skill_name="ui_click",
-            package_name="页面感知交互",
+            skill_name="neutral-page-skill",
+            skill_config={"preview_semantic_families": ["page_ops"]},
         ),
     ]
 
@@ -176,11 +171,8 @@ def test_agent_supports_families_treats_time_as_runtime_baseline() -> None:
     )
     agent.skill_grants = [
         _make_descriptor_grant(
-            skill_name="实时天气查询",
-            skill_key="weather_realtime",
-            skill_description="调用真实天气接口",
-            package_name="天气组件",
-            package_description="提供 weather 和 forecast 能力",
+            skill_name="weather-runtime",
+            skill_config={"tools": [{"name": "get_current_weather"}]},
         ),
     ]
 
@@ -188,6 +180,74 @@ def test_agent_supports_families_treats_time_as_runtime_baseline() -> None:
         agent,
         ["weather", "time_ops"],
     )
+
+
+def test_requested_tool_families_treats_colloquial_here_question_as_page_ops() -> None:
+    families = requested_tool_families(
+        "这里都有啥？",
+        _thin_page_context("admin.ai.agents"),
+    )
+
+    assert families == ["page_ops"]
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "翻到第3页",
+        "翻回上一页",
+        "每页显示50条",
+    ],
+)
+def test_requested_tool_families_routes_pagination_messages_to_page_ops(
+    message: str,
+) -> None:
+    families = requested_tool_families(
+        message,
+        _thin_page_context("admin.runtime.records"),
+    )
+
+    assert families == ["page_ops"]
+
+
+def test_requested_tool_families_keeps_page_search_keywords_inside_page_ops() -> None:
+    families = requested_tool_families(
+        "帮我搜索一下包含'天气'的记录",
+        _thin_page_context("admin.runtime.records"),
+    )
+
+    assert families == ["page_ops"]
+
+
+def test_requested_tool_families_keeps_mixed_web_and_page_summary_families() -> None:
+    families = requested_tool_families(
+        "帮我搜索一下今天的 AI 新闻，再顺便概括一下当前页面都能做什么",
+        _thin_page_context(
+            "admin.ai.quotas",
+            primary_tools=["ui_get_snapshot", "ui_read_region", "ui_read_table"],
+        ),
+    )
+
+    assert families == ["web_research", "page_ops"]
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "帮我看看第一条记录的详细信息",
+        "帮我打开一条新建记录表单，然后告诉我这个表单现在填了什么，有哪些选项可以选？",
+        "帮我编辑第一条记录，把名称改成 E2E-Edit-Test",
+    ],
+)
+def test_requested_tool_families_routes_detail_and_form_messages_to_page_ops(
+    message: str,
+) -> None:
+    families = requested_tool_families(
+        message,
+        _thin_page_context("admin.ai.skill-packages"),
+    )
+
+    assert families == ["page_ops"]
 
 
 def _semantic_agents_menu_entry() -> dict[str, object]:
@@ -1055,3 +1115,5 @@ async def test_route_rejects_screenshot_request_when_no_vision_page_agent_exists
         )
 
     service._fallback_to_default.assert_not_awaited()
+
+

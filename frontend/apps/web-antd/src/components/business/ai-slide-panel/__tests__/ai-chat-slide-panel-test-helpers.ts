@@ -719,6 +719,19 @@ export function createFormStateTrackerMock() {
 }
 
 export function createRuntimeBridgeMock() {
+  const uiToolPool = [
+    'ui_get_snapshot',
+    'ui_list_interactables',
+    'ui_read_region',
+    'ui_read_table',
+    'ui_click',
+    'ui_open_surface',
+    'ui_get_form_state',
+    'ui_set_field',
+    'ui_fill_form',
+    'ui_submit_form',
+  ] as const;
+
   return {
     getRuntimePageContextDiagnostics: () => ({
       interactables_count: pageOperationsValue.value.length,
@@ -733,40 +746,12 @@ export function createRuntimeBridgeMock() {
       if (!pageKey) {
         return null;
       }
-      const uiToolPool = [
-        'ui_get_snapshot',
-        'ui_list_interactables',
-        'ui_read_region',
-        'ui_read_table',
-        'ui_click',
-        'ui_open_surface',
-        'ui_get_form_state',
-        'ui_set_field',
-        'ui_fill_form',
-        'ui_submit_form',
-      ] as const;
-      const suggestedFromOps = pageOperationsValue.value
-        .map((operation, index) => {
-          const rawName = String(operation.name || '').trim();
-          if (rawName.startsWith('ui_')) {
-            return rawName;
-          }
-          return uiToolPool[index % uiToolPool.length];
-        })
-        .filter(Boolean);
-      const suggestedTools =
-        context?.suggested_tools ||
-        (suggestedFromOps.length > 0
-          ? {
-              primary: suggestedFromOps.slice(0, 3),
-              reason: 'test_mock',
-              secondary: suggestedFromOps.slice(3, 6),
-            }
-          : {
-              primary: ['ui_get_snapshot'],
-              reason: 'test_mock_fallback',
-              secondary: ['ui_read_region'],
-            });
+      const hasRuntimeState =
+        typeof context?.ui_epoch === 'number' ||
+        Boolean(String(context?.page_session_id || '').trim()) ||
+        pageOperationsValue.value.some((operation) =>
+          uiToolPool.includes(String(operation.name || '').trim() as (typeof uiToolPool)[number]),
+        );
       return {
         active_form_session_id: context?.active_form_session_id,
         active_form_summary: context?.active_form_summary,
@@ -776,9 +761,8 @@ export function createRuntimeBridgeMock() {
         page_key: pageKey,
         page_session_id: context?.page_session_id,
         page_title: context?.page_title || pageKey,
-        suggested_tools: suggestedTools,
         surface_stack: context?.surface_stack,
-        ui_epoch: context?.ui_epoch ?? 1,
+        ui_epoch: hasRuntimeState ? (context?.ui_epoch ?? 1) : undefined,
       };
     },
   };

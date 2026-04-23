@@ -6,9 +6,22 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.ai.exceptions import extract_provider_error_message
+from app.ai.exceptions import (
+    extract_provider_error_message,
+    looks_like_html_document_text,
+)
 from app.core.i18n import _
 from app.core.response import get_current_trace_id
+
+STREAM_INTERRUPTION_TOKENS = (
+    "cancellederror",
+    "cancelled via cancel scope",
+    "cancel scope",
+    "client disconnected",
+    "disconnect",
+    "connection reset",
+    "broken pipe",
+)
 
 
 def strip_stream_error_trace(error: Any) -> str:
@@ -19,6 +32,23 @@ def strip_stream_error_trace(error: Any) -> str:
     return text
 
 
+def _resolve_safe_provider_message(error: Any) -> str:
+    provider_message = strip_stream_error_trace(extract_provider_error_message(error) or "")
+    if not provider_message or looks_like_html_document_text(provider_message):
+        return ""
+    return provider_message
+
+
+def _mapped_provider_failure_public_detail(failure_kind: str) -> str | None:
+    return {
+        "provider_bad_response": _("ai.request_failed"),
+        "provider_http_5xx": _("ai.error.provider_server_error"),
+        "provider_rate_limit": _("ai.error.provider_rate_limit"),
+        "provider_timeout": _("ai.error.provider_timeout"),
+        "provider_unavailable": _("ai.error.provider_connection"),
+    }.get(failure_kind)
+
+
 def friendly_stream_error_text(
     error: Any,
     *,
@@ -26,27 +56,24 @@ def friendly_stream_error_text(
 ) -> str:
     sanitized_error = strip_stream_error_trace(error)
     lowered_error = sanitized_error.lower()
-    if any(
-        token in lowered_error
-        for token in (
-            "cancellederror",
-            "cancelled via cancel scope",
-            "cancel scope",
-            "client disconnected",
-            "disconnect",
-            "connection reset",
-            "broken pipe",
-        )
-    ):
+    if any(token in lowered_error for token in STREAM_INTERRUPTION_TOKENS):
         return _("ai.stream.error.interrupted")
 
     normalized_kind = str(failure_kind or "").strip().lower()
     if normalized_kind.startswith("provider_"):
-        provider_message = strip_stream_error_trace(
-            extract_provider_error_message(error) or sanitized_error
-        )
+        provider_message = _resolve_safe_provider_message(error)
         if provider_message:
             return provider_message
+        if (
+            sanitized_error
+            and sanitized_error != _("common.server_error")
+            and not looks_like_html_document_text(sanitized_error)
+        ):
+            return sanitized_error
+        mapped_detail = _mapped_provider_failure_public_detail(normalized_kind)
+        if mapped_detail:
+            return mapped_detail
+        return _("ai.request_failed")
 
     if "fallback" in lowered_error:
         return _("ai.stream.error.fallback_failed")
@@ -60,40 +87,25 @@ def friendly_stream_error_detail(
     failure_kind: str | None = None,
 ) -> str | None:
     normalized_kind = str(failure_kind or "").strip().lower()
-    provider_message = strip_stream_error_trace(
-        extract_provider_error_message(error) or ""
-    )
+    sanitized_error = strip_stream_error_trace(error)
+    provider_message = _resolve_safe_provider_message(error)
     if normalized_kind.startswith("provider_") and provider_message:
         return provider_message
 
-    mapped_detail = {
-        "provider_bad_response": _("ai.request_failed"),
-        "provider_http_5xx": _("ai.error.provider_server_error"),
-        "provider_rate_limit": _("ai.error.provider_rate_limit"),
-        "provider_timeout": _("ai.error.provider_timeout"),
-        "provider_unavailable": _("ai.error.provider_connection"),
-    }.get(normalized_kind)
+    mapped_detail = _mapped_provider_failure_public_detail(normalized_kind)
     if mapped_detail:
         return mapped_detail
 
-    sanitized_error = strip_stream_error_trace(error)
     lowered_error = sanitized_error.lower()
-    if any(
-        token in lowered_error
-        for token in (
-            "cancellederror",
-            "cancelled via cancel scope",
-            "cancel scope",
-            "client disconnected",
-            "disconnect",
-            "connection reset",
-            "broken pipe",
-        )
-    ):
+    if any(token in lowered_error for token in STREAM_INTERRUPTION_TOKENS):
         return None
     if "fallback" in lowered_error:
         return _("ai.stream.error.fallback_failed")
-    if sanitized_error and sanitized_error != _("common.server_error"):
+    if (
+        sanitized_error
+        and sanitized_error != _("common.server_error")
+        and not looks_like_html_document_text(sanitized_error)
+    ):
         return sanitized_error
     return None
 
@@ -108,18 +120,7 @@ def build_stream_error_display(
     if error_type == "none":
         error_type = ""
     if not error_type:
-        if any(
-            token in lowered_error
-            for token in (
-                "cancellederror",
-                "cancelled via cancel scope",
-                "cancel scope",
-                "client disconnected",
-                "disconnect",
-                "connection reset",
-                "broken pipe",
-            )
-        ):
+        if any(token in lowered_error for token in STREAM_INTERRUPTION_TOKENS):
             error_type = "stream_interrupted"
         elif "fallback" in lowered_error:
             error_type = "stream_fallback_error"
@@ -139,4 +140,3 @@ def build_stream_error_display(
         ),
         "trace_id": get_current_trace_id(),
     }
-

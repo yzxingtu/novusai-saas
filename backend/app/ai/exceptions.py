@@ -29,6 +29,7 @@ class AIGatewayError(Exception):
         provider_code: str | None = None,
         model_code: str | None = None,
         error_code: str | None = None,
+        status_code: int | None = None,
         retry_after: int | None = None,
         original_error: Exception | None = None,
     ):
@@ -41,6 +42,7 @@ class AIGatewayError(Exception):
             provider_code: Provider code (e.g. openai_compatible) / 供应商代码
             model_code: Model code (e.g. gpt-4) / 模型代码
             error_code: Provider original error code / 供应商原始错误码
+            status_code: Effective upstream HTTP status / 实际上游 HTTP 状态码
             retry_after: Suggested retry wait seconds / 建议重试等待秒数
             original_error: Original exception object / 原始异常对象
         """
@@ -48,6 +50,7 @@ class AIGatewayError(Exception):
         self.provider_code = provider_code
         self.model_code = model_code
         self.error_code = error_code or self.__class__.error_code
+        self.status_code = int(status_code or self.__class__.status_code)
         self.retry_after = retry_after
         self.original_error = original_error
         super().__init__(self.message)
@@ -190,9 +193,22 @@ def _extract_message_from_payload(payload: object) -> str | None:
 
     for candidate in candidates:
         text = str(candidate or "").strip()
-        if text:
+        if text and not looks_like_html_document_text(text):
             return text
     return None
+
+
+def looks_like_html_document_text(text: object | None) -> bool:
+    preview = str(text or "").lstrip().lower()
+    return bool(
+        preview
+        and (
+            preview.startswith("<!doctype")
+            or preview.startswith("<html")
+            or preview.startswith("<head")
+            or preview.startswith("<body")
+        )
+    )
 
 
 def extract_provider_error_message(error: object | None) -> str | None:
@@ -219,7 +235,7 @@ def extract_provider_error_message(error: object | None) -> str | None:
 
     message_attr = getattr(error, "message", None)
     text = str(message_attr or "").strip()
-    if text:
+    if text and not looks_like_html_document_text(text):
         return text
 
     return None
@@ -249,6 +265,7 @@ def convert_openai_error(
         AuthenticationError,
         BadRequestError,
         NotFoundError,
+        PermissionDeniedError,
         RateLimitError,
     )
 
@@ -275,6 +292,15 @@ def convert_openai_error(
         return ProviderAuthError(
             message=provider_message or _("ai.error.provider_auth"),
             error_code=getattr(error, "code", None),
+            status_code=401,
+            **kwargs,
+        )
+
+    if isinstance(error, PermissionDeniedError):
+        return ProviderAuthError(
+            message=provider_message or _("ai.error.provider_auth"),
+            error_code=getattr(error, "code", None) or "permission_denied",
+            status_code=403,
             **kwargs,
         )
 
@@ -334,6 +360,7 @@ def convert_openai_error(
             return ProviderError(
                 message=provider_message or _("ai.error.image_url_inaccessible"),
                 error_code="image_url_inaccessible",
+                status_code=400,
                 **kwargs,
             )
         # Check if vision/image_url not supported by model / 检查模型是否不支持图片
@@ -343,26 +370,37 @@ def convert_openai_error(
             return ProviderError(
                 message=provider_message or _("ai.error.vision_not_supported"),
                 error_code="vision_not_supported",
+                status_code=400,
                 **kwargs,
             )
         return ProviderError(
             message=provider_message or _("ai.request_failed"),
             error_code=getattr(error, "code", None),
+            status_code=400,
             **kwargs,
         )
 
     if isinstance(error, APIStatusError):
         status = getattr(error, "status_code", 500)
+        if status in {401, 403}:
+            return ProviderAuthError(
+                message=provider_message or _("ai.error.provider_auth"),
+                error_code=getattr(error, "code", None) or str(status),
+                status_code=status,
+                **kwargs,
+            )
         # HTTP 5xx → Provider server error / 供应商服务端错误
         if 500 <= status < 600:
             return ProviderError(
                 message=provider_message or _("ai.error.provider_server_error"),
                 error_code=str(status),
+                status_code=status,
                 **kwargs,
             )
         return ProviderError(
             message=provider_message or _("ai.request_failed"),
             error_code=str(status),
+            status_code=status,
             **kwargs,
         )
 
@@ -420,5 +458,6 @@ __all__ = [
     "convert_openai_error",
     # Utility functions / 工具函数
     "extract_provider_error_message",
+    "looks_like_html_document_text",
     "is_retryable",
 ]

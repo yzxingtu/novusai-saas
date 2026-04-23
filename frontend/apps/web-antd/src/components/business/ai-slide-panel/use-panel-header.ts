@@ -13,6 +13,7 @@ import {
   compactChatConversationApi,
   getChatConversationTimelineApi,
 } from '#/api/shared/ai-chat';
+import { useDiagnosticsPolicy } from '#/composables/use-diagnostics-policy';
 import { $t } from '#/locales';
 import { getAgentInputVariables } from '#/types/ai-chat';
 import { getErrorMessage } from '#/utils/error-helpers';
@@ -53,6 +54,9 @@ export function usePanelHeader(options: UsePanelHeaderOptions) {
   const timelineLoading = ref(false);
   const timelineRefreshing = ref(false);
   const compactingContext = ref(false);
+  const { showDiagnostics } = useDiagnosticsPolicy({
+    apiPrefix: options.apiPrefix,
+  });
 
   async function onToggleMemory() {
     if (options.showMemoryPanel.value) {
@@ -199,14 +203,16 @@ export function usePanelHeader(options: UsePanelHeaderOptions) {
     }
 
     if (options.activeConversationId.value) {
-      items.push(
-        {
+      if (showDiagnostics.value) {
+        items.push({
           key: 'context-diagnostics',
           label: $t('common.globalAiChat.contextDiagnostics'),
           onClick: () => {
             openContextDrawer();
           },
-        },
+        });
+      }
+      items.push(
         {
           key: 'run-timeline',
           label: $t('common.globalAiChat.runTimeline'),

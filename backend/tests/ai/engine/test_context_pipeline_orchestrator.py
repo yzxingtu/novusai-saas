@@ -1,3 +1,9 @@
+"""Test type: behavioral
+Scope: ContextPipelineOrchestrator intent flags and memory policy gating behavior
+Real dependencies: ContextPipelineOrchestrator, resolve_memory_runtime_policy, intent_plan_gating_flags
+Mocked dependencies: None
+"""
+
 from types import SimpleNamespace
 
 from app.ai.context.orchestrator import ContextPipelineOrchestrator
@@ -135,6 +141,28 @@ def test_resolve_memory_runtime_policy_allows_clean_turn_to_clear_seeded_polluti
     assert (
         policy.long_term_memory_capture_state == "disabled_missing_conversation_scope"
     )
+
+
+def test_resolve_memory_runtime_policy_does_not_pollute_from_planned_web_research_only() -> (
+    None
+):
+    request = _request(
+        memory_enabled=True,
+        long_term_memory_enabled=True,
+    )
+
+    policy = resolve_memory_runtime_policy(
+        request,
+        result=SimpleNamespace(
+            tool_results=[],
+            intent_plan=[SimpleNamespace(kind="web_research", family="web_research")],
+            tool_planner={"family": "web_research"},
+        ),
+    )
+
+    assert policy.external_context_polluted is False
+    assert policy.thread_memory_owner_state == "active"
+    assert policy.long_term_memory_recall_state == "enabled"
 
 
 def test_intent_plan_gating_flags_keeps_web_research_signal() -> None:

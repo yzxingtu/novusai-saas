@@ -417,12 +417,6 @@ export type PageContextSuggestedTool =
   | 'ui_set_field'
   | 'ui_submit_form';
 
-export interface PageContextSuggestedTools {
-  primary: PageContextSuggestedTool[];
-  reason?: string;
-  secondary?: PageContextSuggestedTool[];
-}
-
 export interface PageContextNavigationCatalogEntry {
   breadcrumb: string[];
   capabilities?: string[];
@@ -435,6 +429,20 @@ export interface PageContextNavigationCatalogEntry {
   title: string;
 }
 
+export interface PageContextSearchInputAffordance {
+  field_name?: string;
+  label?: string;
+  locator: string;
+  placeholder?: string;
+}
+
+export interface PageContextVisibleTableAffordance {
+  column_count?: number;
+  label?: string;
+  locator: string;
+  row_count?: number;
+}
+
 export interface PageContextPageData {
   entity_description?: string;
   locale?: string;
@@ -445,6 +453,8 @@ export interface PageContextPageData {
     page_key?: string;
     path?: string;
   };
+  search_inputs?: PageContextSearchInputAffordance[];
+  visible_tables?: PageContextVisibleTableAffordance[];
 }
 
 export interface PageContext {
@@ -456,7 +466,6 @@ export interface PageContext {
   page_key: string;
   page_session_id?: string;
   page_title?: string;
-  suggested_tools?: PageContextSuggestedTools;
   surface_stack?: PageSurfaceSummary[];
   ui_epoch?: number;
 }

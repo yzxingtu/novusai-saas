@@ -5,13 +5,18 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from app.ai.runtime.contracts import PAGE_CONTEXT_KEY
+from app.ai.text_semantics import (
+    extract_cjk_bigram_and_word_tokens,
+    normalize_match_text,
+)
 from app.ai.tools.semantic_defaults import (
     page_context_available_ui_tools,
+    page_context_has_runtime_state,
     tool_semantic_family,
 )
 from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage
-from app.ai.runtime.contracts import PAGE_CONTEXT_KEY
 
 
 @dataclass(frozen=True)
@@ -26,6 +31,42 @@ class _IntentSignal:
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
+_ROUTING_SEMANTIC_STOPWORDS = frozenset(
+    {
+        "",
+        "请",
+        "请问",
+        "帮我",
+        "麻烦",
+        "麻烦你",
+        "一下",
+        "一下子",
+        "一下下",
+        "帮",
+        "我",
+        "你",
+        "他",
+        "她",
+        "它",
+        "这",
+        "这个",
+        "那个",
+        "当前",
+        "现在",
+        "一下吧",
+        "the",
+        "this",
+        "that",
+        "please",
+        "help",
+        "with",
+        "for",
+        "and",
+        "then",
+    }
+)
+
+
 def _last_user_text(messages: list[ChatMessage]) -> str:
     for message in reversed(messages):
         if message.role == "user":
@@ -37,9 +78,7 @@ def _has_page_context(input_variables: dict[str, Any] | None) -> bool:
     if not isinstance(input_variables, dict):
         return False
     page_context = input_variables.get(PAGE_CONTEXT_KEY)
-    return isinstance(page_context, dict) and bool(
-        str(page_context.get("page_key") or "").strip()
-    )
+    return isinstance(page_context, dict) and page_context_has_runtime_state(page_context)
 
 
 def _page_operation_names(input_variables: dict[str, Any] | None) -> set[str]:
@@ -58,7 +97,7 @@ def _tool_families(
         for tool in tools
         if tool_semantic_family(tool, input_variables) != "none"
     }
-    if input_variables and _has_page_context(input_variables):
+    if _page_operation_names(input_variables):
         families.add("page_ops")
     return families
 
@@ -94,6 +133,62 @@ def _first_position(text: str, candidates: tuple[str, ...]) -> int:
     return min(positions) if positions else -1
 
 
+def _semantic_tokens(
+    text: str,
+    *,
+    stopwords: set[str] | frozenset[str] | None = None,
+) -> set[str]:
+    blocked = set(_ROUTING_SEMANTIC_STOPWORDS)
+    if stopwords:
+        blocked.update(normalize_match_text(item) for item in stopwords if item)
+    raw_tokens = extract_cjk_bigram_and_word_tokens(
+        normalize_match_text(text),
+        stopwords=blocked,
+    )
+    return {token for token in raw_tokens if len(token) >= 2}
+
+
+def _semantic_profile_position(
+    text: str,
+    profiles: tuple[str, ...],
+    *,
+    min_score: int = 2,
+    stopwords: set[str] | frozenset[str] | None = None,
+) -> int:
+    normalized = normalize_match_text(text)
+    if not normalized:
+        return -1
+
+    text_tokens = _semantic_tokens(normalized, stopwords=stopwords)
+    if not text_tokens:
+        return -1
+
+    best_score = 0
+    best_position = -1
+    for profile in profiles:
+        profile_tokens = _semantic_tokens(profile, stopwords=stopwords)
+        if not profile_tokens:
+            continue
+        overlap = text_tokens & profile_tokens
+        score = len(overlap)
+        if score < min_score:
+            continue
+        position_candidates = [
+            normalized.find(token)
+            for token in overlap
+            if token and normalized.find(token) >= 0
+        ]
+        position = min(position_candidates) if position_candidates else -1
+        if score > best_score or (
+            score == best_score
+            and position >= 0
+            and (best_position < 0 or position < best_position)
+        ):
+            best_score = score
+            best_position = position
+    return best_position
+
+
 __all__ = [
     "_IntentSignal",
     "_continuation_families",
@@ -101,5 +196,7 @@ __all__ = [
     "_has_page_context",
     "_last_user_text",
     "_page_operation_names",
+    "_semantic_profile_position",
+    "_semantic_tokens",
     "_tool_families",
 ]

@@ -93,10 +93,7 @@ def enrich_skill_capability_descriptors_with_tools(
                 fallback_bucket.append(tool_name)
 
     for descriptor in descriptors:
-        if str(descriptor.kind or "").strip() not in {
-            "capability_pack",
-            "prompt_skill",
-        }:
+        if str(descriptor.kind or "").strip() != "capability_pack":
             continue
         binding_key = _descriptor_binding_key(descriptor)
         if binding_key[0] == "name_source" and not binding_key[1]:

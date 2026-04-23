@@ -36,12 +36,8 @@ class PromptContractName(StrEnum):
 
     # --- Tool runtime & contract recovery / 工具运行时与契约恢复 ---
     TOOL_RUNTIME_SUMMARY = "tool_runtime_summary"
-    TOOL_USAGE_RULES = "tool_usage_rules"
     CONTRACT_RECOVERY = "contract_recovery"
     PARTIAL_EXIT = "partial_exit"
-
-    # --- Page operation hints / 页面操作提示 ---
-    PAGE_OPERATIONS_DEDICATED = "page_operations_dedicated"
 
     # --- Domain capability blocks (web / weather / time) / 领域能力块 ---
     WEB_RESEARCH = "web_research"
@@ -51,8 +47,6 @@ class PromptContractName(StrEnum):
     # --- Turn capability & research state / 轮次能力与调研状态 ---
     CAPABILITY_REPORTING = "capability_reporting"
     TURN_CAPABILITIES = "turn_capabilities"
-    ORDERED_CAPABILITY_INTENT = "ordered_capability_intent"
-    RESEARCH_STATE = "research_state"
 
     # --- Fetch gate / 抓取门禁 ---
     FETCH_URL_GATE = "fetch_url_gate"
@@ -111,11 +105,6 @@ _PROMPT_CONTRACTS: dict[str, PromptContractSpec] = {
         template_name="tool_runtime_summary.md",
         description="Compact orchestration runtime summary for the current turn.",
     ),
-    PromptContractName.TOOL_USAGE_RULES.value: PromptContractSpec(
-        name=PromptContractName.TOOL_USAGE_RULES,
-        template_name="tool_usage_rules.md",
-        description="Compact tool execution rules used when capability summary is suppressed.",
-    ),
     PromptContractName.CONTRACT_RECOVERY.value: PromptContractSpec(
         name=PromptContractName.CONTRACT_RECOVERY,
         template_name="contract_recovery.md",
@@ -125,12 +114,6 @@ _PROMPT_CONTRACTS: dict[str, PromptContractSpec] = {
         name=PromptContractName.PARTIAL_EXIT,
         template_name="partial_exit.md",
         description="User-facing summary returned when orchestration exits partially.",
-    ),
-    # --- Dedicated page-op block / 专用页面操作块 ---
-    PromptContractName.PAGE_OPERATIONS_DEDICATED.value: PromptContractSpec(
-        name=PromptContractName.PAGE_OPERATIONS_DEDICATED,
-        template_name="page_operations_dedicated.md",
-        description="Dedicated page operations guidance block.",
     ),
     # --- Domain capability blocks (web / weather / time) / 领域能力块 ---
     PromptContractName.WEB_RESEARCH.value: PromptContractSpec(
@@ -158,16 +141,6 @@ _PROMPT_CONTRACTS: dict[str, PromptContractSpec] = {
         name=PromptContractName.TURN_CAPABILITIES,
         template_name="turn_capabilities.md",
         description="Turn-specific runtime capability block.",
-    ),
-    PromptContractName.ORDERED_CAPABILITY_INTENT.value: PromptContractSpec(
-        name=PromptContractName.ORDERED_CAPABILITY_INTENT,
-        template_name="ordered_capability_intent.md",
-        description="Ordered multi-capability intent block.",
-    ),
-    PromptContractName.RESEARCH_STATE.value: PromptContractSpec(
-        name=PromptContractName.RESEARCH_STATE,
-        template_name="research_state.md",
-        description="Research continuation state block.",
     ),
     # --- Fetch-before-summary gate / 先抓取再总结门禁 ---
     PromptContractName.FETCH_URL_GATE.value: PromptContractSpec(

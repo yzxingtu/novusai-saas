@@ -1,7 +1,16 @@
+"""
+Test type: behavioral
+Scope: Intent planner page-workflow routing and domain suppression behavior.
+Mocked dependencies: none.
+"""
+
 from types import SimpleNamespace
 
-from app.ai.engine.intent_planner import IntentPlanner
-from app.ai.engine.types import ResearchContinuationContext
+from app.ai.engine.intent_planner import (
+    IntentPlanner,
+    _prune_navigation_preface_summaries,
+)
+from app.ai.engine.types import IntentPlan, ResearchContinuationContext
 from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage
 
@@ -64,6 +73,56 @@ def _page_continuation_context(
     )
 
 
+def _runtime_page_context(page_key: str, **extra) -> dict:
+    page_context = {
+        "page_key": page_key,
+        "page_session_id": f"{page_key}-session",
+        "ui_epoch": 1,
+        "suggested_tools": {
+            "primary": [
+                "ui_get_snapshot",
+                "ui_read_region",
+                "ui_read_table",
+                "ui_list_interactables",
+                "ui_click",
+                "ui_open_surface",
+                "ui_get_form_state",
+                "ui_fill_form",
+                "ui_submit_form",
+            ]
+        },
+    }
+    page_context.update(extra)
+    return page_context
+
+
+def _runtime_page_intent(
+    *,
+    kind: str = "page_workflow",
+    workflow_goal: str,
+    workflow_alias: str,
+    source_text: str = "继续看看",
+    status: str = "pending",
+) -> dict:
+    return {
+        "intent_id": "intent-1",
+        "kind": kind,
+        "family": "page_ops",
+        "order": 1,
+        "user_visible_label": workflow_alias,
+        "source_text": source_text,
+        "status": status,
+        "requires_tools": True,
+        "allow_text_response": False,
+        "continuation": False,
+        "shortcircuit": workflow_goal == "page_summary",
+        "metadata": {
+            "page_workflow_kind": "page_workflow",
+            "page_workflow_goal": workflow_goal,
+        },
+    }
+
+
 def _kb_capability_bundle() -> SimpleNamespace:
     return SimpleNamespace(context_sources=[{"kind": "knowledge_base"}])
 
@@ -80,7 +139,7 @@ def test_intent_planner_returns_direct_reply_for_smalltalk_after_page_flow() -> 
     intents = _plan(
         "你真聪明",
         tools=_tools(),
-        input_variables={"page_context": {"page_key": "admin.ai.api-keys"}},
+        input_variables={"page_context": _runtime_page_context("admin.ai.api-keys")},
         messages=[
             ChatMessage(role="user", content="打开这个页面"),
             ChatMessage(
@@ -137,19 +196,58 @@ def test_intent_planner_detects_page_summary_when_page_context_is_present() -> N
     intents = _plan(
         "看看本页面的内容然后总结一下",
         tools=_tools(),
-        input_variables={"page_context": {"page_key": "admin.ai.api-keys"}},
+        input_variables={"page_context": _runtime_page_context("admin.ai.api-keys")},
     )
 
     assert [intent.family for intent in intents] == ["page_ops"]
     assert intents[0].kind == "page_summary"
     assert intents[0].shortcircuit is True
+    assert intents[0].metadata.get("page_workflow_kind") == "page_workflow"
+    assert intents[0].metadata.get("routing_mode") == "deterministic_shortcircuit"
+    assert intents[0].metadata.get("routing_provenance") == "page_summary_shortcircuit"
+
+
+def test_intent_planner_prefers_navigation_over_click_preface_summary() -> None:
+    intents = _plan(
+        "请点击页面上的“查看 AI 使用分析”，然后告诉我当前进入了什么页面。",
+        tools=_tools(),
+        input_variables={"page_context": _runtime_page_context("admin.dashboard")},
+    )
+
+    assert [intent.kind for intent in intents] == ["page_navigation"]
+
+
+def test_navigation_preface_pruning_uses_page_workflow_metadata() -> None:
+    plans = [
+        IntentPlan(
+            **_runtime_page_intent(
+                workflow_goal="page_summary",
+                workflow_alias="page_summary",
+                source_text="请点击页面上的“查看 AI 使用分析”，然后告诉我当前进入了什么页面。",
+            )
+        ),
+        IntentPlan(
+            **_runtime_page_intent(
+                workflow_goal="navigation",
+                workflow_alias="page_navigation",
+                source_text="请点击页面上的“查看 AI 使用分析”，然后告诉我当前进入了什么页面。",
+            )
+        ),
+    ]
+
+    pruned = _prune_navigation_preface_summaries(plans)
+
+    assert len(pruned) == 1
+    assert pruned[0].kind == "page_workflow"
+    assert pruned[0].metadata.get("page_workflow_goal") == "navigation"
+    assert "page_workflow_intent_alias" not in pruned[0].metadata
 
 
 def test_intent_planner_detects_readonly_form_probe_as_page_form_read() -> None:
     intents = _plan(
         "请帮我点击添加技能，看看表单里有哪些必填项，但不要提交",
         tools=_tools(),
-        input_variables={"page_context": {"page_key": "admin.ai.skills"}},
+        input_variables={"page_context": _runtime_page_context("admin.ai.skills")},
     )
 
     assert [intent.kind for intent in intents] == ["page_form_read"]
@@ -160,10 +258,10 @@ def test_intent_planner_detects_active_form_field_listing_as_page_form_read() ->
         "当前有哪些字段",
         tools=_tools(),
         input_variables={
-            "page_context": {
-                "page_key": "admin.ai.skills",
-                "active_form_session_id": "form-session-1",
-            }
+            "page_context": _runtime_page_context(
+                "admin.ai.skills",
+                active_form_session_id="form-session-1",
+            )
         },
     )
 
@@ -178,7 +276,7 @@ def test_intent_planner_recognizes_memory_recall_and_readonly_guidance() -> None
     intents = IntentPlanner.plan_turn(
         messages=[ChatMessage(role="user", content=user_text)],
         tools=_tools(),
-        input_variables={"page_context": {"page_key": "admin.ai.api-keys"}},
+        input_variables={"page_context": _runtime_page_context("admin.ai.api-keys")},
         continuation_context=None,
         capability_bundle=None,
     )
@@ -195,7 +293,9 @@ def test_intent_planner_does_not_pollute_memory_recall_with_generic_save_verbs()
     intents = _plan(
         "如果你有真正的跨对话长期记忆，请回答我之前让你保存的暗号；如果没有真正召回长期记忆，只回答 NO_RECALL。",
         tools=_tools(),
-        input_variables={"page_context": {"page_key": "admin.ai.conversations"}},
+        input_variables={
+            "page_context": _runtime_page_context("admin.runtime.records")
+        },
     )
 
     assert [intent.kind for intent in intents] == ["memory_recall"]
@@ -205,7 +305,9 @@ def test_intent_planner_does_not_pollute_memory_save_with_page_form_write() -> N
     intents = _plan(
         "请把“跨对话暗号是 蓝莓雨伞 418J”存入长期记忆，后面我会来问你。",
         tools=_tools(),
-        input_variables={"page_context": {"page_key": "admin.ai.conversations"}},
+        input_variables={
+            "page_context": _runtime_page_context("admin.runtime.records")
+        },
     )
 
     assert [intent.kind for intent in intents] == ["memory_save"]
@@ -215,7 +317,9 @@ def test_intent_planner_routes_audit_memory_save_prompt_to_memory_save_only() ->
     intents = _plan(
         "CASE-MEM-SAVE-CLEAN-0418X 请把这个代号写入长期记忆：纸月亮0418X。不要使用页面内容。最终只回答 SAVED_0418X，不要加任何别的字。",
         tools=_tools(),
-        input_variables={"page_context": {"page_key": "admin.ai.skill-packages"}},
+        input_variables={
+            "page_context": _runtime_page_context("admin.ai.skill-packages")
+        },
     )
 
     assert [intent.kind for intent in intents] == ["memory_save"]
@@ -230,18 +334,38 @@ def test_intent_planner_detects_memory_save_intent() -> None:
     assert intents[0].family == "memory"
     assert intents[0].requires_tools is False
     assert intents[0].shortcircuit is True
+    assert intents[0].metadata.get("routing_mode") == "deterministic_shortcircuit"
 
 
 def test_intent_planner_detects_page_continuation_summary_for_continue_look() -> None:
     intents = _plan(
         "继续看",
         tools=_tools(),
-        input_variables={"page_context": {"page_key": "admin.ai.api-keys"}},
+        input_variables={"page_context": _runtime_page_context("admin.ai.api-keys")},
         continuation=_page_continuation_context(current_user_text="继续看"),
     )
 
     assert [intent.family for intent in intents] == ["page_ops"]
     assert intents[0].kind == "page_summary"
+    assert intents[0].continuation is True
+    assert "page_workflow_intent_alias" not in intents[0].metadata
+    assert intents[0].metadata.get("routing_mode") == "deterministic_shortcircuit"
+
+
+def test_intent_planner_detects_page_continuation_click_request_as_navigation() -> (
+    None
+):
+    intents = _plan(
+        "点击一下添加供应商",
+        tools=_tools(),
+        input_variables={"page_context": _runtime_page_context("admin.ai.providers")},
+        continuation=_page_continuation_context(
+            current_user_text="点击一下添加供应商"
+        ),
+    )
+
+    assert [intent.family for intent in intents] == ["page_ops"]
+    assert intents[0].kind == "page_navigation"
     assert intents[0].continuation is True
 
 
@@ -268,7 +392,7 @@ def test_intent_planner_detects_page_screenshot_request() -> None:
     intents = _plan(
         "帮我把当前页面截图发出来",
         tools=_tools(),
-        input_variables={"page_context": {"page_key": "admin.ai.api-keys"}},
+        input_variables={"page_context": _runtime_page_context("admin.ai.api-keys")},
     )
 
     assert [intent.kind for intent in intents] == ["page_screenshot"]
@@ -278,7 +402,9 @@ def test_intent_planner_detects_editor_write_request() -> None:
     intents = _plan(
         "帮我修改当前编辑器标题并追加一段总结",
         tools=_tools(),
-        input_variables={"page_context": {"page_key": "admin.ai.knowledge-bases"}},
+        input_variables={
+            "page_context": _runtime_page_context("admin.ai.knowledge-bases")
+        },
     )
 
     assert [intent.kind for intent in intents] == ["page_editor_write"]
@@ -288,7 +414,7 @@ def test_intent_planner_keeps_capability_self_report_prompt_as_direct_reply() ->
     intents = _plan(
         "先简单介绍一下你自己，并说明你是否能查询天气、调用技能和执行页面操作。",
         tools=_tools_with_weather(),
-        input_variables={"page_context": {"page_key": "admin.dashboard"}},
+        input_variables={"page_context": _runtime_page_context("admin.dashboard")},
     )
 
     assert [intent.kind for intent in intents] == ["direct_reply"]
@@ -299,7 +425,7 @@ def test_intent_planner_respects_explicit_no_tool_instruction_for_long_writing()
     intents = _plan(
         "请只用中文写一篇至少2500字的长文，分成标题、正文和结尾三个部分，不要调用任何工具。",
         tools=_tools_with_weather(),
-        input_variables={"page_context": {"page_key": "admin.dashboard"}},
+        input_variables={"page_context": _runtime_page_context("admin.dashboard")},
     )
 
     assert [intent.kind for intent in intents] == ["direct_reply"]
@@ -310,17 +436,27 @@ def test_intent_planner_detects_page_pagination_request() -> None:
     intents = _plan(
         "把列表翻到下一页",
         tools=_tools(),
-        input_variables={"page_context": {"page_key": "admin.ai.logs"}},
+        input_variables={"page_context": _runtime_page_context("admin.ai.logs")},
     )
 
     assert [intent.kind for intent in intents] == ["page_pagination"]
+
+
+def test_intent_planner_detects_colloquial_page_summary_request() -> None:
+    intents = _plan(
+        "这里都有啥？",
+        tools=_tools(),
+        input_variables={"page_context": _runtime_page_context("admin.ai.agents")},
+    )
+
+    assert [intent.kind for intent in intents] == ["page_summary"]
 
 
 def test_intent_planner_detects_page_row_detail_request() -> None:
     intents = _plan(
         "查看这条记录的详情",
         tools=_tools(),
-        input_variables={"page_context": {"page_key": "admin.ai.logs"}},
+        input_variables={"page_context": _runtime_page_context("admin.ai.logs")},
     )
 
     assert [intent.kind for intent in intents] == ["page_row_detail"]
@@ -332,7 +468,7 @@ def test_intent_planner_detects_cross_page_navigation_from_menu_semantics() -> N
         tools=_tools(),
         input_variables={
             "page_context": {
-                "page_key": "admin.ai.conversations",
+                **_runtime_page_context("admin.runtime.records"),
                 "page_data": {
                     "navigation_catalog": [
                         {
@@ -355,7 +491,17 @@ def test_intent_planner_keeps_page_form_write_when_user_mentions_records() -> No
     intents = _plan(
         "请帮我新增一条记录",
         tools=_tools(),
-        input_variables={"page_context": {"page_key": "admin.ai.skills"}},
+        input_variables={"page_context": _runtime_page_context("admin.ai.skills")},
+    )
+
+    assert [intent.kind for intent in intents] == ["page_form_write"]
+
+
+def test_intent_planner_treats_add_vendor_click_request_as_page_form_write() -> None:
+    intents = _plan(
+        "帮我点击一下添加供应商 添加一个测试的供应商",
+        tools=_tools(),
+        input_variables={"page_context": _runtime_page_context("admin.ai.providers")},
     )
 
     assert [intent.kind for intent in intents] == ["page_form_write"]
@@ -365,7 +511,9 @@ def test_intent_planner_treats_skill_binding_request_as_page_form_write() -> Non
     intents = _plan(
         "帮我给这个页面的智能体绑定几个技能测试一下",
         tools=_tools(),
-        input_variables={"page_context": {"page_key": "admin.ai.agent.detail"}},
+        input_variables={
+            "page_context": _runtime_page_context("admin.ai.agent.detail")
+        },
     )
 
     assert [intent.kind for intent in intents] == ["page_form_write"]
@@ -377,7 +525,19 @@ def test_intent_planner_prefers_page_search_over_web_search_inside_page_context(
     intents = _plan(
         "请帮我搜索记录并清空筛选条件",
         tools=_tools(),
-        input_variables={"page_context": {"page_key": "admin.ai.logs"}},
+        input_variables={"page_context": _runtime_page_context("admin.ai.logs")},
+    )
+
+    assert [intent.kind for intent in intents] == ["page_search"]
+
+
+def test_intent_planner_keeps_page_search_with_weather_keyword_inside_page_context() -> (
+    None
+):
+    intents = _plan(
+        "帮我搜索一下包含'天气'的记录",
+        tools=_tools(),
+        input_variables={"page_context": _runtime_page_context("admin.ai.logs")},
     )
 
     assert [intent.kind for intent in intents] == ["page_search"]
@@ -389,7 +549,7 @@ def test_intent_planner_keeps_generic_search_as_web_research_inside_page_context
     intents = _plan(
         "帮我搜索一下2026年中国新能源汽车销量排行",
         tools=_tools(),
-        input_variables={"page_context": {"page_key": "admin.ai.logs"}},
+        input_variables={"page_context": _runtime_page_context("admin.ai.logs")},
     )
 
     assert [intent.kind for intent in intents] == ["web_research"]
@@ -401,7 +561,7 @@ def test_intent_planner_prefers_web_research_for_explicit_url_inside_page_contex
     intents = _plan(
         "请打开 https://docs.python.org/3/whatsnew/3.13.html 并概括重点，要求基于实际抓取内容回答",
         tools=_tools(),
-        input_variables={"page_context": {"page_key": "admin.ai.logs"}},
+        input_variables={"page_context": _runtime_page_context("admin.ai.logs")},
     )
 
     assert [intent.kind for intent in intents] == ["web_research"]
@@ -411,7 +571,7 @@ def test_intent_planner_keeps_fetch_url_only_request_out_of_page_intents() -> No
     intents = _plan(
         "必须只使用 fetch_url 抓取 https://example.com ，不要联网搜索，也不要参考当前页面；只回答 标题：...；摘要：...；若没实际调用 fetch_url 就回答 NO_FETCH。",
         tools=_tools(),
-        input_variables={"page_context": {"page_key": "admin.ai.logs"}},
+        input_variables={"page_context": _runtime_page_context("admin.ai.logs")},
     )
 
     assert [intent.kind for intent in intents] == ["web_research"]
@@ -423,7 +583,7 @@ def test_intent_planner_splits_shunbian_and_duile_mixed_prompt() -> None:
     intents = _plan(
         "帮我查一下北京天气，顺便搜索一下今天的热点新闻，对了这个页面上有什么",
         tools=_tools_with_weather(),
-        input_variables={"page_context": {"page_key": "admin.ai.agents"}},
+        input_variables={"page_context": _runtime_page_context("admin.ai.agents")},
     )
 
     assert [intent.kind for intent in intents] == [
@@ -567,3 +727,5 @@ def test_intent_planner_ignores_page_phrasing_without_page_context() -> None:
     assert intents[0].family == "none"
     assert intents[0].kind == "direct_reply"
     assert intents[0].shortcircuit is True
+
+

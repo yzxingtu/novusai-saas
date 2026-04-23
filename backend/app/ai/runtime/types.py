@@ -11,7 +11,6 @@ from app.ai.tools.types import ToolDefinition
 
 CapabilityKind = Literal[
     "capability_pack",
-    "prompt_skill",
     "execution_tool",
     "context_provider",
 ]
@@ -40,7 +39,7 @@ TerminationReason = Literal[
 
 def is_skill_descriptor_kind(kind: str | None) -> bool:
     normalized = str(kind or "").strip()
-    return normalized in {"capability_pack", "prompt_skill"}
+    return normalized == "capability_pack"
 
 
 @dataclass
@@ -220,7 +219,7 @@ def project_capability_bundle_to_tools(
     )
 
 
-def prompt_skill_descriptor_is_live(descriptor: Any) -> bool:
+def capability_pack_descriptor_is_live(descriptor: Any) -> bool:
     kind = str(getattr(descriptor, "kind", "") or "").strip()
     name = str(getattr(descriptor, "name", "") or "").strip()
     if not is_skill_descriptor_kind(kind) or not name:
@@ -249,7 +248,7 @@ def collect_selected_skill_names(
     names: list[str] = []
 
     for descriptor in descriptors or []:
-        if not prompt_skill_descriptor_is_live(descriptor):
+        if not capability_pack_descriptor_is_live(descriptor):
             continue
         skill_name = str(getattr(descriptor, "name", "") or "").strip()
         if skill_name and skill_name not in names:

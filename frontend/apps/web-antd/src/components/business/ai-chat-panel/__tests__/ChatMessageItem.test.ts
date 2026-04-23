@@ -1,4 +1,7 @@
 // @vitest-environment happy-dom
+// Test type: behavioral
+// Verifies: assistant chat messages render canonical turnFlow process UX,
+// inline thinking/tool content, and final-answer transitions without stale process artifacts.
 import type {
   ChatMessage,
   RichTextAISelectionSnapshot,
@@ -19,6 +22,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildTurnFlowState } from '#/components/business/ai-chat-kernel/TurnFlowState';
 
 import ChatMessageItem from '../ChatMessageItem.vue';
+import ChatMessageFooter from '../ChatMessageFooter.vue';
+import ChatMessageThinkingBlock from '../ChatMessageThinkingBlock.vue';
+import ChatMessageToolCalls from '../ChatMessageToolCalls.vue';
 
 interface PendingPageOpTest {
   invokeId: string;
@@ -68,12 +74,12 @@ function createAssistantMsg(toolCalls: ToolCallEvent[] = []): ChatMessage {
   const runningCount = toolCalls.filter(
     (toolCall) => toolCall.status === 'running',
   ).length;
-  const stageStatus =
-    runningCount > 0
-      ? 'running'
-      : failedCount > 0
-        ? 'error'
-        : 'completed';
+  let stageStatus: 'completed' | 'error' | 'running' = 'completed';
+  if (runningCount > 0) {
+    stageStatus = 'running';
+  } else if (failedCount > 0) {
+    stageStatus = 'error';
+  }
   const turnFlow =
     toolCalls.length > 0
       ? createTurnFlow({
@@ -81,7 +87,9 @@ function createAssistantMsg(toolCalls: ToolCallEvent[] = []): ChatMessage {
             id: toolCall.id ?? `tool-${index + 1}`,
             kind: 'tool',
             ...(toolCall.arguments ? { arguments: toolCall.arguments } : {}),
-            ...(toolCall.displayName ? { displayName: toolCall.displayName } : {}),
+            ...(toolCall.displayName
+              ? { displayName: toolCall.displayName }
+              : {}),
             ...(toolCall.durationMs === undefined
               ? {}
               : { durationMs: toolCall.durationMs }),
@@ -493,7 +501,7 @@ describe('chatMessageItem', () => {
     );
   });
 
-  it('renders streamed thinking content separately', async () => {
+  it('renders streamed thinking content inline inside the turn transcript', async () => {
     const wrapper = mount(ChatMessageItem, {
       props: {
         msg: {
@@ -528,15 +536,17 @@ describe('chatMessageItem', () => {
     });
 
     await wrapper.vm.$nextTick();
-    expect(wrapper.text()).toContain('common.globalAiChat.thinking');
-    expect(wrapper.text()).toContain('先检查上下文，再决定下一步。');
     expect(
-      wrapper.get('[data-testid="thinking-body"]').attributes('style'),
-    ).toContain('grid-template-rows: 1fr');
+      wrapper.find('[data-testid="thinking-embedded-body"]').exists(),
+    ).toBe(true);
+    expect(wrapper.find('[data-testid="thinking-toggle"]').exists()).toBe(
+      false,
+    );
+    expect(wrapper.text()).toContain('先检查上下文，再决定下一步。');
   });
 
-  it('renders a compact thinking trigger after streaming completes and expands on demand', async () => {
-    const wrapper = mount(ChatMessageItem, {
+  it('renders a compact thinking trigger after streaming completes and expands on demand in default mode', async () => {
+    const wrapper = mount(ChatMessageThinkingBlock, {
       props: {
         msg: {
           clientKey: 'assistant-thinking-finished',
@@ -558,10 +568,10 @@ describe('chatMessageItem', () => {
         },
         index: 0,
         compact: true,
+        embedded: false,
       },
       global: {
         stubs: {
-          AgentProfilePopover: true,
           MarkdownRender: {
             props: ['content'],
             template: '<div>{{ content }}</div>',
@@ -589,9 +599,9 @@ describe('chatMessageItem', () => {
     ).toContain('grid-template-rows: 1fr');
   });
 
-  it('delays thinking auto-collapse briefly so the close animation is visible', async () => {
+  it('delays thinking auto-collapse briefly so the close animation is visible in default mode', async () => {
     vi.useFakeTimers();
-    const wrapper = mount(ChatMessageItem, {
+    const wrapper = mount(ChatMessageThinkingBlock, {
       props: {
         msg: {
           clientKey: 'assistant-thinking-auto-collapse',
@@ -611,10 +621,10 @@ describe('chatMessageItem', () => {
         },
         index: 0,
         compact: true,
+        embedded: false,
       },
       global: {
         stubs: {
-          AgentProfilePopover: true,
           MarkdownRender: {
             props: ['content'],
             template: '<div>{{ content }}</div>',
@@ -657,6 +667,53 @@ describe('chatMessageItem', () => {
     ).toContain('grid-template-rows: 0fr');
   });
 
+  it('renders embedded thinking content inline without nested toggle chrome', async () => {
+    const wrapper = mount(ChatMessageThinkingBlock, {
+      props: {
+        msg: {
+          clientKey: 'assistant-thinking-embedded',
+          role: 'assistant',
+          content: '',
+          turnFlow: createTurnFlow({
+            timeline: [
+              {
+                detailLines: ['先检查上下文，再决定下一步。'],
+                id: 'stage-thinking-embedded',
+                status: 'completed',
+                type: 'thinking',
+              },
+            ],
+          }),
+        },
+        index: 0,
+        compact: true,
+        embedded: true,
+      },
+      global: {
+        stubs: {
+          MarkdownRender: {
+            props: ['content'],
+            template: '<div>{{ content }}</div>',
+          },
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('[data-testid="thinking-toggle"]').exists()).toBe(
+      false,
+    );
+    expect(wrapper.find('[data-testid="thinking-body"]').exists()).toBe(false);
+    expect(
+      wrapper.get('[data-testid="thinking-embedded-body"]').classes(),
+    ).toContain('thinking-inline-body');
+    expect(
+      wrapper.get('[data-testid="thinking-embedded-body"]').text(),
+    ).toContain('先检查上下文，再决定下一步。');
+  });
+
   it('renders @ route badge for one-time mention messages', async () => {
     const wrapper = mount(ChatMessageItem, {
       props: {
@@ -682,6 +739,79 @@ describe('chatMessageItem', () => {
 
     await wrapper.vm.$nextTick();
     expect(wrapper.text()).toContain('@ 猫娘智能体');
+  });
+
+  it('does not render a duplicated assistant agent title row inside the message header', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: {
+          clientKey: 'assistant-no-agent-title-row',
+          role: 'assistant',
+          content: '已经整理好了答案。',
+          agent_id: 2,
+          agent_name: '猫娘智能体',
+          turnFlow: createTurnFlow({
+            timeline: [
+              {
+                id: 'stage-thinking',
+                status: 'completed',
+                summary: '已完成思考',
+                type: 'thinking',
+              },
+            ],
+          }),
+        },
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: true,
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain('已完成思考');
+    expect(wrapper.text()).not.toContain('猫娘智能体');
+  });
+
+  it('keeps the compact assistant footer minimal by hiding usage stats', async () => {
+    const wrapper = mount(ChatMessageFooter, {
+      props: {
+        compact: true,
+        index: 0,
+        msg: {
+          clientKey: 'assistant-compact-footer',
+          role: 'assistant',
+          content: '最终答复',
+          created_at: '2026-04-24T10:00:00Z',
+          durationMs: 5230,
+          tokenUsage: 128,
+        } as ChatMessage,
+      },
+      global: {
+        stubs: {
+          ATooltip: defineComponent({
+            name: 'ATooltipStub',
+            template: '<div><slot /></div>',
+          }),
+          IconifyIcon: true,
+          Tooltip: defineComponent({
+            name: 'TooltipStub',
+            template: '<div><slot /></div>',
+          }),
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).not.toContain('common.globalAiChat.tokens');
+    expect(wrapper.text()).not.toContain('5.2s');
   });
 
   it('renders the rich text draft card and re-emits rich text draft actions', async () => {
@@ -786,8 +916,8 @@ describe('chatMessageItem', () => {
     );
   });
 
-  it('renders tool target badges and toggles tool details with animated state', async () => {
-    const wrapper = mount(ChatMessageItem, {
+  it('renders tool target badges and toggles tool details with animated state in default mode', async () => {
+    const wrapper = mount(ChatMessageToolCalls, {
       props: {
         msg: createAssistantMsg([
           {
@@ -805,11 +935,10 @@ describe('chatMessageItem', () => {
         ]),
         index: 0,
         compact: true,
+        embedded: false,
       },
       global: {
         stubs: {
-          AgentProfilePopover: true,
-          MarkdownRender: true,
           IconifyIcon: true,
         },
       },
@@ -857,8 +986,87 @@ describe('chatMessageItem', () => {
     expect(wrapper.text()).toContain('common.globalAiChat.rawResult');
   });
 
-  it('renders structured web search results directly from summary payload', async () => {
-    const wrapper = mount(ChatMessageItem, {
+  it('renders structured args and returned payload details before the raw result toggle in default mode', async () => {
+    const wrapper = mount(ChatMessageToolCalls, {
+      props: {
+        msg: createAssistantMsg([
+          {
+            name: 'sync_contacts',
+            status: 'success',
+            arguments: {
+              tenant_code: 'northwind',
+              filters: {
+                owner: 'ops',
+                status: 'active',
+              },
+              record_ids: [101, 202, 303],
+            },
+            output: JSON.stringify({
+              result: {
+                skipped: 1,
+                trace_id: 'trace-123',
+                updated: true,
+              },
+              records: [
+                {
+                  name: 'Northwind',
+                  status: 'ok',
+                  total: 12,
+                },
+                {
+                  name: 'Contoso',
+                  status: 'ok',
+                  total: 9,
+                },
+              ],
+            }),
+          },
+        ]),
+        index: 0,
+        compact: true,
+        embedded: false,
+      },
+      global: {
+        stubs: {
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+    await wrapper.get('[data-testid="tool-call-toggle-0"]').trigger('click');
+    await wrapper.vm.$nextTick();
+
+    const argumentFields = wrapper.findAll('[data-testid^="tool-arg-field-"]');
+    expect(argumentFields).toHaveLength(3);
+    expect(argumentFields[0]?.text()).toContain('tenant_code');
+    expect(argumentFields[0]?.text()).toContain('northwind');
+    expect(argumentFields[1]?.text()).toContain('filters');
+    expect(argumentFields[1]?.text()).toContain('owner');
+    expect(argumentFields[1]?.text()).toContain('ops');
+    expect(argumentFields[1]?.text()).toContain('status');
+    expect(argumentFields[1]?.text()).toContain('active');
+    expect(argumentFields[2]?.text()).toContain('record_ids');
+    expect(argumentFields[2]?.text()).toContain('101');
+    expect(argumentFields[2]?.text()).toContain('202');
+    expect(argumentFields[2]?.text()).toContain('303');
+
+    const outputFields = wrapper.findAll('[data-testid^="tool-output-field-"]');
+    expect(outputFields).toHaveLength(2);
+    expect(outputFields[0]?.text()).toContain('result');
+    expect(outputFields[0]?.text()).toContain('updated');
+    expect(outputFields[0]?.text()).toContain('true');
+    expect(outputFields[0]?.text()).toContain('trace-123');
+    expect(outputFields[1]?.text()).toContain('records');
+    expect(outputFields[1]?.text()).toContain('Northwind');
+    expect(outputFields[1]?.text()).toContain('total: 12');
+    expect(outputFields[1]?.text()).toContain('Contoso');
+    expect(outputFields[1]?.text()).toContain('total: 9');
+    expect(wrapper.text()).toContain('common.globalAiChat.rawResult');
+  });
+
+  it('renders structured web search results directly from summary payload in default mode', async () => {
+    const wrapper = mount(ChatMessageToolCalls, {
       props: {
         msg: createAssistantMsg([
           {
@@ -890,11 +1098,10 @@ describe('chatMessageItem', () => {
         ]),
         index: 0,
         compact: true,
+        embedded: false,
       },
       global: {
         stubs: {
-          AgentProfilePopover: true,
-          MarkdownRender: true,
           IconifyIcon: true,
         },
       },
@@ -955,8 +1162,8 @@ describe('chatMessageItem', () => {
     expect(resultLink.text()).not.toContain('https://example.com/result-1');
   });
 
-  it('does not display a fake zero result count for native search summaries without counts', async () => {
-    const wrapper = mount(ChatMessageItem, {
+  it('does not display a fake zero result count for native search summaries without counts in default mode', async () => {
+    const wrapper = mount(ChatMessageToolCalls, {
       props: {
         msg: createAssistantMsg([
           {
@@ -970,11 +1177,10 @@ describe('chatMessageItem', () => {
         ]),
         index: 0,
         compact: true,
+        embedded: false,
       },
       global: {
         stubs: {
-          AgentProfilePopover: true,
-          MarkdownRender: true,
           IconifyIcon: true,
         },
       },
@@ -995,8 +1201,8 @@ describe('chatMessageItem', () => {
     ).toBe(false);
   });
 
-  it('tool group card collapses when all tools are completed', async () => {
-    const wrapper = mount(ChatMessageItem, {
+  it('tool group card collapses when all tools are completed in default mode', async () => {
+    const wrapper = mount(ChatMessageToolCalls, {
       props: {
         msg: createAssistantMsg([
           { name: 'web_search', status: 'success' },
@@ -1004,11 +1210,10 @@ describe('chatMessageItem', () => {
         ]),
         index: 0,
         compact: true,
+        embedded: false,
       },
       global: {
         stubs: {
-          AgentProfilePopover: true,
-          MarkdownRender: true,
           IconifyIcon: true,
         },
       },
@@ -1019,17 +1224,16 @@ describe('chatMessageItem', () => {
     expect(body.attributes('style') ?? '').toContain('grid-template-rows: 0fr');
   });
 
-  it('tool group card toggles on click', async () => {
-    const wrapper = mount(ChatMessageItem, {
+  it('tool group card toggles on click in default mode', async () => {
+    const wrapper = mount(ChatMessageToolCalls, {
       props: {
         msg: createAssistantMsg([{ name: 'web_search', status: 'success' }]),
         index: 0,
         compact: true,
+        embedded: false,
       },
       global: {
         stubs: {
-          AgentProfilePopover: true,
-          MarkdownRender: true,
           IconifyIcon: true,
         },
       },
@@ -1051,8 +1255,70 @@ describe('chatMessageItem', () => {
     expect(body.attributes('style') ?? '').toContain('grid-template-rows: 0fr');
   });
 
-  it('tool group auto-collapses when streaming ends', async () => {
-    const wrapper = mount(ChatMessageItem, {
+  it('renders embedded tool calls as inline transcript rows with inline expandable details', async () => {
+    const wrapper = mount(ChatMessageToolCalls, {
+      props: {
+        msg: createAssistantMsg([
+          {
+            name: 'web_search',
+            status: 'success',
+            resultLink: 'https://example.com/result-1',
+            summaryPayload: {
+              result_count: 2,
+              items: [
+                {
+                  title: '示例搜索结果一',
+                  url: 'https://example.com/result-1',
+                },
+              ],
+            },
+          },
+        ]),
+        index: 0,
+        compact: true,
+        embedded: true,
+      },
+      global: {
+        stubs: {
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('[data-testid="tool-group-toggle"]').exists()).toBe(
+      false,
+    );
+    expect(wrapper.find('[data-testid="tool-call-toggle-0"]').exists()).toBe(
+      true,
+    );
+    expect(
+      wrapper.get('[data-testid="tool-group-body"]').attributes('style'),
+    ).toContain('grid-template-rows: 1fr');
+    expect(
+      wrapper.get('[data-testid="tool-call-details-0"]').attributes('style'),
+    ).toContain('grid-template-rows: 0fr');
+    expect(
+      wrapper.get('[data-testid="tool-call-embedded-0"]').text(),
+    ).toContain('common.globalAiChat.toolStatusOk');
+    expect(
+      wrapper.get('[data-testid="tool-call-embedded-0"]').text(),
+    ).toContain('common.globalAiChat.toolSearchResults: 2');
+    expect(
+      wrapper.get('[data-testid="tool-call-embedded-0"]').text(),
+    ).toContain('common.globalAiChat.viewResult');
+
+    await wrapper.get('[data-testid="tool-call-toggle-0"]').trigger('click');
+    await wrapper.vm.$nextTick();
+
+    expect(
+      wrapper.get('[data-testid="tool-call-details-0"]').attributes('style'),
+    ).toContain('grid-template-rows: 1fr');
+  });
+
+  it('tool group auto-collapses when streaming ends in default mode', async () => {
+    const wrapper = mount(ChatMessageToolCalls, {
       props: {
         msg: {
           ...createAssistantMsg([{ name: 'web_search', status: 'running' }]),
@@ -1061,11 +1327,10 @@ describe('chatMessageItem', () => {
         },
         index: 0,
         compact: true,
+        embedded: false,
       },
       global: {
         stubs: {
-          AgentProfilePopover: true,
-          MarkdownRender: true,
           IconifyIcon: true,
         },
       },
@@ -1147,11 +1412,10 @@ describe('chatMessageItem', () => {
 
     expect(
       wrapper.find('[data-testid="chat-message-kernel-timeline"]').exists(),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       wrapper.find('[data-testid="chat-message-kernel-evidence"]').exists(),
     ).toBe(true);
-    expect(wrapper.text()).toContain('15 个工具中筛选了 0 个');
     expect(wrapper.text()).toContain('已按可验证来源整理结论');
     expect(wrapper.text()).not.toContain('https://example.com/ref');
 
@@ -1380,7 +1644,7 @@ describe('chatMessageItem', () => {
     );
   });
 
-  it('accepts answer card sections using content field from backend turn_flow', async () => {
+  it('accepts answer card sections using content field from backend turn_flow when no summary is present', async () => {
     const wrapper = mount(ChatMessageItem, {
       props: {
         msg: {
@@ -1396,7 +1660,6 @@ describe('chatMessageItem', () => {
               },
             ],
             answerCard: {
-              summary: '结构化结论',
               sections: [
                 {
                   title: '政策要点',
@@ -1472,8 +1735,6 @@ describe('chatMessageItem', () => {
         .exists(),
     ).toBe(true);
     expect(wrapper.text()).toContain('正在整理本轮结果');
-    expect(wrapper.text()).toContain('提炼核心结论');
-    expect(wrapper.text()).toContain('补充执行建议');
 
     const settledMessage: ChatMessage = {
       clientKey: 'assistant-turn-flow-provisional-answer-card',
@@ -1500,8 +1761,9 @@ describe('chatMessageItem', () => {
 
     expect(
       wrapper.find('[data-testid="chat-message-kernel-evidence"]').exists(),
-    ).toBe(true);
-    expect(wrapper.text()).toContain('已完成答案整理');
+    ).toBe(false);
+    expect(wrapper.text()).not.toContain('提炼核心结论');
+    expect(wrapper.text()).not.toContain('补充执行建议');
 
     const canonicalMessage: ChatMessage = {
       clientKey: 'assistant-turn-flow-provisional-answer-card',
@@ -1535,7 +1797,7 @@ describe('chatMessageItem', () => {
     await wrapper.vm.$nextTick();
 
     expect(wrapper.text()).toContain('这是正式 answerCard 摘要');
-    expect(wrapper.text()).toContain('这是正式结构化整理内容');
+    expect(wrapper.text()).not.toContain('这是正式结构化整理内容');
     expect(
       wrapper
         .find('[data-testid="chat-message-kernel-evidence-live-state"]')
@@ -1685,7 +1947,7 @@ describe('chatMessageItem', () => {
     await wrapper.vm.$nextTick();
 
     expect(
-      wrapper.get('[data-testid="turn-stage-body-0"]').attributes('style') ??
+      wrapper.get('[data-testid="turn-process-body"]').attributes('style') ??
         '',
     ).toContain('grid-template-rows: 1fr');
 
@@ -1713,11 +1975,9 @@ describe('chatMessageItem', () => {
     await wrapper.vm.$nextTick();
 
     expect(
-      wrapper.get('[data-testid="turn-stage-body-0"]').attributes('style') ??
-        '',
-    ).toContain('grid-template-rows: 1fr');
-
-    expect(wrapper.text()).toContain('15 个工具中筛选了 0 个');
+      wrapper.find('[data-testid="chat-message-kernel-timeline"]').exists(),
+    ).toBe(false);
+    expect(wrapper.text()).not.toContain('15 个工具中筛选了 0 个');
   });
 
   it('forwards answer_assembly transitions into the kernel timeline when stage has body content', async () => {
@@ -1758,7 +2018,7 @@ describe('chatMessageItem', () => {
     await wrapper.vm.$nextTick();
 
     expect(
-      wrapper.get('[data-testid="turn-stage-body-0"]').attributes('style') ??
+      wrapper.get('[data-testid="turn-process-body"]').attributes('style') ??
         '',
     ).toContain('grid-template-rows: 1fr');
 
@@ -1792,19 +2052,11 @@ describe('chatMessageItem', () => {
     await wrapper.vm.$nextTick();
 
     expect(
-      wrapper.get('[data-testid="turn-stage-body-0"]').attributes('style') ??
-        '',
-    ).toContain('grid-template-rows: 1fr');
-
-    expect(wrapper.text()).toContain('已完成答案整理');
-
-    vi.advanceTimersByTime(220);
-    await wrapper.vm.$nextTick();
-
+      wrapper.find('[data-testid="chat-message-kernel-evidence"]').exists(),
+    ).toBe(false);
     expect(
-      wrapper.get('[data-testid="turn-stage-body-0"]').attributes('style') ??
-        '',
-    ).toContain('grid-template-rows: 0fr');
+      wrapper.find('[data-testid="chat-message-kernel-timeline"]').exists(),
+    ).toBe(false);
   });
 
   it('keeps interrupted terminal stages compact when the kernel timeline rerenders through ChatMessageItem', async () => {
@@ -1875,12 +2127,7 @@ describe('chatMessageItem', () => {
     await wrapper.vm.$nextTick();
 
     expect(
-      wrapper.get('[data-testid="turn-stage-body-0"]').attributes('style') ??
-        '',
-    ).toContain('grid-template-rows: 1fr');
-
-    expect(
-      wrapper.get('[data-testid="turn-stage-body-1"]').attributes('style') ??
+      wrapper.get('[data-testid="turn-process-body"]').attributes('style') ??
         '',
     ).toContain('grid-template-rows: 0fr');
 
@@ -1927,11 +2174,7 @@ describe('chatMessageItem', () => {
 
     await wrapper.vm.$nextTick();
 
-    const firstStageToggle = wrapper.get('[data-testid="turn-stage-toggle-0"]');
-    expect(firstStageToggle.text()).toContain(
-      'common.globalAiChat.turnStageStatus.completed',
-    );
-    expect(firstStageToggle.text()).not.toContain(
+    expect(wrapper.text()).not.toContain(
       'common.globalAiChat.turnStageStatus.running',
     );
   });
@@ -1985,7 +2228,7 @@ describe('chatMessageItem', () => {
       'common.globalAiChat.turnRetrievalSummary',
     );
     expect(
-      wrapper.get('[data-testid="turn-stage-body-0"]').attributes('style') ??
+      wrapper.get('[data-testid="turn-process-body"]').attributes('style') ??
         '',
     ).toContain('grid-template-rows: 1fr');
   });
@@ -2023,9 +2266,8 @@ describe('chatMessageItem', () => {
     await wrapper.vm.$nextTick();
 
     expect(
-      wrapper.get('[data-testid="turn-stage-body-0"]').attributes('style') ??
-        '',
-    ).toContain('grid-template-rows: 0fr');
+      wrapper.find('[data-testid="chat-message-kernel-timeline"]').exists(),
+    ).toBe(false);
   });
 
   it('keeps historical answer_assembly stages compact by default after completion', async () => {
@@ -2073,7 +2315,7 @@ describe('chatMessageItem', () => {
     await wrapper.vm.$nextTick();
 
     expect(
-      wrapper.get('[data-testid="turn-stage-body-1"]').attributes('style') ??
+      wrapper.get('[data-testid="turn-process-body"]').attributes('style') ??
         '',
     ).toContain('grid-template-rows: 0fr');
   });
@@ -2111,9 +2353,8 @@ describe('chatMessageItem', () => {
     await wrapper.vm.$nextTick();
 
     expect(
-      wrapper.get('[data-testid="turn-stage-body-0"]').attributes('style') ??
-        '',
-    ).toContain('grid-template-rows: 0fr');
+      wrapper.find('[data-testid="chat-message-kernel-timeline"]').exists(),
+    ).toBe(false);
   });
 
   it('does not render legacy fallback sections when turnFlow is missing', async () => {
@@ -2202,6 +2443,48 @@ describe('chatMessageItem', () => {
     ).toBe(true);
   });
 
+  it('renders the merged digest header before transcript content for assistant messages', async () => {
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: {
+          clientKey: 'assistant-transcript-first-order',
+          role: 'assistant' as const,
+          content: '最终答复正文',
+          turnFlow: createTurnFlow({
+            timeline: [
+              {
+                id: 'stage-thinking',
+                type: 'thinking',
+                status: 'completed',
+                summary: '已完成思考',
+              },
+            ],
+          }),
+        },
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: {
+            props: ['content'],
+            template:
+              '<div data-testid="markdown-render-content">{{ content }}</div>',
+          },
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    const html = wrapper.html();
+    expect(
+      html.indexOf('data-testid="chat-message-kernel-header"'),
+    ).toBeLessThan(html.indexOf('data-testid="markdown-render-content"'));
+  });
+
   it('hides persisted body text when the turn failed with untrusted final output', async () => {
     const leakedSnippet = 'Fetched reddit.json leaked snippet';
     const wrapper = mount(ChatMessageItem, {
@@ -2260,6 +2543,77 @@ describe('chatMessageItem', () => {
       ),
     ).toBe(false);
     expect(wrapper.text()).not.toContain(leakedSnippet);
+  });
+
+  it('hides raw provider html bodies when the turn ended in provider failure', async () => {
+    const leakedHtml = `<!DOCTYPE html>
+<html lang="en-US">
+<head><title>asxs.top | 502: Bad gateway</title></head>
+<body>
+<div>Bad gateway</div>
+<div>Cloudflare Ray ID: 9f0605e63a38f548</div>
+</body>
+</html>`;
+    const wrapper = mount(ChatMessageItem, {
+      props: {
+        msg: {
+          clientKey: 'assistant-provider-html-history',
+          role: 'assistant' as const,
+          content: leakedHtml,
+          turnFlow: createTurnFlow({
+            completion_reason: 'provider_error',
+            error_surface: {
+              error_type: 'provider_error',
+              message: 'AI 供应商服务端错误',
+              trace_id: 'trace-provider-html',
+            },
+            failure_kind: 'provider_error',
+            final_stage_status: 'error',
+            turn_outcome: 'failed',
+            timeline: [
+              {
+                id: 'stage-answer',
+                type: 'answer_assembly',
+                status: 'error',
+                summary: '答复生成失败',
+              },
+              {
+                id: 'stage-terminal',
+                type: 'failed',
+                status: 'error',
+                summary: 'provider_error',
+              },
+            ],
+          }),
+        },
+        index: 0,
+        compact: true,
+      },
+      global: {
+        stubs: {
+          AgentProfilePopover: true,
+          MarkdownRender: {
+            props: ['content'],
+            template:
+              '<div data-testid="markdown-render-content">{{ content }}</div>',
+          },
+          IconifyIcon: true,
+        },
+      },
+    });
+
+    await wrapper.vm.$nextTick();
+
+    const renderedMarkdownBlocks = wrapper.findAll(
+      '[data-testid="markdown-render-content"]',
+    );
+    expect(
+      renderedMarkdownBlocks.some((block) =>
+        block.text().includes('Bad gateway'),
+      ),
+    ).toBe(false);
+    expect(wrapper.text()).not.toContain('Bad gateway');
+    expect(wrapper.text()).not.toContain('Cloudflare Ray ID');
   });
 
   it('shows a folded-message hint for very long replies', async () => {

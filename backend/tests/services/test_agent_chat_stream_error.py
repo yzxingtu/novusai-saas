@@ -185,6 +185,19 @@ def test_build_stream_error_display_keeps_traceable_provider_detail() -> None:
     assert display["error_type"] == "provider_rate_limit"
 
 
+def test_build_stream_error_display_suppresses_html_provider_payload() -> None:
+    from app.core.i18n import _
+    from app.services.ai.agent_chat_service import AgentChatService
+
+    display = AgentChatService._build_stream_error_display(
+        "<!DOCTYPE html><html><body>Bad gateway<div>Cloudflare Ray ID: 123</div></body></html>",
+        failure_kind="provider_http_5xx",
+    )
+
+    assert display["message"] == _("ai.error.provider_server_error")
+    assert display["debug_message"] == _("ai.error.provider_server_error")
+
+
 async def _build_stream_service(mock_db):
     from app.services.ai.agent_chat_service import AgentChatService
     from app.services.ai.agent_chat_stream_runtime_dependencies import (

@@ -1,7 +1,6 @@
 import type {
   ActiveFormSummary,
   PageContext,
-  PageContextSuggestedTools,
   PageSurfaceKind,
   PageSurfaceSummary,
 } from '#/api/shared/ai-chat';
@@ -36,7 +35,6 @@ export interface UISnapshotInput {
   active_surface_id?: string;
   form_sessions?: ActiveFormSummary[];
   nodes: UISnapshotNodeInput[];
-  suggested_tools?: PageContextSuggestedTools;
   surface_stack: UISnapshotSurfaceInput[];
   ui_epoch: number;
 }
@@ -63,7 +61,6 @@ export interface UISnapshot {
   mode: UISnapshotMode;
   nodes: UISnapshotNode[];
   size_bytes: number;
-  suggested_tools?: PageContextSuggestedTools;
   surface_stack: PageSurfaceSummary[];
   truncated: boolean;
   ui_epoch: number;
@@ -299,7 +296,6 @@ export class UISnapshotGenerator {
       page_key: args.pageKey,
       page_session_id: args.pageSessionId,
       page_title: args.pageTitle,
-      suggested_tools: args.snapshot.suggested_tools,
       surface_stack: args.snapshot.surface_stack,
       ui_epoch: args.snapshot.ui_epoch,
     };
@@ -347,7 +343,6 @@ export class UISnapshotGenerator {
       mode,
       nodes: normalizeNodes(input.nodes, mode, this.options),
       size_bytes: 0,
-      suggested_tools: input.suggested_tools,
       surface_stack: surfaceStack,
       truncated: false,
       ui_epoch:

@@ -15,7 +15,10 @@ from app.models.ai.call_log import AICallLog
 from app.services.ai.conversation_turn_flow_projector import (
     ConversationTurnFlowProjector,
 )
-from app.services.ai.turn_failure_normalizer import resolve_failure_projection
+from app.services.ai.turn_failure_normalizer import (
+    extract_page_workflow_context,
+    resolve_failure_projection,
+)
 
 _BUDGET_TERMINATION_REASONS = {
     "budget_exit",
@@ -27,6 +30,26 @@ _BUDGET_TERMINATION_REASONS = {
     "tool_result_budget_exceeded",
     "candidate_tool_budget_exceeded",
 }
+_PROVIDER_GATEWAY_FAILURE_KINDS = {
+    "provider_timeout",
+    "provider_unavailable",
+    "provider_http_5xx",
+    "provider_gateway_error",
+    "provider_bad_response",
+    "provider_rate_limit",
+}
+_PROVIDER_HTTP_5XX_ERROR_TOKENS = (
+    "bad gateway",
+    "gateway timeout",
+    "service unavailable",
+    "server error",
+    "server_error",
+    "服务端错误",
+    "服务暂不可用",
+    "502",
+    "503",
+    "504",
+)
 
 
 class RuntimeRootCauseProjector:
@@ -37,7 +60,11 @@ class RuntimeRootCauseProjector:
 
     @staticmethod
     def _call_log_request_metadata(call_log: AICallLog | None) -> dict[str, Any]:
-        raw = getattr(call_log, "request_metadata", None) if call_log is not None else None
+        raw = (
+            getattr(call_log, "request_metadata", None)
+            if call_log is not None
+            else None
+        )
         return dict(raw) if isinstance(raw, dict) else {}
 
     @classmethod
@@ -50,7 +77,9 @@ class RuntimeRootCauseProjector:
         return dict(raw_turn_record) if isinstance(raw_turn_record, dict) else {}
 
     @classmethod
-    def _call_log_turn_record_metadata(cls, call_log: AICallLog | None) -> dict[str, Any]:
+    def _call_log_turn_record_metadata(
+        cls, call_log: AICallLog | None
+    ) -> dict[str, Any]:
         turn_record = cls._call_log_turn_record(call_log)
         raw_metadata = turn_record.get("metadata")
         return dict(raw_metadata) if isinstance(raw_metadata, dict) else {}
@@ -324,7 +353,8 @@ class RuntimeRootCauseProjector:
             token in merged_names for token in ("weather", "天气")
         )
         has_web_capability = any(
-            token in merged_names for token in ("web_search", "fetch_url", "search", "搜索")
+            token in merged_names
+            for token in ("web_search", "fetch_url", "search", "搜索")
         )
         return bool(
             (looks_like_time and has_time_capability)
@@ -429,6 +459,7 @@ class RuntimeRootCauseProjector:
         )
         planner_intent = str(tool_planner.get("intent") or "").strip()
         continuation_source = str(diagnostics.get("continuation_source") or "").strip()
+        page_workflow = extract_page_workflow_context(diagnostics)
         provider_events = list(diagnostics.get("provider_events") or [])
         retry_events = list(diagnostics.get("retry_events") or [])
         selected_tools = list(diagnostics.get("selected_tool_names") or [])
@@ -445,13 +476,29 @@ class RuntimeRootCauseProjector:
         research_like = cls.is_research_like_diagnostics(diagnostics)
         false_direct_reply = cls.has_false_direct_reply_signal(diagnostics)
         has_non_budget_provider_event = any(
-            str(
-                (event.get("kind") if isinstance(event, dict) else event) or ""
-            ).strip()
+            str((event.get("kind") if isinstance(event, dict) else event) or "").strip()
             not in {"", "budget_exit"}
             for event in provider_events
         )
         lower_error = error_message.lower()
+        if failure_kind in {"", "provider_gateway_error"} and any(
+            token in lower_error for token in _PROVIDER_HTTP_5XX_ERROR_TOKENS
+        ):
+            failure_kind = "provider_http_5xx"
+        has_provider_gateway_signal = bool(
+            failure_kind in _PROVIDER_GATEWAY_FAILURE_KINDS
+            or has_non_budget_provider_event
+            or any(
+                token in lower_error
+                for token in (
+                    "provider",
+                    "upstream",
+                    "timeout",
+                    "rate limit",
+                    "api key",
+                )
+            )
+        )
         call_log_turn_record = cls._call_log_turn_record(call_log)
         call_log_turn_record_metadata = cls._call_log_turn_record_metadata(call_log)
         protocol_fallback_blocked_reason = str(
@@ -524,6 +571,7 @@ class RuntimeRootCauseProjector:
         if (
             normalized_projection.get("non_trusted_final_output_source")
             and not has_budget_exit_signal
+            and not has_provider_gateway_signal
         ):
             return (
                 "post_processing",
@@ -533,9 +581,9 @@ class RuntimeRootCauseProjector:
                 0.9,
             )
         if (
-            continuation_source == "page_ops"
+            (continuation_source == "page_ops" or page_workflow.get("is_page_ops"))
             and conversation_outcome in {"failed", "partial"}
-            and planner_intent != "page_summary"
+            and not bool(page_workflow.get("summary_like"))
             and not selected_tools
         ):
             return (
@@ -546,10 +594,14 @@ class RuntimeRootCauseProjector:
                 0.9,
             )
         if (
-            (termination_reason == "retry_budget_exhausted")
-            or (budget_exit_reason == "retry_budget_exhausted")
-            or (partial_exit_reason == "retry_budget_exhausted")
-        ) and unfinished_intents:
+            (
+                (termination_reason == "retry_budget_exhausted")
+                or (budget_exit_reason == "retry_budget_exhausted")
+                or (partial_exit_reason == "retry_budget_exhausted")
+            )
+            and unfinished_intents
+            and not has_provider_gateway_signal
+        ):
             return (
                 "research_contract" if research_like else "post_processing",
                 "retry_budget_exhausted_with_unfinished_intents",
@@ -557,7 +609,12 @@ class RuntimeRootCauseProjector:
                 "Start with the unfinished-intent retry policy and stop finalizing the turn while required tool work is still missing.",
                 0.95,
             )
-        if conversation_outcome == "partial" and research_like and unfinished_intents:
+        if (
+            conversation_outcome == "partial"
+            and research_like
+            and unfinished_intents
+            and not has_provider_gateway_signal
+        ):
             return (
                 "research_contract",
                 "research_partial_finalized_by_orchestrator",
@@ -582,7 +639,7 @@ class RuntimeRootCauseProjector:
                 "Start with the stream handler and final output contract reconciliation for this trace.",
                 0.9,
             )
-        if unfinished_intents:
+        if unfinished_intents and not has_provider_gateway_signal:
             return (
                 "research_contract",
                 failure_kind or "unfinished_intents",
@@ -617,10 +674,7 @@ class RuntimeRootCauseProjector:
                 "Inspect upstream provider latency/timeout behavior first; this trace failed before visible model output, not during post-processing.",
                 0.97,
             )
-        if has_non_budget_provider_event or any(
-            token in lower_error
-            for token in ("provider", "upstream", "timeout", "rate limit", "api key")
-        ):
+        if has_provider_gateway_signal:
             return (
                 "provider_gateway",
                 failure_kind or "provider_gateway_error",
@@ -628,9 +682,8 @@ class RuntimeRootCauseProjector:
                 "Inspect provider events, model routing, and upstream credentials for this trace first.",
                 0.84,
             )
-        if (
-            not has_budget_exit_signal
-            and (selected_tools or "tool" in failure_kind or "tool" in lower_error)
+        if not has_budget_exit_signal and (
+            selected_tools or "tool" in failure_kind or "tool" in lower_error
         ):
             return (
                 "tool_execution",
@@ -705,6 +758,7 @@ class RuntimeRootCauseProjector:
             conversation_turn=conversation_turn,
             call_log=call_log,
         )
+        page_workflow = extract_page_workflow_context(diagnostics)
         normalized_projection = resolve_failure_projection(
             diagnostics=diagnostics,
             turn_flow=turn_flow,
@@ -724,6 +778,7 @@ class RuntimeRootCauseProjector:
         append("conversation_outcome", diagnostics.get("conversation_outcome"))
         append("termination_reason", diagnostics.get("termination_reason"))
         append("tool_planner", diagnostics.get("tool_planner"))
+        append("page_workflow", page_workflow)
         append("active_intent_id", diagnostics.get("active_intent_id"))
         append("continuation_source", diagnostics.get("continuation_source"))
         append("failure_kind", diagnostics.get("failure_kind"))
@@ -792,7 +847,9 @@ class RuntimeRootCauseProjector:
             reason = str(check.get("reason") or "").strip()
             name = str(check.get("name") or "").strip()
             if status == "unavailable":
-                actions.append(f"Restore `{name}` before relying on runtime diagnostics.")
+                actions.append(
+                    f"Restore `{name}` before relying on runtime diagnostics."
+                )
             elif status == "degraded" and reason:
                 actions.append(f"Investigate `{name}` degradation: {reason}.")
 

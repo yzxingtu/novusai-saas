@@ -40,7 +40,7 @@ from app.ai.runtime.contracts import (
     ContextCapabilityBridge,
     ContextCapabilityInputs,
 )
-from app.ai.skills.turn_activation import apply_turn_skill_activation
+from app.ai.skills.activation import apply_turn_skill_activation
 from app.ai.types import ChatMessage
 from app.core.base_model import utc_now
 from app.core.logging import LogManager

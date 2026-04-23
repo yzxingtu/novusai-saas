@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-_MODEL_FC_BLOCK_START = "<｜DSML｜function_calls>"
-_MODEL_FC_BLOCK_END = "</｜DSML｜function_calls>"
+_MODEL_FC_BLOCK_MARKERS = (
+    ("<｜DSML｜function_calls>", "</｜DSML｜function_calls>"),
+    ("<｜DSML｜tool_calls>", "</｜DSML｜tool_calls>"),
+)
 _MODEL_FC_TAG_PREFIXES = ("<｜", "</｜")
 
 _TRAILING_REPLY_PUNCTUATION = frozenset({"!", ".", "?", "！", "。", "？", "…"})
@@ -118,6 +120,8 @@ _TOOL_PLANNING_LEAK_TERMS = (
     "正在调用",
     "调用 ",
     "then ",
+    "<｜dsml｜tool_calls>",
+    "<｜dsml｜invoke",
 )
 _FORBID_INSTRUCTION_TERMS = (
     "不要",
@@ -265,15 +269,16 @@ def strip_model_function_call_markup(text: str | None) -> str:
         return raw
 
     cleaned = raw
-    while True:
-        start = cleaned.find(_MODEL_FC_BLOCK_START)
-        if start < 0:
-            break
-        end = cleaned.find(_MODEL_FC_BLOCK_END, start + len(_MODEL_FC_BLOCK_START))
-        if end < 0:
-            cleaned = cleaned[:start]
-            break
-        cleaned = cleaned[:start] + cleaned[end + len(_MODEL_FC_BLOCK_END) :]
+    for block_start, block_end in _MODEL_FC_BLOCK_MARKERS:
+        while True:
+            start = cleaned.find(block_start)
+            if start < 0:
+                break
+            end = cleaned.find(block_end, start + len(block_start))
+            if end < 0:
+                cleaned = cleaned[:start]
+                break
+            cleaned = cleaned[:start] + cleaned[end + len(block_end) :]
 
     result: list[str] = []
     idx = 0
@@ -326,6 +331,16 @@ def extract_textual_tool_call_names(
             f"calling {alias_key}",
             f"invoking {alias_key}",
             f"invoke {alias_key}",
+            f'invoke name="{alias_key}"',
+            f"invoke name='{alias_key}'",
+            f'invoke name=“{alias_key}”',
+            f"invoke name=‘{alias_key}’",
+            f'name="{alias_key}"',
+            f"name='{alias_key}'",
+            f'name=“{alias_key}”',
+            f"name=‘{alias_key}’",
+            f'"name":"{alias_key}"',
+            f"'name':'{alias_key}'",
             f"正在调用{alias_key}",
             f"正在调用 {alias_key}",
             f"调用{alias_key}",

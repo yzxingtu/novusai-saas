@@ -19,7 +19,7 @@ async def load_chat_history(
     service: "ConversationService",
     conversation_id: int,
     max_messages: int = 0,
-    max_tokens: int = 0,
+    max_tokens: int | None = None,
 ) -> list[ChatMessage]:
     return await service.history_service.load_chat_history(
         conversation_id=conversation_id,

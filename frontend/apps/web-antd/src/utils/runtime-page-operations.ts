@@ -36,6 +36,19 @@ const PAGE_CONTEXT_TOOL_SET = new Set<PageContextSuggestedTool>([
   'ui_submit_form',
 ]);
 
+const RUNTIME_OPERATION_ORDER: PageContextSuggestedTool[] = [
+  'ui_get_snapshot',
+  'ui_read_region',
+  'ui_read_table',
+  'ui_list_interactables',
+  'ui_click',
+  'ui_open_surface',
+  'ui_get_form_state',
+  'ui_fill_form',
+  'ui_set_field',
+  'ui_submit_form',
+];
+
 const FORM_SUBMIT_READY_STAGES = new Set([
   'ready_to_submit',
   'submitted',
@@ -85,6 +98,9 @@ export function hasRuntimePageState(pageContext: null | PageContext): boolean {
   if (!pageContext) {
     return false;
   }
+  if (String(pageContext.page_session_id || '').trim()) {
+    return true;
+  }
   if (typeof pageContext.ui_epoch === 'number') {
     return true;
   }
@@ -107,26 +123,36 @@ export function buildRuntimePageOperationNames(
     return [];
   }
 
-  const operationNames: PageContextSuggestedTool[] = [];
-  addToolName(operationNames, 'ui_get_snapshot');
-  addToolName(operationNames, 'ui_read_region');
-  addToolName(operationNames, 'ui_list_interactables');
-  addToolName(operationNames, 'ui_click');
-  addToolName(operationNames, 'ui_open_surface');
+  const enabledTools = new Set<PageContextSuggestedTool>();
+  enabledTools.add('ui_get_snapshot');
+  enabledTools.add('ui_read_region');
+  enabledTools.add('ui_list_interactables');
+  enabledTools.add('ui_click');
+  enabledTools.add('ui_open_surface');
+  if ((pageContext?.page_data?.visible_tables?.length ?? 0) > 0) {
+    enabledTools.add('ui_read_table');
+  }
 
   if (hasFormState(pageContext)) {
-    addToolName(operationNames, 'ui_get_form_state');
-    addToolName(operationNames, 'ui_fill_form');
-    addToolName(operationNames, 'ui_set_field');
+    enabledTools.add('ui_get_form_state');
+    enabledTools.add('ui_fill_form');
+    enabledTools.add('ui_set_field');
     const stage = String(pageContext.active_form_summary?.stage || '').trim();
     if (
       pageContext.active_form_summary?.can_submit ||
       FORM_SUBMIT_READY_STAGES.has(stage)
     ) {
-      addToolName(operationNames, 'ui_submit_form');
+      enabledTools.add('ui_submit_form');
     }
   }
 
+  const operationNames: PageContextSuggestedTool[] = [];
+  for (const toolName of RUNTIME_OPERATION_ORDER) {
+    if (!enabledTools.has(toolName)) {
+      continue;
+    }
+    addToolName(operationNames, toolName);
+  }
   return operationNames;
 }
 

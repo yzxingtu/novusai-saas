@@ -47,6 +47,7 @@ build_stream_generation_view = stream_generation_view.build_stream_generation_vi
 class _StateStub:
     def __init__(self, diagnostics_payload: dict) -> None:
         self._diagnostics_payload = diagnostics_payload
+        self.preparation_diagnostics = dict(diagnostics_payload)
         self.intent_plan: list = []
         self.budget = None
         self.recovery_history: list = []
@@ -54,7 +55,9 @@ class _StateStub:
         self.provider_events: list = []
 
     def build_diagnostics_payload(self) -> dict:
-        return dict(self._diagnostics_payload)
+        payload = dict(self._diagnostics_payload)
+        payload.update(self.preparation_diagnostics)
+        return payload
 
 
 def test_resolve_stream_exception_completion_reason_resolves_budget_exit_reason() -> None:
@@ -335,6 +338,658 @@ def test_build_terminal_result_hides_provider_state_when_disabled() -> None:
     assert result.provider_events == []
 
 
+@pytest.mark.asyncio
+async def test_build_stream_exception_artifacts_hides_generated_provider_failure_partial_output() -> None:
+    state = _StateStub({})
+    state.provider_failure_kind = "provider_http_5xx"
+    state.provider_events = [{"kind": "provider_http_5xx"}]
+
+    async def _finalize_partial_output(**_kwargs):
+        return "我先把已完成部分整理给你：这部分。", 18, 9
+
+    handler = SimpleNamespace(
+        request=SimpleNamespace(conversation_id=66, input_variables={}),
+        agent=SimpleNamespace(id=3),
+        prep=SimpleNamespace(
+            rag_source_kinds=[],
+            context_compacted=False,
+            memory_flush_triggered=False,
+            memory_recalled=False,
+            prune_stats=None,
+            tool_planner=None,
+            execution_path="fast",
+            stream_runtime=None,
+        ),
+        start_time=0.0,
+        engine=SimpleNamespace(_messages_to_dicts=messages_to_dicts),
+        runtime_contract=SimpleNamespace(
+            finalize_partial_output=_finalize_partial_output,
+        ),
+        _state=state,
+        _runtime_turn_record=None,
+        _runtime_turn_record_source=None,
+        _runtime_turn_record_overlays={},
+        _output="",
+        _reasoning_output="",
+        _total_tokens=0,
+        _completion_tokens_used=0,
+        _visible_stream_content="",
+        _clear_before_next_message=False,
+        _next_runtime_context=None,
+    )
+    messages = [ChatMessage(role="user", content="latest updates?")]
+
+    artifacts = await stream_execution_runtime._build_stream_exception_artifacts(
+        handler,
+        messages=messages,
+        rag_sources=None,
+        output="",
+        total_tokens=0,
+        all_tool_results=[],
+        public_error_message="upstream failed",
+        completion_reason="provider_error",
+    )
+
+    assert artifacts.result.output.strip()
+    assert artifacts.replay_events
+    assert len(messages) == 2
+    assert artifacts.result.turn_record["final_output_source"] == "partial_output"
+    assert (
+        artifacts.result.turn_record["turn_flow"]["error_surface"]["error_type"]
+        == "untrusted_final_output_source"
+    )
+
+
+@pytest.mark.asyncio
+async def test_build_stream_exception_artifacts_surfaces_recovery_evidence_on_provider_failure() -> None:
+    from app.ai.engine.types import IntentPlan
+    from app.ai.tools.types import ToolResult
+
+    state = _StateStub({})
+    state.provider_failure_kind = "provider_http_5xx"
+    state.provider_events = [{"kind": "provider_http_5xx"}]
+    state.intent_plan = [
+        IntentPlan(
+            intent_id="intent-page-snapshot",
+            kind="page_summary",
+            family="page_ops",
+            order=1,
+            user_visible_label="页面概览",
+            source_text="当前页面有什么内容？",
+            status="completed",
+            requires_tools=True,
+            allowed_tool_names=["ui_get_snapshot"],
+        )
+    ]
+    state.intent_plan[0].cached_result = (
+        "当前焦点：企业管理；页面要点：管理企业、企业列表；约 12 个可交互元素。"
+    )
+
+    async def _finalize_partial_output(**_kwargs):
+        return (
+            "当前焦点：企业管理；页面要点：管理企业、企业列表；约 12 个可交互元素。",
+            18,
+            9,
+        )
+
+    handler = SimpleNamespace(
+        request=SimpleNamespace(conversation_id=67, input_variables={}),
+        agent=SimpleNamespace(id=3),
+        prep=SimpleNamespace(
+            rag_source_kinds=[],
+            context_compacted=False,
+            memory_flush_triggered=False,
+            memory_recalled=False,
+            prune_stats=None,
+            tool_planner=None,
+            execution_path="fast",
+            stream_runtime=None,
+        ),
+        start_time=0.0,
+        engine=SimpleNamespace(_messages_to_dicts=messages_to_dicts),
+        runtime_contract=SimpleNamespace(
+            finalize_partial_output=_finalize_partial_output,
+        ),
+        _state=state,
+        _runtime_turn_record=None,
+        _runtime_turn_record_source=None,
+        _runtime_turn_record_overlays={},
+        _output="",
+        _reasoning_output="",
+        _total_tokens=0,
+        _completion_tokens_used=0,
+        _visible_stream_content="",
+        _clear_before_next_message=False,
+        _next_runtime_context=None,
+    )
+    messages = [ChatMessage(role="user", content="当前页面有什么内容？")]
+    tool_results = [
+        ToolResult(
+            tool_call_id="tc-page-snapshot",
+            name="ui_get_snapshot",
+            success=True,
+            output='{"surface_stack":[{"title":"企业管理"}],"nodes":[{"summary":"管理企业"},{"summary":"企业列表"}],"interactables_count":12}',
+        )
+    ]
+
+    artifacts = await stream_execution_runtime._build_stream_exception_artifacts(
+        handler,
+        messages=messages,
+        rag_sources=None,
+        output="",
+        total_tokens=0,
+        all_tool_results=tool_results,
+        public_error_message="upstream failed",
+        completion_reason="provider_error",
+    )
+
+    assert (
+        artifacts.result.output
+        == "当前焦点：企业管理；页面要点：管理企业、企业列表；约 12 个可交互元素。"
+    )
+    assert artifacts.result.turn_record["final_output_source"] == "recovery_evidence"
+    assert (
+        artifacts.result.turn_record["turn_flow"]["answer_card"]["summary"]
+        == "当前焦点：企业管理；页面要点：管理企业、企业列表；约 12 个可交互元素。"
+    )
+    assert artifacts.result.turn_record["turn_flow"]["error_surface"]["message"]
+    assert "error_type" not in (
+        artifacts.result.turn_record["turn_flow"]["error_surface"] or {}
+    )
+    assert len(messages) == 2
+    assert messages[-1].content == artifacts.result.output
+    assert artifacts.replay_events
+
+
+@pytest.mark.asyncio
+async def test_build_stream_exception_artifacts_prefers_node_surface_title_over_overlay_on_provider_failure() -> (
+    None
+):
+    from app.ai.engine.types import IntentPlan
+    from app.ai.tools.types import ToolResult
+
+    state = _StateStub({})
+    state.provider_failure_kind = "provider_timeout"
+    state.provider_events = [{"kind": "provider_timeout"}]
+    state.intent_plan = [
+        IntentPlan(
+            intent_id="intent-page-snapshot",
+            kind="page_summary",
+            family="page_ops",
+            order=1,
+            user_visible_label="页面概览",
+            source_text="看看这个页面有什么内容？",
+            status="completed",
+            requires_tools=True,
+            allowed_tool_names=["ui_get_snapshot"],
+        )
+    ]
+
+    async def _finalize_partial_output(**_kwargs):
+        return (
+            "当前焦点：记录管理；页面要点：查看详情；重 置；记录列表；约 4 个可交互元素。",
+            18,
+            9,
+        )
+
+    handler = SimpleNamespace(
+        request=SimpleNamespace(conversation_id=670, input_variables={}),
+        agent=SimpleNamespace(id=3),
+        prep=SimpleNamespace(
+            rag_source_kinds=[],
+            context_compacted=False,
+            memory_flush_triggered=False,
+            memory_recalled=False,
+            prune_stats=None,
+            tool_planner=None,
+            execution_path="fast",
+            stream_runtime=None,
+        ),
+        start_time=0.0,
+        engine=SimpleNamespace(_messages_to_dicts=messages_to_dicts),
+        runtime_contract=SimpleNamespace(
+            finalize_partial_output=_finalize_partial_output,
+        ),
+        _state=state,
+        _runtime_turn_record=None,
+        _runtime_turn_record_source=None,
+        _runtime_turn_record_overlays={},
+        _output="",
+        _reasoning_output="",
+        _total_tokens=0,
+        _completion_tokens_used=0,
+        _visible_stream_content="",
+        _clear_before_next_message=False,
+        _next_runtime_context=None,
+    )
+    messages = [ChatMessage(role="user", content="看看这个页面有什么内容？")]
+    tool_results = [
+        ToolResult(
+            tool_call_id="tc-page-snapshot-overlay",
+            name="ui_get_snapshot",
+            success=True,
+            output=(
+                '{"surface_stack":['
+                '{"surface_id":"surface:page:2","kind":"page","title":"记录管理"},'
+                '{"surface_id":"surface:drawer:7","kind":"drawer","title":"对话详情"},'
+                '{"surface_id":"surface:popover:9","kind":"popover","title":"浮层 1"}],'
+                '"active_surface_id":"surface:popover:9","nodes":['
+                '{"surface_id":"surface:page:2","summary":"查看详情"},'
+                '{"surface_id":"surface:page:2","summary":"重 置"},'
+                '{"surface_id":"surface:page:2","summary":"记录列表"}],'
+                '"interactables_count":4}'
+            ),
+        )
+    ]
+
+    artifacts = await stream_execution_runtime._build_stream_exception_artifacts(
+        handler,
+        messages=messages,
+        rag_sources=None,
+        output="",
+        total_tokens=0,
+        all_tool_results=tool_results,
+        public_error_message="upstream failed",
+        completion_reason="provider_timeout",
+    )
+
+    assert (
+        artifacts.result.output
+        == "当前焦点：记录管理；页面要点：查看详情；重 置；记录列表；约 4 个可交互元素。"
+    )
+    assert artifacts.result.turn_record["final_output_source"] == "recovery_evidence"
+    assert "浮层 1（popover）" not in artifacts.result.output
+    assert messages[-1].content == artifacts.result.output
+    assert artifacts.replay_events
+
+
+@pytest.mark.asyncio
+async def test_build_stream_exception_artifacts_surfaces_interactables_recovery_evidence_on_provider_failure() -> None:
+    from app.ai.engine.types import IntentPlan
+    from app.ai.tools.types import ToolResult
+
+    state = _StateStub({})
+    state.provider_failure_kind = "provider_http_5xx"
+    state.provider_events = [{"kind": "provider_http_5xx"}]
+    state.intent_plan = [
+        IntentPlan(
+            intent_id="intent-page-discovery",
+            kind="page_summary",
+            family="page_ops",
+            order=1,
+            user_visible_label="页面概览",
+            source_text="当前页面有哪些可点击项？",
+            status="completed",
+            requires_tools=True,
+            allowed_tool_names=["ui_list_interactables"],
+        )
+    ]
+
+    async def _finalize_partial_output(**_kwargs):
+        return (
+            "页面要点：新增企业（button）；搜索企业名称（textbox）；管理企业（button）；约 29 个可交互元素。",
+            14,
+            7,
+        )
+
+    handler = SimpleNamespace(
+        request=SimpleNamespace(conversation_id=68, input_variables={}),
+        agent=SimpleNamespace(id=4),
+        prep=SimpleNamespace(
+            rag_source_kinds=[],
+            context_compacted=False,
+            memory_flush_triggered=False,
+            memory_recalled=False,
+            prune_stats=None,
+            tool_planner=None,
+            execution_path="fast",
+            stream_runtime=None,
+        ),
+        start_time=0.0,
+        engine=SimpleNamespace(_messages_to_dicts=messages_to_dicts),
+        runtime_contract=SimpleNamespace(
+            finalize_partial_output=_finalize_partial_output,
+        ),
+        _state=state,
+        _runtime_turn_record=None,
+        _runtime_turn_record_source=None,
+        _runtime_turn_record_overlays={},
+        _output="",
+        _reasoning_output="",
+        _total_tokens=0,
+        _completion_tokens_used=0,
+        _visible_stream_content="",
+        _clear_before_next_message=False,
+        _next_runtime_context=None,
+    )
+    messages = [ChatMessage(role="user", content="当前页面有哪些可点击项？")]
+    tool_results = [
+        ToolResult(
+            tool_call_id="tc-page-discovery",
+            name="ui_list_interactables",
+            success=True,
+            output=(
+                '{"surface_id":"tenant-list","items":['
+                '{"label":"新增企业","kind":"button","locator":"btn-create-tenant"},'
+                '{"label":"搜索企业名称","kind":"textbox","locator":"input-search-tenant"},'
+                '{"label":"管理企业","kind":"button","locator":"btn-manage-tenant"}'
+                '],"count":29}'
+            ),
+        )
+    ]
+
+    artifacts = await stream_execution_runtime._build_stream_exception_artifacts(
+        handler,
+        messages=messages,
+        rag_sources=None,
+        output="",
+        total_tokens=0,
+        all_tool_results=tool_results,
+        public_error_message="upstream failed",
+        completion_reason="provider_error",
+    )
+
+    assert "新增企业" in artifacts.result.output
+    assert "搜索企业名称" in artifacts.result.output
+    assert "29 个可交互元素" in artifacts.result.output
+    assert artifacts.result.turn_record["final_output_source"] == "recovery_evidence"
+    assert (
+        artifacts.result.turn_record["turn_flow"]["answer_card"]["summary"]
+        == artifacts.result.output
+    )
+    assert "error_type" not in (
+        artifacts.result.turn_record["turn_flow"]["error_surface"] or {}
+    )
+    assert len(messages) == 2
+    assert messages[-1].content == artifacts.result.output
+    assert artifacts.replay_events
+
+
+@pytest.mark.asyncio
+async def test_build_stream_exception_artifacts_recovers_tool_results_from_current_turn_messages() -> None:
+    from app.ai.engine.types import IntentPlan
+
+    state = _StateStub({})
+    state.provider_failure_kind = "provider_http_5xx"
+    state.provider_events = [{"kind": "provider_http_5xx"}]
+    state.intent_plan = [
+        IntentPlan(
+            intent_id="intent-page-discovery",
+            kind="page_summary",
+            family="page_ops",
+            order=1,
+            user_visible_label="页面概览",
+            source_text="当前页面有哪些可点击项？",
+            status="completed",
+            requires_tools=True,
+            allowed_tool_names=["ui_list_interactables"],
+        )
+    ]
+
+    async def _finalize_partial_output(**_kwargs):
+        return (
+            "页面要点：新增企业（button）；搜索企业名称（textbox）；管理企业（button）；约 29 个可交互元素。",
+            14,
+            7,
+        )
+
+    handler = SimpleNamespace(
+        request=SimpleNamespace(conversation_id=69, input_variables={}),
+        agent=SimpleNamespace(id=5),
+        prep=SimpleNamespace(
+            rag_source_kinds=[],
+            context_compacted=False,
+            memory_flush_triggered=False,
+            memory_recalled=False,
+            prune_stats=None,
+            tool_planner=None,
+            execution_path="fast",
+            stream_runtime=None,
+        ),
+        start_time=0.0,
+        engine=SimpleNamespace(_messages_to_dicts=messages_to_dicts),
+        runtime_contract=SimpleNamespace(
+            finalize_partial_output=_finalize_partial_output,
+        ),
+        _state=state,
+        _runtime_turn_record=None,
+        _runtime_turn_record_source=None,
+        _runtime_turn_record_overlays={},
+        _output="",
+        _reasoning_output="",
+        _total_tokens=0,
+        _completion_tokens_used=0,
+        _visible_stream_content="",
+        _clear_before_next_message=False,
+        _next_runtime_context=None,
+    )
+    messages = [
+        ChatMessage(
+            role="assistant",
+            content="",
+            tool_calls=[
+                {
+                    "id": "old-tool",
+                    "function": {"name": "fetch_url", "arguments": "{}"},
+                    "success": True,
+                }
+            ],
+        ),
+        ChatMessage(role="tool", tool_call_id="old-tool", content='{"url":"old"}'),
+        ChatMessage(role="user", content="当前页面有哪些可点击项？"),
+        ChatMessage(
+            role="assistant",
+            content="",
+            tool_calls=[
+                {
+                    "id": "tc-page-discovery",
+                    "function": {
+                        "name": "ui_list_interactables",
+                        "arguments": '{"scope":"visible"}',
+                    },
+                    "success": True,
+                    "summary": "列出当前页面可交互元素",
+                    "summary_payload": {"count": 29},
+                }
+            ],
+        ),
+        ChatMessage(
+            role="tool",
+            tool_call_id="tc-page-discovery",
+            content=(
+                '{"surface_id":"tenant-list","items":['
+                '{"label":"新增企业","kind":"button","locator":"btn-create-tenant"},'
+                '{"label":"搜索企业名称","kind":"textbox","locator":"input-search-tenant"},'
+                '{"label":"管理企业","kind":"button","locator":"btn-manage-tenant"}'
+                '],"count":29}'
+            ),
+        ),
+    ]
+
+    artifacts = await stream_execution_runtime._build_stream_exception_artifacts(
+        handler,
+        messages=messages,
+        rag_sources=None,
+        output="",
+        total_tokens=0,
+        all_tool_results=[],
+        turn_start_message_index=2,
+        public_error_message="upstream failed",
+        completion_reason="provider_error",
+    )
+
+    assert artifacts.result.output.startswith("页面要点：新增企业")
+    assert artifacts.result.turn_record["final_output_source"] == "recovery_evidence"
+    assert len(artifacts.result.tool_results) == 1
+    assert artifacts.result.tool_results[0].name == "ui_list_interactables"
+    assert artifacts.result.tool_results[0].tool_call_id == "tc-page-discovery"
+    assert artifacts.result.tool_results[0].summary_payload == {"count": 29}
+    assert len(messages) == 6
+    assert messages[-1].content == artifacts.result.output
+    assert artifacts.replay_events
+
+
+def test_build_sync_exception_result_hides_provider_failure_partial_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.ai.engine.execution_state_machine import ExecutionStateMachine
+    from app.ai.engine.types import IntentPlan, PreparedExecution, RecoveryDecision
+    from app.ai.exceptions import ProviderError
+
+    monkeypatch.setattr(
+        conversation_sync_result_support.RecoveryManager,
+        "decide",
+        staticmethod(
+            lambda *_args, **_kwargs: RecoveryDecision(
+                action="return_partial",
+                reason="provider_failure_after_partial_progress",
+                provider_failure_kind="provider_http_5xx",
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        conversation_sync_result_support.RecoveryManager,
+        "build_partial_output",
+        staticmethod(lambda *_args, **_kwargs: "我先把已完成部分整理给你：这部分。"),
+    )
+
+    prep = PreparedExecution(
+        execution_path="fast",
+        intent_plan=[
+            IntentPlan(
+                intent_id="intent-web",
+                kind="web_research",
+                family="web_research",
+                order=1,
+                user_visible_label="网页调研",
+                source_text="查一下最新情况",
+            )
+        ],
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+
+    try:
+        result = conversation_sync_result_support.build_sync_exception_result(
+            exc=ProviderError("upstream failed", status_code=502),
+            request=SimpleNamespace(conversation_id=77),
+            messages=[ChatMessage(role="user", content="latest updates?")],
+            tool_results=[],
+            state=state,
+            prep=prep,
+            start_time=0.0,
+            messages_to_dicts=messages_to_dicts,
+        )
+    finally:
+        context_token = getattr(state, "_context_token", None)
+        if context_token is not None:
+            from app.ai.engine.execution_state_machine import (
+                reset_current_execution_state_machine,
+            )
+
+            reset_current_execution_state_machine(context_token)
+
+    assert result.partial is True
+    assert result.output.strip()
+    assert result.turn_record["final_output_source"] == "partial_output"
+    assert result.diagnostics["final_output_source"] == "partial_output"
+    assert (
+        result.turn_record["turn_flow"]["error_surface"]["error_type"]
+        == "untrusted_final_output_source"
+    )
+
+
+def test_build_sync_exception_result_surfaces_recovery_evidence_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.ai.engine.execution_state_machine import ExecutionStateMachine
+    from app.ai.engine.types import IntentPlan, PreparedExecution, RecoveryDecision
+    from app.ai.exceptions import ProviderError
+    from app.ai.tools.types import ToolResult
+
+    monkeypatch.setattr(
+        conversation_sync_result_support.RecoveryManager,
+        "decide",
+        staticmethod(
+            lambda *_args, **_kwargs: RecoveryDecision(
+                action="return_partial",
+                reason="provider_failure_after_partial_progress",
+                provider_failure_kind="provider_http_5xx",
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        conversation_sync_result_support.RecoveryManager,
+        "build_partial_output",
+        staticmethod(
+            lambda *_args, **_kwargs: "当前焦点：企业管理；页面要点：管理企业、企业列表；约 12 个可交互元素。"
+        ),
+    )
+
+    prep = PreparedExecution(
+        execution_path="fast",
+        intent_plan=[
+            IntentPlan(
+                intent_id="intent-page-snapshot",
+                kind="page_summary",
+                family="page_ops",
+                order=1,
+                user_visible_label="页面概览",
+                source_text="当前页面有什么内容？",
+                status="completed",
+                requires_tools=True,
+                allowed_tool_names=["ui_get_snapshot"],
+            )
+        ],
+    )
+    prep.intent_plan[0].cached_result = (
+        "当前焦点：企业管理；页面要点：管理企业、企业列表；约 12 个可交互元素。"
+    )
+    state = ExecutionStateMachine.from_prepared_execution(prep)
+    tool_results = [
+        ToolResult(
+            tool_call_id="tc-page-snapshot",
+            name="ui_get_snapshot",
+            success=True,
+            output="snapshot payload",
+        )
+    ]
+
+    try:
+        result = conversation_sync_result_support.build_sync_exception_result(
+            exc=ProviderError("upstream failed", status_code=502),
+            request=SimpleNamespace(conversation_id=78),
+            messages=[ChatMessage(role="user", content="当前页面有什么内容？")],
+            tool_results=tool_results,
+            state=state,
+            prep=prep,
+            start_time=0.0,
+            messages_to_dicts=messages_to_dicts,
+        )
+    finally:
+        context_token = getattr(state, "_context_token", None)
+        if context_token is not None:
+            from app.ai.engine.execution_state_machine import (
+                reset_current_execution_state_machine,
+            )
+
+            reset_current_execution_state_machine(context_token)
+
+    assert result.partial is True
+    assert (
+        result.output
+        == "当前焦点：企业管理；页面要点：管理企业、企业列表；约 12 个可交互元素。"
+    )
+    assert result.turn_record["final_output_source"] == "recovery_evidence"
+    assert result.diagnostics["final_output_source"] == "recovery_evidence"
+    assert (
+        result.turn_record["turn_flow"]["answer_card"]["summary"]
+        == "当前焦点：企业管理；页面要点：管理企业、企业列表；约 12 个可交互元素。"
+    )
+    assert "error_type" not in (
+        result.turn_record["turn_flow"]["error_surface"] or {}
+    )
+
+
 def test_done_payload_marks_partial_provider_failure_as_error_terminal() -> None:
     state = _StateStub(
         {
@@ -456,6 +1111,47 @@ def test_finalize_completed_output_drops_untrusted_tool_evidence_finalization() 
     assert len(messages) == 1
 
 
+def test_finalize_completed_output_surfaces_safe_untrusted_fallback_without_streamed_content() -> (
+    None
+):
+    delegate = SimpleNamespace(
+        _state=SimpleNamespace(
+            preparation_diagnostics={
+                "stripped_untrusted_final_output": True,
+                "untrusted_final_output_fallback_applied": True,
+            }
+        ),
+        _visible_stream_content="",
+        extract_action_buttons=lambda output: (output, None),
+        should_preserve_streamed_assistant_output=lambda **_kwargs: False,
+        reasoning_output="",
+        current_turn_has_finalized_output=lambda **_kwargs: False,
+        chunk_text_for_streaming=lambda text, _chunk_size=32: [text],
+        last_visible_assistant_content=lambda _messages: "",
+    )
+    handler = SimpleNamespace(
+        _stream_generation_view=lambda: build_stream_generation_view(delegate),
+    )
+    messages = [ChatMessage(role="user", content="latest updates?")]
+    fallback = "这次处理没有成功生成最终答复，请再试一次。"
+
+    output, chunks = _finalize_completed_output(
+        handler,
+        messages=messages,
+        turn_start_message_index=0,
+        output=fallback,
+        response=SimpleNamespace(
+            message=ChatMessage(role="assistant", content=fallback)
+        ),
+        action_buttons=None,
+        final_output_source="tool_evidence_completed",
+    )
+
+    assert output == fallback
+    assert chunks == [fallback]
+    assert len(messages) == 2
+
+
 def test_finalize_successful_turn_uses_streamed_tool_evidence_when_output_is_empty() -> (
     None
 ):
@@ -518,7 +1214,7 @@ def test_finalize_successful_turn_uses_streamed_tool_evidence_when_output_is_emp
         rag_sources=None,
         turn_start_message_index=0,
         turn_execution=turn_execution,
-        logger=SimpleNamespace(warning=lambda *args, **kwargs: None),
+        logger=SimpleNamespace(warning=lambda *_args, **_kwargs: None),
     )
 
     assert artifacts.result.output == summary
@@ -755,7 +1451,7 @@ def test_finalize_successful_turn_projects_turn_record_and_done_payload() -> Non
         rag_sources=None,
         turn_start_message_index=0,
         turn_execution=turn_execution,
-        logger=SimpleNamespace(warning=lambda *args, **kwargs: None),
+        logger=SimpleNamespace(warning=lambda *_args, **_kwargs: None),
     )
 
     turn_record = artifacts.result.turn_record
@@ -895,7 +1591,7 @@ def test_sync_success_result_matches_stream_turn_projection() -> None:
         rag_sources=None,
         turn_start_message_index=0,
         turn_execution=turn_execution,
-        logger=SimpleNamespace(warning=lambda *args, **kwargs: None),
+        logger=SimpleNamespace(warning=lambda *_args, **_kwargs: None),
     )
 
     sync_state = _StateStub(diagnostics_payload)
@@ -950,3 +1646,4 @@ def test_sync_success_result_matches_stream_turn_projection() -> None:
         "termination_reason",
     ):
         assert stream_turn_record[key] == sync_turn_record[key]
+

@@ -1,4 +1,8 @@
-"""Skill resolver tests focused on plugin integration / 针对插件集成的技能解析器测试。"""
+"""Test type: behavioral
+Scope: Skill resolver startup prefiltering, turn activation, and live selected-skill projection
+Real dependencies: SkillResolveResult, activation helpers, runtime capability models
+Mocked dependencies: SQLAlchemy execute stubs and resolver monkeypatches for grant-filter seams only
+"""
 
 from __future__ import annotations
 
@@ -9,15 +13,15 @@ import pytest
 
 from app.ai.runtime.capabilities import CapabilityRegistry
 from app.ai.runtime.types import CapabilityBundle, CapabilityDescriptor
+from app.ai.skills.activation import (
+    apply_turn_skill_activation,
+    resolve_startup_intent_flags,
+)
 from app.ai.skills.resolver import (
     SkillResolver,
     SkillResolveResult,
     enrich_skill_capability_descriptors_with_tools,
     resolve_for_agent,
-)
-from app.ai.skills.turn_activation import (
-    apply_turn_skill_activation,
-    resolve_startup_intent_flags,
 )
 from app.ai.tools.types import ToolDefinition
 
@@ -155,6 +159,28 @@ def test_selected_skill_names_skips_descriptor_only_skills_without_execution_too
     )
 
     assert result.selected_skill_names == ["Executable Skill"]
+
+
+def test_selected_skill_names_ignores_non_capability_pack_descriptors() -> None:
+    result = SkillResolveResult(
+        tools=[],
+        capability_descriptors=[
+            CapabilityDescriptor(
+                name="Page Context Provider",
+                kind="context_provider",
+                source="request.page_context",
+                metadata={"has_execution_tools": True},
+            ),
+            CapabilityDescriptor(
+                name="Live Capability Pack",
+                kind="capability_pack",
+                source="skill_package:live",
+                metadata={"has_execution_tools": True},
+            ),
+        ],
+    )
+
+    assert result.selected_skill_names == ["Live Capability Pack"]
 
 
 def test_selected_skill_names_skips_auto_injected_runtime_builtins() -> None:
@@ -332,7 +358,7 @@ def test_apply_turn_skill_activation_tracks_explicit_tool_mentions() -> None:
     ]
 
 
-def test_apply_turn_skill_activation_tracks_runtime_policy_skills_without_preview_tools() -> (
+def test_apply_turn_skill_activation_allows_catalog_runtime_policy_for_startup_prefilter() -> (
     None
 ):
     result = SkillResolveResult(
@@ -366,12 +392,83 @@ def test_apply_turn_skill_activation_tracks_runtime_policy_skills_without_previe
         skill_result=result,
         request=request,
         intent_flags=resolve_startup_intent_flags(request),
+        allow_catalog_skill_activation=True,
     )
 
     assert result.turn_activation is not None
+    assert result.turn_activation.applied is True
     assert result.turn_activation.reason == "runtime_policy"
     assert result.turn_activation.activated_tool_names == []
     assert result.turn_activation.activated_skill_names == ["Plugin Page Skill"]
+
+
+def test_apply_turn_skill_activation_keeps_live_selection_execution_backed() -> None:
+    result = SkillResolveResult(
+        tools=[
+            SimpleNamespace(
+                name="get_current_weather",
+                source_skill_name="Weather Skill",
+            )
+        ],
+        capability_descriptors=[
+            CapabilityDescriptor(
+                name="Plugin Page Skill",
+                kind="capability_pack",
+                source="skill_package:plugin.page",
+                metadata={
+                    "preview_semantic_families": ["page_ops"],
+                    "has_execution_tools": False,
+                },
+            ),
+            CapabilityDescriptor(
+                name="Weather Skill",
+                kind="capability_pack",
+                source="skill_package:weather",
+                metadata={"has_execution_tools": True},
+            ),
+        ],
+    )
+    request = SimpleNamespace(
+        messages=[SimpleNamespace(role="user", content="帮我看一下当前页面")],
+        input_variables={
+            "page_context": {
+                "page_key": "admin.ai.dashboard",
+                "ui_epoch": 3,
+            }
+        },
+    )
+
+    apply_turn_skill_activation(
+        skill_result=result,
+        request=request,
+        intent_flags=resolve_startup_intent_flags(request),
+    )
+
+    assert result.turn_activation is not None
+    assert result.turn_activation.applied is False
+    assert result.turn_activation.reason == "no_turn_skill_activation"
+    assert result.turn_activation.activated_tool_names == []
+    assert result.turn_activation.activated_skill_names == []
+    assert result.selected_skill_names == ["Weather Skill"]
+    assert [tool.name for tool in result.startup_activated_tools()] == [
+        "get_current_weather"
+    ]
+
+
+def test_resolve_startup_intent_flags_require_live_page_runtime_state() -> None:
+    request = SimpleNamespace(
+        messages=[SimpleNamespace(role="user", content="帮我看一下当前页面")],
+        input_variables={
+            "page_context": {
+                "page_key": "admin.ai.dashboard",
+            }
+        },
+    )
+
+    flags = resolve_startup_intent_flags(request)
+
+    assert flags["has_page_intent"] is False
+    assert flags["has_web_research_intent"] is False
 
 
 def _make_runtime_skill(

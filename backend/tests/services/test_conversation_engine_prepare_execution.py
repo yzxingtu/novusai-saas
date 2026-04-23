@@ -601,7 +601,7 @@ async def test_prepare_execution_clears_page_continuation_for_long_no_tool_direc
         ],
         input_variables={
             "page_context": {
-                "page_key": "admin.ai.conversations",
+                "page_key": "admin.runtime.records",
                 "ui_epoch": 7,
                 "suggested_tools": {
                     "primary": [
@@ -668,7 +668,7 @@ async def test_prepare_execution_keeps_page_continuation_runtime_facts_and_diagn
                 metadata={
                     "turn_record": {
                         "active_intent_kind": "page_summary",
-                        "last_page_key": "admin.ai.conversations",
+                        "last_page_key": "admin.runtime.records",
                     }
                 },
             ),
@@ -678,7 +678,7 @@ async def test_prepare_execution_keeps_page_continuation_runtime_facts_and_diagn
         ],
         input_variables={
             "page_context": {
-                "page_key": "admin.ai.conversations",
+                "page_key": "admin.runtime.records",
                 "ui_epoch": 7,
                 "suggested_tools": {
                     "primary": [
@@ -721,11 +721,19 @@ async def test_prepare_execution_keeps_page_continuation_runtime_facts_and_diagn
         "web_research",
     ]
     assert prep.continuation_context.last_tool_name == "ui_get_snapshot"
-    assert prep.continuation_context.last_page_key == "admin.ai.conversations"
-    assert prep.continuation_context.research_target_text == "admin.ai.conversations"
+    assert prep.continuation_context.last_page_key == "admin.runtime.records"
+    assert prep.continuation_context.research_target_text == "admin.runtime.records"
     assert [intent.kind for intent in prep.intent_plan] == ["page_summary"]
-    assert [tool.name for tool in prep.tools] == ["ui_get_snapshot"]
-    assert prep.diagnostics["candidate_tool_names"] == ["ui_get_snapshot"]
+    assert [tool.name for tool in prep.tools] == [
+        "ui_get_snapshot",
+        "ui_read_region",
+        "ui_read_table",
+    ]
+    assert prep.diagnostics["candidate_tool_names"] == [
+        "ui_get_snapshot",
+        "ui_read_region",
+        "ui_read_table",
+    ]
     assert prep.diagnostics["active_intent_id"] == "intent-1"
     assert prep.diagnostics["continuation_source"] == "page_ops"
 
@@ -744,7 +752,7 @@ async def test_prepare_execution_selects_page_ops_for_local_page_content_request
         messages=[ChatMessage(role="user", content="看看本页面的内容")],
         input_variables={
             "page_context": {
-                "page_key": "admin.ai.conversations",
+                "page_key": "admin.runtime.records",
                 "ui_epoch": 2,
                 "suggested_tools": {
                     "primary": ["ui_get_snapshot", "ui_read_region"],
@@ -793,11 +801,14 @@ async def test_prepare_execution_selects_page_ops_for_local_page_content_request
             skill_result=skill_result,
         )
 
-    assert [tool.name for tool in prep.tools] == ["ui_get_snapshot"]
+    assert [tool.name for tool in prep.tools] == [
+        "ui_get_snapshot",
+        "ui_read_region",
+    ]
     assert prep.tool_use_policy == ToolUsePolicy(
         family="page_ops",
         mode="required",
-        allowed_tool_names=["ui_get_snapshot"],
+        allowed_tool_names=["ui_get_snapshot", "ui_read_region"],
         retry_on_contract_breach=True,
         reason="intent:page_summary",
     )
@@ -1011,7 +1022,7 @@ async def test_prepare_execution_keeps_weather_tools_for_mixed_weather_and_healt
         messages=[ChatMessage(role="user", content="我有点头疼，今天北京天气怎么样")],
         input_variables={
             "page_context": {
-                "page_key": "admin.ai.conversations",
+                "page_key": "admin.runtime.records",
                 "ui_epoch": 2,
                 "suggested_tools": {
                     "primary": ["ui_get_snapshot", "ui_read_region", "ui_read_table"],
@@ -1071,7 +1082,7 @@ async def test_prepare_execution_allows_page_and_weather_tools_for_mixed_request
         messages=[ChatMessage(role="user", content="先看看本页面，再查北京天气")],
         input_variables={
             "page_context": {
-                "page_key": "admin.ai.conversations",
+                "page_key": "admin.runtime.records",
                 "ui_epoch": 2,
                 "suggested_tools": {
                     "primary": ["ui_get_snapshot", "ui_read_region", "ui_read_table"],
@@ -1115,10 +1126,14 @@ async def test_prepare_execution_allows_page_and_weather_tools_for_mixed_request
     assert prep.tool_use_policy.family == "page_ops"
     assert prep.tool_use_policy.allowed_tool_names == [
         "ui_get_snapshot",
+        "ui_read_region",
+        "ui_read_table",
         "get_current_weather",
     ]
     assert [tool.name for tool in prep.tools] == [
         "ui_get_snapshot",
+        "ui_read_region",
+        "ui_read_table",
         "get_current_weather",
     ]
     assert prep.execution_path == "fast"
@@ -1152,7 +1167,7 @@ async def test_prepare_execution_allows_page_and_weather_tools_for_mixed_request
         ],
         input_variables={
             "page_context": {
-                "page_key": "admin.ai.conversations",
+                "page_key": "admin.runtime.records",
                 "ui_epoch": 2,
                 "suggested_tools": {
                     "primary": ["ui_get_snapshot", "ui_read_region", "ui_read_table"],
@@ -1196,10 +1211,14 @@ async def test_prepare_execution_allows_page_and_weather_tools_for_mixed_request
     assert prep.tool_use_policy.family == "page_ops"
     assert prep.tool_use_policy.allowed_tool_names == [
         "ui_get_snapshot",
+        "ui_read_region",
+        "ui_read_table",
         "get_current_weather",
     ]
     assert [tool.name for tool in prep.tools] == [
         "ui_get_snapshot",
+        "ui_read_region",
+        "ui_read_table",
         "get_current_weather",
     ]
 
@@ -1218,7 +1237,7 @@ async def test_prepare_execution_restores_secondary_family_when_optimizer_drops_
         messages=[ChatMessage(role="user", content="先看看本页面，再查北京天气")],
         input_variables={
             "page_context": {
-                "page_key": "admin.ai.conversations",
+                "page_key": "admin.runtime.records",
                 "ui_epoch": 2,
                 "suggested_tools": {
                     "primary": ["ui_get_snapshot", "ui_read_region", "ui_read_table"],
@@ -1278,10 +1297,14 @@ async def test_prepare_execution_restores_secondary_family_when_optimizer_drops_
     assert prep.tool_use_policy.family == "page_ops"
     assert prep.tool_use_policy.allowed_tool_names == [
         "ui_get_snapshot",
+        "ui_read_region",
+        "ui_read_table",
         "get_current_weather",
     ]
     assert [tool.name for tool in prep.tools] == [
         "ui_get_snapshot",
+        "ui_read_region",
+        "ui_read_table",
         "get_current_weather",
     ]
 
@@ -1300,7 +1323,7 @@ async def test_prepare_execution_prefers_web_research_on_first_turn_even_with_pa
         messages=[ChatMessage(role="user", content="联网查询一下 小猫为什么 爱吃鱼")],
         input_variables={
             "page_context": {
-                "page_key": "admin.ai.conversations",
+                "page_key": "admin.runtime.records",
                 "page_title": "AI Conversations",
                 "ui_epoch": 11,
                 "suggested_tools": {
@@ -1370,7 +1393,7 @@ async def test_prepare_execution_keeps_non_zero_selected_count_for_explicit_web_
         messages=[ChatMessage(role="user", content="联网查一下今天的开源模型发布")],
         input_variables={
             "page_context": {
-                "page_key": "admin.ai.conversations",
+                "page_key": "admin.runtime.records",
                 "page_title": "AI Conversations",
                 "ui_epoch": 12,
                 "suggested_tools": {
@@ -2327,7 +2350,7 @@ async def test_prepare_execution_assembles_pageaware_kb_memory_and_plugin_skill_
         ],
         input_variables={
             "page_context": {
-                "page_key": "admin.ai.conversations",
+                "page_key": "admin.runtime.records",
                 "page_title": "AI Conversations",
                 "ui_epoch": 9,
                 "suggested_tools": {
@@ -2886,13 +2909,15 @@ async def test_prepare_execution_builds_deep_structured_plan_for_666_style_turn(
     ]
     assert prep.execution_path == "deep"
     assert prep.execution_budget is not None
-    assert prep.execution_budget.max_candidate_tools == 6
+    assert prep.execution_budget.max_candidate_tools == 8
     assert prep.execution_budget.candidate_tools_count == len(prep.tools)
     assert [tool.name for tool in prep.tools] == [
         "get_current_weather",
         "web_search",
         "fetch_url",
         "ui_get_snapshot",
+        "ui_read_region",
+        "ui_read_table",
     ]
     assert prep.active_intent_id == "intent-1"
     assert prep.tool_use_policy.family == "weather"
@@ -2977,9 +3002,21 @@ async def test_prepare_execution_page_summary_turn_keeps_page_only_candidates() 
 
     assert prep.execution_path == "fast"
     assert [intent.kind for intent in prep.intent_plan] == ["page_summary"]
-    assert [tool.name for tool in prep.tools] == ["ui_get_snapshot"]
-    assert prep.intent_plan[0].allowed_tool_names == ["ui_get_snapshot"]
-    assert prep.tool_use_policy.allowed_tool_names == ["ui_get_snapshot"]
+    assert [tool.name for tool in prep.tools] == [
+        "ui_get_snapshot",
+        "ui_read_region",
+        "ui_read_table",
+    ]
+    assert prep.intent_plan[0].allowed_tool_names == [
+        "ui_get_snapshot",
+        "ui_read_region",
+        "ui_read_table",
+    ]
+    assert prep.tool_use_policy.allowed_tool_names == [
+        "ui_get_snapshot",
+        "ui_read_region",
+        "ui_read_table",
+    ]
     assert prep.diagnostics["capability_injection_decision"] == {
         "all_shortcircuit": True,
         "skills_injected": False,
@@ -2988,6 +3025,99 @@ async def test_prepare_execution_page_summary_turn_keeps_page_only_candidates() 
         "page_injected": True,
         "bypass_reason": "all_shortcircuit",
     }
+
+
+@pytest.mark.asyncio
+async def test_prepare_execution_page_search_turn_keeps_full_workflow_candidates_without_budget_exit() -> (
+    None
+):
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
+    request = ExecutionRequest(
+        agent_id=1,
+        tenant_id=1,
+        user_id=1,
+        messages=[
+            ChatMessage(role="user", content="帮我搜索一下包含'供应商'的记录")
+        ],
+        input_variables={
+            "page_context": {
+                "page_key": "admin.runtime.records",
+                "ui_epoch": 5,
+            }
+        },
+    )
+
+    with (
+        patch(
+            "app.ai.rag_injector.load_agent_kb_bindings",
+            new=AsyncMock(return_value=([], {})),
+        ),
+        patch("app.ai.routing.router.ModelRouter", new=_FakeRouter),
+    ):
+        prep = await engine._prepare_execution(
+            _build_agent(),
+            request,
+            skill_result=_build_structured_skill_result(),
+        )
+
+    assert prep.execution_path == "fast"
+    assert [intent.kind for intent in prep.intent_plan] == ["page_search"]
+    assert [tool.name for tool in prep.tools] == [
+        "ui_click",
+        "ui_fill_form",
+        "ui_submit_form",
+    ]
+    assert prep.execution_budget is not None
+    assert prep.execution_budget.max_candidate_tools == 3
+    assert prep.execution_budget.candidate_tools_count == len(prep.tools)
+    assert prep.execution_budget.first_exceeded_reason() is None
+
+
+@pytest.mark.asyncio
+async def test_prepare_execution_page_search_with_weather_keyword_stays_page_only() -> (
+    None
+):
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
+    request = ExecutionRequest(
+        agent_id=1,
+        tenant_id=1,
+        user_id=1,
+        messages=[
+            ChatMessage(role="user", content="帮我搜索一下包含'天气'的记录")
+        ],
+        input_variables={
+            "page_context": {
+                "page_key": "admin.runtime.records",
+                "ui_epoch": 5,
+            }
+        },
+    )
+
+    with (
+        patch(
+            "app.ai.rag_injector.load_agent_kb_bindings",
+            new=AsyncMock(return_value=([], {})),
+        ),
+        patch("app.ai.routing.router.ModelRouter", new=_FakeRouter),
+    ):
+        prep = await engine._prepare_execution(
+            _build_agent(),
+            request,
+            skill_result=_build_structured_skill_result(),
+        )
+
+    assert prep.execution_path == "fast"
+    assert [intent.kind for intent in prep.intent_plan] == ["page_search"]
+    assert {"web_search", "fetch_url"} & {
+        tool.name for tool in prep.tools
+    } == set()
+    assert prep.execution_budget is not None
+    assert prep.execution_budget.max_candidate_tools == 3
+    assert prep.execution_budget.first_exceeded_reason() is None
 
 
 @pytest.mark.asyncio
@@ -3173,3 +3303,6 @@ async def test_prepare_execution_editor_write_keeps_editor_mutation_tools() -> N
     )
     assert prep.intent_plan[0].metadata["page_workflow_phase"] == "submit"
     assert prep.intent_plan[0].completion_signals == ["ui_submit_form"]
+
+
+

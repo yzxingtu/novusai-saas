@@ -1,6 +1,7 @@
 import type { ChatMessage, ToolCallEvent } from './types';
 import type { AssistantTurnMergeState } from './use-ai-chat-message-merge-turn-state';
 
+import { toTurnFlowFirstChatMessage } from './turn-flow-first-message';
 import { isTurnFailure } from './use-ai-chat-message-context';
 import {
   finalizeNativeSearchToolCall,
@@ -9,8 +10,7 @@ import {
   resolveNativeSearchToolStatus,
   upsertNativeSearchToolCall,
 } from './use-ai-chat-message-native-search';
-import { toTurnFlowFirstChatMessage } from './turn-flow-first-message';
-import { projectAssistantFieldsIntoTurnFlow } from './use-ai-chat-turn-flow';
+import { applyPersistedAssistantFieldFallbackToTurnFlow } from './chat-message-turn-flow-projection';
 
 function resolveMergedToolCalls(
   state: AssistantTurnMergeState,
@@ -139,14 +139,17 @@ export function buildAssistantMessageFromState(
     assistantMessage.turnFlow = state.turnFlow;
   }
 
-  projectAssistantFieldsIntoTurnFlow(assistantMessage, {
-    ragSources: state.turnRagSources,
-    thinkingContent:
-      state.thinkingContentParts.length > 0
-        ? state.thinkingContentParts.join('\n\n')
-        : undefined,
-    toolCalls: mergedToolCalls,
-  });
+  // Historical fallback only: live turns already own canonical turnFlow upstream.
+  if (!state.turnFlow) {
+    applyPersistedAssistantFieldFallbackToTurnFlow(assistantMessage, {
+      ragSources: state.turnRagSources,
+      thinkingContent:
+        state.thinkingContentParts.length > 0
+          ? state.thinkingContentParts.join('\n\n')
+          : undefined,
+      toolCalls: mergedToolCalls,
+    });
+  }
 
   return toTurnFlowFirstChatMessage(assistantMessage);
 }

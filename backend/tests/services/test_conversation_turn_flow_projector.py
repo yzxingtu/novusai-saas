@@ -528,3 +528,165 @@ def test_project_from_metadata_prefers_turn_record_turn_flow_over_polluted_messa
             "content": "No trusted assistant final answer.",
         }
     ]
+
+
+def test_normalize_turn_flow_replaces_missing_answer_placeholder_with_public_error_surface_message() -> None:
+    turn_flow = ConversationTurnFlowProjector.project_from_metadata(
+        {
+            "completion_reason": "provider_error",
+            "error": True,
+            "error_message": "AI 供应商服务端错误",
+            "turn_flow": {
+                "timeline": [
+                    {
+                        "id": "answer_assembly",
+                        "type": "answer_assembly",
+                        "status": "error",
+                        "title": "答案生成",
+                        "summary": "答复生成失败",
+                    },
+                    {
+                        "id": "terminal",
+                        "type": "failed",
+                        "status": "error",
+                        "title": "本轮失败",
+                        "summary": "provider_error",
+                    },
+                ],
+                "answer_card": {
+                    "summary": "No trusted assistant final answer.",
+                    "sections": [
+                        {
+                            "title": "Answer",
+                            "content": "No trusted assistant final answer.",
+                        }
+                    ],
+                    "source_chip_ids": [],
+                    "confidence_label": "low",
+                },
+                "completion_reason": "provider_error",
+            },
+            "turn_record": {
+                "turn_outcome": "partial",
+                "termination_reason": "provider_error",
+                "metadata": {
+                    "failure_kind": "provider_http_5xx",
+                },
+            },
+        },
+        content="",
+    )
+
+    assert turn_flow["answer_card"]["summary"] == "AI 供应商服务端错误"
+    assert turn_flow["answer_card"]["sections"] == [
+        {
+            "title": "Answer",
+            "content": "AI 供应商服务端错误",
+        }
+    ]
+    assert turn_flow["error_surface"]["message"] == "AI 供应商服务端错误"
+
+
+def test_normalize_turn_flow_keeps_placeholder_when_only_default_error_surface_exists() -> None:
+    turn_flow = ConversationTurnFlowProjector.project_from_metadata(
+        {
+            "completion_reason": "provider_error",
+            "turn_flow": {
+                "timeline": [
+                    {
+                        "id": "answer_assembly",
+                        "type": "answer_assembly",
+                        "status": "error",
+                        "title": "答案生成",
+                        "summary": "答复生成失败",
+                    },
+                    {
+                        "id": "terminal",
+                        "type": "failed",
+                        "status": "error",
+                        "title": "本轮失败",
+                        "summary": "provider_error",
+                    },
+                ],
+                "answer_card": {
+                    "summary": "No trusted assistant final answer.",
+                    "sections": [
+                        {
+                            "title": "Answer",
+                            "content": "No trusted assistant final answer.",
+                        }
+                    ],
+                    "source_chip_ids": [],
+                },
+                "completion_reason": "provider_error",
+            },
+            "turn_record": {
+                "turn_outcome": "partial",
+                "termination_reason": "provider_error",
+                "metadata": {
+                    "failure_kind": "stream_execution_error",
+                },
+            },
+        },
+        content="",
+    )
+
+    assert turn_flow["answer_card"]["summary"] == "No trusted assistant final answer."
+    assert turn_flow["answer_card"]["sections"] == [
+        {
+            "title": "Answer",
+            "content": "No trusted assistant final answer.",
+        }
+    ]
+
+
+def test_project_from_metadata_strips_trace_id_suffix_from_public_error_message() -> None:
+    turn_flow = ConversationTurnFlowProjector.project_from_metadata(
+        {
+            "completion_reason": "provider_error",
+            "error": True,
+            "error_message": "AI 供应商服务端错误 [trace_id=test-trace]",
+            "friendly_message": "AI 供应商服务端错误 [trace_id=test-trace]",
+            "turn_flow": {
+                "timeline": [
+                    {
+                        "id": "answer_assembly",
+                        "type": "answer_assembly",
+                        "status": "error",
+                        "title": "答案生成",
+                        "summary": "答复生成失败",
+                    },
+                    {
+                        "id": "terminal",
+                        "type": "failed",
+                        "status": "error",
+                        "title": "本轮失败",
+                        "summary": "provider_error",
+                    },
+                ],
+                "answer_card": {
+                    "summary": "No trusted assistant final answer.",
+                    "sections": [
+                        {
+                            "title": "Answer",
+                            "content": "No trusted assistant final answer.",
+                        }
+                    ],
+                    "source_chip_ids": [],
+                    "confidence_label": "low",
+                },
+                "completion_reason": "provider_error",
+            },
+            "turn_record": {
+                "turn_outcome": "partial",
+                "termination_reason": "provider_error",
+                "metadata": {
+                    "failure_kind": "provider_http_5xx",
+                },
+            },
+        },
+        content="",
+    )
+
+    assert turn_flow["answer_card"]["summary"] == "AI 供应商服务端错误"
+    assert turn_flow["error_surface"]["message"] == "AI 供应商服务端错误"

@@ -158,6 +158,64 @@ async def test_ui_list_interactables_filters_surface(
 
 
 @pytest.mark.asyncio
+async def test_ui_list_interactables_resolves_active_surface_alias(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _fake_request_ui_read(**_: object) -> dict[str, object]:
+        return {
+            "success": True,
+            "data": {
+                "surface_id": "surface:page:1",
+                "items": [
+                    {
+                        "enabled": True,
+                        "kind": "button",
+                        "label": "查看 AI 使用分析",
+                        "locator": "btn-ai-analytics",
+                        "surface_id": "surface:page:1",
+                    },
+                    {
+                        "enabled": True,
+                        "kind": "button",
+                        "label": "保存",
+                        "locator": "btn-save",
+                        "surface_id": "drawer-2",
+                    },
+                ],
+            },
+        }
+
+    monkeypatch.setattr(
+        "app.ai.tools.executors.ui_read_executor._request_ui_read",
+        _fake_request_ui_read,
+    )
+
+    executor = UIReadExecutor()
+    context = ExecutionContext(
+        tenant_id=1,
+        agent_id=1,
+        page_session_id="session-1",
+    )
+    definition = ToolDefinition(
+        name="ui_list_interactables",
+        description="list interactables",
+    )
+
+    result = await executor.execute(
+        definition=definition,
+        tool_call_id="tc-ui-list-interactables-active",
+        arguments={"surface_id": "active"},
+        context=context,
+    )
+
+    assert result.success is True
+    payload = json.loads(result.output)
+    assert payload["surface_id"] == "surface:page:1"
+    assert payload["count"] == 1
+    assert payload["items"][0]["locator"] == "btn-ai-analytics"
+
+
+@pytest.mark.asyncio
 async def test_ui_read_executor_reports_bridge_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

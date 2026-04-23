@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING, Any
 from app.ai.events.hooks import HookPoint, get_hook_registry
 from app.ai.runtime.types import CapabilityDescriptor, collect_selected_skill_names
 from app.ai.skills import resolver_parts as parts
+from app.ai.skills.activation import TurnSkillActivation
 from app.ai.tools.semantic_defaults import tool_family_from_name
 from app.ai.tools.types import ToolDefinition, ToolParameter
 from app.core.logging import LogManager
@@ -57,14 +58,6 @@ def _stable_unique_texts(values: list[Any]) -> list[str]:
 
 def _normalized_match_text(value: Any) -> str:
     return " ".join(str(value or "").strip().lower().split())
-
-
-@dataclass
-class TurnSkillActivation:
-    applied: bool = False
-    activated_tool_names: list[str] = field(default_factory=list)
-    activated_skill_names: list[str] = field(default_factory=list)
-    reason: str | None = None
 
 
 @dataclass
@@ -531,7 +524,7 @@ def _filter_grant_previews_for_turn_startup(
     if request is None or not grant_previews:
         return grant_previews
 
-    from app.ai.skills.turn_activation import (
+    from app.ai.skills.activation import (
         apply_turn_skill_activation,
         resolve_startup_intent_flags,
     )
@@ -542,6 +535,7 @@ def _filter_grant_previews_for_turn_startup(
         skill_result=preview_result,
         request=request,
         intent_flags=startup_intent_flags,
+        allow_catalog_skill_activation=True,
     )
     activation = getattr(preview_result, "turn_activation", None)
     if activation is None or not activation.applied:

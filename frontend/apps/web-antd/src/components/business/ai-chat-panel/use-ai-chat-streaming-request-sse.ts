@@ -2,7 +2,7 @@ import type { StreamRequestDeps } from './use-ai-chat-streaming-request';
 import type { StreamRequestLifecycle } from './use-ai-chat-streaming-request-lifecycle';
 import type { RagSource } from './types';
 
-import { nextTick } from 'vue';
+import { nextTick, unref } from 'vue';
 
 import { message } from 'ant-design-vue';
 
@@ -81,6 +81,29 @@ function isDraftClearContentEventAllowed(messageItem: {
   );
 }
 
+function isEndUserApiPrefix(apiPrefix: string): boolean {
+  return (
+    apiPrefix.startsWith('/tenant') ||
+    apiPrefix.startsWith('/user') ||
+    apiPrefix.startsWith('/api/user')
+  );
+}
+
+function shouldSuppressLegacyTurnFlowStreamEvent(
+  apiPrefix: string,
+  eventName?: string,
+): boolean {
+  if (!isEndUserApiPrefix(apiPrefix)) {
+    return false;
+  }
+
+  return (
+    eventName === 'optimizing_tools' ||
+    eventName === 'thinking' ||
+    eventName === 'rag_sources'
+  );
+}
+
 export function createStreamSseHandler(
   deps: StreamRequestDeps,
   lifecycle: StreamRequestLifecycle,
@@ -96,6 +119,10 @@ export function createStreamSseHandler(
       const msg = lifecycle.getAssistantMessage();
       if (!msg) return;
       if (lifecycle.didTerminalizeMessage) {
+        return;
+      }
+      const apiPrefix = String(unref(deps.options.apiPrefix) ?? '').trim();
+      if (shouldSuppressLegacyTurnFlowStreamEvent(apiPrefix, event.event)) {
         return;
       }
 

@@ -11,7 +11,7 @@ from app.ai.context.compaction_support import (
     messages_token_estimate,
 )
 from app.ai.types import ChatMessage
-from app.ai.utils.token_estimator import estimate_tokens
+from app.ai.utils.token_estimator import estimate_chat_message_tokens, estimate_tokens
 
 
 def test_messages_token_estimate_sums_message_content() -> None:
@@ -22,6 +22,26 @@ def test_messages_token_estimate_sums_message_content() -> None:
 
     expected = estimate_tokens("abcd") + estimate_tokens("你好")
     assert messages_token_estimate(messages) == expected
+
+
+def test_messages_token_estimate_counts_tool_payload_metadata() -> None:
+    message = ChatMessage(
+        role="assistant",
+        content="",
+        tool_calls=[
+            {
+                "id": "call_1",
+                "function": {
+                    "name": "query_records",
+                    "arguments": '{"sql":"' + ("x" * 600) + '"}',
+                },
+                "summary_payload": {"preview": "y" * 400},
+            }
+        ],
+    )
+
+    assert messages_token_estimate([message]) == estimate_chat_message_tokens(message)
+    assert messages_token_estimate([message]) > 0
 
 
 def test_coerce_result_messages_normalizes_dicts_and_skips_invalid() -> None:

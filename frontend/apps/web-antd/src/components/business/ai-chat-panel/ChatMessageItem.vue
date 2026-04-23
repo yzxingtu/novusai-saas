@@ -20,6 +20,7 @@ const props = withDefaults(
     apiPrefix?: string;
     compact?: boolean;
     countdownNow?: number;
+    forceShowDiagnostics?: boolean;
     index: number;
     kernelState?: null | TurnFlowState;
     msg: ChatMessage;
@@ -33,6 +34,7 @@ const props = withDefaults(
     agents: () => [],
     compact: false,
     countdownNow: undefined,
+    forceShowDiagnostics: false,
     kernelState: null,
     selectedAgent: null,
     showAgentSwitch: false,

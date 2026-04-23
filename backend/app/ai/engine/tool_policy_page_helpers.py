@@ -12,8 +12,95 @@ from .intent_runtime_accessors import (
     resolve_active_intent_kind_from_input_variables,
     resolve_intent_plan_view,
 )
+from .page_workflow_state_machine import (
+    legacy_page_intent_kind_for_goal,
+    resolve_page_workflow_goal,
+)
 from .tool_policy_semantics import tool_semantic_family
 from .turn_research_helpers import has_page_context
+
+_RUNTIME_PAGE_FACT_KEYS = (
+    "_runtime_intent_facts",
+    "runtime_intent_facts",
+    "intent_facts",
+)
+
+def _canonicalize_page_workflow_goal(
+    goal: str,
+    *,
+    user_text: str | None = None,
+) -> str:
+    normalized_goal = str(goal or "").strip()
+    if normalized_goal != "page_summary":
+        return normalized_goal
+    inferred_goal = resolve_page_workflow_goal(
+        intent_kind="page_summary",
+        intent_metadata=None,
+        user_text=user_text,
+    )
+    return str(inferred_goal or normalized_goal).strip()
+
+
+def _page_workflow_goal_from_kind(
+    kind: str | None,
+    *,
+    metadata: dict[str, Any] | None = None,
+    user_text: str | None = None,
+) -> str:
+    workflow_goal = resolve_page_workflow_goal(
+        intent_kind=str(kind or "").strip(),
+        intent_metadata=dict(metadata or {}),
+        user_text=user_text,
+    )
+    return _canonicalize_page_workflow_goal(
+        workflow_goal,
+        user_text=user_text,
+    )
+
+
+def _page_intent_alias(
+    kind: str | None,
+    *,
+    metadata: dict[str, Any] | None = None,
+    user_text: str | None = None,
+) -> str:
+    payload = dict(metadata or {})
+    workflow_goal = _page_workflow_goal_from_kind(
+        kind,
+        metadata=payload,
+        user_text=user_text,
+    )
+    mapped_alias = legacy_page_intent_kind_for_goal(workflow_goal)
+    if mapped_alias:
+        return mapped_alias
+    normalized = str(kind or "").strip()
+    return normalized if normalized.startswith("page_") else ""
+
+
+def _runtime_page_metadata(
+    input_variables: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    if not isinstance(input_variables, dict):
+        return None
+
+    sources: list[dict[str, Any]] = []
+    for key in _RUNTIME_PAGE_FACT_KEYS:
+        value = input_variables.get(key)
+        if isinstance(value, dict):
+            sources.append(value)
+
+    context_diagnostics = input_variables.get("context_diagnostics")
+    if isinstance(context_diagnostics, dict):
+        sources.append(context_diagnostics)
+        for key in _RUNTIME_PAGE_FACT_KEYS:
+            value = context_diagnostics.get(key)
+            if isinstance(value, dict):
+                sources.append(value)
+
+    for source in sources:
+        if str(source.get("page_workflow_goal") or "").strip():
+            return dict(source)
+    return None
 
 
 def first_page_intent_kind(
@@ -24,24 +111,82 @@ def first_page_intent_kind(
 ) -> str | None:
     intents = resolve_intent_plan_view(input_variables)
     if not intents:
+        runtime_page_metadata = _runtime_page_metadata(input_variables)
         active_intent_kind = resolve_active_intent_kind_from_input_variables(
             input_variables
         )
-        if active_intent_kind and str(active_intent_kind).startswith("page_"):
-            return active_intent_kind
+        active_page_intent = _page_intent_alias(
+            active_intent_kind,
+            metadata=runtime_page_metadata,
+            user_text=user_text,
+        )
+        if active_page_intent:
+            return active_page_intent
         detected_signal = detect_page_signal(
             clause=user_text,
             offset=0,
             input_variables=input_variables,
         )
         if detected_signal:
-            return detected_signal.kind
+            return _page_intent_alias(
+                detected_signal.kind,
+                metadata=detected_signal.metadata,
+                user_text=user_text,
+            )
         if has_page_context(input_variables) and mentions_page_summary(user_text):
             return "page_summary"
         return None
     for intent in intents:
         if intent.family == "page_ops":
-            return intent.kind
+            return _page_intent_alias(
+                intent.kind,
+                metadata=getattr(intent, "metadata", None),
+                user_text=getattr(intent, "source_text", None) or user_text,
+            )
+    return None
+
+
+def first_page_workflow_goal(
+    *,
+    user_text: str,
+    tools: list[ToolDefinition],
+    input_variables: dict[str, Any] | None = None,
+) -> str | None:
+    intents = resolve_intent_plan_view(input_variables)
+    if not intents:
+        runtime_page_metadata = _runtime_page_metadata(input_variables)
+        active_intent_kind = resolve_active_intent_kind_from_input_variables(
+            input_variables
+        )
+        active_workflow_goal = _page_workflow_goal_from_kind(
+            active_intent_kind,
+            metadata=runtime_page_metadata,
+            user_text=user_text,
+        )
+        if active_workflow_goal:
+            return active_workflow_goal
+        detected_signal = detect_page_signal(
+            clause=user_text,
+            offset=0,
+            input_variables=input_variables,
+        )
+        if detected_signal:
+            return _page_workflow_goal_from_kind(
+                detected_signal.kind,
+                metadata=detected_signal.metadata,
+                user_text=user_text,
+            )
+        if has_page_context(input_variables) and mentions_page_summary(user_text):
+            return "page_summary"
+        return None
+    for intent in intents:
+        if intent.family != "page_ops":
+            continue
+        return _page_workflow_goal_from_kind(
+            intent.kind,
+            metadata=getattr(intent, "metadata", None),
+            user_text=getattr(intent, "source_text", None) or user_text,
+        )
     return None
 
 
@@ -53,12 +198,12 @@ def looks_like_generic_page_summary_request(
     normalized = (user_text or "").strip()
     if not normalized:
         return False
-    page_intent_kind = first_page_intent_kind(
+    workflow_goal = first_page_workflow_goal(
         user_text=normalized,
         tools=tools,
         input_variables=input_variables,
     )
-    if page_intent_kind != "page_summary":
+    if workflow_goal != "page_summary":
         return False
     if mentions_page_detail_operation(normalized):
         return False
@@ -115,6 +260,7 @@ def restrict_page_tools_for_generic_summary(
 
 __all__ = [
     "first_page_intent_kind",
+    "first_page_workflow_goal",
     "looks_like_generic_page_summary_request",
     "restrict_page_tools_for_generic_summary",
 ]

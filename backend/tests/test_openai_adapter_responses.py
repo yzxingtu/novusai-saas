@@ -6,13 +6,14 @@ from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
-from openai import RateLimitError
+from openai import BadRequestError, PermissionDeniedError, RateLimitError
 
 from app.ai.adapters.openai_adapter import OpenAIAdapter
 from app.ai.adapters.openai_compatible.support.usage_support import (
     RESPONSES_USAGE_RETRIEVE_TIMEOUT_SECONDS,
 )
 from app.ai.exceptions import (
+    ProviderAuthError,
     ProviderConnectionError,
     ProviderError,
     ProviderRateLimitError,
@@ -79,6 +80,17 @@ class _FakeClient:
     def __init__(self, chat_response, responses_response):
         self.chat = SimpleNamespace(completions=_FakeChatCompletions(chat_response))
         self.responses = _FakeResponses(responses_response)
+
+
+class _FakeClientWithOptions:
+    def __init__(self, chat_response, responses_response):
+        self.chat = SimpleNamespace(completions=_FakeChatCompletions(chat_response))
+        self.responses = _FakeResponses(responses_response)
+        self.with_options_calls: list[dict[str, object]] = []
+
+    def with_options(self, **kwargs):
+        self.with_options_calls.append(dict(kwargs))
+        return self
 
 
 def _make_responses_message(text: str):
@@ -192,6 +204,60 @@ def test_convert_openai_rate_limit_preserves_provider_message() -> None:
 
     assert isinstance(converted, ProviderRateLimitError)
     assert str(converted) == "并发 Session 超限：当前 3 个（限制：3 个）。"
+
+
+def test_convert_openai_permission_denied_preserves_provider_message_and_status() -> (
+    None
+):
+    request = httpx.Request("POST", "https://api.example.com/v1/responses")
+    response = httpx.Response(403, request=request)
+    error = PermissionDeniedError(
+        "Error code: 403",
+        response=response,
+        body={
+            "type": "invalid_request_error",
+            "message": "余额不足，请充值后再试。",
+            "code": "insufficient_quota",
+        },
+    )
+
+    converted = convert_openai_error(
+        error,
+        provider_code="openai_compatible",
+        model_code="gpt-5.4",
+    )
+
+    assert isinstance(converted, ProviderAuthError)
+    assert converted.status_code == 403
+    assert converted.error_code == "insufficient_quota"
+    assert str(converted) == "余额不足，请充值后再试。"
+
+
+def test_convert_openai_bad_request_preserves_non_5xx_status_on_provider_error() -> (
+    None
+):
+    request = httpx.Request("POST", "https://api.example.com/v1/responses")
+    response = httpx.Response(400, request=request)
+    error = BadRequestError(
+        "Error code: 400",
+        response=response,
+        body={
+            "type": "invalid_request_error",
+            "message": "messages 不能为空",
+            "code": "invalid_request_error",
+        },
+    )
+
+    converted = convert_openai_error(
+        error,
+        provider_code="openai_compatible",
+        model_code="gpt-5.4",
+    )
+
+    assert isinstance(converted, ProviderError)
+    assert converted.status_code == 400
+    assert converted.error_code == "invalid_request_error"
+    assert str(converted) == "messages 不能为空"
 
 
 def test_responses_rate_limit_does_not_cross_protocol_fallback() -> None:
@@ -916,6 +982,42 @@ async def test_stream_chat_chat_completions_maps_timeout_seconds_to_timeout() ->
 
 
 @pytest.mark.asyncio
+async def test_chat_responses_maps_timeout_seconds_to_timeout() -> None:
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+    response_obj = SimpleNamespace(
+        id="resp_sync_1",
+        object="response",
+        status="completed",
+        usage=SimpleNamespace(input_tokens=3, output_tokens=2, total_tokens=5),
+        output=[_make_responses_message("OK")],
+        output_text="OK",
+        model_dump=lambda: {"ok": True},
+    )
+    responses_create = AsyncMock(return_value=response_obj)
+    adapter.client = SimpleNamespace(
+        responses=SimpleNamespace(create=responses_create),
+        chat=SimpleNamespace(completions=SimpleNamespace(create=AsyncMock())),
+    )
+
+    response = await adapter.chat(
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4-xhigh",
+        timeout_seconds=7,
+    )
+
+    assert response.message.content == "OK"
+    assert response.metadata["protocol_path"] == "responses"
+    assert response.metadata["responses_response_id"] == "resp_sync_1"
+    assert responses_create.await_args is not None
+    assert responses_create.await_args.kwargs["timeout"] == 7.0
+    assert "timeout_seconds" not in responses_create.await_args.kwargs
+
+
+@pytest.mark.asyncio
 async def test_stream_chat_responses_defaults_timeout_without_timeout_seconds_payload() -> (
     None
 ):
@@ -1517,7 +1619,8 @@ async def test_runtime_query_engine_responses_only_provider_never_plans_chat_com
         ],
     ).protocol_chain == ["responses"]
     assert [call["protocol"] for call in adapter.stream_calls] == ["responses"]
-    assert adapter.chat_calls == []
+    assert [call["protocol"] for call in adapter.chat_calls] == ["responses"]
+    assert query_engine.turn_record.metadata["sync_rescue_attempted"] is True
 
 
 @pytest.mark.asyncio
@@ -2372,6 +2475,108 @@ async def test_stream_chat_public_responses_timeout_does_not_hit_chat_completion
     assert adapter.client.chat.completions.last_kwargs is None
     assert responses_create.await_args.kwargs.get("timeout") == pytest.approx(0.05)
     assert hanging_stream.aclose_called is True
+
+
+@pytest.mark.asyncio
+async def test_chat_protocol_responses_applies_client_retry_override() -> None:
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+    client = _FakeClientWithOptions(
+        None,
+        SimpleNamespace(
+            id="resp_1",
+            status="completed",
+            output_text="OK",
+            output=[_make_responses_message("OK")],
+            usage=SimpleNamespace(input_tokens=3, output_tokens=2, total_tokens=5),
+            model_dump=lambda: {"ok": True},
+        ),
+    )
+    adapter.client = client
+
+    response = await adapter.execute_protocol_chat(
+        wire_api="responses",
+        messages=[ChatMessage(role="user", content="hello")],
+        model="gpt-5.4",
+        timeout_seconds=0.05,
+        _runtime_client_max_retries_override=0,
+        _runtime_disable_cross_protocol_fallback=True,
+        _runtime_disable_sync_rescue=True,
+    )
+
+    assert response.message.content == "OK"
+    assert client.with_options_calls == [{"max_retries": 0}]
+    assert client.responses.last_kwargs.get("timeout") == pytest.approx(0.05)
+    assert "_client_max_retries" not in client.responses.last_kwargs
+
+
+@pytest.mark.asyncio
+async def test_stream_protocol_responses_applies_client_retry_override() -> None:
+    class _FakeResponsesStream:
+        def __init__(self, events):
+            self._events = events
+            self.aclose_called = False
+
+        def __aiter__(self):
+            self._iter = iter(self._events)
+            return self
+
+        async def __anext__(self):
+            try:
+                return next(self._iter)
+            except StopIteration as exc:
+                raise StopAsyncIteration from exc
+
+        async def aclose(self) -> None:
+            self.aclose_called = True
+
+    adapter = OpenAIAdapter(
+        api_key="test-key",
+        base_url="https://api.example.com",
+        provider_config={"wire_api": "responses"},
+    )
+    stream = _FakeResponsesStream(
+        [
+            SimpleNamespace(
+                type="response.completed",
+                response=SimpleNamespace(
+                    id="resp_1",
+                    usage=SimpleNamespace(
+                        input_tokens=3,
+                        output_tokens=2,
+                        total_tokens=5,
+                    ),
+                    output_text="OK",
+                    output=[_make_responses_message("OK")],
+                ),
+            )
+        ]
+    )
+    client = _FakeClientWithOptions(None, stream)
+    adapter.client = client
+
+    chunks = [
+        chunk
+        async for chunk in adapter.execute_protocol_stream(
+            wire_api="responses",
+            messages=[ChatMessage(role="user", content="hello")],
+            model="gpt-5.4",
+            timeout_seconds=0.05,
+            _runtime_client_max_retries_override=0,
+            _runtime_disable_cross_protocol_fallback=True,
+            _runtime_disable_sync_rescue=True,
+        )
+    ]
+
+    assert "".join(chunk.delta for chunk in chunks) == "OK"
+    assert chunks[-1].finish_reason == "stop"
+    assert client.with_options_calls == [{"max_retries": 0}]
+    assert client.responses.last_kwargs.get("timeout") == pytest.approx(0.05)
+    assert "_client_max_retries" not in client.responses.last_kwargs
+    assert stream.aclose_called is True
 
 
 @pytest.mark.asyncio

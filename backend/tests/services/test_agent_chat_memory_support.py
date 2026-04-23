@@ -1,3 +1,9 @@
+"""Test type: behavioral
+Scope: Request-startup memory policy priming and memory context-source metadata projection
+Real dependencies: ExecutionRequest, prepare_request_memory_startup, memory policy normalization
+Mocked dependencies: None
+"""
+
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -112,8 +118,32 @@ def test_prepare_request_memory_startup_normalizes_thread_snapshot_and_preserves
         startup.request_memory_runtime_policy["long_term_memory_capture_state"]
         == "disabled"
     )
+    assert startup.memory_context_source_metadata == {
+        "scene": "ai_chat_page",
+        "channel": "tenant_chat",
+        "source": "ai_chat_page",
+        "memory_mode": "session_only",
+        "memory_context_enabled": True,
+        "session_memory_runtime_enabled": True,
+        "session_memory_read_enabled": True,
+        "session_memory_write_enabled": False,
+        "session_memory_state": "enabled",
+        "long_term_memory_runtime_enabled": False,
+        "long_term_memory_recall_enabled": False,
+        "long_term_memory_recall_state": "disabled",
+        "long_term_memory_capture_enabled": False,
+        "long_term_memory_capture_state": "disabled",
+        "thread_memory_owner_state": "polluted",
+        "thread_memory_owner_reason": "tool:web_search",
+        "external_context_polluted": True,
+        "external_context_reason": "tool:web_search",
+        "thread_memory_state_updated_at": "2026-04-21T10:00:00Z",
+    }
     assert "updated_at" not in startup.request_memory_runtime_policy
     assert request.memory_runtime_policy == startup.request_memory_runtime_policy
+    assert (
+        request.memory_context_source_metadata == startup.memory_context_source_metadata
+    )
 
 
 def test_prepare_request_memory_startup_lets_request_flags_override_thread_runtime_state():
@@ -167,3 +197,8 @@ def test_prepare_request_memory_startup_lets_request_flags_override_thread_runti
         == "tool:web_search"
     )
     assert request.memory_runtime_policy == startup.request_memory_runtime_policy
+    assert startup.memory_context_source_metadata["memory_mode"] == "long_term_only"
+    assert startup.memory_context_source_metadata["thread_memory_owner_state"] == (
+        "polluted"
+    )
+    assert startup.memory_context_source_metadata["external_context_polluted"] is True

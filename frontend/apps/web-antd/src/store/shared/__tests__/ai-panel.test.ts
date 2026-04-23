@@ -78,6 +78,12 @@ describe('useAIPanelStore', () => {
     vi.useRealTimers();
   });
 
+  it('defaults to panel mode', () => {
+    const store = useAIPanelStore();
+
+    expect(store.mode).toBe('panel');
+  });
+
   it('auto-cleans resolved page operations after a short grace period', async () => {
     const store = useAIPanelStore();
     const confirmation = store.requestPageOpConfirmation({

@@ -9,12 +9,10 @@ from app.ai.engine.intent_domain_rules_terms import (
     _CAPABILITY_QUERY_TERMS,
     _CAPABILITY_REFERENCE_TERMS,
     _COMMON_WEATHER_LOCATIONS,
-    _GENERIC_WEB_SEARCH_TERMS,
     _KNOWLEDGE_COURTESY_PREFIXES,
     _KNOWLEDGE_DEFINITION_PATTERNS,
     _KNOWLEDGE_FILLER_SUFFIXES,
     _KNOWLEDGE_GENERIC_SUBJECTS,
-    _KNOWLEDGE_TERMS,
     _MEMORY_QUERY_HINT_TERMS,
     _MEMORY_RECALL_TERMS,
     _MEMORY_SAVE_TERMS,
@@ -26,15 +24,15 @@ from app.ai.engine.intent_domain_rules_terms import (
     _TIME_TERMS,
     _WEATHER_ENGLISH_LOCATION_RE,
     _WEATHER_LOCATION_SUFFIX_RE,
-    _WEATHER_TERMS,
     _WEB_NOUN_TERMS,
-    _WEB_TERMS,
 )
 from app.ai.engine.intent_signal_helpers import (
     _first_position,
     _IntentSignal,
+    _semantic_profile_position,
     _tool_families,
 )
+from app.ai.text_semantics import has_question_indicator, mentions_weather
 from app.ai.tools.types import ToolDefinition
 
 _EXPLICIT_WEB_URL_RE = re.compile(r"https?://[^\s<>()\[\]\"']+", re.IGNORECASE)
@@ -98,6 +96,31 @@ _MEMORY_RECALL_CONTEXT_TERMS = (
     "which",
     "recall",
 )
+_WEATHER_SHORTCIRCUIT_TERMS = (
+    "天气",
+    "weather",
+    "气温",
+    "温度",
+)
+_WEB_RESEARCH_PROFILE = (
+    "search the web for news official docs urls links pages online search results",
+    "联网 搜索 网页 网址 链接 官网 新闻 热点 最新消息 排行 资料",
+)
+_KNOWLEDGE_QUERY_PROFILE = (
+    "what is explain introduce tell me about knowledge base document policy definition",
+    "是什么 介绍一下 讲讲 说说 说明一下 科普一下 文档 资料 政策",
+)
+_KNOWLEDGE_WEB_PREFIX_RE = re.compile(
+    r"^(?:联网|上网)?\s*(?:查一下|查下|搜索一下|搜索|搜一下|搜一搜|搜搜|look up|search(?: online)?)\s*",
+    re.IGNORECASE,
+)
+_GENERIC_KNOWLEDGE_QUESTION_PATTERNS = tuple(
+    re.compile(
+        rf"^{re.escape(subject)}\s*(?:是什么|是啥|是谁|what is|who is|tell me about)\b",
+        re.IGNORECASE,
+    )
+    for subject in _KNOWLEDGE_GENERIC_SUBJECTS
+)
 
 
 class IntentDomainRules:
@@ -151,13 +174,15 @@ class IntentDomainRules:
     def generic_web_search_position(cls, lowered: str) -> int:
         if cls.looks_like_page_search_request(lowered):
             return -1
-        if any(
-            term in lowered for term in ("天气", "气温", "温度", "weather")
-        ) and not any(
+        if mentions_weather(lowered) and not any(
             token in lowered for token in (*_WEB_NOUN_TERMS, "官网", "链接", "网址")
         ):
             return -1
-        return _first_position(lowered, _GENERIC_WEB_SEARCH_TERMS)
+        return _semantic_profile_position(
+            lowered,
+            _WEB_RESEARCH_PROFILE,
+            min_score=1,
+        )
 
     @classmethod
     def news_like_web_search_position(cls, lowered: str) -> int:
@@ -274,10 +299,8 @@ class IntentDomainRules:
     def is_question_like_clause(lowered: str) -> bool:
         if not lowered:
             return False
-        return (
-            "?" in lowered
-            or "？" in lowered
-            or any(token in lowered for token in _MEMORY_QUERY_HINT_TERMS)
+        return has_question_indicator(lowered) or any(
+            token in lowered for token in _MEMORY_QUERY_HINT_TERMS
         )
 
     @classmethod
@@ -329,11 +352,12 @@ class IntentDomainRules:
                     "写到",
                 )
             )
-            if not has_save_cues or cls.is_question_like_clause(lowered):
-                if cls.is_question_like_clause(lowered) or any(
-                    token in lowered for token in _MEMORY_RECALL_CONTEXT_TERMS
-                ):
-                    return min(codeword_positions)
+            question_like = cls.is_question_like_clause(lowered)
+            if (not has_save_cues or question_like) and (
+                question_like
+                or any(token in lowered for token in _MEMORY_RECALL_CONTEXT_TERMS)
+            ):
+                return min(codeword_positions)
         if "记得" in lowered and cls.is_question_like_clause(lowered):
             return lowered.find("记得")
         if "记住" in lowered and cls.is_question_like_clause(lowered):
@@ -398,6 +422,37 @@ class IntentDomainRules:
         return -1
 
     @classmethod
+    def knowledge_query_position(cls, clause: str) -> int:
+        position = cls.definition_like_knowledge_query_position(clause)
+        if position >= 0:
+            return position
+
+        cleaned = _KNOWLEDGE_WEB_PREFIX_RE.sub("", str(clause or "").strip())
+        if cleaned != str(clause or "").strip():
+            position = cls.definition_like_knowledge_query_position(cleaned)
+            if position >= 0:
+                lowered_original = str(clause or "").strip().lower()
+                lowered_cleaned = cleaned.lower()
+                matched = lowered_cleaned[position:]
+                mapped = lowered_original.find(matched)
+                return mapped if mapped >= 0 else position
+
+        lowered = str(clause or "").strip().lower()
+        if not lowered or not cls.is_question_like_clause(lowered):
+            return -1
+        normalized_question = re.sub(r"[\s？?!.。]+", "", lowered)
+        if any(
+            pattern.match(normalized_question)
+            for pattern in _GENERIC_KNOWLEDGE_QUESTION_PATTERNS
+        ):
+            return -1
+        return _semantic_profile_position(
+            lowered,
+            _KNOWLEDGE_QUERY_PROFILE,
+            min_score=2,
+        )
+
+    @classmethod
     def detect_domain_signals(
         cls,
         *,
@@ -418,6 +473,7 @@ class IntentDomainRules:
         families = _tool_families(tools, input_variables)
         signals: list[_IntentSignal] = []
 
+        # SHORTCIRCUIT: memory recall/save is explicit and should bypass semantic routing.
         memory_recall_position = cls.memory_recall_position(lowered)
         if memory_recall_position >= 0:
             signals.append(
@@ -428,6 +484,7 @@ class IntentDomainRules:
                     offset + memory_recall_position,
                     requires_tools=False,
                     shortcircuit=True,
+                    metadata={"routing_mode": "deterministic_shortcircuit"},
                 )
             )
         elif (memory_save_position := cls.memory_save_position(lowered)) >= 0:
@@ -439,10 +496,16 @@ class IntentDomainRules:
                     offset + memory_save_position,
                     requires_tools=False,
                     shortcircuit=True,
+                    metadata={"routing_mode": "deterministic_shortcircuit"},
                 )
             )
 
-        weather_position = _first_position(lowered, _WEATHER_TERMS)
+        # SHORTCIRCUIT: weather stays bounded to explicit weather/time-style asks.
+        weather_position = (
+            _first_position(lowered, _WEATHER_SHORTCIRCUIT_TERMS)
+            if mentions_weather(lowered)
+            else -1
+        )
         if "weather" in families and weather_position >= 0:
             signals.append(
                 _IntentSignal(
@@ -451,9 +514,11 @@ class IntentDomainRules:
                     "weather",
                     offset + weather_position,
                     shortcircuit=True,
+                    metadata={"routing_mode": "deterministic_shortcircuit"},
                 )
             )
 
+        # SHORTCIRCUIT: direct clock/date prompts should not depend on broader semantics.
         if "time_ops" in families:
             position = cls.time_query_position(lowered)
             if position >= 0:
@@ -464,6 +529,7 @@ class IntentDomainRules:
                         "time",
                         offset + position,
                         shortcircuit=True,
+                        metadata={"routing_mode": "deterministic_shortcircuit"},
                     )
                 )
 
@@ -478,22 +544,22 @@ class IntentDomainRules:
         fetch_only_request = bool(explicit_url) or explicit_fetch_url_request
         if not forbids_all_web_access and "web_research" in families:
             if weather_position >= 0 and "weather" not in families:
-                signals.append(
-                    _IntentSignal(
-                        "web_research",
-                        "web_research",
-                        "weather_web_research",
-                        offset + weather_position,
+                    signals.append(
+                        _IntentSignal(
+                            "web_research",
+                            "web_research",
+                            "weather_web_research",
+                            offset + weather_position,
+                            metadata={"routing_mode": "structured_semantic"},
+                        )
                     )
-                )
             position_candidates = [
                 candidate
                 for candidate in (
-                    _first_position(lowered, _WEB_TERMS),
-                    lowered.find("fetch_url"),
-                    explicit_url_position,
                     cls.news_like_web_search_position(lowered),
                     cls.generic_web_search_position(lowered),
+                    lowered.find("fetch_url"),
+                    explicit_url_position,
                 )
                 if candidate >= 0
             ]
@@ -523,6 +589,7 @@ class IntentDomainRules:
                         metadata["fetch_only"] = True
                     if forbids_web_search:
                         metadata["web_search_forbidden"] = True
+                    metadata["routing_mode"] = "structured_semantic"
                     signals.append(
                         _IntentSignal(
                             "web_research",
@@ -537,9 +604,7 @@ class IntentDomainRules:
             has_memory_signal = any(
                 signal.kind in {"memory_save", "memory_recall"} for signal in signals
             )
-            position = _first_position(lowered, _KNOWLEDGE_TERMS)
-            if position < 0:
-                position = cls.definition_like_knowledge_query_position(clause)
+            position = cls.knowledge_query_position(clause)
             if position >= 0 and not has_memory_signal:
                 signals.append(
                     _IntentSignal(
@@ -548,6 +613,7 @@ class IntentDomainRules:
                         "knowledge_query",
                         offset + position,
                         requires_tools=False,
+                        metadata={"routing_mode": "structured_semantic"},
                     )
                 )
 
@@ -562,7 +628,13 @@ class IntentDomainRules:
             )
         ):
             signals.append(
-                _IntentSignal("web_research", "web_research", "web_research", offset)
+                _IntentSignal(
+                    "web_research",
+                    "web_research",
+                    "web_research",
+                    offset,
+                    metadata={"routing_mode": "deterministic_shortcircuit"},
+                )
             )
 
         if tools_forbidden:

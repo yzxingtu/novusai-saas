@@ -36,6 +36,35 @@ def test_merge_stream_tool_calls_merges_by_index_and_appends_arguments() -> None
     assert "url" in merged[0]["function"]["arguments"]
 
 
+def test_merge_stream_tool_calls_prefers_latest_complete_json_snapshot() -> None:
+    merged = merge_stream_tool_calls(
+        [],
+        [
+            {
+                "index": 0,
+                "id": "call-1",
+                "function": {
+                    "name": "web_search",
+                    "arguments": '{"max_results":5,"query":"北京 今天天气2026-0422 中国网"}',
+                },
+            },
+            {
+                "index": 0,
+                "id": "call-1",
+                "function": {
+                    "name": "web_search",
+                    "arguments": '{"max_results":5,"query":"北京 今天天气 2026-04-22 中国天气网"}',
+                },
+            },
+        ],
+    )
+
+    assert len(merged) == 1
+    assert merged[0]["function"]["arguments"] == (
+        '{"max_results":5,"query":"北京 今天天气 2026-04-22 中国天气网"}'
+    )
+
+
 def test_finalize_stream_tool_calls_skips_invalid_and_fills_default_args() -> None:
     finalized = finalize_stream_tool_calls(
         [

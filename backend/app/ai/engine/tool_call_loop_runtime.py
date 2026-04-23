@@ -158,6 +158,11 @@ def _append_assistant_tool_call_message(
             tool_calls=tool_calls,
             reasoning_content=(session.current_response.message.content or "").strip()
             or None,
+            metadata=(
+                dict(session.current_response.metadata or {})
+                if isinstance(session.current_response.metadata, dict)
+                else None
+            ),
         )
     )
 

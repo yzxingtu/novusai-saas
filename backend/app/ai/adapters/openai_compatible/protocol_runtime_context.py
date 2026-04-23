@@ -78,6 +78,10 @@ def prepare_protocol_execution_context(
         "_runtime_reasoning_effort_override",
         None,
     )
+    runtime_client_max_retries_override = runtime_kwargs.pop(
+        "_runtime_client_max_retries_override",
+        None,
+    )
     runtime_model_config = runtime_kwargs.pop("model_config", None)
     if runtime_model_config is None:
         runtime_model_config = adapter.config.get("model_config")
@@ -105,15 +109,17 @@ def prepare_protocol_execution_context(
     vision_flag = runtime_kwargs.pop("supports_vision", True)
     audio_flag = runtime_kwargs.pop("supports_audio", False)
     video_flag = runtime_kwargs.pop("supports_video", False)
+    timeout_seconds = adapter._normalize_timeout_seconds(
+        runtime_kwargs.pop("timeout_seconds", None),
+    )
+    if runtime_client_max_retries_override is not None:
+        runtime_kwargs["_client_max_retries"] = runtime_client_max_retries_override
 
-    if stream:
-        timeout_seconds = adapter._normalize_timeout_seconds(
-            runtime_kwargs.pop("timeout_seconds", None),
-        )
-        if runtime_kwargs.get("timeout") is None:
-            runtime_kwargs["timeout"] = (
-                timeout_seconds or default_stream_timeout_seconds
-            )
+    if runtime_kwargs.get("timeout") is None:
+        if timeout_seconds is not None:
+            runtime_kwargs["timeout"] = timeout_seconds
+        elif stream:
+            runtime_kwargs["timeout"] = default_stream_timeout_seconds
 
     return {
         "active_endpoint_path": active_endpoint_path,

@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import os
 import sys
 import types
+
+os.environ.setdefault("NOVUSAI_CLI_DISABLE_FILE_LOGGING", "1")
 
 from app.cli_commands import legacy as _legacy
 

@@ -13,10 +13,11 @@ from app.ai.engine.system_prompt_helpers import (
     is_capability_reporting_query,
     resolve_capability_injection_decision,
 )
-from app.ai.engine.types import ExecutionBudget, IntentPlan
+from app.ai.engine.types import ExecutionBudget, IntentPlan, ResearchContinuationContext
 from app.ai.runtime.types import TurnRecord
 from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage
+from app.ai.utils.token_estimator import estimate_tokens
 
 
 def _sample_budget() -> ExecutionBudget:
@@ -99,6 +100,103 @@ def test_inject_runtime_summary_is_idempotent_for_same_signature() -> None:
     ) == first_signature
 
 
+def test_inject_runtime_summary_omits_retired_runtime_narration() -> None:
+    messages = [ChatMessage(role="system", content="SYS")]
+    tools = [
+        ToolDefinition(name="web_search"),
+        ToolDefinition(name="fetch_url"),
+        ToolDefinition(name="ui_click"),
+        ToolDefinition(name="ui_read_table"),
+        ToolDefinition(name="ui_list_interactables"),
+    ]
+    before_tokens = estimate_tokens(messages[0].content)
+    intents = [
+        IntentPlan(
+            intent_id="intent-1",
+            kind="page_search",
+            family="page_ops",
+            order=1,
+            user_visible_label="page_search",
+            source_text="搜索当前页面中的记录",
+            allowed_tool_names=["ui_click", "ui_read_table", "ui_list_interactables"],
+            preferred_tool_names=[
+                "ui_click",
+                "ui_read_table",
+                "ui_list_interactables",
+            ],
+        )
+    ]
+    continuation = ResearchContinuationContext(
+        active=True,
+        family="web_research",
+        origin="continuation",
+        research_target_text="最新 AI 新闻",
+        recent_web_queries=["latest ai news"],
+        search_query_count=1,
+        fetched_url_count=0,
+        research_instruction_texts=["找最新来源"],
+    )
+
+    inject_runtime_summary(
+        messages=messages,
+        tools=tools,
+        input_variables={
+            "page_context": {
+                "page_key": "admin.runtime.records",
+                "ui_epoch": 9,
+                "page_data": {
+                    "search_inputs": [
+                        {
+                            "locator": 'input[name="title"]',
+                            "label": "搜索记录标题",
+                            "placeholder": "搜索记录标题",
+                        }
+                    ],
+                    "visible_tables": [
+                        {
+                            "locator": '[data-testid="records-table"]',
+                            "label": "记录管理",
+                            "row_count": 12,
+                            "column_count": 6,
+                        }
+                    ],
+                },
+            }
+        },
+        continuation_context=continuation,
+        runtime_capability_summary={
+            "selected_skill_names": ["browser", "researcher"],
+            "context_line": "knowledge_base, memory, page_context",
+            "knowledge_base_hint": True,
+            "page_context_hint": True,
+            "memory_hint": True,
+        },
+        intent_plan=intents,
+        execution_path="normal",
+        execution_budget=_sample_budget(),
+    )
+
+    content = messages[0].content
+    assert "[TOOL USAGE RULES]" not in content
+    assert "[RESEARCH STATE]" not in content
+    assert "[PAGE OPERATIONS]" not in content
+    assert "[ORDERED CAPABILITY INTENT]" not in content
+    assert "Budgets:" not in content
+    assert "Prefer the smallest tool sequence" not in content
+    assert "Stop after reporting completed work" not in content
+    assert "Knowledge-base context is available this turn." not in content
+    assert "Page context is available this turn." not in content
+    assert "Memory context may already be attached this turn." not in content
+    assert "Path: normal" in content
+    assert "Intents: page_search" in content
+    assert (
+        "Tools: web_search, fetch_url, ui_click, ui_read_table, "
+        "ui_list_interactables" in content
+    )
+    assert "Selected skills: browser, researcher." in content
+    assert estimate_tokens(content) - before_tokens <= 120
+
+
 def test_contract_diagnostics_helpers_populate_turn_record_metadata() -> None:
     turn_record = TurnRecord()
     merged = merge_contract_diagnostics_into_turn_record(
@@ -132,6 +230,7 @@ def test_base_engine_wrappers_delegate_to_extracted_helpers() -> None:
         },
     )
     assert message.role == "system"
+    assert message.internal_only is True
     assert BaseEngine._is_capability_reporting_query("你能做什么")
     assert is_capability_reporting_query("what can you do this turn")
     assert BaseEngine._intent_completion_signals(
@@ -162,6 +261,35 @@ def test_page_submit_completion_signals_follow_state_machine_contract() -> None:
             "ui_submit_form",
         ],
         intent_metadata={
+            "page_workflow_phase": "submit",
+            "page_workflow_completion": {
+                "mode": "verify_only",
+                "completion_signals": ["ui_submit_form"],
+                "action_signals": [],
+                "verify_signals": ["ui_submit_form"],
+            },
+        },
+    ) == ["ui_submit_form"]
+
+
+def test_page_workflow_completion_signals_follow_canonical_goal_metadata() -> None:
+    assert BaseEngine._intent_completion_signals(
+        "page_ops",
+        intent_kind="page_workflow",
+        allowed_tool_names=[
+            "ui_get_form_state",
+            "ui_fill_form",
+            "ui_set_field",
+            "ui_submit_form",
+        ],
+        preferred_tool_names=[
+            "ui_fill_form",
+            "ui_set_field",
+            "ui_submit_form",
+        ],
+        intent_metadata={
+            "page_workflow_kind": "page_workflow",
+            "page_workflow_goal": "form_write",
             "page_workflow_phase": "submit",
             "page_workflow_completion": {
                 "mode": "verify_only",
@@ -216,3 +344,5 @@ def test_resolve_capability_injection_decision_sets_context_flags() -> None:
     assert decision["kb_injected"] is False
     assert decision["memory_injected"] is False
     assert decision["skills_injected"] is False
+
+

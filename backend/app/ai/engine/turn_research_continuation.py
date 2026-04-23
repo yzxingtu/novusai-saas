@@ -109,16 +109,14 @@ def build_web_research_continuation_context(
     )
     last_tool_family = _tool_family_from_name_unified(last_tool_name, input_variables)
     page_follow_up_requested = looks_like_page_follow_up(current_user_text)
+    prior_page_progress = bool(last_page_op or last_page_key)
 
     active = False
     family: str | None = None
     if (
         "page_ops" in continuation_capable_families
         and page_follow_up_requested
-        and (
-            last_tool_family == "page_ops"
-            or str(active_intent_kind or "").startswith("page_")
-        )
+        and (last_tool_family == "page_ops" or prior_page_progress)
     ):
         active = True
         family = "page_ops"

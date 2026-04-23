@@ -6,11 +6,26 @@ from datetime import datetime, timezone
 from typing import Any
 
 from app.ai.engine.types import ExecutionResult
+from app.ai.exceptions import looks_like_html_document_text
 from app.ai.json_safe import normalize_json_safe, normalize_json_safe_dict
 from app.ai.memory_policy import normalize_memory_runtime_policy
 from app.ai.utils.token_estimator import estimate_tokens
 from app.core.i18n import _
 from app.enums.agent import MessageRoleEnum
+from app.services.ai.conversation_diagnostics_projector import (
+    ConversationDiagnosticsProjector,
+)
+
+
+def _sanitize_persisted_error_text(
+    value: Any,
+    *,
+    fallback: str = "",
+) -> str:
+    text = str(value or "").strip()
+    if not text or looks_like_html_document_text(text):
+        return str(fallback or "").strip()
+    return text
 
 
 class ConversationStreamPersistenceService:
@@ -68,11 +83,15 @@ class ConversationStreamPersistenceService:
         if conversation is None:
             return False
         conversation_metadata = dict(conversation.metadata_ or {})
+        safe_friendly_message = _sanitize_persisted_error_text(
+            friendly_message,
+            fallback=_("common.server_error"),
+        )
         marker_payload: dict[str, Any] = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "error_type": error_type,
-            "error_message": str(error_message or "")[:500],
-            "friendly_message": friendly_message,
+            "error_message": safe_friendly_message[:500],
+            "friendly_message": safe_friendly_message,
             "partial": bool(partial),
         }
         if isinstance(extra_payload, dict) and extra_payload:
@@ -122,6 +141,14 @@ class ConversationStreamPersistenceService:
         error_message = str(
             error_display.get("message") or error_text or _("common.server_error")
         ).strip() or _("common.server_error")
+        debug_message = _sanitize_persisted_error_text(
+            error_display.get("debug_message"),
+        ) or None
+        raw_error_message = _sanitize_persisted_error_text(
+            result.error,
+            fallback=debug_message or error_message,
+        )
+        last_error_message = debug_message or error_message
         normalized_user_message = str(user_message or "").strip()
 
         if persist_user_message and normalized_user_message:
@@ -149,12 +176,12 @@ class ConversationStreamPersistenceService:
 
         error_metadata: dict[str, Any] = {
             "error": True,
-            "error_debug_message": error_display.get("debug_message"),
+            "error_debug_message": debug_message,
             "error_message": error_message,
             "error_only": bool(error_display.get("error_only")),
             "error_trace_id": error_display.get("trace_id"),
             "error_type": error_display.get("error_type") or "stream_execution_error",
-            "raw_error_message": str(result.error or "")[:500],
+            "raw_error_message": raw_error_message[:500],
             "partial_output": result.output or "",
             "total_tokens": result.total_tokens or 0,
             "duration_ms": result.duration_ms or 0,
@@ -168,6 +195,30 @@ class ConversationStreamPersistenceService:
             error_metadata["last_run_summary"] = normalize_json_safe(
                 last_run_summary_payload
             )
+        turn_record_payload = ConversationDiagnosticsProjector.normalize_turn_record_payload(
+            getattr(result, "turn_record", None)
+        )
+        if turn_record_payload:
+            error_metadata["turn_record"] = normalize_json_safe(turn_record_payload)
+        turn_flow_payload = None
+        if isinstance(turn_record_payload, dict) and isinstance(
+            turn_record_payload.get("turn_flow"), dict
+        ):
+            turn_flow_payload = dict(turn_record_payload.get("turn_flow") or {})
+        elif isinstance(getattr(result, "diagnostics", None), dict) and isinstance(
+            result.diagnostics.get("turn_flow"), dict
+        ):
+            turn_flow_payload = dict(result.diagnostics.get("turn_flow") or {})
+        if turn_flow_payload:
+            error_metadata["turn_flow"] = normalize_json_safe(turn_flow_payload)
+        completion_reason = str(getattr(result, "completion_reason", "") or "").strip()
+        if completion_reason:
+            error_metadata["completion_reason"] = completion_reason
+        provider_failure_kind = str(
+            getattr(result, "provider_failure_kind", "") or ""
+        ).strip()
+        if provider_failure_kind and provider_failure_kind != "none":
+            error_metadata["provider_failure_kind"] = provider_failure_kind
         raw_memory_runtime_policy = getattr(result, "memory_runtime_policy", None)
         memory_runtime_policy = normalize_memory_runtime_policy(
             raw_memory_runtime_policy
@@ -198,8 +249,8 @@ class ConversationStreamPersistenceService:
         conversation_metadata = dict(conversation.metadata_ or {})
         conversation_metadata["last_error"] = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "debug_message": error_display.get("debug_message"),
-            "error_message": str(result.error or "")[:500],
+            "debug_message": debug_message,
+            "error_message": last_error_message[:500],
             "error_type": error_display.get("error_type") or "stream_execution_error",
             "friendly_message": error_message,
             "partial": bool(result.partial),

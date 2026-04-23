@@ -24,6 +24,8 @@ export interface SSEDonePayload {
   memory_recalled: boolean;
   prune_stats?: JsonRecord | null;
   rag_source_kinds: string[];
+  selected_skill_names?: string[];
+  selected_tool_names?: string[];
   termination_reason?: null | string;
   total_tokens: number;
   trace_id?: null | string;
@@ -97,6 +99,7 @@ interface CapturedChatStream {
   contentType: string;
   done: boolean;
   error: null | string;
+  lastUpdatedAt: number;
   requestAt: number;
   responseAt: number;
   url: string;
@@ -229,16 +232,20 @@ function detectRedundantSteps(toolCalls: ToolCallAudit[]) {
       seen.add(key);
     }
 
-    if (toolCall.name === 'fill_form') {
+    if (toolCall.name === 'ui_fill_form') {
       sawFillForm = true;
     }
 
-    if (toolCall.name === 'submit_form' && !sawFillForm) {
-      redundant.push('WRONG_ORDER:submit_form_before_fill_form');
+    if (toolCall.name === 'ui_submit_form' && !sawFillForm) {
+      redundant.push('WRONG_ORDER:ui_submit_form_before_ui_fill_form');
     }
   }
 
   return redundant;
+}
+
+function normalizeDomTranscriptText(value: string) {
+  return value.replace(/\s+/g, ' ').trim();
 }
 
 function normalizeDonePayload(payload: JsonRecord): SSEDonePayload {
@@ -254,10 +261,46 @@ function normalizeDonePayload(payload: JsonRecord): SSEDonePayload {
     memory_recalled: readBoolean(payload.memory_recalled),
     prune_stats: isJsonRecord(payload.prune_stats) ? payload.prune_stats : null,
     rag_source_kinds: readStringArray(payload.rag_source_kinds),
+    selected_skill_names: readStringArray(payload.selected_skill_names),
+    selected_tool_names: readStringArray(payload.selected_tool_names),
     termination_reason: readString(payload.termination_reason) ?? null,
     total_tokens: readNumber(payload.total_tokens),
     trace_id: readString(payload.trace_id) ?? null,
   };
+}
+
+function resolveApiPrefixFromPath(pathname: string) {
+  if (pathname.startsWith('/admin')) {
+    return '/admin';
+  }
+  if (pathname.startsWith('/api/user') || pathname.startsWith('/user')) {
+    return '/api/user';
+  }
+  return '/tenant';
+}
+
+async function fetchPersistedConversationSnapshot(
+  page: Page,
+  conversationId: number,
+  suffix = '',
+) {
+  const pageUrl = new URL(page.url());
+  const apiPrefix = resolveApiPrefixFromPath(pageUrl.pathname);
+  const response = await page.context().request.get(
+    `${pageUrl.origin}${apiPrefix}/ai/agent-chat/conversations/${conversationId}${suffix}`,
+  );
+  if (!response.ok()) {
+    return null;
+  }
+  const payload = (await response.json().catch(() => null)) as unknown;
+  if (!isJsonRecord(payload)) {
+    return null;
+  }
+  const normalized = readRecord(payload.data);
+  if (Object.keys(normalized).length > 0) {
+    return normalized;
+  }
+  return payload;
 }
 
 function mergeToolCallWithStart(
@@ -297,6 +340,42 @@ function installChatStreamCapture() {
       __aiChatStreamCaptureInstalled?: boolean;
       __aiChatStreamRecords?: CapturedChatStream[];
     };
+  const captureContainsTerminalEvent = (body: string) => {
+    if (!body) {
+      return false;
+    }
+    if (body.includes('data: [DONE]')) {
+      return true;
+    }
+
+    const blocks = body.split('\n\n');
+    for (const block of blocks) {
+      const trimmed = block.trim();
+      if (!trimmed || !trimmed.includes('data: ')) {
+        continue;
+      }
+      const dataLine = trimmed
+        .split('\n')
+        .find((line) => line.startsWith('data: '));
+      if (!dataLine) {
+        continue;
+      }
+      const payload = dataLine.slice(6);
+      if (payload === '[DONE]') {
+        return true;
+      }
+      try {
+        const parsed = JSON.parse(payload) as { event?: string };
+        if (parsed?.event === 'done') {
+          return true;
+        }
+      } catch {
+        // Ignore incomplete JSON fragments while the stream is still growing.
+      }
+    }
+
+    return false;
+  };
 
   if (globalWindow.__aiChatStreamCaptureInstalled) {
     return;
@@ -325,23 +404,56 @@ function installChatStreamCapture() {
         contentType: response.headers.get('content-type') || '',
         done: false,
         error: null,
+        lastUpdatedAt: Date.now(),
         requestAt,
         responseAt: Date.now(),
         url,
       };
       globalWindow.__aiChatStreamRecords?.push(record);
 
-      response
-        .clone()
-        .text()
-        .then((body) => {
-          record.body = body;
-          record.done = true;
-        })
-        .catch((error: unknown) => {
-          record.error = error instanceof Error ? error.message : String(error);
-          record.done = true;
-        });
+      const clonedResponse = response.clone();
+      const streamReader = clonedResponse.body?.getReader();
+
+      if (!streamReader) {
+        clonedResponse
+          .text()
+          .then((body) => {
+            record.body = body;
+            record.lastUpdatedAt = Date.now();
+            record.done = true;
+          })
+          .catch((error: unknown) => {
+            record.error = error instanceof Error ? error.message : String(error);
+            record.lastUpdatedAt = Date.now();
+            record.done = true;
+          });
+      } else {
+        const decoder = new TextDecoder();
+        (async () => {
+          try {
+            while (true) {
+              const { done, value } = await streamReader.read();
+              if (done) {
+                record.body += decoder.decode();
+                record.lastUpdatedAt = Date.now();
+                record.done = true;
+                return;
+              }
+              record.body += decoder.decode(value, { stream: true });
+              record.lastUpdatedAt = Date.now();
+              if (captureContainsTerminalEvent(record.body)) {
+                record.done = true;
+                await streamReader.cancel().catch(() => undefined);
+                return;
+              }
+            }
+          } catch (error: unknown) {
+            record.error = error instanceof Error ? error.message : String(error);
+            record.lastUpdatedAt = Date.now();
+            record.done = true;
+          }
+        })();
+      }
     }
 
     return response;
@@ -388,7 +500,51 @@ export async function interceptChatSSE(
                 __aiChatStreamRecords?: CapturedChatStream[];
               };
             const record = globalWindow.__aiChatStreamRecords?.[index];
-            return record && record.done ? record : null;
+            const uiLooksSettled = () => {
+              const panel = document.querySelector('[data-ai-panel]');
+              if (!panel) {
+                return false;
+              }
+              const hasActionableGate = Array.from(
+                panel.querySelectorAll('button'),
+              ).some((button) => {
+                if (!(button instanceof HTMLButtonElement)) {
+                  return false;
+                }
+                if (
+                  button.disabled ||
+                  button.getAttribute('aria-disabled') === 'true'
+                ) {
+                  return false;
+                }
+                const rect = button.getBoundingClientRect();
+                if (rect.width <= 0 || rect.height <= 0) {
+                  return false;
+                }
+                const label = button.innerText.trim();
+                return (
+                  /允许执行|allow/i.test(label) ||
+                  /确认执行|confirm/i.test(label)
+                );
+              });
+              if (hasActionableGate) {
+                return false;
+              }
+              const composer = document.querySelector(
+                '[data-testid="ai-chat-input"], textarea[placeholder*="输入消息"], textarea[placeholder*="Enter"]',
+              ) as HTMLInputElement | HTMLTextAreaElement | null;
+              return !!composer && !composer.disabled;
+            };
+            if (!record) {
+              return null;
+            }
+            if (record.done || record.error) {
+              return record;
+            }
+            if (record.body && uiLooksSettled()) {
+              return record;
+            }
+            return null;
           },
           streamIndex,
           { timeout },
@@ -558,6 +714,9 @@ export async function interceptChatSSE(
         donePayload = normalizeDonePayload(payload);
         conversationId = donePayload.conversation_id || conversationId;
         traceId = donePayload.trace_id ?? traceId;
+        for (const skillName of donePayload.selected_skill_names ?? []) {
+          selectedSkillNames.add(skillName);
+        }
         completionReason =
           donePayload.completion_reason ??
           donePayload.termination_reason ??
@@ -608,9 +767,172 @@ export async function interceptChatSSE(
       });
     }
 
+    const seenToolNames = new Set(toolCalls.map((toolCall) => toolCall.name));
+    for (const toolName of donePayload?.selected_tool_names ?? []) {
+      if (seenToolNames.has(toolName)) {
+        continue;
+      }
+      seenToolNames.add(toolName);
+      toolCalls.push({
+        arguments: null,
+        duration_ms: 0,
+        error: errors[0] ?? null,
+        error_type:
+          completionReason && completionReason !== 'completed'
+            ? completionReason
+            : null,
+        name: toolName,
+        output: null,
+        package_name: null,
+        skill_name: null,
+        success: completionReason === 'completed' && errors.length === 0,
+        summary: 'selected_without_execution_event',
+        summary_payload: {
+          status: 'selected_without_execution_event',
+        },
+      });
+    }
+
     const ttfb = Math.max(0, responseAt - requestAt);
     const ttft = messageEventCount > 0 ? ttfb : 0;
     const totalMs = Math.max(0, finishedAt - requestAt);
+    if (conversationId && conversationId > 0) {
+      const persistedSnapshot = await fetchPersistedConversationSnapshot(
+        page,
+        conversationId,
+      ).catch(() => null);
+      const persistedMessages = Array.isArray(
+        persistedSnapshot?.message_list,
+      )
+        ? persistedSnapshot.message_list.filter(isJsonRecord)
+        : [];
+      for (
+        let messageIndex = persistedMessages.length - 1;
+        messageIndex >= 0;
+        messageIndex -= 1
+      ) {
+        const persistedMessage = persistedMessages[messageIndex]!;
+        if (readString(persistedMessage.role) !== 'assistant') {
+          continue;
+        }
+        const metadata = readRecord(persistedMessage.metadata);
+        const turnRecord = readRecord(metadata.turn_record);
+        const persistedSelectedToolNames = [
+          ...readStringArray(metadata.selected_tool_names),
+          ...readStringArray(turnRecord.selected_tool_names),
+        ];
+        const seenPersistedToolNames = new Set(
+          toolCalls.map((toolCall) => toolCall.name),
+        );
+        for (const toolName of persistedSelectedToolNames) {
+          if (seenPersistedToolNames.has(toolName)) {
+            continue;
+          }
+          seenPersistedToolNames.add(toolName);
+          toolCalls.push({
+            arguments: null,
+            duration_ms: 0,
+            error: errors[0] ?? null,
+            error_type:
+              completionReason && completionReason !== 'completed'
+                ? completionReason
+                : null,
+            name: toolName,
+            output: null,
+            package_name: null,
+            skill_name: null,
+            success: completionReason === 'completed' && errors.length === 0,
+            summary: 'persisted_selected_tool',
+            summary_payload: {
+              status: 'persisted_selected_tool',
+            },
+          });
+        }
+        if (!fullResponse.trim()) {
+          const persistedContent = readString(persistedMessage.content);
+          if (persistedContent) {
+            fullResponse = persistedContent;
+          }
+        }
+        break;
+      }
+      if (toolCalls.length === 0) {
+        const timelineSnapshot = await fetchPersistedConversationSnapshot(
+          page,
+          conversationId,
+          '/timeline',
+        ).catch(() => null);
+        const timelineItems = Array.isArray(timelineSnapshot)
+          ? timelineSnapshot.filter(isJsonRecord)
+          : Array.isArray(timelineSnapshot?.items)
+            ? timelineSnapshot.items.filter(isJsonRecord)
+            : [];
+        const seenPersistedToolNames = new Set(
+          toolCalls.map((toolCall) => toolCall.name),
+        );
+        for (const item of timelineItems) {
+          const toolName = readString(item.tool_name);
+          if (!toolName || seenPersistedToolNames.has(toolName)) {
+            continue;
+          }
+          seenPersistedToolNames.add(toolName);
+          toolCalls.push({
+            arguments: null,
+            duration_ms: 0,
+            error: errors[0] ?? null,
+            error_type:
+              completionReason && completionReason !== 'completed'
+                ? completionReason
+                : null,
+            name: toolName,
+            output: null,
+            package_name: null,
+            skill_name: null,
+            success: completionReason === 'completed' && errors.length === 0,
+            summary: readString(item.summary) ?? 'persisted_timeline_tool',
+            summary_payload: {
+              status: readString(item.status) ?? 'persisted_timeline_tool',
+              type: readString(item.type),
+            },
+          });
+        }
+      }
+    }
+    if (!fullResponse.trim()) {
+      const domFallback = await page
+        .evaluate(() => {
+          const panel = document.querySelector('[data-ai-panel]');
+          if (!panel) {
+            return '';
+          }
+          const surfaces = Array.from(
+            panel.querySelectorAll('.assistant-message-surface'),
+          );
+          for (let index = surfaces.length - 1; index >= 0; index -= 1) {
+            const surface = surfaces[index] as HTMLElement | undefined;
+            if (!surface) {
+              continue;
+            }
+            const contentCandidates = [
+              surface.querySelector('.assistant-message-body .assistant-content-block .markdown-render'),
+              surface.querySelector('.assistant-message-body .assistant-content-block'),
+              surface.querySelector('.assistant-message-body'),
+              surface.querySelector('.assistant-message-top'),
+            ];
+            for (const candidate of contentCandidates) {
+              const text = candidate?.textContent?.trim() ?? '';
+              if (text) {
+                return text;
+              }
+            }
+          }
+          return '';
+        })
+        .catch(() => '');
+      if (domFallback.trim()) {
+        fullResponse = normalizeDomTranscriptText(domFallback);
+      }
+    }
 
     return {
       actionButtons,

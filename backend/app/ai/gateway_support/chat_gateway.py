@@ -142,6 +142,11 @@ async def execute_chat(
             },
         )
     except AIGatewayError as original_error:
+        await gateway.failover.record_provider_runtime_failure(
+            provider.id,
+            model_id=model_id,
+            error=original_error,
+        )
         fallback_model = await gateway.failover.get_fallback_model(model_id)
         if not fallback_model:
             await gateway.usage_recorder.log_call_failure(

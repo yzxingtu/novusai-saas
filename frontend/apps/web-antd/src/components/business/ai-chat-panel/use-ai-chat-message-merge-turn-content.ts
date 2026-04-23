@@ -49,6 +49,7 @@ function collectTurnText(
   persistedErrorOnly: boolean,
 ): boolean {
   const persistedThinking =
+    !state.hasCanonicalTurnFlow &&
     typeof assistantMetadata?.thinking_content === 'string'
       ? assistantMetadata.thinking_content
       : '';
@@ -62,7 +63,7 @@ function collectTurnText(
   if (persistedErrorOnly) {
     return true;
   }
-  if (hasLegacyToolCalls(messageItem)) {
+  if (!state.hasCanonicalTurnFlow && hasLegacyToolCalls(messageItem)) {
     if (!persistedThinking.trim()) {
       appendDistinctMergedTextPart(
         state.thinkingContentParts,
@@ -107,6 +108,9 @@ function collectTurnRagSources(
   state: AssistantTurnMergeState,
   assistantMetadata: null | Record<string, unknown>,
 ) {
+  if (state.hasCanonicalTurnFlow) {
+    return;
+  }
   const ragSources = assistantMetadata?.rag_sources;
   if (Array.isArray(ragSources) && ragSources.length > 0) {
     state.turnRagSources = ragSources as RagSource[];

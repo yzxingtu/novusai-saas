@@ -9,7 +9,7 @@ from app.ai.engine.execution_state_machine import ExecutionStateMachine
 from app.ai.engine.final_output_policy import build_untrusted_final_output_fallback
 from app.ai.engine.recovery_manager import RecoveryManager
 from app.ai.engine.stream_handler import StreamExecutionHandler
-from app.ai.engine.turn_executor_completion import finalize_turn_execution
+from app.ai.engine.turn_executor import finalize_turn_execution
 from app.ai.engine.types import (
     ExecutionBudget,
     ExecutionRequest,
@@ -150,9 +150,15 @@ def _install_fake_weather_processor(
             content: str,
             tool_calls: list[dict[str, object]],
             reasoning_content: str | None = None,
+            metadata: dict[str, object] | None = None,
         ):
             _ = reasoning_content
-            return ChatMessage(role="assistant", content=content, tool_calls=tool_calls)
+            return ChatMessage(
+                role="assistant",
+                content=content,
+                tool_calls=tool_calls,
+                metadata=metadata,
+            )
 
     monkeypatch.setattr(tool_processor_mod, "ToolCallProcessor", FakeProcessor)
 
@@ -173,7 +179,9 @@ async def test_budget_exit_with_tool_results_uses_cached_partial_output(
     engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=sandbox)
     prep = PreparedExecution(
         messages=[ChatMessage(role="user", content="帮我查一下西安现在的天气")],
-        tools=[ToolDefinition(name="get_current_weather", description="Current weather")],
+        tools=[
+            ToolDefinition(name="get_current_weather", description="Current weather")
+        ],
         all_tools=[
             ToolDefinition(name="get_current_weather", description="Current weather")
         ],
@@ -209,7 +217,9 @@ async def test_budget_exit_with_tool_results_uses_cached_partial_output(
                 output_tokens=8,
             ),
             ChatResponse(
-                message=ChatMessage(role="assistant", content="西安现在多云，气温约 18C。"),
+                message=ChatMessage(
+                    role="assistant", content="西安现在多云，气温约 18C。"
+                ),
                 total_tokens=6,
                 output_tokens=6,
             ),
@@ -258,7 +268,9 @@ async def test_budget_exit_with_tool_results_uses_cached_partial_output(
 
 
 @pytest.mark.asyncio
-async def test_finalize_turn_execution_replaces_untrusted_tool_evidence_with_safe_fallback() -> None:
+async def test_finalize_turn_execution_replaces_untrusted_tool_evidence_with_safe_fallback() -> (
+    None
+):
     prep = PreparedExecution(
         messages=[ChatMessage(role="user", content="latest updates?")],
         intent_plan=[
@@ -300,6 +312,7 @@ async def test_finalize_turn_execution_replaces_untrusted_tool_evidence_with_saf
         total_tokens=0,
         output_tokens=0,
     )
+
     def _emit_round_started(*_args, **_kwargs):
         return None
 
@@ -322,7 +335,7 @@ async def test_finalize_turn_execution_replaces_untrusted_tool_evidence_with_saf
         total_tokens=0,
         completion_tokens_used=0,
         ran_post_tool_follow_up=False,
-        emit_round_started=_emit_round_started,
+        emit_round_started_cb=_emit_round_started,
     )
 
     expected_fallback = build_untrusted_final_output_fallback(
@@ -336,7 +349,9 @@ async def test_finalize_turn_execution_replaces_untrusted_tool_evidence_with_saf
     assert state.preparation_diagnostics["post_tool_completion_state"] == (
         "search_not_successful"
     )
-    assert state.preparation_diagnostics["search_not_successful_untrusted_output"] is True
+    assert (
+        state.preparation_diagnostics["search_not_successful_untrusted_output"] is True
+    )
     assert state.preparation_diagnostics["stripped_untrusted_final_output"] is True
     assert (
         state.preparation_diagnostics["untrusted_final_output_fallback_applied"] is True
@@ -347,7 +362,9 @@ async def test_finalize_turn_execution_replaces_untrusted_tool_evidence_with_saf
 async def test_handle_tool_calls_skips_finalization_only_call_after_retry_success_when_budget_is_exceeded(
     monkeypatch,
 ) -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     budget = _make_budget()
     tools = [ToolDefinition(name="get_current_weather", description="Current weather")]
     request = ExecutionRequest(
@@ -375,7 +392,9 @@ async def test_handle_tool_calls_skips_finalization_only_call_after_retry_succes
         if kwargs["tools"] is not None:
             return ChatResponse(
                 message=ChatMessage(role="assistant", content=""),
-                tool_calls=[_weather_tool_call(city="凤凰", call_id="tc_weather_retry")],
+                tool_calls=[
+                    _weather_tool_call(city="凤凰", call_id="tc_weather_retry")
+                ],
                 total_tokens=4,
                 output_tokens=2,
             )
@@ -387,22 +406,27 @@ async def test_handle_tool_calls_skips_finalization_only_call_after_retry_succes
 
     engine._call_llm = AsyncMock(side_effect=_fake_call_llm)
 
-    final_response, tool_results, total_tokens, completion_tokens = (
-        await engine._handle_tool_calls(
-            agent=_make_agent(),
-            messages=[ChatMessage(role="user", content="今天凤凰县天气咋样")],
-            response=ChatResponse(
-                message=ChatMessage(role="assistant", content=""),
-                tool_calls=[_weather_tool_call(city="凤凰县", call_id="tc_weather_initial")],
-                total_tokens=8,
-                output_tokens=4,
-            ),
-            tools=tools,
-            all_tools=tools,
-            request=request,
-            tool_use_policy=request.tool_use_policy,
-            execution_budget=budget,
-        )
+    (
+        final_response,
+        tool_results,
+        total_tokens,
+        completion_tokens,
+    ) = await engine._handle_tool_calls(
+        agent=_make_agent(),
+        messages=[ChatMessage(role="user", content="今天凤凰县天气咋样")],
+        response=ChatResponse(
+            message=ChatMessage(role="assistant", content=""),
+            tool_calls=[
+                _weather_tool_call(city="凤凰县", call_id="tc_weather_initial")
+            ],
+            total_tokens=8,
+            output_tokens=4,
+        ),
+        tools=tools,
+        all_tools=tools,
+        request=request,
+        tool_use_policy=request.tool_use_policy,
+        execution_budget=budget,
     )
 
     assert final_response is not None
@@ -417,7 +441,9 @@ async def test_handle_tool_calls_skips_finalization_only_call_after_retry_succes
 async def test_handle_tool_calls_keeps_completed_final_answer_even_if_budget_is_exceeded_before_next_round(
     monkeypatch,
 ) -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     budget = _make_budget()
     tools = [ToolDefinition(name="get_current_weather", description="Current weather")]
     request = ExecutionRequest(
@@ -448,7 +474,9 @@ async def test_handle_tool_calls_keeps_completed_final_answer_even_if_budget_is_
         if call_counter["count"] == 1:
             return ChatResponse(
                 message=ChatMessage(role="assistant", content=""),
-                tool_calls=[_weather_tool_call(city="凤凰", call_id="tc_weather_retry")],
+                tool_calls=[
+                    _weather_tool_call(city="凤凰", call_id="tc_weather_retry")
+                ],
                 total_tokens=4,
                 output_tokens=2,
             )
@@ -461,22 +489,27 @@ async def test_handle_tool_calls_keeps_completed_final_answer_even_if_budget_is_
 
     engine._call_llm = AsyncMock(side_effect=_fake_call_llm)
 
-    final_response, tool_results, total_tokens, completion_tokens = (
-        await engine._handle_tool_calls(
-            agent=_make_agent(),
-            messages=[ChatMessage(role="user", content="今天凤凰县天气咋样")],
-            response=ChatResponse(
-                message=ChatMessage(role="assistant", content=""),
-                tool_calls=[_weather_tool_call(city="凤凰县", call_id="tc_weather_initial")],
-                total_tokens=8,
-                output_tokens=4,
-            ),
-            tools=tools,
-            all_tools=tools,
-            request=request,
-            tool_use_policy=request.tool_use_policy,
-            execution_budget=budget,
-        )
+    (
+        final_response,
+        tool_results,
+        total_tokens,
+        completion_tokens,
+    ) = await engine._handle_tool_calls(
+        agent=_make_agent(),
+        messages=[ChatMessage(role="user", content="今天凤凰县天气咋样")],
+        response=ChatResponse(
+            message=ChatMessage(role="assistant", content=""),
+            tool_calls=[
+                _weather_tool_call(city="凤凰县", call_id="tc_weather_initial")
+            ],
+            total_tokens=8,
+            output_tokens=4,
+        ),
+        tools=tools,
+        all_tools=tools,
+        request=request,
+        tool_use_policy=request.tool_use_policy,
+        execution_budget=budget,
     )
 
     assert final_response is not None
@@ -492,7 +525,9 @@ async def test_handle_tool_calls_keeps_completed_final_answer_even_if_budget_is_
 async def test_handle_tool_calls_does_not_start_finalization_only_response_when_budget_is_exceeded(
     monkeypatch,
 ) -> None:
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     budget = _make_budget()
     tools = [ToolDefinition(name="get_current_weather", description="Current weather")]
     processed_cities: list[str] = []
@@ -522,35 +557,44 @@ async def test_handle_tool_calls_does_not_start_finalization_only_response_when_
         if kwargs["tools"] is not None:
             return ChatResponse(
                 message=ChatMessage(role="assistant", content=""),
-                tool_calls=[_weather_tool_call(city="凤凰", call_id="tc_weather_retry")],
+                tool_calls=[
+                    _weather_tool_call(city="凤凰", call_id="tc_weather_retry")
+                ],
                 total_tokens=4,
                 output_tokens=2,
             )
         return ChatResponse(
             message=ChatMessage(role="assistant", content="凤凰今天晴，气温 7.5°C。"),
-            tool_calls=[_weather_tool_call(city="长沙", call_id="tc_unexpected_finalization")],
+            tool_calls=[
+                _weather_tool_call(city="长沙", call_id="tc_unexpected_finalization")
+            ],
             total_tokens=6,
             output_tokens=6,
         )
 
     engine._call_llm = AsyncMock(side_effect=_fake_call_llm)
 
-    final_response, tool_results, total_tokens, completion_tokens = (
-        await engine._handle_tool_calls(
-            agent=_make_agent(),
-            messages=[ChatMessage(role="user", content="今天凤凰县天气咋样")],
-            response=ChatResponse(
-                message=ChatMessage(role="assistant", content=""),
-                tool_calls=[_weather_tool_call(city="凤凰县", call_id="tc_weather_initial")],
-                total_tokens=8,
-                output_tokens=4,
-            ),
-            tools=tools,
-            all_tools=tools,
-            request=request,
-            tool_use_policy=request.tool_use_policy,
-            execution_budget=budget,
-        )
+    (
+        final_response,
+        tool_results,
+        total_tokens,
+        completion_tokens,
+    ) = await engine._handle_tool_calls(
+        agent=_make_agent(),
+        messages=[ChatMessage(role="user", content="今天凤凰县天气咋样")],
+        response=ChatResponse(
+            message=ChatMessage(role="assistant", content=""),
+            tool_calls=[
+                _weather_tool_call(city="凤凰县", call_id="tc_weather_initial")
+            ],
+            total_tokens=8,
+            output_tokens=4,
+        ),
+        tools=tools,
+        all_tools=tools,
+        request=request,
+        tool_use_policy=request.tool_use_policy,
+        execution_budget=budget,
     )
 
     assert final_response is not None
@@ -694,13 +738,21 @@ async def test_stream_handler_uses_partial_summary_without_finalization_round(
             content: str,
             tool_calls: list[dict[str, object]],
             reasoning_content: str | None = None,
+            metadata: dict[str, object] | None = None,
         ):
             _ = reasoning_content
-            return ChatMessage(role="assistant", content=content, tool_calls=tool_calls)
+            return ChatMessage(
+                role="assistant",
+                content=content,
+                tool_calls=tool_calls,
+                metadata=metadata,
+            )
 
     monkeypatch.setattr(tool_processor_mod, "ToolCallProcessor", FakeStreamProcessor)
 
-    engine = ConversationEngine(db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock())
+    engine = ConversationEngine(
+        db=MagicMock(), gateway=MagicMock(), sandbox=MagicMock()
+    )
     prep = PreparedExecution(
         messages=[ChatMessage(role="user", content="今天凤凰县天气咋样")],
         tools=tools,
@@ -747,9 +799,7 @@ async def test_stream_handler_uses_partial_summary_without_finalization_round(
         if self.budget is None:
             return
         if len(processed_cities) >= 2:
-            self.budget.tool_result_bytes_used = (
-                self.budget.max_tool_result_bytes + 1
-            )
+            self.budget.tool_result_bytes_used = self.budget.max_tool_result_bytes + 1
         else:
             self.budget.tool_result_bytes_used = 0
 
@@ -761,7 +811,9 @@ async def test_stream_handler_uses_partial_summary_without_finalization_round(
         if call_counter["count"] == 1:
             yield ChatChunk(
                 delta="",
-                tool_calls=[_weather_tool_call(city="凤凰县", call_id="tc_weather_initial")],
+                tool_calls=[
+                    _weather_tool_call(city="凤凰县", call_id="tc_weather_initial")
+                ],
                 total_tokens=8,
                 output_tokens=4,
                 metadata=metadata,
@@ -770,7 +822,9 @@ async def test_stream_handler_uses_partial_summary_without_finalization_round(
         if call_counter["count"] == 2:
             yield ChatChunk(
                 delta="",
-                tool_calls=[_weather_tool_call(city="凤凰", call_id="tc_weather_retry")],
+                tool_calls=[
+                    _weather_tool_call(city="凤凰", call_id="tc_weather_retry")
+                ],
                 total_tokens=4,
                 output_tokens=2,
                 metadata=metadata,
@@ -779,7 +833,9 @@ async def test_stream_handler_uses_partial_summary_without_finalization_round(
         assert kwargs["tools"] == []
         yield ChatChunk(
             delta="凤凰今天晴，气温 7.5°C。",
-            tool_calls=[_weather_tool_call(city="长沙", call_id="tc_unexpected_finalization")],
+            tool_calls=[
+                _weather_tool_call(city="长沙", call_id="tc_unexpected_finalization")
+            ],
             total_tokens=6,
             output_tokens=6,
             metadata=metadata,
@@ -812,7 +868,9 @@ async def test_stream_handler_uses_partial_summary_without_finalization_round(
     assert call_counter["count"] == 2
 
 
-def test_partial_output_prefers_cached_completed_result_and_distinguishes_tool_timeout() -> None:
+def test_partial_output_prefers_cached_completed_result_and_distinguishes_tool_timeout() -> (
+    None
+):
     intents = [
         IntentPlan(
             intent_id="intent-time",
@@ -897,7 +955,9 @@ def test_recovery_manager_caches_completed_intent_result_from_tool_output() -> N
     assert updated[0].metadata["cached_result"] == "西安现在多云，气温约 18C。"
 
 
-def test_recovery_manager_prefers_current_completed_tool_result_over_stale_cache() -> None:
+def test_recovery_manager_prefers_current_completed_tool_result_over_stale_cache() -> (
+    None
+):
     intents = [
         IntentPlan(
             intent_id="intent-web",
@@ -935,6 +995,215 @@ def test_recovery_manager_prefers_current_completed_tool_result_over_stale_cache
     assert updated[0].cached_result != "旧的搜索命中缓存"
 
 
+def test_recovery_manager_caches_completed_page_table_result_from_tool_output() -> None:
+    intents = [
+        IntentPlan(
+            intent_id="intent-page-table",
+            kind="page_summary",
+            family="page_ops",
+            order=1,
+            user_visible_label="page_summary",
+            source_text="帮我看看这个表格里有哪些数据",
+            status="pending",
+            allowed_tool_names=["ui_read_table"],
+        )
+    ]
+
+    updated = RecoveryManager.update_intent_statuses(
+        intents,
+        messages=[],
+        tool_results=[
+            ToolResult(
+                tool_call_id="tc-page-table",
+                name="ui_read_table",
+                success=True,
+                output=(
+                    '{"columns":["标题","时间","状态"],'
+                    '"rows":[{"标题":"对话 A","时间":"2026-04-22 09:30","状态":"成功"},'
+                    '{"标题":"对话 B","时间":"2026-04-22 09:10","状态":"失败"}],'
+                    '"total_rows":12,"table_locator":"records-table"}'
+                ),
+            )
+        ],
+    )
+
+    assert updated[0].status == "completed"
+    assert "表格列：标题、时间、状态" in updated[0].cached_result
+    assert "标题=对话 A" in updated[0].cached_result
+    assert "时间=2026-04-22 09:30" in updated[0].cached_result
+    assert "共 12 条" in updated[0].cached_result
+
+
+def test_recovery_manager_caches_page_snapshot_result_from_tool_output() -> None:
+    intents = [
+        IntentPlan(
+            intent_id="intent-page-snapshot",
+            kind="page_summary",
+            family="page_ops",
+            order=1,
+            user_visible_label="page_summary",
+            source_text="当前页面有什么内容？",
+            status="pending",
+            allowed_tool_names=["ui_get_snapshot"],
+        )
+    ]
+
+    updated = RecoveryManager.update_intent_statuses(
+        intents,
+        messages=[],
+        tool_results=[
+            ToolResult(
+                tool_call_id="tc-page-snapshot",
+                name="ui_get_snapshot",
+                success=True,
+                output=(
+                    '{"ui_epoch":12,"surface_stack":[{"surface_id":"dashboard",'
+                    '"kind":"page","title":"概览"}],"active_surface_id":"dashboard",'
+                    '"nodes":[{"summary":"平台控制塔","kind":"heading"},'
+                    '{"summary":"企业增长航迹","kind":"heading"},'
+                    '{"summary":"控制塔快捷动作","kind":"heading"}],'
+                    '"interactables_count":8}'
+                ),
+            )
+        ],
+    )
+
+    assert updated[0].status == "completed"
+    assert "当前焦点：概览" in updated[0].cached_result
+    assert "平台控制塔" in updated[0].cached_result
+    assert "企业增长航迹" in updated[0].cached_result
+    assert "8 个可交互元素" in updated[0].cached_result
+
+
+def test_recovery_manager_prefers_node_surface_over_overlay_title_in_page_snapshot() -> (
+    None
+):
+    intents = [
+        IntentPlan(
+            intent_id="intent-page-snapshot",
+            kind="page_summary",
+            family="page_ops",
+            order=1,
+            user_visible_label="page_summary",
+            source_text="看看这个页面有什么内容？",
+            status="pending",
+            allowed_tool_names=["ui_get_snapshot"],
+        )
+    ]
+
+    updated = RecoveryManager.update_intent_statuses(
+        intents,
+        messages=[],
+        tool_results=[
+            ToolResult(
+                tool_call_id="tc-page-snapshot-overlay",
+                name="ui_get_snapshot",
+                success=True,
+                output=(
+                    '{"ui_epoch":6,"surface_stack":['
+                    '{"surface_id":"surface:page:2","kind":"page","title":"记录管理"},'
+                    '{"surface_id":"surface:drawer:7","kind":"drawer","title":"对话详情"},'
+                    '{"surface_id":"surface:popover:9","kind":"popover","title":"浮层 1"}],'
+                    '"active_surface_id":"surface:popover:9","nodes":['
+                    '{"surface_id":"surface:page:2","kind":"button","summary":"查看详情"},'
+                    '{"surface_id":"surface:page:2","kind":"button","summary":"重 置"},'
+                    '{"surface_id":"surface:page:2","kind":"table","summary":"记录列表"}],'
+                    '"interactables_count":4}'
+                ),
+            )
+        ],
+    )
+
+    assert updated[0].status == "completed"
+    assert updated[0].cached_result.startswith("当前焦点：记录管理")
+    assert "浮层 1（popover）" not in updated[0].cached_result
+    assert "查看详情" in updated[0].cached_result
+    assert "记录列表" in updated[0].cached_result
+
+
+def test_recovery_manager_caches_page_interactables_result_from_tool_output() -> None:
+    intents = [
+        IntentPlan(
+            intent_id="intent-page-discovery",
+            kind="page_summary",
+            family="page_ops",
+            order=1,
+            user_visible_label="page_summary",
+            source_text="当前页面有哪些可点击项？",
+            status="pending",
+            allowed_tool_names=["ui_list_interactables"],
+        )
+    ]
+
+    updated = RecoveryManager.update_intent_statuses(
+        intents,
+        messages=[],
+        tool_results=[
+            ToolResult(
+                tool_call_id="tc-page-discovery",
+                name="ui_list_interactables",
+                success=True,
+                output=(
+                    '{"surface_id":"tenant-list","items":['
+                    '{"label":"新增企业","kind":"button","locator":"btn-create-tenant"},'
+                    '{"label":"搜索企业名称","kind":"textbox","locator":"input-search-tenant"},'
+                    '{"label":"管理企业","kind":"button","locator":"btn-manage-tenant"}'
+                    '],"count":29}'
+                ),
+            )
+        ],
+    )
+
+    assert updated[0].status == "completed"
+    assert "新增企业" in updated[0].cached_result
+    assert "搜索企业名称" in updated[0].cached_result
+    assert "管理企业" in updated[0].cached_result
+    assert "29 个可交互元素" in updated[0].cached_result
+
+
+def test_recovery_manager_caches_page_form_state_from_summary_payload_data() -> None:
+    intents = [
+        IntentPlan(
+            intent_id="intent-form-read",
+            kind="page_form_read",
+            family="page_ops",
+            order=1,
+            user_visible_label="page_form_read",
+            source_text="读取当前表单状态",
+            status="pending",
+            allowed_tool_names=["ui_get_form_state"],
+        )
+    ]
+
+    updated = RecoveryManager.update_intent_statuses(
+        intents,
+        messages=[],
+        tool_results=[
+            ToolResult(
+                tool_call_id="tc-form-read",
+                name="ui_get_form_state",
+                success=True,
+                summary_payload={
+                    "data": {
+                        "entity_name": "技能包",
+                        "fields": [
+                            {"label": "名称", "name": "name", "value": "Runtime Pack"},
+                            {"label": "状态", "name": "status", "value": "启用"},
+                        ],
+                        "remaining_required_fields": ["图标"],
+                        "stage": "editing",
+                    }
+                },
+            )
+        ],
+    )
+
+    assert updated[0].status == "completed"
+    assert "技能包表单" in updated[0].cached_result
+    assert "名称=Runtime Pack" in updated[0].cached_result
+    assert "待填字段：图标" in updated[0].cached_result
+
+
 def test_recovery_manager_treats_terminal_failure_as_partial_exit_not_retry() -> None:
     intents = [
         IntentPlan(
@@ -960,3 +1229,4 @@ def test_recovery_manager_treats_terminal_failure_as_partial_exit_not_retry() ->
     assert decision.action == "return_partial"
     assert decision.reason == "terminal_failure"
     assert decision.provider_failure_kind == "provider_unavailable"
+

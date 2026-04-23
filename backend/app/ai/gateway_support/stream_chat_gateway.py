@@ -191,6 +191,11 @@ async def execute_stream_chat(
                     await asyncio.sleep(delay)
 
         except AIGatewayError as original_error:
+            await gateway.failover.record_provider_runtime_failure(
+                provider.id,
+                model_id=ai_model.id,
+                error=original_error,
+            )
             fallback_model = await gateway.failover.get_fallback_model(ai_model.id)
             if not fallback_model:
                 await gateway.usage_recorder.log_call_failure(

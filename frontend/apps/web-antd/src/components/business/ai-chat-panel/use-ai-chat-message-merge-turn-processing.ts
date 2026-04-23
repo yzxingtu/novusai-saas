@@ -190,6 +190,7 @@ export function processAssistantMessage({
     messageItem.turn_flow ?? assistantMetadata?.turn_flow,
   );
   if (persistedTurnFlow) {
+    state.hasCanonicalTurnFlow = true;
     state.turnFlow = mergeTurnFlow(state.turnFlow, persistedTurnFlow);
     if (persistedTurnFlow.completionReason) {
       state.turnCompletionReason = persistedTurnFlow.completionReason;

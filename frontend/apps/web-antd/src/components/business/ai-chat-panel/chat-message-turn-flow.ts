@@ -12,17 +12,11 @@ import type {
   TurnFlowViewModel,
 } from './types';
 
-import { normalizeTurnFlowViewModel } from './use-ai-chat-turn-flow';
+import { $t } from '#/locales';
 
-type LegacyStageSource =
-  | 'legacy-retrieval'
-  | 'legacy-thinking'
-  | 'legacy-tool-execution'
-  | 'legacy-tool-selection';
+import { normalizeTurnFlowViewModel } from './chat-message-turn-flow-core';
 
-export interface TurnFlowStageForDisplay extends TurnFlowStage {
-  legacySource?: LegacyStageSource;
-}
+export interface TurnFlowStageForDisplay extends TurnFlowStage {}
 
 export interface TurnFlowForDisplay extends TurnFlowViewModel {
   answerCard?: TurnAnswerCard;
@@ -375,7 +369,7 @@ function coerceEvidence(raw: unknown, index: number): null | TurnEvidenceItem {
   const title =
     normalizeOptionalString(evidence.title) ??
     normalizeOptionalString(evidence.url) ??
-    `Evidence ${index + 1}`;
+    $t('common.globalAiChat.turnEvidenceFallback', { index: index + 1 });
   return {
     id,
     kind: normalizeEvidenceKind(evidence.kind),
@@ -838,7 +832,12 @@ function toDisplayRagSourcesFromCanonicalFlow(
     .filter((item) => item.kind === 'knowledge_base' || item.kind === 'web')
     .map((item, index) => ({
       doc_id: index + 1,
-      doc_name: item.title || item.sourceRef || `Source ${index + 1}`,
+      doc_name:
+        item.title ||
+        item.sourceRef ||
+        $t('common.globalAiChat.turnSourceFallback', {
+          index: index + 1,
+        }),
       score:
         typeof item.score === 'number' && Number.isFinite(item.score)
           ? item.score
@@ -864,7 +863,12 @@ function toDisplayToolCallsFromCanonicalFlow(
     .map((item, index) => ({
       id: item.toolCallId ?? `evidence-tool-${index + 1}`,
       name:
-        item.toolName || item.sourceRef || item.title || `tool_${index + 1}`,
+        item.toolName ||
+        item.sourceRef ||
+        item.title ||
+        $t('common.globalAiChat.toolFallbackName', {
+          index: index + 1,
+        }),
       status: item.status || ('success' as const),
       ...(item.arguments ? { arguments: item.arguments } : {}),
       ...(item.displayName ? { displayName: item.displayName } : {}),

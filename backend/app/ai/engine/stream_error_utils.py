@@ -4,7 +4,16 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.ai.exceptions import AIGatewayError, extract_provider_error_message
+from app.ai.exceptions import (
+    AIGatewayError,
+    ProviderAuthError,
+    ProviderConnectionError,
+    ProviderError,
+    ProviderRateLimitError,
+    ProviderTimeoutError,
+    extract_provider_error_message,
+    looks_like_html_document_text,
+)
 from app.core.i18n import _
 from app.middleware.trace import trace_id_var
 
@@ -40,12 +49,25 @@ def is_stream_interruption_error(error: BaseException) -> bool:
 
 def resolve_provider_public_error_message(error: BaseException) -> str:
     provider_message = strip_error_trace_suffix(extract_provider_error_message(error) or "")
-    if provider_message:
+    if provider_message and not looks_like_html_document_text(provider_message):
         return provider_message
 
+    if isinstance(error, ProviderRateLimitError):
+        return _("ai.error.provider_rate_limit")
+    if isinstance(error, ProviderTimeoutError):
+        return _("ai.error.provider_timeout")
+    if isinstance(error, ProviderConnectionError):
+        return _("ai.error.provider_connection")
+    if isinstance(error, ProviderAuthError):
+        return _("ai.error.provider_auth")
+    if isinstance(error, ProviderError):
+        status_code = int(getattr(error, "status_code", 0) or 0)
+        if 500 <= status_code < 600:
+            return _("ai.error.provider_server_error")
+        return _("ai.request_failed")
     if isinstance(error, AIGatewayError):
         gateway_message = strip_error_trace_suffix(str(error or ""))
-        if gateway_message:
+        if gateway_message and not looks_like_html_document_text(gateway_message):
             return gateway_message
     return ""
 

@@ -35,6 +35,7 @@ const props = withDefaults(
     compact?: boolean;
     /** Current timestamp for 60s countdown display (fallback: local now) / 用于 60s 倒计时的当前时间戳 */
     countdownNow?: number;
+    forceShowDiagnostics?: boolean;
     index: number;
     kernelState?: null | TurnFlowState;
     msg: ChatMessage;
@@ -50,6 +51,7 @@ const props = withDefaults(
     agents: () => [],
     compact: false,
     countdownNow: undefined,
+    forceShowDiagnostics: false,
     kernelState: null,
     selectedAgent: null,
     showAgentSwitch: false,
@@ -123,6 +125,40 @@ const isAdminMode = computed(() => props.apiPrefix.startsWith('/admin'));
 const resolvedKernelState = computed(
   () => props.kernelState ?? buildTurnFlowState(props.msg, props.pendingOps),
 );
+const hasKernelSections = computed(
+  () =>
+    resolvedKernelState.value.timeline.length > 0 ||
+    Boolean(resolvedKernelState.value.answerCard) ||
+    resolvedKernelState.value.selectedEvidence.length > 0 ||
+    Boolean(resolvedKernelState.value.pendingAction) ||
+    isAdminMode.value,
+);
+const hasGeneratedImages = computed(
+  () => (props.msg.imageResults?.length ?? 0) > 0,
+);
+const hasActionButtons = computed(
+  () =>
+    (props.msg.actionButtons?.length ?? 0) > 0 && props.msg.streaming !== true,
+);
+const showFooter = computed(
+  () => Boolean(props.msg.content) && props.msg.streaming !== true,
+);
+const showTopSection = computed(() => hasKernelSections.value);
+const hasRichTextDraftCard = computed(
+  () =>
+    props.msg.source === 'rich_text_ai' &&
+    Boolean(props.msg.richTextAI) &&
+    !props.msg.streaming &&
+    !props.richTextState?.discarded,
+);
+const hasPostContentSections = computed(
+  () =>
+    props.msg.requestFailedRetry === true ||
+    hasGeneratedImages.value ||
+    hasRichTextDraftCard.value ||
+    hasActionButtons.value ||
+    showFooter.value,
+);
 
 function pickRichTextDraftCopyContent(
   ...values: Array<null | string | undefined>
@@ -180,8 +216,8 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
 
   <div class="flex justify-start" :class="compact ? 'gap-2' : 'gap-3'">
     <div
-      class="group flex"
-      :class="compact ? 'max-w-[90%] gap-1.5' : 'max-w-[80%] gap-2'"
+      class="group flex min-w-0 items-start"
+      :class="compact ? 'max-w-[88%] gap-2' : 'max-w-[70%] gap-3'"
     >
       <!-- Avatar with profile card popover -->
       <AgentProfilePopover
@@ -194,163 +230,227 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
         :size="compact ? 'sm' : 'md'"
       />
 
-      <div class="min-w-0">
-        <!-- Agent name + model label -->
+      <div class="assistant-message-surface">
         <div
-          v-if="msgAgentName && msg.agent_id"
-          :class="compact ? 'mb-0.5' : 'mb-1'"
+          v-if="showTopSection"
+          class="assistant-message-top border-b border-border/45"
+          :class="compact ? 'px-3 py-2.5' : 'px-3.5 py-3'"
         >
-          <span
-            :class="compact ? 'text-[10px]' : 'text-xs'"
-            class="font-medium text-muted-foreground"
+          <ChatMessageKernel
+            v-if="hasKernelSections"
+            :admin-mode="isAdminMode"
+            :compact="compact"
+            :countdown-now="countdownNow"
+            :msg="msg"
+            :pending-ops="pendingOps"
+            :state="resolvedKernelState"
+            @copy="(content) => emit('copy', content)"
+            @confirm="emit('confirm', props.index)"
+            @reject="emit('reject', props.index)"
+            @consent-confirm="emit('consentConfirm', props.index)"
+            @consent-reject="emit('consentReject', props.index)"
           >
-            {{ msgAgentName }}
-          </span>
-          <span
-            v-if="!compact && msgModelName"
-            class="ml-1.5 rounded bg-muted/60 px-1.5 py-0.5 text-[10px] text-muted-foreground/60"
-          >
-            {{ msgModelName }}
-          </span>
+            <template #diagnostics>
+              <ChatMessageDiagnostics
+                :api-prefix="apiPrefix"
+                :compact="compact"
+                :force-show="forceShowDiagnostics"
+                :msg="msg"
+              />
+            </template>
+          </ChatMessageKernel>
         </div>
 
-        <ChatMessageKernel
-          :admin-mode="isAdminMode"
-          :compact="compact"
-          :countdown-now="countdownNow"
-          :msg="msg"
-          :pending-ops="pendingOps"
-          :state="resolvedKernelState"
-          @copy="(content) => emit('copy', content)"
-          @confirm="emit('confirm', props.index)"
-          @reject="emit('reject', props.index)"
-          @consent-confirm="emit('consentConfirm', props.index)"
-          @consent-reject="emit('consentReject', props.index)"
-        >
-          <template #diagnostics>
-            <ChatMessageDiagnostics :msg="msg" :compact="compact" />
-          </template>
-        </ChatMessageKernel>
-        <ChatMessageErrorCard :msg="msg" :compact="compact" />
-        <ChatMessageContentBlock :msg="msg" :index="index" :compact="compact" />
-
-        <!-- SSE error retry -->
         <div
-          v-if="msg.requestFailedRetry"
-          class="mt-1 flex items-center gap-1.5"
-          :class="compact ? 'text-[11px]' : 'text-xs'"
+          class="assistant-message-body"
+          :class="compact ? 'px-3 py-2.5' : 'px-3.5 py-3'"
         >
-          <Button
-            type="link"
-            size="small"
-            class="!p-0 !text-primary"
-            @click="emit('retry', index)"
-          >
-            {{ $t('common.globalAiChat.retry') }}
-          </Button>
-        </div>
-
-        <!-- Generated images -->
-        <div
-          v-if="msg.imageResults && msg.imageResults.length > 0"
-          class="flex flex-wrap"
-          :class="compact ? 'mt-1.5 gap-2' : 'mt-2 gap-3'"
-        >
-          <div
-            v-for="(img, ii) in msg.imageResults"
-            :key="ii"
-            class="group/img relative overflow-hidden rounded-lg border border-border"
-          >
-            <img
-              :src="img.isBase64 ? `data:image/png;base64,${img.url}` : img.url"
-              :alt="
-                img.revisedPrompt || $t('common.globalAiChat.generatedImage')
-              "
-              class="cursor-pointer object-cover transition-transform hover:scale-105"
-              :class="compact ? 'max-h-48 max-w-56' : 'max-h-64 max-w-72'"
-              @click="
-                emit(
-                  'openUrl',
-                  img.isBase64 ? `data:image/png;base64,${img.url}` : img.url,
-                )
-              "
+          <div class="space-y-3">
+            <ChatMessageContentBlock
+              :msg="msg"
+              :index="index"
+              :compact="compact"
             />
-            <a
-              :href="
-                img.isBase64 ? `data:image/png;base64,${img.url}` : img.url
-              "
-              :download="img.isBase64 ? 'generated-image.png' : undefined"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="absolute bottom-2 right-2 flex size-7 items-center justify-center rounded-full bg-black/50 text-white opacity-0 transition-opacity hover:bg-black/70 group-hover/img:opacity-100"
-              :title="$t('common.globalAiChat.downloadImage')"
-            >
-              <IconifyIcon icon="lucide:download" class="size-3.5" />
-            </a>
+            <ChatMessageErrorCard :msg="msg" :compact="compact" />
+          </div>
+
+          <div
+            v-if="hasPostContentSections"
+            class="assistant-message-support space-y-2.5 border-t border-border/45"
+            :class="compact ? 'mt-3 pt-3' : 'mt-3.5 pt-3.5'"
+          >
             <div
-              v-if="img.revisedPrompt"
-              class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 pb-1.5 pt-4 text-white opacity-0 transition-opacity group-hover/img:opacity-100"
-              :class="compact ? 'text-[10px]' : 'text-xs'"
+              v-if="msg.requestFailedRetry"
+              class="bg-background/88 flex items-center gap-1.5 rounded-2xl border border-border/45 px-2.5 py-2"
+              :class="compact ? 'text-[11px]' : 'text-xs'"
             >
-              <span class="line-clamp-2">{{ img.revisedPrompt }}</span>
+              <Button
+                type="link"
+                size="small"
+                class="!p-0 !text-primary"
+                @click="emit('retry', index)"
+              >
+                {{ $t('common.globalAiChat.retry') }}
+              </Button>
+            </div>
+
+            <div
+              v-if="hasGeneratedImages"
+              class="flex flex-wrap"
+              :class="compact ? 'gap-2' : 'gap-3'"
+            >
+              <div
+                v-for="(img, ii) in msg.imageResults"
+                :key="ii"
+                class="group/img bg-background/92 relative overflow-hidden rounded-2xl border border-border/45"
+              >
+                <img
+                  :src="
+                    img.isBase64 ? `data:image/png;base64,${img.url}` : img.url
+                  "
+                  :alt="
+                    img.revisedPrompt ||
+                    $t('common.globalAiChat.generatedImage')
+                  "
+                  class="cursor-pointer object-cover transition-transform hover:scale-[1.02]"
+                  :class="compact ? 'max-h-48 max-w-56' : 'max-h-64 max-w-72'"
+                  @click="
+                    emit(
+                      'openUrl',
+                      img.isBase64
+                        ? `data:image/png;base64,${img.url}`
+                        : img.url,
+                    )
+                  "
+                />
+                <a
+                  :href="
+                    img.isBase64 ? `data:image/png;base64,${img.url}` : img.url
+                  "
+                  :download="img.isBase64 ? 'generated-image.png' : undefined"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="bg-black/48 hover:bg-black/68 absolute right-2 top-2 flex size-7 items-center justify-center rounded-full border border-white/20 text-white opacity-0 transition-opacity group-hover/img:opacity-100"
+                  :title="$t('common.globalAiChat.downloadImage')"
+                >
+                  <IconifyIcon icon="lucide:download" class="size-3.5" />
+                </a>
+                <div
+                  v-if="img.revisedPrompt"
+                  class="from-black/68 via-black/26 absolute bottom-0 left-0 right-0 bg-gradient-to-t to-transparent px-2.5 pb-2 pt-5 text-white opacity-0 transition-opacity group-hover/img:opacity-100"
+                  :class="compact ? 'text-[10px]' : 'text-xs'"
+                >
+                  <span class="line-clamp-2">{{ img.revisedPrompt }}</span>
+                </div>
+              </div>
+            </div>
+
+            <RichTextDraftCard
+              v-if="hasRichTextDraftCard"
+              :task="msg.richTextAI!"
+              :state="richTextState"
+              :compact="compact"
+              @apply="
+                (target, mode) =>
+                  emit('richTextApply', props.index, target, mode)
+              "
+              @copy="(mode) => emit('copy', getRichTextDraftCopyContent(mode))"
+              @discard="emit('richTextDiscard', props.index)"
+              @undo="emit('richTextUndo', props.index)"
+            />
+
+            <div
+              v-if="hasActionButtons"
+              class="flex flex-wrap"
+              :class="compact ? 'gap-1.5' : 'gap-2'"
+            >
+              <Button
+                v-for="(btn, bi) in msg.actionButtons"
+                :key="bi"
+                size="small"
+                :type="
+                  btn.style === 'primary'
+                    ? 'primary'
+                    : btn.style === 'danger'
+                      ? 'default'
+                      : 'default'
+                "
+                :danger="btn.style === 'danger'"
+                :disabled="!!msg.actionButtonsUsed"
+                :class="compact ? '!rounded-full !text-xs' : '!rounded-full'"
+                @click="emit('actionClick', props.index, btn.value)"
+              >
+                {{ btn.label }}
+              </Button>
+            </div>
+
+            <div v-if="showFooter" class="assistant-message-footer-wrap pt-0.5">
+              <ChatMessageFooter
+                :msg="msg"
+                :index="index"
+                :compact="compact"
+                @copy="(content) => emit('copy', content)"
+                @regenerate="(idx) => emit('regenerate', idx)"
+              />
             </div>
           </div>
         </div>
-
-        <RichTextDraftCard
-          v-if="
-            msg.source === 'rich_text_ai' &&
-            msg.richTextAI &&
-            !msg.streaming &&
-            !richTextState?.discarded
-          "
-          :task="msg.richTextAI"
-          :state="richTextState"
-          :compact="compact"
-          @apply="
-            (target, mode) => emit('richTextApply', props.index, target, mode)
-          "
-          @copy="(mode) => emit('copy', getRichTextDraftCopyContent(mode))"
-          @discard="emit('richTextDiscard', props.index)"
-          @undo="emit('richTextUndo', props.index)"
-        />
-
-        <!-- Action Buttons -->
-        <div
-          v-if="
-            msg.actionButtons && msg.actionButtons.length > 0 && !msg.streaming
-          "
-          class="flex flex-wrap"
-          :class="compact ? 'mt-1.5 gap-1.5' : 'mt-2 gap-2'"
-        >
-          <Button
-            v-for="(btn, bi) in msg.actionButtons"
-            :key="bi"
-            size="small"
-            :type="
-              btn.style === 'primary'
-                ? 'primary'
-                : btn.style === 'danger'
-                  ? 'default'
-                  : 'default'
-            "
-            :danger="btn.style === 'danger'"
-            :disabled="!!msg.actionButtonsUsed"
-            :class="compact ? '!text-xs' : ''"
-            @click="emit('actionClick', props.index, btn.value)"
-          >
-            {{ btn.label }}
-          </Button>
-        </div>
-
-        <ChatMessageFooter
-          :msg="msg"
-          :index="index"
-          :compact="compact"
-          @copy="(content) => emit('copy', content)"
-          @regenerate="(idx) => emit('regenerate', idx)"
-        />
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.assistant-message-surface {
+  position: relative;
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid hsl(var(--border) / 0.28);
+  border-radius: 20px;
+  background: linear-gradient(
+    180deg,
+    hsl(var(--card) / 0.985) 0%,
+    hsl(var(--background) / 0.985) 100%
+  );
+  box-shadow:
+    0 18px 38px -34px hsl(var(--foreground) / 0.2),
+    0 1px 2px hsl(var(--foreground) / 0.035);
+}
+
+.assistant-message-surface::before {
+  position: absolute;
+  top: 0;
+  right: 24%;
+  left: 24%;
+  height: 1px;
+  pointer-events: none;
+  content: '';
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    hsl(var(--primary) / 0.14) 50%,
+    transparent 100%
+  );
+}
+
+.assistant-message-top {
+  background: linear-gradient(
+    180deg,
+    hsl(var(--primary) / 0.045) 0%,
+    hsl(var(--background) / 0.96) 100%
+  );
+}
+
+.assistant-message-body {
+  background: hsl(var(--background) / 0.985);
+}
+
+.assistant-message-support {
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    hsl(var(--primary) / 0.028) 100%
+  );
+}
+</style>

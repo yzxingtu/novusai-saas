@@ -9,7 +9,7 @@ from typing import Any
 from app.ai.tools.types import ToolResult
 from app.ai.types import ChatMessage, ChatResponse
 from app.core.i18n import _
-from app.core.response import build_public_error_text
+from app.core.response import resolve_public_error_message
 
 from .conversation_result_projector import build_execution_result, build_turn_projection
 from .execution_state_machine import ExecutionStateMachine
@@ -46,6 +46,29 @@ def _append_assistant_message(
             metadata=_assistant_message_metadata(action_buttons),
         )
     )
+
+
+def _should_surface_exception_partial_output(provider_failure_kind: str) -> bool:
+    # Sync callers have no prior streamed assistant body, so generated recovery
+    # text should stay visible instead of collapsing into an empty assistant turn.
+    return True
+
+
+def _resolve_exception_final_output_source(
+    *,
+    partial_output: str,
+    state: ExecutionStateMachine | None,
+    tool_results: list[ToolResult],
+) -> str | None:
+    if not str(partial_output or "").strip():
+        return None
+    intent_plan = list(state.intent_plan) if state is not None else []
+    if RecoveryManager.has_completed_output_evidence(
+        intent_plan,
+        tool_results=tool_results,
+    ):
+        return "recovery_evidence"
+    return "partial_output"
 
 
 def build_sync_success_result(
@@ -160,9 +183,31 @@ def build_sync_exception_result(
         if decision is not None:
             partial_output = RecoveryManager.build_partial_output(
                 state.intent_plan,
+                tool_results=tool_results,
                 reason=decision.reason or "execution_exception",
                 provider_failure_kind=state.provider_failure_kind,
             )
+            state.preparation_diagnostics["final_output_source"] = (
+                _resolve_exception_final_output_source(
+                    partial_output=partial_output,
+                    state=state,
+                    tool_results=tool_results,
+                )
+            )
+
+    final_output_source = _resolve_exception_final_output_source(
+        partial_output=partial_output,
+        state=state,
+        tool_results=tool_results,
+    )
+    surfaced_output = (
+        partial_output
+        if (
+            _should_surface_exception_partial_output(kind)
+            or is_trusted_assistant_final_output_source(final_output_source)
+        )
+        else ""
+    )
 
     completion_reason = (
         decision.reason
@@ -177,20 +222,20 @@ def build_sync_exception_result(
         ),
         completion_reason=completion_reason,
         partial=bool(partial_output),
-        final_output_source=("assistant" if partial_output else None),
+        final_output_source=final_output_source,
     )
     return build_execution_result(
         success=False,
-        output=partial_output,
+        output=surfaced_output,
         messages=(messages_to_dicts(messages) if messages else []),
         tool_results=tool_results,
         total_tokens=0,
         duration_ms=duration_ms,
         conversation_id=request.conversation_id,
         runtime_model_info=None,
-        error=build_public_error_text(
-            message=_("common.server_error"),
-            exc=exc,
+        error=resolve_public_error_message(
+            exc,
+            fallback_message=_("common.server_error"),
         ),
         partial=bool(partial_output),
         completion_reason=completion_reason,

@@ -337,9 +337,9 @@ def test_usage_recorder_turn_diagnostics_preserves_shadow_diff_payload() -> None
             "context_sources": [
                 {
                     "kind": "page_context",
-                    "name": "admin.ai.conversations",
+                    "name": "admin.runtime.records",
                     "active": True,
-                    "metadata": {"page_key": "admin.ai.conversations"},
+                    "metadata": {"page_key": "admin.runtime.records"},
                 }
             ],
             "sync_rescue": True,
@@ -427,9 +427,9 @@ async def test_call_log_service_log_call_async_injects_runtime_turn_fields(mock_
             context_sources=[
                 {
                     "kind": "page_context",
-                    "name": "admin.ai.conversations",
+                    "name": "admin.runtime.records",
                     "active": True,
-                    "metadata": {"page_key": "admin.ai.conversations"},
+                    "metadata": {"page_key": "admin.runtime.records"},
                 }
             ],
             fallback_history=[
@@ -585,9 +585,9 @@ def test_cli_conversation_summary_renders_runtime_turn_and_call_log_diagnostics(
                 "context_sources": [
                     {
                         "kind": "page_context",
-                        "name": "admin.ai.conversations",
+                        "name": "admin.runtime.records",
                         "active": True,
-                        "metadata": {"page_key": "admin.ai.conversations"},
+                        "metadata": {"page_key": "admin.runtime.records"},
                     }
                 ],
                 "source": "call_log",
@@ -954,3 +954,4 @@ async def test_test_model_hides_generic_exception_in_production(mock_db):
     assert result.connected is False
     assert "upstream provider boom" not in (result.error or "")
     assert "trace-test-model-prod" in (result.error or "")
+

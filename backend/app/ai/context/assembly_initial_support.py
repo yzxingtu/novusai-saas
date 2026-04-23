@@ -13,7 +13,7 @@ from app.ai.runtime.contracts import (
     ContextCapabilityInputs,
 )
 from app.ai.runtime.types import CapabilityBundle
-from app.ai.skills.turn_activation import apply_turn_skill_activation
+from app.ai.skills.activation import apply_turn_skill_activation
 from app.ai.types import ChatMessage
 
 

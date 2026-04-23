@@ -15,6 +15,7 @@ class _BuilderAdapterStub:
     def __init__(self, provider_config: dict | None = None) -> None:
         self.config = {}
         self.provider_config = provider_config or {}
+        self.converted_messages: list[ChatMessage] = []
 
     def resolve_effective_model_request(
         self,
@@ -40,7 +41,15 @@ class _BuilderAdapterStub:
         supports_video: bool = False,
     ) -> list[dict]:
         _ = supports_vision, supports_audio, supports_video
-        return [{"type": "message", "role": messages[0].role, "content": messages[0].content}]
+        self.converted_messages = list(messages)
+        return [
+            {
+                "type": "message",
+                "role": message.role,
+                "content": message.content,
+            }
+            for message in messages
+        ]
 
 
 def test_convert_tools_for_responses_injects_native_web_search() -> None:
@@ -119,6 +128,35 @@ async def test_build_responses_request_keeps_required_tool_choice() -> None:
 
 
 @pytest.mark.asyncio
+async def test_build_responses_request_hoists_system_messages_into_instructions() -> None:
+    adapter = _BuilderAdapterStub()
+
+    request = await build_responses_request(
+        adapter=adapter,
+        messages=[
+            ChatMessage(role="system", content="You are helpful."),
+            ChatMessage(role="user", content="hello"),
+            ChatMessage(role="system", content="Only use tools when needed."),
+        ],
+        model="gpt-5.4-xhigh",
+        tools=None,
+        tool_choice=None,
+        kwargs={},
+        reasoning_summary_model_prefixes=("gpt-5",),
+    )
+
+    assert request["instructions"] == "You are helpful.\n\nOnly use tools when needed."
+    assert [message.role for message in adapter.converted_messages] == ["user"]
+    assert request["input"] == [
+        {
+            "type": "message",
+            "role": "user",
+            "content": "hello",
+        }
+    ]
+
+
+@pytest.mark.asyncio
 async def test_build_responses_request_rewrites_web_search_only_when_provider_opts_in() -> None:
     adapter = _BuilderAdapterStub(
         provider_config={"web_search": {"prefer_hosted_tool": True}}
@@ -137,4 +175,98 @@ async def test_build_responses_request_rewrites_web_search_only_when_provider_op
     assert request["tool_choice"] == "required"
     assert request["tools"] == [
         {"type": "web_search", "search_context_size": "medium"}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_build_responses_request_uses_previous_response_id_for_pure_tool_followup() -> (
+    None
+):
+    adapter = _BuilderAdapterStub()
+
+    request = await build_responses_request(
+        adapter=adapter,
+        messages=[
+            ChatMessage(role="system", content="You are helpful."),
+            ChatMessage(role="user", content="请搜索当前页面"),
+            ChatMessage(
+                role="assistant",
+                content="",
+                tool_calls=[
+                    {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {"name": "ui_click", "arguments": '{"target":"x"}'},
+                    }
+                ],
+                metadata={
+                    "protocol_path": "responses",
+                    "responses_response_id": "resp_tool_round_1",
+                },
+            ),
+            ChatMessage(role="tool", content='{"ok":true}', tool_call_id="call_1"),
+        ],
+        model="gpt-5.4-xhigh",
+        tools=[{"type": "function", "function": {"name": "ui_click", "parameters": {}}}],
+        tool_choice="required",
+        kwargs={},
+        reasoning_summary_model_prefixes=("gpt-5",),
+    )
+
+    assert request["previous_response_id"] == "resp_tool_round_1"
+    assert request["instructions"] == "You are helpful."
+    assert [message.role for message in adapter.converted_messages] == ["tool"]
+    assert request["input"] == [
+        {
+            "type": "message",
+            "role": "tool",
+            "content": '{"ok":true}',
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_build_responses_request_drops_previous_response_id_after_tool_round_recovery_prompt() -> (
+    None
+):
+    adapter = _BuilderAdapterStub()
+
+    request = await build_responses_request(
+        adapter=adapter,
+        messages=[
+            ChatMessage(role="system", content="You are helpful."),
+            ChatMessage(role="user", content="请搜索当前页面"),
+            ChatMessage(
+                role="assistant",
+                content="",
+                tool_calls=[
+                    {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {"name": "ui_click", "arguments": '{"target":"x"}'},
+                    }
+                ],
+                metadata={
+                    "protocol_path": "responses",
+                    "responses_response_id": "resp_tool_round_1",
+                },
+            ),
+            ChatMessage(role="tool", content='{"ok":true}', tool_call_id="call_1"),
+            ChatMessage(role="system", content="Only continue the unfinished page intent."),
+        ],
+        model="gpt-5.4-xhigh",
+        tools=[{"type": "function", "function": {"name": "ui_click", "parameters": {}}}],
+        tool_choice="required",
+        kwargs={},
+        reasoning_summary_model_prefixes=("gpt-5",),
+    )
+
+    assert "previous_response_id" not in request
+    assert request["instructions"] == (
+        "You are helpful.\n\nOnly continue the unfinished page intent."
+    )
+    assert [message.role for message in adapter.converted_messages] == [
+        "user",
+        "assistant",
+        "tool",
     ]

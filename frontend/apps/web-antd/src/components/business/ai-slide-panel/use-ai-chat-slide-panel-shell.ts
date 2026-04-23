@@ -292,6 +292,7 @@ export function useAIChatSlidePanelShell(
       publicConfigStore.tenantConfig?.runtimeLimits?.pageContextMaxBytes,
   );
   const pageAICapability = usePageAICapability({
+    apiPrefix,
     disabledCapabilities,
     modalState,
     normalizedPageMode,

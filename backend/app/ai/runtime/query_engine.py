@@ -5,9 +5,12 @@ Conversation query runtime (protocol fallback + rescue).
 
 from __future__ import annotations
 
+import asyncio
+from dataclasses import replace
 from collections.abc import AsyncIterator
 from typing import Any
 
+from app.ai.exceptions import AIGatewayError, is_retryable
 from app.ai.runtime.contracts import TurnCommand
 from app.ai.runtime.protocol_planner import ProtocolPlanner
 from app.ai.runtime.protocol_recovery_policy import (
@@ -20,6 +23,13 @@ from app.ai.runtime.protocol_turn_session import ProtocolTurnSession
 from app.ai.runtime.tool_executor import ToolExecutor
 from app.ai.runtime.types import ContextSource, ProtocolPath, TurnRecord
 from app.ai.types import ChatChunk, ChatMessage, ChatResponse
+
+_SYNC_RESCUE_MAX_ATTEMPTS = 3
+_SYNC_RESCUE_RETRY_BASE_DELAY_SECONDS = 0.5
+_SYNC_RESCUE_REASONING_EFFORT = "low"
+_PAGE_UI_TIMEOUT_SECONDS = 12.0
+_PAGE_UI_CLIENT_MAX_RETRIES = 0
+_RUNTIME_CLIENT_MAX_RETRIES_OVERRIDE_KEY = "_runtime_client_max_retries_override"
 
 
 class ConversationQueryEngine:
@@ -55,6 +65,64 @@ class ConversationQueryEngine:
         if progress_kind == "web_search_in_progress":
             return "web_research"
         return None
+
+    @staticmethod
+    def _extract_tool_name(tool: Any) -> str:
+        if isinstance(tool, str):
+            return str(tool).strip()
+        if isinstance(tool, dict):
+            function_block = tool.get("function") or {}
+            return str(function_block.get("name") or tool.get("name") or "").strip()
+        return str(getattr(tool, "name", "") or "").strip()
+
+    @classmethod
+    def _command_uses_page_ui_tools(cls, command: TurnCommand) -> bool:
+        tools = list(command.tools or [])
+        if not tools:
+            return False
+        tool_names = [cls._extract_tool_name(tool) for tool in tools]
+        normalized_names = [name for name in tool_names if name]
+        return bool(normalized_names) and all(
+            name.startswith("ui_") for name in normalized_names
+        )
+
+    @classmethod
+    def _should_attempt_page_timeout_sync_rescue(
+        cls,
+        *,
+        command: TurnCommand,
+        observed: ObservedStream,
+        block_reason: str | None,
+    ) -> bool:
+        return (
+            block_reason == "provider_timeout"
+            and observed.chunk_count == 0
+            and cls._command_uses_page_ui_tools(command)
+        )
+
+    @classmethod
+    def _apply_page_ui_latency_guards(cls, command: TurnCommand) -> TurnCommand:
+        if not cls._command_uses_page_ui_tools(command):
+            return command
+
+        extra_kwargs = dict(command.extra_kwargs or {})
+        changed = False
+
+        if extra_kwargs.get("timeout") is None and extra_kwargs.get(
+            "timeout_seconds"
+        ) is None:
+            extra_kwargs["timeout_seconds"] = _PAGE_UI_TIMEOUT_SECONDS
+            changed = True
+
+        if extra_kwargs.get(_RUNTIME_CLIENT_MAX_RETRIES_OVERRIDE_KEY) is None:
+            extra_kwargs[_RUNTIME_CLIENT_MAX_RETRIES_OVERRIDE_KEY] = (
+                _PAGE_UI_CLIENT_MAX_RETRIES
+            )
+            changed = True
+
+        if not changed:
+            return command
+        return replace(command, extra_kwargs=extra_kwargs)
 
     def _record_progress_kinds(
         self,
@@ -149,6 +217,80 @@ class ConversationQueryEngine:
     def _response_to_chunk(response: ChatResponse) -> ChatChunk:
         return ProtocolRunner.response_to_chunk(response)
 
+    @staticmethod
+    def _is_retryable_sync_rescue_error(exc: BaseException) -> bool:
+        return isinstance(exc, AIGatewayError) and is_retryable(exc)
+
+    async def _run_sync_rescue_with_retry(
+        self,
+        *,
+        protocol_path: ProtocolPath,
+        command: TurnCommand,
+        session: ProtocolTurnSession,
+    ) -> ChatResponse:
+        rescue_extra_kwargs = dict(command.extra_kwargs or {})
+        rescue_extra_kwargs.setdefault(
+            "_runtime_reasoning_effort_override",
+            _SYNC_RESCUE_REASONING_EFFORT,
+        )
+        rescue_command = replace(
+            command,
+            extra_kwargs=rescue_extra_kwargs,
+        )
+        delay_seconds = _SYNC_RESCUE_RETRY_BASE_DELAY_SECONDS
+        retry_count = 0
+
+        while True:
+            session.turn_record.metadata["sync_rescue_attempt_count"] = retry_count + 1
+            try:
+                session.turn_record.metadata["sync_rescue_retry_count"] = retry_count
+                return await self._sync_rescue(
+                    protocol_path=protocol_path,
+                    command=rescue_command,
+                )
+            except Exception as exc:  # noqa: BLE001
+                if (
+                    not self._is_retryable_sync_rescue_error(exc)
+                    or retry_count >= (_SYNC_RESCUE_MAX_ATTEMPTS - 1)
+                ):
+                    session.turn_record.metadata["sync_rescue_retry_count"] = (
+                        retry_count
+                    )
+                    raise
+                retry_count += 1
+                session.turn_record.metadata["sync_rescue_retry_count"] = retry_count
+                session.turn_record.metadata["sync_rescue_last_retry_error"] = (
+                    type(exc).__name__
+                )
+                await asyncio.sleep(delay_seconds)
+                delay_seconds *= 2
+
+    async def _attempt_sync_rescue_chunk(
+        self,
+        *,
+        protocol_path: ProtocolPath,
+        command: TurnCommand,
+        session: ProtocolTurnSession,
+        emitted_chunk_count: int,
+        rescue_source: str,
+    ) -> ChatChunk | None:
+        rescue_response = await self._run_sync_rescue_with_retry(
+            protocol_path=protocol_path,
+            command=command,
+            session=session,
+        )
+        if rescue_response is None:
+            return None
+        if not self.recovery_policy.response_blocks_fallback(rescue_response):
+            return None
+
+        session.finalize_sync_rescue_success(emitted_chunk_count=emitted_chunk_count)
+        session.turn_record.metadata["sync_rescue_source"] = rescue_source
+        return self._attach_turn_record(
+            self._response_to_chunk(rescue_response),
+            protocol_path,
+        )
+
     async def run_chat_turn(
         self,
         *,
@@ -182,7 +324,7 @@ class ConversationQueryEngine:
             context_sources=context_sources,
             extra_kwargs=extra_kwargs,
         )
-        command = session.command
+        command = self._apply_page_ui_latency_guards(session.command)
         self.turn_record = session.turn_record
         last_error: Exception | None = None
         for index, protocol in enumerate(session.plan.protocol_chain):
@@ -294,7 +436,7 @@ class ConversationQueryEngine:
             context_sources=context_sources,
             extra_kwargs=extra_kwargs,
         )
-        command = session.command
+        command = self._apply_page_ui_latency_guards(session.command)
         self.turn_record = session.turn_record
         emitted_chunk_count = 0
 
@@ -318,6 +460,10 @@ class ConversationQueryEngine:
                 block_reason = self.recovery_policy.fallback_block_reason(
                     stream_exc.cause
                 )
+                failure_reason = self.recovery_policy.empty_stream_reason(
+                    stream_exc.observed,
+                    error_type=type(stream_exc.cause).__name__,
+                )
                 self.recovery_policy.record_stream_failure_metadata(
                     self.turn_record,
                     observed=stream_exc.observed,
@@ -331,17 +477,61 @@ class ConversationQueryEngine:
                     )
                     raise stream_exc.cause from stream_exc
                 if block_reason:
+                    if self._should_attempt_page_timeout_sync_rescue(
+                        command=command,
+                        observed=stream_exc.observed,
+                        block_reason=block_reason,
+                    ):
+                        session.turn_record.metadata["sync_rescue_attempted"] = True
+                        try:
+                            rescue_chunk = await self._attempt_sync_rescue_chunk(
+                                protocol_path=protocol,
+                                command=command,
+                                session=session,
+                                emitted_chunk_count=emitted_chunk_count,
+                                rescue_source="stream_timeout_before_first_chunk",
+                            )
+                        except Exception as rescue_exc:  # noqa: BLE001
+                            rescue_block_reason = (
+                                self.recovery_policy.fallback_block_reason(rescue_exc)
+                            )
+                            if rescue_block_reason:
+                                session.mark_failed(block_reason=rescue_block_reason)
+                            else:
+                                session.mark_failed()
+                            raise rescue_exc from stream_exc.cause
+                        if rescue_chunk is not None:
+                            yield rescue_chunk
+                            return
                     session.mark_failed(block_reason=block_reason)
                     raise stream_exc.cause from stream_exc
                 if session.append_fallback(
                     index,
                     from_protocol=protocol,
-                    reason=self.recovery_policy.empty_stream_reason(
-                        stream_exc.observed,
-                        error_type=type(stream_exc.cause).__name__,
-                    ),
+                    reason=failure_reason,
                 ):
                     continue
+                session.turn_record.metadata["sync_rescue_attempted"] = True
+                try:
+                    rescue_chunk = await self._attempt_sync_rescue_chunk(
+                        protocol_path=protocol,
+                        command=command,
+                        session=session,
+                        emitted_chunk_count=emitted_chunk_count,
+                        rescue_source="stream_error",
+                    )
+                except Exception as rescue_exc:  # noqa: BLE001
+                    rescue_block_reason = self.recovery_policy.fallback_block_reason(
+                        rescue_exc
+                    )
+                    if rescue_block_reason:
+                        session.mark_failed(block_reason=rescue_block_reason)
+                    else:
+                        session.mark_failed()
+                    raise rescue_exc from stream_exc.cause
+                if rescue_chunk is not None:
+                    yield rescue_chunk
+                    return
                 session.mark_failed()
                 raise stream_exc.cause from stream_exc
             except Exception as exc:  # noqa: BLE001
@@ -376,16 +566,15 @@ class ConversationQueryEngine:
             ):
                 continue
 
-            rescue_response = await self._sync_rescue(
+            rescue_chunk = await self._attempt_sync_rescue_chunk(
                 protocol_path=protocol,
                 command=command,
+                session=session,
+                emitted_chunk_count=emitted_chunk_count,
+                rescue_source="stream_empty",
             )
-            if self.recovery_policy.response_blocks_fallback(rescue_response):
-                session.finalize_sync_rescue_success(
-                    emitted_chunk_count=emitted_chunk_count
-                )
-                rescue_chunk = self._response_to_chunk(rescue_response)
-                yield self._attach_turn_record(rescue_chunk, protocol)
+            if rescue_chunk is not None:
+                yield rescue_chunk
                 return
 
             session.finalize_stream_empty_failure(

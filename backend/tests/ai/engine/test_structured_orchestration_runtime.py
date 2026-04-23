@@ -23,9 +23,11 @@ from app.ai.engine.types import (
 )
 from app.ai.exceptions import (
     AIGatewayError,
+    ProviderAuthError,
     ProviderRateLimitError,
     ProviderTimeoutError,
 )
+from app.ai.routing.routing_contracts import RouteResult
 from app.ai.tools.types import ToolDefinition, ToolResult
 from app.ai.types import ChatChunk, ChatMessage, ChatResponse
 
@@ -142,7 +144,9 @@ def test_intent_planner_keeps_page_follow_up_in_page_family() -> None:
     assert intents[0].requires_tools is True
 
 
-def test_detect_requested_turn_intents_aligns_with_planner_for_page_row_detail() -> None:
+def test_detect_requested_turn_intents_aligns_with_planner_for_page_row_detail() -> (
+    None
+):
     user_text = "现在几点了？帮我查北京天气，再搜索今天 AI 新闻，然后看看当前页面第一条记录或关键内容"
     intent_plan = IntentPlanner.plan_turn(
         messages=[ChatMessage(role="user", content=user_text)],
@@ -198,16 +202,18 @@ def test_post_tool_contract_breach_keeps_page_intent_when_page_not_executed() ->
         "_runtime_intent_plan": [intent.to_dict() for intent in intent_plan],
     }
 
-    breach_type, retry_policy, diagnostics = BaseEngine._analyze_post_tool_contract_breach(
-        messages=messages,
-        response=response,
-        current_policy=ToolUsePolicy(
-            family="web_research",
-            mode="required",
-            allowed_tool_names=["web_search", "fetch_url"],
-        ),
-        tools=_mixed_tools(),
-        input_variables=input_variables,
+    breach_type, retry_policy, diagnostics = (
+        BaseEngine._analyze_post_tool_contract_breach(
+            messages=messages,
+            response=response,
+            current_policy=ToolUsePolicy(
+                family="web_research",
+                mode="required",
+                allowed_tool_names=["web_search", "fetch_url"],
+            ),
+            tools=_mixed_tools(),
+            input_variables=input_variables,
+        )
     )
 
     assert breach_type == "unfinished_multi_intent_reply"
@@ -247,21 +253,25 @@ def test_post_tool_contract_breach_native_web_evidence_keeps_page_intent_pending
         },
     )
 
-    breach_type, retry_policy, diagnostics = BaseEngine._analyze_post_tool_contract_breach(
-        messages=[ChatMessage(role="user", content="查一下北京天气，再看看当前页面")],
-        response=response,
-        current_policy=ToolUsePolicy(
-            family="web_research",
-            mode="required",
-            allowed_tool_names=["web_search", "fetch_url"],
-        ),
-        tools=_mixed_tools(),
-        input_variables={
-            **_page_context(),
-            "_runtime_intent_facts": {
-                "requested_intents": ["weather", "page_summary"],
+    breach_type, retry_policy, diagnostics = (
+        BaseEngine._analyze_post_tool_contract_breach(
+            messages=[
+                ChatMessage(role="user", content="查一下北京天气，再看看当前页面")
+            ],
+            response=response,
+            current_policy=ToolUsePolicy(
+                family="web_research",
+                mode="required",
+                allowed_tool_names=["web_search", "fetch_url"],
+            ),
+            tools=_mixed_tools(),
+            input_variables={
+                **_page_context(),
+                "_runtime_intent_facts": {
+                    "requested_intents": ["weather", "page_summary"],
+                },
             },
-        },
+        )
     )
 
     assert breach_type == "unfinished_multi_intent_reply"
@@ -283,9 +293,9 @@ def test_post_tool_contract_breach_retries_cross_page_navigation_after_snapshot_
     user_text = "添加供应商"
     input_variables = {
         "page_context": {
-            "page_key": "admin.ai.conversations",
-            "page_title": "对话管理",
-            "page_session_id": "session-conversations",
+            "page_key": "admin.runtime.records",
+            "page_title": "记录管理",
+            "page_session_id": "session-records",
             "ui_epoch": 3,
             "page_data": {
                 "navigation_catalog": [
@@ -335,21 +345,23 @@ def test_post_tool_contract_breach_retries_cross_page_navigation_after_snapshot_
         tool_calls=None,
     )
 
-    breach_type, retry_policy, diagnostics = BaseEngine._analyze_post_tool_contract_breach(
-        messages=messages,
-        response=response,
-        current_policy=ToolUsePolicy(
-            family="page_ops",
-            mode="required",
-            allowed_tool_names=[
-                "ui_get_snapshot",
-                "ui_list_interactables",
-                "ui_click",
-                "ui_open_surface",
-            ],
-        ),
-        tools=tools,
-        input_variables=input_variables,
+    breach_type, retry_policy, diagnostics = (
+        BaseEngine._analyze_post_tool_contract_breach(
+            messages=messages,
+            response=response,
+            current_policy=ToolUsePolicy(
+                family="page_ops",
+                mode="required",
+                allowed_tool_names=[
+                    "ui_get_snapshot",
+                    "ui_list_interactables",
+                    "ui_click",
+                    "ui_open_surface",
+                ],
+            ),
+            tools=tools,
+            input_variables=input_variables,
+        )
     )
 
     assert breach_type == "unfinished_multi_intent_reply"
@@ -359,6 +371,86 @@ def test_post_tool_contract_breach_retries_cross_page_navigation_after_snapshot_
     assert diagnostics["unfinished_intents"] == ["page_navigation"]
     assert "ui_list_interactables" in retry_policy.allowed_tool_names
     assert "ui_open_surface" in retry_policy.allowed_tool_names
+
+
+def test_post_tool_contract_breach_detects_dsml_page_tool_leak() -> None:
+    tools = [
+        _tool("ui_get_snapshot", "Read page"),
+        _tool("ui_read_region", "Read region"),
+        _tool("ui_read_table", "Read table"),
+    ]
+    user_text = "通过页面感知能力来做"
+    input_variables = {
+        "page_context": {
+            "page_key": "admin.ai.providers",
+            "page_title": "供应商管理",
+            "page_session_id": "session-providers",
+            "ui_epoch": 3,
+            "suggested_tools": {
+                "primary": [
+                    "ui_get_snapshot",
+                    "ui_read_region",
+                    "ui_read_table",
+                ]
+            },
+        }
+    }
+    intent_plan = IntentPlanner.plan_turn(
+        messages=[ChatMessage(role="user", content=user_text)],
+        tools=tools,
+        input_variables=input_variables,
+        continuation_context=None,
+    )
+    input_variables = {
+        **input_variables,
+        "_runtime_intent_plan": [intent.to_dict() for intent in intent_plan],
+    }
+    messages = [
+        ChatMessage(role="user", content=user_text),
+        ChatMessage(
+            role="assistant",
+            content="",
+            tool_calls=[
+                {
+                    "success": True,
+                    "function": {"name": "ui_get_snapshot"},
+                }
+            ],
+        ),
+    ]
+    response = ChatResponse(
+        message=ChatMessage(
+            role="assistant",
+            content=(
+                '找到了喵！<｜DSML｜tool_calls><｜DSML｜invoke name="ui_read_region">'
+                '<｜DSML｜parameter name="region">[{"node_id":"adapter:button:1"}]'
+                "</｜DSML｜parameter></｜DSML｜invoke></｜DSML｜tool_calls>"
+            ),
+        ),
+        tool_calls=None,
+    )
+
+    breach_type, retry_policy, diagnostics = BaseEngine._analyze_post_tool_contract_breach(
+        messages=messages,
+        response=response,
+        current_policy=ToolUsePolicy(
+            family="page_ops",
+            mode="required",
+            allowed_tool_names=[
+                "ui_get_snapshot",
+                "ui_read_region",
+                "ui_read_table",
+            ],
+        ),
+        tools=tools,
+        input_variables=input_variables,
+    )
+
+    assert breach_type == "assistant_claimed_tool_call_without_tool_event"
+    assert retry_policy is not None
+    assert diagnostics["tool_leak_detected"] is True
+    assert diagnostics["assistant_claimed_tool_call_without_tool_event"] is True
+    assert diagnostics["leaked_tool_names"] == ["ui_read_region"]
 
 
 def test_recovery_manager_keeps_page_navigation_pending_after_snapshot_only() -> None:
@@ -404,7 +496,9 @@ def test_recovery_manager_keeps_page_navigation_pending_after_snapshot_only() ->
     assert updated[0].status == "pending"
     assert updated[0].completed_by_tool_names == []
     assert updated[0].metadata["page_workflow_progress"]["status"] == "action_pending"
-    assert updated[0].metadata["page_workflow_progress"]["continuation_required"] is True
+    assert (
+        updated[0].metadata["page_workflow_progress"]["continuation_required"] is True
+    )
 
     decision = RecoveryManager.decide(
         updated,
@@ -421,12 +515,15 @@ def test_recovery_manager_keeps_page_navigation_pending_after_snapshot_only() ->
         intents=updated,
     )
 
+    assert message.internal_only is True
     assert "Continue the same page workflow only." in message.content
     assert "Allowed tools for this recovery:" in message.content
     assert "ui_list_interactables" in message.content
 
 
-def test_recovery_manager_completes_page_navigation_after_action_then_snapshot() -> None:
+def test_recovery_manager_completes_page_navigation_after_action_then_snapshot() -> (
+    None
+):
     intents = [
         _intent(
             "intent-1",
@@ -488,7 +585,9 @@ def test_recovery_manager_completes_page_navigation_after_action_then_snapshot()
     ]
 
 
-def test_recovery_manager_keeps_submit_stage_form_write_pending_after_fill_only() -> None:
+def test_recovery_manager_keeps_submit_stage_form_write_pending_after_fill_only() -> (
+    None
+):
     intents = [
         _intent(
             "intent-1",
@@ -603,6 +702,40 @@ def test_path_selector_routes_fast_normal_and_deep_by_intent_shape() -> None:
     assert deep == "deep"
 
 
+def test_path_selector_understands_page_workflow_phase_metadata() -> None:
+    fast = PathSelector.select(
+        [
+            _intent(
+                "intent-1",
+                kind="page_workflow",
+                family="page_ops",
+                order=1,
+                metadata={
+                    "page_workflow_phase": "read",
+                    "page_workflow_goal": "table_summary",
+                },
+            )
+        ]
+    )
+    deep = PathSelector.select(
+        [
+            _intent(
+                "intent-1",
+                kind="page_workflow",
+                family="page_ops",
+                order=1,
+                metadata={
+                    "page_workflow_phase": "navigate_or_open",
+                    "page_workflow_goal": "navigation",
+                },
+            )
+        ]
+    )
+
+    assert fast == "fast"
+    assert deep == "deep"
+
+
 def test_tool_router_omits_forecast_for_current_weather_only() -> None:
     budget = BudgetGuard.build_default("fast", intent_count=1)
     intent = _intent("intent-1", kind="weather_query", family="weather", order=1)
@@ -637,12 +770,16 @@ def test_tool_router_caps_mixed_candidates_and_preserves_page_summary_focus() ->
     )
 
     assert len(decision.candidate_tool_names()) <= budget.max_candidate_tools
-    assert decision.intent_allowed_tools["intent-3"] == ["ui_get_snapshot"]
+    assert decision.intent_allowed_tools["intent-3"] == [
+        "ui_get_snapshot",
+        "ui_read_region",
+    ]
     assert set(decision.candidate_tool_names()) == {
         "get_current_weather",
         "web_search",
         "fetch_url",
         "ui_get_snapshot",
+        "ui_read_region",
     }
 
 
@@ -658,9 +795,7 @@ def test_tool_router_allows_open_and_read_tools_for_page_form_read_without_activ
         max_candidate_tools=8,
         max_tool_result_bytes=4096,
     )
-    intents = [
-        _intent("intent-1", kind="page_form_read", family="page_ops", order=1)
-    ]
+    intents = [_intent("intent-1", kind="page_form_read", family="page_ops", order=1)]
     tools = [
         _tool("ui_list_interactables", "List interactables"),
         _tool("ui_click", "Click ui"),
@@ -776,11 +911,14 @@ def test_recovery_manager_retries_only_unfinished_page_intent() -> None:
 
     message = RecoveryManager.build_recovery_message(decision=decision, intents=intents)
     assert message.role == "system"
+    assert message.internal_only is True
     assert "Allowed tools for this recovery: ui_get_snapshot." in message.content
     assert "Unfinished requested intents: page_summary." in message.content
 
 
-def test_recovery_manager_unions_allowed_tools_for_multiple_unfinished_intents() -> None:
+def test_recovery_manager_unions_allowed_tools_for_multiple_unfinished_intents() -> (
+    None
+):
     intents = [
         _intent(
             "intent-1",
@@ -818,7 +956,9 @@ def test_recovery_manager_unions_allowed_tools_for_multiple_unfinished_intents()
     assert decision.unfinished_intent_ids == ["intent-2", "intent-3"]
 
 
-def test_recovery_manager_retry_tools_do_not_mix_cross_family_unfinished_intents() -> None:
+def test_recovery_manager_retry_tools_do_not_mix_cross_family_unfinished_intents() -> (
+    None
+):
     intents = [
         _intent(
             "intent-1",
@@ -884,6 +1024,9 @@ def test_failure_classifier_distinguishes_provider_and_tool_failures() -> None:
     rate_limit_kind, rate_limit_event = FailureClassifier.classify_exception(
         ProviderRateLimitError("too many requests")
     )
+    auth_kind, auth_event = FailureClassifier.classify_exception(
+        ProviderAuthError("insufficient quota", status_code=403)
+    )
     http_5xx_exc = AIGatewayError("upstream 503")
     http_5xx_exc.status_code = 503
     http_5xx_kind, http_5xx_event = FailureClassifier.classify_exception(http_5xx_exc)
@@ -906,6 +1049,8 @@ def test_failure_classifier_distinguishes_provider_and_tool_failures() -> None:
     assert timeout_event["kind"] == "provider_timeout"
     assert rate_limit_kind == "provider_rate_limit"
     assert rate_limit_event["kind"] == "provider_rate_limit"
+    assert auth_kind == "provider_bad_response"
+    assert auth_event["status_code"] == 403
     assert http_5xx_kind == "provider_http_5xx"
     assert http_5xx_event["status_code"] == 503
     assert interrupt_kind == "server_interrupt"
@@ -1017,7 +1162,9 @@ def test_execution_state_machine_accumulates_usage_and_emits_turn_diagnostics() 
     assert payload["recovery"]["retry_events"][-1]["target_intent_id"] == "intent-2"
     assert payload["recovery"]["unfinished_intents"] == ["intent-2"]
     assert payload["intent_plan"][0]["status"] == "completed"
-    assert payload["intent_plan"][0]["completed_by_tool_names"] == ["get_current_weather"]
+    assert payload["intent_plan"][0]["completed_by_tool_names"] == [
+        "get_current_weather"
+    ]
 
 
 def test_execution_state_machine_partial_exit_surfaces_active_page_workflow() -> None:
@@ -1099,7 +1246,9 @@ def test_execution_state_machine_partial_exit_surfaces_active_page_workflow() ->
         "ui_get_snapshot",
     ]
     partial_exit_events = [
-        event for event in payload["turn_events"] if event["kind"] == "turn.partial_exit"
+        event
+        for event in payload["turn_events"]
+        if event["kind"] == "turn.partial_exit"
     ]
     assert partial_exit_events
     assert partial_exit_events[-1]["data"]["page_workflow"]["goal"] == "navigation"
@@ -1583,3 +1732,316 @@ async def test_stream_llm_chunks_forwards_extra_kwargs(
     assert captured["plan_extra_kwargs"] == extra_kwargs
     assert len(chunks) == 1
     assert chunks[0].delta == "ok"
+
+
+@pytest.mark.asyncio
+async def test_call_runtime_query_turn_retries_with_runtime_failover_before_raising(
+    monkeypatch,
+) -> None:
+    from app.ai.engine import conversation_runtime_bridge as bridge
+
+    attempts: list[str] = []
+
+    async def fake_prepare_stream_runtime(
+        engine,
+        *,
+        agent,
+        messages,
+        tenant_id,
+        route_result=None,
+        skip_metering_preflight=False,
+    ):
+        _ = engine, agent, messages, tenant_id, skip_metering_preflight
+        provider_code = (
+            getattr(route_result, "provider_code", None) or "primary-provider"
+        )
+        model_code = getattr(route_result, "model_code", None) or "primary-model"
+        model_id = getattr(route_result, "model_id", None) or 1
+        return SimpleNamespace(
+            provider=SimpleNamespace(code=provider_code, id=model_id),
+            ai_model=SimpleNamespace(id=model_id),
+            model_code=model_code,
+            runtime_info={"model_id": model_id, "provider_name": provider_code},
+            is_vision=False,
+            is_audio=False,
+            is_video=False,
+            estimated_input=256,
+        )
+
+    async def fake_build_runtime_query_entrypoint_plan(
+        engine,
+        *,
+        runtime_context=None,
+        runtime_preparer,
+        **kwargs,
+    ):
+        active_runtime_context = runtime_context or await runtime_preparer(
+            engine,
+            agent=kwargs["agent"],
+            messages=kwargs["messages"],
+            tenant_id=kwargs["tenant_id"],
+            route_result=kwargs["route_result"],
+            skip_metering_preflight=kwargs["skip_metering_preflight"],
+        )
+
+        class _Accounting:
+            async def finalize_success(self, **kwargs):
+                _ = kwargs
+                return SimpleNamespace(
+                    input_tokens=0,
+                    output_tokens=0,
+                    total_tokens=0,
+                    usage_mode="test",
+                )
+
+            async def log_failure(self, **kwargs):
+                _ = kwargs
+                return None
+
+        return SimpleNamespace(
+            runtime_context=active_runtime_context,
+            query_engine=SimpleNamespace(turn_record={"metadata": {}}),
+            accounting=_Accounting(),
+            request_context=SimpleNamespace(),
+            audit_context=SimpleNamespace(),
+            request_log_data={},
+        )
+
+    async def fake_run_runtime_query_entrypoint(*, plan, agent, selected_skill_names):
+        _ = agent, selected_skill_names
+        attempts.append(plan.runtime_context.model_code)
+        if plan.runtime_context.model_code == "primary-model":
+            raise AIGatewayError("bad gateway", status_code=502)
+        return ChatResponse(
+            message=ChatMessage(role="assistant", content="fallback ok"),
+            total_tokens=0,
+            input_tokens=0,
+            output_tokens=0,
+        )
+
+    async def fake_resolve_runtime_model_failover(
+        engine,
+        *,
+        runtime_context,
+        tools,
+        error,
+        logger,
+    ):
+        _ = engine, tools, logger
+        assert runtime_context.model_code == "primary-model"
+        assert isinstance(error, AIGatewayError)
+        return bridge.RuntimeModelFailoverSelection(
+            route_result=RouteResult(
+                provider_code="fallback-provider",
+                model_code="fallback-model",
+                model_id=2,
+                tier="standard",
+                reason="runtime_provider_failover",
+                is_overridden=True,
+            ),
+            metadata={
+                "from_model_code": "primary-model",
+                "to_model_code": "fallback-model",
+            },
+        )
+
+    monkeypatch.setattr(bridge, "prepare_stream_runtime", fake_prepare_stream_runtime)
+    monkeypatch.setattr(
+        bridge,
+        "build_runtime_query_entrypoint_plan",
+        fake_build_runtime_query_entrypoint_plan,
+    )
+    monkeypatch.setattr(
+        bridge,
+        "run_runtime_query_entrypoint",
+        fake_run_runtime_query_entrypoint,
+    )
+    monkeypatch.setattr(
+        bridge,
+        "_resolve_runtime_model_failover",
+        fake_resolve_runtime_model_failover,
+    )
+
+    engine = SimpleNamespace(
+        db=SimpleNamespace(commit=AsyncMock()),
+        gateway=SimpleNamespace(),
+        logger=None,
+    )
+    response, _query_engine = await bridge.call_runtime_query_turn(
+        engine,
+        agent=SimpleNamespace(id=1),
+        messages=[ChatMessage(role="user", content="hi")],
+        tools=None,
+        all_tool_names=None,
+        tool_use_policy=None,
+        breach_retry_result=None,
+        tenant_id=1,
+        user_id=1,
+        conversation_id=2,
+        billing_context=None,
+        route_result=None,
+        log_user_type=None,
+        selected_skill_names=None,
+        context_sources=None,
+        execution_path="normal",
+        extra_kwargs=None,
+        skip_metering_preflight=False,
+    )
+
+    assert attempts == ["primary-model", "fallback-model"]
+    assert response.message.content == "fallback ok"
+    assert response.metadata["runtime_model_info"]["model_id"] == 2
+    assert response.metadata["runtime_model_failover"] == {
+        "from_model_code": "primary-model",
+        "to_model_code": "fallback-model",
+    }
+
+
+@pytest.mark.asyncio
+async def test_stream_llm_chunks_retries_with_runtime_failover_before_first_chunk(
+    monkeypatch,
+) -> None:
+    from app.ai.engine import conversation_runtime_bridge as bridge
+
+    attempts: list[str] = []
+
+    async def fake_prepare_stream_runtime(
+        engine,
+        *,
+        agent,
+        messages,
+        tenant_id,
+        route_result=None,
+        skip_metering_preflight=False,
+    ):
+        _ = engine, agent, messages, tenant_id, skip_metering_preflight
+        provider_code = (
+            getattr(route_result, "provider_code", None) or "primary-provider"
+        )
+        model_code = getattr(route_result, "model_code", None) or "primary-model"
+        model_id = getattr(route_result, "model_id", None) or 1
+        return SimpleNamespace(
+            provider=SimpleNamespace(code=provider_code, id=model_id),
+            ai_model=SimpleNamespace(id=model_id, supports_streaming=True),
+            model_code=model_code,
+            runtime_info={"model_id": model_id, "provider_name": provider_code},
+            is_vision=False,
+            is_audio=False,
+            is_video=False,
+            estimated_input=256,
+        )
+
+    async def fake_build_runtime_stream_entrypoint_plan(
+        engine,
+        *,
+        runtime_context=None,
+        runtime_preparer,
+        **kwargs,
+    ):
+        active_runtime_context = runtime_context or await runtime_preparer(
+            engine,
+            agent=kwargs["agent"],
+            messages=kwargs["messages"],
+            tenant_id=kwargs["tenant_id"],
+            route_result=kwargs["route_result"],
+            skip_metering_preflight=kwargs["skip_metering_preflight"],
+        )
+
+        class _Accounting:
+            async def finalize_success(self, **kwargs):
+                _ = kwargs
+                return None
+
+            async def log_failure(self, **kwargs):
+                _ = kwargs
+                return None
+
+        return SimpleNamespace(
+            runtime_context=active_runtime_context,
+            query_engine=SimpleNamespace(turn_record={"metadata": {}}),
+            accounting=_Accounting(),
+            request_context=SimpleNamespace(),
+            audit_context=SimpleNamespace(),
+            request_log_data={},
+        )
+
+    async def fake_iterate_runtime_stream_entrypoint(
+        *,
+        plan,
+        agent,
+        selected_skill_names,
+    ):
+        _ = agent, selected_skill_names
+        attempts.append(plan.runtime_context.model_code)
+        if plan.runtime_context.model_code == "primary-model":
+            raise AIGatewayError("bad gateway", status_code=502)
+        yield ChatChunk(delta="fallback stream", finish_reason="stop", total_tokens=1)
+
+    async def fake_resolve_runtime_model_failover(
+        engine,
+        *,
+        runtime_context,
+        tools,
+        error,
+        logger,
+    ):
+        _ = engine, tools, logger
+        assert runtime_context.model_code == "primary-model"
+        assert isinstance(error, AIGatewayError)
+        return bridge.RuntimeModelFailoverSelection(
+            route_result=RouteResult(
+                provider_code="fallback-provider",
+                model_code="fallback-model",
+                model_id=2,
+                tier="standard",
+                reason="runtime_provider_failover",
+                is_overridden=True,
+            ),
+            metadata={
+                "from_model_code": "primary-model",
+                "to_model_code": "fallback-model",
+            },
+        )
+
+    monkeypatch.setattr(bridge, "prepare_stream_runtime", fake_prepare_stream_runtime)
+    monkeypatch.setattr(
+        bridge,
+        "build_runtime_stream_entrypoint_plan",
+        fake_build_runtime_stream_entrypoint_plan,
+    )
+    monkeypatch.setattr(
+        bridge,
+        "iterate_runtime_stream_entrypoint",
+        fake_iterate_runtime_stream_entrypoint,
+    )
+    monkeypatch.setattr(
+        bridge,
+        "_resolve_runtime_model_failover",
+        fake_resolve_runtime_model_failover,
+    )
+
+    engine = SimpleNamespace(
+        logger=None,
+        gateway=SimpleNamespace(),
+        db=SimpleNamespace(),
+    )
+    chunks = []
+    async for chunk in bridge.stream_llm_chunks(
+        engine,
+        agent=SimpleNamespace(id=1),
+        messages=[ChatMessage(role="user", content="hi")],
+        tenant_id=1,
+        conversation_id=2,
+        tools=None,
+    ):
+        chunks.append(chunk)
+
+    assert attempts == ["primary-model", "fallback-model"]
+    assert len(chunks) == 1
+    assert chunks[0].delta == "fallback stream"
+    assert chunks[0].metadata["runtime_model_failover"] == {
+        "from_model_code": "primary-model",
+        "to_model_code": "fallback-model",
+    }
+
+

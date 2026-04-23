@@ -81,6 +81,7 @@ async def finalize_partial_turn_output(
     return (
         RecoveryManager.build_partial_output(
             state.intent_plan,
+            tool_results=tool_results,
             reason=reason,
             provider_failure_kind=state.provider_failure_kind,
         ),

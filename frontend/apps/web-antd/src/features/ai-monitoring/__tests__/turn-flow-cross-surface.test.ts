@@ -77,7 +77,7 @@ const RAW_FAILURE_TURN_FLOW = {
 };
 
 describe('turn flow cross-surface normalization', () => {
-  it('keeps assistant legacy fields bounded to user-side projection and removes raw duplicates', () => {
+  it('keeps assistant legacy fields out of generic user-side projection and removes raw duplicates', () => {
     const userMessage = {
       clientKey: 'user-surface-message',
       content: 'final answer',
@@ -107,7 +107,7 @@ describe('turn flow cross-surface normalization', () => {
     const sharedMonitoringFlow = getTurnFlowForDisplay(normalizedMonitoring);
 
     expect(sharedUserFlow.timeline[0]?.type).toBe('thinking');
-    expect(sharedUserFlow.evidence[0]?.kind).toBe('tool');
+    expect(sharedUserFlow.evidence[0]?.kind).toBe('web');
     expect(sharedMonitoringFlow.timeline[0]?.type).toBe('thinking');
     expect(sharedMonitoringFlow.evidence[0]?.kind).toBe('web');
     expect(normalizedUserRecord.thinkingContent).toBeUndefined();

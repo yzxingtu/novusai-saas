@@ -150,11 +150,6 @@ class ModelRouter:
     ) -> RouteResult:
         routing_config: dict = getattr(agent, "routing_config", None) or {}
 
-        # ── 1. enable_routing=False → Directly return original model ──
-        # ── 1. enable_routing=False → 直接返回原始模型 ──
-        if not routing_config.get("enable_routing", False):
-            return self._fallback(agent, reason="routing_disabled")
-
         # Extract request features from request / 从 request 提取请求特征
         messages: list[ChatMessage] = getattr(request, "messages", []) or []
         has_attachments = detect_any_attachments(
@@ -182,6 +177,25 @@ class ModelRouter:
             messages,
         )
         needs_fc = bool(tools)
+
+        # ── 1. enable_routing=False → Prefer original model unless provider is unhealthy ──
+        # ── 1. enable_routing=False → 优先原模型，除非当前供应商已不健康 ──
+        if not routing_config.get("enable_routing", False):
+            unhealthy_fallback = await self._route_disabled_routing_provider_failover(
+                agent=agent,
+                has_image_attachments=has_image_attachments,
+                has_audio=has_audio,
+                has_video=has_video,
+                needs_fc=needs_fc,
+                estimated_tokens=estimated_tokens,
+                long_ctx_threshold=routing_config.get(
+                    "long_context_threshold",
+                    _DEFAULT_LONG_CONTEXT_THRESHOLD,
+                ),
+            )
+            if unhealthy_fallback is not None:
+                return unhealthy_fallback
+            return self._fallback(agent, reason="routing_disabled")
 
         # ── 2. Multimodal attachments → Requires matching capability set ──
         # ── 2. 多模态附件 → 需要满足对应能力组合 ──
@@ -335,6 +349,63 @@ class ModelRouter:
             is_provider_healthy=self._is_provider_healthy,
         )
         return result is not None
+
+    async def _route_disabled_routing_provider_failover(
+        self,
+        *,
+        agent: Agent,
+        has_image_attachments: bool,
+        has_audio: bool,
+        has_video: bool,
+        needs_fc: bool,
+        estimated_tokens: int,
+        long_ctx_threshold: int,
+    ) -> RouteResult | None:
+        agent_model: AIModel | None = getattr(agent, "model", None)
+        provider_id = getattr(agent_model, "provider_id", None)
+        if not provider_id or await self._is_provider_healthy(provider_id):
+            return None
+
+        min_context_window = (
+            estimated_tokens if estimated_tokens > long_ctx_threshold else None
+        )
+
+        try:
+            from app.ai.failover import FailoverService
+
+            fallback_model = await FailoverService(self.db).get_fallback_model(
+                getattr(agent, "model_id", 0),
+                needs_vision=has_image_attachments,
+                needs_audio=has_audio,
+                needs_video=has_video,
+                needs_fc=needs_fc,
+                min_context_window=min_context_window,
+            )
+        except Exception as exc:
+            logger.warning(
+                "ModelRouter disabled-routing failover failed: agent_id={} error={}",
+                getattr(agent, "id", None),
+                str(exc),
+            )
+            return None
+
+        if fallback_model is None:
+            return None
+
+        logger.info(
+            "ModelRouter disabled-routing failover: agent_id={} original_model_id={} fallback_model_id={}",
+            getattr(agent, "id", None),
+            getattr(agent, "model_id", None),
+            fallback_model.id,
+        )
+        return RouteResult(
+            provider_code=fallback_model.provider.code,
+            model_code=fallback_model.code,
+            model_id=fallback_model.id,
+            tier=getattr(fallback_model, "tier", None),
+            reason="provider_unhealthy:auto_failover",
+            is_overridden=True,
+        )
 
     @staticmethod
     def _fallback(agent: Agent, reason: str) -> RouteResult:

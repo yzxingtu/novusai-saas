@@ -22,6 +22,7 @@ async def test_load_chat_history_uses_default_limit_and_sanitizes_tool_messages(
         message_repo=message_repo,
         read_model_service=read_model_service,
         default_max_messages=50,
+        default_max_tokens=2400,
     )
 
     messages = await service.load_chat_history(
@@ -39,4 +40,32 @@ async def test_load_chat_history_uses_default_limit_and_sanitizes_tool_messages(
     read_model_service.build_chat_history_messages.assert_called_once_with(
         ["db-message"],
         max_tokens=120,
+    )
+
+
+@pytest.mark.asyncio
+async def test_load_chat_history_uses_default_token_budget_when_unspecified():
+    message_repo = MagicMock()
+    message_repo.get_last_n_messages = AsyncMock(return_value=["db-message"])
+
+    read_model_service = MagicMock()
+    read_model_service.build_chat_history_messages.return_value = [
+        ChatMessage(role="assistant", content="hello"),
+    ]
+
+    service = ConversationHistoryService(
+        message_repo=message_repo,
+        read_model_service=read_model_service,
+        default_max_messages=50,
+        default_max_tokens=2400,
+    )
+
+    await service.load_chat_history(
+        conversation_id=123,
+        max_messages=0,
+    )
+
+    read_model_service.build_chat_history_messages.assert_called_once_with(
+        ["db-message"],
+        max_tokens=2400,
     )

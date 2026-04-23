@@ -23,13 +23,15 @@ describe('use-ai-chat-page-operations', () => {
 
   it('does not treat suggested_tools-only page context as interactive runtime state', () => {
     expect(
-      hasInteractivePageContext({
-        page_key: 'tenant.dashboard',
-        suggested_tools: {
-          primary: ['ui_get_snapshot', 'ui_list_interactables'],
-          secondary: ['ui_click'],
-        },
-      }),
+      hasInteractivePageContext(
+        asPageContextWithoutKey({
+          page_key: 'tenant.dashboard',
+          suggested_tools: {
+            primary: ['ui_get_snapshot', 'ui_list_interactables'],
+            secondary: ['ui_click'],
+          },
+        }),
+      ),
     ).toBe(false);
   });
 

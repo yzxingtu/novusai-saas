@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
+from app.ai.adapters.openai_compatible.support.client_options import (
+    with_client_retry_override,
+)
 from app.ai.adapters.openai_compatible.support.responses_reasoning_parser import (
     extract_responses_reasoning_text,
 )
@@ -11,6 +14,7 @@ from app.ai.types import ChatMessage, ChatResponse
 from app.core.logging import LogManager
 
 logger = LogManager.get_logger("ai")
+_RESPONSES_RESPONSE_ID_METADATA_KEY = "responses_response_id"
 
 
 class ResponsesAdapterProtocol(Protocol):
@@ -79,6 +83,10 @@ def convert_responses_chat_response(
     reasoning_content = extract_responses_reasoning_text(response)
     usage = getattr(response, "usage", None)
     input_tokens, output_tokens, total_tokens = adapter._extract_usage_tokens(usage)
+    response_id = str(getattr(response, "id", None) or "").strip()
+    metadata = {"protocol_path": "responses"}
+    if response_id:
+        metadata[_RESPONSES_RESPONSE_ID_METADATA_KEY] = response_id
     return ChatResponse(
         message=ChatMessage(
             role="assistant",
@@ -94,7 +102,7 @@ def convert_responses_chat_response(
         if getattr(response, "status", None) == "completed"
         else getattr(response, "status", None),
         tool_calls=tool_calls,
-        metadata={"protocol_path": "responses"},
+        metadata=metadata,
         raw_response=response.model_dump() if hasattr(response, "model_dump") else None,
     )
 
@@ -106,6 +114,8 @@ async def execute_chat_via_responses(
     model: str,
     request_params: dict[str, Any],
 ) -> ChatResponse:
+    request_params = dict(request_params)
+    client_max_retries = request_params.pop("_client_max_retries", None)
     effective_model = str(request_params.get("model") or model)
     adapter._log_upstream_request(
         endpoint_path="responses",
@@ -117,7 +127,11 @@ async def execute_chat_via_responses(
         effective_model,
         len(messages),
     )
-    response = await adapter.client.responses.create(**request_params)
+    client = with_client_retry_override(
+        adapter.client,
+        max_retries=client_max_retries,
+    )
+    response = await client.responses.create(**request_params)
     return convert_responses_chat_response(
         adapter=adapter,
         response=response,

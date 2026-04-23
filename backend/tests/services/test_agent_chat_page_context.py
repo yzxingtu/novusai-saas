@@ -34,6 +34,24 @@ def _navigation_entry() -> dict[str, object]:
     }
 
 
+def _search_input_entry() -> dict[str, object]:
+    return {
+        "locator": 'input[name="title"]',
+        "label": "搜索记录标题",
+        "placeholder": "搜索记录标题",
+        "field_name": "title",
+    }
+
+
+def _visible_table_entry() -> dict[str, object]:
+    return {
+        "locator": '[data-testid="records-table"]',
+        "label": "记录管理",
+        "row_count": 12,
+        "column_count": 6,
+    }
+
+
 def test_page_context_accepts_thin_runtime_fields() -> None:
     page_context = PageContext.model_validate(
         {
@@ -51,10 +69,6 @@ def test_page_context_accepts_thin_runtime_fields() -> None:
                 "stage": "ready_to_submit",
                 "can_submit": True,
             },
-            "suggested_tools": {
-                "primary": ["ui_get_snapshot", "ui_fill_form", "ui_submit_form"],
-                "secondary": ["ui_get_form_state"],
-            },
             "page_data": {
                 "locale": "en-US",
                 "entity_description": " Agent workspace ",
@@ -65,6 +79,8 @@ def test_page_context_accepts_thin_runtime_fields() -> None:
                     "page_key": "admin.ai.agents",
                     "path": "/admin/ai/agents",
                 },
+                "search_inputs": [_search_input_entry(), _search_input_entry()],
+                "visible_tables": [_visible_table_entry(), _visible_table_entry()],
             },
         }
     )
@@ -76,11 +92,12 @@ def test_page_context_accepts_thin_runtime_fields() -> None:
     assert dumped["ui_epoch"] == 3
     assert dumped["surface_stack"][0]["surface_id"] == "page-root"
     assert dumped["active_form_summary"]["form_session_id"] == "form-1"
-    assert dumped["suggested_tools"]["primary"][0] == "ui_get_snapshot"
     assert dumped["page_data"]["locale"] == "en-US"
     assert dumped["page_data"]["entity_description"] == "Agent workspace"
     assert dumped["page_data"]["navigation_catalog"] == [_navigation_entry()]
     assert dumped["page_data"]["navigation_context"]["breadcrumb"] == ["AI", "Agents"]
+    assert dumped["page_data"]["search_inputs"] == [_search_input_entry()]
+    assert dumped["page_data"]["visible_tables"] == [_visible_table_entry()]
 
 
 def test_page_context_normalize_returns_none_for_invalid_payload() -> None:
@@ -96,7 +113,6 @@ def test_page_context_normalize_variables_prefers_explicit_page_context() -> Non
             "page_data": {
                 "navigation_catalog": [_navigation_entry()],
             },
-            "suggested_tools": {"primary": ["ui_get_snapshot"]},
         },
     )
     assert normalized == {
@@ -108,8 +124,23 @@ def test_page_context_normalize_variables_prefers_explicit_page_context() -> Non
                 "navigation_catalog": [_navigation_entry()],
             },
             "surface_stack": [],
-            "suggested_tools": {"primary": ["ui_get_snapshot"], "secondary": []},
         },
+    }
+
+
+def test_page_context_normalize_drops_suggested_tools_payload() -> None:
+    normalized = PageContext.normalize(
+        {
+            "page_key": "tenant.ai.agents",
+            "ui_epoch": 2,
+            "suggested_tools": {"primary": ["ui_get_snapshot", "ui_click"]},
+        }
+    )
+
+    assert normalized == {
+        "page_key": "tenant.ai.agents",
+        "surface_stack": [],
+        "ui_epoch": 2,
     }
 
 
@@ -149,7 +180,6 @@ def test_agent_route_request_accepts_thin_page_context_shape() -> None:
             "page_context": {
                 "page_key": "admin.ai.agents",
                 "ui_epoch": 8,
-                "suggested_tools": {"primary": ["ui_get_snapshot", "ui_click"]},
             },
         }
     )
@@ -220,6 +250,21 @@ def test_agent_chat_request_rejects_unknown_page_data_fields() -> None:
         )
 
 
+def test_agent_chat_request_rejects_legacy_available_menus_page_data() -> None:
+    with pytest.raises(ValidationError):
+        AgentChatRequest.model_validate(
+            {
+                "message": "help me",
+                "page_context": {
+                    "page_key": "tenant.ai.agents",
+                    "page_data": {
+                        "available_menus": [_navigation_entry()],
+                    },
+                },
+            }
+        )
+
+
 @pytest.mark.asyncio
 async def test_validate_page_context_size_accepts_payload_within_runtime_limit() -> None:
     from app.services.ai.page_context_limits import validate_page_context_size
@@ -282,6 +327,28 @@ def test_page_context_available_ui_tools_infers_base_tools_from_thin_context() -
     assert "ui_get_snapshot" in tools
     assert "ui_read_region" in tools
     assert "ui_read_table" in tools
+    assert "ui_click" in tools
+
+
+def test_page_context_available_ui_tools_requires_live_runtime_state() -> None:
+    tools = page_context_available_ui_tools(
+        {
+            "page_key": "tenant.ai.agents",
+        }
+    )
+
+    assert tools == []
+
+
+def test_page_context_available_ui_tools_accepts_page_session_without_ui_epoch() -> None:
+    tools = page_context_available_ui_tools(
+        {
+            "page_key": "tenant.ai.agents",
+            "page_session_id": "session-99",
+        }
+    )
+
+    assert "ui_get_snapshot" in tools
     assert "ui_click" in tools
 
 
@@ -437,3 +504,4 @@ async def test_ui_snapshot_executor_prefers_bridge_payload_when_available() -> N
     assert payload["ui_epoch"] == 6
     assert payload["mode"] == "full"
     assert payload["nodes"][0]["node_id"] == "node-a"
+

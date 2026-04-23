@@ -302,10 +302,17 @@ async def test_run_tool_call_loop_truncates_navigation_batch_before_round_execut
             content: str,
             tool_calls: list[dict[str, object]],
             reasoning_content: str | None = None,
+            metadata: dict[str, object] | None = None,
         ) -> ChatMessage:
             seen["assistant_tool_calls"] = tool_calls
             _ = reasoning_content
-            return ChatMessage(role="assistant", content=content, tool_calls=tool_calls)
+            seen["assistant_metadata"] = metadata
+            return ChatMessage(
+                role="assistant",
+                content=content,
+                tool_calls=tool_calls,
+                metadata=metadata,
+            )
 
     monkeypatch.setattr(tool_processor_mod, "ToolCallProcessor", _FakeProcessor)
     monkeypatch.setattr(

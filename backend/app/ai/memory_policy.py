@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from typing import Any
 
 _EXTERNAL_CONTEXT_TOOL_NAMES = {"web_search", "fetch_url"}
-_EXTERNAL_CONTEXT_FAMILIES = {"web_research"}
 
 _THREAD_MEMORY_OWNER_ACTIVE = "active"
 _THREAD_MEMORY_OWNER_POLLUTED = "polluted"
@@ -90,10 +89,6 @@ def _request_policy_payload(request: Any) -> dict[str, Any]:
     if isinstance(payload, dict):
         return dict(payload)
     return {}
-
-
-def _iter_result_intents(result: Any | None) -> list[Any]:
-    return list(getattr(result, "intent_plan", None) or [])
 
 
 def _derive_memory_runtime_state_fields(
@@ -238,24 +233,6 @@ def detect_external_context_pollution(
         if tool_name in _EXTERNAL_CONTEXT_TOOL_NAMES:
             return True, f"tool:{tool_name}"
 
-    planner = getattr(result, "tool_planner", None)
-    if isinstance(planner, dict):
-        planner_family = _normalize_text(planner.get("family"))
-        if planner_family in _EXTERNAL_CONTEXT_FAMILIES:
-            return True, f"tool_family:{planner_family}"
-
-    for intent in _iter_result_intents(result):
-        if isinstance(intent, dict):
-            kind = _normalize_text(intent.get("kind"))
-            family = _normalize_text(intent.get("family"))
-        else:
-            kind = _normalize_text(getattr(intent, "kind", None))
-            family = _normalize_text(getattr(intent, "family", None))
-        if kind in _EXTERNAL_CONTEXT_FAMILIES:
-            return True, f"intent:{kind}"
-        if family in _EXTERNAL_CONTEXT_FAMILIES:
-            return True, f"intent_family:{family}"
-
     if result is not None or tool_results is not None:
         return False, None
 
@@ -349,6 +326,10 @@ def attach_memory_runtime_policy(
         tool_results=tool_results,
     )
     request.memory_runtime_policy = policy.to_dict()
+    _sync_request_memory_context_source_metadata(
+        request,
+        memory_runtime_policy=request.memory_runtime_policy,
+    )
     return policy
 
 
@@ -420,6 +401,90 @@ def resolve_memory_runtime_mode(
     return "disabled"
 
 
+def memory_context_source_metadata(
+    memory_runtime_policy: dict[str, Any] | None,
+    *,
+    thread_memory_state: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    normalized_memory_runtime_policy = normalize_memory_runtime_policy(
+        memory_runtime_policy
+    )
+    normalized_thread_memory_state = normalize_thread_memory_state(thread_memory_state)
+    effective_policy = (
+        normalized_memory_runtime_policy
+        or normalize_memory_runtime_policy(normalized_thread_memory_state)
+    )
+    if not effective_policy:
+        return {}
+
+    metadata: dict[str, Any] = {
+        "scene": _normalize_text(effective_policy.get("scene")),
+        "channel": _normalize_text(effective_policy.get("channel")),
+        "source": _normalize_text(effective_policy.get("source")),
+        "memory_mode": resolve_memory_runtime_mode(effective_policy),
+        "memory_context_enabled": bool(effective_policy.get("memory_context_enabled")),
+        "session_memory_runtime_enabled": bool(
+            effective_policy.get("session_memory_runtime_enabled")
+        ),
+        "session_memory_read_enabled": bool(
+            effective_policy.get("session_memory_read_enabled")
+        ),
+        "session_memory_write_enabled": bool(
+            effective_policy.get("session_memory_write_enabled")
+        ),
+        "session_memory_state": _normalize_text(
+            effective_policy.get("session_memory_state")
+        ),
+        "long_term_memory_runtime_enabled": bool(
+            effective_policy.get("long_term_memory_runtime_enabled")
+        ),
+        "long_term_memory_recall_enabled": bool(
+            effective_policy.get("long_term_memory_recall_enabled")
+        ),
+        "long_term_memory_recall_state": _normalize_text(
+            effective_policy.get("long_term_memory_recall_state")
+        ),
+        "long_term_memory_capture_enabled": bool(
+            effective_policy.get("long_term_memory_capture_enabled")
+        ),
+        "long_term_memory_capture_state": _normalize_text(
+            effective_policy.get("long_term_memory_capture_state")
+        ),
+        "thread_memory_owner_state": _normalize_text(
+            effective_policy.get("thread_memory_owner_state")
+        ),
+        "external_context_polluted": bool(
+            effective_policy.get("external_context_polluted")
+        ),
+    }
+    thread_memory_owner_reason = _normalize_text(
+        effective_policy.get("thread_memory_owner_reason")
+    )
+    if thread_memory_owner_reason:
+        metadata["thread_memory_owner_reason"] = thread_memory_owner_reason
+    external_context_reason = _normalize_text(
+        effective_policy.get("external_context_reason")
+    )
+    if external_context_reason:
+        metadata["external_context_reason"] = external_context_reason
+    updated_at = _normalize_text(normalized_thread_memory_state.get("updated_at"))
+    if updated_at:
+        metadata["thread_memory_state_updated_at"] = updated_at
+    return metadata
+
+
+def _sync_request_memory_context_source_metadata(
+    request: Any,
+    *,
+    memory_runtime_policy: dict[str, Any] | None,
+    thread_memory_state: dict[str, Any] | None = None,
+) -> None:
+    request.memory_context_source_metadata = memory_context_source_metadata(
+        memory_runtime_policy,
+        thread_memory_state=thread_memory_state,
+    )
+
+
 def build_memory_runtime_projection(
     memory_runtime_policy: dict[str, Any] | None,
 ) -> dict[str, Any]:
@@ -431,6 +496,7 @@ def build_memory_runtime_projection(
         "memory_runtime_policy": normalized,
         "memory_mode": resolve_memory_runtime_mode(normalized),
         "external_context_polluted": bool(normalized.get("external_context_polluted")),
+        "memory_context_source_metadata": memory_context_source_metadata(normalized),
     }
     if normalized.get("external_context_reason"):
         projection["external_context_reason"] = normalized.get(
@@ -500,6 +566,10 @@ def prime_memory_runtime_policy(
         )
         if normalized_payload:
             request.memory_runtime_policy = normalized_payload
+            _sync_request_memory_context_source_metadata(
+                request,
+                memory_runtime_policy=normalized_payload,
+            )
         return normalized_payload
 
     payload = {
@@ -536,6 +606,11 @@ def prime_memory_runtime_policy(
         payload.update(existing_payload)
     normalized_payload = normalize_memory_runtime_policy(payload)
     request.memory_runtime_policy = normalized_payload
+    _sync_request_memory_context_source_metadata(
+        request,
+        memory_runtime_policy=normalized_payload,
+        thread_memory_state=normalized_thread_memory_state,
+    )
     return normalized_payload
 
 
@@ -545,6 +620,7 @@ __all__ = [
     "build_effective_memory_runtime_projection",
     "build_memory_runtime_projection",
     "detect_external_context_pollution",
+    "memory_context_source_metadata",
     "normalize_memory_runtime_policy",
     "normalize_thread_memory_state",
     "prime_memory_runtime_policy",

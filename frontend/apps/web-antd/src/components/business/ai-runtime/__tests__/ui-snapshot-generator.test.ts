@@ -1,18 +1,10 @@
 import type { UISnapshotInput } from '../ui-snapshot-generator';
 
-import type { PageContextSuggestedTool } from '#/api/shared/ai-chat';
-
 import { describe, expect, it } from 'vitest';
 
 import { UISnapshotGenerator } from '../ui-snapshot-generator';
 
 function buildInput(nodeCount = 40): UISnapshotInput {
-  const primaryTools: PageContextSuggestedTool[] = [
-    'ui_get_snapshot',
-    'ui_read_region',
-  ];
-  const secondaryTools: PageContextSuggestedTool[] = ['ui_list_interactables'];
-
   return {
     active_form_session_id: 'form-1',
     active_form_summary: {
@@ -45,11 +37,6 @@ function buildInput(nodeCount = 40): UISnapshotInput {
       text: `node text ${index}`,
       title: `node title ${index}`,
     })),
-    suggested_tools: {
-      primary: primaryTools,
-      reason: 'Need quick structure first.',
-      secondary: secondaryTools,
-    },
     surface_stack: [
       { kind: 'page' as const, surface_id: 'page-1', title: 'Agents' },
       { kind: 'drawer' as const, surface_id: 'drawer-1', title: 'Edit Agent' },
@@ -112,10 +99,7 @@ describe('ui-snapshot-generator', () => {
     expect(pageContext.ui_epoch).toBe(12);
     expect(pageContext.surface_stack?.length).toBe(2);
     expect(pageContext.active_form_summary?.form_session_id).toBe('form-1');
-    expect(pageContext.suggested_tools?.primary).toEqual([
-      'ui_get_snapshot',
-      'ui_read_region',
-    ]);
+    expect('suggested_tools' in pageContext).toBe(false);
   });
 
   it('normalizes and truncates surface stack and form sessions with fallbacks', () => {

@@ -50,6 +50,7 @@ def build_contract_recovery_system_message(
             completed_line=completed_line,
             leaked_line=leaked_line,
         ),
+        internal_only=True,
     )
 
 

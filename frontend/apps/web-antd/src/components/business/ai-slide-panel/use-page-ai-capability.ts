@@ -10,9 +10,9 @@ import {
   getRuntimePageContextDiagnostics,
   getRuntimeThinPageContext,
 } from '#/components/business/ai-runtime/runtime-bridge';
+import { useDiagnosticsPolicy } from '#/composables/use-diagnostics-policy';
 import { $t } from '#/locales';
 import { filterPageOperationsByPolicy } from '#/utils/ai-page-capabilities';
-import { isDevErrorMode } from '#/utils/request/app-env';
 import {
   buildPageOperation,
   buildRuntimePageOperationNames,
@@ -20,8 +20,6 @@ import {
 } from '#/utils/runtime-page-operations';
 
 type ThinPageContextValue = ReturnType<typeof getRuntimeThinPageContext>;
-
-const SHOW_PAGE_AI_DIAGNOSTICS = isDevErrorMode();
 
 export interface PageAIStatBadge {
   className: string;
@@ -37,6 +35,7 @@ export interface PageAIDiagnostics {
 }
 
 interface UsePageAICapabilityOptions {
+  apiPrefix: Ref<string>;
   disabledCapabilities: Ref<string[] | undefined>;
   modalState: Ref<Array<{ type: string }>>;
   normalizedPageMode: ComputedRef<AIPageMode>;
@@ -53,30 +52,35 @@ function pageModeDisablesContext(mode: AIPageMode): boolean {
   return mode === 'disabled';
 }
 
-function resolveSummary(context: ThinPageContextValue): string {
+function resolveSummary(
+  context: ThinPageContextValue,
+  operationCount: number,
+): string {
   if (!context) {
     return $t('common.aiPanel.pageAiNoOperations');
   }
-  const activeForm = context.active_form_summary;
-  if (activeForm) {
-    const remaining = activeForm.remaining_required_fields?.length ?? 0;
-    return remaining > 0
-      ? $t('common.aiPanel.pageAiSummary', { count: remaining })
-      : $t('common.aiPanel.pageAiFallbackSummary');
+  if (!hasRuntimePageState(context)) {
+    const surfaceCount = context.surface_stack?.length ?? 0;
+    if (surfaceCount > 1) {
+      return $t('common.aiPanel.pageAiFallbackSummaryWithOps', {
+        count: surfaceCount - 1,
+      });
+    }
+    return $t('common.aiPanel.pageAiFallbackSummary');
   }
-  const surfaceCount = context.surface_stack?.length ?? 0;
-  if (surfaceCount > 1) {
-    return $t('common.aiPanel.pageAiFallbackSummaryWithOps', {
-      count: surfaceCount - 1,
-    });
+  if (operationCount > 0) {
+    return $t('common.aiPanel.pageAiSummary', { count: operationCount });
   }
-  return $t('common.aiPanel.pageAiFallbackSummary');
+  return $t('common.aiPanel.pageAiNoOperations');
 }
 
 export function usePageAICapability(options: UsePageAICapabilityOptions) {
   void options.disabledCapabilities;
   void options.modalState;
   void options.pageContextLimitBytes;
+  const { showDiagnostics } = useDiagnosticsPolicy({
+    apiPrefix: options.apiPrefix,
+  });
 
   const currentPageContext = computed(() => {
     if (pageModeDisablesContext(options.normalizedPageMode.value)) {
@@ -108,7 +112,7 @@ export function usePageAICapability(options: UsePageAICapabilityOptions) {
   );
 
   const pageAIDiagnostics = computed<null | PageAIDiagnostics>(() => {
-    if (!SHOW_PAGE_AI_DIAGNOSTICS || !currentPageContext.value) {
+    if (!showDiagnostics.value || !currentPageContext.value) {
       return null;
     }
     const diagnostics = getRuntimePageContextDiagnostics();
@@ -121,13 +125,8 @@ export function usePageAICapability(options: UsePageAICapabilityOptions) {
   });
 
   const pageAIFallbackOnly = computed(() => {
-    const reason = currentPageContext.value?.suggested_tools?.reason || '';
-    if (reason.includes('fallback')) {
-      return true;
-    }
     return (
-      !!currentPageContext.value &&
-      !hasRuntimePageState(currentPageContext.value)
+      !!currentPageContext.value && !hasRuntimePageState(currentPageContext.value)
     );
   });
   const hasPageAI = computed(() => !!currentPageContext.value);
@@ -196,7 +195,7 @@ export function usePageAICapability(options: UsePageAICapabilityOptions) {
     return Math.max(remaining, 0);
   });
   const pageAISummary = computed(() =>
-    resolveSummary(currentPageContext.value),
+    resolveSummary(currentPageContext.value, pageAIOperationCount.value),
   );
   const resolvedPageAITitle = computed(() => {
     const rawTitle = currentPageContext.value?.page_title?.trim();

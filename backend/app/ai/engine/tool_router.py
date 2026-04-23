@@ -26,133 +26,20 @@ class ToolRoutingDecision:
 
 
 class ToolRouter:
-    _PAGE_INTENT_TOOL_MAP: dict[str, tuple[list[str], list[str]]] = {
-        "page_summary": (
-            ["ui_get_snapshot"],
-            ["ui_get_snapshot"],
-        ),
-        "page_navigation": (
-            [
-                "ui_list_interactables",
-                "ui_click",
-                "ui_open_surface",
-                "ui_get_snapshot",
-            ],
-            [
-                "ui_list_interactables",
-                "ui_click",
-                "ui_open_surface",
-                "ui_get_snapshot",
-            ],
-        ),
-        "page_search": (
-            [
-                "ui_read_region",
-                "ui_list_interactables",
-                "ui_click",
-            ],
-            [
-                "ui_read_region",
-                "ui_click",
-                "ui_list_interactables",
-            ],
-        ),
-        "page_pagination": (
-            [
-                "ui_read_table",
-                "ui_click",
-                "ui_list_interactables",
-            ],
-            [
-                "ui_read_table",
-                "ui_click",
-                "ui_list_interactables",
-            ],
-        ),
-        "page_row_detail": (
-            [
-                "ui_read_region",
-                "ui_read_table",
-                "ui_get_snapshot",
-            ],
-            [
-                "ui_read_region",
-                "ui_read_table",
-                "ui_get_snapshot",
-            ],
-        ),
-        "page_form_read": (
-            [
-                "ui_get_form_state",
-                "ui_read_region",
-                "ui_get_snapshot",
-            ],
-            [
-                "ui_get_form_state",
-                "ui_read_region",
-                "ui_get_snapshot",
-            ],
-        ),
-        "page_screenshot": (
-            [
-                "ui_get_snapshot",
-            ],
-            [
-                "ui_get_snapshot",
-            ],
-        ),
-        "page_editor_read": (
-            [
-                "ui_read_region",
-                "ui_get_snapshot",
-            ],
-            [
-                "ui_read_region",
-                "ui_get_snapshot",
-            ],
-        ),
-        "page_editor_write": (
-            [
-                "ui_open_surface",
-                "ui_fill_form",
-                "ui_submit_form",
-            ],
-            [
-                "ui_fill_form",
-                "ui_submit_form",
-                "ui_open_surface",
-            ],
-        ),
-    }
-
     @classmethod
     def page_intent_tool_plan(
         cls,
         intent_kind: str,
         *,
         input_variables: dict[str, Any] | None = None,
+        intent_metadata: dict[str, Any] | None = None,
+        user_text: str | None = None,
     ) -> PageIntentToolPlan:
-        plan = PageWorkflowStateMachine.plan_for_intent(
+        return PageWorkflowStateMachine.plan_for_intent(
             intent_kind,
             input_variables=input_variables,
-        )
-        if (
-            plan.allowed_names
-            or plan.preferred_names
-            or plan.workflow_goal != intent_kind
-        ):
-            return plan
-        allowed_names, preferred_names = cls._PAGE_INTENT_TOOL_MAP.get(
-            intent_kind, ([], [])
-        )
-        return PageIntentToolPlan(
-            allowed_names=list(allowed_names),
-            preferred_names=list(preferred_names),
-            workflow_stage=plan.workflow_stage,
-            workflow_phase=plan.workflow_phase,
-            workflow_goal=plan.workflow_goal,
-            workflow_state=plan.workflow_state,
-            completion_contract=plan.completion_contract,
+            intent_metadata=intent_metadata,
+            user_text=user_text,
         )
 
     @classmethod
@@ -169,10 +56,14 @@ class ToolRouter:
         intent_kind: str,
         *,
         input_variables: dict[str, Any] | None = None,
+        intent_metadata: dict[str, Any] | None = None,
+        user_text: str | None = None,
     ) -> tuple[list[str], list[str]]:
         plan = cls.page_intent_tool_plan(
             intent_kind,
             input_variables=input_variables,
+            intent_metadata=intent_metadata,
+            user_text=user_text,
         )
         return list(plan.allowed_names), list(plan.preferred_names)
 
@@ -259,13 +150,12 @@ class ToolRouter:
                 )
                 continue
 
-            if (
-                intent.kind in cls._PAGE_INTENT_TOOL_MAP
-                or intent.kind == "page_form_write"
-            ):
+            if intent.family == "page_ops":
                 names, preferred = cls.page_intent_tool_preferences(
                     intent.kind,
                     input_variables=input_variables,
+                    intent_metadata=intent.metadata,
+                    user_text=user_text,
                 )
                 register(intent, names, preferred)
                 continue

@@ -299,6 +299,57 @@ class AIModelRepository(BaseRepository[AIModel]):
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def list_compatible_chat_models(
+        self,
+        *,
+        exclude_model_ids: list[int] | None = None,
+        needs_vision: bool = False,
+        needs_audio: bool = False,
+        needs_video: bool = False,
+        needs_function_calling: bool = False,
+        min_context_window: int | None = None,
+    ) -> list[AIModel]:
+        """
+        列出满足能力要求的活跃 chat 模型（预加载 provider）。
+        List active chat models that satisfy the requested capability set.
+        """
+        conditions = [
+            AIModel.is_active.is_(True),
+            AIModel.is_deleted.is_(False),
+            AIModel.type == ModelTypeEnum.CHAT.value,
+        ]
+
+        if exclude_model_ids:
+            conditions.append(AIModel.id.notin_(list(exclude_model_ids)))
+
+        if needs_vision:
+            conditions.append(AIModel.supports_vision.is_(True))
+
+        if needs_audio:
+            conditions.append(AIModel.supports_audio.is_(True))
+
+        if needs_video:
+            conditions.append(AIModel.supports_video.is_(True))
+
+        if needs_function_calling:
+            conditions.append(AIModel.supports_function_calling.is_(True))
+
+        if min_context_window is not None:
+            conditions.append(AIModel.context_window >= min_context_window)
+
+        stmt = (
+            select(AIModel)
+            .where(*conditions)
+            .options(selectinload(AIModel.provider))
+            .order_by(
+                nulls_last(AIModel.input_price_per_1k.asc()),
+                nulls_last(AIModel.context_window.desc()),
+                AIModel.id.asc(),
+            )
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
 
 __all__ = [
     "AIModelRepository",

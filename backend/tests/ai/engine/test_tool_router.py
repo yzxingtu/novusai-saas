@@ -42,6 +42,21 @@ def _intent(kind: str) -> IntentPlan:
     )
 
 
+def _workflow_intent(goal: str) -> IntentPlan:
+    return IntentPlan(
+        intent_id=f"intent-page-workflow-{goal}",
+        kind="page_workflow",
+        family="page_ops",
+        order=1,
+        user_visible_label="page_workflow",
+        source_text=goal,
+        metadata={
+            "page_workflow_goal": goal,
+            "page_workflow_kind": "page_workflow",
+        },
+    )
+
+
 def _web_intent(*, metadata: dict | None = None) -> IntentPlan:
     return IntentPlan(
         intent_id="intent-web",
@@ -90,6 +105,29 @@ def test_tool_router_prefers_surface_discovery_before_form_write_when_form_not_o
         "ui_click",
         "ui_get_form_state",
         "ui_fill_form",
+        "ui_set_field",
+        "ui_submit_form",
+    ]
+
+
+def test_tool_router_supports_canonical_page_workflow_goal_metadata() -> None:
+    decision = ToolRouter.route(
+        intents=[_workflow_intent("form_write")],
+        tools=_page_tools(),
+        budget=_budget(),
+        input_variables={
+            "page_context": {"page_key": "admin.ai.agents", "ui_epoch": 5}
+        },
+        user_text="帮我新增一条记录并提交表单",
+    )
+
+    assert decision.intent_allowed_tools["intent-page-workflow-form_write"] == [
+        "ui_list_interactables",
+        "ui_open_surface",
+        "ui_click",
+        "ui_get_form_state",
+        "ui_fill_form",
+        "ui_set_field",
         "ui_submit_form",
     ]
 
@@ -230,7 +268,12 @@ def test_tool_router_keeps_editor_tools_when_many_page_operations_exist() -> Non
         intents=[_intent("page_editor_write")],
         tools=_page_tools(),
         budget=_budget(),
-        input_variables={"page_context": {"page_key": "admin.ai.editor"}},
+        input_variables={
+            "page_context": {
+                "page_key": "admin.ai.editor",
+                "ui_epoch": 2,
+            }
+        },
         user_text="帮我替换这一段正文并更新标题",
     )
 
@@ -246,17 +289,17 @@ def test_tool_router_prefers_row_detail_tools_for_detail_request() -> None:
         intents=[_intent("page_row_detail")],
         tools=_page_tools(),
         budget=_budget(),
-        input_variables={"page_context": {"page_key": "admin.ai.logs"}},
+        input_variables={"page_context": {"page_key": "admin.ai.logs", "ui_epoch": 2}},
         user_text="查看这条记录详情",
     )
 
     assert decision.intent_preferred_tools["intent-page_row_detail"] == [
-        "ui_list_interactables",
         "ui_click",
         "ui_open_surface",
         "ui_read_region",
         "ui_read_table",
         "ui_get_snapshot",
+        "ui_list_interactables",
     ]
 
 
@@ -265,14 +308,38 @@ def test_tool_router_prefers_pagination_tools_for_page_jump_request() -> None:
         intents=[_intent("page_pagination")],
         tools=_page_tools(),
         budget=_budget(),
-        input_variables={"page_context": {"page_key": "admin.ai.logs"}},
+        input_variables={"page_context": {"page_key": "admin.ai.logs", "ui_epoch": 2}},
         user_text="跳到下一页",
     )
 
     assert decision.intent_allowed_tools["intent-page_pagination"] == [
-        "ui_read_table",
         "ui_click",
+        "ui_set_field",
+        "ui_read_table",
+        "ui_fill_form",
+        "ui_submit_form",
         "ui_list_interactables",
+    ]
+
+
+def test_tool_router_prefers_table_read_tools_for_table_summary_request() -> None:
+    decision = ToolRouter.route(
+        intents=[_intent("page_summary")],
+        tools=_page_tools(),
+        budget=_budget(),
+        input_variables={"page_context": {"page_key": "admin.ai.logs", "ui_epoch": 2}},
+        user_text="帮我列出这个表格前5条标题和时间",
+    )
+
+    assert decision.intent_allowed_tools["intent-page_summary"] == [
+        "ui_read_table",
+        "ui_get_snapshot",
+        "ui_read_region",
+    ]
+    assert decision.intent_preferred_tools["intent-page_summary"] == [
+        "ui_read_table",
+        "ui_get_snapshot",
+        "ui_read_region",
     ]
 
 

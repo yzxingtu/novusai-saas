@@ -465,6 +465,11 @@ async def run_stream_tool_batch(
         content=runtime.response.message.content or "",
         tool_calls=runtime.tool_calls,
         reasoning_content=runtime.reasoning_content,
+        metadata=(
+            dict(runtime.response.metadata or {})
+            if isinstance(runtime.response.metadata, dict)
+            else None
+        ),
     )
     runtime.messages.append(assistant_tool_message)
     state = _StreamToolBatchState(
@@ -532,11 +537,23 @@ async def run_stream_tool_batch(
                 content=runtime.response.message.content or "",
                 tool_calls=effective_tool_calls or None,
                 reasoning_content=runtime.reasoning_content,
+                metadata=(
+                    dict(runtime.response.metadata or {})
+                    if isinstance(runtime.response.metadata, dict)
+                    else None
+                ),
             ),
             total_tokens=runtime.starting_total_tokens,
             output_tokens=runtime.starting_completion_tokens,
             tool_calls=effective_tool_calls or None,
-            metadata={"skip_final_assistant": True},
+            metadata={
+                **(
+                    dict(runtime.response.metadata or {})
+                    if isinstance(runtime.response.metadata, dict)
+                    else {}
+                ),
+                "skip_final_assistant": True,
+            },
         )
         return StreamToolBatchRuntimeOutcome(
             response=consent_response,

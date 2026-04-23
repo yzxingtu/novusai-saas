@@ -93,6 +93,8 @@ def _active_unfinished_page_workflow(
             continue
         return {
             "label": str(intent.user_visible_label or "").strip(),
+            "kind": str(metadata.get("page_workflow_kind") or "page_workflow").strip()
+            or "page_workflow",
             "phase": str(metadata.get("page_workflow_phase") or "").strip(),
             "goal": str(metadata.get("page_workflow_goal") or "").strip(),
             "status": str(progress.get("status") or "").strip(),
@@ -132,6 +134,19 @@ def _page_workflow_pending_phrase(workflow: dict[str, str] | None) -> str:
     if status == "awaiting_consent":
         return _("正在等待你的确认")
     return _("还没有完成")
+
+
+def _should_surface_unfinished_partial_result(
+    intent: IntentPlan,
+    *,
+    provider_failure_kind: ProviderFailureKind,
+) -> bool:
+    normalized_family = str(intent.family or "").strip().lower()
+    if provider_failure_kind == "none":
+        return True
+    if normalized_family == "web_research":
+        return False
+    return not is_terminal_failure_kind(provider_failure_kind)
 
 
 def build_recovery_message(
@@ -214,6 +229,7 @@ def build_recovery_message(
                 else ""
             ),
         ),
+        internal_only=True,
     )
 
 
@@ -258,36 +274,38 @@ def build_missing_args_clarification_message(
                 else ""
             ),
         ),
+        internal_only=True,
     )
 
 
 def build_partial_output(
     intents: list[IntentPlan],
     *,
+    tool_results: list[ToolResult] | None = None,
     reason: str,
     provider_failure_kind: ProviderFailureKind = "none",
     intent_results: dict[str, str] | None = None,
 ) -> str:
-    completed_results: list[str] = []
-    completed_labels: list[str] = []
+    completed_results, completed_labels = _collect_completed_output_parts(
+        intents,
+        tool_results=tool_results,
+        intent_results=intent_results,
+    )
     unfinished_results: list[str] = []
     unfinished_labels: list[str] = []
     retry_budget_exhausted = reason == "retry_budget_exhausted"
     active_page_workflow = _active_unfinished_page_workflow(intents)
 
     for intent in intents:
+        if intent.status == "completed":
+            continue
         display_label = RecoveryResultNormalizer._partial_output_label(intent)
         intent_result = RecoveryResultNormalizer._intent_cached_result(
             intent,
             intent_results=intent_results,
         )
-        if intent.status == "completed":
-            if intent_result:
-                if intent_result not in completed_results:
-                    completed_results.append(intent_result)
-            elif display_label and display_label not in completed_labels:
-                completed_labels.append(display_label)
-            continue
+        if not intent_result:
+            intent_result = intent_result_from_tool_results(intent, tool_results)
         if intent_result:
             result_line = intent_result
             if (
@@ -297,7 +315,13 @@ def build_partial_output(
                 and intent.user_visible_label not in result_line
             ):
                 result_line = f"{intent.user_visible_label}：{intent_result}"
-            if result_line not in unfinished_results:
+            if (
+                _should_surface_unfinished_partial_result(
+                    intent,
+                    provider_failure_kind=provider_failure_kind,
+                )
+                and result_line not in unfinished_results
+            ):
                 unfinished_results.append(result_line)
         if display_label and display_label not in unfinished_labels:
             unfinished_labels.append(display_label)
@@ -486,6 +510,7 @@ def build_partial_response_prompt(
                 else "orchestration_partial_exit"
             ),
         ),
+        internal_only=True,
     )
 
 

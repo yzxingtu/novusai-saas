@@ -4,8 +4,9 @@ Agent router candidate filtering support.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable
+from typing import Any
 
 from app.core.i18n import _
 from app.core.logging import LogManager
@@ -44,7 +45,7 @@ async def filter_router_candidates(
         message,
         page_context,
     )
-    mixed_non_page_intent = has_non_page_mixed_intent(message)
+    mixed_non_page_intent = has_non_page_mixed_intent(message, page_context)
     requested_families = requested_tool_families(message, page_context)
     page_operation_filtered = False
     family_coverage_filtered = False

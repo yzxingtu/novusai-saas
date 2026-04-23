@@ -11,6 +11,36 @@ from app.ai.tools.semantic_defaults import (
     page_context_payload,
 )
 
+_TABLE_SUMMARY_TERMS = (
+    "table",
+    "rows",
+    "columns",
+    "列表",
+    "前5条",
+    "前五条",
+    "时间",
+    "标题",
+    "记录",
+    "表格",
+)
+_PAGE_WORKFLOW_KIND = "page_workflow"
+LEGACY_PAGE_WORKFLOW_GOALS: dict[str, str] = {
+    "page_summary": "page_summary",
+    "page_screenshot": "page_screenshot",
+    "page_navigation": "navigation",
+    "page_search": "search",
+    "page_pagination": "pagination",
+    "page_row_detail": "row_detail",
+    "page_form_read": "form_read",
+    "page_form_write": "form_write",
+    "page_editor_read": "editor_read",
+    "page_editor_write": "editor_write",
+}
+
+_LEGACY_PAGE_WORKFLOW_ALIAS_BY_GOAL = {
+    goal: alias for alias, goal in LEGACY_PAGE_WORKFLOW_GOALS.items()
+}
+
 
 def _ordered_unique_tool_names(*groups: list[str]) -> list[str]:
     ordered: list[str] = []
@@ -23,6 +53,17 @@ def _ordered_unique_tool_names(*groups: list[str]) -> list[str]:
             ordered.append(name)
             seen.add(name)
     return ordered
+
+
+def _normalized_user_text(user_text: str | None) -> str:
+    return " ".join(str(user_text or "").strip().lower().split())
+
+
+def _looks_like_table_summary_request(user_text: str | None) -> bool:
+    normalized = _normalized_user_text(user_text)
+    if not normalized:
+        return False
+    return any(term in normalized for term in _TABLE_SUMMARY_TERMS)
 
 
 @dataclass(frozen=True)
@@ -75,6 +116,7 @@ class PageIntentCompletionContract:
 class PageIntentToolPlan:
     allowed_names: list[str] = field(default_factory=list)
     preferred_names: list[str] = field(default_factory=list)
+    workflow_kind: str = _PAGE_WORKFLOW_KIND
     workflow_stage: str = "idle"
     workflow_phase: str = "idle"
     workflow_goal: str = ""
@@ -85,6 +127,7 @@ class PageIntentToolPlan:
 
     def to_metadata(self) -> dict[str, Any]:
         return {
+            "page_workflow_kind": self.workflow_kind,
             "page_workflow_stage": self.workflow_stage,
             "page_workflow_phase": self.workflow_phase,
             "page_workflow_goal": self.workflow_goal,
@@ -143,12 +186,38 @@ def _plan(
     return PageIntentToolPlan(
         allowed_names=normalized_allowed,
         preferred_names=normalized_preferred,
+        workflow_kind=_PAGE_WORKFLOW_KIND,
         workflow_stage=workflow_stage,
         workflow_phase=workflow_phase,
         workflow_goal=workflow_goal,
         workflow_state=workflow_state,
         completion_contract=completion_contract,
     )
+
+
+def resolve_page_workflow_goal(
+    *,
+    intent_kind: str,
+    intent_metadata: dict[str, Any] | None,
+    user_text: str | None,
+) -> str:
+    metadata = dict(intent_metadata or {})
+    metadata_goal = str(metadata.get("page_workflow_goal") or "").strip()
+    if metadata_goal:
+        return metadata_goal
+    if intent_kind == _PAGE_WORKFLOW_KIND:
+        return "table_summary" if _looks_like_table_summary_request(user_text) else ""
+    legacy_goal = LEGACY_PAGE_WORKFLOW_GOALS.get(intent_kind, "")
+    if legacy_goal == "page_summary" and _looks_like_table_summary_request(user_text):
+        return "table_summary"
+    return legacy_goal
+
+
+def legacy_page_intent_kind_for_goal(workflow_goal: str) -> str:
+    normalized_goal = str(workflow_goal or "").strip()
+    if normalized_goal == "table_summary":
+        return "page_summary"
+    return _LEGACY_PAGE_WORKFLOW_ALIAS_BY_GOAL.get(normalized_goal, "")
 
 
 class PageWorkflowStateMachine:
@@ -234,20 +303,47 @@ class PageWorkflowStateMachine:
         intent_kind: str,
         *,
         input_variables: dict[str, Any] | None = None,
+        intent_metadata: dict[str, Any] | None = None,
+        user_text: str | None = None,
     ) -> PageIntentToolPlan:
         workflow_state = cls.resolve_state(input_variables=input_variables)
 
-        if intent_kind == "page_summary":
+        workflow_goal = resolve_page_workflow_goal(
+            intent_kind=intent_kind,
+            intent_metadata=intent_metadata,
+            user_text=user_text,
+        )
+
+        if workflow_goal in {"page_summary", "table_summary"}:
+            table_like_summary = workflow_goal == "table_summary"
+            allowed_names = (
+                ["ui_read_table", "ui_get_snapshot", "ui_read_region"]
+                if table_like_summary
+                else ["ui_get_snapshot", "ui_read_region", "ui_read_table"]
+            )
             return _plan(
-                allowed_names=["ui_get_snapshot"],
-                workflow_stage="read_page_summary",
+                allowed_names=allowed_names,
+                preferred_names=list(allowed_names),
+                workflow_stage=(
+                    "read_table_summary"
+                    if table_like_summary
+                    else "read_page_summary"
+                ),
                 workflow_phase="read",
-                workflow_goal="page_summary",
+                workflow_goal=(
+                    "table_summary"
+                    if table_like_summary
+                    else "page_summary"
+                ),
                 workflow_state=workflow_state,
-                completion_contract=_verify_only_contract("ui_get_snapshot"),
+                completion_contract=_verify_only_contract(
+                    ["ui_read_table", "ui_read_region"]
+                    if table_like_summary
+                    else ["ui_get_snapshot", "ui_read_region", "ui_read_table"]
+                ),
             )
 
-        if intent_kind == "page_screenshot":
+        if workflow_goal == "page_screenshot":
             return _plan(
                 allowed_names=["ui_get_snapshot"],
                 workflow_stage="capture_page_snapshot",
@@ -257,7 +353,7 @@ class PageWorkflowStateMachine:
                 completion_contract=_verify_only_contract("ui_get_snapshot"),
             )
 
-        if intent_kind == "page_navigation":
+        if workflow_goal == "navigation":
             allowed_names = [
                 "ui_list_interactables",
                 "ui_click",
@@ -282,6 +378,12 @@ class PageWorkflowStateMachine:
                 )
             return _plan(
                 allowed_names=allowed_names,
+                preferred_names=[
+                    "ui_click",
+                    "ui_open_surface",
+                    "ui_get_snapshot",
+                    "ui_list_interactables",
+                ],
                 workflow_stage="discover_navigation_target",
                 workflow_phase="navigate_or_open",
                 workflow_goal="navigation",
@@ -292,46 +394,71 @@ class PageWorkflowStateMachine:
                 ),
             )
 
-        if intent_kind == "page_search":
+        if workflow_goal == "search":
             allowed_names = [
+                "ui_click",
+                "ui_fill_form",
+                "ui_set_field",
+                "ui_submit_form",
+                "ui_read_table",
                 "ui_read_region",
                 "ui_list_interactables",
-                "ui_click",
             ]
             preferred_names = [
-                "ui_read_region",
                 "ui_click",
+                "ui_fill_form",
+                "ui_set_field",
+                "ui_submit_form",
+                "ui_read_table",
+                "ui_read_region",
                 "ui_list_interactables",
             ]
             return _plan(
                 allowed_names=allowed_names,
                 preferred_names=preferred_names,
-                workflow_stage="read_search_region",
-                workflow_phase="read",
+                workflow_stage="run_page_search",
+                workflow_phase="write",
                 workflow_goal="search",
                 workflow_state=workflow_state,
-                completion_contract=_verify_only_contract("ui_read_region"),
+                completion_contract=_action_then_verify_contract(
+                    action_signals=[
+                        "ui_click",
+                        "ui_fill_form",
+                        "ui_set_field",
+                        "ui_submit_form",
+                    ],
+                    verify_signals=["ui_read_table", "ui_read_region"],
+                ),
             )
 
-        if intent_kind == "page_pagination":
+        if workflow_goal == "pagination":
             allowed_names = [
-                "ui_read_table",
                 "ui_click",
+                "ui_set_field",
+                "ui_read_table",
+                "ui_fill_form",
+                "ui_submit_form",
                 "ui_list_interactables",
             ]
             return _plan(
                 allowed_names=allowed_names,
+                preferred_names=list(allowed_names),
                 workflow_stage="navigate_pagination",
                 workflow_phase="navigate_or_open",
                 workflow_goal="pagination",
                 workflow_state=workflow_state,
                 completion_contract=_action_then_verify_contract(
-                    action_signals=["ui_click"],
+                    action_signals=[
+                        "ui_click",
+                        "ui_set_field",
+                        "ui_fill_form",
+                        "ui_submit_form",
+                    ],
                     verify_signals=["ui_read_table"],
                 ),
             )
 
-        if intent_kind == "page_row_detail":
+        if workflow_goal == "row_detail":
             if workflow_state.has_overlay_surface:
                 allowed_names = [
                     "ui_read_region",
@@ -364,6 +491,14 @@ class PageWorkflowStateMachine:
             ]
             return _plan(
                 allowed_names=allowed_names,
+                preferred_names=[
+                    "ui_click",
+                    "ui_open_surface",
+                    "ui_read_region",
+                    "ui_read_table",
+                    "ui_get_snapshot",
+                    "ui_list_interactables",
+                ],
                 workflow_stage="open_detail_surface",
                 workflow_phase="navigate_or_open",
                 workflow_goal="row_detail",
@@ -378,7 +513,7 @@ class PageWorkflowStateMachine:
                 ),
             )
 
-        if intent_kind == "page_form_read":
+        if workflow_goal == "form_read":
             if workflow_state.has_active_form:
                 allowed_names = [
                     "ui_get_form_state",
@@ -403,6 +538,14 @@ class PageWorkflowStateMachine:
             ]
             return _plan(
                 allowed_names=allowed_names,
+                preferred_names=[
+                    "ui_click",
+                    "ui_open_surface",
+                    "ui_get_form_state",
+                    "ui_read_region",
+                    "ui_get_snapshot",
+                    "ui_list_interactables",
+                ],
                 workflow_stage="discover_form_surface",
                 workflow_phase="discover",
                 workflow_goal="form_read",
@@ -412,7 +555,7 @@ class PageWorkflowStateMachine:
                 ),
             )
 
-        if intent_kind == "page_form_write":
+        if workflow_goal == "form_write":
             if workflow_state.has_active_form:
                 allowed_names = [
                     "ui_get_form_state",
@@ -453,10 +596,20 @@ class PageWorkflowStateMachine:
                 "ui_click",
                 "ui_get_form_state",
                 "ui_fill_form",
+                "ui_set_field",
                 "ui_submit_form",
             ]
             return _plan(
                 allowed_names=allowed_names,
+                preferred_names=[
+                    "ui_open_surface",
+                    "ui_click",
+                    "ui_get_form_state",
+                    "ui_fill_form",
+                    "ui_set_field",
+                    "ui_submit_form",
+                    "ui_list_interactables",
+                ],
                 workflow_stage="discover_form_before_write",
                 workflow_phase="discover",
                 workflow_goal="form_write",
@@ -466,7 +619,7 @@ class PageWorkflowStateMachine:
                 ),
             )
 
-        if intent_kind == "page_editor_read":
+        if workflow_goal == "editor_read":
             allowed_names = [
                 "ui_read_region",
                 "ui_get_snapshot",
@@ -480,7 +633,7 @@ class PageWorkflowStateMachine:
                 completion_contract=_verify_only_contract("ui_read_region"),
             )
 
-        if intent_kind == "page_editor_write":
+        if workflow_goal == "editor_write":
             allowed_names = [
                 "ui_open_surface",
                 "ui_fill_form",
@@ -534,7 +687,7 @@ class PageWorkflowStateMachine:
             preferred_names=[],
             workflow_stage="intent_static_tools",
             workflow_phase="idle",
-            workflow_goal=intent_kind,
+            workflow_goal=workflow_goal or intent_kind,
             workflow_state=workflow_state,
             completion_contract=PageIntentCompletionContract(
                 mode="any_of",
@@ -550,4 +703,7 @@ __all__ = [
     "PageIntentToolPlan",
     "PageWorkflowState",
     "PageWorkflowStateMachine",
+    "LEGACY_PAGE_WORKFLOW_GOALS",
+    "legacy_page_intent_kind_for_goal",
+    "resolve_page_workflow_goal",
 ]

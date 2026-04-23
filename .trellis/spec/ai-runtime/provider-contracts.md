@@ -58,6 +58,16 @@ and must not be forwarded downstream as ordinary provider kwargs.
   adapters may issue one bounded retrieve call with retries disabled, then must
   fall back to estimated usage instead of delaying stream completion behind
   long provider-side retry loops.
+- Gateway exception conversion must preserve the effective upstream HTTP status
+  for provider-side 4xx failures. Auth/quota/permission or invalid-request
+  errors must not be reclassified into `provider_http_5xx`; only true upstream
+  5xx responses may surface as `provider_http_5xx` in diagnostics or turn
+  failure kinds.
+- Runtime model failover may prefer an explicit `fallback_model_id` chain, but
+  missing or exhausted chain links must fall through to the healthy compatible
+  model pool. Absence of a per-model chain is not a valid reason to skip
+  runtime failover when another active model satisfies the turn capability
+  requirements.
 
 ## Ownership
 

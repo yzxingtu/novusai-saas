@@ -1,9 +1,8 @@
-"""
-Agent router capability helpers (skills, tool families, vision support).
-"""
+"""Agent router capability helpers (skills, tool families, vision support)."""
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from app.ai.routing.router import ModelRouter
@@ -15,29 +14,6 @@ PAGE_OPERATION_REQUIRED_SKILL_GROUPS = (
     frozenset({"ui_get_snapshot", "ui_click"}),
 )
 BASELINE_RUNTIME_FAMILIES = frozenset({"time_ops"})
-
-WEATHER_DESCRIPTOR_TOKENS = (
-    "天气",
-    "weather",
-    "forecast",
-    "气温",
-    "温度",
-)
-TIME_DESCRIPTOR_TOKENS = (
-    "时间",
-    "日期",
-    "time tool",
-    "current time",
-    "clock",
-)
-WEB_DESCRIPTOR_TOKENS = (
-    "联网",
-    "搜索",
-    "web",
-    "网页",
-    "fetch url",
-    "url",
-)
 
 
 def grant_skill_name_if_active(grant: AgentSkillGrant | Any) -> str | None:
@@ -57,6 +33,98 @@ def grant_skill_name_if_active(grant: AgentSkillGrant | Any) -> str | None:
     if isinstance(skill_name, str) and skill_name:
         return skill_name
     return None
+
+
+def _stable_unique(values: list[Any]) -> list[str]:
+    normalized: list[str] = []
+    for value in values:
+        text = str(value or "").strip()
+        if text and text not in normalized:
+            normalized.append(text)
+    return normalized
+
+
+def _manifest_skill_candidate_names(entry: Mapping[str, Any]) -> list[str]:
+    names = [
+        entry.get("name"),
+        entry.get("entry_point"),
+        entry.get("description"),
+    ]
+    display_name = entry.get("display_name")
+    if isinstance(display_name, str):
+        names.append(display_name)
+    elif isinstance(display_name, Mapping):
+        names.extend(display_name.values())
+    return _stable_unique(names)
+
+
+def _match_manifest_skill_preview(grant: AgentSkillGrant | Any) -> Mapping[str, Any]:
+    skill = getattr(grant, "skill", None)
+    package = getattr(skill, "package", None)
+    manifest = getattr(package, "manifest", None)
+    if not isinstance(manifest, Mapping):
+        return {}
+    extensions = manifest.get("extensions")
+    if not isinstance(extensions, Mapping):
+        return {}
+    skills = extensions.get("skills")
+    if not isinstance(skills, list):
+        return {}
+
+    candidates = {
+        str(getattr(skill, "name", "") or "").strip().lower(),
+        str(getattr(skill, "key", "") or "").strip().lower(),
+    }
+    candidates.discard("")
+    for item in skills:
+        if not isinstance(item, Mapping):
+            continue
+        entry_names = {
+            name.lower()
+            for name in _manifest_skill_candidate_names(item)
+            if isinstance(name, str) and name.strip()
+        }
+        if entry_names & candidates:
+            return item
+    return {}
+
+
+def _grant_preview_tool_names(grant: AgentSkillGrant | Any) -> list[str]:
+    preview_names: list[str] = []
+    skill_name = grant_skill_name_if_active(grant)
+    skill = getattr(grant, "skill", None)
+    if skill_name and tool_family_from_name(skill_name) != "none":
+        preview_names.append(skill_name)
+    skill_key = str(getattr(skill, "key", "") or "").strip()
+    if skill_key and tool_family_from_name(skill_key) != "none":
+        preview_names.append(skill_key)
+
+    skill_config = getattr(skill, "config", None)
+    if isinstance(skill_config, Mapping):
+        preview_names.extend(list(skill_config.get("preview_tool_names") or []))
+        for item in list(skill_config.get("tools") or []):
+            if not isinstance(item, Mapping):
+                continue
+            preview_names.append(item.get("name"))
+
+    manifest_preview = _match_manifest_skill_preview(grant)
+    preview_names.extend(list(manifest_preview.get("preview_tool_names") or []))
+    return _stable_unique(preview_names)
+
+
+def _grant_preview_families(grant: AgentSkillGrant | Any) -> list[str]:
+    families: list[str] = []
+    skill = getattr(grant, "skill", None)
+    skill_config = getattr(skill, "config", None)
+    if isinstance(skill_config, Mapping):
+        families.extend(list(skill_config.get("preview_semantic_families") or []))
+    manifest_preview = _match_manifest_skill_preview(grant)
+    families.extend(list(manifest_preview.get("preview_semantic_families") or []))
+    for tool_name in _grant_preview_tool_names(grant):
+        family = tool_family_from_name(tool_name)
+        if family != "none":
+            families.append(family)
+    return _stable_unique(families)
 
 
 def agent_skill_names(agent: Agent | None) -> set[str]:
@@ -102,7 +170,10 @@ def agent_supports_page_operations(agent: Agent | None) -> bool:
     skill_names = agent_skill_names(agent)
     if any(group.issubset(skill_names) for group in PAGE_OPERATION_REQUIRED_SKILL_GROUPS):
         return True
-    return any(is_ui_page_tool_name(skill_name) for skill_name in skill_names)
+    if any(is_ui_page_tool_name(skill_name) for skill_name in skill_names):
+        return True
+    skill_grants = getattr(agent, "skill_grants", None) or []
+    return any("page_ops" in _grant_preview_families(grant) for grant in skill_grants)
 
 
 def agent_supports_families(agent: Agent | None, families: list[str]) -> bool:
@@ -116,46 +187,10 @@ def agent_supports_families(agent: Agent | None, families: list[str]) -> bool:
         skill_name = grant_skill_name_if_active(grant)
         if not skill_name:
             continue
-
-        descriptors = {
-            str(skill_name).strip().lower(),
-        }
-        skill = getattr(grant, "skill", None)
-        if skill is not None:
-            descriptors.add(str(getattr(skill, "key", "") or "").strip().lower())
-            descriptors.add(
-                str(getattr(skill, "description", "") or "").strip().lower()
-            )
-            package = getattr(skill, "package", None)
-            if package is not None:
-                descriptors.add(
-                    str(getattr(package, "name", "") or "").strip().lower()
-                )
-                descriptors.add(
-                    str(getattr(package, "description", "") or "").strip().lower()
-                )
-
         family = tool_family_from_name(skill_name)
         if family and family != "none":
             supported.add(family)
-        if any(
-            token in descriptor
-            for descriptor in descriptors
-            for token in WEATHER_DESCRIPTOR_TOKENS
-        ):
-            supported.add("weather")
-        if any(
-            token in descriptor
-            for descriptor in descriptors
-            for token in TIME_DESCRIPTOR_TOKENS
-        ):
-            supported.add("time_ops")
-        if any(
-            token in descriptor
-            for descriptor in descriptors
-            for token in WEB_DESCRIPTOR_TOKENS
-        ):
-            supported.add("web_research")
+        supported.update(_grant_preview_families(grant))
     return all(family in supported for family in families)
 
 

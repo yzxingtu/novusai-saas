@@ -45,11 +45,6 @@ async def test_ui_snapshot_executor_compact_normalizes_payload(
                         "text": "Some summary",
                     },
                 ],
-                "suggested_tools": {
-                    "primary": ["ui_get_snapshot", "ui_read_region"],
-                    "reason": "Need structure first",
-                    "secondary": ["ui_list_interactables"],
-                },
                 "surface_stack": [
                     {"kind": "page", "surface_id": "page-1", "title": "Agents"},
                     {"kind": "drawer", "surface_id": "drawer-1", "title": "Edit"},
@@ -87,6 +82,7 @@ async def test_ui_snapshot_executor_compact_normalizes_payload(
     assert payload["surface_stack"][0]["surface_id"] == "page-1"
     assert payload["interactables_count"] >= 1
     assert payload["size_bytes"] <= 10 * 1024
+    assert "suggested_tools" not in payload
     assert all(
         "content" not in node or node["content"] is None for node in payload["nodes"]
     )
@@ -181,9 +177,6 @@ def test_page_context_normalize_keeps_thin_schema_only() -> None:
                 "entity_name": "Agent",
                 "remaining_required_fields": ["name", "name", "model"],
             },
-            "suggested_tools": {
-                "primary": ["ui_get_snapshot", "ui_get_snapshot", "ui_read_region"],
-            },
             "unknown_payload": {"any": "value"},
             "unknown_list": [{"item": "value"}],
         }
@@ -199,7 +192,6 @@ def test_page_context_normalize_keeps_thin_schema_only() -> None:
         "active_form_session_id",
         "surface_stack",
         "active_form_summary",
-        "suggested_tools",
     }
     assert normalized["page_key"] == "admin.ai.agents"
     assert normalized["page_title"] == "Agent List"
@@ -210,10 +202,6 @@ def test_page_context_normalize_keeps_thin_schema_only() -> None:
     assert normalized["active_form_summary"]["remaining_required_fields"] == [
         "name",
         "model",
-    ]
-    assert normalized["suggested_tools"]["primary"] == [
-        "ui_get_snapshot",
-        "ui_read_region",
     ]
     assert "unknown_payload" not in normalized
     assert "unknown_list" not in normalized

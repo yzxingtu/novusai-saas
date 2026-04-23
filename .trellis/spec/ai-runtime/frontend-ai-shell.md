@@ -140,6 +140,26 @@ page-local composables/context -> focused workspace sections`.
 - CRUD-specific AI overrides are a narrow compatibility seam and must not
   replace route-level AI policy.
 
+## Transcript-first & Diagnostics Gate (2026-04)
+
+- `ChatMessageDiagnostics`, `TurnTimeline`, and page-AI rail diagnostics panels
+  must not expose protocol path, selected tools, selected skills, or
+  context-source internals to end users by default. Those surfaces are gated by
+  `useDiagnosticsPolicy()` (or an equivalent tenant-level flag); default
+  rendering for end-user scopes (tenant / user) stays off.
+- AI chat surfaces should support a `transcript-first` layout option in which
+  the chat transcript is the primary content region and tool-call / reasoning /
+  citation blocks render inline with messages. The existing side-panel dock
+  remains a valid compact mode but cannot be the only supported layout.
+- `use-ai-chat-turn-flow.ts` and related turn-flow ingestion helpers must stay
+  under the 500-line composable budget (`module-boundaries.md`). Message merge,
+  streaming lifecycle, and tool-call collection belong in a small number of
+  focused helpers, not in a sprawl of one-purpose `use-ai-chat-message-merge-*`
+  micro-hooks.
+- Legacy turn-flow detection helpers (`isLegacyStage`, `dedupeTimelineByStageType`,
+  and related `LegacyStageSource` enums) are retired once canonical `turnFlow`
+  is the only write path; they must not be kept as live readers.
+
 ## Prohibited Patterns
 
 - Re-growing thin facades into new orchestration hubs.
@@ -149,3 +169,9 @@ page-local composables/context -> focused workspace sections`.
 - Inventing a second page-AI policy surface beside `route.meta.ai`.
 - Reviving legacy page-AI registration flows outside the shared UI runtime
   bridge.
+- Adding new `use-ai-chat-*` micro-composables whose only job is to forward one
+  ref or one helper. New chat behavior goes into the existing bounded set of
+  domain composables (core, streaming, turn-flow, history, interactions, page
+  operations, memory, export).
+- Default-enabled diagnostics surfaces that expose protocol / tool / skill /
+  context-source internals to end users without a diagnostics policy gate.

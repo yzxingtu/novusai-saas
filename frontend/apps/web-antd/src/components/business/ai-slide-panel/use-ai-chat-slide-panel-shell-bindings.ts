@@ -16,6 +16,8 @@ import { usePanelWidth } from './use-panel-width';
 export function useAIChatSlidePanelShellBindings(
   options: UseAIChatSlidePanelShellBindingsOptions,
 ) {
+  const compactMessages = computed(() => options.aiPanelStore.mode !== 'full');
+
   const headerBindings = usePanelShellHeaderBindings({
     activeConversationId: options.activeConversationId,
     aiPanelStore: options.aiPanelStore,
@@ -140,6 +142,7 @@ export function useAIChatSlidePanelShellBindings(
     chatMessages: options.chatMessages,
     characterCount: computed(() => options.inputMessage.value.length),
     commitEditTitle: options.commitEditTitle,
+    compactMessages,
     composerMentionCandidates,
     confirmAction: options.confirmAction,
     confirmConsent: options.confirmConsent,

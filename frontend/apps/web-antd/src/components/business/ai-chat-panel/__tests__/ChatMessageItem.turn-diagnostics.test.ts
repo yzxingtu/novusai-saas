@@ -58,7 +58,14 @@ vi.mock('#/store', () => ({
   }),
 }));
 
-vi.mock('#/utils/request', () => ({
+vi.mock('#/store/shared/public-config', () => ({
+  usePublicConfigStore: () => ({
+    platformConfig: null,
+    tenantConfig: null,
+  }),
+}));
+
+vi.mock('#/utils/request/app-env', () => ({
   isDevErrorMode: () => false,
 }));
 
@@ -139,12 +146,37 @@ describe('chatMessageItem turn diagnostics', () => {
     expect(rendered).not.toContain('runtime.ui_runtime');
   });
 
-  it('renders turn diagnostics chips for failed assistant turns', () => {
+  it('hides failed-turn diagnostics by default', () => {
     const wrapper = mountMessage({
       requestFailedRetry: true,
       selectedToolNames: ['web_search'],
       terminationReason: 'tool_error',
       turnOutcome: 'failed',
+    });
+
+    const rendered = wrapper.text();
+    expect(rendered).not.toContain(
+      'common.globalAiChat.diagnosticTurnOutcomeLabel',
+    );
+    expect(rendered).not.toContain('failed');
+    expect(rendered).not.toContain(
+      'common.globalAiChat.diagnosticTerminationReasonLabel',
+    );
+    expect(rendered).not.toContain('tool_error');
+    expect(rendered).not.toContain(
+      'common.globalAiChat.diagnosticSelectedToolsLabel',
+    );
+    expect(rendered).not.toContain('web_search');
+  });
+
+  it('renders diagnostics when explicitly forced on', () => {
+    const wrapper = mountMessage({
+      requestFailedRetry: true,
+      selectedToolNames: ['web_search'],
+      terminationReason: 'tool_error',
+      turnOutcome: 'failed',
+    }, {
+      forceShowDiagnostics: true,
     });
 
     const rendered = wrapper.text();
@@ -162,7 +194,7 @@ describe('chatMessageItem turn diagnostics', () => {
     expect(rendered).toContain('web_search');
   });
 
-  it('only renders active context source chips', () => {
+  it('only renders active context source chips when diagnostics are enabled', () => {
     const wrapper = mountMessage({
       contextSources: [
         {
@@ -179,6 +211,8 @@ describe('chatMessageItem turn diagnostics', () => {
       requestFailedRetry: true,
       terminationReason: 'tool_error',
       turnOutcome: 'failed',
+    }, {
+      forceShowDiagnostics: true,
     });
 
     const rendered = wrapper.text();

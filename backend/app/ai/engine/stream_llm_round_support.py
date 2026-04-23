@@ -25,6 +25,7 @@ class StreamRoundState:
     output: str = ""
     reasoning: str = ""
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
     total_tokens: int = 0
     completion_tokens_used: int = 0
     finish_reason: str = "stop"
@@ -60,9 +61,10 @@ async def handle_stream_chunk(
     chunk: Any,
 ) -> None:
     view = _resolve_generation_view(adapter)
-    adapter._sync_runtime_metadata(getattr(chunk, "metadata", None))
-
     chunk_meta = getattr(chunk, "metadata", None)
+    adapter._sync_runtime_metadata(chunk_meta)
+    if isinstance(chunk_meta, dict):
+        state.metadata.update(chunk_meta)
     if isinstance(chunk_meta, dict) and chunk_meta.get("web_search_in_progress"):
         state.native_search_observed = True
         await adapter.handler._emit_runtime_event(
@@ -153,6 +155,7 @@ def finalize_model_round(
             "tool_calls" if finalized_tool_calls else (state.finish_reason or "stop")
         ),
         tool_calls=finalized_tool_calls or None,
+        metadata=dict(state.metadata or {}),
     )
     return ModelRoundResult(
         response=response,

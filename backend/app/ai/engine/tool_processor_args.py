@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
-from app.ai.text_semantics import remove_trailing_json_commas, strip_model_function_call_markup
+from app.ai.text_semantics import (
+    remove_trailing_json_commas,
+    strip_model_function_call_markup,
+)
 from app.core.logging import LogManager
 
 logger = LogManager.get_logger("ai.engine.tool_processor.args")
@@ -80,6 +84,39 @@ def _try_convert_single_quotes(s: str) -> str | None:
     except (ValueError, SyntaxError):
         pass
     return None
+
+
+def _try_fix_bare_single_key_object(s: str) -> str | None:
+    """Repair simple one-field objects where the key loses its closing quote
+    and/or the value is emitted as a bare locator-like string.
+
+    Example:
+    `{"table_locator: div >:nth-of-type(2)}` ->
+    `{"table_locator": "div >:nth-of-type(2)"}`
+    """
+    match = re.match(
+        r'^\{\s*"(?P<key>[A-Za-z_][A-Za-z0-9_]*)"?\s*:\s*(?P<value>.+)\}\s*$',
+        s.strip(),
+    )
+    if not match:
+        return None
+
+    key = str(match.group("key") or "").strip()
+    raw_value = str(match.group("value") or "").strip().rstrip(",")
+    if not key or not raw_value:
+        return None
+    if raw_value.startswith('"') and not raw_value.endswith('"'):
+        return None
+
+    try:
+        parsed_value: Any = json.loads(raw_value)
+    except json.JSONDecodeError:
+        parsed_value = raw_value
+
+    if isinstance(parsed_value, (dict, list)):
+        return None
+
+    return json.dumps({key: parsed_value}, ensure_ascii=False)
 
 
 def _try_fix_truncation(s: str) -> str:
@@ -179,28 +216,40 @@ def try_repair_json(raw: str) -> dict[str, Any] | None:
         except json.JSONDecodeError:
             pass
 
-    # Phase D: truncation repair — use s before brace padding so } does not close inside string / 阶段 D：截断修复（补括号前字符串，避免 } 误入未闭合串）
-    s4 = _try_fix_truncation(s_before_braces)
-    if s4 != s:
+    # Phase D: repair simple malformed single-field objects often emitted by
+    # fallback tool-capable models for locator-style page tools.
+    s4 = _try_fix_bare_single_key_object(s)
+    if s4 and s4 != s:
         try:
             parsed = json.loads(s4)
             return parsed if isinstance(parsed, dict) else None
         except json.JSONDecodeError:
             pass
 
-    # Phase E: replace control chars with spaces (last resort; may lose newlines) / 阶段 E：控制符替换为空格（最后手段，可能丢失换行语义）
-    s5 = _brute_force_control_chars(s)
+    # Phase E: truncation repair — use s before brace padding so } does not
+    # close inside string / 阶段 E：截断修复（补括号前字符串，避免 } 误入未闭合串）
+    s5 = _try_fix_truncation(s_before_braces)
     if s5 != s:
-        # Again strip trailing commas and balance braces on cleaned string / 清理后再次去尾部逗号并补括号
-        s5 = remove_trailing_json_commas(s5)
-        opens = s5.count("{") - s5.count("}")
-        if opens > 0:
-            s5 += "}" * opens
-        opens = s5.count("[") - s5.count("]")
-        if opens > 0:
-            s5 += "]" * opens
         try:
             parsed = json.loads(s5)
+            return parsed if isinstance(parsed, dict) else None
+        except json.JSONDecodeError:
+            pass
+
+    # Phase F: replace control chars with spaces (last resort; may lose
+    # newlines) / 阶段 F：控制符替换为空格（最后手段，可能丢失换行语义）
+    s6 = _brute_force_control_chars(s)
+    if s6 != s:
+        # Again strip trailing commas and balance braces on cleaned string / 清理后再次去尾部逗号并补括号
+        s6 = remove_trailing_json_commas(s6)
+        opens = s6.count("{") - s6.count("}")
+        if opens > 0:
+            s6 += "}" * opens
+        opens = s6.count("[") - s6.count("]")
+        if opens > 0:
+            s6 += "]" * opens
+        try:
+            parsed = json.loads(s6)
             if isinstance(parsed, dict):
                 logger.info("JSON repaired via brute-force control-char replacement")
                 return parsed

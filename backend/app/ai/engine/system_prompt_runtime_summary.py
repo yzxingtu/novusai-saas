@@ -1,4 +1,4 @@
-"""Runtime summary injection and research continuation helpers."""
+"""Runtime summary injection with a bounded prompt surface."""
 
 from __future__ import annotations
 
@@ -32,19 +32,20 @@ def inject_runtime_summary(
     include_memory_hint: bool = True,
     render_contract: Callable[..., str] = render_prompt_contract,
 ) -> bool:
-    """Inject a one-shot runtime summary into the first system message."""
-    _ = input_variables
+    """Inject a compact one-shot runtime summary into the first system message."""
+    del input_variables, continuation_context
+
     if not messages or messages[0].role != "system":
         return False
 
-    allowed_tool_names = [t.name for t in tools]
+    allowed_tool_names = [tool.name for tool in tools]
     summarized_intents = intent_plan or []
-    capability_summary_injected = False
     intent_summary = (
         ", ".join(intent.user_visible_label for intent in summarized_intents[:4])
         or ", ".join(ordered_requested_families or [])
         or "direct_reply"
     )
+
     hint = "\n\n" + render_contract(
         "tool_runtime_summary",
         execution_path=execution_path or "fast",
@@ -60,13 +61,8 @@ def inject_runtime_summary(
             execution_budget.max_elapsed_ms if execution_budget is not None else 0
         ),
     )
-    hint += "\n\n" + render_contract("tool_usage_rules")
-    continuation_hint = build_research_continuation_hint(
-        continuation_context,
-        render_contract=render_contract,
-    )
-    if continuation_hint:
-        hint += continuation_hint
+
+    capability_summary_injected = False
     if not skip_capability_summary:
         runtime_capability_hint = build_runtime_capability_hint(
             runtime_capability_summary=runtime_capability_summary,
@@ -88,11 +84,11 @@ def inject_runtime_summary(
                 "budget": (
                     execution_budget.snapshot() if execution_budget is not None else None
                 ),
-                "runtime_capability_summary": dict(runtime_capability_summary or {}),
+                "selected_skill_names": list(
+                    dict(runtime_capability_summary or {}).get("selected_skill_names")
+                    or []
+                ),
                 "skip_capability_summary": bool(skip_capability_summary),
-                "include_knowledge_base_hint": bool(include_knowledge_base_hint),
-                "include_page_context_hint": bool(include_page_context_hint),
-                "include_memory_hint": bool(include_memory_hint),
             },
             ensure_ascii=False,
             sort_keys=True,
@@ -102,6 +98,7 @@ def inject_runtime_summary(
     metadata = dict(messages[0].metadata or {})
     if metadata.get("runtime_summary_signature") == signature:
         return capability_summary_injected
+
     metadata["runtime_summary_signature"] = signature
     messages[0] = ChatMessage(
         role="system",
@@ -116,39 +113,5 @@ def build_research_continuation_hint(
     *,
     render_contract: Callable[..., str] = render_prompt_contract,
 ) -> str:
-    if not continuation or not continuation.active:
-        return ""
-    if continuation.family != "web_research":
-        return ""
-
-    target = continuation.research_target_text
-    intro = (
-        "This turn continues the previous external web research task."
-        if continuation.origin == "continuation"
-        else "This turn is an external web research task."
-    )
-    instruction_lines = (
-        "\n".join(f"- {text}" for text in continuation.research_instruction_texts)
-        if continuation.research_instruction_texts
-        else "- (no recent research instructions captured)"
-    )
-    extra_guidance = (
-        "Search-result tool messages in the conversation history are candidate URL lists. "
-        "If fetched detail pages is 0 and fetch_url is available, pick candidate URLs from those lists and fetch them before analysis.\n"
-        if continuation.fetched_url_count == 0
-        else ""
-    )
-    return "\n\n" + render_contract(
-        "research_state",
-        intro=intro,
-        target=target or "(same target as previous turn)",
-        instruction_lines=instruction_lines,
-        recent_queries=(
-            ", ".join(continuation.recent_web_queries)
-            if continuation.recent_web_queries
-            else "(none)"
-        ),
-        search_query_count=continuation.search_query_count,
-        fetched_url_count=continuation.fetched_url_count,
-        extra_guidance=extra_guidance.strip(),
-    )
+    del continuation, render_contract
+    return ""

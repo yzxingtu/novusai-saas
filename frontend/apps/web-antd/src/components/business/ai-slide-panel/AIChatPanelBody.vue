@@ -62,6 +62,7 @@ withDefaults(
     boundKnowledgeBases?: ComposerKnowledgeBaseChip[];
     characterCount?: number;
     chatMessages?: ChatMessage[];
+    compactMessages?: boolean;
     conversationsCount?: number;
     conversationSearch?: string;
     conversationsLoading?: boolean;
@@ -71,6 +72,7 @@ withDefaults(
     effectiveSuggestedQuestions?: string[];
     effectiveWelcomeMessage?: string;
     exportMenuItems?: ItemType[];
+    forceShowDiagnostics?: boolean;
     getPendingOpsForMessage: (msg: ChatMessage) => PendingOpDisplayItem[];
     getRichTextDraftState: (
       message: ChatMessage,
@@ -112,6 +114,7 @@ withDefaults(
     boundKnowledgeBases: () => [],
     chatMessages: () => [],
     characterCount: 0,
+    compactMessages: true,
     conversationSearch: '',
     conversationsCount: 0,
     conversationsLoading: false,
@@ -121,6 +124,7 @@ withDefaults(
     effectiveSuggestedQuestions: () => [],
     effectiveWelcomeMessage: '',
     exportMenuItems: () => [],
+    forceShowDiagnostics: false,
     groupedConversations: () => [],
     inputMessage: '',
     mentionCandidates: () => [],
@@ -221,92 +225,99 @@ const emit = defineEmits<{
   />
 
   <template v-else>
-    <AIChatMessageViewport
-      :api-prefix="apiPrefix"
-      :agents="agents"
-      :chat-messages="chatMessages"
-      :countdown-now="countdownNow"
-      :effective-suggested-questions="effectiveSuggestedQuestions"
-      :effective-welcome-message="effectiveWelcomeMessage"
-      :get-pending-ops-for-message="getPendingOpsForMessage"
-      :get-rich-text-draft-state="getRichTextDraftState"
-      :is-agent-switch="isAgentSwitch"
-      :register-container="(element) => emit('registerContainer', element)"
-      :routing="routing"
-      :selected-agent="selectedAgent"
-      :sending="sending"
-      :show-scroll-to-bottom="showScrollToBottom"
-      :show-scroll-to-top="showScrollToTop"
-      :streaming="streaming"
-      :unassociated-pending-ops="unassociatedPendingOps"
-      @ask-suggested="emit('askSuggested', $event)"
-      @copy="emit('copy', $event)"
-      @confirm="emit('confirm', $event)"
-      @reject="emit('reject', $event)"
-      @consent-confirm="emit('consentConfirm', $event)"
-      @consent-reject="emit('consentReject', $event)"
-      @open-url="emit('openUrl', $event)"
-      @action-click="(index, value) => emit('actionClick', index, value)"
-      @regenerate="emit('regenerate', $event)"
-      @edit="emit('edit', $event)"
-      @retry="emit('retry', $event)"
-      @rich-text-apply="
-        (index, target, mode) => emit('richTextApply', index, target, mode)
-      "
-      @rich-text-discard="emit('richTextDiscard', $event)"
-      @rich-text-undo="emit('richTextUndo', $event)"
-      @resolve-pending-op="
-        (invokeId, allowed) => emit('resolvePendingOp', invokeId, allowed)
-      "
-      @scroll="emit('scroll')"
-      @scroll-to-top="emit('scrollToTop')"
-      @scroll-to-bottom="emit('scrollToBottom')"
-    />
+    <div
+      class="flex min-h-0 flex-1 flex-col"
+      :class="compactMessages ? '' : 'mx-auto w-full max-w-5xl'"
+    >
+      <AIChatMessageViewport
+        :api-prefix="apiPrefix"
+        :agents="agents"
+        :chat-messages="chatMessages"
+        :compact="compactMessages"
+        :countdown-now="countdownNow"
+        :effective-suggested-questions="effectiveSuggestedQuestions"
+        :effective-welcome-message="effectiveWelcomeMessage"
+        :force-show-diagnostics="forceShowDiagnostics"
+        :get-pending-ops-for-message="getPendingOpsForMessage"
+        :get-rich-text-draft-state="getRichTextDraftState"
+        :is-agent-switch="isAgentSwitch"
+        :register-container="(element) => emit('registerContainer', element)"
+        :routing="routing"
+        :selected-agent="selectedAgent"
+        :sending="sending"
+        :show-scroll-to-bottom="showScrollToBottom"
+        :show-scroll-to-top="showScrollToTop"
+        :streaming="streaming"
+        :unassociated-pending-ops="unassociatedPendingOps"
+        @ask-suggested="emit('askSuggested', $event)"
+        @copy="emit('copy', $event)"
+        @confirm="emit('confirm', $event)"
+        @reject="emit('reject', $event)"
+        @consent-confirm="emit('consentConfirm', $event)"
+        @consent-reject="emit('consentReject', $event)"
+        @open-url="emit('openUrl', $event)"
+        @action-click="(index, value) => emit('actionClick', index, value)"
+        @regenerate="emit('regenerate', $event)"
+        @edit="emit('edit', $event)"
+        @retry="emit('retry', $event)"
+        @rich-text-apply="
+          (index, target, mode) => emit('richTextApply', index, target, mode)
+        "
+        @rich-text-discard="emit('richTextDiscard', $event)"
+        @rich-text-undo="emit('richTextUndo', $event)"
+        @resolve-pending-op="
+          (invokeId, allowed) => emit('resolvePendingOp', invokeId, allowed)
+        "
+        @scroll="emit('scroll')"
+        @scroll-to-top="emit('scrollToTop')"
+        @scroll-to-bottom="emit('scrollToBottom')"
+      />
 
-    <AIChatConversationFooter
-      :message-count="chatMessages.length"
-      :total-tokens-used="totalTokensUsed"
-      :streaming="streaming"
-      :export-menu-items="exportMenuItems"
-    />
+      <AIChatConversationFooter
+        :message-count="chatMessages.length"
+        :total-tokens-used="totalTokensUsed"
+        :streaming="streaming"
+        :export-menu-items="exportMenuItems"
+      />
 
-    <AIChatComposer
-      :model-value="inputMessage"
-      :disabled="agents.length === 0 || sending"
-      :max-length="32000"
-      :character-count="characterCount"
-      :send-state="sendState"
-      :send-disabled="sendDisabled"
-      :show-attachments="showAttachments"
-      :attach-disabled="attachDisabled"
-      :attachment-accept="attachmentAccept"
-      :attachments="attachments"
-      :attachment-limit-hint="attachmentLimitHint"
-      :show-screenshot-button="showScreenshotButton"
-      :screenshot-disabled="screenshotDisabled"
-      :screenshot-loading="screenshotLoading"
-      :mention-open="mentionOpen"
-      :mention-loading="mentionLoading"
-      :mention-mixed-hint="mentionMixedHint"
-      :mention-empty-hint="mentionEmptyHint"
-      :mention-candidates="mentionCandidates"
-      :bound-knowledge-bases="boundKnowledgeBases"
-      :selected-knowledge-bases="selectedKnowledgeBases"
-      :shift-enter-hint="shiftEnterHint"
-      @update:model-value="emit('update:inputMessage', $event)"
-      @dragover="emit('dragover', $event)"
-      @drop="emit('drop', $event)"
-      @file-select="emit('fileSelect', $event)"
-      @keydown="emit('keydown', $event)"
-      @paste="emit('paste', $event)"
-      @capture-screenshot="emit('captureScreenshot')"
-      @remove-attachment="emit('removeAttachment', $event)"
-      @remove-selected-knowledge-base="
-        emit('removeSelectedKnowledgeBase', $event)
-      "
-      @select-mention-candidate="emit('selectMentionCandidate', $event)"
-      @send="emit('send')"
-      @stop="emit('stop')"
-    />
+      <AIChatComposer
+        :model-value="inputMessage"
+        :disabled="agents.length === 0 || sending"
+        :max-length="32000"
+        :character-count="characterCount"
+        :send-state="sendState"
+        :send-disabled="sendDisabled"
+        :show-attachments="showAttachments"
+        :attach-disabled="attachDisabled"
+        :attachment-accept="attachmentAccept"
+        :attachments="attachments"
+        :attachment-limit-hint="attachmentLimitHint"
+        :show-screenshot-button="showScreenshotButton"
+        :screenshot-disabled="screenshotDisabled"
+        :screenshot-loading="screenshotLoading"
+        :mention-open="mentionOpen"
+        :mention-loading="mentionLoading"
+        :mention-mixed-hint="mentionMixedHint"
+        :mention-empty-hint="mentionEmptyHint"
+        :mention-candidates="mentionCandidates"
+        :bound-knowledge-bases="boundKnowledgeBases"
+        :selected-knowledge-bases="selectedKnowledgeBases"
+        :shift-enter-hint="shiftEnterHint"
+        @update:model-value="emit('update:inputMessage', $event)"
+        @dragover="emit('dragover', $event)"
+        @drop="emit('drop', $event)"
+        @file-select="emit('fileSelect', $event)"
+        @keydown="emit('keydown', $event)"
+        @paste="emit('paste', $event)"
+        @capture-screenshot="emit('captureScreenshot')"
+        @remove-attachment="emit('removeAttachment', $event)"
+        @remove-selected-knowledge-base="
+          emit('removeSelectedKnowledgeBase', $event)
+        "
+        @select-mention-candidate="emit('selectMentionCandidate', $event)"
+        @send="emit('send')"
+        @stop="emit('stop')"
+      />
+    </div>
   </template>
 </template>

@@ -26,7 +26,7 @@ class BudgetGuard:
                 max_tool_rounds=3,
                 max_elapsed_ms=60000,
                 max_retry_per_intent=1,
-                max_candidate_tools=5,
+                max_candidate_tools=7,
                 max_tool_result_bytes=40000,
                 finalization_grace_ms=15000,
             )
@@ -36,7 +36,7 @@ class BudgetGuard:
             max_tool_rounds=min(6, max(2, intent_count * 2)),
             max_elapsed_ms=75000,
             max_retry_per_intent=1,
-            max_candidate_tools=6,
+            max_candidate_tools=8,
             max_tool_result_bytes=60000,
             finalization_grace_ms=15000,
         )

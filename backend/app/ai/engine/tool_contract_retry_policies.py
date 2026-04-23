@@ -8,6 +8,7 @@ from app.ai.tools.types import ToolDefinition
 from app.ai.types import ChatMessage, ChatResponse
 
 from .contract_diagnostics_helpers import build_contract_recovery_system_message
+from .page_workflow_state_machine import resolve_page_workflow_goal
 from .tool_policy_helpers import (
     allowed_tool_names_for_families,
     build_required_policy_for_family,
@@ -43,7 +44,11 @@ def build_post_tool_retry_policy(
             families.append(family)
 
     for intent in unfinished_intents or []:
-        if str(intent or "").startswith("page_"):
+        if resolve_page_workflow_goal(
+            intent_kind=str(intent or "").strip(),
+            intent_metadata=None,
+            user_text=None,
+        ):
             family = "page_ops"
         elif intent in {"weather", "rail_ticket_research"}:
             if (

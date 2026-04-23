@@ -1,6 +1,7 @@
 from app.ai.engine.tool_loop_session import (
     ToolLoopSession,
     apply_round_recovery_and_focus,
+    build_tool_loop_session,
 )
 from app.ai.engine.types import ToolUsePolicy
 from app.ai.tools.types import ToolDefinition, ToolResult
@@ -98,13 +99,24 @@ def test_apply_round_recovery_and_focus_freezes_page_subset_without_system_hint(
             ["ui_list_interactables", "ui_click", "ui_open_surface"],
             {
                 "reason": "page_snapshot_only_round",
-                "intent_kind": "page_navigation",
+                "intent_kind": "page_workflow",
+                "page_workflow_kind": "page_workflow",
                 "round_tool_names": ["ui_get_snapshot"],
                 "workflow_stage": "verify_navigation_result",
                 "workflow_phase": "verify",
                 "workflow_goal": "navigation",
+                "page_workflow_stage": "verify_navigation_result",
+                "page_workflow_phase": "verify",
+                "page_workflow_goal": "navigation",
                 "workflow_state": {"has_active_surface": True},
                 "workflow_completion": {
+                    "mode": "verify_only",
+                    "completion_signals": ["ui_get_snapshot"],
+                    "action_signals": [],
+                    "verify_signals": ["ui_get_snapshot"],
+                },
+                "page_workflow_state": {"has_active_surface": True},
+                "page_workflow_completion": {
                     "mode": "verify_only",
                     "completion_signals": ["ui_get_snapshot"],
                     "action_signals": [],
@@ -139,13 +151,26 @@ def test_apply_round_recovery_and_focus_freezes_page_subset_without_system_hint(
     ]
     assert len(messages) == 1
     assert input_variables["_runtime_intent_facts"]["active_intent_kind"] == (
-        "page_navigation"
+        "page_workflow"
     )
+    assert "page_workflow_intent_alias" not in input_variables["_runtime_intent_facts"]
     runtime_intent = input_variables["_runtime_intent_plan"][0]
     assert runtime_intent["status"] == "pending"
+    assert runtime_intent["allowed_tool_names"] == [
+        "ui_list_interactables",
+        "ui_click",
+        "ui_open_surface",
+    ]
+    assert runtime_intent["preferred_tool_names"] == [
+        "ui_list_interactables",
+        "ui_click",
+        "ui_open_surface",
+    ]
     assert runtime_intent["metadata"]["page_workflow_progress"]["status"] == (
         "verify_pending"
     )
+    assert runtime_intent["metadata"]["page_workflow_kind"] == "page_workflow"
+    assert "page_workflow_intent_alias" not in runtime_intent["metadata"]
     assert runtime_intent["metadata"]["page_no_progress_recovery"] == {
         "reason": "page_snapshot_only_round",
         "allowed_tool_names": [
@@ -155,3 +180,55 @@ def test_apply_round_recovery_and_focus_freezes_page_subset_without_system_hint(
         ],
         "round_tool_names": ["ui_get_snapshot"],
     }
+
+
+def test_build_tool_loop_session_uses_prepared_runtime_intent_plan() -> None:
+    response = ChatResponse(message=ChatMessage(role="assistant", content="done"))
+    session = build_tool_loop_session(
+        response=response,
+        tools=[_tool("ui_get_snapshot")],
+        all_tools=[_tool("ui_get_snapshot"), _tool("web_search")],
+        request=type(
+            "Request",
+            (),
+            {
+                "tool_use_policy": None,
+                "intent_plan": [],
+                "input_variables": {
+                    "_runtime_intent_plan": [
+                        {
+                            "intent_id": "intent-1",
+                            "kind": "page_summary",
+                            "family": "page_ops",
+                            "order": 1,
+                            "user_visible_label": "page_summary",
+                            "source_text": "看看当前页面",
+                        },
+                        {
+                            "intent_id": "intent-2",
+                            "kind": "web_research",
+                            "family": "web_research",
+                            "order": 2,
+                            "user_visible_label": "web_research",
+                            "source_text": "再搜一下官网",
+                        },
+                    ]
+                },
+            },
+        )(),
+        continuation_context=None,
+        tool_use_policy=None,
+        execution_budget=None,
+        starting_total_tokens=None,
+        starting_completion_tokens=None,
+        ordered_requested_families_from_intents=lambda **kwargs: [
+            (
+                intent.get("family")
+                if isinstance(intent, dict)
+                else getattr(intent, "family", None)
+            )
+            for intent in kwargs["intents"]
+        ],
+    )
+
+    assert session.ordered_requested_families == ["page_ops", "web_research"]

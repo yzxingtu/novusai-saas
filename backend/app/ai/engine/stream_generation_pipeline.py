@@ -337,6 +337,7 @@ def _finalize_partial_output(
         else:
             output = RecoveryManager.build_partial_output(
                 view.intent_plan,
+                tool_results=tool_results,
                 reason=completion_reason or "return_partial",
                 provider_failure_kind=view.provider_failure_kind,
             )
@@ -416,6 +417,40 @@ def _finalize_completed_output(
         trusted_stream_output = (
             view.last_visible_assistant_content(current_turn_messages) or streamed_output
         )
+        state_source = getattr(view.state, "_source", None)
+        diagnostics_payload = (
+            getattr(state_source, "preparation_diagnostics", {}) or {}
+        )
+        safe_untrusted_fallback_available = bool(
+            diagnostics_payload.get("untrusted_final_output_fallback_applied")
+            or diagnostics_payload.get("stripped_untrusted_final_output")
+        )
+        if (
+            finalized_output
+            and not trusted_stream_output
+            and safe_untrusted_fallback_available
+        ):
+            output = finalized_output
+            if response is not None and getattr(response, "message", None) is not None:
+                response.message.content = finalized_output
+            _append_output_if_missing(
+                handler=handler,
+                messages=messages,
+                current_turn_messages=current_turn_messages,
+                output=finalized_output,
+                streamed_output=streamed_output,
+                action_buttons=action_buttons,
+                skip_final_assistant=False,
+            )
+            replay_chunks = (
+                view.chunk_text_for_streaming(finalized_output)
+                if view.should_replay_finalized_output(
+                    streamed_output=streamed_output,
+                    finalized_output=finalized_output,
+                )
+                else []
+            )
+            return output, replay_chunks
         if (
             trusted_stream_output
             and finalized_output

@@ -5,6 +5,8 @@
  * AIChatSlidePanel 组件挂载测试：倒计时文案在真实组件中渲染。
  *
  * 与 countdown-display.test.ts（纯逻辑单测）互补，覆盖“组件渲染层”。
+ * Test type: behavioral
+ * Mock strategy: store/runtime edges are mocked, while slide-panel shell/body bindings render real.
  */
 import { flushPromises, mount } from '@vue/test-utils';
 import { defineComponent } from 'vue';
@@ -37,6 +39,13 @@ import {
 } from './ai-chat-slide-panel-test-helpers';
 
 let aiPanelStore: ReturnType<typeof createAIPanelStore>;
+const publicConfigState = {
+  platformConfig: { brand: { siteName: 'Test' } } as {
+    brand: { siteName: string };
+    features?: Record<string, boolean>;
+  },
+  tenantConfig: null as null | { features?: Record<string, boolean> },
+};
 
 vi.mock('@vben/icons', async () => {
   const { createIconifyMock } =
@@ -59,10 +68,7 @@ vi.mock('#/store', () => ({
 }));
 
 vi.mock('#/store/shared/public-config', () => ({
-  usePublicConfigStore: () => ({
-    platformConfig: { brand: { siteName: 'Test' } },
-    tenantConfig: null,
-  }),
+  usePublicConfigStore: () => publicConfigState,
 }));
 
 vi.mock('#/locales', () => ({
@@ -133,6 +139,8 @@ const mountPanel = (
 describe('aIChatSlidePanel (component mount)', () => {
   beforeEach(() => {
     aiPanelStore = resetPanelState();
+    publicConfigState.platformConfig = { brand: { siteName: 'Test' } };
+    publicConfigState.tenantConfig = null;
   });
 
   afterEach(() => {
@@ -413,6 +421,41 @@ describe('aIChatSlidePanel (component mount)', () => {
     wrapper.unmount();
   });
 
+  it('switches full-mode shells into transcript-first viewport rendering', async () => {
+    aiPanelStore.mode = 'full';
+
+    const wrapper = mountPanel({
+      global: {
+        stubs: {
+          AIChatMessageViewport: defineComponent({
+            name: 'AIChatMessageViewportTranscriptProbe',
+            props: {
+              compact: { type: Boolean, required: false },
+            },
+            template:
+              '<div data-testid="ai-panel-transcript-probe" :data-compact="String(compact)" />',
+          }),
+        },
+      },
+    });
+
+    await flushPromises();
+
+    const panel = requireElement(
+      document.body.querySelector('[data-ai-panel]') as HTMLDivElement | null,
+      'Expected AI panel in full-mode transcript test',
+    );
+    expect(panel.getAttribute('style')).toContain('width: 100vw');
+    expect(
+      requireElement(
+        document.body.querySelector('[data-testid="ai-panel-transcript-probe"]'),
+        'Expected transcript probe in full-mode transcript test',
+      ).getAttribute('data-compact'),
+    ).toBe('false');
+
+    wrapper.unmount();
+  });
+
   it('renders route notice as a standalone header banner after routing', async () => {
     selectedAgentIdValue.value = 1;
     inputMessageValue.value = 'hello';
@@ -444,12 +487,12 @@ describe('aIChatSlidePanel (component mount)', () => {
 
   it('renders a compact page AI rail that expands on demand', async () => {
     pageOperationsValue.value = [
-      { name: 'op-1', label: 'Refresh', readonly: true },
-      { name: 'op-2', label: 'Open Drawer', readonly: false },
-      { name: 'op-3', label: 'Save Draft', readonly: false },
-      { name: 'op-4', label: 'Search Records', readonly: true },
-      { name: 'op-5', label: 'Assign Owner', readonly: false },
-      { name: 'op-6', label: 'Export View', readonly: true },
+      { name: 'ui_get_snapshot', label: 'Refresh', readonly: true },
+      { name: 'ui_open_surface', label: 'Open Drawer', readonly: false },
+      { name: 'ui_fill_form', label: 'Save Draft', readonly: false },
+      { name: 'ui_read_table', label: 'Search Records', readonly: true },
+      { name: 'ui_set_field', label: 'Assign Owner', readonly: false },
+      { name: 'ui_list_interactables', label: 'Export View', readonly: true },
     ];
 
     const wrapper = mountPanel({
@@ -534,12 +577,12 @@ describe('aIChatSlidePanel (component mount)', () => {
     expect(
       document.body.querySelector('[data-testid="ai-panel-page-ai-details"]'),
     ).toBeTruthy();
-    expect(document.body.textContent).toContain(
-      'common.aiPanel.pageAiOperationCount',
-    );
-    expect(document.body.textContent).toContain(
+    expect(document.body.textContent).not.toContain(
       'common.aiPanel.pageAiDiagnostics',
     );
+    expect(
+      document.body.querySelector('[data-testid="ai-panel-page-ai-diagnostics"]'),
+    ).toBeFalsy();
     expect(
       document.body.querySelectorAll(
         '[data-testid="ai-panel-page-ai-preview-item"]',
@@ -601,7 +644,7 @@ describe('aIChatSlidePanel (component mount)', () => {
       },
     };
     pageOperationsValue.value = [
-      { name: 'op-1', label: 'Inspect', readonly: true },
+      { name: 'ui_get_snapshot', label: 'Inspect', readonly: true },
     ];
 
     const wrapper = mountPanel({
@@ -655,15 +698,64 @@ describe('aIChatSlidePanel (component mount)', () => {
       document.body.querySelector(
         '[data-testid="ai-panel-page-ai-diagnostics"]',
       ),
-    ).toBeTruthy();
-    expect(document.body.textContent).toContain(
-      'common.aiPanel.pageAiDiagSource',
+    ).toBeFalsy();
+
+    wrapper.unmount();
+  });
+
+  it('shows runtime page AI summary instead of fallback copy when ui runtime state is present', async () => {
+    pageContextValue.value = {
+      page_key: 'tenant.demo.runtime',
+      page_session_id: 'page-session-1',
+      page_title: 'Runtime Ready',
+      surface_stack: [
+        {
+          kind: 'page',
+          surface_id: 'surface-root',
+          title: 'Runtime Ready',
+        },
+      ],
+      ui_epoch: 7,
+    };
+    pageOperationsValue.value = [
+      { name: 'ui_get_snapshot', label: 'Snapshot', readonly: true },
+      { name: 'ui_list_interactables', label: 'Interactables', readonly: true },
+      { name: 'ui_click', label: 'Click', readonly: false },
+      { name: 'ui_fill_form', label: 'Fill Form', readonly: false },
+    ];
+
+    const wrapper = mountPanel({
+      props: {
+        pageContextKey: 'tenant.demo.runtime',
+      },
+    });
+
+    await flushPromises();
+
+    const trigger = requireElement(
+      document.body.querySelector(
+        '[data-testid="ai-panel-page-ai-trigger"]',
+      ) as HTMLDivElement | null,
+      'expected page AI trigger',
+    );
+    trigger.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flushPromises();
+
+    expect(document.body.textContent).toContain('common.aiPanel.pageAiSummary');
+    expect(document.body.textContent).not.toContain(
+      'common.aiPanel.pageAiFallbackSummary',
+    );
+    expect(document.body.textContent).not.toContain(
+      'common.aiPanel.pageAiFallbackSummaryWithOps',
+    );
+    expect(document.body.textContent).not.toContain(
+      'common.aiPanel.pageAiFallbackBadge',
     );
 
     wrapper.unmount();
   });
 
-  it('preserves compact page_data while keeping suggested ui tools', async () => {
+  it('preserves compact page_data while keeping routed page context thin', async () => {
     inputMessageValue.value = 'inspect this page';
     pageContextValue.value = {
       page_key: 'tenant.demo.large',
@@ -694,23 +786,38 @@ describe('aIChatSlidePanel (component mount)', () => {
         },
       },
     };
-    pageOperationsValue.value = Array.from({ length: 16 }, (_, index) => ({
-      description: `Operation ${index} `.repeat(14),
-      label: `Op ${index}`,
-      name: `op_${index}`,
-      params: {
-        field_name: {
-          description: `Field name ${index}`.repeat(12),
-          required: true,
-          type: 'string',
+    const uiToolPool = [
+      'ui_get_snapshot',
+      'ui_list_interactables',
+      'ui_read_region',
+      'ui_read_table',
+      'ui_click',
+      'ui_open_surface',
+      'ui_get_form_state',
+      'ui_set_field',
+      'ui_fill_form',
+      'ui_submit_form',
+    ] as const;
+    pageOperationsValue.value = Array.from({ length: 16 }, (_, index) => {
+      const toolName = uiToolPool[index % uiToolPool.length]!;
+      return {
+        description: `Operation ${index} `.repeat(14),
+        label: `Op ${index}`,
+        name: toolName,
+        params: {
+          field_name: {
+            description: `Field name ${index}`.repeat(12),
+            required: true,
+            type: 'string',
+          },
+          mode: {
+            enum: ['draft', 'published', 'archived'],
+            type: 'string',
+          },
         },
-        mode: {
-          enum: ['draft', 'published', 'archived'],
-          type: 'string',
-        },
-      },
-      readonly: index % 2 === 0,
-    }));
+        readonly: index % 2 === 0,
+      };
+    });
 
     const wrapper = mountPanel({
       props: {
@@ -741,10 +848,6 @@ describe('aIChatSlidePanel (component mount)', () => {
       };
       page_key?: string;
       page_title?: string;
-      suggested_tools?: {
-        primary?: string[];
-        secondary?: string[];
-      };
     };
     expect(routedContext?.page_key).toBe('tenant.demo.large');
     expect(routedContext?.page_title).toBe('Large Demo Page');
@@ -767,14 +870,7 @@ describe('aIChatSlidePanel (component mount)', () => {
         path: '/tenant/ai/agents',
       },
     });
-    const suggestedToolNames = [
-      ...(routedContext?.suggested_tools?.primary ?? []),
-      ...(routedContext?.suggested_tools?.secondary ?? []),
-    ];
-    expect(suggestedToolNames.length).toBeGreaterThan(0);
-    expect(
-      suggestedToolNames.every((toolName) => toolName.startsWith('ui_')),
-    ).toBe(true);
+    expect('suggested_tools' in (routedContext ?? {})).toBe(false);
 
     const diagnosticsTrigger = document.body.querySelector(
       '[data-testid="ai-panel-page-ai-trigger"]',
@@ -788,12 +884,60 @@ describe('aIChatSlidePanel (component mount)', () => {
       document.body.querySelector(
         '[data-testid="ai-panel-page-ai-diagnostics"]',
       ),
+    ).toBeFalsy();
+
+    wrapper.unmount();
+  });
+
+  it('shows page AI diagnostics only when tenant diagnostics are explicitly enabled', async () => {
+    publicConfigState.tenantConfig = {
+      features: {
+        show_diagnostics: true,
+      },
+    };
+    pageContextValue.value = {
+      page_key: 'tenant.demo.diagnostics',
+      page_title: 'Diagnostics Demo',
+      surface_stack: [
+        {
+          kind: 'page',
+          surface_id: 'surface-root',
+          title: 'Diagnostics Demo',
+        },
+      ],
+      ui_epoch: 2,
+    };
+    pageOperationsValue.value = [
+      { name: 'ui_get_snapshot', label: 'Snapshot', readonly: true },
+    ];
+
+    const wrapper = mountPanel({
+      props: {
+        pageContextKey: 'tenant.demo.diagnostics',
+      },
+    });
+
+    await flushPromises();
+
+    const diagnosticsTrigger = document.body.querySelector(
+      '[data-testid="ai-panel-page-ai-trigger"]',
+    ) as HTMLDivElement | null;
+    expect(diagnosticsTrigger).toBeTruthy();
+    diagnosticsTrigger?.dispatchEvent(
+      new MouseEvent('click', { bubbles: true }),
+    );
+    await flushPromises();
+
+    expect(
+      document.body.querySelector(
+        '[data-testid="ai-panel-page-ai-diagnostics"]',
+      ),
     ).toBeTruthy();
 
     wrapper.unmount();
   });
 
-  it('keeps screenshot runtime tools in routed page context for backend runtime gating', async () => {
+  it('keeps screenshot runtime page context thin for backend gating', async () => {
     inputMessageValue.value = 'inspect this page';
     supportsVisionValue.value = false;
     pageContextValue.value = {
@@ -804,10 +948,10 @@ describe('aIChatSlidePanel (component mount)', () => {
     pageOperationsValue.value = [
       {
         label: 'Capture Screenshot',
-        name: 'capture_screenshot',
+        name: 'ui_get_snapshot',
         readonly: true,
       },
-      { label: 'Read View', name: 'read_current_view', readonly: true },
+      { label: 'Read View', name: 'ui_list_interactables', readonly: true },
     ];
 
     const wrapper = mountPanel({
@@ -824,18 +968,11 @@ describe('aIChatSlidePanel (component mount)', () => {
     ).dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flushPromises();
 
-    const routedContext = routeMessageMock.mock.calls[0]?.[2] as null | {
-      suggested_tools?: {
-        primary?: string[];
-        secondary?: string[];
-      };
-    };
-    const toolNames = [
-      ...(routedContext?.suggested_tools?.primary ?? []),
-      ...(routedContext?.suggested_tools?.secondary ?? []),
-    ];
-    expect(toolNames).toContain('ui_get_snapshot');
-    expect(toolNames).toContain('ui_list_interactables');
+    const routedContext = routeMessageMock.mock.calls[0]?.[2] as
+      | null
+      | Record<string, unknown>;
+    expect(routedContext).toBeTruthy();
+    expect('suggested_tools' in (routedContext ?? {})).toBe(false);
 
     wrapper.unmount();
   });

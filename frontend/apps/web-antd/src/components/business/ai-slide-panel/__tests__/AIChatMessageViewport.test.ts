@@ -1,5 +1,10 @@
 // @vitest-environment happy-dom
 /* eslint-disable vue/one-component-per-file */
+/**
+ * Test type: behavioral
+ * Verifies: the slide-panel message viewport preserves turnFlow-first normalization and switches to transcript-first rendering in non-compact mode.
+ * Mock strategy: child message items/icons are stubbed, while viewport normalization and prop wiring run real.
+ */
 import type { ChatMessage } from '#/types/ai-chat';
 
 import { mount } from '@vue/test-utils';
@@ -120,7 +125,45 @@ describe('aiChatMessageViewport', () => {
     expect(propsSnapshot.attributes('data-streaming')).toBe('false');
   });
 
-  it('normalizes turnFlow-first payload by deduping legacy stage types and enforcing failure terminal state', () => {
+  it('renders expanded transcript items without compact message chrome', () => {
+    const wrapper = mount(AIChatMessageViewport, {
+      props: {
+        apiPrefix: '/tenant',
+        chatMessages: [
+          {
+            clientKey: 'assistant-expanded',
+            content: 'expanded transcript',
+            role: 'assistant',
+          } satisfies ChatMessage,
+        ],
+        compact: false,
+        getPendingOpsForMessage: () => [],
+        getRichTextDraftState: () => null,
+        isAgentSwitch: () => false,
+      },
+      global: {
+        stubs: {
+          ChatMessageItem: defineComponent({
+            name: 'ChatMessageItemExpandedStub',
+            props: {
+              compact: { type: Boolean, required: false },
+            },
+            template:
+              '<div data-testid="expanded-message-item" :data-compact="String(compact)" />',
+          }),
+        },
+      },
+    });
+
+    expect(
+      wrapper.get('[data-testid="expanded-message-item"]').attributes(
+        'data-compact',
+      ),
+    ).toBe('false');
+    expect(wrapper.html()).toContain('max-w-[42rem]');
+  });
+
+  it('keeps canonical turnFlow payload intact while stripping legacy display fields', () => {
     const ChatMessageItemProbe = defineComponent({
       name: 'ChatMessageItemProbe',
       props: {
@@ -240,13 +283,13 @@ describe('aiChatMessageViewport', () => {
 
     const probe = wrapper.get('[data-testid="message-item-probe"]');
     expect(probe.attributes('data-stage-ids')).toBe(
-      'stage-thinking|stage-tool-selection|stage-answer|turn-tool-execution|legacy-completed-failed',
+      'legacy-thinking|stage-thinking|stage-tool-selection|stage-answer|legacy-completed',
     );
     expect(probe.attributes('data-stage-types')).toBe(
-      'thinking|tool_selection|answer_assembly|tool_execution|failed',
+      'thinking|thinking|tool_selection|answer_assembly|completed',
     );
     expect(probe.attributes('data-stage-statuses')).toBe(
-      'completed|skipped|error|error|error',
+      'completed|completed|skipped|completed|completed',
     );
     expect(probe.attributes('data-has-thinking')).toBe('false');
     expect(probe.attributes('data-has-tool-calls')).toBe('false');
@@ -255,7 +298,7 @@ describe('aiChatMessageViewport', () => {
     expect(probe.attributes('data-streaming')).toBe('false');
   });
 
-  it('adapts raw turn_flow alias payloads and strips legacy display fields', () => {
+  it('adapts raw turn_flow alias payloads without reprojecting legacy display fields', () => {
     const wrapper = mount(AIChatMessageViewport, {
       props: {
         apiPrefix: '/tenant',
@@ -328,7 +371,7 @@ describe('aiChatMessageViewport', () => {
     });
 
     const probe = wrapper.get('[data-testid="alias-probe"]');
-    expect(probe.attributes('data-stage-id')).toBe('turn-tool-selection');
+    expect(probe.attributes('data-stage-id')).toBe('stage-from-alias');
     expect(probe.attributes('data-has-thinking')).toBe('false');
     expect(probe.attributes('data-has-tool-calls')).toBe('false');
     expect(probe.attributes('data-has-rag')).toBe('false');

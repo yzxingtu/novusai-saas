@@ -213,4 +213,24 @@ describe('dOMScanner.scan', () => {
     expect(result.nodes[0]?.locator).toBe('[data-testid="first-hidden"]');
     expect(result.nodes[0]?.visible).toBe(false);
   });
+
+  it('finds deep interactables with the default scan depth', () => {
+    document.body.innerHTML = `
+      <div id="deep-root">
+        <div><div><div><div><div><div><div><button data-testid="deep-action">Open</button></div></div></div></div></div></div></div>
+      </div>
+    `;
+
+    const scanner = new DOMScanner();
+    const result = scanner.scan({
+      document,
+    } as unknown as Parameters<DOMScanner['scan']>[0]);
+
+    expect(
+      result.nodes.some(
+        (node) => node.locator === '[data-testid="deep-action"]',
+      ),
+    ).toBe(true);
+    expect(result.scannedElements).toBeGreaterThanOrEqual(1);
+  });
 });

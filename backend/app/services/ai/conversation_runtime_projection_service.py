@@ -10,6 +10,9 @@ from app.ai.memory_policy import (
     build_effective_memory_runtime_projection,
     normalize_thread_memory_state,
 )
+from app.services.ai.conversation_payload_sanitizer import (
+    sanitize_conversation_last_error_payload,
+)
 from app.services.ai.conversation_diagnostics_projector import (
     ConversationDiagnosticsProjector,
 )
@@ -97,6 +100,9 @@ class ConversationRuntimeProjectionService:
         )
         conversation_last_error = self.normalize_json_safe_dict(
             conversation_metadata.get("last_error")
+        )
+        conversation_last_error = sanitize_conversation_last_error_payload(
+            conversation_last_error
         )
         thread_memory_state = self._conversation_thread_memory_state(
             conversation_metadata

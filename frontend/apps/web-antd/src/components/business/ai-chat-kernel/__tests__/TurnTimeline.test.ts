@@ -1,4 +1,7 @@
 // @vitest-environment happy-dom
+// Test type: behavioral
+// Verifies: the transcript-first process timeline uses a single process toggle,
+// auto-collapses on completion, and hides noop stages while preserving live content.
 import type { ChatMessage } from '#/types/ai-chat';
 
 import { mount } from '@vue/test-utils';
@@ -52,17 +55,27 @@ function mountTimeline(msg: ChatMessage) {
     },
     global: {
       stubs: {
-        ChatMessageRagSources: defineComponent({
-          name: 'ChatMessageRagSourcesStub',
-          template: '<div data-testid="stub-rag-sources"></div>',
-        }),
         ChatMessageThinkingBlock: defineComponent({
           name: 'ChatMessageThinkingBlockStub',
-          template: '<div data-testid="stub-thinking-block"></div>',
+          props: {
+            embedded: {
+              default: false,
+              type: Boolean,
+            },
+          },
+          template:
+            '<div data-testid="stub-thinking-block" :data-embedded="String(embedded)"></div>',
         }),
         ChatMessageToolCalls: defineComponent({
           name: 'ChatMessageToolCallsStub',
-          template: '<div data-testid="stub-tool-calls"></div>',
+          props: {
+            embedded: {
+              default: false,
+              type: Boolean,
+            },
+          },
+          template:
+            '<div data-testid="stub-tool-calls" :data-embedded="String(embedded)"></div>',
         }),
       },
     },
@@ -74,7 +87,7 @@ describe('turnTimeline', () => {
     vi.useRealTimers();
   });
 
-  it('does not expose an interactive empty expand area for completed stages without body content', async () => {
+  it('hides terminal completed-only process sections that carry no user-facing body content', async () => {
     const wrapper = mountTimeline(
       createAssistantMessage({
         streaming: true,
@@ -91,17 +104,9 @@ describe('turnTimeline', () => {
       }),
     );
 
-    const toggle = wrapper.get('[data-testid="turn-stage-toggle-0"]');
-    expect(toggle.attributes('disabled')).toBeDefined();
-    expect(wrapper.find('[data-testid="turn-stage-chevron-0"]').exists()).toBe(
-      false,
-    );
-
-    const body = wrapper.get('[data-testid="turn-stage-body-0"]');
-    expect(body.attributes('style') ?? '').toContain('grid-template-rows: 0fr');
-
-    await toggle.trigger('click');
-    expect(body.attributes('style') ?? '').toContain('grid-template-rows: 0fr');
+    expect(
+      wrapper.find('[data-testid="chat-message-kernel-timeline"]').exists(),
+    ).toBe(false);
   });
 
   it('keeps only live running stages expanded by default', () => {
@@ -130,19 +135,12 @@ describe('turnTimeline', () => {
     );
 
     expect(
-      wrapper.get('[data-testid="turn-stage-body-0"]').attributes('style') ??
+      wrapper.get('[data-testid="turn-process-body"]').attributes('style') ??
         '',
     ).toContain('grid-template-rows: 1fr');
     expect(
-      wrapper.get('[data-testid="turn-stage-body-1"]').attributes('style') ??
-        '',
-    ).toContain('grid-template-rows: 0fr');
-    expect(wrapper.find('[data-testid="turn-stage-chevron-0"]').exists()).toBe(
-      true,
-    );
-    expect(wrapper.find('[data-testid="turn-stage-chevron-1"]').exists()).toBe(
-      true,
-    );
+      wrapper.findAll('[data-testid^="turn-stage-"]').length,
+    ).toBeGreaterThan(0);
   });
 
   it('keeps historical error and interrupted stages collapsed by default', () => {
@@ -171,11 +169,7 @@ describe('turnTimeline', () => {
     );
 
     expect(
-      wrapper.get('[data-testid="turn-stage-body-0"]').attributes('style') ??
-        '',
-    ).toContain('grid-template-rows: 0fr');
-    expect(
-      wrapper.get('[data-testid="turn-stage-body-1"]').attributes('style') ??
+      wrapper.get('[data-testid="turn-process-body"]').attributes('style') ??
         '',
     ).toContain('grid-template-rows: 0fr');
   });
@@ -207,10 +201,10 @@ describe('turnTimeline', () => {
       }),
     );
 
-    expect(wrapper.text()).toContain('common.globalAiChat.optimizingTools');
     expect(wrapper.text()).toContain(
       'common.globalAiChat.turnRetrievalSummary',
     );
+    expect(wrapper.text()).not.toContain('common.globalAiChat.optimizingTools');
   });
 
   it('provides safe non-empty running copy with provider hints for canonical stages', async () => {
@@ -237,7 +231,7 @@ describe('turnTimeline', () => {
     expect(wrapper.text()).toContain('common.globalAiChat.toolSearchProvider');
     expect(wrapper.text()).toContain('native:provider_1:gpt-5.4');
     expect(
-      wrapper.get('[data-testid="turn-stage-body-0"]').attributes('style') ??
+      wrapper.get('[data-testid="turn-process-body"]').attributes('style') ??
         '',
     ).toContain('grid-template-rows: 1fr');
   });
@@ -263,9 +257,61 @@ describe('turnTimeline', () => {
 
     expect(wrapper.text()).toContain('正在分析用户问题并规划下一步');
     expect(
-      wrapper.get('[data-testid="turn-stage-body-0"]').attributes('style') ??
+      wrapper.get('[data-testid="turn-process-body"]').attributes('style') ??
         '',
     ).toContain('grid-template-rows: 1fr');
+  });
+
+  it('normalizes generic backend English stage titles into localized stage copy', async () => {
+    const wrapper = mountTimeline(
+      createAssistantMessage({
+        streaming: true,
+        turnFlow: {
+          timeline: [
+            {
+              id: 'stage-thinking-generic-title',
+              status: 'running',
+              summary: 'Thinking',
+              title: 'Thinking',
+              type: 'thinking',
+            },
+          ],
+        },
+      }),
+    );
+
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain('common.globalAiChat.turnStageType.thinking');
+    expect(wrapper.text()).toContain(
+      'common.globalAiChat.turnStageSummary.thinking',
+    );
+    expect(wrapper.text()).not.toContain('Thinking');
+  });
+
+  it('passes embedded mode to timeline thinking bodies so no nested process toggle is needed', async () => {
+    const wrapper = mountTimeline(
+      createAssistantMessage({
+        streaming: true,
+        turnFlow: {
+          timeline: [
+            {
+              detailLines: ['先分析当前用户问题，再整理下一步动作'],
+              id: 'stage-thinking-embedded',
+              status: 'running',
+              summary: '正在思考',
+              type: 'thinking',
+            },
+          ],
+        },
+      }),
+    );
+
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.get('[data-testid="stub-thinking-block"]').attributes()).toMatchObject({
+      'data-embedded': 'true',
+    });
   });
 
   it('shows tool call fallback content for canonical tool execution stages without detail lines', async () => {
@@ -296,6 +342,11 @@ describe('turnTimeline', () => {
     await wrapper.vm.$nextTick();
 
     expect(wrapper.find('[data-testid="stub-tool-calls"]').exists()).toBe(true);
+    expect(wrapper.get('[data-testid="stub-tool-calls"]').attributes()).toMatchObject(
+      {
+        'data-embedded': 'true',
+      },
+    );
     expect(
       wrapper.get('[data-testid="turn-stage-body-0"]').attributes('style') ??
         '',
@@ -322,11 +373,6 @@ describe('turnTimeline', () => {
     );
 
     await wrapper.vm.$nextTick();
-
-    expect(
-      wrapper.get('[data-testid="turn-stage-body-0"]').attributes('style') ??
-        '',
-    ).toContain('grid-template-rows: 1fr');
 
     await wrapper.setProps({
       msg: createAssistantMessage({
@@ -360,19 +406,11 @@ describe('turnTimeline', () => {
         }),
       ),
     });
-
-    expect(
-      wrapper.get('[data-testid="turn-stage-body-0"]').attributes('style') ??
-        '',
-    ).toContain('grid-template-rows: 1fr');
-
-    vi.advanceTimersByTime(220);
     await wrapper.vm.$nextTick();
 
     expect(
-      wrapper.get('[data-testid="turn-stage-body-0"]').attributes('style') ??
-        '',
-    ).toContain('grid-template-rows: 0fr');
+      wrapper.find('[data-testid="chat-message-kernel-timeline"]').exists(),
+    ).toBe(false);
   });
 
   it('collapses every settled expandable stage after the live turn stops streaming', async () => {
@@ -403,19 +441,7 @@ describe('turnTimeline', () => {
     await wrapper.vm.$nextTick();
 
     expect(
-      wrapper.get('[data-testid="turn-stage-body-0"]').attributes('style') ??
-        '',
-    ).toContain('grid-template-rows: 1fr');
-    expect(
-      wrapper.get('[data-testid="turn-stage-body-1"]').attributes('style') ??
-        '',
-    ).toContain('grid-template-rows: 0fr');
-
-    await wrapper.get('[data-testid="turn-stage-toggle-1"]').trigger('click');
-    await wrapper.vm.$nextTick();
-
-    expect(
-      wrapper.get('[data-testid="turn-stage-body-1"]').attributes('style') ??
+      wrapper.get('[data-testid="turn-process-body"]').attributes('style') ??
         '',
     ).toContain('grid-template-rows: 1fr');
 
@@ -447,24 +473,107 @@ describe('turnTimeline', () => {
     await wrapper.vm.$nextTick();
 
     expect(
-      wrapper.get('[data-testid="turn-stage-body-0"]').attributes('style') ??
+      wrapper.get('[data-testid="turn-process-body"]').attributes('style') ??
         '',
-    ).toContain('grid-template-rows: 1fr');
+    ).toContain('grid-template-rows: 0fr');
+  });
+
+  it('keeps the whole process panel expanded while streaming and auto-collapses it after completion', async () => {
+    const liveMessage = createAssistantMessage({
+      streaming: true,
+      turnFlow: {
+        timeline: [
+          {
+            detailLines: ['正在分析并准备下一步操作'],
+            id: 'stage-thinking-live',
+            status: 'running',
+            summary: '正在思考',
+            type: 'thinking',
+          },
+        ],
+      },
+    });
+    const wrapper = mountTimeline(liveMessage);
+
     expect(
-      wrapper.get('[data-testid="turn-stage-body-1"]').attributes('style') ??
+      wrapper.get('[data-testid="turn-process-body"]').attributes('style') ??
         '',
     ).toContain('grid-template-rows: 1fr');
 
-    vi.advanceTimersByTime(220);
+    const settledMessage = createAssistantMessage({
+      streaming: false,
+      turnFlow: {
+        timeline: [
+          {
+            detailLines: ['已完成当前回合的思路整理'],
+            id: 'stage-thinking-live',
+            status: 'completed',
+            summary: '已完成思考',
+            type: 'thinking',
+          },
+          {
+            id: 'stage-terminal',
+            status: 'completed',
+            summary: 'completed',
+            type: 'completed',
+          },
+        ],
+      },
+    });
+    await wrapper.setProps({
+      msg: settledMessage,
+      state: buildTurnFlowState(settledMessage),
+    });
     await wrapper.vm.$nextTick();
 
     expect(
-      wrapper.get('[data-testid="turn-stage-body-0"]').attributes('style') ??
+      wrapper.get('[data-testid="turn-process-body"]').attributes('style') ??
         '',
     ).toContain('grid-template-rows: 0fr');
-    expect(
-      wrapper.get('[data-testid="turn-stage-body-1"]').attributes('style') ??
-        '',
-    ).toContain('grid-template-rows: 0fr');
+  });
+
+  it('hides noop skipped tool and retrieval stages while preserving meaningful live stages', () => {
+    const wrapper = mountTimeline(
+      createAssistantMessage({
+        streaming: false,
+        turnFlow: {
+          timeline: [
+            {
+              id: 'stage-tool-selection-skipped',
+              metrics: { selected: 0, total: 3 },
+              status: 'skipped',
+              summary: 'Selected 0 of 3 tools',
+              type: 'tool_selection',
+            },
+            {
+              id: 'stage-tool-execution-skipped',
+              metrics: { total: 0 },
+              status: 'skipped',
+              summary: 'No tools executed',
+              type: 'tool_execution',
+            },
+            {
+              id: 'stage-retrieval-skipped',
+              metrics: { total: 0 },
+              status: 'skipped',
+              summary: 'No evidence retrieved',
+              type: 'retrieval',
+            },
+            {
+              detailLines: ['已完成最终答复整理'],
+              id: 'stage-answer',
+              status: 'completed',
+              summary: '已完成答案整理',
+              type: 'answer_assembly',
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(wrapper.text()).not.toContain('Selected 0 of 3 tools');
+    expect(wrapper.text()).not.toContain('No tools executed');
+    expect(wrapper.text()).not.toContain('No evidence retrieved');
+    expect(wrapper.text()).toContain('已完成答案整理');
   });
 });

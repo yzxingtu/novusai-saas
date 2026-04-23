@@ -26,6 +26,201 @@ import { routeMessageApi } from '#/api/shared/ai-chat';
 import { getRuntimeThinPageContext } from '#/components/business/ai-runtime/runtime-bridge';
 
 const ROUTE_CACHE_TTL_MS = 2 * 60 * 1000;
+const ROUTE_PAGE_CONTEXT_NAV_LIMIT = 6;
+const ROUTE_PAGE_CONTEXT_SURFACE_LIMIT = 4;
+const ROUTE_PAGE_CONTEXT_REQUIRED_FIELD_LIMIT = 4;
+
+function _normalizeRouteText(value: unknown): string {
+  return String(value ?? '')
+    .toLocaleLowerCase()
+    .replaceAll(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+}
+
+function _routeMessageTokens(message: string): string[] {
+  const normalized = _normalizeRouteText(message);
+  if (!normalized) {
+    return [];
+  }
+  return normalized
+    .split(/\s+/)
+    .filter((token) => token.length >= 2)
+    .slice(0, 8);
+}
+
+function _trimNonEmptyString(value: unknown): string | undefined {
+  const normalized = String(value ?? '').trim();
+  return normalized || undefined;
+}
+
+function _trimBreadcrumb(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((item) => _trimNonEmptyString(item))
+    .filter((item): item is string => !!item)
+    .slice(0, ROUTE_PAGE_CONTEXT_REQUIRED_FIELD_LIMIT);
+}
+
+function _scoreRouteNavigationEntry(
+  entry: {
+    breadcrumb?: string[];
+    page_key?: string;
+    path?: string;
+    title?: string;
+  },
+  options: {
+    currentPageKey?: string;
+    currentPath?: string;
+    messageTokens: string[];
+    order: number;
+  },
+): number {
+  const { currentPageKey, currentPath, messageTokens, order } = options;
+  const pageKey = _trimNonEmptyString(entry.page_key);
+  const path = _trimNonEmptyString(entry.path);
+  const haystack = _normalizeRouteText(
+    [
+      entry.title,
+      pageKey,
+      path,
+      ..._trimBreadcrumb(entry.breadcrumb),
+    ].join(' '),
+  );
+
+  let score = Math.max(0, 40 - order);
+  if (pageKey && pageKey === currentPageKey) {
+    score += 400;
+  }
+  if (path && path === currentPath) {
+    score += 360;
+  }
+  for (const token of messageTokens) {
+    if (!token || !haystack.includes(token)) {
+      continue;
+    }
+    score += 120;
+  }
+  return score;
+}
+
+function _selectRouteNavigationCatalog(
+  message: string,
+  pageContext: PageContext,
+): Array<{
+  breadcrumb: string[];
+  page_key: string;
+  path: string;
+  title: string;
+}> {
+  const pageData = pageContext.page_data;
+  if (!pageData?.navigation_catalog?.length) {
+    return [];
+  }
+
+  const currentPageKey =
+    _trimNonEmptyString(pageData.navigation_context?.page_key) ??
+    _trimNonEmptyString(pageContext.page_key);
+  const currentPath = _trimNonEmptyString(pageData.navigation_context?.path);
+  const messageTokens = _routeMessageTokens(message);
+
+  return pageData.navigation_catalog
+    .map((entry, index) => ({
+      entry,
+      score: _scoreRouteNavigationEntry(entry, {
+        currentPageKey,
+        currentPath,
+        messageTokens,
+        order: index,
+      }),
+    }))
+    .sort((left, right) => right.score - left.score)
+    .slice(0, ROUTE_PAGE_CONTEXT_NAV_LIMIT)
+    .map(({ entry }) => ({
+      breadcrumb: _trimBreadcrumb(entry.breadcrumb),
+      page_key: entry.page_key,
+      path: entry.path,
+      title: entry.title,
+    }));
+}
+
+function buildRouteRequestPageContext(
+  message: string,
+  pageContext?: null | PageContext,
+): null | PageContext {
+  if (!pageContext) {
+    return null;
+  }
+
+  const pageData = pageContext.page_data;
+  const trimmedSurfaceStack = pageContext.surface_stack?.slice(
+    0,
+    ROUTE_PAGE_CONTEXT_SURFACE_LIMIT,
+  );
+  const trimmedActiveFormSummary = pageContext.active_form_summary
+    ? {
+        can_submit: pageContext.active_form_summary.can_submit,
+        entity_name: pageContext.active_form_summary.entity_name,
+        form_session_id: pageContext.active_form_summary.form_session_id,
+        mode: pageContext.active_form_summary.mode,
+        remaining_required_fields:
+          pageContext.active_form_summary.remaining_required_fields?.slice(
+            0,
+            ROUTE_PAGE_CONTEXT_REQUIRED_FIELD_LIMIT,
+          ),
+        stage: pageContext.active_form_summary.stage,
+        submit_policy: pageContext.active_form_summary.submit_policy,
+      }
+    : undefined;
+  const trimmedNavigationCatalog = _selectRouteNavigationCatalog(
+    message,
+    pageContext,
+  );
+
+  return {
+    active_form_session_id: pageContext.active_form_session_id,
+    ...(trimmedActiveFormSummary
+      ? {
+          active_form_summary: trimmedActiveFormSummary,
+        }
+      : {}),
+    active_surface_id: pageContext.active_surface_id,
+    locale: pageContext.locale,
+    ...(pageData
+      ? {
+          page_data: {
+            ...(pageData.navigation_context
+              ? {
+                  navigation_context: {
+                    breadcrumb: _trimBreadcrumb(
+                      pageData.navigation_context.breadcrumb,
+                    ),
+                    endpoint: pageData.navigation_context.endpoint,
+                    page_key: pageData.navigation_context.page_key,
+                    path: pageData.navigation_context.path,
+                  },
+                }
+              : {}),
+            ...(trimmedNavigationCatalog.length > 0
+              ? {
+                  navigation_catalog: trimmedNavigationCatalog,
+                }
+              : {}),
+          },
+        }
+      : {}),
+    page_key: pageContext.page_key,
+    page_session_id: pageContext.page_session_id,
+    page_title: pageContext.page_title,
+    ...(trimmedSurfaceStack?.length
+      ? {
+          surface_stack: trimmedSurfaceStack,
+        }
+      : {}),
+    ui_epoch: pageContext.ui_epoch,
+  };
+}
 
 /** Simple string hash for cache key (djb2) / 简单字符串哈希用于缓存 key */
 function _simpleHash(s: string): string {
@@ -282,11 +477,12 @@ export function useAgentRouter(options: UseAgentRouterOptions) {
 
     const prefix = unref(options.apiPrefix);
     const pinId = unref(options.pinnedAgentId);
+    const routePageContext = buildRouteRequestPageContext(message, pageContext);
 
     const response: AgentRouteResponse = await routeMessageApi(prefix, {
       message,
       conversation_id: convId,
-      page_context: pageContext,
+      page_context: routePageContext,
       pinned_agent_id: pinId,
       force_reroute: forceReroute,
       has_image_attachments: normalizedAttachmentFlags.hasImageAttachments,

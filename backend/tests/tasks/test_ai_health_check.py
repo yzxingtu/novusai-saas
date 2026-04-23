@@ -268,3 +268,52 @@ async def test_failover_service_prefers_is_healthy(monkeypatch) -> None:
     service = FailoverService(db=MagicMock())
 
     assert await service.is_provider_healthy(10) is False
+
+
+@pytest.mark.asyncio
+async def test_failover_service_uses_compatible_candidate_when_chain_missing(
+    monkeypatch,
+) -> None:
+    original_model = SimpleNamespace(
+        id=9,
+        provider_id=10,
+        tier="premium",
+        fallback_model_id=None,
+        is_active=True,
+    )
+    compatible_candidate = SimpleNamespace(
+        id=2,
+        name="deepseek-chat",
+        provider_id=2,
+        input_price_per_1k=0.1,
+        context_window=1280000,
+        tier=None,
+    )
+
+    service = FailoverService(db=MagicMock())
+    service._model_repo = SimpleNamespace(
+        get_active_with_provider=AsyncMock(return_value=original_model),
+        get_by_id=AsyncMock(return_value=original_model),
+        list_compatible_chat_models=AsyncMock(return_value=[compatible_candidate]),
+    )
+
+    async def _fake_is_provider_healthy(provider_id: int) -> bool:
+        return provider_id != 10
+
+    monkeypatch.setattr(service, "is_provider_healthy", _fake_is_provider_healthy)
+
+    fallback = await service.get_fallback_model(
+        9,
+        needs_fc=True,
+        min_context_window=128000,
+    )
+
+    assert fallback is compatible_candidate
+    service._model_repo.list_compatible_chat_models.assert_awaited_once_with(
+        exclude_model_ids=[9],
+        needs_vision=False,
+        needs_audio=False,
+        needs_video=False,
+        needs_function_calling=True,
+        min_context_window=128000,
+    )

@@ -312,6 +312,7 @@ async def build_runtime_query_entrypoint_plan(
     context_sources: list[Any] | None,
     execution_path: str | None,
     extra_kwargs: dict[str, Any] | None,
+    runtime_context: ConversationRuntimeContext | None = None,
     runtime_preparer: Callable[..., Awaitable[ConversationRuntimeContext]],
     skip_metering_preflight: bool = False,
     adapter_registry: Any = AdapterRegistry,
@@ -320,7 +321,7 @@ async def build_runtime_query_entrypoint_plan(
     accounting_builder: Callable[[Any], ConversationRuntimeAccounting] | None = None,
 ) -> ConversationRuntimeEntrypointPlan:
     runtime_context = await _prepare_runtime_context(
-        runtime_context=None,
+        runtime_context=runtime_context,
         runtime_preparer=runtime_preparer,
         engine=engine,
         agent=agent,

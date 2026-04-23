@@ -2,27 +2,85 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, TYPE_CHECKING
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from app.ai.tools.types import ToolResult
 from app.ai.types import ChatMessage, ChatResponse
 
 from .execution_state_machine import ExecutionStateMachine
+from .page_flow_recovery_helpers import (
+    build_page_no_progress_recovery_default,
+)
 from .recovery_manager import RecoveryManager
 from .tool_execution_helpers import (
     register_tool_failures,
     synthesize_tool_results_from_calls,
+)
+from .tool_loop_session import (
+    project_page_recovery_into_runtime_intent_plan,
 )
 from .turn_executor_contracts import (
     constrain_retry_policy_to_active_intent,
     record_contract_breach,
     suppress_contract_placeholder_response,
 )
-from .turn_executor_helpers import assistant_tool_round_count, register_tool_round_delta
 from .types import ToolUsePolicy
 
 if TYPE_CHECKING:
     from .turn_executor import TurnIOAdapter
+
+
+def _assistant_tool_round_count(messages: list[ChatMessage]) -> int:
+    return sum(
+        1
+        for message in messages
+        if message.role == "assistant" and bool(message.tool_calls)
+    )
+
+
+def _register_tool_round_delta(
+    state: ExecutionStateMachine,
+    *,
+    before_count: int,
+    messages: list[ChatMessage],
+) -> None:
+    delta = max(0, _assistant_tool_round_count(messages) - before_count)
+    for _round_idx in range(delta):
+        state.register_tool_round()
+
+
+def _apply_page_no_progress_recovery(
+    *,
+    state: ExecutionStateMachine,
+    response: ChatResponse,
+    messages: list[ChatMessage],
+    tool_results: list[ToolResult],
+    tools: list[Any],
+    input_variables: dict[str, Any] | None,
+) -> None:
+    if not state.intent_plan or not tool_results:
+        return
+    tool_calls = list(getattr(response, "tool_calls", None) or [])
+    if not tool_calls and getattr(response, "message", None) is not None:
+        tool_calls = list(getattr(response.message, "tool_calls", None) or [])
+    if not tool_calls:
+        return
+    recovery_tool_names, recovery_diagnostics = build_page_no_progress_recovery_default(
+        messages=messages,
+        tool_calls=tool_calls,
+        tool_results=tool_results,
+        tools=tools,
+        input_variables=input_variables,
+    )
+    if not recovery_tool_names:
+        return
+    project_page_recovery_into_runtime_intent_plan(
+        intent_plan=state.intent_plan,
+        input_variables=input_variables,
+        recovery_diagnostics=recovery_diagnostics,
+        recovery_tool_names=recovery_tool_names,
+    )
 
 
 async def execute_tool_batch(
@@ -34,10 +92,11 @@ async def execute_tool_batch(
     messages: list[ChatMessage],
     turn_messages: list[ChatMessage] | None,
     tool_use_policy: ToolUsePolicy | None,
+    input_variables: dict[str, Any] | None = None,
     total_tokens: int,
     completion_tokens_used: int,
 ) -> tuple[ChatResponse | None, list[ToolResult], int, int]:
-    tool_rounds_before = assistant_tool_round_count(messages)
+    tool_rounds_before = _assistant_tool_round_count(messages)
     tool_call_response = response
     tool_batch = await io.handle_tool_calls(
         response=response,
@@ -56,7 +115,7 @@ async def execute_tool_batch(
             getattr(tool_call_response, "tool_calls", None),
             skip_unresolved_interactions=True,
         )
-    register_tool_round_delta(
+    _register_tool_round_delta(
         state,
         before_count=tool_rounds_before,
         messages=messages,
@@ -68,6 +127,14 @@ async def execute_tool_batch(
     )
     state.register_completion_tokens(next_completion_tokens)
     register_tool_failures(state, tool_results)
+    _apply_page_no_progress_recovery(
+        state=state,
+        response=tool_call_response,
+        messages=messages,
+        tool_results=tool_results,
+        tools=tools,
+        input_variables=input_variables,
+    )
     return next_response, tool_results, next_total_tokens, next_completion_tokens
 
 
@@ -98,8 +165,7 @@ def build_shortcircuit_fallback_response(
     synthetic_call = [
         {
             "id": (
-                f"synthetic_{getattr(intent, 'intent_id', 'intent')}"
-                "_get_current_time"
+                f"synthetic_{getattr(intent, 'intent_id', 'intent')}_get_current_time"
             ),
             "type": "function",
             "function": {
@@ -138,6 +204,7 @@ async def run_tool_batch_or_update_intents(
     messages: list[ChatMessage],
     turn_messages: list[ChatMessage],
     tool_use_policy: ToolUsePolicy | None,
+    input_variables: dict[str, Any] | None,
     total_tokens: int,
     completion_tokens_used: int,
 ) -> tuple[ChatResponse | None, list[ToolResult], int, int]:
@@ -150,6 +217,7 @@ async def run_tool_batch_or_update_intents(
             messages=messages,
             turn_messages=turn_messages,
             tool_use_policy=tool_use_policy,
+            input_variables=input_variables,
             total_tokens=total_tokens,
             completion_tokens_used=completion_tokens_used,
         )
@@ -171,6 +239,7 @@ async def run_tool_batch_or_update_intents(
                 messages=messages,
                 turn_messages=turn_messages,
                 tool_use_policy=tool_use_policy,
+                input_variables=input_variables,
                 total_tokens=total_tokens,
                 completion_tokens_used=completion_tokens_used,
             )
@@ -279,9 +348,7 @@ async def run_contract_retry_round(
                 )
             )
         if should_retry and retry_policy is not None:
-            non_intent_breach_type = (
-                retry_policy.reason or "tool_contract_breach"
-            )
+            non_intent_breach_type = retry_policy.reason or "tool_contract_breach"
 
     if should_retry and retry_policy is not None:
         if non_intent_breach_type:
@@ -339,6 +406,7 @@ async def run_contract_retry_round(
                 messages=messages,
                 turn_messages=turn_messages,
                 tool_use_policy=retry_policy,
+                input_variables=request.input_variables,
                 total_tokens=total_tokens,
                 completion_tokens_used=completion_tokens_used,
             )
@@ -428,8 +496,7 @@ async def maybe_retry_web_research_contract(
     record_contract_breach(
         state,
         breach_type=(
-            web_research_retry_policy.reason
-            or "web_research_contract_breach"
+            web_research_retry_policy.reason or "web_research_contract_breach"
         ),
         diagnostics={},
     )
@@ -438,10 +505,7 @@ async def maybe_retry_web_research_contract(
         round_kind="contract_retry",
         policy=web_research_retry_policy,
         tools=[],
-        reason=(
-            web_research_retry_policy.reason
-            or "web_research_contract_breach"
-        ),
+        reason=(web_research_retry_policy.reason or "web_research_contract_breach"),
     )
     io.log_tool_contract_diagnostics(
         agent=agent,
@@ -451,8 +515,7 @@ async def maybe_retry_web_research_contract(
         policy=web_research_retry_policy,
         conversation_id=request.conversation_id,
         breach_type=(
-            web_research_retry_policy.reason
-            or "web_research_contract_breach"
+            web_research_retry_policy.reason or "web_research_contract_breach"
         ),
         retry_result="retrying",
         continuation=prep.continuation_context,

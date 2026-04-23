@@ -124,7 +124,7 @@ class AgentChatCommandService:
         history_messages = await service.conversation_svc.load_chat_history(
             conversation_id=conversation.id,
             max_messages=ctx_cfg.get("max_history_messages", 0),
-            max_tokens=ctx_cfg.get("max_history_tokens", 0),
+            max_tokens=ctx_cfg.get("max_history_tokens"),
         )
 
         user_messages = build_user_messages(
@@ -400,7 +400,7 @@ class AgentChatCommandService:
         history_messages = await service.conversation_svc.load_chat_history(
             conversation_id=conversation.id,
             max_messages=ctx_cfg.get("max_history_messages", 0),
-            max_tokens=ctx_cfg.get("max_history_tokens", 0),
+            max_tokens=ctx_cfg.get("max_history_tokens"),
         )
 
         user_msgs = build_user_messages(

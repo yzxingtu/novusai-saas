@@ -44,10 +44,10 @@ from .tool_execution_helpers import (
 from .tool_execution_helpers import (
     synthesize_tool_results_from_calls as _synthesize_tool_results_from_calls_impl,
 )
-from .turn_executor_helpers import (
+from .turn_executor import (
     assistant_tool_round_count as _assistant_tool_round_count_impl,
 )
-from .turn_executor_helpers import (
+from .turn_executor import (
     register_tool_round_delta as _register_tool_round_delta_impl,
 )
 from .types import ToolUsePolicy

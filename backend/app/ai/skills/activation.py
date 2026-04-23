@@ -1,16 +1,19 @@
 """
-Turn-level skill activation helpers.
+Turn-level skill activation ownership.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass, field
 from typing import Any
 
 from app.ai.engine.system_prompt_intent_helpers import is_capability_reporting_query
 from app.ai.runtime.contracts import PAGE_CONTEXT_KEY
-from app.ai.runtime.types import tool_is_auto_injected_runtime_builtin
-from app.ai.skills.resolver import SkillResolveResult, TurnSkillActivation
+from app.ai.runtime.types import (
+    capability_pack_descriptor_is_live,
+    tool_is_auto_injected_runtime_builtin,
+)
 from app.ai.text_semantics_terms import extract_textual_tool_call_names
 from app.ai.tools.semantic_defaults import tool_family_from_name
 
@@ -27,6 +30,14 @@ _PAGE_TOOL_NAMES = {
     "ui_submit_form",
 }
 _WEB_RESEARCH_TOOL_NAMES = {"web_search", "fetch_url"}
+
+
+@dataclass
+class TurnSkillActivation:
+    applied: bool = False
+    activated_tool_names: list[str] = field(default_factory=list)
+    activated_skill_names: list[str] = field(default_factory=list)
+    reason: str | None = None
 
 
 def _stable_unique(values: list[Any]) -> list[str]:
@@ -64,6 +75,45 @@ def _descriptor_is_auto_injected_runtime_builtin(descriptor: Any) -> bool:
     return isinstance(metadata, dict) and metadata.get("auto_injected") is True
 
 
+def _skill_name_has_live_execution(skill_result: Any, skill_name: str) -> bool:
+    normalized_skill_name = str(skill_name or "").strip()
+    if not normalized_skill_name:
+        return False
+
+    for tool in list(getattr(skill_result, "tools", []) or []):
+        if tool_is_auto_injected_runtime_builtin(tool):
+            continue
+        tool_name = str(getattr(tool, "name", "") or "").strip()
+        tool_skill_name = str(getattr(tool, "source_skill_name", "") or "").strip()
+        if tool_name and tool_skill_name == normalized_skill_name:
+            return True
+
+    for descriptor in list(getattr(skill_result, "capability_descriptors", []) or []):
+        descriptor_name = str(getattr(descriptor, "name", "") or "").strip()
+        if descriptor_name != normalized_skill_name:
+            continue
+        if capability_pack_descriptor_is_live(descriptor):
+            return True
+    return False
+
+
+def _filter_live_skill_names(
+    skill_result: Any,
+    skill_names: list[str],
+    *,
+    allow_catalog_skill_activation: bool,
+) -> list[str]:
+    if allow_catalog_skill_activation:
+        return _stable_unique(skill_names)
+    return _stable_unique(
+        [
+            skill_name
+            for skill_name in skill_names
+            if _skill_name_has_live_execution(skill_result, skill_name)
+        ]
+    )
+
+
 def resolve_startup_intent_flags(request: Any) -> dict[str, bool]:
     user_text = _last_user_text(request)
     if not user_text:
@@ -84,9 +134,7 @@ def resolve_startup_intent_flags(request: Any) -> dict[str, bool]:
     }
 
 
-def _explicit_skill_mentions(
-    skill_result: SkillResolveResult, user_text: str
-) -> list[str]:
+def _explicit_skill_mentions(skill_result: Any, user_text: str) -> list[str]:
     normalized_user_text = " ".join(user_text.lower().split())
     if not normalized_user_text:
         return []
@@ -133,7 +181,7 @@ def _explicit_skill_mentions(
 
 
 def _tool_names_for_explicit_skills(
-    skill_result: SkillResolveResult,
+    skill_result: Any,
     skill_names: list[str],
 ) -> list[str]:
     skill_name_set = {
@@ -151,7 +199,7 @@ def _tool_names_for_explicit_skills(
     )
 
 
-def _tool_alias_map(skill_result: SkillResolveResult) -> dict[str, str]:
+def _tool_alias_map(skill_result: Any) -> dict[str, str]:
     alias_to_tool_name: dict[str, str] = {}
     for tool in list(getattr(skill_result, "tools", []) or []):
         tool_name = str(getattr(tool, "name", "") or "").strip()
@@ -165,7 +213,7 @@ def _tool_alias_map(skill_result: SkillResolveResult) -> dict[str, str]:
 
 
 def _explicit_tool_mentions(
-    skill_result: SkillResolveResult,
+    skill_result: Any,
     user_text: str,
 ) -> list[str]:
     alias_to_tool_name = _tool_alias_map(skill_result)
@@ -179,7 +227,7 @@ def _explicit_tool_mentions(
 
 
 def _tool_names_for_runtime_policy(
-    skill_result: SkillResolveResult,
+    skill_result: Any,
     *,
     intent_flags: dict[str, Any],
 ) -> list[str]:
@@ -214,9 +262,10 @@ def _descriptor_semantic_families(descriptor: Any) -> list[str]:
 
 
 def _skill_names_for_runtime_policy(
-    skill_result: SkillResolveResult,
+    skill_result: Any,
     *,
     intent_flags: dict[str, Any],
+    allow_catalog_skill_activation: bool,
 ) -> list[str]:
     requested_families: set[str] = set()
     if intent_flags.get("has_page_intent"):
@@ -229,6 +278,11 @@ def _skill_names_for_runtime_policy(
     selected: list[str] = []
     for descriptor in list(getattr(skill_result, "capability_descriptors", []) or []):
         if _descriptor_is_auto_injected_runtime_builtin(descriptor):
+            continue
+        if (
+            not allow_catalog_skill_activation
+            and not capability_pack_descriptor_is_live(descriptor)
+        ):
             continue
         descriptor_name = str(getattr(descriptor, "name", "") or "").strip()
         if not descriptor_name:
@@ -253,17 +307,20 @@ def _skill_names_for_runtime_policy(
 
 def apply_turn_skill_activation(
     *,
-    skill_result: SkillResolveResult | None,
+    skill_result: Any | None,
     request: Any,
     intent_flags: dict[str, Any] | None,
-) -> SkillResolveResult | None:
+    allow_catalog_skill_activation: bool = False,
+) -> Any | None:
     if skill_result is None:
         return None
 
     inventory_tool_names = _stable_unique(
         [getattr(tool, "name", None) for tool in list(skill_result.tools or [])]
     )
-    inventory_skill_names = list(skill_result.inventory_selected_skill_names or [])
+    inventory_skill_names = list(
+        getattr(skill_result, "inventory_selected_skill_names", []) or []
+    )
     last_user_text = _last_user_text(request)
 
     if is_capability_reporting_query(last_user_text):
@@ -277,6 +334,11 @@ def apply_turn_skill_activation(
 
     explicit_skill_names = _explicit_skill_mentions(skill_result, last_user_text)
     explicit_tool_names = _explicit_tool_mentions(skill_result, last_user_text)
+    live_explicit_skill_names = _filter_live_skill_names(
+        skill_result,
+        explicit_skill_names,
+        allow_catalog_skill_activation=allow_catalog_skill_activation,
+    )
     activated_tool_names = _tool_names_for_explicit_skills(
         skill_result,
         explicit_skill_names,
@@ -292,10 +354,11 @@ def apply_turn_skill_activation(
     runtime_policy_skill_names = _skill_names_for_runtime_policy(
         skill_result,
         intent_flags=dict(intent_flags or {}),
+        allow_catalog_skill_activation=allow_catalog_skill_activation,
     )
 
     activated_skill_names = _stable_unique(
-        explicit_skill_names
+        live_explicit_skill_names
         + runtime_policy_skill_names
         + [
             getattr(tool, "source_skill_name", None)
@@ -317,7 +380,10 @@ def apply_turn_skill_activation(
         reason = "no_turn_skill_activation"
 
     skill_result.turn_activation = TurnSkillActivation(
-        applied=True,
+        applied=(
+            is_capability_reporting_query(last_user_text)
+            or bool(activated_tool_names or activated_skill_names)
+        ),
         activated_tool_names=activated_tool_names,
         activated_skill_names=activated_skill_names,
         reason=reason,
@@ -325,4 +391,8 @@ def apply_turn_skill_activation(
     return skill_result
 
 
-__all__ = ["apply_turn_skill_activation", "resolve_startup_intent_flags"]
+__all__ = [
+    "TurnSkillActivation",
+    "apply_turn_skill_activation",
+    "resolve_startup_intent_flags",
+]

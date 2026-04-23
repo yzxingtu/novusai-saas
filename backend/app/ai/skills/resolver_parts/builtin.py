@@ -151,7 +151,7 @@ def inject_baseline_runtime_builtins(
     existing_descriptor_names = {
         descriptor.name
         for descriptor in result.capability_descriptors
-        if str(descriptor.kind or "").strip() in {"capability_pack", "prompt_skill"}
+        if str(descriptor.kind or "").strip() == "capability_pack"
     }
 
     for tool_name in BASELINE_RUNTIME_BUILTINS:

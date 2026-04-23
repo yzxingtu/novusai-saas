@@ -178,11 +178,11 @@ describe('userAIChatWorkspaceMessages turn-flow rendering', () => {
     const messageItem = wrapper.get('[data-testid="chat-message-item-stub"]');
     expect(messageItem.attributes('data-has-thinking')).toBe('false');
     expect(messageItem.attributes('data-has-tool-calls')).toBe('false');
-    expect(messageItem.attributes('data-stage-id')).toBe('turn-thinking');
+    expect(messageItem.attributes('data-stage-id')).toBe('stage-thinking');
     expect(messageItem.attributes('data-stage-order')).toBe(
-      'thinking,tool_execution',
+      'thinking,tool_selection,tool_execution,answer_assembly,failed',
     );
-    expect(messageItem.attributes('data-terminal-status')).toBe('completed');
+    expect(messageItem.attributes('data-terminal-status')).toBe('error');
     expect(messageItem.attributes('data-streaming')).toBe('false');
   });
 

@@ -21,6 +21,7 @@ const props = withDefaults(
     compact?: boolean;
     /** Current timestamp for 60s countdown display (fallback: local now) / 用于 60s 倒计时的当前时间戳 */
     countdownNow?: number;
+    forceShowDiagnostics?: boolean;
     index: number;
     kernelState?: null | TurnFlowState;
     msg: ChatMessage;
@@ -36,6 +37,7 @@ const props = withDefaults(
     agents: () => [],
     compact: false,
     countdownNow: undefined,
+    forceShowDiagnostics: false,
     kernelState: null,
     selectedAgent: null,
     showAgentSwitch: false,
@@ -209,24 +211,14 @@ const forwardUserListeners = {
 
 :deep(.thinking-chip) {
   width: fit-content;
-  background: linear-gradient(
-    180deg,
-    hsl(var(--background) / 96%),
-    hsl(var(--accent) / 42%)
-  );
-  border: 1px solid hsl(var(--border) / 28%);
+  background: hsl(var(--background) / 94%);
+  border: 1px solid hsl(var(--border) / 22%);
   border-radius: 999px;
-  box-shadow:
-    inset 0 1px 0 hsl(var(--background) / 84%),
-    0 12px 28px -30px hsl(var(--primary) / 55%);
+  box-shadow: 0 10px 24px -28px hsl(var(--foreground) / 35%);
 }
 
 :deep(.thinking-chip-icon) {
-  background: linear-gradient(
-    180deg,
-    hsl(var(--primary) / 9%),
-    hsl(var(--primary) / 4%)
-  );
+  background: hsl(var(--primary) / 8%);
 }
 
 :deep(.thinking-status-dots span) {
@@ -236,32 +228,33 @@ const forwardUserListeners = {
 
 :deep(.thinking-sheet-card) {
   position: relative;
-  background: linear-gradient(
-    180deg,
-    hsl(var(--background) / 95%),
-    hsl(var(--accent) / 18%)
-  );
-  border: 1px solid hsl(var(--border) / 18%);
-  border-radius: 18px;
-  box-shadow:
-    inset 0 1px 0 hsl(var(--background) / 82%),
-    0 18px 42px -36px hsl(var(--foreground) / 35%);
-  backdrop-filter: blur(12px);
+  background: hsl(var(--background) / 90%);
+  border: 1px solid hsl(var(--border) / 16%);
+  border-radius: 14px;
+  box-shadow: 0 12px 28px -32px hsl(var(--foreground) / 28%);
 }
 
 :deep(.thinking-sheet-card)::before {
   position: absolute;
-  top: 14px;
-  bottom: 14px;
+  top: 12px;
+  bottom: 12px;
   left: 0;
   width: 2px;
   content: '';
   background: linear-gradient(
     180deg,
-    hsl(var(--primary) / 46%),
+    hsl(var(--primary) / 36%),
     hsl(var(--primary) / 0%)
   );
   border-radius: 999px;
+}
+
+:deep(.tool-call-inline) {
+  border-bottom: 1px dashed hsl(var(--border) / 18%);
+}
+
+:deep(.tool-call-inline:last-child) {
+  border-bottom: none;
 }
 
 :deep(.thinking-markdown p + p) {

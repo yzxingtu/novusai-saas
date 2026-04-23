@@ -63,7 +63,10 @@ class ContextPipelineOrchestrator:
         all_shortcircuit = bool(normalized_plan) and all(
             bool(getattr(intent, "shortcircuit", False)) for intent in normalized_plan
         )
-        has_page_intent = any(kind.startswith("page_") for kind in intent_kinds)
+        has_page_intent = any(
+            str(getattr(intent, "family", "") or "").strip() == "page_ops"
+            for intent in normalized_plan
+        )
         has_knowledge_intent = "knowledge_query" in intent_kinds
         has_web_research_intent = "web_research" in intent_kinds or any(
             str(getattr(intent, "family", "") or "").strip() == "web_research"

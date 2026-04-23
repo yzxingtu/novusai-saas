@@ -108,6 +108,20 @@ function filterTableCells(cells: HTMLElement[]): string[] {
     .filter(Boolean);
 }
 
+function resolveInteractableSurfaceId(
+  surfaceId: string | undefined,
+  snapshot: UISnapshot,
+): string | undefined {
+  const normalizedSurfaceId = normalizeText(surfaceId, 120);
+  if (!normalizedSurfaceId) {
+    return undefined;
+  }
+  if (normalizedSurfaceId === 'active') {
+    return snapshot.active_surface_id || snapshot.surface_stack[0]?.surface_id;
+  }
+  return normalizedSurfaceId;
+}
+
 export function readRuntimeRegion(locator: string): Record<string, unknown> {
   const element = queryElementByLocator(locator);
   if (!element) {
@@ -188,6 +202,7 @@ export function listRuntimeInteractables(
 ): Record<string, unknown> {
   const routePolicy = getCurrentRouteSecurityPolicy();
   const snapshot = buildSnapshot('compact').snapshot;
+  const resolvedSurfaceId = resolveInteractableSurfaceId(surfaceId, snapshot);
   const matchingItems = snapshot.nodes
     .filter(
       (node) =>
@@ -202,7 +217,9 @@ export function listRuntimeInteractables(
           'table',
         ].includes(node.kind),
     )
-    .filter((node) => !surfaceId || node.surface_id === surfaceId)
+    .filter(
+      (node) => !resolvedSurfaceId || node.surface_id === resolvedSurfaceId,
+    )
     .map((node) => {
       const element = queryElementByLocator(node.locator || '');
       const decision = resolveAISecurityPolicy({
@@ -223,7 +240,7 @@ export function listRuntimeInteractables(
   return {
     count: items.length,
     items,
-    surface_id: surfaceId,
+    surface_id: resolvedSurfaceId,
     truncated: matchingItems.length > items.length,
   };
 }

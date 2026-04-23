@@ -20,12 +20,6 @@ from .system_prompt_helpers import (
     build_ordered_capability_hint_default as _build_ordered_capability_hint_default_impl,
 )
 from .system_prompt_helpers import (
-    build_page_operations_hint as _build_page_operations_hint_impl,
-)
-from .system_prompt_helpers import (
-    build_research_continuation_hint as _build_research_continuation_hint_impl,
-)
-from .system_prompt_helpers import (
     build_runtime_capability_hint as _build_runtime_capability_hint_impl,
 )
 from .system_prompt_helpers import (
@@ -82,6 +76,7 @@ class BasePromptSystemSupportMixin:
         return _inject_runtime_summary_impl(
             messages=messages,
             tools=tools,
+            input_variables=_input_variables,
             continuation_context=continuation_context,
             runtime_capability_summary=runtime_capability_summary,
             ordered_requested_families=ordered_requested_families,
@@ -95,17 +90,6 @@ class BasePromptSystemSupportMixin:
             render_contract=render_prompt_contract,
         )
 
-    @staticmethod
-    def _build_page_operations_hint(
-        input_variables: dict[str, Any] | None,
-        tools: list[ToolDefinition] | None = None,
-    ) -> str:
-        return _build_page_operations_hint_impl(
-            input_variables=input_variables,
-            tools=tools,
-            render_contract=render_prompt_contract,
-        )
-
     _deserialize_intent_plan = staticmethod(_deserialize_intent_plan_impl)
     _intent_plan_gating_flags = staticmethod(_intent_plan_gating_flags_impl)
     _is_capability_reporting_query = staticmethod(_is_capability_reporting_query_impl)
@@ -116,14 +100,12 @@ class BasePromptSystemSupportMixin:
     _build_capability_reporting_hint = staticmethod(
         _build_capability_reporting_hint_impl
     )
+
     _build_runtime_capability_hint = staticmethod(
         _build_runtime_capability_hint_impl
     )
     _build_ordered_capability_hint = staticmethod(
         _build_ordered_capability_hint_default_impl
-    )
-    _build_research_continuation_hint = staticmethod(
-        _build_research_continuation_hint_impl
     )
     _attach_intent_plan_to_input_variables = staticmethod(
         _attach_intent_plan_to_input_variables_impl

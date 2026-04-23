@@ -2,6 +2,11 @@ import type { ChatMessage } from '../types';
 
 import type { AIInteractionUpdate } from '#/store/shared/ai-panel';
 
+/**
+ * Test type: behavioral
+ * Verifies: AI chat streaming keeps canonical turnFlow authoritative and only reads legacy assistant fields as persisted-history fallback.
+ * Mock strategy: only transport/store boundaries are mocked; turnFlow ingestion and display helpers run real.
+ */
 // @vitest-environment happy-dom
 import { flushPromises } from '@vue/test-utils';
 
@@ -833,6 +838,181 @@ describe('useAIChat interrupted stream recovery', () => {
     );
   });
 
+  it('ignores live legacy semantic SSE events on tenant streams while keeping canonical cards', async () => {
+    apiMocks.sendChatStreamApi.mockImplementation(
+      async (
+        _prefix: string,
+        _agentId: number,
+        _body: Record<string, unknown>,
+        options: {
+          onMessage: (chunk: string) => Promise<void>;
+        },
+      ) => {
+        await options.onMessage(
+          sseEvent({ event: 'conversation', conversation_id: 42 }),
+        );
+        await options.onMessage(
+          sseEvent({
+            event: 'optimizing_tools',
+            selected: 1,
+            total: 9,
+          }),
+        );
+        await options.onMessage(
+          sseEvent({
+            event: 'thinking',
+            delta: 'legacy thinking should stay hidden',
+          }),
+        );
+        await options.onMessage(
+          sseEvent({
+            event: 'rag_sources',
+            sources: [
+              {
+                doc_id: 7,
+                doc_name: 'Legacy KB',
+                score: 0.82,
+                snippet: 'legacy snippet',
+              },
+            ],
+          }),
+        );
+        await options.onMessage(
+          sseEvent({
+            answer_card: {
+              sections: [
+                { body: 'canonical body', id: 'summary-1', title: 'Summary' },
+              ],
+              summary: 'Canonical answer card',
+            },
+            event: 'turn_answer_card',
+          }),
+        );
+        await options.onMessage(
+          sseEvent({ event: 'message', delta: '最终答复。' }),
+        );
+        await options.onMessage(
+          sseEvent({
+            completion_reason: 'completed',
+            event: 'done',
+            total_tokens: 6,
+            turn_flow_complete: true,
+          }),
+        );
+      },
+    );
+
+    const chat = createChat();
+
+    await chat.loadAgents();
+    chat.inputMessage.value = '请总结一下';
+    await chat.sendMessage({
+      routeSource: 'tenant-legacy-stream-suppression-test',
+    });
+    await flushPromises();
+
+    const assistantMessage = chat.chatMessages.value.find(
+      (msg) => msg.role === 'assistant',
+    );
+    expect(assistantMessage).toBeDefined();
+    if (!assistantMessage) {
+      throw new Error('assistant message missing');
+    }
+
+    const rawMessage = assistantMessage as ChatMessage &
+      Record<string, unknown>;
+
+    expect(assistantMessage.turnFlow?.answerCard?.summary).toBe(
+      'Canonical answer card',
+    );
+    expect(getThinkingContentForDisplay(assistantMessage)).toBeUndefined();
+    expect(getOptimizingToolsForDisplay(assistantMessage)).toBeUndefined();
+    expect(getRagSourcesForDisplay(assistantMessage)).toBeUndefined();
+    expect(rawMessage.thinkingContent).toBeUndefined();
+    expect(rawMessage.optimizingTools).toBeUndefined();
+    expect(rawMessage.ragSources).toBeUndefined();
+  });
+
+  it('ignores live legacy semantic SSE events on admin streams without backfilling legacy assistant fields', async () => {
+    apiMocks.sendChatStreamApi.mockImplementation(
+      async (
+        _prefix: string,
+        _agentId: number,
+        _body: Record<string, unknown>,
+        options: {
+          onMessage: (chunk: string) => Promise<void>;
+        },
+      ) => {
+        await options.onMessage(
+          sseEvent({ event: 'conversation', conversation_id: 42 }),
+        );
+        await options.onMessage(
+          sseEvent({
+            event: 'optimizing_tools',
+            selected: 1,
+            total: 9,
+          }),
+        );
+        await options.onMessage(
+          sseEvent({
+            event: 'thinking',
+            delta: 'admin legacy thinking',
+          }),
+        );
+        await options.onMessage(
+          sseEvent({
+            event: 'rag_sources',
+            sources: [
+              {
+                doc_id: 8,
+                doc_name: 'Admin Legacy KB',
+                score: 0.91,
+                snippet: 'admin legacy snippet',
+              },
+            ],
+          }),
+        );
+        await options.onMessage(
+          sseEvent({ event: 'message', delta: '管理员答复。' }),
+        );
+        await options.onMessage(
+          sseEvent({
+            completion_reason: 'completed',
+            event: 'done',
+            total_tokens: 6,
+            turn_flow_complete: true,
+          }),
+        );
+      },
+    );
+
+    const chat = createChat({ apiPrefix: '/admin' });
+
+    await chat.loadAgents();
+    chat.inputMessage.value = '请给我调试信息';
+    await chat.sendMessage({
+      routeSource: 'admin-legacy-stream-suppression-test',
+    });
+    await flushPromises();
+
+    const assistantMessage = chat.chatMessages.value.find(
+      (msg) => msg.role === 'assistant',
+    );
+    expect(assistantMessage).toBeDefined();
+    if (!assistantMessage) {
+      throw new Error('assistant message missing');
+    }
+    const rawMessage = assistantMessage as ChatMessage &
+      Record<string, unknown>;
+
+    expect(getThinkingContentForDisplay(assistantMessage)).toBeUndefined();
+    expect(getOptimizingToolsForDisplay(assistantMessage)).toBeUndefined();
+    expect(getRagSourcesForDisplay(assistantMessage)).toBeUndefined();
+    expect(rawMessage.thinkingContent).toBeUndefined();
+    expect(rawMessage.optimizingTools).toBeUndefined();
+    expect(rawMessage.ragSources).toBeUndefined();
+  });
+
   it('suppresses legacy semantic duplicates when canonical turn stages exist', async () => {
     apiMocks.sendChatStreamApi.mockImplementation(
       async (
@@ -1117,6 +1297,79 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(timeline.some((stage) => stage.status === 'running')).toBe(false);
   });
 
+  it('syncs empty assistant content from canonical turnFlow terminal summary on done', async () => {
+    apiMocks.sendChatStreamApi.mockImplementation(
+      async (
+        _prefix: string,
+        _agentId: number,
+        _body: Record<string, unknown>,
+        options: {
+          onMessage: (chunk: string) => Promise<void>;
+        },
+      ) => {
+        await options.onMessage(
+          sseEvent({ event: 'conversation', conversation_id: 42 }),
+        );
+        await options.onMessage(
+          sseEvent({
+            completion_reason: 'provider_timeout',
+            event: 'done',
+            final_stage_status: 'error',
+            total_tokens: 5,
+            turn_flow: {
+              answer_card: {
+                sections: [
+                  {
+                    content: 'AI 供应商请求超时',
+                    id: 'final-answer',
+                    title: 'Answer',
+                  },
+                ],
+                summary: 'AI 供应商请求超时',
+              },
+              completion_reason: 'provider_timeout',
+              error_surface: {
+                message: 'AI 供应商请求超时',
+              },
+              final_stage_status: 'error',
+              timeline: [
+                {
+                  id: 'thinking',
+                  status: 'completed',
+                  type: 'thinking',
+                },
+                {
+                  id: 'failed',
+                  status: 'error',
+                  summary: 'AI 供应商请求超时',
+                  type: 'failed',
+                },
+              ],
+            },
+            turn_flow_complete: true,
+          }),
+        );
+      },
+    );
+
+    const chat = createChat();
+
+    await chat.loadAgents();
+    chat.inputMessage.value = '开始执行';
+    await chat.sendMessage({ routeSource: 'turn-flow-terminal-summary-sync' });
+    await flushPromises();
+
+    const assistantMessage = chat.chatMessages.value.find(
+      (msg) => msg.role === 'assistant',
+    );
+    expect(assistantMessage).toBeDefined();
+    if (!assistantMessage) {
+      throw new Error('assistant message missing');
+    }
+    expect(assistantMessage.content).toBe('AI 供应商请求超时');
+    expect(assistantMessage.turnFlow?.finalStageStatus).toBe('error');
+  });
+
   it('surfaces native web search progress as a visible tool card', async () => {
     let releaseDone = () => {};
     apiMocks.getChatConversationMessagesApi.mockResolvedValue(
@@ -1319,6 +1572,8 @@ describe('useAIChat interrupted stream recovery', () => {
     const assistantMessage = chat.chatMessages.value.find(
       (msg) => msg.role === 'assistant',
     );
+    const rawMessage = assistantMessage as ChatMessage &
+      Record<string, unknown>;
     expect(assistantMessage?.turnFlow).toBeDefined();
     expect(assistantMessage?.completionReason).toBe('completed');
     expect(getThinkingContentForDisplay(assistantMessage!)).toContain(
@@ -1330,9 +1585,12 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(getRagSourcesForDisplay(assistantMessage!)?.[0]?.doc_name).toBe(
       '合规流程文档',
     );
+    expect(rawMessage.thinkingContent).toBeUndefined();
+    expect(rawMessage.toolCalls).toBeUndefined();
+    expect(rawMessage.ragSources).toBeUndefined();
   });
 
-  it('projects legacy assistant fields into persisted turnFlow and removes top-level duplicates', async () => {
+  it('does not backfill legacy assistant fields once persisted turnFlow already exists', async () => {
     apiMocks.getChatConversationMessagesApi.mockResolvedValue(
       buildConversationDetail([
         buildUserMessage('给我一份回放摘要'),
@@ -1400,34 +1658,16 @@ describe('useAIChat interrupted stream recovery', () => {
     expect(assistantMessage.turnFlow?.answerCard?.summary).toBe(
       '历史结构化摘要',
     );
-    expect(
-      assistantMessage.turnFlow?.timeline?.map((stage) => stage.id),
-    ).toEqual(
-      expect.arrayContaining([
-        'turn-thinking',
-        'tool-select-legacy',
-        'turn-tool-execution',
-      ]),
-    );
-    expect(getThinkingContentForDisplay(assistantMessage)).toBe(
-      '先读取上下文，再输出答复',
-    );
-    expect(getToolCallsForDisplay(assistantMessage)?.[0]).toMatchObject({
-      displayName: '数据查询',
-      name: 'query_records',
-      status: 'success',
-      summaryPayload: {
-        filters: ['today'],
-        tables: ['ai_call_logs'],
-      },
-    });
+    expect(assistantMessage.turnFlow?.timeline?.map((stage) => stage.id)).toEqual([
+      'tool-select-legacy',
+    ]);
+    expect(getThinkingContentForDisplay(assistantMessage)).toBeUndefined();
+    expect(getToolCallsForDisplay(assistantMessage)).toBeUndefined();
     expect(getOptimizingToolsForDisplay(assistantMessage)).toEqual({
       selected: 0,
       total: 12,
     });
-    expect(getRagSourcesForDisplay(assistantMessage)?.[0]?.doc_name).toBe(
-      '合规流程文档',
-    );
+    expect(getRagSourcesForDisplay(assistantMessage)).toBeUndefined();
   });
 
   it('keeps canonical tool evidence authoritative when legacy toolCalls share the same tool_call_id', async () => {
@@ -1496,6 +1736,68 @@ describe('useAIChat interrupted stream recovery', () => {
         output: 'canonical output',
         status: 'error',
         summary: 'canonical summary',
+      }),
+    ]);
+  });
+
+  it('preserves repeated idless persisted legacy toolCalls as separate fallback evidence rows', async () => {
+    apiMocks.getChatConversationMessagesApi.mockResolvedValue(
+      buildConversationDetail([
+        buildUserMessage('回放一下旧工具记录'),
+        buildAssistantMessage('历史答复。', {
+          metadata: {
+            completion_reason: 'completed',
+          },
+          tool_calls: [
+            {
+              display_name: '数据查询',
+              function: {
+                arguments: '{"table":"ai_call_logs","page":1}',
+                name: 'query_records',
+              },
+              output: 'first legacy output',
+              success: true,
+              summary: 'first legacy summary',
+            },
+            {
+              display_name: '数据查询',
+              function: {
+                arguments: '{"table":"ai_call_logs","page":2}',
+                name: 'query_records',
+              },
+              output: 'second legacy output',
+              success: true,
+              summary: 'second legacy summary',
+            },
+          ],
+        }),
+      ]),
+    );
+
+    const chat = createChat();
+
+    await chat.loadAgents();
+    await chat.loadConversationMessages(42);
+    await flushPromises();
+
+    const assistantMessage = chat.chatMessages.value.find(
+      (msg) => msg.role === 'assistant',
+    );
+    expect(assistantMessage).toBeDefined();
+    if (!assistantMessage) {
+      throw new Error('assistant message missing');
+    }
+
+    expect(getToolCallsForDisplay(assistantMessage)).toEqual([
+      expect.objectContaining({
+        name: 'query_records',
+        output: 'first legacy output',
+        summary: 'first legacy summary',
+      }),
+      expect.objectContaining({
+        name: 'query_records',
+        output: 'second legacy output',
+        summary: 'second legacy summary',
       }),
     ]);
   });
