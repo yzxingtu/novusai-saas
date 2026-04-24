@@ -188,6 +188,9 @@ async function submitPrompt(
 
 async function assertSharedAssistantShell(page: Page) {
   const assistantSurface = latestAssistantSurface(page);
+  const overviewToggle = assistantSurface.locator(
+    '[data-testid="chat-message-kernel-overview-toggle"]',
+  );
   const processBody = assistantSurface.locator(
     '[data-testid="turn-process-body"]',
   );
@@ -195,11 +198,17 @@ async function assertSharedAssistantShell(page: Page) {
   await expect(assistantSurface).toBeVisible({ timeout: 10_000 });
   await expectTranscriptFirst(assistantSurface);
   await expectDiagnosticsHiddenByDefault(assistantSurface);
-  await expect(processBody).toHaveAttribute(
-    'style',
-    /grid-template-rows:\s*0fr/i,
-    { timeout: 10_000 },
-  );
+  if (await overviewToggle.count()) {
+    await expect(overviewToggle).toHaveAttribute('aria-expanded', 'false', {
+      timeout: 10_000,
+    });
+  } else {
+    await expect(processBody).toHaveAttribute(
+      'style',
+      /grid-template-rows:\s*0fr/i,
+      { timeout: 10_000 },
+    );
+  }
   await expectAgentProfilePopover(page);
 }
 

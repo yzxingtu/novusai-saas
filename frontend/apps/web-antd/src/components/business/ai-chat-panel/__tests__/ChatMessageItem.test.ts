@@ -243,13 +243,37 @@ function createRichTextMessage(
   };
 }
 
-async function expandDigestIfCollapsed(wrapper: {
+async function expandKernelOverviewIfCollapsed(wrapper: {
   find: (selector: string) => {
+    attributes: (name?: string) => Record<string, string> | string | undefined;
     exists: () => boolean;
     trigger: (event: string) => Promise<unknown>;
   };
   vm: { $nextTick: () => Promise<unknown> };
 }) {
+  const toggle = wrapper.find(
+    '[data-testid="chat-message-kernel-overview-toggle"]',
+  );
+  if (!toggle.exists()) {
+    return;
+  }
+  const expanded = toggle.attributes('aria-expanded');
+  if (expanded === 'true') {
+    return;
+  }
+  await toggle.trigger('click');
+  await wrapper.vm.$nextTick();
+}
+
+async function expandDigestIfCollapsed(wrapper: {
+  find: (selector: string) => {
+    attributes: (name?: string) => Record<string, string> | string | undefined;
+    exists: () => boolean;
+    trigger: (event: string) => Promise<unknown>;
+  };
+  vm: { $nextTick: () => Promise<unknown> };
+}) {
+  await expandKernelOverviewIfCollapsed(wrapper);
   const toggle = wrapper.find('[data-testid="turn-digest-toggle"]');
   if (!toggle.exists()) {
     return;
@@ -400,6 +424,7 @@ describe('chatMessageItem', () => {
     });
 
     await wrapper.vm.$nextTick();
+    await expandKernelOverviewIfCollapsed(wrapper);
     expect(wrapper.text()).toContain(
       'common.globalAiChat.pageOpPendingConfirmationHint',
     );
@@ -460,6 +485,7 @@ describe('chatMessageItem', () => {
     });
 
     await wrapper.vm.$nextTick();
+    await expandKernelOverviewIfCollapsed(wrapper);
     expect(wrapper.text()).toContain('common.globalAiChat.toolStatusOk');
     expect(wrapper.text()).not.toContain('common.globalAiChat.toolStatusErr');
   });
@@ -518,6 +544,7 @@ describe('chatMessageItem', () => {
     });
 
     await wrapper.vm.$nextTick();
+    await expandKernelOverviewIfCollapsed(wrapper);
     expect(wrapper.text()).toContain(
       'common.globalAiChat.pageOpExecFailedHint',
     );
@@ -1793,8 +1820,13 @@ describe('chatMessageItem', () => {
       wrapper.find('[data-testid="chat-message-kernel-timeline"]').exists(),
     ).toBe(false);
     expect(
+      wrapper.get('[data-testid="chat-message-kernel-overview-toggle"]').attributes(),
+    ).toMatchObject({
+      'aria-expanded': 'false',
+    });
+    expect(
       wrapper.find('[data-testid="chat-message-kernel-evidence"]').exists(),
-    ).toBe(true);
+    ).toBe(false);
     expect(wrapper.text()).toContain('已按可验证来源整理结论');
     expect(wrapper.text()).not.toContain('https://example.com/ref');
 
@@ -2071,13 +2103,16 @@ describe('chatMessageItem', () => {
     await wrapper.vm.$nextTick();
 
     expect(
-      wrapper.find('[data-testid="chat-message-kernel-evidence"]').exists(),
-    ).toBe(true);
-    expect(
-      wrapper.get('[data-testid="turn-digest-toggle"]').attributes(),
+      wrapper.get('[data-testid="chat-message-kernel-overview-toggle"]').attributes(),
     ).toMatchObject({
       'aria-expanded': 'false',
     });
+    expect(
+      wrapper.find('[data-testid="chat-message-kernel-evidence"]').exists(),
+    ).toBe(false);
+    expect(
+      wrapper.find('[data-testid="turn-digest-toggle"]').exists(),
+    ).toBe(false);
     expect(wrapper.find('[data-testid="turn-digest-body"]').exists()).toBe(
       false,
     );
@@ -2130,18 +2165,21 @@ describe('chatMessageItem', () => {
 
     await wrapper.vm.$nextTick();
 
-    const digestToggle = wrapper.get('[data-testid="turn-digest-toggle"]');
-    expect(digestToggle.attributes()).toMatchObject({
+    expect(
+      wrapper.get('[data-testid="chat-message-kernel-overview-toggle"]').attributes(),
+    ).toMatchObject({
       'aria-expanded': 'false',
     });
+    expect(wrapper.find('[data-testid="turn-digest-toggle"]').exists()).toBe(
+      false,
+    );
     expect(wrapper.find('[data-testid="turn-digest-body"]').exists()).toBe(
       false,
     );
     expect(wrapper.text()).toContain('结果整理');
     expect(wrapper.text()).not.toContain('这是正式结构化整理内容');
 
-    await digestToggle.trigger('click');
-    await wrapper.vm.$nextTick();
+    await expandDigestIfCollapsed(wrapper);
 
     expect(
       wrapper.get('[data-testid="turn-digest-toggle"]').attributes(),
@@ -2312,6 +2350,7 @@ describe('chatMessageItem', () => {
     });
 
     await wrapper.vm.$nextTick();
+    await expandKernelOverviewIfCollapsed(wrapper);
 
     expect(wrapper.text()).toContain(
       'common.globalAiChat.turnStageType.failed',
@@ -2409,6 +2448,7 @@ describe('chatMessageItem', () => {
     });
 
     await wrapper.vm.$nextTick();
+    await expandKernelOverviewIfCollapsed(wrapper);
 
     expect(
       wrapper.get('[data-testid="turn-process-body"]').attributes('style') ??
@@ -2480,6 +2520,7 @@ describe('chatMessageItem', () => {
     });
 
     await wrapper.vm.$nextTick();
+    await expandKernelOverviewIfCollapsed(wrapper);
 
     expect(
       wrapper.get('[data-testid="turn-process-body"]').attributes('style') ??
@@ -2589,6 +2630,7 @@ describe('chatMessageItem', () => {
       kernelState: buildTurnFlowState(nextMessage),
     });
     await wrapper.vm.$nextTick();
+    await expandKernelOverviewIfCollapsed(wrapper);
 
     expect(
       wrapper.get('[data-testid="turn-process-body"]').attributes('style') ??
@@ -2685,6 +2727,7 @@ describe('chatMessageItem', () => {
     });
 
     await wrapper.vm.$nextTick();
+    await expandKernelOverviewIfCollapsed(wrapper);
 
     expect(wrapper.text()).toContain('common.globalAiChat.toolSearchProvider');
     expect(wrapper.text()).toContain('native:provider_1:gpt-5.4');
@@ -2779,9 +2822,13 @@ describe('chatMessageItem', () => {
     await wrapper.vm.$nextTick();
 
     expect(
-      wrapper.get('[data-testid="turn-process-body"]').attributes('style') ??
-        '',
-    ).toContain('grid-template-rows: 0fr');
+      wrapper.get('[data-testid="chat-message-kernel-overview-toggle"]').attributes(),
+    ).toMatchObject({
+      'aria-expanded': 'false',
+    });
+    expect(
+      wrapper.find('[data-testid="turn-process-body"]').exists(),
+    ).toBe(false);
   });
 
   it('keeps skipped-only tool-selection stages compact when loading completed history', async () => {
