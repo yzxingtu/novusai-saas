@@ -870,11 +870,11 @@ watch(
           ? $t('common.globalAiChat.turnTimelineCollapse')
           : $t('common.globalAiChat.turnTimelineExpand')
       "
-      class="turn-process-toggle group flex w-full items-start gap-2.5 rounded-[14px] px-2.5 py-2 text-left"
+      class="turn-process-toggle group flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left"
       @click="toggleProcessExpanded"
     >
       <span
-        class="turn-process-pill mt-0.5 inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-[8.5px] font-medium uppercase tracking-[0.14em]"
+        class="turn-process-pill inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-[8px] font-medium uppercase tracking-[0.14em]"
       >
         {{ $t('common.globalAiChat.turnTimeline') }}
       </span>
@@ -884,7 +884,9 @@ watch(
           <p
             class="text-foreground/74 min-w-0 flex-1 truncate font-medium"
             :class="
-              compact ? 'text-[9.5px] leading-5' : 'text-[10px] leading-5'
+              compact
+                ? 'text-[9.75px] leading-[1.05rem]'
+                : 'text-[10.25px] leading-[1.1rem]'
             "
           >
             {{
@@ -912,7 +914,7 @@ watch(
       </div>
 
       <span
-        class="turn-process-chevron mt-0.5 inline-flex shrink-0 items-center justify-center rounded-full p-1 transition-colors"
+        class="turn-process-chevron inline-flex shrink-0 items-center justify-center rounded-full p-1 transition-colors"
       >
         <IconifyIcon
           icon="lucide:chevron-down"
@@ -926,7 +928,7 @@ watch(
 
     <div
       data-testid="turn-process-body"
-      class="grid overflow-hidden transition-[grid-template-rows,opacity] duration-200 ease-out"
+      class="grid overflow-hidden transition-[grid-template-rows,opacity] duration-180 ease-out"
       :style="{
         gridTemplateRows: isProcessExpanded ? '1fr' : '0fr',
         opacity: isProcessExpanded ? 1 : 0,
@@ -934,19 +936,19 @@ watch(
     >
       <div class="min-h-0 overflow-hidden">
         <div
-          class="turn-process-track relative mt-2 border-l"
-          :class="compact ? 'space-y-1.5 pl-3' : 'space-y-2 pl-3.5'"
+          class="turn-process-track relative mt-1.5 border-l"
+          :class="compact ? 'space-y-1.5 pl-2.5' : 'space-y-1.5 pl-3'"
         >
           <div
             v-for="(stage, stageIndex) in visibleTimeline"
             :key="getStageKey(stage, stageIndex)"
             class="relative min-w-0"
-            :class="compact ? 'pl-2.5' : 'pl-3'"
+            :class="compact ? 'pl-2' : 'pl-2.5'"
             :data-testid="`turn-stage-${stageIndex}`"
           >
             <div
-              class="absolute top-[8px] flex size-3 items-center justify-center rounded-full bg-background shadow-[0_0_0_3px_hsl(var(--background)/0.94)]"
-              :class="compact ? 'left-[-14px]' : 'left-[-16px]'"
+              class="absolute top-[7px] flex size-3 items-center justify-center rounded-full bg-background shadow-[0_0_0_3px_hsl(var(--background)/0.94)]"
+              :class="compact ? 'left-[-13px]' : 'left-[-15px]'"
             >
               <span
                 class="block rounded-full"
@@ -986,8 +988,8 @@ watch(
                 class="text-muted-foreground/58 mt-0.5"
                 :class="
                   compact
-                    ? 'text-[9px] leading-[1.15rem]'
-                    : 'text-[9.5px] leading-[1.2rem]'
+                    ? 'text-[8.75px] leading-[1rem]'
+                    : 'text-[9.25px] leading-[1.05rem]'
                 "
               >
                 {{ getStageSummary(stage) }}
@@ -1004,12 +1006,12 @@ watch(
               >
                 <div class="min-h-0 overflow-hidden">
                   <div
-                    class="mt-1.5 min-w-0"
+                    class="mt-1 min-w-0"
                     :class="compact ? 'pl-0.5' : 'pl-1'"
                   >
                     <div
-                      class="turn-stage-detail-surface min-w-0 rounded-[14px] border"
-                      :class="compact ? 'px-2.5 py-2' : 'px-3 py-2.5'"
+                      class="turn-stage-detail-surface min-w-0 rounded-xl border"
+                      :class="compact ? 'px-2.5 py-1.5' : 'px-2.5 py-2'"
                     >
                       <ChatMessageThinkingBlock
                         v-if="isEmbeddedThinkingStage(stage)"
@@ -1112,18 +1114,8 @@ watch(
 <style scoped>
 .turn-process-toggle {
   border: 1px solid hsl(var(--border) / 0.16);
-  background:
-    radial-gradient(
-      circle at top right,
-      hsl(var(--primary) / 0.05),
-      transparent 36%
-    ),
-    linear-gradient(
-      180deg,
-      hsl(var(--background) / 0.82) 0%,
-      hsl(var(--muted) / 0.06) 100%
-    );
-  box-shadow: 0 14px 24px -30px hsl(var(--foreground) / 0.16);
+  background: hsl(var(--background) / 0.76);
+  box-shadow: 0 10px 18px -26px hsl(var(--foreground) / 0.12);
   transition:
     background-color 160ms ease,
     border-color 160ms ease,
@@ -1131,8 +1123,9 @@ watch(
 }
 
 .turn-process-toggle:hover {
-  border-color: hsl(var(--primary) / 0.18);
-  box-shadow: 0 16px 26px -30px hsl(var(--foreground) / 0.18);
+  border-color: hsl(var(--primary) / 0.14);
+  background: hsl(var(--muted) / 0.1);
+  box-shadow: 0 12px 20px -26px hsl(var(--foreground) / 0.14);
 }
 
 .turn-process-pill {
@@ -1164,13 +1157,8 @@ watch(
 
 .turn-stage-detail-surface {
   border-color: hsl(var(--border) / 0.16);
-  background:
-    linear-gradient(
-      180deg,
-      hsl(var(--background) / 0.84) 0%,
-      hsl(var(--muted) / 0.08) 100%
-    );
-  box-shadow: 0 12px 22px -30px hsl(var(--foreground) / 0.15);
+  background: hsl(var(--background) / 0.84);
+  box-shadow: 0 10px 18px -28px hsl(var(--foreground) / 0.12);
 }
 
 .turn-stage-inline-markdown {

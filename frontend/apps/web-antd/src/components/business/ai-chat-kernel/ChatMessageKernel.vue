@@ -94,8 +94,8 @@ function handleReject() {
       class="chat-message-kernel-shell overflow-hidden rounded-[16px] border"
     >
       <div
-        class="space-y-1.5"
-        :class="compact ? 'px-3 py-2.5' : 'px-3.5 py-3'"
+        class="space-y-1"
+        :class="compact ? 'px-2.5 py-2' : 'px-3 py-2.5'"
       >
         <EvidenceCard
           v-if="hasDigestCard"
@@ -106,7 +106,7 @@ function handleReject() {
 
         <div
           v-if="hasTimeline"
-          :class="hasDigestCard ? 'border-t border-border/10 pt-2' : ''"
+          :class="hasDigestCard ? 'border-t border-border/10 pt-1.5' : ''"
         >
           <TurnTimeline
             :compact="compact"
@@ -133,17 +133,11 @@ function handleReject() {
 <style scoped>
 .chat-message-kernel-shell {
   border-color: hsl(var(--border) / 0.18);
-  background:
-    radial-gradient(
-      circle at top right,
-      hsl(var(--primary) / 0.08),
-      transparent 38%
-    ),
-    linear-gradient(
-      180deg,
-      hsl(var(--background) / 0.98) 0%,
-      hsl(var(--muted) / 0.08) 100%
-    );
-  box-shadow: 0 18px 30px -36px hsl(var(--foreground) / 0.18);
+  background: linear-gradient(
+    180deg,
+    hsl(var(--background) / 0.98) 0%,
+    hsl(var(--muted) / 0.05) 100%
+  );
+  box-shadow: 0 14px 24px -32px hsl(var(--foreground) / 0.14);
 }
 </style>

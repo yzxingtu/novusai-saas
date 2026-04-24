@@ -410,20 +410,20 @@ function getEvidenceIcon(kind: string) {
       v-if="canToggleDigest"
       type="button"
       data-testid="turn-digest-toggle"
-      class="turn-digest-toggle flex w-full min-w-0 items-center gap-2 rounded-xl px-0.5 py-0.5 text-left"
+      class="turn-digest-toggle flex w-full min-w-0 items-center gap-1.5 rounded-lg px-1 py-1 text-left"
       :aria-expanded="digestExpanded"
       @click="toggleDigestExpanded"
     >
       <span
         class="digest-label inline-flex items-center rounded-full px-1.5 py-0.5 font-medium uppercase tracking-[0.12em]"
-        :class="compact ? 'text-[8.5px]' : 'text-[9px]'"
+        :class="compact ? 'text-[8px]' : 'text-[8.5px]'"
       >
         {{ $t(digestLabelKey) }}
       </span>
       <span
         v-if="digestPreviewText"
         class="text-foreground/72 min-w-0 flex-1 truncate"
-        :class="compact ? 'text-[9.5px]' : 'text-[10px]'"
+        :class="compact ? 'text-[10px]' : 'text-[10.5px]'"
       >
         {{ digestPreviewText }}
       </span>
@@ -449,7 +449,7 @@ function getEvidenceIcon(kind: string) {
     <div
       v-else
       class="flex min-w-0 flex-wrap items-center gap-1.5"
-      :class="compact ? 'text-[8.5px]' : 'text-[9px]'"
+      :class="compact ? 'text-[8px]' : 'text-[8.5px]'"
     >
       <span
         class="digest-label inline-flex items-center rounded-full px-1.5 py-0.5 font-medium uppercase tracking-[0.12em]"
@@ -461,98 +461,107 @@ function getEvidenceIcon(kind: string) {
         data-testid="chat-message-kernel-evidence-live-state"
         class="digest-live-state inline-flex items-center rounded-full border px-1.5 py-0.5 text-[8px] font-medium text-primary"
         :class="msg.streaming ? 'tc-pill-pulse' : ''"
-      >
-        {{ $t(provisionalStatusLabelKey) }}
-      </span>
+        >
+          {{ $t(provisionalStatusLabelKey) }}
+        </span>
     </div>
 
-    <div
-      v-if="showDigestBody"
-      data-testid="turn-digest-body"
-      class="mt-1.5 min-w-0 space-y-1.5"
-    >
-      <p
-        v-if="displayAnswerSummary || fallbackAnswerSummary"
-        class="digest-summary line-clamp-2"
-        :class="
-          compact ? 'text-[10px] leading-[1.15rem]' : 'text-[10.5px] leading-5'
-        "
+    <Transition name="turn-digest-body">
+      <div
+        v-if="showDigestBody"
+        data-testid="turn-digest-body"
+        class="turn-digest-body min-w-0 space-y-1"
       >
-        {{ displayAnswerSummary || fallbackAnswerSummary }}
-      </p>
-
-      <div v-else-if="displayAnswerSections.length > 0" class="space-y-1">
-        <div
-          v-for="section in displayAnswerSections.slice(0, 2)"
-          :key="section.id || section.title || section.body || section.content"
+        <p
+          v-if="displayAnswerSummary || fallbackAnswerSummary"
+          class="digest-summary line-clamp-2"
+          :class="
+            compact
+              ? 'text-[9.75px] leading-[1.05rem]'
+              : 'text-[10px] leading-[1.15rem]'
+          "
         >
-          <p
-            v-if="section.title"
-            class="text-[9px] font-medium text-foreground/60"
+          {{ displayAnswerSummary || fallbackAnswerSummary }}
+        </p>
+
+        <div v-else-if="displayAnswerSections.length > 0" class="space-y-1">
+          <div
+            v-for="section in displayAnswerSections.slice(0, 2)"
+            :key="section.id || section.title || section.body || section.content"
           >
-            {{ section.title }}
-          </p>
-          <p
-            class="digest-section-copy line-clamp-2"
-            :class="
-              compact
-                ? 'text-[9.5px] leading-[1.15rem]'
-                : 'text-[10px] leading-5'
-            "
+            <p
+              v-if="section.title"
+              class="text-[8.5px] font-medium text-foreground/56"
+            >
+              {{ section.title }}
+            </p>
+            <p
+              class="digest-section-copy line-clamp-2"
+              :class="
+                compact
+                  ? 'text-[9.25px] leading-[1.05rem]'
+                  : 'text-[9.75px] leading-[1.15rem]'
+              "
+            >
+              {{ section.body || section.content }}
+            </p>
+          </div>
+        </div>
+
+        <div v-if="hasEvidence" class="flex flex-wrap gap-1">
+          <component
+            v-for="item in preparedEvidence"
+            :key="item.id"
+            :is="item.href ? 'a' : 'span'"
+            :href="item.href || undefined"
+            :target="item.href ? '_blank' : undefined"
+            :rel="item.href ? 'noopener noreferrer' : undefined"
+            :title="item.label"
+            class="digest-evidence-chip inline-flex max-w-full items-center gap-1 rounded-full border transition-colors"
+            :class="[
+              compact ? 'px-2 py-0.5 text-[8.25px]' : 'px-2 py-0.5 text-[8.75px]',
+              item.href
+                ? 'hover:border-primary/20 hover:bg-primary/[0.05] hover:text-primary'
+                : '',
+            ]"
           >
-            {{ section.body || section.content }}
-          </p>
+            <IconifyIcon
+              :icon="getEvidenceIcon(item.kind)"
+              class="text-primary/66 size-2.5 shrink-0"
+            />
+            <span class="min-w-0 truncate">{{ item.label }}</span>
+          </component>
+          <span
+            v-if="state.hiddenEvidenceCount > 0"
+            class="digest-evidence-more inline-flex items-center rounded-full border border-dashed px-2 py-0.5 text-[8.25px]"
+          >
+            +{{ state.hiddenEvidenceCount }}
+          </span>
         </div>
       </div>
-
-      <div v-if="hasEvidence" class="flex flex-wrap gap-1">
-        <component
-          v-for="item in preparedEvidence"
-          :key="item.id"
-          :is="item.href ? 'a' : 'span'"
-          :href="item.href || undefined"
-          :target="item.href ? '_blank' : undefined"
-          :rel="item.href ? 'noopener noreferrer' : undefined"
-          :title="item.label"
-          class="digest-evidence-chip inline-flex max-w-full items-center gap-1 rounded-full border transition-colors"
-          :class="[
-            compact ? 'px-2 py-0.5 text-[8.5px]' : 'px-2 py-0.5 text-[9px]',
-            item.href
-              ? 'hover:border-primary/20 hover:bg-primary/[0.05] hover:text-primary'
-              : '',
-          ]"
-        >
-          <IconifyIcon
-            :icon="getEvidenceIcon(item.kind)"
-            class="text-primary/66 size-2.5 shrink-0"
-          />
-          <span class="min-w-0 truncate">{{ item.label }}</span>
-        </component>
-        <span
-          v-if="state.hiddenEvidenceCount > 0"
-          class="digest-evidence-more inline-flex items-center rounded-full border border-dashed px-2 py-0.5 text-[8.5px]"
-        >
-          +{{ state.hiddenEvidenceCount }}
-        </span>
-      </div>
-    </div>
+    </Transition>
   </div>
 </template>
 
 <style scoped>
 .turn-digest-toggle {
-  border: 1px solid transparent;
-  transition: background-color 160ms ease;
+  border: 1px solid hsl(var(--border) / 0.14);
+  background: hsl(var(--background) / 0.72);
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
 }
 
 .turn-digest-toggle:hover {
-  background: hsl(var(--muted) / 0.14);
+  border-color: hsl(var(--primary) / 0.12);
+  background: hsl(var(--muted) / 0.12);
 }
 
 .digest-label {
   color: hsl(var(--muted-foreground) / 0.62);
-  border: 1px solid hsl(var(--border) / 0.24);
-  background: hsl(var(--background) / 0.84);
+  border: 1px solid hsl(var(--border) / 0.18);
+  background: hsl(var(--background) / 0.88);
 }
 
 .digest-live-state {
@@ -575,6 +584,36 @@ function getEvidenceIcon(kind: string) {
 .turn-digest-toggle:hover .digest-chevron {
   color: hsl(var(--primary) / 0.76);
   border-color: hsl(var(--primary) / 0.16);
+}
+
+.turn-digest-body {
+  margin-top: 0.375rem;
+}
+
+.turn-digest-body-enter-active,
+.turn-digest-body-leave-active {
+  overflow: hidden;
+  transition:
+    max-height 180ms ease,
+    opacity 160ms ease,
+    transform 180ms ease,
+    margin-top 180ms ease;
+}
+
+.turn-digest-body-enter-from,
+.turn-digest-body-leave-to {
+  max-height: 0;
+  opacity: 0;
+  margin-top: 0;
+  transform: translateY(-4px);
+}
+
+.turn-digest-body-enter-to,
+.turn-digest-body-leave-from {
+  max-height: 18rem;
+  opacity: 1;
+  margin-top: 0.375rem;
+  transform: translateY(0);
 }
 
 .digest-summary {

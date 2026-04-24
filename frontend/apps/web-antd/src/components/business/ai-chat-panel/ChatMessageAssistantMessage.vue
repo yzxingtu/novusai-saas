@@ -284,7 +284,7 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
           <div
             v-if="showTopSection"
             class="assistant-message-top border-b border-border/30"
-            :class="compact ? 'px-2.5 py-2.5' : 'px-3 py-3'"
+            :class="compact ? 'px-2.5 py-2' : 'px-3 py-2.5'"
           >
             <ChatMessageKernel
               v-if="hasKernelSections || showTurnDiagnostics"
@@ -312,7 +312,7 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
 
           <div
             class="assistant-message-body"
-            :class="compact ? 'px-3 py-3' : 'px-3.5 py-3.5'"
+            :class="compact ? 'px-3 py-3.5' : 'px-4 py-4'"
           >
             <div class="space-y-3">
               <ChatMessageContentBlock
@@ -500,7 +500,7 @@ function getRichTextDraftCopyContent(mode: RichTextAIApplyMode) {
 .assistant-message-top {
   background: linear-gradient(
     180deg,
-    hsl(var(--primary) / 0.03) 0%,
+    hsl(var(--muted) / 0.08) 0%,
     hsl(var(--background) / 0.98) 100%
   );
 }

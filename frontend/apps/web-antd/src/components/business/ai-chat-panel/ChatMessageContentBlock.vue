@@ -267,7 +267,7 @@ function toggleExpand() {
   <div
     v-if="hasContentBody"
     class="assistant-content-block relative"
-    :class="compact ? 'text-[13.5px]' : 'text-[14px]'"
+    :class="compact ? 'text-[14px]' : 'text-[15px]'"
   >
     <div
       class="assistant-content-body transition-[max-height] duration-200"
