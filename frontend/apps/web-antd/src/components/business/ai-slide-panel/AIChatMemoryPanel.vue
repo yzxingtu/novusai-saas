@@ -79,7 +79,7 @@ const isEmpty = computed(
           class="text-foreground/84 flex items-center gap-1.5 text-xs font-medium"
         >
           <IconifyIcon icon="lucide:brain" class="size-3.5 text-primary" />
-          {{ $t('common.globalAiChat.memoryUpdated') }}
+          {{ $t('common.aiPanel.memory') }}
         </div>
         <Tooltip :title="$t('common.globalAiChat.clearMemory')">
           <button

@@ -189,32 +189,6 @@ export function usePanelHeader(options: UsePanelHeaderOptions) {
     return hasConfiguredVariables(selectedAgentId);
   });
 
-  const showHeaderMemoryButton = computed(
-    () => !!options.activeConversationId.value,
-  );
-
-  const headerMemoryHasAttention = computed(
-    () =>
-      !!options.activeConversationId.value &&
-      !options.showMemoryPanel.value &&
-      !!options.lastMemoryUpdated.value,
-  );
-
-  const headerConversationSummary = computed(() => {
-    if (
-      options.activeConversationId.value &&
-      options.currentConversationAgentName.value
-    ) {
-      return $t('common.globalAiChat.currentConversationAgent', {
-        agent: options.currentConversationAgentName.value,
-      });
-    }
-    if (options.routing.value) {
-      return '';
-    }
-    return options.selectedAgent.value?.name ?? '';
-  });
-
   const headerMoreMenuItems = computed(() => {
     const items: ItemType[] = [];
 
@@ -282,6 +256,47 @@ export function usePanelHeader(options: UsePanelHeaderOptions) {
   const showHeaderMoreMenu = computed(
     () => headerMoreMenuItems.value.length > 0,
   );
+
+  const showHeaderMemoryButton = computed(
+    () => !!options.activeConversationId.value,
+  );
+
+  const headerMemoryHasAttention = computed(
+    () =>
+      !!options.activeConversationId.value &&
+      !options.showMemoryPanel.value &&
+      !!options.lastMemoryUpdated.value,
+  );
+
+  const headerConversationSummary = computed(() => {
+    if (!options.activeConversationId.value) {
+      return '';
+    }
+
+    const summaryParts: string[] = [];
+
+    if (options.chatMessages.value.length > 0) {
+      summaryParts.push(
+        `${options.chatMessages.value.length} ${$t('common.globalAiChat.messages')}`,
+      );
+    }
+
+    if (options.totalTokensUsed.value > 0) {
+      summaryParts.push(
+        `${options.totalTokensUsed.value.toLocaleString()} ${$t('common.globalAiChat.tokens')}`,
+      );
+    }
+
+    if (hasHeaderVariableValues.value) {
+      summaryParts.push($t('user.aiChat.varsModal.editVars'));
+    }
+
+    if (options.lastMemoryUpdated.value) {
+      summaryParts.push($t('common.globalAiChat.memoryUpdated'));
+    }
+
+    return summaryParts.slice(0, 3).join(' · ');
+  });
 
   const headerMoreHasAttention = computed(
     () => options.isPinned.value || options.forceRerouteNextTurn.value,

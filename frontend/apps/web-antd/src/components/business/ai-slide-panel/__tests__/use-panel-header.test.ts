@@ -202,12 +202,36 @@ describe('usePanelHeader diagnostics gating', () => {
     );
   });
 
-  it('restores the header summary to the current conversation agent label', () => {
-    const header = usePanelHeader(buildOptions());
+  it('keeps the panel header free of per-conversation agent names while surfacing anonymous conversation context', () => {
+    const options = buildOptions();
+    options.chatMessages.value = [
+      { content: 'one', role: 'assistant' },
+      { content: 'two', role: 'user' },
+    ] as ChatMessage[];
+    options.totalTokensUsed.value = 128;
+    options.lastMemoryUpdated.value = true;
+    options.agentsWithVarsInConversation.value = [
+      {
+        id: 7,
+        name: 'Agent',
+      } as AgentItem,
+    ];
+    options.allAgentsVariables.value = {
+      7: { project: 'novus' },
+    };
 
-    expect(header.headerConversationSummary.value).toBe(
-      'common.globalAiChat.currentConversationAgent',
+    const header = usePanelHeader(options);
+
+    expect(header.headerConversationSummary.value).toContain(
+      '2 common.globalAiChat.messages',
     );
+    expect(header.headerConversationSummary.value).toContain(
+      '128 common.globalAiChat.tokens',
+    );
+    expect(header.headerConversationSummary.value).toContain(
+      'user.aiChat.varsModal.editVars',
+    );
+    expect(header.headerConversationSummary.value).not.toContain('Agent');
   });
 
   it('exposes memory as a direct header action instead of a more-menu item', async () => {

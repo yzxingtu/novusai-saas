@@ -116,10 +116,10 @@ const {
 
         <Tooltip
           v-if="activeConversationId"
-          :title="$t('common.globalAiChat.memoryUpdated')"
+          :title="$t('common.aiPanel.memory')"
         >
           <button
-            class="flex size-8 items-center justify-center rounded-lg transition-colors hover:bg-muted disabled:opacity-40"
+            class="flex h-8 items-center gap-1 rounded-lg px-2 transition-colors hover:bg-muted disabled:opacity-40"
             :class="
               showMemoryPanel
                 ? 'bg-primary/10 text-primary'
@@ -132,6 +132,11 @@ const {
           >
             <Spin v-if="memoryLoading" size="small" />
             <IconifyIcon v-else icon="lucide:brain" class="size-4" />
+            <span class="hidden sm:inline">{{ $t('common.aiPanel.memory') }}</span>
+            <span
+              v-if="lastMemoryUpdated && !showMemoryPanel"
+              class="size-1.5 rounded-full bg-primary"
+            ></span>
           </button>
         </Tooltip>
       </div>

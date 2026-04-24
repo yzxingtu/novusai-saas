@@ -55,7 +55,7 @@ const memorySections = computed(() =>
           class="flex items-center gap-1.5 text-xs font-medium text-foreground"
         >
           <IconifyIcon icon="lucide:brain" class="size-3.5 text-primary" />
-          {{ $t('common.globalAiChat.memoryUpdated') }}
+          {{ $t('common.aiPanel.memory') }}
         </div>
         <Tooltip :title="$t('common.globalAiChat.clearMemory')">
           <button
