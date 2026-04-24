@@ -50,8 +50,8 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div class="flex flex-1 flex-col overflow-hidden">
-    <div class="shrink-0 px-3 py-2">
+  <div class="history-pane-shell flex flex-1 flex-col overflow-hidden">
+    <div class="history-pane-header shrink-0 px-3 py-2.5">
       <div class="mb-2 flex items-center justify-between">
         <span
           class="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
@@ -72,7 +72,7 @@ const emit = defineEmits<{
         :placeholder="$t('common.globalAiChat.searchHistory')"
         size="small"
         allow-clear
-        class="!rounded-lg"
+        class="history-pane-search !rounded-xl"
         @update:value="
           (value) => emit('update:conversationSearch', value ?? '')
         "
@@ -86,7 +86,7 @@ const emit = defineEmits<{
       </Input>
     </div>
 
-    <div class="flex-1 overflow-y-auto px-3 pb-2">
+    <div class="history-pane-scroll flex-1 overflow-y-auto px-3 pb-2.5">
       <Spin :spinning="conversationsLoading">
         <div
           v-if="groupedConversations.length === 0 && !conversationsLoading"
@@ -104,16 +104,16 @@ const emit = defineEmits<{
           >
             {{ group.label }}
           </div>
-          <div class="space-y-0.5">
+          <div class="space-y-1">
             <div
               v-for="conv in group.items"
               :key="conv.id"
-              class="group relative flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 transition-all duration-150"
+              class="history-conversation-item group relative flex cursor-pointer items-center gap-2.5 rounded-xl px-2.5 py-2.5 transition-all duration-150"
               :class="
                 activeConversationId === conv.id &&
                 editingConversationId !== conv.id
-                  ? 'bg-primary/8 text-foreground shadow-sm shadow-primary/5 ring-1 ring-primary/15'
-                  : 'text-muted-foreground hover:bg-accent/50'
+                  ? 'history-conversation-item-active text-foreground ring-1 ring-primary/15'
+                  : 'text-muted-foreground hover:bg-muted/72'
               "
               @click="
                 editingConversationId !== conv.id &&
@@ -192,3 +192,29 @@ const emit = defineEmits<{
     </div>
   </div>
 </template>
+
+<style scoped>
+.history-pane-shell,
+.history-pane-header,
+.history-pane-scroll {
+  background: hsl(var(--background));
+}
+
+.history-pane-header {
+  border-bottom: 1px solid hsl(var(--border) / 0.42);
+}
+
+.history-conversation-item {
+  border: 1px solid transparent;
+}
+
+.history-conversation-item:hover {
+  border-color: hsl(var(--border) / 0.36);
+}
+
+.history-conversation-item-active {
+  border-color: hsl(var(--primary) / 0.14);
+  background: hsl(var(--primary) / 0.06);
+  box-shadow: 0 8px 16px -18px hsl(var(--primary) / 0.14);
+}
+</style>

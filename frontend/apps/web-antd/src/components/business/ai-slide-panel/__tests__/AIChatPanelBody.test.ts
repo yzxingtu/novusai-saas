@@ -192,6 +192,12 @@ describe('ai chat panel body', () => {
       true,
     );
     expect(
+      wrapper.find('[data-testid="history-overlay-pane"]').exists(),
+    ).toBe(true);
+    expect(
+      wrapper.get('[data-testid="history-overlay-pane"]').classes(),
+    ).not.toContain('bg-card/92');
+    expect(
       wrapper.get('[data-testid="transcript-shell"]').attributes('aria-hidden'),
     ).toBe('true');
     expect(

@@ -355,10 +355,11 @@ watch(
         class="pointer-events-none absolute inset-0 z-10 px-3 py-3"
       >
         <div
-          class="absolute inset-0 bg-gradient-to-b from-background/20 via-background/10 to-background/25 backdrop-blur-[1px]"
+          class="absolute inset-0 bg-background/78"
         ></div>
         <div
-          class="ai-chat-history-overlay-pane bg-card/92 pointer-events-auto relative flex h-full min-h-0 flex-col overflow-hidden rounded-[1.5rem] border border-border/60 shadow-2xl shadow-black/10 ring-1 ring-black/5"
+          data-testid="history-overlay-pane"
+          class="ai-chat-history-overlay-pane pointer-events-auto relative flex h-full min-h-0 flex-col overflow-hidden rounded-[1.5rem] border"
           :class="compactMessages ? '' : 'mx-auto w-full max-w-5xl'"
         >
           <AIChatHistoryPane
@@ -387,6 +388,14 @@ watch(
 </template>
 
 <style scoped>
+.ai-chat-history-overlay-pane {
+  border-color: hsl(var(--border) / 0.5);
+  background: hsl(var(--background));
+  box-shadow:
+    0 24px 40px -28px hsl(var(--foreground) / 0.16),
+    0 0 0 1px hsl(var(--foreground) / 0.04);
+}
+
 .ai-chat-history-overlay-enter-active,
 .ai-chat-history-overlay-leave-active {
   transition: opacity 0.2s ease;
